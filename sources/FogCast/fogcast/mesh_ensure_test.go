@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
@@ -110,7 +111,7 @@ func TestLaunchPullThenPresentAllowsTheExistingPathOnlyAfterEnsure(t *testing.T)
 		Executor:  exec,
 		Entry:     func(string) (meshcontent.Entry, bool) { return entry, true },
 	})
-	if err := service.meshEnsureBeforeExecute(entry.TitleID, ""); err != nil {
+	if err := service.meshEnsureBeforeExecute(entry.TitleID, service.pinLaunchTarget("")); err != nil {
 		t.Fatal(err)
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart || exec.Slot(cart) != meshcontent.StatePresent {
@@ -119,7 +120,7 @@ func TestLaunchPullThenPresentAllowsTheExistingPathOnlyAfterEnsure(t *testing.T)
 	// A second ensure sees the id Present and does not pull again.
 	// Launch would continue into the existing path; this service has
 	// no catalog, so the assertion stops at the seam.
-	if err := service.meshEnsureBeforeExecute(entry.TitleID, ""); err != nil {
+	if err := service.meshEnsureBeforeExecute(entry.TitleID, service.pinLaunchTarget("")); err != nil {
 		t.Fatal(err)
 	}
 	if len(exec.pulls) != 1 {
@@ -269,6 +270,57 @@ func meshTargetService(exec *meshLaunchExecutor, bound string, entry meshcontent
 		},
 	})
 	return service
+}
+
+func TestImplicitLaunchKeepsPinnedTargetWhenSelectionChanges(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := meshTargetService(exec, "node-a", entry)
+	service.catalog = &flipSelectedCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, service: service}
+	var bound string
+	launchPinnedTargetBoundHook = func(name string) { bound = name }
+	t.Cleanup(func() { launchPinnedTargetBoundHook = nil })
+
+	_, err := service.Launch(context.Background(), entry.TitleID, nil)
+	if bound != "dev" {
+		t.Fatalf("bound %q err %v selected %q pulls %+v", bound, err, service.selectedTarget, exec.pulls)
+	}
+	if service.selectedTarget != "spare" {
+		t.Fatalf("selected target %q", service.selectedTarget)
+	}
+	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
+		t.Fatalf("pulls %+v", exec.pulls)
+	}
+}
+
+type flipSelectedCoreCatalog struct {
+	*fakeServiceCatalog
+	service *Service
+	flipped bool
+}
+
+func (c *flipSelectedCoreCatalog) CoreEntry(context.Context, string) (catalog.CoreEntry, error) {
+	if c != nil && !c.flipped {
+		c.flipped = true
+		c.service.selectedTarget = "spare"
+	}
+	return catalog.CoreEntry{GameID: "coleco-frogger"}, nil
+}
+
+func (c *flipSelectedCoreCatalog) CoreEntries(context.Context) ([]catalog.CoreEntry, error) {
+	return nil, nil
+}
+
+func (c *flipSelectedCoreCatalog) CreateCoreEntry(context.Context, string, string, string) (catalog.CoreEntry, error) {
+	return catalog.CoreEntry{}, catalog.ErrCoreEntryNotFound
+}
+
+func (c *flipSelectedCoreCatalog) SelectCoreEntry(context.Context, string, string, string, string) (catalog.CoreEntry, error) {
+	return catalog.CoreEntry{}, catalog.ErrCoreEntryNotFound
 }
 
 func TestProjectedExpansionLinksSlotBytesOnTheExecutor(t *testing.T) {

@@ -937,15 +937,14 @@ before the existing execute path. Expansion content-ids stay separate
 and are linked by `Executor.LinkExpansion` on that executor. The host
 does not pre-link them. Ensure does not choose a node, does not pull
 onto a node the session did not bind, and does not release or change a
-lease. `LaunchOn` resolves an FPGA launch the same way execution binds
-it: an explicit target name, otherwise the selected target. Ensure
-compares the executor to that target's node id. A different named
-target, or a selected target that moved to another node, returns
-`ErrUnboundNode` before Pull or Link. Host-only mesh play stays on the
-installed session node. A launchable FPGA entry that the foreign-kit
-check would deny is rejected before Ensure. The executor is an
-interface. Tests pass a fake. The kit store that pulls bytes through
-the target agent is not in this slice.
+lease. `LaunchOn` captures the target once, before Ensure, and bind
+uses that same name and node id. A later settings change to the
+selected target does not move this launch onto a node Ensure did not
+see. Host-only mesh play stays on the installed session node. A
+launchable FPGA entry that the foreign-kit check would deny is
+rejected before Ensure. The executor is an interface. Tests pass a
+fake. The kit store that pulls bytes through the target agent is not
+in this slice.
 
 The projection is not a host route. JSON tags stay on the host catalog
 shape. Ensure results have no JSON tags. Rooms Ready,

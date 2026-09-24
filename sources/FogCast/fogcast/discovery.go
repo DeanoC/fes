@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/url"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/discovery"
@@ -467,17 +466,14 @@ func (s *Service) kitLeaseForeign() bool {
 // launchUsesForeignKit reports an FPGA launch that would use the kit whose
 // cached connection is held by another session. Host-only execution does not
 // use that kit. A different named target does not use the selected connection.
-func (s *Service) launchUsesForeignKit(target, execution string) bool {
+func (s *Service) launchUsesForeignKit(pinned pinnedLaunchTarget, execution string) bool {
 	if execution == ExecutionHostOnly || !s.kitLeaseForeign() {
 		return false
 	}
 	conn := s.TargetConnection()
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	name := strings.TrimSpace(target)
-	if name == "" {
-		name = s.selectedTarget
-	}
+	name := pinned.name
 	cfg := targetByName(s.targets, name)
 	if conn.TargetID != "" && cfg.TargetID != "" {
 		return conn.TargetID == cfg.TargetID
@@ -485,7 +481,12 @@ func (s *Service) launchUsesForeignKit(target, execution string) bool {
 	if conn.Address != "" && cfg.Address != "" {
 		return conn.Address == cfg.Address
 	}
-	return name == s.selectedTarget
+	if pinned.explicit {
+		return name == pinned.selectedName
+	}
+	// Implicit launch pinned the selected kit. An empty id still means
+	// this connection, including when selectedTarget has since moved.
+	return true
 }
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {

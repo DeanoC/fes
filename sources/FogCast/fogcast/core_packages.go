@@ -297,7 +297,7 @@ func mapCoreEntryError(err error) error {
 	}
 }
 
-func (s *Service) launchCoreEntry(parent context.Context, gameID, target string) (result protocol.CachedLaunchResponse, resultErr error) {
+func (s *Service) launchCoreEntry(parent context.Context, gameID string, pinned pinnedLaunchTarget) (result protocol.CachedLaunchResponse, resultErr error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
@@ -305,7 +305,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		return protocol.CachedLaunchResponse{}, corePackageRequestFailure(err)
 	}
 	defer release()
-	if err := s.bindLaunchTarget(target); err != nil {
+	if err := s.bindPinnedLaunchTarget(pinned); err != nil {
 		return protocol.CachedLaunchResponse{}, corePackageRequestFailure(err)
 	}
 	defer s.clearUnstartedSessionTarget()
