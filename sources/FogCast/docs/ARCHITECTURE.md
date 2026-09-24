@@ -1454,7 +1454,10 @@ shapes them with `playhid.StreamEvent` from the runtime's controller-port and ke
 capabilities, then applies the same keypad Start/Select aliases as the host stream.
 The socket is not an HTTP route and does not consult the kit lease, so a pad on the
 kit drives the running core whichever host launched it. Frames are delivered only
-while a runtime core is bound. The host stream and the local socket keep separate
+while a runtime core is bound. Delivery takes the same input lifecycle lock as host
+attach and core replacement. While replacement holds that lock, from ReleaseAll
+until the finish callback, an arriving frame is dropped before observation, binding,
+or writing. The host stream and the local socket keep separate
 button and axis state. On one player they combine by OR for buttons and keypad bits
 and by the larger stick deflection for axes, so a release or a centred stick from
 one source leaves the other source's hold in place. Local pads occupy P1 and P2

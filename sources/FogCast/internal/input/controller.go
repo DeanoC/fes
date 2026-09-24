@@ -272,9 +272,12 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 
 // BeginCoreReplacement closes the active producer, waits for its in-flight
 // writes, and neutralizes the retained sink before the runtime may open a new
-// input reader. The returned function must be called exactly once. Passing
-// preserve reconstructs the same logical lease after a proven pre-mutation
-// failure; false permanently retires it.
+// input reader. The lifecycle lock stays held until the returned function
+// runs. Kit-local delivery uses that same lock and drops a frame while it is
+// held, so the frame cannot rebind the generation ReleaseAll just cleared.
+// The returned function must be called exactly once. Passing preserve
+// reconstructs the same logical lease after a proven pre-mutation failure;
+// false permanently retires it.
 func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(context.Context, bool) error, error) {
 	if c == nil || ctx == nil {
 		return nil, errors.New("invalid input replacement barrier")

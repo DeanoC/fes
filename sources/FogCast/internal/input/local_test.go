@@ -404,6 +404,71 @@ func (s *controllerPortsSink) mergedButtons(port uint8) (uint8, uint16) {
 	return controllerSnapshot(s.mergedSnapshotLocked(port), keypad)
 }
 
+func TestLocalFrameDuringCoreReplacementDoesNotRebindRetiredGeneration(t *testing.T) {
+	var writes []portWrite
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
+		return nil
+	}}
+	generation := uint64(4)
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		return CoreObservation{Active: true, Binding: &ControllerBinding{PackageID: "coleco", Generation: generation, Keypad: true}}, nil
+	})
+	ctx := context.Background()
+	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if !sink.hasBinding() {
+		t.Fatal("local frame did not bind the active generation")
+	}
+	t.Cleanup(func() { _ = controller.Close() })
+
+	finish, err := controller.BeginCoreReplacement(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// BeginCoreReplacement still holds the lifecycle lock. The runtime has
+	// released the old binding and still reports that generation. A frame
+	// here must return without waiting, observing, or writing.
+	released := len(writes)
+	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	generation = 9
+	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonStart, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if sink.hasBinding() {
+		t.Fatal("local frame rebound a generation while replacement held the lifecycle lock")
+	}
+	if len(writes) != released {
+		t.Fatalf("local frame wrote during replacement: %+v", writes[released:])
+	}
+	if err := finish(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	if sink.hasBinding() {
+		t.Fatal("replacement finish left a binding")
+	}
+	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	last := writes[len(writes)-1]
+	if last.generation != 9 || last.id != "coleco" || last.buttons&16 == 0 {
+		t.Fatalf("next local frame did not bind the new generation: %+v", last)
+	}
+	for _, write := range writes[released:] {
+		if write.generation == 4 {
+			t.Fatalf("local delivery wrote the retired generation after replacement: %+v", writes[released:])
+		}
+	}
+	if err := controller.Attach(ctx, Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "fes.coleco"}); err != nil {
+		t.Fatalf("host attach after the new local binding: %v", err)
+	}
+}
+
 func TestLeaseReleaseClearsLocalSource(t *testing.T) {
 	var writes []portWrite
 	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {

@@ -45,7 +45,8 @@ func listenLocalInput(path string) (net.Listener, error) {
 // ServeLocalInput accepts raw input frames on a unix socket and delivers them
 // into the same sink as the host stream. It is not an HTTP route and it does
 // not consult the kit lease. The feed drops frames while no runtime core is
-// bound. Closing the connection releases only the local source.
+// bound, and while core replacement holds the input lifecycle lock. Closing
+// the connection releases only the local source.
 func (c *TargetController) ServeLocalInput(ctx context.Context, path string) error {
 	if c == nil {
 		return errors.New("input controller is closed")
@@ -166,7 +167,19 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 	}
 }
 
+// deliverLocal binds and writes one kit-local frame. Host attach and core
+// replacement already hold lifecycle across that work. BeginCoreReplacement
+// keeps the lock from ReleaseAll until its finish callback. TryLock drops a
+// frame that arrives in that window, so the frame cannot observe the retired
+// package and rebind it.
 func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.InputFrame) error {
+	if c == nil {
+		return errNoCore
+	}
+	if !c.lifecycle.TryLock() {
+		return nil
+	}
+	defer c.lifecycle.Unlock()
 	if err := c.ensureLocalCore(ctx); err != nil {
 		return err
 	}
