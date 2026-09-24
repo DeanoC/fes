@@ -1,10 +1,17 @@
 package meshcontent
 
 import (
+	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
+
+func ensureNow(entry Entry, node string, exec Executor) (Result, error) {
+	return Ensure(context.Background(), entry, node, exec, EnsureOption{LeaseFree: true})
+}
 
 func TestEnsurePresentDoesNotPull(t *testing.T) {
 	bios := SumSHA256([]byte("bios"))
@@ -20,7 +27,7 @@ func TestEnsurePresentDoesNotPull(t *testing.T) {
 		},
 		abis: []EligibleABI{{ID: "fes.application", Major: 1}},
 	}
-	result, err := Ensure(entry, "kit-a", exec)
+	result, err := ensureNow(entry, "kit-a", exec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +53,7 @@ func TestEnsureMissingSourcePullsThenPresent(t *testing.T) {
 		sources: map[string]bool{bios.String(): true, cart.String(): true, ram.String(): true},
 		abis:    []EligibleABI{{ID: "fes.application", Major: 1}},
 	}
-	result, err := Ensure(entry, "kit-a", exec)
+	result, err := ensureNow(entry, "kit-a", exec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +79,7 @@ func TestEnsureMissingWithoutSourceFailsClosed(t *testing.T) {
 		held: map[string]SlotState{cart.String(): StatePresent, ram.String(): StatePresent},
 		abis: []EligibleABI{{ID: "fes.application", Major: 1}},
 	}
-	result, err := Ensure(entry, "kit-a", exec)
+	result, err := ensureNow(entry, "kit-a", exec)
 	if result.Execute {
 		t.Fatal("missing content allowed execute")
 	}
@@ -106,7 +113,7 @@ func TestEnsureCheckingStaysCheckingAndBlocksExecute(t *testing.T) {
 		sources: map[string]bool{cart.String(): true},
 		abis:    []EligibleABI{{ID: "fes.application", Major: 1}},
 	}
-	result, err := Ensure(entry, "kit-a", exec)
+	result, err := ensureNow(entry, "kit-a", exec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,8 +131,8 @@ func TestEnsureCheckingStaysCheckingAndBlocksExecute(t *testing.T) {
 	if len(exec.pulls) != 0 {
 		t.Fatalf("mid-pull was pulled again: %+v", exec.pulls)
 	}
-	if len(exec.links) != 1 || exec.links[0].id != ram {
-		t.Fatalf("links %+v", exec.links)
+	if len(exec.links) != 0 {
+		t.Fatalf("linked while a sibling was checking: %+v", exec.links)
 	}
 }
 
@@ -153,7 +160,7 @@ func TestEnsureLinksExpansionOnExecutorNotProgrammedImage(t *testing.T) {
 		sources: map[string]bool{source.String(): true, slotBytes.String(): true, programmed.String(): true},
 		abis:    []EligibleABI{{ID: pkg.ABI, Major: pkg.Major}},
 	}
-	result, err := Ensure(entry, "kit-a", exec)
+	result, err := ensureNow(entry, "kit-a", exec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +226,7 @@ func TestEnsureABIIneligibleIsNotReady(t *testing.T) {
 		},
 		abis: []EligibleABI{{ID: pkg.ABI, Major: pkg.Major + 1}},
 	}
-	result, err := Ensure(entry, "kit-a", exec)
+	result, err := ensureNow(entry, "kit-a", exec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,14 +252,14 @@ func TestEnsureRefusesPullOntoUnboundNode(t *testing.T) {
 		sources: map[string]bool{bios.String(): true, cart.String(): true, ram.String(): true},
 		abis:    []EligibleABI{{ID: "fes.application", Major: 1}},
 	}
-	_, err := Ensure(entry, "kit-a", exec)
+	_, err := ensureNow(entry, "kit-a", exec)
 	if !errors.Is(err, ErrUnboundNode) {
 		t.Fatalf("err %v", err)
 	}
 	if len(exec.pulls) != 0 || len(exec.links) != 0 || len(exec.lookups) != 0 {
 		t.Fatalf("unbound node was touched pulls=%d links=%d lookups=%d", len(exec.pulls), len(exec.links), len(exec.lookups))
 	}
-	if _, err := Ensure(entry, "", exec); !errors.Is(err, ErrUnboundNode) {
+	if _, err := ensureNow(entry, "", exec); !errors.Is(err, ErrUnboundNode) {
 		t.Fatalf("empty bind %v", err)
 	}
 }
@@ -271,7 +278,7 @@ func TestEnsureSlowPullStaysChecking(t *testing.T) {
 		sources: map[string]bool{cart.String(): true},
 		slow:    true,
 	}
-	result, err := Ensure(entry, "host-a", exec)
+	result, err := ensureNow(entry, "host-a", exec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +326,10 @@ func (f *fakeExecutor) SourceAdvertises(id ContentID) bool {
 	return f.sources[id.String()]
 }
 
-func (f *fakeExecutor) Pull(id ContentID) (SlotState, error) {
+func (f *fakeExecutor) Pull(ctx context.Context, id ContentID) (SlotState, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	f.pulls = append(f.pulls, id)
 	if f.held == nil {
 		f.held = map[string]SlotState{}
@@ -338,6 +348,85 @@ func (f *fakeExecutor) LinkExpansion(name string, id ContentID) error {
 }
 
 func (f *fakeExecutor) EligibleABIs() []EligibleABI { return f.abis }
+
+func TestEnsureCheckingTimeoutAndCancel(t *testing.T) {
+	cart := SumSHA256([]byte("source-rom"))
+	ram := SumSHA256([]byte("slot-bytes"))
+	entry := Entry{
+		TitleID:    "snes-mario",
+		System:     "snes",
+		Launchable: true,
+		Execute:    []Execute{{Kind: ExecuteNativeEmu}},
+		Slots: []Slot{
+			PrimaryMediaSlot(cart),
+			ExpansionSlot("port", ram),
+		},
+	}
+	exec := &fakeExecutor{
+		node: "host-a",
+		held: map[string]SlotState{
+			cart.String(): StateChecking,
+			ram.String():  StatePresent,
+		},
+	}
+	_, err := Ensure(context.Background(), entry, "host-a", exec, EnsureOption{
+		LeaseFree:       true,
+		CheckingTimeout: 30 * time.Millisecond,
+	})
+	if !errors.Is(err, ErrCheckingTimeout) || errors.Is(err, ErrExecuteBlocked) {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.links) != 0 || len(exec.pulls) != 0 {
+		t.Fatalf("timeout linked %+v pulled %+v", exec.links, exec.pulls)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = Ensure(ctx, entry, "host-a", exec, EnsureOption{LeaseFree: true, CheckingTimeout: time.Second})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancel err %v", err)
+	}
+	if len(exec.pulls) != 0 || len(exec.links) != 0 {
+		t.Fatal("canceled ensure touched the executor pull")
+	}
+}
+
+func TestEnsureRefusesUnownedAndInUseBeforePull(t *testing.T) {
+	bios := SumSHA256([]byte("bios"))
+	cart := SumSHA256([]byte("source-rom"))
+	ram := SumSHA256([]byte("slot-bytes"))
+	entry := colecoEntry(bios, cart, ram)
+	exec := &fakeExecutor{
+		node:    "kit-a",
+		sources: map[string]bool{bios.String(): true, cart.String(): true, ram.String(): true},
+		abis:    []EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	for _, opt := range []EnsureOption{{LeaseFree: true, InUse: true}, {InUse: true}, {}} {
+		_, err := Ensure(context.Background(), entry, "kit-a", exec, opt)
+		if !errors.Is(err, ErrLeaseNotFree) {
+			t.Fatalf("opt %+v err %v", opt, err)
+		}
+	}
+	if len(exec.pulls) != 0 || len(exec.links) != 0 || len(exec.lookups) != 0 {
+		t.Fatalf("unowned ensure touched the executor pulls=%d links=%d lookups=%d", len(exec.pulls), len(exec.links), len(exec.lookups))
+	}
+}
+
+func TestEnsureResultsHaveNoJSONTags(t *testing.T) {
+	for _, value := range []any{Result{}, SlotStatus{}, ExecuteBlockedError{}, ContentMissingError{}} {
+		typ := reflect.TypeOf(value)
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			if tag := field.Tag.Get("json"); tag != "" {
+				t.Fatalf("%s.%s has json tag %q", typ.Name(), field.Name, tag)
+			}
+		}
+	}
+	title, ok := reflect.TypeOf(Entry{}).FieldByName("TitleID")
+	if !ok || title.Tag.Get("json") != "title_id" {
+		t.Fatal("catalog entry lost its host json tag")
+	}
+}
 
 func assertSlotStates(t *testing.T, result Result, states ...SlotState) {
 	t.Helper()

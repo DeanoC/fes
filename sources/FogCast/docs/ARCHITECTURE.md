@@ -930,30 +930,49 @@ not eligibility.
 entry and the executor the session is already bound to. Each required
 content-id comes back Present, Checking (mid-pull), or Missing. A
 required id that is missing and has no source is
-`ErrContentMissingNoSource`. A Checking slot stays Checking.
+`ErrContentMissingNoSource`. A Checking slot is not pulled again.
 `Result.Execute` stays false while any required slot is Checking or
 the executor's ABI id and major are not eligible, and Launch returns
 before the existing execute path. Expansion content-ids stay separate
-and are linked by `Executor.LinkExpansion` on that executor. The host
-does not pre-link them. Ensure does not choose a node, does not pull
-onto a node the session did not bind, and does not release or change a
-lease. When a mesh session is installed, `LaunchOn` captures the target
-once, before Ensure, and bind uses that same name and node id. Bind
-keeps the captured client and returns `ErrUnboundNode` when that name's
-address or TargetID no longer matches the capture. An implicit target
-with an empty TargetID is the bound node only when its name is that
-node. Otherwise Ensure returns `ErrUnboundNode` and does not pull. With
-the seam off, Launch leaves the target live: bind resolves the selected
-target under the target lock at bind time, so a settings change that
-selects another target or replaces its client is the endpoint that
-launches. Before execute, and after lifecycle admission, Launch compares
-the ensured catalog row with the row now selected. The core path and the
-host-only path both do this, and both refuse a changed package, media,
-firmware, ROM, or expansion composition. Host-only mesh play
-stays on the installed session node. A launchable FPGA entry that the
-foreign-kit check would deny is rejected before Ensure. The executor
-is an interface. Tests pass a fake. The kit store that pulls bytes
-through the target agent is not in this slice.
+and are linked by `Executor.LinkExpansion` on that executor only after
+every required sibling is Present. A sibling that is still Checking is
+not linked. The host does not pre-link them. Ensure does not choose a
+node, does not pull onto a node the session did not bind, and does not
+release or change a lease. It also does not pull unless the caller
+reports an owned binding that is not in use (`ErrLeaseNotFree`).
+
+When a mesh session is installed, `LaunchOn` admits the request first.
+A canceled context or a malformed game id returns before Ensure, so
+that request does not pull. It then takes one launch snapshot: target
+name, TargetID, address, enabled state, the captured client, the bound
+node id, and the catalog row Ensure will check (package, ABI, media,
+firmware, ROM, and expansion slots). Ensure runs against that snapshot.
+A known target that is already disabled is refused before Ensure. An
+implicit target with an empty TargetID is the bound node only when its
+name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
+not pull. Host-only mesh play stays on the installed session node. A
+launchable FPGA entry that the foreign-kit check would deny is rejected
+before Ensure.
+
+Immediately before execute, and while lifecycle admission is held,
+`revalidateLaunchSnapshot` compares that snapshot with live state. Any
+difference — target disabled or removed, address or TargetID changed,
+selection changed on an implicit launch, bound node changed, or catalog
+composition changed — returns `ErrLaunchSnapshot` and does not install
+a client. A match binds the captured client. Launch does not fall back
+to a different client. The core path and the host-only path both use
+this one check. With the seam off, Launch leaves the target live: bind
+resolves the selected target under the target lock at bind time.
+
+A Checking slot waits up to the service checking timeout, which
+defaults to 30 seconds and is clamped at two minutes
+(`SetMeshCheckingTimeout`). The caller's cancel returns immediately.
+The timeout returns `ErrCheckingTimeout`. Session launch maps Checking
+to `CONTENT_CHECKING` (409), a checking timeout to
+`CONTENT_CHECKING_TIMEOUT` (504), and missing-with-no-source to
+`CONTENT_MISSING` (422). The executor is an interface. Tests pass a
+fake. The kit store that pulls bytes through the target agent is not
+in this slice.
 
 The projection is not a host route. JSON tags stay on the host catalog
 shape. Ensure results have no JSON tags. Rooms Ready,

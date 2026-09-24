@@ -20,7 +20,6 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
-	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
 	"github.com/DeanoC/FogCast/libraryuser"
@@ -221,6 +220,7 @@ type Service struct {
 	targetMu                 sync.RWMutex
 	requestTimeout           time.Duration
 	uploadTimeout            time.Duration
+	meshCheckingTimeout      time.Duration
 	coreLoadReconcileTimeout time.Duration
 	uploadReadDelay          time.Duration
 	executionResolver        ExecutionResolver
@@ -613,61 +613,6 @@ func (s *Service) clearUnstartedSessionTarget() {
 // and must not call back into Service.
 var launchPinnedTargetBoundHook func(name string)
 
-func (s *Service) bindPinnedLaunchTarget(pinned pinnedLaunchTarget) error {
-	if !pinned.frozen {
-		return s.bindLiveLaunchTarget(pinned.requested)
-	}
-	s.meshMu.Lock()
-	meshOn := s.meshExecute.Executor != nil
-	s.meshMu.Unlock()
-	s.targetMu.Lock()
-	defer s.targetMu.Unlock()
-	name := pinned.name
-	explicit := pinned.explicit
-	cfg := targetByName(s.targets, name)
-	if meshOn && !pinned.endpointMatches(cfg) {
-		return meshcontent.ErrUnboundNode
-	}
-	if pinned.client != nil {
-		if s.targetClients == nil {
-			s.targetClients = map[string]serviceClient{}
-		}
-		s.targetClients[name] = pinned.client
-	}
-	if explicit && (strings.TrimSpace(cfg.Name) == "" || !cfg.Enabled) {
-		return canonicalError(protocol.CodeBadRequest, nil)
-	}
-	if _, ok := s.targetClients[name]; !ok {
-		if !explicit {
-			s.executionMu.Lock()
-			s.activeTarget = name
-			s.executionMu.Unlock()
-			if launchPinnedTargetBoundHook != nil {
-				launchPinnedTargetBoundHook(name)
-			}
-			return nil
-		}
-		if s.targetClientFactory == nil {
-			return canonicalError(protocol.CodeInternal, nil)
-		}
-		client, err := s.targetClientFactory(cfg)
-		if err != nil || client == nil {
-			return canonicalError(protocol.CodeBadRequest, nil)
-		}
-		s.targetClients[name] = client
-	}
-	s.executionMu.Lock()
-	s.activeTarget = name
-	s.executionMu.Unlock()
-	if s.targetOrigin != nil && explicit && name != pinned.selectedName {
-		s.targetOrigin(cfg)
-	}
-	if launchPinnedTargetBoundHook != nil {
-		launchPinnedTargetBoundHook(name)
-	}
-	return nil
-}
-
 // bindLiveLaunchTarget resolves the selected target under targetMu at
 // bind time. LaunchOn uses it when no mesh session is installed, so a
 // settings change that selects another target or replaces its client
@@ -862,16 +807,22 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 }
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	// Pin the kit only when a mesh session is installed, so Ensure and
-	// bind share one identity. With the seam off, bind still resolves
-	// the selected target under targetMu at bind time. A nil executor
+	// Admit before Ensure so a canceled or malformed request never
+	// starts a pull. With the seam off, bind still resolves the
+	// selected target under targetMu at bind time. A nil executor
 	// leaves Phase 0 and Phase 1 launch unchanged. Rooms and
-	// GET /api/v1/games do not use this seam. A Checking slot or a
-	// named content failure returns before catalog execute and before
-	// the FPGA path.
-	pinned := s.launchTarget(target)
-	ensured, ensuredOK, err := s.meshEnsureBeforeExecute(gameID, pinned)
+	// GET /api/v1/games do not use this seam.
+	if err := ctx.Err(); err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	if err := protocol.ValidateGameID(gameID); err != nil {
+		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	snap, err := s.captureLaunchSnapshot(gameID, target)
 	if err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	if err := s.meshEnsureBeforeExecute(ctx, snap); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	if store, ok := s.catalog.(coreEntryCatalog); ok {
@@ -879,32 +830,20 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 			// A core entry executes on an FPGA kit. Deny only the kit whose
 			// connection is already held elsewhere; another named target does
 			// not use that lease. Generation takeover stays on the kit lease API.
-			if s.launchUsesForeignKit(pinned, ExecutionFPGANative) {
+			if s.launchUsesForeignKit(snap, ExecutionFPGANative) {
 				return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
 			}
-			return s.launchCoreEntry(ctx, gameID, pinned, ensured, ensuredOK)
+			return s.launchCoreEntry(ctx, gameID, snap)
 		} else if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
 			return protocol.CachedLaunchResponse{}, mapCoreEntryError(err)
 		}
 	}
 
-	if err := ctx.Err(); err != nil {
-		return protocol.CachedLaunchResponse{}, err
-	}
-	if err := protocol.ValidateGameID(gameID); err != nil {
-		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeBadRequest, nil)
-	}
 	releaseLifecycle, err := s.acquireLifecycle(ctx)
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer releaseLifecycle()
-	// Host-only and other non-core launches compare the ensured catalog
-	// row here, after lifecycle admission and before execute. The core
-	// path does the same comparison in launchCoreEntry.
-	if err := s.meshLaunchCompositionChanged(gameID, ensured, ensuredOK); err != nil {
-		return protocol.CachedLaunchResponse{}, err
-	}
 	// Reject retired FPGA requests before stopping or rebinding a live package.
 	admittedGame, admissionErr := s.catalog.Game(ctx, gameID)
 	if admissionErr != nil {
@@ -924,7 +863,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
-	if s.launchUsesForeignKit(pinned, execution) {
+	if s.launchUsesForeignKit(snap, execution) {
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
 	if err := s.nativeCatalogAdmission(ctx, admittedGame); err != nil {
@@ -937,7 +876,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		packageOwnerTarget = s.activeTarget
 	}
 	s.executionMu.Unlock()
-	if err := s.bindPinnedLaunchTarget(pinned); err != nil {
+	if err := s.revalidateLaunchSnapshot(snap); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer s.clearUnstartedSessionTarget()

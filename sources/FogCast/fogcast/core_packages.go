@@ -298,7 +298,7 @@ func mapCoreEntryError(err error) error {
 	}
 }
 
-func (s *Service) launchCoreEntry(parent context.Context, gameID string, pinned pinnedLaunchTarget, ensured meshcontent.Entry, ensuredOK bool) (result protocol.CachedLaunchResponse, resultErr error) {
+func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap launchSnapshot) (result protocol.CachedLaunchResponse, resultErr error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
@@ -306,11 +306,8 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, pinned 
 		return protocol.CachedLaunchResponse{}, corePackageRequestFailure(err)
 	}
 	defer release()
-	if err := s.meshLaunchCompositionChanged(gameID, ensured, ensuredOK); err != nil {
-		return protocol.CachedLaunchResponse{}, err
-	}
-	if err := s.bindPinnedLaunchTarget(pinned); err != nil {
-		if errors.Is(err, meshcontent.ErrUnboundNode) {
+	if err := s.revalidateLaunchSnapshot(snap); err != nil {
+		if errors.Is(err, ErrLaunchSnapshot) || errors.Is(err, meshcontent.ErrUnboundNode) {
 			return protocol.CachedLaunchResponse{}, err
 		}
 		return protocol.CachedLaunchResponse{}, corePackageRequestFailure(err)

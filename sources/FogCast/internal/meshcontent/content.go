@@ -6,7 +6,8 @@
 // each required content-id is present on the executor the session
 // already bound, or asks that executor to pull it. This package does
 // not transfer bytes, does not choose a node, and does not release a
-// lease. Rooms Ready does not call it.
+// lease. Ensure refuses a pull unless the caller reports an owned,
+// idle binding. Rooms Ready does not call it.
 //
 // The content-id algorithm is an unsigned strawman: sha256. Deano has
 // not locked it. JSON tags on the catalog types are host-catalog

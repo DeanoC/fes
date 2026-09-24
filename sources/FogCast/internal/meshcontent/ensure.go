@@ -1,7 +1,9 @@
 package meshcontent
 
 import (
+	"context"
 	"errors"
+	"time"
 )
 
 // SlotState is presence of one required content-id on the bound executor.
@@ -28,9 +30,31 @@ var (
 	// slot Present, or the executor cannot run the package ABI.
 	// Callers must not program the FPGA or start execution.
 	ErrExecuteBlocked = errors.New("mesh execute blocked")
-	errSlotState      = errors.New("meshcontent: executor slot state is invalid")
-	errPullMissed     = errors.New("meshcontent: pull left the content-id missing")
+	// ErrLeaseNotFree refuses Ensure before any pull when the session
+	// is not an owned binding or the node is already in use.
+	ErrLeaseNotFree = errors.New("mesh ensure refused: session is not owned or the node is in use")
+	// ErrCheckingTimeout is the host deadline for a slot that stayed
+	// Checking. It is not ErrExecuteBlocked and it is not a down target.
+	ErrCheckingTimeout = errors.New("mesh content stayed checking until the host timeout")
+	errSlotState       = errors.New("meshcontent: executor slot state is invalid")
+	errPullMissed      = errors.New("meshcontent: pull left the content-id missing")
 )
+
+// MaxCheckingTimeout is the upper bound on a Checking wait. Callers
+// that pass a longer EnsureOption.CheckingTimeout are clamped.
+const MaxCheckingTimeout = 2 * time.Minute
+
+const checkingPollInterval = 20 * time.Millisecond
+
+// EnsureOption is the launch admission Ensure enforces itself.
+// LeaseFree and InUse are the caller's session facts. Ensure does not
+// discover them. CheckingTimeout bounds a slot that is already
+// Checking; zero does not wait.
+type EnsureOption struct {
+	LeaseFree       bool
+	InUse           bool
+	CheckingTimeout time.Duration
+}
 
 // ContentMissingError is ErrContentMissingNoSource for one slot.
 type ContentMissingError struct {
@@ -80,7 +104,8 @@ type Executor interface {
 	SourceAdvertises(id ContentID) bool
 	// Pull copies id from a source onto this executor.
 	// Checking means the copy is still running. Present means it finished.
-	Pull(id ContentID) (SlotState, error)
+	// A canceled context must not leave a new pull running.
+	Pull(ctx context.Context, id ContentID) (SlotState, error)
 	// LinkExpansion links one expansion's slot bytes on this executor.
 	// id is that slot's content-id. The host does not pre-link those
 	// bytes with primary media or with any other slot.
@@ -126,14 +151,25 @@ type ensurePlan struct {
 // cart payload's SHA-256). Ensure does not read a post-link
 // ProgrammedSHA256 and does not link expansion bytes on the host.
 // A slot that is already Checking stays Checking and is not pulled
-// again. A required id that is missing and has no source returns
-// ErrContentMissingNoSource before any pull.
-func Ensure(entry Entry, boundNode string, exec Executor) (Result, error) {
+// again. LinkExpansion does not run while any sibling slot is still
+// Checking. A required id that is missing and has no source returns
+// ErrContentMissingNoSource before any pull. A canceled context or a
+// lease that is not free returns before any pull.
+func Ensure(ctx context.Context, entry Entry, boundNode string, exec Executor, opt EnsureOption) (Result, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
 	if err := entry.Validate(); err != nil {
 		return Result{}, err
 	}
 	if exec == nil || boundNode == "" || exec.NodeID() != boundNode {
 		return Result{}, ErrUnboundNode
+	}
+	if !opt.LeaseFree || opt.InUse {
+		return Result{}, ErrLeaseNotFree
 	}
 	if !entry.Launchable {
 		return Result{Node: boundNode, Execute: false, Block: BlockBrowseOnly}, nil
@@ -161,8 +197,11 @@ func Ensure(entry Entry, boundNode string, exec Executor) (Result, error) {
 		if !plans[i].pull {
 			continue
 		}
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 		id := *plans[i].slot.Content
-		next, err := exec.Pull(id)
+		next, err := exec.Pull(ctx, id)
 		if err != nil {
 			return Result{}, err
 		}
@@ -177,15 +216,13 @@ func Ensure(entry Entry, boundNode string, exec Executor) (Result, error) {
 		}
 		plans[i].state = state
 	}
+	if err := settleChecking(ctx, exec, plans, opt.CheckingTimeout); err != nil {
+		return Result{}, err
+	}
 	slots := make([]SlotStatus, 0, len(plans))
 	sawChecking := false
 	allPresent := true
 	for _, plan := range plans {
-		if plan.slot.Kind == SlotExpansion && plan.state == StatePresent {
-			if err := exec.LinkExpansion(plan.slot.Name, *plan.slot.Content); err != nil {
-				return Result{}, err
-			}
-		}
 		if plan.state == StateChecking {
 			sawChecking = true
 		}
@@ -198,6 +235,18 @@ func Ensure(entry Entry, boundNode string, exec Executor) (Result, error) {
 			Content: *plan.slot.Content,
 			State:   plan.state,
 		})
+	}
+	// Link only after every required slot is Present. A sibling that
+	// is still Checking must not observe a partial expansion link.
+	if !sawChecking {
+		for _, plan := range plans {
+			if plan.slot.Kind != SlotExpansion || plan.state != StatePresent {
+				continue
+			}
+			if err := exec.LinkExpansion(plan.slot.Name, *plan.slot.Content); err != nil {
+				return Result{}, err
+			}
+		}
 	}
 
 	result := Result{Node: boundNode, Slots: slots, Execute: allPresent, Block: BlockNone}
@@ -227,6 +276,54 @@ func (r Result) Blocked() error {
 		return nil
 	}
 	return &ExecuteBlockedError{Block: r.Block}
+}
+
+func settleChecking(ctx context.Context, exec Executor, plans []ensurePlan, timeout time.Duration) error {
+	if timeout <= 0 {
+		return nil
+	}
+	if timeout > MaxCheckingTimeout {
+		timeout = MaxCheckingTimeout
+	}
+	deadline := time.Now().Add(timeout)
+	for i := range plans {
+		if plans[i].state != StateChecking || plans[i].slot.Content == nil {
+			continue
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return ErrCheckingTimeout
+		}
+		state, err := waitChecking(ctx, exec, *plans[i].slot.Content, remaining)
+		if err != nil {
+			return err
+		}
+		plans[i].state = state
+	}
+	return nil
+}
+
+func waitChecking(ctx context.Context, exec Executor, id ContentID, timeout time.Duration) (SlotState, error) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(checkingPollInterval)
+	defer ticker.Stop()
+	for {
+		state, ok := normalizeState(exec.Slot(id))
+		if !ok {
+			return "", errSlotState
+		}
+		if state != StateChecking {
+			return state, nil
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-timer.C:
+			return "", ErrCheckingTimeout
+		case <-ticker.C:
+		}
+	}
 }
 
 func normalizeState(state SlotState) (SlotState, bool) {
