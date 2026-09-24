@@ -7,6 +7,7 @@ description: >-
 platform: de10_nano
 device: 5CSEBA6U23I7
 profiles:
+  # After user mode the runtime releases the SDR FPGA ports, bridge reset, and L3 remap.
   - id: fes-gp-v1
     diagnostic_only: false
     abis:
@@ -16,6 +17,7 @@ profiles:
         major: 1
       - id: fes.application
         major: 1
+  # Splash, idle, and raw development RBFs stay contained.
   - id: development-contained-v1
     diagnostic_only: true
     abis: []

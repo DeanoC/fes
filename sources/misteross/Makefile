@@ -52,6 +52,12 @@ help:
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
 		"  sim-fes-demo  Test composable application endpoints and reference demos" \
+		"  sim-fes-ramtest  Test the RAM tester HDMI utility and fes.application identity" \
+		"  build-fes-ramtest  Seal the RAM tester utility with HIP nextpnr" \
+		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM diagnostic with HIP nextpnr" \
+		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM diagnostic with HIP nextpnr" \
+		"  toolchain-fes-ramtest-130  Provision the dedicated 130 MHz OSS toolchain" \
+		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
 		"  build-fes-splash  Produce splash RBF + native-inputs provenance (OSS, not a play package)" \
 		"  build-fes-demo  Seal autonomous video application with HIP nextpnr" \
@@ -129,7 +135,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sim-fes-splash,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -144,7 +150,23 @@ sim-pong:
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
 
-.PHONY: sim-fes-demo build-fes-demo build-fes-demo-media sim-fes-splash build-fes-splash
+.PHONY: sim-fes-demo build-fes-demo build-fes-demo-media sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-130 build-fes-ramtest-quartus
+sim-fes-ramtest:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_ramtest.py
+
+build-fes-ramtest:
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+build-fes-ramtest-100:
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 100 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+build-fes-ramtest-130:
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 130 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+build-fes-ramtest-quartus:
+	$(PYTHON) scripts/build_fes_ramtest_quartus.py
+
 sim-fes-demo:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_demo.py --verilator "$(VERILATOR)"
@@ -797,6 +819,12 @@ toolchain:
 
 toolchain-fes:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+.PHONY: toolchain-fes-ramtest-130
+toolchain-fes-ramtest-130:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/ramtest-130.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain-ramtest-130") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-zx81: toolchain-zx81-expansion

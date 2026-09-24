@@ -115,6 +115,18 @@ public:
 			"bridge containment remap");
 	}
 
+	Error EnableBridges()
+	{
+		Error error = Write(kSdrFpgaPortResetAddress, kSdrFpgaPortsEnabled,
+			"bridge release SDR");
+		if (!error.ok()) return error;
+		error = Write(kBridgeResetAddress, kBridgesReleased,
+			"bridge release reset");
+		if (!error.ok()) return error;
+		return Write(kL3RemapAddress, kL3RemapFpgaEnabled,
+			"bridge release remap");
+	}
+
 	Error WaitMode(std::uint32_t expected, bool accept_user, const char* phase)
 	{
 		std::uint32_t status = 0;
@@ -320,6 +332,11 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	if (observed_control != state.control_)
 		return Failed(ProgrammingError("manager CTRL readback", observed_control,
 			"FPGA control mismatch"), state.write_attempted_);
+
+	if (profile == ProgrammingProfile::fes_gp_v1) {
+		error = state.EnableBridges();
+		if (!error.ok()) return Failed(error, state.write_attempted_);
+	}
 
 	return {{}, true};
 }

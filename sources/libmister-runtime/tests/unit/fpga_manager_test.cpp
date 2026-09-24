@@ -148,9 +148,9 @@ void ConfigureSuccess(mister_test::FakeMmio& mmio, std::uint32_t msel = 9)
 	PushReads(mmio, kDclkStatus, {1, 0, 1, 1, 1});
 }
 
-std::vector<mister_test::FakeMmio::Write> SuccessfulWrites()
+std::vector<mister_test::FakeMmio::Write> SuccessfulWrites(bool release_bridges)
 {
-	return {
+	std::vector<mister_test::FakeMmio::Write> writes = {
 		{kInterface, 0}, {kSdr, 0}, {kBridgeReset, 7}, {kRemap, 1},
 		{kControl, 0xa5a502c2u},
 		{kControl, 0xa5a50282u},
@@ -167,6 +167,12 @@ std::vector<mister_test::FakeMmio::Write> SuccessfulWrites()
 		{kDclkStatus, 1}, {kDclkCount, 0x5000}, {kDclkStatus, 1},
 		{kControl, 0xa5a50280u},
 	};
+	if (release_bridges) {
+		writes.push_back({kSdr, 0x3fffu});
+		writes.push_back({kBridgeReset, 0});
+		writes.push_back({kRemap, 0x19u});
+	}
+	return writes;
 }
 
 bool HasWrite(const mister_test::FakeMmio& mmio, std::uint32_t address,
@@ -265,7 +271,7 @@ void TestProgramsWithExactContainmentConfigurationAndReleaseOrder()
 	TempArtifact input(8);
 	mister_test::FakeMmio mmio;
 	ConfigureSuccess(mmio);
-	mmio.expected_writes = SuccessfulWrites();
+	mmio.expected_writes = SuccessfulWrites(true);
 	mmio.enforce_expected_writes = true;
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
@@ -303,9 +309,42 @@ void TestFesGpInitializationWaitsForContainmentAndConfigurationReset()
 	EXPECT(interface < nconfig);
 	EXPECT(nconfig < gpo);
 	EXPECT(mmio.writes[gpo].value == 0);
-	EXPECT(!HasWrite(mmio, kSdr, 0x3fffu));
-	EXPECT(!HasWrite(mmio, kBridgeReset, 0));
-	EXPECT(!HasWrite(mmio, kRemap, 0x19u));
+	std::size_t disabled = mmio.writes.size();
+	std::size_t sdr = mmio.writes.size();
+	std::size_t bridge = mmio.writes.size();
+	std::size_t remap = mmio.writes.size();
+	for (std::size_t index = 0; index < mmio.writes.size(); ++index) {
+		if (mmio.writes[index].offset == kControl &&
+			mmio.writes[index].value == 0xa5a50280u) disabled = index;
+		if (mmio.writes[index].offset == kSdr &&
+			mmio.writes[index].value == 0x3fffu) sdr = index;
+		if (mmio.writes[index].offset == kBridgeReset &&
+			mmio.writes[index].value == 0) bridge = index;
+		if (mmio.writes[index].offset == kRemap &&
+			mmio.writes[index].value == 0x19u) remap = index;
+	}
+	EXPECT(disabled < sdr);
+	EXPECT(sdr < bridge);
+	EXPECT(bridge < remap);
+}
+
+void TestContainedProfileLeavesBridgesContained()
+{
+	TempArtifact input(4);
+	mister_test::FakeMmio mmio;
+	ConfigureSuccess(mmio);
+	FixedClock clock(1);
+	mister::native::LinuxFpgaManager manager(mmio, clock);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::development_contained_v1, 100);
+	if (!result.error.ok()) fprintf(stderr, "program error: %s\n",
+		result.error.message.c_str());
+	EXPECT(result.error.ok());
+	ExpectStillContained(mmio);
+	EXPECT(HasWrite(mmio, kSdr, 0));
+	EXPECT(HasWrite(mmio, kBridgeReset, 7));
+	EXPECT(HasWrite(mmio, kRemap, 1));
+	EXPECT(!HasWrite(mmio, kGpo, 0));
 }
 
 
@@ -671,6 +710,8 @@ int main()
 		TestProgramsWithExactContainmentConfigurationAndReleaseOrder, &count);
 	Run("FES GP initialization after reset",
 		TestFesGpInitializationWaitsForContainmentAndConfigurationReset, &count);
+	Run("contained profile leaves bridges contained",
+		TestContainedProfileLeavesBridgesContained, &count);
 	Run("MSEL mapping and CTRL/GPO RMW preservation",
 		TestMselMappingAndControlRmwPreserveUnrelatedBits, &count);
 	Run("4 KiB stream boundary order",

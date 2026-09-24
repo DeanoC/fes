@@ -20,8 +20,11 @@ Only `fes-gp-v1` packages activate. The contained profile is diagnostic-only.
 
 Replacement stops and neutralizes old input, quiesces HDMI and the outgoing
 driver, then programs once. Ambiguous quiesce is not repeated. FPGA-manager
-containment and control readback remain bounded; neither retained profile
-releases the old MiSTer SDRAM bridges. A programming/activation fault receives
+containment and control readback remain bounded. Every program contains the
+bridges before configuration. After user-mode readback, `fes-gp-v1` releases
+the SDR FPGA ports (`0x3fff`), bridge reset (`0`), and L3 remap (`0x19`).
+`development-contained-v1` stays contained, including splash, idle, and raw
+development RBFs. A programming/activation fault receives
 at most one defined-idle recovery. `Stop` does not program again from
 `reboot_required`. `recover_idle` is the explicit second `LoadIdle`; if that
 also fails, the state stays `reboot_required` and a board reboot is the
