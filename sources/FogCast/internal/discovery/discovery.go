@@ -160,42 +160,10 @@ func Resolve(ctx context.Context, id string) ([]string, error) {
 	}
 	var mu sync.Mutex
 	instances := map[string]string{}
-	entryEndpoint := func(entry dnssd.BrowseEntry) (string, bool) {
-		// Mesh version and the capability bag are additive. Phase 0 text
-		// that omits them stays directly bindable. Parsed TTL is not a lease.
-		ad := ParseTXT(entry.Text)
-		if ad.TargetID != id || !ad.DirectBindable() || entry.Port < 1 || entry.Port > 65535 {
-			return "", false
-		}
-		var selected net.IP
-		for _, ip := range entry.IPs {
-			if ip != nil && !ip.IsUnspecified() && ip.To4() != nil {
-				selected = ip
-				break
-			}
-		}
-		if selected == nil {
-			for _, ip := range entry.IPs {
-				if ip != nil && !ip.IsUnspecified() {
-					selected = ip
-					break
-				}
-			}
-		}
-		if selected == nil {
-			return "", false
-		}
-		host := selected.String()
-		if selected.To4() == nil && selected.IsLinkLocalUnicast() && entry.IfaceName != "" {
-			host += "%" + entry.IfaceName
-		}
-		u := url.URL{Scheme: "http", Host: net.JoinHostPort(host, strconv.Itoa(entry.Port))}
-		return u.String(), true
-	}
 	instanceKey := func(entry dnssd.BrowseEntry) string { return entry.Name + "\x00" + entry.IfaceName }
 	err := lookupType(ctx, serviceFQDN, func(entry dnssd.BrowseEntry) {
-		endpoint, ok := entryEndpoint(entry)
-		if !ok {
+		endpoint, ad, ok := browseEndpoint(entry)
+		if !ok || ad.TargetID != id {
 			return
 		}
 		mu.Lock()
@@ -218,6 +186,83 @@ func Resolve(ctx context.Context, id string) ([]string, error) {
 	mu.Unlock()
 	sort.Strings(result)
 	if len(result) > 0 && (err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		return result, nil
+	}
+	return result, err
+}
+
+// browseEndpoint parses one DNS-SD instance. Mesh version and the capability
+// bag are additive. Phase 0 text that omits them stays directly bindable.
+// Parsed TTL is not a lease.
+func browseEndpoint(entry dnssd.BrowseEntry) (string, Advertisement, bool) {
+	ad := ParseTXT(entry.Text)
+	if !ad.DirectBindable() || entry.Port < 1 || entry.Port > 65535 {
+		return "", ad, false
+	}
+	var selected net.IP
+	for _, ip := range entry.IPs {
+		if ip != nil && !ip.IsUnspecified() && ip.To4() != nil {
+			selected = ip
+			break
+		}
+	}
+	if selected == nil {
+		for _, ip := range entry.IPs {
+			if ip != nil && !ip.IsUnspecified() {
+				selected = ip
+				break
+			}
+		}
+	}
+	if selected == nil {
+		return "", ad, false
+	}
+	host := selected.String()
+	if selected.To4() == nil && selected.IsLinkLocalUnicast() && entry.IfaceName != "" {
+		host += "%" + entry.IfaceName
+	}
+	u := url.URL{Scheme: "http", Host: net.JoinHostPort(host, strconv.Itoa(entry.Port))}
+	return u.String(), ad, true
+}
+
+// Collect inventories directly bindable node advertisements seen during this
+// browse window. One row per node id. The returned set is observational:
+// a node that is silent, or that omits ttl, is absent from a later result
+// and that absence does not release a kit lease.
+func Collect(ctx context.Context) ([]ObservedNode, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var mu sync.Mutex
+	instances := map[string]ObservedNode{}
+	instanceKey := func(entry dnssd.BrowseEntry) string { return entry.Name + "\x00" + entry.IfaceName }
+	err := lookupType(ctx, serviceFQDN, func(entry dnssd.BrowseEntry) {
+		node, ok := observedNode(entry)
+		if !ok {
+			return
+		}
+		mu.Lock()
+		instances[instanceKey(entry)] = node
+		mu.Unlock()
+	}, func(entry dnssd.BrowseEntry) {
+		mu.Lock()
+		delete(instances, instanceKey(entry))
+		mu.Unlock()
+	})
+	mu.Lock()
+	byID := make(map[string]ObservedNode, len(instances))
+	for _, node := range instances {
+		if _, exists := byID[node.NodeID]; !exists {
+			byID[node.NodeID] = node
+		}
+	}
+	result := make([]ObservedNode, 0, len(byID))
+	for _, node := range byID {
+		result = append(result, node)
+	}
+	mu.Unlock()
+	sort.Slice(result, func(i, j int) bool { return result[i].NodeID < result[j].NodeID })
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return result, nil
 	}
 	return result, err

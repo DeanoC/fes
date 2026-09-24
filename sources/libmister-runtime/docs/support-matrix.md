@@ -15,6 +15,7 @@ Hardware-supported package paths: 0.
 | Static ZX81 composition | covered | pending |
 | Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |
+| `fes-gp-v1` HPS SDRAM bridge release after user mode | covered | pending |
 
 Conventional Main launches, raw game profiles, protocol 1 and MiSTer package
 activation are retired. Existing catalog/cache/save files are not migrated or

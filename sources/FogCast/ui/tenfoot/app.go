@@ -1896,6 +1896,13 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
+	if a.foreignKitLeaseLocked() && !game.HostOnly() {
+		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: "This executor is in use."}
+		if a.room != nil {
+			a.closeRoomOverlaysLocked()
+		}
+		return
+	}
 	a.clearStaleDevelopmentLoadLocked()
 	if missingFirmwareGame(game) {
 		a.openFirmwarePickerLocked(game)

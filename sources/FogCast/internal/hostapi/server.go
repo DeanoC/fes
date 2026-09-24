@@ -410,6 +410,15 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
+	mux.HandleFunc("GET /api/v1/mesh/nodes", func(w http.ResponseWriter, r *http.Request) {
+		nodes := []fogcast.MeshNode{}
+		if provider, ok := service.(interface{ MeshNodes() []fogcast.MeshNode }); ok {
+			if listed := provider.MeshNodes(); len(listed) > 0 {
+				nodes = listed
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"nodes": nodes})
+	})
 	mux.HandleFunc("GET /api/v1/games", func(w http.ResponseWriter, r *http.Request) {
 		handleGamesList(w, r, service)
 	})

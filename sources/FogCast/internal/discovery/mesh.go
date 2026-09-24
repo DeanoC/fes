@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/brutella/dnssd"
 )
 
 const (
@@ -41,23 +43,40 @@ func (v MeshVersion) String() string {
 
 // ABI is one package family an Execute kind can run, when the node knows it.
 type ABI struct {
-	ID    string
-	Major int
+	ID    string `json:"id"`
+	Major int    `json:"major"`
 }
 
 // Execute is one advertised execute kind and, when known, its ABI families.
 type Execute struct {
-	Kind string
-	ABIs []ABI
+	Kind string `json:"kind"`
+	ABIs []ABI  `json:"abis,omitempty"`
 }
 
 // Capabilities is the node's advertised bag. Absent entries are not claims.
 // DisplaySink means the node can present. It does not mean the picture is up.
 type Capabilities struct {
-	Execute     []Execute
-	DisplaySink bool
-	InputSource bool
+	Execute     []Execute `json:"execute,omitempty"`
+	DisplaySink bool      `json:"display_sink,omitempty"`
+	InputSource bool      `json:"input_source,omitempty"`
 }
+
+// ObservedNode is one directly bindable DNS-SD advertisement in the host
+// inventory. Silence and a missing ttl drop the row from a later collect.
+// That absence is not a kit-lease release.
+type ObservedNode struct {
+	NodeID               string
+	TargetID             string
+	Mesh                 string
+	Cap                  string
+	Capabilities         Capabilities
+	Address              string
+	TTLSeconds           *int
+	CapabilitiesUnusable bool
+}
+
+// SilenceReleasesLease reports whether dropping this row frees a kit lease.
+func (ObservedNode) SilenceReleasesLease() bool { return false }
 
 // Advertisement is a parsed DNS-SD TXT record. Phase 0 records omit mesh
 // fields. Unknown keys are ignored. Credentials, titles, and lease secrets
@@ -78,6 +97,33 @@ type Advertisement struct {
 // PictureUp reports session picture liveness. Discovery never sets it.
 // HDMI and ADV health are not this advertisement.
 func (Advertisement) PictureUp() bool { return false }
+
+func observedNode(entry dnssd.BrowseEntry) (ObservedNode, bool) {
+	address, ad, ok := browseEndpoint(entry)
+	if !ok || !ValidID(ad.NodeID) {
+		return ObservedNode{}, false
+	}
+	node := ObservedNode{
+		NodeID:               ad.NodeID,
+		TargetID:             ad.TargetID,
+		Capabilities:         ad.Capabilities,
+		Address:              address,
+		CapabilitiesUnusable: ad.CapabilitiesUnusable,
+	}
+	if ad.Mesh != nil {
+		node.Mesh = ad.Mesh.String()
+	}
+	if !ad.CapabilitiesUnusable {
+		if cap, ok := entry.Text[capKey]; ok {
+			node.Cap = cap
+		}
+	}
+	if ad.TTLSeconds != nil {
+		seconds := *ad.TTLSeconds
+		node.TTLSeconds = &seconds
+	}
+	return node, true
+}
 
 // SilenceReleasesLease reports whether advertisement silence frees a kit
 // lease. It is always false. Silence past a parsed TTL is absence for a

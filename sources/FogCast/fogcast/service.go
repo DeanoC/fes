@@ -18,7 +18,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
-
+	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
@@ -182,6 +182,9 @@ type Service struct {
 	connectionMu   sync.Mutex
 	connection     TargetConnection
 	resolveTarget  func(context.Context, string) ([]string, error)
+	meshMu         sync.Mutex
+	meshNodes      []MeshNode
+	collectNodes   func(context.Context) ([]discovery.ObservedNode, error)
 	lookupCancel   context.CancelFunc
 	monitorCancel  context.CancelFunc
 	monitorDone    chan struct{}
@@ -484,14 +487,41 @@ func (s *Service) selectedClientLocked() (serviceClient, bool) {
 }
 
 // Caller holds targetMu. Admission and transport must resolve the same binding.
+// Host-only play does not own a kit, so a host marker is ignored. A launch
+// that has already bound a configured target still uses that name while the
+// previous execution is host-only. Otherwise the load falls through to the
+// selected kit.
 func (s *Service) sessionTargetNameLocked() string {
 	name := s.selectedTarget
 	s.executionMu.Lock()
-	if s.activeTarget != "" && s.activeExecution != ExecutionHostOnly {
-		name = s.activeTarget
-	}
+	active := s.activeTarget
+	execution := s.activeExecution
 	s.executionMu.Unlock()
+	if active == "" {
+		return name
+	}
+	if execution != ExecutionHostOnly || s.configuredTargetLocked(active) {
+		return active
+	}
 	return name
+}
+
+// Caller holds targetMu.
+func (s *Service) configuredTargetLocked(name string) bool {
+	_, ok := s.targetClients[name]
+	return ok
+}
+
+// Caller holds targetMu. The name is a kit bind that host-only cleanup must
+// not replace with the selected target.
+func (s *Service) kitBindToKeepLocked() string {
+	s.executionMu.Lock()
+	active := s.activeTarget
+	s.executionMu.Unlock()
+	if s.configuredTargetLocked(active) {
+		return active
+	}
+	return ""
 }
 
 type targetPlay struct {
@@ -762,6 +792,12 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
 	if store, ok := s.catalog.(coreEntryCatalog); ok {
 		if _, err := store.CoreEntry(ctx, gameID); err == nil {
+			// A core entry executes on an FPGA kit. Deny only the kit whose
+			// connection is already held elsewhere; another named target does
+			// not use that lease. Generation takeover stays on the kit lease API.
+			if s.launchUsesForeignKit(target, ExecutionFPGANative) {
+				return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
+			}
 			return s.launchCoreEntry(ctx, gameID, target)
 		} else if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
 			return protocol.CachedLaunchResponse{}, mapCoreEntryError(err)
@@ -790,6 +826,17 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		}
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, safeContextError(admissionErr))
 	}
+	// Resolve execution before the lease decision, on the same path that skips
+	// target admission for host-only play. A foreign holder blocks only an
+	// FPGA launch aimed at that kit. Host-emulator play and a different named
+	// target do not claim or take over the lease.
+	execution, err := s.resolveExecution(ctx, admittedGame)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	if s.launchUsesForeignKit(target, execution) {
+		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
+	}
 	if err := s.nativeCatalogAdmission(ctx, admittedGame); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
@@ -804,15 +851,9 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer s.clearUnstartedSessionTarget()
-	if s.protocolAdmissionEnabled() {
-		execution, err := s.SessionExecution(ctx, gameID)
-		if err != nil {
-			return protocol.CachedLaunchResponse{}, err
-		}
-		if execution != ExecutionHostOnly {
-			if _, err := s.refreshTargetAdmission(ctx); err != nil {
-				return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
-			}
+	if s.protocolAdmissionEnabled() && execution != ExecutionHostOnly {
+		if _, err := s.refreshTargetAdmission(ctx); err != nil {
+			return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
 	if err := s.incompatibleTargetError(); err != nil {
@@ -1523,8 +1564,12 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 			return s.retireExecutionAfterConfirmedIdleCorePackageFailure(ctx, recovered, rejection)
 		}
 
+		keepTarget := s.kitBindToKeepLocked()
 		hostCleanupErr := s.stopHostOnlyIfActive(ctx)
 		s.executionMu.Lock()
+		if keepTarget != "" {
+			s.activeTarget = keepTarget
+		}
 		if hostCleanupErr == nil {
 			s.activeExecution = ExecutionFPGADevelopment
 			s.retainSessionTargetLocked()
@@ -1541,6 +1586,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	}
 	// Keep the previous host owner until its executor is confirmed stopped.
 	// A successful target activation can still require recovery of both owners.
+	keepTarget := s.kitBindToKeepLocked()
 	if hostCleanupErr := s.stopHostOnlyIfActive(ctx); hostCleanupErr != nil {
 		cleanupErr := &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package activation", Phase: "recovery"}
 		s.executionMu.Lock()
@@ -1551,6 +1597,9 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return status, cleanupErr
 	}
 	s.executionMu.Lock()
+	if keepTarget != "" {
+		s.activeTarget = keepTarget
+	}
 	s.activeExecution = ExecutionFPGADevelopment
 	if selected.entry != nil && recognizedPlayContract(status.CorePackage.ABI) {
 		s.activeExecution = ExecutionFPGANative

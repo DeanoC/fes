@@ -175,6 +175,9 @@ func (r *Instance) gameTable(g hostclient.Game) *lua.LTable {
 	t.RawSetString("launchable", lua.LBool(g.LaunchEligible()))
 	t.RawSetString("firmware_required", lua.LBool(g.FirmwareRequired))
 	t.RawSetString("firmware_ready", lua.LBool(g.FirmwareReady))
+	if exec := strings.TrimSpace(g.Execution); exec != "" {
+		t.RawSetString("execution", lua.LString(exec))
+	}
 	t.RawSetString("favorite", lua.LBool(g.Favorite))
 	t.RawSetString("play_count", lua.LNumber(g.PlayCount))
 	t.RawSetString("last_played_at", lua.LNumber(g.LastPlayedAt))
