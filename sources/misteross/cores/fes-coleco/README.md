@@ -53,17 +53,18 @@ shell and checks its CRAM diff before publishing an expansion archive. The
 builder reconstructs the system PLL's second output from the exact frozen net
 metadata. Request bit 23 uses the vacant third-row boundary FF so the cart can
 route. The full-response diagnostic route completes and passes all three clock
-gates. The current integrated shell changes two bits outside the declared
-region at `(3332,803)` and `(3333,802)`. Both belong to routing mux
+gates. The final integrated shell/cart changes no bits outside the declared
+region. An earlier route against the same RTL changed two bits outside at
+`(3332,803)` and `(3333,802)`. Both belong to routing mux
 `H6.033.009.0035`, which the frozen shell uses on `$PACKER_GND_NET` leading
 to the vacant response `DATAIN` stub at row 9. Cart merge disconnects that
 placeholder ground sink when it drives the response bank, so these are
 deselected shell mux bits rather than newly selected cart routes escaping the
 fence. The one-bit response control does not exercise the full set of response
-boundary stubs. The producer records the exact coordinates and resulting values
-in a `fes.coleco.response-boundary/4` manifest patch. The Go linker accepts
-that closed two-bit patch alongside the CPU-bus rectangle and rejects any
-other outside change; the socket rectangle itself is unchanged.
+boundary stubs. If this exact pair changes, the producer records the resulting
+values in a `fes.coleco.response-boundary/4` manifest patch. The Go linker
+accepts that closed two-bit patch alongside the CPU-bus rectangle and rejects
+any other outside change; the socket rectangle itself is unchanged.
 `cram-diff.json` retains the changed coordinates and reports whether the
 declared contract matches. The diagnostic's WAIT request stays armed until a
 CPU read starts, then advances every sixteen system clocks.
@@ -75,8 +76,7 @@ The factory image continues to use the normal package.
 
 External bus mastering, video/audio takeover and bank switching remain outside
 this first slice. The logical frame cadence follows the TMS9918A manual's
-262-line, approximately
-60-frame/s noninterlaced mode; composite sync details, half-line behavior and
+262-line, approximately 60-frame/s noninterlaced mode; composite sync details, half-line behavior and
 cycle-perfect raster effects remain outside this slice. Native host/runtime
 selection follows the declared interfaces. Graphics II supports screen-third
 pattern/color addressing and register masks. Text mode renders 40×24 six-pixel glyphs with

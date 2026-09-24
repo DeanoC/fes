@@ -577,8 +577,9 @@ physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate
 Mistral and nextpnr pins. The development producer seals a timed shell with a
 vacant `24 1 28 11` placement region and optional `fes.expansion.coleco-bus`
 1.0. The diagnostic module uses the frozen shell and restores the system PLL's
-second output from exact routed metadata. Its producer permits only the two
-fixed response-stub changes declared by `fes.coleco.response-boundary/4`,
+second output from exact routed metadata. The integrated shell/cart has no
+outside CRAM changes. Its producer permits only the two fixed response-stub
+changes declared by `fes.coleco.response-boundary/4` if a route needs them,
 alongside the CPU-bus rectangle; the linker rejects every other outside change.
 The selected factory recipe and FES registration remain unchanged. External
 bus mastering, video/audio takeover, bank switching and retail-cartridge
