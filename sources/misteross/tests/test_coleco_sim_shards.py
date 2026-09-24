@@ -26,7 +26,7 @@ def commands(result):
 class ColecoSimulationShardsTest(unittest.TestCase):
     def test_aggregate_keeps_every_shard_and_builds_each_lane_once(self):
         targets = ["sim-fes-coleco-unit", "sim-fes-coleco-unit-oss",
-                   "sim-fes-coleco-expansion"]
+                   "sim-fes-coleco-expansion", "sim-fes-coleco-diagnostic"]
         targets += [f"sim-fes-coleco-board-{case}{lane}"
                     for lane in ("", "-oss") for case in CASES]
         aggregate = dry_run("sim-fes-coleco")
@@ -43,6 +43,8 @@ class ColecoSimulationShardsTest(unittest.TestCase):
     def test_oss_aggregate_keeps_only_oss_shards(self):
         aggregate = dry_run("sim-fes-coleco-oss")
         shards = dry_run("sim-fes-coleco-unit-oss",
+                         "sim-fes-coleco-expansion",
+                         "sim-fes-coleco-diagnostic",
                          *(f"sim-fes-coleco-board-{case}-oss" for case in CASES))
         self.assertEqual(aggregate.returncode, 0, aggregate.stderr)
         self.assertEqual(shards.returncode, 0, shards.stderr)
@@ -74,6 +76,7 @@ class ColecoSimulationShardsTest(unittest.TestCase):
 
     def test_direct_shards_reject_shared_cache_before_diagnostics(self):
         for target in ("sim-fes-coleco-unit", "sim-fes-coleco-unit-oss",
+                       "sim-fes-coleco-expansion", "sim-fes-coleco-diagnostic",
                        *(f"sim-fes-coleco-board-{case}{lane}"
                          for case in CASES for lane in ("", "-oss"))):
             with self.subTest(target=target):

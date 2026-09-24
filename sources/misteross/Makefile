@@ -393,8 +393,8 @@ sim-fes-coleco-audio:
 COLECO_BOARD_CASES := graphics stream interactive controllers vdp-io sprites
 COLECO_BOARD_TARGETS := $(addprefix sim-fes-coleco-board-,$(COLECO_BOARD_CASES))
 .PHONY: sim-fes-coleco-unit sim-fes-coleco-unit-oss sim-fes-coleco-board-build sim-fes-coleco-board-build-oss $(COLECO_BOARD_TARGETS) $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
-sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss sim-fes-coleco-expansion
-sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
+sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss
+sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS)) sim-fes-coleco-expansion sim-fes-coleco-diagnostic
 
 $(COLECO_BOARD_TARGETS): sim-fes-coleco-board-build
 $(addsuffix -oss,$(COLECO_BOARD_TARGETS)): sim-fes-coleco-board-build-oss
