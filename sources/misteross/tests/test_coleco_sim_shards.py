@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CASES = ("graphics", "stream", "interactive", "controllers", "vdp-io", "sprites")
 SGM_TARGETS = ("sim-fes-coleco-sgm-socket", "sim-fes-coleco-sgm-shell-ram",
                "sim-fes-coleco-sgm-ay", "sim-fes-coleco-sgm-module",
-               "sim-fes-coleco-sgm-audio", "sim-fes-coleco-sgm-integrated")
+               "sim-fes-coleco-sgm-audio", "sim-fes-coleco-sgm-integrated",
+               "sim-fes-coleco-sgm-probe")
 
 
 def dry_run(*targets, cache=""):
