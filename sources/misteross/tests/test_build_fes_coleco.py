@@ -78,7 +78,7 @@ class BuildFesColecoTests(unittest.TestCase):
 
     def test_make_entrypoints_use_both_recipes(self) -> None:
         for target, recipe in (
-            ("build-fes-coleco", "scripts/build_fes_coleco_oss.py"),
+            ("build-fes-coleco", "scripts/build_fes_coleco_socket_v2.py"),
             ("build-fes-coleco-quartus", "scripts/build_fes_coleco.py"),
         ):
             result = subprocess.run(
@@ -106,9 +106,9 @@ class BuildFesColecoTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
-        self.assertIn("toolchains/registered-memory.lock", result.stdout)
+        self.assertIn("toolchains/coleco-sgm.lock", result.stdout)
         self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
-        self.assertIn("build/toolchain/fes-coleco", result.stdout)
+        self.assertIn("build/toolchain/fes-coleco-socket-v2", result.stdout)
         self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
         self.assertIn("FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201'", result.stdout)
 
