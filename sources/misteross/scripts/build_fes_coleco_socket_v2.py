@@ -28,8 +28,8 @@ from scripts.functional_execution import FunctionalInvocation, source_roots_for_
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
-RECIPE = "scripts/build_fes_coleco_socket_v2_dev.py"
-OUTPUT_RELATIVE = Path("build/fes-coleco-socket-v2-dev")
+RECIPE = "scripts/build_fes_coleco_socket_v2.py"
+OUTPUT_RELATIVE = Path("build/fes-coleco-socket-v2")
 TOOLCHAIN_LOCK = "toolchains/coleco-sgm.lock"
 COLECO_TOOLCHAIN_LOCK = TOOLCHAIN_LOCK
 PLACER_SEEDS = (3, 4, 5, 1, 2, 6, 7, 8, 9, 10)
@@ -150,7 +150,7 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
     fields = tomllib.loads(factory._manifest(
         record, evidence, repository, revision, identities).decode())
     fields["core"]["version"] = "1.2.0"
-    fields["core"]["description"] = "Development Coleco v2 SGM socket shell"
+    fields["core"]["description"] = "ColecoVision with optional SGM expansion socket"
     fields["interfaces"].append({
         "id": "fes.expansion.coleco-bus", "major": 2, "minor": 0,
         "required": False,
@@ -163,8 +163,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
           cache_root: Path | None = None, identity_version: int = 2) -> Path:
     root = root.resolve()
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    package_store = (root / "build/coleco-socket-v2-packages" if package_store is None
-                     else factory._package_store(root, package_store, private_bios=False))
+    package_store = factory._package_store(root, package_store, private_bios=False)
     tools = authenticate_tools(root, cache_root)
     identities = {name: tool.identity for name, tool in tools.items()}
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
@@ -243,7 +242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(build(args.root, args.package_output, cache_root=args.cache_root,
                     identity_version=args.identity_version))
     except (BuildError, OSError, ValueError) as exc:
-        print(f"build-fes-coleco-socket-v2-dev: {exc}", file=sys.stderr)
+        print(f"build-fes-coleco-socket-v2: {exc}", file=sys.stderr)
         return 1
     return 0
 

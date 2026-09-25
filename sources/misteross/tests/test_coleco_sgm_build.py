@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import coleco_expansion
-from scripts import build_fes_coleco_socket_v2_dev as shell
+from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_coleco_sgm as sgm
 
 

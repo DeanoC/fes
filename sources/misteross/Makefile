@@ -762,7 +762,7 @@ build-fes-coleco-quartus:
 	$(PYTHON) scripts/build_fes_coleco.py --root "$(CURDIR)"
 
 build-fes-coleco:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2_dev.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sg1000-diagnostic
 sg1000-diagnostic:

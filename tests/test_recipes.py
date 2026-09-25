@@ -53,8 +53,8 @@ class RecipeRegistryTest(unittest.TestCase):
                 "package_selection_env": "FES_ZX81_PACKAGE_SELECTION",
             },
             "fes.coleco": {
-                "producer_script": "scripts/build_fes_coleco_socket_v2_dev.py",
-                "producer_module": "scripts.build_fes_coleco_socket_v2_dev",
+                "producer_script": "scripts/build_fes_coleco_socket_v2.py",
+                "producer_module": "scripts.build_fes_coleco_socket_v2",
                 "lock_path": "toolchains/coleco-sgm.lock",
                 "selection_filename": "fes-coleco.package-selection.toml",
                 "authenticate": "authenticate_tools",
