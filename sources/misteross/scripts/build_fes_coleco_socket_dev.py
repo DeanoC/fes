@@ -33,7 +33,7 @@ TOOLCHAIN_LOCK = "toolchains/coleco-expansion.lock"
 TOOL_COMMITS = {
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
     "mistral": "18db2489a63bd9fcfbb7ba727ac194e767e7dce3",
-    "nextpnr": "abce51d34aea8aa4b694404c9333e0887e2a8b6e",
+    "nextpnr": "6d4a5cbe9fe464e009d561ba0bc408f8fc1a4ce8",
 }
 RTL_SOURCES = (*factory.RTL_SOURCES, "cores/fes-coleco/rtl/coleco_expansion_socket.v")
 PINNED_INPUTS = tuple(dict.fromkeys((
