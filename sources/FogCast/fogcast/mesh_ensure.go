@@ -58,13 +58,18 @@ func snapshotMismatch(reason string) error {
 // launchable FPGA entry is ensured on the target this call will
 // execute on. Launch does not pull onto a different node. A grant
 // this call claims is released when Ensure does not start execution.
-// A grant the session already held stays held.
+// A grant the session already held stays held. Placement is set when
+// a launch asked Place and the selection is this bound executor.
 type MeshExecuteSession struct {
 	BoundNode string
 	Executor  meshcontent.Executor
 	// Entry returns the projected catalog row for gameID. ok false
 	// means this launch is not asking for the mesh content contract.
 	Entry func(gameID string) (meshcontent.Entry, bool)
+	// Placement is the recorded Execute node and its local DisplaySink
+	// and InputSource. The zero value means no decision is recorded.
+	// Launch and Ensure keep using BoundNode and Executor.
+	Placement MeshPlacement
 }
 
 // SetMeshExecuteSession installs the ensure seam. Tests pass a fake

@@ -74,9 +74,19 @@ node ids. Empty means unset. A successful FPGA play on a bound target
 records that target's node id (`target_id`) as the last DisplaySink.
 Development loads, status reads, stops, and host-only play leave that
 memory unchanged. The record stays on the host. `PlaceOptions` copies
-the two ids into `meshplace.Options` for a later `meshplace.Place`
-call. This host does not call `Place` yet. Decision 7 remains the
-unsigned strawman `meshplace` already applies.
+the two ids into `meshplace.Options`.
+
+When a launch asks for placement, `LaunchOn` calls `meshplace.Place`
+with those options, the caller's candidates, and an optional override
+node id. If Place selects the executor this session is already bound
+to, the session records that Execute node and its local DisplaySink
+and InputSource. Launch and Ensure keep that bind. A selection that
+names any other node is not applied: Launch returns
+`meshcontent.ErrUnboundNode` before bind and does not move the
+session. A launch that is not asking for placement keeps the Phase 0
+and Phase 1 bind. Decision 7 remains the unsigned strawman
+`meshplace` already applies. `[mesh] ensure` stays off unless the
+operator set it.
 
 ## Process ownership
 
@@ -967,6 +977,11 @@ launch snapshot: target name, TargetID, address, enabled state, the
 captured client, the bound
 node id, and the catalog row Ensure will check (package, ABI, media,
 firmware, ROM, and expansion slots). Ensure runs against that snapshot.
+When that launch asked for placement, `meshplace.Place` runs after the
+snapshot and before Ensure. A selection of the bound executor is
+recorded on the session. A selection of any other node returns
+`ErrUnboundNode` before Ensure and before bind, and the bound node
+stays where it was. A launch that did not ask does not call Place.
 A known target that is already disabled is refused before Ensure. An
 implicit target with an empty TargetID is the bound node only when its
 name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
