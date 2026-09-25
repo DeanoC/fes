@@ -28,7 +28,7 @@ unbound cart packer also never clustered carry chains, so the 231 arithmetic
 cells were loose.
 
 nextpnr branch `fix/fes-203-slot-region` (PR DeanoC/nextpnr#78, head
-`dfaa9e7f`, now pinned by `toolchains/coleco-expansion.lock`) creates the
+`f7370550`, now pinned by `toolchains/coleco-expansion.lock`) creates the
 `$FES_SLOT` region, clusters cart carry chains, pairs each cart FF with the
 LUT driving it, legalises slot FFs control-set aware with a 500-ripup limit,
 refuses `--placer sa` for carts, and prints a `FES slot capacity` report that
