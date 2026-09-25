@@ -260,10 +260,15 @@ make target-package-smoke \
 This explicitly launches and stops the three installed packages through the
 host session API, checks their exact selected package IDs, and uses the existing
 kit lease. It does not deploy an image or request a reboot. Health and inventory
-calls are bounded; package transitions allow 30 seconds by default through
-`FOGCAST_CALL_TIMEOUT`. A passing API lifecycle diagnostic does not establish
-HDMI, audio, controller, persistence or exact-image acceptance. Record those
-physical checks separately against the selected image/runtime/package digests;
+calls allow 30 seconds by default. Launch allows 90 seconds for first-time ROM
+composition; `FOGCAST_LAUNCH_TIMEOUT` overrides launch separately, while
+`FOGCAST_CALL_TIMEOUT` sets the other calls and the launch fallback. If a
+launch request fails, the script watches for the selected package becoming
+active or returning idle and sends Stop to release its lease before exiting;
+it reports an unresolved outcome for operator inspection if status cannot be
+reconciled. A passing API lifecycle diagnostic does not establish HDMI, audio,
+controller, persistence or exact-image acceptance. Record those physical checks
+separately against the selected image/runtime/package digests;
 historical raw-core acceptance does not qualify the new artifacts.
 
 ## Deploy and exercise the kit
