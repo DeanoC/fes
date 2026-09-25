@@ -1,8 +1,9 @@
 # Mesh LAN (design draft)
 
 **Status:** merged as #131. Phase 1 closed on main `3d34b6e0`. Phase 2
-execution is [`mesh-phase2.md`](mesh-phase2.md). Bob coordinates; Deano
-merges parents. Still edit strawmen in place. Caster's cast/kit
+execution is [`mesh-phase2.md`](mesh-phase2.md). Phase 3 execution is
+[`mesh-phase3.md`](mesh-phase3.md). Bob coordinates; Deano merges
+parents. Still edit strawmen in place. Caster's cast/kit
 contract review and Foggy's product review, both 2026-09-23, are
 folded into the recommended defaults and strawmen marked below.
 Neither review is a design lock. The product intent under "Why this
@@ -382,7 +383,7 @@ add a Host/Kit identity enum.
 | **0 — now** | One Shell bound to configured kits. Direct session API, kit lease, rooms availability, `core_package` launchable versus browse-only. A second configured target may already play. This is the current post soft-restart / rooms T11 world. | Mesh discovery, a federated catalog, placement, routable I/O |
 | **1 — see the nodes** | Multi-node discovery and capability advertisements. Still one active Shell. Kits remain FPGA executors. Ready stays Phase 0 composition against the bound executor. A second shell that finds that kit leased shows Unavailable "in use" and does not take the lease. | A second shell taking the kit; silent steal; moving ROMs; remote HDMI; treating "some node advertises Execute" as Ready |
 | **2 — one library** | Federated catalog. Package / ABI identity plus BIOS, primary-media, and expansion content-ids. No "ROM is on machine X" in the UI. Ready means this session can play here (Execute, content ensured, lease free, mesh major OK). | Automatic placement; routable pads and picture; one hash standing in for a Coleco composition; Ready merely because the bytes exist somewhere on the LAN |
-| **3 — placement** | Automatic placement, plus an optional advanced override. Policy is Decision 7. | Routable I/O as the normal path; a capture preview counted as DisplaySink |
+| **3 — placement** | Automatic placement, plus an optional advanced override. Policy is Decision 7. Execution: [`mesh-phase3.md`](mesh-phase3.md). | Routable I/O as the normal path; a capture preview counted as DisplaySink |
 | **4 — routable I/O** | Remote pad toward a remote HDMI sink, or a captured remote sink that is actually bound as DisplaySink. | Kit-as-Shell required for ordinary play; treating today's V4L2 / ShadowCast-class preview as that sink |
 | **5 — symmetry** | Kit-as-Shell and host-as-Execute. Same host binary on the kit. Same Execute capability on a machine that also runs a shell. | WAN, accounts, DRM, two people playing one kit at once |
 
@@ -469,6 +470,7 @@ does.
 | [`docs/mesh-node-protocol.md`](mesh-node-protocol.md) | Capability, lease, content-id, session, failure classes |
 | [`docs/mesh-phase1.md`](mesh-phase1.md) | Phase 1 execution, closed on `3d34b6e0` |
 | [`docs/mesh-phase2.md`](mesh-phase2.md) | Phase 2 execution, content plane |
+| [`docs/mesh-phase3.md`](mesh-phase3.md) | Phase 3 execution, placement (Decision 7 unsigned) |
 | [`docs/README.md`](README.md) | Index |
 | [`docs/idle-menu-rooms.md`](idle-menu-rooms.md) | Same host binary for kit-as-host; idle contracts this mesh does not reopen |
 | [`docs/soft-restart-path-b.md`](soft-restart-path-b.md) | `reboot_required` and idle recovery stay kit-local |
