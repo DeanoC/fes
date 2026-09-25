@@ -45,6 +45,7 @@ class ColecoSgmBuildTest(unittest.TestCase):
                                                "repository", "a" * 40, {}, {})
         self.assertEqual(record["parameters"]["expansion_rect"],
                          coleco_expansion.SOCKET_RECT_V2)
+        self.assertEqual(record["parameters"]["seed_order"], "3,4,5,1,2,6,7,8,9,10")
         for source in ("sgm.v", "sgm_control.v", "sgm_ay.v"):
             self.assertIn(f"cores/fes-coleco/expansions/{source}", sgm.INPUTS)
         self.assertIn("toolchains/coleco-sgm.lock", sgm.INPUTS)

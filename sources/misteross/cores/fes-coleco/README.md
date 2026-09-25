@@ -92,7 +92,9 @@ the repaired GPU-router pin in `toolchains/coleco-sgm.lock` and advertises the
 optional `fes.expansion.coleco-bus` 2.0 interface. `scripts/build_coleco_sgm.py`
 routes the SGM independently against that exact sealed shell and admits only
 CRAM changes inside its reserved rectangle. Both recipes require clean,
-committed source and all three final timing gates. A sealed v2 shell and SGM
+committed source and all three final timing gates. The factory v2 shell searches
+ten fixed seeds at HeAP weight 2000, taking the first route that closes all
+three clocks; the seed order is part of its build identity. A sealed v2 shell and SGM
 archive from FES commit `8dfcc60f` passed these gates. Its exact linked RBF
 also passed a cartridge-driven [kit diagnostic](../../../../docs/validation/2026-09-25-coleco-sgm-v2-hil.md)
 with RAM, AY readback, video, audio, Stop and relaunch observations. This
