@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a development-only Coleco v2 SGM socket shell, separate from the factory recipe."""
+"""Build the Coleco v2 shell with an optional SGM expansion socket."""
 
 from __future__ import annotations
 
@@ -20,7 +20,8 @@ from scripts.export_core_package import (
     build_identity, encode_build_record, export_package, functional_record_fields,
 )
 from scripts.fes_build_common import (
-    BuildError, _authenticate_tools, _prepare_output, _require_clean_source,
+    BuildError, _authenticate_tools, _prepare_output,
+    _require_clean_source as require_clean_source,
     _run_tool, _sha256, _write_atomic,
 )
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -30,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_coleco_socket_v2_dev.py"
 OUTPUT_RELATIVE = Path("build/fes-coleco-socket-v2-dev")
 TOOLCHAIN_LOCK = "toolchains/coleco-sgm.lock"
+COLECO_TOOLCHAIN_LOCK = TOOLCHAIN_LOCK
 TOOL_COMMITS = {
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
     "mistral": "18db2489a63bd9fcfbb7ba727ac194e767e7dce3",
@@ -65,9 +67,19 @@ def authenticate_tools(root: Path, cache_root: Path | None):
     )
 
 
+def _require_clean_source(root: Path, *, identity_version: int = 2):
+    if identity_version != 2:
+        raise BuildError("unsupported build identity version")
+    return require_clean_source(root, pinned_inputs=PINNED_INPUTS,
+                                identity_version=identity_version)
+
+
 @guard_functional_source
 def create_build_record(root: Path, repository: str, revision: str,
-                        identities: Mapping[str, str], execution: dict) -> bytes:
+                        identities: Mapping[str, str], execution: dict | None = None,
+                        *, identity_version: int = 2) -> bytes:
+    if identity_version != 2:
+        raise BuildError("unsupported build identity version")
     fields = {
         "format": 1, "repository": repository, "revision": revision,
         "recipe": RECIPE, "recipe_sha256": _sha256(root / RECIPE),
@@ -146,10 +158,12 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 
 @guard_functional_source
-def build(root: Path = ROOT, *, cache_root: Path | None = None) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *,
+          cache_root: Path | None = None, identity_version: int = 2) -> Path:
     root = root.resolve()
-    repository, revision = _require_clean_source(
-        root, pinned_inputs=PINNED_INPUTS, identity_version=2)
+    repository, revision = _require_clean_source(root, identity_version=identity_version)
+    package_store = (root / "build/coleco-socket-v2-packages" if package_store is None
+                     else factory._package_store(root, package_store, private_bios=False))
     tools = authenticate_tools(root, cache_root)
     identities = {name: tool.identity for name, tool in tools.items()}
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
@@ -158,7 +172,8 @@ def build(root: Path = ROOT, *, cache_root: Path | None = None) -> Path:
     invocation = FunctionalInvocation(tools, 0)
     try:
         execution, env = invocation.inputs, invocation.env
-        record = create_build_record(root, repository, revision, identities, execution)
+        record = create_build_record(root, repository, revision, identities,
+                                     execution=execution, identity_version=identity_version)
         _write_atomic(output / "build-inputs.json", record)
         build_id = build_identity(record)
         commands = build_commands(root, output, build_id, {
@@ -199,13 +214,13 @@ def build(root: Path = ROOT, *, cache_root: Path | None = None) -> Path:
         _write_atomic(output / "manifest.toml", encoded)
         if {name: tool.identity for name, tool in authenticate_tools(root, cache_root).items()} != identities:
             raise BuildError("Coleco socket compiler identity changed")
-        if _require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=2) != (repository, revision):
+        if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
             raise BuildError("Coleco socket source changed")
         invocation.verify()
-        if create_build_record(root, repository, revision, identities, execution) != record:
+        if create_build_record(root, repository, revision, identities,
+                               execution=execution, identity_version=identity_version) != record:
             raise BuildError("Coleco socket functional inputs changed")
-        return export_package(encoded, output / "core.rbf",
-                              root / "build/coleco-socket-v2-packages")
+        return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
         for name in ("core.rbf", "manifest.toml", "build-summary.json"):
             path = output / name
@@ -219,10 +234,13 @@ def build(root: Path = ROOT, *, cache_root: Path | None = None) -> Path:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
+    parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     args = parser.parse_args(argv)
     try:
-        print(build(args.root, cache_root=args.cache_root))
+        print(build(args.root, args.package_output, cache_root=args.cache_root,
+                    identity_version=args.identity_version))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-coleco-socket-v2-dev: {exc}", file=sys.stderr)
         return 1

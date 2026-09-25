@@ -33,7 +33,7 @@ the recipe says so. It is not the product path and not a fallback.
 | --- | --- | --- | --- | --- | --- | --- |
 | `fes.pong` | 1.1.0 | Factory | `fes.simple-game` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.persistence.words` 1.0, `fes.pong.progress` 1.0 | — | ROM-less Pong. Paddle speed and best rally persist. Lock `toolchain.lock`. |
 | `fes.zx81` | 1.2.0 | Factory | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0 | `fes.expansion.zx81-bus` 1.0 | 1 KiB RAM, 40-key matrix, `.p` blob (1–16 KiB) at launch or mid-session, vacant expansion socket. BASIC is spliced onto the sealed bitstream at launch; it is not hashed into the package. Lock `toolchains/zx81-expansion.lock`. |
-| `fes.coleco` | 1.0.0 | Factory | `fes.application` 1.0 | `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0, `fes.media.blob-stream` 1.0 | `fes.firmware.blob` 1.0 | Reduced ColecoVision. Blob 1–16 KiB keeps the mirrored map. Stream admits 1–32 KiB at `0x8000–0xffff`. Two gamepads, two 12-key keypads, SN76489, optional 8 KiB firmware overlay. Open `JP 0x8000` shim when no firmware is bound. Not a retail-complete core. Lock `toolchains/registered-memory.lock`. |
+| `fes.coleco` | 1.2.0 | Factory | `fes.application` 1.0 | `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0, `fes.media.blob-stream` 1.0 | `fes.firmware.blob` 1.0, `fes.expansion.coleco-bus` 2.0 | Reduced ColecoVision with a vacant or linked SGM socket. Blob 1–16 KiB keeps the mirrored map. Stream admits 1–32 KiB at `0x8000–0xffff`. Two gamepads, two 12-key keypads, SN76489, optional 8 KiB firmware overlay. Open `JP 0x8000` shim when no firmware is bound. Not a retail-complete core. Lock `toolchains/coleco-sgm.lock`. |
 | `fes.sms` | 1.3.0 | Package-only | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0 | — | Master System slice. Do not use `fes.mastersystem`. Exact 32 KiB `cartridge-rom` is linked through a sealed ROM map before download; pad shorter fixed-map images with `0xff`. 8 KiB RAM at `0xc000`, Mode 4 VDP, SN76489 on `0x7E`/`0x7F`, FPGA I2S into the ADV7513. No `fes.audio` mailbox or Sega mapper. Same registered-memory lock as Coleco. |
 | `fes.catch` | 1.0.0 | Package-only | `fes.application` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.gamepad` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | ROM-less paddle game on the shared application shell. No BIOS, cartridge, or factory-image entry. Lock `toolchain.lock`. |
 | `fes.sg1000` | 1.1.0 | Package-only | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0 | — | SG-1000 slice. Exact 16 KiB `cartridge-rom` linked before download at `0x0000`; pad shorter fixed-map images with `0xff`. 1 KiB RAM at `0xc000`, joysticks on `0xdc`/`0xdd`. No PSG or startup media blob. Same registered-memory lock as Coleco. |
@@ -47,10 +47,10 @@ different interface and admits 1–32768 bytes on the cores that require it.
 Host storage can hold larger files. Storage size is not cartridge capacity.
 See [media capacity](core-media-evolution.md).
 
-The development Coleco shell with optional `fes.expansion.coleco-bus` 2.0 and
-the independently linked SGM expansion have [exact-artifact kit diagnostic
-acceptance](validation/2026-09-25-coleco-sgm-v2-hil.md). The factory row above
-still describes the v1 producer selected by `config/core-recipes.toml`.
+The Coleco v2 shell and independently linked SGM expansion have
+[exact-artifact kit diagnostic acceptance](validation/2026-09-25-coleco-sgm-v2-hil.md)
+for the named artifacts in that record. Factory-image acceptance of a newly
+built package remains a separate check.
 
 ## Not implemented, or not this package
 

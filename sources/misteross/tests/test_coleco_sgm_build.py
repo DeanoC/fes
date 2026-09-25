@@ -13,6 +13,24 @@ from scripts import build_coleco_sgm as sgm
 
 
 class ColecoSgmBuildTest(unittest.TestCase):
+    def test_v2_shell_accepts_factory_producer_arguments(self):
+        output = Path("/tmp/fes-coleco-packages")
+        with patch.object(shell, "build", return_value=output) as build:
+            self.assertEqual(shell.main(["--root", str(shell.ROOT),
+                                         "--package-output", str(output),
+                                         "--identity-version", "2"]), 0)
+        self.assertEqual(build.call_args.args, (shell.ROOT, output))
+        self.assertEqual(build.call_args.kwargs["identity_version"], 2)
+
+    def test_v2_shell_exposes_canonical_record_call(self):
+        with patch.object(shell, "functional_record_fields",
+                          side_effect=lambda root, fields, *args, **kwargs: fields), \
+             patch.object(shell, "encode_build_record", side_effect=lambda fields: fields):
+            record = shell.create_build_record(
+                Path(__file__).parents[1], "repository", "a" * 40, {},
+                identity_version=2, execution={})
+        self.assertEqual(record["recipe"], shell.RECIPE)
+
     def test_shell_closure_and_router_pin(self):
         self.assertIn("cores/fes-coleco/rtl/coleco_expansion_ram.v", shell.PINNED_INPUTS)
         self.assertIn("cores/fes-coleco/rtl/coleco_audio_mix.v", shell.PINNED_INPUTS)

@@ -52,7 +52,7 @@ diagnostic responder. A registered physical socket is available only behind
 reserved `24 1 28 11` region containing only its pinned boundary FFs. The
 cart now uses that full placement rectangle with a compiler that admits those
 frozen cells at their original BELs. It declares optional `fes.expansion.coleco-bus`
-1.0 and leaves the factory Coleco producer unchanged. The diagnostic module
+1.0 and left the former factory Coleco producer unchanged. The diagnostic module
 recipe `scripts/build_coleco_bus_diagnostic.py` routes against that frozen
 shell and checks its CRAM diff before publishing an expansion archive. The
 builder reconstructs the system PLL's second output from the exact frozen net
@@ -97,7 +97,7 @@ archive from FES commit `8dfcc60f` passed these gates. Its exact linked RBF
 also passed a cartridge-driven [kit diagnostic](../../../../docs/validation/2026-09-25-coleco-sgm-v2-hil.md)
 with RAM, AY readback, video, audio, Stop and relaunch observations. This
 accepts the named development artifacts only; the existing v1 diagnostic
-archive remains separate and the factory package is unchanged.
+archive remains separate; the v2 shell is now the factory-selected producer.
 
 The SGM work has a separate registered v2 socket boundary: 31 unchanged
 request bits and 28 response bits for direct data/claim, WAIT, INT, shell-RAM
@@ -528,12 +528,12 @@ recipe authenticates the repository-local Yosys, nextpnr-mistral, and Mistral
 tools, routes `5CSEBA6U23I7`, and seals a format-2 package only after the
 timing/resource checks pass. The repository-wide `toolchain.lock` remains on
 the current mainline pins. `make toolchain-fes-coleco` instead builds the
-Coleco compatibility lock at `toolchains/registered-memory.lock` into
-`build/toolchain/fes-coleco`, enabling the HIP device backend for
+Coleco v2 lock at `toolchains/coleco-sgm.lock` into
+`build/toolchain/fes-coleco-socket-v2`, enabling the HIP device backend for
 `gfx1100;gfx1201`. The selected OSS recipe uses Yosys
 `e2d425dee148cc60c50f4e9b354a10d90eab15f4`, nextpnr
-`5dea3ecd5062f1187d0b4f04a56139d5f8680cf7`, `--router gpu`, and the bounded
-seed/weight first-pass policy (seed 5 / weight 100 first), with
+`f7370550adb324163ed24e54f7e6756a13569758`, `--router gpu`, and
+seed 3 / HeAP weight 2000, with
 `--timing-allow-fail` and a 74.25 MHz request without `--tmg-ripup`; it rejects
 a CPU-reference fallback in the route log. The selected seed and weight are
 sealed with the recipe's build record because the embedded `BUILD_ID` changes
@@ -667,7 +667,7 @@ Yosys/nextpnr/Mistral owner:
 
 | Boundary | Workaround in this bring-up |
 | --- | --- |
-| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Coleco, SMS and SG-1000 OSS recipes select `toolchains/registered-memory.lock`, installs under `build/toolchain/fes-coleco`, and enables the HIP device backend. Bootstrap records the requested router and HIP architecture list beside the nextpnr commit/digest, and the recipe carries that attestation into the package manifest. Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Coleco v2 selects `toolchains/coleco-sgm.lock`; SMS and SG-1000 retain `toolchains/registered-memory.lock`. The Coleco lock installs under `build/toolchain/fes-coleco-socket-v2` and enables HIP. Bootstrap records the router and HIP architecture beside the compiler digests. Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
 | Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |

@@ -661,7 +661,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Coleco's OSS recipe selects `toolchains/registered-memory.lock`, builds it under `build/toolchain/fes-coleco`, and enables the HIP device backend; Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SMS and SG-1000 retain `toolchains/registered-memory.lock`; Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -696,7 +696,8 @@ have separate diagnostic routes meeting all three timing gates, and the cart's
 CRAM diff is contained. The sealed shell and SGM cart from FES commit
 `8dfcc60f` passed an exact-artifact [kit diagnostic](../../../docs/validation/2026-09-25-coleco-sgm-v2-hil.md)
 with the original BIOS-free SGM probe. Factory selection still uses the v1
-Coleco package.
+Coleco package for the recorded run; the current FES factory recipe now selects
+the v2 producer and requires fresh selection and image evidence.
 
 ## FES SG-1000 Quartus oracle and OSS recipe
 

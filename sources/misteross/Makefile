@@ -47,7 +47,7 @@ help:
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  toolchain-fes  Build the repository-local HIP toolchain for FES Pong" \
 		"  toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket" \
-		"  toolchain-fes-coleco-sgm  Build the separate Coleco v2 SGM toolchain" \
+		"  toolchain-fes-coleco  Build the Coleco v2 SGM toolchain" \
 		"  doctor     Report host, toolchain, oracle, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
@@ -80,7 +80,7 @@ help:
 		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
 		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=0,1 searches weight/seed)" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
-		"  build-fes-coleco  Seal FES ColecoVision HIP (CACHE_ROOT=; BEST_FMAX=1 searches weight/seed on one GPU_DEVICES=N)" \
+		"  build-fes-coleco  Seal FES ColecoVision v2 socket with HIP (CACHE_ROOT=)" \
 		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
 		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
 		"  sim-fes-sg1000-rom-link  Test the sealed 16 KiB SG-1000 ROM path" \
@@ -762,7 +762,7 @@ build-fes-coleco-quartus:
 	$(PYTHON) scripts/build_fes_coleco.py --root "$(CURDIR)"
 
 build-fes-coleco:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2_dev.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sg1000-diagnostic
 sg1000-diagnostic:
@@ -1027,10 +1027,7 @@ toolchain-zx81-expansion:
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
-toolchain-fes-coleco:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/registered-memory.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
-	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+toolchain-fes-coleco: toolchain-fes-coleco-sgm
 
 .PHONY: toolchain-fes-coleco-sgm
 toolchain-fes-coleco-sgm:
