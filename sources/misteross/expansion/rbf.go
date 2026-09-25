@@ -310,6 +310,7 @@ type socketPolicy struct {
 
 var zx81Socket = socketPolicy{Slot, Map, 1769, 32, 2806, cramHeight}
 var colecoSocket = socketPolicy{ColecoSlot, ColecoMap, 1769, 32, 2806, 1034}
+var colecoSocketV2 = socketPolicy{ColecoSlot, ColecoMapV2, 1769, 32, 2806, 1800}
 
 const colecoResponseBoundaryContract = "fes.coleco.response-boundary/4"
 
@@ -328,9 +329,17 @@ func policyFor(slot, mapping string) (socketPolicy, error) {
 		return zx81Socket, nil
 	case slot == ColecoSlot && mapping == ColecoMap:
 		return colecoSocket, nil
+	case slot == ColecoSlot && mapping == ColecoMapV2:
+		return colecoSocketV2, nil
 	default:
 		return socketPolicy{}, errors.New("unsupported expansion target, socket or version")
 	}
+}
+
+func supportedSocketVersion(slot, mapping string, major int) bool {
+	return (slot == Slot && mapping == Map && major == 1) ||
+		(slot == ColecoSlot && mapping == ColecoMap && major == 1) ||
+		(slot == ColecoSlot && mapping == ColecoMapV2 && major == 2)
 }
 
 func (p socketPolicy) inside(x, y int) bool {

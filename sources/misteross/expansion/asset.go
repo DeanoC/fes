@@ -21,6 +21,7 @@ const (
 	Map              = "fes.zx81-bus.socket/1"
 	ColecoSlot       = "fes.expansion.coleco-bus"
 	ColecoMap        = "fes.coleco-bus.socket/1"
+	ColecoMapV2      = "fes.coleco-bus.socket/2"
 	Device           = "5CSEBA6U23I7"
 	MaxManifestBytes = 65536
 	MaxArchiveBytes  = maxRBFBytes + MaxManifestBytes + 4096
@@ -66,11 +67,9 @@ type CRAMPatchBit struct {
 func hash(data []byte) string { sum := sha256.Sum256(data); return hex.EncodeToString(sum[:]) }
 
 func (m Manifest) validate() error {
-	if m.Format != 1 || m.Device != Device || m.SlotMajor != 1 || m.SlotMinor != 0 {
+	if m.Format != 1 || m.Device != Device || m.SlotMinor != 0 ||
+		!supportedSocketVersion(m.Slot, m.Map, m.SlotMajor) {
 		return errors.New("unsupported expansion target, socket or version")
-	}
-	if _, err := policyFor(m.Slot, m.Map); err != nil {
-		return err
 	}
 	if m.BoundaryPatch != nil {
 		if m.Slot != ColecoSlot || m.Map != ColecoMap ||
@@ -260,8 +259,9 @@ func Admit(shell Shell, asset Asset) error {
 	if err := asset.Validate(); err != nil {
 		return err
 	}
-	if _, err := policyFor(shell.Slot, asset.Manifest.Map); err != nil ||
-		shell.Slot != asset.Manifest.Slot || shell.SlotMajor != 1 || shell.SlotMinor != 0 {
+	if !supportedSocketVersion(shell.Slot, asset.Manifest.Map, shell.SlotMajor) ||
+		shell.Slot != asset.Manifest.Slot || shell.SlotMajor != asset.Manifest.SlotMajor ||
+		shell.SlotMinor != asset.Manifest.SlotMinor {
 		return errors.New("shell does not declare the supported expansion bus")
 	}
 	if shell.PackageID != asset.Manifest.ShellPackageID || shell.BuildID != asset.Manifest.ShellBuildID ||

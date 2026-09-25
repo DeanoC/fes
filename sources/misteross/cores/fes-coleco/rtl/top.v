@@ -40,6 +40,15 @@ module top #(
     wire logical_blank;
     wire [15:0] audio_sample;
     wire [30:0] bus_request;
+`ifdef FES_COLECO_EXPANSION_V2_DEV
+    wire [27:0] bus_response;
+    (* keep *) wire [30:0] plug_request;
+    wire [27:0] plug_response = 28'b0;
+    coleco_expansion_socket_v2 socket (
+        .clock(clk_sys), .request(bus_request), .response(bus_response),
+        .plug_request(plug_request), .plug_response(plug_response)
+    );
+`else
     wire [10:0] bus_response;
 `ifdef FES_COLECO_EXPANSION_DEV
     (* keep *) wire [30:0] plug_request;
@@ -50,6 +59,7 @@ module top #(
     );
 `else
     assign bus_response = 11'b0;
+`endif
 `endif
     wire audio_clk, audio_locked;
     fes_audio_output audio (

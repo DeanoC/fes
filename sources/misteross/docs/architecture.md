@@ -680,6 +680,22 @@ The concrete build entry points are `make build-fes-coleco-quartus` and
 packages and never program hardware. Exact-artifact kit acceptance remains a
 separate FES integration step.
 
+The Opcode SGM candidate uses a separate development shell with a 31-bit
+request and 28-bit registered response. The response carries direct data,
+claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
+32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
+owns the window-enable and AY register decode. `toolchains/coleco-sgm.lock`
+pins nextpnr `f7370550` with frozen-scaffold BEL admission and bounded slot
+placement. The v2-only socket reserves `24 1 28 19` placement and
+`(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
+build scripts keep the v1 diagnostic's socket and archive contract untouched.
+The v2 linker admits
+only an exact optional Coleco bus 2.0 shell and map `/2` archive, with no
+outside-rectangle CRAM exception. The enlarged development shell and SGM cart
+have separate diagnostic routes meeting all three timing gates, and the cart's
+CRAM diff is contained. Sealed package and exact-artifact kit acceptance remain
+pending.
+
 ## FES SG-1000 Quartus oracle and OSS recipe
 
 `cores/fes-sg1000` is the Coleco sibling bring-up for package `fes.sg1000`.

@@ -9,6 +9,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ("graphics", "stream", "interactive", "controllers", "vdp-io", "sprites")
+SGM_TARGETS = ("sim-fes-coleco-sgm-socket", "sim-fes-coleco-sgm-shell-ram",
+               "sim-fes-coleco-sgm-ay", "sim-fes-coleco-sgm-module",
+               "sim-fes-coleco-sgm-audio", "sim-fes-coleco-sgm-integrated")
 
 
 def dry_run(*targets, cache=""):
@@ -26,7 +29,7 @@ def commands(result):
 class ColecoSimulationShardsTest(unittest.TestCase):
     def test_aggregate_keeps_every_shard_and_builds_each_lane_once(self):
         targets = ["sim-fes-coleco-unit", "sim-fes-coleco-unit-oss",
-                   "sim-fes-coleco-expansion", "sim-fes-coleco-diagnostic"]
+                   "sim-fes-coleco-expansion", "sim-fes-coleco-diagnostic", *SGM_TARGETS]
         targets += [f"sim-fes-coleco-board-{case}{lane}"
                     for lane in ("", "-oss") for case in CASES]
         aggregate = dry_run("sim-fes-coleco")
@@ -45,6 +48,7 @@ class ColecoSimulationShardsTest(unittest.TestCase):
         shards = dry_run("sim-fes-coleco-unit-oss",
                          "sim-fes-coleco-expansion",
                          "sim-fes-coleco-diagnostic",
+                         *SGM_TARGETS,
                          *(f"sim-fes-coleco-board-{case}-oss" for case in CASES))
         self.assertEqual(aggregate.returncode, 0, aggregate.stderr)
         self.assertEqual(shards.returncode, 0, shards.stderr)
@@ -77,6 +81,7 @@ class ColecoSimulationShardsTest(unittest.TestCase):
     def test_direct_shards_reject_shared_cache_before_diagnostics(self):
         for target in ("sim-fes-coleco-unit", "sim-fes-coleco-unit-oss",
                        "sim-fes-coleco-expansion", "sim-fes-coleco-diagnostic",
+                       *SGM_TARGETS,
                        *(f"sim-fes-coleco-board-{case}{lane}"
                          for case in CASES for lane in ("", "-oss"))):
             with self.subTest(target=target):

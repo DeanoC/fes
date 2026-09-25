@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "e2d425dee148cc60c50f4e9b354a10d90eab15f4"
+order = 10
+rationale = "Coleco registered M10K mapping from registered-memory.lock (merged PR #14 e2d425de), descended from the ZX81 socket Yosys pin ec34fcf3. Paired here with the fenced ZX81 nextpnr and Mistral pins for a development-only Coleco socket."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "18db2489a63bd9fcfbb7ba727ac194e767e7dce3"
+order = 20
+rationale = "ZX81 socket Mistral pin with physical routing-mux CRAM footprints, descended from the Coleco registered-memory Mistral pin b28e30a. Required for a physical Coleco cart CRAM fence."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "f7370550adb324163ed24e54f7e6756a13569758"
+order = 30
+rationale = "Coleco expansion placement pin from FES PR #206 and nextpnr PR #78. FES_RESERVED_RECT creates the cart placement region, carry chains and LUT/FF pairs are packed for the slot, and infeasible placement reports a bounded diagnostic. This retains the production GPU-router and frozen-scaffold BEL fixes; development route evidence is not hardware acceptance."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."

@@ -39,8 +39,11 @@ retail-game compatibility.
 The machine now models a normally vacant CPU peripheral edge. It exposes Z80
 address/data/control cycles and accepts read data, claim, WAIT and maskable INT
 from a future independently placed module. The machine
-masks read claims to memory `0x2000–0x5fff` and unclaimed I/O ports; BIOS, RAM,
-cartridge, VDP and controller reads retain console priority. The
+masks read claims to memory `0x2000–0x5fff` and unclaimed I/O ports in the
+factory core; BIOS, RAM, cartridge, VDP and controller reads retain console
+priority. Development socket builds also permit a module to claim reads in
+`0x0000–0x1fff` and `0x6000–0x7fff`, and prevent a claimed write from changing
+the console's mirrored RAM. The
 `sim-fes-coleco-expansion` target checks vacant behavior and a behavioral
 diagnostic responder. A registered physical socket is available only behind
 `FES_COLECO_EXPANSION_DEV`. The separate
@@ -75,6 +78,46 @@ real CPU program. A previous linked diagnostic has a functional kit check in
 the dated Coleco expansion bus validation note. That check covers its recorded
 artifact only; the integrated shell and cart still need their own kit check.
 The factory image continues to use the normal package.
+
+The development Opcode Super Game Module now has a separately simulated v2
+module and shell-RAM path. Following the
+[MAME SGM device mapping](https://github.com/mamedev/mame/blob/master/src/devices/bus/coleco/expansion/sgm.cpp),
+port `0x53` bit 0 enables 24 KiB at `0x2000–0x7fff`; port `0x7f` bit 1 clears
+to enable 8 KiB over the BIOS at `0x0000–0x1fff`. Reset disables both windows.
+The module owns those claims and AY ports `0x50–0x52`; the shell owns the 32 KiB
+RAM and adds signed AY PCM to SN audio with saturation. The CPU/socket test
+checks both windows and preserves the console's 1 KiB RAM beneath the overlay.
+The v2 shell producer is `scripts/build_fes_coleco_socket_v2_dev.py`; it uses
+the repaired GPU-router pin in `toolchains/coleco-sgm.lock` and advertises the
+optional `fes.expansion.coleco-bus` 2.0 interface. `scripts/build_coleco_sgm.py`
+routes the SGM independently against that exact sealed shell and admits only
+CRAM changes inside its reserved rectangle. Both recipes require clean,
+committed source and all three final timing gates. No sealed v2 shell or SGM
+archive has passed the producer gate or kit acceptance; the existing v1
+diagnostic archive remains separate and the factory package is unchanged.
+
+The SGM work has a separate registered v2 socket boundary: 31 unchanged
+request bits and 28 response bits for direct data/claim, WAIT, INT, shell-RAM
+claim and signed PCM. All 59 boundary FFs occupy the first three LABs of
+column X24, leaving the rest of the reserved rectangle available to the
+module. `make sim-fes-coleco-sgm-socket` checks register latency and vacant
+response. The v1 shell and diagnostic above remain the current artifacts.
+Yosys maps the dormant shell RAM to 32 M10Ks. The AY block has register
+readback, three tone channels,
+17-bit noise recurrence, envelope shapes and signed PCM. Its fractional enable
+models the SGM's 1.7897725 MHz chip clock without a second clock domain. The
+v2 shell/module/audio path is simulation-validated but has no sealed route.
+The v2-only reserved region is `24 1 28 19` (73 usable LABs after the three
+boundary LABs); v1 retains `24 1 28 11`. On nextpnr `f7370550`, an unsealed
+latest-source diagnostic shell at seed 3 / HeAP weight 2000 closes at 52.97 MHz
+system and 84.80 MHz pixel. All 59 boundary FFs remain pinned and the larger
+rectangle is vacant. The independently routed SGM cart at seed 3 / weight 300
+closes at 53.22 MHz system, 84.80 MHz pixel and 165.13 MHz audio. Its 37,781
+non-ECC CRAM changes are inside the v2-only `(1769,32,2806,1800)` region;
+the Python and Go linkers produce byte-identical diagnostic RBFs. This is
+compiler-backed host evidence, not a sealed archive or kit acceptance. The
+[placement investigation #203](https://github.com/DeanoC/fes/issues/203)
+explains why the previous 41-LAB socket could not hold the cart.
 
 External bus mastering, video/audio takeover and bank switching remain outside
 this first slice. The logical frame cadence follows the TMS9918A manual's

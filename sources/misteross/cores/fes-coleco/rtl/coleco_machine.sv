@@ -38,7 +38,11 @@ module coleco_machine (
     input  wire [12:0] firmware_addr,
     input  wire [15:0] firmware_data,
     output wire [30:0] bus_request,
+`ifdef FES_COLECO_EXPANSION_V2_DEV
+    input  wire [27:0] bus_response
+`else
     input  wire [10:0] bus_response
+`endif
 );
     localparam [14:0] CARTRIDGE_LAST = 15'h7fff;
 
@@ -104,11 +108,20 @@ module coleco_machine (
     always @(posedge clk_sys)
         if (machine_reset) psg_phase <= 0;
         else psg_phase <= psg_ce ? 26'(psg_next - 27'd52224000) : psg_next[25:0];
+    wire signed [15:0] sn_sample;
     fes_sn76489 psg (
         .clk(clk_sys), .reset(machine_reset), .ce(psg_ce),
         .write(vdp_bus_ce && !nIORQ && !nWR && cpu_addr[7:5] == 3'b111),
-        .data(cpu_dout), .sample(audio_sample)
+        .data(cpu_dout), .sample(sn_sample)
     );
+`ifdef FES_COLECO_EXPANSION_V2_DEV
+    coleco_audio_mix audio_mix (
+        .sn_sample(sn_sample), .ay_sample(bus_response[27:12]),
+        .mixed_sample(audio_sample)
+    );
+`else
+    assign audio_sample = sn_sample;
+`endif
 
     // TV80 holds an OUT bus cycle across more than one negative CPU enable.
     // The VDP consumes a byte per strobe, so acknowledge a held write once.
@@ -256,9 +269,37 @@ module coleco_machine (
     wire console_io_select = cpu_addr[7:0] == 8'hbe ||
                              cpu_addr[7:0] == 8'hbf ||
                              cpu_addr[7:5] == 3'b111;
+`ifdef FES_COLECO_EXPANSION_V2_DEV
+    // Response bit 11 selects the shell's physical M10K, independent of the
+    // direct-read claim at bit 8. The module owns the window enable state.
+    wire expansion_ram_claim = bus_response[11] && !machine_reset &&
+                               !nMREQ && cpu_addr < 16'h8000;
+    wire expansion_ram_read = expansion_ram_claim && !nRD;
+    wire expansion_ram_write = expansion_ram_claim && !nWR && ce_cpu_n;
+    wire [7:0] expansion_ram_data;
+    coleco_expansion_ram expansion_ram (
+        .clk(clk_sys), .address(cpu_addr[14:0]), .write_data(cpu_dout),
+        .write_enable(expansion_ram_write), .read_data(expansion_ram_data)
+    );
+    wire bus_mem_read_selected = cpu_mem_read &&
+        cpu_addr >= 16'h2000 && cpu_addr <= 16'h5fff;
+    wire cpu_ram_write_enable = cpu_mem_write && cpu_ram_select && ce_cpu_n &&
+                                !expansion_ram_write;
+`elsif FES_COLECO_EXPANSION_DEV
+    // A populated development socket may replace BIOS or the mirrored 1 KiB
+    // RAM. The factory core still keeps its original, narrower claim mask.
+    wire bus_mem_read_selected = cpu_mem_read && cpu_addr < 16'h8000;
+    wire bus_ram_write_selected = cpu_mem_write && cpu_ram_select && bus_claim;
+    wire cpu_ram_write_enable = cpu_mem_write && cpu_ram_select && ce_cpu_n &&
+                                !bus_ram_write_selected;
+`else
+    wire bus_mem_read_selected = cpu_mem_read &&
+        cpu_addr >= 16'h2000 && cpu_addr <= 16'h5fff;
+    wire bus_ram_write_selected = 1'b0;
+    wire cpu_ram_write_enable = cpu_mem_write && cpu_ram_select;
+`endif
     wire bus_read_selected = bus_claim &&
-        ((cpu_mem_read && cpu_addr >= 16'h2000 && cpu_addr <= 16'h5fff) ||
-         (cpu_io_read && !console_io_select));
+        (bus_mem_read_selected || (cpu_io_read && !console_io_select));
 
     // Keep the three machine memories in the same explicit wrapper shape as
     // the ZX81 bringup. The OSS mapper cannot reliably infer the larger
@@ -310,7 +351,7 @@ module coleco_machine (
         .clock(clk_sys),
         .address_a(cpu_addr[9:0]),
         .data_a(cpu_dout),
-        .wren_a(cpu_mem_write && cpu_ram_select),
+        .wren_a(cpu_ram_write_enable),
         .q_a(ram_read),
         .address_b(peek_addr[9:0]),
         .data_b(8'h00),
@@ -363,8 +404,15 @@ module coleco_machine (
         end else if (cpu_io_read) begin
             cpu_din = io_read_data;
         end
+`ifdef FES_COLECO_EXPANSION_V2_DEV
+        if (expansion_ram_read)
+            cpu_din = expansion_ram_data;
+        else if (bus_read_selected)
+            cpu_din = bus_rdata;
+`else
         if (bus_read_selected)
             cpu_din = bus_rdata;
+`endif
     end
 
     // Load the committed mailbox blob while machine_reset holds the CPU/VDP,

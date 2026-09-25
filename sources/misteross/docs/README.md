@@ -43,3 +43,4 @@ those notes without checking [Cores](cores.md) and the producer script.
 | [SMS OSS gap ladder](validation/2026-09-17-sms-oss-gap-ladder.md) | OSS gaps as of that date. |
 | [SMS Quartus bring-up](validation/2026-09-17-sms-quartus-bringup.md) | Quartus oracle bring-up. |
 | [Coleco SGM cart placement](validation/2026-09-25-coleco-sgm-cart-placement.md) | Placement-only feasibility of the SGM v2 cart in the socket rectangle (issue #203): placer fixes, capacity bounds and measured LAB footprint. Not a route, seal or hardware claim. |
+| [Coleco SGM enlarged socket](validation/2026-09-25-coleco-sgm-expanded-socket.md) | Host-only vacant-shell and full-cart routes, timing, CRAM containment and Python/Go byte comparison for the larger development v2 rectangle. Not a seal or hardware claim. |
