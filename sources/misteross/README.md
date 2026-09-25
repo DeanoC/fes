@@ -85,7 +85,7 @@ Sealed outputs:
 ```text
 build/fes-pong/core.rbf
 build/fes-zx81-oss/core.rbf
-build/fes-coleco-oss/core.rbf
+build/fes-coleco-socket-v2/core.rbf
 build/fes-sms-oss/core.rbf
 build/fes-sg1000-oss/core.rbf
 build/fes-catch/core.rbf

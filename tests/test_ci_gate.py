@@ -78,13 +78,16 @@ class SimulationMatrixTests(unittest.TestCase):
     def test_coleco_includes_every_default_and_oss_scenario(self):
         from scripts.ci_simulations import simulation_matrix
         rows = simulation_matrix(['coleco'])['include']
-        self.assertEqual(len(rows), 16)
+        self.assertEqual(len(rows), 23)
         expected = {'sim-fes-coleco-' + scenario + suffix
                     for scenario in ('unit', 'board-graphics', 'board-stream',
                                      'board-interactive', 'board-controllers',
                                      'board-vdp-io', 'board-sprites')
                     for suffix in ('', '-oss')}
         expected.update({'sim-fes-coleco-expansion', 'sim-fes-coleco-diagnostic'})
+        expected.update({'sim-fes-coleco-sgm-' + name for name in
+                         ('socket', 'shell-ram', 'ay', 'module', 'audio',
+                          'integrated', 'probe')})
         self.assertEqual({row['target'] for row in rows}, expected)
         self.assertTrue(all(row['core'] == 'coleco' for row in rows))
 

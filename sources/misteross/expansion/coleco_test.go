@@ -30,6 +30,85 @@ func colecoFixture(t *testing.T) (Shell, Asset) {
 	return base, asset
 }
 
+func colecoV2Fixture(t *testing.T) (Shell, Asset) {
+	t.Helper()
+	shell, asset := colecoFixture(t)
+	shell.SlotMajor = 2
+	asset.Manifest.Map = ColecoMapV2
+	asset.Manifest.SlotMajor = 2
+	updated, err := NewAsset(asset.Manifest, asset.Cart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return shell, updated
+}
+
+func TestColecoV2ExactPairAndFence(t *testing.T) {
+	shell, asset := colecoV2Fixture(t)
+	if _, _, err := Compose(shell, asset); err != nil {
+		t.Fatal(err)
+	}
+	for name, change := range map[string]func(*Shell, *Asset){
+		"v1-shell":     func(s *Shell, _ *Asset) { s.SlotMajor = 1 },
+		"wrong-digest": func(s *Shell, _ *Asset) { s.Payload[0] ^= 1 },
+		"v1-map":       func(_ *Shell, a *Asset) { a.Manifest.Map = ColecoMap },
+		"boundary-patch": func(_ *Shell, a *Asset) {
+			a.Manifest.BoundaryPatch = &BoundaryPatch{Contract: colecoResponseBoundaryContract}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			otherShell, otherAsset := shell, asset
+			otherShell.Payload = bytes.Clone(shell.Payload)
+			change(&otherShell, &otherAsset)
+			if _, _, err := Compose(otherShell, otherAsset); err == nil {
+				t.Fatal("accepted mismatched v2 shell and SGM")
+			}
+		})
+	}
+	for name, point := range map[string]cramCoordinate{
+		"adjacent-row":          {x: 2000, y: 1800},
+		"unrelated-shell-bit":   {x: 100, y: 100},
+		"v1-response-exception": {x: 3332, y: 803},
+	} {
+		t.Run(name, func(t *testing.T) {
+			outside, err := loadRBF(asset.Cart)
+			if err != nil {
+				t.Fatal(err)
+			}
+			setCramBit(outside.cram, point.x, point.y,
+				cramBit(outside.cram, point.x, point.y)^1)
+			badCart := saveRBF(outside)
+			badManifest := asset.Manifest
+			badManifest.CartSHA256, badManifest.CartSize = hash(badCart), int64(len(badCart))
+			bad, err := NewAsset(badManifest, badCart)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := Compose(shell, bad); err == nil {
+				t.Fatal("accepted v2 SGM change outside socket")
+			}
+		})
+	}
+}
+
+func TestColecoV2ExpandedSocketAcceptsCartRow(t *testing.T) {
+	shell, asset := colecoV2Fixture(t)
+	inside, err := loadRBF(asset.Cart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setCramBit(inside.cram, 2000, 1622, cramBit(inside.cram, 2000, 1622)^1)
+	cart := saveRBF(inside)
+	asset.Manifest.CartSHA256, asset.Manifest.CartSize = hash(cart), int64(len(cart))
+	asset, err = NewAsset(asset.Manifest, cart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Compose(shell, asset); err != nil {
+		t.Fatalf("rejected a cart bit inside the enlarged v2 socket: %v", err)
+	}
+}
+
 func TestColecoSlotAdmissionAndRectangle(t *testing.T) {
 	shell, asset := colecoFixture(t)
 	composition, linked, err := Compose(shell, asset)

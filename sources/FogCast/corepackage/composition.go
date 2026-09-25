@@ -314,15 +314,18 @@ func adoptComposition(handle *os.Root, staged *Staged) error {
 func compositionShell(inspection Inspection, payload []byte) (expansion.Shell, error) {
 	d := inspection.Descriptor
 	var slot string
+	var slotMajor int
 	for _, i := range d.Interfaces {
 		if i.ID == expansion.Slot || i.ID == expansion.ColecoSlot {
-			if i.Required || i.Major != 1 || i.Minor != 0 {
-				return expansion.Shell{}, errors.New("composition requires optional expansion bus 1.0")
+			if i.Required || i.Minor != 0 ||
+				(i.Major != 1 && !(i.ID == expansion.ColecoSlot && i.Major == 2)) {
+				return expansion.Shell{}, errors.New("composition requires a supported optional expansion bus")
 			}
 			if slot != "" {
 				return expansion.Shell{}, errors.New("composition requires exactly one expansion bus")
 			}
 			slot = i.ID
+			slotMajor = int(i.Major)
 		}
 	}
 	if slot == "" {
@@ -335,7 +338,7 @@ func compositionShell(inspection Inspection, payload []byte) (expansion.Shell, e
 	if d.ABI.ID != abi || d.ABI.Major != 1 || d.ABI.Minor != 0 {
 		return expansion.Shell{}, errors.New("composition bus does not match package ABI 1.0")
 	}
-	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: slot, SlotMajor: 1}, nil
+	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: slot, SlotMajor: slotMajor}, nil
 }
 
 // ValidateExpansionArchive binds an expansion to its sealed package and declared

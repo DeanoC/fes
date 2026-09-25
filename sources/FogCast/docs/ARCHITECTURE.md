@@ -1390,8 +1390,10 @@ in [launch composition](launch-composition.md).
 
 Library list, detail and variant responses report expansion selection and
 readiness independently of firmware requirements, including firmware-free ZX81
-shells. Coleco's bus belongs to `fes.application` 1.0; ZX81's belongs to
-`fes.simple-computer` 1.0. Each package may declare exactly one optional bus,
+shells. Coleco's bus belongs to `fes.application` 1.0 and admits optional bus
+1.0 or 2.0; ZX81's belongs to `fes.simple-computer` 1.0 and admits bus 1.0.
+Package composition carries the declared bus major to the linker. Each package
+may declare exactly one optional bus,
 and the selected module must bind that bus, map, package, BUILD_ID and payload.
 The target agent validates the runtime's composed status against that ABI and
 optional bus pair before confirming a launch or reconciling a running session.

@@ -47,6 +47,7 @@ help:
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  toolchain-fes  Build the repository-local HIP toolchain for FES Pong" \
 		"  toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket" \
+		"  toolchain-fes-coleco  Build the Coleco v2 SGM toolchain" \
 		"  doctor     Report host, toolchain, oracle, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
@@ -70,6 +71,7 @@ help:
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
+		"  sim-fes-coleco-sgm-integrated  Test the v2 SGM module and shell RAM through CPU/socket cycles" \
 		"  sim-fes-coleco-unit[-oss]  Run focused Coleco unit/CPU simulations" \
 		"  sim-fes-coleco-board-CASE[-oss]  Run one board case: graphics stream interactive controllers vdp-io sprites" \
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
@@ -78,7 +80,7 @@ help:
 		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
 		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=0,1 searches weight/seed)" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
-		"  build-fes-coleco  Seal FES ColecoVision HIP (CACHE_ROOT=; BEST_FMAX=1 searches weight/seed on one GPU_DEVICES=N)" \
+		"  build-fes-coleco  Seal FES ColecoVision v2 socket with HIP (CACHE_ROOT=)" \
 		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
 		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
 		"  sim-fes-sg1000-rom-link  Test the sealed 16 KiB SG-1000 ROM path" \
@@ -406,7 +408,77 @@ COLECO_BOARD_CASES := graphics stream interactive controllers vdp-io sprites
 COLECO_BOARD_TARGETS := $(addprefix sim-fes-coleco-board-,$(COLECO_BOARD_CASES))
 .PHONY: sim-fes-coleco-unit sim-fes-coleco-unit-oss sim-fes-coleco-board-build sim-fes-coleco-board-build-oss $(COLECO_BOARD_TARGETS) $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
 sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss
-sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS)) sim-fes-coleco-expansion sim-fes-coleco-diagnostic
+sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS)) sim-fes-coleco-expansion sim-fes-coleco-diagnostic sim-fes-coleco-sgm-socket sim-fes-coleco-sgm-shell-ram sim-fes-coleco-sgm-ay sim-fes-coleco-sgm-module sim-fes-coleco-sgm-audio sim-fes-coleco-sgm-probe
+
+.PHONY: sim-fes-coleco-sgm-socket
+sim-fes-coleco-sgm-socket:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-sgm-socket
+	$(VERILATOR) --cc --exe --build --top-module coleco_expansion_socket_v2 -Wall \
+		-Wno-UNUSEDSIGNAL -Icores/fes-coleco/rtl \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-socket" \
+		cores/fes-coleco/rtl/coleco_expansion_socket_v2.v \
+		"$(CURDIR)/cores/fes-coleco/sim/sgm_socket_tb.cpp"
+	@build/sim/fes-coleco-sgm-socket/Vcoleco_expansion_socket_v2
+
+.PHONY: sim-fes-coleco-sgm-shell-ram
+sim-fes-coleco-sgm-shell-ram:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-sgm-shell-ram
+	$(VERILATOR) --cc --exe --build --top-module sgm_shell_machine -Wall \
+		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -DFES_COLECO_EXPANSION_V2_DEV=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/rtl -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-shell-ram" \
+		cores/fes-coleco/sim/sgm_shell_machine.sv \
+		cores/fes-coleco/rtl/coleco_expansion_socket_v2.v \
+		cores/fes-coleco/rtl/coleco_expansion_ram.v \
+		cores/fes-coleco/rtl/coleco_audio_mix.v \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/sgm_shell_ram_tb.cpp"
+	@build/sim/fes-coleco-sgm-shell-ram/Vsgm_shell_machine
+
+.PHONY: sim-fes-coleco-sgm-ay
+sim-fes-coleco-sgm-ay:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-sgm-ay
+	$(VERILATOR) --cc --exe --build --top-module sgm_ay -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHTRUNC \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-ay" \
+		cores/fes-coleco/expansions/sgm_ay.v \
+		"$(CURDIR)/cores/fes-coleco/sim/sgm_ay_tb.cpp"
+	@build/sim/fes-coleco-sgm-ay/Vsgm_ay
+
+.PHONY: sim-fes-coleco-sgm-module sim-fes-coleco-sgm-audio
+sim-fes-coleco-sgm-module:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-sgm-module
+	$(VERILATOR) --cc --exe --build --top-module cart -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHTRUNC \
+		-Icores/fes-coleco/rtl --Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-module" \
+		cores/fes-coleco/expansions/sgm.v cores/fes-coleco/expansions/sgm_control.v \
+		cores/fes-coleco/expansions/sgm_ay.v \
+		"$(CURDIR)/cores/fes-coleco/sim/sgm_module_tb.cpp"
+	@build/sim/fes-coleco-sgm-module/Vcart
+
+sim-fes-coleco-sgm-audio:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-sgm-audio
+	$(VERILATOR) --cc --exe --build --top-module sgm_audio_path -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-audio" \
+		cores/fes-coleco/sim/sgm_audio_path.sv \
+		cores/fes-coleco/rtl/coleco_audio_mix.v \
+		cores/fes-common/rtl/fes_audio_output.v cores/fes-common/rtl/fes_audio_i2s.v \
+		"$(CURDIR)/cores/fes-coleco/sim/sgm_audio_tb.cpp"
+	@build/sim/fes-coleco-sgm-audio/Vsgm_audio_path
 
 $(COLECO_BOARD_TARGETS): sim-fes-coleco-board-build
 $(addsuffix -oss,$(COLECO_BOARD_TARGETS)): sim-fes-coleco-board-build-oss
@@ -536,6 +608,41 @@ sim-fes-coleco-diagnostic-machine:
 		"$(CURDIR)/cores/fes-coleco/sim/diagnostic_machine_tb.cpp"
 	@build/sim/fes-coleco-diagnostic-machine/Vdiagnostic_machine
 
+.PHONY: sim-fes-coleco-sgm-integrated
+sim-fes-coleco-sgm-integrated:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-sgm-integrated
+	$(VERILATOR) --cc --exe --build --top-module sgm_shell_machine -Wall \
+		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -DFES_COLECO_EXPANSION_V2_DEV=1 \
+		-DSGM_INTEGRATED=1 -CFLAGS "-DSGM_INTEGRATED=1" \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/rtl -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-sgm-integrated" \
+		cores/fes-coleco/sim/sgm_shell_machine.sv \
+		cores/fes-coleco/rtl/coleco_expansion_socket_v2.v \
+		cores/fes-coleco/rtl/coleco_expansion_ram.v \
+		cores/fes-coleco/rtl/coleco_audio_mix.v \
+		cores/fes-coleco/expansions/sgm.v \
+		cores/fes-coleco/expansions/sgm_control.v \
+		cores/fes-coleco/expansions/sgm_ay.v \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/sgm_shell_ram_tb.cpp"
+	@build/sim/fes-coleco-sgm-integrated/Vsgm_shell_machine
+
+.PHONY: sim-fes-coleco-sgm-probe
+sim-fes-coleco-sgm-probe: sim-fes-coleco-sgm-integrated
+	@mkdir -p build/diagnostics/fes-coleco
+	$(PYTHON) cores/fes-coleco/diagnostic/sgm_probe.py --output build/diagnostics/fes-coleco/sgm-probe.rom
+	@build/sim/fes-coleco-sgm-integrated/Vsgm_shell_machine build/diagnostics/fes-coleco/sgm-probe.rom
+
 sim-fes-coleco-board-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-board
@@ -655,7 +762,7 @@ build-fes-coleco-quartus:
 	$(PYTHON) scripts/build_fes_coleco.py --root "$(CURDIR)"
 
 build-fes-coleco:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sg1000-diagnostic
 sg1000-diagnostic:
@@ -920,8 +1027,11 @@ toolchain-zx81-expansion:
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
-toolchain-fes-coleco:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/registered-memory.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \
+toolchain-fes-coleco: toolchain-fes-coleco-sgm
+
+.PHONY: toolchain-fes-coleco-sgm
+toolchain-fes-coleco-sgm:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/coleco-sgm.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco-socket-v2") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 

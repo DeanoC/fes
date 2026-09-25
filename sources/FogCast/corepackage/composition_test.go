@@ -162,6 +162,23 @@ func TestCompositionShellColecoBus(t *testing.T) {
 	}
 }
 
+func TestCompositionShellColecoV2(t *testing.T) {
+	base := Inspection{Descriptor: Descriptor{ABI: Contract{ID: "fes.application", Major: 1},
+		Interfaces: []Interface{{ID: expansion.ColecoSlot, Major: 2}}}}
+	shell, err := compositionShell(base, nil)
+	if err != nil || shell.Slot != expansion.ColecoSlot || shell.SlotMajor != 2 {
+		t.Fatalf("Coleco v2 socket rejected: %#v, %v", shell, err)
+	}
+	base.Descriptor.Interfaces[0].Minor = 1
+	if _, err := compositionShell(base, nil); err == nil {
+		t.Fatal("accepted unimplemented Coleco v2 minor")
+	}
+	base.Descriptor.Interfaces[0] = Interface{ID: expansion.Slot, Major: 2}
+	if _, err := compositionShell(base, nil); err == nil {
+		t.Fatal("accepted ZX81 slot major 2")
+	}
+}
+
 func TestColecoProducerComposition(t *testing.T) {
 	root := os.Getenv("FES_COLECO_GOLDEN_ROOT")
 	if root == "" {

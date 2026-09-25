@@ -919,7 +919,8 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 			if (i.ID == "fes.expansion.zx81-bus" || i.ID == "fes.expansion.coleco-bus") && i.ID != socketID {
 				return false
 			}
-			if i.ID == socketID && i.Major == 1 && i.Minor == 0 && !i.Required {
+			if i.ID == socketID && i.Minor == 0 && !i.Required &&
+				(i.Major == 1 || (socketID == "fes.expansion.coleco-bus" && i.Major == 2)) {
 				socket = true
 			}
 		}

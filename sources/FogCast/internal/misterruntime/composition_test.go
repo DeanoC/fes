@@ -52,6 +52,26 @@ func TestColecoComposedStatusRequiresMatchingOptionalBus(t *testing.T) {
 	}
 }
 
+func TestColecoV2ComposedStatusRequiresVersionedSocket(t *testing.T) {
+	response, _ := compositionResponse(t)
+	response.ActivePackage.Descriptor.ABI.ID = "fes.application"
+	response.ActivePackage.Observed.ABI.ID = "fes.application"
+	response.Capabilities.ABIs[0].ID = "fes.application"
+	interfaceV2 := &response.ActivePackage.Descriptor.Interfaces[2]
+	interfaceV2.ID, interfaceV2.Major = "fes.expansion.coleco-bus", 2
+	if !validProtocol2Response(response) {
+		t.Fatal("Coleco v2 composition rejected")
+	}
+	interfaceV2.Major = 1
+	if !validProtocol2Response(response) {
+		t.Fatal("existing Coleco v1 composition rejected")
+	}
+	interfaceV2.Major = 3
+	if validProtocol2Response(response) {
+		t.Fatal("unsupported Coleco socket version accepted")
+	}
+}
+
 func TestComposedClientChecksExactIdentityAndShape(t *testing.T) {
 	response, c := compositionResponse(t)
 	for _, mode := range []string{"valid", "wrong tuple", "unknown tuple field", "missing tuple field"} {

@@ -36,20 +36,21 @@ retail-game compatibility.
   logical raster samples per second for 256×262 frames at a nominal 60 Hz.
   HDMI pixel timing stays fixed and independent.
 
-The machine now models a normally vacant CPU peripheral edge. It exposes Z80
-address/data/control cycles and accepts read data, claim, WAIT and maskable INT
-from a future independently placed module. The machine
-masks read claims to memory `0x2000–0x5fff` and unclaimed I/O ports; BIOS, RAM,
-cartridge, VDP and controller reads retain console priority. The
+The factory v2 shell models a normally vacant CPU peripheral edge. It exposes
+Z80 address/data/control cycles and accepts read data, claim, WAIT and
+maskable INT from an independently placed module. A linked SGM may claim reads
+in `0x0000–0x1fff`, `0x2000–0x5fff` and `0x6000–0x7fff`; claimed writes do
+not change the console's mirrored RAM. When the socket is vacant, BIOS, RAM,
+cartridge, VDP and controller reads retain console behavior. The
 `sim-fes-coleco-expansion` target checks vacant behavior and a behavioral
-diagnostic responder. A registered physical socket is available only behind
-`FES_COLECO_EXPANSION_DEV`. The separate
+diagnostic responder. The earlier v1 diagnostic used
+`FES_COLECO_EXPANSION_DEV`. Its separate
 `scripts/build_fes_coleco_socket_dev.py` recipe uses
 `toolchains/coleco-expansion.lock` to seal a timed development shell with a
 reserved `24 1 28 11` region containing only its pinned boundary FFs. The
 cart now uses that full placement rectangle with a compiler that admits those
 frozen cells at their original BELs. It declares optional `fes.expansion.coleco-bus`
-1.0 and leaves the factory Coleco producer unchanged. The diagnostic module
+1.0 and left the former factory Coleco producer unchanged. The diagnostic module
 recipe `scripts/build_coleco_bus_diagnostic.py` routes against that frozen
 shell and checks its CRAM diff before publishing an expansion archive. The
 builder reconstructs the system PLL's second output from the exact frozen net
@@ -73,8 +74,59 @@ CPU read starts, then advances every sixteen system clocks.
 `sim-fes-coleco-diagnostic` exercises this through the registered socket with a
 real CPU program. A previous linked diagnostic has a functional kit check in
 the dated Coleco expansion bus validation note. That check covers its recorded
-artifact only; the integrated shell and cart still need their own kit check.
-The factory image continues to use the normal package.
+artifact only. The factory recipe now selects the v2 shell described below.
+
+The Opcode Super Game Module has a separately simulated v2
+module and shell-RAM path. Following the
+[MAME SGM device mapping](https://github.com/mamedev/mame/blob/master/src/devices/bus/coleco/expansion/sgm.cpp),
+port `0x53` bit 0 enables 24 KiB at `0x2000–0x7fff`; port `0x7f` bit 1 clears
+to enable 8 KiB over the BIOS at `0x0000–0x1fff`. Reset disables both windows.
+The module owns those claims and AY ports `0x50–0x52`; the shell owns the 32 KiB
+RAM and adds signed AY PCM to SN audio with saturation. The CPU/socket test
+checks both windows and preserves the console's 1 KiB RAM beneath the overlay.
+The v2 shell producer is `scripts/build_fes_coleco_socket_v2.py`; it uses
+the repaired GPU-router pin in `toolchains/coleco-sgm.lock` and advertises the
+optional `fes.expansion.coleco-bus` 2.0 interface. `scripts/build_coleco_sgm.py`
+routes the SGM independently against that exact sealed shell and admits only
+CRAM changes inside its reserved rectangle. Both recipes require clean,
+committed source and all three final timing gates. The factory v2 shell searches
+ten fixed seeds at HeAP weight 2000, taking the first route that closes all
+three clocks; the seed order is part of its build identity. A sealed v2 shell and SGM
+archive from FES commit `8dfcc60f` passed these gates. Its exact linked RBF
+also passed a cartridge-driven [kit diagnostic](../../../../docs/validation/2026-09-25-coleco-sgm-v2-hil.md)
+with RAM, AY readback, video, audio, Stop and relaunch observations. This
+accepts the named development artifacts only; the existing v1 diagnostic
+archive remains separate; the v2 shell is now the factory-selected producer.
+
+The SGM work has a separate registered v2 socket boundary: 31 unchanged
+request bits and 28 response bits for direct data/claim, WAIT, INT, shell-RAM
+claim and signed PCM. All 59 boundary FFs occupy the first three LABs of
+column X24, leaving the rest of the reserved rectangle available to the
+module. `make sim-fes-coleco-sgm-socket` checks register latency and vacant
+response. The v1 shell and diagnostic above remain the current artifacts.
+`make sim-fes-coleco-sgm-probe` generates an original BIOS-free cartridge that
+verifies both RAM windows, preserved console RAM and AY register readback
+before the Graphics I pass frame. It leaves AY and SN tones running for an
+audio capture; the integrated CPU simulation must reach that frame.
+Yosys maps the dormant shell RAM to 32 M10Ks. The AY block has register
+readback, three tone channels,
+17-bit noise recurrence, envelope shapes and signed PCM. Its fractional enable
+models the SGM's 1.7897725 MHz chip clock without a second clock domain. The
+v2 shell/module/audio path has a sealed route and the named kit diagnostic
+above; the later unsealed placement measurements below remain historical
+investigation data.
+
+The v2-only reserved region is `24 1 28 19` (73 usable LABs after the three
+boundary LABs); v1 retains `24 1 28 11`. On nextpnr `f7370550`, an unsealed
+latest-source diagnostic shell at seed 3 / HeAP weight 2000 closes at 52.97 MHz
+system and 84.80 MHz pixel. All 59 boundary FFs remain pinned and the larger
+rectangle is vacant. The independently routed SGM cart at seed 3 / weight 300
+closes at 53.22 MHz system, 84.80 MHz pixel and 165.13 MHz audio. Its 37,781
+non-ECC CRAM changes are inside the v2-only `(1769,32,2806,1800)` region;
+the Python and Go linkers produce byte-identical diagnostic RBFs. Those
+measurements precede the sealed build and kit check recorded above. The
+[placement investigation #203](https://github.com/DeanoC/fes/issues/203)
+explains why the previous 41-LAB socket could not hold the cart.
 
 External bus mastering, video/audio takeover and bank switching remain outside
 this first slice. The logical frame cadence follows the TMS9918A manual's
@@ -475,12 +527,12 @@ recipe authenticates the repository-local Yosys, nextpnr-mistral, and Mistral
 tools, routes `5CSEBA6U23I7`, and seals a format-2 package only after the
 timing/resource checks pass. The repository-wide `toolchain.lock` remains on
 the current mainline pins. `make toolchain-fes-coleco` instead builds the
-Coleco compatibility lock at `toolchains/registered-memory.lock` into
-`build/toolchain/fes-coleco`, enabling the HIP device backend for
+Coleco v2 lock at `toolchains/coleco-sgm.lock` into
+`build/toolchain/fes-coleco-socket-v2`, enabling the HIP device backend for
 `gfx1100;gfx1201`. The selected OSS recipe uses Yosys
 `e2d425dee148cc60c50f4e9b354a10d90eab15f4`, nextpnr
-`5dea3ecd5062f1187d0b4f04a56139d5f8680cf7`, `--router gpu`, and the bounded
-seed/weight first-pass policy (seed 5 / weight 100 first), with
+`f7370550adb324163ed24e54f7e6756a13569758`, `--router gpu`, and
+seed 3 / HeAP weight 2000, with
 `--timing-allow-fail` and a 74.25 MHz request without `--tmg-ripup`; it rejects
 a CPU-reference fallback in the route log. The selected seed and weight are
 sealed with the recipe's build record because the embedded `BUILD_ID` changes
@@ -614,7 +666,7 @@ Yosys/nextpnr/Mistral owner:
 
 | Boundary | Workaround in this bring-up |
 | --- | --- |
-| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Coleco, SMS and SG-1000 OSS recipes select `toolchains/registered-memory.lock`, installs under `build/toolchain/fes-coleco`, and enables the HIP device backend. Bootstrap records the requested router and HIP architecture list beside the nextpnr commit/digest, and the recipe carries that attestation into the package manifest. Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Coleco v2 selects `toolchains/coleco-sgm.lock`; SMS and SG-1000 retain `toolchains/registered-memory.lock`. The Coleco lock installs under `build/toolchain/fes-coleco-socket-v2` and enables HIP. Bootstrap records the router and HIP architecture beside the compiler digests. Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
 | Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |

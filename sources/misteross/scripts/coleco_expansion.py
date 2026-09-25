@@ -12,9 +12,11 @@ from pathlib import Path
 
 SOCKET_CLOCK = 'system_clock.clocks_MISTRAL_CLKBUF_Q'
 SOCKET_RECT = '24 1 28 11'
+SOCKET_RECT_V2 = '24 1 28 19'
 SOCKET_PREFIX = 'socket.'
 REQUEST_BITS = 31
 RESPONSE_BITS = 11
+RESPONSE_BITS_V2 = 28
 
 
 def socket_bels() -> dict[str, str]:
@@ -31,6 +33,22 @@ def socket_bels() -> dict[str, str]:
     return result
 
 
+def socket_bels_v2() -> dict[str, str]:
+    result = {name: bel for name, bel in socket_bels().items()
+              if name.startswith('plug_addr_ff_')}
+    request_bels = set(result.values())
+    vacant = []
+    for row in (2, 3):
+        for index in range(20):
+            z = (index // 2) * 6 + (4 if index % 2 else 2)
+            bel = f'MISTRAL_FF.24.{row}.{z}'
+            if bel not in request_bels:
+                vacant.append(bel)
+    for bit, bel in enumerate(vacant[:RESPONSE_BITS_V2]):
+        result[f'plug_rdata_ff_{bit}'] = bel
+    return result
+
+
 def raw_cell_name(name: str) -> str:
     if name.startswith('plug_addr_ff_'):
         return SOCKET_PREFIX + name.replace('plug_addr_ff_', 'plug_request_ff_', 1)
@@ -39,13 +57,19 @@ def raw_cell_name(name: str) -> str:
     raise ValueError(f'unknown Coleco boundary cell: {name}')
 
 
-def shell_qsf(base: str) -> str:
+def shell_qsf(base: str, *, version: int = 1) -> str:
     if 'FES_RESERVED_RECT' in base:
         raise ValueError('base QSF already reserves a CRAM rectangle')
-    return base.rstrip() + f'\nset_global_assignment -name FES_RESERVED_RECT "{SOCKET_RECT}"\n'
+    if version not in (1, 2):
+        raise ValueError('unsupported Coleco socket version')
+    rect = SOCKET_RECT_V2 if version == 2 else SOCKET_RECT
+    return base.rstrip() + f'\nset_global_assignment -name FES_RESERVED_RECT "{rect}"\n'
 
 
-def prepare_shell_netlist(path: Path) -> None:
+def prepare_shell_netlist(path: Path, *, version: int = 1) -> None:
+    if version not in (1, 2):
+        raise ValueError('unsupported Coleco socket version')
+    expected = socket_bels_v2() if version == 2 else socket_bels()
     design = json.loads(path.read_text())
     top = design['modules']['top']
     cells = top['cells']
@@ -59,7 +83,12 @@ def prepare_shell_netlist(path: Path) -> None:
     request = top['netnames']['plug_request']['bits']
     if not isinstance(clock, list) or len(clock) != 1 or len(request) != REQUEST_BITS:
         raise ValueError('Coleco socket clock or request bus is malformed')
-    for name, bel in socket_bels().items():
+    if version == 2:
+        source_request = top['netnames']['bus_request']['bits']
+        response = top['netnames']['bus_response']['bits']
+        if len(source_request) != REQUEST_BITS or len(response) != RESPONSE_BITS_V2:
+            raise ValueError('Coleco v2 socket source or response bus is malformed')
+    for name, bel in expected.items():
         original = raw_cell_name(name)
         cell = cells.get(original)
         if name in cells or not isinstance(cell, dict):
@@ -72,16 +101,26 @@ def prepare_shell_netlist(path: Path) -> None:
             bit = int(name.removeprefix('plug_addr_ff_'))
             if cell.get('connections', {}).get('Q') != [request[bit]]:
                 raise ValueError(f'Coleco socket request bit changed wiring: {name}')
-    for name in socket_bels():
+            if version == 2 and cell['connections'].get('DATAIN') != [source_request[bit]]:
+                raise ValueError(f'Coleco socket request input changed wiring: {name}')
+        elif version == 2:
+            bit = int(name.removeprefix('plug_rdata_ff_'))
+            if cell['connections'].get('Q') != [response[bit]] or \
+                    cell['connections'].get('DATAIN') != ['0']:
+                raise ValueError(f'Coleco socket vacant response changed wiring: {name}')
+    for name in expected:
         cells[name] = cells.pop(raw_cell_name(name))
     path.write_text(json.dumps(design, indent=2) + '\n')
 
 
-def validate_routed_shell(path: Path) -> None:
-    """Require every reserved BEL to be vacant except the 42 pinned edge FFs."""
+def validate_routed_shell(path: Path, *, version: int = 1) -> None:
+    """Require every reserved BEL to be vacant except the pinned edge FFs."""
+    if version not in (1, 2):
+        raise ValueError('unsupported Coleco socket version')
     cells = json.loads(path.read_text())['modules']['top']['cells']
-    expected = socket_bels()
-    x0, y0, x1, y1 = map(int, SOCKET_RECT.split())
+    expected = socket_bels_v2() if version == 2 else socket_bels()
+    rect = SOCKET_RECT_V2 if version == 2 else SOCKET_RECT
+    x0, y0, x1, y1 = map(int, rect.split())
     for name, bel in expected.items():
         cell = cells.get(name)
         if not isinstance(cell, dict) or cell.get('type') != 'MISTRAL_FF' or \
