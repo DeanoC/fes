@@ -17,6 +17,13 @@
 // InputSource only when that same node advertises them. Picture and
 // pad stay on that node. Unresolved and fail closed do not name an
 // Execute node.
+//
+// OverrideNodeID is optional. Empty means unset and leaves automatic
+// placement unchanged, including when several native_emu nodes can
+// run the title. A set id selects that candidate when it can already
+// run the title. A name that cannot run the title, fails the mesh
+// major, or is not a candidate does not win, and Place does not
+// substitute a different node.
 package meshplace
 
 import "github.com/DeanoC/FogCast/internal/meshcontent"
@@ -28,8 +35,10 @@ type Outcome string
 const (
 	// OutcomeSelected names one Execute node.
 	OutcomeSelected Outcome = "selected"
-	// OutcomeUnresolved means more than one eligible node and Place
-	// has no tie-break to apply.
+	// OutcomeUnresolved means Place will not name an Execute node.
+	// Several eligible nodes and no tie-break is one case. A set
+	// override that does not name an eligible candidate is another:
+	// Place does not substitute a different node.
 	OutcomeUnresolved Outcome = "unresolved"
 	// OutcomeFailClosed means do not launch.
 	OutcomeFailClosed Outcome = "fail_closed"
@@ -70,14 +79,18 @@ type Candidate struct {
 
 // Options are caller facts Place does not discover.
 //
-// DisplayPreference and LastDisplaySink are node ids. Empty means
-// unset. MissingRequiredSlot is a required composition slot with no
-// source. Place does not open files, does not pull, and does not read
-// a config file. An advanced override is not a field here.
+// DisplayPreference, LastDisplaySink, and OverrideNodeID are node ids.
+// Empty means unset. MissingRequiredSlot is a required composition
+// slot with no source. Place does not open files, does not pull, and
+// does not read a config file.
+//
+// OverrideNodeID selects that candidate when it can already run the
+// title. Empty does not choose a winner.
 type Options struct {
 	DisplayPreference   string
 	LastDisplaySink     string
 	MissingRequiredSlot bool
+	OverrideNodeID      string
 }
 
 // Choice names the selected node. DisplaySink and InputSource are set
@@ -108,7 +121,16 @@ type Result struct {
 //
 // native_emu is considered only when no FPGA candidate can run the
 // title. Exactly one such candidate is selected. Several are
-// unresolved. Preference and last sink do not pick among them.
+// unresolved. Preference, last sink, and an empty override do not
+// pick among them.
+//
+// A non-empty OverrideNodeID selects that node when it is already
+// one of those candidates and its mesh major matches. For
+// fpga_native that includes meshcontent.ABIMatches against the
+// node's abis. DisplaySink is not required. DisplaySink and
+// InputSource are still copied only when that node advertises them.
+// When the id is set and is not such a candidate, the result is fail
+// closed or unresolved and does not name a different Execute node.
 func Place(entry meshcontent.Entry, candidates []Candidate, opts Options) Result {
 	if err := entry.Validate(); err != nil || !entry.Launchable {
 		return fail(ReasonNotLaunchable)
@@ -116,13 +138,43 @@ func Place(entry meshcontent.Entry, candidates []Candidate, opts Options) Result
 	if opts.MissingRequiredSlot {
 		return fail(ReasonMissingSlot)
 	}
-	if fpga := runnableFPGA(entry, candidates); len(fpga) > 0 {
+	fpga := runnableFPGA(entry, candidates)
+	if opts.OverrideNodeID != "" {
+		return placeOverride(entry, fpga, candidates, opts.OverrideNodeID)
+	}
+	if len(fpga) > 0 {
 		return finishFPGA(fpga, opts)
 	}
 	if entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
 		return fail(ReasonNoCandidate)
 	}
 	return finishNative(runnableNative(candidates))
+}
+
+// placeOverride selects nodeID when it can already run the title.
+// A miss does not fall through to preference, last sink, or a
+// single other node.
+func placeOverride(entry meshcontent.Entry, fpga []Candidate, candidates []Candidate, nodeID string) Result {
+	could := fpga
+	if len(could) == 0 {
+		if entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
+			return fail(ReasonNoCandidate)
+		}
+		could = runnableNative(candidates)
+	}
+	rows := oneRowPerNode(could)
+	if len(rows) == 0 {
+		return fail(ReasonNoCandidate)
+	}
+	if !anyMeshMajorOK(rows) {
+		return fail(ReasonMeshMajor)
+	}
+	for _, candidate := range rows {
+		if candidate.NodeID == nodeID && candidate.MeshMajorOK {
+			return selected(candidate)
+		}
+	}
+	return Result{Outcome: OutcomeUnresolved}
 }
 
 func finishFPGA(could []Candidate, opts Options) Result {
@@ -145,7 +197,8 @@ func finishNative(could []Candidate) Result {
 		return done
 	}
 	// Several native_emu nodes stay unresolved. Preference, last sink,
-	// and mesh-major OK are not a tie-break. That choice is parked.
+	// an empty override, and mesh-major OK are not a tie-break. That
+	// choice is parked.
 	return Result{Outcome: OutcomeUnresolved}
 }
 
