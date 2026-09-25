@@ -67,8 +67,8 @@ func (s *Service) MeshSessionPlacement() MeshPlacement {
 // the existing kit lease and rebinds the session onto it. Conflict
 // rejects and does not steal. Generation takeover is not this path.
 // Ensure then runs on that executor only when mesh ensure is already
-// on; otherwise the returned snapshot stays on the Phase 0 and Phase 1
-// launch path. Picture and pad stay on that kit. A native_emu
+// on; otherwise Ensure stays off and the snapshot still pins the
+// claimed kit through bind. Picture and pad stay on that kit. A native_emu
 // selection of any other node returns ErrUnboundNode and does not
 // change the bind. Unresolved and fail closed do not name an Execute
 // node, so they are not recorded and are not that refusal. No request
@@ -170,7 +170,9 @@ func (s *Service) rebindPlacementKit(ctx context.Context, snap launchSnapshot, c
 func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choice, exec meshcontent.Executor, ensure bool) {
 	nodeID := choice.Execute
 	s.targetMu.Lock()
+	previous := s.selectedTarget
 	s.selectedTarget = cfg.Name
+	origin := s.targetOrigin
 	s.targetMu.Unlock()
 	s.meshMu.Lock()
 	s.meshExecute.BoundNode = nodeID
@@ -183,6 +185,13 @@ func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choi
 		s.meshInstalled = meshTargetIdentity{}
 	}
 	s.meshMu.Unlock()
+	// The origin hook is the production path that points CastStart at
+	// the selected kit. Call it only after both locks are released, and
+	// only when the selected name changed. The hook must not call back
+	// into Service.
+	if origin != nil && previous != cfg.Name {
+		origin(cfg)
+	}
 	if ensure && exec != nil {
 		s.attachMeshAuthorizer(MeshExecuteSession{BoundNode: nodeID, Executor: exec})
 	}
@@ -191,25 +200,26 @@ func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choi
 func retargetPlacementSnapshot(snap launchSnapshot, cfg TargetConfig, choice meshplace.Choice, client serviceClient, exec meshcontent.Executor, ensure bool) launchSnapshot {
 	snap.client = client
 	snap.boundNode = choice.Execute
-	snap.requested = ""
-	if !ensure || exec == nil {
-		snap.frozen = false
-		snap.executor = nil
-		snap.siblingExecutor = false
-		return snap
-	}
-	snap.frozen = true
-	snap.executor = exec
+	snap.requested = cfg.Name
 	snap.name = cfg.Name
 	snap.nodeID = choice.Execute
 	snap.selectedName = cfg.Name
 	snap.explicit = false
+	snap.pinned = true
 	snap.siblingExecutor = false
 	snap.address = strings.TrimSpace(cfg.Address)
 	snap.enabled = cfg.Enabled
 	snap.known = true
 	snap.targetID = cfg.NodeID()
 	snap.hadNodeID = strings.TrimSpace(cfg.NodeID()) != ""
+	// Keep the claimed kit pinned when ensure is off. frozen makes
+	// revalidate check this identity instead of the live selected
+	// target. executor stays nil, so Ensure remains a no-op.
+	snap.frozen = true
+	snap.executor = nil
+	if ensure && exec != nil {
+		snap.executor = exec
+	}
 	return snap
 }
 

@@ -894,6 +894,19 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
+	// A kit lease claimed for this placement is held only while this
+	// launch reaches execution. Ensure failure releases it once and
+	// settles the flag. Every other return before execution releases
+	// it here. A grant the session already held is not placementClaimed.
+	var placementSettled bool
+	if snap.placementClaimed {
+		snap.placementClaimSettled = &placementSettled
+		defer func() {
+			if !placementSettled {
+				s.releaseClaimedContentLease(snap)
+			}
+		}()
+	}
 	if err := s.meshEnsureBeforeExecute(ctx, snap); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
@@ -993,6 +1006,9 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 					s.notePlayDisplaySinkLocked()
 					s.packageRejection = nil
 					s.activePackageID, s.activePackageGeneration = "", 0
+					if snap.placementClaimSettled != nil {
+						*snap.placementClaimSettled = true
+					}
 				}
 				s.executionMu.Unlock()
 			}

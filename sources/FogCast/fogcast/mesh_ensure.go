@@ -169,9 +169,18 @@ type launchSnapshot struct {
 	// selected session to stay on this executor.
 	siblingExecutor bool
 	// placementClaimed is set when this launch claimed the kit lease
-	// while rebinding. Ensure releases that grant when it does not
-	// start execution. A grant the session already held stays held.
+	// while rebinding. That grant is released when this launch does
+	// not start execution. A grant the session already held stays held.
 	placementClaimed bool
+	// placementClaimSettled is shared with LaunchOn. It is set when
+	// execution starts, or when an earlier failure already released
+	// the placement grant. Nil when this launch did not claim one.
+	placementClaimSettled *bool
+	// pinned is set when placement claimed a kit. Bind keeps that
+	// kit's target and client even if selectedTarget moves, including
+	// when no mesh executor is installed. Address, TargetID, enabled
+	// state, and the captured client are still validated.
+	pinned bool
 }
 
 // captureLaunchSnapshot reads the target, the bound node, and the
@@ -421,7 +430,7 @@ func (s *Service) revalidateLaunchSnapshot(snap launchSnapshot) error {
 	if s == nil {
 		return nil
 	}
-	if !snap.frozen {
+	if !snap.frozen && !snap.pinned {
 		return s.bindLiveLaunchTarget(snap.requested)
 	}
 	if err := s.snapshotSessionDrift(snap); err != nil {
@@ -458,7 +467,7 @@ func (s *Service) snapshotSessionDrift(snap launchSnapshot) error {
 // snapshotTargetDriftLocked compares the captured target with the
 // configs currently stored. Caller holds targetMu.
 func (s *Service) snapshotTargetDriftLocked(snap launchSnapshot) error {
-	if !snap.explicit && strings.TrimSpace(s.selectedTarget) != snap.selectedName {
+	if !snap.explicit && !snap.pinned && strings.TrimSpace(s.selectedTarget) != snap.selectedName {
 		return snapshotMismatch(launchSnapshotSelectionChanged)
 	}
 	if snap.name == "" {
@@ -597,12 +606,17 @@ func (s *Service) claimContentPullLease(ctx context.Context, snap launchSnapshot
 // releaseLaunchClaim drops a grant this launch claimed when Ensure
 // does not start execution. claimed is the grant Ensure itself
 // acquired. placementClaimed is the grant a rebind acquired. A grant
-// the session already held is neither, and it stays held.
+// the session already held is neither, and it stays held. A release
+// here settles the placement grant so LaunchOn does not release it
+// again.
 func (s *Service) releaseLaunchClaim(snap launchSnapshot, claimed bool) {
 	if !claimed && !snap.placementClaimed {
 		return
 	}
 	s.releaseClaimedContentLease(snap)
+	if snap.placementClaimSettled != nil {
+		*snap.placementClaimSettled = true
+	}
 }
 
 // releaseClaimedContentLease drops a grant this launch claimed after
