@@ -74,7 +74,8 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
 `fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked
-cartridge ROMs. Diagnostic builds retain the media mailbox. Do not use `fes.mastersystem`.
+cartridge ROMs. Diagnostic builds retain the media mailbox; the SMS ROM-link
+OSS package disables its legacy blob commands. Do not use `fes.mastersystem`.
 The SMS OSS producer (`fes-sms`) is a first-pass HIP
 seed/weight search: it starts at seed 3 / HeAP 1000, then the remaining seeds
 and weight 300. Core details are in [Cores](docs/cores.md).

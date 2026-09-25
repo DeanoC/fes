@@ -3,12 +3,15 @@
 
 // One-request-at-a-time HPS GPO/GPI mailbox for fes.simple-computer 1.0.
 // ENABLE_MEDIA_STREAM adds fes.media.blob-stream 1.0 (opcodes 7..12, 32 KiB
-// RAM, capability bit 3). Default zero keeps the original 16 KiB blob ports
-// and HOLD_RESET/RELEASE behaviour for Coleco, SG-1000 and ZX81 callers.
+// RAM, capability bit 3). ENABLE_MEDIA_BLOB controls the legacy fes.media.blob
+// capability and commands; default one preserves existing callers.
+// Default ENABLE_MEDIA_STREAM zero keeps the original 16 KiB blob ports and
+// HOLD_RESET/RELEASE behaviour for Coleco, SG-1000 and ZX81 callers.
 // With stream enabled, HoldReset still cancels an incomplete legacy blob and
 // does not discard in-progress stream staging.
 module fes_computer_gp #(
-    parameter ENABLE_MEDIA_STREAM = 0
+    parameter ENABLE_MEDIA_STREAM = 0,
+    parameter ENABLE_MEDIA_BLOB = 1
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -29,7 +32,9 @@ module fes_computer_gp #(
     localparam [31:0] CAPABILITIES =
         `FES_SIMPLE_COMPUTER_INTERFACE_KEYBOARD_CAPABILITY_MASK |
         `FES_SIMPLE_COMPUTER_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK |
-        `FES_SIMPLE_COMPUTER_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK |
+        (ENABLE_MEDIA_BLOB ?
+         `FES_SIMPLE_COMPUTER_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK :
+         32'h00000000) |
         (ENABLE_MEDIA_STREAM ?
          `FES_SIMPLE_COMPUTER_INTERFACE_MEDIA_BLOB_STREAM_CAPABILITY_MASK :
          32'h00000000);
@@ -104,7 +109,8 @@ module fes_computer_gp #(
     assign keyboard = {key_rows[7], key_rows[6], key_rows[5], key_rows[4],
                        key_rows[3], key_rows[2], key_rows[1], key_rows[0]};
 
-    wire media_cmd = (request_sync != acknowledged_toggle) &&
+    wire media_cmd = ENABLE_MEDIA_BLOB &&
+                     (request_sync != acknowledged_toggle) &&
                      (command_opcode == `FES_SIMPLE_COMPUTER_OPCODE_MEDIA_DATA) &&
                      media_open;
     wire media_pair = media_cmd &&
@@ -335,7 +341,9 @@ module fes_computer_gp #(
                         key_rows[command_index[2:0]] <= command_argument[4:0];
                 end
                 `FES_SIMPLE_COMPUTER_OPCODE_MEDIA_BEGIN: begin
-                    if (command_index == `FES_SIMPLE_COMPUTER_MEDIA_EJECT_INDEX) begin
+                    if (!ENABLE_MEDIA_BLOB)
+                        reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_OPCODE));
+                    else if (command_index == `FES_SIMPLE_COMPUTER_MEDIA_EJECT_INDEX) begin
                         if (ENABLE_MEDIA_STREAM &&
                              (stream_active || (stream_begin_next != 3'd0)))
                             reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_STATE));
@@ -365,7 +373,9 @@ module fes_computer_gp #(
                     end
                 end
                 `FES_SIMPLE_COMPUTER_OPCODE_MEDIA_DATA: begin
-                    if (!media_open)
+                    if (!ENABLE_MEDIA_BLOB)
+                        reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_OPCODE));
+                    else if (!media_open)
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_STATE));
                     else if (command_index == `FES_SIMPLE_COMPUTER_MEDIA_DATA_PAIR_INDEX) begin
                         if ({1'b0, media_ptr} + 16'd2 > {1'b0, media_expected})
@@ -401,7 +411,9 @@ module fes_computer_gp #(
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_INDEX));
                 end
                 `FES_SIMPLE_COMPUTER_OPCODE_MEDIA_COMMIT: begin
-                    if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
+                    if (!ENABLE_MEDIA_BLOB)
+                        reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_OPCODE));
+                    else if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_INDEX));
                     else if (command_argument != 32'h00000000)
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_ARGUMENT));

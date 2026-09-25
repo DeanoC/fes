@@ -766,8 +766,9 @@ square wave, HDMI I2S covers 16-bit 48 kHz frames, and the machine covers the
 (not reset-only peeks).
 `make sim-fes-sms-oss` is the linked-ROM OSS-conditional check
 (`-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1`). Both are host
-simulation, not hardware acceptance. The OSS format-3 package declares only
-keyboard and fixed-video interfaces alongside its required ROM.
+simulation, not hardware acceptance. The OSS format-3 ROM-link mailbox omits
+the legacy blob capability and rejects blob commands. Its package declares
+only keyboard and fixed-video interfaces alongside its required ROM.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe.
 It requires a clean committed tree to seal a format-2 package and never

@@ -82,10 +82,12 @@ here. An older parent pin or launch/Stop record does not accept it.
 
 The production package declares keyboard and fixed video through
 `fes.simple-computer` 1.0. Its `cartridge-rom` is required at library launch,
-and the target patches the sealed ROM lanes before programming. The mailbox
-releases execution reset without a separate media upload. The default
-simulation and Quartus oracle exercise the earlier mailbox media transport as
-explicit diagnostics; their format-2 seals are not the OSS product package.
+and the target patches the sealed ROM lanes before programming. Its ROM-link
+mailbox omits the legacy blob capability and rejects blob begin, eject, data,
+and commit commands as invalid opcodes; execution releases without a separate
+media upload. The default simulation and Quartus oracle retain the earlier
+mailbox media transport as explicit diagnostics; their format-2 seals are not
+the OSS product package.
 
 VDP interrupt connects to Z80 INT. The cartridge itself occupies `0x0038` if
 it installs an IM1 handler; there is no Coleco `JP 0x8066` shim and no
