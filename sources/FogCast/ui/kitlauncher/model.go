@@ -111,14 +111,27 @@ func formatCacheBytes(n int64) string {
 }
 
 func (m *Model) ResetControls() { m.chord = [2]controller.Chord{}; m.axisX = 0; m.axisY = 0 }
+
+// armStopChord records Select+Start for a session that can stop.
+// It does not move the platform wheel, change browse selection, or request a launch.
+func (m *Model) armStopChord(e remoteinput.Event, now time.Time) {
+	if m == nil || !sessionCanStop(m.Session.State) {
+		return
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if e.Kind == remoteinput.KindButton && e.Player < 2 {
+		m.chord[e.Player].Update(e.Code, e.Action == remoteinput.ActionPress, now)
+	}
+}
+
 func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 	if now.IsZero() {
 		now = time.Now()
 	}
 	if sessionCanStop(m.Session.State) {
-		if e.Kind == remoteinput.KindButton && e.Player < 2 {
-			m.chord[e.Player].Update(e.Code, e.Action == remoteinput.ActionPress, now)
-		}
+		m.armStopChord(e, now)
 		return ""
 	}
 	if m.Busy {

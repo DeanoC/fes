@@ -25,19 +25,15 @@ func TestStopChordDoesNotCombinePlayers(t *testing.T) {
 	}
 }
 
-func TestSecondPlayerOnlyFlowsToNegotiatedPorts(t *testing.T) {
+func TestLocalFrameKeepsPlayerIndex(t *testing.T) {
 	e := remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonA}
-	if got, ok := encodePlayHIDEvent(Session{}, e); !ok || got.Player != 0 || got.Code != e.Code {
-		t.Fatalf("legacy surviving pad lost: %+v %v", got, ok)
+	frame := localInputFrame(1, e, time.Unix(0, 0))
+	if frame.Player != 1 || frame.Code != uint16(e.Code) || frame.Header.Session == 0 {
+		t.Fatalf("frame %+v", frame)
 	}
-	p := &CorePackageSession{}
-	p.ActiveInterfaces = append(p.ActiveInterfaces, struct {
-		ID    string `json:"id"`
-		Major uint16 `json:"major"`
-		Minor uint16 `json:"minor"`
-	}{ID: "fes.gamepad.ports", Major: 1})
-	got, ok := encodePlayHIDEvent(Session{CorePackage: p}, e)
-	if !ok || got != e {
-		t.Fatalf("ports event %+v %v", got, ok)
+	key := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: remoteinput.KeyA}
+	keyFrame := localInputFrame(2, key, time.Unix(0, 0))
+	if keyFrame.Device != uint8(remoteinput.DeviceKeyboard) || keyFrame.Kind != uint8(remoteinput.KindKey) || keyFrame.Code != uint16(key.Code) {
+		t.Fatalf("keyboard frame %+v", keyFrame)
 	}
 }

@@ -1345,11 +1345,12 @@ embedded Go Regular face (no kit system fonts). Tile labels may truncate with
 an ellipsis; the Kit reserves bounded multiline footer space for the focused
 title and recovery instructions so the actionable text remains readable.
 A paired, authenticated host listener
-serves a restricted set of existing library, artwork, and session operations and a
-session-bound input stream. The host keeps target and input lease ownership; the
-adapter sends physical USB events through that stream to the retained virtual
-pad. Kit input discovers every eligible USB gamepad (`event*` only) plus
-physical USB keyboards for play-session HID, merges
+serves a restricted set of existing library, artwork, and session operations.
+The host keeps target and input lease ownership for launch and Stop. A gamepad
+or USB keyboard on the kit writes raw input frames to `/run/fogcast/local-input.sock`
+while a runtime core is bound, and does not post those events to the host.
+Kit input discovers every eligible USB gamepad (`event*` only) plus
+physical USB keyboards for that local feed, merges
 polls in stable device-id order through `ui/inputmap`, and remaps
 logical codes with a JSON profile (default identity). Hotplug rescan runs from
 the existing 16ms poll on a one-second interval. The native runtime enables the
@@ -1472,7 +1473,21 @@ and by the larger stick deflection for axes, so a release or a centred stick fro
 one source leaves the other source's hold in place. Local pads occupy P1 and P2
 first; a remote pad uses the next free port, and Coleco's two-port limit rejects
 a player that does not fit. Closing the local socket releases the local source
-only. The kit launcher still forwards physical pads through the host stream.
+only. The kit launcher writes each physical pad and USB keyboard event to this
+socket while the runtime has a core bound. `fogcast-kit` reads that bound bit
+from `/run/mister-runtime.sock` with the same running_development, active
+package, and non-zero generation check mister-agent uses, and passes the
+socket path into the launcher. `ui/kitlauncher` does not import the target
+runtime or input packages. That feed does not use the host
+session's input.ready, launcher.json reachability, or which host holds the
+lease. The kit keeps the player index the pad already has. While a core is
+bound, those events are not applied to the platform wheel, browse selection,
+or launch, even when this kit's host session is still idle. Select+Start held
+for one second still posts `POST /api/v1/session/stop`. With no core bound,
+the same pad drives browse. Stop and kit menu actions stay on the kit. If the
+socket is not listening, play input reports
+the failure, waits one second before dialing again, and does not post the pad
+to the host.
 
 Disconnect of the host stream releases the remote source. Lease expiry, core
 replacement and Stop neutralize every source on both dirty ports. A failed

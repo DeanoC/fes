@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -116,7 +117,29 @@ type Client struct {
 	HTTP    *http.Client
 	Library *hostclient.Client
 	Cache   *DiskStore
+	// localCore reports whether a runtime core is bound. fogcast-kit installs
+	// it. Play input uses the result and ignores host reachability. Nil leaves
+	// play input off.
+	localCore func(context.Context) (bool, error)
+	// localInputPath is the kit-local input socket. Empty leaves the feed down.
+	// fogcast-kit sets the agent socket path.
+	localInputPath string
+	// localDial, when set, replaces net.DialTimeout for the local socket.
+	// Tests count failed dials. Production leaves it nil.
+	localDial func(network, address string, timeout time.Duration) (net.Conn, error)
 }
+
+// SetLocalInput installs the kit-local play path. socketPath is the agent
+// listener. probe reports whether a runtime core is bound. The launcher does
+// not open the runtime socket and does not import target implementation packages.
+func (c *Client) SetLocalInput(socketPath string, probe func(context.Context) (bool, error)) {
+	if c == nil {
+		return
+	}
+	c.localInputPath = socketPath
+	c.localCore = probe
+}
+
 type authenticated struct {
 	base   http.RoundTripper
 	config Config
@@ -177,18 +200,6 @@ func (p *CorePackageSession) HasKeyboard() bool {
 	}
 	for _, contract := range p.ActiveInterfaces {
 		if hostclient.SessionCoreInterface(contract).IsKeyboard() {
-			return true
-		}
-	}
-	return false
-}
-
-func (p *CorePackageSession) HasControllerPorts() bool {
-	if p == nil {
-		return false
-	}
-	for _, contract := range p.ActiveInterfaces {
-		if contract.ID == "fes.gamepad.ports" && contract.Major == 1 && contract.Minor == 0 {
 			return true
 		}
 	}

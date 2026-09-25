@@ -47,9 +47,6 @@ func TestKeyboardCapabilityMatchesSharedDecoder(t *testing.T) {
 				if got := session.CorePackage.HasKeyboard(); got != tc.want {
 					t.Errorf("%s keyboard = %v, want %v", name, got, tc.want)
 				}
-				if got := inputStreamKey(session) != ""; got != tc.want {
-					t.Errorf("%s input admitted = %v, want %v", name, got, tc.want)
-				}
 			}
 		})
 	}

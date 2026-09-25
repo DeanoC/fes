@@ -2,14 +2,14 @@ package kitlauncher
 
 import (
 	"context"
+	"errors"
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/theme"
 	"log"
-	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -148,22 +148,41 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		log.Printf("kit hdmi: confirmed idle without HPS framebuffer (no 0x002f); leaving splash visible")
 	}
 	var pad Pad
-	var stream *InputStream
-	streamKey := ""
-	closeInput := func() {
-		if stream != nil {
-			stream.Close()
-			stream = nil
-			streamKey = ""
+	var feed *localFeed
+	var coreBound atomic.Bool
+	inputDown := false
+	inputLogged := false
+	var nextLocalDial time.Time
+	closeFeed := func(reset bool) {
+		if feed != nil {
+			feed.Close()
+			feed = nil
 		}
-		m.ResetControls()
+		if reset {
+			m.ResetControls()
+		}
 	}
 	defer func() {
-		closeInput()
+		closeFeed(false)
 		if pad != nil {
 			_ = pad.Close()
 		}
 	}()
+	// A probe error keeps the last answer so a stalled status read does not
+	// release held buttons. The first call is synchronous, just before the
+	// loop; later calls stay off this loop and do not wait on the host.
+	refreshCore := func() {
+		next, err := c.readLocalCore(ctx)
+		if err != nil {
+			return
+		}
+		coreBound.Store(next)
+	}
+	showLocalInput := func() {
+		if inputDown && coreBound.Load() && !m.Busy {
+			m.Message = localInputUnavailableMessage
+		}
+	}
 	results := make(chan observation, 4)
 	var epoch uint64
 	polling := false
@@ -272,7 +291,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 		}
 		label := sessionActionLabel(m, action, id)
-		closeInput()
+		closeFeed(true)
 		if m.AttractActive {
 			m.hideAttract()
 		}
@@ -310,6 +329,22 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			send(o)
 		}()
 	}
+	// Sample after the first paint so a slow runtime status cannot hide the
+	// shell. The loop still does not start until this sample returns, so the
+	// first pad poll already knows whether a core is bound.
+	refreshCore()
+	go func() {
+		tick := time.NewTicker(200 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				refreshCore()
+			}
+		}
+	}()
 	tick := time.NewTicker(16 * time.Millisecond)
 	defer tick.Stop()
 	nextPoll, nextPad := time.Time{}, time.Time{}
@@ -335,7 +370,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				if !m.Busy {
 					m.Message = OfflineMessage
 				}
-				closeInput()
+				showLocalInput()
 				continue
 			}
 			if o.hostAbsent {
@@ -345,26 +380,20 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Session = applyObservedSession(m.Session, o.session)
 				}
 				if !m.Busy && o.session.State != "active" && o.session.State != "failed" {
-					if m.Message != hostUnavailableMessage && !strings.HasPrefix(m.Message, hostUnavailableMessage+" (") {
+					if m.Message != hostUnavailableMessage && !strings.HasPrefix(m.Message, hostUnavailableMessage+" (") && m.Message != localInputUnavailableMessage {
 						m.Message = OfflineMessage
 					}
 				}
-				if stream != nil {
-					closeInput()
-				}
+				showLocalInput()
 				continue
 			}
 			m.Connected = true
+			// ForeignLease still marks a grant this host does not own. Play
+			// input to the local socket does not consult it.
 			m.ForeignLease = kitlease.ForeignHID(kitlease.Status{
 				State: o.health.Connection.State,
 				Owner: o.health.Connection.Owner,
 			})
-			if m.ForeignLease && stream != nil {
-				closeInput()
-			}
-			if streamKey != "" && streamKey != inputStreamKey(o.session) {
-				closeInput()
-			}
 			m.Session = applyObservedSession(m.Session, o.session)
 			if !o.mutation {
 				m.TargetReady = o.health.TargetReady
@@ -403,6 +432,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					attractLoaded = true
 					lastAttract = time.Now()
 				}
+				showLocalInput()
 				if o.haveDetail {
 					if m.AttractActive && !m.DetailOpen {
 						m.ApplyAttractPresentation(o.detailID, o.presentation)
@@ -422,14 +452,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.ControllerConnected = err == nil
 				nextPad = now.Add(time.Second)
 			}
-			if stream != nil {
-				select {
-				case <-stream.Done:
-					stream = nil
-					streamKey = ""
-					m.ResetControls()
-					nextPad = now.Add(time.Second)
-				default:
+			bound := coreBound.Load()
+			if !bound {
+				if feed != nil {
+					closeFeed(true)
+				}
+				if inputDown {
+					inputDown = false
+					inputLogged = false
+					nextLocalDial = time.Time{}
+					if m.Message == localInputUnavailableMessage {
+						m.Message = ""
+					}
 				}
 			}
 			if pad != nil {
@@ -438,31 +472,56 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					_ = pad.Close()
 					pad = nil
 					m.ControllerConnected = false
-					closeInput()
+					closeFeed(true)
 					nextPad = now.Add(time.Second)
 				} else {
-					key := playHIDStreamKey(m)
-					if stream == nil && m.Connected && !m.Busy && !m.ForeignLease && key != "" && now.After(nextPad) {
-						streamKey = key
-						stream = c.OpenInput(ctx, m.Session.Input.SessionID)
-						nextPad = now.Add(time.Second)
-					}
 					for _, e := range events {
-						prevShelf := m.Shelf
-						prevPack := m.Pack
-						action := m.Input(e, now)
-						if m.Shelf != prevShelf {
-							persistShelf(c, m.activeShelf())
+						var action string
+						if bound {
+							// A bound core owns the pad, including when this
+							// host session is still idle. Play frames go to
+							// the local feed. Select+Start still arms Stop.
+							// Browse, the platform wheel, and launch stay put.
+							m.armStopChord(e, now)
+						} else {
+							prevShelf := m.Shelf
+							prevPack := m.Pack
+							action = m.Input(e, now)
+							if m.Shelf != prevShelf {
+								persistShelf(c, m.activeShelf())
+							}
+							if m.Pack != prevPack {
+								persistPack(c, m.Pack)
+							}
 						}
-						if m.Pack != prevPack {
-							persistPack(c, m.Pack)
-						}
-						if stream != nil && !m.ForeignLease && streamKey == playHIDStreamKey(m) {
-							if encoded, ok := encodePlayHIDEvent(m.Session, e); ok {
-								select {
-								case <-stream.Ready:
-									stream.Send(encoded)
-								default:
+						// Play input follows local core presence. It does not
+						// wait for the host, input.ready, or the kit lease.
+						if bound {
+							if feed == nil {
+								feed = newLocalFeed(c.localInputSocket(), c.localDial)
+							}
+							// Skip the dial while the socket is already down.
+							// The Stop chord above still runs.
+							// The next try is one send after the cooldown.
+							if !(inputDown && now.Before(nextLocalDial)) {
+								if err := feed.send(e, now); err != nil {
+									if errors.Is(err, errLocalInputUnavailable) {
+										if !inputDown {
+											log.Printf("kit local input unavailable: %v", err)
+										}
+										inputDown = true
+										nextLocalDial = now.Add(localInputRetry)
+									} else if !inputLogged {
+										inputLogged = true
+										log.Printf("kit local input dropped a frame: %v", err)
+									}
+								} else if inputDown {
+									inputDown = false
+									inputLogged = false
+									nextLocalDial = time.Time{}
+									if m.Message == localInputUnavailableMessage {
+										m.Message = ""
+									}
 								}
 							}
 						}
@@ -470,6 +529,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 							mutate(action)
 						}
 					}
+					showLocalInput()
 				}
 			}
 			if action := m.Tick(now); action != "" {
@@ -481,45 +541,6 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				paintKitHDMI(m)
 			}
 		}
-	}
-}
-
-func playHIDStreamKey(m Model) string {
-	if m.ForeignLease {
-		return ""
-	}
-	return inputStreamKey(m.Session)
-}
-
-func encodePlayHIDEvent(session Session, e remoteinput.Event) (remoteinput.Event, bool) {
-	if e.Player > 1 {
-		return remoteinput.Event{}, false
-	}
-	// Legacy cores retain their single merged pad, including a surviving second
-	// physical controller. Only the negotiated ports contract preserves identity.
-	if !session.CorePackage.HasControllerPorts() {
-		e.Player = 0
-	}
-	return playhid.StreamEvent(e, session.CorePackage.HasKeyboard())
-}
-
-func inputStreamKey(session Session) string {
-	if session.State != "active" || (!session.Input.Ready && session.Input.State != "reconnecting") || session.Input.SessionID == "" {
-		return ""
-	}
-	switch session.Execution {
-	case "fpga_native":
-		return session.Execution + ":" + session.Input.SessionID
-	case "fpga_development":
-		if session.CorePackage == nil || session.CorePackage.Generation == 0 {
-			return ""
-		}
-		if !session.CorePackage.Gamepad && !session.CorePackage.HasKeyboard() {
-			return ""
-		}
-		return session.Execution + ":" + session.Input.SessionID + ":" + strconv.FormatUint(session.CorePackage.Generation, 10)
-	default:
-		return ""
 	}
 }
 

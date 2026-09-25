@@ -197,6 +197,7 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	client := kitlauncher.NewClient(c)
+	client.SetLocalInput(localInputConfig())
 	covers := shared.NewCoverCache()
 	stills := shared.NewStillCache()
 	presentations := shared.NewPresentationCache()
