@@ -1470,6 +1470,8 @@ or writing. The status read that binds a local frame, and the set_keyboard or
 set_controller post that follows it, are each limited to 250ms while the lock
 is held, so a stalled runtime reply drops the frame and releases the lock.
 Host attach and the host stream keep their own deadlines.
+The host stream does not hold the controller-port mutex across
+set_controller, so a slow remote post cannot block kit-local delivery.
 The host stream and the local socket keep separate
 button and axis state. On one player they combine by OR for buttons and keypad bits
 and by the larger stick deflection for axes, so a release or a centred stick from

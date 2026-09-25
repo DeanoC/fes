@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -48,9 +49,12 @@ func keyboardFrameFor(code remoteinput.Code, action remoteinput.Action) protocol
 
 func newPortsFixture(t *testing.T, keypad bool) (*controllerPortsSink, *[]portWrite) {
 	t.Helper()
+	var mu sync.Mutex
 	var writes []portWrite
 	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypadMask uint16) error {
+		mu.Lock()
 		writes = append(writes, portWrite{id, generation, port, buttons, keypadMask})
+		mu.Unlock()
 		return nil
 	}}
 	if err := sink.bind(&ControllerBinding{PackageID: "coleco", Generation: 4, Keypad: keypad}); err != nil {
@@ -815,5 +819,233 @@ func TestConcurrentSourcesDoNotRace(t *testing.T) {
 	buttons, _ := sink.mergedButtons(0)
 	if buttons&16 == 0 {
 		t.Fatalf("concurrent remote release cleared local A: %d", buttons)
+	}
+}
+
+// TestRemoteSetControllerDoesNotStarveLocalSocket is the kit-local sock
+// starvation case: remote Apply blocks inside set_controller for longer than
+// the kit write budget. Local deliver and the unix peer must still finish
+// inside localCoreWriteTimeout, because that post does not hold ports.mu.
+func TestRemoteSetControllerDoesNotStarveLocalSocket(t *testing.T) {
+	const storm = 8
+	stall := localCoreWriteTimeout + localCoreWriteTimeout
+	var remotePosts atomic.Int32
+	var localPosts atomic.Int32
+	var recordMu sync.Mutex
+	var last [controllerPortCount]uint8
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(ctx context.Context, _ string, _ uint64, port, buttons uint8, _ uint16) error {
+		if _, ok := ctx.Deadline(); !ok {
+			n := remotePosts.Add(1)
+			if n <= storm {
+				time.Sleep(stall)
+			}
+		} else {
+			localPosts.Add(1)
+		}
+		recordMu.Lock()
+		last[port] = buttons
+		recordMu.Unlock()
+		return nil
+	}}
+	if err := sink.bind(&ControllerBinding{PackageID: "coleco", Generation: 4, Keypad: true}); err != nil {
+		t.Fatal(err)
+	}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	path := filepath.Join(t.TempDir(), "local-input.sock")
+	ctx, cancel := context.WithCancel(context.Background())
+	serveDone := make(chan struct{})
+	go func() {
+		_ = controller.ServeLocalInput(ctx, path)
+		close(serveDone)
+	}()
+	var wg sync.WaitGroup
+	wg.Add(storm)
+	for i := 0; i < storm; i++ {
+		go func() {
+			defer wg.Done()
+			_ = sink.Apply(gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0))
+		}()
+	}
+	t.Cleanup(func() {
+		wg.Wait()
+		cancel()
+		_ = controller.Close()
+		<-serveDone
+	})
+
+	deadline := time.Now().Add(localCoreWriteTimeout)
+	for remotePosts.Load() < storm {
+		if time.Now().After(deadline) {
+			t.Fatalf("remote set_controller entries = %d, want %d within %s (ports mutex still serializes the poster)", remotePosts.Load(), storm, localCoreWriteTimeout)
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	localDone := make(chan error, 1)
+	go func() {
+		localDone <- controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	}()
+	select {
+	case err := <-localDone:
+		if err != nil {
+			t.Fatalf("local deliver: %v", err)
+		}
+	case <-time.After(localCoreWriteTimeout):
+		t.Fatal("stalled remote set_controller blocked local deliver past localCoreWriteTimeout")
+	}
+
+	var conn net.Conn
+	var err error
+	dialDeadline := time.Now().Add(2 * time.Second)
+	for {
+		conn, err = net.Dial("unix", path)
+		if err == nil {
+			break
+		}
+		if time.Now().After(dialDeadline) {
+			t.Fatal(err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	defer conn.Close()
+	frame := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+	const writes = 32
+	for i := 0; i < writes; i++ {
+		if err := conn.SetWriteDeadline(time.Now().Add(localCoreWriteTimeout)); err != nil {
+			t.Fatal(err)
+		}
+		if err := bridge.WriteFrame(conn, frame); err != nil {
+			t.Fatalf("local sock write %d while remote set_controller was stalled: %v", i, err)
+		}
+	}
+	seen := localPosts.Load()
+	wait := time.Now().Add(localCoreWriteTimeout)
+	for localPosts.Load() <= seen {
+		if time.Now().After(wait) {
+			t.Fatalf("agent did not drain the local socket during the remote set_controller stall (posts=%d)", localPosts.Load())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+	var buf [1]byte
+	if _, err := conn.Read(buf[:]); err == nil {
+		t.Fatal("local sock returned unexpected data")
+	} else if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
+		t.Fatalf("local sock closed under remote set_controller storm: %v", err)
+	}
+
+	wg.Wait()
+	buttons, _ := sink.mergedButtons(0)
+	if buttons&16 == 0 {
+		t.Fatalf("remote posts cleared local A: buttons=%d", buttons)
+	}
+	recordMu.Lock()
+	final := last[0]
+	recordMu.Unlock()
+	if final&16 == 0 {
+		t.Fatalf("last port 0 set_controller lost local A: buttons=%d", final)
+	}
+}
+
+// TestStalePortRepublishesWhileOtherPortInFlight locks the per-port stale
+// path: port 0 must republish after a late set_controller while port 1 is
+// still inside its poster.
+func TestStalePortRepublishesWhileOtherPortInFlight(t *testing.T) {
+	holdPort0 := make(chan struct{})
+	holdPort1 := make(chan struct{})
+	enteredPort0 := make(chan struct{})
+	enteredPort1 := make(chan struct{})
+	var releasePort0 sync.Once
+	var releasePort1 sync.Once
+	release0 := func() { releasePort0.Do(func() { close(holdPort0) }) }
+	release1 := func() { releasePort1.Do(func() { close(holdPort1) }) }
+	t.Cleanup(func() { release0(); release1() })
+
+	var port0Posts atomic.Int32
+	var recordMu sync.Mutex
+	var last0 uint8
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, _ string, _ uint64, port, buttons uint8, _ uint16) error {
+		if port == 1 {
+			select {
+			case enteredPort1 <- struct{}{}:
+			default:
+			}
+			<-holdPort1
+		}
+		if port == 0 {
+			n := port0Posts.Add(1)
+			if n == 2 {
+				close(enteredPort0)
+				<-holdPort0
+			}
+		}
+		recordMu.Lock()
+		if port == 0 {
+			last0 = buttons
+		}
+		recordMu.Unlock()
+		return nil
+	}}
+	if err := sink.bind(&ControllerBinding{PackageID: "coleco", Generation: 4}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+
+	remoteDone := make(chan error, 1)
+	go func() {
+		remoteDone <- sink.Apply(gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0))
+	}()
+	select {
+	case <-enteredPort1:
+	case <-time.After(time.Second):
+		t.Fatal("port 1 set_controller did not start")
+	}
+
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonStart, remoteinput.ActionPress, 0))
+	}()
+	select {
+	case <-enteredPort0:
+	case <-time.After(time.Second):
+		t.Fatal("port 0 set_controller did not block")
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+		t.Fatal(err)
+	}
+	release0()
+
+	select {
+	case err := <-startDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stale port 0 apply did not finish")
+	}
+	recordMu.Lock()
+	got := last0
+	posts := port0Posts.Load()
+	recordMu.Unlock()
+	if posts < 4 || got != 128 {
+		t.Fatalf("port 0 posts=%d buttons=%d, want a republish of Start only (128) while port 1 was in flight", posts, got)
+	}
+	select {
+	case <-remoteDone:
+		t.Fatal("port 1 apply finished before its poster was released")
+	default:
+	}
+
+	release1()
+	select {
+	case err := <-remoteDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("port 1 apply did not finish")
 	}
 }

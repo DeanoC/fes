@@ -38,19 +38,27 @@ type portLevel struct {
 }
 
 type controllerPortsSink struct {
-	mu         sync.Mutex
-	fallback   bridge.Sink
-	poster     ControllerPoster
-	binding    *ControllerBinding
-	sources    [sourceCount]remoteinput.State
-	localClaim [controllerPortCount]bool
-	level      [controllerPortCount]portLevel
-	dirty      [controllerPortCount]bool
-	keyboard   bool
-	coreActive bool
-	observed   bool
-	keys       *KeyboardSink
-	pads       *padMerge
+	mu          sync.Mutex
+	publishOnce sync.Once
+	publish     sync.Cond
+	fallback    bridge.Sink
+	poster      ControllerPoster
+	binding     *ControllerBinding
+	sources     [sourceCount]remoteinput.State
+	localClaim  [controllerPortCount]bool
+	level       [controllerPortCount]portLevel
+	dirty       [controllerPortCount]bool
+	// publishSeq is the newest set_controller decision for a port.
+	// inflight counts poster calls that have not rejoined mu.
+	// haltPublish rejects new posts while ReleaseAll neutralizes.
+	publishSeq  [controllerPortCount]uint64
+	inflight    [controllerPortCount]int
+	haltPublish bool
+	keyboard    bool
+	coreActive  bool
+	observed    bool
+	keys        *KeyboardSink
+	pads        *padMerge
 }
 
 func (s *controllerPortsSink) bind(binding *ControllerBinding) error {
@@ -108,7 +116,8 @@ func (s *controllerPortsSink) resetSourcesLocked() {
 // Apply is the host stream. Local frames enter through applyContext with the
 // deadline deliverLocal created while it holds the lifecycle lock. The host
 // stream has no such deadline here; mister-agent keeps the 2s controller
-// bound when this context has none.
+// bound when this context has none. set_controller itself runs without mu, so
+// a slow host post cannot block kit-local delivery on this lock.
 func (s *controllerPortsSink) Apply(f protocol.InputFrame) error {
 	return s.apply(sourceRemote, f)
 }
@@ -190,6 +199,9 @@ func (s *controllerPortsSink) applyPortsLocked(ctx context.Context, source input
 	event := frameEvent(f)
 	if !validControllerEvent(event, s.binding.Keypad) {
 		return bridge.RejectInput("unsupported controller control")
+	}
+	if s.haltPublish {
+		return nil
 	}
 	if source == sourceLocal {
 		before := s.localClaim
@@ -284,28 +296,72 @@ func (s *controllerPortsSink) publishAllLocked(ctx context.Context) error {
 	return result
 }
 
+// publishPortLocked posts one port. The caller holds mu on entry and on
+// return. mu is not held across poster: a host set_controller must not block
+// kit-local apply on the same lock the local socket needs drained. A post
+// that finishes behind a newer decision does not commit, and the last stale
+// completion on that port republishes the current snapshot.
 func (s *controllerPortsSink) publishPortLocked(ctx context.Context, port uint8, force bool) error {
-	if s.binding == nil || s.poster == nil {
-		return errors.New("controller binding is inactive")
-	}
+	s.initPublishLocked()
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	buttons, keypad := controllerSnapshot(s.mergedSnapshotLocked(port), s.binding.Keypad)
-	unchanged := s.level[port].known && s.level[port].buttons == buttons && s.level[port].keypad == keypad
-	if !force && (unchanged || (!s.level[port].known && buttons == 0 && keypad == 0)) {
-		s.level[port].known = true
-		s.dirty[port] = buttons != 0 || keypad != 0
+	for {
+		if s.haltPublish {
+			return nil
+		}
+		if s.binding == nil || s.poster == nil {
+			return errors.New("controller binding is inactive")
+		}
+		buttons, keypad := controllerSnapshot(s.mergedSnapshotLocked(port), s.binding.Keypad)
+		unchanged := s.level[port].known && s.level[port].buttons == buttons && s.level[port].keypad == keypad
+		if !force && (unchanged || (!s.level[port].known && buttons == 0 && keypad == 0)) {
+			s.level[port].known = true
+			s.dirty[port] = buttons != 0 || keypad != 0
+			return nil
+		}
+		binding := *s.binding
+		s.publishSeq[port]++
+		seq := s.publishSeq[port]
+		s.inflight[port]++
+		// A failed request can have applied: release must still attempt zero.
+		s.dirty[port] = true
+		poster := s.poster
+		s.mu.Unlock()
+
+		err := poster(ctx, binding.PackageID, binding.Generation, port, buttons, keypad)
+
+		s.mu.Lock()
+		s.inflight[port]--
+		// ReleaseAll waits until every port is idle. A stale republish below
+		// is per port and must not wait for the other port.
+		if s.inflight[0] == 0 && s.inflight[1] == 0 {
+			s.publish.Broadcast()
+		}
+		if err != nil {
+			return err
+		}
+		if s.haltPublish || s.binding == nil || !sameBinding(s.binding, &binding) {
+			return nil
+		}
+		if seq == s.publishSeq[port] {
+			s.level[port] = portLevel{buttons: buttons, keypad: keypad, known: true}
+			s.dirty[port] = buttons != 0 || keypad != 0
+			return nil
+		}
+		// This post is stale. If it was the last in flight for this port, the
+		// runtime may now be showing it. Republish even while the other port
+		// still has a post in flight.
+		if s.inflight[port] == 0 {
+			force = true
+			continue
+		}
 		return nil
 	}
-	// A failed local request can have applied: release must still attempt zero.
-	s.dirty[port] = true
-	if err := s.poster(ctx, s.binding.PackageID, s.binding.Generation, port, buttons, keypad); err != nil {
-		return err
-	}
-	s.level[port] = portLevel{buttons: buttons, keypad: keypad, known: true}
-	s.dirty[port] = buttons != 0 || keypad != 0
-	return nil
+}
+
+func (s *controllerPortsSink) initPublishLocked() {
+	s.publishOnce.Do(func() { s.publish.L = &s.mu })
 }
 
 func (s *controllerPortsSink) releaseSource(source inputSource) error {
@@ -338,6 +394,7 @@ func (s *controllerPortsSink) releaseSource(source inputSource) error {
 func (s *controllerPortsSink) ReleaseAll() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.initPublishLocked()
 	if s.binding == nil {
 		s.resetSourcesLocked()
 		s.coreActive = false
@@ -348,17 +405,30 @@ func (s *controllerPortsSink) ReleaseAll() error {
 		}
 		return s.fallback.ReleaseAll()
 	}
+	// In-flight host posts must finish before zeros, and must not commit
+	// over them. Waiting drops mu so kit-local delivery is not stuck behind
+	// that set_controller.
+	s.haltPublish = true
+	defer func() { s.haltPublish = false }()
+	for s.inflight[0] > 0 || s.inflight[1] > 0 {
+		s.publish.Wait()
+	}
 	var result error
 	for port := uint8(0); port < controllerPortCount; port++ {
 		if !s.dirty[port] {
 			continue
 		}
-		if err := s.poster(context.Background(), s.binding.PackageID, s.binding.Generation, port, 0, 0); err != nil {
+		binding := *s.binding
+		poster := s.poster
+		s.mu.Unlock()
+		err := poster(context.Background(), binding.PackageID, binding.Generation, port, 0, 0)
+		s.mu.Lock()
+		if err != nil {
 			result = errors.Join(result, err)
-		} else {
-			s.dirty[port] = false
-			s.level[port] = portLevel{known: true}
+			continue
 		}
+		s.dirty[port] = false
+		s.level[port] = portLevel{known: true}
 	}
 	if result == nil {
 		s.resetSourcesLocked()
