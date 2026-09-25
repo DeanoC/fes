@@ -947,3 +947,105 @@ func TestRemoteSetControllerDoesNotStarveLocalSocket(t *testing.T) {
 		t.Fatalf("last port 0 set_controller lost local A: buttons=%d", final)
 	}
 }
+
+// TestStalePortRepublishesWhileOtherPortInFlight locks the per-port stale
+// path: port 0 must republish after a late set_controller while port 1 is
+// still inside its poster.
+func TestStalePortRepublishesWhileOtherPortInFlight(t *testing.T) {
+	holdPort0 := make(chan struct{})
+	holdPort1 := make(chan struct{})
+	enteredPort0 := make(chan struct{})
+	enteredPort1 := make(chan struct{})
+	var releasePort0 sync.Once
+	var releasePort1 sync.Once
+	release0 := func() { releasePort0.Do(func() { close(holdPort0) }) }
+	release1 := func() { releasePort1.Do(func() { close(holdPort1) }) }
+	t.Cleanup(func() { release0(); release1() })
+
+	var port0Posts atomic.Int32
+	var recordMu sync.Mutex
+	var last0 uint8
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, _ string, _ uint64, port, buttons uint8, _ uint16) error {
+		if port == 1 {
+			select {
+			case enteredPort1 <- struct{}{}:
+			default:
+			}
+			<-holdPort1
+		}
+		if port == 0 {
+			n := port0Posts.Add(1)
+			if n == 2 {
+				close(enteredPort0)
+				<-holdPort0
+			}
+		}
+		recordMu.Lock()
+		if port == 0 {
+			last0 = buttons
+		}
+		recordMu.Unlock()
+		return nil
+	}}
+	if err := sink.bind(&ControllerBinding{PackageID: "coleco", Generation: 4}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+
+	remoteDone := make(chan error, 1)
+	go func() {
+		remoteDone <- sink.Apply(gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0))
+	}()
+	select {
+	case <-enteredPort1:
+	case <-time.After(time.Second):
+		t.Fatal("port 1 set_controller did not start")
+	}
+
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonStart, remoteinput.ActionPress, 0))
+	}()
+	select {
+	case <-enteredPort0:
+	case <-time.After(time.Second):
+		t.Fatal("port 0 set_controller did not block")
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+		t.Fatal(err)
+	}
+	release0()
+
+	select {
+	case err := <-startDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stale port 0 apply did not finish")
+	}
+	recordMu.Lock()
+	got := last0
+	posts := port0Posts.Load()
+	recordMu.Unlock()
+	if posts < 4 || got != 128 {
+		t.Fatalf("port 0 posts=%d buttons=%d, want a republish of Start only (128) while port 1 was in flight", posts, got)
+	}
+	select {
+	case <-remoteDone:
+		t.Fatal("port 1 apply finished before its poster was released")
+	default:
+	}
+
+	release1()
+	select {
+	case err := <-remoteDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("port 1 apply did not finish")
+	}
+}

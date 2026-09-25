@@ -300,7 +300,7 @@ func (s *controllerPortsSink) publishAllLocked(ctx context.Context) error {
 // return. mu is not held across poster: a host set_controller must not block
 // kit-local apply on the same lock the local socket needs drained. A post
 // that finishes behind a newer decision does not commit, and the last stale
-// completion republishes the current snapshot.
+// completion on that port republishes the current snapshot.
 func (s *controllerPortsSink) publishPortLocked(ctx context.Context, port uint8, force bool) error {
 	s.initPublishLocked()
 	if ctx == nil {
@@ -333,6 +333,8 @@ func (s *controllerPortsSink) publishPortLocked(ctx context.Context, port uint8,
 
 		s.mu.Lock()
 		s.inflight[port]--
+		// ReleaseAll waits until every port is idle. A stale republish below
+		// is per port and must not wait for the other port.
 		if s.inflight[0] == 0 && s.inflight[1] == 0 {
 			s.publish.Broadcast()
 		}
@@ -347,9 +349,10 @@ func (s *controllerPortsSink) publishPortLocked(ctx context.Context, port uint8,
 			s.dirty[port] = buttons != 0 || keypad != 0
 			return nil
 		}
-		// This post is stale. If it was the last one to finish, the runtime
-		// may now be showing it. Republish the snapshot taken under the lock.
-		if s.inflight[0] == 0 && s.inflight[1] == 0 {
+		// This post is stale. If it was the last in flight for this port, the
+		// runtime may now be showing it. Republish even while the other port
+		// still has a post in flight.
+		if s.inflight[port] == 0 {
 			force = true
 			continue
 		}
