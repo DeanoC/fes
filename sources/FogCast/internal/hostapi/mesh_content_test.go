@@ -116,7 +116,7 @@ func TestGamesSeamOffKeepsLaunchableTitlesReady(t *testing.T) {
 		t.Fatal(response.Body.String())
 	}
 	body := response.Body.String()
-	for _, absent := range []string{`"ready_here"`, `"ready_block"`, `"next_action"`} {
+	for _, absent := range []string{`"ready_here"`, `"ready_block"`, `"next_action"`, `"placement"`} {
 		if strings.Contains(body, absent) {
 			t.Fatalf("seam off grew %s: %s", absent, body)
 		}
@@ -201,5 +201,50 @@ func TestGamesReadyHereJSON(t *testing.T) {
 	}
 	if one.ReadyHere == nil || *one.ReadyHere || one.ReadyBlock != "distant" || one.NextAction != "fetch_here" || !one.Launchable {
 		t.Fatalf("detail %+v", one)
+	}
+}
+
+func TestGamesPlacementJSON(t *testing.T) {
+	service := &meshReadyList{
+		launchableFake: launchableFake{
+			fakeService: fakeService{games: meshReadyCatalog(), game: meshReadyCatalog()[0]},
+			launchable:  map[protocol.System]bool{protocol.SystemColecoVision: false, "zx81": false, protocol.SystemSNES: true},
+		},
+		on: true,
+		decisions: map[string]fogcast.GameMeshReady{
+			"fpga-coleco-dk": {Ready: true, Placement: "selected"},
+			"snes-mario":     {Ready: false, Block: fogcast.BlockPlacementUnresolved, NextAction: "unavailable", Placement: "unresolved"},
+			"fpga-frogger":   {Ready: false, Block: fogcast.BlockPlacementFailClosed, NextAction: "unavailable", Placement: "fail_closed"},
+		},
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	var page struct {
+		Games []hostclient.Game `json:"games"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]hostclient.Game{}
+	for _, game := range page.Games {
+		byID[game.ID] = game
+	}
+	coleco := byID["fpga-coleco-dk"]
+	if coleco.ReadyHere == nil || !*coleco.ReadyHere || coleco.Placement != hostclient.PlacementSelected || !coleco.LaunchEligible() || coleco.ReadyBlock != "" {
+		t.Fatalf("selected %+v", coleco)
+	}
+	mario := byID["snes-mario"]
+	if mario.ReadyHere == nil || *mario.ReadyHere || mario.Placement != hostclient.PlacementUnresolved || mario.ReadyBlock != string(fogcast.BlockPlacementUnresolved) || mario.LaunchEligible() || mario.LaunchBlock() == hostclient.LaunchVersionSkew || mario.LaunchBlock() == hostclient.LaunchLeaseHeld {
+		t.Fatalf("unresolved %+v block %s", mario, mario.LaunchBlock())
+	}
+	frogger := byID["fpga-frogger"]
+	if frogger.Placement != hostclient.PlacementFailClosed || frogger.ReadyBlock != string(fogcast.BlockPlacementFailClosed) || frogger.LaunchEligible() || frogger.LaunchBlock() == hostclient.LaunchVersionSkew || frogger.LaunchBlock() == hostclient.LaunchLeaseHeld {
+		t.Fatalf("fail closed %+v block %s", frogger, frogger.LaunchBlock())
+	}
+	zx := byID["fpga-zx81-maze"]
+	if zx.Placement != "" || zx.ReadyHere != nil {
+		t.Fatalf("unasked %+v", zx)
 	}
 }

@@ -462,6 +462,78 @@ func TestRoomEditionPreferencePersistsAndSkipsReask(t *testing.T) {
 	}
 }
 
+func TestPlacementSelectionLaunchesWithoutAMachineAsk(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, "overworld", destRoomScript),
+	})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "ready", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady
+	})
+
+	ready := true
+	selected := availableGame("snes-mario", "Mario", "snes")
+	selected.ReadyHere = &ready
+	selected.Placement = hostclient.PlacementSelected
+	app.mu.Lock()
+	app.room.RefreshCachedGames([]hostclient.Game{selected})
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	if snap.Room.Choice.Open || snap.Room.Destination.Availability != rooms.AvailReady || snap.Room.Destination.Confirm() != rooms.ConfirmLaunch || snap.Room.Destination.Action != "Play" {
+		t.Fatalf("selected %+v choice %+v", snap.Room.Destination, snap.Room.Choice)
+	}
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "selected launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	if h.launchCount() != 1 || !strings.Contains(h.launches[0], "snes-mario") || app.Snapshot().Room.Choice.Open {
+		t.Fatalf("launches %v choice %+v", h.launches, app.Snapshot().Room.Choice)
+	}
+
+	app.HandleCommand(CmdStop, now)
+	waitFor(t, app, "unpark", func(s Snapshot) bool { return !s.GPUParked })
+	blocked := false
+	unresolved := selected
+	unresolved.ReadyHere = &blocked
+	unresolved.Placement = hostclient.PlacementUnresolved
+	unresolved.ReadyBlock = string(hostclient.LaunchPlacementUnresolved)
+	unresolved.NextAction = "unavailable"
+	app.mu.Lock()
+	app.launch = LaunchSnapshot{}
+	app.room.RefreshCachedGames([]hostclient.Game{unresolved})
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	if snap.Room.Choice.Open || snap.Room.Destination.Confirm() == rooms.ConfirmLaunch || snap.Room.Destination.Confirm() == rooms.ConfirmChoose || snap.Room.Destination.Availability == rooms.AvailReady || snap.Room.Destination.Availability == rooms.AvailNeedsChoice {
+		t.Fatalf("unresolved %+v choice %+v", snap.Room.Destination, snap.Room.Choice)
+	}
+	if snap.Room.Destination.Status == "Can't play here yet." || snap.Room.Destination.Status == "This executor is in use." || snap.Room.Destination.Status == "Several editions match. Choose one." {
+		t.Fatalf("unresolved copy %q", snap.Room.Destination.Status)
+	}
+	before := h.launchCount()
+	app.HandleCommand(CmdSelect, now)
+	if h.launchCount() != before || app.Snapshot().Launch.Phase == "ok" || app.Snapshot().Launch.Phase == "launching" || app.Snapshot().Room.Choice.Open {
+		t.Fatalf("unresolved confirm launched %+v count=%d choice %+v", app.Snapshot().Launch, h.launchCount(), app.Snapshot().Room.Choice)
+	}
+
+	closed := unresolved
+	closed.Placement = hostclient.PlacementFailClosed
+	closed.ReadyBlock = string(hostclient.LaunchPlacementFailClosed)
+	app.mu.Lock()
+	app.room.RefreshCachedGames([]hostclient.Game{closed})
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	if snap.Room.Destination.Confirm() == rooms.ConfirmLaunch || snap.Room.Destination.Confirm() == rooms.ConfirmChoose || snap.Room.Destination.Matches[0].LaunchBlock() != hostclient.LaunchPlacementFailClosed {
+		t.Fatalf("fail closed %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdSelect, now)
+	if h.launchCount() != before || app.Snapshot().Launch.Phase == "launching" || app.Snapshot().Room.Choice.Open {
+		t.Fatalf("fail closed confirm launched %+v count=%d", app.Snapshot().Launch, h.launchCount())
+	}
+}
+
 func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{

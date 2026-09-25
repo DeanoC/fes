@@ -6,14 +6,28 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+	"github.com/DeanoC/FogCast/internal/meshplace"
+)
+
+// Placement blocks are why a row that asked Place is not Ready.
+// They are codes, not sofa copy. They are not version skew and not a
+// held lease. Rooms do not treat them as an edition choice or as a
+// prompt for which machine.
+const (
+	BlockPlacementUnresolved meshcontent.Block = "placement_unresolved"
+	BlockPlacementFailClosed meshcontent.Block = "placement_fail_closed"
 )
 
 // GameMeshReady is ReadyHere for one title when a mesh execute session
-// is installed. NextAction is empty when Ready is true.
+// is installed. NextAction is empty when Ready is true. Placement is
+// the host predicate rooms read when this view asked Place. Empty
+// means the row is not asking. It is not sofa copy and it does not
+// name an Execute node.
 type GameMeshReady struct {
 	Ready      bool
 	Block      meshcontent.Block
 	NextAction string
+	Placement  meshplace.Outcome
 }
 
 // GamesMeshReady evaluates ReadyHere for ids. The boolean is false when
@@ -21,6 +35,14 @@ type GameMeshReady struct {
 // no catalog projection. Callers then keep Phase 0 and Phase 1
 // composition Ready and omit the ready fields. This does not call
 // Ensure and does not pull.
+//
+// When a placement ask is installed, each projected title also runs
+// Place with that ask. The read does not record the decision and does
+// not dial a kit. Selected leaves ReadyHere in place. Unresolved and
+// fail closed clear Ready when this session would otherwise be Ready
+// here, and they do not name an Execute node. A row that is already
+// not Ready keeps that block, including version skew and a held lease.
+// No ask leaves Phase 2 Ready unchanged.
 //
 // LeaseFree for this view is the session's current grant and generation,
 // or an unleased kit this session can claim. A foreign holder is not
@@ -72,6 +94,7 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 	out := make(map[string]GameMeshReady, len(entries))
 	foreign := neighborExecuteAd(nodes, session.BoundNode)
 	majorOK := meshMajorOK(nodes, session.BoundNode)
+	ask, placeOpts, asked := s.placementAskForReady()
 	for id, entry := range entries {
 		if ctx.Err() != nil {
 			return nil, false
@@ -85,9 +108,59 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 		if !ready {
 			decision.NextAction = meshcontent.NextAction(block)
 		}
+		if asked {
+			decision = applyPlacementReadiness(decision, meshplace.Place(entry, ask.Candidates, placeOpts))
+		}
 		out[id] = decision
 	}
 	return out, true
+}
+
+// placementAskForReady is the placement request the games view reads.
+// Nil means this row is not asking, so Phase 2 Ready stays as it is.
+// The returned ask is the installed value. This does not record a
+// decision and does not dial a kit.
+func (s *Service) placementAskForReady() (*MeshPlacementAsk, meshplace.Options, bool) {
+	if s == nil {
+		return nil, meshplace.Options{}, false
+	}
+	s.meshMu.Lock()
+	ask := s.meshPlacementAsk
+	s.meshMu.Unlock()
+	if ask == nil {
+		return nil, meshplace.Options{}, false
+	}
+	opts := s.PlaceOptions()
+	opts.OverrideNodeID = ask.OverrideNodeID
+	opts.MissingRequiredSlot = ask.MissingRequiredSlot
+	return ask, opts, true
+}
+
+// applyPlacementReadiness folds one Place result into a ReadyHere
+// decision. Selected keeps the decision and does not add a machine
+// prompt. Unresolved and fail closed clear Ready only when the row
+// would otherwise be Ready here. They do not replace version skew, a
+// held lease, or any other block that already explains the row, and
+// they do not invent an Execute node.
+func applyPlacementReadiness(decision GameMeshReady, result meshplace.Result) GameMeshReady {
+	decision.Placement = result.Outcome
+	switch result.Outcome {
+	case meshplace.OutcomeUnresolved, meshplace.OutcomeFailClosed:
+		if !decision.Ready {
+			return decision
+		}
+		decision.Ready = false
+		decision.Block = placementReadyBlock(result.Outcome)
+		decision.NextAction = "unavailable"
+	}
+	return decision
+}
+
+func placementReadyBlock(outcome meshplace.Outcome) meshcontent.Block {
+	if outcome == meshplace.OutcomeFailClosed {
+		return BlockPlacementFailClosed
+	}
+	return BlockPlacementUnresolved
 }
 
 func neighborExecuteAd(nodes []MeshNode, boundNode string) discovery.Advertisement {

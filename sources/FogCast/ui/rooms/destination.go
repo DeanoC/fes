@@ -74,7 +74,9 @@ type Destination struct {
 // wins over looser contains-matches.
 // Ready is Phase 0 composition when the game has no ReadyHere result.
 // When ReadyHere is set, that result is Ready: a false result is
-// Unavailable, and a slot mid-pull is Checking. A mesh Execute
+// Unavailable, and a slot mid-pull is Checking. A selected placement
+// leaves that Ready path in place, so Play does not ask which machine.
+// Unresolved and fail closed are not Ready. A mesh Execute
 // advertisement is not an input and cannot change the result.
 func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostclient.Game) {
 	matches := matchingGames(games, query)
@@ -323,6 +325,8 @@ func (d Destination) Confirm() ConfirmIntent {
 		}
 		return ConfirmExplain
 	case AvailReady:
+		// A selected placement stays on this launch. Confirm does not
+		// ask which machine.
 		return ConfirmLaunch
 	default:
 		if d.Kind == KindUnresolved && d.Availability != "" {

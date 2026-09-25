@@ -217,6 +217,9 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 			g.ReadyBlock = optString(row, "ready_block")
 			g.NextAction = optString(row, "next_action")
 		}
+		if placement := optString(row, "placement"); placement != "" {
+			g.Placement = placement
+		}
 		if g.State == "" && g.Launchable {
 			g.State = "available"
 		}

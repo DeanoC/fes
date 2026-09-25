@@ -84,9 +84,10 @@ and InputSource. Launch and Ensure keep that bind. A selection that
 names any other node is not applied: Launch returns
 `meshcontent.ErrUnboundNode` before bind and does not move the
 session. A launch that is not asking for placement keeps the Phase 0
-and Phase 1 bind. Decision 7 remains the unsigned strawman
-`meshplace` already applies. `[mesh] ensure` stays off unless the
-operator set it.
+and Phase 1 bind. The games list reads that same ask when it builds
+Ready. That read does not record the decision. Decision 7 remains the
+unsigned strawman `meshplace` already applies. `[mesh] ensure` stays
+off unless the operator set it.
 
 ## Process ownership
 
@@ -1120,6 +1121,22 @@ false, `ready_block` (the ReadyHere block), and `next_action`. A true
 missing firmware, ROM, or expansion, and the rest), so Play is not
 offered for a host-only row whose root is offline.
 
+When a placement ask is installed, that same games read runs
+`meshplace.Place` for each projected title and writes `placement`
+(`selected`, `unresolved`, or `fail_closed`). The read uses the
+candidates on the ask. It does not record the decision, does not dial
+a kit, and does not launch. `selected` leaves this Ready result in
+place, so Play stays the existing launch and does not ask which
+machine. `unresolved` and `fail_closed` clear Ready when the row would
+otherwise be Ready here. The block is `placement_unresolved` or
+`placement_fail_closed`, and `next_action` is `unavailable`. Rooms
+Confirm does not launch and does not pick a node. Those two blocks
+are codes, not a new sofa sentence. Edition Needs a choice, version
+skew, and in use keep their own blocks when those already explain the
+row. An Execute advertisement does not grant Ready. A capture preview
+is not a DisplaySink on this read. No ask leaves Phase 2 Ready
+unchanged.
+
 | `next_action` | `ready_block` |
 | --- | --- |
 | `wait` | `ensure_in_progress` |
@@ -1129,7 +1146,7 @@ offered for a host-only row whose root is offline.
 | `resolve_version` | `version_skew` |
 | `bind_executor` | `no_capable_executor` |
 | `browse` | `browse_only` |
-| `unavailable` | `invalid`, and any other block |
+| `unavailable` | `invalid`, `placement_unresolved`, `placement_fail_closed`, and any other block |
 
 A slot mid-pull is Checking (`ready_block` `ensure_in_progress`,
 `next_action` `wait`). Rooms show that as Unavailable or Checking and
@@ -1138,7 +1155,8 @@ do not Play.
 `enrichLaunchable`, so a firmware-ready Coleco or ZX81 package is not
 reclassified as browse-only.
 
-When the session is not installed, those three fields are omitted.
+When the session is not installed, `ready_here`, `ready_block`,
+`next_action`, and `placement` are omitted.
 Phase 0 and Phase 1 Ready stays composition against the bound executor:
 Coleco and ZX81 packages and host-only titles stay Ready and launch as
 they do now. A neighbor Execute advertisement still does not grant Ready.

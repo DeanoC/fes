@@ -192,6 +192,9 @@ func (r *Instance) gameTable(g hostclient.Game) *lua.LTable {
 		t.RawSetString("ready_block", lua.LString(g.ReadyBlock))
 		t.RawSetString("next_action", lua.LString(g.NextAction))
 	}
+	if placement := strings.TrimSpace(g.Placement); placement != "" {
+		t.RawSetString("placement", lua.LString(placement))
+	}
 	cols := L.NewTable()
 	for _, c := range g.Collections {
 		cols.Append(lua.LString(c))

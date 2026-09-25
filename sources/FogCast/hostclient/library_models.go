@@ -40,7 +40,21 @@ type Game struct {
 	ReadyHere  *bool  `json:"ready_here,omitempty"`
 	ReadyBlock string `json:"ready_block,omitempty"`
 	NextAction string `json:"next_action,omitempty"`
+	// Placement is the host predicate rooms read when this row asked
+	// Place. Empty means the row is not asking. selected keeps Play on
+	// the existing launch and does not ask which machine. unresolved
+	// and fail_closed are not Ready. Codes match meshplace.Outcome.
+	// They are not sofa copy.
+	Placement string `json:"placement,omitempty"`
 }
+
+// Placement outcomes rooms read from the games row. They match
+// meshplace.Outcome. Empty means this row is not asking.
+const (
+	PlacementSelected   = "selected"
+	PlacementUnresolved = "unresolved"
+	PlacementFailClosed = "fail_closed"
+)
 
 // LaunchBlock is why a catalog row is ineligible for POST /api/v1/session/launch.
 // Empty means eligible. Values are stable codes, not UI copy.
@@ -63,6 +77,10 @@ const (
 	LaunchContentMissing LaunchBlock = "content_missing"
 	LaunchEnsureProgress LaunchBlock = "ensure_in_progress"
 	LaunchMeshInvalid    LaunchBlock = "invalid"
+	// Placement blocks are set when Place cleared Ready. They are not
+	// version skew, a held lease, or an edition choice.
+	LaunchPlacementUnresolved LaunchBlock = "placement_unresolved"
+	LaunchPlacementFailClosed LaunchBlock = "placement_fail_closed"
 )
 
 // LaunchBlock classifies catalog-side launch ineligibility. ListGames variant
@@ -76,7 +94,25 @@ func (g Game) LaunchBlock() LaunchBlock {
 		}
 		return LaunchBlock(g.ReadyBlock)
 	}
+	if block := g.placementBlock(); block != "" {
+		return block
+	}
 	return g.catalogLaunchBlock()
+}
+
+// placementBlock is the Ready gate for an unresolved or fail-closed
+// placement. Selected and an empty predicate do not block. A false
+// ReadyHere keeps its own block, so version skew and in use stay
+// distinct when those already explain the row.
+func (g Game) placementBlock() LaunchBlock {
+	switch strings.TrimSpace(g.Placement) {
+	case PlacementUnresolved:
+		return LaunchPlacementUnresolved
+	case PlacementFailClosed:
+		return LaunchPlacementFailClosed
+	default:
+		return ""
+	}
 }
 
 func (g Game) catalogLaunchBlock() LaunchBlock {
