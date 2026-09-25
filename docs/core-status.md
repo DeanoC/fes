@@ -49,8 +49,11 @@ See [media capacity](core-media-evolution.md).
 
 The Coleco v2 shell and independently linked SGM expansion have
 [exact-artifact kit diagnostic acceptance](validation/2026-09-25-coleco-sgm-v2-hil.md)
-for the named artifacts in that record. Factory-image acceptance of a newly
-built package remains a separate check.
+for the named artifacts in that record. The factory image built from FES
+`3aa69308` has separate [exact-artifact kit acceptance](validation/2026-09-25-coleco-v2-main-image-acceptance.md)
+for its named Coleco v2 package and linked SGM probe. The bounded
+[retail-cartridge baseline](validation/2026-09-25-coleco-v2-retail-baseline.md)
+does not qualify a later bitstream or general game compatibility.
 
 ## Not implemented, or not this package
 
