@@ -4,8 +4,10 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <initializer_list>
 #include <iostream>
+#include <iterator>
 #include <vector>
 
 static void require(bool ok, const char *why) {
@@ -61,6 +63,27 @@ struct Driver {
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     Driver d;
+#ifdef SGM_INTEGRATED
+    if (argc == 2) {
+        std::ifstream file(argv[1], std::ios::binary);
+        require(bool(file), "cannot open SGM cartridge probe");
+        d.rom.assign(std::istreambuf_iterator<char>(file), {});
+        require(!d.rom.empty() && d.rom.size() <= 16384, "invalid SGM cartridge probe size");
+        d.dut.clk_sys = 0; d.dut.reset = 1; d.dut.media_ready = 1;
+        d.dut.media_size = d.rom.size(); d.dut.media_data = 0;
+        d.dut.peek_addr = 0x6000; d.dut.eval();
+        for (size_t i = 0; i < d.rom.size() + 32; ++i) d.tick();
+        d.dut.reset = 0;
+        unsigned cycles = 0;
+        for (; cycles < 50000000 && d.dut.cpu_halt_n; ++cycles) d.tick();
+        d.tick();
+        require(cycles < 50000000, "SGM cartridge probe did not reach pass frame");
+        require(d.dut.peek_data == 0x66, "SGM cartridge probe changed hidden console RAM");
+        std::cout << "Coleco SGM cartridge probe passed after " << cycles << " cycles\n";
+        return 0;
+    }
+#endif
+    require(argc == 1, "unexpected SGM shell RAM test argument");
     std::vector<size_t> patches;
     // The console's mirrored RAM must remain intact beneath the SGM window.
     emit(d.rom, {0x3e, 0xd4, 0x32, 0x00, 0x60});

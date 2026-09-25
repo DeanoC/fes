@@ -408,7 +408,7 @@ COLECO_BOARD_CASES := graphics stream interactive controllers vdp-io sprites
 COLECO_BOARD_TARGETS := $(addprefix sim-fes-coleco-board-,$(COLECO_BOARD_CASES))
 .PHONY: sim-fes-coleco-unit sim-fes-coleco-unit-oss sim-fes-coleco-board-build sim-fes-coleco-board-build-oss $(COLECO_BOARD_TARGETS) $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
 sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss
-sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS)) sim-fes-coleco-expansion sim-fes-coleco-diagnostic sim-fes-coleco-sgm-socket sim-fes-coleco-sgm-shell-ram sim-fes-coleco-sgm-ay sim-fes-coleco-sgm-module sim-fes-coleco-sgm-audio sim-fes-coleco-sgm-integrated
+sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS)) sim-fes-coleco-expansion sim-fes-coleco-diagnostic sim-fes-coleco-sgm-socket sim-fes-coleco-sgm-shell-ram sim-fes-coleco-sgm-ay sim-fes-coleco-sgm-module sim-fes-coleco-sgm-audio sim-fes-coleco-sgm-probe
 
 .PHONY: sim-fes-coleco-sgm-socket
 sim-fes-coleco-sgm-socket:
@@ -636,6 +636,12 @@ sim-fes-coleco-sgm-integrated:
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/sgm_shell_ram_tb.cpp"
 	@build/sim/fes-coleco-sgm-integrated/Vsgm_shell_machine
+
+.PHONY: sim-fes-coleco-sgm-probe
+sim-fes-coleco-sgm-probe: sim-fes-coleco-sgm-integrated
+	@mkdir -p build/diagnostics/fes-coleco
+	$(PYTHON) cores/fes-coleco/diagnostic/sgm_probe.py --output build/diagnostics/fes-coleco/sgm-probe.rom
+	@build/sim/fes-coleco-sgm-integrated/Vsgm_shell_machine build/diagnostics/fes-coleco/sgm-probe.rom
 
 sim-fes-coleco-board-build:
 	$(require_local_sim)

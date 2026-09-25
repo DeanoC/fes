@@ -92,9 +92,11 @@ the repaired GPU-router pin in `toolchains/coleco-sgm.lock` and advertises the
 optional `fes.expansion.coleco-bus` 2.0 interface. `scripts/build_coleco_sgm.py`
 routes the SGM independently against that exact sealed shell and admits only
 CRAM changes inside its reserved rectangle. Both recipes require clean,
-committed source and all three final timing gates. No sealed v2 shell or SGM
-archive has passed the producer gate or kit acceptance; the existing v1
-diagnostic archive remains separate and the factory package is unchanged.
+committed source and all three final timing gates. A sealed v2 shell and SGM
+archive from FES commit `8dfcc60f` passed these gates and the exact linked RBF
+passed a kit programming/Stop smoke test. Cartridge-driven hardware acceptance
+is still pending; the existing v1 diagnostic archive remains separate and the
+factory package is unchanged.
 
 The SGM work has a separate registered v2 socket boundary: 31 unchanged
 request bits and 28 response bits for direct data/claim, WAIT, INT, shell-RAM
@@ -102,6 +104,10 @@ claim and signed PCM. All 59 boundary FFs occupy the first three LABs of
 column X24, leaving the rest of the reserved rectangle available to the
 module. `make sim-fes-coleco-sgm-socket` checks register latency and vacant
 response. The v1 shell and diagnostic above remain the current artifacts.
+`make sim-fes-coleco-sgm-probe` generates an original BIOS-free cartridge that
+verifies both RAM windows, preserved console RAM and AY register readback
+before the Graphics I pass frame. It leaves AY and SN tones running for an
+audio capture; the integrated CPU simulation must reach that frame.
 Yosys maps the dormant shell RAM to 32 M10Ks. The AY block has register
 readback, three tone channels,
 17-bit noise recurrence, envelope shapes and signed PCM. Its fractional enable
