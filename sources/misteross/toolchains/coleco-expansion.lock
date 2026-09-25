@@ -12,9 +12,9 @@ rationale = "ZX81 socket Mistral pin with physical routing-mux CRAM footprints, 
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "abce51d34aea8aa4b694404c9333e0887e2a8b6e"
+commit = "2f8ccf78e8ebd6e6118f1394084fb15be9b229b2"
 order = 30
-rationale = "ZX81 socket nextpnr pin with FES_RESERVED_RECT placement and physical CRAM fencing, plus Coleco FF route-through FES_SLOT preservation and bounded GPU architecture bind retries. The Coleco socket uses this with registered Yosys e2d425de and Mistral 18db248; development route evidence is not hardware acceptance."
+rationale = "Branch perf/coleco-sgm-route-184 on mistral-stable 5dea3ecd (open PR #76, not yet merged: DeanoC/nextpnr#76; repin to the merge commit once the user authorizes it). abce51d34 (the previous pin) is an ancestor of 5dea3ecd, so FES_RESERVED_RECT placement, physical CRAM fencing, Coleco FF route-through FES_SLOT preservation and bounded GPU architecture bind retries are all unchanged. 5dea3ecd adds the GPU-router analogue signoff repair (merged PR #75): FES issue #184's 32 KiB SGM RAM probe reproducibly reaches analogue-signoff timing closure (52.224/74.25 MHz) with that repair pass, at seed 3 weight 300 (confirmed bit-identical on two independent runs). PR #76 adds stalled-congestion acceleration on top for issue #184's other question, the socket-dev search's first seed (5) plateauing for a long stretch under the plain additive congestion schedule; PR #76's own description records that repeated runs of that exact seed/weight did not reliably reproduce the same routing (a GPU-router determinism gap unrelated to this recipe), so treat the acceleration as a general robustness improvement for whichever run lands on a plateau, not a guaranteed fix for seed 5 specifically. The Coleco socket uses this with registered Yosys e2d425de and Mistral 18db248; development route evidence is not hardware acceptance."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
