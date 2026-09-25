@@ -68,6 +68,16 @@ leaves the other target playing. One primary host input remains on the
 foreground session; a second kit uses its local pad until surfaces attach by
 session id. The kit lease remains the target-side ownership authority.
 
+The host keeps the household display preference and the last play
+DisplaySink in process memory (`internal/meshpref`). Both values are
+node ids. Empty means unset. A successful FPGA play on a bound target
+records that target's node id (`target_id`) as the last DisplaySink.
+Development loads, status reads, stops, and host-only play leave that
+memory unchanged. The record stays on the host. `PlaceOptions` copies
+the two ids into `meshplace.Options` for a later `meshplace.Place`
+call. This host does not call `Place` yet. Decision 7 remains the
+unsigned strawman `meshplace` already applies.
+
 ## Process ownership
 
 The host owns the catalog, UI, user intent, content selection, and host-side
