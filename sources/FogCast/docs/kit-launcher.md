@@ -266,7 +266,9 @@ so the grid is not frozen; any input returns to the grid.
 
 Closing the kit's connection to `/run/fogcast/local-input.sock` releases only
 that local source. The host input stream remains the path for a pad that is
-not plugged into this kit. Local play input does not cross the LAN. Report
+not plugged into this kit: the host delivers it to the kit that owns the
+session, and a missing stream is an error to that caller. Local play input
+does not cross the LAN and does not fall back to the host. Report
 measured transport values separately from end-to-end button-to-photon latency.
 
 ## Display and verification

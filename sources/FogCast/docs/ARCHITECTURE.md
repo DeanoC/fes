@@ -1349,6 +1349,9 @@ serves a restricted set of existing library, artwork, and session operations.
 The host keeps target and input lease ownership for launch and Stop. A gamepad
 or USB keyboard on the kit writes raw input frames to `/run/fogcast/local-input.sock`
 while a runtime core is bound, and does not post those events to the host.
+A pad on another machine is delivered on the host-to-kit input stream for the
+session that owns the play. A missing stream is an error to that caller. The
+kit pad does not fall back onto the host route.
 Kit input discovers every eligible USB gamepad (`event*` only) plus
 physical USB keyboards for that local feed, merges
 polls in stable device-id order through `ui/inputmap`, and remaps
@@ -1487,7 +1490,12 @@ for one second still posts `POST /api/v1/session/stop`. With no core bound,
 the same pad drives browse. Stop and kit menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
-to the host.
+to the host. Remote pads go from the host to the kit on that session's input
+stream (`POST /api/v1/launcher/input` for a pad on another machine, and
+`POST /api/v1/session/input/event`). If the stream is not live, the host
+returns 503 `INPUT_UNAVAILABLE` (`no live input stream`) and does not accept
+the event. Kit-local pads stay on the unix socket and do not silently fall
+back to the host.
 
 Disconnect of the host stream releases the remote source. Lease expiry, core
 replacement and Stop neutralize every source on both dirty ports. A failed

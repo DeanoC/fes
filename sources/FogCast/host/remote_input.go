@@ -33,9 +33,10 @@ const (
 )
 
 var (
-	ErrRemoteInputClosed  = errors.New("remote input is closed")
-	ErrRemoteInputBusy    = errors.New("remote input is already attached")
-	ErrRemoteInputInvalid = errors.New("remote input configuration is invalid")
+	ErrRemoteInputClosed   = errors.New("remote input is closed")
+	ErrRemoteInputBusy     = errors.New("remote input is already attached")
+	ErrRemoteInputInvalid  = errors.New("remote input configuration is invalid")
+	ErrRemoteInputNoStream = errors.New("no live input stream")
 )
 
 // BridgeSpec is the private identity handed to a per-session bridge. It is
@@ -328,7 +329,7 @@ func (r *RemoteInput) SendEvent(ctx context.Context, event remoteinput.Event, ca
 		return ErrRemoteInputClosed
 	}
 	if r.state != RemoteInputAttached && r.state != RemoteInputReconnecting {
-		return ErrRemoteInputInvalid
+		return ErrRemoteInputNoStream
 	}
 	r.source = "desktop"
 	return r.sendEventLocked(ctx, event, capturedAt)
@@ -343,13 +344,16 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 		return ErrRemoteInputClosed
 	}
 	if r.state != RemoteInputAttached && r.state != RemoteInputReconnecting {
-		return ErrRemoteInputInvalid
+		return ErrRemoteInputNoStream
+	}
+	if err := r.ensureLiveStreamLocked(ctx); err != nil {
+		return err
 	}
 	if err := r.inputState.Apply(event); err != nil {
 		return ErrRemoteInputInvalid
 	}
 	if err := r.ensureConnectionLocked(ctx); err != nil {
-		return err
+		return streamUnavailable(err)
 	}
 	var sendErr error
 	if r.colecoInputEnabledLocked() {
@@ -372,7 +376,7 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 	r.ready = false
 	if err := r.reconnectLocked(ctx); err != nil {
 		r.failLocked("reconnect_timeout")
-		return err
+		return streamUnavailable(err)
 	}
 	return nil
 }
@@ -476,7 +480,7 @@ func (r *RemoteInput) connectLocked(ctx context.Context) error {
 	if dialer, ok := r.bridge.(BridgeDialer); ok {
 		conn, err := dialer.Dial(ctx)
 		if err != nil {
-			return ErrRemoteInputInvalid
+			return streamDialError(err)
 		}
 		if err := r.handshakeLocked(conn); err != nil {
 			_ = conn.Close()
@@ -496,7 +500,7 @@ func (r *RemoteInput) connectLocked(ctx context.Context) error {
 	defer cancel()
 	conn, err := dialer.DialContext(dialCtx, "tcp", endpoint)
 	if err != nil {
-		return ErrRemoteInputInvalid
+		return streamDialError(err)
 	}
 	if err := r.handshakeLocked(conn); err != nil {
 		_ = conn.Close()
@@ -1021,25 +1025,71 @@ func (r *RemoteInput) sessionIDLocked() string {
 func (r *RemoteInput) ClaimSource(sessionID string) (RemoteInputEventSource, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed || sessionID == "" || sessionID != r.sessionIDLocked() {
+	if r.closed {
+		return nil, ErrRemoteInputClosed
+	}
+	if err := r.ensureLiveStreamLocked(context.Background()); err != nil {
+		return nil, err
+	}
+	if sessionID == "" || sessionID != r.sessionIDLocked() {
 		return nil, ErrRemoteInputInvalid
 	}
 	if r.source != "" {
 		return nil, ErrRemoteInputBusy
 	}
-	if r.conn == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), r.grace)
-		err := r.ensureConnectionLocked(ctx)
-		cancel()
-		if err != nil {
-			r.state = RemoteInputReconnecting
-			r.ready = false
-			return nil, ErrRemoteInputInvalid
-		}
-	}
 	r.sourceGeneration++
 	r.source = "launcher"
 	return &RemoteInputSource{owner: r, session: r.session, generation: r.sourceGeneration}, nil
+}
+
+// ensureLiveStreamLocked delivers only while the kit input stream is connected.
+// A missing listener is an error. The event is not applied until this returns.
+func (r *RemoteInput) ensureLiveStreamLocked(ctx context.Context) error {
+	if r.connectionLiveLocked() {
+		return nil
+	}
+	if r.bridge == nil || (r.state != RemoteInputAttached && r.state != RemoteInputReconnecting) {
+		return ErrRemoteInputNoStream
+	}
+	r.closeConnLocked()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	dialCtx, cancel := context.WithTimeout(ctx, r.grace)
+	err := r.ensureConnectionLocked(dialCtx)
+	cancel()
+	if err != nil {
+		r.state = RemoteInputReconnecting
+		r.ready = false
+		return streamUnavailable(err)
+	}
+	return nil
+}
+
+// connectionLiveLocked reports whether the kit stream is still connected.
+// An idle socket stays live. EOF or reset does not.
+func (r *RemoteInput) connectionLiveLocked() bool {
+	if r.conn == nil {
+		return false
+	}
+	if r.reader != nil && r.reader.Buffered() > 0 {
+		return true
+	}
+	return peerStreamLive(r.conn)
+}
+
+func streamDialError(err error) error {
+	if err == nil || errors.Is(err, ErrRemoteInputNoStream) || errors.Is(err, context.Canceled) {
+		return err
+	}
+	return ErrRemoteInputNoStream
+}
+
+func streamUnavailable(err error) error {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrRemoteInputNoStream) {
+		return err
+	}
+	return ErrRemoteInputNoStream
 }
 
 func (s *RemoteInputSource) validLocked() bool {

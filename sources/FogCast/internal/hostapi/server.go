@@ -379,6 +379,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		if err := session.sendCoreKey(r.Context(), *body.Event); err != nil {
+			if errors.Is(err, host.ErrRemoteInputNoStream) {
+				writeError(w, http.StatusServiceUnavailable, "INPUT_UNAVAILABLE", "no live input stream")
+				return
+			}
 			writeSessionError(w, err)
 			return
 		}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -204,7 +205,10 @@ func (h *httpBridgeHandle) Dial(ctx context.Context) (net.Conn, error) {
 	defer cancel()
 	conn, err := dialer.DialContext(dialCtx, "tcp", h.starter.endpoint("").Host)
 	if err != nil {
-		return nil, ErrRemoteInputInvalid
+		if errors.Is(err, context.Canceled) {
+			return nil, err
+		}
+		return nil, ErrRemoteInputNoStream
 	}
 	request := &http.Request{
 		Method: http.MethodConnect,
@@ -226,6 +230,9 @@ func (h *httpBridgeHandle) Dial(ctx context.Context) (net.Conn, error) {
 	response, err := http.ReadResponse(bufio.NewReader(conn), request)
 	if err != nil || response.StatusCode != http.StatusOK {
 		_ = conn.Close()
+		if err == nil {
+			return nil, ErrRemoteInputNoStream
+		}
 		return nil, ErrRemoteInputInvalid
 	}
 	if response.Body != nil {

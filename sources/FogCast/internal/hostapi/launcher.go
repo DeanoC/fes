@@ -200,6 +200,10 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 	source, err := provider.ClaimSource(r.URL.Query().Get("session_id"))
 	a.targetMu.Unlock()
 	if err != nil {
+		if errors.Is(err, host.ErrRemoteInputNoStream) {
+			writeError(w, http.StatusServiceUnavailable, "INPUT_UNAVAILABLE", "no live input stream")
+			return
+		}
 		writeError(w, http.StatusConflict, "INPUT_BUSY", "input session is stale or already owned")
 		return
 	}

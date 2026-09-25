@@ -85,7 +85,12 @@ identity mismatch returns 403, and unavailable routes return 404.
 
 This stream is not the kit-local pad path. A gamepad or USB keyboard on the
 kit writes `/run/fogcast/local-input.sock` and does not open the POST below.
-The route stays available for a producer that is not the kit's own pads.
+The route stays for a pad on another machine. The host delivers that pad on
+the kit input stream of the session that owns the play. If that stream is
+not live, or nothing is listening, `POST /api/v1/launcher/input` and
+`POST /api/v1/session/input/event` return 503 `INPUT_UNAVAILABLE` with
+`no live input stream` and do not accept the event. The kit does not fall
+back to this route when its local socket is down.
 
 An attached input status contains `session_id`, a non-secret hexadecimal
 attachment identifier, and optionally `source` (`launcher` or `desktop`). The
