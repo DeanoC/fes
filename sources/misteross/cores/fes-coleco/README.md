@@ -93,10 +93,11 @@ optional `fes.expansion.coleco-bus` 2.0 interface. `scripts/build_coleco_sgm.py`
 routes the SGM independently against that exact sealed shell and admits only
 CRAM changes inside its reserved rectangle. Both recipes require clean,
 committed source and all three final timing gates. A sealed v2 shell and SGM
-archive from FES commit `8dfcc60f` passed these gates and the exact linked RBF
-passed a kit programming/Stop smoke test. Cartridge-driven hardware acceptance
-is still pending; the existing v1 diagnostic archive remains separate and the
-factory package is unchanged.
+archive from FES commit `8dfcc60f` passed these gates. Its exact linked RBF
+also passed a cartridge-driven [kit diagnostic](../../../../docs/validation/2026-09-25-coleco-sgm-v2-hil.md)
+with RAM, AY readback, video, audio, Stop and relaunch observations. This
+accepts the named development artifacts only; the existing v1 diagnostic
+archive remains separate and the factory package is unchanged.
 
 The SGM work has a separate registered v2 socket boundary: 31 unchanged
 request bits and 28 response bits for direct data/claim, WAIT, INT, shell-RAM
@@ -112,7 +113,10 @@ Yosys maps the dormant shell RAM to 32 M10Ks. The AY block has register
 readback, three tone channels,
 17-bit noise recurrence, envelope shapes and signed PCM. Its fractional enable
 models the SGM's 1.7897725 MHz chip clock without a second clock domain. The
-v2 shell/module/audio path is simulation-validated but has no sealed route.
+v2 shell/module/audio path has a sealed route and the named kit diagnostic
+above; the later unsealed placement measurements below remain historical
+investigation data.
+
 The v2-only reserved region is `24 1 28 19` (73 usable LABs after the three
 boundary LABs); v1 retains `24 1 28 11`. On nextpnr `f7370550`, an unsealed
 latest-source diagnostic shell at seed 3 / HeAP weight 2000 closes at 52.97 MHz
@@ -120,8 +124,8 @@ system and 84.80 MHz pixel. All 59 boundary FFs remain pinned and the larger
 rectangle is vacant. The independently routed SGM cart at seed 3 / weight 300
 closes at 53.22 MHz system, 84.80 MHz pixel and 165.13 MHz audio. Its 37,781
 non-ECC CRAM changes are inside the v2-only `(1769,32,2806,1800)` region;
-the Python and Go linkers produce byte-identical diagnostic RBFs. This is
-compiler-backed host evidence, not a sealed archive or kit acceptance. The
+the Python and Go linkers produce byte-identical diagnostic RBFs. Those
+measurements precede the sealed build and kit check recorded above. The
 [placement investigation #203](https://github.com/DeanoC/fes/issues/203)
 explains why the previous 41-LAB socket could not hold the cart.
 

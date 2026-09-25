@@ -47,6 +47,11 @@ different interface and admits 1–32768 bytes on the cores that require it.
 Host storage can hold larger files. Storage size is not cartridge capacity.
 See [media capacity](core-media-evolution.md).
 
+The development Coleco shell with optional `fes.expansion.coleco-bus` 2.0 and
+the independently linked SGM expansion have [exact-artifact kit diagnostic
+acceptance](validation/2026-09-25-coleco-sgm-v2-hil.md). The factory row above
+still describes the v1 producer selected by `config/core-recipes.toml`.
+
 ## Not implemented, or not this package
 
 - ZX81 mid-session tape replace and eject use the same `fes.media.blob`

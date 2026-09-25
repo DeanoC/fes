@@ -693,8 +693,10 @@ The v2 linker admits
 only an exact optional Coleco bus 2.0 shell and map `/2` archive, with no
 outside-rectangle CRAM exception. The enlarged development shell and SGM cart
 have separate diagnostic routes meeting all three timing gates, and the cart's
-CRAM diff is contained. Sealed package and exact-artifact kit acceptance remain
-pending.
+CRAM diff is contained. The sealed shell and SGM cart from FES commit
+`8dfcc60f` passed an exact-artifact [kit diagnostic](../../../docs/validation/2026-09-25-coleco-sgm-v2-hil.md)
+with the original BIOS-free SGM probe. Factory selection still uses the v1
+Coleco package.
 
 ## FES SG-1000 Quartus oracle and OSS recipe
 
