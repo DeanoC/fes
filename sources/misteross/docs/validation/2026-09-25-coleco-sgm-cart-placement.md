@@ -28,7 +28,7 @@ unbound cart packer also never clustered carry chains, so the 231 arithmetic
 cells were loose.
 
 nextpnr branch `fix/fes-203-slot-region` (PR DeanoC/nextpnr#78, head
-`8bd08736`, now pinned by `toolchains/coleco-expansion.lock`) creates the
+`dfaa9e7f`, now pinned by `toolchains/coleco-expansion.lock`) creates the
 `$FES_SLOT` region, clusters cart carry chains, pairs each cart FF with the
 LUT driving it, legalises slot FFs control-set aware with a 500-ripup limit,
 refuses `--placer sa` for carts, and prints a `FES slot capacity` report that
@@ -64,12 +64,12 @@ reachable:
 | `24 1 28 11` (socket) | 41 | rip-up limit after 501 re-placements of a LUT6 (control-set model on or off) |
 | `24 1 31 11` | 41 | same |
 | `24 1 33 11`, `24 1 34 11`, `24 1 28 16`, `24 1 28 24` | 44 to 48 | LUT pass completes; FF pass fails on an 8-FF AY register group (attempt limit or 500 re-placements) |
-| `24 1 43 11` (diagnostic only) | 111 | places in 1.2 s using 55 LABs |
+| `24 1 43 11` (diagnostic only) | 111 | places in under 2 s using 55 to 57 LABs |
 
 In the 111-LAB run the 41 socket LABs hold 6 to 20 LUTs each (their input
 budget) and the unpaired FF groups spill into 14 LABs east of the socket.
 The realistic minimum is therefore about 45 LABs (bandwidth with typical
-sharing) and the current placer needs about 55. The socket's 41 cannot hold
+sharing) and the current placer needs about 55 to 57. The socket's 41 cannot hold
 this cart.
 
 ## Suggested targets

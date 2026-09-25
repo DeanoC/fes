@@ -12,7 +12,7 @@ class ColecoSocketProducerTest(unittest.TestCase):
     def test_separate_authenticated_inputs_and_commands(self):
         self.assertEqual(factory.COLECO_TOOLCHAIN_LOCK, 'toolchains/registered-memory.lock')
         self.assertEqual(socket.TOOLCHAIN_LOCK, 'toolchains/coleco-expansion.lock')
-        pin = '8bd08736aaa2ef10c7b5f8167fe4360c6a329b56'
+        pin = 'dfaa9e7f45929728db122b5b5c3a2111501fde00'
         lock = tomllib.loads((socket.ROOT / socket.TOOLCHAIN_LOCK).read_text())
         self.assertEqual(lock['tool']['nextpnr']['commit'], pin)
         self.assertEqual(socket.TOOL_COMMITS['nextpnr'], pin)
