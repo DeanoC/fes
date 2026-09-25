@@ -276,6 +276,7 @@ func TestPlaceDoesNotMutateCandidates(t *testing.T) {
 	}
 	before := append([]Candidate(nil), candidates...)
 	_ = Place(fpgaEntry(), candidates, Options{DisplayPreference: kitLiving})
+	_ = Place(fpgaEntry(), candidates, Options{OverrideNodeID: kitDen})
 	if !reflect.DeepEqual(candidates, before) {
 		t.Fatalf("candidates changed")
 	}
@@ -301,9 +302,253 @@ func TestResultTypesHaveNoJSONTags(t *testing.T) {
 	for i := 0; i < options.NumField(); i++ {
 		optionNames[options.Field(i).Name] = true
 	}
-	if optionNames["Override"] || optionNames["OverrideNodeID"] {
-		t.Fatal("slice 2 override is not part of this request")
+	if !optionNames["OverrideNodeID"] {
+		t.Fatal("override node id is missing")
 	}
+}
+
+func TestEmptyOverrideMatchesUnset(t *testing.T) {
+	living := fpgaNode(kitLiving, colecoABIs())
+	den := fpgaNode(kitDen, colecoABIs())
+	bad := living
+	bad.MeshMajorOK = false
+	one := emuNode(emuOne)
+	two := emuNode(emuTwo)
+	cases := []struct {
+		name       string
+		entry      meshcontent.Entry
+		candidates []Candidate
+		opts       Options
+	}{
+		{
+			name:       "single fpga",
+			entry:      fpgaEntry(),
+			candidates: []Candidate{shellNode(shellMac), living},
+			opts:       Options{DisplayPreference: shellMac, LastDisplaySink: shellMac},
+		},
+		{
+			name:       "several fpga",
+			entry:      fpgaEntry(),
+			candidates: []Candidate{living, den},
+		},
+		{
+			name:       "preference",
+			entry:      fpgaEntry(),
+			candidates: []Candidate{den, living},
+			opts:       Options{DisplayPreference: kitDen, LastDisplaySink: kitLiving},
+		},
+		{
+			name:       "one native",
+			entry:      nativeEntry(),
+			candidates: []Candidate{shellNode(shellMac), fpgaNode(kitLiving, nil), one},
+			opts:       Options{DisplayPreference: shellMac},
+		},
+		{
+			name:       "several native",
+			entry:      nativeEntry(),
+			candidates: []Candidate{two, one},
+			opts:       Options{DisplayPreference: emuOne, LastDisplaySink: emuOne},
+		},
+		{
+			name:       "mesh major",
+			entry:      fpgaEntry(),
+			candidates: []Candidate{bad, emuNode(emuOne)},
+			opts:       Options{DisplayPreference: kitLiving},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			unset := Place(tc.entry, tc.candidates, tc.opts)
+			empty := tc.opts
+			empty.OverrideNodeID = ""
+			got := Place(tc.entry, tc.candidates, empty)
+			if unset != got {
+				t.Fatalf("empty override changed the result\nunset %+v\nempty %+v", unset, got)
+			}
+		})
+	}
+}
+
+func TestOverrideSelectsNamedEligibleKit(t *testing.T) {
+	living := fpgaNode(kitLiving, colecoABIs())
+	den := fpgaNode(kitDen, colecoABIs())
+	// Preference and last sink name the other kit. The override wins.
+	got := Place(fpgaEntry(), []Candidate{living, den}, Options{
+		DisplayPreference: kitLiving,
+		LastDisplaySink:   kitLiving,
+		OverrideNodeID:    kitDen,
+	})
+	mustSelected(t, got, kitDen, true, true)
+
+	swapped := Place(fpgaEntry(), []Candidate{den, living}, Options{
+		DisplayPreference: kitLiving,
+		LastDisplaySink:   kitLiving,
+		OverrideNodeID:    kitDen,
+	})
+	mustSelected(t, swapped, kitDen, true, true)
+
+	twice := Place(fpgaEntry(), []Candidate{den, den, living}, Options{OverrideNodeID: kitDen})
+	mustSelected(t, twice, kitDen, true, true)
+}
+
+func TestOverrideSelectsHeadlessEligibleNode(t *testing.T) {
+	living := fpgaNode(kitLiving, colecoABIs())
+	den := fpgaNode(kitDen, colecoABIs())
+	den.DisplaySink = false
+	den.InputSource = false
+	got := Place(fpgaEntry(), []Candidate{living, den, shellNode(shellMac)}, Options{
+		DisplayPreference: kitLiving,
+		OverrideNodeID:    kitDen,
+	})
+	mustSelected(t, got, kitDen, false, false)
+	if got.Choice.DisplaySink == kitLiving || got.Choice.DisplaySink == shellMac || got.Choice.InputSource != "" {
+		t.Fatalf("picture or pad left the execute node: %+v", got.Choice)
+	}
+}
+
+func TestOverrideKeepsAdvertisedDisplayAndInputOnThatNode(t *testing.T) {
+	living := fpgaNode(kitLiving, colecoABIs())
+	den := fpgaNode(kitDen, colecoABIs())
+	den.InputSource = false
+	got := Place(fpgaEntry(), []Candidate{shellNode(shellMac), living, den}, Options{
+		OverrideNodeID: kitDen,
+	})
+	mustSelected(t, got, kitDen, true, false)
+	if got.Choice.DisplaySink == shellMac || got.Choice.InputSource == shellMac || got.Choice.InputSource == kitLiving {
+		t.Fatalf("picture or pad left the execute node: %+v", got.Choice)
+	}
+}
+
+func TestOverrideRequiresNodeDocumentABIMatch(t *testing.T) {
+	pkg := strings.Repeat("ab", 32)
+	living := `{"node_id":"kit-living","abis":[{"id":"fes.application","major":1}],"packages":["` + pkg + `"]}`
+	den := `{"node_id":"kit-den","abis":[]}`
+	match := fpgaNode(kitLiving, abisFromNodeDocument(t, living))
+	emptyDoc := fpgaNode(kitDen, abisFromNodeDocument(t, den))
+
+	namedEmpty := Place(fpgaEntry(), []Candidate{emptyDoc, match}, Options{OverrideNodeID: kitDen})
+	mustUnresolved(t, namedEmpty)
+
+	onlyEmpty := Place(fpgaEntry(), []Candidate{emptyDoc}, Options{OverrideNodeID: kitDen})
+	mustFail(t, onlyEmpty, ReasonNoCandidate)
+
+	namedMatch := Place(fpgaEntry(), []Candidate{emptyDoc, match}, Options{
+		DisplayPreference: kitDen,
+		OverrideNodeID:    kitLiving,
+	})
+	mustSelected(t, namedMatch, kitLiving, true, true)
+}
+
+func TestOverrideOfIneligibleDoesNotSelect(t *testing.T) {
+	wrong := fpgaNode(kitDen, []meshcontent.EligibleABI{{ID: "fes.application", Major: 2}})
+	onlyWrong := Place(fpgaEntry(), []Candidate{wrong}, Options{OverrideNodeID: kitDen})
+	mustFail(t, onlyWrong, ReasonNoCandidate)
+
+	good := fpgaNode(kitLiving, colecoABIs())
+	// The named kit cannot run the title. The kit that can does not
+	// become the winner, and preference does not rescue the miss.
+	beside := Place(fpgaEntry(), []Candidate{wrong, good, shellNode(shellMac)}, Options{
+		DisplayPreference: kitLiving,
+		LastDisplaySink:   kitLiving,
+		OverrideNodeID:    kitDen,
+	})
+	mustUnresolved(t, beside)
+
+	shell := Place(fpgaEntry(), []Candidate{shellNode(shellMac), good}, Options{
+		OverrideNodeID: shellMac,
+	})
+	mustUnresolved(t, shell)
+
+	// A native_emu node does not run an fpga_native title by being named.
+	native := Place(fpgaEntry(), []Candidate{emuNode(emuOne), good}, Options{OverrideNodeID: emuOne})
+	mustUnresolved(t, native)
+}
+
+func TestOverrideOfMissingNodeDoesNotSelect(t *testing.T) {
+	good := fpgaNode(kitLiving, colecoABIs())
+	got := Place(fpgaEntry(), []Candidate{good, shellNode(shellMac)}, Options{
+		DisplayPreference: kitLiving,
+		OverrideNodeID:    "kit-missing",
+	})
+	mustUnresolved(t, got)
+
+	none := Place(fpgaEntry(), []Candidate{fpgaNode(kitDen, nil), shellNode(shellMac)}, Options{
+		OverrideNodeID: "kit-missing",
+	})
+	mustFail(t, none, ReasonNoCandidate)
+}
+
+func TestOverrideOfMeshMajorFailDoesNotSelect(t *testing.T) {
+	bad := fpgaNode(kitLiving, colecoABIs())
+	bad.MeshMajorOK = false
+	only := Place(fpgaEntry(), []Candidate{bad, emuNode(emuOne)}, Options{OverrideNodeID: kitLiving})
+	mustFail(t, only, ReasonMeshMajor)
+
+	// Naming the native node does not skip the mesh-major failure of
+	// the FPGA kit that can run the title.
+	namedNative := Place(fpgaEntry(), []Candidate{bad, emuNode(emuOne)}, Options{OverrideNodeID: emuOne})
+	mustFail(t, namedNative, ReasonMeshMajor)
+
+	good := fpgaNode(kitDen, colecoABIs())
+	// The mismatched kit does not win by being named, and the matching
+	// kit is not substituted.
+	namedBad := Place(fpgaEntry(), []Candidate{good, bad}, Options{
+		DisplayPreference: kitDen,
+		LastDisplaySink:   kitDen,
+		OverrideNodeID:    kitLiving,
+	})
+	mustUnresolved(t, namedBad)
+
+	namedGood := Place(fpgaEntry(), []Candidate{bad, good}, Options{OverrideNodeID: kitDen})
+	mustSelected(t, namedGood, kitDen, true, true)
+
+	nativeBad := emuNode(emuOne)
+	nativeBad.MeshMajorOK = false
+	nativeGood := emuNode(emuTwo)
+	nativeMiss := Place(nativeEntry(), []Candidate{nativeGood, nativeBad}, Options{
+		DisplayPreference: emuTwo,
+		OverrideNodeID:    emuOne,
+	})
+	mustUnresolved(t, nativeMiss)
+
+	bothBad := nativeGood
+	bothBad.MeshMajorOK = false
+	nativeFail := Place(nativeEntry(), []Candidate{nativeBad, bothBad}, Options{OverrideNodeID: emuOne})
+	mustFail(t, nativeFail, ReasonMeshMajor)
+}
+
+func TestOverrideSelectsOneOfSeveralNative(t *testing.T) {
+	one := emuNode(emuOne)
+	two := emuNode(emuTwo)
+	two.InputSource = false
+	got := Place(nativeEntry(), []Candidate{one, two, shellNode(shellMac)}, Options{
+		DisplayPreference: emuOne,
+		LastDisplaySink:   emuOne,
+		OverrideNodeID:    emuTwo,
+	})
+	mustSelected(t, got, emuTwo, true, false)
+
+	swapped := Place(nativeEntry(), []Candidate{two, one}, Options{OverrideNodeID: emuTwo})
+	mustSelected(t, swapped, emuTwo, true, false)
+
+	empty := Place(nativeEntry(), []Candidate{one, two}, Options{
+		DisplayPreference: emuOne,
+		LastDisplaySink:   emuTwo,
+		OverrideNodeID:    "",
+	})
+	mustUnresolved(t, empty)
+}
+
+func TestOverrideMissLeavesNotLaunchableAndMissingSlot(t *testing.T) {
+	browse := meshcontent.Entry{TitleID: "coleco-cart", System: "coleco", Launchable: false}
+	got := Place(browse, []Candidate{fpgaNode(kitLiving, colecoABIs())}, Options{OverrideNodeID: kitLiving})
+	mustFail(t, got, ReasonNotLaunchable)
+
+	slot := Place(fpgaEntry(), []Candidate{fpgaNode(kitLiving, colecoABIs())}, Options{
+		MissingRequiredSlot: true,
+		OverrideNodeID:      kitLiving,
+	})
+	mustFail(t, slot, ReasonMissingSlot)
 }
 
 func mustSelected(t *testing.T, got Result, execute string, display, input bool) {
