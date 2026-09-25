@@ -50,7 +50,7 @@ func TestDevelopmentMediaDoesNotRestoreKeysFromPreviousGeneration(t *testing.T) 
 	c := &mediaKeyboardControl{mediaControl: mediaControl{packageControl: packageControl{status2: &response}}, during: make(chan struct{}, 1), keyboardResponse: &response}
 	r := misterruntime.NewRuntime(c, "", 0, 0)
 	keys := input.NewKeyboardSink()
-	keys.SetPoster(func(matrix uint64) error { return r.SetKeyboard(context.Background(), matrix) })
+	keys.SetPoster(func(ctx context.Context, matrix uint64) error { return r.SetKeyboard(ctx, matrix) })
 	if err := keys.Apply(protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey), Code: uint16(zx81keys.Letter('J')), Action: uint8(remoteinput.ActionPress)}); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestDevelopmentMediaSerializesKeyboardAndRestoresHeldMatrix(t *testing.T) {
 			}
 			r := misterruntime.NewRuntime(c, "", 0, 0)
 			keys := input.NewKeyboardSink()
-			keys.SetPoster(func(matrix uint64) error { return r.SetKeyboard(context.Background(), matrix) })
+			keys.SetPoster(func(ctx context.Context, matrix uint64) error { return r.SetKeyboard(ctx, matrix) })
 			frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey), Code: uint16(zx81keys.Letter('J')), Action: uint8(remoteinput.ActionPress)}
 			if err := keys.Apply(frame); err != nil {
 				t.Fatal(err)

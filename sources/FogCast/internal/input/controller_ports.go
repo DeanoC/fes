@@ -1,10 +1,13 @@
 package input
 
 import (
+	"context"
 	"errors"
 	"sync"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/playhid"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -17,20 +20,45 @@ type ControllerBinding struct {
 	Keypad     bool
 }
 
-type ControllerPoster func(string, uint64, uint8, uint8, uint16) error
+// CoreObservation is what mister-agent can learn from the runtime without a
+// host session: whether a core is bound, whether it wants the keyboard matrix,
+// and the controller-port identity when that contract is active.
+type CoreObservation struct {
+	Active   bool
+	Keyboard bool
+	Binding  *ControllerBinding
+}
+
+type ControllerPoster func(context.Context, string, uint64, uint8, uint8, uint16) error
+
+type portLevel struct {
+	buttons uint8
+	keypad  uint16
+	known   bool
+}
 
 type controllerPortsSink struct {
-	mu       sync.Mutex
-	fallback bridge.Sink
-	poster   ControllerPoster
-	binding  *ControllerBinding
-	state    remoteinput.State
-	dirty    [2]bool
+	mu         sync.Mutex
+	fallback   bridge.Sink
+	poster     ControllerPoster
+	binding    *ControllerBinding
+	sources    [sourceCount]remoteinput.State
+	localClaim [controllerPortCount]bool
+	level      [controllerPortCount]portLevel
+	dirty      [controllerPortCount]bool
+	keyboard   bool
+	coreActive bool
+	observed   bool
+	keys       *KeyboardSink
+	pads       *padMerge
 }
 
 func (s *controllerPortsSink) bind(binding *ControllerBinding) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if binding != nil && s.binding != nil && sameBinding(s.binding, binding) {
+		return nil
+	}
 	if s.dirty[0] || s.dirty[1] {
 		return errors.New("controller state needs release")
 	}
@@ -42,34 +70,147 @@ func (s *controllerPortsSink) bind(binding *ControllerBinding) error {
 		binding = &copy
 	}
 	s.binding = binding
-	s.state.ReleaseAll()
+	s.resetSourcesLocked()
 	return nil
 }
 
-func (s *controllerPortsSink) Apply(f protocol.InputFrame) error {
+func sameBinding(left, right *ControllerBinding) bool {
+	return left.PackageID == right.PackageID && left.Generation == right.Generation && left.Keypad == right.Keypad
+}
+
+func (s *controllerPortsSink) setObservation(obs CoreObservation) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.keyboard = obs.Keyboard
+	s.coreActive = obs.Active
+	s.observed = true
+}
+
+func (s *controllerPortsSink) hasBinding() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.binding != nil
+}
+
+func (s *controllerPortsSink) cachedActive() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.observed && s.coreActive && s.binding == nil
+}
+
+func (s *controllerPortsSink) resetSourcesLocked() {
+	s.sources[sourceRemote].ReleaseAll()
+	s.sources[sourceLocal].ReleaseAll()
+	s.localClaim = [controllerPortCount]bool{}
+	s.level = [controllerPortCount]portLevel{}
+}
+
+// Apply is the host stream. Local frames enter through applyContext with the
+// deadline deliverLocal created while it holds the lifecycle lock. The host
+// stream has no such deadline here; mister-agent keeps the 2s controller
+// bound when this context has none.
+func (s *controllerPortsSink) Apply(f protocol.InputFrame) error {
+	return s.apply(sourceRemote, f)
+}
+
+func (s *controllerPortsSink) apply(source inputSource, f protocol.InputFrame) error {
+	return s.applyContext(context.Background(), source, f)
+}
+
+func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSource, f protocol.InputFrame) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	shaped, ok := s.shapeLocked(source, f)
+	if !ok {
+		if source == sourceLocal {
+			return bridge.RejectInput("unsupported local input")
+		}
+		return nil
+	}
 	if s.binding == nil {
+		return s.applyUnboundLocked(ctx, source, shaped)
+	}
+	return s.applyPortsLocked(ctx, source, shaped)
+}
+
+// shapeLocked rewrites raw frames with the same playhid mapping the host used
+// to apply before the stream. Gamepad frames pass through, so a host that
+// already shaped its events is unchanged. Local frames always go through it.
+// Remote frames do too once a runtime observation has stored the keyboard bit.
+func (s *controllerPortsSink) shapeLocked(source inputSource, f protocol.InputFrame) (protocol.InputFrame, bool) {
+	if source != sourceLocal && !s.observed {
+		return f, true
+	}
+	event := frameEvent(f)
+	if source == sourceLocal && s.binding == nil {
+		event.Player = 0
+	}
+	shaped, ok := playhid.StreamEvent(event, s.keyboard)
+	if !ok {
+		return protocol.InputFrame{}, false
+	}
+	f.Player = shaped.Player
+	f.Device = uint8(shaped.Device)
+	f.Kind = uint8(shaped.Kind)
+	f.Action = uint8(shaped.Action)
+	f.Code = uint16(shaped.Code)
+	f.Value = shaped.Value
+	return f, true
+}
+
+func (s *controllerPortsSink) applyUnboundLocked(ctx context.Context, source inputSource, f protocol.InputFrame) error {
+	if keyboardFrame(f) {
+		if s.keys != nil && f.Code >= uint16(zx81keys.KeyShift) {
+			return s.keys.ApplyFrom(ctx, source, f)
+		}
+		if s.keys != nil {
+			return nil
+		}
+		if s.fallback != nil {
+			return s.fallback.Apply(f)
+		}
+		return nil
+	}
+	if s.pads != nil {
+		return s.pads.ApplyFrom(source, f)
+	}
+	if s.fallback != nil {
 		return s.fallback.Apply(f)
 	}
+	return nil
+}
+
+func (s *controllerPortsSink) applyPortsLocked(ctx context.Context, source inputSource, f protocol.InputFrame) error {
 	if f.Player > 1 || f.Device != uint8(remoteinput.DeviceGamepad) {
 		return bridge.RejectInput("unsupported controller event")
 	}
-	e := remoteinput.Event{Player: f.Player, Device: remoteinput.DeviceGamepad, Kind: remoteinput.Kind(f.Kind), Action: remoteinput.Action(f.Action), Code: remoteinput.Code(f.Code), Value: f.Value}
-	if !validControllerEvent(e, s.binding.Keypad) {
+	event := frameEvent(f)
+	if !validControllerEvent(event, s.binding.Keypad) {
 		return bridge.RejectInput("unsupported controller control")
 	}
-	if err := s.state.Apply(e); err != nil {
+	if source == sourceLocal {
+		before := s.localClaim
+		s.localClaim[event.Player] = true
+		if err := s.sources[source].Apply(event); err != nil {
+			s.localClaim = before
+			return err
+		}
+		if before != s.localClaim {
+			return s.publishAllLocked(ctx)
+		}
+		return s.publishPortLocked(ctx, event.Player, true)
+	}
+	port, ok := remotePort(event.Player, s.localClaim)
+	if !ok {
+		return bridge.RejectInput("no free controller port")
+	}
+	if err := s.sources[source].Apply(event); err != nil {
 		return err
 	}
-	buttons, keypad := controllerSnapshot(s.state.SnapshotForPlayer(f.Player), s.binding.Keypad)
-	// A failed local request can have applied: release must still attempt zero.
-	s.dirty[f.Player] = true
-	if err := s.poster(s.binding.PackageID, s.binding.Generation, f.Player, buttons, keypad); err != nil {
-		return err
-	}
-	s.dirty[f.Player] = buttons != 0 || keypad != 0
-	return nil
+	return s.publishPortLocked(ctx, port, true)
 }
 
 func validControllerEvent(e remoteinput.Event, keypad bool) bool {
@@ -124,29 +265,138 @@ func controllerSnapshot(snapshot remoteinput.Snapshot, keypadPorts bool) (button
 	return
 }
 
+func (s *controllerPortsSink) mergedSnapshotLocked(port uint8) remoteinput.Snapshot {
+	local := s.sources[sourceLocal].SnapshotForPlayer(port)
+	remotePlayer, ok := remotePlayerForPort(port, s.localClaim)
+	if !ok {
+		return mergeSnapshots(local, remoteinput.Snapshot{})
+	}
+	return mergeSnapshots(local, s.sources[sourceRemote].SnapshotForPlayer(remotePlayer))
+}
+
+func (s *controllerPortsSink) publishAllLocked(ctx context.Context) error {
+	var result error
+	for port := uint8(0); port < controllerPortCount; port++ {
+		if err := s.publishPortLocked(ctx, port, false); err != nil {
+			result = errors.Join(result, err)
+		}
+	}
+	return result
+}
+
+func (s *controllerPortsSink) publishPortLocked(ctx context.Context, port uint8, force bool) error {
+	if s.binding == nil || s.poster == nil {
+		return errors.New("controller binding is inactive")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	buttons, keypad := controllerSnapshot(s.mergedSnapshotLocked(port), s.binding.Keypad)
+	unchanged := s.level[port].known && s.level[port].buttons == buttons && s.level[port].keypad == keypad
+	if !force && (unchanged || (!s.level[port].known && buttons == 0 && keypad == 0)) {
+		s.level[port].known = true
+		s.dirty[port] = buttons != 0 || keypad != 0
+		return nil
+	}
+	// A failed local request can have applied: release must still attempt zero.
+	s.dirty[port] = true
+	if err := s.poster(ctx, s.binding.PackageID, s.binding.Generation, port, buttons, keypad); err != nil {
+		return err
+	}
+	s.level[port] = portLevel{buttons: buttons, keypad: keypad, known: true}
+	s.dirty[port] = buttons != 0 || keypad != 0
+	return nil
+}
+
+func (s *controllerPortsSink) releaseSource(source inputSource) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if source >= sourceCount {
+		source = sourceRemote
+	}
+	s.sources[source].ReleaseAll()
+	if source == sourceLocal {
+		s.localClaim = [controllerPortCount]bool{}
+	}
+	if s.binding == nil {
+		if s.keys != nil {
+			_ = s.keys.ReleaseSource(source)
+		}
+		if s.pads != nil {
+			return s.pads.ReleaseSource(source)
+		}
+		if s.fallback != nil && s.keys == nil && s.pads == nil {
+			return s.fallback.ReleaseAll()
+		}
+		return nil
+	}
+	// Disconnect and local-socket close are not a frame held under the
+	// lifecycle lock. The host poster keeps its own deadline.
+	return s.publishAllLocked(context.Background())
+}
+
 func (s *controllerPortsSink) ReleaseAll() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.binding == nil {
+		s.resetSourcesLocked()
+		s.coreActive = false
+		s.observed = false
+		s.keyboard = false
+		if s.fallback == nil {
+			return nil
+		}
 		return s.fallback.ReleaseAll()
 	}
 	var result error
-	for port := uint8(0); port < 2; port++ {
+	for port := uint8(0); port < controllerPortCount; port++ {
 		if !s.dirty[port] {
 			continue
 		}
-		if err := s.poster(s.binding.PackageID, s.binding.Generation, port, 0, 0); err != nil {
+		if err := s.poster(context.Background(), s.binding.PackageID, s.binding.Generation, port, 0, 0); err != nil {
 			result = errors.Join(result, err)
 		} else {
 			s.dirty[port] = false
+			s.level[port] = portLevel{known: true}
 		}
 	}
 	if result == nil {
-		s.state.ReleaseAll()
+		s.resetSourcesLocked()
+		s.binding = nil
+		s.coreActive = false
+		s.observed = false
+		s.keyboard = false
+	}
+	if s.keys != nil {
+		_ = s.keys.ReleaseAll()
+	}
+	if s.pads != nil {
+		result = errors.Join(result, s.pads.ReleaseAll())
 	}
 	return result
 }
 
 func (s *controllerPortsSink) Close() error {
-	return errors.Join(s.ReleaseAll(), s.fallback.Close())
+	err := s.ReleaseAll()
+	if s.fallback == nil {
+		return err
+	}
+	return errors.Join(err, s.fallback.Close())
 }
+
+// remoteSourceSink is the host bridge's view of the shared sink. Disconnect
+// releases only the remote source, so a kit-local hold survives a host
+// reconnect. Lease expiry and core replacement call ReleaseAll on the sink.
+type remoteSourceSink struct {
+	ports *controllerPortsSink
+}
+
+func (s remoteSourceSink) Apply(f protocol.InputFrame) error {
+	return s.ports.apply(sourceRemote, f)
+}
+
+func (s remoteSourceSink) ReleaseAll() error {
+	return s.ports.releaseSource(sourceRemote)
+}
+
+func (s remoteSourceSink) Close() error { return nil }

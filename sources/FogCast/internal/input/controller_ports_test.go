@@ -47,8 +47,8 @@ func TestTargetControllerPortsStopHeldBothAndRecoveryAttach(t *testing.T) {
 	generation := uint64(1)
 	controller.ConfigureControllerPorts(func(context.Context) (*ControllerBinding, error) {
 		return &ControllerBinding{PackageID: "pkg", Generation: generation}, nil
-	}, func(id string, gen uint64, port, buttons uint8, keypad uint16) error {
-		return runtime.SetController(context.Background(), misterruntime.ControllerRequest{PackageID: id, Generation: gen, Port: port, Buttons: buttons, Keypad: keypad})
+	}, func(ctx context.Context, id string, gen uint64, port, buttons uint8, keypad uint16) error {
+		return runtime.SetController(ctx, misterruntime.ControllerRequest{PackageID: id, Generation: gen, Port: port, Buttons: buttons, Keypad: keypad})
 	})
 	t.Cleanup(func() { control.fault = false; _ = controller.Close() })
 	spec := Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "fes.coleco"}
@@ -100,7 +100,7 @@ func TestTargetControllerPortsStopHeldBothAndRecoveryAttach(t *testing.T) {
 
 func TestControllerPortsIndependentMasksOverlapAndRelease(t *testing.T) {
 	var writes []portWrite
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
 		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
 		return nil
 	}}
@@ -147,7 +147,7 @@ func TestControllerPortsIndependentMasksOverlapAndRelease(t *testing.T) {
 func TestControllerPortsPartialFailureRetainsOldBindingAndReleasesBoth(t *testing.T) {
 	fail := false
 	var writes []portWrite
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
 		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
 		if fail && port == 0 {
 			return errors.New("stale generation")
@@ -187,7 +187,7 @@ func TestControllerPortsPartialFailureRetainsOldBindingAndReleasesBoth(t *testin
 func TestControllerPortsRejectBeforeMutationAndPreserveLegacy(t *testing.T) {
 	legacy := &recordingSink{}
 	writes := 0
-	sink := &controllerPortsSink{fallback: legacy, poster: func(string, uint64, uint8, uint8, uint16) error { writes++; return nil }}
+	sink := &controllerPortsSink{fallback: legacy, poster: func(context.Context, string, uint64, uint8, uint8, uint16) error { writes++; return nil }}
 	f := protocol.InputFrame{Player: 0, Device: 1, Kind: 1, Action: 1, Code: 104}
 	if err := sink.Apply(f); err != nil {
 		t.Fatal(err)
@@ -240,7 +240,7 @@ func TestControllerKeypadPortsStartSelectAliasKeypad(t *testing.T) {
 
 func TestControllerKeypadPortsStartPressesAndReleasesKeypadOne(t *testing.T) {
 	var writes []portWrite
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
 		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
 		return nil
 	}}

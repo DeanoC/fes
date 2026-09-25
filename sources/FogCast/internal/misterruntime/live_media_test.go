@@ -187,7 +187,7 @@ func TestClearLiveMediaSerializesKeyboard(t *testing.T) {
 	}
 	runtime := misterruntime.NewRuntime(control, "", 0, 0)
 	keys := input.NewKeyboardSink()
-	keys.SetPoster(func(matrix uint64) error { return runtime.SetKeyboard(context.Background(), matrix) })
+	keys.SetPoster(func(ctx context.Context, matrix uint64) error { return runtime.SetKeyboard(ctx, matrix) })
 	done := make(chan *protocol.APIError, 1)
 	go func() {
 		done <- runtime.ClearLiveMedia(context.Background(), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9})
