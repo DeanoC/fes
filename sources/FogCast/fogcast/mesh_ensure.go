@@ -169,12 +169,18 @@ type launchSnapshot struct {
 	// selected session to stay on this executor.
 	siblingExecutor bool
 	// placementClaimed is set when this launch claimed the kit lease
-	// while rebinding. That grant is released when this launch does
-	// not start execution. A grant the session already held stays held.
+	// while rebinding, or adopted a claim another in-flight launch
+	// already holds. That grant is released when this launch does not
+	// start execution and no other launch still holds it. A grant the
+	// session already held stays held.
 	placementClaimed bool
+	// placementGeneration is the grant this launch claimed or adopted.
+	// A later release ignores a different generation.
+	placementGeneration string
 	// placementClaimSettled is shared with LaunchOn. It is set when
 	// execution starts, or when an earlier failure already released
-	// the placement grant. Nil when this launch did not claim one.
+	// the placement grant, or when another launch still holds it. Nil
+	// when this launch did not claim one.
 	placementClaimSettled *bool
 	// pinned is set when placement claimed a kit. Bind keeps that
 	// kit's target and client even if selectedTarget moves, including
@@ -538,7 +544,7 @@ func (s *Service) bindCapturedLocked(snap launchSnapshot) error {
 	s.executionMu.Unlock()
 	cfg := targetByName(s.targets, name)
 	if s.targetOrigin != nil && snap.explicit && name != snap.selectedName {
-		s.targetOrigin(cfg)
+		s.targetOrigin(cfg, kitLeaseOf(s.targetClients[name]))
 	}
 	if launchPinnedTargetBoundHook != nil {
 		launchPinnedTargetBoundHook(name)
@@ -622,10 +628,205 @@ func (s *Service) releaseLaunchClaim(snap launchSnapshot, claimed bool) {
 }
 
 // releaseClaimedContentLease drops a grant this launch claimed after
-// Ensure did not start execution. The call uses its own deadline so a
-// canceled launch still attempts the release. A failed release leaves
-// the grant in place. The bool is false when the grant was not dropped.
+// Ensure did not start execution. A placement claim is released only
+// when no other in-flight launch still holds it and the session did
+// not already own it. The call uses its own deadline so a canceled
+// launch still attempts the release. A failed release leaves the grant
+// in place. The bool is false when the grant was not dropped and this
+// launch should retry. It is true when the grant was dropped or when
+// another holder keeps it.
 func (s *Service) releaseClaimedContentLease(snap launchSnapshot) bool {
+	if snap.placementClaimed {
+		return s.releasePlacementHold(snap)
+	}
+	return releaseContentPullGrant(snap)
+}
+
+// placementClaimRecord is one target client's in-flight placement holds.
+// sessionHeld means a launch started execution, or the session already
+// owned the grant before this placement. releasing is set while the last
+// holder is asking the kit to drop the grant.
+type placementClaimRecord struct {
+	generation  string
+	inflight    int
+	sessionHeld bool
+	releasing   bool
+}
+
+func (s *Service) placementHoldLocked(client serviceClient) *placementClaimRecord {
+	if s.placementHolds == nil {
+		s.placementHolds = map[serviceClient]*placementClaimRecord{}
+	}
+	rec := s.placementHolds[client]
+	if rec == nil {
+		rec = &placementClaimRecord{}
+		s.placementHolds[client] = rec
+	}
+	return rec
+}
+
+// registerPlacementClaim counts a grant this launch just acquired.
+func (s *Service) registerPlacementClaim(client serviceClient, generation string) {
+	if s == nil || client == nil || generation == "" {
+		return
+	}
+	s.placementHoldMu.Lock()
+	defer s.placementHoldMu.Unlock()
+	rec := s.placementHoldLocked(client)
+	if rec.releasing || rec.generation != generation {
+		rec.inflight = 0
+		rec.sessionHeld = false
+		rec.releasing = false
+	}
+	rec.generation = generation
+	rec.inflight++
+}
+
+// adoptPlacementClaim counts a launch that found the grant already
+// owned. An in-flight placement claim of the same generation is adopted.
+// A grant with no in-flight holder is the session's and is not adopted.
+// A grant that is being released is not joined.
+func (s *Service) adoptPlacementClaim(client serviceClient, generation string) (bool, error) {
+	if s == nil || client == nil || generation == "" {
+		return false, meshcontent.ErrLeaseNotFree
+	}
+	s.placementHoldMu.Lock()
+	defer s.placementHoldMu.Unlock()
+	rec := s.placementHoldLocked(client)
+	if rec.releasing {
+		return false, meshcontent.ErrLeaseNotFree
+	}
+	if rec.inflight > 0 && rec.generation == generation {
+		rec.inflight++
+		return true, nil
+	}
+	if rec.inflight > 0 && rec.generation != generation {
+		return false, meshcontent.ErrLeaseNotFree
+	}
+	rec.sessionHeld = true
+	if rec.generation == "" {
+		rec.generation = generation
+	}
+	return false, nil
+}
+
+// settlePlacementClaim keeps the grant for the session once execution
+// has started. LaunchOn's failure defer then leaves it in place.
+func (s *Service) settlePlacementClaim(snap launchSnapshot) {
+	if snap.placementClaimSettled == nil {
+		return
+	}
+	if snap.placementClaimed {
+		s.retainPlacementClaim(snap.client, snap.placementGeneration)
+	}
+	*snap.placementClaimSettled = true
+}
+
+func (s *Service) retainPlacementClaim(client serviceClient, generation string) {
+	if s == nil || client == nil {
+		return
+	}
+	s.placementHoldMu.Lock()
+	defer s.placementHoldMu.Unlock()
+	rec := s.placementHolds[client]
+	if rec == nil {
+		return
+	}
+	if generation != "" && rec.generation != generation {
+		return
+	}
+	if rec.inflight > 0 {
+		rec.inflight--
+	}
+	rec.sessionHeld = true
+	rec.releasing = false
+}
+
+// releasePlacementHold drops this launch's hold. The network release
+// runs only for the last in-flight holder of a placement-created grant.
+func (s *Service) releasePlacementHold(snap launchSnapshot) bool {
+	if !s.beginPlacementRelease(snap.client, snap.placementGeneration) {
+		return true
+	}
+	if !releaseContentPullGrant(snap) {
+		s.abortPlacementRelease(snap.client, snap.placementGeneration)
+		return false
+	}
+	s.finishPlacementRelease(snap.client, snap.placementGeneration)
+	return true
+}
+
+func (s *Service) beginPlacementRelease(client serviceClient, generation string) bool {
+	if s == nil || client == nil {
+		return true
+	}
+	s.placementHoldMu.Lock()
+	defer s.placementHoldMu.Unlock()
+	rec := s.placementHolds[client]
+	if rec == nil {
+		return true
+	}
+	if generation != "" && rec.generation != generation {
+		return false
+	}
+	if rec.releasing {
+		return false
+	}
+	if rec.inflight > 1 {
+		rec.inflight--
+		return false
+	}
+	if rec.inflight == 1 && rec.sessionHeld {
+		rec.inflight--
+		return false
+	}
+	if rec.inflight <= 0 {
+		return !rec.sessionHeld
+	}
+	rec.releasing = true
+	return true
+}
+
+func (s *Service) abortPlacementRelease(client serviceClient, generation string) {
+	if s == nil || client == nil {
+		return
+	}
+	s.placementHoldMu.Lock()
+	defer s.placementHoldMu.Unlock()
+	rec := s.placementHolds[client]
+	if rec == nil {
+		return
+	}
+	if generation != "" && rec.generation != generation {
+		return
+	}
+	rec.releasing = false
+}
+
+func (s *Service) finishPlacementRelease(client serviceClient, generation string) {
+	if s == nil || client == nil {
+		return
+	}
+	s.placementHoldMu.Lock()
+	defer s.placementHoldMu.Unlock()
+	rec := s.placementHolds[client]
+	if rec == nil {
+		return
+	}
+	if generation != "" && rec.generation != generation {
+		return
+	}
+	if rec.inflight > 0 {
+		rec.inflight--
+	}
+	rec.releasing = false
+	if rec.inflight == 0 {
+		rec.generation = ""
+		rec.sessionHeld = false
+	}
+}
+
+func releaseContentPullGrant(snap launchSnapshot) bool {
 	releaser, ok := snap.client.(meshPullReleaser)
 	if !ok || releaser == nil {
 		return false

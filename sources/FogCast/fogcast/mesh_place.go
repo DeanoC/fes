@@ -146,7 +146,7 @@ func (s *Service) rebindPlacementKit(ctx context.Context, snap launchSnapshot, c
 	if err != nil {
 		return snap, err
 	}
-	claimed, err := s.claimPlacementKit(ctx, client, cfg, choice.Execute)
+	claimed, generation, err := s.claimPlacementKit(ctx, client, cfg, choice.Execute)
 	if err != nil {
 		return snap, err
 	}
@@ -160,6 +160,7 @@ func (s *Service) rebindPlacementKit(ctx context.Context, snap launchSnapshot, c
 			if claimed {
 				snap.client = client
 				snap.placementClaimed = true
+				snap.placementGeneration = generation
 			}
 			return snap, meshcontent.ErrUnboundNode
 		}
@@ -167,6 +168,7 @@ func (s *Service) rebindPlacementKit(ctx context.Context, snap launchSnapshot, c
 	s.installPlacementRebind(cfg, choice, exec, ensure)
 	snap = retargetPlacementSnapshot(snap, cfg, choice, client, exec, ensure)
 	snap.placementClaimed = claimed
+	snap.placementGeneration = generation
 	return snap, nil
 }
 
@@ -176,6 +178,7 @@ func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choi
 	previous := s.selectedTarget
 	s.selectedTarget = cfg.Name
 	origin := s.targetOrigin
+	lease := kitLeaseOf(s.targetClients[cfg.Name])
 	s.targetMu.Unlock()
 	s.meshMu.Lock()
 	s.meshExecute.BoundNode = nodeID
@@ -189,11 +192,12 @@ func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choi
 	}
 	s.meshMu.Unlock()
 	// The origin hook is the production path that points CastStart at
-	// the selected kit. Call it only after both locks are released, and
-	// only when the selected name changed. The hook must not call back
-	// into Service.
+	// the selected kit. The lease is the grant just claimed, so media
+	// keeps the kit-lease header. Call the hook only after both locks
+	// are released, and only when the selected name changed. The hook
+	// must not call back into Service.
 	if origin != nil && previous != cfg.Name {
-		origin(cfg)
+		origin(cfg, lease)
 	}
 	if ensure && exec != nil {
 		s.attachMeshAuthorizer(MeshExecuteSession{BoundNode: nodeID, Executor: exec})
@@ -287,9 +291,9 @@ func (s *Service) placementClient(cfg TargetConfig) (serviceClient, error) {
 // This path does not take over a generation. The kit's identity is
 // verified before the claim, so a stale address is not claimed and a
 // discovered endpoint is adopted first.
-func (s *Service) claimPlacementKit(ctx context.Context, client serviceClient, cfg TargetConfig, nodeID string) (bool, error) {
+func (s *Service) claimPlacementKit(ctx context.Context, client serviceClient, cfg TargetConfig, nodeID string) (bool, string, error) {
 	if s.placementKitInUse(nodeID) {
-		return false, canonicalError(protocol.CodeKitLeaseDenied, nil)
+		return false, "", canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
 	owned, generation := false, ""
 	if lease, ok := client.(meshKitLease); ok && lease != nil {
@@ -299,32 +303,37 @@ func (s *Service) claimPlacementKit(ctx context.Context, client serviceClient, c
 		if s.connectionDescribesNode(nodeID) {
 			conn := s.TargetConnection()
 			if conn.leaseSeen && (!conn.leaseOwned || conn.leaseGeneration != generation) {
-				return false, meshcontent.ErrLeaseNotFree
+				return false, "", meshcontent.ErrLeaseNotFree
 			}
 		}
-		return false, nil
+		// Another in-flight launch already claimed this grant. Count
+		// this launch too, so the first failure cannot drop it. A grant
+		// with no in-flight holder belongs to the session and stays held.
+		claimed, err := s.adoptPlacementClaim(client, generation)
+		return claimed, generation, err
 	}
 	acquirer, ok := client.(meshPullAcquirer)
 	if !ok || acquirer == nil {
-		return false, meshcontent.ErrLeaseNotFree
+		return false, "", meshcontent.ErrLeaseNotFree
 	}
 	if err := s.verifyPlacementKit(ctx, client, cfg, nodeID); err != nil {
-		return false, err
+		return false, "", err
 	}
 	if err := acquirer.AcquireContentPullLease(ctx); err != nil {
 		if meshClaimDenied(err) {
-			return false, canonicalError(protocol.CodeKitLeaseDenied, nil)
+			return false, "", canonicalError(protocol.CodeKitLeaseDenied, nil)
 		}
-		return false, err
+		return false, "", err
 	}
 	owned, generation = false, ""
 	if lease, ok := client.(meshKitLease); ok && lease != nil {
 		owned, generation = lease.MeshKitLease()
 	}
 	if !owned || generation == "" {
-		return false, meshcontent.ErrLeaseNotFree
+		return false, "", meshcontent.ErrLeaseNotFree
 	}
-	return true, nil
+	s.registerPlacementClaim(client, generation)
+	return true, generation, nil
 }
 
 // verifyPlacementKit checks the selected kit before its lease is claimed.

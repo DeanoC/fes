@@ -87,15 +87,20 @@ conflict rejects and does not steal. Confirm uses that same claim.
 Generation takeover stays on the kit lease API. Launch and Ensure
 then use the new bind. The rebind stores that kit's name, address,
 TargetID, and client on the launch snapshot and notifies the
-selected-target origin hook, so bind and media routing stay on that
-kit when `selectedTarget` later moves. The host verifies that kit's
-identity before the claim. A stale configured address is adopted from
-discovery when that TargetID has one endpoint, and a different
-reported identity is not claimed. Bind still rejects a replaced
-client or a changed address or TargetID. A lease this launch claimed
-is released when execution does not start. A release that fails leaves
-the claim unsettled so it can be retried. A grant the session
-already held stays held. Ensure runs on that executor only when
+selected-target origin hook with that kit's lease, so bind and media
+routing stay on that kit when `selectedTarget` later moves. Media
+cast keeps the same lease, so CastStart still sends the kit-lease
+header, and an adopted endpoint is the cast address. The host verifies
+that kit's identity before the claim. A stale configured address is
+adopted from discovery when that TargetID has one endpoint, and a
+different reported identity is not claimed. Bind still rejects a
+replaced client or a changed address or TargetID. A lease this launch
+claimed is released when execution does not start and no other
+in-flight launch still holds it. A launch that starts execution keeps
+the grant for the session. A failed launch does not release a grant
+another launch adopted. A release that fails leaves the claim
+unsettled so it can be retried. A grant the session already held
+stays held. Ensure runs on that executor only when
 `[mesh] ensure` is already on. An unset key or `ensure = false`
 keeps Ensure off after the rebind and still binds the claimed kit.
 Picture and the pad stay on that kit. A menu-host preview is not the

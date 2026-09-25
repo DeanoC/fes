@@ -407,9 +407,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	}
 	// The core load recorded execution. Keep a placement claim through
 	// later media delivery. A failure before this return releases it.
-	if snap.placementClaimSettled != nil {
-		*snap.placementClaimSettled = true
-	}
+	s.settlePlacementClaim(snap)
 	if firmware == nil && media == nil {
 		return response, nil
 	}

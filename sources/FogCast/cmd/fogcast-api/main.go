@@ -398,24 +398,41 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 }
 
 func bindSessionTargetOrigin(service service, starter *host.HTTPBridgeStarter, media *compositionMediaSession) {
-	apply := func(target fogcast.TargetConfig) {
-		if starter != nil && strings.TrimSpace(target.Address) != "" {
-			if parsed, err := url.Parse(target.Address); err == nil {
+	apply := func(target fogcast.TargetConfig, lease *targetclient.KitLease) {
+		address := kitCastAddress(target, lease)
+		if starter != nil && address != "" {
+			if parsed, err := url.Parse(address); err == nil {
 				_ = starter.SetOrigin(parsed, target.Agent)
 			}
 		}
 		if media != nil {
-			media.SetCastTarget(target)
+			media.SetCastTarget(target, lease)
 		}
 	}
 	if origin, ok := service.(interface {
-		SetTargetOrigin(func(fogcast.TargetConfig))
+		SetTargetOrigin(func(fogcast.TargetConfig, *targetclient.KitLease))
 	}); ok {
 		origin.SetTargetOrigin(apply)
 	}
 	if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
-		apply(selected.SelectedTargetConfig())
+		var lease *targetclient.KitLease
+		if provider, ok := service.(interface{ KitLease() *targetclient.KitLease }); ok {
+			lease = provider.KitLease()
+		}
+		apply(selected.SelectedTargetConfig(), lease)
 	}
+}
+
+// kitCastAddress is the cast endpoint for a rebound kit. An adopted
+// lease endpoint wins over the configured address so media follows the
+// kit the claim verified.
+func kitCastAddress(target fogcast.TargetConfig, lease *targetclient.KitLease) string {
+	if lease != nil {
+		if endpoint := lease.Endpoint(); endpoint != nil && endpoint.Scheme != "" && endpoint.Host != "" {
+			return endpoint.String()
+		}
+	}
+	return strings.TrimSpace(target.Address)
 }
 
 type managedSenderComponent struct {
@@ -605,20 +622,30 @@ func newCompositionMediaSession(media hostapi.MediaSession, target targetCast, s
 	return &compositionMediaSession{media: media, target: target, session: session, token: token, generation: generation}
 }
 
-func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig) {
+func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig, lease *targetclient.KitLease) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.target == nil || strings.TrimSpace(target.Address) == "" || strings.TrimSpace(target.Agent) == "" {
+	if s.target == nil || strings.TrimSpace(target.Agent) == "" {
 		return
 	}
-	parsed, err := url.Parse(target.Address)
-	if err != nil {
+	address := kitCastAddress(target, lease)
+	if address == "" {
 		return
 	}
-	s.target = targetclient.NewClient(parsed, target.Agent, nil)
+	parsed, err := url.Parse(address)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return
+	}
+	// Share the placement grant. A bare client sends CastStart without
+	// X-FogCast-Kit-Lease, and the kit rejects the media admission.
+	client := targetclient.NewClient(parsed, target.Agent, nil)
+	if lease != nil {
+		client = client.WithKitLease(lease)
+	}
+	s.target = client
 	s.token = target.Agent
 }
 

@@ -2634,7 +2634,9 @@ func TestSelectedTargetIdentityChangeRebindsOriginAndInvalidatesInput(t *testing
 	var origins []string
 	resets := 0
 	service.SetTargetReset(func() { resets++ })
-	service.SetTargetOrigin(func(target TargetConfig) { origins = append(origins, target.Name+":"+target.Address) })
+	service.SetTargetOrigin(func(target TargetConfig, _ *targetclient.KitLease) {
+		origins = append(origins, target.Name+":"+target.Address)
+	})
 	if _, err := service.Status(context.Background()); err != nil {
 		t.Fatalf("reconcile selected target: %v", err)
 	}

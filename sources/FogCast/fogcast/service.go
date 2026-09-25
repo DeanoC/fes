@@ -216,7 +216,13 @@ type Service struct {
 	// Invalidating one target removes only that client's grant. A release
 	// that fails stays here until a later attempt succeeds. A grant that
 	// still backs a remaining play stays here and is not released.
-	stoppedKitLeases        []*targetclient.KitLease
+	stoppedKitLeases []*targetclient.KitLease
+	// placementHolds counts in-flight launches that share one placement
+	// claim. The key is the target client. A failed launch releases the
+	// grant only when it is the last in-flight holder and the session did
+	// not already hold it. Execution start moves that hold to the session.
+	placementHoldMu         sync.Mutex
+	placementHolds          map[serviceClient]*placementClaimRecord
 	closeKitLeases          func(context.Context) error
 	corePackages            *corepackage.Store
 	activePackageID         string
@@ -233,9 +239,10 @@ type Service struct {
 	selectedTarget          string
 	targetClients           map[string]serviceClient
 	targetClientFactory     func(TargetConfig) (serviceClient, error)
-	// targetOrigin rebinds input/media to the selected target. It must not call
-	// back into Service (same rule as targetReset).
-	targetOrigin             func(TargetConfig)
+	// targetOrigin rebinds input/media to the selected target. The lease is
+	// the kit grant already held for that target, and may be nil. The hook
+	// must not call back into Service (same rule as targetReset).
+	targetOrigin             func(TargetConfig, *targetclient.KitLease)
 	targetMu                 sync.RWMutex
 	requestTimeout           time.Duration
 	uploadTimeout            time.Duration
@@ -712,7 +719,7 @@ func (s *Service) bindLiveLaunchTarget(target string) error {
 	s.activeTarget = name
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
-		s.targetOrigin(cfg)
+		s.targetOrigin(cfg, kitLeaseOf(s.targetClients[name]))
 	}
 	if launchPinnedTargetBoundHook != nil {
 		launchPinnedTargetBoundHook(name)
@@ -1010,9 +1017,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 					s.notePlayDisplaySinkLocked()
 					s.packageRejection = nil
 					s.activePackageID, s.activePackageGeneration = "", 0
-					if snap.placementClaimSettled != nil {
-						*snap.placementClaimSettled = true
-					}
+					s.settlePlacementClaim(snap)
 				}
 				s.executionMu.Unlock()
 			}
@@ -2167,7 +2172,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil {
-		s.targetOrigin(targetByName(s.targets, s.selectedTarget))
+		s.targetOrigin(targetByName(s.targets, s.selectedTarget), kitLeaseOf(s.targetClients[s.selectedTarget]))
 	}
 	return status, nil
 }
@@ -2727,11 +2732,22 @@ func safeOpenError(message string, err error) error {
 }
 
 // SetTargetOrigin registers a hook that follows selected-target identity changes.
-// The callback must not call back into Service or send network cleanup requests.
-func (s *Service) SetTargetOrigin(hook func(TargetConfig)) {
+// The lease argument is the kit grant for that target and may be nil. The
+// callback must not call back into Service or send network cleanup requests.
+func (s *Service) SetTargetOrigin(hook func(TargetConfig, *targetclient.KitLease)) {
 	s.targetMu.Lock()
 	s.targetOrigin = hook
 	s.targetMu.Unlock()
+}
+
+// kitLeaseOf is the kit grant attached to client. A client without one
+// returns nil. The caller supplies a client it already holds.
+func kitLeaseOf(client serviceClient) *targetclient.KitLease {
+	leased, ok := client.(interface{ KitLease() *targetclient.KitLease })
+	if !ok || leased == nil {
+		return nil
+	}
+	return leased.KitLease()
 }
 
 // SessionTarget is the FPGA target bound to the host session: the active

@@ -217,7 +217,7 @@ func TestPlacementSameNodeDoesNotRebind(t *testing.T) {
 	spare := &acquiringMeshClient{}
 	service.targetClients["spare"] = spare
 	var origins []string
-	service.SetTargetOrigin(func(cfg TargetConfig) { origins = append(origins, cfg.Name) })
+	service.SetTargetOrigin(func(cfg TargetConfig, _ *targetclient.KitLease) { origins = append(origins, cfg.Name) })
 	service.SetMeshPlacementAsk(&MeshPlacementAsk{
 		Candidates: []meshplace.Candidate{
 			placeFPGACandidate("node-b", true),
@@ -571,22 +571,91 @@ func TestPlacementRebindRejectsAReplacedClient(t *testing.T) {
 
 func TestPlacementRebindNotifiesTargetOrigin(t *testing.T) {
 	service, _ := placementBoundService(t, true)
-	spare := &releasingMeshClient{}
+	base, err := url.Parse("http://192.0.2.11:8182")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := targetclient.NewKitLease(base, "token-b", nil, "host", "placement")
+	spare := &leasingMeshClient{lease: lease}
 	service.targetClients["spare"] = spare
 	var origins []TargetConfig
-	service.SetTargetOrigin(func(cfg TargetConfig) { origins = append(origins, cfg) })
+	var originLease *targetclient.KitLease
+	service.SetTargetOrigin(func(cfg TargetConfig, got *targetclient.KitLease) {
+		origins = append(origins, cfg)
+		originLease = got
+	})
 	service.SetMeshPlacementAsk(&MeshPlacementAsk{
 		Candidates: []meshplace.Candidate{placeFPGACandidate("node-b", true)},
 	})
-	_, err := service.Launch(context.Background(), "coleco-frogger", nil)
+	_, err = service.Launch(context.Background(), "coleco-frogger", nil)
 	if errors.Is(err, meshcontent.ErrUnboundNode) {
 		t.Fatal(err)
 	}
 	if len(origins) != 1 || origins[0].Name != "spare" || origins[0].TargetID != "node-b" {
 		t.Fatalf("origins %+v err %v", origins, err)
 	}
+	if originLease != lease {
+		t.Fatalf("origin lease %p, kit lease %p", originLease, lease)
+	}
 	if service.meshEnsure || service.meshEnsureConfig {
 		t.Fatal("ensure flipped")
+	}
+}
+
+func TestOverlappingPlacementClaimsReleaseOnlyTheLastHolder(t *testing.T) {
+	cfg := TargetConfig{Name: "spare", Enabled: true, TargetID: "node-b", Address: "http://192.0.2.11:8182"}
+	service := phase0PlacementService()
+	service.targets = append(service.targets, cfg)
+	spare := &releasingMeshClient{}
+	first, generation, err := service.claimPlacementKit(context.Background(), spare, cfg, "node-b")
+	if err != nil || !first || generation == "" {
+		t.Fatalf("first claimed %v generation %q err %v", first, generation, err)
+	}
+	second, adopted, err := service.claimPlacementKit(context.Background(), spare, cfg, "node-b")
+	if err != nil || !second || adopted != generation {
+		t.Fatalf("second claimed %v generation %q err %v", second, adopted, err)
+	}
+	if spare.claims != 1 {
+		t.Fatalf("claims %d", spare.claims)
+	}
+	snap := launchSnapshot{client: spare, placementClaimed: true, placementGeneration: generation}
+	if !service.releaseClaimedContentLease(snap) {
+		t.Fatal("first failure did not settle")
+	}
+	owned, held := spare.MeshKitLease()
+	if spare.releases != 0 || !owned || held != generation {
+		t.Fatalf("first failure released the shared grant: releases %d owned %v generation %q", spare.releases, owned, held)
+	}
+	settled := false
+	service.settlePlacementClaim(launchSnapshot{
+		client: spare, placementClaimed: true, placementGeneration: generation, placementClaimSettled: &settled,
+	})
+	if !settled || spare.releases != 0 {
+		t.Fatalf("execution start settled %v releases %d", settled, spare.releases)
+	}
+	if !service.releaseClaimedContentLease(snap) || spare.releases != 0 {
+		t.Fatalf("later failure released a session grant: releases %d", spare.releases)
+	}
+
+	other := &releasingMeshClient{}
+	left, leftGen, err := service.claimPlacementKit(context.Background(), other, cfg, "node-b")
+	if err != nil || !left || leftGen == "" {
+		t.Fatalf("left claimed %v generation %q err %v", left, leftGen, err)
+	}
+	right, rightGen, err := service.claimPlacementKit(context.Background(), other, cfg, "node-b")
+	if err != nil || !right || rightGen != leftGen {
+		t.Fatalf("right claimed %v generation %q err %v", right, rightGen, err)
+	}
+	leftSnap := launchSnapshot{client: other, placementClaimed: true, placementGeneration: leftGen}
+	if !service.releaseClaimedContentLease(leftSnap) || other.releases != 0 {
+		t.Fatalf("left release releases %d", other.releases)
+	}
+	if !service.releaseClaimedContentLease(leftSnap) {
+		t.Fatal("right release did not settle")
+	}
+	owned, _ = other.MeshKitLease()
+	if other.releases != 1 || owned {
+		t.Fatalf("last failure releases %d owned %v", other.releases, owned)
 	}
 }
 
@@ -760,6 +829,18 @@ func TestPlacementRebindKeepsClaimWhenExecutionStarts(t *testing.T) {
 	if service.meshEnsure || service.meshEnsureConfig {
 		t.Fatal("ensure flipped")
 	}
+}
+
+type leasingMeshClient struct {
+	releasingMeshClient
+	lease *targetclient.KitLease
+}
+
+func (c *leasingMeshClient) KitLease() *targetclient.KitLease {
+	if c == nil {
+		return nil
+	}
+	return c.lease
 }
 
 type identifiedMeshClient struct {
