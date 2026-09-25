@@ -28,6 +28,26 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesZx81OssTests(unittest.TestCase):
+    def test_signoff_rejects_failed_arc_even_with_normal_footer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / 'synth.json').write_text('{"modules":{"top":{}}}')
+            (output / 'routed.json').write_text('{"modules":{"top":{}}}')
+            (output / 'nextpnr.log').write_text(
+                "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
+                "Info: PLL 'system_clock.pll': 50 MHz -> 52 MHz\n"
+                "ERROR: Failed to route arc 6.0 of net 'cpu.NMI_n'\n"
+                "Info: Program finished normally.\n"
+            )
+            with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
+                build_fes_zx81_oss, '_cell_counts', return_value={
+                    **build_fes_zx81_oss.REQUIRED_RESOURCES,
+                    'MISTRAL_M10K': 1,
+                }
+            ):
+                with self.assertRaisesRegex(BuildError, 'failed arc'):
+                    build_fes_zx81_oss.validate_build_evidence(output)
+
     def test_build_exports_sealed_map_and_cleans_failed_database_recheck(self):
         import hashlib
         from types import SimpleNamespace
@@ -111,7 +131,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             self.assertFalse((output/'rom-map.json').exists())
 
     def test_record_seals_effective_search_policy(self) -> None:
-        for mode in ("first-pass", "staged"):
+        for mode in ("first-pass-paired", "staged"):
             with self.subTest(mode=mode):
                 weights, budget = build_fes_zx81_oss.placement_policy(mode)
                 record = json.loads(build_fes_zx81_oss.create_build_record(
@@ -125,10 +145,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaises(BuildError):
             build_fes_zx81_oss.placement_policy("unknown")
 
-    def test_first_pass_reaches_fallback_and_stops_after_timing_closes(self) -> None:
+    def test_paired_search_reaches_fallback_and_stops_after_timing_closes(self) -> None:
         from scripts.search_placer_qor import search
         from tests.test_search_placer_qor import _candidate
-        weights, budget = build_fes_zx81_oss.placement_policy("first-pass")
+        weights, budget = build_fes_zx81_oss.placement_policy("first-pass-paired")
         calls = []
 
         def route(seed, weight):
@@ -139,9 +159,11 @@ class BuildFesZx81OssTests(unittest.TestCase):
             nextpnr=Path("unused"), fixture=Path("unused"), output=Path("unused"),
             device=build_fes_zx81_oss.TARGET, qsf=Path("unused"), sdc=None, freq=None,
             seeds=PLACER_SEEDS, weights=weights, critexp=PLACER_CRITICALITY_EXPONENT,
-            budget=budget, mode="first-pass", extra=(), timeout=1, run_one=route,
+            budget=budget, mode="first-pass-paired", extra=(), timeout=1, run_one=route,
         )
-        self.assertEqual(calls, [(seed, weight) for weight in (1000, 300) for seed in PLACER_SEEDS])
+        self.assertEqual(calls, [
+            (seed, weight) for seed in PLACER_SEEDS for weight in (1000, 300)
+        ])
         self.assertTrue(ranked[0].passing)
         self.assertEqual((ranked[0].seed, ranked[0].weight), (34, 300))
         self.assertEqual(budget, 70)

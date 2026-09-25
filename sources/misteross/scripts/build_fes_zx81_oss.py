@@ -15,7 +15,7 @@ from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
-from scripts.search_placer_qor import SearchError, _parse_ints, route_after_synth
+from scripts.search_placer_qor import SearchError, _parse_ints, has_failed_route_arc, route_after_synth
 from scripts import zx81_expansion, rom_map
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = '5CSEBA6U23I7'
@@ -75,14 +75,14 @@ def _require_clean_source(root: Path, *, identity_version: int=2) -> tuple[str, 
     return require_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
 
 def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
-    if mode == 'first-pass':
+    if mode == 'first-pass-paired':
         return (PLACER_FIRST_PASS_WEIGHTS, len(PLACER_SEEDS) * len(PLACER_FIRST_PASS_WEIGHTS))
     if mode == 'staged':
         return (PLACER_WEIGHTS, PLACER_QOR_BUDGET)
     raise BuildError(f'unsupported placement mode: {mode}')
 
 @guard_functional_source
-def create_build_record(root: Path, repository: str, revision: str, tool_identities: Mapping[str, str], *, qor_mode: str='first-pass', identity_version: int=2, execution: dict | None=None) -> bytes:
+def create_build_record(root: Path, repository: str, revision: str, tool_identities: Mapping[str, str], *, qor_mode: str='first-pass-paired', identity_version: int=2, execution: dict | None=None) -> bytes:
     weights, budget = placement_policy(qor_mode)
     fields = {'format': 1, 'repository': repository, 'revision': revision, 'recipe': RECIPE, 'recipe_sha256': _sha256(_regular_input(root, RECIPE)), 'abi_definition': ABI_DEFINITION, 'abi_definition_sha256': _sha256(_regular_input(root, ABI_DEFINITION)), 'dependencies': {}, 'tools': dict(tool_identities), 'parameters': {'device': TARGET, 'gpu_architectures': FES_GPU_ARCHITECTURES, 'gpu_backend': FES_GPU_BACKEND, 'pixel_clock_hz': 74250000, 'sys_clock_hz': 52000000, 'reference_clock_hz': 50000000, 'router': 'gpu', 'seed': PLACER_SEEDS[0], 'seed_order': ','.join((str(seed) for seed in PLACER_SEEDS)), 'placer_heap_timingweight': PLACER_TIMING_WEIGHT, 'placer_heap_timingweights': ','.join((str(weight) for weight in weights)), 'placer_heap_critexp': PLACER_CRITICALITY_EXPONENT, 'placer_qor_mode': qor_mode, 'placer_qor_budget': budget, 'top': TOP}}
     fields['parameters']['expansion_socket'] = 'zx81-bus-v1'
@@ -175,6 +175,8 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     route_text = route_log.read_text(encoding='utf-8', errors='replace')
     if 'Info: Program finished normally.' not in route_text or 'unrouted' in route_text.lower():
         raise BuildError('route log does not prove a complete routed design')
+    if has_failed_route_arc(route_text):
+        raise BuildError('route log contains a failed arc')
     gpu_backend = _require_gpu_backend(route_text)
     if '50 MHz -> 52 MHz' not in route_text:
         raise BuildError('route log does not contain the 50-to-52 MHz system PLL')
@@ -208,7 +210,7 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
     package_store = (root / 'build/packages' if package_store is None else Path(package_store)).resolve()
     if package_store != root / 'build/packages':
         raise BuildError(f"FES ZX81 package store must be {root / 'build/packages'}")
-    qor_mode = 'staged' if best_fmax else 'first-pass'
+    qor_mode = 'staged' if best_fmax else 'first-pass-paired'
     qor_weights, qor_budget = placement_policy(qor_mode)
     repository, revision = _require_clean_source(root, identity_version=identity_version)
     authenticated = _authenticate_tools(root, cache_root=cache_root)
@@ -280,7 +282,7 @@ def main(argv: Sequence[str] | None=None) -> int:
     parser.add_argument('--print-commands', action='store_true')
     parser.add_argument('--identity-version', type=int, choices=(2,), default=2)
     parser.add_argument('--best-fmax', action='store_true', help='after synthesis, search HeAP weight and seed for the best Fmax instead of first-to-pass')
-    parser.add_argument('--gpu-devices', default=None, help='HIP device indices for --best-fmax (default 0,1 = XTX + 9700)')
+    parser.add_argument('--gpu-devices', default=None, help='one HIP device index for the controlled build (default 0)')
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
