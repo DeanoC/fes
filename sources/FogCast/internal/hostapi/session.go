@@ -1273,17 +1273,17 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 		return playHIDLeaseError()
 	}
 	if s.remoteInput == nil {
-		return remoteInputError()
+		return host.ErrRemoteInputNoStream
 	}
 	status := s.remoteInput.Status()
 	if status.State != host.RemoteInputAttached && status.State != host.RemoteInputReconnecting {
-		return remoteInputError()
+		return host.ErrRemoteInputNoStream
 	}
 	sender, ok := s.remoteInput.(interface {
 		SendEvent(context.Context, remoteinput.Event, time.Time) error
 	})
 	if !ok {
-		return remoteInputError()
+		return host.ErrRemoteInputNoStream
 	}
 	return sender.SendEvent(ctx, event, time.Now())
 }

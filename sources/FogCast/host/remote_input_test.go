@@ -180,6 +180,53 @@ func TestRemoteInputHeartbeatReportsRoundTripTime(t *testing.T) {
 	})
 }
 
+func TestRemoteInputNoLiveStreamRejectsEvent(t *testing.T) {
+	starter := &testBridgeStarter{}
+	input, err := host.NewRemoteInput(host.RemoteInputConfig{
+		Starter:           starter,
+		ReconnectGrace:    40 * time.Millisecond,
+		HeartbeatInterval: time.Hour,
+		DialTimeout:       40 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	event := remoteinput.Event{
+		Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton,
+		Action: remoteinput.ActionPress, Code: remoteinput.ButtonA,
+	}
+	if err = input.SendEvent(context.Background(), event, time.Now()); !errors.Is(err, host.ErrRemoteInputNoStream) {
+		t.Fatalf("send without a stream: %v", err)
+	}
+	if _, err = input.ClaimSource("abc"); !errors.Is(err, host.ErrRemoteInputNoStream) {
+		t.Fatalf("claim without a stream: %v", err)
+	}
+
+	if err = input.Attach(context.Background(), "SNES"); err != nil {
+		t.Fatal(err)
+	}
+	sessionID := input.Status().SessionID
+	starter.mu.Lock()
+	server := starter.servers[0]
+	sink := starter.sinks[0]
+	starter.mu.Unlock()
+	if err = server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = input.SendEvent(context.Background(), event, time.Now()); !errors.Is(err, host.ErrRemoteInputNoStream) {
+		t.Fatalf("send with no listener: %v", err)
+	}
+	if _, err = input.ClaimSource(sessionID); !errors.Is(err, host.ErrRemoteInputNoStream) {
+		t.Fatalf("claim with no listener: %v", err)
+	}
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	if len(sink.events) != 0 {
+		t.Fatalf("event accepted without a listener: %+v", sink.events)
+	}
+}
+
 func TestRemoteInputFailsWhenBridgeExitsBeforeReady(t *testing.T) {
 	starter := host.BridgeStarterFunc(func(context.Context, host.BridgeSpec) (host.BridgeHandle, error) {
 		return &exitedBridgeHandle{}, nil
