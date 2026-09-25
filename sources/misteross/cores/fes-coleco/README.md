@@ -36,17 +36,15 @@ retail-game compatibility.
   logical raster samples per second for 256×262 frames at a nominal 60 Hz.
   HDMI pixel timing stays fixed and independent.
 
-The machine now models a normally vacant CPU peripheral edge. It exposes Z80
-address/data/control cycles and accepts read data, claim, WAIT and maskable INT
-from a future independently placed module. The machine
-masks read claims to memory `0x2000–0x5fff` and unclaimed I/O ports in the
-factory core; BIOS, RAM, cartridge, VDP and controller reads retain console
-priority. Development socket builds also permit a module to claim reads in
-`0x0000–0x1fff` and `0x6000–0x7fff`, and prevent a claimed write from changing
-the console's mirrored RAM. The
+The factory v2 shell models a normally vacant CPU peripheral edge. It exposes
+Z80 address/data/control cycles and accepts read data, claim, WAIT and
+maskable INT from an independently placed module. A linked SGM may claim reads
+in `0x0000–0x1fff`, `0x2000–0x5fff` and `0x6000–0x7fff`; claimed writes do
+not change the console's mirrored RAM. When the socket is vacant, BIOS, RAM,
+cartridge, VDP and controller reads retain console behavior. The
 `sim-fes-coleco-expansion` target checks vacant behavior and a behavioral
-diagnostic responder. A registered physical socket is available only behind
-`FES_COLECO_EXPANSION_DEV`. The separate
+diagnostic responder. The earlier v1 diagnostic used
+`FES_COLECO_EXPANSION_DEV`. Its separate
 `scripts/build_fes_coleco_socket_dev.py` recipe uses
 `toolchains/coleco-expansion.lock` to seal a timed development shell with a
 reserved `24 1 28 11` region containing only its pinned boundary FFs. The
@@ -76,10 +74,9 @@ CPU read starts, then advances every sixteen system clocks.
 `sim-fes-coleco-diagnostic` exercises this through the registered socket with a
 real CPU program. A previous linked diagnostic has a functional kit check in
 the dated Coleco expansion bus validation note. That check covers its recorded
-artifact only; the integrated shell and cart still need their own kit check.
-The factory image continues to use the normal package.
+artifact only. The factory recipe now selects the v2 shell described below.
 
-The development Opcode Super Game Module now has a separately simulated v2
+The Opcode Super Game Module has a separately simulated v2
 module and shell-RAM path. Following the
 [MAME SGM device mapping](https://github.com/mamedev/mame/blob/master/src/devices/bus/coleco/expansion/sgm.cpp),
 port `0x53` bit 0 enables 24 KiB at `0x2000–0x7fff`; port `0x7f` bit 1 clears

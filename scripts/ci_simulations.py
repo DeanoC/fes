@@ -10,7 +10,9 @@ TARGETS = {
         'sim-fes-coleco-' + scenario + suffix
         for suffix in ('', '-oss')
         for scenario in ('unit', *('board-' + name for name in COLECO_SCENARIOS))
-    ) + ('sim-fes-coleco-expansion', 'sim-fes-coleco-diagnostic'),
+    ) + ('sim-fes-coleco-expansion', 'sim-fes-coleco-diagnostic') + tuple(
+        'sim-fes-coleco-sgm-' + name for name in
+        ('socket', 'shell-ram', 'ay', 'module', 'audio', 'integrated', 'probe')),
     'sms': ('sim-fes-sms sim-fes-sms-oss',),
     'sg1000': ('sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link',),
 }
