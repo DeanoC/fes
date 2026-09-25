@@ -1,0 +1,280 @@
+// Package meshplace chooses where one title plays.
+//
+// Place is host-local. It implements the unsigned Decision 7 strawman
+// in docs/mesh-lan.md the way docs/mesh-phase3.md Slice 1 reads it.
+// Deano has not locked that order. This package does not describe the
+// order as a lock, does not store a preference, and does not name a
+// default native_emu winner.
+//
+// The caller passes the projected catalog entry and the candidate nodes
+// it already has. FPGA eligibility uses abis (id, major) from each
+// node's GET /v1/mesh/content/node. Place does not perform that read,
+// does not browse DNS-SD, and does not treat an empty discovery family
+// list as "any RBF". Address, human name, and candidate order are not
+// ranking keys.
+//
+// A selected result names Execute, and names DisplaySink and
+// InputSource only when that same node advertises them. Picture and
+// pad stay on that node. Unresolved and fail closed do not name an
+// Execute node.
+package meshplace
+
+import "github.com/DeanoC/FogCast/internal/meshcontent"
+
+// Outcome is the host-local result of one placement. It is not a wire
+// value and it is not sofa copy.
+type Outcome string
+
+const (
+	// OutcomeSelected names one Execute node.
+	OutcomeSelected Outcome = "selected"
+	// OutcomeUnresolved means more than one eligible node and no
+	// tie-break this slice is allowed to apply.
+	OutcomeUnresolved Outcome = "unresolved"
+	// OutcomeFailClosed means do not launch.
+	OutcomeFailClosed Outcome = "fail_closed"
+)
+
+// Reason classifies OutcomeFailClosed. Empty unless the outcome is
+// fail closed. Codes are host-local.
+type Reason string
+
+const (
+	// ReasonNotLaunchable means the entry is browse-only or invalid.
+	ReasonNotLaunchable Reason = "not_launchable"
+	// ReasonNoCandidate means no candidate can run the title.
+	ReasonNoCandidate Reason = "no_candidate"
+	// ReasonMeshMajor means every candidate that could run the title
+	// has a mesh-major mismatch.
+	ReasonMeshMajor Reason = "mesh_major"
+	// ReasonMissingSlot means the caller reported a required
+	// composition slot with no source.
+	ReasonMissingSlot Reason = "missing_slot"
+)
+
+// Candidate is one node the caller already knows.
+//
+// Execute lists advertised kinds. ABIs are the id and major pairs from
+// that node's content document, the same shape Phase 2 kit content
+// stores after GET /v1/mesh/content/node. An empty ABI list does not
+// match a package. DisplaySink and InputSource are advertisements, not
+// a claim that the picture is up.
+type Candidate struct {
+	NodeID      string
+	MeshMajorOK bool
+	Execute     []string
+	DisplaySink bool
+	InputSource bool
+	ABIs        []meshcontent.EligibleABI
+}
+
+// Options are caller facts Place does not discover.
+//
+// DisplayPreference and LastDisplaySink are node ids. Empty means
+// unset. MissingRequiredSlot is a required composition slot with no
+// source. Place does not open files, does not pull, and does not read
+// a config file. An advanced override is not a field here.
+type Options struct {
+	DisplayPreference   string
+	LastDisplaySink     string
+	MissingRequiredSlot bool
+}
+
+// Choice names the selected node. DisplaySink and InputSource are set
+// only when that same node advertises them. They are never a different
+// node. The zero Choice means no Execute node.
+type Choice struct {
+	Execute     string
+	DisplaySink string
+	InputSource string
+}
+
+// Result is host-local. It has no JSON encoding of its own.
+type Result struct {
+	Outcome Outcome
+	Reason  Reason
+	Choice  Choice
+}
+
+// Place chooses Execute for one entry.
+//
+// One eligible fpga_native kit is selected. When several eligible kits
+// exist, one of them is selected only when the household display
+// preference, or otherwise the last play DisplaySink, names one that
+// advertises DisplaySink and whose mesh major matches. Otherwise the
+// FPGA result is unresolved. Eligible for that count means Execute
+// fpga_native and meshcontent.ABIMatches against the caller's abis. A
+// mesh-major mismatch does not rank those kits.
+//
+// native_emu is considered only when no FPGA candidate can run the
+// title. Exactly one such candidate is selected. Several are
+// unresolved. Preference and last sink do not pick among them.
+func Place(entry meshcontent.Entry, candidates []Candidate, opts Options) Result {
+	if err := entry.Validate(); err != nil || !entry.Launchable {
+		return fail(ReasonNotLaunchable)
+	}
+	if opts.MissingRequiredSlot {
+		return fail(ReasonMissingSlot)
+	}
+	if fpga := runnableFPGA(entry, candidates); len(fpga) > 0 {
+		return finishFPGA(fpga, opts)
+	}
+	if entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
+		return fail(ReasonNoCandidate)
+	}
+	return finishNative(runnableNative(candidates))
+}
+
+func finishFPGA(could []Candidate, opts Options) Result {
+	rows, done, stop := gate(could)
+	if stop {
+		return done
+	}
+	if c, ok := preferred(rows, opts.DisplayPreference); ok {
+		return selected(c)
+	}
+	if c, ok := preferred(rows, opts.LastDisplaySink); ok {
+		return selected(c)
+	}
+	return Result{Outcome: OutcomeUnresolved}
+}
+
+func finishNative(could []Candidate) Result {
+	_, done, stop := gate(could)
+	if stop {
+		return done
+	}
+	// Several native_emu nodes stay unresolved. Preference, last sink,
+	// and mesh-major OK are not a tie-break. That choice is parked.
+	return Result{Outcome: OutcomeUnresolved}
+}
+
+// gate applies the shared fail-closed checks. stop is true when the
+// result is already final: no row, every row mesh-major mismatched, or
+// exactly one selectable node. Several rows that include at least one
+// mesh-major match return stop false so the caller can apply its own
+// tie-break. A mismatched peer stays in rows. It is not deleted to
+// manufacture a single winner.
+func gate(could []Candidate) ([]Candidate, Result, bool) {
+	rows := oneRowPerNode(could)
+	if len(rows) == 0 {
+		return nil, fail(ReasonNoCandidate), true
+	}
+	if !anyMeshMajorOK(rows) {
+		return nil, fail(ReasonMeshMajor), true
+	}
+	if len(rows) == 1 {
+		return nil, selected(rows[0]), true
+	}
+	return rows, Result{}, false
+}
+
+func runnableFPGA(entry meshcontent.Entry, candidates []Candidate) []Candidate {
+	if entry.Execute[0].Kind != meshcontent.ExecuteFPGANative {
+		return nil
+	}
+	pkg, ok := entryPackage(entry)
+	if !ok {
+		return nil
+	}
+	out := make([]Candidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.NodeID == "" || !hasKind(candidate, meshcontent.ExecuteFPGANative) {
+			continue
+		}
+		if !meshcontent.ABIMatches(pkg, candidate.ABIs) {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	return out
+}
+
+func runnableNative(candidates []Candidate) []Candidate {
+	out := make([]Candidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.NodeID == "" || !hasKind(candidate, meshcontent.ExecuteNativeEmu) {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	return out
+}
+
+// preferred reports the named node when it is one of the eligible rows,
+// advertises DisplaySink, and matches the mesh major. An empty id is
+// unset. A menu shell that cannot run the title is not in rows, so it
+// cannot win.
+func preferred(rows []Candidate, nodeID string) (Candidate, bool) {
+	if nodeID == "" {
+		return Candidate{}, false
+	}
+	for _, candidate := range rows {
+		if candidate.NodeID != nodeID || !candidate.MeshMajorOK || !candidate.DisplaySink {
+			continue
+		}
+		return candidate, true
+	}
+	return Candidate{}, false
+}
+
+func selected(candidate Candidate) Result {
+	choice := Choice{Execute: candidate.NodeID}
+	if candidate.DisplaySink {
+		choice.DisplaySink = candidate.NodeID
+	}
+	if candidate.InputSource {
+		choice.InputSource = candidate.NodeID
+	}
+	return Result{Outcome: OutcomeSelected, Choice: choice}
+}
+
+func fail(reason Reason) Result {
+	return Result{Outcome: OutcomeFailClosed, Reason: reason}
+}
+
+func anyMeshMajorOK(rows []Candidate) bool {
+	for _, candidate := range rows {
+		if candidate.MeshMajorOK {
+			return true
+		}
+	}
+	return false
+}
+
+func hasKind(candidate Candidate, kind string) bool {
+	for _, got := range candidate.Execute {
+		if got == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func entryPackage(entry meshcontent.Entry) (meshcontent.PackageABI, bool) {
+	for _, slot := range entry.Slots {
+		if slot.Kind == meshcontent.SlotPackageABI && slot.Package != nil {
+			return *slot.Package, true
+		}
+	}
+	return meshcontent.PackageABI{}, false
+}
+
+// oneRowPerNode keeps the first row for each node id. Callers pass one
+// record per node. An empty id is not a node. Order is preserved and
+// is not a rank.
+func oneRowPerNode(in []Candidate) []Candidate {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]Candidate, 0, len(in))
+	for _, candidate := range in {
+		if candidate.NodeID == "" {
+			continue
+		}
+		if _, ok := seen[candidate.NodeID]; ok {
+			continue
+		}
+		seen[candidate.NodeID] = struct{}{}
+		out = append(out, candidate)
+	}
+	return out
+}
