@@ -233,12 +233,16 @@ events are raw input frames on `/run/fogcast/local-input.sock`. mister-agent
 delivers them into the running core. The kit does not post that play input to
 the host, and it does not wait for launcher.json reachability or the host
 session's input.ready. A pad on the kit still drives the core when another
-host holds the lease. The player index on the frame is the one the kit
-assigned. If the socket is not listening, the kit reports `Local input
-unavailable`, waits one second before dialing again, and does not fall back
-to the host input route. Hold Select + Start together for one second to request
-ordinary Stop; both must release before rearming. Individual Start and Select
-remain game controls while a session can stop; B does not stop gameplay.
+host holds the lease. While a core is bound, those events do not leave the
+platform wheel, change browse selection, or request a launch from a stale
+idle host session. With no core bound, the same pad still browses. The player
+index on the frame is the one the kit assigned. If the socket is not
+listening, the kit reports `Local input unavailable`, waits one second before
+dialing again, and does not fall back to the host input route. Hold Select +
+Start together for one second to request ordinary Stop; both must release
+before rearming. That Stop chord still posts while a core is bound. Individual
+Start and Select remain game controls while a session can stop; B does not
+stop gameplay.
 Stop/save errors retain the retry operation. After the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s; 1s is allowed) with no pad input,
 no busy/session transition, and a ready host, the kit leaves the grid for an

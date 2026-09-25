@@ -476,14 +476,23 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					nextPad = now.Add(time.Second)
 				} else {
 					for _, e := range events {
-						prevShelf := m.Shelf
-						prevPack := m.Pack
-						action := m.Input(e, now)
-						if m.Shelf != prevShelf {
-							persistShelf(c, m.activeShelf())
-						}
-						if m.Pack != prevPack {
-							persistPack(c, m.Pack)
+						var action string
+						if bound {
+							// A bound core owns the pad, including when this
+							// host session is still idle. Play frames go to
+							// the local feed. Select+Start still arms Stop.
+							// Browse, the platform wheel, and launch stay put.
+							m.armStopChord(e, now)
+						} else {
+							prevShelf := m.Shelf
+							prevPack := m.Pack
+							action = m.Input(e, now)
+							if m.Shelf != prevShelf {
+								persistShelf(c, m.activeShelf())
+							}
+							if m.Pack != prevPack {
+								persistPack(c, m.Pack)
+							}
 						}
 						// Play input follows local core presence. It does not
 						// wait for the host, input.ready, or the kit lease.
@@ -492,7 +501,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 								feed = newLocalFeed(c.localInputSocket(), c.localDial)
 							}
 							// Skip the dial while the socket is already down.
-							// Model input, including the Stop chord, still runs.
+							// The Stop chord above still runs.
 							// The next try is one send after the cooldown.
 							if !(inputDown && now.Before(nextLocalDial)) {
 								if err := feed.send(e, now); err != nil {

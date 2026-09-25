@@ -1480,8 +1480,12 @@ package, and non-zero generation check mister-agent uses, and passes the
 socket path into the launcher. `ui/kitlauncher` does not import the target
 runtime or input packages. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
-lease. The kit keeps the player index the pad already has. Stop and kit menu
-actions stay on the kit. If the socket is not listening, play input reports
+lease. The kit keeps the player index the pad already has. While a core is
+bound, those events are not applied to the platform wheel, browse selection,
+or launch, even when this kit's host session is still idle. Select+Start held
+for one second still posts `POST /api/v1/session/stop`. With no core bound,
+the same pad drives browse. Stop and kit menu actions stay on the kit. If the
+socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host.
 
