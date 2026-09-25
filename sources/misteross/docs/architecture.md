@@ -575,8 +575,9 @@ and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The
 physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate
 `coleco-expansion.lock` pairs registered-memory Yosys with the socket-aware
 Mistral and nextpnr pins. The development producer seals a timed shell with a
-vacant `24 1 28 11` placement region and optional `fes.expansion.coleco-bus`
-1.0. The diagnostic module uses the frozen shell and restores the system PLL's
+reserved `24 1 28 11` placement region containing only pinned boundary FFs.
+It declares optional `fes.expansion.coleco-bus` 1.0. The diagnostic module
+uses the frozen shell and restores the system PLL's
 second output from exact routed metadata. The integrated shell/cart has no
 outside CRAM changes. Its producer permits only the two fixed response-stub
 changes declared by `fes.coleco.response-boundary/4` if a route needs them,

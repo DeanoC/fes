@@ -45,8 +45,10 @@ cartridge, VDP and controller reads retain console priority. The
 diagnostic responder. A registered physical socket is available only behind
 `FES_COLECO_EXPANSION_DEV`. The separate
 `scripts/build_fes_coleco_socket_dev.py` recipe uses
-`toolchains/coleco-expansion.lock` to seal a timed development shell with an
-empty `24 1 28 11` region. It declares optional `fes.expansion.coleco-bus`
+`toolchains/coleco-expansion.lock` to seal a timed development shell with a
+reserved `24 1 28 11` region containing only its pinned boundary FFs. The
+cart now uses that full placement rectangle with a compiler that admits those
+frozen cells at their original BELs. It declares optional `fes.expansion.coleco-bus`
 1.0 and leaves the factory Coleco producer unchanged. The diagnostic module
 recipe `scripts/build_coleco_bus_diagnostic.py` routes against that frozen
 shell and checks its CRAM diff before publishing an expansion archive. The

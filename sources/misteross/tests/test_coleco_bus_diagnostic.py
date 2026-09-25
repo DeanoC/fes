@@ -73,11 +73,11 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 diagnostic.prepare_scaffold(source, dest)
 
-    def test_cart_placement_reserves_only_empty_interior(self):
+    def test_cart_placement_keeps_full_shell_rectangle(self):
         shell = coleco_expansion.shell_qsf("pin constraints\n").encode()
         cart = diagnostic.cart_qsf(shell)
-        self.assertIn(b'FES_RESERVED_RECT "25 1 27 11"', cart)
-        self.assertNotIn(b'FES_RESERVED_RECT "24 1 28 11"', cart)
+        self.assertEqual(cart, shell)
+        self.assertIn(b'FES_RESERVED_RECT "24 1 28 11"', cart)
         with self.assertRaises(ValueError):
             diagnostic.cart_qsf(b"pin constraints\n")
 

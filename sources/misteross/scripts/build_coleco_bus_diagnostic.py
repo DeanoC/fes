@@ -138,10 +138,7 @@ def cart_qsf(shell_qsf: bytes) -> bytes:
     original = f'set_global_assignment -name FES_RESERVED_RECT "{coleco_expansion.SOCKET_RECT}"'.encode()
     if shell_qsf.count(original) != 1:
         raise ValueError("Coleco shell QSF has no unique socket rectangle")
-    # The two edge columns contain frozen request/response FFs. The cart only
-    # needs the empty interior; keeping frozen cells outside its placement
-    # reservation avoids a nextpnr self-rebinding error at those BELs.
-    return shell_qsf.replace(original, b'set_global_assignment -name FES_RESERVED_RECT "25 1 27 11"')
+    return shell_qsf
 
 def validate_cart_timing(timing: dict) -> None:
     fmax = timing.get("fmax")
