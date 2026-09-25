@@ -35,6 +35,7 @@ until the configured host API reconnects; the launcher never claims a target
 lease or sends a direct target launch while offline. See [the host connection
 contract](launcher-host.md) for listener configuration and the session HTTP
 schema. Play input from a pad on the kit uses the local socket described below.
+`fogcast-kit` supplies the socket path and the runtime core-bound probe.
 Host endpoint configuration is explicit; target discovery is separate.
 
 ## Physical controls
@@ -234,7 +235,8 @@ the host, and it does not wait for launcher.json reachability or the host
 session's input.ready. A pad on the kit still drives the core when another
 host holds the lease. The player index on the frame is the one the kit
 assigned. If the socket is not listening, the kit reports `Local input
-unavailable` and does not fall back to the host input route. Hold Select + Start together for one second to request
+unavailable`, waits one second before dialing again, and does not fall back
+to the host input route. Hold Select + Start together for one second to request
 ordinary Stop; both must release before rearming. Individual Start and Select
 remain game controls while a session can stop; B does not stop gameplay.
 Stop/save errors retain the retry operation. After the host `idle_seconds` from

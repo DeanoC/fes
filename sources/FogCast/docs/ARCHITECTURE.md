@@ -1474,11 +1474,16 @@ one source leaves the other source's hold in place. Local pads occupy P1 and P2
 first; a remote pad uses the next free port, and Coleco's two-port limit rejects
 a player that does not fit. Closing the local socket releases the local source
 only. The kit launcher writes each physical pad and USB keyboard event to this
-socket while the runtime has a core bound. That feed does not use the host
+socket while the runtime has a core bound. `fogcast-kit` reads that bound bit
+from `/run/mister-runtime.sock` with the same running_development, active
+package, and non-zero generation check mister-agent uses, and passes the
+socket path into the launcher. `ui/kitlauncher` does not import the target
+runtime or input packages. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
 lease. The kit keeps the player index the pad already has. Stop and kit menu
 actions stay on the kit. If the socket is not listening, play input reports
-the failure and does not post the pad to the host.
+the failure, waits one second before dialing again, and does not post the pad
+to the host.
 
 Disconnect of the host stream releases the remote source. Lease expiry, core
 replacement and Stop neutralize every source on both dirty ports. A failed

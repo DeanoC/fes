@@ -152,6 +152,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	var coreBound atomic.Bool
 	inputDown := false
 	inputLogged := false
+	var nextLocalDial time.Time
 	closeFeed := func(reset bool) {
 		if feed != nil {
 			feed.Close()
@@ -459,6 +460,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				if inputDown {
 					inputDown = false
 					inputLogged = false
+					nextLocalDial = time.Time{}
 					if m.Message == localInputUnavailableMessage {
 						m.Message = ""
 					}
@@ -487,23 +489,30 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						// wait for the host, input.ready, or the kit lease.
 						if bound {
 							if feed == nil {
-								feed = newLocalFeed(c.localInputSocket())
+								feed = newLocalFeed(c.localInputSocket(), c.localDial)
 							}
-							if err := feed.send(e, now); err != nil {
-								if errors.Is(err, errLocalInputUnavailable) {
-									if !inputDown {
-										log.Printf("kit local input unavailable: %v", err)
+							// Skip the dial while the socket is already down.
+							// Model input, including the Stop chord, still runs.
+							// The next try is one send after the cooldown.
+							if !(inputDown && now.Before(nextLocalDial)) {
+								if err := feed.send(e, now); err != nil {
+									if errors.Is(err, errLocalInputUnavailable) {
+										if !inputDown {
+											log.Printf("kit local input unavailable: %v", err)
+										}
+										inputDown = true
+										nextLocalDial = now.Add(localInputRetry)
+									} else if !inputLogged {
+										inputLogged = true
+										log.Printf("kit local input dropped a frame: %v", err)
 									}
-									inputDown = true
-								} else if !inputLogged {
-									inputLogged = true
-									log.Printf("kit local input dropped a frame: %v", err)
-								}
-							} else if inputDown {
-								inputDown = false
-								inputLogged = false
-								if m.Message == localInputUnavailableMessage {
-									m.Message = ""
+								} else if inputDown {
+									inputDown = false
+									inputLogged = false
+									nextLocalDial = time.Time{}
+									if m.Message == localInputUnavailableMessage {
+										m.Message = ""
+									}
 								}
 							}
 						}

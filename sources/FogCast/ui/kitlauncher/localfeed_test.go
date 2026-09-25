@@ -3,6 +3,7 @@ package kitlauncher
 import (
 	"bufio"
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -49,7 +49,7 @@ func TestLocalFeedKeepsPlayerAndRawKeyboard(t *testing.T) {
 	frames := make(chan protocol.InputFrame, 4)
 	ln, path := listenLocalInput(t, frames)
 	defer ln.Close()
-	feed := newLocalFeed(path)
+	feed := newLocalFeed(path, nil)
 	defer feed.Close()
 	now := time.Unix(1, 0)
 	pad := remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonA}
@@ -215,65 +215,112 @@ func TestRunIdleCoreDoesNotOpenLocalSocket(t *testing.T) {
 	}
 }
 
-func TestRuntimeCoreBoundMatchesAgentObservation(t *testing.T) {
-	gen := uint64(4)
-	bound := misterruntime.Protocol2Response{
-		OK: true, State: "running_development",
-		ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: "pkg"},
-		Generation:    &gen,
+func TestLocalInputDefaultsStayUnset(t *testing.T) {
+	client := NewClient(Config{})
+	if client.localInputSocket() != "" {
+		t.Fatalf("socket %q, want an injected path", client.localInputSocket())
 	}
-	if !runtimeCoreBound(bound) {
-		t.Fatal("active package was not bound")
-	}
-	idle := bound
-	idle.State = "idle"
-	if runtimeCoreBound(idle) {
-		t.Fatal("idle status was bound")
-	}
-	zero := uint64(0)
-	bound.Generation = &zero
-	if runtimeCoreBound(bound) {
-		t.Fatal("generation 0 was bound")
-	}
-	bound.Generation = nil
-	if runtimeCoreBound(bound) {
-		t.Fatal("missing generation was bound")
-	}
-	bound.Generation = &gen
-	bound.ActivePackage = nil
-	if runtimeCoreBound(bound) {
-		t.Fatal("missing package was bound")
+	bound, err := client.readLocalCore(context.Background())
+	if err != nil || bound {
+		t.Fatalf("probe bound=%v err=%v, want unbound", bound, err)
 	}
 }
 
-func TestProbeRuntimeCoreReadsIdleStatus(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "runtime.sock")
-	ln, err := net.Listen("unix", path)
-	if err != nil {
-		t.Fatal(err)
+func TestSetLocalInputInstallsProbeAndSocket(t *testing.T) {
+	client := NewClient(Config{})
+	called := false
+	client.SetLocalInput("/run/fogcast/local-input.sock", func(context.Context) (bool, error) {
+		called = true
+		return true, nil
+	})
+	if client.localInputSocket() != "/run/fogcast/local-input.sock" {
+		t.Fatal(client.localInputSocket())
 	}
-	defer ln.Close()
-	const idle = `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null}`
-	go func() {
-		conn, err := ln.Accept()
-		if err != nil {
-			return
+	bound, err := client.readLocalCore(context.Background())
+	if err != nil || !bound || !called {
+		t.Fatalf("bound=%v err=%v called=%v", bound, err, called)
+	}
+}
+
+func TestLocalFeedUnavailableDialsOnceUntilCooldown(t *testing.T) {
+	var dials atomic.Int64
+	feed := newLocalFeed(filepath.Join(t.TempDir(), "missing.sock"), func(network, address string, timeout time.Duration) (net.Conn, error) {
+		if network != "unix" || timeout != localInputDial {
+			t.Errorf("dial %s %s", network, timeout)
 		}
-		defer conn.Close()
-		buf := make([]byte, 64)
-		_, _ = conn.Read(buf)
-		_, _ = conn.Write([]byte(idle + "\n"))
-	}()
-	bound, err := probeRuntimeCore(context.Background(), path)
-	if err != nil {
+		dials.Add(1)
+		return nil, errors.New("missing")
+	})
+	now := time.Unix(10, 0)
+	event := remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonA}
+	for i := 0; i < 8; i++ {
+		if err := feed.send(event, now); !errors.Is(err, errLocalInputUnavailable) {
+			t.Fatal(err)
+		}
+	}
+	if dials.Load() != 1 {
+		t.Fatalf("dials = %d, want 1", dials.Load())
+	}
+	if err := feed.send(event, now.Add(localInputRetry)); !errors.Is(err, errLocalInputUnavailable) {
 		t.Fatal(err)
 	}
-	if bound {
-		t.Fatal("idle runtime reported a bound core")
+	if dials.Load() != 2 {
+		t.Fatalf("dials after cooldown = %d, want 2", dials.Load())
 	}
-	_, err = probeRuntimeCore(context.Background(), filepath.Join(t.TempDir(), "missing.sock"))
-	if err == nil {
-		t.Fatal("missing runtime socket succeeded")
+}
+
+func TestRunMissingSocketDialsOncePerCooldown(t *testing.T) {
+	var dials atomic.Int64
+	var hostInput atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/launcher/input" {
+			hostInput.Add(1)
+		}
+		http.Error(w, "host down", http.StatusBadGateway)
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2200*time.Millisecond)
+	defer cancel()
+	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
+	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localInputPath = filepath.Join(t.TempDir(), "missing-local-input.sock")
+	client.localDial = func(network, address string, timeout time.Duration) (net.Conn, error) {
+		if network != "unix" || timeout != localInputDial {
+			t.Errorf("dial %s %s", network, timeout)
+		}
+		dials.Add(1)
+		return nil, errors.New("missing")
+	}
+	pad := &repeatPad{events: []remoteinput.Event{
+		{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonA},
+		{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonB},
+		{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: remoteinput.AxisLeftX, Value: 20000},
+		{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: remoteinput.AxisLeftY, Value: -20000},
+		{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: 36},
+		{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionRelease, Code: remoteinput.ButtonA},
+	}}
+	var saw atomic.Bool
+	started := time.Now()
+	_ = Run(ctx, client, func(m Model) {
+		if m.Message == localInputUnavailableMessage {
+			saw.Store(true)
+		}
+	}, func() (Pad, error) { return pad, nil })
+	elapsed := time.Since(started)
+	got := dials.Load()
+	polls := pad.polls.Load()
+	if polls < 20 {
+		t.Fatalf("polls = %d, want enough repeats to show a dial storm", polls)
+	}
+	// One dial per cooldown, not one per event. 2.2s covers two or three tries.
+	if got < 2 || got > 4 {
+		t.Fatalf("dials = %d over %d polls in %s, want one per %s", got, polls, elapsed, localInputRetry)
+	}
+	if !saw.Load() {
+		t.Fatal("missing socket did not report local input unavailable")
+	}
+	if hostInput.Load() != 0 {
+		t.Fatalf("host input posts = %d", hostInput.Load())
 	}
 }
 
@@ -291,6 +338,18 @@ func (p *oncePad) Poll() ([]remoteinput.Event, error) {
 }
 
 func (*oncePad) Close() error { return nil }
+
+type repeatPad struct {
+	events []remoteinput.Event
+	polls  atomic.Int64
+}
+
+func (p *repeatPad) Poll() ([]remoteinput.Event, error) {
+	p.polls.Add(1)
+	return p.events, nil
+}
+
+func (*repeatPad) Close() error { return nil }
 
 func awaitFrame(t *testing.T, frames <-chan protocol.InputFrame) protocol.InputFrame {
 	t.Helper()
