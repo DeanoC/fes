@@ -1,10 +1,10 @@
 // Package meshplace chooses where one title plays.
 //
 // Place is host-local. It implements the unsigned Decision 7 strawman
-// in docs/mesh-lan.md the way docs/mesh-phase3.md Slice 1 reads it.
-// Deano has not locked that order. This package does not describe the
-// order as a lock, does not store a preference, and does not name a
-// default native_emu winner.
+// in docs/mesh-lan.md as read by docs/mesh-phase3.md. Deano has not
+// locked that order. This package does not describe the order as a
+// lock, does not store a preference, and does not name a default
+// native_emu winner.
 //
 // The caller passes the projected catalog entry and the candidate nodes
 // it already has. FPGA eligibility uses abis (id, major) from each
@@ -28,8 +28,8 @@ type Outcome string
 const (
 	// OutcomeSelected names one Execute node.
 	OutcomeSelected Outcome = "selected"
-	// OutcomeUnresolved means more than one eligible node and no
-	// tie-break this slice is allowed to apply.
+	// OutcomeUnresolved means more than one eligible node and Place
+	// has no tie-break to apply.
 	OutcomeUnresolved Outcome = "unresolved"
 	// OutcomeFailClosed means do not launch.
 	OutcomeFailClosed Outcome = "fail_closed"
@@ -55,10 +55,10 @@ const (
 // Candidate is one node the caller already knows.
 //
 // Execute lists advertised kinds. ABIs are the id and major pairs from
-// that node's content document, the same shape Phase 2 kit content
-// stores after GET /v1/mesh/content/node. An empty ABI list does not
-// match a package. DisplaySink and InputSource are advertisements, not
-// a claim that the picture is up.
+// that node's content document, the shape stored after
+// GET /v1/mesh/content/node. An empty ABI list does not match a
+// package. DisplaySink and InputSource are advertisements, not a
+// claim that the picture is up.
 type Candidate struct {
 	NodeID      string
 	MeshMajorOK bool
