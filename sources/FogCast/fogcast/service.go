@@ -180,13 +180,16 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	targetReset      func()
-	connectionMu     sync.Mutex
-	connection       TargetConnection
-	resolveTarget    func(context.Context, string) ([]string, error)
-	meshMu           sync.Mutex
-	meshNodes        []MeshNode
-	meshExecute      MeshExecuteSession
+	targetReset   func()
+	connectionMu  sync.Mutex
+	connection    TargetConnection
+	resolveTarget func(context.Context, string) ([]string, error)
+	meshMu        sync.Mutex
+	meshNodes     []MeshNode
+	meshExecute   MeshExecuteSession
+	// meshPlacementAsk is the placement request Launch reads. Nil means
+	// the launch is not asking, and bind stays on the existing path.
+	meshPlacementAsk *MeshPlacementAsk
 	meshEnsureConfig bool
 	meshEnsure       bool
 	meshHTTP         *http.Client
@@ -874,6 +877,12 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	}
 	snap, err := s.captureLaunchSnapshot(gameID, target)
 	if err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	// A placement request runs Place before Ensure and before bind. A
+	// selection of any other node returns ErrUnboundNode and does not
+	// move the session. No request leaves this path unchanged.
+	if err := s.applyMatchingPlacement(gameID, snap); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	if err := s.meshEnsureBeforeExecute(ctx, snap); err != nil {

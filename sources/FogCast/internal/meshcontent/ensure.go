@@ -23,8 +23,9 @@ var (
 	// content source advertises. Callers fail closed. It is not a
 	// generic error.
 	ErrContentMissingNoSource = errors.New("content missing, no source")
-	// ErrUnboundNode refuses a pull onto a node the session did not
-	// bind. Ensure does not choose a different node.
+	// ErrUnboundNode refuses a node the session did not bind. Ensure
+	// does not pull onto that node. A placement selection that names
+	// any other node is the same refusal and returns before bind.
 	ErrUnboundNode = errors.New("pull refused for a node the session did not bind")
 	// ErrExecuteBlocked means Ensure finished without every required
 	// slot Present, or the executor cannot run the package ABI.
