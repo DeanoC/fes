@@ -1018,9 +1018,10 @@ This is a host/target validation benchmark, not FPGA hardware acceptance; it
 does not extend request deadlines or bypass target recomposition.
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
-10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 1000,
-then repeats that order at weights 300, 2000, 100 and 10 if needed (at most
-70 attempts, stopping at the first passing placement). The build record seals
+10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34. For each seed it tries heap
+timing weights 1000 and 300, then sweeps the same seeds at weights 2000, 100
+and 10 if needed (at most 70 attempts, stopping at the first passing route).
+The build record seals
 the effective weight order and budget. This fallback handles placement-sensitive
 netlists without changing the clock requirements. The recipe uses
 criticality exponent 5 and `--router gpu`, nextpnr's connection-based
@@ -1028,7 +1029,7 @@ router with a pure-delay timing-repair phase (merged PR #66; the
 repository toolchain builds it without a GPU and its host backend
 produces the same routing a GPU would). `--timing-allow-fail` permits an early
 estimate to miss while the recipe checks final signoff and records the first
-passing seed. `make build-fes-zx81 BEST_FMAX=1 GPU_DEVICES=0,1` keeps that synthesis and
+passing seed. `make build-fes-zx81 BEST_FMAX=1 GPU_DEVICES=1` keeps that synthesis and
 searches weights 10/100/300/1000/2000 plus remaining seeds for the best
 Fmax; the selected seed and weight go into route evidence. This keeps native async-M10K address paths within the 52 MHz
 system constraint. The recipe requires two

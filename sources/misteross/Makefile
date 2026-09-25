@@ -78,7 +78,7 @@ help:
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
 		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
-		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=0,1 searches weight/seed)" \
+		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=1 uses one selected GPU)" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
 		"  build-fes-coleco  Seal FES ColecoVision v2 socket with HIP (CACHE_ROOT=)" \
 		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \

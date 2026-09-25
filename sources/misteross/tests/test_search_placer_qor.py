@@ -189,6 +189,43 @@ class SearchPlacerQorTests(unittest.TestCase):
         self.assertEqual(calls, [(4, 10), (1, 10)])
         self.assertEqual((ranked[0].seed, ranked[0].weight), (1, 10))
 
+    def test_paired_first_pass_reaches_second_weight_before_later_seeds(self) -> None:
+        calls: list[tuple[int, int]] = []
+
+        def run(seed: int, weight: int) -> Candidate:
+            calls.append((seed, weight))
+            return _candidate(seed, weight, 53.0 if (seed, weight) == (12, 300) else 49.0)
+
+        ranked = search(
+            nextpnr=Path("nextpnr"), fixture=Path("synth.json"), output=Path("/tmp"),
+            device="5CSEBA6U23I7", qsf=Path("x.qsf"), sdc=None, freq="74.25",
+            seeds=(10, 5, 12, 2), weights=(1000, 300), critexp=5,
+            budget=8, mode="first-pass-paired", extra=(), timeout=1, run_one=run,
+        )
+        self.assertEqual(calls, [
+            (10, 1000), (10, 300), (5, 1000), (5, 300),
+            (12, 1000), (12, 300),
+        ])
+        self.assertEqual((ranked[0].seed, ranked[0].weight), (12, 300))
+
+    def test_paired_first_pass_keeps_remaining_weights_as_fallback(self) -> None:
+        calls: list[tuple[int, int]] = []
+
+        def run(seed: int, weight: int) -> Candidate:
+            calls.append((seed, weight))
+            return _candidate(seed, weight, 49.0)
+
+        search(
+            nextpnr=Path("nextpnr"), fixture=Path("synth.json"), output=Path("/tmp"),
+            device="5CSEBA6U23I7", qsf=Path("x.qsf"), sdc=None, freq=None,
+            seeds=(10, 5), weights=(1000, 300, 2000, 100), critexp=5,
+            budget=8, mode="first-pass-paired", extra=(), timeout=1, run_one=run,
+        )
+        self.assertEqual(calls, [
+            (10, 1000), (10, 300), (5, 1000), (5, 300),
+            (10, 2000), (5, 2000), (10, 100), (5, 100),
+        ])
+
     def test_ranking_json_shape_from_winner(self) -> None:
         winner = _candidate(4, 300, 57.45)
         payload = {
@@ -314,6 +351,40 @@ raise SystemExit(1)
             )
             self.assertTrue(candidate.passing)
             self.assertGreater(candidate.worst_ratio, 1.0)
+
+    def test_failed_arc_with_normal_footer_is_not_a_passing_route(self) -> None:
+        fake = r"""#!/usr/bin/env python3
+import json, pathlib, sys
+args = sys.argv[1:]
+def path(flag):
+    return pathlib.Path(args[args.index(flag) + 1])
+path("--report").write_text(json.dumps({"fmax": {
+    "clk_sys": {"achieved": 54.0, "constraint": 52.002},
+    "pixel_clk": {"achieved": 100.0, "constraint": 74.25},
+}}))
+path("--write").write_text("{}")
+path("--rbf").write_bytes(b"rbf")
+print("ERROR: Failed to route arc 6.0 of net 'cpu.NMI_n', from WIRE to GOUT.")
+print("Info: Program finished normally.")
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "nextpnr-mistral"
+            binary.write_text(fake)
+            binary.chmod(0o755)
+            output = root / "out"
+            output.mkdir()
+            (root / "synth.json").write_text("{}")
+            (root / "x.qsf").write_text("")
+            candidate = _run_nextpnr(
+                binary, root / "synth.json", output,
+                device="5CSEBA6U23I7", qsf=root / "x.qsf", sdc=None,
+                freq="74.25", seed=5, weight=1000, critexp=5,
+                extra=(), timeout=10,
+                required=(("clk_sys", 52.0), (None, 74.25)),
+            )
+            self.assertFalse(candidate.passing)
+            self.assertEqual(candidate.worst_ratio, 0.0)
 
     def test_crashed_nextpnr_is_scored_zero(self) -> None:
         fake = "#!/usr/bin/env python3\nraise SystemExit(1)\n"
