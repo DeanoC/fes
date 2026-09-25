@@ -80,14 +80,23 @@ When a launch asks for placement, `LaunchOn` calls `meshplace.Place`
 with those options, the caller's candidates, and an optional override
 node id. If Place selects the executor this session is already bound
 to, the session records that Execute node and its local DisplaySink
-and InputSource. Launch and Ensure keep that bind. A selection that
-names any other node is not applied: Launch returns
-`meshcontent.ErrUnboundNode` before bind and does not move the
-session. A launch that is not asking for placement keeps the Phase 0
-and Phase 1 bind. The games list reads that same ask when it builds
-Ready. That read does not record the decision. Decision 7 remains the
-unsigned strawman `meshplace` already applies. `[mesh] ensure` stays
-off unless the operator set it.
+and InputSource. Launch and Ensure keep that bind and do not claim
+again. If Place selects a different FPGA kit, the host claims that
+kit with the existing kit lease and rebinds the session to it. A
+conflict rejects and does not steal. Confirm uses that same claim.
+Generation takeover stays on the kit lease API. Launch and Ensure
+then use the new bind. Ensure runs on that executor only when
+`[mesh] ensure` is already on. An unset key or `ensure = false`
+keeps the Phase 0 and Phase 1 launch path after the rebind. Picture
+and the pad stay on that kit. A menu-host preview is not the
+DisplaySink. A `native_emu` selection that is not the bound executor
+is not applied. A launch that is not asking for placement keeps the
+Phase 0 and Phase 1 bind. The games list reads that same ask when it
+builds Ready. That read does not record the decision and does not
+claim a lease. When the selected kit is one this host already sees
+in use, Ready is the lease-held block, so Confirm does not launch.
+Decision 7 remains the unsigned strawman `meshplace` already applies.
+`[mesh] ensure` stays off unless the operator set it.
 
 ## Process ownership
 
@@ -980,9 +989,12 @@ node id, and the catalog row Ensure will check (package, ABI, media,
 firmware, ROM, and expansion slots). Ensure runs against that snapshot.
 When that launch asked for placement, `meshplace.Place` runs after the
 snapshot and before Ensure. A selection of the bound executor is
-recorded on the session. A selection of any other node returns
-`ErrUnboundNode` before Ensure and before bind, and the bound node
-stays where it was. A launch that did not ask does not call Place.
+recorded on the session. A selection of another FPGA kit claims that
+kit's lease and rebinds the session, then Ensure and bind use that
+kit. A conflict returns before the rebind. A `native_emu` selection
+of any other node returns `ErrUnboundNode` before Ensure and before
+bind, and the bound node stays where it was. A launch that did not
+ask does not call Place.
 A known target that is already disabled is refused before Ensure. An
 implicit target with an empty TargetID is the bound node only when its
 name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
@@ -1127,8 +1139,10 @@ When a placement ask is installed, that same games read runs
 candidates on the ask. It does not record the decision, does not dial
 a kit, and does not launch. `selected` leaves this Ready result in
 place, so Play stays the existing launch and does not ask which
-machine. `unresolved` and `fail_closed` clear Ready when the row would
-otherwise be Ready here. The block is `placement_unresolved` or
+machine. When that selection names a kit this host already sees in
+use, Ready is cleared to `lease_held` so Confirm does not launch and
+does not take the lease. `unresolved` and `fail_closed` clear Ready
+when the row would otherwise be Ready here. The block is `placement_unresolved` or
 `placement_fail_closed`, and `next_action` is `unavailable`. Rooms
 Confirm does not launch and does not pick a node. Those two blocks
 are codes, not a new sofa sentence. Edition Needs a choice, version

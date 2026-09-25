@@ -59,7 +59,8 @@ func snapshotMismatch(reason string) error {
 // execute on. Launch does not pull onto a different node. A grant
 // this call claims is released when Ensure does not start execution.
 // A grant the session already held stays held. Placement is set when
-// a launch asked Place and the selection is this bound executor.
+// a launch asked Place and the selection was recorded, including after
+// a rebind onto another FPGA kit.
 type MeshExecuteSession struct {
 	BoundNode string
 	Executor  meshcontent.Executor
@@ -167,6 +168,10 @@ type launchSnapshot struct {
 	// Revalidation still checks that kit. It does not require the
 	// selected session to stay on this executor.
 	siblingExecutor bool
+	// placementClaimed is set when this launch claimed the kit lease
+	// while rebinding. Ensure releases that grant when it does not
+	// start execution. A grant the session already held stays held.
+	placementClaimed bool
 }
 
 // captureLaunchSnapshot reads the target, the bound node, and the
@@ -355,11 +360,13 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 	node := snap.boundNode
 	if snap.entry.Launchable && meshLaunchExecution(snap.entry) != ExecutionHostOnly {
 		if s.launchUsesForeignKit(snap, ExecutionFPGANative) {
+			s.releaseLaunchClaim(snap, false)
 			return canonicalError(protocol.CodeKitLeaseDenied, nil)
 		}
 		node = snap.nodeID
 	}
 	if strings.TrimSpace(node) == "" || snap.executor.NodeID() != node {
+		s.releaseLaunchClaim(snap, false)
 		return meshcontent.ErrUnboundNode
 	}
 	// LeaseFree is this session's grant on the kit this launch executes
@@ -374,11 +381,13 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 	fpga := meshLaunchExecution(snap.entry) != ExecutionHostOnly
 	leaseFree, inUse := s.meshLeaseFacts(snap)
 	if fpga && inUse {
+		s.releaseLaunchClaim(snap, false)
 		return canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
 	claimed := false
 	if fpga && snap.entry.Launchable && !leaseFree {
 		if err := s.claimContentPullLease(ctx, snap); err != nil {
+			s.releaseLaunchClaim(snap, false)
 			return err
 		}
 		claimed = true
@@ -390,15 +399,11 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 		CheckingTimeout: s.meshCheckingWait(),
 	})
 	if err != nil {
-		if claimed {
-			s.releaseClaimedContentLease(snap)
-		}
+		s.releaseLaunchClaim(snap, claimed)
 		return err
 	}
 	if err := result.Blocked(); err != nil {
-		if claimed {
-			s.releaseClaimedContentLease(snap)
-		}
+		s.releaseLaunchClaim(snap, claimed)
 		return err
 	}
 	if meshEnsureFinishedHook != nil {
@@ -587,6 +592,17 @@ func (s *Service) claimContentPullLease(ctx context.Context, snap launchSnapshot
 		return meshcontent.ErrLeaseNotFree
 	}
 	return nil
+}
+
+// releaseLaunchClaim drops a grant this launch claimed when Ensure
+// does not start execution. claimed is the grant Ensure itself
+// acquired. placementClaimed is the grant a rebind acquired. A grant
+// the session already held is neither, and it stays held.
+func (s *Service) releaseLaunchClaim(snap launchSnapshot, claimed bool) {
+	if !claimed && !snap.placementClaimed {
+		return
+	}
+	s.releaseClaimedContentLease(snap)
 }
 
 // releaseClaimedContentLease drops a grant this launch claimed after

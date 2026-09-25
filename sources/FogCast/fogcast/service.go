@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/internal/meshpref"
 	"github.com/DeanoC/FogCast/internal/systems"
@@ -190,10 +191,14 @@ type Service struct {
 	// meshPlacementAsk is the placement request Launch reads. Nil means
 	// the launch is not asking, and bind stays on the existing path.
 	meshPlacementAsk *MeshPlacementAsk
-	meshEnsureConfig bool
-	meshEnsure       bool
-	meshHTTP         *http.Client
-	meshDialAt       time.Time
+	// meshPlacementExecutors optionally supplies the executor installed
+	// when placement rebinds to that FPGA node and ensure is already on.
+	// Production leaves it nil and dials the configured kit.
+	meshPlacementExecutors map[string]meshcontent.Executor
+	meshEnsureConfig       bool
+	meshEnsure             bool
+	meshHTTP               *http.Client
+	meshDialAt             time.Time
 	// meshDialID is the selected-target identity of the last dial attempt.
 	// meshInstalled is the identity that installed meshExecute. A different
 	// selected target drops that executor and dials the new endpoint.
@@ -880,9 +885,13 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	// A placement request runs Place before Ensure and before bind. A
-	// selection of any other node returns ErrUnboundNode and does not
-	// move the session. No request leaves this path unchanged.
-	if err := s.applyMatchingPlacement(gameID, snap); err != nil {
+	// selection of the bound executor is recorded. A selection of
+	// another FPGA kit claims that kit and rebinds this snapshot onto
+	// it. Any other selection of a different node returns
+	// ErrUnboundNode and does not move the session. No request leaves
+	// this path unchanged.
+	snap, err = s.applyMatchingPlacement(ctx, gameID, snap)
+	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	if err := s.meshEnsureBeforeExecute(ctx, snap); err != nil {
