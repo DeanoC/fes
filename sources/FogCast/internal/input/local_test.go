@@ -1,7 +1,9 @@
 package input
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -466,6 +469,132 @@ func TestLocalFrameDuringCoreReplacementDoesNotRebindRetiredGeneration(t *testin
 	}
 	if err := controller.Attach(ctx, Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "fes.coleco"}); err != nil {
 		t.Fatalf("host attach after the new local binding: %v", err)
+	}
+}
+
+// hungStatusRuntime accepts Protocol2 status requests and never writes a
+// reply. ControllerStatus returns only when the caller's deadline closes
+// the socket.
+func hungStatusRuntime(t *testing.T) *misterruntime.Runtime {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "runtime.sock")
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var conns []net.Conn
+	done := make(chan struct{})
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			mu.Lock()
+			conns = append(conns, conn)
+			mu.Unlock()
+			go func(conn net.Conn) {
+				_, _ = bufio.NewReader(conn).ReadBytes('\n')
+				<-done
+			}(conn)
+		}
+	}()
+	t.Cleanup(func() {
+		close(done)
+		_ = listener.Close()
+		mu.Lock()
+		defer mu.Unlock()
+		for _, conn := range conns {
+			_ = conn.Close()
+		}
+	})
+	return misterruntime.NewRuntime(misterruntime.NewClient(path), "", time.Millisecond, localCoreObserveTimeout)
+}
+
+func TestStalledLocalStatusCannotWedgeLifecycle(t *testing.T) {
+	runtime := hungStatusRuntime(t)
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(string, uint64, uint8, uint8, uint16) error {
+		return nil
+	}}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	t.Cleanup(func() { _ = controller.Close() })
+
+	started := make(chan time.Duration, 1)
+	controller.ObserveCore(func(ctx context.Context) (CoreObservation, error) {
+		deadline, ok := ctx.Deadline()
+		remaining := time.Duration(-1)
+		if ok {
+			remaining = time.Until(deadline)
+		}
+		select {
+		case started <- remaining:
+		default:
+		}
+		if _, err := runtime.ControllerStatus(ctx); err != nil {
+			return CoreObservation{}, err
+		}
+		return CoreObservation{Active: true}, nil
+	})
+
+	localDone := make(chan error, 1)
+	go func() {
+		localDone <- controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	}()
+	var remaining time.Duration
+	select {
+	case remaining = <-started:
+	case <-time.After(time.Second):
+		t.Fatal("local status observation did not start")
+	}
+	if remaining <= 0 || remaining > localCoreObserveTimeout {
+		t.Fatalf("local status deadline remaining = %s, want (0, %s]", remaining, localCoreObserveTimeout)
+	}
+
+	attachDone := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), localCoreObserveTimeout)
+		defer cancel()
+		attachDone <- controller.Attach(ctx, Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "fes.coleco"})
+	}()
+	replaceDone := make(chan error, 1)
+	go func() {
+		finish, err := controller.BeginCoreReplacement(context.Background())
+		if err != nil {
+			replaceDone <- err
+			return
+		}
+		replaceDone <- finish(context.Background(), false)
+	}()
+
+	limit := localCoreObserveTimeout + time.Second
+	select {
+	case err := <-localDone:
+		if !errors.Is(err, errNoCore) {
+			t.Fatalf("stalled status delivered the frame: %v", err)
+		}
+	case <-time.After(limit):
+		t.Fatal("stalled local status held the lifecycle lock")
+	}
+	select {
+	case err := <-attachDone:
+		if err == nil {
+			t.Fatal("host attach succeeded while status never replied")
+		}
+	case <-time.After(limit):
+		t.Fatal("host attach stayed blocked after the local status bound")
+	}
+	select {
+	case err := <-replaceDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(limit):
+		t.Fatal("core replacement stayed blocked after the local status bound")
+	}
+	if sink.hasBinding() {
+		t.Fatal("stalled status bound a core")
 	}
 }
 

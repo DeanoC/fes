@@ -20,6 +20,14 @@ const DefaultLocalInputSocket = "/run/fogcast/local-input.sock"
 
 var errNoCore = errors.New("runtime core is not bound")
 
+// localCoreObserveTimeout bounds the runtime status read taken while
+// deliverLocal holds the input lifecycle lock. ServeLocalInput's context
+// lasts for the agent process, and the runtime client sets a socket deadline
+// only when that context has one. 250ms matches the health timeout
+// mister-agent uses for the same Protocol2 status read. A stalled reply
+// drops the frame and releases the lock.
+const localCoreObserveTimeout = 250 * time.Millisecond
+
 func listenLocalInput(path string) (net.Listener, error) {
 	if path == "" {
 		return nil, errors.New("local input socket path is empty")
@@ -171,7 +179,8 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 // replacement already hold lifecycle across that work. BeginCoreReplacement
 // keeps the lock from ReleaseAll until its finish callback. TryLock drops a
 // frame that arrives in that window, so the frame cannot observe the retired
-// package and rebind it.
+// package and rebind it. The status read under this lock uses
+// localCoreObserveTimeout rather than the process-lifetime reader context.
 func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.InputFrame) error {
 	if c == nil {
 		return errNoCore
@@ -208,7 +217,9 @@ func (c *TargetController) ensureLocalCore(ctx context.Context) error {
 	if c.ports.cachedActive() {
 		return nil
 	}
-	obs, err := observe(ctx)
+	observeCtx, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	defer cancel()
+	obs, err := observe(observeCtx)
 	if err != nil || !obs.Active {
 		return errNoCore
 	}
