@@ -12,7 +12,7 @@ general retail or SGM game compatibility.
 | Cartridge | Reason for selection | Result on the factory v2 shell | Limit |
 | --- | --- | --- | --- |
 | Parker Brothers Frogger, 12,288 bytes | BIOS-dependent, sub-16 KiB standard cartridge; earlier [older-package gameplay evidence](2026-09-21-playable-audio.md) gives a comparison | Launched with the private BIOS and `blob` media, displayed a recognizable playfield. In a second launch with remote input enabled, keypad Start changed the display to the playing HUD, two Up events returned HTTP 200, and Stop returned idle. | The frame changes and accepted events do not prove sustained gameplay, collision behavior, physical controller input or audio fidelity. This is **not** Opcode's later SGM Frogger. |
-| Coleco Donkey Kong, 16,384 bytes | Standard pack-in cartridge at the upper end of the mirrored `blob` path | Launched with the same BIOS and factory package; HDMI showed the ColecoVision/Donkey Kong title screen. Stop returned idle. | An input-enabled retry returned HTTP 500 and the temporary host exited with `session cleanup failed`. The cause was not isolated; gameplay remains untested. |
+| Coleco Donkey Kong, 16,384 bytes | Standard pack-in cartridge at the upper end of the mirrored `blob` path | Initially launched to the title screen, then had an input-enabled HTTP 500. A later one-shot retry launched with input attached; keypad `1` changed the game-select screen to the first-level gameplay screen. Stop and target status returned idle. | The earlier HTTP 500 and `session cleanup failed` exit remain unexplained and did not recur in one retry. Sustained gameplay, physical controls and audio were not tested. |
 | Opcode Time Pilot, advertised 1 Mbit (128 KiB) | A [vendor-identified SGM-required cartridge](https://opcodegames.com/shop/colecovision/arcade-series/time-pilot/) to test the real expansion/game boundary | **Not launched.** No private dump was available. Its advertised cartridge capacity exceeds the package's 32 KiB `fes.media.blob-stream` maximum. | This is an admission/capacity gap inferred from the vendor specification and the package contract, not a measured FPGA/game failure. Full-cartridge mapping and any banking behavior need investigation before a game test. |
 
 This three-title set separates a small BIOS-dependent cartridge, the standard
@@ -57,12 +57,39 @@ launch was attempted. The host is stopped and the throwaway private config
 was removed. The test did not re-check the target's raw idle state after the
 host failure, so the final hardware claim is limited to the free lease.
 
+## One-shot Donkey Kong follow-up
+
+Later on 2026-09-25, one input-enabled retry used the same installed image,
+package, private BIOS and immutable Donkey Kong media object. The matching
+temporary host and target agent both reported FES
+`3aa69308b52afcbf62c33503bd50ba383770f004`. The host used an owner-only
+copy of its private configuration with remote input enabled. The launch returned
+HTTP 200 with `state=active`, `input.state=attached`, package
+`59cd2cd35c52227c49e5c69dc111a43bf3446856d8d03db3c553576aaf4da295`
+and flight ID `4e74e2aa-90bc-4851-8b46-42ea773d8837`.
+
+ShadowCast 3 YUYV capture at 1280×720 showed Donkey Kong's blue game-select
+screen before input (local PNG SHA-256
+`1c4f590e724f9b985a2d0b58b198b9ceb8c323afa7b93456af3d1c90b3c91612`).
+One keypad `1` press and release each returned HTTP 200. A subsequent frame
+showed the first-level gameplay screen with Kong, girders and score zero
+(`65c66b729205d227bf6dc8083d7e4e1682254ee09466c50ac30214d65a9619ee`).
+The host Stop returned `idle`; direct target status was `idle` with no last
+error, and the target lease was `free`. The temporary host exited normally and
+its private config copy was removed. API responses, target events and captures
+remain in the ignored `out/validation/coleco-dk-input/` directory of the test
+worktree; no proprietary content is committed.
+
+The earlier HTTP 500 did not reproduce in this single retry. Its cause remains
+unknown. This result demonstrates the launch, remote keypad selection and
+first-level display on the named image; it does not establish sustained
+gameplay, audio quality or physical controller behavior.
+
 ## Next discriminating checks
 
-1. Reproduce Donkey Kong's input-enabled launch in an isolated host with the
-   full HTTP error body and target cleanup status retained. Stop after one
-   failure; distinguish host/session cleanup from core execution before
-   changing RTL.
+1. If the Donkey Kong HTTP 500 recurs, retain its full response body, host log,
+   target events and cleanup state. Distinguish host/session cleanup from core
+   execution before changing RTL.
 2. Obtain a legitimately held SGM cartridge image and record its size, digest,
    layout and banking requirements privately. Define the cartridge address
    model and media admission required for a title such as Time Pilot before
