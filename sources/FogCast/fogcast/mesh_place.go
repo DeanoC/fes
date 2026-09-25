@@ -2,11 +2,13 @@ package fogcast
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 // MeshPlacement is the Execute node and its local DisplaySink and
@@ -144,7 +146,7 @@ func (s *Service) rebindPlacementKit(ctx context.Context, snap launchSnapshot, c
 	if err != nil {
 		return snap, err
 	}
-	claimed, err := s.claimPlacementKit(ctx, client, choice.Execute)
+	claimed, err := s.claimPlacementKit(ctx, client, cfg, choice.Execute)
 	if err != nil {
 		return snap, err
 	}
@@ -156,7 +158,8 @@ func (s *Service) rebindPlacementKit(ctx context.Context, snap launchSnapshot, c
 		exec = s.executorForPlacementRebind(ctx, cfg)
 		if exec == nil || exec.NodeID() != choice.Execute {
 			if claimed {
-				s.releaseClaimedContentLease(launchSnapshot{client: client})
+				snap.client = client
+				snap.placementClaimed = true
 			}
 			return snap, meshcontent.ErrUnboundNode
 		}
@@ -281,8 +284,10 @@ func (s *Service) placementClient(cfg TargetConfig) (serviceClient, error) {
 // claimPlacementKit claims the selected kit with the existing kit lease.
 // A kit this session already holds is not claimed again. A foreign
 // holder, or a claim the kit rejects, returns before the session moves.
-// This path does not take over a generation.
-func (s *Service) claimPlacementKit(ctx context.Context, client serviceClient, nodeID string) (bool, error) {
+// This path does not take over a generation. The kit's identity is
+// verified before the claim, so a stale address is not claimed and a
+// discovered endpoint is adopted first.
+func (s *Service) claimPlacementKit(ctx context.Context, client serviceClient, cfg TargetConfig, nodeID string) (bool, error) {
 	if s.placementKitInUse(nodeID) {
 		return false, canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
@@ -303,6 +308,9 @@ func (s *Service) claimPlacementKit(ctx context.Context, client serviceClient, n
 	if !ok || acquirer == nil {
 		return false, meshcontent.ErrLeaseNotFree
 	}
+	if err := s.verifyPlacementKit(ctx, client, cfg, nodeID); err != nil {
+		return false, err
+	}
 	if err := acquirer.AcquireContentPullLease(ctx); err != nil {
 		if meshClaimDenied(err) {
 			return false, canonicalError(protocol.CodeKitLeaseDenied, nil)
@@ -317,6 +325,59 @@ func (s *Service) claimPlacementKit(ctx context.Context, client serviceClient, n
 		return false, meshcontent.ErrLeaseNotFree
 	}
 	return true, nil
+}
+
+// verifyPlacementKit checks the selected kit before its lease is claimed.
+// A real client is probed the way admission probes it: a stale address
+// is replaced by the one discovered endpoint for that TargetID, and the
+// claim then uses that endpoint. A reported identity that is not this
+// node is not claimed. A client that does not advertise an identity
+// keeps the existing claim path.
+func (s *Service) verifyPlacementKit(ctx context.Context, client serviceClient, cfg TargetConfig, nodeID string) error {
+	if concrete, ok := client.(*targetclient.Client); ok && concrete != nil {
+		health, address, err := s.probeTarget(ctx, concrete, cfg)
+		if err != nil {
+			return err
+		}
+		if !placementHealthMatches(health.TargetID, nodeID, cfg) {
+			return meshcontent.ErrUnboundNode
+		}
+		current := ""
+		if endpoint := concrete.EndpointURL(); endpoint != nil {
+			current = endpoint.String()
+		}
+		if address == "" || address == current {
+			return nil
+		}
+		base, err := url.Parse(address)
+		if err != nil || base.Scheme == "" || base.Host == "" {
+			return meshcontent.ErrUnboundNode
+		}
+		if _, err := concrete.AdoptEndpoint(ctx, base, false); err != nil {
+			return err
+		}
+		return nil
+	}
+	if client == nil {
+		return meshcontent.ErrUnboundNode
+	}
+	health, err := client.Health(ctx)
+	if err != nil {
+		return err
+	}
+	if !placementHealthMatches(health.TargetID, nodeID, cfg) {
+		return meshcontent.ErrUnboundNode
+	}
+	return nil
+}
+
+func placementHealthMatches(reported, nodeID string, cfg TargetConfig) bool {
+	reported = strings.TrimSpace(reported)
+	if reported == "" {
+		return true
+	}
+	nodeID = strings.TrimSpace(nodeID)
+	return reported == nodeID || reported == strings.TrimSpace(cfg.TargetID) || reported == strings.TrimSpace(cfg.NodeID())
 }
 
 // executorForPlacementRebind is the content executor for a kit placement

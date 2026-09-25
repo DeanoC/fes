@@ -2,8 +2,12 @@ package fogcast
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,6 +17,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/internal/meshpref"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestPlacementOnBoundExecutorRecordsRolesAndKeepsBind(t *testing.T) {
@@ -608,6 +613,118 @@ func TestPlacementRebindKeepsAGrantTheSessionAlreadyHeld(t *testing.T) {
 	}
 }
 
+func TestPlacementRebindRejectsAMismatchedKitIdentity(t *testing.T) {
+	service := phase0PlacementService()
+	service.targets = append(service.targets, TargetConfig{Name: "spare", Enabled: true, TargetID: "node-b", Address: "http://192.0.2.11:8182"})
+	spare := &identifiedMeshClient{targetID: "node-other"}
+	service.targetClients["spare"] = spare
+	entry, _ := fpgaMeshEntry("coleco-frogger")
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		Entry: func(string) (meshcontent.Entry, bool) { return entry, true },
+	})
+	service.SetMeshPlacementAsk(&MeshPlacementAsk{
+		Candidates: []meshplace.Candidate{placeFPGACandidate("node-b", true)},
+	})
+	_, err := service.Launch(context.Background(), entry.TitleID, nil)
+	if !errors.Is(err, meshcontent.ErrUnboundNode) {
+		t.Fatalf("err %v", err)
+	}
+	if service.selectedTarget != "dev" {
+		t.Fatalf("selected %q", service.selectedTarget)
+	}
+	if spare.claims != 0 || spare.releases != 0 {
+		t.Fatalf("claims %d releases %d", spare.claims, spare.releases)
+	}
+}
+
+func TestPlacementRebindClaimsTheDiscoveredKit(t *testing.T) {
+	const nodeB = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
+	var staleMutations atomic.Int32
+	var liveClaims atomic.Int32
+	stale := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			staleMutations.Add(1)
+		}
+		_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: "other-node", Ready: true})
+	}))
+	defer stale.Close()
+	live := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: nodeB, Ready: true})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/kit/lease":
+			_ = json.NewEncoder(w).Encode(map[string]string{"state": "free"})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/kit/claim":
+			liveClaims.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"token": "lease-b",
+				"status": map[string]any{
+					"state": "held", "generation": "gen-b", "expires_in_ms": 60000,
+				},
+			})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]string{"state": "free"})
+		}
+	}))
+	defer live.Close()
+	staleURL, err := url.Parse(stale.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpClient := live.Client()
+	lease := targetclient.NewKitLease(staleURL, "token-b", httpClient, "host", "placement")
+	defer lease.Close(context.Background())
+	client := targetclient.NewClient(staleURL, "token-b", httpClient).WithKitLease(lease)
+	service := phase0PlacementService()
+	service.targets = append(service.targets, TargetConfig{Name: "spare", Enabled: true, TargetID: nodeB, Address: stale.URL, Agent: "token-b"})
+	service.targetClients["spare"] = client
+	service.resolveTarget = func(context.Context, string) ([]string, error) { return []string{live.URL}, nil }
+	entry, _ := fpgaMeshEntry("coleco-frogger")
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		Entry: func(string) (meshcontent.Entry, bool) { return entry, true },
+	})
+	service.SetMeshPlacementAsk(&MeshPlacementAsk{
+		Candidates: []meshplace.Candidate{placeFPGACandidate(nodeB, true)},
+	})
+	_, err = service.Launch(context.Background(), entry.TitleID, nil)
+	if errors.Is(err, meshcontent.ErrUnboundNode) {
+		t.Fatal(err)
+	}
+	if service.selectedTarget != "spare" {
+		t.Fatalf("selected %q err %v", service.selectedTarget, err)
+	}
+	if staleMutations.Load() != 0 || liveClaims.Load() != 1 {
+		t.Fatalf("stale mutations %d live claims %d", staleMutations.Load(), liveClaims.Load())
+	}
+	if service.meshEnsure || service.meshEnsureConfig {
+		t.Fatal("ensure flipped")
+	}
+}
+
+func TestPlacementRebindRetriesReleaseWhenTheFirstAttemptFails(t *testing.T) {
+	service, _ := placementBoundService(t, false)
+	next := &meshLaunchExecutor{
+		node: "node-b",
+		abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service.meshEnsure = true
+	service.meshInstalled = meshTargetIdentityOf(service.selectedTarget, targetByName(service.targets, service.selectedTarget))
+	service.meshPlacementExecutors = map[string]meshcontent.Executor{"node-b": next}
+	spare := &flakyReleaseClient{fails: 1}
+	service.targetClients["spare"] = spare
+	service.SetMeshPlacementAsk(&MeshPlacementAsk{
+		Candidates: []meshplace.Candidate{placeFPGACandidate("node-b", true)},
+	})
+	_, err := service.Launch(context.Background(), "coleco-frogger", nil)
+	if !errors.Is(err, meshcontent.ErrContentMissingNoSource) {
+		t.Fatalf("err %v", err)
+	}
+	owned, _ := spare.MeshKitLease()
+	if spare.claims != 1 || spare.releases != 1 || owned || len(next.pulls) != 0 {
+		t.Fatalf("claims %d releases %d owned %v pulls %+v", spare.claims, spare.releases, owned, next.pulls)
+	}
+}
+
 func TestPlacementRebindKeepsClaimWhenExecutionStarts(t *testing.T) {
 	service, client, entry, inspection := newCoreEntryLaunchFixture(t, libraryPackageFixture(t, "0.1.0"), "Standalone Pong")
 	coreID := inspection.Descriptor.Core.ID
@@ -643,6 +760,28 @@ func TestPlacementRebindKeepsClaimWhenExecutionStarts(t *testing.T) {
 	if service.meshEnsure || service.meshEnsureConfig {
 		t.Fatal("ensure flipped")
 	}
+}
+
+type identifiedMeshClient struct {
+	releasingMeshClient
+	targetID string
+}
+
+func (c *identifiedMeshClient) Health(context.Context) (protocol.Health, error) {
+	return protocol.Health{TargetID: c.targetID, APIVersion: "v1", Ready: true}, nil
+}
+
+type flakyReleaseClient struct {
+	releasingMeshClient
+	fails int
+}
+
+func (c *flakyReleaseClient) ReleaseContentPullLease(ctx context.Context) error {
+	if c.fails > 0 {
+		c.fails--
+		return errors.New("release failed")
+	}
+	return c.releasingMeshClient.ReleaseContentPullLease(ctx)
 }
 
 type placementKeepClient struct {

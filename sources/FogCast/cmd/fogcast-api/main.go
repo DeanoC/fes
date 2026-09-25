@@ -623,37 +623,45 @@ func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig) {
 }
 
 func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
-	if s.target != nil {
+	// Pin the cast client this handle starts. A later rebind replaces
+	// s.target for the next launch; this handle still stops the kit it
+	// started.
+	s.mu.Lock()
+	target := s.target
+	token := s.token
+	session := s.session
+	generation := s.generation
+	mediaSet := s.mediaSet
+	s.mu.Unlock()
+	if target != nil {
 		var status targetclient.CastStatus
 		var err error
-		if s.mediaSet == nil {
-			status, err = s.target.CastStart(ctx, s.session, s.token, s.generation)
+		if mediaSet == nil {
+			status, err = target.CastStart(ctx, session, token, generation)
 		} else {
-			mediaTarget, ok := s.target.(targetMediaCast)
+			mediaTarget, ok := target.(targetMediaCast)
 			if !ok {
 				return nil, errors.New("target does not support media admission")
 			}
-			status, err = mediaTarget.CastStartWithMedia(ctx, s.session, s.token, s.generation, *s.mediaSet)
+			status, err = mediaTarget.CastStartWithMedia(ctx, session, token, generation, *mediaSet)
 			if err == nil {
-				err = protocol.ValidateCastMediaAcknowledgement(*s.mediaSet, status.Media)
+				err = protocol.ValidateCastMediaAcknowledgement(*mediaSet, status.Media)
 			}
 		}
-		if err != nil || status.State != "active" || status.Session != s.session || status.Generation != s.generation {
+		if err != nil || status.State != "active" || status.Session != session || status.Generation != generation {
 			s.mu.Lock()
 			s.targetActive = true
 			s.mu.Unlock()
 			cleanupCtx, cancel := boundedTargetContext(context.Background())
-			_, cleanupErr := s.target.CastStop(cleanupCtx, s.session, s.generation)
+			_, cleanupErr := target.CastStop(cleanupCtx, session, generation)
 			cancel()
 			if cleanupErr == nil {
-				s.mu.Lock()
-				s.targetActive = false
-				s.mu.Unlock()
+				s.noteCastStopped(target)
 				return nil, errors.New("target cast could not be started")
 			}
 			_, monitorCancel := context.WithCancel(context.Background())
 			owned := &compositionMediaHandle{
-				owner: s, localStopped: true, done: make(chan struct{}), monitorCancel: monitorCancel,
+				owner: s, cast: target, localStopped: true, done: make(chan struct{}), monitorCancel: monitorCancel,
 			}
 			s.mu.Lock()
 			s.handle = owned
@@ -666,17 +674,15 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 	}
 	handle, err := s.media.Start(ctx, gameID)
 	if err != nil || handle == nil {
-		targetStopped := s.target == nil
+		targetStopped := target == nil
 		var targetErr error
-		if s.target != nil {
+		if target != nil {
 			cleanupCtx, cancel := boundedTargetContext(context.Background())
-			_, targetErr = s.target.CastStop(cleanupCtx, s.session, s.generation)
+			_, targetErr = target.CastStop(cleanupCtx, session, generation)
 			cancel()
 			if targetErr == nil {
 				targetStopped = true
-				s.mu.Lock()
-				s.targetActive = false
-				s.mu.Unlock()
+				s.noteCastStopped(target)
 			}
 		}
 		if err == nil {
@@ -688,7 +694,7 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 		if handle != nil || !targetStopped {
 			_, monitorCancel := context.WithCancel(context.Background())
 			owned := &compositionMediaHandle{
-				owner: s, handle: handle, localStopped: handle == nil,
+				owner: s, cast: target, handle: handle, localStopped: handle == nil,
 				targetStopped: targetStopped, done: make(chan struct{}), monitorCancel: monitorCancel,
 			}
 			s.mu.Lock()
@@ -700,14 +706,28 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 	}
 	monitorCtx, monitorCancel := context.WithCancel(context.Background())
 	owned := &compositionMediaHandle{
-		owner: s, handle: handle, done: make(chan struct{}), monitorCancel: monitorCancel,
-		targetStopped: s.target == nil,
+		owner: s, cast: target, handle: handle, done: make(chan struct{}), monitorCancel: monitorCancel,
+		targetStopped: target == nil,
 	}
 	s.mu.Lock()
 	s.handle = owned
 	s.mu.Unlock()
 	go owned.monitor(monitorCtx)
 	return owned, nil
+}
+
+// noteCastStopped clears the session cast flag when target is still the
+// client this cast used. A rebind that already replaced the session
+// target keeps that newer cast's flag.
+func (s *compositionMediaSession) noteCastStopped(target targetCast) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.target == target {
+		s.targetActive = false
+	}
+	s.mu.Unlock()
 }
 
 func (s *compositionMediaSession) Close() error {
@@ -742,6 +762,7 @@ func (s *compositionMediaSession) Close() error {
 type compositionMediaHandle struct {
 	owner         *compositionMediaSession
 	handle        hostapi.MediaHandle
+	cast          targetCast
 	mu            sync.Mutex
 	localStopped  bool
 	targetStopped bool
@@ -764,11 +785,8 @@ func (h *compositionMediaHandle) Stop(ctx context.Context) error {
 			h.localStopped = true
 		}
 	}
-	h.owner.mu.Lock()
-	targetActive := h.owner.targetActive
-	target := h.owner.target
-	h.owner.mu.Unlock()
-	if !h.targetStopped && targetActive && target != nil {
+	target := h.cast
+	if !h.targetStopped && target != nil {
 		targetCtx, cancel := boundedTargetContext(context.Background())
 		_, err := target.CastStop(targetCtx, h.owner.session, h.owner.generation)
 		cancel()
@@ -778,12 +796,10 @@ func (h *compositionMediaHandle) Stop(ctx context.Context) error {
 			}
 		} else {
 			h.targetStopped = true
-			h.owner.mu.Lock()
-			h.owner.targetActive = false
-			h.owner.mu.Unlock()
+			h.owner.noteCastStopped(target)
 		}
 	}
-	if !targetActive || target == nil {
+	if target == nil {
 		h.targetStopped = true
 	}
 	if h.localStopped && h.targetStopped {
@@ -818,11 +834,8 @@ func (h *compositionMediaHandle) monitor(ctx context.Context) {
 			h.doneOnce.Do(func() { close(h.done) })
 			return
 		case <-ticker.C:
-			h.owner.mu.Lock()
-			targetActive := h.owner.targetActive
-			target := h.owner.target
-			h.owner.mu.Unlock()
-			if !targetActive || target == nil {
+			target := h.cast
+			if target == nil {
 				continue
 			}
 			statusCtx, cancel := boundedTargetContext(ctx)
@@ -840,10 +853,8 @@ func (h *compositionMediaHandle) monitor(ctx context.Context) {
 			if status.State != "active" || status.Session != h.owner.session || status.Generation != h.owner.generation {
 				h.mu.Lock()
 				h.targetStopped = true
-				h.owner.mu.Lock()
-				h.owner.targetActive = false
-				h.owner.mu.Unlock()
 				h.mu.Unlock()
+				h.owner.noteCastStopped(target)
 				h.doneOnce.Do(func() { close(h.done) })
 				return
 			}

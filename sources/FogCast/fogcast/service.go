@@ -891,21 +891,25 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	// ErrUnboundNode and does not move the session. No request leaves
 	// this path unchanged.
 	snap, err = s.applyMatchingPlacement(ctx, gameID, snap)
-	if err != nil {
-		return protocol.CachedLaunchResponse{}, err
-	}
 	// A kit lease claimed for this placement is held only while this
-	// launch reaches execution. Ensure failure releases it once and
-	// settles the flag. Every other return before execution releases
-	// it here. A grant the session already held is not placementClaimed.
+	// launch reaches execution. Ensure failure releases it and settles
+	// the flag only when that release succeeds. A failed release stays
+	// unsettled so this defer can retry it. A grant the session already
+	// held is not placementClaimed.
 	var placementSettled bool
 	if snap.placementClaimed {
 		snap.placementClaimSettled = &placementSettled
 		defer func() {
-			if !placementSettled {
-				s.releaseClaimedContentLease(snap)
+			if placementSettled {
+				return
+			}
+			if s.releaseClaimedContentLease(snap) {
+				placementSettled = true
 			}
 		}()
+	}
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, err
 	}
 	if err := s.meshEnsureBeforeExecute(ctx, snap); err != nil {
 		return protocol.CachedLaunchResponse{}, err

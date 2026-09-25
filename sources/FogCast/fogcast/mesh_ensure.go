@@ -606,14 +606,16 @@ func (s *Service) claimContentPullLease(ctx context.Context, snap launchSnapshot
 // releaseLaunchClaim drops a grant this launch claimed when Ensure
 // does not start execution. claimed is the grant Ensure itself
 // acquired. placementClaimed is the grant a rebind acquired. A grant
-// the session already held is neither, and it stays held. A release
-// here settles the placement grant so LaunchOn does not release it
-// again.
+// the session already held is neither, and it stays held. The
+// placement grant is settled only when the release succeeds, so a
+// failed release stays available for LaunchOn to retry.
 func (s *Service) releaseLaunchClaim(snap launchSnapshot, claimed bool) {
 	if !claimed && !snap.placementClaimed {
 		return
 	}
-	s.releaseClaimedContentLease(snap)
+	if !s.releaseClaimedContentLease(snap) {
+		return
+	}
 	if snap.placementClaimSettled != nil {
 		*snap.placementClaimSettled = true
 	}
@@ -621,16 +623,16 @@ func (s *Service) releaseLaunchClaim(snap launchSnapshot, claimed bool) {
 
 // releaseClaimedContentLease drops a grant this launch claimed after
 // Ensure did not start execution. The call uses its own deadline so a
-// canceled launch still attempts the release. A client that cannot
-// release leaves the grant in place.
-func (s *Service) releaseClaimedContentLease(snap launchSnapshot) {
+// canceled launch still attempts the release. A failed release leaves
+// the grant in place. The bool is false when the grant was not dropped.
+func (s *Service) releaseClaimedContentLease(snap launchSnapshot) bool {
 	releaser, ok := snap.client.(meshPullReleaser)
 	if !ok || releaser == nil {
-		return
+		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = releaser.ReleaseContentPullLease(ctx)
+	return releaser.ReleaseContentPullLease(ctx) == nil
 }
 
 func meshClaimDenied(err error) bool {

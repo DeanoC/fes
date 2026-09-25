@@ -1475,6 +1475,24 @@ func TestCompositionOldGenerationCannotStopReplacementTarget(t *testing.T) {
 	}
 }
 
+func TestCompositionHandleStopsTheKitItStartedAfterRebind(t *testing.T) {
+	local := &compositionDirectMediaHandle{done: make(chan struct{})}
+	original := &compositionTargetCast{}
+	session := newCompositionMediaSession(compositionDirectMediaSession{handle: local}, original, "session", "token", 9)
+	handle, err := session.Start(context.Background(), "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session.SetCastTarget(fogcast.TargetConfig{Name: "spare", Address: "http://192.0.2.11:8182", Agent: "token-b"})
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("stop = %v", err)
+	}
+	started, stopped := original.counts()
+	if started != 1 || stopped != 1 {
+		t.Fatalf("original cast started %d stopped %d", started, stopped)
+	}
+}
+
 func TestStopServiceForShutdownRetriesAndPropagatesFirstFailure(t *testing.T) {
 	first := errors.New("host stop failed")
 	service := &shutdownCompositionService{stopErrs: []error{first, nil}, shutdownCleanup: true}

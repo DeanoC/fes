@@ -88,9 +88,13 @@ Generation takeover stays on the kit lease API. Launch and Ensure
 then use the new bind. The rebind stores that kit's name, address,
 TargetID, and client on the launch snapshot and notifies the
 selected-target origin hook, so bind and media routing stay on that
-kit when `selectedTarget` later moves. Bind still rejects a replaced
+kit when `selectedTarget` later moves. The host verifies that kit's
+identity before the claim. A stale configured address is adopted from
+discovery when that TargetID has one endpoint, and a different
+reported identity is not claimed. Bind still rejects a replaced
 client or a changed address or TargetID. A lease this launch claimed
-is released when execution does not start. A grant the session
+is released when execution does not start. A release that fails leaves
+the claim unsettled so it can be retried. A grant the session
 already held stays held. Ensure runs on that executor only when
 `[mesh] ensure` is already on. An unset key or `ensure = false`
 keeps Ensure off after the rebind and still binds the claimed kit.
