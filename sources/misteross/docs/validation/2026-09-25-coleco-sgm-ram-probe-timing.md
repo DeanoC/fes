@@ -112,10 +112,13 @@ non-determinism above, this cannot be verified as a reliable fix for seed
 run lands on a plateau, not a guarantee that seed 5 now always converges
 quickly.
 
-`coleco-expansion.lock` and `build_fes_coleco_socket_dev.py`'s
-`TOOL_COMMITS` are pinned to that branch's tip pending user authorization
-to merge PR #76 (see the lock's rationale for the exact commit and PR
-links); repin to the merge commit once authorized.
+DeanoC/nextpnr#76 picked up two review findings after the run above (a
+modulo-by-zero when `congestionStallIters=0`, and the boost state not
+resetting when congestion reached zero under `--tmg-ripup`), both fixed
+and re-verified before merge (the RAM-probe seed-3 result stayed
+bit-identical). `coleco-expansion.lock` and
+`build_fes_coleco_socket_dev.py`'s `TOOL_COMMITS` are pinned to the merge
+commit (`c9330767`, on `mistral-stable`).
 
 ## Note
 
