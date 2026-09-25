@@ -20,6 +20,8 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
+	"github.com/DeanoC/FogCast/internal/meshplace"
+	"github.com/DeanoC/FogCast/internal/meshpref"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
 	"github.com/DeanoC/FogCast/libraryuser"
@@ -260,6 +262,9 @@ type Service struct {
 	activeGameID             string
 	activeSystem             protocol.System
 	plays                    map[string]targetPlay
+	// displayMemory is host process memory for the household display
+	// preference and the last play DisplaySink. It is not config.
+	displayMemory            *meshpref.Memory
 	selectedTargetReconciled bool
 	// selectedTargetRepairAllowed permits one same-target connection repair after status is unreachable.
 	selectedTargetRepairAllowed bool
@@ -457,6 +462,7 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		targets: append([]TargetConfig(nil), config.Targets...), selectedTarget: config.SelectedTarget,
 		targetClients:  make(map[string]serviceClient),
 		plays:          make(map[string]targetPlay),
+		displayMemory:  meshpref.New(),
 		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		coreLoadReconcileTimeout: coreLoadReconcileTimeout,
 		executionResolver:        defaultExecutionResolver{},
@@ -562,6 +568,41 @@ func (s *Service) retainSessionTargetLocked() {
 		s.plays = make(map[string]targetPlay)
 	}
 	s.plays[s.activeTarget] = targetPlay{execution: s.activeExecution, gameID: s.activeGameID, system: s.activeSystem}
+}
+
+// notePlayDisplaySinkLocked records the bound target's node id as the
+// last play DisplaySink. Caller holds executionMu and targetMu.
+// An empty node id is unset and does not replace a remembered sink.
+// Development loads, status reads, stops, and host-only play do not
+// call this.
+func (s *Service) notePlayDisplaySinkLocked() {
+	if s.displayMemory == nil {
+		return
+	}
+	name := s.activeTarget
+	if name == "" {
+		name = s.selectedTarget
+	}
+	s.displayMemory.NotePlayStarted(targetByName(s.targets, name).NodeID())
+}
+
+// SetDisplayPreference stores the household display preference node id.
+// Empty clears it. The value stays in host memory.
+func (s *Service) SetDisplayPreference(nodeID string) {
+	if s == nil || s.displayMemory == nil {
+		return
+	}
+	s.displayMemory.SetDisplayPreference(nodeID)
+}
+
+// PlaceOptions copies the household display preference and last play
+// DisplaySink into meshplace.Options. Empty stays empty. Override and
+// a missing composition slot stay unset.
+func (s *Service) PlaceOptions() meshplace.Options {
+	if s == nil || s.displayMemory == nil {
+		return meshplace.Options{}
+	}
+	return s.displayMemory.PlaceOptions()
 }
 
 func (s *Service) clearForegroundPlayLocked() {
@@ -931,6 +972,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 					s.activeExecution = ExecutionFPGANative
 					s.activeGameID, s.activeSystem = game.ID, game.System
 					s.retainSessionTargetLocked()
+					s.notePlayDisplaySinkLocked()
 					s.packageRejection = nil
 					s.activePackageID, s.activePackageGeneration = "", 0
 				}
@@ -1647,6 +1689,9 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		s.activeExecution = ExecutionFPGANative
 	}
 	s.retainSessionTargetLocked()
+	if s.activeExecution == ExecutionFPGANative {
+		s.notePlayDisplaySinkLocked()
+	}
 	s.activeGameID, s.activeSystem = "", ""
 	s.activePackageID, s.activePackageGeneration = "", 0
 	s.packageRejection = nil
