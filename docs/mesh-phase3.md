@@ -96,13 +96,29 @@ tests only.
 
 The function takes one projected `meshcontent.Entry` and the candidate
 nodes the caller already has. It does not browse DNS-SD, dial a kit,
-read a config file, or import the target agent. Candidates carry the
-fields Phase 1 inventory already stores: node id, mesh-major OK, and
-`discovery.Capabilities` (Execute kind plus ABI id and major,
-DisplaySink, InputSource). Address, human name, and inventory order
-are not ranking keys. Household display preference and last play
-DisplaySink are optional node ids the caller passes. Empty means
-unset. This slice does not store them.
+read a config file, or import the target agent. Phase 1 inventory
+supplies node id, mesh-major OK, Execute kind, DisplaySink, and
+InputSource. Package ABI eligibility is a separate list the caller
+passes. `discovery.KitCapabilities()` advertises Execute
+`fpga_native` with an empty family list, because advertisement starts
+before package inventory. An empty family list is not "any RBF".
+
+The host fills that list before the function runs, from the
+authenticated node read the agent already serves. The call is
+target-agent `GET /v1/mesh/content/node` with the agent Bearer token.
+Phase 2's kit remote already GETs it when it dials a kit
+(`sources/FogCast/internal/kitcontent`). The same read covers a
+candidate the session has not bound yet. [Kit content
+operations](mesh-node-protocol.md#kit-content-operations) names the
+response: `abis` (`id`, `major`) and optional `packages`. The host
+reads that document before `meshcontent.ABIMatches`. For
+`fpga_native`, "can execute" means that match. The read is not a
+kit-lease mutation. This slice does not add a route and does not
+freeze the response. The function does not perform the GET. Tests
+pass fixture `abis`. Address, human name, and inventory order are not
+ranking keys. Household display preference and last play DisplaySink
+are optional node ids the caller passes. Empty means unset. This
+slice does not store them.
 
 A host V4L2 or ShadowCast-class preview is not a candidate DisplaySink.
 The function has no preview input. `discovery` picture-up stays false.
@@ -113,22 +129,25 @@ The function has no preview input. `discovery` picture-up stays false.
   outcomes: selected, unresolved, or fail closed. Selected names
   Execute, and DisplaySink and InputSource only when that same node
   advertises them. Display and input are never a different node.
-- Unsigned Decision 7, applied as written. Do not describe the order
-  as locked.
+- Unsigned Decision 7, applied as written. Item 3's "when an ABI /
+  `core_package` exists" is the node-document `abis` list above, not
+  the DNS-SD family list. Do not describe the order as locked.
 - Prefer the household display preference when that id is a candidate
   that advertises DisplaySink and can execute the title. Otherwise
   the last play DisplaySink under the same test. A menu shell that
   cannot execute the title does not win because the menu is running
   there. "Near the shell" is not a fallback.
-- Launchable `fpga_native`: eligible candidates advertise Execute
-  `fpga_native` with the entry's package ABI id and major
-  (`meshcontent.ABIMatches`). Picture stays on that kit, so Execute
-  and DisplaySink are that node. One eligible kit is selected. If
-  several eligible kits exist, the preference or last sink selects
-  one of them when it names one of them. If neither names one, the
-  result is unresolved. Do not rank the kits. That unresolved FPGA
-  case is this brief's reading of the unsigned order so Slice 1 does
-  not invent a winner. It is not a new lock.
+- Launchable `fpga_native`: a candidate is eligible when it has
+  Execute `fpga_native` and `meshcontent.ABIMatches` accepts the
+  entry's package ABI id and major against `abis` from that node's
+  `GET /v1/mesh/content/node`. A discovery `cap` that only names
+  `fpga_native` does not pass that match. Picture stays on that kit,
+  so Execute and DisplaySink are that node. One eligible kit is
+  selected. If several eligible kits exist, the preference or last
+  sink selects one of them when it names one of them. If neither
+  names one, the result is unresolved. Do not rank the kits. That
+  unresolved FPGA case is this brief's reading of the unsigned order
+  so Slice 1 does not invent a winner. It is not a new lock.
 - Launchable `native_emu` only when no eligible `fpga_native`
   candidate exists. Exactly one candidate that advertises Execute
   `native_emu` is selected. Several such candidates are unresolved.
@@ -141,7 +160,9 @@ The function has no preview input. `discovery` picture-up stays false.
 - Unresolved and fail closed do not invent an Execute node.
 
 **Tests:** `go test` for `internal/meshplace` with fixture candidates.
-No kit. No Powerboat. No HIL.
+FPGA fixtures carry an `abis` list shaped like the node document. An
+empty discovery family list does not select a kit. No kit. No
+Powerboat. No HIL.
 
 **Does not:** call `ReadyHere` from rooms, `GET /api/v1/games`, or
 launch. Does not install a mesh session. Does not flip
@@ -154,11 +175,12 @@ implement the override. Does not start a `native_emu` mesh claim.
 **Owner:** FogCast host. Same package.
 
 An optional override node id. Empty keeps Slice 1. When it names a
-candidate that can run the title, that candidate is the selection,
-including one of several `native_emu` nodes. The override does not
-create a default winner for the empty case. Display and input stay on
-that same node. A node that cannot run the title, or that fails the
-mesh major, does not win by being named.
+candidate that passes Slice 1 eligibility, including the
+node-document ABI match for `fpga_native`, that candidate is the
+selection, including one of several `native_emu` nodes. The override
+does not create a default winner for the empty case. Display and
+input stay on that same node. A node that cannot run the title, or
+that fails the mesh major, does not win by being named.
 
 No sofa prompt. No host route yet. No kit. No Powerboat. No HIL.
 
@@ -285,9 +307,13 @@ not a DisplaySink. The default sofa path does not ask which machine.
 An optional advanced override exists for a power user.
 
 `internal/meshplace` implements that strawman as Slice 1 and does not
-treat it as signed. A later lock can change the order in
-[`mesh-lan.md`](mesh-lan.md) without a second design. Do not describe
-the strawman as Deano's choice.
+treat it as signed. Item 3 reads "an ABI / `core_package` exists" as
+the `abis` list from `GET /v1/mesh/content/node`, the same read Slice
+1 names. The DNS-SD family list is not that test. A later lock can
+change the order in [`mesh-lan.md`](mesh-lan.md) without a second
+design. Do not describe the strawman as Deano's choice. Naming the
+existing read does not sign Decision 7 and does not freeze the node
+response.
 
 **Which `native_emu` node wins.** Not locked.
 
