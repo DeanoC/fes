@@ -7,9 +7,10 @@ coordinator, and target/input lease owner.
 
 Pass `--launcher-config /absolute/private/launcher-host.json` to `fogcast-api`.
 On a machine with no local sofa UI, also pass `--headless` so FPGA launches do
-not start the optional V4L2/FFmpeg session preview. Catalog, attract, session,
-and controller-stream routes stay on this listener; `fogcast-kit` reconnects
-with the existing `launcher.json` API URL.
+not start the optional V4L2/FFmpeg session preview. Catalog, attract, and
+session routes stay on this listener; `fogcast-kit` reconnects with the
+existing `launcher.json` API URL for those. Kit-local play input does not use
+this listener.
 
 The file is a regular file readable only by its owner, containing:
 
@@ -70,7 +71,10 @@ Allowed operations are:
 - `GET /api/v1/session` and `/api/v1/session/input`.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.
 - `POST /api/v1/session/stop` with no body.
-- `POST /api/v1/launcher/input?session_id=<session_id>` for controller input.
+- `POST /api/v1/launcher/input?session_id=<session_id>` remains the host
+  listener's controller stream. `fogcast-kit` does not call it for a gamepad
+  or USB keyboard plugged into the kit. Those devices write raw input frames
+  to `/run/fogcast/local-input.sock` while a runtime core is bound.
 
 Responses for the existing routes retain the existing public API schema. There
 are no settings, filesystem, development-RBF, input-detach, or arbitrary proxy
@@ -78,6 +82,10 @@ routes on the launcher listener. Missing/invalid authentication returns 401,
 identity mismatch returns 403, and unavailable routes return 404.
 
 ## Controller stream
+
+This stream is not the kit-local pad path. A gamepad or USB keyboard on the
+kit writes `/run/fogcast/local-input.sock` and does not open the POST below.
+The route stays available for a producer that is not the kit's own pads.
 
 An attached input status contains `session_id`, a non-secret hexadecimal
 attachment identifier, and optionally `source` (`launcher` or `desktop`). The
@@ -107,18 +115,19 @@ and axes, bounds each line to 4096 bytes, and ends the stream after one second
 without a complete line. Keyboard injection is not part of this endpoint.
 
 A source is exclusive. Another stream, or a desktop producer that already sent
-input, causes 409; the launcher does not detach or take over that source. While
-a launcher is attached, ordinary desktop `SendEvent` calls return busy.
+input, causes 409; a second client does not detach or take over that source. While
+a launcher source is attached, ordinary desktop `SendEvent` calls return busy.
 
 Close the request body when the controller disconnects, the session changes,
-or the launcher exits. On EOF, timeout, malformed input, or cancellation, the
+or the client exits. On EOF, timeout, malformed input, or cancellation, the
 host closes the source's authenticated bridge transport; the bridge releases
 held controls and the host discards its input snapshot. A later source can
 reconnect the same bridge attachment, but no old held state is replayed. Delayed
 events and delayed cleanup from an old source cannot affect its replacement or
 a later game. The stream connection is closed rather than reused.
 
-The launcher must monitor stream completion, re-read current session status,
-and establish a fresh source after reconnect. It must discard queued input
-across that boundary. Stop remains an ordinary session operation: failures
-must remain visible and retain the retry path.
+A client that opens this route must monitor stream completion, re-read current
+session status, and establish a fresh source after reconnect. It must discard
+queued input across that boundary. fogcast-kit does not open this route for
+kit-local pads or keyboards. Its Stop chord remains `POST /api/v1/session/stop`.
+Failures of that Stop stay visible and retain the retry path.

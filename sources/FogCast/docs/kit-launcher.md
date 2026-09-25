@@ -33,15 +33,16 @@ host shows `Offline - local library` rather than an endless reconnect. Local D-p
 and A still browse that snapshot. Launch and Stop remain disabled or unavailable
 until the configured host API reconnects; the launcher never claims a target
 lease or sends a direct target launch while offline. See [the host connection
-contract](launcher-host.md) for listener configuration and exact HTTP/input-stream
-schemas. Host endpoint configuration is explicit; target discovery is separate.
+contract](launcher-host.md) for listener configuration and the session HTTP
+schema. Play input from a pad on the kit uses the local socket described below.
+Host endpoint configuration is explicit; target discovery is separate.
 
 ## Physical controls
 
 Every eligible physical evdev gamepad is opened; polls merge in stable device
 path order into one `remoteinput.Event` stream. Physical USB keyboards are
-opened on the same hub so play-session HID can reach the host input stream
-without stealing browse focus. The virtual FogCast device
+opened on the same hub so play-session HID can reach the kit-local input
+socket without stealing browse focus. The virtual FogCast device
 (`BUS_VIRTUAL` / name `FogCast Virtual Gamepad`), other virtual-bus nodes, devices
 without gamepad buttons, and duplicate `/dev/input/js*` joystick interfaces are
 excluded. Standard Linux gamepad buttons and the kit's 081f:e401 USB pad are
@@ -226,8 +227,14 @@ window because `Model.Focus` stays an index into the visible shelf. Coverflow
 down that cannot change rows enters the recent strip or title pane. Split
 left/right clamp; last-item down enters the strip or title pane. Stick motion
 steps on the rising edge only; holding a deflection does not repeat. During
-native play, events flow through the authenticated host stream into the existing
-leased virtual pad. Hold Select + Start together for one second to request
+native play, while the local runtime has a core bound, pad and USB keyboard
+events are raw input frames on `/run/fogcast/local-input.sock`. mister-agent
+delivers them into the running core. The kit does not post that play input to
+the host, and it does not wait for launcher.json reachability or the host
+session's input.ready. A pad on the kit still drives the core when another
+host holds the lease. The player index on the frame is the one the kit
+assigned. If the socket is not listening, the kit reports `Local input
+unavailable` and does not fall back to the host input route. Hold Select + Start together for one second to request
 ordinary Stop; both must release before rearming. Individual Start and Select
 remain game controls while a session can stop; B does not stop gameplay.
 Stop/save errors retain the retry operation. After the host `idle_seconds` from
@@ -251,11 +258,10 @@ today's stills attract and hide the VIDEO chrome. An empty playlist (or
 video-only rows) still enters a themed idle panel (`Idle` / `No attract stills`)
 so the grid is not frozen; any input returns to the grid.
 
-The host source stream releases controls on close/timeout, and an attachment ID
-prevents old input affecting a new session. Its source is exclusive; the launcher
-cannot steal desktop input. Local USB input currently travels via the host and
-back to the kit, so its responsiveness depends on the LAN. Report measured
-transport values separately from end-to-end button-to-photon latency.
+Closing the kit's connection to `/run/fogcast/local-input.sock` releases only
+that local source. The host input stream remains the path for a pad that is
+not plugged into this kit. Local play input does not cross the LAN. Report
+measured transport values separately from end-to-end button-to-photon latency.
 
 ## Display and verification
 

@@ -116,6 +116,12 @@ type Client struct {
 	HTTP    *http.Client
 	Library *hostclient.Client
 	Cache   *DiskStore
+	// localCore, when set, replaces the runtime status probe. Production
+	// leaves it nil. Play input uses the result and ignores host reachability.
+	localCore func(context.Context) (bool, error)
+	// localInputPath overrides the kit-local input socket. Empty uses
+	// input.DefaultLocalInputSocket.
+	localInputPath string
 }
 type authenticated struct {
 	base   http.RoundTripper
@@ -177,18 +183,6 @@ func (p *CorePackageSession) HasKeyboard() bool {
 	}
 	for _, contract := range p.ActiveInterfaces {
 		if hostclient.SessionCoreInterface(contract).IsKeyboard() {
-			return true
-		}
-	}
-	return false
-}
-
-func (p *CorePackageSession) HasControllerPorts() bool {
-	if p == nil {
-		return false
-	}
-	for _, contract := range p.ActiveInterfaces {
-		if contract.ID == "fes.gamepad.ports" && contract.Major == 1 && contract.Minor == 0 {
 			return true
 		}
 	}

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/internal/zx81keys"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"net/http"
 	"net/http/httptest"
@@ -120,86 +120,6 @@ func TestLoadCatalogFiltersByPlatform(t *testing.T) {
 	}
 	if len(games) != 2 || games[0].ID != "pong" || games[1].ID != "sonic" {
 		t.Fatalf("games %v", games)
-	}
-}
-
-func TestInputStreamKeyAdmitsNativeAndCapableCustomAndRetiresOtherSessions(t *testing.T) {
-	native := Session{State: "active", Execution: "fpga_native"}
-	native.Input.State, native.Input.Ready, native.Input.SessionID = "attached", true, "native-session"
-	if inputStreamKey(native) == "" {
-		t.Fatal("native session was not eligible")
-	}
-	custom := Session{State: "active", Execution: "fpga_development",
-		CorePackage: &CorePackageSession{Generation: 7, Gamepad: true}}
-	custom.Input.State, custom.Input.Ready, custom.Input.SessionID = "attached", true, "custom-session"
-	first := inputStreamKey(custom)
-	if first == "" {
-		t.Fatal("capable custom session was not eligible")
-	}
-	reconnecting := custom
-	reconnecting.Input.State = "reconnecting"
-	reconnecting.Input.Ready = false
-	if next := inputStreamKey(reconnecting); next != first {
-		t.Fatalf("same-generation reconnect changed stream key: %q then %q", first, next)
-	}
-	custom.CorePackage.Generation = 8
-	if next := inputStreamKey(custom); next == "" || next == first {
-		t.Fatalf("generation replacement did not retire stream: %q then %q", first, next)
-	}
-	keys := Session{State: "active", Execution: "fpga_development",
-		CorePackage: &CorePackageSession{Generation: 4, ActiveInterfaces: []struct {
-			ID    string `json:"id"`
-			Major uint16 `json:"major"`
-			Minor uint16 `json:"minor"`
-		}{{ID: "fes.keyboard", Major: 1, Minor: 0}}}}
-	keys.Input.State, keys.Input.Ready, keys.Input.SessionID = "attached", true, "keyboard-session"
-	if inputStreamKey(keys) == "" {
-		t.Fatal("fes.keyboard session was not eligible")
-	}
-	for name, session := range map[string]Session{
-		"raw":        {State: "active", Execution: "fpga_development"},
-		"not-ready":  func() Session { v := custom; v.Input.Ready = false; return v }(),
-		"failed":     func() Session { v := custom; v.Input.State = "failed"; v.Input.Ready = false; return v }(),
-		"detached":   func() Session { v := custom; v.Input.State = "detached"; v.Input.Ready = false; return v }(),
-		"no-gamepad": func() Session { v := custom; v.CorePackage = &CorePackageSession{Generation: 8}; return v }(),
-	} {
-		if got := inputStreamKey(session); got != "" {
-			t.Errorf("%s stream key = %q", name, got)
-		}
-	}
-}
-
-func TestPlayHIDStreamKeyFailClosedOnForeignLease(t *testing.T) {
-	native := Session{State: "active", Execution: "fpga_native"}
-	native.Input.State, native.Input.Ready, native.Input.SessionID = "attached", true, "native-session"
-	if playHIDStreamKey(Model{Session: native}) == "" {
-		t.Fatal("ours was not eligible")
-	}
-	if playHIDStreamKey(Model{Session: native, ForeignLease: true}) != "" {
-		t.Fatal("foreign lease must fail closed")
-	}
-}
-
-func TestEncodePlayHIDEventNativeGamepadNotZX81(t *testing.T) {
-	native := Session{State: "active", Execution: "fpga_native"}
-	zx := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.Letter('J')}
-	if _, ok := encodePlayHIDEvent(native, zx); ok {
-		t.Fatal("native must not forward ZX81 letter J")
-	}
-	w := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.Letter('W')}
-	got, ok := encodePlayHIDEvent(native, w)
-	if !ok || got.Device != remoteinput.DeviceGamepad || got.Code != remoteinput.ButtonDPadUp {
-		t.Fatalf("native W = %+v ok=%v", got, ok)
-	}
-	keys := Session{State: "active", Execution: "fpga_development",
-		CorePackage: &CorePackageSession{Generation: 4, ActiveInterfaces: []struct {
-			ID    string `json:"id"`
-			Major uint16 `json:"major"`
-			Minor uint16 `json:"minor"`
-		}{{ID: "fes.keyboard", Major: 1, Minor: 0}}}}
-	keep, ok := encodePlayHIDEvent(keys, zx)
-	if !ok || keep.Code != zx81keys.Letter('J') {
-		t.Fatalf("fes.keyboard J = %+v ok=%v", keep, ok)
 	}
 }
 
@@ -450,18 +370,16 @@ func (p *pressPad) Poll() ([]remoteinput.Event, error) {
 func (*pressPad) Close() error { return nil }
 
 type customSessionPad struct {
-	polls  int
-	opened *atomic.Bool
+	polls int
 }
 
 func (p *customSessionPad) Poll() ([]remoteinput.Event, error) {
 	p.polls++
-	if p.opened == nil || !p.opened.Load() || p.polls < 2 {
+	if p.polls < 2 {
 		return nil, nil
 	}
-	if p.polls > 0 {
-		p.polls = -1000000
-	}
+	// Keep the chord held across polls. Session state arrives on the host
+	// poll, which is independent of the local socket.
 	a, _ := remoteinput.NormalizeGamepad("a", true)
 	selectPress, _ := remoteinput.NormalizeGamepad("select", true)
 	startPress, _ := remoteinput.NormalizeGamepad("start", true)
@@ -470,13 +388,15 @@ func (p *customSessionPad) Poll() ([]remoteinput.Event, error) {
 func (*customSessionPad) Close() error { return nil }
 
 func TestRunForwardsCapableCustomPaddleAndKeepsStopChord(t *testing.T) {
-	paddle := make(chan remoteinput.Event, 1)
+	frames := make(chan protocol.InputFrame, 4)
+	ln, path := listenLocalInput(t, frames)
+	defer ln.Close()
 	stopped := make(chan struct{}, 1)
-	var opened atomic.Bool
+	var hostInput atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
-			_, _ = w.Write([]byte(`{"state":"active","execution":"fpga_development","input":{"state":"attached","ready":true,"session_id":"custom-input"},"core_package":{"generation":9,"gamepad":true}}`))
+			_, _ = w.Write([]byte(`{"state":"active","execution":"fpga_development","input":{"state":"detached","ready":false},"core_package":{"generation":9,"gamepad":true}}`))
 		case "/api/v1/health":
 			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
 		case "/api/v1/platforms":
@@ -484,25 +404,8 @@ func TestRunForwardsCapableCustomPaddleAndKeepsStopChord(t *testing.T) {
 		case "/api/v1/games":
 			_, _ = w.Write([]byte(`{"games":[]}`))
 		case "/api/v1/launcher/input":
-			opened.Store(true)
-			_ = http.NewResponseController(w).EnableFullDuplex()
-			w.WriteHeader(http.StatusOK)
-			w.(http.Flusher).Flush()
-			decoder := json.NewDecoder(r.Body)
-			for {
-				var frame struct {
-					Event *remoteinput.Event `json:"event"`
-				}
-				if decoder.Decode(&frame) != nil {
-					return
-				}
-				if frame.Event != nil && frame.Event.Code == remoteinput.ButtonA {
-					select {
-					case paddle <- *frame.Event:
-					default:
-					}
-				}
-			}
+			hostInput.Add(1)
+			http.Error(w, "kit pads must not post here", http.StatusConflict)
 		case "/api/v1/session/stop":
 			select {
 			case stopped <- struct{}{}:
@@ -516,15 +419,16 @@ func TestRunForwardsCapableCustomPaddleAndKeepsStopChord(t *testing.T) {
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	pad := &customSessionPad{opened: &opened}
-	_ = Run(ctx, NewClient(Config{API: server.URL}), func(Model) {}, func() (Pad, error) { return pad, nil })
-	select {
-	case event := <-paddle:
-		if event.Code != remoteinput.ButtonA {
-			t.Fatal(event)
-		}
-	default:
-		t.Fatal("custom paddle event not forwarded")
+	client := NewClient(Config{API: server.URL})
+	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localInputPath = path
+	_ = Run(ctx, client, func(Model) {}, func() (Pad, error) { return &customSessionPad{}, nil })
+	frame := awaitFrame(t, frames)
+	if frame.Code != uint16(remoteinput.ButtonA) || frame.Player != 0 {
+		t.Fatalf("frame %+v", frame)
+	}
+	if hostInput.Load() != 0 {
+		t.Fatalf("host input posts = %d", hostInput.Load())
 	}
 	select {
 	case <-stopped:
