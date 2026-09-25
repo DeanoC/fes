@@ -77,6 +77,10 @@ type gameResult struct {
 	ReadyHere  *bool  `json:"ready_here,omitempty"`
 	ReadyBlock string `json:"ready_block,omitempty"`
 	NextAction string `json:"next_action,omitempty"`
+	// Placement is the host predicate rooms read when this row asked
+	// Place. Empty omits the field. Codes are selected, unresolved,
+	// and fail_closed. They are not sofa copy.
+	Placement string `json:"placement,omitempty"`
 }
 
 type gamesResult struct {

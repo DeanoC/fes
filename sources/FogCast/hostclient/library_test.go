@@ -186,6 +186,46 @@ func TestPreferLaunchableKeepsPackageAndSkipsDistant(t *testing.T) {
 	}
 }
 
+func TestPlacementUnresolvedIsNotReadyAndSelectedStaysEligible(t *testing.T) {
+	t.Parallel()
+	ready := true
+	selected := Game{
+		ID: "fpga-coleco-dk", Title: "Donkey Kong", System: "coleco",
+		State: "available", RootOnline: true, Launchable: true,
+		ReadyHere: &ready, Placement: PlacementSelected,
+	}
+	if !selected.LaunchEligible() || selected.LaunchBlock() != "" {
+		t.Fatalf("selected %+v block %s", selected, selected.LaunchBlock())
+	}
+	blocked := false
+	unresolved := selected
+	unresolved.ReadyHere = &blocked
+	unresolved.ReadyBlock = string(LaunchPlacementUnresolved)
+	unresolved.Placement = PlacementUnresolved
+	unresolved.NextAction = "unavailable"
+	if unresolved.LaunchEligible() || unresolved.LaunchBlock() != LaunchPlacementUnresolved || unresolved.LaunchBlock() == LaunchVersionSkew || unresolved.LaunchBlock() == LaunchLeaseHeld {
+		t.Fatalf("unresolved block %s", unresolved.LaunchBlock())
+	}
+	closed := unresolved
+	closed.ReadyBlock = string(LaunchPlacementFailClosed)
+	closed.Placement = PlacementFailClosed
+	if closed.LaunchEligible() || closed.LaunchBlock() != LaunchPlacementFailClosed {
+		t.Fatalf("fail closed block %s", closed.LaunchBlock())
+	}
+	skew := closed
+	skew.ReadyBlock = string(LaunchVersionSkew)
+	skew.Placement = PlacementFailClosed
+	if skew.LaunchBlock() != LaunchVersionSkew {
+		t.Fatalf("skew collapsed to %s", skew.LaunchBlock())
+	}
+	busy := unresolved
+	busy.ReadyBlock = string(LaunchLeaseHeld)
+	busy.Placement = PlacementUnresolved
+	if busy.LaunchBlock() != LaunchLeaseHeld {
+		t.Fatalf("in use collapsed to %s", busy.LaunchBlock())
+	}
+}
+
 func TestStillHandlesReturnsNilWhenNoMedia(t *testing.T) {
 	t.Parallel()
 	if got := (AttractItem{}).StillHandles(); got != nil {
