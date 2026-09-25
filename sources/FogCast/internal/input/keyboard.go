@@ -1,6 +1,7 @@
 package input
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -17,24 +18,24 @@ import (
 type KeyboardSink struct {
 	mu      sync.Mutex
 	pressed [sourceCount]map[remoteinput.Code]bool
-	poster  func(uint64) error
+	poster  func(context.Context, uint64) error
 }
 
 func NewKeyboardSink() *KeyboardSink {
 	return &KeyboardSink{}
 }
 
-func (s *KeyboardSink) SetPoster(poster func(uint64) error) {
+func (s *KeyboardSink) SetPoster(poster func(context.Context, uint64) error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.poster = poster
 }
 
 func (s *KeyboardSink) Apply(f protocol.InputFrame) error {
-	return s.ApplyFrom(sourceRemote, f)
+	return s.ApplyFrom(context.Background(), sourceRemote, f)
 }
 
-func (s *KeyboardSink) ApplyFrom(source inputSource, f protocol.InputFrame) error {
+func (s *KeyboardSink) ApplyFrom(ctx context.Context, source inputSource, f protocol.InputFrame) error {
 	if f.Kind != uint8(remoteinput.KindKey) && f.Device != uint8(remoteinput.DeviceKeyboard) {
 		return errors.New("unsupported input frame")
 	}
@@ -57,7 +58,10 @@ func (s *KeyboardSink) ApplyFrom(source inputSource, f protocol.InputFrame) erro
 	if poster == nil {
 		return nil
 	}
-	return poster(matrix)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return poster(ctx, matrix)
 }
 
 func (s *KeyboardSink) unionLocked() map[remoteinput.Code]bool {
@@ -82,7 +86,9 @@ func (s *KeyboardSink) ReleaseSource(source inputSource) error {
 	if poster == nil {
 		return nil
 	}
-	_ = poster(matrix)
+	// Source release is not a local frame under the lifecycle lock. Callers
+	// that need a deadline pass one through ApplyFrom.
+	_ = poster(context.Background(), matrix)
 	return nil
 }
 
@@ -98,7 +104,9 @@ func (s *KeyboardSink) ReleaseAll() error {
 	}
 	// Neutralize is best-effort: no simple-computer core means the runtime
 	// rejects set_keyboard, and kit-lease cleanup still has to succeed.
-	_ = poster(zx81keys.Neutral)
+	// This path is host cleanup, not a kit-local frame, so it keeps the
+	// poster's own deadline instead of the local write bound.
+	_ = poster(context.Background(), zx81keys.Neutral)
 	return nil
 }
 

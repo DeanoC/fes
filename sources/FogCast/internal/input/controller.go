@@ -106,7 +106,7 @@ func (c *TargetController) ObserveCore(observe func(context.Context) (CoreObserv
 	c.mu.Unlock()
 }
 
-func (c *TargetController) SetKeyboardPoster(poster func(uint64) error) {
+func (c *TargetController) SetKeyboardPoster(poster func(context.Context, uint64) error) {
 	if c == nil || c.keyboard == nil {
 		return
 	}

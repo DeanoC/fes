@@ -49,7 +49,7 @@ func keyboardFrameFor(code remoteinput.Code, action remoteinput.Action) protocol
 func newPortsFixture(t *testing.T, keypad bool) (*controllerPortsSink, *[]portWrite) {
 	t.Helper()
 	var writes []portWrite
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypadMask uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypadMask uint16) error {
 		writes = append(writes, portWrite{id, generation, port, buttons, keypadMask})
 		return nil
 	}}
@@ -94,7 +94,7 @@ func TestSamePlayerOrMergeKeepsLocalPress(t *testing.T) {
 		t.Fatal(err)
 	}
 	sink.mu.Lock()
-	err := sink.publishPortLocked(0, true)
+	err := sink.publishPortLocked(context.Background(), 0, true)
 	sink.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestSamePlayerOrMergeKeepsLocalPress(t *testing.T) {
 		t.Fatal(err)
 	}
 	sink.mu.Lock()
-	err = sink.publishPortLocked(0, true)
+	err = sink.publishPortLocked(context.Background(), 0, true)
 	sink.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -212,19 +212,19 @@ func TestLocalRawKeyboardIsShapedOntoThePortsCore(t *testing.T) {
 func TestKeyboardSourcesMerge(t *testing.T) {
 	var matrix uint64
 	keys := NewKeyboardSink()
-	keys.SetPoster(func(value uint64) error {
+	keys.SetPoster(func(_ context.Context, value uint64) error {
 		matrix = value
 		return nil
 	})
 	press := keyboardFrameFor(zx81keys.Letter('J'), remoteinput.ActionPress)
-	if err := keys.ApplyFrom(sourceLocal, press); err != nil {
+	if err := keys.ApplyFrom(context.Background(), sourceLocal, press); err != nil {
 		t.Fatal(err)
 	}
 	held := matrix
 	if held == zx81keys.Neutral {
 		t.Fatal("local key did not reach the matrix")
 	}
-	if err := keys.ApplyFrom(sourceRemote, press); err != nil {
+	if err := keys.ApplyFrom(context.Background(), sourceRemote, press); err != nil {
 		t.Fatal(err)
 	}
 	if err := keys.ReleaseSource(sourceRemote); err != nil {
@@ -260,7 +260,7 @@ func TestLocalFeedLoopbackSocketMapsStartWithoutALease(t *testing.T) {
 	var writes []portWrite
 	var mu sync.Mutex
 	ready := make(chan struct{}, 1)
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
 		mu.Lock()
 		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
 		mu.Unlock()
@@ -322,7 +322,7 @@ func TestLocalFeedLoopbackSocketMapsStartWithoutALease(t *testing.T) {
 func TestLocalFeedDropsFramesWhenNoCoreIsBound(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "local-input.sock")
 	writes := 0
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(string, uint64, uint8, uint8, uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(context.Context, string, uint64, uint8, uint8, uint16) error {
 		writes++
 		return nil
 	}}
@@ -360,7 +360,7 @@ func TestLocalFeedDropsFramesWhenNoCoreIsBound(t *testing.T) {
 
 func TestHostDetachKeepsLocalHoldAndReplacementClearsIt(t *testing.T) {
 	var writes []portWrite
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
 		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
 		return nil
 	}}
@@ -409,7 +409,7 @@ func (s *controllerPortsSink) mergedButtons(port uint8) (uint8, uint16) {
 
 func TestLocalFrameDuringCoreReplacementDoesNotRebindRetiredGeneration(t *testing.T) {
 	var writes []portWrite
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
 		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
 		return nil
 	}}
@@ -514,7 +514,7 @@ func hungStatusRuntime(t *testing.T) *misterruntime.Runtime {
 
 func TestStalledLocalStatusCannotWedgeLifecycle(t *testing.T) {
 	runtime := hungStatusRuntime(t)
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(string, uint64, uint8, uint8, uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(context.Context, string, uint64, uint8, uint8, uint16) error {
 		return nil
 	}}
 	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
@@ -598,9 +598,180 @@ func TestStalledLocalStatusCannotWedgeLifecycle(t *testing.T) {
 	}
 }
 
+// TestStalledLocalKeyboardCannotWedgeLifecycle posts a fes.keyboard frame
+// whose set_keyboard stub accepts the call and never returns until its
+// context ends. The write under the lifecycle lock must carry
+// localCoreWriteTimeout, so host Attach and BeginCoreReplacement proceed
+// after that bound.
+func TestStalledLocalKeyboardCannotWedgeLifecycle(t *testing.T) {
+	keys := NewKeyboardSink()
+	started := make(chan time.Duration, 1)
+	keys.SetPoster(func(ctx context.Context, _ uint64) error {
+		// Host cleanup still posts with context.Background(). A context
+		// with no deadline is not the local write under test.
+		if ctx == nil || ctx.Done() == nil {
+			return nil
+		}
+		deadline, ok := ctx.Deadline()
+		remaining := time.Duration(-1)
+		if ok {
+			remaining = time.Until(deadline)
+		}
+		select {
+		case started <- remaining:
+		default:
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	sink := &controllerPortsSink{fallback: &recordingSink{}, keys: keys}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	controller.keyboard = keys
+	t.Cleanup(func() { _ = controller.Close() })
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		return CoreObservation{Active: true, Keyboard: true}, nil
+	})
+
+	localDone := make(chan error, 1)
+	go func() {
+		localDone <- controller.deliverLocal(context.Background(), keyboardFrameFor(zx81keys.Letter('J'), remoteinput.ActionPress))
+	}()
+	var remaining time.Duration
+	select {
+	case remaining = <-started:
+	case <-time.After(time.Second):
+		t.Fatal("local keyboard post did not start")
+	}
+	if remaining <= 0 || remaining > localCoreWriteTimeout {
+		t.Fatalf("local keyboard deadline remaining = %s, want (0, %s]", remaining, localCoreWriteTimeout)
+	}
+
+	attachDone := make(chan error, 1)
+	go func() {
+		attachDone <- controller.Attach(context.Background(), Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "fes.zx81"})
+	}()
+	replaceDone := make(chan error, 1)
+	go func() {
+		finish, err := controller.BeginCoreReplacement(context.Background())
+		if err != nil {
+			replaceDone <- err
+			return
+		}
+		replaceDone <- finish(context.Background(), false)
+	}()
+
+	limit := localCoreWriteTimeout + time.Second
+	select {
+	case err := <-localDone:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("stalled keyboard post = %v, want deadline exceeded", err)
+		}
+	case <-time.After(limit):
+		t.Fatal("stalled local keyboard post held the lifecycle lock")
+	}
+	select {
+	case err := <-attachDone:
+		if err != nil {
+			t.Fatalf("host attach after the keyboard bound: %v", err)
+		}
+	case <-time.After(limit):
+		t.Fatal("host attach stayed blocked after the local keyboard bound")
+	}
+	select {
+	case err := <-replaceDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(limit):
+		t.Fatal("core replacement stayed blocked after the local keyboard bound")
+	}
+}
+
+// TestStalledLocalControllerWriteCannotWedgeLifecycle is the ports-core
+// counterpart: set_controller under the same lock uses the write deadline,
+// not an unbounded poster. Cleanup after the frame uses a context with no
+// deadline and must still return.
+func TestStalledLocalControllerWriteCannotWedgeLifecycle(t *testing.T) {
+	started := make(chan time.Duration, 1)
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(ctx context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			return nil
+		}
+		remaining := time.Until(deadline)
+		select {
+		case started <- remaining:
+		default:
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}}
+	if err := sink.bind(&ControllerBinding{PackageID: "coleco", Generation: 4, Keypad: true}); err != nil {
+		t.Fatal(err)
+	}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	t.Cleanup(func() { _ = controller.Close() })
+
+	localDone := make(chan error, 1)
+	go func() {
+		localDone <- controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	}()
+	var remaining time.Duration
+	select {
+	case remaining = <-started:
+	case <-time.After(time.Second):
+		t.Fatal("local controller post did not start")
+	}
+	if remaining <= 0 || remaining > localCoreWriteTimeout {
+		t.Fatalf("local controller deadline remaining = %s, want (0, %s]", remaining, localCoreWriteTimeout)
+	}
+
+	attachDone := make(chan error, 1)
+	go func() {
+		attachDone <- controller.Attach(context.Background(), Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "fes.coleco"})
+	}()
+	replaceDone := make(chan error, 1)
+	go func() {
+		finish, err := controller.BeginCoreReplacement(context.Background())
+		if err != nil {
+			replaceDone <- err
+			return
+		}
+		replaceDone <- finish(context.Background(), false)
+	}()
+
+	limit := localCoreWriteTimeout + time.Second
+	select {
+	case err := <-localDone:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("stalled controller post = %v, want deadline exceeded", err)
+		}
+	case <-time.After(limit):
+		t.Fatal("stalled local controller post held the lifecycle lock")
+	}
+	select {
+	case err := <-attachDone:
+		if err != nil {
+			t.Fatalf("host attach after the controller bound: %v", err)
+		}
+	case <-time.After(limit):
+		t.Fatal("host attach stayed blocked after the local controller bound")
+	}
+	select {
+	case err := <-replaceDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(limit):
+		t.Fatal("core replacement stayed blocked after the local controller bound")
+	}
+}
+
 func TestLeaseReleaseClearsLocalSource(t *testing.T) {
 	var writes []portWrite
-	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
 		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
 		return nil
 	}}

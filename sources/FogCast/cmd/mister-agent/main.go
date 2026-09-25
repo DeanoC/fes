@@ -140,17 +140,26 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 					return nil, err
 				}
 				return obs.Binding, nil
-			}, func(packageID string, generation uint64, port, buttons uint8, keypad uint16) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			}, func(ctx context.Context, packageID string, generation uint64, port, buttons uint8, keypad uint16) error {
+				if ctx == nil {
+					ctx = context.Background()
+				}
+				// Host posts arrive without a deadline. Keep that 2s bound.
+				// A kit-local frame already carries localCoreWriteTimeout;
+				// WithTimeout keeps the sooner of the two.
+				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 				return nativeRuntime.SetController(ctx, misterruntime.ControllerRequest{PackageID: packageID, Generation: generation, Port: port, Buttons: buttons, Keypad: keypad})
 			})
 		}
 		if keys, ok := controller.(interface {
-			SetKeyboardPoster(func(uint64) error)
+			SetKeyboardPoster(func(context.Context, uint64) error)
 		}); ok {
-			keys.SetKeyboardPoster(func(matrix uint64) error {
-				err := nativeRuntime.SetKeyboard(context.Background(), matrix)
+			keys.SetKeyboardPoster(func(ctx context.Context, matrix uint64) error {
+				if ctx == nil {
+					ctx = context.Background()
+				}
+				err := nativeRuntime.SetKeyboard(ctx, matrix)
 				var apiErr *protocol.APIError
 				if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeUnsupportedOperation {
 					// Neutralize is a no-op when no simple-computer core is loaded.

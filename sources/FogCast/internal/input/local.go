@@ -28,6 +28,15 @@ var errNoCore = errors.New("runtime core is not bound")
 // drops the frame and releases the lock.
 const localCoreObserveTimeout = 250 * time.Millisecond
 
+// localCoreWriteTimeout bounds set_keyboard and set_controller calls made
+// while deliverLocal still holds the lifecycle lock. It matches
+// localCoreObserveTimeout: both calls sit on that lock, and a stalled
+// runtime reply must drop the frame on the same budget as a stalled status
+// read. The host stream does not use this bound. Controller posts there
+// keep mister-agent's 2s deadline when the caller has no tighter one, and
+// host keyboard posts are not taken under this lock.
+const localCoreWriteTimeout = localCoreObserveTimeout
+
 func listenLocalInput(path string) (net.Listener, error) {
 	if path == "" {
 		return nil, errors.New("local input socket path is empty")
@@ -181,6 +190,9 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 // frame that arrives in that window, so the frame cannot observe the retired
 // package and rebind it. The status read under this lock uses
 // localCoreObserveTimeout rather than the process-lifetime reader context.
+// The following set_keyboard or set_controller post uses localCoreWriteTimeout
+// for the same reason: the poster must not keep this lock with a context
+// that has no deadline.
 func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.InputFrame) error {
 	if c == nil {
 		return errNoCore
@@ -195,7 +207,9 @@ func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.Inpu
 	if c.ports == nil {
 		return errNoCore
 	}
-	return c.ports.apply(sourceLocal, frame)
+	writeCtx, cancel := context.WithTimeout(ctx, localCoreWriteTimeout)
+	defer cancel()
+	return c.ports.applyContext(writeCtx, sourceLocal, frame)
 }
 
 func (c *TargetController) ensureLocalCore(ctx context.Context) error {

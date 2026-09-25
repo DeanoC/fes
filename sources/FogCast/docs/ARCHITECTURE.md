@@ -1457,8 +1457,10 @@ kit drives the running core whichever host launched it. Frames are delivered onl
 while a runtime core is bound. Delivery takes the same input lifecycle lock as host
 attach and core replacement. While replacement holds that lock, from ReleaseAll
 until the finish callback, an arriving frame is dropped before observation, binding,
-or writing. The status read that binds a local frame is limited to 250ms while
-the lock is held, so a stalled runtime reply drops the frame and releases the lock.
+or writing. The status read that binds a local frame, and the set_keyboard or
+set_controller post that follows it, are each limited to 250ms while the lock
+is held, so a stalled runtime reply drops the frame and releases the lock.
+Host attach and the host stream keep their own deadlines.
 The host stream and the local socket keep separate
 button and axis state. On one player they combine by OR for buttons and keypad bits
 and by the larger stick deflection for axes, so a release or a centred stick from

@@ -1,6 +1,7 @@
 package input
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 func TestKeyboardSinkPostsJMatrix(t *testing.T) {
 	var got uint64
 	sink := NewKeyboardSink()
-	sink.SetPoster(func(matrix uint64) error {
+	sink.SetPoster(func(_ context.Context, matrix uint64) error {
 		got = matrix
 		return nil
 	})
@@ -39,7 +40,7 @@ func TestKeyboardSinkPostsJMatrix(t *testing.T) {
 
 func TestKeyboardSinkReleaseAllSucceedsWhenPosterFails(t *testing.T) {
 	sink := NewKeyboardSink()
-	sink.SetPoster(func(uint64) error {
+	sink.SetPoster(func(context.Context, uint64) error {
 		return errors.New("FES computer is not active")
 	})
 	if err := sink.ReleaseAll(); err != nil {
@@ -62,7 +63,7 @@ func TestMuxSinkRoutesZX81ToKeyboardAndGamepadToPads(t *testing.T) {
 	t.Parallel()
 	var matrix uint64
 	keys := NewKeyboardSink()
-	keys.SetPoster(func(m uint64) error {
+	keys.SetPoster(func(_ context.Context, m uint64) error {
 		matrix = m
 		return nil
 	})
