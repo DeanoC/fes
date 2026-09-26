@@ -1,5 +1,17 @@
 # FES ColecoVision first slice
 
+The development MegaCart lane is `scripts/build_fes_coleco_megacart.py`. Its
+`FES_COLECO_MEGACART_LINK` build removes the media and firmware mailboxes and
+seals 8 KiB BIOS plus eight 16 KiB cartridge banks as one format-4 ROM map.
+The final cartridge bank is fixed at `0x8000–0xbfff`; reads at
+`0xffc0–0xffff` select the low three address bits for the banked window and
+return that bank's byte on the selecting read. `make sim-fes-coleco-megacart`
+uses only original synthetic bytes. The sealed lane passed route, timing,
+exact-shell SGM and [two-ROM kit diagnostics](../../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md),
+including Stop/relaunch and retained selections after host restart. This is
+synthetic diagnostic acceptance; the factory format-2 producer and recipe
+remain selected.
+
 This directory is a described FES core, not an `experiments/` place-and-route
 test. The core lane is [docs/cores.md](../../docs/cores.md).
 

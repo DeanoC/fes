@@ -651,6 +651,7 @@
     if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
+    if (game.firmware_required === true && game.firmware_ready !== true) return 'This game’s required BIOS is not ready.';
     if (game.rom_required === true && game.rom_ready !== true) return 'This game’s required ROM is not ready.';
     return '';
   }

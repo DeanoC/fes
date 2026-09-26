@@ -73,13 +73,13 @@ def prepare_shell_netlist(path: Path, *, version: int = 1) -> None:
     design = json.loads(path.read_text())
     top = design['modules']['top']
     cells = top['cells']
-    clock_buffer = cells.get(SOCKET_CLOCK, {})
     pll_clock = top['netnames'].get('system_clock.pll_outclk', {}).get('bits')
-    if clock_buffer.get('type') != 'MISTRAL_CLKBUF' or \
-            clock_buffer.get('connections', {}).get('A') != pll_clock or \
-            not isinstance(pll_clock, list) or len(pll_clock) != 1:
+    clock_buffers = [cell for name, cell in cells.items()
+                     if name.startswith(SOCKET_CLOCK) and cell.get('type') == 'MISTRAL_CLKBUF' and
+                     cell.get('connections', {}).get('A') == pll_clock]
+    if not isinstance(pll_clock, list) or len(pll_clock) != 1 or len(clock_buffers) != 1:
         raise ValueError('Coleco socket system clock source changed')
-    clock = clock_buffer['connections'].get('Q')
+    clock = clock_buffers[0]['connections'].get('Q')
     request = top['netnames']['plug_request']['bits']
     if not isinstance(clock, list) or len(clock) != 1 or len(request) != REQUEST_BITS:
         raise ValueError('Coleco socket clock or request bus is malformed')

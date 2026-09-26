@@ -74,7 +74,7 @@ private:
 			value->type = Type::null_value;
 			return true;
 		}
-		if (token == '[') return Fail("arrays are not supported");
+		if (token == '[') return ParseArray(object_level + 1, value);
 		return Fail("invalid value");
 	}
 
@@ -104,6 +104,25 @@ private:
 			SkipWhitespace();
 			if (ConsumeCharacter('}')) return true;
 			if (!ConsumeCharacter(',')) return Fail("missing object comma");
+			SkipWhitespace();
+		}
+	}
+
+	bool ParseArray(int level, Value* value)
+	{
+		if (level > kMaximumObjectLevels) return Fail("JSON nesting exceeds four levels");
+		++position_;
+		value->type = Type::array;
+		value->array.clear();
+		SkipWhitespace();
+		if (ConsumeCharacter(']')) return true;
+		while (true) {
+			Value member;
+			if (!ParseValue(level, &member)) return false;
+			value->array.push_back(std::move(member));
+			SkipWhitespace();
+			if (ConsumeCharacter(']')) return true;
+			if (!ConsumeCharacter(',')) return Fail("missing array comma");
 			SkipWhitespace();
 		}
 	}

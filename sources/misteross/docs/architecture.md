@@ -23,6 +23,11 @@ ZX81, SMS and SG-1000 packages use format 3 to seal their ROM maps; other produc
 format 2. The external `build-inputs.json` record gains format 2, while the exporter still
 reads format 1 with its original full-record SHA256 correlation algorithm.
 
+The package exporter and inspector also recognize format 4 with two ordered ROM
+requirements and one sealed map. The Coleco development producer will select
+this format when its separate blank shell and map are available; existing
+registered recipes still emit their current formats.
+
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
 its embedded 128-bit ID from a domain-separated functional projection excluding
 those provenance fields. It includes every tracked regular file under `scripts/` and the owning core/board

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +18,168 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
+
+func twoROMLibraryPackageFixture(t *testing.T) []byte {
+	t.Helper()
+	base := "../corepackage/testdata/core-bundle-v2/"
+	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(base + "payloads/fes-fixture.rbf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := expansion.ROMMap{Format: 1, Device: expansion.Device, Encoding: "m10k-1024x10-v1", BaseSHA256: fmt.Sprintf("%x", sha256.Sum256(payload)), SourceSize: 139264}
+	for block := 0; block < 136; block++ {
+		b := expansion.ROMBlock{BEL: fmt.Sprintf("M10K.005.%03d", block), SourceOffset: block * 1024, WordBits: make([][]uint32, 256)}
+		for word := range b.WordBits {
+			b.WordBits[word] = make([]uint32, 40)
+			for bit := range b.WordBits[word] {
+				b.WordBits[word][bit] = uint32(32*7605 + block*10240 + word*40 + bit)
+			}
+		}
+		m.Blocks = append(m.Blocks, b)
+	}
+	mapping, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest = bytes.Replace(manifest, []byte("format = 2"), []byte("format = 4"), 1)
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.pong"`), []byte(`id = "fes.coleco"`), 1)
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.simple-game"`), []byte(`id = "fes.application"`), 1)
+	manifest = append(manifest, []byte(fmt.Sprintf("\n[[roms]]\nid = \"coleco-bios\"\nrole = \"firmware\"\nsource_size = 8192\nsource_offset = 0\n\n[[roms]]\nid = \"coleco-cart\"\nrole = \"cartridge\"\nsource_size = 131072\nsource_offset = 8192\n\n[rom_map]\nfile = \"rom-map.json\"\nsize = %d\nsha256 = \"%x\"\n", len(mapping), sha256.Sum256(mapping)))...)
+	var out bytes.Buffer
+	for _, member := range []struct {
+		name string
+		data []byte
+	}{{"manifest.toml", manifest}, {"core.rbf", payload}, {"rom-map.json", mapping}} {
+		h := make([]byte, 512)
+		copy(h, member.name)
+		copy(h[100:], "0000644\x00")
+		copy(h[108:], "0000000\x00")
+		copy(h[116:], "0000000\x00")
+		copy(h[124:], fmt.Sprintf("%011o\x00", len(member.data)))
+		copy(h[136:], "00000000000\x00")
+		copy(h[148:], "        ")
+		h[156] = '0'
+		copy(h[257:], "ustar\x00")
+		copy(h[263:], "00")
+		sum := 0
+		for _, v := range h {
+			sum += int(v)
+		}
+		copy(h[148:], fmt.Sprintf("%06o\x00 ", sum))
+		out.Write(h)
+		out.Write(member.data)
+		out.Write(make([]byte, (512-len(member.data)%512)%512))
+	}
+	out.Write(make([]byte, 1024))
+	return out.Bytes()
+}
+
+func TestColecoTwoROMLaunchRequiresBothPrivateSources(t *testing.T) {
+	ctx := context.Background()
+	// Full-size map validation is expensive under -race on shared CI runners.
+	// This test checks source admission and selection, not activation latency.
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "MegaCart test", 2*time.Minute)
+	if _, err := s.Launch(ctx, entry.GameID, nil); err == nil || client.coreCalls != 0 {
+		t.Fatalf("missing inputs reached target: %v", err)
+	}
+	cartridge := bytes.Repeat([]byte{0x34}, 131072)
+	cart, _, err := s.ImportCoreMedia(ctx, int64(len(cartridge)), bytes.NewReader(cartridge))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", cart.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	comps, err := s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || !comps[entry.GameID].ROMReady || comps[entry.GameID].FirmwareReady || !comps[entry.GameID].FirmwareRequired {
+		t.Fatalf("separate readiness: %+v %v", comps, err)
+	}
+	if _, err := s.Launch(ctx, entry.GameID, nil); err == nil || client.coreCalls != 0 {
+		t.Fatalf("missing BIOS reached target: %v", err)
+	}
+	bios := bytes.Repeat([]byte{0x12}, 8192)
+	firmware, _, err := s.ImportCoreMedia(ctx, int64(len(bios)), bytes.NewReader(bios))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, firmware.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, cart.MediaID); err == nil || client.coreCalls != 0 {
+		t.Fatalf("cartridge selected as BIOS: %v", err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", cart.MediaID, firmware.MediaID); err == nil || client.coreCalls != 0 {
+		t.Fatalf("BIOS selected as cartridge: %v", err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, strings.Repeat("0", 64), "coleco-cart", cart.MediaID, cart.MediaID); err == nil || client.coreCalls != 0 {
+		t.Fatalf("wrong package selected for cartridge: %v", err)
+	}
+	snapshot, err := s.captureLaunchSnapshot(entry.GameID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherCartridge := bytes.Repeat([]byte{0x78}, 131072)
+	otherCart, _, err := s.ImportCoreMedia(ctx, int64(len(otherCartridge)), bytes.NewReader(otherCartridge))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", cart.MediaID, otherCart.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.revalidateLaunchSnapshot(snapshot); !errors.Is(err, ErrLaunchSnapshot) || client.coreCalls != 0 {
+		t.Fatalf("changed title cartridge was not rejected before load: %v", err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", otherCart.MediaID, cart.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	comps, err = s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || !comps[entry.GameID].ROMReady || !comps[entry.GameID].FirmwareReady {
+		t.Fatalf("both ready: %+v %v", comps, err)
+	}
+	snapshot, err = s.captureLaunchSnapshot(entry.GameID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherBIOS := bytes.Repeat([]byte{0x56}, 8192)
+	other, _, err := s.ImportCoreMedia(ctx, int64(len(otherBIOS)), bytes.NewReader(otherBIOS))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, other.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.revalidateLaunchSnapshot(snapshot); !errors.Is(err, ErrLaunchSnapshot) || client.coreCalls != 0 {
+		t.Fatalf("changed household BIOS was not rejected before load: %v", err)
+	}
+	if _, err := s.SelectCoreFirmware(ctx, protocol.FirmwareRole, firmware.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	active := coreEntryActiveStatus(inspection, 7, false)
+	active.CorePackage.ROMLinks = &corepackage.ROMLinksIdentity{Sources: []corepackage.ROMSourceIdentity{{ID: "coleco-bios", Role: "firmware", SourceSHA256: firmware.MediaID, SourceSize: 8192}, {ID: "coleco-cart", Role: "cartridge", SourceSHA256: cart.MediaID, SourceSize: 131072}}, MapSHA256: inspection.Descriptor.ROMMap.SHA256, ProgrammedSHA256: inspection.Descriptor.Payload.SHA256, ProgrammedSize: inspection.Descriptor.Payload.Size}
+	client.coreLoad = func(_ context.Context, n int64, r io.Reader) (protocol.Status, error) {
+		body, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if int64(len(body)) != n || !corepackage.IsROMInputV2(body) {
+			t.Fatal("wrong two-source transport")
+		}
+		client.statusResult = active
+		return active, nil
+	}
+	if _, err := s.Launch(ctx, entry.GameID, nil); err != nil {
+		t.Fatalf("two-source launch: %v", err)
+	}
+	if client.coreCalls != 1 {
+		t.Fatalf("target calls: %d", client.coreCalls)
+	}
+}
 
 func libraryROMPackageFixture(t *testing.T, role string, transforms ...func([]byte) []byte) []byte {
 	t.Helper()

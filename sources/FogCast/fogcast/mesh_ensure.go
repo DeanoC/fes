@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
@@ -25,6 +26,7 @@ const (
 	launchSnapshotCompositionChanged = "composition changed"
 	launchSnapshotBoundNodeChanged   = "bound node changed"
 	launchSnapshotClientChanged      = "client changed"
+	launchSnapshotROMSourcesChanged  = "ROM sources changed"
 )
 
 // ErrLaunchSnapshot is the failure class when live state no longer
@@ -167,6 +169,49 @@ type launchSnapshot struct {
 	// Revalidation still checks that kit. It does not require the
 	// selected session to stay on this executor.
 	siblingExecutor bool
+	romSources      *twoROMSourceSnapshot
+}
+
+type twoROMSourceSnapshot struct {
+	packageID string
+	biosID    string
+	cartID    string
+}
+
+func (s *Service) captureTwoROMSources(gameID string) (*twoROMSourceSnapshot, error) {
+	entries, entryOK := s.catalog.(coreEntryCatalog)
+	firmware, firmwareOK := s.catalog.(coreFirmwareCatalog)
+	roms, romOK := s.catalog.(coreROMCatalog)
+	if !entryOK || !firmwareOK || !romOK {
+		return nil, nil
+	}
+	ctx := context.Background()
+	entry, err := entries.CoreEntry(ctx, gameID)
+	if errors.Is(err, catalog.ErrCoreEntryNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, mapCoreEntryError(err)
+	}
+	if entry.CoreID != "fes.coleco" {
+		return nil, nil
+	}
+	inspection, _, err := s.readInstalledCore(ctx, entry.PackageID)
+	if err != nil {
+		return nil, err
+	}
+	if inspection.Descriptor.Format != 4 {
+		return nil, nil
+	}
+	bios, err := firmware.CoreFirmware(ctx, protocol.FirmwareRole)
+	if err != nil {
+		return nil, mapCoreFirmwareError(err)
+	}
+	cart, err := roms.CoreEntryROM(ctx, gameID)
+	if err != nil {
+		return nil, romSelectionError(err)
+	}
+	return &twoROMSourceSnapshot{packageID: entry.PackageID, biosID: bios.MediaID, cartID: cart.MediaID}, nil
 }
 
 // captureLaunchSnapshot reads the target, the bound node, and the
@@ -184,10 +229,15 @@ func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, 
 	session := s.meshExecute
 	s.meshMu.Unlock()
 	requested := strings.TrimSpace(target)
+	romSources, err := s.captureTwoROMSources(gameID)
+	if err != nil {
+		return launchSnapshot{}, err
+	}
 	if session.Executor == nil {
-		return launchSnapshot{requested: requested, gameID: gameID}, nil
+		return launchSnapshot{requested: requested, gameID: gameID, romSources: romSources}, nil
 	}
 	snap := s.captureTargetLocked(session, requested)
+	snap.romSources = romSources
 	snap.frozen = true
 	snap.gameID = gameID
 	snap.boundNode = session.BoundNode
@@ -415,6 +465,15 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 func (s *Service) revalidateLaunchSnapshot(snap launchSnapshot) error {
 	if s == nil {
 		return nil
+	}
+	if snap.romSources != nil {
+		current, err := s.captureTwoROMSources(snap.gameID)
+		if err != nil {
+			return err
+		}
+		if current == nil || *current != *snap.romSources {
+			return snapshotMismatch(launchSnapshotROMSourcesChanged)
+		}
 	}
 	if !snap.frozen {
 		return s.bindLiveLaunchTarget(snap.requested)

@@ -24,6 +24,16 @@ SMS_LANE_ROWS = tuple(range(32, 56)) + ZX81_LANE_ROWS
 SG1000_LANE_ROWS = tuple(range(32, 48))
 
 
+def lane_locations(lanes: tuple[int | tuple[int, int], ...]) -> tuple[tuple[int, int], ...]:
+    if not lanes or len(lanes) > 256:
+        raise ValueError('invalid ROM lane selection')
+    locations = tuple((5, lane) if type(lane) is int else lane for lane in lanes)
+    if any(not isinstance(lane, tuple) or len(lane) != 2 or
+           any(type(value) is not int for value in lane) for lane in locations) or len(set(locations)) != len(locations):
+        raise ValueError('invalid ROM lane selection')
+    return locations
+
+
 def read_database(root: Path, pins: dict[str, str] | None = None) -> dict[str, bytes]:
     """Read a snapshot, rejecting linked paths and (for production) unpinned bytes."""
     result = {}
@@ -42,15 +52,14 @@ def read_database(root: Path, pins: dict[str, str] | None = None) -> dict[str, b
 
 def validate_routed_rom(routed: dict, lane_rows: tuple[int, ...] = ZX81_LANE_ROWS) -> None:
     """Require the actual routed BEL, lane shape and empty INIT for every bank."""
-    if not lane_rows or len(lane_rows) > 256 or len(lane_rows) != len(set(lane_rows)):
-        raise ValueError('invalid ROM lane selection')
+    locations = lane_locations(lane_rows)
     cells = routed.get('modules', {}).get('top', {}).get('cells', {})
     if not isinstance(cells, dict):
         raise ValueError('routed ROM cells missing')
-    for index, row in enumerate(lane_rows):
+    for index, (column, row) in enumerate(locations):
         name = f'machine.rom.lane{index}'
         cell = cells.get(name, {})
-        bel = f'MISTRAL_M10K.5.{row}.0'
+        bel = f'MISTRAL_M10K.{column}.{row}.0'
         if cell.get('type') != 'MISTRAL_M10K' or cell.get('attributes', {}).get('NEXTPNR_BEL') != bel:
             raise ValueError(f'routed ROM lane {name} must occupy {bel}')
         parameters = cell.get('parameters', {})
@@ -99,10 +108,10 @@ def parse_ram_offsets(text: str) -> list[list[tuple[int, int]]]:
 
 
 def rom_blocks(words: list[list[tuple[int, int]]], lane_rows: tuple[int, ...]) -> list[dict]:
-    return [dict(bel=f'M10K.005.{row:03d}', source_offset=index*1024,
-                 word_bits=[[(2+86*row+y)*SX120F.cram_sx+SX120F.x_to_bx[5]+x
+    return [dict(bel=f'M10K.{column:03d}.{row:03d}', source_offset=index*1024,
+                 word_bits=[[(2+86*row+y)*SX120F.cram_sx+SX120F.x_to_bx[column]+x
                              for x, y in word] for word in words])
-            for index, row in enumerate(lane_rows)]
+            for index, (column, row) in enumerate(lane_locations(lane_rows))]
 
 
 def _section(text: str, label: str) -> str:
@@ -114,9 +123,9 @@ def _section(text: str, label: str) -> str:
 
 def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *,
                   routed: dict | None = None,
-                  lane_rows: tuple[int, ...] = ZX81_LANE_ROWS) -> tuple[dict, dict]:
-    if not lane_rows or len(lane_rows) > 256 or len(lane_rows) != len(set(lane_rows)):
-        raise ValueError('invalid ROM lane selection')
+                  lane_rows: tuple[int | tuple[int, int], ...] = ZX81_LANE_ROWS,
+                  reserved_rect: tuple[int, int, int, int] | None = None) -> tuple[dict, dict]:
+    locations = lane_locations(lane_rows)
     if routed is not None:
         validate_routed_rom(routed, lane_rows)
     paths = DATABASE_FILES
@@ -124,7 +133,8 @@ def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *,
     die = sources[paths[1]].decode()
     columns = tuple(map(int, re.findall(r'\d+', _section(die, 'x to bit x'))))
     kinds = re.findall(r'T_\w+', _section(die, 'column types'))
-    if columns != SX120F.x_to_bx or len(kinds) <= 5 or kinds[5] != 'T_M10K':
+    if columns != SX120F.x_to_bx or any(column >= len(kinds) or kinds[column] != 'T_M10K'
+                                      for column, _ in locations):
         raise ValueError('Mistral sx120f column geometry differs from codec')
     if not re.search(r'7605\s*,\s*7024\s*,\s*// cram size', die):
         raise ValueError('Mistral sx120f CRAM geometry differs from codec')
@@ -132,21 +142,33 @@ def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *,
     if not spans:
         raise ValueError('Mistral sx120f site spans missing')
     numbers = [int(s, 0) for s in re.findall(r'0x[0-9a-f]+|\d+', spans[1])]
-    legal = set()
+    legal: set[tuple[int, int]] = set()
     while numbers and numbers[0] != 255:
         low, high, count = numbers[:3]
         if len(numbers) < 3+2*count:
             raise ValueError('truncated Mistral site spans')
-        if low <= 5 <= high:
-            for i in range(count):
-                legal.update(range(numbers[3+2*i], numbers[4+2*i]+1))
+        for column, _ in locations:
+            if low <= column <= high:
+                for i in range(count):
+                    legal.update((column, row) for row in range(numbers[3+2*i], numbers[4+2*i]+1))
         numbers = numbers[3+2*count:]
-    if len(lane_rows) != len(set(lane_rows)) or not set(lane_rows) <= legal:
+    if not set(locations) <= legal:
         raise ValueError('machine ROM placement is not legal in database')
     header = sources[paths[2]].decode()
     if not re.search(r'y\s*=\s*2\s*\+\s*86\s*\*\s*pos2y\(pos\)', header):
         raise ValueError('Mistral tile row geometry differs from codec')
     blocks = rom_blocks(parse_ram_offsets(sources[paths[0]].decode()), lane_rows)
+    destinations = set()
+    for block in blocks:
+        for word in block['word_bits']:
+            for bit in word:
+                if bit in destinations:
+                    raise ValueError('duplicate M10K RAM destination across lanes')
+                destinations.add(bit)
+                if reserved_rect is not None:
+                    x, y = bit % SX120F.cram_sx, bit // SX120F.cram_sx
+                    if reserved_rect[0] <= x < reserved_rect[2] and reserved_rect[1] <= y < reserved_rect[3]:
+                        raise ValueError('ROM destination overlaps reserved socket')
     loaded = rbf_load(base)
     for block in blocks:
         for word in block['word_bits']:

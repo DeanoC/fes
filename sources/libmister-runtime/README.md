@@ -34,6 +34,11 @@ Build and validate with `make all` and `make test`. See
 [stream media](docs/media-stream.md), and
 [core persistence](docs/core-persistence.md).
 
+The default build uses `-O2`, including appliance builds. Package admission
+hashes every sealed member; unoptimized hashing can exceed the target's bounded
+activation deadline for large ROM maps. An explicit `CXXFLAGS` still overrides
+the default for diagnostic builds.
+
 Format-3 package inspection validates the closed manifest/RBF/ROM-map file set,
 retains the map descriptor, and binds all three files to the package identity.
 The required ROM slot metadata is exposed in inspection. Map semantics and CRAM

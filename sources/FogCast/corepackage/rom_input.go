@@ -352,11 +352,29 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 			return err
 		}
 	}
-	in, err := readROMInput(files["input.tar"])
-	if err != nil {
-		return err
+	var inspection Inspection
+	var programmed []byte
+	var bundle *CompositionBundle
+	var identity any
+	if IsROMInputV2(files["input.tar"]) {
+		prepared, readErr := readPreparedROMInputV2(files["input.tar"])
+		if readErr != nil {
+			return readErr
+		}
+		var links ROMLinksIdentity
+		inspection, links, programmed, bundle, err = linkPreparedROMInputV2(context.Background(), prepared)
+		identity = links
+		staged.ROMLinks = &links
+	} else {
+		in, readErr := readROMInput(files["input.tar"])
+		if readErr != nil {
+			return readErr
+		}
+		var link ROMLinkIdentity
+		inspection, link, programmed, bundle, err = linkROMInput(context.Background(), in)
+		identity = link
+		staged.ROMLink = &link
 	}
-	inspection, identity, programmed, bundle, err := linkROMInput(context.Background(), in)
 	if err != nil {
 		return err
 	}
@@ -381,7 +399,6 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 		return errors.New("ROM publication changed while adopting")
 	}
 	staged.companions = append(staged.companions, Staged{root: staged.root, rootInfo: staged.rootInfo, publication: name, publicationInfo: info})
-	staged.ROMLink = &identity
 	staged.ProgrammedPath = filepath.Join(staged.root, name, "programmed.rbf")
 	return nil
 }

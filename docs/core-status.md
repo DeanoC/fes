@@ -55,6 +55,14 @@ for its named Coleco v2 package and linked SGM probe. The bounded
 [retail-cartridge baseline](validation/2026-09-25-coleco-v2-retail-baseline.md)
 does not qualify a later bitstream or general game compatibility.
 
+The separate `fes.coleco` 1.3.0 MegaCart producer is a development lane. It
+requires an exact private 8 KiB BIOS and exact 128 KiB cartridge as two linked
+ROM inputs, with an optional SGM archive built against that exact shell. Its
+factory recipe and image selection are unchanged. The producer must pass a
+fresh authenticated route, all three timing gates, ROM-map authentication and
+socket containment before any package is imported; synthetic bank simulation
+does not qualify a retail mapper or a kit artifact.
+
 ## Not implemented, or not this package
 
 - ZX81 mid-session tape replace and eject use the same `fes.media.blob`

@@ -137,6 +137,7 @@ public:
 	std::string programmed_sha256_;
 	bool has_programmed_ = false;
 	CoreROMLink rom_link_;
+	CoreROMLinks rom_links_;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 };
 
@@ -685,6 +686,7 @@ Error NativeHardware::AttachProgrammedBitstream(AdmittedCorePackage* package,
 	if (!error.ok() || digest != sha256)
 		return {ErrorCode::invalid_request, "programmed bitstream does not match its receipt", "admission"};
 	admitted->rom_link_ = {};
+	admitted->rom_links_ = {};
 	admitted->programmed_ = std::move(artifact);
 	admitted->programmed_sha256_ = sha256;
 	admitted->has_programmed_ = true;
@@ -716,6 +718,38 @@ Error NativeHardware::AttachROMBitstream(AdmittedCorePackage* package,
 	return {};
 }
 
+Error NativeHardware::AttachROMsBitstream(AdmittedCorePackage* package,
+	const std::string& path, const CoreROMLinks& links)
+{
+	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	auto digest = [](const std::string& value) {
+		return value.size() == 64 && std::all_of(value.begin(), value.end(),
+			[](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); });
+	};
+	if (!admitted || admitted->opened_.descriptor.format != 4)
+		return {ErrorCode::invalid_request, "two-source ROM link requires format 4", "admission"};
+	const auto& descriptor = admitted->opened_.descriptor;
+	if (links.sources.size() != 2 || descriptor.roms.size() != 2 ||
+		links.map_sha256 != descriptor.rom_map.sha256 || !digest(links.map_sha256) ||
+		!digest(links.programmed_sha256) || links.programmed_size == 0)
+		return {ErrorCode::invalid_request, "two-source ROM link does not match package", "admission"};
+	for (std::size_t i = 0; i < 2; ++i) {
+		const auto& observed = links.sources[i];
+		const auto& required = descriptor.roms[i];
+		if (observed.id != required.id || observed.role != required.role ||
+			observed.source_size != required.source_size || !digest(observed.source_sha256))
+			return {ErrorCode::invalid_request, "ROM source identity does not match package", "admission"};
+	}
+	const Error attached = AttachProgrammedBitstream(package, path, links.programmed_sha256);
+	if (!attached.ok()) return attached;
+	if (admitted->programmed_.size() != links.programmed_size) {
+		admitted->has_programmed_ = false;
+		return {ErrorCode::invalid_request, "ROM programmed size does not match receipt", "admission"};
+	}
+	admitted->rom_links_ = links;
+	return {};
+}
+
 Error NativeHardware::RecheckProgrammedBitstream(AdmittedCorePackage* package)
 {
 	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
@@ -723,6 +757,9 @@ Error NativeHardware::RecheckProgrammedBitstream(AdmittedCorePackage* package)
 	if (admitted->opened_.descriptor.format == 3 &&
 		(!admitted->has_programmed_ || admitted->rom_link_.rom_id.empty()))
 		return {ErrorCode::unsupported_abi, "format-3 activation requires a bound ROM link", "admission"};
+	if (admitted->opened_.descriptor.format == 4 &&
+		(!admitted->has_programmed_ || admitted->rom_links_.sources.size() != 2))
+		return {ErrorCode::unsupported_abi, "format-4 activation requires two bound ROM sources", "admission"};
 	if (admitted->has_programmed_) {
 		std::string digest;
 		const Error error = HashOpenedArtifact(admitted->programmed_, &digest);

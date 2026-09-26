@@ -45,9 +45,11 @@ emit-verilog:
 fixtures:
 	$(PYTHON) scripts/core_bundle_fixtures.py
 	$(PYTHON) scripts/core_bundle_v3_fixtures.py
+	$(PYTHON) scripts/core_bundle_v4_fixtures.py
 	$(PYTHON) scripts/core_persistence_fixtures.py
 
 check-fixtures:
 	$(PYTHON) scripts/core_bundle_fixtures.py --check
 	$(PYTHON) scripts/core_bundle_v3_fixtures.py --check
+	$(PYTHON) scripts/core_bundle_v4_fixtures.py --check
 	$(PYTHON) scripts/core_persistence_fixtures.py --check

@@ -20,7 +20,7 @@ MISTER_RUNTIME_VERSION ?= git-$(shell git rev-parse --short=12 HEAD)$(VERSION_DI
 
 CPPFLAGS := -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include
 TEST_CPPFLAGS := $(CPPFLAGS) -Itests/support
-CXXFLAGS ?= -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP
+CXXFLAGS ?= -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP
 
 # GNU ar accepts -D (deterministic). BSD/Apple ar does not; ZERO_AR_DATE=1
 # already zeros timestamps on those implementations.

@@ -535,8 +535,8 @@ def export_package(manifest: bytes, payload: Path, destination: Path, *,
             manifest_fields["rom"] = dict(id=rom_id, role=rom_role, source_size=source_size,
                 file="rom-map.json", size=len(map_snapshot), sha256=hashlib.sha256(map_snapshot).hexdigest())
             manifest = encode_manifest(manifest_fields)
-        if (manifest_fields["format"] == 3) != (map_snapshot is not None):
-            raise PackageExportError("ROM map is required only for format-3 packages")
+        if (manifest_fields["format"] in (3, 4)) != (map_snapshot is not None):
+            raise PackageExportError("ROM map is required exactly for format-3/4 packages")
         if map_snapshot is not None:
             validate_rom_map(map_snapshot, manifest_fields)
     except PackageError as exc:
@@ -546,7 +546,8 @@ def export_package(manifest: bytes, payload: Path, destination: Path, *,
     record_fields = _decode_build_record(record)
     root = _verify_build_evidence(payload, record, record_fields, manifest_fields)
 
-    package_id = package_identity(manifest, snapshot, map_snapshot)
+    package_id = package_identity(manifest, snapshot, map_snapshot,
+                                  format_version=manifest_fields["format"])
     store = Path(destination)
     store.mkdir(parents=True, exist_ok=True)
     if store.is_symlink() or not store.is_dir():

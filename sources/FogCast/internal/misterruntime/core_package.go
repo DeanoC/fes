@@ -39,12 +39,13 @@ type Protocol2Observed struct {
 }
 
 type Protocol2ActivePackage struct {
-	ROMLink         *corepackage.ROMLinkIdentity `json:"rom_link,omitempty"`
-	Composition     *expansion.Composition       `json:"composition,omitempty"`
-	PersistenceMode string                       `json:"persistence_mode,omitempty"`
-	PackageID       string                       `json:"package_id"`
-	Descriptor      corepackage.Descriptor       `json:"descriptor"`
-	Observed        Protocol2Observed            `json:"observed"`
+	ROMLink         *corepackage.ROMLinkIdentity  `json:"rom_link,omitempty"`
+	ROMLinks        *corepackage.ROMLinksIdentity `json:"rom_links,omitempty"`
+	Composition     *expansion.Composition        `json:"composition,omitempty"`
+	PersistenceMode string                        `json:"persistence_mode,omitempty"`
+	PackageID       string                        `json:"package_id"`
+	Descriptor      corepackage.Descriptor        `json:"descriptor"`
+	Observed        Protocol2Observed             `json:"observed"`
 }
 
 type Protocol2Inspection struct {

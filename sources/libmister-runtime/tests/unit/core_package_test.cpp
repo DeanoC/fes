@@ -616,6 +616,37 @@ void TestSharedFormat3IdentityAndManifestFixtures()
 	}
 }
 
+void TestSharedFormat4TwoSourceFixture()
+{
+	const std::string root = "tests/fixtures/core-bundle-v4/";
+	const std::string manifest = ReadFile(root + "manifests/valid-basic.toml");
+	const std::string payload = ReadFile(root + "payloads/fes-fixture.rbf");
+	const std::string map = ReadFile(root + "maps/valid-basic.json");
+	TempDirectory package;
+	package.Add("manifest.toml", manifest);
+	package.Add("core.rbf", payload);
+	package.Add("rom-map.json", map);
+	mister::native::OpenedCorePackage opened;
+	const auto error = mister::native::OpenCorePackage(package.path,
+		"ed3e0c4b53492ed40c930ec8dd60b445a50072de529eb71013ae0a10e28b21ba", &opened);
+	assert(error.ok());
+	assert(opened.descriptor.format == 4);
+	assert(opened.descriptor.roms.size() == 2);
+	assert(opened.descriptor.roms[0].role == "firmware");
+	assert(opened.descriptor.roms[1].role == "cartridge");
+	assert(mister::native::RecheckCorePackage(opened).ok());
+	for (unsigned changed = 0; changed < 3; ++changed) {
+		TempDirectory tampered;
+		std::string member[] = {manifest, payload, map};
+		member[changed][member[changed].size() - 1] ^= 1;
+		tampered.Add("manifest.toml", member[0]);
+		tampered.Add("core.rbf", member[1]);
+		tampered.Add("rom-map.json", member[2]);
+		mister::native::OpenedCorePackage ignored;
+		assert(!mister::native::OpenCorePackage(tampered.path, "", &ignored).ok());
+	}
+}
+
 void TestFormat3IdentityAndRetainedMap()
 {
 	const std::string map = "{\"fixture\":true}\n";
@@ -678,6 +709,7 @@ void TestFormat3IdentityAndRetainedMap()
 
 int main()
 {
+	TestSharedFormat4TwoSourceFixture();
 	TestSharedFormat3IdentityAndManifestFixtures();
 	TestFormat3IdentityAndRetainedMap();
 	TestLinkedCartridgeRejectsResetHeldMediaContracts();

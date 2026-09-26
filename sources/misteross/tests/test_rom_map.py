@@ -18,6 +18,43 @@ def routed_rom():
 
 
 class ROMMapTests(unittest.TestCase):
+    def test_multi_column_lane_validation_and_socket_exclusion(self):
+        from scripts import rom_map
+        from scripts.cyclonev_rbf import SX120F
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        lanes = ((5, 73), (14, 73))
+        cells = {f'machine.rom.lane{i}': {'type': 'MISTRAL_M10K',
+                 'attributes': {'NEXTPNR_BEL': f'MISTRAL_M10K.{column}.{row}.0'},
+                 'parameters': {'CFG_ABITS': 10, 'CFG_DBITS': 10,
+                                'CFG_ASYNC_READ': 1, 'INIT': '0'*10240}}
+                 for i, (column, row) in enumerate(lanes)}
+        routed = {'modules': {'top': {'cells': cells}}}
+        rom_map.validate_routed_rom(routed, lanes)
+        cells['machine.rom.lane1']['attributes']['NEXTPNR_BEL'] = 'MISTRAL_M10K.5.74.0'
+        with self.assertRaisesRegex(ValueError, 'must occupy'):
+            rom_map.validate_routed_rom(routed, lanes)
+        cells['machine.rom.lane1']['attributes']['NEXTPNR_BEL'] = 'MISTRAL_M10K.14.73.0'
+        blocks = rom_map.rom_blocks(parse_ram_offsets(mux_text()), lanes)
+        self.assertEqual([block['bel'] for block in blocks], ['M10K.005.073', 'M10K.014.073'])
+        self.assertEqual(blocks[1]['source_offset'], 1024)
+        die = ('7605, 7024, // cram size\n// x to bit x\n{' +
+               ','.join(map(str, SX120F.x_to_bx)) + '}\n// column types\n{' +
+               ','.join('T_M10K' if i in (5, 14) else 'T_EMPTY' for i in range(15)) +
+               '}\nsx120f_bel_spans_info[] = {1, 14, 1, 73, 80, 0xff};')
+        source = {'data/m10k-mux.txt': mux_text().encode(),
+                  'libmistral/cvd-sx120f.cc': die.encode(),
+                  'libmistral/cyclonev.h': b'y = 2 + 86 * pos2y(pos);'}
+        cram = bytearray(b'\xff') * ((SX120F.cram_sx * SX120F.cram_sy + 7)//8)
+        with patch('scripts.rom_map.rbf_load', return_value=SimpleNamespace(cram=cram)):
+            mapping, _ = rom_map.build_rom_map(source, b'base', routed=routed,
+                                               lane_rows=lanes, reserved_rect=(1769, 32, 2806, 1800))
+            self.assertEqual(mapping['source_size'], 2048)
+            with self.assertRaisesRegex(ValueError, 'overlaps reserved socket'):
+                rom_map.build_rom_map(source, b'base', routed=routed,
+                                      lane_rows=lanes, reserved_rect=(SX120F.x_to_bx[14], 0,
+                                                                      SX120F.x_to_bx[14]+300, 7024))
+
     def test_sms_32k_map_uses_32_verified_blank_lanes(self):
         import hashlib
         from types import SimpleNamespace

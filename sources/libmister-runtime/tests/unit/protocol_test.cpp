@@ -572,6 +572,26 @@ void TestROMLoadProtocol()
 	}
 }
 
+void TestTwoSourceROMLoadProtocol()
+{
+	const std::string digest(64, 'a');
+	const std::string link = "{\"sources\":[{\"id\":\"coleco-bios\",\"role\":\"firmware\",\"source_sha256\":\"" + digest +
+		"\",\"source_size\":8192},{\"id\":\"coleco-cart\",\"role\":\"cartridge\",\"source_sha256\":\"" + digest +
+		"\",\"source_size\":131072}],\"map_sha256\":\"" + digest + "\",\"programmed_sha256\":\"" + digest +
+		"\",\"programmed_size\":40408}";
+	const std::string input = "{\"protocol\":2,\"operation\":\"load_rom_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"programmed_path\":\"/programmed.rbf\",\"rom_links\":" + link + "}";
+	Request request;
+	assert(Parse(input, &request).ok());
+	assert(request.rom_links.sources.size() == 2);
+	for (const auto& changed : {"131072", "source_sha256", "cartridge"}) {
+		auto bad = input;
+		const auto at = bad.find(changed);
+		bad.replace(at, std::string(changed).size(), "bad");
+		assert(!Parse(bad, &request).ok());
+	}
+}
+
 void TestCompositionProtocol()
 {
  const std::string id(64, 'a');
@@ -692,6 +712,7 @@ int main(int argc, char** argv)
 	assert(argc == 1);
 	TestFormat3InspectionSerialization();
 	TestROMLoadProtocol();
+	TestTwoSourceROMLoadProtocol();
 	TestCompositionProtocol();
 	TestControllerSnapshotRequest();
 	TestApplicationResponseFixtures();
