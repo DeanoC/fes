@@ -682,6 +682,10 @@ an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
 `POST /api/v1/session/input/event` instead of the sofa focus graph and do not
 steal browse or ZX81/session affinity; pointer browse stays off that session.
 Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
+A `fes.computer` session with `fes.keyboard.hid` 1.0 (`CoreKeyboardHID`)
+is the exception: `HandlePlayHIDScancode` forwards every SDL scancode that is a
+HID Keyboard/Keypad usage, including Esc, Backspace and `/`, with no chrome
+keys; Stop stays on the session chrome and the controller Select+Start chord.
 A `fes.keyboard` core maps those keys onto the ZX81 matrix. For exact
 `fes.coleco`, D-pad/left-stick and A/B events are mapped onto the Coleco P1
 keyboard bits while overlapping keyboard, D-pad, and axis holds remain joined.
@@ -1590,9 +1594,33 @@ remain held until commit. Existing simple-game/computer behavior is unchanged.
 These software contracts do not establish exact-image hardware acceptance or
 general keyboard/mouse support. Shared controller ports are described below.
 
+### Keyboard HID for home computers
+
+An active `fes.computer` 1.0 generation with `fes.keyboard.hid` 1.0 takes USB HID
+key state, not a machine-shaped matrix. Clients send physical keys as keyboard
+events whose code is `0x1000 + usage` (`internal/hidkeys`; usages 0x04..0x7f and
+the modifiers 0xe0..0xe7): the browser maps `KeyboardEvent.code`, tenfoot uses
+SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
+map; the core owns characters, shifted symbols, repeat and reset chords. The host
+attaches input for these sessions even without controller ports and passes the
+events through `POST /api/v1/session/input/event` and the host stream unchanged.
+The browser's **Capture keyboard** session action forwards every key, including
+Escape and Backspace, until **Release keyboard**; Stop stays the Stop button.
+
+mister-agent observes `CoreObservation.KeyboardHID` (package and generation) and
+routes keyboard frames to `internal/input/keyboard_hid.go`. Host-stream and
+kit-local holds are kept per source and posted as their union; posts are ordered
+and do not hold the controller-port lock. Each change posts all nine rows with
+`set_keyboard_hid` for the observed generation (the runtime writes only changed
+rows). Source release posts the remaining holds; lease expiry, core replacement
+and Stop neutralize best-effort, and the runtime itself neutralizes on Hold and
+Stop. Controller frames of the same session still use `set_controller` ports 0/1
+with `keypad:0`.
+
 ### Shared controller ports
 
-An observed `fes.gamepad.ports` 1.0 interface attaches the ordinary host session
+An observed `fes.gamepad.ports` 1.0 interface (under `fes.application` 1.0 or
+`fes.computer` 1.0) attaches the ordinary host session
 input stream and reports `core_package.gamepad: true`. It has two digital ports;
 optional `fes.keypad.ports` 1.0 adds a twelve-key mask on each port. Attachment
 uses exact observed interface versions, not a core-ID allowlist. A migrated
@@ -1642,9 +1670,12 @@ The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 060
 not another network endpoint, and there is no additional virtual-device discovery rule.
 Other cores retain the single virtual gamepad and keyboard sink.
 
-A pad or USB keyboard on the kit writes raw input frames to that socket. mister-agent
+A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
+frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent
 shapes them with `playhid.StreamEvent` from the runtime's controller-port and keyboard
 capabilities, then applies the same keypad Start/Select aliases as the host stream.
+HID sessions keep the usages; `fes.keyboard` and native cores first map a usage to the
+ZX81 matrix or arrow code the kit sent before HID, so those cores see the same keys.
 The socket is not an HTTP route and does not consult the kit lease, so a pad on the
 kit drives the running core whichever host launched it. Frames are delivered only
 while a runtime core is bound. Delivery takes the same input lifecycle lock as host

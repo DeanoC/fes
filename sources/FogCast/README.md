@@ -23,6 +23,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   `POST /api/v1/session/live-media` (`fogcast change-disk` / `eject-disk`)
   swaps or ejects it while the machine runs. See
   [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
+  Its keyboard is `fes.keyboard.hid`: the browser (**Capture keyboard**),
+  tenfoot and the kit forward physical keys as USB HID usages through
+  `set_keyboard_hid`, including Esc and Backspace; controllers use
+  `set_controller` ports 0/1. See
+  [keyboard HID](docs/ARCHITECTURE.md#keyboard-hid-for-home-computers).
   Host tests only; no Apple II kit evidence exists yet.
 
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
@@ -131,7 +136,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   claims affinity without restart, and unplug returns to a remaining device;
   an attached play session forwards USB keyboard HID to the core/session path
   instead of the sofa graph (ZX81 still uses the matrix; native SNES/MD encode
-  as gamepad buttons; Esc/Backspace still stop); pointer browse does
+  as gamepad buttons; Esc/Backspace still stop, except in `fes.keyboard.hid`
+  sessions, which receive every key as a USB HID usage); pointer browse does
   not steal that session, and a foreign or recovery-required kit lease fails closed. Mac is the primary sofa target;
   Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is

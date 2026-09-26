@@ -1451,7 +1451,7 @@ func inputEligibleStatus(status protocol.Status) bool {
 		return true
 	}
 	return (corePackageInputStatus(status) || resumedCoreDataStatus(status)) &&
-		(status.CorePackage.Gamepad || corePackageHasKeyboard(status))
+		(status.CorePackage.Gamepad || corePackageHasKeyboard(status) || protocol.KeyboardHIDCapable(status.CorePackage))
 }
 
 func corePackageHasKeyboard(status protocol.Status) bool {
