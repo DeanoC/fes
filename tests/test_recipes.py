@@ -64,7 +64,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.sms": {
                 "producer_script": "scripts/build_fes_sms_oss.py",
                 "producer_module": "scripts.build_fes_sms_oss",
-                "lock_path": "toolchains/registered-memory.lock",
+                "lock_path": "toolchains/fes-sms.lock",
                 "selection_filename": "fes-sms.package-selection.toml",
                 "authenticate": "_authenticate_sms_tools",
                 "package_dir_env": "FES_SMS_PACKAGE_DIR",
