@@ -955,7 +955,9 @@ func TestStalePortRepublishesWhileOtherPortInFlight(t *testing.T) {
 	holdPort0 := make(chan struct{})
 	holdPort1 := make(chan struct{})
 	enteredPort0 := make(chan struct{})
-	enteredPort1 := make(chan struct{})
+	// Buffered so the poster can record entry before the test is receiving.
+	// An unbuffered send with a default drops that signal under -race.
+	enteredPort1 := make(chan struct{}, 1)
 	var releasePort0 sync.Once
 	var releasePort1 sync.Once
 	release0 := func() { releasePort0.Do(func() { close(holdPort0) }) }
