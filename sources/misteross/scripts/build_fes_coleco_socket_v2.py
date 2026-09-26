@@ -35,8 +35,8 @@ COLECO_TOOLCHAIN_LOCK = TOOLCHAIN_LOCK
 PLACER_SEEDS = (3, 4, 5, 1, 2, 6, 7, 8, 9, 10)
 TOOL_COMMITS = {
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
-    "mistral": "18db2489a63bd9fcfbb7ba727ac194e767e7dce3",
-    "nextpnr": "f7370550adb324163ed24e54f7e6756a13569758",
+    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+    "nextpnr": "f65075bbc253b7c99e8b96169f4bc85320038329",
 }
 RTL_SOURCES = (*factory.RTL_SOURCES,
     "cores/fes-coleco/rtl/coleco_expansion_socket_v2.v",

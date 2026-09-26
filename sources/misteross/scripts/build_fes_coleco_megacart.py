@@ -30,8 +30,8 @@ ROM_LANES = tuple((5, row) for row in (*range(32, 56), *range(73, 81))) + tuple(
 assert len(ROM_LANES) == 136
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
-    "libmistral/cvd-sx120f.cc": "7acd2702c99680fea7cb76dc73efe4abc6d21f89e28c5b2b020454d917ae488d",
-    "libmistral/cyclonev.h": "4116ac42b8f1f37443d680ce5a15b27fb139f24467df756c1f164f6dc2015c8a",
+    "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
+    "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21",
 }
 RTL_SOURCES = (*socket.RTL_SOURCES, "cores/fes-coleco/rtl/coleco_megacart_rom.v")
 PINNED_INPUTS = tuple(dict.fromkeys((

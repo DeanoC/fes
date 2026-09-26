@@ -155,7 +155,7 @@ def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *,
     if not set(locations) <= legal:
         raise ValueError('machine ROM placement is not legal in database')
     header = sources[paths[2]].decode()
-    if not re.search(r'y\s*=\s*2\s*\+\s*86\s*\*\s*pos2y\(pos\)', header):
+    if not re.search(r'y\s*=\s*2\s*\+\s*86\s*\*\s*(?:pos2y\(pos\)|pos\.y\(\))', header):
         raise ValueError('Mistral tile row geometry differs from codec')
     blocks = rom_blocks(parse_ram_offsets(sources[paths[0]].decode()), lane_rows)
     destinations = set()
