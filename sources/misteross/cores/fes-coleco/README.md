@@ -543,7 +543,7 @@ Coleco v2 lock at `toolchains/coleco-sgm.lock` into
 `build/toolchain/fes-coleco-socket-v2`, enabling the HIP device backend for
 `gfx1100;gfx1201`. The selected OSS recipe uses Yosys
 `e2d425dee148cc60c50f4e9b354a10d90eab15f4`, nextpnr
-`f7370550adb324163ed24e54f7e6756a13569758`, `--router gpu`, and
+`f65075bbc253b7c99e8b96169f4bc85320038329` (Mistral `7ed06e21`), `--router gpu`, and
 seed 3 / HeAP weight 2000, with
 `--timing-allow-fail` and a 74.25 MHz request without `--tmg-ripup`; it rejects
 a CPU-reference fallback in the route log. The selected seed and weight are

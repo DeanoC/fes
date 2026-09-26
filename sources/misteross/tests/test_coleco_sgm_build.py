@@ -36,7 +36,7 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertIn("cores/fes-coleco/rtl/coleco_audio_mix.v", shell.PINNED_INPUTS)
         self.assertIn("cores/fes-coleco/rtl/coleco_expansion_socket_v2.v", shell.PINNED_INPUTS)
         self.assertEqual(shell.TOOL_COMMITS["nextpnr"],
-                         "f7370550adb324163ed24e54f7e6756a13569758")
+                         "f65075bbc253b7c99e8b96169f4bc85320038329")
         self.assertEqual(shell.TOOLCHAIN_LOCK, "toolchains/coleco-sgm.lock")
         with patch.object(shell, "functional_record_fields",
                           side_effect=lambda root, fields, *args, **kwargs: fields), \

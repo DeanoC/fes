@@ -23,13 +23,13 @@ TOP = 'top'
 OUTPUT_RELATIVE = Path('build/fes-zx81-oss')
 SOCKET_OUTPUT_RELATIVE = OUTPUT_RELATIVE
 SOCKET_TOOLCHAIN_LOCK = 'toolchains/zx81-expansion.lock'
-SOCKET_TOOL_COMMITS = {'yosys': 'ec34fcf38986217af9b5558936044b7197d968a7', 'mistral': '18db2489a63bd9fcfbb7ba727ac194e767e7dce3', 'nextpnr': '74f26cc1a5554a70cfca89be27850ec90f857030'}
+SOCKET_TOOL_COMMITS = {'yosys': 'ec34fcf38986217af9b5558936044b7197d968a7', 'mistral': '7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039', 'nextpnr': 'f65075bbc253b7c99e8b96169f4bc85320038329'}
 # SHA256 of Git blobs at SOCKET_TOOL_COMMITS['mistral']; source checkouts are
 # mutable and are not part of FunctionalInvocation's installed support closure.
 ROM_DATABASE_SHA256 = {
     'data/m10k-mux.txt': '22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe',
-    'libmistral/cvd-sx120f.cc': '7acd2702c99680fea7cb76dc73efe4abc6d21f89e28c5b2b020454d917ae488d',
-    'libmistral/cyclonev.h': '4116ac42b8f1f37443d680ce5a15b27fb139f24467df756c1f164f6dc2015c8a',
+    'libmistral/cvd-sx120f.cc': 'e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7',
+    'libmistral/cyclonev.h': '48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21',
 }
 RECIPE = 'scripts/build_fes_zx81_oss.py'
 ABI_DEFINITION = 'cores/fes-zx81/generated/fes_simple_computer.vh'

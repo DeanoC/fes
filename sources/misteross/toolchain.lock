@@ -6,15 +6,15 @@ rationale = "CMake build adds native Cyclone V M10K flow-through inference (merg
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
-commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
+commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
 order = 20
-rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing including byte masks and mixed-width TDP into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC fork master with the indexed-node routing API (rnode_coords/pnode_coords/xycoords labels, rnode_index handles) plus the fixes nextpnr f65075bb needs on it: implemented rnode_unlink (PR #9, MISTRAL_RNODE_UNLINK), timing target-position mask and restored hashed pnode/rnode lookups (PR #10). Carries the physical routing-mux, inverter and block-mux CRAM footprints (18db2489, af2ade0a) the FES shell/cart CRAM fence uses, and everything from b28e30a3. Fixed commit, not a moving branch; pair with nextpnr f65075bb, which no longer builds against the rnode_t API revisions."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "49ab82f54f801c6e0f3bdb2c3f53a33880c0bc94"
+commit = "f65075bbc253b7c99e8b96169f4bc85320038329"
 order = 30
-rationale = "Reviewed nextpnr PR #73 revision 30ac6f47 fixes MISTRAL_BUF pass-through LUT emission, adds explicit static-cart shell clocks, and preserves imported routed-shell memories and constant controls. Feature 49ab82f5 adds the cyclonev_hps_interface_fpga2sdram BEL at its single HPS site. Inherits freeze-scaffold d672fade and prior HIP routing, memory and PLL support. Published feature revision, not a merged upstream release. Pair with Yosys fb879d81 and unchanged Mistral b28e30a."
+rationale = "DeanoC nextpnr main after mistral-stable was merged into it and retired (docs/mistral-fork.md). Adds to 49ab82f5: analogue-scored candidate selection and robust analogue repair rounds for the GPU router (PR #81: ZX81 clk_sys signoff 45.4 -> 51.3-52.7 MHz, ColecoVision passes at the first analogue check, no more one-wire negotiation stalls), the exact-search repair check and calibration results (PR #82), the port to Mistral's indexed-node API (PR #83, fixes DeanoC/fes#229), the FES slot-region groups and cart fixes merged on mistral-stable since 49ab82f5. Inherits freeze-scaffold d672fade, the PR #73 MISTRAL_BUF fix and the fpga2sdram BEL. Published feature revision, not a merged upstream release. Pair with Yosys fb879d81 and Mistral 7ed06e21 (required)."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
