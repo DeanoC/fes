@@ -97,10 +97,12 @@ different reported identity is not claimed. Bind still rejects a
 replaced client or a changed address or TargetID. A lease this launch
 claimed is released when execution does not start and no other
 in-flight launch still holds it. A launch that starts execution keeps
-the grant for the session. A failed launch does not release a grant
-another launch adopted. A release that fails leaves the claim
-unsettled so it can be retried. A grant the session already held
-stays held. Ensure runs on that executor only when
+the grant and the new session bind. A launch that does not start
+execution restores the previous selected target, mesh bind, and origin
+hook, unless a later launch has already moved that field. A failed
+launch does not release a grant another launch adopted. A release
+that fails leaves the claim unsettled so it can be retried. A grant
+the session already held stays held. Ensure runs on that executor only when
 `[mesh] ensure` is already on. An unset key or `ensure = false`
 keeps Ensure off after the rebind and still binds the claimed kit.
 Picture and the pad stay on that kit. A menu-host preview is not the

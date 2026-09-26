@@ -182,6 +182,13 @@ type launchSnapshot struct {
 	// the placement grant, or when another launch still holds it. Nil
 	// when this launch did not claim one.
 	placementClaimSettled *bool
+	// placementKept is set when execution starts. LaunchOn restores
+	// the previous session when it stays false. Nil when this launch
+	// did not rebind the session.
+	placementKept *bool
+	// placementUndo is the session state from before this rebind.
+	// LaunchOn applies it when execution does not start.
+	placementUndo placementSessionUndo
 	// pinned is set when placement claimed a kit. Bind keeps that
 	// kit's target and client even if selectedTarget moves, including
 	// when no mesh executor is installed. Address, TargetID, enabled
@@ -710,9 +717,13 @@ func (s *Service) adoptPlacementClaim(client serviceClient, generation string) (
 	return false, nil
 }
 
-// settlePlacementClaim keeps the grant for the session once execution
-// has started. LaunchOn's failure defer then leaves it in place.
+// settlePlacementClaim keeps the grant and the rebound session once
+// execution has started. LaunchOn's failure defer then leaves both in
+// place.
 func (s *Service) settlePlacementClaim(snap launchSnapshot) {
+	if snap.placementKept != nil {
+		*snap.placementKept = true
+	}
 	if snap.placementClaimSettled == nil {
 		return
 	}

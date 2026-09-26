@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/protocol"
@@ -165,32 +166,57 @@ func (s *Service) rebindPlacementKit(ctx context.Context, snap launchSnapshot, c
 			return snap, meshcontent.ErrUnboundNode
 		}
 	}
-	s.installPlacementRebind(cfg, choice, exec, ensure)
+	snap.placementUndo = s.installPlacementRebind(cfg, choice, exec, ensure)
 	snap = retargetPlacementSnapshot(snap, cfg, choice, client, exec, ensure)
 	snap.placementClaimed = claimed
 	snap.placementGeneration = generation
 	return snap, nil
 }
 
-func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choice, exec meshcontent.Executor, ensure bool) {
+// placementSessionUndo is the session bind from before a placement
+// rebind. installedName is empty when this launch did not move the
+// session. A later launch that has already replaced either field is
+// left in place.
+type placementSessionUndo struct {
+	installedName string
+	installedNode string
+	selectedName  string
+	boundNode     string
+	placement     MeshPlacement
+	executor      meshcontent.Executor
+	installed     meshTargetIdentity
+	attached      meshcontent.Executor
+}
+
+func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choice, exec meshcontent.Executor, ensure bool) placementSessionUndo {
 	nodeID := choice.Execute
 	s.targetMu.Lock()
+	s.meshMu.Lock()
+	undo := placementSessionUndo{
+		installedName: cfg.Name,
+		installedNode: nodeID,
+		selectedName:  s.selectedTarget,
+		boundNode:     s.meshExecute.BoundNode,
+		placement:     s.meshExecute.Placement,
+		executor:      s.meshExecute.Executor,
+		installed:     s.meshInstalled,
+	}
 	previous := s.selectedTarget
 	s.selectedTarget = cfg.Name
 	origin := s.targetOrigin
 	lease := kitLeaseOf(s.targetClients[cfg.Name])
-	s.targetMu.Unlock()
-	s.meshMu.Lock()
 	s.meshExecute.BoundNode = nodeID
 	s.meshExecute.Placement = placementFromChoice(choice)
 	if ensure && exec != nil {
 		s.meshExecute.Executor = exec
 		s.meshInstalled = meshTargetIdentityOf(cfg.Name, cfg)
+		undo.attached = exec
 	} else if s.meshExecute.Executor != nil && s.meshExecute.Executor.NodeID() != nodeID {
 		s.meshExecute.Executor = nil
 		s.meshInstalled = meshTargetIdentity{}
 	}
 	s.meshMu.Unlock()
+	s.targetMu.Unlock()
 	// The origin hook is the production path that points CastStart at
 	// the selected kit. The lease is the grant just claimed, so media
 	// keeps the kit-lease header. Call the hook only after both locks
@@ -202,6 +228,57 @@ func (s *Service) installPlacementRebind(cfg TargetConfig, choice meshplace.Choi
 	if ensure && exec != nil {
 		s.attachMeshAuthorizer(MeshExecuteSession{BoundNode: nodeID, Executor: exec})
 	}
+	return undo
+}
+
+// restorePlacementSession puts back the bind from before this rebind
+// when execution did not start. A field a later launch has already
+// replaced stays as that launch left it. The origin hook runs only
+// after both locks are released.
+func (s *Service) restorePlacementSession(undo placementSessionUndo) {
+	if s == nil || undo.installedName == "" {
+		return
+	}
+	s.targetMu.Lock()
+	s.meshMu.Lock()
+	restoreTarget := s.selectedTarget == undo.installedName
+	restoreMesh := s.meshExecute.BoundNode == undo.installedNode
+	if restoreTarget {
+		s.selectedTarget = undo.selectedName
+	}
+	if restoreMesh {
+		s.meshExecute.BoundNode = undo.boundNode
+		s.meshExecute.Placement = undo.placement
+		s.meshExecute.Executor = undo.executor
+		s.meshInstalled = undo.installed
+	}
+	origin := s.targetOrigin
+	cfg := targetByName(s.targets, undo.selectedName)
+	lease := kitLeaseOf(s.targetClients[undo.selectedName])
+	s.meshMu.Unlock()
+	s.targetMu.Unlock()
+	if !restoreTarget && !restoreMesh {
+		return
+	}
+	if restoreTarget && origin != nil && undo.selectedName != undo.installedName {
+		origin(cfg, lease)
+	}
+	if restoreMesh && undo.attached != nil && undo.attached != undo.executor {
+		detachMeshAuthorizer(undo.attached)
+	}
+	if restoreMesh && undo.executor != nil {
+		s.attachMeshAuthorizer(MeshExecuteSession{BoundNode: undo.boundNode, Executor: undo.executor})
+	}
+}
+
+func detachMeshAuthorizer(exec meshcontent.Executor) {
+	setter, ok := exec.(interface {
+		SetMutationAuthorizer(kitcontent.MutationAuthorizer)
+	})
+	if !ok || setter == nil {
+		return
+	}
+	setter.SetMutationAuthorizer(nil)
 }
 
 func retargetPlacementSnapshot(snap launchSnapshot, cfg TargetConfig, choice meshplace.Choice, client serviceClient, exec meshcontent.Executor, ensure bool) launchSnapshot {

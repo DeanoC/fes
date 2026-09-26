@@ -615,7 +615,12 @@ type compositionMediaSession struct {
 	generation   uint64
 	mediaSet     *protocol.CastMediaSet
 	targetActive bool
-	handle       hostapi.MediaHandle
+	// liveCasts is the number of casts that started and have not
+	// stopped. A rebind replaces s.target before the next cast starts,
+	// so stopping the previous handle must not leave this flag set for
+	// a kit that never started one.
+	liveCasts int
+	handle    hostapi.MediaHandle
 }
 
 func newCompositionMediaSession(media hostapi.MediaSession, target targetCast, session, token string, generation uint64) *compositionMediaSession {
@@ -676,14 +681,12 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 			}
 		}
 		if err != nil || status.State != "active" || status.Session != session || status.Generation != generation {
-			s.mu.Lock()
-			s.targetActive = true
-			s.mu.Unlock()
+			s.noteCastStarted()
 			cleanupCtx, cancel := boundedTargetContext(context.Background())
 			_, cleanupErr := target.CastStop(cleanupCtx, session, generation)
 			cancel()
 			if cleanupErr == nil {
-				s.noteCastStopped(target)
+				s.noteCastStopped()
 				return nil, errors.New("target cast could not be started")
 			}
 			_, monitorCancel := context.WithCancel(context.Background())
@@ -695,9 +698,7 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 			s.mu.Unlock()
 			return owned, errors.New("target cast could not be started")
 		}
-		s.mu.Lock()
-		s.targetActive = true
-		s.mu.Unlock()
+		s.noteCastStarted()
 	}
 	handle, err := s.media.Start(ctx, gameID)
 	if err != nil || handle == nil {
@@ -709,7 +710,7 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 			cancel()
 			if targetErr == nil {
 				targetStopped = true
-				s.noteCastStopped(target)
+				s.noteCastStopped()
 			}
 		}
 		if err == nil {
@@ -743,17 +744,30 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 	return owned, nil
 }
 
-// noteCastStopped clears the session cast flag when target is still the
-// client this cast used. A rebind that already replaced the session
-// target keeps that newer cast's flag.
-func (s *compositionMediaSession) noteCastStopped(target targetCast) {
+// noteCastStarted records one cast this session has admitted.
+func (s *compositionMediaSession) noteCastStarted() {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
-	if s.target == target {
-		s.targetActive = false
+	s.liveCasts++
+	s.targetActive = true
+	s.mu.Unlock()
+}
+
+// noteCastStopped records that one admitted cast has stopped. The
+// session flag stays set while another cast is still running, and
+// clears when the last one stops, including after a rebind that has
+// not started a replacement cast.
+func (s *compositionMediaSession) noteCastStopped() {
+	if s == nil {
+		return
 	}
+	s.mu.Lock()
+	if s.liveCasts > 0 {
+		s.liveCasts--
+	}
+	s.targetActive = s.liveCasts > 0
 	s.mu.Unlock()
 }
 
@@ -780,6 +794,7 @@ func (s *compositionMediaSession) Close() error {
 		} else {
 			s.mu.Lock()
 			s.targetActive = false
+			s.liveCasts = 0
 			s.mu.Unlock()
 		}
 	}
@@ -823,7 +838,7 @@ func (h *compositionMediaHandle) Stop(ctx context.Context) error {
 			}
 		} else {
 			h.targetStopped = true
-			h.owner.noteCastStopped(target)
+			h.owner.noteCastStopped()
 		}
 	}
 	if target == nil {
@@ -881,7 +896,7 @@ func (h *compositionMediaHandle) monitor(ctx context.Context) {
 				h.mu.Lock()
 				h.targetStopped = true
 				h.mu.Unlock()
-				h.owner.noteCastStopped(target)
+				h.owner.noteCastStopped()
 				h.doneOnce.Do(func() { close(h.done) })
 				return
 			}

@@ -102,15 +102,13 @@ func TestPlacementOnBoundExecutorRecordsRolesAndKeepsBind(t *testing.T) {
 }
 
 func TestPlacementRebindClaimsTheSelectedFPGAKit(t *testing.T) {
-	want := MeshPlacement{Execute: "node-b", DisplaySink: "node-b", InputSource: "node-b"}
-
 	t.Run("only other eligible node", func(t *testing.T) {
 		service, exec := placementBoundService(t, true)
 		service.meshExecute.Placement = MeshPlacement{Execute: "node-a", DisplaySink: "node-a", InputSource: "node-a"}
 		spare := &releasingMeshClient{}
 		assertPlacementRebound(t, service, exec, spare, &MeshPlacementAsk{
 			Candidates: []meshplace.Candidate{placeFPGACandidate("node-b", true)},
-		}, want)
+		})
 	})
 
 	t.Run("preference selects another node", func(t *testing.T) {
@@ -122,7 +120,7 @@ func TestPlacementRebindClaimsTheSelectedFPGAKit(t *testing.T) {
 				placeFPGACandidate("node-a", true),
 				placeFPGACandidate("node-b", true),
 			},
-		}, want)
+		})
 	})
 
 	t.Run("override selects another node", func(t *testing.T) {
@@ -134,7 +132,7 @@ func TestPlacementRebindClaimsTheSelectedFPGAKit(t *testing.T) {
 				placeFPGACandidate("node-b", true),
 			},
 			OverrideNodeID: "node-b",
-		}, want)
+		})
 	})
 
 	t.Run("phase 0 selected target is not the selection", func(t *testing.T) {
@@ -153,13 +151,16 @@ func TestPlacementRebindClaimsTheSelectedFPGAKit(t *testing.T) {
 		if errors.Is(err, meshcontent.ErrUnboundNode) {
 			t.Fatal(err)
 		}
-		if boundName != "spare" || service.selectedTarget != "spare" {
+		if boundName != "spare" {
 			t.Fatalf("bound %q selected %q err %v", boundName, service.selectedTarget, err)
+		}
+		if service.selectedTarget != "dev" {
+			t.Fatalf("aborted launch left selected %q", service.selectedTarget)
 		}
 		if service.meshExecute.Executor != nil {
 			t.Fatal("phase 0 rebind installed an executor")
 		}
-		if got := service.MeshSessionPlacement(); got != want {
+		if got := service.MeshSessionPlacement(); got != (MeshPlacement{}) {
 			t.Fatalf("placement %+v", got)
 		}
 		if service.meshEnsure || service.meshEnsureConfig {
@@ -192,17 +193,17 @@ func TestPlacementRebindEnsureOnUsesTheSelectedExecutor(t *testing.T) {
 	if errors.Is(err, meshcontent.ErrUnboundNode) || errors.Is(err, meshcontent.ErrLeaseNotFree) {
 		t.Fatalf("err %v", err)
 	}
-	if boundName != "spare" || service.selectedTarget != "spare" {
+	if boundName != "spare" {
 		t.Fatalf("bound %q selected %q err %v", boundName, service.selectedTarget, err)
 	}
-	if service.meshExecute.BoundNode != "node-b" || service.meshExecute.Executor != next {
-		t.Fatalf("session bound %q exec %v", service.meshExecute.BoundNode, service.meshExecute.Executor)
+	if service.selectedTarget != "dev" || service.meshExecute.BoundNode != "node-a" || service.meshExecute.Executor != old {
+		t.Fatalf("aborted session selected %q bound %q exec %v", service.selectedTarget, service.meshExecute.BoundNode, service.meshExecute.Executor)
 	}
 	if len(next.pulls) != 1 || next.pulls[0] != cart || len(old.pulls) != 0 {
 		t.Fatalf("next %+v old %+v", next.pulls, old.pulls)
 	}
-	if got := service.MeshSessionPlacement(); got != (MeshPlacement{Execute: "node-b", DisplaySink: "node-b", InputSource: "node-b"}) {
-		t.Fatalf("placement %+v", got)
+	if got := service.MeshSessionPlacement(); got.Execute == "node-b" {
+		t.Fatalf("aborted launch kept placement %+v", got)
 	}
 	if !service.meshEnsure || service.meshEnsureConfig {
 		t.Fatalf("ensure %v config %v", service.meshEnsure, service.meshEnsureConfig)
@@ -387,7 +388,7 @@ func TestPlacementRebindPreviewIsNotTheDisplaySink(t *testing.T) {
 	service.SetDisplayPreference("menu-host")
 	assertPlacementRebound(t, service, exec, spare, &MeshPlacementAsk{
 		Candidates: []meshplace.Candidate{menu, placeFPGACandidate("node-b", true)},
-	}, MeshPlacement{Execute: "node-b", DisplaySink: "node-b", InputSource: "node-b"})
+	})
 	got := service.MeshSessionPlacement()
 	if got.DisplaySink == "menu-host" || got.InputSource == "menu-host" || got.Execute == "menu-host" {
 		t.Fatalf("menu host became the sink %+v", got)
@@ -437,18 +438,22 @@ func TestCrossKitSelectedReadyLaunchesOnThatKit(t *testing.T) {
 	service.meshInstalled = meshTargetIdentityOf(service.selectedTarget, targetByName(service.targets, service.selectedTarget))
 	service.meshPlacementExecutors = map[string]meshcontent.Executor{"kit-b": next}
 	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, id: entry.TitleID}
+	beforeExec := service.meshExecute.Executor
 	boundName, err := launchAndObserveBind(t, service, entry.TitleID)
 	if errors.Is(err, meshcontent.ErrUnboundNode) || errors.Is(err, meshcontent.ErrLeaseNotFree) {
 		t.Fatalf("err %v", err)
 	}
-	if boundName != "spare" || service.meshExecute.BoundNode != "kit-b" || service.meshExecute.Executor != next {
-		t.Fatalf("bound %q session %q exec %v err %v", boundName, service.meshExecute.BoundNode, service.meshExecute.Executor, err)
+	if boundName != "spare" {
+		t.Fatalf("bound %q err %v", boundName, err)
+	}
+	if service.selectedTarget != "dev" || service.meshExecute.BoundNode != "kit-a" || service.meshExecute.Executor != beforeExec {
+		t.Fatalf("aborted session selected %q bound %q exec %v err %v", service.selectedTarget, service.meshExecute.BoundNode, service.meshExecute.Executor, err)
 	}
 	if len(next.pulls) != len(entry.ContentIDs()) {
 		t.Fatalf("pulls %+v", next.pulls)
 	}
-	if recorded := service.MeshSessionPlacement(); recorded.Execute != "kit-b" || recorded.DisplaySink != "kit-b" || recorded.InputSource != "kit-b" {
-		t.Fatalf("placement %+v", recorded)
+	if recorded := service.MeshSessionPlacement(); recorded.Execute == "kit-b" {
+		t.Fatalf("aborted launch kept placement %+v", recorded)
 	}
 	if !service.meshEnsure || service.meshEnsureConfig {
 		t.Fatalf("ensure %v config %v", service.meshEnsure, service.meshEnsureConfig)
@@ -476,14 +481,14 @@ func TestPlacementRebindDialsTheSelectedKit(t *testing.T) {
 	if hits.Load() == 0 {
 		t.Fatal("selected kit was not dialed")
 	}
-	if service.meshExecute.BoundNode != nodeB || service.meshExecute.Executor == nil || service.meshExecute.Executor.NodeID() != nodeB {
-		t.Fatalf("session bound %q exec %v", service.meshExecute.BoundNode, service.meshExecute.Executor)
+	if service.selectedTarget != "dev" || service.meshExecute.BoundNode != "node-a" || service.meshExecute.Executor != old {
+		t.Fatalf("aborted session selected %q bound %q exec %v err %v", service.selectedTarget, service.meshExecute.BoundNode, service.meshExecute.Executor, err)
 	}
-	if service.meshExecute.Executor == old || len(old.pulls) != 0 {
+	if len(old.pulls) != 0 {
 		t.Fatalf("old executor was used pulls %+v", old.pulls)
 	}
-	if service.selectedTarget != "spare" || !service.meshEnsure || service.meshEnsureConfig {
-		t.Fatalf("selected %q ensure %v config %v", service.selectedTarget, service.meshEnsure, service.meshEnsureConfig)
+	if !service.meshEnsure || service.meshEnsureConfig {
+		t.Fatalf("ensure %v config %v", service.meshEnsure, service.meshEnsureConfig)
 	}
 }
 
@@ -579,10 +584,10 @@ func TestPlacementRebindNotifiesTargetOrigin(t *testing.T) {
 	spare := &leasingMeshClient{lease: lease}
 	service.targetClients["spare"] = spare
 	var origins []TargetConfig
-	var originLease *targetclient.KitLease
+	var originLeases []*targetclient.KitLease
 	service.SetTargetOrigin(func(cfg TargetConfig, got *targetclient.KitLease) {
 		origins = append(origins, cfg)
-		originLease = got
+		originLeases = append(originLeases, got)
 	})
 	service.SetMeshPlacementAsk(&MeshPlacementAsk{
 		Candidates: []meshplace.Candidate{placeFPGACandidate("node-b", true)},
@@ -591,14 +596,44 @@ func TestPlacementRebindNotifiesTargetOrigin(t *testing.T) {
 	if errors.Is(err, meshcontent.ErrUnboundNode) {
 		t.Fatal(err)
 	}
-	if len(origins) != 1 || origins[0].Name != "spare" || origins[0].TargetID != "node-b" {
+	if len(origins) != 2 || origins[0].Name != "spare" || origins[0].TargetID != "node-b" || origins[1].Name != "dev" {
 		t.Fatalf("origins %+v err %v", origins, err)
 	}
-	if originLease != lease {
-		t.Fatalf("origin lease %p, kit lease %p", originLease, lease)
+	if len(originLeases) != 2 || originLeases[0] != lease {
+		t.Fatalf("origin leases %v, kit lease %p", originLeases, lease)
+	}
+	if service.selectedTarget != "dev" {
+		t.Fatalf("aborted launch left selected %q", service.selectedTarget)
 	}
 	if service.meshEnsure || service.meshEnsureConfig {
 		t.Fatal("ensure flipped")
+	}
+}
+
+func TestPlacementAbortLeavesALaterSessionInPlace(t *testing.T) {
+	service := phase0PlacementService()
+	oldExec := &meshLaunchExecutor{node: "node-a"}
+	service.meshExecute.BoundNode = "node-a"
+	service.meshExecute.Executor = oldExec
+	service.meshExecute.Placement = MeshPlacement{Execute: "node-a", DisplaySink: "node-a", InputSource: "node-a"}
+	later := &meshLaunchExecutor{node: "node-c"}
+	service.selectedTarget = "third"
+	service.meshExecute.BoundNode = "node-c"
+	service.meshExecute.Executor = later
+	service.meshExecute.Placement = MeshPlacement{Execute: "node-c", DisplaySink: "node-c", InputSource: "node-c"}
+	service.restorePlacementSession(placementSessionUndo{
+		installedName: "spare",
+		installedNode: "node-b",
+		selectedName:  "dev",
+		boundNode:     "node-a",
+		placement:     MeshPlacement{Execute: "node-a", DisplaySink: "node-a", InputSource: "node-a"},
+		executor:      oldExec,
+	})
+	if service.selectedTarget != "third" || service.meshExecute.BoundNode != "node-c" || service.meshExecute.Executor != later {
+		t.Fatalf("later session selected %q bound %q exec %v", service.selectedTarget, service.meshExecute.BoundNode, service.meshExecute.Executor)
+	}
+	if got := service.MeshSessionPlacement(); got.Execute != "node-c" {
+		t.Fatalf("placement %+v", got)
 	}
 }
 
@@ -759,8 +794,8 @@ func TestPlacementRebindClaimsTheDiscoveredKit(t *testing.T) {
 	if errors.Is(err, meshcontent.ErrUnboundNode) {
 		t.Fatal(err)
 	}
-	if service.selectedTarget != "spare" {
-		t.Fatalf("selected %q err %v", service.selectedTarget, err)
+	if service.selectedTarget != "dev" {
+		t.Fatalf("aborted launch left selected %q err %v", service.selectedTarget, err)
 	}
 	if staleMutations.Load() != 0 || liveClaims.Load() != 1 {
 		t.Fatalf("stale mutations %d live claims %d", staleMutations.Load(), liveClaims.Load())
@@ -1055,22 +1090,28 @@ func assertPlacementKeptBind(t *testing.T, service *Service, exec *meshLaunchExe
 	}
 }
 
-func assertPlacementRebound(t *testing.T, service *Service, old *meshLaunchExecutor, spare *releasingMeshClient, ask *MeshPlacementAsk, want MeshPlacement) {
+func assertPlacementRebound(t *testing.T, service *Service, old *meshLaunchExecutor, spare *releasingMeshClient, ask *MeshPlacementAsk) {
 	t.Helper()
+	beforePlacement := service.MeshSessionPlacement()
+	beforeNode := service.meshExecute.BoundNode
+	beforeSelected := service.selectedTarget
 	service.targetClients["spare"] = spare
 	service.SetMeshPlacementAsk(ask)
 	boundName, err := launchAndObserveBind(t, service, "coleco-frogger")
 	if errors.Is(err, meshcontent.ErrUnboundNode) || errors.Is(err, meshcontent.ErrLeaseNotFree) {
 		t.Fatalf("rebind refused: %v", err)
 	}
-	if boundName != "spare" || service.selectedTarget != "spare" {
+	if boundName != "spare" {
 		t.Fatalf("bound %q selected %q err %v", boundName, service.selectedTarget, err)
 	}
-	if got := service.MeshSessionPlacement(); got != want {
-		t.Fatalf("placement %+v want %+v", got, want)
+	if service.selectedTarget != beforeSelected {
+		t.Fatalf("aborted launch left selected %q", service.selectedTarget)
 	}
-	if service.meshExecute.BoundNode != "node-b" || service.meshExecute.Executor != nil {
-		t.Fatalf("phase 0 session bound %q exec %v", service.meshExecute.BoundNode, service.meshExecute.Executor)
+	if got := service.MeshSessionPlacement(); got != beforePlacement {
+		t.Fatalf("placement %+v want restored %+v", got, beforePlacement)
+	}
+	if service.meshExecute.BoundNode != beforeNode || service.meshExecute.Executor != old {
+		t.Fatalf("session bound %q exec %v", service.meshExecute.BoundNode, service.meshExecute.Executor)
 	}
 	if len(old.pulls) != 0 || len(old.links) != 0 {
 		t.Fatalf("ensure ran on the old executor pulls %+v links %+v", old.pulls, old.links)

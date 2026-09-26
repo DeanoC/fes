@@ -1534,6 +1534,38 @@ func TestSetCastTargetKeepsTheClaimedKitLease(t *testing.T) {
 	}
 }
 
+func TestPinnedCastStopClearsActivityAfterRebind(t *testing.T) {
+	var stops int
+	replacement := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/cast/stop" {
+			stops++
+		}
+		http.NotFound(w, r)
+	}))
+	defer replacement.Close()
+	local := &compositionDirectMediaHandle{done: make(chan struct{})}
+	original := &compositionTargetCast{}
+	session := newCompositionMediaSession(compositionDirectMediaSession{handle: local}, original, "session", "token", 9)
+	handle, err := session.Start(context.Background(), "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session.SetCastTarget(fogcast.TargetConfig{Name: "spare", Address: replacement.URL, Agent: "token-b"}, nil)
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("stop = %v", err)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatalf("close = %v", err)
+	}
+	started, stopped := original.counts()
+	if started != 1 || stopped != 1 {
+		t.Fatalf("original cast started %d stopped %d", started, stopped)
+	}
+	if stops != 0 {
+		t.Fatalf("replacement cast stops %d", stops)
+	}
+}
+
 func TestStopServiceForShutdownRetriesAndPropagatesFirstFailure(t *testing.T) {
 	first := errors.New("host stop failed")
 	service := &shutdownCompositionService{stopErrs: []error{first, nil}, shutdownCleanup: true}

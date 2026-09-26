@@ -902,12 +902,23 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	// launch reaches execution. Ensure failure releases it and settles
 	// the flag only when that release succeeds. A failed release stays
 	// unsettled so this defer can retry it. A grant the session already
-	// held is not placementClaimed.
+	// held is not placementClaimed. A rebind that does not start
+	// execution restores the previous session unless a later launch has
+	// already moved it.
 	var placementSettled bool
-	if snap.placementClaimed {
-		snap.placementClaimSettled = &placementSettled
+	var placementKept bool
+	if snap.placementClaimed || snap.placementUndo.installedName != "" {
+		if snap.placementClaimed {
+			snap.placementClaimSettled = &placementSettled
+		}
+		if snap.placementUndo.installedName != "" {
+			snap.placementKept = &placementKept
+		}
 		defer func() {
-			if placementSettled {
+			if snap.placementKept != nil && !placementKept {
+				s.restorePlacementSession(snap.placementUndo)
+			}
+			if !snap.placementClaimed || placementSettled {
 				return
 			}
 			if s.releaseClaimedContentLease(snap) {
