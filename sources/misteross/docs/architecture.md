@@ -689,6 +689,10 @@ pins nextpnr `469b6670` with frozen-scaffold BEL admission and bounded slot
 placement. The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
+The frozen v2 shell also pins a clock-only FF at `MISTRAL_FF.24.4.56` and
+validates its row 4 global-clock route. SGM scaffold preparation removes that
+FF cell while retaining the serialized clock branch, leaving its BEL available
+to the cart without dropping clock coverage.
 The v2 linker admits
 only an exact optional Coleco bus 2.0 shell and map `/2` archive, with no
 outside-rectangle CRAM exception. The enlarged development shell and SGM cart

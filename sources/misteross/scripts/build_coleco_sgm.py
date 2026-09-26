@@ -43,12 +43,16 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 def prepare_scaffold(source: Path, destination: Path) -> bytes:
-    """Drop unconnected PLL aliases rejected by the frozen-pin loader.
+    """Drop unconnected PLL aliases and the clock anchor before cart placement.
 
     The producer's routed JSON omits the second PLL output connection while
     retaining its physical pin map and routed net. Reattach that exact net to
     the existing physical `outclk[1]` pin. `outclk[0]` is an obsolete alias
     of `outclk` after packing and is the only pin-map entry removed.
+
+    The routed row 4 clock coverage anchor is checked before it is removed;
+    the clock net's serialized branch stays frozen while its BEL is freed for
+    the cart.
     """
     design = json.loads(source.read_text())
     top = design["modules"]["top"]
@@ -64,10 +68,13 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
             mapping["pins"].get(name) != value for name, value in aliases.items()):
         raise ValueError("Coleco PLL frozen pin map changed")
     output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
-    clock1 = top["cells"].get("system_clock.clocks_MISTRAL_CLKBUF_Q_1", {})
+    logical_clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
+    clock1 = [candidate for candidate in top["cells"].values()
+              if candidate.get("type") == "MISTRAL_CLKBUF" and
+              candidate.get("connections", {}).get("Q") == logical_clock1]
     if not isinstance(output1, list) or len(output1) != 1 or \
-            clock1.get("type") != "MISTRAL_CLKBUF" or \
-            clock1.get("connections", {}).get("A") != output1 or \
+            not isinstance(logical_clock1, list) or len(logical_clock1) != 1 or \
+            len(clock1) != 1 or clock1[0].get("connections", {}).get("A") != output1 or \
             cell.get("port_directions", {}).get("outclk") != "output":
         raise ValueError("Coleco frozen audio PLL net changed")
     cell["connections"]["outclk[1]"] = output1
@@ -81,6 +88,14 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
         if not isinstance(boundary, dict) or boundary.get("type") != "MISTRAL_FF" or \
                 boundary.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise ValueError(f"Coleco frozen boundary changed: {name}")
+    coverage_name = coleco_expansion.SOCKET_CLOCK_COVERAGE_CELL
+    coverage = top["cells"].get(coverage_name)
+    if not isinstance(coverage, dict) or coverage.get("type") != "MISTRAL_FF" or \
+            coverage.get("attributes", {}).get("NEXTPNR_BEL") != \
+            coleco_expansion.SOCKET_CLOCK_COVERAGE_BEL:
+        raise ValueError("Coleco frozen clock coverage anchor changed")
+    coleco_expansion.validate_v2_clock_coverage_route(top)
+    del top["cells"][coverage_name]
     encoded = (json.dumps(design, separators=(",", ":")) + "\n").encode()
     destination.write_bytes(encoded)
     return encoded

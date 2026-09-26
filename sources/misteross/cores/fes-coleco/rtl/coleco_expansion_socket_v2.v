@@ -22,6 +22,8 @@ module coleco_expansion_socket_v2 (
     (* keep, BEL = SITE *) MISTRAL_FF NAME ( \
         .CLK(clock), .DATAIN(D), .Q(QOUT), .ACLR(1'b1), .ENA(1'b1), \
         .SCLR(1'b0), .SLOAD(1'b0), .SDATA(1'b0));
+    (* keep *) wire clock_coverage_unused;
+    `COLECO_V2_SOCKET_FF(clock_coverage_ff, "MISTRAL_FF.24.4.56", 1'b0, clock_coverage_unused)
     `COLECO_V2_SOCKET_FF(plug_request_ff_0, "MISTRAL_FF.24.1.2", request[0], plug_request[0])
     `COLECO_V2_SOCKET_FF(plug_request_ff_1, "MISTRAL_FF.24.1.4", request[1], plug_request[1])
     `COLECO_V2_SOCKET_FF(plug_request_ff_2, "MISTRAL_FF.24.1.8", request[2], plug_request[2])

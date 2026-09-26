@@ -12,6 +12,20 @@ from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_coleco_sgm as sgm
 
 
+def clock_coverage_route_fixture():
+    entries = (
+        ("GCLK.0.36.3", "", "5"),
+        ("HCLK.16.4.5", "SCLKB2.16.4.5.HCLK.16.4.5", "5"),
+        ("HCLKB.16.4.5", "HCLK.16.4.5.HCLKB.16.4.5", "5"),
+        ("XCLKB1.24.4.5", "HCLKB.16.4.5.XCLKB1.24.4.5", "5"),
+        ("XCLKB2A.24.4.5", "XCLKB1.24.4.5.XCLKB2A.24.4.5", "5"),
+        ("TCLK.24.4.0", "XCLKB2A.24.4.5.TCLK.24.4.0", "5"),
+        ("WIRE.24.4.CLK0", "TCLK.24.4.0.WIRE.24.4.CLK0", "5"),
+        ("WIRE.24.4.CLKT[9]", "WIRE.24.4.CLK0.WIRE.24.4.CLKT[9]", "5"),
+    )
+    return ";".join(field for entry in entries for field in entry)
+
+
 class ColecoSgmBuildTest(unittest.TestCase):
     def test_v2_shell_accepts_factory_producer_arguments(self):
         output = Path("/tmp/fes-coleco-packages")
@@ -69,6 +83,8 @@ class ColecoSgmBuildTest(unittest.TestCase):
 
     def test_v2_netlist_rejects_wrong_response_placement(self):
         bels = coleco_expansion.socket_bels_v2()
+        coverage_bel = "MISTRAL_FF.24.4.56"
+        coverage_route = clock_coverage_route_fixture()
         design = {"modules": {"top": {"netnames": {
             "system_clock.pll_outclk": {"bits": [902]},
             "bus_request": {"bits": list(range(500, 531))},
@@ -86,6 +102,10 @@ class ColecoSgmBuildTest(unittest.TestCase):
                     "DATAIN": [bit + 500] if name.startswith("plug_addr") else ["0"],
                     "Q": [bit if name.startswith("plug_addr") else bit + 100]},
             }
+        cells["socket.clock_coverage_ff"] = {
+            "type": "MISTRAL_FF", "attributes": {"BEL": coverage_bel},
+            "connections": {"CLK": [900], "DATAIN": ["0"], "Q": [1000]},
+        }
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "synth.json"
             path.write_text(json.dumps(design))
@@ -99,18 +119,38 @@ class ColecoSgmBuildTest(unittest.TestCase):
             coleco_expansion.prepare_shell_netlist(path, version=2)
             changed = json.loads(path.read_text())["modules"]["top"]["cells"]
             self.assertIn("plug_rdata_ff_27", changed)
+            self.assertIn("clock_coverage_ff", changed)
             routed = {name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel}}
                       for name, bel in bels.items()}
-            path.write_text(json.dumps({"modules": {"top": {"cells": routed}}}))
+            routed["clock_coverage_ff"] = {
+                "type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": coverage_bel},
+                "connections": {"CLK": [2107]}}
+            routed_design = {"modules": {"top": {"cells": routed, "netnames": {
+                "system_clock.clocks[0]": {"bits": [2107],
+                                            "attributes": {"ROUTING": coverage_route}},
+            }}}}
+            path.write_text(json.dumps(routed_design))
             coleco_expansion.validate_routed_shell(path, version=2)
             routed["plug_rdata_ff_27"]["attributes"]["NEXTPNR_BEL"] = "MISTRAL_FF.28.6.2"
-            path.write_text(json.dumps({"modules": {"top": {"cells": routed}}}))
+            path.write_text(json.dumps(routed_design))
             with self.assertRaisesRegex(ValueError, "plug_rdata_ff_27"):
                 coleco_expansion.validate_routed_shell(path, version=2)
             routed["plug_rdata_ff_27"]["attributes"]["NEXTPNR_BEL"] = bels["plug_rdata_ff_27"]
+            del routed["clock_coverage_ff"]
+            path.write_text(json.dumps(routed_design))
+            with self.assertRaisesRegex(ValueError, "clock_coverage_ff"):
+                coleco_expansion.validate_routed_shell(path, version=2)
+            routed["clock_coverage_ff"] = {
+                "type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": coverage_bel},
+                "connections": {"CLK": [2107]}}
+            routed_design["modules"]["top"]["netnames"]["system_clock.clocks[0]"]["attributes"]["ROUTING"] = ""
+            path.write_text(json.dumps(routed_design))
+            with self.assertRaisesRegex(ValueError, "clock coverage"):
+                coleco_expansion.validate_routed_shell(path, version=2)
+            routed_design["modules"]["top"]["netnames"]["system_clock.clocks[0]"]["attributes"]["ROUTING"] = coverage_route
             routed["intruding_shell_cell"] = {"type": "MISTRAL_COMB", "attributes": {
                 "NEXTPNR_BEL": "MISTRAL_COMB.24.19.0"}}
-            path.write_text(json.dumps({"modules": {"top": {"cells": routed}}}))
+            path.write_text(json.dumps(routed_design))
             with self.assertRaisesRegex(ValueError, "intruding_shell_cell"):
                 coleco_expansion.validate_routed_shell(path, version=2)
             del routed["intruding_shell_cell"]
@@ -125,6 +165,43 @@ class ColecoSgmBuildTest(unittest.TestCase):
             path.write_text(json.dumps(malformed))
             with self.assertRaisesRegex(ValueError, "plug_addr_ff_30"):
                 coleco_expansion.prepare_shell_netlist(path, version=2)
+
+    def test_sgm_scaffold_frees_clock_anchor_and_keeps_its_route(self):
+        bels = coleco_expansion.socket_bels_v2()
+        route = clock_coverage_route_fixture()
+        pins = {name: [0, name] for name in ("locked", "outclk", "refclk", "rst")}
+        pins.update({f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)})
+        pll = {
+            "type": "altera_pll",
+            "attributes": {"FES_PINMAP_V1": json.dumps({"count": 6, "pins": pins}).encode().hex()},
+            "connections": {"locked": [1], "outclk": [2], "refclk": [3]},
+            "port_directions": {"outclk": "output"},
+        }
+        cells = {
+            "system_clock.pll": pll,
+            "system_clock.clocks_MISTRAL_CLKBUF_Q_1": {
+                "type": "MISTRAL_CLKBUF", "connections": {"A": [2], "Q": [2107]}},
+            "system_clock.clocks_MISTRAL_CLKBUF_Q": {
+                "type": "MISTRAL_CLKBUF", "connections": {"A": [901], "Q": [904]}},
+        }
+        cells.update({name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel}}
+                      for name, bel in bels.items()})
+        cells["clock_coverage_ff"] = {
+            "type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": "MISTRAL_FF.24.4.56"},
+            "connections": {"CLK": [2107]}}
+        design = {"modules": {"top": {"cells": cells, "netnames": {
+            "system_clock.pll_outclk_1": {"bits": [901]},
+            "system_clock.clocks[1]": {"bits": [904]},
+            "system_clock.clocks[0]": {"bits": [2107], "attributes": {"ROUTING": route}},
+        }}}}
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "routed.json"
+            destination = Path(temporary) / "scaffold.json"
+            source.write_text(json.dumps(design))
+            sgm.prepare_scaffold(source, destination)
+            prepared = json.loads(destination.read_text())["modules"]["top"]
+            self.assertNotIn("clock_coverage_ff", prepared["cells"])
+            self.assertEqual(prepared["netnames"]["system_clock.clocks[0]"]["attributes"]["ROUTING"], route)
 
     def test_sgm_contract_rejects_unlisted_external_cram(self):
         changes = {"bits_inside_slot": 8, "bits_outside_slot": 1,
