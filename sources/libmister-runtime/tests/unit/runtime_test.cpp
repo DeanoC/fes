@@ -1034,8 +1034,163 @@ void TestCompositionUsesExistingLifecycle()
 	assert(f.runtime.status().active_package.composition.id.empty());
 }
 
+void UseComputerPackage(mister_test::FakeHardware& hardware)
+{
+	hardware.core_info.descriptor.core.id = "fes.apple2";
+	hardware.core_info.declared_core = "fes.apple2";
+	hardware.core_info.descriptor.abi = {"fes.computer", 1, 0};
+	hardware.core_info.descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true},
+		{"fes.keyboard.hid", 1, 0, true}, {"fes.gamepad.ports", 1, 0, true},
+		{"fes.media.apple2-floppy", 1, 0, true}, {"fes.expansion.apple2-bus", 1, 0, false}};
+	hardware.supported.abis.push_back({"fes.computer", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
+		{"fes.expansion.apple2-bus", 1, 0}, {"fes.gamepad.ports", 1, 0}, {"fes.keyboard.hid", 1, 0},
+		{"fes.media.apple2-floppy", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}});
+	mister::MediaUnitCapability unit;
+	unit.unit = 0;
+	unit.interface = {"fes.media.apple2-floppy", 1, 0};
+	unit.min_bytes = unit.max_bytes = 143360;
+	unit.chunk_bytes = 512;
+	hardware.supported.media_units = {unit};
+}
+
+void TestComputerKeyboardBindingSerializationAndFaults()
+{
+	Fixture f;
+	UseComputerPackage(f.hardware);
+	Start(f);
+	const std::string id(64, 'a');
+	mister::KeyboardHidRows rows{};
+	rows[0] = 0x0010;
+	rows[8] = 0x0002;
+	assert(f.runtime.SetKeyboardHid(id, 1, rows).code == ErrorCode::busy);
+	assert(f.runtime.LoadCore("/packages/apple2", id).ok());
+	const auto generation = f.runtime.status().generation;
+	assert(f.runtime.status().active_package.observed.abi.id == "fes.computer");
+	auto reserved = rows;
+	reserved[0] |= 0x0001;
+	auto modifier = rows;
+	modifier[8] = 0x0100;
+	assert(f.runtime.SetKeyboardHid(id, generation, reserved).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(id, generation, modifier).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(id, generation + 1, rows).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(std::string(64, 'b'), generation, rows).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetKeyboardHid(id, 0, rows).code == ErrorCode::invalid_request);
+	assert(f.hardware.keyboard_hid_calls == 0);
+	f.hardware.on_keyboard_hid = [&] {
+		assert(f.runtime.Stop().code == ErrorCode::busy);
+		assert(f.runtime.SetKeyboardHid(id, generation, rows).code == ErrorCode::busy);
+		assert(f.runtime.EjectMedia(id, generation, 0).code == ErrorCode::busy);
+	};
+	assert(f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.hardware.keyboard_hid_calls == 1 && f.hardware.keyboard_hid_rows == rows);
+	f.hardware.on_keyboard_hid = {};
+	f.hardware.keyboard_hid_result = {ErrorCode::unsupported_interface, "inactive", "input"};
+	assert(f.runtime.SetKeyboardHid(id, generation, rows).code == ErrorCode::unsupported_interface);
+	assert(f.runtime.status().state == State::running_development);
+	// A failed row exchange retires the generation like a controller fault.
+	f.hardware.keyboard_hid_result = {ErrorCode::io_failed, "partial HID snapshot", "input"};
+	assert(!f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(f.runtime, State::idle));
+	assert(f.runtime.status().error.message == "partial HID snapshot");
+	assert(f.runtime.status().capabilities.media_units.empty());
+	assert(f.runtime.SetKeyboardHid(id, generation, rows).code == ErrorCode::busy);
+
+	// Other ABIs, and computers without the keyboard, never reach hardware.
+	Fixture game;
+	Start(game);
+	assert(game.runtime.LoadCore("/packages/pong", id).ok());
+	const auto calls = game.hardware.keyboard_hid_calls;
+	assert(game.runtime.SetKeyboardHid(id, game.runtime.status().generation, rows).code ==
+		ErrorCode::unsupported_interface);
+	Fixture silent;
+	UseComputerPackage(silent.hardware);
+	silent.hardware.core_info.descriptor.interfaces.erase(
+		silent.hardware.core_info.descriptor.interfaces.begin() + 1);
+	Start(silent);
+	assert(silent.runtime.LoadCore("/packages/apple2", id).ok());
+	assert(silent.runtime.SetKeyboardHid(id, silent.runtime.status().generation, rows).code ==
+		ErrorCode::unsupported_interface);
+	assert(game.hardware.keyboard_hid_calls == calls && silent.hardware.keyboard_hid_calls == 0);
+}
+
+void TestComputerMediaUnitsStayLiveAndReportUnitState()
+{
+	Fixture f;
+	UseComputerPackage(f.hardware);
+	Start(f);
+	const std::string id(64, 'a');
+	assert(f.runtime.InsertMedia("/media/dos33.dsk", id, 1, 0, 143360).code == ErrorCode::busy);
+	assert(f.runtime.status().capabilities.media_units.empty());
+	assert(f.runtime.LoadCore("/packages/apple2", id).ok());
+	const auto generation = f.runtime.status().generation;
+	auto units = f.runtime.status().capabilities.media_units;
+	assert(units.size() == 1 && units[0].unit == 0 && units[0].state == mister::MediaUnitState::empty);
+	for (const auto& invalid : std::vector<std::pair<std::string, std::uint32_t>>{
+		{"relative.dsk", 143360}, {"/media/dos33.dsk", 0}, {"/media/dos33.dsk", 33554433}})
+		assert(f.runtime.InsertMedia(invalid.first, id, generation, 0, invalid.second).code ==
+			ErrorCode::invalid_request);
+	assert(f.runtime.InsertMedia("/media/dos33.dsk", id, generation, 8, 143360).code ==
+		ErrorCode::invalid_request);
+	assert(f.runtime.InsertMedia("/media/dos33.dsk", id, generation, 0, 143359).code ==
+		ErrorCode::invalid_request);
+	assert(f.runtime.InsertMedia("/media/dos33.dsk", id, generation, 1, 143360).code ==
+		ErrorCode::unsupported_interface);
+	assert(f.runtime.InsertMedia("/media/dos33.dsk", id, generation + 1, 0, 143360).code ==
+		ErrorCode::invalid_request);
+	assert(f.runtime.InsertMedia("/media/dos33.dsk", std::string(64, 'b'), generation, 0, 143360).code ==
+		ErrorCode::invalid_request);
+	assert(f.runtime.EjectMedia(id, generation, 1).code == ErrorCode::unsupported_interface);
+	assert(f.hardware.insert_media_calls == 0 && f.hardware.eject_media_calls == 0);
+	f.hardware.on_insert_media = [&] {
+		assert(f.runtime.Stop().code == ErrorCode::busy);
+		assert(f.runtime.SetKeyboardHid(id, generation, mister::KeyboardHidRows{}).code == ErrorCode::busy);
+		assert(f.runtime.InsertMedia("/media/dos33.dsk", id, generation, 0, 143360).code == ErrorCode::busy);
+		f.hardware.supported.media_units[0].state = mister::MediaUnitState::ready;
+	};
+	assert(f.runtime.InsertMedia("/media/dos33.dsk", id, generation, 0, 143360).ok());
+	assert(f.hardware.insert_media_calls == 1 && f.hardware.insert_media_unit == 0);
+	assert(f.hardware.insert_media_path == "/media/dos33.dsk" && f.hardware.insert_media_size == 143360);
+	assert(f.runtime.status().capabilities.media_units[0].state == mister::MediaUnitState::ready);
+	// A failed transfer reports its error and leaves the generation running.
+	f.hardware.on_insert_media = [&] {
+		f.hardware.supported.media_units[0].state = mister::MediaUnitState::loading;
+	};
+	f.hardware.insert_media_result = {ErrorCode::io_failed,
+		"transfer failed; media eject failed: unavailable", "input"};
+	const auto failed = f.runtime.InsertMedia("/media/other.dsk", id, generation, 0, 143360);
+	assert(failed.code == ErrorCode::io_failed && failed.phase == "input");
+	assert(f.runtime.status().state == State::running_development);
+	assert(f.runtime.status().generation == generation);
+	assert(f.runtime.status().capabilities.media_units[0].state == mister::MediaUnitState::loading);
+	assert(f.hardware.idle_calls == 1);
+	f.hardware.on_eject_media = [&] {
+		f.hardware.supported.media_units[0].state = mister::MediaUnitState::empty;
+	};
+	assert(f.runtime.EjectMedia(id, generation, 0).ok());
+	assert(f.hardware.eject_media_calls == 1 && f.hardware.eject_media_unit == 0);
+	assert(f.runtime.status().capabilities.media_units[0].state == mister::MediaUnitState::empty);
+	f.hardware.eject_media_result = {ErrorCode::io_failed, "eject failed", "input"};
+	assert(f.runtime.EjectMedia(id, generation, 0).code == ErrorCode::io_failed);
+	assert(f.runtime.status().state == State::running_development);
+	assert(f.runtime.Stop().ok());
+	assert(f.runtime.status().capabilities.media_units.empty());
+	assert(f.runtime.EjectMedia(id, generation, 0).code == ErrorCode::busy);
+
+	// Media units belong only to fes.computer generations.
+	Fixture game;
+	game.hardware.supported.media_units = f.hardware.supported.media_units;
+	Start(game);
+	assert(game.runtime.LoadCore("/packages/pong", id).ok());
+	assert(game.runtime.InsertMedia("/media/dos33.dsk", id, game.runtime.status().generation, 0,
+		143360).code == ErrorCode::unsupported_interface);
+	assert(game.hardware.insert_media_calls == 0);
+}
+
 int main()
 {
+	TestComputerKeyboardBindingSerializationAndFaults();
+	TestComputerMediaUnitsStayLiveAndReportUnitState();
 	TestCompositionUsesExistingLifecycle();
 	TestControllerSnapshotBindingAndFaultCleanup();
 	TestStreamBindingCapacityOwnershipAndStop();
@@ -1081,6 +1236,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 45 passed");
+	puts("runtime_test: 47 passed");
 	return 0;
 }

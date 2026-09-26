@@ -9,6 +9,7 @@
 #include "daemon/json.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/generated/fes_computer.hpp"
 
 namespace mister {
 namespace daemon {
@@ -120,6 +121,96 @@ Error ReadROMLinks(const json::Value& value, CoreROMLinks* result)
 		size->integer_value > 33554432) return Invalid("invalid ROM programmed identity");
 	parsed.map_sha256 = *map; parsed.programmed_sha256 = *programmed;
 	parsed.programmed_size = static_cast<std::uint64_t>(size->integer_value);
+	*result = std::move(parsed);
+	return {};
+}
+
+bool Generation(const json::Value* value, std::uint64_t* output)
+{
+	if (value != nullptr && value->type == json::Type::integer && value->integer_value > 0) {
+		*output = static_cast<std::uint64_t>(value->integer_value);
+		return true;
+	}
+	if (value != nullptr && value->type == json::Type::unsigned_integer) {
+		*output = value->unsigned_value;
+		return true;
+	}
+	return false;
+}
+
+bool BoundedInteger(const json::Value* value, std::int64_t minimum, std::int64_t maximum)
+{
+	return value != nullptr && value->type == json::Type::integer &&
+		value->integer_value >= minimum && value->integer_value <= maximum;
+}
+
+// Multi-slot composition: one {"slot","path"} per requested card, ascending,
+// bound to the slot tuple {"slot","expansion_id"} in the same order.
+Error ReadSlotComposition(const json::Value& root, const std::string& package_id,
+	CoreCompositionRequest* result)
+{
+	Error error;
+	const std::string* payload = nullptr;
+	if (!StringMember(root, "payload_path", &payload, &error)) return error;
+	if (!Path(*payload)) return Invalid("invalid composition paths or package identity");
+	const auto* list = Find(root, "expansions");
+	if (list == nullptr || list->type != json::Type::array || list->array.empty() ||
+		list->array.size() > 7)
+		return Invalid("expansions must list one to seven slots");
+	CoreCompositionRequest parsed;
+	parsed.payload_path = *payload;
+	std::int64_t previous = 0;
+	for (const auto& entry : list->array) {
+		if (entry.type != json::Type::object) return Invalid("expansion slot must be an object");
+		const char* const fields[] = {"slot", "path"};
+		if (!HasOnly(entry, fields, 2, &error)) return error;
+		const std::string* path = nullptr;
+		if (!StringMember(entry, "path", &path, &error)) return error;
+		const auto* slot = Find(entry, "slot");
+		if (!BoundedInteger(slot, previous + 1, 7) || !Path(*path))
+			return Invalid("expansion slots must ascend within 1..7 with absolute paths");
+		previous = slot->integer_value;
+		parsed.expansions.push_back({static_cast<std::uint8_t>(slot->integer_value), *path});
+	}
+	const auto* tuple = Find(root, "composition");
+	if (tuple == nullptr || tuple->type != json::Type::object)
+		return Invalid("composition must be an object");
+	const char* const tuple_fields[] = {"composition_id", "package_id", "expansions",
+		"shell_sha256", "payload_sha256", "payload_size"};
+	if (!HasOnly(*tuple, tuple_fields, 6, &error)) return error;
+	auto& composition = parsed.composition;
+	const char* const identities[] = {"composition_id", "package_id", "shell_sha256",
+		"payload_sha256"};
+	std::string* destinations[] = {&composition.id, &composition.package_id,
+		&composition.shell_sha256, &composition.payload_sha256};
+	for (unsigned index = 0; index < 4; ++index) {
+		const std::string* value = nullptr;
+		if (!StringMember(*tuple, identities[index], &value, &error)) return error;
+		if (!PackageID(*value)) return Invalid("composition identities must be lowercase SHA-256");
+		*destinations[index] = *value;
+	}
+	const auto* slots = Find(*tuple, "expansions");
+	if (slots == nullptr || slots->type != json::Type::array ||
+		slots->array.size() != parsed.expansions.size())
+		return Invalid("composition expansions must match the requested slots");
+	for (std::size_t index = 0; index < slots->array.size(); ++index) {
+		const auto& entry = slots->array[index];
+		if (entry.type != json::Type::object)
+			return Invalid("composition expansion must be an object");
+		const char* const fields[] = {"slot", "expansion_id"};
+		if (!HasOnly(entry, fields, 2, &error)) return error;
+		const std::string* expansion = nullptr;
+		if (!StringMember(entry, "expansion_id", &expansion, &error)) return error;
+		const auto* slot = Find(entry, "slot");
+		const std::uint8_t requested = parsed.expansions[index].slot;
+		if (!BoundedInteger(slot, requested, requested) || !PackageID(*expansion))
+			return Invalid("composition expansions must match the requested slots");
+		composition.expansions.push_back({requested, *expansion});
+	}
+	const auto* size = Find(*tuple, "payload_size");
+	if (!BoundedInteger(size, 40408, 32 * 1024 * 1024) || composition.package_id != package_id)
+		return Invalid("invalid composition size or package binding");
+	composition.payload_size = static_cast<std::uint64_t>(size->integer_value);
 	*result = std::move(parsed);
 	return {};
 }
@@ -395,6 +486,29 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 		output.Append(std::to_string(media.chunk_bytes));
 		output.Append("}");
 	}
+	// Present for every active fes.computer generation, empty without media.
+	if (status.generation != 0 && !status.active_package.package_id.empty() &&
+		status.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
+		output.Append(",\"media_units\":[");
+		for (std::size_t index = 0; index < status.capabilities.media_units.size(); ++index) {
+			const MediaUnitCapability& unit = status.capabilities.media_units[index];
+			if (index != 0) output.Append(',');
+			output.Append("{\"unit\":");
+			output.Append(std::to_string(unit.unit));
+			output.Append(",\"interface\":");
+			AppendSupportedInterface(&output, unit.interface);
+			output.Append(",\"min_bytes\":");
+			output.Append(std::to_string(unit.min_bytes));
+			output.Append(",\"max_bytes\":");
+			output.Append(std::to_string(unit.max_bytes));
+			output.Append(",\"chunk_bytes\":");
+			output.Append(std::to_string(unit.chunk_bytes));
+			output.Append(",\"state\":");
+			AppendQuoted(&output, MediaUnitStateName(unit.state));
+			output.Append("}");
+		}
+		output.Append("]");
+	}
 	output.Append("},\"active_package\":");
 	if (status.active_package.package_id.empty()) {
 		output.Append("null");
@@ -435,7 +549,20 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 			output.Append(",\"composition\":");
 			output.Append("{\"composition_id\":");AppendQuoted(&output,composition.id);
 			output.Append(",\"package_id\":");AppendQuoted(&output,composition.package_id);
-			output.Append(",\"expansion_id\":");AppendQuoted(&output,composition.expansion_id);
+			if (composition.expansions.empty()) {
+				output.Append(",\"expansion_id\":");AppendQuoted(&output,composition.expansion_id);
+			} else {
+				output.Append(",\"expansions\":[");
+				for (std::size_t i = 0; i < composition.expansions.size(); ++i) {
+					if (i != 0) output.Append(',');
+					output.Append("{\"slot\":");
+					output.Append(std::to_string(composition.expansions[i].slot));
+					output.Append(",\"expansion_id\":");
+					AppendQuoted(&output, composition.expansions[i].expansion_id);
+					output.Append("}");
+				}
+				output.Append("]");
+			}
 			output.Append(",\"shell_sha256\":");AppendQuoted(&output,composition.shell_sha256);
 			output.Append(",\"payload_sha256\":");AppendQuoted(&output,composition.payload_sha256);
 			output.Append(",\"payload_size\":");output.Append(std::to_string(composition.payload_size));
@@ -528,6 +655,21 @@ Error ParseRequest(const std::string& line, Request* request)
 			if (operation->string_value == "stop") parsed.operation = Operation::stop;
 			if (operation->string_value == "recover_idle")
 				parsed.operation = Operation::recover_idle;
+		} else if (operation->string_value == "load_composed_core" &&
+			Find(root, "expansions") != nullptr) {
+			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",
+				"expansions", "payload_path", "composition"};
+			if (!HasOnly(root, fields, 7, &error)) return error;
+			const std::string *path = nullptr, *id = nullptr;
+			if (!StringMember(root, "package_path", &path, &error) ||
+				!StringMember(root, "package_id", &id, &error)) return error;
+			if (!Path(*path) || !PackageID(*id))
+				return Invalid("invalid composition paths or package identity");
+			error = ReadSlotComposition(root, *id, &parsed.composition_request);
+			if (!error.ok()) return error;
+			parsed.operation = Operation::load_composed_core;
+			parsed.package_path = *path;
+			parsed.package_id = *id;
 		} else if (operation->string_value == "load_composed_core") {
 			const char* const fields[]={"protocol","operation","package_path","package_id","expansion_path","payload_path","composition"};
 			if (!HasOnly(root,fields,7,&error)) return error;
@@ -559,9 +701,10 @@ Error ParseRequest(const std::string& line, Request* request)
 			const bool library = operation->string_value == "load_rom_library_core";
 			const bool composed = operation->string_value == "load_rom_composed_core";
 			const bool two_sources = Find(root, "rom_links") != nullptr;
+			const bool slots = Find(root, "expansions") != nullptr;
 			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path",two_sources ? "rom_links" : "rom_link"};
 			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path",two_sources ? "rom_links" : "rom_link"};
-			const char* with_cart[] = {"protocol","operation","package_path","package_id","expansion_path","payload_path","composition","programmed_path",two_sources ? "rom_links" : "rom_link"};
+			const char* with_cart[] = {"protocol","operation","package_path","package_id",slots ? "expansions" : "expansion_path","payload_path","composition","programmed_path",two_sources ? "rom_links" : "rom_link"};
 			const char* const* fields = plain;
 			unsigned count = 6;
 			if (library) { fields = with_root; count = 7; }
@@ -605,7 +748,11 @@ Error ParseRequest(const std::string& line, Request* request)
 				parsed.data_root=*root_path;
 				parsed.operation = Operation::load_rom_library_core;
 			}
-			if (composed) {
+			if (composed && slots) {
+				error = ReadSlotComposition(root, *id, &parsed.composition_request);
+				if (!error.ok()) return error;
+				parsed.operation = Operation::load_rom_composed_core;
+			} else if (composed) {
 				const std::string *expansion=nullptr,*payload=nullptr;
 				if (!StringMember(root,"expansion_path",&expansion,&error) || !StringMember(root,"payload_path",&payload,&error) ||
 					!Path(*expansion) || !Path(*payload))
@@ -635,9 +782,10 @@ Error ParseRequest(const std::string& line, Request* request)
 			operation->string_value == "load_initialized_composed_core") {
 			const bool library = operation->string_value == "load_initialized_library_core";
 			const bool composed = operation->string_value == "load_initialized_composed_core";
+			const bool slots = Find(root, "expansions") != nullptr;
 			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path","programmed_sha256"};
 			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path","programmed_sha256"};
-			const char* with_cart[] = {"protocol","operation","package_path","package_id","expansion_path","payload_path","composition","programmed_path","programmed_sha256"};
+			const char* with_cart[] = {"protocol","operation","package_path","package_id",slots ? "expansions" : "expansion_path","payload_path","composition","programmed_path","programmed_sha256"};
 			const char* const* fields = plain;
 			unsigned count = 6;
 			if (library) { fields = with_root; count = 7; }
@@ -659,7 +807,11 @@ Error ParseRequest(const std::string& line, Request* request)
 				parsed.data_root=*root_path;
 				parsed.operation = Operation::load_initialized_library_core;
 			}
-			if (composed) {
+			if (composed && slots) {
+				error = ReadSlotComposition(root, *id, &parsed.composition_request);
+				if (!error.ok()) return error;
+				parsed.operation = Operation::load_initialized_composed_core;
+			} else if (composed) {
 				const std::string *expansion=nullptr,*payload=nullptr;
 				if (!StringMember(root,"expansion_path",&expansion,&error) || !StringMember(root,"payload_path",&payload,&error) ||
 					!Path(*expansion) || !Path(*payload))
@@ -794,6 +946,60 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.expected_generation = generation->type == json::Type::unsigned_integer ?
 				generation->unsigned_value : static_cast<std::uint64_t>(generation->integer_value);
 			parsed.media_size = static_cast<std::uint32_t>(size->integer_value);
+		} else if (operation->string_value == "set_keyboard_hid") {
+			using namespace native::generated;
+			const char* const fields[] = {"protocol", "operation", "package_id",
+				"expected_generation", "rows"};
+			if (!HasOnly(root, fields, 5, &error)) return error;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "package_id", &package, &error)) return error;
+			const auto* rows = Find(root, "rows");
+			if (!PackageID(*package) ||
+				!Generation(Find(root, "expected_generation"), &parsed.expected_generation) ||
+				rows == nullptr || rows->type != json::Type::array ||
+				rows->array.size() != FesComputerKeyboardRowCount)
+				return Invalid("invalid keyboard HID snapshot");
+			for (std::size_t row = 0; row < rows->array.size(); ++row) {
+				if (!BoundedInteger(&rows->array[row], 0, FesComputerKeyboardRowMask))
+					return Invalid("invalid keyboard HID snapshot");
+				parsed.keyboard_rows[row] = static_cast<std::uint16_t>(rows->array[row].integer_value);
+			}
+			if ((parsed.keyboard_rows[0] & FesComputerKeyboardReservedRow0Mask) != 0 ||
+				(parsed.keyboard_rows[FesComputerKeyboardModifierRow] &
+					~FesComputerKeyboardModifierMask) != 0)
+				return Invalid("invalid keyboard HID snapshot");
+			parsed.operation = Operation::set_keyboard_hid;
+			parsed.package_id = *package;
+		} else if (operation->string_value == "insert_media" ||
+			operation->string_value == "eject_media") {
+			using namespace native::generated;
+			const bool insert = operation->string_value == "insert_media";
+			const char* const insert_fields[] = {"protocol", "operation", "path",
+				"expected_package_id", "expected_generation", "unit", "size"};
+			const char* const eject_fields[] = {"protocol", "operation",
+				"expected_package_id", "expected_generation", "unit"};
+			if (!(insert ? HasOnly(root, insert_fields, 7, &error) :
+				HasOnly(root, eject_fields, 5, &error))) return error;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "expected_package_id", &package, &error)) return error;
+			const auto* unit = Find(root, "unit");
+			if (!PackageID(*package) ||
+				!Generation(Find(root, "expected_generation"), &parsed.expected_generation) ||
+				!BoundedInteger(unit, 0, FesComputerMediaUnitCount - 1))
+				return Invalid("invalid media unit binding");
+			if (insert) {
+				const std::string* path = nullptr;
+				if (!StringMember(root, "path", &path, &error)) return error;
+				const auto* size = Find(root, "size");
+				if (!Path(*path) ||
+					!BoundedInteger(size, FesComputerMediaMinBytes, FesComputerMediaMaxBytes))
+					return Invalid("invalid media unit path or size");
+				parsed.media_path = *path;
+				parsed.media_size = static_cast<std::uint32_t>(size->integer_value);
+			}
+			parsed.operation = insert ? Operation::insert_media : Operation::eject_media;
+			parsed.expected_package_id = *package;
+			parsed.media_unit = static_cast<std::uint8_t>(unit->integer_value);
 		} else if (operation->string_value == "load_firmware") {
 			const char* const fields[] = {"protocol", "operation", "path"};
 			if (!HasOnly(root, fields, 3, &error)) return error;

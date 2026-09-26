@@ -47,6 +47,44 @@ public:
 	std::vector<std::uint16_t> controller_snapshot;
 	std::function<void()> on_controller;
 	mister::Error controller_result;
+	mister::Error SetKeyboardHid(const mister::KeyboardHidRows& rows) override
+	{
+		++keyboard_hid_calls;
+		keyboard_hid_rows = rows;
+		if (on_keyboard_hid) on_keyboard_hid();
+		return keyboard_hid_result;
+	}
+	mister::Error InsertComputerMedia(std::uint8_t unit, const std::string& path,
+		std::uint32_t size) override
+	{
+		++insert_media_calls;
+		insert_media_unit = unit;
+		insert_media_path = path;
+		insert_media_size = size;
+		if (on_insert_media) on_insert_media();
+		return insert_media_result;
+	}
+	mister::Error EjectComputerMedia(std::uint8_t unit) override
+	{
+		++eject_media_calls;
+		eject_media_unit = unit;
+		if (on_eject_media) on_eject_media();
+		return eject_media_result;
+	}
+	int keyboard_hid_calls = 0;
+	mister::KeyboardHidRows keyboard_hid_rows{};
+	std::function<void()> on_keyboard_hid;
+	mister::Error keyboard_hid_result;
+	int insert_media_calls = 0;
+	std::uint8_t insert_media_unit = 0xff;
+	std::string insert_media_path;
+	std::uint32_t insert_media_size = 0;
+	std::function<void()> on_insert_media;
+	mister::Error insert_media_result;
+	int eject_media_calls = 0;
+	std::uint8_t eject_media_unit = 0xff;
+	std::function<void()> on_eject_media;
+	mister::Error eject_media_result;
 	mister::Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override
 	{
 		++media_stream_calls;
