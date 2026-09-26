@@ -76,26 +76,32 @@ func TestPhysicalEventCarriesHIDUsages(t *testing.T) {
 // exactly the keys the ZX81/arrow mapper produced before.
 func TestStreamEventKeepsLegacyCoresOnTheirKeys(t *testing.T) {
 	t.Parallel()
-	for linux := uint16(1); linux < 200; linux++ {
-		physical, ok := PhysicalEvent(linux, true)
-		if !ok {
-			continue
-		}
-		var legacy remoteinput.Event
-		legacyOK := false
-		if key, ok := zx81keys.FromLinuxKey(linux); ok {
-			legacy, legacyOK = keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, key, true), true
-		} else if code, ok := map[uint16]remoteinput.Code{103: remoteinput.KeyUp, 105: remoteinput.KeyLeft, 106: remoteinput.KeyRight, 108: remoteinput.KeyDown}[linux]; ok {
-			legacy, legacyOK = keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, code, true), true
-		}
-		for _, mode := range []KeyboardMode{MatrixKeys, NativeKeys} {
-			got, gotOK := StreamEvent(physical, mode)
-			want, wantOK := remoteinput.Event{}, false
-			if legacyOK {
-				want, wantOK = StreamEvent(legacy, mode)
+	arrows := map[uint16]remoteinput.Code{103: remoteinput.KeyUp, 105: remoteinput.KeyLeft, 106: remoteinput.KeyRight, 108: remoteinput.KeyDown}
+	// Every evdev KEY_* code, pressed and released: the pre-HID mapper
+	// (ZX81 matrix, then arrows) and the HID route must agree, including
+	// keys either side drops.
+	for linux := uint16(0); linux < 0x300; linux++ {
+		for _, down := range []bool{true, false} {
+			physical, physicalOK := PhysicalEvent(linux, down)
+			var legacy remoteinput.Event
+			legacyOK := false
+			if key, ok := zx81keys.FromLinuxKey(linux); ok {
+				legacy, legacyOK = keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, key, down), true
+			} else if code, ok := arrows[linux]; ok {
+				legacy, legacyOK = keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, code, down), true
 			}
-			if gotOK != wantOK || got != want {
-				t.Fatalf("KEY %d mode %d: got %+v/%v want %+v/%v", linux, mode, got, gotOK, want, wantOK)
+			for _, mode := range []KeyboardMode{MatrixKeys, NativeKeys} {
+				got, gotOK := remoteinput.Event{}, false
+				if physicalOK {
+					got, gotOK = StreamEvent(physical, mode)
+				}
+				want, wantOK := remoteinput.Event{}, false
+				if legacyOK {
+					want, wantOK = StreamEvent(legacy, mode)
+				}
+				if gotOK != wantOK || got != want {
+					t.Fatalf("KEY %d down=%v mode %d: got %+v/%v want %+v/%v", linux, down, mode, got, gotOK, want, wantOK)
+				}
 			}
 		}
 	}
