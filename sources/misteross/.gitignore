@@ -15,15 +15,18 @@ __pycache__/
 !cores/fes-zx81/generated/exchanges.json
 !cores/fes-sms/generated/stream-exchanges.json
 !docs/contracts/testdata/fes-media-stream-v1/exchanges.json
-# Canonical format-2 conformance inputs use generated-output extensions.
+# Canonical conformance inputs use generated-output extensions.
 !tests/fixtures/core-bundle-v2/cases.json
 !tests/fixtures/core-bundle-v3/**/*.json
 !tests/fixtures/core-bundle-v3/cases.json
+!tests/fixtures/core-bundle-v4/**/*.json
+!tests/fixtures/core-bundle-v4/cases.json
 !expansion/testdata/rom/oracle.json
 *.rbf
 !tests/fixtures/core-bundle-v2/payloads/empty.rbf
 !tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf
 !tests/fixtures/core-bundle-v3/payloads/*.rbf
+!tests/fixtures/core-bundle-v4/payloads/*.rbf
 !sealed/fes-splash.rbf
 !sealed/fes-splash.build-summary.json
 *.sof
