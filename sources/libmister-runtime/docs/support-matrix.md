@@ -12,6 +12,7 @@ Hardware-supported package paths: 0.
 | Mid-session ZX81 tape blob (no hold-reset) | covered | pending |
 | Described-core library persistence and retry | covered | pending |
 | Format-3 ROM-map inspection and receipt-bound activation | covered | none |
+| Format-4 two-ROM receipt-bound activation through production adapter | covered | pending exact-artifact diagnostic |
 | Static ZX81 and Coleco composition | covered | pending |
 | Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |

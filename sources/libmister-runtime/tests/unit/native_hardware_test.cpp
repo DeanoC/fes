@@ -1970,6 +1970,15 @@ void TestFormat4TwoSourceAdmissionBeforeMutation()
 	links.sources = {{"coleco-bios", "firmware", std::string(64, 'a'), 1024},
 		{"coleco-cart", "cartridge", std::string(64, 'b'), 1024}};
 	const std::string programmed = base.path + "/core.rbf";
+	// Exercise the actual production adapter as well as the native test fixture.
+	// Admission and attachment retain files without touching physical devices.
+	mister_test::CaptureLog production_log;
+	std::unique_ptr<mister::Hardware> production;
+	assert(mister::CreateProductionHardware(production_log, &production).ok());
+	std::unique_ptr<mister::AdmittedCorePackage> retained;
+	assert(fixture.native.hardware.AdmitCorePackage(package.path, opened.package_id, &retained).ok());
+	assert(production->AttachROMsBitstream(retained.get(), programmed, links).ok());
+	assert(production->RecheckProgrammedBitstream(retained.get()).ok());
 	for (unsigned mismatch = 0; mismatch < 6; ++mismatch) {
 		auto bad = links;
 		if (mismatch == 0) bad.sources.pop_back();
