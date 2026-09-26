@@ -454,6 +454,8 @@ make tenfoot-smoke
   keyboard HID uses this path; a foreign or recovery-required kit lease is
   fail-closed. `fes.keyboard` posts ZX81 matrix codes; native SNES/MD post
   gamepad buttons so reconnect replay cannot treat those keys as axes.
+  `fes.keyboard.hid` sessions post each SDL scancode as its HID usage
+  (code `0x1000 + usage`), including Esc, Backspace and `/`.
 - `POST /api/v1/session/stop` with `{"retain_lease":true}` so idle cleanup
   keeps the kit lease (rooms Soft-stop). Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set (East/B,
@@ -461,7 +463,8 @@ make tenfoot-smoke
   that in-flight Soft-stop. It then posts an empty body when the service is
   idle, or `{"release_idle":true}` when a play still survives, and retries a
   failed release. An empty body is not sent while a promoted play remains.
-  Esc/Backspace still stop while play HID is attached;
+  Esc/Backspace still stop while play HID is attached, except in
+  `fes.keyboard.hid` sessions where they are core keys;
   letter `s` stays a ZX81/core key on that path. SNES `save_failed` and other Stop errors that keep
   the session or lease retain launch lockout until a successful Stop.
 - `GET /api/v1/library/attract?limit=24` after idle. `idle_seconds` sets the

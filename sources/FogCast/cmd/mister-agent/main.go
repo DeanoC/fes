@@ -25,6 +25,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/flightdiag"
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/kitcontent"
@@ -152,6 +153,20 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 				return nativeRuntime.SetController(ctx, misterruntime.ControllerRequest{PackageID: packageID, Generation: generation, Port: port, Buttons: buttons, Keypad: keypad})
 			})
 		}
+		if hid, ok := controller.(interface {
+			SetKeyboardHIDPoster(input.KeyboardHIDPoster)
+		}); ok {
+			hid.SetKeyboardHIDPoster(func(ctx context.Context, packageID string, generation uint64, rows hidkeys.Rows) error {
+				if ctx == nil {
+					ctx = context.Background()
+				}
+				// Host posts arrive without a deadline; kit-local frames already
+				// carry the shorter local write bound.
+				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+				return nativeRuntime.SetKeyboardHID(ctx, packageID, generation, misterruntime.KeyboardHIDRows(rows))
+			})
+		}
 		if keys, ok := controller.(interface {
 			SetKeyboardPoster(func(context.Context, uint64) error)
 		}); ok {
@@ -196,7 +211,7 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 	if err != nil {
 		return input.CoreObservation{}, err
 	}
-	var ports, keypad, keyboard bool
+	var ports, keypad, keyboard, keyboardHID bool
 	for _, contract := range status.Capabilities.ActiveInterfaces {
 		if contract.Major != 1 || contract.Minor != 0 {
 			continue
@@ -208,10 +223,15 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 			keypad = true
 		case "fes.keyboard":
 			keyboard = true
+		case "fes.keyboard.hid":
+			keyboardHID = true
 		}
 	}
 	active := status.OK && status.State == "running_development" && status.ActivePackage != nil && status.Generation != nil && *status.Generation != 0
 	observation := input.CoreObservation{Active: active, Keyboard: keyboard}
+	if active && keyboardHID && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
+		observation.KeyboardHID = &input.KeyboardHIDBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
+	}
 	if !ports {
 		return observation, nil
 	}

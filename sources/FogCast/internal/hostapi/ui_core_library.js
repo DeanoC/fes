@@ -53,11 +53,16 @@
     const selectedPackage = () => state.packages.find(p => p.package_id === state.packageId);
     const selectedEntry = () => state.entries.find(e => e.game_id === state.entryId);
     function fail(error) { state.message = String(error.message || error); return emit(); }
-    function mediaAllowed() {
+    const MEDIA_ROLES = ['blob', 'disk'];
+    // The declared role (startup blob or removable disk) whose limits admit
+    // the imported media, or '' when none does.
+    function mediaRole() {
       const caps = state.capabilities;
-      return Boolean(state.media && caps && caps.package_id === state.packageId &&
-        caps.media.some(m => m.role === 'blob' && state.media.size >= m.min_bytes && state.media.size <= m.max_bytes));
+      const match = state.media && caps && caps.package_id === state.packageId &&
+        caps.media.find(m => MEDIA_ROLES.includes(m.role) && state.media.size >= m.min_bytes && state.media.size <= m.max_bytes);
+      return match ? match.role : '';
     }
+    function mediaAllowed() { return mediaRole() !== ''; }
     async function inventories(token) {
       const [packages, entries] = await Promise.all([
         request('/api/v1/core-packages'), request('/api/v1/library/core-entries')]);
@@ -81,7 +86,7 @@
       const value = await request('/api/v1/core-packages/' + id + '/media-capabilities');
       if (!value || value.package_id !== id || value.source !== 'declared-contract' ||
           value.compatibility !== 'unknown' || !Array.isArray(value.media) ||
-          !value.media.every(m => m.role === 'blob' && Number.isSafeInteger(m.min_bytes) &&
+          !value.media.every(m => MEDIA_ROLES.includes(m.role) && Number.isSafeInteger(m.min_bytes) &&
             Number.isSafeInteger(m.max_bytes) && m.min_bytes >= 1 && m.max_bytes >= m.min_bytes)) {
         throw new Error('Invalid declared media capabilities.');
       }
@@ -211,7 +216,7 @@
           if (!trimmed || new TextEncoder().encode(trimmed).length > 256) throw new Error('Title must contain 1–256 UTF-8 bytes.');
           if (state.media && !mediaAllowed()) throw new Error('Imported media is outside the declared limits; choose no media or another file.');
           const body = {title:trimmed, package_id:p.package_id};
-          if (state.media) Object.assign(body, {media_role:'blob', media_id:state.media.media_id});
+          if (state.media) Object.assign(body, {media_role:mediaRole(), media_id:state.media.media_id});
           const value = await request('/api/v1/library/core-entries', {method:'POST', ...json(body)});
           if (!validEntry(value)) throw new Error('Invalid entry response; refresh before continuing.');
           state.entryId = value.game_id;
@@ -229,7 +234,7 @@
         return entryMutation(entry => {
           if (entry.package_id !== state.packageId) throw new Error('Select the package first, then choose media.');
           if (!mediaAllowed()) throw new Error('Imported media is outside the selected package declared limits.');
-          return {expected_package_id:entry.package_id, expected_media_id:entry.media_id || '', media_role:'blob', media_id:state.media.media_id};
+          return {expected_package_id:entry.package_id, expected_media_id:entry.media_id || '', media_role:mediaRole(), media_id:state.media.media_id};
         }, '/media', 'Media selected for the next launch.');
       },
       clearEntryMedia() {

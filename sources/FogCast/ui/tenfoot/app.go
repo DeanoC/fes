@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -2085,10 +2086,40 @@ func (a *App) ForwardsCoreKeyboard() bool {
 }
 
 func (a *App) forwardsCoreKeyboardLocked() bool {
-	if !a.session.CoreKeyboard {
+	if !a.session.CoreKeyboard && !a.session.CoreKeyboardHID {
 		return false
 	}
 	return a.forwardsPlayHIDLocked()
+}
+
+// forwardsKeyboardHIDLocked reports an attached fes.keyboard.hid session.
+// Every physical key, including Esc and Backspace, goes to the core; Stop
+// stays on the session chrome and the controller Select+Start chord.
+func (a *App) forwardsKeyboardHIDLocked() bool {
+	return a.session.CoreKeyboardHID && a.forwardsPlayHIDLocked()
+}
+
+// HandlePlayHIDScancode consumes one USB key with its HID usage (an SDL
+// scancode is the Keyboard/Keypad usage). HID sessions forward the usage
+// without chrome keys or a character map; other sessions keep the named-key
+// path of HandlePlayHIDKey.
+func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now time.Time) bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	hid := a.forwardsKeyboardHIDLocked()
+	a.mu.Unlock()
+	if !hid {
+		return a.HandlePlayHIDKey(name, down, now)
+	}
+	if !a.ConsumePlayHID() {
+		return false
+	}
+	if event, ok := hidkeys.Event(usage, down); ok {
+		a.SendPlayHID(event)
+	}
+	return true
 }
 
 func (a *App) ForwardsPlayHID() bool {

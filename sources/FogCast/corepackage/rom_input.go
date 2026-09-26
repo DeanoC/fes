@@ -14,8 +14,9 @@ import (
 	"github.com/DeanoC/misteross/expansion"
 )
 
-// MaxROMInputSize bounds the package, source ROM, optional expansion and framing.
-const MaxROMInputSize = MaxArchiveSize + expansion.MaxArchiveBytes + (256 << 10) + 16384
+// MaxROMInputSize bounds the package, source ROM, one optional single-socket
+// expansion or up to MaxSlotCards slot cards, and framing.
+const MaxROMInputSize = MaxArchiveSize + MaxSlotCards*expansion.MaxArchiveBytes + (256 << 10) + 16384
 
 // ROMInput transports source bytes only. The target derives all programmed bytes
 // using the map sealed inside Package; callers cannot supply a map or bitstream.
@@ -23,6 +24,9 @@ type ROMInput struct {
 	Package   []byte
 	ROM       []byte
 	Expansion *expansion.Asset
+	// SlotExpansions are cards for a multi-socket shell, at most one per
+	// physical slot. They exclude the single-socket Expansion.
+	SlotExpansions []expansion.Asset
 }
 
 // ROMLinkIdentity binds an exact source ROM and sealed map to target-linked bytes.
@@ -43,14 +47,21 @@ func (r ROMLinkIdentity) ValidFor(d Descriptor) bool {
 		r.ProgrammedSize > 0 && r.ProgrammedSize <= MaxPayloadSize
 }
 
+// romInputReceipt binds the transported sources. With slot cards it also
+// carries the sender's link evidence: the v2 composition tuple and the
+// programmed digest, which the receiver compares after relinking.
 type romInputReceipt struct {
-	Format       int    `json:"format"`
-	PackageID    string `json:"package_id"`
-	ROMID        string `json:"rom_id"`
-	MapSHA256    string `json:"map_sha256"`
-	SourceSHA256 string `json:"source_sha256"`
-	SourceSize   int64  `json:"source_size"`
-	ExpansionID  string `json:"expansion_id,omitempty"`
+	Format           int                        `json:"format"`
+	PackageID        string                     `json:"package_id"`
+	ROMID            string                     `json:"rom_id"`
+	MapSHA256        string                     `json:"map_sha256"`
+	SourceSHA256     string                     `json:"source_sha256"`
+	SourceSize       int64                      `json:"source_size"`
+	ExpansionID      string                     `json:"expansion_id,omitempty"`
+	SlotExpansions   []expansion.SlotExpansion  `json:"slot_expansions,omitempty"`
+	Composition      *expansion.SlotComposition `json:"composition,omitempty"`
+	ProgrammedSHA256 string                     `json:"programmed_sha256,omitempty"`
+	ProgrammedSize   int64                      `json:"programmed_size,omitempty"`
 }
 
 func romDigest(data []byte) string { return fmt.Sprintf("%x", sha256.Sum256(data)) }
@@ -69,6 +80,9 @@ func inspectROMInput(in ROMInput) (Inspection, []byte, []byte, romInputReceipt, 
 	}
 	inspection := Inspection{PackageID: packageIdentity(manifest, payload, mapping), Descriptor: d}
 	receipt := romInputReceipt{Format: 1, PackageID: inspection.PackageID, ROMID: d.ROM.ID, MapSHA256: d.ROM.SHA256, SourceSHA256: romDigest(in.ROM), SourceSize: int64(len(in.ROM))}
+	if in.Expansion != nil && len(in.SlotExpansions) != 0 {
+		return Inspection{}, nil, nil, romInputReceipt{}, errors.New("ROM input carries either one expansion or slot cards")
+	}
 	if in.Expansion != nil {
 		shell, err := compositionShell(inspection, payload)
 		if err != nil {
@@ -78,6 +92,19 @@ func inspectROMInput(in ROMInput) (Inspection, []byte, []byte, romInputReceipt, 
 			return Inspection{}, nil, nil, romInputReceipt{}, err
 		}
 		receipt.ExpansionID = in.Expansion.ID
+	}
+	if len(in.SlotExpansions) != 0 {
+		if len(in.SlotExpansions) > MaxSlotCards {
+			return Inspection{}, nil, nil, romInputReceipt{}, errors.New("too many slot cards")
+		}
+		shell, err := slotCompositionShell(inspection, payload)
+		if err != nil {
+			return Inspection{}, nil, nil, romInputReceipt{}, err
+		}
+		if err = expansion.AdmitSlots(shell, in.SlotExpansions); err != nil {
+			return Inspection{}, nil, nil, romInputReceipt{}, err
+		}
+		receipt.SlotExpansions = slotExpansions(in.SlotExpansions)
 	}
 	return inspection, payload, mapping, receipt, nil
 }
@@ -94,138 +121,200 @@ func IsROMInput(data []byte) bool {
 	return string(name) == "rom-link.json"
 }
 
-// WriteROMInput validates source bindings and emits a canonical source-only archive.
+// WriteROMInput validates source bindings and emits a canonical archive of
+// the sources. Slot cards are linked here as well, and the receipt carries
+// that closed evidence for the receiver's independent relink.
 func WriteROMInput(in ROMInput) ([]byte, error) {
+	return WriteROMInputContext(context.Background(), in)
+}
+
+func WriteROMInputContext(ctx context.Context, in ROMInput) ([]byte, error) {
+	transport, err := PrepareROMInput(ctx, in)
+	return transport.Data, err
+}
+
+// ROMTransport is a closed ROM input and, for slot cards, the v2 composition
+// the sender linked. The receiver relinks and must reproduce it exactly.
+type ROMTransport struct {
+	Data            []byte
+	SlotComposition *expansion.SlotComposition
+}
+
+func PrepareROMInput(ctx context.Context, in ROMInput) (ROMTransport, error) {
 	_, _, _, receipt, err := inspectROMInput(in)
 	if err != nil {
-		return nil, err
+		return ROMTransport{}, err
 	}
+	if len(in.SlotExpansions) != 0 {
+		linked, err := linkROMInput(ctx, in, romInputReceipt{})
+		if err != nil {
+			return ROMTransport{}, err
+		}
+		receipt = linked.receipt
+	}
+	data, err := writeROMInputReceipt(in, receipt)
+	if err != nil {
+		return ROMTransport{}, err
+	}
+	return ROMTransport{Data: data, SlotComposition: receipt.Composition}, nil
+}
+
+func writeROMInputReceipt(in ROMInput, receipt romInputReceipt) ([]byte, error) {
 	encoded, err := json.Marshal(receipt)
 	if err != nil {
 		return nil, err
 	}
-	members := []struct {
-		name string
-		data []byte
-	}{{"rom-link.json", encoded}, {"package.tar", in.Package}, {"rom.bin", in.ROM}}
+	members := []canonicalMember{{"rom-link.json", encoded}, {"package.tar", in.Package}, {"rom.bin", in.ROM}}
 	if in.Expansion != nil {
 		var asset bytes.Buffer
 		if err = in.Expansion.Write(&asset); err != nil {
 			return nil, err
 		}
-		members = append(members, struct {
-			name string
-			data []byte
-		}{"expansion.tar", asset.Bytes()})
+		members = append(members, canonicalMember{"expansion.tar", asset.Bytes()})
 	}
-	var out bytes.Buffer
-	for _, member := range members {
-		out.Write(canonicalHeader(member.name, int64(len(member.data))))
-		out.Write(member.data)
-		out.Write(make([]byte, (512-len(member.data)%512)%512))
+	cards, err := slotAssetMembers(in.SlotExpansions)
+	if err != nil {
+		return nil, err
 	}
-	out.Write(make([]byte, 1024))
-	if out.Len() > MaxROMInputSize {
+	out, err := writeCanonicalMembers(append(members, cards...), MaxROMInputSize)
+	if err != nil {
 		return nil, errors.New("ROM input exceeds size limit")
 	}
-	return out.Bytes(), nil
+	return out, nil
 }
 
-func readROMInput(data []byte) (ROMInput, error) {
+// readROMInput validates closed framing and the source receipt. Slot link
+// evidence is returned for comparison after the receiver relinks.
+func readROMInput(data []byte) (ROMInput, romInputReceipt, error) {
 	if len(data) > MaxROMInputSize || !IsROMInput(data) {
-		return ROMInput{}, errors.New("invalid ROM input transport")
+		return ROMInput{}, romInputReceipt{}, errors.New("invalid ROM input transport")
 	}
-	offset := 0
-	read := func(name string, limit int64) ([]byte, error) {
-		if len(data)-offset < 512 {
-			return nil, errors.New("truncated ROM input")
-		}
-		header := data[offset : offset+512]
-		size, err := canonicalSize(header[124:136])
-		if err != nil || size < 1 || size > limit || !bytes.Equal(header, canonicalHeader(name, size)) {
-			return nil, fmt.Errorf("invalid ROM input member %s", name)
-		}
-		offset += 512
-		padded := int((size + 511) &^ 511)
-		if padded > len(data)-offset || !allZero(data[offset+int(size):offset+padded]) {
-			return nil, errors.New("invalid ROM input padding or length")
-		}
-		value := data[offset : offset+int(size)]
-		offset += padded
-		return value, nil
-	}
-	receipt, err := read("rom-link.json", 4096)
+	reader := &canonicalReader{data: data}
+	receiptBytes, err := reader.read("rom-link.json", 4096)
 	if err != nil {
-		return ROMInput{}, err
+		return ROMInput{}, romInputReceipt{}, err
 	}
-	pkg, err := read("package.tar", MaxArchiveSize)
+	pkg, err := reader.read("package.tar", MaxArchiveSize)
 	if err != nil {
-		return ROMInput{}, err
+		return ROMInput{}, romInputReceipt{}, err
 	}
-	rom, err := read("rom.bin", 256<<10)
+	rom, err := reader.read("rom.bin", 256<<10)
 	if err != nil {
-		return ROMInput{}, err
+		return ROMInput{}, romInputReceipt{}, err
 	}
 	in := ROMInput{Package: pkg, ROM: rom}
-	if len(data)-offset != 1024 {
-		encoded, err := read("expansion.tar", expansion.MaxArchiveBytes)
+	if reader.peek() == "expansion.tar" {
+		encoded, err := reader.read("expansion.tar", expansion.MaxArchiveBytes)
 		if err != nil {
-			return ROMInput{}, err
+			return ROMInput{}, romInputReceipt{}, err
 		}
 		asset, err := expansion.ReadAsset(bytes.NewReader(encoded))
 		if err != nil {
-			return ROMInput{}, err
+			return ROMInput{}, romInputReceipt{}, err
 		}
 		in.Expansion = &asset
+	} else if !reader.done() {
+		in.SlotExpansions, err = reader.readSlotAssets()
+		if err != nil {
+			return ROMInput{}, romInputReceipt{}, err
+		}
 	}
-	if len(data)-offset != 1024 || !allZero(data[offset:]) {
-		return ROMInput{}, errors.New("ROM input must end with exactly two zero blocks")
+	if err := reader.finish(); err != nil {
+		return ROMInput{}, romInputReceipt{}, errors.New("ROM input must end with exactly two zero blocks")
 	}
 	_, _, _, expected, err := inspectROMInput(in)
 	if err != nil {
-		return ROMInput{}, err
+		return ROMInput{}, romInputReceipt{}, err
+	}
+	if len(in.SlotExpansions) != 0 {
+		var sent romInputReceipt
+		decoder := json.NewDecoder(bytes.NewReader(receiptBytes))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&sent); err != nil {
+			return ROMInput{}, romInputReceipt{}, errors.New("ROM input receipt is invalid")
+		}
+		if sent.Composition == nil || sent.ProgrammedSHA256 == "" || sent.ProgrammedSize < 1 {
+			return ROMInput{}, romInputReceipt{}, errors.New("slot ROM input requires link evidence")
+		}
+		expected.Composition, expected.ProgrammedSHA256, expected.ProgrammedSize = sent.Composition, sent.ProgrammedSHA256, sent.ProgrammedSize
 	}
 	canonical, err := json.Marshal(expected)
 	if err != nil {
-		return ROMInput{}, err
+		return ROMInput{}, romInputReceipt{}, err
 	}
-	if !bytes.Equal(receipt, canonical) {
-		return ROMInput{}, errors.New("ROM input receipt differs from components")
+	if !bytes.Equal(receiptBytes, canonical) {
+		return ROMInput{}, romInputReceipt{}, errors.New("ROM input receipt differs from components")
 	}
-	return in, nil
+	return in, expected, nil
 }
 
-func linkROMInput(ctx context.Context, in ROMInput) (Inspection, ROMLinkIdentity, []byte, *CompositionBundle, error) {
+type romLinkResult struct {
+	inspection Inspection
+	identity   ROMLinkIdentity
+	programmed []byte
+	bundle     *CompositionBundle
+	slots      *SlotCompositionBundle
+	receipt    romInputReceipt
+}
+
+// linkROMInput derives every programmed byte from the sealed map. A
+// multi-socket shell always links through ComposeSlotsROM, which also rejects
+// ROM destinations inside any socket. Receipt link evidence, when present,
+// must equal this independent result.
+func linkROMInput(ctx context.Context, in ROMInput, sent romInputReceipt) (romLinkResult, error) {
 	if err := ctx.Err(); err != nil {
-		return Inspection{}, ROMLinkIdentity{}, nil, nil, err
+		return romLinkResult{}, err
 	}
 	inspection, base, mapping, receipt, err := inspectROMInput(in)
 	if err != nil {
-		return Inspection{}, ROMLinkIdentity{}, nil, nil, err
+		return romLinkResult{}, err
 	}
 	m, err := expansion.ParseROMMap(ctx, mapping, inspection.Descriptor.Payload.SHA256, len(in.ROM))
 	if err != nil {
-		return Inspection{}, ROMLinkIdentity{}, nil, nil, err
+		return romLinkResult{}, err
 	}
-	var programmed []byte
-	var bundle *CompositionBundle
-	if in.Expansion == nil {
-		programmed, err = expansion.LinkROM(ctx, base, m, in.ROM)
-	} else {
+	result := romLinkResult{inspection: inspection}
+	slotShell, slotErr := slotCompositionShell(inspection, base)
+	switch {
+	case slotErr == nil:
+		composition, overlay, programmed, linkErr := expansion.ComposeSlotsROM(ctx, slotShell, in.SlotExpansions, m, in.ROM)
+		if linkErr != nil {
+			return romLinkResult{}, linkErr
+		}
+		result.programmed = programmed
+		if len(in.SlotExpansions) != 0 {
+			result.slots = &SlotCompositionBundle{Package: in.Package, Assets: sortedSlotAssets(in.SlotExpansions), Composition: composition, Payload: overlay}
+			receipt.Composition = &composition
+			receipt.ProgrammedSHA256, receipt.ProgrammedSize = romDigest(programmed), int64(len(programmed))
+		}
+	case len(in.SlotExpansions) != 0:
+		return romLinkResult{}, slotErr
+	case in.Expansion == nil:
+		result.programmed, err = expansion.LinkROM(ctx, base, m, in.ROM)
+		if err != nil {
+			return romLinkResult{}, err
+		}
+	default:
 		shell, shellErr := compositionShell(inspection, base)
 		if shellErr != nil {
-			return Inspection{}, ROMLinkIdentity{}, nil, nil, shellErr
+			return romLinkResult{}, shellErr
 		}
-		identity, overlay, result, linkErr := expansion.ComposeROM(ctx, shell, *in.Expansion, m, in.ROM)
-		err = linkErr
-		programmed = result
-		bundle = &CompositionBundle{Package: in.Package, Asset: *in.Expansion, Composition: identity, Payload: overlay}
+		identity, overlay, programmed, linkErr := expansion.ComposeROM(ctx, shell, *in.Expansion, m, in.ROM)
+		if linkErr != nil {
+			return romLinkResult{}, linkErr
+		}
+		result.programmed = programmed
+		result.bundle = &CompositionBundle{Package: in.Package, Asset: *in.Expansion, Composition: identity, Payload: overlay}
 	}
-	if err != nil {
-		return Inspection{}, ROMLinkIdentity{}, nil, nil, err
+	if sent.Composition != nil || sent.ProgrammedSHA256 != "" || sent.ProgrammedSize != 0 {
+		if receipt.Composition == nil || sent.Composition == nil || !equalSlotComposition(*sent.Composition, *receipt.Composition) ||
+			sent.ProgrammedSHA256 != receipt.ProgrammedSHA256 || sent.ProgrammedSize != receipt.ProgrammedSize {
+			return romLinkResult{}, errors.New("slot ROM link evidence differs from the independent link")
+		}
 	}
-	identity := ROMLinkIdentity{ROMID: receipt.ROMID, MapSHA256: receipt.MapSHA256, SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize, ProgrammedSHA256: romDigest(programmed), ProgrammedSize: int64(len(programmed))}
-	return inspection, identity, programmed, bundle, nil
+	result.receipt = receipt
+	result.identity = ROMLinkIdentity{ROMID: receipt.ROMID, MapSHA256: receipt.MapSHA256, SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize, ProgrammedSHA256: romDigest(result.programmed), ProgrammedSize: int64(len(result.programmed))}
+	return result, nil
 }
 
 // StageROMInput independently links all inputs before publishing private files.
@@ -241,19 +330,23 @@ func StageROMInput(ctx context.Context, root string, size int64, reader io.Reade
 	if int64(len(data)) != size {
 		return Staged{}, errors.New("ROM input size mismatch")
 	}
-	in, err := readROMInput(data)
+	in, sent, err := readROMInput(data)
 	if err != nil {
 		return Staged{}, err
 	}
-	_, identity, programmed, bundle, err := linkROMInput(ctx, in)
+	linked, err := linkROMInput(ctx, in, sent)
 	if err != nil {
 		return Staged{}, err
 	}
+	identity, programmed := linked.identity, linked.programmed
 	var staged Staged
-	if bundle == nil {
+	switch {
+	case linked.bundle != nil:
+		staged, err = stageCompositionBundle(ctx, root, *linked.bundle)
+	case linked.slots != nil:
+		staged, err = stageSlotCompositionBundle(ctx, root, *linked.slots)
+	default:
 		staged, err = Stage(ctx, root, int64(len(in.Package)), bytes.NewReader(in.Package))
-	} else {
-		staged, err = stageCompositionBundle(ctx, root, *bundle)
 	}
 	if err != nil {
 		return Staged{}, err
@@ -355,6 +448,7 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	var inspection Inspection
 	var programmed []byte
 	var bundle *CompositionBundle
+	var slots *SlotCompositionBundle
 	var identity any
 	if IsROMInputV2(files["input.tar"]) {
 		prepared, readErr := readPreparedROMInputV2(files["input.tar"])
@@ -366,12 +460,16 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 		identity = links
 		staged.ROMLinks = &links
 	} else {
-		in, readErr := readROMInput(files["input.tar"])
+		in, sent, readErr := readROMInput(files["input.tar"])
 		if readErr != nil {
 			return readErr
 		}
-		var link ROMLinkIdentity
-		inspection, link, programmed, bundle, err = linkROMInput(context.Background(), in)
+		linked, linkErr := linkROMInput(context.Background(), in, sent)
+		if linkErr != nil {
+			return linkErr
+		}
+		inspection, programmed, bundle, slots = linked.inspection, linked.programmed, linked.bundle, linked.slots
+		link := linked.identity
 		identity = link
 		staged.ROMLink = &link
 	}
@@ -393,6 +491,10 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	}
 	if bundle != nil && bundle.Composition != *staged.Composition {
 		return errors.New("retained ROM composition differs from publication")
+	}
+	if (slots == nil) != (staged.SlotComposition == nil) ||
+		(slots != nil && !equalSlotComposition(slots.Composition, *staged.SlotComposition)) {
+		return errors.New("retained ROM slot composition differs from publication")
 	}
 	after, err := handle.Lstat(name)
 	if err != nil || !os.SameFile(info, after) {

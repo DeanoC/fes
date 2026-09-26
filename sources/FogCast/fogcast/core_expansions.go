@@ -45,6 +45,9 @@ func (s *Service) ImportCoreExpansion(ctx context.Context, size int64, body io.R
 	if err != nil {
 		return catalog.CoreExpansion{}, expansionError(catalog.ErrInvalidCoreExpansion)
 	}
+	if asset.Manifest.SlotIndex != 0 {
+		return s.importSlotCard(ctx, asset)
+	}
 	inspection, base, err := s.readInstalledCore(ctx, asset.Manifest.ShellPackageID)
 	if err != nil {
 		return catalog.CoreExpansion{}, err
@@ -114,6 +117,25 @@ func (s *Service) composeCoreEntry(ctx context.Context, entry catalog.CoreEntry,
 	bundle, err := corepackage.ComposeArchive(base, asset)
 	if err != nil {
 		return nil, expansionError(catalog.ErrInvalidCoreExpansion)
+	}
+	return &bundle, nil
+}
+
+// composeSlotEntry links a ROM-less multi-socket shell with the title's
+// selected cards. It returns nil when the shell has no multi-socket bus or no
+// card is selected, which keeps the plain package load.
+func (s *Service) composeSlotEntry(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) (*corepackage.SlotCompositionBundle, error) {
+	store, ok := s.catalog.(coreSlotExpansionCatalog)
+	if !ok || corepackage.SlotSockets(inspection.Descriptor) == nil {
+		return nil, nil
+	}
+	cards, _, err := s.readSlotCards(ctx, store, entry, inspection, base)
+	if err != nil || len(cards) == 0 {
+		return nil, err
+	}
+	bundle, err := corepackage.ComposeSlotArchive(ctx, base, cards)
+	if err != nil {
+		return nil, slotExpansionUnavailable()
 	}
 	return &bundle, nil
 }

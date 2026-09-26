@@ -13,7 +13,9 @@ import (
 	"github.com/DeanoC/misteross/expansion"
 )
 
-const MaxCompositionArchiveSize = MaxArchiveSize + expansion.MaxArchiveBytes + MaxPayloadSize + 16384
+// MaxCompositionArchiveSize bounds the sealed package, one single-socket
+// cart or up to MaxSlotCards slot cards, the linked overlay and framing.
+const MaxCompositionArchiveSize = MaxArchiveSize + MaxSlotCards*expansion.MaxArchiveBytes + MaxPayloadSize + 16384
 
 // CompositionBundle retains the original sealed package and independent cart.
 // The linked bytes are transport evidence; each consumer recomputes them.
@@ -146,6 +148,13 @@ func StageComposition(ctx context.Context, root string, size int64, input io.Rea
 	}
 	if int64(len(data)) != size {
 		return Staged{}, errors.New("composition size mismatch")
+	}
+	if IsSlotCompositionBundle(data) {
+		slots, err := ReadSlotCompositionBundle(ctx, data)
+		if err != nil {
+			return Staged{}, err
+		}
+		return stageSlotCompositionBundle(ctx, root, slots)
 	}
 	bundle, err := ReadCompositionBundle(bytes.NewReader(data))
 	if err != nil {

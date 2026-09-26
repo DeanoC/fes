@@ -1451,7 +1451,7 @@ func inputEligibleStatus(status protocol.Status) bool {
 		return true
 	}
 	return (corePackageInputStatus(status) || resumedCoreDataStatus(status)) &&
-		(status.CorePackage.Gamepad || corePackageHasKeyboard(status))
+		(status.CorePackage.Gamepad || corePackageHasKeyboard(status) || protocol.KeyboardHIDCapable(status.CorePackage))
 }
 
 func corePackageHasKeyboard(status protocol.Status) bool {
@@ -1516,6 +1516,14 @@ func cloneCorePackageStatus(value *protocol.CorePackageStatus) *protocol.CorePac
 	if value.MediaStream != nil {
 		stream := *value.MediaStream
 		copy.MediaStream = &stream
+	}
+	if value.SlotComposition != nil {
+		slots := *value.SlotComposition
+		slots.Expansions = append(slots.Expansions[:0:0], value.SlotComposition.Expansions...)
+		copy.SlotComposition = &slots
+	}
+	if value.MediaUnits != nil {
+		copy.MediaUnits = append([]protocol.MediaUnitStatus(nil), value.MediaUnits...)
 	}
 	return &copy
 }

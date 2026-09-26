@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/zx81keys"
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/inputmap"
 )
@@ -30,22 +30,25 @@ func TestFixtureUnsignedAxisAndButtons(t *testing.T) {
 	}
 }
 
-func TestKeyboardMapperPostsZX81MatrixCodes(t *testing.T) {
+// The kit forwards physical keys as HID usages; mister-agent shapes them
+// for the bound core (HID, ZX81 matrix or native gamepad).
+func TestKeyboardMapperPostsHIDUsages(t *testing.T) {
 	m := NewKeyboardMapper()
-	e, ok := m.Map(1, 30, 1)
-	if !ok || e.Device != remoteinput.DeviceKeyboard || e.Kind != remoteinput.KindKey || e.Code != zx81keys.Letter('A') {
-		t.Fatalf("KEY_A %+v ok=%v", e, ok)
+	for _, tc := range []struct {
+		linux uint16
+		usage uint8
+	}{{30, 0x04}, {103, 0x52}, {1, 0x29}, {14, 0x2a}} { // A, Up, Esc, Backspace
+		e, ok := m.Map(1, tc.linux, 1)
+		usage, isHID := hidkeys.Usage(e.Code)
+		if !ok || e.Device != remoteinput.DeviceKeyboard || e.Kind != remoteinput.KindKey || !isHID || usage != tc.usage {
+			t.Fatalf("KEY %d %+v ok=%v", tc.linux, e, ok)
+		}
 	}
-	if _, ok = m.Map(1, 304, 1); ok {
+	if _, ok := m.Map(1, 304, 1); ok {
 		t.Fatal("BTN_SOUTH is not a keyboard key")
 	}
-}
-
-func TestKeyboardMapperPostsArrowsAsFogCastKeys(t *testing.T) {
-	m := NewKeyboardMapper()
-	e, ok := m.Map(1, 103, 1) // KEY_UP
-	if !ok || e.Device != remoteinput.DeviceKeyboard || e.Code != remoteinput.KeyUp {
-		t.Fatalf("KEY_UP %+v ok=%v", e, ok)
+	if _, ok := m.Map(1, 30, 2); ok {
+		t.Fatal("autorepeat forwarded")
 	}
 }
 

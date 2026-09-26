@@ -263,7 +263,9 @@ fields. No API response exposes the archive's private filesystem location.
 | `GET /api/v1/library/core-entries` | `{entries:[...]}` |
 | `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected |
 | `PUT /api/v1/library/core-entries/{game_id}` | `{"package_id":"...","expected_package_id":"..."}`; returns entry |
-| `PUT /api/v1/library/core-entries/{game_id}/media` | `{"expected_package_id":"...","expected_media_id":"","media_role":"blob","media_id":"..."}`; both expected fields required; empty new role/ID clears |
+| `PUT /api/v1/library/core-entries/{game_id}/media` | `{"expected_package_id":"...","expected_media_id":"","media_role":"blob","media_id":"..."}` (`media_role` is `blob` or, for `fes.computer` disks, `disk`); both expected fields required; empty new role/ID clears |
+| `GET /api/v1/library/core-entries/{game_id}/expansions` | Multi-socket shell slot cards: `{game_id,package_id,bus,map,sockets,expansions:[{slot,expansion_id,ready}],ready}` |
+| `PUT /api/v1/library/core-entries/{game_id}/expansions/{slot}` | `{"package_id":"...","expected_expansion_id":"","expansion_id":"..."}`; compare-and-swap on one physical slot; empty `expansion_id` clears |
 | `POST /api/v1/session/launch` | Existing `{"game_id":"..."}` request |
 | `POST /api/v1/session/stop` | Existing Stop operation |
 
@@ -289,7 +291,13 @@ root. Archives are content-addressed, validated before atomic publication and
 revalidated from the same bytes sent for activation. Partial imports never
 become inventory entries. An installed ID is never silently overwritten.
 
-Selections and media bytes live in the existing catalog database. Schema 9
+Selections and media bytes live in the existing catalog database. Schema 13
+admits the `disk` media role beside `blob`; it rebuilds `core_entries` with
+foreign keys held off for the migration and checks every child selection
+before commit. Schema 12
+records each imported card's `slot_index` (0 for single-socket expansions) and
+adds per-title slot selections keyed by `(game_id, slot)`; existing expansion
+rows and single-expansion selections are unchanged. Schema 9
 adds a household `firmware` pointer and `firmware_required` on core entries.
 Schema 8 already added 64 KiB chunk rows for new imports while retaining
 existing inline objects, digests, entries and history. The migration does not
@@ -477,3 +485,73 @@ size and optional expansion against the selection before accepting the normal
 library session. Format-2 ZX81 initialization retains its existing prototype
 path. This software support does not change the production package producers
 or establish hardware acceptance.
+
+Format-3 selection is not tied to one machine. A `fes.computer` 1.0 package
+such as `fes.apple2` declares one `firmware` ROM (`apple2-firmware`, 16 KiB)
+and uses the same `PUT /api/v1/library/core-entries/GAME_ID/rom` binding. The
+firmware ROM is linked at download time. The entry's media selection uses
+role `disk` for these packages (`fes.media.apple2-floppy` 1.0: exactly 143,360
+bytes, DOS 3.3 order `.dsk`/`.do`, media unit 0). Selection validates the size
+offline; launch inserts the disk into unit 0 after Start, and the session
+live-media API swaps or ejects it while the machine runs:
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json core-media-install /absolute/path/dos33.dsk
+fogcast --api http://127.0.0.1:8787 --json core-entry 'Apple II' PACKAGE_ID disk MEDIA_ID
+fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID none MEDIA_ID disk
+fogcast --api http://127.0.0.1:8787 --json change-disk /absolute/path/other.dsk
+fogcast --api http://127.0.0.1:8787 --json eject-disk
+```
+
+`core-media-capabilities` reports the disk role with `unit` and `extensions`.
+ProDOS-order `.po` and nibble `.nib` images are different formats and are not
+accepted.
+
+## Apple II slot cards
+
+A `fes.computer` 1.0 shell that declares optional `fes.expansion.apple2-bus`
+1.0 has several physical sockets (`fes.apple2-bus.slots/1`: slots 2, 4, 5 and
+7). A library title selects at most one independently built card per socket;
+any combination is valid. This is separate from the single ZX81/Coleco
+expansion selection, whose rows and `…/expansion` API are unchanged.
+
+Import a card archive through the existing endpoint. The archive's manifest
+carries `slot_index`; import requires the exact installed shell (package ID,
+BUILD_ID and payload digest), a physical socket, and one trial link that keeps
+the card inside its own socket rectangle. `GET /api/v1/core-expansions`
+reports `slot` for slot cards.
+
+```sh
+curl -X POST -H 'Content-Type: application/octet-stream' \
+  --data-binary @card.tar http://127.0.0.1:8787/api/v1/core-expansions
+curl http://127.0.0.1:8787/api/v1/library/core-entries/GAME_ID/expansions
+curl -X PUT -H 'Content-Type: application/json' \
+  -d '{"package_id":"PACKAGE_ID","expected_expansion_id":"","expansion_id":"CARD_ID"}' \
+  http://127.0.0.1:8787/api/v1/library/core-entries/GAME_ID/expansions/4
+```
+
+`GET …/expansions` returns `{game_id,package_id,bus,map,sockets,expansions,ready}`;
+each `expansions` row is `{slot,expansion_id,ready}`. `PUT …/expansions/{slot}`
+is compare-and-swap on that slot: `expected_expansion_id` must equal the
+slot's current card (empty when vacant) and an empty `expansion_id` clears it.
+The card must be imported for the entry's package and built for that slot.
+All three fields are required; a changed selection returns 409.
+
+Library list and detail responses report `slot_expansions` (`{slot,
+expansion_id,ready}`). A missing, damaged or incompatible selected card blocks
+launch before any Stop or programming, and `hostclient.Game.LaunchBlock`
+reports `missing_expansion`. Changing the title's package leaves the old
+cards selected but not ready until they are replaced or cleared.
+
+Launch links the selected firmware ROM and cards with `ComposeSlotsROM`
+(ROM-less shells use `ComposeSlotsContext`). A multi-socket shell always links
+through `ComposeSlotsROM`, which also refuses a ROM destination inside any
+socket. With no card selected the transport is the plain ROM envelope and
+the runtime receives `load_rom_library_core`. With cards the `rom-link.json`
+envelope appends one `slot-N.tar` member per card in ascending slot order, and
+its receipt adds `slot_expansions`, the host's v2 composition tuple and
+programmed digest. The target relinks independently, refuses different
+evidence, stages one directory per card, and calls the runtime v2
+`load_rom_composed_core` (or `load_composed_core` for a ROM-less shell). The
+session reports `core_package.slot_composition` with the v2 tuple; the host
+accepts the launch only when it equals the composition it linked.

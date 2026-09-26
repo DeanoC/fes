@@ -133,7 +133,9 @@ type CorePackageStatus struct {
 	ROMLink          *corepackage.ROMLinkIdentity  `json:"rom_link,omitempty"`
 	ROMLinks         *corepackage.ROMLinksIdentity `json:"rom_links,omitempty"`
 	Composition      *expansion.Composition        `json:"composition,omitempty"`
+	SlotComposition  *expansion.SlotComposition    `json:"slot_composition,omitempty"`
 	MediaStream      *MediaStreamCapability        `json:"media_stream,omitempty"`
+	MediaUnits       []MediaUnitStatus             `json:"media_units,omitempty"`
 	PersistenceMode  string                        `json:"persistence_mode,omitempty"`
 	PackageID        string                        `json:"package_id"`
 	ImageSHA256      string                        `json:"image_sha256,omitempty"`

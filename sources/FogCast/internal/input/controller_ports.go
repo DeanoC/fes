@@ -26,7 +26,9 @@ type ControllerBinding struct {
 type CoreObservation struct {
 	Active   bool
 	Keyboard bool
-	Binding  *ControllerBinding
+	// KeyboardHID names the generation when fes.keyboard.hid 1.0 is active.
+	KeyboardHID *KeyboardHIDBinding
+	Binding     *ControllerBinding
 }
 
 type ControllerPoster func(context.Context, string, uint64, uint8, uint8, uint16) error
@@ -55,9 +57,11 @@ type controllerPortsSink struct {
 	inflight    [controllerPortCount]int
 	haltPublish bool
 	keyboard    bool
+	keyboardHID bool
 	coreActive  bool
 	observed    bool
 	keys        *KeyboardSink
+	hid         *keyboardHIDSink
 	pads        *padMerge
 }
 
@@ -90,8 +94,24 @@ func (s *controllerPortsSink) setObservation(obs CoreObservation) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.keyboard = obs.Keyboard
+	s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
+	if s.hid != nil {
+		s.hid.bind(obs.KeyboardHID)
+	}
 	s.coreActive = obs.Active
 	s.observed = true
+}
+
+// keyboardModeLocked selects the keyboard shaping from the observed contract.
+func (s *controllerPortsSink) keyboardModeLocked() playhid.KeyboardMode {
+	switch {
+	case s.keyboardHID:
+		return playhid.HIDKeys
+	case s.keyboard:
+		return playhid.MatrixKeys
+	default:
+		return playhid.NativeKeys
+	}
 }
 
 func (s *controllerPortsSink) hasBinding() bool {
@@ -131,8 +151,15 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 		ctx = context.Background()
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	shaped, ok := s.shapeLocked(source, f)
+	if ok && s.keyboardHID && keyboardFrame(shaped) {
+		// HID key state has its own ordered sink; a slow set_keyboard_hid
+		// post must not hold the controller-port lock.
+		hid := s.hid
+		s.mu.Unlock()
+		return hid.applyFrom(ctx, source, shaped)
+	}
+	defer s.mu.Unlock()
 	if !ok {
 		if source == sourceLocal {
 			return bridge.RejectInput("unsupported local input")
@@ -157,7 +184,7 @@ func (s *controllerPortsSink) shapeLocked(source inputSource, f protocol.InputFr
 	if source == sourceLocal && s.binding == nil {
 		event.Player = 0
 	}
-	shaped, ok := playhid.StreamEvent(event, s.keyboard)
+	shaped, ok := playhid.StreamEvent(event, s.keyboardModeLocked())
 	if !ok {
 		return protocol.InputFrame{}, false
 	}
@@ -365,6 +392,9 @@ func (s *controllerPortsSink) initPublishLocked() {
 }
 
 func (s *controllerPortsSink) releaseSource(source inputSource) error {
+	if s.hid != nil {
+		_ = s.hid.releaseSource(source)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if source >= sourceCount {
@@ -392,9 +422,13 @@ func (s *controllerPortsSink) releaseSource(source inputSource) error {
 }
 
 func (s *controllerPortsSink) ReleaseAll() error {
+	if s.hid != nil {
+		s.hid.releaseAll()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.initPublishLocked()
+	s.keyboardHID = false
 	if s.binding == nil {
 		s.resetSourcesLocked()
 		s.coreActive = false

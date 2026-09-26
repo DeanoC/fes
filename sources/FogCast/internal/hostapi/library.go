@@ -762,6 +762,7 @@ func enrichCompositions(ctx context.Context, service Service, games []gameResult
 		game.ROMMediaID = comp.ROMMediaID
 		game.ExpansionID = comp.ExpansionID
 		game.ExpansionReady = comp.ExpansionReady
+		game.SlotExpansions = append([]protocol.SlotExpansionStatus(nil), comp.SlotExpansions...)
 	}
 	for i := range games {
 		applyComposition(&games[i])

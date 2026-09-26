@@ -142,8 +142,17 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 			asset = &value
 		}
 	}
+	var slotCards []expansion.Asset
+	if store, ok := s.catalog.(coreSlotExpansionCatalog); ok && corepackage.SlotSockets(descriptor) != nil {
+		cards, _, err := s.readSlotCards(ctx, store, entry, corepackage.Inspection{PackageID: entry.PackageID, Descriptor: descriptor}, base)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
+		slotCards = cards
+	}
 	var data []byte
 	var biosMediaID string
+	var slotComposition *expansion.SlotComposition
 	if descriptor.Format == 4 {
 		var bios []byte
 		var biosErr error
@@ -153,12 +162,17 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		}
 		data, err = corepackage.WriteROMInputV2(corepackage.ROMInputV2{Package: base, BIOS: bios, Cartridge: rom, Expansion: asset})
 	} else {
-		data, err = corepackage.WriteROMInput(corepackage.ROMInput{Package: base, ROM: rom, Expansion: asset})
+		var transport corepackage.ROMTransport
+		transport, err = corepackage.PrepareROMInput(ctx, corepackage.ROMInput{Package: base, ROM: rom, Expansion: asset, SlotExpansions: slotCards})
+		data, slotComposition = transport.Data, transport.SlotComposition
+		if err != nil && len(slotCards) != 0 {
+			return coreLoadSource{}, slotExpansionUnavailable()
+		}
 	}
 	if err != nil {
 		return coreLoadSource{}, romAdmissionError()
 	}
-	source := coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID}
+	source := coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: slotComposition}
 	if descriptor.Format == 4 {
 		source.biosID = descriptor.ROMs[0].ID
 		source.biosMediaID = biosMediaID
@@ -214,6 +228,9 @@ func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus
 			return status.Composition == nil
 		}
 		return status.Composition != nil && status.Composition.ExpansionID == s.expansionID
+	}
+	if !reflect.DeepEqual(status.SlotComposition, s.slotComposition) {
+		return false
 	}
 	if s.romID == "" {
 		return reflect.DeepEqual(status.Composition, s.composition)

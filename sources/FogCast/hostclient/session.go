@@ -45,6 +45,12 @@ func (i SessionCoreInterface) IsKeyboard() bool {
 	return i.ID == "fes.keyboard" && i.Major == 1 && i.Minor == 0
 }
 
+// IsKeyboardHID reports the exact fes.keyboard.hid 1.0 interface: clients
+// forward every physical key as a USB HID usage and keep no chrome keys.
+func (i SessionCoreInterface) IsKeyboardHID() bool {
+	return i.ID == "fes.keyboard.hid" && i.Major == 1 && i.Minor == 0
+}
+
 // SessionCoreABI is the versioned ABI object on a session core_package.
 type SessionCoreABI struct {
 	ID    string `json:"id"`
@@ -81,6 +87,8 @@ type SessionResult struct {
 	DevelopmentSessionState string
 	CorePackage             *SessionCorePackage
 	CoreKeyboard            bool
+	// CoreKeyboardHID is set for fes.computer packages with fes.keyboard.hid 1.0.
+	CoreKeyboardHID bool
 	// HPSFramebuffer is set when the session JSON includes hps_framebuffer.
 	// Nil means the host did not say whether this idle enables SPI 0x002f.
 	HPSFramebuffer *bool
@@ -214,10 +222,13 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		result.Development = result.Execution == "fpga_development"
 	}
 	if wire.CorePackage != nil {
+		computer := wire.CorePackage.ABI.ID == "fes.computer" && wire.CorePackage.ABI.Major == 1 && wire.CorePackage.ABI.Minor == 0
 		for _, contract := range wire.CorePackage.ActiveInterfaces {
 			if contract.IsKeyboard() {
 				result.CoreKeyboard = true
-				break
+			}
+			if computer && contract.IsKeyboardHID() {
+				result.CoreKeyboardHID = true
 			}
 		}
 	}
