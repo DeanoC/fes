@@ -178,15 +178,11 @@ func (s *Service) importSlotCard(ctx context.Context, asset expansion.Asset) (ca
 	return result, expansionError(err)
 }
 
-// slotCompositionFor returns the readiness rows of a title whose installed
-// package has a multi-socket bus; nil otherwise.
-func (s *Service) slotCompositionFor(ctx context.Context, entry catalog.CoreEntry) ([]protocol.SlotExpansionStatus, error) {
+// slotCompositionFor returns the readiness rows of a title's selected slot
+// cards for its already read package; nil when none is selected.
+func (s *Service) slotCompositionFor(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) ([]protocol.SlotExpansionStatus, error) {
 	store, ok := s.catalog.(coreSlotExpansionCatalog)
 	if !ok {
-		return nil, nil
-	}
-	inspection, base, err := s.readInstalledCore(ctx, entry.PackageID)
-	if err != nil {
 		return nil, nil
 	}
 	_, statuses, err := s.readSlotCards(ctx, store, entry, inspection, base)

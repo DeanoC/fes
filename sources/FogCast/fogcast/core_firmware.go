@@ -65,7 +65,7 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			return nil, mapCoreEntryError(err)
 		}
 		comp := protocol.CoreComposition{FirmwareRequired: entry.FirmwareRequired}
-		inspection, _, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
+		inspection, base, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
 		if inspectErr == nil && inspection.Descriptor.Format == 4 {
 			comp.FirmwareRequired = true
 			comp.ROMRequired = true
@@ -97,11 +97,13 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 				}
 			}
 		}
-		slots, err := s.slotCompositionFor(ctx, entry)
-		if err != nil {
-			return nil, err
+		if inspectErr == nil {
+			slots, err := s.slotCompositionFor(ctx, entry, inspection, base)
+			if err != nil {
+				return nil, err
+			}
+			comp.SlotExpansions = slots
 		}
-		comp.SlotExpansions = slots
 		if inspection.Descriptor.Format == 4 && inspectErr == nil {
 			out[id] = comp
 			continue
