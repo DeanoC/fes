@@ -95,6 +95,11 @@ help:
 		"  build-fes-sms-quartus  Quartus 17.0.2 oracle package for FES Master System (fes.sms)" \
 		"  build-fes-sms  Seal FES Master System with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
 		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  apple2-diagnostic  Generate the open Apple II firmware, synthetic disk and reference frames" \
+		"  sim-fes-apple2  Test the fes.computer mailbox, Apple II machine/Disk II and board shell" \
+		"  sim-fes-apple2-mailbox  Replay the fes.computer golden exchanges against the shared endpoint" \
+		"  sim-fes-apple2-machine  Boot the open diagnostic and synthetic disk; compare every frame" \
+		"  sim-fes-apple2-board  Drive top.v through the mailbox: HID keys, live disk insert/eject, reset" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  export-core-package  Seal a format-2 package directory and .fcore archive" \
 		"  program    Explicit JTAG SRAM maintenance diagnostic" \
@@ -136,7 +141,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -802,6 +807,62 @@ build-fes-coleco:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sg1000-diagnostic
+APPLE2_DIAGNOSTIC := build/diagnostics/fes-apple2
+APPLE2_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
+	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
+	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET \
+	-Icores/fes-apple2/rtl -Icores/fes-common/generated
+APPLE2_RTL := cores/fes-apple2/rtl/apple2_machine.sv cores/fes-apple2/rtl/apple2_ram.v \
+	cores/fes-apple2/rtl/apple2_rom.v cores/fes-apple2/rtl/apple2_video.v \
+	cores/fes-apple2/rtl/apple2_disk2_card.v cores/fes-apple2/rtl/apple2_disk2_drive.v \
+	cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v
+
+.PHONY: apple2-diagnostic sim-fes-apple2 sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-board
+apple2-diagnostic:
+	@mkdir -p $(APPLE2_DIAGNOSTIC)
+	$(PYTHON) cores/fes-apple2/diagnostic/font.py --hex $(APPLE2_DIAGNOSTIC)/font.hex
+	@cmp -s $(APPLE2_DIAGNOSTIC)/font.hex cores/fes-apple2/rtl/apple2_font.hex || \
+		{ echo 'cores/fes-apple2/rtl/apple2_font.hex is stale; regenerate it with diagnostic/font.py' >&2; exit 1; }
+	$(PYTHON) cores/fes-apple2/diagnostic/firmware.py --output-dir $(APPLE2_DIAGNOSTIC)
+	$(PYTHON) cores/fes-apple2/diagnostic/render.py --output-dir $(APPLE2_DIAGNOSTIC)
+
+sim-fes-apple2: sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-board
+
+sim-fes-apple2-mailbox:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
+		-Icores/fes-common/generated -GENABLE_KEYBOARD=1\'b1 -GENABLE_PORTS=1\'b1 -GENABLE_AUDIO=1\'b1 \
+		--Mdir "$(CURDIR)/build/sim/fes-computer-mailbox-input" \
+		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/cores/fes-common/sim/computer_mailbox_tb.cpp"
+	@build/sim/fes-computer-mailbox-input/Vfes_computer_mailbox cores/fes-common/generated/computer-exchanges.json 0
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
+		-Icores/fes-common/generated -GENABLE_APPLE2_FLOPPY=1\'b1 -GUNIT0_MIN=1 -GUNIT0_MAX=1030 \
+		--Mdir "$(CURDIR)/build/sim/fes-computer-mailbox-media" \
+		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/cores/fes-common/sim/computer_mailbox_tb.cpp"
+	@build/sim/fes-computer-mailbox-media/Vfes_computer_mailbox cores/fes-common/generated/computer-exchanges.json 1
+
+sim-fes-apple2-machine: apple2-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-apple2-machine
+	$(VERILATOR) --cc --exe --build -O2 --top-module apple2_sim_top $(APPLE2_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-apple2-machine" \
+		cores/fes-apple2/sim/apple2_sim_top.sv $(APPLE2_RTL) \
+		"$(CURDIR)/cores/fes-apple2/sim/machine_tb.cpp"
+	@build/sim/fes-apple2-machine/Vapple2_sim_top --require-refs
+
+sim-fes-apple2-board: apple2-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-apple2-board
+	$(VERILATOR) --cc --exe --build -O2 --top-module top $(APPLE2_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-apple2-board" \
+		cores/fes-apple2/sim/board_models.v cores/fes-apple2/rtl/top.v $(APPLE2_RTL) \
+		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
+		cores/fes-common/rtl/fes_audio_i2s.v cores/fes-apple2/rtl/apple2_disk_store.v \
+		cores/fes-apple2/rtl/apple2_keyboard.v cores/fes-apple2/rtl/apple2_audio.v \
+		cores/fes-apple2/rtl/apple2_slot_sockets.v \
+		"$(CURDIR)/cores/fes-apple2/sim/board_tb.cpp"
+	@build/sim/fes-apple2-board/Vtop $(APPLE2_DIAGNOSTIC)/disk.dsk build/sim/fes-apple2-board
+
 sg1000-diagnostic:
 	@mkdir -p build/diagnostics/fes-sg1000
 	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py \

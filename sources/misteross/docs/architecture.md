@@ -1220,6 +1220,23 @@ the RBF, manifest and passing summary so they cannot be mistaken for an
 exportable result. The recipe checkpoint itself has no FES Pong RBF, physical
 video result or hardware-support claim.
 
+## FES Apple II
+
+`cores/fes-apple2` is `fes.apple2`, an Apple II+ class home computer on the
+`fes.computer` 1.0 mailbox. Its machine, video, Disk II, slot bus and open
+diagnostic are described in [its README](../cores/fes-apple2/README.md).
+Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
+`rtl/cpu6502` (Arlet Ottens, module names only changed) and the generic
+`rtl/fes_computer_mailbox.v` endpoint, which replays the mister-packages
+`computer-exchanges.json` golden exchanges in `make sim-fes-apple2-mailbox`.
+The endpoint owns no storage: accepted media words appear on a write port for
+their acknowledging clock and `unit0_state` gates presentation of unit 0.
+
+Current lane: simulation only (`make sim-fes-apple2`). There is no producer,
+lock or sealed package yet; the linked firmware lanes (column 5, rows 32–47)
+and the four slot socket rectangles are declared in RTL and in the expansion
+linker for that producer.
+
 ## Shared native kit client
 
 `scripts/kit.py` is a thin operator client of FogCast's target lease and native

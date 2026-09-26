@@ -85,7 +85,11 @@ left alt, left GUI, right control, right shift, right alt, right GUI); bits
 
 Each write replaces one row and is valid while held or released. The host
 sends every row whose state changed; a multi-row change is several ordered
-transactions, not an atomic update. Initial reset and Hold release every key.
+transactions, not an atomic update. A core must therefore treat a burst of row
+writes as one change, for example by interpreting key state only after the
+rows have been unchanged for about a millisecond, so a key and the modifiers
+sent in the same update are seen together. Hosts must not send a press and
+its release closer together than that. Initial reset and Hold release every key.
 The core owns the mapping from HID usages to its native keyboard, including
 shifted symbols, repeat and machine-specific reset chords; the host forwards
 physical key state and never translates characters. Usages the core does not
