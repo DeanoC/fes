@@ -82,7 +82,9 @@ func twoROMLibraryPackageFixture(t *testing.T) []byte {
 
 func TestColecoTwoROMLaunchRequiresBothPrivateSources(t *testing.T) {
 	ctx := context.Background()
-	s, client, entry, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "MegaCart test", 30*time.Second)
+	// Full-size map validation is expensive under -race on shared CI runners.
+	// This test checks source admission and selection, not activation latency.
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "MegaCart test", 2*time.Minute)
 	if _, err := s.Launch(ctx, entry.GameID, nil); err == nil || client.coreCalls != 0 {
 		t.Fatalf("missing inputs reached target: %v", err)
 	}
