@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1472,6 +1474,95 @@ func TestCompositionOldGenerationCannotStopReplacementTarget(t *testing.T) {
 	target.mu.Unlock()
 	if state != "active" || sessionID != "replacement" || generation != 10 {
 		t.Fatalf("replacement changed: state=%q session=%q generation=%d", state, sessionID, generation)
+	}
+}
+
+func TestCompositionHandleStopsTheKitItStartedAfterRebind(t *testing.T) {
+	local := &compositionDirectMediaHandle{done: make(chan struct{})}
+	original := &compositionTargetCast{}
+	session := newCompositionMediaSession(compositionDirectMediaSession{handle: local}, original, "session", "token", 9)
+	handle, err := session.Start(context.Background(), "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session.SetCastTarget(fogcast.TargetConfig{Name: "spare", Address: "http://192.0.2.11:8182", Agent: "token-b"}, nil)
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("stop = %v", err)
+	}
+	started, stopped := original.counts()
+	if started != 1 || stopped != 1 {
+		t.Fatalf("original cast started %d stopped %d", started, stopped)
+	}
+}
+
+func TestSetCastTargetKeepsTheClaimedKitLease(t *testing.T) {
+	var header string
+	live := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"token": "lease-b",
+				"status": map[string]any{
+					"state": "held", "generation": "gen-b", "expires_in_ms": 60000,
+				},
+			})
+		case "/v1/cast/start":
+			header = r.Header.Get("X-FogCast-Kit-Lease")
+			_ = json.NewEncoder(w).Encode(targetclient.CastStatus{State: "active", Session: "session", Generation: 9})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer live.Close()
+	base, err := url.Parse(live.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := targetclient.NewKitLease(base, "token-b", nil, "host", "placement")
+	defer lease.Close(context.Background())
+	if err := targetclient.NewClient(base, "token-b", nil).WithKitLease(lease).AcquireContentPullLease(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	local := &compositionDirectMediaHandle{done: make(chan struct{})}
+	session := newCompositionMediaSession(compositionDirectMediaSession{handle: local}, &compositionTargetCast{}, "session", "token", 9)
+	session.SetCastTarget(fogcast.TargetConfig{Name: "spare", Address: "http://192.0.2.99:8182", Agent: "token-b"}, lease)
+	if _, err := session.Start(context.Background(), "game"); err != nil {
+		t.Fatal(err)
+	}
+	if header != "lease-b" {
+		t.Fatalf("cast lease header %q", header)
+	}
+}
+
+func TestPinnedCastStopClearsActivityAfterRebind(t *testing.T) {
+	var stops int
+	replacement := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/cast/stop" {
+			stops++
+		}
+		http.NotFound(w, r)
+	}))
+	defer replacement.Close()
+	local := &compositionDirectMediaHandle{done: make(chan struct{})}
+	original := &compositionTargetCast{}
+	session := newCompositionMediaSession(compositionDirectMediaSession{handle: local}, original, "session", "token", 9)
+	handle, err := session.Start(context.Background(), "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session.SetCastTarget(fogcast.TargetConfig{Name: "spare", Address: replacement.URL, Agent: "token-b"}, nil)
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("stop = %v", err)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatalf("close = %v", err)
+	}
+	started, stopped := original.counts()
+	if started != 1 || stopped != 1 {
+		t.Fatalf("original cast started %d stopped %d", started, stopped)
+	}
+	if stops != 0 {
+		t.Fatalf("replacement cast stops %d", stops)
 	}
 }
 

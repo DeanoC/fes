@@ -110,6 +110,26 @@ func TestGamesPlacementPredicate(t *testing.T) {
 		}
 	})
 
+	t.Run("selected other kit in use is not ready", func(t *testing.T) {
+		s := placementReadyService(entry, pkg)
+		s.targets = append(s.targets, TargetConfig{Name: "spare", Enabled: true, TargetID: "kit-b"})
+		s.connection = TargetConnection{State: "busy", TargetID: "kit-b", Owner: "other-shell"}
+		s.SetDisplayPreference("kit-b")
+		s.SetMeshPlacementAsk(&MeshPlacementAsk{
+			Candidates: []meshplace.Candidate{
+				placeFPGACandidate("kit-a", true),
+				placeFPGACandidate("kit-b", true),
+			},
+		})
+		got := mustPlacementReady(t, s, entry.TitleID)
+		if got.Ready || got.Block != meshcontent.BlockLeaseHeld || got.NextAction != "wait_for_lease" || got.Placement != meshplace.OutcomeSelected {
+			t.Fatalf("in use %#v", got)
+		}
+		if s.meshEnsure {
+			t.Fatal("ensure flipped")
+		}
+	})
+
 	t.Run("in use stays lease held", func(t *testing.T) {
 		s := placementReadyService(entry, pkg)
 		s.connection = TargetConnection{State: "busy", TargetID: "kit-a"}

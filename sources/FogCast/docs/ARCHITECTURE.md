@@ -87,14 +87,40 @@ When a launch asks for placement, `LaunchOn` calls `meshplace.Place`
 with those options, the caller's candidates, and an optional override
 node id. If Place selects the executor this session is already bound
 to, the session records that Execute node and its local DisplaySink
-and InputSource. Launch and Ensure keep that bind. A selection that
-names any other node is not applied: Launch returns
-`meshcontent.ErrUnboundNode` before bind and does not move the
-session. A launch that is not asking for placement keeps the Phase 0
-and Phase 1 bind. The games list reads that same ask when it builds
-Ready. That read does not record the decision. Decision 7 remains the
-unsigned strawman `meshplace` already applies. `[mesh] ensure` stays
-off unless the operator set it.
+and InputSource. Launch and Ensure keep that bind and do not claim
+again. If Place selects a different FPGA kit, the host claims that
+kit with the existing kit lease and rebinds the session to it. A
+conflict rejects and does not steal. Confirm uses that same claim.
+Generation takeover stays on the kit lease API. Launch and Ensure
+then use the new bind. The rebind stores that kit's name, address,
+TargetID, and client on the launch snapshot and notifies the
+selected-target origin hook with that kit's lease, so bind and media
+routing stay on that kit when `selectedTarget` later moves. Media
+cast keeps the same lease, so CastStart still sends the kit-lease
+header, and an adopted endpoint is the cast address. The host verifies
+that kit's identity before the claim. A stale configured address is
+adopted from discovery when that TargetID has one endpoint, and a
+different reported identity is not claimed. Bind still rejects a
+replaced client or a changed address or TargetID. A lease this launch
+claimed is released when execution does not start and no other
+in-flight launch still holds it. A launch that starts execution keeps
+the grant and the new session bind. A launch that does not start
+execution restores the previous selected target, mesh bind, and origin
+hook, unless a later launch has already moved that field. A failed
+launch does not release a grant another launch adopted. A release
+that fails leaves the claim unsettled so it can be retried. A grant
+the session already held stays held. Ensure runs on that executor only when
+`[mesh] ensure` is already on. An unset key or `ensure = false`
+keeps Ensure off after the rebind and still binds the claimed kit.
+Picture and the pad stay on that kit. A menu-host preview is not the
+DisplaySink. A `native_emu` selection that is not the bound executor
+is not applied. A launch that is not asking for placement keeps the
+Phase 0 and Phase 1 bind. The games list reads that same ask when it
+builds Ready. That read does not record the decision and does not
+claim a lease. When the selected kit is one this host already sees
+in use, Ready is the lease-held block, so Confirm does not launch.
+Decision 7 remains the unsigned strawman `meshplace` already applies.
+`[mesh] ensure` stays off unless the operator set it.
 
 ## Process ownership
 
@@ -987,9 +1013,12 @@ node id, and the catalog row Ensure will check (package, ABI, media,
 firmware, ROM, and expansion slots). Ensure runs against that snapshot.
 When that launch asked for placement, `meshplace.Place` runs after the
 snapshot and before Ensure. A selection of the bound executor is
-recorded on the session. A selection of any other node returns
-`ErrUnboundNode` before Ensure and before bind, and the bound node
-stays where it was. A launch that did not ask does not call Place.
+recorded on the session. A selection of another FPGA kit claims that
+kit's lease and rebinds the session, then Ensure and bind use that
+kit. A conflict returns before the rebind. A `native_emu` selection
+of any other node returns `ErrUnboundNode` before Ensure and before
+bind, and the bound node stays where it was. A launch that did not
+ask does not call Place.
 A known target that is already disabled is refused before Ensure. An
 implicit target with an empty TargetID is the bound node only when its
 name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
@@ -1038,8 +1067,10 @@ composition changed, or a different live client at the same address
 and TargetID — returns `ErrLaunchSnapshot` and does not install a
 client. A match binds the captured client. Launch does not overwrite
 a different live client. The core path and the host-only path both use
-this one check. With the seam off, Launch leaves the target live: bind
-resolves the selected target under the target lock at bind time.
+this one check. With the seam off, a launch that did not rebind leaves
+the target live: bind resolves the selected target under the target
+lock at bind time. A placement rebind keeps the claimed kit pinned
+through that bind.
 
 A Checking slot waits up to the service checking timeout, which
 defaults to 30 seconds and is clamped at two minutes
@@ -1134,8 +1165,10 @@ When a placement ask is installed, that same games read runs
 candidates on the ask. It does not record the decision, does not dial
 a kit, and does not launch. `selected` leaves this Ready result in
 place, so Play stays the existing launch and does not ask which
-machine. `unresolved` and `fail_closed` clear Ready when the row would
-otherwise be Ready here. The block is `placement_unresolved` or
+machine. When that selection names a kit this host already sees in
+use, Ready is cleared to `lease_held` so Confirm does not launch and
+does not take the lease. `unresolved` and `fail_closed` clear Ready
+when the row would otherwise be Ready here. The block is `placement_unresolved` or
 `placement_fail_closed`, and `next_action` is `unavailable`. Rooms
 Confirm does not launch and does not pick a node. Those two blocks
 are codes, not a new sofa sentence. Edition Needs a choice, version

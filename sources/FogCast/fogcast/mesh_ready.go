@@ -38,11 +38,13 @@ type GameMeshReady struct {
 //
 // When a placement ask is installed, each projected title also runs
 // Place with that ask. The read does not record the decision and does
-// not dial a kit. Selected leaves ReadyHere in place. Unresolved and
-// fail closed clear Ready when this session would otherwise be Ready
-// here, and they do not name an Execute node. A row that is already
-// not Ready keeps that block, including version skew and a held lease.
-// No ask leaves Phase 2 Ready unchanged.
+// not dial a kit. Selected leaves ReadyHere in place, except when the
+// selected kit is one this host already sees in use: that row becomes
+// lease-held so Confirm does not launch and does not take the lease.
+// Unresolved and fail closed clear Ready when this session would
+// otherwise be Ready here, and they do not name an Execute node. A row
+// that is already not Ready keeps that block, including version skew
+// and a held lease. No ask leaves Phase 2 Ready unchanged.
 //
 // LeaseFree for this view is the session's current grant and generation,
 // or an unleased kit this session can claim. A foreign holder is not
@@ -109,7 +111,9 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 			decision.NextAction = meshcontent.NextAction(block)
 		}
 		if asked {
-			decision = applyPlacementReadiness(decision, meshplace.Place(entry, ask.Candidates, placeOpts))
+			result := meshplace.Place(entry, ask.Candidates, placeOpts)
+			decision = applyPlacementReadiness(decision, result)
+			decision = s.placementInUseReadiness(decision, result)
 		}
 		out[id] = decision
 	}
@@ -153,6 +157,23 @@ func applyPlacementReadiness(decision GameMeshReady, result meshplace.Result) Ga
 		decision.Block = placementReadyBlock(result.Outcome)
 		decision.NextAction = "unavailable"
 	}
+	return decision
+}
+
+// placementInUseReadiness clears Ready when policy selected a kit this
+// host already sees in use. Confirm then does not launch and does not
+// take the lease. A row that is already not Ready keeps its block.
+// The check uses the cached connection and does not dial.
+func (s *Service) placementInUseReadiness(decision GameMeshReady, result meshplace.Result) GameMeshReady {
+	if !decision.Ready || result.Outcome != meshplace.OutcomeSelected {
+		return decision
+	}
+	if !s.placementKitInUse(result.Choice.Execute) {
+		return decision
+	}
+	decision.Ready = false
+	decision.Block = meshcontent.BlockLeaseHeld
+	decision.NextAction = meshcontent.NextAction(meshcontent.BlockLeaseHeld)
 	return decision
 }
 

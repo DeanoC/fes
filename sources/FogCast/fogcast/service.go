@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/internal/meshpref"
 	"github.com/DeanoC/FogCast/internal/systems"
@@ -190,10 +191,14 @@ type Service struct {
 	// meshPlacementAsk is the placement request Launch reads. Nil means
 	// the launch is not asking, and bind stays on the existing path.
 	meshPlacementAsk *MeshPlacementAsk
-	meshEnsureConfig bool
-	meshEnsure       bool
-	meshHTTP         *http.Client
-	meshDialAt       time.Time
+	// meshPlacementExecutors optionally supplies the executor installed
+	// when placement rebinds to that FPGA node and ensure is already on.
+	// Production leaves it nil and dials the configured kit.
+	meshPlacementExecutors map[string]meshcontent.Executor
+	meshEnsureConfig       bool
+	meshEnsure             bool
+	meshHTTP               *http.Client
+	meshDialAt             time.Time
 	// meshDialID is the selected-target identity of the last dial attempt.
 	// meshInstalled is the identity that installed meshExecute. A different
 	// selected target drops that executor and dials the new endpoint.
@@ -211,7 +216,13 @@ type Service struct {
 	// Invalidating one target removes only that client's grant. A release
 	// that fails stays here until a later attempt succeeds. A grant that
 	// still backs a remaining play stays here and is not released.
-	stoppedKitLeases        []*targetclient.KitLease
+	stoppedKitLeases []*targetclient.KitLease
+	// placementHolds counts in-flight launches that share one placement
+	// claim. The key is the target client. A failed launch releases the
+	// grant only when it is the last in-flight holder and the session did
+	// not already hold it. Execution start moves that hold to the session.
+	placementHoldMu         sync.Mutex
+	placementHolds          map[serviceClient]*placementClaimRecord
 	closeKitLeases          func(context.Context) error
 	corePackages            *corepackage.Store
 	activePackageID         string
@@ -228,9 +239,10 @@ type Service struct {
 	selectedTarget          string
 	targetClients           map[string]serviceClient
 	targetClientFactory     func(TargetConfig) (serviceClient, error)
-	// targetOrigin rebinds input/media to the selected target. It must not call
-	// back into Service (same rule as targetReset).
-	targetOrigin             func(TargetConfig)
+	// targetOrigin rebinds input/media to the selected target. The lease is
+	// the kit grant already held for that target, and may be nil. The hook
+	// must not call back into Service (same rule as targetReset).
+	targetOrigin             func(TargetConfig, *targetclient.KitLease)
 	targetMu                 sync.RWMutex
 	requestTimeout           time.Duration
 	uploadTimeout            time.Duration
@@ -707,7 +719,7 @@ func (s *Service) bindLiveLaunchTarget(target string) error {
 	s.activeTarget = name
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
-		s.targetOrigin(cfg)
+		s.targetOrigin(cfg, kitLeaseOf(s.targetClients[name]))
 	}
 	if launchPinnedTargetBoundHook != nil {
 		launchPinnedTargetBoundHook(name)
@@ -880,9 +892,41 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	// A placement request runs Place before Ensure and before bind. A
-	// selection of any other node returns ErrUnboundNode and does not
-	// move the session. No request leaves this path unchanged.
-	if err := s.applyMatchingPlacement(gameID, snap); err != nil {
+	// selection of the bound executor is recorded. A selection of
+	// another FPGA kit claims that kit and rebinds this snapshot onto
+	// it. Any other selection of a different node returns
+	// ErrUnboundNode and does not move the session. No request leaves
+	// this path unchanged.
+	snap, err = s.applyMatchingPlacement(ctx, gameID, snap)
+	// A kit lease claimed for this placement is held only while this
+	// launch reaches execution. Ensure failure releases it and settles
+	// the flag only when that release succeeds. A failed release stays
+	// unsettled so this defer can retry it. A grant the session already
+	// held is not placementClaimed. A rebind that does not start
+	// execution restores the previous session unless a later launch has
+	// already moved it.
+	var placementSettled bool
+	var placementKept bool
+	if snap.placementClaimed || snap.placementUndo.installedName != "" {
+		if snap.placementClaimed {
+			snap.placementClaimSettled = &placementSettled
+		}
+		if snap.placementUndo.installedName != "" {
+			snap.placementKept = &placementKept
+		}
+		defer func() {
+			if snap.placementKept != nil && !placementKept {
+				s.restorePlacementSession(snap.placementUndo)
+			}
+			if !snap.placementClaimed || placementSettled {
+				return
+			}
+			if s.releaseClaimedContentLease(snap) {
+				placementSettled = true
+			}
+		}()
+	}
+	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	if err := s.meshEnsureBeforeExecute(ctx, snap); err != nil {
@@ -984,6 +1028,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 					s.notePlayDisplaySinkLocked()
 					s.packageRejection = nil
 					s.activePackageID, s.activePackageGeneration = "", 0
+					s.settlePlacementClaim(snap)
 				}
 				s.executionMu.Unlock()
 			}
@@ -2138,7 +2183,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil {
-		s.targetOrigin(targetByName(s.targets, s.selectedTarget))
+		s.targetOrigin(targetByName(s.targets, s.selectedTarget), kitLeaseOf(s.targetClients[s.selectedTarget]))
 	}
 	return status, nil
 }
@@ -2698,11 +2743,22 @@ func safeOpenError(message string, err error) error {
 }
 
 // SetTargetOrigin registers a hook that follows selected-target identity changes.
-// The callback must not call back into Service or send network cleanup requests.
-func (s *Service) SetTargetOrigin(hook func(TargetConfig)) {
+// The lease argument is the kit grant for that target and may be nil. The
+// callback must not call back into Service or send network cleanup requests.
+func (s *Service) SetTargetOrigin(hook func(TargetConfig, *targetclient.KitLease)) {
 	s.targetMu.Lock()
 	s.targetOrigin = hook
 	s.targetMu.Unlock()
+}
+
+// kitLeaseOf is the kit grant attached to client. A client without one
+// returns nil. The caller supplies a client it already holds.
+func kitLeaseOf(client serviceClient) *targetclient.KitLease {
+	leased, ok := client.(interface{ KitLease() *targetclient.KitLease })
+	if !ok || leased == nil {
+		return nil
+	}
+	return leased.KitLease()
 }
 
 // SessionTarget is the FPGA target bound to the host session: the active

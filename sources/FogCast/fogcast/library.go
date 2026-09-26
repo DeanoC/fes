@@ -908,7 +908,7 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 			s.targetReset()
 		}
 		if s.targetOrigin != nil {
-			s.targetOrigin(targetByName(s.targets, s.selectedTarget))
+			s.targetOrigin(targetByName(s.targets, s.selectedTarget), kitLeaseOf(s.targetClients[s.selectedTarget]))
 		}
 	}
 	return nil
