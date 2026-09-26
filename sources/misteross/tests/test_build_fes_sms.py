@@ -100,7 +100,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("fes-sms-machine-oss", result.stdout)
         self.assertNotIn("build_fes_sms_oss", result.stdout)
 
-    def test_oss_toolchain_entrypoint_selects_coleco_compatibility_lock(self) -> None:
+    def test_oss_toolchain_entrypoint_selects_sms_lock(self) -> None:
         result = subprocess.run(
             ["make", "-n", "toolchain-fes-sms"],
             cwd=ROOT,
@@ -111,13 +111,14 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
-        self.assertIn("toolchains/registered-memory.lock", result.stdout)
+        self.assertIn("toolchains/fes-sms.lock", result.stdout)
+        self.assertNotIn("toolchains/registered-memory.lock", result.stdout)
         self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
         self.assertIn("build/toolchain/fes-sms", result.stdout)
         self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
         self.assertIn("FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201'", result.stdout)
 
-    def test_oss_commands_use_dual_defines_and_coleco_lock(self) -> None:
+    def test_oss_commands_use_dual_defines_and_sms_lock(self) -> None:
         yosys, nextpnr = build_commands(
             ROOT,
             ROOT / OSS_OUTPUT,
@@ -154,15 +155,17 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("cores/fes-sms/constraints-oss.qsf", joined)
         self.assertIn("cores/fes-sms/clocks-oss.sdc", joined)
         self.assertNotIn("cores/fes-sms/clocks.sdc", joined)
-        self.assertEqual(SMS_TOOLCHAIN_LOCK, "toolchains/registered-memory.lock")
+        self.assertEqual(SMS_TOOLCHAIN_LOCK, "toolchains/fes-sms.lock")
         self.assertEqual(SMS_TOOLCHAIN_ROOT, "build/toolchain/fes-sms")
         self.assertIn(SMS_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
         self.assertEqual(SMS_TOOL_COMMITS["yosys"], "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
-        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "5dea3ecd5062f1187d0b4f04a56139d5f8680cf7")
+        self.assertEqual(SMS_TOOL_COMMITS["mistral"], "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039")
+        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "469b6670c38aa89c1f1c3b0e296868f7d9846003")
         pins = load_lock(ROOT / SMS_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
-        self.assertEqual(SMS_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
+        self.assertNotEqual(SMS_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
         self.assertEqual(pins["yosys"].commit, SMS_TOOL_COMMITS["yosys"])
+        self.assertEqual(pins["mistral"].commit, SMS_TOOL_COMMITS["mistral"])
         self.assertEqual(pins["nextpnr"].commit, SMS_TOOL_COMMITS["nextpnr"])
         self.assertEqual(
             [line.strip() for line in
@@ -184,7 +187,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("HDMI_I2S0", coleco_pins)
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "fb879d81e0352f558297bdcc61bc7a4a922fa7b0")
-        self.assertEqual(global_pins["nextpnr"].commit, "f65075bbc253b7c99e8b96169f4bc85320038329")
+        self.assertEqual(global_pins["nextpnr"].commit, "469b6670c38aa89c1f1c3b0e296868f7d9846003")
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",

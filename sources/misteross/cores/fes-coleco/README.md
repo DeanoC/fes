@@ -543,7 +543,7 @@ Coleco v2 lock at `toolchains/coleco-sgm.lock` into
 `build/toolchain/fes-coleco-socket-v2`, enabling the HIP device backend for
 `gfx1100;gfx1201`. The selected OSS recipe uses Yosys
 `e2d425dee148cc60c50f4e9b354a10d90eab15f4`, nextpnr
-`f65075bbc253b7c99e8b96169f4bc85320038329` (Mistral `7ed06e21`), `--router gpu`, and
+`469b6670c38aa89c1f1c3b0e296868f7d9846003` (Mistral `7ed06e21`), `--router gpu`, and
 seed 3 / HeAP weight 2000, with
 `--timing-allow-fail` and a 74.25 MHz request without `--tmg-ripup`; it rejects
 a CPU-reference fallback in the route log. The selected seed and weight are
@@ -678,7 +678,7 @@ Yosys/nextpnr/Mistral owner:
 
 | Boundary | Workaround in this bring-up |
 | --- | --- |
-| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Coleco v2 selects `toolchains/coleco-sgm.lock`; SMS and SG-1000 retain `toolchains/registered-memory.lock`. The Coleco lock installs under `build/toolchain/fes-coleco-socket-v2` and enables HIP. Bootstrap records the router and HIP architecture beside the compiler digests. Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Coleco v2 selects `toolchains/coleco-sgm.lock`; SG-1000 retains `toolchains/registered-memory.lock`; SMS selects `toolchains/fes-sms.lock`. The Coleco lock installs under `build/toolchain/fes-coleco-socket-v2` and enables HIP. Bootstrap records the router and HIP architecture beside the compiler digests. Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
 | Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |

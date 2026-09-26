@@ -377,10 +377,11 @@ nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
 slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
-Coleco, SG-1000 and SMS select the single
-`toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `5dea3ecd`,
-Mistral `b28e30a`). Its exact bytes retain the previously qualified Coleco
-lock, so all three consumers share the same HIP compiler cache slot.
+SG-1000 selects `toolchains/registered-memory.lock` (Yosys `e2d425de`,
+nextpnr `5dea3ecd`, Mistral `b28e30a`). SMS selects
+`toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `469b6670`, Mistral
+`7ed06e21`) so `make build-fes-sms` uses the router that ends the seed-3
+plateau. Those two locks are different bytes and different HIP cache slots.
 Local HIP tools
 come from `make toolchain-fes` for Pong, `make toolchain-fes-zx81` for the
 standard ZX81 socket, `make toolchain-fes-coleco` for
@@ -531,7 +532,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `f65075bb` provides those flags after `make toolchain-fes`.
+The locked nextpnr `469b6670` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -660,7 +661,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SMS and SG-1000 retain `toolchains/registered-memory.lock`; Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `469b6670`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -684,7 +685,7 @@ request and 28-bit registered response. The response carries direct data,
 claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
 32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
 owns the window-enable and AY register decode. `toolchains/coleco-sgm.lock`
-pins nextpnr `f65075bb` with frozen-scaffold BEL admission and bounded slot
+pins nextpnr `469b6670` with frozen-scaffold BEL admission and bounded slot
 placement. The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
@@ -795,8 +796,8 @@ programs hardware. `--compile-only` writes `build/fes-sms-quartus/core.rbf`
 and timing evidence without sealing.
 
 `make build-fes-sms` is the OSS producer
-(`scripts/build_fes_sms_oss.py`). It uses `toolchains/registered-memory.lock`
-(shared registered-memory compiler selection), SMS `constraints-oss.qsf` (Coleco
+(`scripts/build_fes_sms_oss.py`). It uses `toolchains/fes-sms.lock`
+(nextpnr `469b6670` with Mistral `7ed06e21` and Yosys `e2d425de`), SMS `constraints-oss.qsf` (Coleco
 video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`
@@ -1309,10 +1310,12 @@ Coleco, SMS and SG-1000, their shared PLLs, RAMs, TMS9918 video path and legacy
 simple-computer mailbox. Existing HDL module names remain unchanged. TV80 retains
 its embedded MIT notices and pinned upstream attribution; other moved files
 retain their original SPDX notices. Core-specific machines, reset ROMs, diagnostics,
-and constraints remain in their existing directories. Coleco, SMS and SG-1000
-share `toolchains/registered-memory.lock`; its historical Coleco-specific
+and constraints remain in their existing directories. The Coleco OSS lane and
+SG-1000 share `toolchains/registered-memory.lock`; its historical Coleco-specific
 comments are preserved to keep the authenticated lock bytes and compiler cache
-identity unchanged. The different repository-wide `toolchain.lock` remains separate.
+identity unchanged. SMS uses `toolchains/fes-sms.lock` so its router pin can
+move without changing that shared slot. The different repository-wide
+`toolchain.lock` remains separate.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 

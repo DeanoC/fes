@@ -99,10 +99,15 @@ class FunctionalColecoTests(unittest.TestCase):
                     self.assertEqual(json.loads(record)["source_path"], "sources/misteross")
                     self.assertEqual(build_identity(old[producer]), build_identity(record))
                     self.assertEqual(producer._require_clean_source(module), (repository, revision))
-                    for relative in (("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                      "toolchains/registered-memory.lock")
-                                     if producer in (coleco, build_fes_sms_oss, build_fes_sg1000_oss)
-                                     else ("scripts/fes_build_common.py",)):
+                    if producer is build_fes_sms_oss:
+                        relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
+                                     "toolchains/fes-sms.lock")
+                    elif producer in (coleco, build_fes_sg1000_oss):
+                        relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
+                                     "toolchains/registered-memory.lock")
+                    else:
+                        relatives = ("scripts/fes_build_common.py",)
+                    for relative in relatives:
                         path = module / relative
                         original = path.read_bytes()
                         try:

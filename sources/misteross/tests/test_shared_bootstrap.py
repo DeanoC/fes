@@ -71,7 +71,7 @@ EOF
         case "$(basename "$source_dir")" in
             yosys) echo fb879d81e0352f558297bdcc61bc7a4a922fa7b0 ;;
             mistral) echo 7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039 ;;
-            nextpnr) echo f65075bbc253b7c99e8b96169f4bc85320038329 ;;
+            nextpnr) echo 469b6670c38aa89c1f1c3b0e296868f7d9846003 ;;
             verilator) echo 5e4151e3e0c8ecf11d9845a93495f37a31b2f667 ;;
             openfpgaloader) echo 0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86 ;;
             *) exit 1 ;;

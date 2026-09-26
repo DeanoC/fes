@@ -21,7 +21,7 @@ factory image closed set. The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Its repository-default
 compiler lock serves factory Pong; the standard ZX81 socket uses
 `toolchains/zx81-expansion.lock`; Coleco v2 uses `toolchains/coleco-sgm.lock`,
-while SG-1000 and SMS share `toolchains/registered-memory.lock`. Inspect `config/core-recipes.toml` for each
+SG-1000 uses `toolchains/registered-memory.lock`, and SMS uses `toolchains/fes-sms.lock`. Inspect `config/core-recipes.toml` for each
 registered producer's current lock and HIP settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
 An older sealed SMS package does not accept a bitstream built from a later

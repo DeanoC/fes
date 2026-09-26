@@ -36,7 +36,7 @@ PLACER_SEEDS = (3, 4, 5, 1, 2, 6, 7, 8, 9, 10)
 TOOL_COMMITS = {
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
     "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "f65075bbc253b7c99e8b96169f4bc85320038329",
+    "nextpnr": "469b6670c38aa89c1f1c3b0e296868f7d9846003",
 }
 RTL_SOURCES = (*factory.RTL_SOURCES,
     "cores/fes-coleco/rtl/coleco_expansion_socket_v2.v",
