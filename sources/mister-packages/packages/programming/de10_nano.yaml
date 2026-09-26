@@ -17,6 +17,8 @@ profiles:
         major: 1
       - id: fes.application
         major: 1
+      - id: fes.computer
+        major: 1
   # Splash, idle, and raw development RBFs stay contained.
   - id: development-contained-v1
     diagnostic_only: true

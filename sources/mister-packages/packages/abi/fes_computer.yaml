@@ -1,0 +1,199 @@
+schema: mister-packages.v1
+kind: abi
+id: fes.computer
+description: >-
+  FES home-computer mailbox. Fixed video is required; USB HID key state,
+  two controller ports, fixed stereo PCM audio and removable media units are
+  independently declared capabilities. Media units accept chunked CRC32
+  transfers and eject while execution runs, so a medium can be changed without
+  resetting the machine. Transport bits match the other FES GP ABIs.
+major: 1
+minor: 0
+tag: 4
+constants:
+  - name: FesComputerSignature
+    value: 0xf5000000
+  - name: FesComputerRequestMask
+    value: 0x80000000
+  - name: FesComputerOpcodeMask
+    value: 0x7f000000
+  - name: FesComputerIndexMask
+    value: 0x00ff0000
+  - name: FesComputerArgumentMask
+    value: 0x0000ffff
+  - name: FesComputerAckMask
+    value: 0x00800000
+  - name: FesComputerErrorMask
+    value: 0x00400000
+  - name: FesComputerResponseMask
+    value: 0x0000ffff
+  - name: FesComputerIdentityMagic0
+    value: 0x4546
+  - name: FesComputerIdentityMagic1
+    value: 0x3153
+  - name: FesComputerTransportMajor
+    value: 1
+  - name: FesComputerTransportMinor
+    value: 0
+  - name: FesComputerAbiTag
+    value: 4
+  - name: FesComputerAbiMajor
+    value: 1
+  - name: FesComputerAbiMinor
+    value: 0
+  - name: FesComputerIdentityMagic0Index
+    value: 0
+  - name: FesComputerIdentityMagic1Index
+    value: 1
+  - name: FesComputerIdentityTransportMajorIndex
+    value: 2
+  - name: FesComputerIdentityTransportMinorIndex
+    value: 3
+  - name: FesComputerIdentityAbiTagIndex
+    value: 4
+  - name: FesComputerIdentityAbiMajorIndex
+    value: 5
+  - name: FesComputerIdentityAbiMinorIndex
+    value: 6
+  - name: FesComputerIdentityCapabilitiesIndex
+    value: 7
+  - name: FesComputerIdentityBuildIDStartIndex
+    value: 8
+  - name: FesComputerIdentityWordCount
+    value: 16
+  - name: FesComputerOpcodeIdentity
+    value: 1
+  - name: FesComputerOpcodeExecution
+    value: 2
+  - name: FesComputerOpcodeKeyboardHid
+    value: 3
+  - name: FesComputerOpcodeControllerButtons
+    value: 4
+  - name: FesComputerOpcodeMediaInfo
+    value: 5
+  - name: FesComputerOpcodeMediaBegin
+    value: 6
+  - name: FesComputerOpcodeMediaChunk
+    value: 7
+  - name: FesComputerOpcodeMediaData
+    value: 8
+  - name: FesComputerOpcodeMediaCommit
+    value: 9
+  - name: FesComputerOpcodeMediaEject
+    value: 10
+  - name: FesComputerControlIndex
+    value: 0
+  - name: FesComputerExecutionHoldReset
+    value: 0
+  - name: FesComputerExecutionRelease
+    value: 1
+  - name: FesComputerErrorInvalidOpcode
+    value: 1
+  - name: FesComputerErrorInvalidIndex
+    value: 2
+  - name: FesComputerErrorInvalidArgument
+    value: 3
+  - name: FesComputerErrorInvalidState
+    value: 4
+  # USB HID keyboard state. Row r (0..7) carries Keyboard/Keypad page usages
+  # 16r..16r+15 in bits 0..15; usages 0..3 are reserved and must be zero.
+  # Row 8 carries the eight modifier usages 0xe0..0xe7 in bits 0..7.
+  - name: FesComputerKeyboardRowCount
+    value: 9
+  - name: FesComputerKeyboardUsageRows
+    value: 8
+  - name: FesComputerKeyboardModifierRow
+    value: 8
+  - name: FesComputerKeyboardRowMask
+    value: 0xffff
+  - name: FesComputerKeyboardReservedRow0Mask
+    value: 0x000f
+  - name: FesComputerKeyboardModifierMask
+    value: 0x00ff
+  - name: FesComputerKeyboardModifierFirstUsage
+    value: 0xe0
+  - name: FesComputerControllerPortCount
+    value: 2
+  - name: FesComputerControllerButtonMask
+    value: 255
+  # Removable media units. Info index is unit*8+field; Begin and Chunk
+  # index is unit*4+word; Commit and Eject index is the unit.
+  - name: FesComputerMediaUnitCount
+    value: 8
+  - name: FesComputerMediaInfoStride
+    value: 8
+  - name: FesComputerMediaInfoMinLoField
+    value: 0
+  - name: FesComputerMediaInfoMinHiField
+    value: 1
+  - name: FesComputerMediaInfoMaxLoField
+    value: 2
+  - name: FesComputerMediaInfoMaxHiField
+    value: 3
+  - name: FesComputerMediaInfoChunkMaxField
+    value: 4
+  - name: FesComputerMediaInfoStateField
+    value: 5
+  - name: FesComputerMediaStateAbsent
+    value: 0
+  - name: FesComputerMediaStateEmpty
+    value: 1
+  - name: FesComputerMediaStateLoading
+    value: 2
+  - name: FesComputerMediaStateReady
+    value: 3
+  - name: FesComputerMediaHeaderStride
+    value: 4
+  - name: FesComputerMediaBeginTotalLoWord
+    value: 0
+  - name: FesComputerMediaBeginTotalHiWord
+    value: 1
+  - name: FesComputerMediaBeginCRC32LoWord
+    value: 2
+  - name: FesComputerMediaBeginCRC32HiWord
+    value: 3
+  - name: FesComputerMediaChunkOffsetLoWord
+    value: 0
+  - name: FesComputerMediaChunkOffsetHiWord
+    value: 1
+  - name: FesComputerMediaChunkLengthWord
+    value: 2
+  - name: FesComputerMediaMinBytes
+    value: 1
+  - name: FesComputerMediaMaxBytes
+    value: 33554432
+  - name: FesComputerMediaChunkMaxBytes
+    value: 512
+  - name: FesComputerMediaCRC32Initial
+    value: 0xffffffff
+  - name: FesComputerMediaCRC32Polynomial
+    value: 0xedb88320
+  - name: FesComputerMediaCRC32FinalXor
+    value: 0xffffffff
+  # fes.media.apple2-floppy 1.0: unit 0, exactly one 35-track 16-sector
+  # DOS 3.3 order image.
+  - name: FesComputerApple2FloppyUnit
+    value: 0
+  - name: FesComputerApple2FloppyBytes
+    value: 143360
+interfaces:
+  - id: fes.video.fixed-720p60
+    major: 1
+    minor: 0
+    capability_bit: 0
+  - id: fes.keyboard.hid
+    major: 1
+    minor: 0
+    capability_bit: 1
+  - id: fes.gamepad.ports
+    major: 1
+    minor: 0
+    capability_bit: 2
+  - id: fes.audio.pcm-s16-stereo-48k
+    major: 1
+    minor: 0
+    capability_bit: 3
+  - id: fes.media.apple2-floppy
+    major: 1
+    minor: 0
+    capability_bit: 4
