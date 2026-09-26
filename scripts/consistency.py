@@ -59,6 +59,8 @@ COMPONENT_FIXTURES = (
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-media-stream-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-persistence-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-persistence-responses.jsonl'),
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-computer-responses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-computer-responses.jsonl'),
 )
 CORE_SOURCES = ()
 
