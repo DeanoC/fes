@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Registered boundaries of the four physical Apple II slot sockets
 // (fes.apple2-bus.slots/1). Each socket pins its 32 request and 28 response
-// flip-flops in the first three LABs of column 24 of its placement rectangle
-// and a clock-coverage flip-flop in the fourth, so the frozen shell routes
-// the system clock into every socket. A vacant socket's response registers
-// clock in zero. Simulation uses plain registers with the same latency.
+// flip-flops in the first three LABs of column 24 of its placement rectangle,
+// plus one clock-coverage flip-flop per socket row in columns 24 and 28 so
+// the frozen shell routes both horizontal clock segments into every socket
+// row. A vacant socket's response registers clock in zero. Simulation uses
+// plain registers with the same latency.
 // Generated from the socket table in scripts/apple2_slots.py; do not edit.
 `include "apple2_bus.vh"
 
@@ -29,8 +30,40 @@ module apple2_slot_socket2 (
     (* keep, BEL = SITE *) MISTRAL_FF NAME ( \
         .CLK(clock), .DATAIN(D), .Q(QOUT), .ACLR(1'b1), .ENA(1'b1), \
         .SCLR(1'b0), .SLOAD(1'b0), .SDATA(1'b0));
-    (* keep *) wire clock_coverage_unused;
-    `A2_SOCKET_FF(clock_coverage_ff, "MISTRAL_FF.24.4.56", 1'b0, clock_coverage_unused)
+    (* keep *) wire [32:0] clock_coverage_unused;
+    `A2_SOCKET_FF(clock_coverage_ff_0, "MISTRAL_FF.24.4.56", 1'b0, clock_coverage_unused[0])
+    `A2_SOCKET_FF(clock_coverage_ff_1, "MISTRAL_FF.24.5.56", 1'b0, clock_coverage_unused[1])
+    `A2_SOCKET_FF(clock_coverage_ff_2, "MISTRAL_FF.24.6.56", 1'b0, clock_coverage_unused[2])
+    `A2_SOCKET_FF(clock_coverage_ff_3, "MISTRAL_FF.24.7.56", 1'b0, clock_coverage_unused[3])
+    `A2_SOCKET_FF(clock_coverage_ff_4, "MISTRAL_FF.24.8.56", 1'b0, clock_coverage_unused[4])
+    `A2_SOCKET_FF(clock_coverage_ff_5, "MISTRAL_FF.24.9.56", 1'b0, clock_coverage_unused[5])
+    `A2_SOCKET_FF(clock_coverage_ff_6, "MISTRAL_FF.24.10.56", 1'b0, clock_coverage_unused[6])
+    `A2_SOCKET_FF(clock_coverage_ff_7, "MISTRAL_FF.24.11.56", 1'b0, clock_coverage_unused[7])
+    `A2_SOCKET_FF(clock_coverage_ff_8, "MISTRAL_FF.24.12.56", 1'b0, clock_coverage_unused[8])
+    `A2_SOCKET_FF(clock_coverage_ff_9, "MISTRAL_FF.24.13.56", 1'b0, clock_coverage_unused[9])
+    `A2_SOCKET_FF(clock_coverage_ff_10, "MISTRAL_FF.24.14.56", 1'b0, clock_coverage_unused[10])
+    `A2_SOCKET_FF(clock_coverage_ff_11, "MISTRAL_FF.24.15.56", 1'b0, clock_coverage_unused[11])
+    `A2_SOCKET_FF(clock_coverage_ff_12, "MISTRAL_FF.24.16.56", 1'b0, clock_coverage_unused[12])
+    `A2_SOCKET_FF(clock_coverage_ff_13, "MISTRAL_FF.24.17.56", 1'b0, clock_coverage_unused[13])
+    `A2_SOCKET_FF(clock_coverage_ff_14, "MISTRAL_FF.24.18.56", 1'b0, clock_coverage_unused[14])
+    `A2_SOCKET_FF(clock_coverage_ff_15, "MISTRAL_FF.28.1.56", 1'b0, clock_coverage_unused[15])
+    `A2_SOCKET_FF(clock_coverage_ff_16, "MISTRAL_FF.28.2.56", 1'b0, clock_coverage_unused[16])
+    `A2_SOCKET_FF(clock_coverage_ff_17, "MISTRAL_FF.28.3.56", 1'b0, clock_coverage_unused[17])
+    `A2_SOCKET_FF(clock_coverage_ff_18, "MISTRAL_FF.28.4.56", 1'b0, clock_coverage_unused[18])
+    `A2_SOCKET_FF(clock_coverage_ff_19, "MISTRAL_FF.28.5.56", 1'b0, clock_coverage_unused[19])
+    `A2_SOCKET_FF(clock_coverage_ff_20, "MISTRAL_FF.28.6.56", 1'b0, clock_coverage_unused[20])
+    `A2_SOCKET_FF(clock_coverage_ff_21, "MISTRAL_FF.28.7.56", 1'b0, clock_coverage_unused[21])
+    `A2_SOCKET_FF(clock_coverage_ff_22, "MISTRAL_FF.28.8.56", 1'b0, clock_coverage_unused[22])
+    `A2_SOCKET_FF(clock_coverage_ff_23, "MISTRAL_FF.28.9.56", 1'b0, clock_coverage_unused[23])
+    `A2_SOCKET_FF(clock_coverage_ff_24, "MISTRAL_FF.28.10.56", 1'b0, clock_coverage_unused[24])
+    `A2_SOCKET_FF(clock_coverage_ff_25, "MISTRAL_FF.28.11.56", 1'b0, clock_coverage_unused[25])
+    `A2_SOCKET_FF(clock_coverage_ff_26, "MISTRAL_FF.28.12.56", 1'b0, clock_coverage_unused[26])
+    `A2_SOCKET_FF(clock_coverage_ff_27, "MISTRAL_FF.28.13.56", 1'b0, clock_coverage_unused[27])
+    `A2_SOCKET_FF(clock_coverage_ff_28, "MISTRAL_FF.28.14.56", 1'b0, clock_coverage_unused[28])
+    `A2_SOCKET_FF(clock_coverage_ff_29, "MISTRAL_FF.28.15.56", 1'b0, clock_coverage_unused[29])
+    `A2_SOCKET_FF(clock_coverage_ff_30, "MISTRAL_FF.28.16.56", 1'b0, clock_coverage_unused[30])
+    `A2_SOCKET_FF(clock_coverage_ff_31, "MISTRAL_FF.28.17.56", 1'b0, clock_coverage_unused[31])
+    `A2_SOCKET_FF(clock_coverage_ff_32, "MISTRAL_FF.28.18.56", 1'b0, clock_coverage_unused[32])
     `A2_SOCKET_FF(plug_request_ff_0, "MISTRAL_FF.24.1.2", request[0], plug_request[0])
     `A2_SOCKET_FF(plug_request_ff_1, "MISTRAL_FF.24.1.4", request[1], plug_request[1])
     `A2_SOCKET_FF(plug_request_ff_2, "MISTRAL_FF.24.1.8", request[2], plug_request[2])
@@ -116,8 +149,40 @@ module apple2_slot_socket4 (
     (* keep, BEL = SITE *) MISTRAL_FF NAME ( \
         .CLK(clock), .DATAIN(D), .Q(QOUT), .ACLR(1'b1), .ENA(1'b1), \
         .SCLR(1'b0), .SLOAD(1'b0), .SDATA(1'b0));
-    (* keep *) wire clock_coverage_unused;
-    `A2_SOCKET_FF(clock_coverage_ff, "MISTRAL_FF.24.24.56", 1'b0, clock_coverage_unused)
+    (* keep *) wire [32:0] clock_coverage_unused;
+    `A2_SOCKET_FF(clock_coverage_ff_0, "MISTRAL_FF.24.24.56", 1'b0, clock_coverage_unused[0])
+    `A2_SOCKET_FF(clock_coverage_ff_1, "MISTRAL_FF.24.25.56", 1'b0, clock_coverage_unused[1])
+    `A2_SOCKET_FF(clock_coverage_ff_2, "MISTRAL_FF.24.26.56", 1'b0, clock_coverage_unused[2])
+    `A2_SOCKET_FF(clock_coverage_ff_3, "MISTRAL_FF.24.27.56", 1'b0, clock_coverage_unused[3])
+    `A2_SOCKET_FF(clock_coverage_ff_4, "MISTRAL_FF.24.28.56", 1'b0, clock_coverage_unused[4])
+    `A2_SOCKET_FF(clock_coverage_ff_5, "MISTRAL_FF.24.29.56", 1'b0, clock_coverage_unused[5])
+    `A2_SOCKET_FF(clock_coverage_ff_6, "MISTRAL_FF.24.30.56", 1'b0, clock_coverage_unused[6])
+    `A2_SOCKET_FF(clock_coverage_ff_7, "MISTRAL_FF.24.31.56", 1'b0, clock_coverage_unused[7])
+    `A2_SOCKET_FF(clock_coverage_ff_8, "MISTRAL_FF.24.32.56", 1'b0, clock_coverage_unused[8])
+    `A2_SOCKET_FF(clock_coverage_ff_9, "MISTRAL_FF.24.33.56", 1'b0, clock_coverage_unused[9])
+    `A2_SOCKET_FF(clock_coverage_ff_10, "MISTRAL_FF.24.34.56", 1'b0, clock_coverage_unused[10])
+    `A2_SOCKET_FF(clock_coverage_ff_11, "MISTRAL_FF.24.35.56", 1'b0, clock_coverage_unused[11])
+    `A2_SOCKET_FF(clock_coverage_ff_12, "MISTRAL_FF.24.36.56", 1'b0, clock_coverage_unused[12])
+    `A2_SOCKET_FF(clock_coverage_ff_13, "MISTRAL_FF.24.37.56", 1'b0, clock_coverage_unused[13])
+    `A2_SOCKET_FF(clock_coverage_ff_14, "MISTRAL_FF.24.38.56", 1'b0, clock_coverage_unused[14])
+    `A2_SOCKET_FF(clock_coverage_ff_15, "MISTRAL_FF.28.21.56", 1'b0, clock_coverage_unused[15])
+    `A2_SOCKET_FF(clock_coverage_ff_16, "MISTRAL_FF.28.22.56", 1'b0, clock_coverage_unused[16])
+    `A2_SOCKET_FF(clock_coverage_ff_17, "MISTRAL_FF.28.23.56", 1'b0, clock_coverage_unused[17])
+    `A2_SOCKET_FF(clock_coverage_ff_18, "MISTRAL_FF.28.24.56", 1'b0, clock_coverage_unused[18])
+    `A2_SOCKET_FF(clock_coverage_ff_19, "MISTRAL_FF.28.25.56", 1'b0, clock_coverage_unused[19])
+    `A2_SOCKET_FF(clock_coverage_ff_20, "MISTRAL_FF.28.26.56", 1'b0, clock_coverage_unused[20])
+    `A2_SOCKET_FF(clock_coverage_ff_21, "MISTRAL_FF.28.27.56", 1'b0, clock_coverage_unused[21])
+    `A2_SOCKET_FF(clock_coverage_ff_22, "MISTRAL_FF.28.28.56", 1'b0, clock_coverage_unused[22])
+    `A2_SOCKET_FF(clock_coverage_ff_23, "MISTRAL_FF.28.29.56", 1'b0, clock_coverage_unused[23])
+    `A2_SOCKET_FF(clock_coverage_ff_24, "MISTRAL_FF.28.30.56", 1'b0, clock_coverage_unused[24])
+    `A2_SOCKET_FF(clock_coverage_ff_25, "MISTRAL_FF.28.31.56", 1'b0, clock_coverage_unused[25])
+    `A2_SOCKET_FF(clock_coverage_ff_26, "MISTRAL_FF.28.32.56", 1'b0, clock_coverage_unused[26])
+    `A2_SOCKET_FF(clock_coverage_ff_27, "MISTRAL_FF.28.33.56", 1'b0, clock_coverage_unused[27])
+    `A2_SOCKET_FF(clock_coverage_ff_28, "MISTRAL_FF.28.34.56", 1'b0, clock_coverage_unused[28])
+    `A2_SOCKET_FF(clock_coverage_ff_29, "MISTRAL_FF.28.35.56", 1'b0, clock_coverage_unused[29])
+    `A2_SOCKET_FF(clock_coverage_ff_30, "MISTRAL_FF.28.36.56", 1'b0, clock_coverage_unused[30])
+    `A2_SOCKET_FF(clock_coverage_ff_31, "MISTRAL_FF.28.37.56", 1'b0, clock_coverage_unused[31])
+    `A2_SOCKET_FF(clock_coverage_ff_32, "MISTRAL_FF.28.38.56", 1'b0, clock_coverage_unused[32])
     `A2_SOCKET_FF(plug_request_ff_0, "MISTRAL_FF.24.21.2", request[0], plug_request[0])
     `A2_SOCKET_FF(plug_request_ff_1, "MISTRAL_FF.24.21.4", request[1], plug_request[1])
     `A2_SOCKET_FF(plug_request_ff_2, "MISTRAL_FF.24.21.8", request[2], plug_request[2])
@@ -203,8 +268,40 @@ module apple2_slot_socket5 (
     (* keep, BEL = SITE *) MISTRAL_FF NAME ( \
         .CLK(clock), .DATAIN(D), .Q(QOUT), .ACLR(1'b1), .ENA(1'b1), \
         .SCLR(1'b0), .SLOAD(1'b0), .SDATA(1'b0));
-    (* keep *) wire clock_coverage_unused;
-    `A2_SOCKET_FF(clock_coverage_ff, "MISTRAL_FF.24.44.56", 1'b0, clock_coverage_unused)
+    (* keep *) wire [32:0] clock_coverage_unused;
+    `A2_SOCKET_FF(clock_coverage_ff_0, "MISTRAL_FF.24.44.56", 1'b0, clock_coverage_unused[0])
+    `A2_SOCKET_FF(clock_coverage_ff_1, "MISTRAL_FF.24.45.56", 1'b0, clock_coverage_unused[1])
+    `A2_SOCKET_FF(clock_coverage_ff_2, "MISTRAL_FF.24.46.56", 1'b0, clock_coverage_unused[2])
+    `A2_SOCKET_FF(clock_coverage_ff_3, "MISTRAL_FF.24.47.56", 1'b0, clock_coverage_unused[3])
+    `A2_SOCKET_FF(clock_coverage_ff_4, "MISTRAL_FF.24.48.56", 1'b0, clock_coverage_unused[4])
+    `A2_SOCKET_FF(clock_coverage_ff_5, "MISTRAL_FF.24.49.56", 1'b0, clock_coverage_unused[5])
+    `A2_SOCKET_FF(clock_coverage_ff_6, "MISTRAL_FF.24.50.56", 1'b0, clock_coverage_unused[6])
+    `A2_SOCKET_FF(clock_coverage_ff_7, "MISTRAL_FF.24.51.56", 1'b0, clock_coverage_unused[7])
+    `A2_SOCKET_FF(clock_coverage_ff_8, "MISTRAL_FF.24.52.56", 1'b0, clock_coverage_unused[8])
+    `A2_SOCKET_FF(clock_coverage_ff_9, "MISTRAL_FF.24.53.56", 1'b0, clock_coverage_unused[9])
+    `A2_SOCKET_FF(clock_coverage_ff_10, "MISTRAL_FF.24.54.56", 1'b0, clock_coverage_unused[10])
+    `A2_SOCKET_FF(clock_coverage_ff_11, "MISTRAL_FF.24.55.56", 1'b0, clock_coverage_unused[11])
+    `A2_SOCKET_FF(clock_coverage_ff_12, "MISTRAL_FF.24.56.56", 1'b0, clock_coverage_unused[12])
+    `A2_SOCKET_FF(clock_coverage_ff_13, "MISTRAL_FF.24.57.56", 1'b0, clock_coverage_unused[13])
+    `A2_SOCKET_FF(clock_coverage_ff_14, "MISTRAL_FF.24.58.56", 1'b0, clock_coverage_unused[14])
+    `A2_SOCKET_FF(clock_coverage_ff_15, "MISTRAL_FF.28.41.56", 1'b0, clock_coverage_unused[15])
+    `A2_SOCKET_FF(clock_coverage_ff_16, "MISTRAL_FF.28.42.56", 1'b0, clock_coverage_unused[16])
+    `A2_SOCKET_FF(clock_coverage_ff_17, "MISTRAL_FF.28.43.56", 1'b0, clock_coverage_unused[17])
+    `A2_SOCKET_FF(clock_coverage_ff_18, "MISTRAL_FF.28.44.56", 1'b0, clock_coverage_unused[18])
+    `A2_SOCKET_FF(clock_coverage_ff_19, "MISTRAL_FF.28.45.56", 1'b0, clock_coverage_unused[19])
+    `A2_SOCKET_FF(clock_coverage_ff_20, "MISTRAL_FF.28.46.56", 1'b0, clock_coverage_unused[20])
+    `A2_SOCKET_FF(clock_coverage_ff_21, "MISTRAL_FF.28.47.56", 1'b0, clock_coverage_unused[21])
+    `A2_SOCKET_FF(clock_coverage_ff_22, "MISTRAL_FF.28.48.56", 1'b0, clock_coverage_unused[22])
+    `A2_SOCKET_FF(clock_coverage_ff_23, "MISTRAL_FF.28.49.56", 1'b0, clock_coverage_unused[23])
+    `A2_SOCKET_FF(clock_coverage_ff_24, "MISTRAL_FF.28.50.56", 1'b0, clock_coverage_unused[24])
+    `A2_SOCKET_FF(clock_coverage_ff_25, "MISTRAL_FF.28.51.56", 1'b0, clock_coverage_unused[25])
+    `A2_SOCKET_FF(clock_coverage_ff_26, "MISTRAL_FF.28.52.56", 1'b0, clock_coverage_unused[26])
+    `A2_SOCKET_FF(clock_coverage_ff_27, "MISTRAL_FF.28.53.56", 1'b0, clock_coverage_unused[27])
+    `A2_SOCKET_FF(clock_coverage_ff_28, "MISTRAL_FF.28.54.56", 1'b0, clock_coverage_unused[28])
+    `A2_SOCKET_FF(clock_coverage_ff_29, "MISTRAL_FF.28.55.56", 1'b0, clock_coverage_unused[29])
+    `A2_SOCKET_FF(clock_coverage_ff_30, "MISTRAL_FF.28.56.56", 1'b0, clock_coverage_unused[30])
+    `A2_SOCKET_FF(clock_coverage_ff_31, "MISTRAL_FF.28.57.56", 1'b0, clock_coverage_unused[31])
+    `A2_SOCKET_FF(clock_coverage_ff_32, "MISTRAL_FF.28.58.56", 1'b0, clock_coverage_unused[32])
     `A2_SOCKET_FF(plug_request_ff_0, "MISTRAL_FF.24.41.2", request[0], plug_request[0])
     `A2_SOCKET_FF(plug_request_ff_1, "MISTRAL_FF.24.41.4", request[1], plug_request[1])
     `A2_SOCKET_FF(plug_request_ff_2, "MISTRAL_FF.24.41.8", request[2], plug_request[2])
@@ -290,8 +387,40 @@ module apple2_slot_socket7 (
     (* keep, BEL = SITE *) MISTRAL_FF NAME ( \
         .CLK(clock), .DATAIN(D), .Q(QOUT), .ACLR(1'b1), .ENA(1'b1), \
         .SCLR(1'b0), .SLOAD(1'b0), .SDATA(1'b0));
-    (* keep *) wire clock_coverage_unused;
-    `A2_SOCKET_FF(clock_coverage_ff, "MISTRAL_FF.24.64.56", 1'b0, clock_coverage_unused)
+    (* keep *) wire [32:0] clock_coverage_unused;
+    `A2_SOCKET_FF(clock_coverage_ff_0, "MISTRAL_FF.24.64.56", 1'b0, clock_coverage_unused[0])
+    `A2_SOCKET_FF(clock_coverage_ff_1, "MISTRAL_FF.24.65.56", 1'b0, clock_coverage_unused[1])
+    `A2_SOCKET_FF(clock_coverage_ff_2, "MISTRAL_FF.24.66.56", 1'b0, clock_coverage_unused[2])
+    `A2_SOCKET_FF(clock_coverage_ff_3, "MISTRAL_FF.24.67.56", 1'b0, clock_coverage_unused[3])
+    `A2_SOCKET_FF(clock_coverage_ff_4, "MISTRAL_FF.24.68.56", 1'b0, clock_coverage_unused[4])
+    `A2_SOCKET_FF(clock_coverage_ff_5, "MISTRAL_FF.24.69.56", 1'b0, clock_coverage_unused[5])
+    `A2_SOCKET_FF(clock_coverage_ff_6, "MISTRAL_FF.24.70.56", 1'b0, clock_coverage_unused[6])
+    `A2_SOCKET_FF(clock_coverage_ff_7, "MISTRAL_FF.24.71.56", 1'b0, clock_coverage_unused[7])
+    `A2_SOCKET_FF(clock_coverage_ff_8, "MISTRAL_FF.24.72.56", 1'b0, clock_coverage_unused[8])
+    `A2_SOCKET_FF(clock_coverage_ff_9, "MISTRAL_FF.24.73.56", 1'b0, clock_coverage_unused[9])
+    `A2_SOCKET_FF(clock_coverage_ff_10, "MISTRAL_FF.24.74.56", 1'b0, clock_coverage_unused[10])
+    `A2_SOCKET_FF(clock_coverage_ff_11, "MISTRAL_FF.24.75.56", 1'b0, clock_coverage_unused[11])
+    `A2_SOCKET_FF(clock_coverage_ff_12, "MISTRAL_FF.24.76.56", 1'b0, clock_coverage_unused[12])
+    `A2_SOCKET_FF(clock_coverage_ff_13, "MISTRAL_FF.24.77.56", 1'b0, clock_coverage_unused[13])
+    `A2_SOCKET_FF(clock_coverage_ff_14, "MISTRAL_FF.24.78.56", 1'b0, clock_coverage_unused[14])
+    `A2_SOCKET_FF(clock_coverage_ff_15, "MISTRAL_FF.28.61.56", 1'b0, clock_coverage_unused[15])
+    `A2_SOCKET_FF(clock_coverage_ff_16, "MISTRAL_FF.28.62.56", 1'b0, clock_coverage_unused[16])
+    `A2_SOCKET_FF(clock_coverage_ff_17, "MISTRAL_FF.28.63.56", 1'b0, clock_coverage_unused[17])
+    `A2_SOCKET_FF(clock_coverage_ff_18, "MISTRAL_FF.28.64.56", 1'b0, clock_coverage_unused[18])
+    `A2_SOCKET_FF(clock_coverage_ff_19, "MISTRAL_FF.28.65.56", 1'b0, clock_coverage_unused[19])
+    `A2_SOCKET_FF(clock_coverage_ff_20, "MISTRAL_FF.28.66.56", 1'b0, clock_coverage_unused[20])
+    `A2_SOCKET_FF(clock_coverage_ff_21, "MISTRAL_FF.28.67.56", 1'b0, clock_coverage_unused[21])
+    `A2_SOCKET_FF(clock_coverage_ff_22, "MISTRAL_FF.28.68.56", 1'b0, clock_coverage_unused[22])
+    `A2_SOCKET_FF(clock_coverage_ff_23, "MISTRAL_FF.28.69.56", 1'b0, clock_coverage_unused[23])
+    `A2_SOCKET_FF(clock_coverage_ff_24, "MISTRAL_FF.28.70.56", 1'b0, clock_coverage_unused[24])
+    `A2_SOCKET_FF(clock_coverage_ff_25, "MISTRAL_FF.28.71.56", 1'b0, clock_coverage_unused[25])
+    `A2_SOCKET_FF(clock_coverage_ff_26, "MISTRAL_FF.28.72.56", 1'b0, clock_coverage_unused[26])
+    `A2_SOCKET_FF(clock_coverage_ff_27, "MISTRAL_FF.28.73.56", 1'b0, clock_coverage_unused[27])
+    `A2_SOCKET_FF(clock_coverage_ff_28, "MISTRAL_FF.28.74.56", 1'b0, clock_coverage_unused[28])
+    `A2_SOCKET_FF(clock_coverage_ff_29, "MISTRAL_FF.28.75.56", 1'b0, clock_coverage_unused[29])
+    `A2_SOCKET_FF(clock_coverage_ff_30, "MISTRAL_FF.28.76.56", 1'b0, clock_coverage_unused[30])
+    `A2_SOCKET_FF(clock_coverage_ff_31, "MISTRAL_FF.28.77.56", 1'b0, clock_coverage_unused[31])
+    `A2_SOCKET_FF(clock_coverage_ff_32, "MISTRAL_FF.28.78.56", 1'b0, clock_coverage_unused[32])
     `A2_SOCKET_FF(plug_request_ff_0, "MISTRAL_FF.24.61.2", request[0], plug_request[0])
     `A2_SOCKET_FF(plug_request_ff_1, "MISTRAL_FF.24.61.4", request[1], plug_request[1])
     `A2_SOCKET_FF(plug_request_ff_2, "MISTRAL_FF.24.61.8", request[2], plug_request[2])

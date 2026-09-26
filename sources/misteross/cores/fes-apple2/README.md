@@ -56,8 +56,12 @@ backplane.
 
 Slots 2, 4, 5 and 7 are physical sockets (`rtl/apple2_slot_sockets.v`): each
 pins its 32 request and 28 response flip-flops in the first three LABs of
-column 24 of its placement rectangle (rows 1–18, 21–38, 41–58, 61–78) plus a
-clock-coverage flip-flop. The Go linker layout `fes.apple2-bus.slots/1`
+column 24 of its placement rectangle (rows 1–18, 21–38, 41–58, 61–78) plus
+one clock-coverage flip-flop per socket row in columns 24 and 28. A frozen
+shell routes a horizontal clock segment (HCLKB.16 for column 24, HCLKB.25 for
+columns 25–28) only to rows where it has a cell, and a card cannot add one
+because those pips lie outside its CRAM fence; the anchors make both segments
+reach every socket row. The Go linker layout `fes.apple2-bus.slots/1`
 admits any combination of independently built cards into those sockets.
 Slot 6 is the built-in Disk II controller; slots 1 and 3 are vacant.
 

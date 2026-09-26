@@ -39,10 +39,10 @@ class Apple2SlotCardTests(unittest.TestCase):
         self.assertEqual(cells["plug_addr_ff_0"]["attributes"]["NEXTPNR_BEL"], "MISTRAL_FF.24.41.2")
         self.assertEqual(cells["plug_rdata_ff_27"]["attributes"]["NEXTPNR_BEL"], "MISTRAL_FF.24.43.58")
         self.assertNotIn("slot5.plug_request_ff_0", cells)
-        self.assertNotIn("slot5.clock_coverage_ff", cells)
+        self.assertFalse([n for n in cells if n.startswith("slot5.clock_coverage_ff")])
         for other in (2, 4, 7):
             self.assertIn(f"slot{other}.plug_request_ff_31", cells)
-            self.assertIn(f"slot{other}.clock_coverage_ff", cells)
+            self.assertIn(f"slot{other}.clock_coverage_ff_32", cells)
         pll = cells["system_clock.pll"]
         self.assertEqual(pll["connections"]["outclk[1]"], [20])
         pins = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())["pins"]

@@ -75,7 +75,7 @@ class BuildFesApple2Tests(unittest.TestCase):
     def test_routed_shell_keeps_sockets_vacant(self) -> None:
         evidence = producer.validate_routed_shell(self._routed())
         self.assertEqual(evidence["sockets"], [2, 4, 5, 7])
-        self.assertEqual(evidence["pinned_boundary_cells"], 4 * 61)
+        self.assertEqual(evidence["pinned_boundary_cells"], 4 * (60 + 33))
         intruder = {"machine.alu": {"type": "MISTRAL_COMB",
                                     "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.26.30.0"}}}
         with self.assertRaises(BuildError):

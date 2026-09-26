@@ -101,11 +101,16 @@ class Apple2SlotTest(unittest.TestCase):
                     bx0, by0, bx1, by1 = b.cram
                     self.assertFalse(ax0 < bx1 and bx0 < ax1 and ay0 < by1 and by0 < ay1)
             bels = apple2_slots.boundary_bels(a)
-            self.assertEqual(len(bels), 1 + apple2_slots.REQUEST_BITS + apple2_slots.RESPONSE_BITS)
+            anchors = apple2_slots.clock_anchor_bels(a)
+            self.assertEqual(len(bels), len(anchors) + apple2_slots.REQUEST_BITS + apple2_slots.RESPONSE_BITS)
+            rows = {(int(bel.split('.')[1]), int(bel.split('.')[2])) for bel in anchors}
+            for row in range(a.first_row, a.last_row + 1):
+                self.assertIn((apple2_slots.COLUMN + 4, row), rows)
+                self.assertTrue(row < a.first_row + 3 or (apple2_slots.COLUMN, row) in rows)
             for bel in bels.values():
                 _, x, y, _z = bel.split('.')
-                self.assertEqual(int(x), apple2_slots.COLUMN)
-                self.assertTrue(a.first_row <= int(y) <= a.first_row + 3)
+                self.assertIn(int(x), (apple2_slots.COLUMN, apple2_slots.COLUMN + 4))
+                self.assertTrue(a.first_row <= int(y) <= a.last_row)
                 self.assertNotIn(bel, seen)
                 seen.add(bel)
             self.assertEqual(a.placement.split()[0], f'slot{a.slot}')

@@ -75,8 +75,9 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     physical `outclk[1]` pin and drop the obsolete `outclk[0]` alias. Every
     socket's boundary must still be at its pinned BEL. The chosen socket's
     request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
-    and its clock-coverage flip-flop is removed (its routed clock branch
-    stays frozen); the other sockets keep their instance names.
+    and its clock-coverage flip-flops are removed (their routed clock
+    branches stay frozen for the card to extend inside its fence); the other
+    sockets keep their instance names.
     """
     design = json.loads(source)
     top = design["modules"]["top"]
@@ -114,7 +115,8 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
         cells[f"plug_addr_ff_{bit}"] = cells.pop(f"{target.instance}plug_request_ff_{bit}")
     for bit in range(apple2_slots.RESPONSE_BITS):
         cells[f"plug_rdata_ff_{bit}"] = cells.pop(f"{target.instance}plug_response_ff_{bit}")
-    del cells[f"{target.instance}clock_coverage_ff"]
+    for name in [n for n in cells if n.startswith(f"{target.instance}clock_coverage_ff_")]:
+        del cells[name]
     return (json.dumps(design, separators=(",", ":")) + "\n").encode()
 
 
