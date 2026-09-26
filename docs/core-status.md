@@ -61,7 +61,11 @@ ROM inputs, with an optional SGM archive built against that exact shell. Its
 factory recipe and image selection are unchanged. The producer must pass a
 fresh authenticated route, all three timing gates, ROM-map authentication and
 socket containment before any package is imported; synthetic bank simulation
-does not qualify a retail mapper or a kit artifact.
+does not qualify a retail mapper or a kit artifact. The sealed synthetic
+BIOS/MegaCart pair has [exact-artifact kit diagnostic acceptance](validation/2026-09-26-coleco-megacart-two-rom-hil.md)
+with and without SGM, including Stop/relaunch and retained selections after
+host restart. That record does not qualify a retail mapper, a proprietary
+BIOS, or an appliance image.
 
 ## Not implemented, or not this package
 
