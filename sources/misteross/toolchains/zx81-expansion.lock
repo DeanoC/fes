@@ -2,19 +2,19 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "ec34fcf38986217af9b5558936044b7197d968a7"
 order = 10
-rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr f65075bb (and Mistral 7ed06e21); published DeanoC/yosys main merge."
+rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr a93fe013 (and Mistral 7ed06e21); published DeanoC/yosys main merge."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
 order = 20
-rationale = "DeanoC fork master with the indexed-node routing API and the fixes nextpnr f65075bb needs on it (rnode_unlink, timing target-position mask, hashed pnode/rnode lookups: PRs #9, #10), carrying the 18db2489 CRAM footprints and af2ade0a block-mux CRAM bits. Fixed commit; pair with nextpnr f65075bb, which no longer builds against 18db2489. Previous pin: Reviewed Mistral PR #3 adds const physical routing-mux CRAM footprints and device dimensions on b28e30a. Exact seven offending muxes and 14 observed outside bits are covered by the standalone regression. Scoped ZX81 cart routing uses this API to enforce the fixed socket CRAM boundary; default and registered-memory locks retain their qualified library revisions."
+rationale = "DeanoC fork master with the indexed-node routing API and the fixes nextpnr a93fe013 needs on it (rnode_unlink, timing target-position mask, hashed pnode/rnode lookups: PRs #9, #10), carrying the 18db2489 CRAM footprints and af2ade0a block-mux CRAM bits. Fixed commit; pair with nextpnr a93fe013, which no longer builds against 18db2489. Previous pin: Reviewed Mistral PR #3 adds const physical routing-mux CRAM footprints and device dimensions on b28e30a. Exact seven offending muxes and 14 observed outside bits are covered by the standalone regression. Scoped ZX81 cart routing uses this API to enforce the fixed socket CRAM boundary; default and registered-memory locks retain their qualified library revisions."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "267710a3d8707ca10c23e259be74f187ac54482b"
+commit = "a93fe013af841214ecb4f7be3af0de65f3de3a0f"
 order = 30
-rationale = "Scoped FES #237 fix on f65075bb: preserve frozen routing mux selections outside the socket and their upstream paths through cartridge cleanup; reject missing, replaced or reassigned selections before RBF emission. Routed-design checks retain connected locked physical branches. Retained ZX81 replay passes both clocks, identical header and zero outside-slot CRAM changes with the fixed 1769,32,2806,7024 rectangle. Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Default and other core locks remain separately pinned; hardware acceptance is separate."
+rationale = "DeanoC nextpnr main a93fe013, the merge of PR #86: Mistral placement prediction calibrated against routed delays (LAB exit cost, row change, dedicated carry and same-half LUT/FF paths). RAM130 closes 130 MHz on seed 2 and 30 of 32 seeds (DeanoC/fes#236); SMS and ZX81 improve, Coleco is neutral and SG-1000 passes fewer seeds at 16. Pair with Mistral 7ed06e21 (required). Previous pin 267710a3: Scoped FES #237 fix on f65075bb: preserve frozen routing mux selections outside the socket and their upstream paths through cartridge cleanup; reject missing, replaced or reassigned selections before RBF emission. Routed-design checks retain connected locked physical branches. Retained ZX81 replay passes both clocks, identical header and zero outside-slot CRAM changes with the fixed 1769,32,2806,7024 rectangle. Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Default and other core locks remain separately pinned; hardware acceptance is separate."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

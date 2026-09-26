@@ -67,9 +67,8 @@ OUTPUT_100 = Path("build/fes-ramtest-100")
 OUTPUT_130 = Path("build/fes-ramtest-130")
 TOOLCHAIN_LOCK_130 = "toolchains/ramtest-130.lock"
 TOOLCHAIN_ROOT_130 = Path("build/toolchain-ramtest-130")
-# ramtest-130.lock adds the calibrated placement prediction that closes 130 MHz.
+# ramtest-130.lock differs from toolchain.lock only in its current Yosys.
 YOSYS_130 = "1bf1ff3d709dc8182cfa61701620d87181516941"
-NEXTPNR_130 = "04a233c83edfb74c2cedce03a1864cd0d27ff3bd"
 MEMORY_PLL_100 = {
     "duty_cycle0": "00000000000000000000000000110010",
     "duty_cycle1": "00000000000000000000000000110010",
@@ -112,7 +111,7 @@ def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
         return board._authenticate_tools(
             root, lock_path=root / TOOLCHAIN_LOCK_130,
             toolchain_root=root / TOOLCHAIN_ROOT_130,
-            expected_commits={**board.EXPECTED_TOOL_COMMITS, "yosys": YOSYS_130, "nextpnr": NEXTPNR_130},
+            expected_commits={**board.EXPECTED_TOOL_COMMITS, "yosys": YOSYS_130},
             cache_root=cache_root,
         )
     return board._authenticate_tools(root, cache_root=cache_root)

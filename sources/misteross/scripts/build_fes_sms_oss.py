@@ -61,7 +61,7 @@ SMS_TOOLCHAIN_LOCK = "toolchains/fes-sms.lock"
 SMS_TOOLCHAIN_ROOT = "build/toolchain/fes-sms"
 SMS_TOOL_COMMITS = {
     "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "469b6670c38aa89c1f1c3b0e296868f7d9846003",
+    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
 ROM_DATABASE_SHA256 = {

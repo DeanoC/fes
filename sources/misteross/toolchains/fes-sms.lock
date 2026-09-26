@@ -2,19 +2,19 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "e2d425dee148cc60c50f4e9b354a10d90eab15f4"
 order = 10
-rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de), the same Yosys pin as toolchains/registered-memory.lock. SMS keeps that synthesis so sprite line banks stay a synchronous TDP with a live CLK2. Pair with nextpnr 469b6670 and Mistral 7ed06e21."
+rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de), the same Yosys pin as toolchains/registered-memory.lock. SMS keeps that synthesis so sprite line banks stay a synchronous TDP with a live CLK2. Pair with nextpnr a93fe013 and Mistral 7ed06e21."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
 order = 20
-rationale = "Indexed-node Mistral master required by nextpnr 469b6670. Carries the b28e30a M10K/PLL surface plus rnode_unlink and the hashed node lookups. registered-memory.lock stays on b28e30a for SG-1000 and the Coleco OSS lane; nextpnr 469b6670 does not build against that revision."
+rationale = "Indexed-node Mistral master required by nextpnr a93fe013. Carries the b28e30a M10K/PLL surface plus rnode_unlink and the hashed node lookups. registered-memory.lock now pins the same revision."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "469b6670c38aa89c1f1c3b0e296868f7d9846003"
+commit = "a93fe013af841214ecb4f7be3af0de65f3de3a0f"
 order = 30
-rationale = "DeanoC nextpnr main 469b6670, the merge of PR #84. SMS seed 3 was hanging in the GPU router on two to four overused wires until the 600-second attempt budget (DeanoC/fes#232). This pin tries one soft-reservation escape and otherwise restores the legal pre-repair route. SMS selects this lock instead of toolchains/registered-memory.lock, whose nextpnr pin remains 5dea3ecd for SG-1000 and Coleco OSS. Pair with Yosys e2d425de and Mistral 7ed06e21."
+rationale = "DeanoC nextpnr main a93fe013, the merge of PR #86: Mistral placement prediction calibrated against routed delays (LAB exit cost, row change, dedicated carry and same-half LUT/FF paths). RAM130 closes 130 MHz on seed 2 and 30 of 32 seeds (DeanoC/fes#236); SMS and ZX81 improve, Coleco is neutral and SG-1000 passes fewer seeds at 16. Pair with Mistral 7ed06e21 (required). Previous pin 469b6670: DeanoC nextpnr main 469b6670, the merge of PR #84. SMS seed 3 was hanging in the GPU router on two to four overused wires until the 600-second attempt budget (DeanoC/fes#232). This pin tries one soft-reservation escape and otherwise restores the legal pre-repair route. SMS selects this lock instead of toolchains/registered-memory.lock, whose nextpnr pin remains 5dea3ecd for SG-1000 and Coleco OSS. Pair with Yosys e2d425de and Mistral 7ed06e21."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
