@@ -448,6 +448,21 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	if media == nil {
 		return response, nil
 	}
+	if media.unit != nil {
+		// A home computer starts with its drives empty; the selected disk is
+		// inserted into its unit after Start without holding reset.
+		dev := s.libraryDevelopmentMediaBinding(*status.CorePackage)
+		unitBinding := protocol.MediaUnitBinding{PackageID: dev.PackageID, Generation: dev.Generation, Unit: *media.unit, Target: dev.Target, TargetID: dev.TargetID}
+		mediaCtx, mediaCancel := context.WithTimeout(parent, max(s.uploadTimeout, 150*time.Second))
+		defer mediaCancel()
+		unitStatus, unitErr := s.insertMediaUnitLocked(mediaCtx, media.size, media.ReadCloser, unitBinding)
+		unitErr = errors.Join(unitErr, media.Close())
+		media = nil
+		if unitErr != nil {
+			return s.recoverLibrarySlot(parent, unitStatus, unitErr)
+		}
+		return protocol.CachedLaunchResponse{Status: retainImageSHA(s.retainMediaUnitSessionIdentity(unitStatus, unitBinding), imageSHA)}, nil
+	}
 	binding := s.libraryDevelopmentMediaBinding(*status.CorePackage)
 	binding.Stream = media.stream
 	mediaCtx := ctx

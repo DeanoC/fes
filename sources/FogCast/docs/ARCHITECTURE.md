@@ -521,6 +521,39 @@ needed, then arms with `POST /api/v1/session/live-media`. The same overlay can
 eject through `POST /api/v1/session/live-media/clear`. It retries loader `BUSY`
 and leaves the session active when eject reports unavailable.
 
+### Removable disks (fes.computer media units)
+
+A `fes.computer` package declaring `fes.media.apple2-floppy` 1.0 projects
+media role `disk` (`protocol.DeclaredCoreMediaCapabilities`): format
+`apple2-dos-order`, exactly 143,360 bytes, names `.dsk`/`.do`, transport
+`fes-computer-media-unit-v1`, unit 0. Library selection
+(`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
+13) validates the exact size offline. A home computer starts with its drives
+empty: launch programs the package first and then inserts the selected disk
+into its unit; a failed insert is a failed launch and follows the existing
+library-slot Stop/recovery. The same session accepts later swaps:
+`POST /api/v1/session/live-media` with a `.dsk`/`.do` name inserts a household
+disk, and `…/live-media/clear` ejects it when the active generation has the
+floppy unit; `.p` names keep the ZX81 tape path. The CLI equivalents are
+`fogcast change-disk MEDIA_ID_OR_.dsk/.do_PATH` and `fogcast eject-disk`.
+
+`fogcast/media_units.go` binds each request to the package, generation, target
+and unit (`protocol.MediaUnitBinding`) and admits only the observed unit's
+limits from `core_package.media_units`. `targetclient/media_units.go` streams
+the exact bytes to authenticated target `POST /v1/development/insert-media`
+(fixed `Content-Length`, `application/octet-stream`) or
+`POST /v1/development/eject-media`, with the package/generation/target headers
+plus `X-FogCast-Media-Unit`, under the existing kit lease and update
+exclusion. `internal/agent/media_units.go` rechecks the binding, and
+`internal/misterruntime/computer.go` stages the bytes in a private 0700
+directory (0600 file), rechecks identity immediately before the single
+`insert_media` call (bounded to 135 s), requires the unit to report `ready`
+(`empty` after `eject_media`), removes the staging, and never replays a lost
+reply. The runtime never holds reset for these transfers and ejects the unit
+once on failure; the agent then republishes the live unit state from a fresh
+status read instead of replacing the session. Keyboard posts do not wait
+behind a disk transfer.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are
@@ -1458,8 +1491,9 @@ path. A title may require a household firmware object; rooms/catalog **Ready**
 follows that fill, and `session/launch` binds firmware before cartridge media
 and reset release. Tenfoot Confirm imports an 8192-byte BIOS through the
 existing media/firmware APIs. Expansion selection binds an independently linked
-pack to the exact shell package. Later removable media work remains proposed
-in [launch composition](launch-composition.md).
+pack to the exact shell package. The Apple II disk is the first removable
+media; see [removable disks](#removable-disks-fescomputer-media-units) and
+[launch composition](launch-composition.md).
 
 Library list, detail and variant responses report expansion selection and
 readiness independently of firmware requirements, including firmware-free ZX81

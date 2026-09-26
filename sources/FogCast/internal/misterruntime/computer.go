@@ -273,3 +273,13 @@ func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (
 	}
 	return cloneMediaUnits(response.Capabilities.MediaUnits), nil
 }
+
+// MediaUnits reads the live unit states of one exact fes.computer generation,
+// for example after a failed transfer that the runtime ejected.
+func (r *Runtime) MediaUnits(ctx context.Context, packageID string, generation uint64) ([]protocol.MediaUnitStatus, bool) {
+	response, err := r.boundedStatus(ctx)
+	if err != nil || !computerResponseMatches(response, packageID, generation) {
+		return nil, false
+	}
+	return cloneMediaUnits(response.Capabilities.MediaUnits), true
+}

@@ -144,6 +144,18 @@ test('media selection sends current package/media CAS and imported digest',async
   const call=f.calls.find(c=>c.options.method==='PUT');
   assert.deepEqual(JSON.parse(call.options.body),{expected_package_id:A,expected_media_id:'',media_role:'blob',media_id:M});
 });
+test('removable disk media uses the declared disk role and exact size',async()=>{
+  const f=fixture(); f.db.entries[0].media_id='';
+  f.intercept(path=>path.endsWith('/media-capabilities')?response({...caps(A),media:[{role:'disk',format:'apple2-dos-order',
+    min_bytes:143360,max_bytes:143360,transport:'fes-computer-media-unit-v1',unit:0,extensions:['.dsk','.do']}]}):undefined);
+  await f.controller.open(); await f.controller.selectEntry('entry');
+  await f.controller.importMedia({size:143359}); await f.controller.selectEntryMedia();
+  assert.match(f.controller.snapshot().message,/declared limits/);
+  assert.equal(f.calls.filter(c=>c.options.method==='PUT').length,0);
+  await f.controller.importMedia({size:143360}); await f.controller.selectEntryMedia();
+  const call=f.calls.find(c=>c.options.method==='PUT');
+  assert.deepEqual(JSON.parse(call.options.body),{expected_package_id:A,expected_media_id:'',media_role:'disk',media_id:M});
+});
 test('compatibility is unknown until explicit check and incompatible remains distinct',async()=>{
   const f=fixture(); await f.controller.open(); await f.controller.selectPackage(A);
   assert.equal(f.controller.snapshot().compatibility,null);

@@ -84,3 +84,74 @@ func TestChangeTapePathRequiresPExtension(t *testing.T) {
 		t.Fatal("non-.p path accepted")
 	}
 }
+
+func TestChangeDiskImportsExactImageAndEjectDiskClears(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	mediaID := strings.Repeat("c", 64)
+	session := func() map[string]any {
+		return map[string]any{
+			"id": "host-one", "target": "dev", "state": "active", "execution": "fpga_development",
+			"core_package": map[string]any{
+				"package_id": pkg, "generation": 3,
+				"abi":               map[string]any{"id": "fes.computer", "major": 1, "minor": 0},
+				"active_interfaces": []map[string]any{{"id": "fes.keyboard.hid", "major": 1, "minor": 0}, {"id": "fes.media.apple2-floppy", "major": 1, "minor": 0}},
+				"media_units": []map[string]any{{"unit": 0, "interface": map[string]any{"id": "fes.media.apple2-floppy", "major": 1, "minor": 0},
+					"min_bytes": 143360, "max_bytes": 143360, "chunk_bytes": 512, "state": "empty"}},
+			},
+		}
+	}
+	var posts []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/core-media":
+			if r.ContentLength != 143360 {
+				t.Fatalf("import size %d", r.ContentLength)
+			}
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"media_id": mediaID, "size": 143360})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_ = json.NewEncoder(w).Encode(session())
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media":
+			posts = append(posts, "change")
+			var body map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["media_id"] != mediaID || body["name"] != "dos33.dsk" ||
+				r.Header.Get("X-FogCast-Core-Generation") != "3" {
+				t.Fatalf("body=%v err=%v headers=%v", body, err, r.Header)
+			}
+			_ = json.NewEncoder(w).Encode(session())
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media/clear":
+			posts = append(posts, "clear")
+			_ = json.NewEncoder(w).Encode(session())
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	disk := filepath.Join(dir, "dos33.dsk")
+	if err := os.WriteFile(disk, make([]byte, 143360), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"change-disk", disk}); result.err != nil {
+		t.Fatalf("change-disk: %v", result.err)
+	}
+	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"eject-disk"}); result.err != nil {
+		t.Fatalf("eject-disk: %v", result.err)
+	}
+	if len(posts) != 2 || posts[0] != "change" || posts[1] != "clear" {
+		t.Fatalf("posts=%v", posts)
+	}
+	short := filepath.Join(dir, "short.dsk")
+	if err := os.WriteFile(short, make([]byte, 1024), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{short, filepath.Join(dir, "prodos.po")} {
+		if result := runLiveMediaCommand(context.Background(), server.URL, []string{"change-disk", path}); result.err == nil {
+			t.Fatalf("%s accepted", path)
+		}
+	}
+	// A tape command refuses a disk-only session before posting.
+	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"eject-tape"}); result.err == nil || len(posts) != 2 {
+		t.Fatalf("tape eject posted to a disk session: %v", result.err)
+	}
+}

@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 12
+const schemaVersion = 13
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -200,6 +200,28 @@ CREATE TABLE core_entry_slot_expansions (
 PRAGMA user_version = 12;
 `
 
+// Schema 13 admits the removable-disk media role beside blob. SQLite cannot
+// alter a CHECK constraint, so the table is rebuilt with foreign keys
+// disabled for the migration connection; child selections keep referencing
+// core_entries by name and are verified with foreign_key_check.
+const schemaV13 = `
+CREATE TABLE core_entries_v13 (
+  game_id TEXT PRIMARY KEY REFERENCES games(game_id) ON DELETE CASCADE,
+  core_id TEXT NOT NULL,
+  package_id TEXT NOT NULL,
+  media_role TEXT NOT NULL DEFAULT '',
+  media_id TEXT NOT NULL DEFAULT '',
+  firmware_required INTEGER NOT NULL DEFAULT 0,
+  CHECK ((media_role = '' AND media_id = '') OR (media_role IN ('blob', 'disk') AND length(media_id) = 64))
+);
+INSERT INTO core_entries_v13(game_id, core_id, package_id, media_role, media_id, firmware_required)
+  SELECT game_id, core_id, package_id, media_role, media_id, firmware_required FROM core_entries;
+DROP TABLE core_entries;
+ALTER TABLE core_entries_v13 RENAME TO core_entries;
+CREATE INDEX core_entries_core_id ON core_entries(core_id);
+PRAGMA user_version = 13;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -223,6 +245,24 @@ func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 }
 
 func migrate(ctx context.Context, connection *sql.Conn) (err error) {
+	// A table rebuild must not cascade deletes into child selections. The
+	// foreign-key mode can change only outside a transaction, so it is
+	// disabled for this connection when a rebuild may be needed and restored
+	// afterwards; the migration verifies integrity before it commits.
+	var current int
+	if err := connection.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
+		return fmt.Errorf("read catalog schema version: %w", err)
+	}
+	if current < 13 {
+		if _, err := connection.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+			return fmt.Errorf("prepare catalog migration: %w", err)
+		}
+		defer func() {
+			if _, restoreErr := connection.ExecContext(context.Background(), "PRAGMA foreign_keys = ON"); restoreErr != nil && err == nil {
+				err = fmt.Errorf("restore catalog foreign keys: %w", restoreErr)
+			}
+		}()
+	}
 	if _, err := connection.ExecContext(ctx, "BEGIN EXCLUSIVE"); err != nil {
 		return fmt.Errorf("begin catalog migration: %w", err)
 	}
@@ -315,11 +355,32 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		if _, err := connection.ExecContext(ctx, schemaV12); err != nil {
 			return fmt.Errorf("apply catalog schema version 12: %w", err)
 		}
+		version = 12
+	}
+	if version == 12 {
+		if _, err := connection.ExecContext(ctx, schemaV13); err != nil {
+			return fmt.Errorf("apply catalog schema version 13: %w", err)
+		}
+		if err := foreignKeyCheck(ctx, connection); err != nil {
+			return fmt.Errorf("apply catalog schema version 13: %w", err)
+		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit catalog migration: %w", err)
 	}
 	return nil
+}
+
+func foreignKeyCheck(ctx context.Context, connection *sql.Conn) error {
+	rows, err := connection.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		return fmt.Errorf("foreign key integrity violated")
+	}
+	return rows.Err()
 }
 
 func rewriteSearchText(ctx context.Context, connection *sql.Conn) error {

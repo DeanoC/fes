@@ -118,7 +118,9 @@ func TestSlotExpansionSelectionIsPerSlotCompareAndSwap(t *testing.T) {
 	}
 }
 
-func TestSchemaTwelveKeepsSingleExpansionRows(t *testing.T) {
+// Schemas 12 and 13 keep every existing selection: 12 adds slot cards and
+// 13 rebuilds core_entries for the disk role without cascading its children.
+func TestSchemaMigrationsKeepExistingSelections(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "catalog.sqlite3")
 	db, err := sql.Open("sqlite", path)
@@ -156,6 +158,8 @@ func TestSchemaTwelveKeepsSingleExpansionRows(t *testing.T) {
 		{`INSERT INTO core_entries(game_id,core_id,package_id) VALUES (?,?,?)`, []any{gameID, "fes.zx81", packageID}},
 		{`INSERT INTO core_expansions(expansion_id,media_id,shell_package_id) VALUES (?,?,?)`, []any{expansionID, mediaID, packageID}},
 		{`INSERT INTO core_entry_expansions(game_id,expansion_id) VALUES (?,?)`, []any{gameID, expansionID}},
+		{`INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES (?,?,?,?,?)`, []any{gameID, packageID, "machine-rom", mediaID, 8192}},
+		{`UPDATE core_entries SET media_role='blob', media_id=?, firmware_required=1 WHERE game_id=?`, []any{mediaID, gameID}},
 	} {
 		if _, err := connection.ExecContext(ctx, statement.sql, statement.args...); err != nil {
 			t.Fatal(err)
@@ -183,6 +187,21 @@ func TestSchemaTwelveKeepsSingleExpansionRows(t *testing.T) {
 	slots, err := store.CoreEntrySlotExpansions(ctx, gameID)
 	if err != nil || len(slots) != 0 {
 		t.Fatalf("slots %+v %v", slots, err)
+	}
+	rom, err := store.CoreEntryROM(ctx, gameID)
+	if err != nil || rom.MediaID != mediaID || rom.ROMID != "machine-rom" {
+		t.Fatalf("ROM selection lost: %+v %v", rom, err)
+	}
+	entry, err := store.CoreEntry(ctx, gameID)
+	if err != nil || entry.MediaRole != "blob" || entry.MediaID != mediaID || !entry.FirmwareRequired || entry.PackageID != packageID {
+		t.Fatalf("entry changed: %+v %v", entry, err)
+	}
+	disk, err := store.SelectCoreEntryMedia(ctx, gameID, packageID, mediaID, "disk", mediaID)
+	if err != nil || disk.MediaRole != "disk" {
+		t.Fatalf("disk role refused: %+v %v", disk, err)
+	}
+	if _, err := store.SelectCoreEntryMedia(ctx, gameID, packageID, mediaID, "tape", mediaID); err == nil {
+		t.Fatal("unknown media role accepted")
 	}
 	rows, err := store.db.QueryContext(ctx, "PRAGMA foreign_key_check")
 	if err != nil {

@@ -18,6 +18,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   launch links the ROM and cards on the host, the target relinks them
   independently and calls the runtime's multi-slot load. See
   [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
+  The entry's selected `disk` (exact 143,360-byte `.dsk`/`.do` DOS-order image)
+  is inserted into media unit 0 after Start, and
+  `POST /api/v1/session/live-media` (`fogcast change-disk` / `eject-disk`)
+  swaps or ejects it while the machine runs. See
+  [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
   Host tests only; no Apple II kit evidence exists yet.
 
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
@@ -526,8 +531,8 @@ read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). The current process
 boundaries and source entry points are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Phase 1 Coleco firmware (household BIOS slot, Ready gate, sofa import picker)
-is in [docs/launch-composition.md](docs/launch-composition.md). Expansions and
-removable media remain proposed.
+is in [docs/launch-composition.md](docs/launch-composition.md), with the
+ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
 
 Native image assembly defaults to Mega Drive; the explicit
 `NATIVE_RUNTIME_SYSTEMS="megadrive pong snes nes"` selection adds sealed

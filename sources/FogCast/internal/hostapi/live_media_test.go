@@ -130,3 +130,34 @@ func TestLiveMediaHostRejectsBadAdmissionAndStaleSession(t *testing.T) {
 		t.Fatalf("busy status=%d calls=%d body=%s", bw.Code, service.replaceCalls, bw.Body)
 	}
 }
+
+func TestLiveMediaHostAcceptsDiskNamesForComputerSessions(t *testing.T) {
+	status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: strings.Repeat("a", 64), Generation: 2, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1},
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.apple2-floppy", Major: 1}},
+	}}
+	service := &liveMediaService{fakeService: fakeService{status: status, sessionTarget: "dev"}}
+	handler := hostapi.New(service)
+	var session struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(serve(t, handler, http.MethodGet, "/api/v1/session").Body.Bytes(), &session)
+	for _, tc := range []struct {
+		name string
+		code int
+	}{{"DOS33.dsk", 200}, {"game.DO", 200}, {"prodos.po", 400}, {"image.nib", 400}} {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"`+tc.name+`"}`))
+		r.Host = "127.0.0.1"
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-FogCast-Session-ID", session.ID)
+		protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 2, Target: "dev"}.SetHeaders(r.Header)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != tc.code || (tc.code == 200 && service.name != tc.name) {
+			t.Fatalf("%s: status=%d body=%s", tc.name, w.Code, w.Body)
+		}
+	}
+	if service.replaceCalls != 2 {
+		t.Fatalf("replace calls %d", service.replaceCalls)
+	}
+}
