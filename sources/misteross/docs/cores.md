@@ -25,7 +25,7 @@ module does not put a package on that image.
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco` | yes; optional Coleco bus 2.0 socket |
-| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sms` | no; package-only recipe |
+| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/fes-sms.lock` | `make build-fes-sms` | no; package-only recipe |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | package-only |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
@@ -95,9 +95,9 @@ select that cache. If both variables are set they must be the same absolute
 path.
 
 Pong authenticates `toolchain.lock`. ZX81 authenticates
-`toolchains/zx81-expansion.lock`. Coleco uses `toolchains/coleco-sgm.lock`;
-SG-1000 and SMS share `toolchains/registered-memory.lock`. They do not alias
-another lock's slot.
+`toolchains/zx81-expansion.lock`. Coleco uses `toolchains/coleco-sgm.lock`.
+SG-1000 uses `toolchains/registered-memory.lock`. SMS uses
+`toolchains/fes-sms.lock`. They do not alias another lock's slot.
 
 For those HIP play-package producers, the route log must name a live HIP
 backend. A command line that merely contains `--router gpu` is not enough.

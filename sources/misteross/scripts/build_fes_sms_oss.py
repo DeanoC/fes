@@ -57,17 +57,17 @@ SMS_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={SMS_GPU_ROUTER}; hip-architectures={SMS_GPU_ARCHITECTURES}"
 )
 OUTPUT_RELATIVE = Path("build/fes-sms-oss")
-SMS_TOOLCHAIN_LOCK = "toolchains/registered-memory.lock"
+SMS_TOOLCHAIN_LOCK = "toolchains/fes-sms.lock"
 SMS_TOOLCHAIN_ROOT = "build/toolchain/fes-sms"
 SMS_TOOL_COMMITS = {
-    "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "5dea3ecd5062f1187d0b4f04a56139d5f8680cf7",
+    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+    "nextpnr": "469b6670c38aa89c1f1c3b0e296868f7d9846003",
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
-    "libmistral/cvd-sx120f.cc": "7acd2702c99680fea7cb76dc73efe4abc6d21f89e28c5b2b020454d917ae488d",
-    "libmistral/cyclonev.h": "e49782a465d9b6d09cc0e871e35ec73389111c89a113fa07cdb5f0bea3be2946",
+    "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
+    "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21",
 }
 RECIPE = "scripts/build_fes_sms_oss.py"
 ABI_DEFINITION = "cores/fes-sms/generated/fes_simple_computer.vh"
