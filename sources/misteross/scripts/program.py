@@ -65,8 +65,6 @@ OSS_RESOURCE_CLASSES = {
 OSS_FORBIDDEN_HARD_BLOCKS = frozenset(
     name for name, classification in OSS_RESOURCE_CLASSES.items() if classification == "forbidden"
 )
-ORACLE_RESOURCE_CLASSES = {"ALM": "ordinary", "register": "ordinary", "IO": "ordinary"}
-ORACLE_HARD_BLOCKS = frozenset(("PLL", "BRAM/M10K", "DSP", "MLAB/LUTRAM", "HPS"))
 
 # These options bound a failed/disconnected operator action.  They contain no
 # External programmer invocations remain bounded.
@@ -209,13 +207,10 @@ def _validate_resource_record(
     label: str,
     *,
     allow_null: bool = False,
-    allow_measurement_metadata: bool = False,
 ) -> None:
     if not isinstance(record, dict):
         raise _fail(f"manifest {label} resource record is malformed")
     allowed = {"used", "available", "utilization_percent"}
-    if allow_measurement_metadata:
-        allowed.update({"evidence_kind", "measured"})
     unexpected = set(record) - allowed
     if unexpected:
         raise _fail(f"manifest {label} contains arbitrary resource fields: {sorted(unexpected)}")
@@ -232,68 +227,6 @@ def _validate_resource_record(
         percent = record["utilization_percent"]
         if percent is not None and _finite_number(percent, f"{label}.utilization_percent") < 0:
             raise _fail(f"manifest {label}.utilization_percent must be non-negative")
-
-
-def _validate_static_exclusion(record: Any, label: str) -> None:
-    if not isinstance(record, dict):
-        raise _fail(f"manifest {label} static hard-block evidence is malformed")
-    expected_fields = {"used", "available", "status", "evidence_kind", "measured", "exclusion"}
-    if set(record) != expected_fields:
-        raise _fail(f"manifest {label} static exclusion fields are not exact")
-    if record.get("used") is not None or record.get("available") is not None:
-        raise _fail(f"manifest {label} static exclusion must use null counts")
-    if record.get("status") != "excluded" or record.get("evidence_kind") != "static_exclusion":
-        raise _fail(f"manifest {label} static exclusion is not explicitly classified")
-    if record.get("measured") is not False:
-        raise _fail(f"manifest {label} static exclusion must be unmeasured")
-    exclusion = record.get("exclusion")
-    if not isinstance(exclusion, dict):
-        raise _fail(f"manifest {label} static exclusion provenance is missing")
-    if not isinstance(exclusion.get("basis"), str) or not exclusion["basis"]:
-        raise _fail(f"manifest {label} static exclusion basis is missing")
-    patterns = exclusion.get("patterns")
-    sources = exclusion.get("sources")
-    if not isinstance(patterns, list) or not patterns or any(not isinstance(value, str) or not value for value in patterns):
-        raise _fail(f"manifest {label} static exclusion patterns are missing")
-    if not isinstance(sources, list) or not sources:
-        raise _fail(f"manifest {label} static exclusion sources are missing")
-    for source in sources:
-        if not isinstance(source, dict) or set(source) != {"path", "sha256"}:
-            raise _fail(f"manifest {label} static exclusion source record is malformed")
-        if not isinstance(source["path"], str) or not source["path"] or not SHA256_RE.fullmatch(str(source["sha256"])):
-            raise _fail(f"manifest {label} static exclusion source hash is malformed")
-
-
-def _validate_oracle_provenance(build: dict[str, Any]) -> None:
-    authenticated = build.get("authenticated_tools")
-    if not isinstance(authenticated, dict) or set(authenticated) != {"quartus_sh"}:
-        raise _fail("oracle manifest must contain exactly quartus_sh provenance")
-    quartus = authenticated["quartus_sh"]
-    if not isinstance(quartus, dict):
-        raise _fail("oracle quartus_sh provenance is malformed")
-    required = {
-        "path",
-        "executable",
-        "sha256",
-        "executable_sha256",
-        "version",
-        "required_version",
-        "version_output_sha256",
-    }
-    if set(quartus) != required:
-        raise _fail("oracle quartus_sh provenance schema is not exact")
-    if not isinstance(quartus["path"], str) or not quartus["path"] or quartus["path"] != quartus["executable"]:
-        raise _fail("oracle quartus_sh executable identity is malformed")
-    for key in ("sha256", "executable_sha256", "version_output_sha256"):
-        if not isinstance(quartus[key], str) or SHA256_RE.fullmatch(quartus[key]) is None:
-            raise _fail(f"oracle quartus_sh {key} is not a lowercase SHA-256")
-    if quartus["sha256"] != quartus["executable_sha256"]:
-        raise _fail("oracle quartus_sh executable hashes disagree")
-    if quartus.get("required_version") != "17.0.2" or "17.0.2" not in str(quartus.get("version")):
-        raise _fail("oracle quartus_sh provenance is not pinned to 17.0.2")
-    pins = build.get("tool_pins")
-    if not isinstance(pins, dict) or set(pins) != {"quartus"} or pins["quartus"] != quartus:
-        raise _fail("oracle manifest quartus tool pin does not match authenticated provenance")
 
 
 def _validate_oss_policy_resources(build: dict[str, Any], experiment: str) -> None:
@@ -352,23 +285,24 @@ def _validate_oss_policy_resources(build: dict[str, Any], experiment: str) -> No
 
 
 def _validate_resources(build: dict[str, Any], lane: str, experiment: str) -> None:
-    if lane == "oss":
-        try:
-            policy_for(experiment)
-        except PolicyError:
-            pass
-        else:
-            _validate_oss_policy_resources(build, experiment)
-            return
-    expected_classes = OSS_RESOURCE_CLASSES if lane == "oss" else ORACLE_RESOURCE_CLASSES
+    if lane != "oss":
+        raise _fail(f"unsupported build lane for programming: {lane!r}")
+    try:
+        policy_for(experiment)
+    except PolicyError:
+        pass
+    else:
+        _validate_oss_policy_resources(build, experiment)
+        return
+    expected_classes = OSS_RESOURCE_CLASSES
     resource_classes = build.get("resource_classes")
     if not isinstance(resource_classes, dict) or resource_classes != expected_classes:
-        raise _fail(f"{lane} manifest resource_classes must exactly match the lane contract")
+        raise _fail("oss manifest resource_classes must exactly match the lane contract")
     resources = build.get("resources")
     if not isinstance(resources, dict) or set(resources) != set(expected_classes):
-        raise _fail(f"{lane} manifest resources must exactly match resource_classes")
+        raise _fail("oss manifest resources must exactly match resource_classes")
     for name in expected_classes:
-        _validate_resource_record(resources[name], f"{lane}.{name}")
+        _validate_resource_record(resources[name], f"oss.{name}")
 
     unknown = build.get("unknown_resources")
     if not isinstance(unknown, dict):
@@ -378,37 +312,23 @@ def _validate_resources(build: dict[str, Any], lane: str, experiment: str) -> No
 
     hard_blocks = build.get("hard_blocks")
     if not isinstance(hard_blocks, dict):
-        raise _fail(f"{lane} manifest hard_blocks evidence is missing")
-    expected_hard = OSS_FORBIDDEN_HARD_BLOCKS if lane == "oss" else ORACLE_HARD_BLOCKS
+        raise _fail("oss manifest hard_blocks evidence is missing")
+    expected_hard = OSS_FORBIDDEN_HARD_BLOCKS
     if set(hard_blocks) != set(expected_hard):
-        raise _fail(f"{lane} manifest hard_blocks must represent every expected classified entry exactly")
+        raise _fail("oss manifest hard_blocks must represent every expected classified entry exactly")
     for name, record in hard_blocks.items():
-        if lane == "oracle" and name in {"MLAB/LUTRAM", "HPS"}:
-            _validate_static_exclusion(record, f"{lane}.{name}")
-            continue
-        _validate_resource_record(record, f"{lane}.{name}", allow_measurement_metadata=lane == "oracle")
-        used = _nonnegative_integer(record["used"], f"{lane}.{name}.used")
+        _validate_resource_record(record, f"oss.{name}")
+        used = _nonnegative_integer(record["used"], f"oss.{name}.used")
         if used != 0:
             raise _fail(f"manifest reports forbidden hard-block use for {name}: {used}")
-        if lane == "oss" and resource_classes.get(name) != "forbidden":
+        if resource_classes.get(name) != "forbidden":
             raise _fail(f"manifest forbidden hard block is not classified as forbidden: {name}")
-        if lane == "oracle" and (
-            record.get("evidence_kind") != "fitter_summary" or record.get("measured") is not True
-        ):
-            raise _fail(f"oracle measured hard-block evidence is not explicit for {name}")
 
-    if lane == "oss":
-        for name in OSS_FORBIDDEN_HARD_BLOCKS:
-            resource = resources[name]
-            hard = hard_blocks[name]
-            if hard.get("used") != resource.get("used") or hard.get("available") != resource.get("available"):
-                raise _fail(f"oss hard-block evidence disagrees with resource record for {name}")
-    else:
-        evidence = build.get("hard_block_evidence")
-        if not isinstance(evidence, dict) or set(evidence) != set(ORACLE_HARD_BLOCKS):
-            raise _fail("oracle hard_block_evidence must exactly mirror hard_blocks")
-        if evidence != hard_blocks:
-            raise _fail("oracle hard_block_evidence disagrees with hard_blocks")
+    for name in OSS_FORBIDDEN_HARD_BLOCKS:
+        resource = resources[name]
+        hard = hard_blocks[name]
+        if hard.get("used") != resource.get("used") or hard.get("available") != resource.get("available"):
+            raise _fail(f"oss hard-block evidence disagrees with resource record for {name}")
 
 
 def validate_artifact(
@@ -422,7 +342,7 @@ def validate_artifact(
         raise _fail(f"invalid experiment: {experiment!r}")
     if not LANE_RE.fullmatch(lane):
         raise _fail(f"invalid build lane: {lane!r}")
-    if lane not in {"oss", "oracle"}:
+    if lane != "oss":
         raise _fail(f"unsupported build lane for programming: {lane!r}")
 
     repository = Path(os.path.abspath(os.fspath(repo_root)))
@@ -505,8 +425,6 @@ def validate_artifact(
     if not isinstance(clock, str) or not clock.startswith("FPGA_CLK1_50"):
         raise _fail(f"manifest timing clock is not the expected FPGA_CLK1_50 input: {clock!r}")
     _validate_resources(build, lane, experiment)
-    if lane == "oracle":
-        _validate_oracle_provenance(build)
 
     reproducibility = _as_mapping(build.get("reproducibility"), "build.reproducibility")
     if reproducibility.get("rbf_sha256") != expected_hash:
@@ -516,19 +434,10 @@ def validate_artifact(
         raise _fail("manifest reproducibility RBF size is missing or invalid")
     if size != artifact_size:
         raise _fail(f"canonical RBF size mismatch: manifest {size}, actual {artifact_size}")
-    if lane == "oss":
-        if reproducibility.get("rbf_stability_measured") is not True:
-            raise _fail("manifest RBF stability was not measured")
-        if reproducibility.get("rbf_stable") is not True:
-            raise _fail("manifest RBF stability is not pass")
-    else:
-        if reproducibility.get("rbf_stability_measured") is not False:
-            raise _fail("oracle manifest stability status must explicitly be unmeasured")
-        if reproducibility.get("rbf_stable") is not None:
-            raise _fail("oracle manifest cannot claim measured stability")
-        reason = reproducibility.get("rbf_stability_reason")
-        if not isinstance(reason, str) or not reason.strip():
-            raise _fail("oracle manifest must provide an explicit unmeasured stability reason")
+    if reproducibility.get("rbf_stability_measured") is not True:
+        raise _fail("manifest RBF stability was not measured")
+    if reproducibility.get("rbf_stable") is not True:
+        raise _fail("manifest RBF stability is not pass")
     previous_hash = reproducibility.get("previous_rbf_sha256")
     if previous_hash is not None:
         if not isinstance(previous_hash, str) or not SHA256_RE.fullmatch(previous_hash):

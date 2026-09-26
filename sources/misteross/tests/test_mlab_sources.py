@@ -9,14 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / "experiments" / "040_mlab_ram" / "rtl" / "top.v"
 TB = ROOT / "experiments" / "040_mlab_ram" / "sim" / "tb.cpp"
 EXPECTED = ROOT / "experiments" / "040_mlab_ram" / "expected.md"
-ORACLE_QSF = ROOT / "experiments" / "040_mlab_ram" / "oracle" / "top.qsf"
-ORACLE_QPF = ROOT / "experiments" / "040_mlab_ram" / "oracle" / "top.qpf"
 MODEL = ROOT / "experiments" / "020_linux_mailbox" / "sim" / "hps_gp_model.v"
 
 
 class MlabSourcePolicyTests(unittest.TestCase):
     def test_sources_exist(self) -> None:
-        for path in (RTL, TB, EXPECTED, ORACLE_QSF, ORACLE_QPF, MODEL):
+        for path in (RTL, TB, EXPECTED, MODEL):
             self.assertTrue(path.is_file(), path)
 
     def test_rtl_exposes_clock_only_ports_and_hps_table(self) -> None:
@@ -64,10 +62,3 @@ class MlabSourcePolicyTests(unittest.TestCase):
                 relative,
                 RTL.read_text(encoding="utf-8") + "\nwire LED;\n",
             )
-
-    def test_oracle_project_omits_simulation_model_and_led(self) -> None:
-        qsf = ORACLE_QSF.read_text(encoding="utf-8")
-        self.assertIn("experiments/040_mlab_ram/rtl/top.v", qsf)
-        self.assertNotIn("LED", qsf)
-        self.assertNotIn("hps_gp_model.v", qsf)
-        self.assertNotIn("/sim/", qsf)

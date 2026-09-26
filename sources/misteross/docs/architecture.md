@@ -347,15 +347,12 @@ audio capture remain outstanding.
 ```text
 experiment RTL + constraints
   |-- sim ----> Verilator result
-  |-- oss ----> Yosys -> nextpnr-mistral/Mistral -> top.rbf
-  `-- oracle -> Quartus Prime Lite 17.0.2 -------> top.rbf
-
-oss manifest + oracle manifest -> compare report
+  `-- oss ----> Yosys -> nextpnr-mistral/Mistral -> top.rbf
 ```
 
 `sim` checks the experiment's logical behavior with Verilator. Simulation jobs,
 production source lists, and OSS synthesis flags come from the closed experiment
-policy. Simulation-only models never enter either synthesis lane.
+policy. Simulation-only models never enter synthesis.
 
 `oss` uses only the pinned repository-local tools described by
 `toolchain.lock` (core recipes may select a tracked qualified compatibility
@@ -364,15 +361,9 @@ lock and isolated toolchain root). nextpnr writes a compressed Cyclone V RBF
 sources and tools live under `build/toolchain/`. Build output lives under
 `build/oss/<experiment>/`.
 
-`oracle` uses an explicitly configured Quartus Prime Lite 17.0.2 installation.
-It uses the same production RTL and timing intent as the OSS lane. Output lives
-under `build/oracle/<experiment>/`. Quartus is not an OSS or simulation
-dependency.
-
-`compare` reads the two lane manifests and writes its result under
-`build/compare/<experiment>/`. Differences between compiler-produced RBF bytes
-are expected; the comparison focuses on target, sources, resources, timing,
-and successful artifact production.
+Primitive experiments have no Quartus project. A described core may still
+offer `make build-fes-*-quartus` as a manual development check. That recipe
+is not the product bitstream and is not a fallback when the HIP seal fails.
 
 ## Shared compiler installation
 

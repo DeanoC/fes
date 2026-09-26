@@ -356,7 +356,7 @@ class FesHipLaneTests(unittest.TestCase):
         producers = (
             ("build-fes-pong", "scripts/build_fes_pong.py"),
             ("build-fes-zx81", "scripts/build_fes_zx81_oss.py"),
-            ("build-fes-coleco", "scripts/build_fes_coleco_oss.py"),
+            ("build-fes-coleco", "scripts/build_fes_coleco_socket_v2.py"),
         )
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn("CACHE_ROOT=", makefile)

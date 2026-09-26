@@ -1,7 +1,7 @@
 # Linux mailbox experiment
 
 `020_linux_mailbox` is a small development core for checking that an HPS/FPGA
-boundary built by either toolchain can communicate with Linux. It returns the
+boundary built by the OSS toolchain can communicate with Linux. It returns the
 constant payload:
 
 ```text
@@ -27,20 +27,6 @@ Output:
 build/oss/020_linux_mailbox/top.rbf
 ```
 
-With Quartus Prime Lite 17.0.2 configured, build the reference version:
-
-```sh
-make oracle EXP=020_linux_mailbox
-make compare EXP=020_linux_mailbox
-```
-
-Outputs:
-
-```text
-build/oracle/020_linux_mailbox/top.rbf
-build/compare/020_linux_mailbox/comparison.json
-```
-
 ## Run on the MiSTer Pi
 
 FogCast loads the local RBF through the host development endpoint. There is no
@@ -48,7 +34,7 @@ browser file picker and no Main command FIFO on the designated native kit:
 
 ```sh
 curl --fail -H 'Content-Type: application/octet-stream' \
-  --data-binary @build/oracle/020_linux_mailbox/top.rbf \
+  --data-binary @build/oss/020_linux_mailbox/top.rbf \
   http://127.0.0.1:8787/api/v1/session/development-rbf
 ```
 

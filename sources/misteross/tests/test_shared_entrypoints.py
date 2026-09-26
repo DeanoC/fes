@@ -224,7 +224,7 @@ class SharedEntrypointTests(unittest.TestCase):
         for target, script in (
             ("build-fes-pong", "scripts/build_fes_pong.py"),
             ("build-fes-zx81", "scripts/build_fes_zx81_oss.py"),
-            ("build-fes-coleco", "scripts/build_fes_coleco_oss.py"),
+            ("build-fes-coleco", "scripts/build_fes_coleco_socket_v2.py"),
             ("build-fes-sg1000", "scripts/build_fes_sg1000_oss.py"),
             ("build-fes-sms", "scripts/build_fes_sms_oss.py"),
         ):
