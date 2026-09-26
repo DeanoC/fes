@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/flightdiag"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
@@ -333,6 +334,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 	}
 	active.CorePackage = &protocol.CorePackageStatus{
 		ROMLink:     activation.ROMLink,
+		ROMLinks:    activation.ROMLinks,
 		Composition: activation.Composition,
 		MediaStream: activation.MediaStream,
 		PackageID:   activation.PackageID, Generation: activation.Generation,
@@ -549,6 +551,11 @@ func cloneStatus(status protocol.Status) protocol.Status {
 		if status.CorePackage.ROMLink != nil {
 			romCopy := *status.CorePackage.ROMLink
 			packageCopy.ROMLink = &romCopy
+		}
+		if status.CorePackage.ROMLinks != nil {
+			linksCopy := *status.CorePackage.ROMLinks
+			linksCopy.Sources = append([]corepackage.ROMSourceIdentity(nil), linksCopy.Sources...)
+			packageCopy.ROMLinks = &linksCopy
 		}
 		copy.CorePackage = &packageCopy
 	}

@@ -2,7 +2,7 @@
 """Diagnostic HIP of the socketed ZX81 Z80-like edge plus validation cart.
 
 Does not authenticate source identity and does not seal a package. Use the
-locked zx81-expansion compiler (nextpnr 74f26cc1). GPU 0 only.
+locked zx81-expansion compiler (nextpnr f65075bb). GPU 0 only.
 """
 from __future__ import annotations
 

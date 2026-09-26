@@ -61,16 +61,25 @@ std::string Controller::Handle(const std::string& line)
 		EmitFifoConsume("load_composed_core", result.ok());
 		break;
 	case Operation::load_rom_core:
-		result = runtime_.LoadROMCore(request.package_path, request.package_id,
-			request.programmed_path, request.rom_link);
+		result = request.rom_links.sources.empty() ?
+			runtime_.LoadROMCore(request.package_path, request.package_id,
+				request.programmed_path, request.rom_link) :
+			runtime_.LoadROMsCore(request.package_path, request.package_id,
+				request.programmed_path, request.rom_links);
 		break;
 	case Operation::load_rom_library_core:
-		result = runtime_.LoadROMLibraryCore(request.package_path, request.package_id,
-			request.data_root, request.programmed_path, request.rom_link);
+		result = request.rom_links.sources.empty() ?
+			runtime_.LoadROMLibraryCore(request.package_path, request.package_id,
+				request.data_root, request.programmed_path, request.rom_link) :
+			runtime_.LoadROMsLibraryCore(request.package_path, request.package_id,
+				request.data_root, request.programmed_path, request.rom_links);
 		break;
 	case Operation::load_rom_composed_core:
-		result = runtime_.LoadROMComposedCore(request.package_path, request.package_id,
-			request.composition_request, request.programmed_path, request.rom_link);
+		result = request.rom_links.sources.empty() ?
+			runtime_.LoadROMComposedCore(request.package_path, request.package_id,
+				request.composition_request, request.programmed_path, request.rom_link) :
+			runtime_.LoadROMsComposedCore(request.package_path, request.package_id,
+				request.composition_request, request.programmed_path, request.rom_links);
 		break;
 	case Operation::load_initialized_core:
 		result = runtime_.LoadInitializedCore(request.package_path, request.package_id,

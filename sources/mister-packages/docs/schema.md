@@ -115,6 +115,34 @@ both. The synthetic RBF is not hardware-valid. Its map has one synthetic block
 Generate with `python3 scripts/core_bundle_v3_fixtures.py`; `--check` verifies
 exact checked-in bytes. The format-2 corpus and its identities are unchanged.
 
+## Core bundle manifest format 4
+
+[`schema/core-bundle-v4.json`](../schema/core-bundle-v4.json) preserves the
+format-3 sealed base RBF and ROM-map format, but replaces `[rom]` with exactly
+two ordered `[[roms]]` entries and a separate `[rom_map]` descriptor. The first
+entry has role `firmware`, the second `cartridge`; IDs are unique. Each source
+has an exact integer size from 1,024 through 262,144 bytes divisible by 1,024.
+The firmware offset is zero and the cartridge offset equals the firmware size;
+the combined size is at most 262,144 bytes. Readers verify those semantic
+constraints and require the ROM map's `source_size` to equal the combined size.
+`[rom_map]` has exactly `file = "rom-map.json"`, its exact byte size (1 through
+33,554,432), and its lowercase SHA-256 digest. Format 3 continues to reject
+`[[roms]]`, and format 4 rejects `[rom]`.
+
+Directories and canonical restricted ustar archives contain exactly
+`manifest.toml`, `core.rbf`, and `rom-map.json`, in that archive order and with
+the same canonical header and padding rules as format 3. The 65 MiB archive
+bound remains. The package ID hashes `FES-CORE-PACKAGE-4\n`, followed by the
+LE64 byte length and exact bytes of each of those three members in order.
+Format-2 and format-3 package identities are unchanged.
+
+[`testdata/core-bundle-v4/cases.json`](../testdata/core-bundle-v4/cases.json)
+indexes a synthetic 2 KiB two-source fixture and malformed cases. Its payload
+is not hardware-valid. Generate it with
+`python3 scripts/core_bundle_v4_fixtures.py`; `--check` verifies the checked-in
+bytes. The production Coleco 8 KiB BIOS and 128 KiB cartridge requirements are
+verified by the Coleco producer and tests, not by these small shared fixtures.
+
 ## Package schema `mister-packages.v1`
 
 Every package file starts with:

@@ -4,10 +4,9 @@ set -eu
 host_api=${FOGCAST_HOST_API:-http://127.0.0.1:8787}
 poll_attempts=${FOGCAST_POLL_ATTEMPTS:-60}
 poll_interval=${FOGCAST_POLL_INTERVAL:-1}
-# A package launch may include FPGA reconfiguration and target admission.
-# Keep the health/inventory calls bounded while allowing that transition to
-# complete without making the smoke lane depend on a caller override.
 call_timeout=${FOGCAST_CALL_TIMEOUT:-30}
+# A first launch may also compose a format-3 ROM before FPGA reconfiguration.
+launch_timeout=${FOGCAST_LAUNCH_TIMEOUT:-${FOGCAST_CALL_TIMEOUT:-90}}
 
 usage() {
   printf '%s\n' 'usage: package-runtime-smoke.sh [PONG_SELECTION] [ZX81_SELECTION] [COLECO_SELECTION]' >&2
@@ -40,12 +39,61 @@ esac
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-package-runtime-smoke.XXXXXX") ||
   fail 'temporary workspace is unavailable'
 active=0
+launch_timed_out=0
+timed_out_game_id=
+timed_out_package_id=
+
+matches_timed_out_launch() {
+  python3 - "$timed_out_game_id" "$timed_out_package_id" "$work_dir/cleanup-session.json" <<'PY'
+import json
+import sys
+
+game_id, package_id, path = sys.argv[1:]
+with open(path, encoding="utf-8") as handle:
+    session = json.load(handle)
+if session.get("state") == "idle":
+    print("idle")
+elif (session.get("state") == "active"
+      and session.get("game_id") in (None, "", game_id)
+      and (session.get("core_package") or {}).get("package_id") == package_id):
+    print("active")
+else:
+    raise SystemExit(1)
+PY
+}
 
 cleanup() {
+  if [ "$launch_timed_out" -eq 1 ]; then
+    remaining=$poll_attempts
+    last_state=
+    while [ "$remaining" -gt 0 ]; do
+      if curl --fail --silent --show-error \
+        --connect-timeout 2 --max-time 2 \
+        "$host_api/api/v1/session" > "$work_dir/cleanup-session.json" 2>/dev/null; then
+        last_state=$(matches_timed_out_launch) || last_state=
+        if [ "$last_state" = active ]; then
+          break
+        fi
+      else
+        last_state=
+      fi
+      remaining=$((remaining - 1))
+      [ "$remaining" -gt 0 ] && sleep "$poll_interval"
+    done
+    if [ "$last_state" = active ] || [ "$last_state" = idle ]; then
+      # An interrupted launch can leave the host idle while retaining its
+      # newly claimed kit lease. Stop also releases that idle lease.
+      active=1
+    else
+      printf '%s\n' 'package-runtime-smoke: timed-out launch outcome is unresolved; check the host session and kit lease' >&2
+    fi
+  fi
   if [ "$active" -eq 1 ]; then
-    curl --fail --silent --show-error \
+    if ! curl --fail --silent --show-error \
       --connect-timeout "$call_timeout" --max-time "$call_timeout" \
-      -X POST "$host_api/api/v1/session/stop" >/dev/null 2>&1 || true
+      -X POST "$host_api/api/v1/session/stop" > "$work_dir/cleanup-stop.json" 2>/dev/null; then
+      printf '%s\n' 'package-runtime-smoke: cleanup Stop failed; check the host session and kit lease' >&2
+    fi
   fi
   /bin/rm -rf "$work_dir"
 }
@@ -215,11 +263,15 @@ launch_and_stop() {
   game_id=$3
   printf 'launching %s (%s)\n' "$core" "$game_id"
   launch_body=$(printf '{"game_id":"%s"}' "$game_id")
-  curl --fail --silent --show-error \
-    --connect-timeout "$call_timeout" --max-time "$call_timeout" \
+  if ! curl --fail --silent --show-error \
+    --connect-timeout "$call_timeout" --max-time "$launch_timeout" \
     -H 'Content-Type: application/json' \
-    --data "$launch_body" "$host_api/api/v1/session/launch" > "$work_dir/launch.json" ||
+    --data "$launch_body" "$host_api/api/v1/session/launch" > "$work_dir/launch.json"; then
+    launch_timed_out=1
+    timed_out_game_id=$game_id
+    timed_out_package_id=$package_id
     fail "$core launch request failed"
+  fi
   active=1
   python3 - "$game_id" "$package_id" "$work_dir/launch.json" <<'PY'
 import json

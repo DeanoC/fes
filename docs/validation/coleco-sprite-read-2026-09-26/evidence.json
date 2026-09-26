@@ -1,0 +1,280 @@
+{
+  "format": 1,
+  "classification": "development-snapshot hardware diagnostic",
+  "base_revision": "5ef46ff31746d7569c52e8e56ac51a2485a0cc3b",
+  "snapshot_revision": "00d2db0ac2ccddece96eca1262782074494eee25",
+  "package_id": "2fd36e75d2ca4a35c5182ef4f2536a95ef7fa83d2815598cd989f7c7f3b04e87",
+  "software_revision": "40c30b09b6af0f5b9c4af444ff519bc0e56220bf",
+  "software_artifacts": {
+    "host-binary": {
+      "sha256": "9869aa6e997f0dcd3ba64d153f6868d4d4784532d7f25165abbfea37d343fdd6",
+      "size": 16707746
+    },
+    "mister-runtime": {
+      "sha256": "27cb3f596ed30352da9bbb3c71c112bd0f4ce6285407cd3fdaed2308fc54b75d",
+      "size": 1081872
+    },
+    "mister-agent": {
+      "sha256": "6d1a51ad4f03be6ee459afdd5b8611cab7ea0383f6c7ba1e488e8e02dbc43b44",
+      "size": 9240738
+    },
+    "fogcast-kit": {
+      "sha256": "db8158a28ca39dcb593f1d367f91f198acc7274d1edcf44c7666bb792df3627c",
+      "size": 8978594
+    }
+  },
+  "timing": {
+    "audio": {
+      "achieved_mhz": 169.23336791992188,
+      "clock": "system_clock.clocks[1]",
+      "constraint_mhz": 12.288031578063965,
+      "requested_mhz": 12.288,
+      "status": "pass"
+    },
+    "pixel": {
+      "achieved_mhz": 106.10079193115234,
+      "clock": "pixel_clk",
+      "constraint_mhz": 74.25006866455078,
+      "requested_mhz": 74.25,
+      "status": "pass"
+    },
+    "status": "pass",
+    "system": {
+      "achieved_mhz": 53.109561920166016,
+      "clock": "system_clock.clocks[0]",
+      "constraint_mhz": 52.22477340698242,
+      "requested_mhz": 52.224,
+      "status": "pass"
+    }
+  },
+  "route": {
+    "gpu_backend": "hip",
+    "placer_heap_timingweight": 2000,
+    "placer_qor_mode": "first-pass",
+    "placer_seed": 3,
+    "status": "pass",
+    "unrouted": false
+  },
+  "gpu_device": 0,
+  "rom_links": {
+    "sources": [
+      {
+        "id": "coleco-bios",
+        "role": "firmware",
+        "source_sha256": "990bf1956f10207d8781b619eb74f89b00d921c8d45c95c334c16c8cceca09ad",
+        "source_size": 8192
+      },
+      {
+        "id": "coleco-cart",
+        "role": "cartridge",
+        "source_sha256": "86dad62fd125f1e10fa6b26536a3712d14e061c63c435f85d84d6f462def3351",
+        "source_size": 131072
+      }
+    ],
+    "map_sha256": "4fc795387ccaaec552a8c8e0581544ac2b9c19f348e650279f275b6981802af1",
+    "programmed_sha256": "206ceafd63da2f3aecce97a01d6d8132ec3122a158be6933984ac7af5ea7c542",
+    "programmed_size": 2811432
+  },
+  "launches": [
+    {
+      "state": "active",
+      "package_id": "2fd36e75d2ca4a35c5182ef4f2536a95ef7fa83d2815598cd989f7c7f3b04e87",
+      "generation": 1
+    },
+    {
+      "state": "active",
+      "package_id": "2fd36e75d2ca4a35c5182ef4f2536a95ef7fa83d2815598cd989f7c7f3b04e87",
+      "generation": 2
+    }
+  ],
+  "stops": "idle",
+  "restoration": {
+    "completed": true,
+    "visual_gameplay_review_required": true,
+    "restored": true,
+    "credentials_removed": true,
+    "cleanup_errors": [],
+    "diagnostic_error_class": null
+  },
+  "restored_health": {
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "boot_id": "948d6338-1a12-4476-a435-d0ea7d4a6c7e",
+    "ready": true,
+    "agent_version": "0.1.0",
+    "artifacts": {
+      "runtime_commit": "3aa69308b52afcbf62c33503bd50ba383770f004",
+      "agent_sha256": "c23718688c9c167edb47e6910c5aeb7c76042f85678fd9738dc9dd1691ff2f7f",
+      "agent_revision": "3aa69308b52afcbf62c33503bd50ba383770f004",
+      "kit_sha256": "990890c706cc3a68e6299dc6e283d018e3c51cc52cec0be6439baef9f801db91",
+      "image_sha256": "4352d991a2bba5a2a09e4fb09f0a0225d7390896ae2aefb71feb3031ebc60e35",
+      "package_id": "d2048f8848350c05ed27eccb35e51a472b8471ab730dc227328fb26f9ab16ef4"
+    }
+  },
+  "restored_status": {
+    "state": "idle"
+  },
+  "restored_lease": {
+    "state": "free",
+    "generation": "918e063b0c42c7fdb6e27e5f6c74501ff4558b3aa8cb07b0f67fd49ba800a4d1"
+  },
+  "visual_review": {
+    "missing_sprite_columns": "absent after fix",
+    "movement": "left/right observed",
+    "fire": "pots dropped; score 30",
+    "physical_controller": "not assessed"
+  },
+  "audio": {
+    "channels": 2,
+    "sample_rate": 48000,
+    "samples": 768114,
+    "peak": 10627,
+    "rms": 2978.365000087172,
+    "nonzero_samples": 622113
+  },
+  "captures": {
+    "before.png": "9fcfba3cf1e389b050e69669da7af4ef5fd365e2313a0c308f61dfabc549ffa9",
+    "after.png": "dc60117bec9ca1490067824454c034be6e07a385684cca546bbcfd628fd88405"
+  },
+  "simulation_regression": {
+    "before": "size=8 scale=1 x=40 expected=1 actual=2; failed",
+    "after": "full focused VDP test passed"
+  },
+  "changed_suite": {
+    "status": "passed",
+    "commands": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "test_build_fes_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_functional_identity.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_export_core_package.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_compiler_read_audit.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_source_provenance.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_source_repository.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_core_package.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_core_package_v3.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_search_placer_qor.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_coleco_sim_shards.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_rom_map.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "coleco RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "sg1000 RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "sg1000 OSS RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "sg1000 linked ROM RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "sms RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "sms OSS RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "log_sha256": "40d949e4128e50df762011f8bc9df0737f14d1bb08e96dcc4f003c236aaa4d78"
+  },
+  "committed_integration": "not claimed; development snapshots and dirty feature worktrees intentionally fail make check",
+  "source_files": {
+    "sources/misteross/cores/fes-common/rtl/coleco_vdp.sv": "c3a56a5792231dc44e432091bce15535e8000f63844625ba3b1be1baca45fbe2",
+    "sources/misteross/cores/fes-coleco/sim/vdp_tb.cpp": "a7466e9ded18171a0a699b3aeead2bd9ed165021249669e54620d0aef9fffbdd",
+    "sources/misteross/docs/architecture.md": "e6383a0b60f194f6ac2db017e005748bda4b9f6aaf4d706e6a82a542cc092601"
+  },
+  "independent_review": {
+    "result": "no actionable findings",
+    "method": "read-only source review; no separate hardware or tests",
+    "worst_case_sprite_clocks_approx": 786
+  },
+  "parent_regressions": {
+    "tests": 569,
+    "skipped": 37,
+    "status": "passed"
+  },
+  "coleco_simulations": "normal and OSS complete, including sprite/controller/expansion board cases"
+}

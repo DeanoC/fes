@@ -142,6 +142,9 @@ public:
 	Error AttachROMBitstream(AdmittedCorePackage* package, const std::string& path,
 		const CoreROMLink& link) override
 	{ return hardware_.AttachROMBitstream(package, path, link); }
+	Error AttachROMsBitstream(AdmittedCorePackage* package, const std::string& path,
+		const CoreROMLinks& links) override
+	{ return hardware_.AttachROMsBitstream(package, path, links); }
 	Error RecheckProgrammedBitstream(AdmittedCorePackage* package) override
 	{ return hardware_.RecheckProgrammedBitstream(package); }
 	Capabilities capabilities() const override { return hardware_.capabilities(); }

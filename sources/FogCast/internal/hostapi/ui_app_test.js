@@ -11960,6 +11960,8 @@ test('controller launch and stop send client stamp headers', async () => {
 
 test('launchBlockReason requires selected ROM readiness', () => {
   const ready = { launchable: true, state: 'available', root_online: true };
+  assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'This game’s required BIOS is not ready.');
+  assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: true, rom_required: true, rom_ready: true }), '');
   assert.equal(launchBlockReason({ ...ready, rom_required: true }), 'This game’s required ROM is not ready.');
   assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: false }), 'This game’s required ROM is not ready.');
   assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: true }), '');

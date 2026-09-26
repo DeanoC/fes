@@ -23,6 +23,11 @@ ZX81, SMS and SG-1000 packages use format 3 to seal their ROM maps; other produc
 format 2. The external `build-inputs.json` record gains format 2, while the exporter still
 reads format 1 with its original full-record SHA256 correlation algorithm.
 
+The package exporter and inspector also recognize format 4 with two ordered ROM
+requirements and one sealed map. The Coleco development producer will select
+this format when its separate blank shell and map are available; existing
+registered recipes still emit their current formats.
+
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
 its embedded 128-bit ID from a domain-separated functional projection excluding
 those provenance fields. It includes every tracked regular file under `scripts/` and the owning core/board
@@ -535,7 +540,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `49ab82f5` provides those flags after `make toolchain-fes`.
+The locked nextpnr `f65075bb` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -600,6 +605,9 @@ VRAM copies with broadcast CPU writes, registered read-ahead and a serial SAT /
 pattern walker. Two alternating framebuffer line banks use packed 6-bit M10K
 entries for pixel and visibility metadata; publication is interlocked with the
 registered raster coordinate.
+Every sprite column and magnified repeat has a separate line-bank read before
+its write decision. Priority and collision use that pixel's metadata rather
+than the previous address or a same-port read-during-write result.
 
 The default reset ROM is an open `JP 0x8000` shim, not a Coleco BIOS. Quartus
 (`set_parameter -name ENABLE_FIRMWARE 1`) and OSS (`chparam -set ENABLE_FIRMWARE 1`)
@@ -685,7 +693,7 @@ request and 28-bit registered response. The response carries direct data,
 claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
 32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
 owns the window-enable and AY register decode. `toolchains/coleco-sgm.lock`
-pins nextpnr `f7370550` with frozen-scaffold BEL admission and bounded slot
+pins nextpnr `f65075bb` with frozen-scaffold BEL admission and bounded slot
 placement. The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
@@ -886,7 +894,11 @@ readiness so the next empty `LOAD ""` reports `0/0`. Control-index begin with
 argument 0 remains invalid argument. While `media_busy` is high (the ZX81
 tape-loader is copying), begin and eject reject with invalid-state instead of
 aborting the copy. Begin/data/commit do not require `exec_reset` held; that
-hold is launch-time runtime policy. The checked-in
+hold is launch-time runtime policy. A media byte is written on the clock
+after the command is accepted, and a pair uses the next clock for its high
+byte. Response and ACK are published together with that write. The loader
+reads the other RAM port at `media_addr`, which keeps the pointer compare
+off that data path. The checked-in
 `cores/fes-zx81/generated/fes_simple_computer.vh`
 and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
 plays that fixture and checks keyboard/media side effects.
@@ -1018,9 +1030,10 @@ This is a host/target validation benchmark, not FPGA hardware acceptance; it
 does not extend request deadlines or bypass target recomposition.
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
-10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 1000,
-then repeats that order at weights 300, 2000, 100 and 10 if needed (at most
-70 attempts, stopping at the first passing placement). The build record seals
+10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34. For each seed it tries heap
+timing weights 1000 and 300, then sweeps the same seeds at weights 2000, 100
+and 10 if needed (at most 70 attempts, stopping at the first passing route).
+The build record seals
 the effective weight order and budget. This fallback handles placement-sensitive
 netlists without changing the clock requirements. The recipe uses
 criticality exponent 5 and `--router gpu`, nextpnr's connection-based
@@ -1028,7 +1041,7 @@ router with a pure-delay timing-repair phase (merged PR #66; the
 repository toolchain builds it without a GPU and its host backend
 produces the same routing a GPU would). `--timing-allow-fail` permits an early
 estimate to miss while the recipe checks final signoff and records the first
-passing seed. `make build-fes-zx81 BEST_FMAX=1 GPU_DEVICES=0,1` keeps that synthesis and
+passing seed. `make build-fes-zx81 BEST_FMAX=1 GPU_DEVICES=1` keeps that synthesis and
 searches weights 10/100/300/1000/2000 plus remaining seeds for the best
 Fmax; the selected seed and weight go into route evidence. This keeps native async-M10K address paths within the 52 MHz
 system constraint. The recipe requires two

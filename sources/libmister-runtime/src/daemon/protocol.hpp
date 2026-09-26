@@ -58,6 +58,7 @@ struct Request {
 	std::string programmed_path;
 	std::string programmed_sha256;
 	CoreROMLink rom_link;
+	CoreROMLinks rom_links;
 };
 
 Error ParseRequest(const std::string& line, Request* request);

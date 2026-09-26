@@ -78,6 +78,52 @@ bool StringMember(const json::Value& object, const char* name, const std::string
 	return true;
 }
 
+Error ReadROMLinks(const json::Value& value, CoreROMLinks* result)
+{
+	if (value.type != json::Type::object) return Invalid("rom_links must be an object");
+	Error error;
+	const char* fields[] = {"sources", "map_sha256", "programmed_sha256", "programmed_size"};
+	if (!HasOnly(value, fields, 4, &error)) return error;
+	const auto* sources = Find(value, "sources");
+	if (!sources || sources->type != json::Type::array || sources->array.size() != 2)
+		return Invalid("rom_links requires two sources");
+	CoreROMLinks parsed;
+	for (std::size_t index = 0; index < 2; ++index) {
+		const auto& source = sources->array[index];
+		if (source.type != json::Type::object) return Invalid("ROM source must be an object");
+		const char* source_fields[] = {"id", "role", "source_sha256", "source_size"};
+		if (!HasOnly(source, source_fields, 4, &error)) return error;
+		CoreROMSource row;
+		const std::string *id = nullptr, *role = nullptr, *digest = nullptr;
+		if (!StringMember(source, "id", &id, &error) ||
+			!StringMember(source, "role", &role, &error) ||
+			!StringMember(source, "source_sha256", &digest, &error)) return error;
+		const auto* size = Find(source, "source_size");
+		if (id->empty() || id->size() > 96 || id->find('\0') != std::string::npos ||
+			*role != (index == 0 ? "firmware" : "cartridge") || !PackageID(*digest) ||
+			!size || size->type != json::Type::integer || size->integer_value < 1024 ||
+			size->integer_value > 262144 || size->integer_value % 1024 != 0)
+			return Invalid("invalid ROM source identity");
+		row.id = *id; row.role = *role; row.source_sha256 = *digest;
+		row.source_size = static_cast<std::uint64_t>(size->integer_value);
+		parsed.sources.push_back(std::move(row));
+	}
+	if (parsed.sources[0].id == parsed.sources[1].id ||
+		parsed.sources[0].source_size + parsed.sources[1].source_size > 262144)
+		return Invalid("duplicate ROM source or total over 256 KiB");
+	const std::string *map = nullptr, *programmed = nullptr;
+	if (!StringMember(value, "map_sha256", &map, &error) ||
+		!StringMember(value, "programmed_sha256", &programmed, &error)) return error;
+	const auto* size = Find(value, "programmed_size");
+	if (!PackageID(*map) || !PackageID(*programmed) || !size ||
+		size->type != json::Type::integer || size->integer_value < 1 ||
+		size->integer_value > 33554432) return Invalid("invalid ROM programmed identity");
+	parsed.map_sha256 = *map; parsed.programmed_sha256 = *programmed;
+	parsed.programmed_size = static_cast<std::uint64_t>(size->integer_value);
+	*result = std::move(parsed);
+	return {};
+}
+
 class BoundedOutput {
 public:
 	explicit BoundedOutput(std::size_t maximum)
@@ -211,6 +257,22 @@ void AppendDescriptor(BoundedOutput* output, const CoreDescriptor& descriptor)
 		output->Append(std::to_string(descriptor.rom.size));
 		output->Append(",\"sha256\":");
 		AppendQuoted(output, descriptor.rom.sha256);
+		output->Append("}");
+	}
+	if (descriptor.format == 4) {
+		output->Append(",\"roms\":[");
+		for (std::size_t i = 0; i < descriptor.roms.size(); ++i) {
+			if (i != 0) output->Append(',');
+			const auto& source = descriptor.roms[i];
+			output->Append("{\"id\":"); AppendQuoted(output, source.id);
+			output->Append(",\"role\":"); AppendQuoted(output, source.role);
+			output->Append(",\"source_size\":"); output->Append(std::to_string(source.source_size));
+			output->Append(",\"source_offset\":"); output->Append(std::to_string(source.source_offset));
+			output->Append("}");
+		}
+		output->Append("],\"rom_map\":{\"file\":"); AppendQuoted(output, descriptor.rom_map.file);
+		output->Append(",\"size\":"); output->Append(std::to_string(descriptor.rom_map.size));
+		output->Append(",\"sha256\":"); AppendQuoted(output, descriptor.rom_map.sha256);
 		output->Append("}");
 	}
 	output->Append(",\"abi\":");
@@ -351,6 +413,23 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 			output.Append(",\"programmed_size\":"); output.Append(std::to_string(link.programmed_size));
 			output.Append("}");
 		}
+		const auto& links = status.active_package.rom_links;
+		if (!links.sources.empty()) {
+			output.Append(",\"rom_links\":{\"sources\":[");
+			for (std::size_t i = 0; i < links.sources.size(); ++i) {
+				if (i != 0) output.Append(',');
+				const auto& source = links.sources[i];
+				output.Append("{\"id\":"); AppendQuoted(&output, source.id);
+				output.Append(",\"role\":"); AppendQuoted(&output, source.role);
+				output.Append(",\"source_sha256\":"); AppendQuoted(&output, source.source_sha256);
+				output.Append(",\"source_size\":"); output.Append(std::to_string(source.source_size));
+				output.Append("}");
+			}
+			output.Append("],\"map_sha256\":"); AppendQuoted(&output, links.map_sha256);
+			output.Append(",\"programmed_sha256\":"); AppendQuoted(&output, links.programmed_sha256);
+			output.Append(",\"programmed_size\":"); output.Append(std::to_string(links.programmed_size));
+			output.Append("}");
+		}
 		const auto& composition=status.active_package.composition;
 		if (!composition.id.empty()) {
 			output.Append(",\"composition\":");
@@ -479,9 +558,10 @@ Error ParseRequest(const std::string& line, Request* request)
 			operation->string_value == "load_rom_composed_core") {
 			const bool library = operation->string_value == "load_rom_library_core";
 			const bool composed = operation->string_value == "load_rom_composed_core";
-			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path","rom_link"};
-			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path","rom_link"};
-			const char* with_cart[] = {"protocol","operation","package_path","package_id","expansion_path","payload_path","composition","programmed_path","rom_link"};
+			const bool two_sources = Find(root, "rom_links") != nullptr;
+			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path",two_sources ? "rom_links" : "rom_link"};
+			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path",two_sources ? "rom_links" : "rom_link"};
+			const char* with_cart[] = {"protocol","operation","package_path","package_id","expansion_path","payload_path","composition","programmed_path",two_sources ? "rom_links" : "rom_link"};
 			const char* const* fields = plain;
 			unsigned count = 6;
 			if (library) { fields = with_root; count = 7; }
@@ -492,7 +572,11 @@ Error ParseRequest(const std::string& line, Request* request)
 				!StringMember(root,"programmed_path",&programmed,&error)) return error;
 			if (!Path(*path) || !Path(*programmed) || !PackageID(*id)) return Invalid("invalid ROM load paths or identity");
 			parsed.package_path=*path; parsed.package_id=*id; parsed.programmed_path=*programmed;
-			const auto* link=Find(root,"rom_link");
+			const auto* link=Find(root,two_sources ? "rom_links" : "rom_link");
+			if (two_sources) {
+				error = ReadROMLinks(*link, &parsed.rom_links);
+				if (!error.ok()) return error;
+			} else {
 			if (!link || link->type!=json::Type::object) return Invalid("rom_link must be an object");
 			const char* keys[]={"rom_id","map_sha256","source_sha256","programmed_sha256","source_size","programmed_size"};
 			if (!HasOnly(*link,keys,6,&error)) return error;
@@ -511,6 +595,7 @@ Error ParseRequest(const std::string& line, Request* request)
 				if (!value || value->type!=json::Type::integer || value->integer_value<=0)
 					return Invalid("invalid ROM link size");
 				*sizes[i]=static_cast<std::uint64_t>(value->integer_value);
+			}
 			}
 			parsed.operation = Operation::load_rom_core;
 			if (library) {

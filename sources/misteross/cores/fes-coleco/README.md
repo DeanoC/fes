@@ -1,5 +1,17 @@
 # FES ColecoVision first slice
 
+The development MegaCart lane is `scripts/build_fes_coleco_megacart.py`. Its
+`FES_COLECO_MEGACART_LINK` build removes the media and firmware mailboxes and
+seals 8 KiB BIOS plus eight 16 KiB cartridge banks as one format-4 ROM map.
+The final cartridge bank is fixed at `0x8000–0xbfff`; reads at
+`0xffc0–0xffff` select the low three address bits for the banked window and
+return that bank's byte on the selecting read. `make sim-fes-coleco-megacart`
+uses only original synthetic bytes. The sealed lane passed route, timing,
+exact-shell SGM and [two-ROM kit diagnostics](../../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md),
+including Stop/relaunch and retained selections after host restart. This is
+synthetic diagnostic acceptance; the factory format-2 producer and recipe
+remain selected.
+
 This directory is a described FES core, not an `experiments/` place-and-route
 test. The core lane is [docs/cores.md](../../docs/cores.md).
 
@@ -531,7 +543,7 @@ Coleco v2 lock at `toolchains/coleco-sgm.lock` into
 `build/toolchain/fes-coleco-socket-v2`, enabling the HIP device backend for
 `gfx1100;gfx1201`. The selected OSS recipe uses Yosys
 `e2d425dee148cc60c50f4e9b354a10d90eab15f4`, nextpnr
-`f7370550adb324163ed24e54f7e6756a13569758`, `--router gpu`, and
+`f65075bbc253b7c99e8b96169f4bc85320038329` (Mistral `7ed06e21`), `--router gpu`, and
 seed 3 / HeAP weight 2000, with
 `--timing-allow-fail` and a 74.25 MHz request without `--tmg-ripup`; it rejects
 a CPU-reference fallback in the route log. The selected seed and weight are

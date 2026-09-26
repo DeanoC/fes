@@ -84,7 +84,7 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': 12, 'source_pin_copies': 0, 'fixture_copies': 24})
+            'generated_files': 12, 'source_pin_copies': 0, 'fixture_copies': 27})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
             'packages/platform/de10_nano.yaml',
             'packages/abi/fes_simple_game.yaml', 'packages/abi/fes_simple_computer.yaml',

@@ -12,7 +12,7 @@ namespace mister {
 namespace daemon {
 namespace json {
 
-enum class Type { object, string, integer, unsigned_integer, boolean, null_value };
+enum class Type { object, array, string, integer, unsigned_integer, boolean, null_value };
 
 struct Value {
 	Type type = Type::null_value;
@@ -21,6 +21,7 @@ struct Value {
 	std::uint64_t unsigned_value = 0;
 	bool boolean_value = false;
 	std::vector<std::pair<std::string, Value> > object;
+	std::vector<Value> array;
 };
 
 // Parses the deliberately small JSON subset used by the local daemon.

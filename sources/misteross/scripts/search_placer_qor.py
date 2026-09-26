@@ -28,8 +28,10 @@ Staged search (default) is not a full grid:
 3. Sweep the remaining seeds at that weight until the budget is exhausted.
 
 ``--mode grid`` evaluates the Cartesian product (still bounded by
-``--budget``). ``--mode first-pass`` stops at the first candidate that meets
-every constraint, matching today's producers.
+``--budget``). ``--mode first-pass`` tries every seed at one weight before
+the next weight. ``--mode first-pass-paired`` tries the first two weights for
+each seed, then sweeps the remaining weights. Both stop at the first candidate
+that meets every constraint.
 
 GPU: ``--gpu-devices 0,1`` runs staged/grid candidates as separate nextpnr
 processes, one HIP device each (7900 XTX + R9700). First-pass stays
@@ -147,6 +149,11 @@ def _score_report(
     return passing, min(ratios), sum(ratios), fmax
 
 
+def has_failed_route_arc(route_text: str) -> bool:
+    """A nextpnr arc failure can coexist with a normal footer and exit zero."""
+    return any(line.startswith("ERROR: Failed to route arc ") for line in route_text.splitlines())
+
+
 def _run_nextpnr(
     nextpnr: Path,
     fixture: Path,
@@ -223,6 +230,7 @@ def _run_nextpnr(
     rbf = run_dir / "core.rbf"
     finished = (
         "Info: Program finished normally." in text
+        and not has_failed_route_arc(text)
         and report.is_file()
         and rbf.is_file()
         and rbf.stat().st_size > 0
@@ -382,20 +390,25 @@ def search(
             gpu_pool.put(gpu)
 
     # First-pass must stay sequential so the first closing seed is stable.
-    workers = 1 if mode == "first-pass" else max(1, len(assigned) if gpu_devices else 1)
+    workers = 1 if mode in ("first-pass", "first-pass-paired") else max(1, len(assigned) if gpu_devices else 1)
     results: list[Candidate] = []
     if mode == "grid":
         pairs = [(seed, weight) for weight in weights for seed in seeds][:budget]
         return sorted(evaluate_pairs(pairs, run, workers), key=lambda item: item.key(), reverse=True)
-    if mode == "first-pass":
-        for weight in weights:
-            for seed in seeds:
-                if len(results) >= budget:
-                    return sorted(results, key=lambda item: item.key(), reverse=True)
-                candidate = run(seed, weight)
-                results.append(candidate)
-                if candidate.passing:
-                    return sorted(results, key=lambda item: item.key(), reverse=True)
+    if mode in ("first-pass", "first-pass-paired"):
+        if mode == "first-pass":
+            pairs = ((seed, weight) for weight in weights for seed in seeds)
+        else:
+            paired = ((seed, weight) for seed in seeds for weight in weights[:2])
+            fallback = ((seed, weight) for weight in weights[2:] for seed in seeds)
+            pairs = (*paired, *fallback)
+        for seed, weight in pairs:
+            if len(results) >= budget:
+                return sorted(results, key=lambda item: item.key(), reverse=True)
+            candidate = run(seed, weight)
+            results.append(candidate)
+            if candidate.passing:
+                return sorted(results, key=lambda item: item.key(), reverse=True)
         return sorted(results, key=lambda item: item.key(), reverse=True)
 
     pairs = plan_staged(seeds, weights, budget)
@@ -540,7 +553,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--weights", default="10,100,300,1000,2000")
     parser.add_argument("--critexp", type=int, default=5)
     parser.add_argument("--budget", type=int, default=24)
-    parser.add_argument("--mode", choices=("staged", "grid", "first-pass"), default="staged")
+    parser.add_argument("--mode", choices=("staged", "grid", "first-pass", "first-pass-paired"), default="staged")
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--extra", nargs="*", default=[])
     parser.add_argument(

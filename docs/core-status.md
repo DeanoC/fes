@@ -49,8 +49,19 @@ See [media capacity](core-media-evolution.md).
 
 The Coleco v2 shell and independently linked SGM expansion have
 [exact-artifact kit diagnostic acceptance](validation/2026-09-25-coleco-sgm-v2-hil.md)
-for the named artifacts in that record. Factory-image acceptance of a newly
-built package remains a separate check.
+for the named artifacts in that record. The factory image built from FES
+`3aa69308` has separate [exact-artifact kit acceptance](validation/2026-09-25-coleco-v2-main-image-acceptance.md)
+for its named Coleco v2 package and linked SGM probe. The bounded
+[retail-cartridge baseline](validation/2026-09-25-coleco-v2-retail-baseline.md)
+does not qualify a later bitstream or general game compatibility.
+
+The separate `fes.coleco` 1.3.0 MegaCart producer is a development lane. It
+requires an exact private 8 KiB BIOS and exact 128 KiB cartridge as two linked
+ROM inputs, with an optional SGM archive built against that exact shell. Its
+factory recipe and image selection are unchanged. The producer must pass a
+fresh authenticated route, all three timing gates, ROM-map authentication and
+socket containment before any package is imported; synthetic bank simulation
+does not qualify a retail mapper or a kit artifact.
 
 ## Not implemented, or not this package
 

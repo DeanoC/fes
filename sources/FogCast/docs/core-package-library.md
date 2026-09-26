@@ -421,8 +421,20 @@ inspection. Launch requires the explicit binary selection described below and a
 target supporting ROM linking. Package uploads are bounded to 65 MiB; individual
 FPGA payloads remain bounded to 32 MiB.
 
-## Named ROM selection for format-3 packages
+## Two-source Coleco development package
 
+Format-4 Coleco MegaCart development packages require two selections. Import
+an exact 8 KiB private BIOS into the existing household `firmware` slot, then
+import an exact 128 KiB cartridge and select it for the title as `coleco-cart`
+against that package ID. Library responses report `firmware_required` /
+`firmware_ready` and `rom_required` / `rom_ready` independently; the launch
+control blocks either missing input. The host sends both original bytes in a
+versioned source-only archive. The target links them before download and
+returns `rom_links` with both source digests, the map digest and final RBF
+digest. A BIOS or cartridge selection changed after launch capture is rejected
+before target load. The factory Coleco package still uses its own mailbox path.
+
+## Named ROM selection for format-3 packages
 Format-3 packages declare one required ROM (`rom.id`, role `firmware` or
 `cartridge`, and exact `source_size`). Import its binary through the existing
 `POST /api/v1/core-media` endpoint, then bind the returned immutable digest to a

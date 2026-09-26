@@ -151,7 +151,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     if (shell / "manifest.toml").read_bytes() != package.manifest_bytes or (shell / "core.rbf").read_bytes() != package.payload_bytes:
         raise ValueError("frozen producer output differs from sealed shell package")
     shell_members = ("routed.json", "socket.qsf", "manifest.toml", "core.rbf")
-    if package.fields["format"] == 3:
+    if package.fields["format"] in (3, 4):
         if (shell / "rom-map.json").read_bytes() != package.rom_map_bytes:
             raise ValueError("frozen producer ROM map differs from sealed shell package")
         shell_members += ("rom-map.json",)

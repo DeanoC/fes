@@ -12,6 +12,13 @@ video, Linux input, callback-only input session, and `NativeHardware`.
 There is no conventional Main, MiSTer SPI, framebuffer, cartridge profile table,
 or raw game launch operation.
 
+The package inspector reads format 4's two named ROM sources and sealed map
+with its separate identity domain. Physical admission still requires a linked
+load before that format can be activated.
+The production adapter forwards both single-source and two-source bitstream
+attachment to `NativeHardware`, which validates the receipt and retains the
+programmed file before any physical transition.
+
 Package activation admission checks the exact sealed descriptor, digest,
 board, programming profile, ABI and required interfaces before programming.
 Owned descriptors and retained file descriptors cross the mutation boundary;

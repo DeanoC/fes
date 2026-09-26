@@ -1,6 +1,7 @@
 package misterruntime_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -17,6 +18,91 @@ import (
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/misteross/expansion"
 )
+
+func romTargetInputV2(t *testing.T) corepackage.ROMInputV2 {
+	t.Helper()
+	old := romTargetInput(t)
+	members := make(map[string][]byte)
+	reader := tar.NewReader(bytes.NewReader(old.Package))
+	for {
+		header, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		members[header.Name], err = io.ReadAll(reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	manifest := string(members["manifest.toml"])
+	cut := strings.Index(manifest, "\n[rom]")
+	if cut < 0 {
+		t.Fatal("missing old ROM section")
+	}
+	manifest = strings.Replace(manifest[:cut], "format = 3", "format = 4", 1)
+	manifest += fmt.Sprintf("\n[[roms]]\nid = \"coleco-bios\"\nrole = \"firmware\"\nsource_size = 1024\nsource_offset = 0\n\n[[roms]]\nid = \"coleco-cart\"\nrole = \"cartridge\"\nsource_size = %d\nsource_offset = 1024\n\n[rom_map]\nfile = \"rom-map.json\"\nsize = %d\nsha256 = \"%x\"\n", len(old.ROM)-1024, len(members["rom-map.json"]), sha256.Sum256(members["rom-map.json"]))
+	archive := tarCoreArchive(t, []byte(manifest), members["core.rbf"])
+	archive = archive[:len(archive)-1024]
+	mapArchive := tarCoreArchive(t, members["rom-map.json"], nil)
+	header := append([]byte(nil), mapArchive[:512]...)
+	clear(header[:100])
+	copy(header, "rom-map.json")
+	for i := 148; i < 156; i++ {
+		header[i] = ' '
+	}
+	sum := 0
+	for _, value := range header {
+		sum += int(value)
+	}
+	copy(header[148:156], fmt.Sprintf("%06o\x00 ", sum))
+	archive = append(archive, header...)
+	archive = append(archive, members["rom-map.json"]...)
+	archive = append(archive, make([]byte, (512-len(members["rom-map.json"])%512)%512+1024)...)
+	return corepackage.ROMInputV2{Package: archive, BIOS: old.ROM[:1024], Cartridge: old.ROM[1024:]}
+}
+
+type twoROMTargetControl struct {
+	*romTargetControl
+	calls int
+}
+
+func (c *twoROMTargetControl) LoadROMLinksLinkedCore(ctx context.Context, path, id, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, links corepackage.ROMLinksIdentity) (misterruntime.Protocol2Response, error) {
+	c.calls++
+	programmed, err := os.ReadFile(programmedPath)
+	if err != nil || fmt.Sprintf("%x", sha256.Sum256(programmed)) != links.ProgrammedSHA256 {
+		c.t.Fatalf("programmed identity mismatch: %v", err)
+	}
+	response, err := c.packageControl.LoadCore(ctx, path, id)
+	if err == nil {
+		response.Capabilities.ROMLinking = 1
+		response.ActivePackage.ROMLinks = &links
+		c.status2 = &response
+	}
+	return response, err
+}
+
+func TestTwoROMTargetStagesAndDispatchesBothSources(t *testing.T) {
+	in := romTargetInputV2(t)
+	envelope, err := corepackage.WriteROMInputV2(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	control := &twoROMTargetControl{romTargetControl: newROMTargetControl(t, 1)}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
+	active, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(envelope)), bytes.NewReader(envelope))
+	if apiErr != nil || !attempted || control.calls != 1 || active.ROMLinks == nil || active.ROMLink != nil {
+		t.Fatalf("two-source dispatch: activation=%#v attempted=%v err=%v calls=%d", active, attempted, apiErr, control.calls)
+	}
+	if active.ROMLinks.Sources[0].SourceSHA256 != fmt.Sprintf("%x", sha256.Sum256(in.BIOS)) || active.ROMLinks.Sources[1].SourceSHA256 != fmt.Sprintf("%x", sha256.Sum256(in.Cartridge)) {
+		t.Fatal("source identities lost in target dispatch")
+	}
+	if _, err := runtime.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // romTargetInput uses the Mistral-generated CRAM map and blank bitstream. No
 // programmed output is supplied by the host; LoadCoreOwned must derive it.
