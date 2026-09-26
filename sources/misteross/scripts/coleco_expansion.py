@@ -17,6 +17,18 @@ SOCKET_PREFIX = 'socket.'
 REQUEST_BITS = 31
 RESPONSE_BITS = 11
 RESPONSE_BITS_V2 = 28
+SOCKET_CLOCK_COVERAGE_CELL = 'clock_coverage_ff'
+SOCKET_CLOCK_COVERAGE_RAW_CELL = 'socket.clock_coverage_ff'
+SOCKET_CLOCK_COVERAGE_BEL = 'MISTRAL_FF.24.4.56'
+SOCKET_CLOCK_COVERAGE_NET = 'system_clock.clocks[0]'
+SOCKET_CLOCK_COVERAGE_ARCS = (
+    'HCLK.16.4.5.HCLKB.16.4.5',
+    'HCLKB.16.4.5.XCLKB1.24.4.5',
+    'XCLKB1.24.4.5.XCLKB2A.24.4.5',
+    'XCLKB2A.24.4.5.TCLK.24.4.0',
+    'TCLK.24.4.0.WIRE.24.4.CLK0',
+    'WIRE.24.4.CLK0.WIRE.24.4.CLKT[9]',
+)
 
 
 def socket_bels() -> dict[str, str]:
@@ -57,6 +69,26 @@ def raw_cell_name(name: str) -> str:
     raise ValueError(f'unknown Coleco boundary cell: {name}')
 
 
+def validate_v2_clock_coverage_route(top: dict) -> None:
+    """Require the frozen system clock route to reach the row 4 socket edge."""
+    net = top.get('netnames', {}).get(SOCKET_CLOCK_COVERAGE_NET, {})
+    clock_bits = net.get('bits')
+    anchor = top.get('cells', {}).get(SOCKET_CLOCK_COVERAGE_CELL, {})
+    if not isinstance(clock_bits, list) or len(clock_bits) != 1 or not isinstance(anchor, dict) or \
+            anchor.get('connections', {}).get('CLK') != clock_bits:
+        raise ValueError('Coleco socket clock coverage anchor is disconnected from the system clock')
+    route = net.get('attributes', {}).get('ROUTING')
+    if not isinstance(route, str):
+        raise ValueError('Coleco socket clock coverage route is missing')
+    fields = route.split(';')
+    if len(fields) % 3:
+        raise ValueError('Coleco socket clock coverage route is malformed')
+    nodes = set(fields[0::3])
+    arcs = set(fields[1::3])
+    if 'GCLK.0.36.3' not in nodes or not set(SOCKET_CLOCK_COVERAGE_ARCS).issubset(arcs):
+        raise ValueError('Coleco socket clock coverage is missing the required row 4 branch')
+
+
 def shell_qsf(base: str, *, version: int = 1) -> str:
     if 'FES_RESERVED_RECT' in base:
         raise ValueError('base QSF already reserves a CRAM rectangle')
@@ -88,6 +120,13 @@ def prepare_shell_netlist(path: Path, *, version: int = 1) -> None:
         response = top['netnames']['bus_response']['bits']
         if len(source_request) != REQUEST_BITS or len(response) != RESPONSE_BITS_V2:
             raise ValueError('Coleco v2 socket source or response bus is malformed')
+        coverage = cells.get(SOCKET_CLOCK_COVERAGE_RAW_CELL)
+        if SOCKET_CLOCK_COVERAGE_CELL in cells or not isinstance(coverage, dict) or \
+                coverage.get('type') != 'MISTRAL_FF' or \
+                coverage.get('attributes', {}).get('BEL') != SOCKET_CLOCK_COVERAGE_BEL or \
+                coverage.get('connections', {}).get('CLK') != clock or \
+                coverage.get('connections', {}).get('DATAIN') != ['0']:
+            raise ValueError('Coleco v2 socket clock coverage anchor changed')
     for name, bel in expected.items():
         original = raw_cell_name(name)
         cell = cells.get(original)
@@ -110,6 +149,8 @@ def prepare_shell_netlist(path: Path, *, version: int = 1) -> None:
                 raise ValueError(f'Coleco socket vacant response changed wiring: {name}')
     for name in expected:
         cells[name] = cells.pop(raw_cell_name(name))
+    if version == 2:
+        cells[SOCKET_CLOCK_COVERAGE_CELL] = cells.pop(SOCKET_CLOCK_COVERAGE_RAW_CELL)
     path.write_text(json.dumps(design, indent=2) + '\n')
 
 
@@ -117,9 +158,18 @@ def validate_routed_shell(path: Path, *, version: int = 1) -> None:
     """Require every reserved BEL to be vacant except the pinned edge FFs."""
     if version not in (1, 2):
         raise ValueError('unsupported Coleco socket version')
-    cells = json.loads(path.read_text())['modules']['top']['cells']
+    top = json.loads(path.read_text())['modules']['top']
+    cells = top['cells']
     expected = socket_bels_v2() if version == 2 else socket_bels()
     rect = SOCKET_RECT_V2 if version == 2 else SOCKET_RECT
+    allowed = set(expected)
+    if version == 2:
+        coverage = cells.get(SOCKET_CLOCK_COVERAGE_CELL)
+        if not isinstance(coverage, dict) or coverage.get('type') != 'MISTRAL_FF' or \
+                coverage.get('attributes', {}).get('NEXTPNR_BEL') != SOCKET_CLOCK_COVERAGE_BEL:
+            raise ValueError(f'Coleco routed socket clock coverage anchor changed: {SOCKET_CLOCK_COVERAGE_CELL}')
+        validate_v2_clock_coverage_route(top)
+        allowed.add(SOCKET_CLOCK_COVERAGE_CELL)
     x0, y0, x1, y1 = map(int, rect.split())
     for name, bel in expected.items():
         cell = cells.get(name)
@@ -131,5 +181,5 @@ def validate_routed_shell(path: Path, *, version: int = 1) -> None:
         parts = bel.split('.')
         if len(parts) < 3 or not parts[1].isdigit() or not parts[2].isdigit():
             continue
-        if x0 <= int(parts[1]) <= x1 and y0 <= int(parts[2]) <= y1 and name not in expected:
+        if x0 <= int(parts[1]) <= x1 and y0 <= int(parts[2]) <= y1 and name not in allowed:
             raise ValueError(f'Coleco reserved socket contains shell cell: {name}')
