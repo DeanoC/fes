@@ -748,35 +748,41 @@ func allZero(data []byte) bool {
 }
 
 func decode(manifest, payload []byte, maps ...[]byte) (Descriptor, error) {
+	d, _, err := decodeWithROMMap(manifest, payload, maps...)
+	return d, err
+}
+
+func decodeWithROMMap(manifest, payload []byte, maps ...[]byte) (Descriptor, *expansion.ROMMap, error) {
 	if len(manifest) < 1 || len(manifest) > MaxManifestSize || !utf8.Valid(manifest) {
-		return Descriptor{}, errors.New("core package: manifest must be 1 through 65536 valid UTF-8 bytes")
+		return Descriptor{}, nil, errors.New("core package: manifest must be 1 through 65536 valid UTF-8 bytes")
 	}
 	var descriptor Descriptor
 	decoder := toml.NewDecoder(bytes.NewReader(manifest))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&descriptor); err != nil {
-		return Descriptor{}, fmt.Errorf("core package: invalid manifest: %w", err)
+		return Descriptor{}, nil, fmt.Errorf("core package: invalid manifest: %w", err)
 	}
 	var fields map[string]any
 	if err := toml.Unmarshal(manifest, &fields); err != nil {
-		return Descriptor{}, fmt.Errorf("core package: invalid manifest shape: %w", err)
+		return Descriptor{}, nil, fmt.Errorf("core package: invalid manifest shape: %w", err)
 	}
 	if err := validateShape(fields); err != nil {
-		return Descriptor{}, err
+		return Descriptor{}, nil, err
 	}
 	if err := validateDescriptor(descriptor, payload); err != nil {
-		return Descriptor{}, err
+		return Descriptor{}, nil, err
 	}
 	if len(maps) > 1 {
-		return Descriptor{}, errors.New("multiple ROM maps")
+		return Descriptor{}, nil, errors.New("multiple ROM maps")
 	}
+	var parsed *expansion.ROMMap
 	var mapping []byte
 	if len(maps) == 1 {
 		mapping = maps[0]
 	}
 	if descriptor.Format == 2 {
 		if mapping != nil {
-			return Descriptor{}, errors.New("format 2 cannot contain ROM map")
+			return Descriptor{}, nil, errors.New("format 2 cannot contain ROM map")
 		}
 	} else {
 		var size int64
@@ -792,13 +798,15 @@ func decode(manifest, payload []byte, maps ...[]byte) (Descriptor, error) {
 		}
 		hash := sha256.Sum256(mapping)
 		if int64(len(mapping)) != size || hex.EncodeToString(hash[:]) != sha {
-			return Descriptor{}, errors.New("ROM map size or digest mismatch")
+			return Descriptor{}, nil, errors.New("ROM map size or digest mismatch")
 		}
-		if _, err := expansion.ParseROMMap(context.Background(), mapping, descriptor.Payload.SHA256, int(sourceSize)); err != nil {
-			return Descriptor{}, fmt.Errorf("ROM map: %w", err)
+		linkedMap, err := expansion.ParseROMMap(context.Background(), mapping, descriptor.Payload.SHA256, int(sourceSize))
+		if err != nil {
+			return Descriptor{}, nil, fmt.Errorf("ROM map: %w", err)
 		}
+		parsed = &linkedMap
 	}
-	return descriptor, nil
+	return descriptor, parsed, nil
 }
 
 func validateShape(root map[string]any) error {

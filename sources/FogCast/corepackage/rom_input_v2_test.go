@@ -185,6 +185,37 @@ func TestROMInputV2ClosedTransport(t *testing.T) {
 	}
 }
 
+func TestROMInputV2RevalidatesAfterSuccessfulStage(t *testing.T) {
+	in := linkedTwoROMFixture(t)
+	data, err := WriteROMInputV2(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	staged, err := StageROMInputV2(context.Background(), root, int64(len(data)), bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := staged.Cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	_, offset, err := romInitMember(data, 0, "rom-link-v2.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, offset, err = romInitMember(data, offset, "package.tar")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data[offset+512] ^= 1 // Same package and receipt, changed private BIOS.
+	if _, err := StageROMInputV2(context.Background(), root, int64(len(data)), bytes.NewReader(data)); err == nil {
+		t.Fatal("successful prior stage bypassed source validation")
+	}
+	if entries, err := os.ReadDir(root); err != nil || len(entries) != 0 {
+		t.Fatal("rejected stage left a publication", entries, err)
+	}
+}
+
 func TestROMInputV2OptionalExactShellExpansion(t *testing.T) {
 	in := linkedTwoROMFixture(t)
 	manifest, base, mapping, err := readArchive(in.Package)

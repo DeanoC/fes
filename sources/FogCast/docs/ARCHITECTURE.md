@@ -3,6 +3,9 @@
 The corepackage reader recognizes format 4's two ordered ROM requirements and
 sealed map. Launch and target activation of that format require the separate
 two-source transport and linked-load path before it becomes selectable.
+Two-source staging retains its parsed sealed map only within that operation,
+reusing it for receipt verification and linking. Publication and restart adoption
+independently validate their retained package bytes.
 
 This is the canonical description of the working system.
 

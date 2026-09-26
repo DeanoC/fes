@@ -357,12 +357,12 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	var bundle *CompositionBundle
 	var identity any
 	if IsROMInputV2(files["input.tar"]) {
-		in, readErr := readROMInputV2(files["input.tar"])
+		prepared, readErr := readPreparedROMInputV2(files["input.tar"])
 		if readErr != nil {
 			return readErr
 		}
 		var links ROMLinksIdentity
-		inspection, links, programmed, bundle, err = linkROMInputV2(context.Background(), in)
+		inspection, links, programmed, bundle, err = linkPreparedROMInputV2(context.Background(), prepared)
 		identity = links
 		staged.ROMLinks = &links
 	} else {
