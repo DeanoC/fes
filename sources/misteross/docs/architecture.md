@@ -367,7 +367,9 @@ sources and tools live under `build/toolchain/`. Build output lives under
 `oracle` uses an explicitly configured Quartus Prime Lite 17.0.2 installation.
 It uses the same production RTL and timing intent as the OSS lane. Output lives
 under `build/oracle/<experiment>/`. Quartus is not an OSS or simulation
-dependency.
+dependency. The wrapper accepts the closed policy field `synth_only`. A value
+of 0 leaves the Quartus compile unchanged. A value of 1 is refused: those
+experiments are cart synthesis and have no Quartus project.
 
 `compare` reads the two lane manifests and writes its result under
 `build/compare/<experiment>/`. Differences between compiler-produced RBF bytes

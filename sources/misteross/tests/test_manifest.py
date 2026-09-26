@@ -255,6 +255,9 @@ class ManifestTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
     def test_mailbox_manifest_binds_policy_protocol_and_semantic_resource_evidence(self) -> None:
+        from scripts.lockfile import load_lock
+        from tests.canonical_oss_tools import ensure_canonical_oss_tools
+
         protocol = ROOT / "experiments" / "020_linux_mailbox" / "rtl" / "top.v"
         output = self.fixture / "build" / "oss" / "020_linux_mailbox"
         output.mkdir(parents=True)
@@ -266,8 +269,10 @@ class ManifestTests(unittest.TestCase):
             encoding="utf-8",
         )
         logs = []
-        yosys = ROOT / "build" / "toolchain" / "install" / "bin" / "yosys"
-        nextpnr = ROOT / "build" / "toolchain" / "install" / "bin" / "nextpnr-mistral"
+        tools = ensure_canonical_oss_tools(ROOT)
+        pins = load_lock(ROOT / "toolchain.lock")
+        yosys = tools["yosys"]
+        nextpnr = tools["nextpnr-mistral"]
         command_lines = {
             "yosys.log": (
                 f"command: {yosys} -p "
@@ -347,19 +352,19 @@ class ManifestTests(unittest.TestCase):
                 },
             "authenticated_tools": {
                 "yosys": {
-                    "commit": "ec34fcf38986217af9b5558936044b7197d968a7",
+                    "commit": pins["yosys"].commit,
                     "path": "build/toolchain/install/bin/yosys",
                     "sha256": hashlib.sha256(yosys.read_bytes()).hexdigest(),
                 },
                 "nextpnr-mistral": {
-                    "commit": "d672fade461e8a1eba4d3f95895902d86f43b882",
+                    "commit": pins["nextpnr"].commit,
                     "path": "build/toolchain/install/bin/nextpnr-mistral",
                     "sha256": hashlib.sha256(nextpnr.read_bytes()).hexdigest(),
                 },
             },
             "tool_pins": {
-                "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
-                "nextpnr": "d672fade461e8a1eba4d3f95895902d86f43b882",
+                "yosys": pins["yosys"].commit,
+                "nextpnr": pins["nextpnr"].commit,
             },
             "reproducibility": {
                 "rbf_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
@@ -769,6 +774,12 @@ class LoggedCommandTests(unittest.TestCase):
             self.assertEqual(len(result.stderr.splitlines()), 1)
             self.assertIn("failed command", result.stderr)
             self.assertIn("$'", result.stderr)
+
+
+def tearDownModule() -> None:
+    from tests.canonical_oss_tools import cleanup_canonical_oss_tools
+
+    cleanup_canonical_oss_tools()
 
 
 if __name__ == "__main__":

@@ -233,6 +233,7 @@ policy_clock_mhz=
 policy_qsf=
 policy_sdc=
 policy_artifact=
+policy_synth_only=
 while IFS='=' read -r policy_key policy_value; do
     case "$policy_key" in
         name) policy_name=$policy_value ;;
@@ -245,11 +246,19 @@ while IFS='=' read -r policy_key policy_value; do
         sdc) policy_sdc=$policy_value ;;
         artifact) policy_artifact=$policy_value ;;
         nobram|nolutram|nodsp|yosys_post_synth|nextpnr_router) : ;; # OSS synthesis knobs.
+        synth_only) policy_synth_only=$policy_value ;;
         allowed_hard_blocks) : ;;
         "") : ;;
         *) fail "closed experiment policy emitted an unknown field: $policy_key" ;;
     esac
 done <<< "$policy_output"
+
+# synth_only selects OSS cart synthesis. Quartus compiles a full top project,
+# so 0 leaves this lane unchanged and 1 is refused before any compile.
+[[ "$policy_synth_only" == "0" || "$policy_synth_only" == "1" ]] \
+    || fail "closed experiment policy synth_only must be 0 or 1"
+[[ "$policy_synth_only" == "0" ]] \
+    || fail "Quartus oracle does not compile synth-only experiments: $EXP"
 
 [[ "$policy_name" == "$EXP" ]] || fail "closed experiment policy name mismatch"
 [[ "$policy_source" == "$rtl_rel" ]] || fail "closed experiment policy source mismatch"

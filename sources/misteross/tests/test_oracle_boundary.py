@@ -44,6 +44,19 @@ class OracleBoundaryTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, qsf_text)
 
+    def test_synth_only_experiment_is_refused_before_quartus(self):
+        temp, root, marker = self._quartus("17.0.2")
+        with temp:
+            result = self._run(
+                "--experiment",
+                "900_expansion_bus",
+                "--print-commands",
+                env={"QUARTUS_ROOTDIR": str(root)},
+            )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("synth-only", result.stderr)
+        self.assertFalse(marker.exists())
+
     def test_mailbox_print_commands_bind_shared_sources_without_simulation_model(self):
         temp, root, marker = self._quartus("17.0.2")
         with temp:

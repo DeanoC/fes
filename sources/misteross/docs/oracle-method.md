@@ -18,8 +18,11 @@ make oracle EXP=080_dsp_mem
 make oracle EXP=100_dsp_rom
 ```
 
-The wrapper accepts only version 17.0.2, stages the selected minimal project
-under `build/oracle/<experiment>/project/`, and runs:
+The wrapper accepts only version 17.0.2. It accepts the closed policy field
+`synth_only`: 0 leaves the compile unchanged, and 1 is refused before Quartus
+runs because those cart experiments have no `oracle/` project. The wrapper
+stages the selected minimal project under `build/oracle/<experiment>/project/`
+and runs:
 
 ```text
 quartus_sh --flow compile top

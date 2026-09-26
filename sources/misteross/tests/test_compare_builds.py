@@ -174,8 +174,21 @@ class CompareBuildsTests(unittest.TestCase):
             else ("quartus-version.log", "quartus.log")
         )
         command_records = []
-        oss_yosys = ROOT / "build" / "toolchain" / "install" / "bin" / "yosys"
-        oss_nextpnr = ROOT / "build" / "toolchain" / "install" / "bin" / "nextpnr-mistral"
+        if lane == "oss":
+            from scripts.lockfile import load_lock
+            from tests.canonical_oss_tools import ensure_canonical_oss_tools
+
+            oss_tools = ensure_canonical_oss_tools(ROOT)
+            oss_pins = load_lock(ROOT / "toolchain.lock")
+            oss_yosys = oss_tools["yosys"]
+            oss_nextpnr = oss_tools["nextpnr-mistral"]
+            yosys_commit = oss_pins["yosys"].commit
+            nextpnr_commit = oss_pins["nextpnr"].commit
+        else:
+            oss_yosys = ROOT / "build" / "toolchain" / "install" / "bin" / "yosys"
+            oss_nextpnr = ROOT / "build" / "toolchain" / "install" / "bin" / "nextpnr-mistral"
+            yosys_commit = ""
+            nextpnr_commit = ""
         for index, command_name in enumerate(command_names):
             command_log = rbf.parent / command_name
             if lane == "oss":
@@ -335,12 +348,12 @@ class CompareBuildsTests(unittest.TestCase):
                 if lane == "oracle"
                 else {
                     "yosys": {
-                        "commit": "ec34fcf38986217af9b5558936044b7197d968a7",
+                        "commit": yosys_commit,
                         "path": "build/toolchain/install/bin/yosys",
                         "sha256": _sha256(oss_yosys),
                     },
                     "nextpnr-mistral": {
-                        "commit": "d672fade461e8a1eba4d3f95895902d86f43b882",
+                        "commit": nextpnr_commit,
                         "path": "build/toolchain/install/bin/nextpnr-mistral",
                         "sha256": _sha256(oss_nextpnr),
                     },
@@ -350,8 +363,8 @@ class CompareBuildsTests(unittest.TestCase):
                 {"quartus": provenance}
                 if lane == "oracle"
                 else {
-                    "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
-                    "nextpnr": "d672fade461e8a1eba4d3f95895902d86f43b882",
+                    "yosys": yosys_commit,
+                    "nextpnr": nextpnr_commit,
                 }
             ),
             "reproducibility": {"rbf_sha256": digest, "rbf_size_bytes": rbf.stat().st_size},
@@ -2347,6 +2360,12 @@ class CompareBuildsTests(unittest.TestCase):
             self.assertEqual(record["status"], "excluded")
         markdown = (self.output / "comparison.md").read_text()
         self.assertIn("excluded (static)", markdown)
+
+
+def tearDownModule() -> None:
+    from tests.canonical_oss_tools import cleanup_canonical_oss_tools
+
+    cleanup_canonical_oss_tools()
 
 
 if __name__ == "__main__":
