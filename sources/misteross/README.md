@@ -49,9 +49,7 @@ package without an image rebuild is the FES
 ### OSS experiments
 
 `make toolchain` (GPU router off), then `make sim EXP=…` and `make oss EXP=…`.
-Optional Quartus reference: `make oracle EXP=…` and `make compare EXP=…`.
-Output is `build/oss/<experiment>/top.rbf` or
-`build/oracle/<experiment>/top.rbf`.
+Output is `build/oss/<experiment>/top.rbf`.
 
 The closed set is the keys of `scripts/experiment_policy.py`. Any other name
 fails. The narrative list is the [experiment catalog](docs/oss-experiments.md).
@@ -154,5 +152,5 @@ This path does not seal `fes.zx81`.
 | `docs/validation/` | Dated evidence |
 
 `make clean` is not implemented. Remove one experiment's `build/oss/<name>`
-or `build/oracle/<name>` directory. Do not delete `build/toolchain` unless
-you intend to rebuild the compilers.
+directory. Do not delete `build/toolchain` unless you intend to rebuild the
+compilers.

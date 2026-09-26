@@ -14,14 +14,12 @@ open first.
 
 ## Current instructions
 
-- [OSS place-and-route testing](oss-pnr.md) — `make sim` / `make oss` /
-  `make oracle` / `make compare`, including freeze-scaffold compose.
+- [OSS place-and-route testing](oss-pnr.md) — `make sim` / `make oss`,
+  including freeze-scaffold compose.
 - [Cores](cores.md) — simulate, seal, and the boundary with the FES recipe
   registry and factory image.
 - [Architecture](architecture.md) — functional identity, lanes, compilers,
   freeze-scaffold mechanism, per-core build contracts, package boundary.
-- [Quartus reference lane](oracle-method.md) — optional experiment oracle.
-  Not the product build.
 - [Linux mailbox experiment](linux-mailbox-development.md) — worked example
   for `020_linux_mailbox` only.
 - [Media stream 1.0](contracts/media-stream-1.0.md) — stream contract used by

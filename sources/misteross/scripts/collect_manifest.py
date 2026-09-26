@@ -43,7 +43,6 @@ SEMANTIC_RESOURCE_FIELDS = (
 )
 SYNTHESIS_REPORT_SUFFIXES = {
     "oss": "timing.json",
-    "oracle": "top.fit.rpt",
 }
 STATIC_PROOF_BASIS = "static source/project/command exclusion"
 STATIC_PROOF_PATTERNS = (
@@ -769,18 +768,13 @@ def _canonical_static_source_records(
     experiment: str,
     lane: str,
 ) -> list[dict[str, str]]:
+    if lane != "oss":
+        raise ManifestError(f"static proof sources are defined for the oss lane, got {lane}")
     expected_paths = [
         f"experiments/{experiment}/rtl/top.v",
         "boards/de10nano/pins.qsf",
         "boards/de10nano/clocks.sdc",
     ]
-    if lane == "oracle":
-        expected_paths.extend(
-            (
-                f"experiments/{experiment}/oracle/top.qpf",
-                f"experiments/{experiment}/oracle/top.qsf",
-            )
-        )
     by_path: dict[str, dict[str, Any]] = {}
     for record in source_records:
         path = record.get("path")

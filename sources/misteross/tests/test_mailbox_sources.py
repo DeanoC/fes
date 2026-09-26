@@ -84,11 +84,8 @@ class MailboxSourcePolicyTests(unittest.TestCase):
         self.assertRegex(model, r"\bgpo\b.*verilator\s+public_flat_rw", re.IGNORECASE | re.DOTALL)
         self.assertRegex(model, r"\bgpi\b.*verilator\s+public_flat_rd", re.IGNORECASE | re.DOTALL)
 
-        for production in (
-            ROOT / "scripts" / "build_oss.sh",
-            ROOT / "scripts" / "build_oracle.sh",
-        ):
-            self.assertNotIn("hps_gp_model.v", production.read_text(encoding="utf-8"))
+        production = (ROOT / "scripts" / "build_oss.sh").read_text(encoding="utf-8")
+        self.assertNotIn("hps_gp_model.v", production)
 
     def test_expected_document_binds_protocol_payload_and_terminal_hold(self):
         self.assertTrue(EXPECTED.is_file(), EXPECTED)
@@ -255,11 +252,10 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             self.assertNotEqual(unknown.returncode, 0)
             self.assertIn("unknown simulation experiment", unknown.stderr)
 
-    def test_simulation_sources_do_not_enter_oss_or_oracle_commands(self):
-        for script_name in ("build_oss.sh", "build_oracle.sh"):
-            source = (ROOT / "scripts" / script_name).read_text(encoding="utf-8")
-            self.assertNotIn("/sim/", source)
-            self.assertNotIn("hps_gp_model.v", source)
+    def test_simulation_sources_do_not_enter_oss_commands(self):
+        source = (ROOT / "scripts" / "build_oss.sh").read_text(encoding="utf-8")
+        self.assertNotIn("/sim/", source)
+        self.assertNotIn("hps_gp_model.v", source)
 
 
 if __name__ == "__main__":

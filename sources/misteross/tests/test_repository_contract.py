@@ -16,8 +16,6 @@ class RepositoryContractTests(unittest.TestCase):
             "doctor",
             "sim",
             "oss",
-            "oracle",
-            "compare",
             "program",
         ):
             self.assertIn(target, result.stdout)

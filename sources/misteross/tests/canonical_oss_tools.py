@@ -1,6 +1,6 @@
 """Stand-in executables for the canonical OSS tool prefix.
 
-``compare_builds`` and ``collect_manifest`` reopen
+``collect_manifest`` reopens
 ``build/toolchain/install/bin/{yosys,nextpnr-mistral}`` under the repository.
 A shared compiler cache never creates that prefix. Mailbox provenance tests
 install a tiny executable there when the real tool is absent, and remove only

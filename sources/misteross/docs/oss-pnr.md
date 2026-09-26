@@ -1,8 +1,7 @@
 # OSS place-and-route testing
 
 Use this lane to prove that a small Cyclone V design synthesizes, places and
-routes with the pinned Yosys, nextpnr-mistral and Mistral tools, and optionally
-to compare that result with Quartus Prime Lite 17.0.2.
+routes with the pinned Yosys, nextpnr-mistral and Mistral tools.
 
 This is not how you change Coleco, SMS, ZX81, Pong or any other described
 package. That job is [Cores](cores.md). The stitch rules and compiler identity
@@ -16,29 +15,22 @@ closed table in `scripts/experiment_policy.py`. The name must match
 `NNN_name` (`[0-9][0-9][0-9]_[a-z0-9_]+`). `policy_for` rejects every other
 name.
 
-The three lanes share production RTL and do not share models:
+The two lanes share production RTL and do not share models:
 
 ```text
 experiment RTL + constraints
   |-- sim ----> Verilator
-  |-- oss ----> Yosys -> nextpnr-mistral/Mistral -> top.rbf
-  `-- oracle -> Quartus Prime Lite 17.0.2 -------> top.rbf
-
-oss manifest + oracle manifest -> compare report
+  `-- oss ----> Yosys -> nextpnr-mistral/Mistral -> top.rbf
 ```
 
 `sim` checks logical behavior. Simulation-only models never enter synthesis.
-`oss` does not use Quartus. `oracle` is an explicitly configured Quartus
-17.0.2 install and is absent for most experiments. `compare` checks target,
-sources, resources, timing and successful artifacts. The two RBFs are not
-expected to be byte-identical.
+`oss` does not use Quartus. Described-core Quartus recipes, where a core
+still has one, are a separate manual development check under [Cores](cores.md).
 
 Outputs:
 
 ```text
 build/oss/<experiment>/top.rbf
-build/oracle/<experiment>/top.rbf
-build/compare/<experiment>/
 ```
 
 These files are not format-2 packages and are not installed in an FES image.
@@ -65,25 +57,12 @@ if you need the GPU-off tools back.
 Coleco, SMS, SG-1000 and ZX81 HIP tools install under other prefixes. They
 are not this lane. See [Cores](cores.md).
 
-If Quartus 17.0.2 is installed, and the experiment's `expected.md` says the
-oracle lane exists:
-
-```sh
-export QUARTUS_ROOTDIR=/path/to/17.0/quartus
-make oracle EXP=010_blinky
-make compare EXP=010_blinky
-```
-
-The explicit Quartus setup is [the oracle method](oracle-method.md). Many
-experiments say "no Quartus comparison lane". Do not invent one.
-
 `make sim` and `make oss` reject a set `FES_TOOLCHAIN_CACHE_ROOT`. The shared
 compiler cache belongs to FES core producers, not to this lane. `make clean`
-is not implemented. Delete `build/oss/<experiment>` or
-`build/oracle/<experiment>` only. Do not delete `build/toolchain` unless you
-mean to rebuild the compilers.
+is not implemented. Delete `build/oss/<experiment>` only. Do not delete
+`build/toolchain` unless you mean to rebuild the compilers.
 
-`make doctor` reports host, toolchain, oracle and hardware readiness.
+`make doctor` reports host, toolchain, optional Quartus and hardware readiness.
 `make doctor-strict` requires the host and OSS tools. Quartus and a board
 stay optional.
 
@@ -105,8 +84,7 @@ Families, not a second copy of every result:
 
 The mailbox walk-through is [Linux mailbox development](linux-mailbox-development.md).
 Read `experiments/<name>/expected.md` before building. The catalog records
-the cross-experiment notes, including which designs have no Quartus lane and
-which measurements are fabric GPI only.
+the cross-experiment notes, including which measurements are fabric GPI only.
 
 A passing `make oss` is not kit acceptance. Where `expected.md` names a
 `hardware/probe.sh`, that probe is a development-RBF diagnostic under the
@@ -115,14 +93,12 @@ existing kit lease. It does not seal a package.
 ## Add an experiment
 
 1. Create `experiments/NNN_name/` with production RTL, a Verilator testbench,
-   `expected.md`, and an `oracle/` project only when a Quartus lane is real.
+   and `expected.md`.
 2. Add one frozen `ExperimentPolicy` to `_POLICIES` in
    `scripts/experiment_policy.py`. Source lists, hard-block limits and
    simulation jobs come from that policy. An unknown name does not build.
 3. Keep simulation-only models out of the production source list.
-4. Say in `expected.md` whether `make oracle` exists. Do not claim it if the
-   policy has no Quartus project.
-5. Do not import `cores/fes-*` machine RTL, do not emit a format-2 manifest,
+4. Do not import `cores/fes-*` machine RTL, do not emit a format-2 manifest,
    and do not add a row to FES `config/core-recipes.toml`.
 
 ## Loading

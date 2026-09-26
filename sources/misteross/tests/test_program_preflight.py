@@ -45,7 +45,6 @@ class ProgramPreflightTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.output, ignore_errors=True)
-        shutil.rmtree(ROOT / "build" / "oracle" / EXPERIMENT, ignore_errors=True)
         self.temp.cleanup()
 
     def _write_manifest(self, **overrides: object) -> None:
@@ -373,87 +372,6 @@ class ProgramPreflightTests(unittest.TestCase):
         current[path[-1]] = value
         self.manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    def _write_oracle_manifest(self, *, stability_measured: bool = False) -> Path:
-        output = ROOT / "build" / "oracle" / EXPERIMENT
-        output.mkdir(parents=True, exist_ok=True)
-        artifact = output / "top.rbf"
-        artifact.write_bytes(self.artifact.read_bytes())
-        digest = _sha256(artifact)
-        static = {
-            "used": None,
-            "available": None,
-            "status": "excluded",
-            "evidence_kind": "static_exclusion",
-            "measured": False,
-            "exclusion": {
-                "basis": "static source/project exclusion",
-                "patterns": ["forbidden"],
-                "sources": [{"path": "source", "sha256": "b" * 64}],
-            },
-        }
-        provenance = {
-            "path": "/opt/quartus/17.0.2/quartus/bin/quartus_sh",
-            "executable": "/opt/quartus/17.0.2/quartus/bin/quartus_sh",
-            "sha256": "c" * 64,
-            "executable_sha256": "c" * 64,
-            "version": "Quartus Prime Version 17.0.2 Build 602",
-            "required_version": "17.0.2",
-            "version_output_sha256": "d" * 64,
-        }
-        manifest = {
-            "schema": 2,
-            "experiment": EXPERIMENT,
-            "lane": "oracle",
-            "target": TARGET,
-            "artifacts": [{"path": f"build/oracle/{EXPERIMENT}/top.rbf", "sha256": digest}],
-            "build": {
-                "status": "pass",
-                "build_status": "pass",
-                "route_status": "pass",
-                "route": {"status": "pass", "unrouted": False},
-                "timing": {
-                    "status": "pass",
-                    "requested_mhz": 50.0,
-                    "achieved_mhz": 100.0,
-                    "clock": "FPGA_CLK1_50",
-                },
-                "resources": {
-                    "ALM": {"used": 2, "available": 100},
-                    "register": {"used": 2, "available": 100},
-                    "IO": {"used": 2, "available": 10},
-                },
-                "resource_classes": {"ALM": "ordinary", "register": "ordinary", "IO": "ordinary"},
-                "unknown_resources": {},
-                "hard_block_status": "pass",
-                "hard_blocks": {
-                    "PLL": {"used": 0, "available": 4, "evidence_kind": "fitter_summary", "measured": True},
-                    "BRAM/M10K": {"used": 0, "available": 10, "evidence_kind": "fitter_summary", "measured": True},
-                    "DSP": {"used": 0, "available": 2, "evidence_kind": "fitter_summary", "measured": True},
-                    "MLAB/LUTRAM": static,
-                    "HPS": static,
-                },
-                "hard_block_evidence": {
-                    "PLL": {"used": 0, "available": 4, "evidence_kind": "fitter_summary", "measured": True},
-                    "BRAM/M10K": {"used": 0, "available": 10, "evidence_kind": "fitter_summary", "measured": True},
-                    "DSP": {"used": 0, "available": 2, "evidence_kind": "fitter_summary", "measured": True},
-                    "MLAB/LUTRAM": static,
-                    "HPS": static,
-                },
-                "authenticated_tools": {"quartus_sh": provenance},
-                "tool_pins": {"quartus": provenance},
-                "reproducibility": {
-                    "rbf_sha256": digest,
-                    "rbf_size_bytes": artifact.stat().st_size,
-                    "rbf_stability_measured": stability_measured,
-                    "rbf_stable": True if stability_measured else None,
-                    "rbf_stability_reason": "oracle stability is unmeasured by contract",
-                },
-            },
-        }
-        manifest_path = output / "manifest.json"
-        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        return manifest_path
-
     def test_route_status_must_be_pass_and_routed(self) -> None:
         self._mutate_build(("route_status",), "fail")
         result = self._run()
@@ -700,27 +618,6 @@ class ProgramPreflightTests(unittest.TestCase):
         result = self._run()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("50.0", result.stdout + result.stderr)
-
-    def test_oracle_unmeasured_stability_requires_explicit_provenance_reason(self) -> None:
-        self._write_oracle_manifest(stability_measured=False)
-        result = self._run(lane="oracle")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("unmeasured", (result.stdout + result.stderr).lower())
-
-        manifest_path = ROOT / "build" / "oracle" / EXPERIMENT / "manifest.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["build"]["reproducibility"].pop("rbf_stability_reason")
-        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-        result = self._run(lane="oracle")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("reason", (result.stdout + result.stderr).lower())
-
-        self._write_manifest()
-        self._mutate_build(("reproducibility", "rbf_stability_measured"), False)
-        result = self._run()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("stability", (result.stdout + result.stderr).lower())
-
 
     def test_make_plain_and_help_do_not_expand_operator_variables(self) -> None:
         for variable in ("EXP", "BUILD", "PYTHON", "PROGRAM_TRANSPORT"):

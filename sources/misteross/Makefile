@@ -48,7 +48,7 @@ help:
 		"  toolchain-fes  Build the repository-local HIP toolchain for FES Pong" \
 		"  toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket" \
 		"  toolchain-fes-coleco  Build the Coleco v2 SGM toolchain" \
-		"  doctor     Report host, toolchain, oracle, and hardware readiness" \
+		"  doctor     Report host, toolchain, optional Quartus, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
@@ -97,8 +97,6 @@ help:
 		"  build-fes-sms  Seal FES Master System with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
 		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
-		"  oracle     Build an experiment with the explicit Quartus oracle lane" \
-		"  compare    Compare OSS and oracle build results" \
 		"  export-core-package  Seal a format-2 package directory and .fcore archive" \
 		"  program    Explicit JTAG SRAM maintenance diagnostic" \
 		"  clean      Remove generated output for an experiment" \
@@ -145,7 +143,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss oracle compare     export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss     export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -1113,18 +1111,6 @@ sim:
 oss:
 	$(require_exp)
 	@scripts/build_oss.sh --experiment "$$EXP"
-
-
-oracle:
-	$(require_exp)
-	@scripts/build_oracle.sh --experiment "$$EXP"
-
-compare:
-	$(require_exp)
-	@$(PYTHON) scripts/compare_builds.py --experiment "$$EXP" \
-		--oss-manifest "build/oss/$$EXP/manifest.json" \
-		--oracle-manifest "build/oracle/$$EXP/manifest.json" \
-		--output-dir "build/compare/$$EXP"
 
 export-core-package:
 	@test -n "$(PACKAGE_MANIFEST)" || { printf '%s\n' 'PACKAGE_MANIFEST is required' >&2; exit 2; }

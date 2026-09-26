@@ -19,6 +19,5 @@ acknowledged.  DONE's terminal hold is permanent.  A reconfiguration restarts th
 sequence zero.
 
 The simulation-only primitive model lets the testbench set GPO and observe
-GPI.  It is not a production source and is excluded from OSS and oracle
-commands.  A parameterized two-byte simulation transaction separately checks
+GPI.  It is not a production source and is excluded from the OSS build.  A parameterized two-byte simulation transaction separately checks
 the defined `255` then `0` sequence wrap.
