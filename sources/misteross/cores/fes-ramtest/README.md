@@ -34,12 +34,16 @@ uses a phase-shifted 100 MHz clock and a fabric input register. Its timing
 report covers the 100 MHz controller, capture, 50 MHz HPS and 74.25 MHz video
 domains. Package `58d29d3a99d04988083b04216726662ef6eae7d7af2c804fe3324e14fe721c83`
 passed all six full-span SDRAM patterns with zero errors in two hardware runs.
-`make toolchain-fes-ramtest-130` provisions the separate PLL profile, then
-`make build-fes-ramtest-130` seals its package. A local seed-2 route of that
-profile closed all timing domains and passed six full-span SDRAM patterns with
-zero errors on the designated kit. The local test package was unsealed;
-repeat acceptance on the authenticated package after the nextpnr pin is
-published and the toolchain is provisioned.
+`make toolchain-fes-ramtest-130` provisions `toolchains/ramtest-130.lock`:
+Yosys `1bf1ff3d`, Mistral `7ed06e21`, and nextpnr main with the calibrated
+Mistral placement delay prediction (DeanoC/nextpnr#86). Then
+`make build-fes-ramtest-130` seals its package with seed 2. Without that
+prediction the same netlist misses the 130 MHz memory clock on seed 2
+(128.16 MHz); with it, all 16 seeds tried close every domain. An earlier
+unsealed seed-2 route on nextpnr `50a2832e` passed six full-span SDRAM
+patterns with zero errors on the designated kit. That test does not qualify
+the current toolchain or bitstream; repeat hardware acceptance on the new
+sealed package.
 
 The Quartus timing report
 covers internal setup paths but does not constrain external SDRAM I/O timing,

@@ -188,7 +188,10 @@ MiSTer controllers. The default OSS bitstream runs that clock at 50 MHz;
 The latter samples the bidirectional DQ pads with phase-shifted fabric
 registers because the pinned OSS packer cannot put DDR input registers on
 those pads. The 100 MHz build has a four-domain timing gate but has not yet
-passed a full hardware scan. The pinned OSS PLL table stops at 100 MHz.
+passed a full hardware scan. `make build-fes-ramtest-130` seals a 130 MHz
+OSS package into `build/fes-ramtest-130/` with `toolchains/ramtest-130.lock`;
+its nextpnr carries the dual 130 MHz PLL profile and the calibrated placement
+delay prediction that closes the memory clock.
 `make build-fes-ramtest-quartus` compiles a fixed 130 MHz diagnostic with
 Quartus 17.0.2; `RAMTEST_MHZ=100` selects a separate 100 MHz diagnostic.
 Each tests the full SDRAM range at one rate and keeps the six pattern counts
