@@ -153,7 +153,7 @@ def event(device: int, kind: int, action: int, code: int, value: int = 0) -> dic
     }
 
 
-def capture_command(video_device: str, capture_size: str, capture_frames: int, output: Path) -> list[str]:
+def capture_command(video_device: str, capture_size: str, capture_frames: int, output: Path, input_format: str = "yuyv422") -> list[str]:
     if capture_frames < 1:
         raise ValueError("capture_frames must be positive")
     # V4L2 devices can return a buffered frame from the previous core.  Read
@@ -169,7 +169,7 @@ def capture_command(video_device: str, capture_size: str, capture_frames: int, o
         "-f",
         "v4l2",
         "-input_format",
-        "mjpeg",
+        input_format,
         "-video_size",
         capture_size,
         "-i",
@@ -267,6 +267,8 @@ class Runner:
         self.video_device = args.video_device
         self.capture_size = args.capture_size
         self.capture_frames = args.capture_frames
+        self.capture_input_format = getattr(args, "capture_input_format", "yuyv422")
+        self.capture_settle_seconds = getattr(args, "capture_settle_seconds", 3.0)
         self.records: list[dict[str, Any]] = []
         self.active = False
 
@@ -380,7 +382,8 @@ class Runner:
             return None
         self.capture_dir.mkdir(parents=True, exist_ok=True)
         output = self.capture_dir / f"{core.replace('.', '-')}.jpg"
-        command = capture_command(self.video_device, self.capture_size, self.capture_frames, output)
+        time.sleep(self.capture_settle_seconds)
+        command = capture_command(self.video_device, self.capture_size, self.capture_frames, output, self.capture_input_format)
         try:
             result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=self.host.timeout)
         except (OSError, subprocess.SubprocessError) as exc:
@@ -389,7 +392,7 @@ class Runner:
         if not output.is_file() or output.stat().st_size == 0:
             raise AcceptanceError(f"{core}: HDMI capture produced no bytes")
         digest = hashlib.sha256(output.read_bytes()).hexdigest()
-        return {"path": str(output), "sha256": digest, "bytes": output.stat().st_size}
+        return {"path": str(output), "sha256": digest, "bytes": output.stat().st_size, "input_format": self.capture_input_format, "frames": self.capture_frames, "settle_seconds": self.capture_settle_seconds}
 
     def _cleanup_core(self, spec: CoreSpec, package_id: str, game_id: str) -> None:
         try:
@@ -485,7 +488,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--capture-dir", default=os.environ.get("FES_ACCEPTANCE_CAPTURE_DIR"))
     result.add_argument("--video-device", default=os.environ.get("FES_HDMI_DEVICE", "/dev/video0"))
     result.add_argument("--capture-size", default=os.environ.get("FES_HDMI_SIZE", "1280x720"))
-    result.add_argument("--capture-frames", type=int, default=int(os.environ.get("FES_HDMI_FRAMES", "5")))
+    result.add_argument("--capture-input-format", choices=("yuyv422", "mjpeg"), default="yuyv422",
+                        help="V4L2 capture format (default: yuyv422; MJPEG is opt-in)")
+    result.add_argument("--capture-frames", type=int, default=int(os.environ.get("FES_HDMI_FRAMES", "120")))
+    result.add_argument("--capture-settle-seconds", type=float, default=3.0,
+                        help="wait before opening HDMI capture (default: 3 seconds)")
     result.add_argument("--no-capture", action="store_true", help="explicitly disable capture output")
     return result
 
@@ -494,7 +501,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.no_capture:
         args.capture_dir = None
-    if args.timeout <= 0 or args.poll_attempts <= 0 or args.poll_interval < 0 or args.capture_frames <= 0:
+    if args.timeout <= 0 or args.poll_attempts <= 0 or args.poll_interval < 0 or args.capture_frames <= 0 or args.capture_settle_seconds < 0:
         print("target acceptance: timeout, poll attempts and interval must be valid", file=sys.stderr)
         return 2
     try:

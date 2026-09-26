@@ -10,6 +10,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -363,6 +364,35 @@ class TargetAcceptanceTests(unittest.TestCase):
         )
         self.assertIn(r"select=eq(n\,4)", command)
         self.assertEqual(command[command.index("-frames:v") + 1], "1")
+
+    def test_capture_defaults_to_yuyv_and_supports_explicit_mjpeg(self):
+        command = target_acceptance.capture_command(
+            "/dev/video0", "1280x720", 5, Path("frame.jpg")
+        )
+        self.assertEqual(command[command.index("-input_format") + 1], "yuyv422")
+        command = target_acceptance.capture_command(
+            "/dev/video0", "1280x720", 5, Path("frame.jpg"), "mjpeg"
+        )
+        self.assertEqual(command[command.index("-input_format") + 1], "mjpeg")
+        self.assertEqual(target_acceptance.parser().parse_args([]).capture_input_format, "yuyv422")
+
+    def test_capture_waits_for_hdmi_and_records_capture_parameters(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args = target_acceptance.parser().parse_args(["--capture-dir", temporary])
+            self.assertEqual(args.capture_frames, 120)
+            self.assertEqual(args.capture_settle_seconds, 3)
+            runner = target_acceptance.Runner(args)
+            def record_frame(command, **kwargs):
+                Path(command[-1]).write_bytes(b"captured frame")
+                return SimpleNamespace()
+            with patch.object(target_acceptance.time, "sleep") as sleep, patch.object(
+                    target_acceptance.subprocess, "run", side_effect=record_frame) as run:
+                receipt = runner.capture("fes.pong")
+            sleep.assert_called_once_with(3)
+            self.assertEqual(receipt["input_format"], "yuyv422")
+            self.assertEqual(receipt["frames"], 120)
+            self.assertEqual(receipt["settle_seconds"], 3)
+            self.assertIn(r"select=eq(n\,119)", run.call_args.args[0])
 
     def test_runs_exact_three_package_launch_input_stop_lanes(self):
         ids = {
