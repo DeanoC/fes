@@ -39,7 +39,7 @@ Yosys `1bf1ff3d`, Mistral `7ed06e21`, and nextpnr main with the calibrated
 Mistral placement delay prediction (DeanoC/nextpnr#86). Then
 `make build-fes-ramtest-130` seals its package with seed 2. Without that
 prediction the same netlist misses the 130 MHz memory clock on seed 2
-(128.16 MHz); with it, all 16 seeds tried close every domain. An earlier
+(128.16 MHz); with it, 31 of 32 seeds tried close every domain. An earlier
 unsealed seed-2 route on nextpnr `50a2832e` passed six full-span SDRAM
 patterns with zero errors on the designated kit. That test does not qualify
 the current toolchain or bitstream; repeat hardware acceptance on the new
