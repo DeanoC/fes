@@ -605,6 +605,9 @@ VRAM copies with broadcast CPU writes, registered read-ahead and a serial SAT /
 pattern walker. Two alternating framebuffer line banks use packed 6-bit M10K
 entries for pixel and visibility metadata; publication is interlocked with the
 registered raster coordinate.
+Every sprite column and magnified repeat has a separate line-bank read before
+its write decision. Priority and collision use that pixel's metadata rather
+than the previous address or a same-port read-during-write result.
 
 The default reset ROM is an open `JP 0x8000` shim, not a Coleco BIOS. Quartus
 (`set_parameter -name ENABLE_FIRMWARE 1`) and OSS (`chparam -set ENABLE_FIRMWARE 1`)

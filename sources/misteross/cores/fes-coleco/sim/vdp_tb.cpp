@@ -73,6 +73,65 @@ void write_vram(Vcoleco_vdp &dut, uint16_t address, uint8_t value) {
     io_write(dut, 0xbe, value);
 }
 
+// Check every column, including transitions into and out of an earlier
+// sprite. Sampling only a sprite's first set bit misses stale line-RAM reads.
+void check_adjacent_sprite_pixels(Vcoleco_vdp &dut, bool large, bool magnified) {
+    dut.reset = 1;
+    tick(dut);
+    dut.reset = 0;
+    write_register(dut, 1, uint8_t(0x40 | (large ? 2 : 0) | (magnified ? 1 : 0)));
+    write_register(dut, 2, 0x0f);
+    write_register(dut, 3, 0x80);
+    write_register(dut, 4, 2);
+    write_register(dut, 5, 0x36);
+    write_register(dut, 6, 1);
+    write_vram(dut, 0x2000, 0); // transparent background
+    write_vram(dut, 0x1000, 0);
+    for (unsigned x = 0; x != 32; ++x) write_vram(dut, 0x3c40 + x, 0);
+    // Sprite 0 has separated pixels; sprite 1 fills behind it, starting one
+    // pixel earlier. A transparent sprite then precedes a solid sprite.
+    const uint8_t attributes[][4] = {
+        {15, 40, 0, 1}, {15, 39, 4, 2},
+        {15, 100, 8, 0}, {15, 100, 8, 3},
+    };
+    for (unsigned n = 0; n != 4; ++n)
+        for (unsigned b = 0; b != 4; ++b)
+            write_vram(dut, 0x1b00 + n * 4 + b, attributes[n][b]);
+    write_vram(dut, 0x1b10, 0xd0);
+    write_vram(dut, 0x0800, 0x81);
+    write_vram(dut, 0x0810, 0x42);
+    for (unsigned address : {0x0820, 0x0830, 0x0840, 0x0850})
+        write_vram(dut, address, 0xff);
+    const unsigned scale = magnified ? 2 : 1;
+    const unsigned width = (large ? 16 : 8) * scale;
+    unsigned checked = 0;
+    for (unsigned i = 0; i != 256 * 18; ++i) {
+        dut.raster_ce = 1;
+        dut.eval();
+        if (dut.raster_y == 16) {
+            const unsigned x = dut.raster_x;
+            unsigned expected = 0;
+            if (x >= 39 && x < 39 + width) expected = 2;
+            if (x >= 40 && x < 40 + width) {
+                const unsigned column = (x - 40) / scale;
+                if (column == 0 || column == 7 || column == 9 || column == 14)
+                    expected = 1; // 0x81 followed by 0x42
+            }
+            if (x >= 100 && x < 100 + width) expected = 3;
+            if (dut.raster_pixel != expected) {
+                std::cerr << "size=" << (large ? 16 : 8) << " scale=" << scale
+                          << " x=" << x << " expected=" << expected
+                          << " actual=" << unsigned(dut.raster_pixel) << '\n';
+                fail("adjacent sprite pixels lost priority or transparency");
+            }
+            ++checked;
+        }
+        tick(dut);
+        raster_gap(dut);
+    }
+    require(checked == 256, "adjacent sprite test did not cover a complete line");
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -89,6 +148,13 @@ int main(int argc, char **argv) {
     dut.raster_ce = 0;
     dut.eval();
     for (unsigned i = 0; i != 8; ++i) tick(dut);
+    dut.reset = 0;
+
+    for (bool large : {false, true})
+        for (bool magnified : {false, true})
+            check_adjacent_sprite_pixels(dut, large, magnified);
+    dut.reset = 1;
+    tick(dut);
     dut.reset = 0;
 
     // Read-address setup prefetches the first byte; subsequent reads return
