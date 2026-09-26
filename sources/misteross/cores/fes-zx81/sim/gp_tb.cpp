@@ -118,6 +118,12 @@ uint32_t command(bool toggle, uint8_t opcode, uint8_t index, uint16_t argument) 
            (uint32_t(index) << 16) | argument;
 }
 
+uint8_t media_at(Mailbox &mailbox, uint16_t address) {
+    mailbox.dut.media_addr = address;
+    mailbox.dut.eval();
+    return uint8_t(mailbox.dut.media_q);
+}
+
 void exchange(Mailbox &mailbox, bool &toggle, uint8_t opcode, uint8_t index,
               uint16_t argument, uint32_t expected, const std::string &name) {
     const uint32_t before = mailbox.dut.gpi;
@@ -193,6 +199,9 @@ int main(int argc, char **argv) {
     require(mailbox.dut.media_byte0 == 0x01 && mailbox.dut.media_byte1 == 0x02 &&
                 mailbox.dut.media_byte2 == 0x03,
             "committed blob bytes");
+    require(media_at(mailbox, 0) == 0x01 && media_at(mailbox, 1) == 0x02 &&
+                media_at(mailbox, 2) == 0x03,
+            "committed blob is not stored in order");
     require(!mailbox.dut.exec_reset, "fixture must end with execution released");
 
     exchange(mailbox, toggle, 3, 0, 0x0015, response(!toggle, false, 0), "press row 0");
@@ -238,5 +247,29 @@ int main(int argc, char **argv) {
     require(mailbox.dut.media_ready && mailbox.dut.media_size == 2,
             "busy eject must leave committed media intact");
     mailbox.dut.media_busy = 0;
+
+    exchange(mailbox, toggle, 4, 0, 1, response(!toggle, false, 0), "begin one byte");
+    exchange(mailbox, toggle, 5, 0, 0xbeef, response(!toggle, true, 3),
+             "pair does not fit a one-byte blob");
+    require(media_at(mailbox, 0) == 0x01 && media_at(mailbox, 1) == 0x02,
+            "rejected pair wrote into the previous blob");
+    exchange(mailbox, toggle, 5, 1, 0x0055, response(!toggle, false, 0), "tail one byte");
+    exchange(mailbox, toggle, 6, 0, 0, response(!toggle, false, 0), "commit one byte");
+    require(mailbox.dut.media_ready && mailbox.dut.media_size == 1 &&
+                mailbox.dut.media_byte0 == 0x55,
+            "one-byte commit");
+    require(media_at(mailbox, 0) == 0x55, "one-byte tail not stored");
+
+    exchange(mailbox, toggle, 4, 0, 4, response(!toggle, false, 0), "begin four bytes");
+    exchange(mailbox, toggle, 5, 0, 0x0201, response(!toggle, false, 0), "first pair");
+    exchange(mailbox, toggle, 5, 0, 0x0403, response(!toggle, false, 0), "second pair");
+    exchange(mailbox, toggle, 6, 0, 0, response(!toggle, false, 0), "commit four bytes");
+    require(mailbox.dut.media_ready && mailbox.dut.media_size == 4 &&
+                mailbox.dut.media_byte0 == 0x01 && mailbox.dut.media_byte1 == 0x02 &&
+                mailbox.dut.media_byte2 == 0x03,
+            "four-byte commit mirrors");
+    require(media_at(mailbox, 0) == 0x01 && media_at(mailbox, 1) == 0x02 &&
+                media_at(mailbox, 2) == 0x03 && media_at(mailbox, 3) == 0x04,
+            "four-byte store order");
     return 0;
 }

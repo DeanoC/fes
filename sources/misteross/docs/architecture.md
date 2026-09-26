@@ -891,7 +891,11 @@ readiness so the next empty `LOAD ""` reports `0/0`. Control-index begin with
 argument 0 remains invalid argument. While `media_busy` is high (the ZX81
 tape-loader is copying), begin and eject reject with invalid-state instead of
 aborting the copy. Begin/data/commit do not require `exec_reset` held; that
-hold is launch-time runtime policy. The checked-in
+hold is launch-time runtime policy. A media byte is written on the clock
+after the command is accepted, and a pair uses the next clock for its high
+byte. Response and ACK are published together with that write. The loader
+reads the other RAM port at `media_addr`, which keeps the pointer compare
+off that data path. The checked-in
 `cores/fes-zx81/generated/fes_simple_computer.vh`
 and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
 plays that fixture and checks keyboard/media side effects.
