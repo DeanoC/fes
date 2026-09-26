@@ -259,6 +259,12 @@ make target-acceptance TARGET_ACCEPTANCE_ARGS='\\
   --capture-dir out/native-integration-dev/target-acceptance'
 ```
 
+Capture defaults to raw YUYV input (`--capture-input-format yuyv422`).
+Use `--capture-input-format mjpeg` only for a device whose compressed input
+has been checked. Capture waits three seconds before opening the device and
+keeps frame 120 to allow HDMI and capture buffers to settle. Override with
+`--capture-settle-seconds` and `--capture-frames` for another device. The input
+format, settling delay and frame count are recorded with each capture.
 Each capture is written as a JPEG and `acceptance.json` records the exact
 package, input count, media digest and capture digest. Capture digests prove
 which bytes were recorded; visual interpretation remains a human HDMI review.

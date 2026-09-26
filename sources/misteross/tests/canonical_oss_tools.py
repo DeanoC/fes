@@ -34,7 +34,7 @@ def _has_symlink_component(path: Path) -> bool:
 
 def _is_stub(path: Path) -> bool:
     try:
-        return path.is_file() and not path.is_symlink() and path.read_text(encoding="utf-8") == STUB
+        return path.is_file() and not path.is_symlink() and path.read_bytes() == STUB.encode("utf-8")
     except OSError:
         return False
 

@@ -440,3 +440,59 @@ func TestLauncherStreamRejectsMalformedAndCompetingSource(t *testing.T) {
 		})
 	}
 }
+
+// Ensure calls back through the paired listener while Launch holds the target guard.
+func TestLauncherServesReadsDuringLaunch(t *testing.T) {
+	for _, endpoint := range []string{"source", "object", "games"} {
+		t.Run(endpoint, func(t *testing.T) {
+			started, release := make(chan struct{}), make(chan struct{})
+			service := &meshSettingsService{
+				settingsFake: settingsFake{settings: fogcast.LibraryConfig{
+					SelectedTarget: "kit", Targets: []fogcast.TargetConfig{{Name: "kit", Enabled: true, TargetID: launcherID}},
+				}}, body: []byte("synthetic cold cartridge"),
+			}
+			service.launchHook = func(context.Context) { close(started); <-release }
+			handler, err := hostapi.NewLauncherHandler(hostapi.New(service), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			launchDone := make(chan struct{})
+			go func() {
+				handler.ServeHTTP(httptest.NewRecorder(), launcherRequest("POST", "http://192.0.2.1/api/v1/session/launch", strings.NewReader(`{"game_id":"snes-mario"}`)))
+				close(launchDone)
+			}()
+			select {
+			case <-started:
+			case <-time.After(time.Second):
+				close(release)
+				t.Fatal("launch did not enter service")
+			}
+			readDone := make(chan *httptest.ResponseRecorder, 1)
+			go func() {
+				w := httptest.NewRecorder()
+				path := "http://192.0.2.1/api/v1/mesh/content/" + endpoint + "?id=" + meshcontent.SumSHA256(service.body).String()
+				if endpoint == "games" {
+					path = "http://192.0.2.1/api/v1/games"
+				}
+				handler.ServeHTTP(w, launcherRequest("GET", path, nil))
+				readDone <- w
+			}()
+			select {
+			case w := <-readDone:
+				if w.Code != http.StatusOK {
+					t.Errorf("content response: %d %s", w.Code, w.Body.String())
+				}
+				if endpoint == "object" && w.Body.String() != string(service.body) {
+					t.Error("wrong ROM bytes")
+				}
+				if endpoint == "source" && !strings.Contains(w.Body.String(), `"advertises":true`) {
+					t.Error("source did not advertise ROM")
+				}
+			case <-time.After(time.Second):
+				t.Error("content read blocked behind launch")
+			}
+			close(release)
+			<-launchDone
+		})
+	}
+}
