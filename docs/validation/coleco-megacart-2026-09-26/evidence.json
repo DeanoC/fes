@@ -1,0 +1,356 @@
+{
+  "format": 1,
+  "classification": "exact-artifact hardware diagnostic; synthetic BIOS/cartridges; no appliance or retail qualification",
+  "base": "d7545210de07f0c46c64931d1d3d05c38110fe1f",
+  "fpga_source_commit": "097577067e3c0f549cb9045877963143185f0273",
+  "software": {
+    "software_revision": "40c30b09b6af0f5b9c4af444ff519bc0e56220bf",
+    "artifacts": {
+      "host-binary": {
+        "sha256": "9869aa6e997f0dcd3ba64d153f6868d4d4784532d7f25165abbfea37d343fdd6",
+        "size": 16707746
+      },
+      "mister-runtime": {
+        "sha256": "27cb3f596ed30352da9bbb3c71c112bd0f4ce6285407cd3fdaed2308fc54b75d",
+        "size": 1081872
+      },
+      "mister-agent": {
+        "sha256": "6d1a51ad4f03be6ee459afdd5b8611cab7ea0383f6c7ba1e488e8e02dbc43b44",
+        "size": 9240738
+      },
+      "fogcast-kit": {
+        "sha256": "db8158a28ca39dcb593f1d367f91f198acc7274d1edcf44c7666bb792df3627c",
+        "size": 8978594
+      }
+    },
+    "runtime_build_flags": "-O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP"
+  },
+  "sealed_route": {
+    "classification": "sealed host and routing verification; no hardware execution",
+    "base": "d7545210de07f0c46c64931d1d3d05c38110fe1f",
+    "commit": "097577067e3c0f549cb9045877963143185f0273",
+    "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+    "expansion_id": "3eec177cfc1457655249990d0c187f300e21770917b79b4868572f750fc21352",
+    "shell_clocks": {
+      "pixel_clk": {
+        "achieved": 92.02172088623047,
+        "constraint": 74.25006866455078
+      },
+      "system_clock.clocks[0]": {
+        "achieved": 53.12367248535156,
+        "constraint": 52.22477340698242
+      },
+      "system_clock.clocks[1]": {
+        "achieved": 169.95242309570312,
+        "constraint": 12.288031578063965
+      }
+    },
+    "sgm_clocks": {
+      "pixel_clk": {
+        "achieved": 92.02172088623047,
+        "constraint": 74.25006866455078
+      },
+      "system_clock.clocks[0]": {
+        "achieved": 53.12367248535156,
+        "constraint": 52.22477340698242
+      },
+      "system_clock.clocks[1]": {
+        "achieved": 169.95242309570312,
+        "constraint": 12.288031578063965
+      }
+    },
+    "cram_diff": {
+      "bits_inside_slot": 38434,
+      "bits_outside_slot": 0,
+      "column_bits": {
+        "21": 85,
+        "22": 164,
+        "23": 1566,
+        "24": 7470,
+        "25": 8045,
+        "26": 2464,
+        "27": 9587,
+        "28": 7571,
+        "29": 590,
+        "30": 456,
+        "31": 260,
+        "32": 156,
+        "33": 20
+      },
+      "diff": {
+        "bits": 38434,
+        "x0": 1816,
+        "x1": 2792,
+        "y0": 88,
+        "y1": 1464
+      },
+      "identical": false,
+      "inside_slot_column": true,
+      "outside_slot_coordinates": [],
+      "outside_slot_coordinates_truncated": false
+    },
+    "artifacts": {
+      "package": {
+        "path": "/home/deano/fes/out/dev/coleco-sgm-cartridge-map/fes/sources/misteross/build/packages/198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a.fcore",
+        "size": 15212544,
+        "sha256": "f19c32337b13138d0d70d6639220ed5bedfe66f2620a6409050dab28435b4680"
+      },
+      "expansion": {
+        "path": "/home/deano/fes/out/dev/coleco-sgm-cartridge-map/fes/sources/misteross/build/coleco-sgm/d34301908490bacde6ce4f953e4e9e5cdf650df7782fb1300d92f9e79e7004a8/3eec177cfc1457655249990d0c187f300e21770917b79b4868572f750fc21352.tar",
+        "size": 2918400,
+        "sha256": "1013c00f83fab7c3ab6c1e49da1c941e5234dfdfa28273c922bb64b5d32fc4d4"
+      },
+      "rom_map": {
+        "path": "/home/deano/fes/out/dev/coleco-sgm-cartridge-map/fes/sources/misteross/build/fes-coleco-megacart/rom-map.json",
+        "size": 12312612,
+        "sha256": "b97dbf2265abd50798774c42bf4719d68348df3b8f4e3fc3e4340ed48b5d1240"
+      },
+      "plain_python_go_match": {
+        "path": "/home/deano/fes/out/dev/coleco-sgm-cartridge-map/fes/sources/misteross/build/fes-coleco-megacart/golden-python-plain.rbf",
+        "size": 2829946,
+        "sha256": "f0ef27564871deae493682a8c6b5f236ff26b5b1782af3ddff6d49dc67ef4ae8"
+      },
+      "sgm_python_go_match": {
+        "path": "/home/deano/fes/out/dev/coleco-sgm-cartridge-map/fes/sources/misteross/build/fes-coleco-megacart/golden-python-sgm.rbf",
+        "size": 2843919,
+        "sha256": "63e01684fd0f166db7e9cb3f21ec5b8a44be722e5f07561b16d52622c98f0d3d"
+      }
+    },
+    "checks": {
+      "changed_file_lanes": 32,
+      "changed_file_result": "passed before commit; fixture whitespace mutation then rechecked with schema/Go/generated checks",
+      "make_check": "passed",
+      "cpu_sgm_probe": "passed",
+      "python_go_link_bytes_plain": "identical",
+      "python_go_link_bytes_sgm": "identical",
+      "reserved_socket": "vacant before composition",
+      "cram_bits_outside_sgm_slot": 0,
+      "kit": "not run"
+    }
+  },
+  "kit": {
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "boot_id": "948d6338-1a12-4476-a435-d0ea7d4a6c7e",
+    "ready": true,
+    "agent_version": "0.1.0",
+    "artifacts": {
+      "runtime_commit": "3aa69308b52afcbf62c33503bd50ba383770f004",
+      "agent_sha256": "c23718688c9c167edb47e6910c5aeb7c76042f85678fd9738dc9dd1691ff2f7f",
+      "agent_revision": "3aa69308b52afcbf62c33503bd50ba383770f004",
+      "kit_sha256": "990890c706cc3a68e6299dc6e283d018e3c51cc52cec0be6439baef9f801db91",
+      "image_sha256": "4352d991a2bba5a2a09e4fb09f0a0225d7390896ae2aefb71feb3031ebc60e35",
+      "package_id": "d2048f8848350c05ed27eccb35e51a472b8471ab730dc227328fb26f9ab16ef4"
+    }
+  },
+  "launches": [
+    {
+      "name": "plain-launch-0",
+      "http_status": 200,
+      "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+      "rom_links": {
+        "sources": [
+          {
+            "id": "coleco-bios",
+            "role": "firmware",
+            "source_sha256": "f108c82da759bd9ab299e646feb5131a2b1f8af66b11ed843940249eb4269f03",
+            "source_size": 8192
+          },
+          {
+            "id": "coleco-cart",
+            "role": "cartridge",
+            "source_sha256": "ada8c875ba02de75cb07576d084946343f3999756723645f336359ae8b056c37",
+            "source_size": 131072
+          }
+        ],
+        "map_sha256": "b97dbf2265abd50798774c42bf4719d68348df3b8f4e3fc3e4340ed48b5d1240",
+        "programmed_sha256": "97fe379bad063df25e47e705ecc3c3bcc03111b4620fb237dab7b81584494218",
+        "programmed_size": 2686561
+      },
+      "composition": null,
+      "frame_sha256": "eca9db318488ba3803f15eeb6dc851a1bcf6bf1effa0860cfa49c25fa84f63da",
+      "frame_check": {
+        "image": "plain-launch-0.png",
+        "sample_count": 664,
+        "pass": true,
+        "mismatches": []
+      }
+    },
+    {
+      "name": "plain-launch-1",
+      "http_status": 200,
+      "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+      "rom_links": {
+        "sources": [
+          {
+            "id": "coleco-bios",
+            "role": "firmware",
+            "source_sha256": "f108c82da759bd9ab299e646feb5131a2b1f8af66b11ed843940249eb4269f03",
+            "source_size": 8192
+          },
+          {
+            "id": "coleco-cart",
+            "role": "cartridge",
+            "source_sha256": "ada8c875ba02de75cb07576d084946343f3999756723645f336359ae8b056c37",
+            "source_size": 131072
+          }
+        ],
+        "map_sha256": "b97dbf2265abd50798774c42bf4719d68348df3b8f4e3fc3e4340ed48b5d1240",
+        "programmed_sha256": "97fe379bad063df25e47e705ecc3c3bcc03111b4620fb237dab7b81584494218",
+        "programmed_size": 2686561
+      },
+      "composition": null,
+      "frame_sha256": "eca9db318488ba3803f15eeb6dc851a1bcf6bf1effa0860cfa49c25fa84f63da",
+      "frame_check": {
+        "image": "plain-launch-1.png",
+        "sample_count": 664,
+        "pass": true,
+        "mismatches": []
+      }
+    },
+    {
+      "name": "sgm-launch-0",
+      "http_status": 200,
+      "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+      "rom_links": {
+        "sources": [
+          {
+            "id": "coleco-bios",
+            "role": "firmware",
+            "source_sha256": "f108c82da759bd9ab299e646feb5131a2b1f8af66b11ed843940249eb4269f03",
+            "source_size": 8192
+          },
+          {
+            "id": "coleco-cart",
+            "role": "cartridge",
+            "source_sha256": "024d88fbd7337dd714d9865694e61bac9a5cc9c033e3f01d4aa686be80ad98ab",
+            "source_size": 131072
+          }
+        ],
+        "map_sha256": "b97dbf2265abd50798774c42bf4719d68348df3b8f4e3fc3e4340ed48b5d1240",
+        "programmed_sha256": "b93470630d99803c9c174bfa64d290bcebfd7dab38679eadf2e40b8dafb7d545",
+        "programmed_size": 2700570
+      },
+      "composition": {
+        "composition_id": "0568e5a9b59d79c6bb5e81dc4257eca4e1855876e7b3b596a17e607ef2b869e4",
+        "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+        "expansion_id": "3eec177cfc1457655249990d0c187f300e21770917b79b4868572f750fc21352",
+        "shell_sha256": "382a10e0b140c98c04a565ede5581f39af2b6af11787a8045920385e1e4e562b",
+        "payload_sha256": "5805748d122f541b928e6be9f3530c78b2dd8e31aebada9e1ebef67315282e87",
+        "payload_size": 2908717
+      },
+      "frame_sha256": "eca9db318488ba3803f15eeb6dc851a1bcf6bf1effa0860cfa49c25fa84f63da",
+      "frame_check": {
+        "image": "sgm-launch-0.png",
+        "sample_count": 664,
+        "pass": true,
+        "mismatches": []
+      }
+    },
+    {
+      "name": "sgm-launch-1",
+      "http_status": 200,
+      "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+      "rom_links": {
+        "sources": [
+          {
+            "id": "coleco-bios",
+            "role": "firmware",
+            "source_sha256": "f108c82da759bd9ab299e646feb5131a2b1f8af66b11ed843940249eb4269f03",
+            "source_size": 8192
+          },
+          {
+            "id": "coleco-cart",
+            "role": "cartridge",
+            "source_sha256": "024d88fbd7337dd714d9865694e61bac9a5cc9c033e3f01d4aa686be80ad98ab",
+            "source_size": 131072
+          }
+        ],
+        "map_sha256": "b97dbf2265abd50798774c42bf4719d68348df3b8f4e3fc3e4340ed48b5d1240",
+        "programmed_sha256": "b93470630d99803c9c174bfa64d290bcebfd7dab38679eadf2e40b8dafb7d545",
+        "programmed_size": 2700570
+      },
+      "composition": {
+        "composition_id": "0568e5a9b59d79c6bb5e81dc4257eca4e1855876e7b3b596a17e607ef2b869e4",
+        "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+        "expansion_id": "3eec177cfc1457655249990d0c187f300e21770917b79b4868572f750fc21352",
+        "shell_sha256": "382a10e0b140c98c04a565ede5581f39af2b6af11787a8045920385e1e4e562b",
+        "payload_sha256": "5805748d122f541b928e6be9f3530c78b2dd8e31aebada9e1ebef67315282e87",
+        "payload_size": 2908717
+      },
+      "frame_sha256": "eca9db318488ba3803f15eeb6dc851a1bcf6bf1effa0860cfa49c25fa84f63da",
+      "frame_check": {
+        "image": "sgm-launch-1.png",
+        "sample_count": 664,
+        "pass": true,
+        "mismatches": []
+      }
+    },
+    {
+      "name": "sgm-after-host-restart",
+      "http_status": 200,
+      "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+      "rom_links": {
+        "sources": [
+          {
+            "id": "coleco-bios",
+            "role": "firmware",
+            "source_sha256": "f108c82da759bd9ab299e646feb5131a2b1f8af66b11ed843940249eb4269f03",
+            "source_size": 8192
+          },
+          {
+            "id": "coleco-cart",
+            "role": "cartridge",
+            "source_sha256": "024d88fbd7337dd714d9865694e61bac9a5cc9c033e3f01d4aa686be80ad98ab",
+            "source_size": 131072
+          }
+        ],
+        "map_sha256": "b97dbf2265abd50798774c42bf4719d68348df3b8f4e3fc3e4340ed48b5d1240",
+        "programmed_sha256": "b93470630d99803c9c174bfa64d290bcebfd7dab38679eadf2e40b8dafb7d545",
+        "programmed_size": 2700570
+      },
+      "composition": {
+        "composition_id": "0568e5a9b59d79c6bb5e81dc4257eca4e1855876e7b3b596a17e607ef2b869e4",
+        "package_id": "198244ecf48081418c41809f175b730b091d0103e551a38e83c90a6b350efe5a",
+        "expansion_id": "3eec177cfc1457655249990d0c187f300e21770917b79b4868572f750fc21352",
+        "shell_sha256": "382a10e0b140c98c04a565ede5581f39af2b6af11787a8045920385e1e4e562b",
+        "payload_sha256": "5805748d122f541b928e6be9f3530c78b2dd8e31aebada9e1ebef67315282e87",
+        "payload_size": 2908717
+      },
+      "frame_sha256": "eca9db318488ba3803f15eeb6dc851a1bcf6bf1effa0860cfa49c25fa84f63da",
+      "frame_check": {
+        "image": "sgm-after-host-restart.png",
+        "sample_count": 664,
+        "pass": true,
+        "mismatches": []
+      }
+    }
+  ],
+  "operation_statuses": {
+    "missing-both": 400,
+    "missing-bios": 400,
+    "plain-stop-0": 200,
+    "plain-stop-1": 200,
+    "sgm-stop-0": 200,
+    "sgm-stop-1": 200,
+    "restart-stop": 200,
+    "final-stop": 200
+  },
+  "restoration": {
+    "completed": true,
+    "visual_gameplay_review_required": false,
+    "restored": true,
+    "credentials_removed": true,
+    "cleanup_errors": [],
+    "diagnostic_error_class": null,
+    "visual_review": "All five original diagnostic checkerboards match 664 reference samples; plain and SGM captures visually inspected. No retail gameplay claim."
+  },
+  "timeouts": {
+    "host_request_seconds": 30,
+    "host_upload_seconds": 60,
+    "target_activation_seconds": 60
+  },
+  "golden_link": {
+    "plain_sha256": "f0ef27564871deae493682a8c6b5f236ff26b5b1782af3ddff6d49dc67ef4ae8",
+    "sgm_sha256": "63e01684fd0f166db7e9cb3f21ec5b8a44be722e5f07561b16d52622c98f0d3d"
+  }
+}
