@@ -345,7 +345,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
 				Message: "application requires selected library media before launch"}
 		}
-		if entry.FirmwareRequired {
+		if entry.FirmwareRequired && inspection.Descriptor.Format != 4 {
 			if !protocol.DeclaresFirmwareSlot(inspection.Descriptor) {
 				return coreLoadSource{}, protocol.FirmwareAdmissionError("required firmware cannot be bound; package does not declare fes.firmware.blob 1.0")
 			}
@@ -365,15 +365,23 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 				return coreLoadSource{}, err
 			}
 		}
-		if inspection.Descriptor.ROM != nil {
+		if inspection.Descriptor.ROM != nil || inspection.Descriptor.Format == 4 {
 			// Cartridge bytes are consumed by linking, never delivered again as media.
-			if inspection.Descriptor.ROM.Role != "cartridge" {
+			if inspection.Descriptor.Format != 4 && inspection.Descriptor.ROM.Role != "cartridge" {
 				media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
 				if err != nil {
 					return coreLoadSource{}, err
 				}
 			}
-			return s.romLaunchSource(ctx, entry, inspection.Descriptor, data)
+			source, err := s.romLaunchSource(ctx, entry, inspection.Descriptor, data)
+			if err != nil {
+				return coreLoadSource{}, err
+			}
+			if snap.romSources != nil && (entry.PackageID != snap.romSources.packageID ||
+				source.biosMediaID != snap.romSources.biosID || source.romMediaID != snap.romSources.cartID) {
+				return coreLoadSource{}, snapshotMismatch(launchSnapshotROMSourcesChanged)
+			}
+			return source, nil
 		}
 		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
 		if err != nil {
@@ -511,15 +519,18 @@ func (s *Service) libraryDevelopmentMediaBinding(packageStatus protocol.CorePack
 }
 
 type coreLoadSource struct {
-	romID         string
-	romMediaID    string
-	romMapSHA256  string
-	romSourceSize int64
-	expansionID   string
-	composition   *expansion.Composition
-	size          int64
-	body          io.Reader
-	entry         *catalog.CoreEntry
+	biosID         string
+	biosMediaID    string
+	biosSourceSize int64
+	romID          string
+	romMediaID     string
+	romMapSHA256   string
+	romSourceSize  int64
+	expansionID    string
+	composition    *expansion.Composition
+	size           int64
+	body           io.Reader
+	entry          *catalog.CoreEntry
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

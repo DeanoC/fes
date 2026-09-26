@@ -1,4 +1,4 @@
-// Package corepackage validates and privately stages FES format-2 and format-3 core packages.
+// Package corepackage validates and privately stages FES format-2/3/4 core packages.
 package corepackage
 
 import (
@@ -49,15 +49,30 @@ type ROM struct {
 	SHA256     string `toml:"sha256" json:"sha256"`
 }
 
+type ROMRequirement struct {
+	ID           string `toml:"id" json:"id"`
+	Role         string `toml:"role" json:"role"`
+	SourceSize   int64  `toml:"source_size" json:"source_size"`
+	SourceOffset int64  `toml:"source_offset" json:"source_offset"`
+}
+
+type ROMMapDescriptor struct {
+	File   string `toml:"file" json:"file"`
+	Size   int64  `toml:"size" json:"size"`
+	SHA256 string `toml:"sha256" json:"sha256"`
+}
+
 type Descriptor struct {
-	ROM        *ROM        `toml:"rom,omitempty" json:"rom,omitempty"`
-	Format     int64       `toml:"format" json:"format"`
-	Core       Core        `toml:"core" json:"core"`
-	Target     Target      `toml:"target" json:"target"`
-	Payload    Payload     `toml:"payload" json:"payload"`
-	ABI        Contract    `toml:"abi" json:"abi"`
-	Interfaces []Interface `toml:"interfaces" json:"interfaces"`
-	Build      Build       `toml:"build" json:"build"`
+	ROM        *ROM              `toml:"rom,omitempty" json:"rom,omitempty"`
+	ROMs       []ROMRequirement  `toml:"roms,omitempty" json:"roms,omitempty"`
+	ROMMap     *ROMMapDescriptor `toml:"rom_map,omitempty" json:"rom_map,omitempty"`
+	Format     int64             `toml:"format" json:"format"`
+	Core       Core              `toml:"core" json:"core"`
+	Target     Target            `toml:"target" json:"target"`
+	Payload    Payload           `toml:"payload" json:"payload"`
+	ABI        Contract          `toml:"abi" json:"abi"`
+	Interfaces []Interface       `toml:"interfaces" json:"interfaces"`
+	Build      Build             `toml:"build" json:"build"`
 }
 
 type Core struct {
@@ -103,6 +118,7 @@ type Build struct {
 
 type Staged struct {
 	ROMLink            *ROMLinkIdentity       `json:"rom_link,omitempty"`
+	ROMLinks           *ROMLinksIdentity      `json:"rom_links,omitempty"`
 	ProgrammedPath     string                 `json:"programmed_path,omitempty"`
 	Composition        *expansion.Composition `json:"composition,omitempty"`
 	ExpansionDirectory string                 `json:"expansion_directory,omitempty"`
@@ -503,10 +519,10 @@ func manifestRequiresROM(manifest []byte) (bool, error) {
 	if err := toml.Unmarshal(manifest, &fields); err != nil {
 		return false, err
 	}
-	if fields.Format != 2 && fields.Format != 3 {
+	if fields.Format != 2 && fields.Format != 3 && fields.Format != 4 {
 		return false, errors.New("unsupported core package format")
 	}
-	return fields.Format == 3, nil
+	return fields.Format == 3 || fields.Format == 4, nil
 }
 
 func readRootContents(root *os.Root) ([]byte, []byte, []byte, error) {
@@ -758,17 +774,27 @@ func decode(manifest, payload []byte, maps ...[]byte) (Descriptor, error) {
 	if len(maps) == 1 {
 		mapping = maps[0]
 	}
-	if descriptor.ROM == nil {
+	if descriptor.Format == 2 {
 		if mapping != nil {
 			return Descriptor{}, errors.New("format 2 cannot contain ROM map")
 		}
 	} else {
-		r := descriptor.ROM
+		var size int64
+		var sha string
+		var sourceSize int64
+		if descriptor.Format == 3 {
+			size, sha, sourceSize = descriptor.ROM.Size, descriptor.ROM.SHA256, descriptor.ROM.SourceSize
+		} else {
+			size, sha = descriptor.ROMMap.Size, descriptor.ROMMap.SHA256
+			for _, rom := range descriptor.ROMs {
+				sourceSize += rom.SourceSize
+			}
+		}
 		hash := sha256.Sum256(mapping)
-		if int64(len(mapping)) != r.Size || hex.EncodeToString(hash[:]) != r.SHA256 {
+		if int64(len(mapping)) != size || hex.EncodeToString(hash[:]) != sha {
 			return Descriptor{}, errors.New("ROM map size or digest mismatch")
 		}
-		if _, err := expansion.ParseROMMap(context.Background(), mapping, descriptor.Payload.SHA256, int(r.SourceSize)); err != nil {
+		if _, err := expansion.ParseROMMap(context.Background(), mapping, descriptor.Payload.SHA256, int(sourceSize)); err != nil {
 			return Descriptor{}, fmt.Errorf("ROM map: %w", err)
 		}
 	}
@@ -779,6 +805,8 @@ func validateShape(root map[string]any) error {
 	required := []string{"format", "core", "target", "payload", "abi", "interfaces", "build"}
 	if root["format"] == int64(3) {
 		required = append(required, "rom")
+	} else if root["format"] == int64(4) {
+		required = append(required, "roms", "rom_map")
 	}
 	if err := exactKeys(root, required, nil, "manifest"); err != nil {
 		return err
@@ -800,6 +828,28 @@ func validateShape(root map[string]any) error {
 			return errors.New("rom must be a TOML table")
 		}
 		if err := exactKeys(table, []string{"id", "role", "source_size", "file", "size", "sha256"}, nil, "rom"); err != nil {
+			return err
+		}
+	}
+	if root["format"] == int64(4) {
+		entries, ok := root["roms"].([]any)
+		if !ok || len(entries) != 2 {
+			return errors.New("roms must contain two tables")
+		}
+		for index, value := range entries {
+			table, ok := value.(map[string]any)
+			if !ok {
+				return errors.New("roms must contain tables")
+			}
+			if err := exactKeys(table, []string{"id", "role", "source_size", "source_offset"}, nil, fmt.Sprintf("roms[%d]", index)); err != nil {
+				return err
+			}
+		}
+		mapTable, ok := root["rom_map"].(map[string]any)
+		if !ok {
+			return errors.New("rom_map must be a table")
+		}
+		if err := exactKeys(mapTable, []string{"file", "size", "sha256"}, nil, "rom_map"); err != nil {
 			return err
 		}
 	}
@@ -853,11 +903,35 @@ func exactKeys(table map[string]any, required, optional []string, field string) 
 // payload size and digest to the bytes they opened; protocol projections reuse
 // it so they cannot drift from package admission semantics.
 func ValidateDescriptor(d Descriptor) error {
-	if d.Format != 2 && d.Format != 3 {
+	if d.Format != 2 && d.Format != 3 && d.Format != 4 {
 		return errors.New("core package: unsupported format")
 	}
 	if (d.Format == 3) != (d.ROM != nil) {
 		return errors.New("core package: ROM declaration requires format 3")
+	}
+	if d.Format == 4 {
+		if len(d.ROMs) != 2 || d.ROMMap == nil {
+			return errors.New("format 4 requires two ROM sources and a map")
+		}
+		total := int64(0)
+		for i, r := range d.ROMs {
+			if err := identifier(r.ID, "roms.id"); err != nil {
+				return err
+			}
+			if (i == 0 && r.Role != "firmware") || (i == 1 && r.Role != "cartridge") || r.SourceSize < 1024 || r.SourceSize > 262144 || r.SourceSize%1024 != 0 || r.SourceOffset != total {
+				return errors.New("invalid ordered ROM requirements")
+			}
+			total += r.SourceSize
+		}
+		if d.ROMs[0].ID == d.ROMs[1].ID || total > 262144 {
+			return errors.New("duplicate ROM ID or combined source too large")
+		}
+		m := d.ROMMap
+		if m.File != "rom-map.json" || m.Size < 1 || m.Size > MaxROMMapSize || !hex64RE.MatchString(m.SHA256) {
+			return errors.New("invalid ROM map metadata")
+		}
+	} else if len(d.ROMs) != 0 || d.ROMMap != nil {
+		return errors.New("two-source ROM fields require format 4")
 	}
 	if r := d.ROM; r != nil {
 		if err := identifier(r.ID, "rom.id"); err != nil {
@@ -1104,6 +1178,12 @@ func packageIdentity(manifest, payload []byte, maps ...[]byte) string {
 	}
 	if mapping != nil {
 		domain = "FES-CORE-PACKAGE-3\n"
+		var header struct {
+			Format int64 `toml:"format"`
+		}
+		if err := toml.Unmarshal(manifest, &header); err == nil && header.Format == 4 {
+			domain = "FES-CORE-PACKAGE-4\n"
+		}
 	}
 	_, _ = digest.Write([]byte(domain))
 	var length [8]byte

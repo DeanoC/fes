@@ -66,7 +66,16 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 		}
 		comp := protocol.CoreComposition{FirmwareRequired: entry.FirmwareRequired}
 		inspection, _, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
-		if inspectErr == nil && inspection.Descriptor.ROM != nil {
+		if inspectErr == nil && inspection.Descriptor.Format == 4 {
+			comp.FirmwareRequired = true
+			comp.ROMRequired = true
+			comp.ROMID = inspection.Descriptor.ROMs[1].ID
+			selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
+			comp.ROMMediaID = selected.MediaID
+			comp.ROMReady = romErr == nil
+			_, _, biosErr := s.readTwoROMFirmware(ctx, inspection.Descriptor)
+			comp.FirmwareReady = biosErr == nil
+		} else if inspectErr == nil && inspection.Descriptor.ROM != nil {
 			comp.ROMRequired = true
 			comp.ROMID = inspection.Descriptor.ROM.ID
 			selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
@@ -87,6 +96,10 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 					comp.ExpansionReady = corepackage.ValidateExpansionArchive(base, asset) == nil
 				}
 			}
+		}
+		if inspection.Descriptor.Format == 4 && inspectErr == nil {
+			out[id] = comp
+			continue
 		}
 		if !comp.FirmwareRequired {
 			comp.FirmwareReady = true

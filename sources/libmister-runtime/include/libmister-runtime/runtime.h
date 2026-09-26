@@ -101,6 +101,19 @@ struct CoreRom {
 	std::string sha256;
 };
 
+struct CoreRomRequirement {
+	std::string id;
+	std::string role;
+	std::uint64_t source_size = 0;
+	std::uint64_t source_offset = 0;
+};
+
+struct CoreRomMap {
+	std::string file;
+	std::uint64_t size = 0;
+	std::string sha256;
+};
+
 struct VersionedContract {
 	std::string id;
 	std::uint16_t major = 0;
@@ -128,6 +141,8 @@ struct CoreDescriptor {
 	CoreTarget target;
 	CorePayload payload;
 	CoreRom rom;
+	std::vector<CoreRomRequirement> roms;
+	CoreRomMap rom_map;
 	VersionedContract abi;
 	std::vector<CoreInterface> interfaces;
 	CoreBuild build;
@@ -183,12 +198,24 @@ struct CoreROMLink {
 	std::uint64_t source_size = 0, programmed_size = 0;
 };
 
+struct CoreROMSource {
+	std::string id, role, source_sha256;
+	std::uint64_t source_size = 0;
+};
+
+struct CoreROMLinks {
+	std::vector<CoreROMSource> sources;
+	std::string map_sha256, programmed_sha256;
+	std::uint64_t programmed_size = 0;
+};
+
 struct ActiveCorePackage {
 	std::string package_id;
 	CoreDescriptor descriptor;
 	ObservedIdentity observed;
 	CoreComposition composition;
 	CoreROMLink rom_link;
+	CoreROMLinks rom_links;
 };
 
 struct CoreData {
@@ -311,6 +338,8 @@ public:
 	}
 	virtual Error AttachROMBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLink&)
 	{ return {ErrorCode::unsupported_protocol, "ROM linking is unavailable"}; }
+	virtual Error AttachROMsBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLinks&)
+	{ return {ErrorCode::unsupported_protocol, "two-source ROM linking is unavailable"}; }
 	virtual Error RecheckProgrammedBitstream(AdmittedCorePackage*) { return {}; }
 	virtual Error InspectCoreData(
 		const std::string&, const std::string&, const std::string&, CoreData*)
@@ -391,6 +420,9 @@ public:
 	Error LoadROMCore(const std::string&, const std::string&, const std::string&, const CoreROMLink&);
 	Error LoadROMLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLink&);
 	Error LoadROMComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLink&);
+	Error LoadROMsCore(const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
+	Error LoadROMsLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
+	Error LoadROMsComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLinks&);
 	Error InspectCoreData(const std::string&, const std::string&, const std::string&, CoreData*);
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string&, std::uint16_t, CoreData*);

@@ -70,7 +70,7 @@ Error CheckDirectoryEntries(int directory, unsigned format)
 	closedir(scan);
 	if (scan_error != 0) return Invalid("cannot inspect package directory");
 	std::set<std::string> expected = {"core.rbf", "manifest.toml"};
-	if (format == 3) expected.insert("rom-map.json");
+	if (format == 3 || format == 4) expected.insert("rom-map.json");
 	if (names != expected)
 		return Invalid("package directory members do not match manifest format");
 	return {};
@@ -397,9 +397,11 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 		std::int64_t format = 0;
 		Error error = IntegerField(root, "format", &format);
 		if (!error.ok()) return error;
-		if (format != 2 && format != 3) return Invalid("unsupported core manifest format");
+		if (format != 2 && format != 3 && format != 4) return Invalid("unsupported core manifest format");
 		error = format == 3 ? CheckKeys(root,
 			{"format", "core", "target", "payload", "abi", "interfaces", "build", "rom"}) :
+			format == 4 ? CheckKeys(root,
+			{"format", "core", "target", "payload", "abi", "interfaces", "build", "roms", "rom_map"}) :
 			CheckKeys(root, {"format", "core", "target", "payload", "abi", "interfaces", "build"});
 		if (!error.ok()) return error;
 		CoreDescriptor candidate;
@@ -424,6 +426,48 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 				!ValidHex(candidate.rom.sha256, 64, true)) return Invalid("invalid ROM map metadata");
 			candidate.rom.source_size = static_cast<std::uint64_t>(source_size);
 			candidate.rom.size = static_cast<std::uint64_t>(size);
+		}
+		if (format == 4) {
+			const toml::value* roms = Field(root, "roms");
+			if (roms == nullptr || !roms->is_array() || roms->as_array(std::nothrow).size() != 2)
+				return Invalid("format 4 requires two ROM source tables");
+			std::int64_t total = 0;
+			for (const toml::value& entry : roms->as_array(std::nothrow)) {
+				if (!entry.is_table()) return Invalid("ROM source must be a table");
+				const toml::table& table = entry.as_table(std::nothrow);
+				error = CheckKeys(table, {"id", "role", "source_size", "source_offset"});
+				std::int64_t size = 0, offset = 0;
+				CoreRomRequirement source;
+				if (error.ok()) error = StringField(table, "id", &source.id);
+				if (error.ok()) error = StringField(table, "role", &source.role);
+				if (error.ok()) error = IntegerField(table, "source_size", &size);
+				if (error.ok()) error = IntegerField(table, "source_offset", &offset);
+				if (!error.ok()) return error;
+				const bool first = candidate.roms.empty();
+				if (!ValidIdentifier(source.id) ||
+					source.role != (first ? "firmware" : "cartridge") ||
+					(!first && source.id == candidate.roms.front().id) ||
+					size < 1024 || size > 262144 || size % 1024 != 0 || offset != total)
+					return Invalid("invalid ordered ROM source metadata");
+				source.source_size = static_cast<std::uint64_t>(size);
+				source.source_offset = static_cast<std::uint64_t>(offset);
+				candidate.roms.push_back(std::move(source));
+				total += size;
+			}
+			if (total > 262144) return Invalid("combined ROM source exceeds 256 KiB");
+			const toml::table* rom_map = nullptr;
+			error = TableField(root, "rom_map", &rom_map);
+			if (error.ok()) error = CheckKeys(*rom_map, {"file", "size", "sha256"});
+			std::int64_t size = 0;
+			if (error.ok()) error = StringField(*rom_map, "file", &candidate.rom_map.file);
+			if (error.ok()) error = IntegerField(*rom_map, "size", &size);
+			if (error.ok()) error = StringField(*rom_map, "sha256", &candidate.rom_map.sha256);
+			if (!error.ok()) return error;
+			if (candidate.rom_map.file != "rom-map.json" || size < 1 ||
+				size > static_cast<std::int64_t>(kMaximumPayloadSize) ||
+				!ValidHex(candidate.rom_map.sha256, 64, true))
+				return Invalid("invalid format-4 ROM map metadata");
+			candidate.rom_map.size = static_cast<std::uint64_t>(size);
 		}
 		const toml::table *core = nullptr, *target = nullptr, *payload = nullptr;
 		const toml::table *abi = nullptr, *build = nullptr;
@@ -558,13 +602,15 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	if (!error.ok()) return error;
 	error = CheckDirectoryEntries(directory_descriptor.get(), descriptor.format);
 	if (!error.ok()) return error;
-	if (descriptor.format == 3) {
+	if (descriptor.format == 3 || descriptor.format == 4) {
 		error = opener.OpenRelative(directory_descriptor.get(), directory,
 			"rom-map.json", kMaximumPayloadSize, &rom_map);
 		if (!error.ok()) return Invalid("invalid ROM map file");
 		Sha256 map_hash;
-		if (rom_map.size() != descriptor.rom.size || !HashArtifact(rom_map, &map_hash).ok() ||
-			Sha256Hex(map_hash.Final()) != descriptor.rom.sha256)
+		const std::uint64_t expected_size = descriptor.format == 3 ? descriptor.rom.size : descriptor.rom_map.size;
+		const std::string& expected_hash = descriptor.format == 3 ? descriptor.rom.sha256 : descriptor.rom_map.sha256;
+		if (rom_map.size() != expected_size || !HashArtifact(rom_map, &map_hash).ok() ||
+			Sha256Hex(map_hash.Final()) != expected_hash)
 			return Invalid("ROM map size or digest does not match manifest");
 	}
 	if (descriptor.payload.size != payload.size())
@@ -577,15 +623,15 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 		return Invalid("payload digest does not match manifest");
 
 	Sha256 package_hash;
-	const std::string domain = descriptor.format == 3 ?
-		"FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
+	const std::string domain = descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
+		descriptor.format == 3 ? "FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
 	package_hash.Update(domain.data(), domain.size());
 	HashLittleEndian64(&package_hash, manifest_bytes.size());
 	package_hash.Update(manifest_bytes.data(), manifest_bytes.size());
 	HashLittleEndian64(&package_hash, payload.size());
 	error = HashArtifact(payload, &package_hash);
 	if (!error.ok()) return error;
-	if (descriptor.format == 3) {
+	if (descriptor.format == 3 || descriptor.format == 4) {
 		HashLittleEndian64(&package_hash, rom_map.size());
 		error = HashArtifact(rom_map, &package_hash);
 		if (!error.ok()) return error;
@@ -698,20 +744,22 @@ Error RecheckCorePackage(const OpenedCorePackage& package)
 		Sha256Hex(payload_hash.Final()) != package.descriptor.payload.sha256)
 		return changed();
 	Sha256 package_hash;
-	const std::string domain = package.descriptor.format == 3 ?
-		"FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
+	const std::string domain = package.descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
+		package.descriptor.format == 3 ? "FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
 	package_hash.Update(domain.data(), domain.size());
 	HashLittleEndian64(&package_hash, package.manifest_bytes.size());
 	package_hash.Update(package.manifest_bytes.data(), package.manifest_bytes.size());
 	HashLittleEndian64(&package_hash, package.payload.size());
 	if (!HashArtifact(package.payload, &package_hash).ok()) return changed();
-	if (package.descriptor.format == 3) {
+	if (package.descriptor.format == 3 || package.descriptor.format == 4) {
 		if (fstat(package.rom_map.fd(), &metadata) != 0 || !S_ISREG(metadata.st_mode) ||
 			metadata.st_size < 0 || static_cast<std::uint64_t>(metadata.st_size) != package.rom_map.size() ||
-			package.rom_map.size() != package.descriptor.rom.size) return changed();
+			package.rom_map.size() != (package.descriptor.format == 3 ?
+				package.descriptor.rom.size : package.descriptor.rom_map.size)) return changed();
 		Sha256 map_hash;
 		if (!HashArtifact(package.rom_map, &map_hash).ok() ||
-			Sha256Hex(map_hash.Final()) != package.descriptor.rom.sha256) return changed();
+			Sha256Hex(map_hash.Final()) != (package.descriptor.format == 3 ?
+				package.descriptor.rom.sha256 : package.descriptor.rom_map.sha256)) return changed();
 		HashLittleEndian64(&package_hash, package.rom_map.size());
 		if (!HashArtifact(package.rom_map, &package_hash).ok()) return changed();
 	}
@@ -771,7 +819,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 	// a running session whose core never executes. Firmware delivery also holds
 	// reset until a later media commit. Firmware ROMs may still use
 	// a separate cartridge/tape/disk delivery and retain their normal lifecycle.
-	if (descriptor.format == 3 && descriptor.rom.role == "cartridge") {
+	if ((descriptor.format == 3 && descriptor.rom.role == "cartridge") ||
+		descriptor.format == 4) {
 		for (const auto& interface : descriptor.interfaces) {
 			if (interface.major == 1 && interface.minor == 0 &&
 				(interface.id == FesApplicationInterfaceMediaBlobStreamID ||

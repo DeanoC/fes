@@ -123,6 +123,57 @@ func TestROMPackageSharedConformance(t *testing.T) {
 	}
 }
 
+func TestROMPackageV4SharedConformance(t *testing.T) {
+	root := "testdata/core-bundle-v4"
+	data, err := os.ReadFile(filepath.Join(root, "cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name, Manifest, Payload string
+		Map                     string `json:"rom_map"`
+		Valid                   bool
+		PackageID               string   `json:"package_id"`
+		ArchiveMembers          []string `json:"archive_members"`
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			read := func(path string) []byte {
+				t.Helper()
+				b, e := os.ReadFile(filepath.Join(root, path))
+				if e != nil {
+					t.Fatal(e)
+				}
+				return b
+			}
+			manifest, payload, mapping := read(c.Manifest), read(c.Payload), read(c.Map)
+			dir := writeDirectory(t, manifest, payload)
+			if err := os.WriteFile(filepath.Join(dir, "rom-map.json"), mapping, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if len(c.ArchiveMembers) > 0 {
+				if err := os.WriteFile(filepath.Join(dir, "extra.bin"), []byte("extra"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := InspectPackage(dir)
+			if c.Valid {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got.PackageID != c.PackageID || got.Descriptor.Format != 4 || len(got.Descriptor.ROMs) != 2 || got.Descriptor.ROMs[0].Role != "firmware" || got.Descriptor.ROMs[1].Role != "cartridge" {
+					t.Fatalf("format-4 identity or sources: %+v", got)
+				}
+			} else if err == nil {
+				t.Fatal("invalid format-4 fixture accepted")
+			}
+		})
+	}
+}
+
 func TestROMPackageStorePreservesExactArchive(t *testing.T) {
 	_, _, _, archive := romPackageFixture(t)
 	store, err := NewStore(filepath.Join(t.TempDir(), "store"))

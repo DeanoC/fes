@@ -38,6 +38,17 @@ catalog system.
 
 ## ROM linking transition
 
+Format 4 adds two ordered, required ROM sources to the existing download-time
+linker. The development Coleco MegaCart shell uses the household `firmware`
+slot for an exact 8,192-byte BIOS and the title's named `coleco-cart` selection
+for an exact 131,072-byte cartridge. The source-only `rom-link-v2.json`
+archive carries both original objects and an optional exact-shell SGM archive;
+the target verifies each digest, composes the expansion and patches the sealed
+139,264-byte ROM map before programming. Status exposes both source identities
+in `rom_links`. Format-3 `rom_link` and current factory Coleco mailbox paths
+retain their existing behavior. This producer is imported explicitly for
+development because `config/core-recipes.toml` has one row per core ID.
+
 Format-3 packages seal one named ROM requirement and its CRAM map alongside the
 base RBF. Select an exact-size binary for the title using the
 [ROM selection API](../sources/FogCast/docs/core-package-library.md).

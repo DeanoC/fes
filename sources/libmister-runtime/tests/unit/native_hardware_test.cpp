@@ -1933,8 +1933,62 @@ void TestFormat3InspectionAndLoadGateBeforeMutation()
 	assert(fixture.runtime.status().active_package.rom_link.rom_id.empty());
 }
 
+void TestFormat4TwoSourceAdmissionBeforeMutation()
+{
+	std::vector<std::string> driver_events;
+	RecordingDriver driver(driver_events);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	TempDirectory base;
+	PopulateFesGpPackage(&base);
+	mister::native::OpenedCorePackage opened_base;
+	assert(mister::native::OpenCorePackage(base.path, "", &opened_base).ok());
+	const std::string map = "{}\n";
+	mister::native::Sha256 map_hash;
+	map_hash.Update(map.data(), map.size());
+	std::string manifest = opened_base.manifest_bytes;
+	ReplaceAll(&manifest, "format = 2", "format = 4");
+	manifest += "\n[[roms]]\nid = \"coleco-bios\"\nrole = \"firmware\"\nsource_size = 1024\nsource_offset = 0\n"
+		"\n[[roms]]\nid = \"coleco-cart\"\nrole = \"cartridge\"\nsource_size = 1024\nsource_offset = 1024\n"
+		"\n[rom_map]\nfile = \"rom-map.json\"\nsize = 3\nsha256 = \"" +
+		mister::native::Sha256Hex(map_hash.Final()) + "\"\n";
+	TempDirectory package;
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText(base.path + "/core.rbf"));
+	package.File("rom-map.json", map);
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	assert(opened.descriptor.format == 4 && opened.descriptor.roms.size() == 2);
+	assert(fixture.runtime.LoadCore(package.path, opened.package_id).code == mister::ErrorCode::unsupported_abi);
+	assert(fixture.runtime.LoadInitializedCore(package.path, opened.package_id,
+		base.path + "/core.rbf", opened_base.descriptor.payload.sha256).code == mister::ErrorCode::unsupported_abi);
+	assert(driver_events.empty());
+	mister::CoreROMLinks links;
+	links.map_sha256 = opened.descriptor.rom_map.sha256;
+	links.programmed_sha256 = opened_base.descriptor.payload.sha256;
+	links.programmed_size = opened_base.descriptor.payload.size;
+	links.sources = {{"coleco-bios", "firmware", std::string(64, 'a'), 1024},
+		{"coleco-cart", "cartridge", std::string(64, 'b'), 1024}};
+	const std::string programmed = base.path + "/core.rbf";
+	for (unsigned mismatch = 0; mismatch < 6; ++mismatch) {
+		auto bad = links;
+		if (mismatch == 0) bad.sources.pop_back();
+		if (mismatch == 1) bad.sources[0].id = "wrong";
+		if (mismatch == 2) bad.sources[1].source_size++;
+		if (mismatch == 3) bad.sources[0].source_sha256 = std::string(64, 'A');
+		if (mismatch == 4) bad.map_sha256 = std::string(64, 'c');
+		if (mismatch == 5) bad.programmed_sha256 = std::string(64, 'd');
+		assert(!fixture.runtime.LoadROMsCore(package.path, opened.package_id, programmed, bad).ok());
+		assert(driver_events.empty());
+	}
+	assert(fixture.runtime.LoadROMsCore(package.path, opened.package_id, programmed, links).ok());
+	assert(fixture.runtime.status().active_package.rom_links.sources.size() == 2);
+	assert(fixture.runtime.Stop().ok());
+}
+
 int main()
 {
+	TestFormat4TwoSourceAdmissionBeforeMutation();
 	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();

@@ -98,6 +98,7 @@ func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout 
 
 type CoreActivation struct {
 	ROMLink          *corepackage.ROMLinkIdentity
+	ROMLinks         *corepackage.ROMLinksIdentity
 	Composition      *expansion.Composition
 	MediaStream      *protocol.MediaStreamCapability
 	PersistenceMode  string
@@ -115,6 +116,10 @@ type protocol2CoreControl interface {
 
 type protocol2ROMLinkControl interface {
 	LoadROMLinkedCore(context.Context, string, string, string, string, string, *expansion.Composition, string, corepackage.ROMLinkIdentity) (Protocol2Response, error)
+}
+
+type protocol2ROMLinksControl interface {
+	LoadROMLinksLinkedCore(context.Context, string, string, string, string, string, *expansion.Composition, string, corepackage.ROMLinksIdentity) (Protocol2Response, error)
 }
 
 type protocol2RomInitControl interface {
@@ -255,7 +260,8 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		return CoreActivation{}, false, &protocol.APIError{
 			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
 	}
-	romLinked := corepackage.IsROMInput(body)
+	romLinkedV2 := corepackage.IsROMInputV2(body)
+	romLinked := romLinkedV2 || corepackage.IsROMInput(body)
 	if corepackage.IsRomInit(body) {
 		decoded, decodeErr := corepackage.ReadRomInit(body)
 		if decodeErr != nil {
@@ -274,7 +280,11 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	}
 	content = bytes.NewReader(body)
 	if romLinked {
-		if _, ok := r.control.(protocol2ROMLinkControl); !ok {
+		if romLinkedV2 {
+			if _, ok := r.control.(protocol2ROMLinksControl); !ok {
+				return CoreActivation{}, false, unsupportedOperationError()
+			}
+		} else if _, ok := r.control.(protocol2ROMLinkControl); !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
 		statusControl, ok := r.control.(protocol2StatusControl)
@@ -288,7 +298,11 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		if status.Capabilities.ROMLinking != 1 {
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
-		staged, err = corepackage.StageROMInput(admission, r.corePackageRoot, size, content)
+		if romLinkedV2 {
+			staged, err = corepackage.StageROMInputV2(admission, r.corePackageRoot, size, content)
+		} else {
+			staged, err = corepackage.StageROMInput(admission, r.corePackageRoot, size, content)
+		}
 		composed = staged.Composition != nil
 	} else if composed {
 		if _, ok := r.control.(protocol2CompositionControl); !ok {
@@ -316,7 +330,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			}
 		}
 	}()
-	if staged.Descriptor.ROM != nil && staged.ROMLink == nil {
+	if (staged.Descriptor.ROM != nil && staged.ROMLink == nil) || (staged.Descriptor.Format == 4 && staged.ROMLinks == nil) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "ROM-bearing package requires selected ROM input", Phase: "admission"}
 	}
 	if admission.Err() != nil || observation.Err() != nil || operationOwner.Err() != nil {
@@ -396,7 +410,14 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 
 	var response Protocol2Response
 	var callErr error
-	if staged.ROMLink != nil {
+	if staged.ROMLinks != nil {
+		dataRoot := ""
+		if libraryID != "" && !composed {
+			dataRoot = CoreDataRoot
+		}
+		response, callErr = r.control.(protocol2ROMLinksControl).LoadROMLinksLinkedCore(operationOwner, staged.Directory, staged.PackageID, dataRoot, staged.ExpansionDirectory, staged.PayloadPath, staged.Composition, staged.ProgrammedPath, *staged.ROMLinks)
+		r.noteDispatch("load_rom_core", callErr == nil)
+	} else if staged.ROMLink != nil {
 		dataRoot := ""
 		if libraryID != "" && !composed {
 			dataRoot = CoreDataRoot
@@ -492,6 +513,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		response.ActivePackage == nil || response.ActivePackage.PackageID != staged.PackageID ||
 		!reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) ||
 		!reflect.DeepEqual(response.ActivePackage.ROMLink, staged.ROMLink) ||
+		!reflect.DeepEqual(response.ActivePackage.ROMLinks, staged.ROMLinks) ||
 		response.Generation == nil || *response.Generation == 0 {
 		r.retainRetired(staged)
 		cleanupStaged = false
@@ -522,6 +544,7 @@ func activationFromProtocol2(packageID string, descriptor corepackage.Descriptor
 	if response.ActivePackage != nil {
 		activation.Composition = cloneComposition(response.ActivePackage.Composition)
 		activation.ROMLink = cloneROMLink(response.ActivePackage.ROMLink)
+		activation.ROMLinks = cloneROMLinks(response.ActivePackage.ROMLinks)
 	}
 	if response.ActivePackage != nil && response.ActivePackage.PersistenceMode != "" {
 		activation.PersistenceMode = response.ActivePackage.PersistenceMode
@@ -579,7 +602,7 @@ func (r *Runtime) observeLostCoreLoad(ctx context.Context, control protocol2Stat
 			return CoreActivation{}, coreLoadPreserved
 		}
 		if response.State == "running_development" && response.ActivePackage != nil &&
-			response.ActivePackage.PackageID == staged.PackageID && reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) && reflect.DeepEqual(response.ActivePackage.ROMLink, staged.ROMLink) && response.Generation != nil &&
+			response.ActivePackage.PackageID == staged.PackageID && reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) && reflect.DeepEqual(response.ActivePackage.ROMLink, staged.ROMLink) && reflect.DeepEqual(response.ActivePackage.ROMLinks, staged.ROMLinks) && response.Generation != nil &&
 			!sameGeneration(before.Generation, response.Generation) {
 			return activationFromProtocol2(staged.PackageID, staged.Descriptor, response), coreLoadConfirmed
 		}
@@ -602,7 +625,8 @@ func sameProtocol2RuntimeState(left, right Protocol2Response) bool {
 		reflect.DeepEqual(left.ActivePackage.Descriptor, right.ActivePackage.Descriptor) &&
 		reflect.DeepEqual(left.ActivePackage.Observed, right.ActivePackage.Observed) &&
 		reflect.DeepEqual(left.ActivePackage.Composition, right.ActivePackage.Composition) &&
-		reflect.DeepEqual(left.ActivePackage.ROMLink, right.ActivePackage.ROMLink)
+		reflect.DeepEqual(left.ActivePackage.ROMLink, right.ActivePackage.ROMLink) &&
+		reflect.DeepEqual(left.ActivePackage.ROMLinks, right.ActivePackage.ROMLinks)
 }
 
 func equalOptionalString(left, right *string) bool {
@@ -752,7 +776,7 @@ func mapOptionalProtocol2Error(remote *Protocol2Error) *protocol.APIError {
 
 func matchingAdoptedPackage(adopted []corepackage.Staged, active Protocol2ActivePackage) int {
 	for index := range adopted {
-		if adopted[index].PackageID == active.PackageID && reflect.DeepEqual(adopted[index].Descriptor, active.Descriptor) && reflect.DeepEqual(adopted[index].Composition, active.Composition) && reflect.DeepEqual(adopted[index].ROMLink, active.ROMLink) {
+		if adopted[index].PackageID == active.PackageID && reflect.DeepEqual(adopted[index].Descriptor, active.Descriptor) && reflect.DeepEqual(adopted[index].Composition, active.Composition) && reflect.DeepEqual(adopted[index].ROMLink, active.ROMLink) && reflect.DeepEqual(adopted[index].ROMLinks, active.ROMLinks) {
 			return index
 		}
 	}
@@ -776,7 +800,7 @@ func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 	for index, value := range activation.ActiveInterfaces {
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
-	return &protocol.CorePackageStatus{ROMLink: cloneROMLink(activation.ROMLink), Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
+	return &protocol.CorePackageStatus{ROMLink: cloneROMLink(activation.ROMLink), ROMLinks: cloneROMLinks(activation.ROMLinks), Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
 		MediaStream: activation.MediaStream,
 		ABI:         protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID:     activation.Descriptor.Build.ID, ActiveInterfaces: interfaces, Gamepad: activation.Gamepad}
@@ -1224,5 +1248,14 @@ func cloneROMLink(value *corepackage.ROMLinkIdentity) *corepackage.ROMLinkIdenti
 		return nil
 	}
 	copy := *value
+	return &copy
+}
+
+func cloneROMLinks(value *corepackage.ROMLinksIdentity) *corepackage.ROMLinksIdentity {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	copy.Sources = append([]corepackage.ROMSourceIdentity(nil), value.Sources...)
 	return &copy
 }

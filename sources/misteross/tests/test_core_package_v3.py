@@ -8,9 +8,31 @@ from scripts.core_package import PackageError, read_package
 from scripts.export_core_package import _archive_bytes
 
 FIXTURES = Path(__file__).resolve().parent / 'fixtures' / 'core-bundle-v3'
+V4_FIXTURES = FIXTURES.parent / 'core-bundle-v4'
 
 
 class CorePackageV3Tests(unittest.TestCase):
+    def test_format_four_two_sources_and_exact_members(self):
+        cases = json.loads((V4_FIXTURES / 'cases.json').read_text())
+        for case in cases:
+            with self.subTest(case=case['name']), tempfile.TemporaryDirectory() as tmp:
+                manifest, payload, mapping = ((V4_FIXTURES / case[key]).read_bytes()
+                                              for key in ('manifest', 'payload', 'rom_map'))
+                directory = Path(tmp)
+                for name, data in [('manifest.toml', manifest), ('core.rbf', payload),
+                                   ('rom-map.json', mapping)]:
+                    (directory / name).write_bytes(data)
+                if 'archive_members' in case:
+                    (directory / 'extra.bin').write_bytes(b'extra')
+                if case['valid']:
+                    got = read_package(directory)
+                    self.assertEqual(got.package_id, case['package_id'])
+                    self.assertEqual([r['role'] for r in got.fields['roms']],
+                                     ['firmware', 'cartridge'])
+                else:
+                    with self.assertRaises(PackageError):
+                        read_package(directory)
+
     def test_shared_cases_as_directories_and_archives(self):
         for case in json.loads((FIXTURES / 'cases.json').read_text()):
             with self.subTest(case=case['name']), tempfile.TemporaryDirectory() as tmp:

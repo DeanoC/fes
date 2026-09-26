@@ -4,7 +4,7 @@ Development lives in the FES repository under `sources/mister-packages`.
 The former standalone repository is archived.
 
 This module owns shared board/SoC/MMIO definitions, FES ABI contracts,
-programming-profile declarations, format-2/3 package schemas and conformance
+programming-profile declarations, format-2/3/4 package schemas and conformance
 fixtures. Go emitters generate C++14, Go and Verilog consumers. FES runs
 `make generate` and `make check-generated` across the tracked modules.
 

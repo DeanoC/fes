@@ -120,3 +120,48 @@ func TestROMLinkStatusRejectsMalformedIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestTwoSourceROMStatusAndClientRoundTrip(t *testing.T) {
+	old, err := decodeProtocol2Response([]byte(fixtureLines(t, "protocol-v2-rom-package-responses.jsonl")[1]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	active := *old.ActivePackage
+	d := active.Descriptor
+	d.Format = 4
+	d.ROM = nil
+	d.ROMs = []corepackage.ROMRequirement{{ID: "coleco-bios", Role: "firmware", SourceSize: 1024, SourceOffset: 0}, {ID: "coleco-cart", Role: "cartridge", SourceSize: 1024, SourceOffset: 1024}}
+	d.ROMMap = &corepackage.ROMMapDescriptor{File: "rom-map.json", Size: 72424, SHA256: old.ActivePackage.ROMLink.MapSHA256}
+	active.Descriptor = d
+	active.ROMLink = nil
+	identity := corepackage.ROMLinksIdentity{Sources: []corepackage.ROMSourceIdentity{{ID: "coleco-bios", Role: "firmware", SourceSize: 1024, SourceSHA256: strings.Repeat("a", 64)}, {ID: "coleco-cart", Role: "cartridge", SourceSize: 1024, SourceSHA256: strings.Repeat("b", 64)}}, MapSHA256: d.ROMMap.SHA256, ProgrammedSHA256: d.Payload.SHA256, ProgrammedSize: d.Payload.Size}
+	active.ROMLinks = &identity
+	old.ActivePackage = &active
+	line, err := json.Marshal(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = decodeProtocol2Response(line); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newSequenceSocketFixture(t, []string{string(line) + "\n", string(line) + "\n"})
+	response, err := NewClient(fixture.path).LoadROMLinksLinkedCore(context.Background(), "/tmp/package", active.PackageID, "", "", "", nil, "/tmp/programmed.rbf", identity)
+	if err != nil || response.ActivePackage == nil || response.ActivePackage.ROMLinks == nil {
+		t.Fatalf("roundtrip: %v", err)
+	}
+	requests := fixture.wait(t)
+	if len(requests) != 2 || !strings.Contains(requests[1], `"rom_links"`) || strings.Contains(requests[1], `"rom_link"`) {
+		t.Fatalf("wrong wire identity: %v", requests)
+	}
+	bad := old
+	changed := *bad.ActivePackage
+	wrong := identity
+	wrong.Sources = append([]corepackage.ROMSourceIdentity(nil), identity.Sources...)
+	wrong.Sources[1].SourceSHA256 = "bad"
+	changed.ROMLinks = &wrong
+	bad.ActivePackage = &changed
+	broken, _ := json.Marshal(bad)
+	if _, err := decodeProtocol2Response(broken); err == nil {
+		t.Fatal("changed cartridge digest accepted")
+	}
+}

@@ -82,7 +82,7 @@ func colecoLibraryPackageContractsFixture(t *testing.T, abi, interfaces string) 
 	return out.Bytes()
 }
 
-func newCoreEntryLaunchFixture(t *testing.T, raw []byte, title string) (*Service, *defaultMediaPackageClient, catalog.CoreEntry, corepackage.Inspection) {
+func newCoreEntryLaunchFixture(t *testing.T, raw []byte, title string, uploadDeadline ...time.Duration) (*Service, *defaultMediaPackageClient, catalog.CoreEntry, corepackage.Inspection) {
 	t.Helper()
 	ctx := context.Background()
 	root := t.TempDir()
@@ -97,7 +97,11 @@ func newCoreEntryLaunchFixture(t *testing.T, raw []byte, title string) (*Service
 	}
 	base := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
 	client := &defaultMediaPackageClient{packageLibraryClient: base}
-	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	uploadTimeout := time.Second
+	if len(uploadDeadline) != 0 {
+		uploadTimeout = uploadDeadline[0]
+	}
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: uploadTimeout}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	s.corePackages = packages
 	inspection, created, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw))
 	if err != nil || !created {

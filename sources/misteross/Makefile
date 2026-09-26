@@ -411,6 +411,49 @@ sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss
 sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS)) sim-fes-coleco-expansion sim-fes-coleco-diagnostic sim-fes-coleco-sgm-socket sim-fes-coleco-sgm-shell-ram sim-fes-coleco-sgm-ay sim-fes-coleco-sgm-module sim-fes-coleco-sgm-audio sim-fes-coleco-sgm-probe
 
 .PHONY: sim-fes-coleco-sgm-socket
+sim-fes-coleco-megacart:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-megacart
+	$(VERILATOR) --cc --exe --build --top-module coleco_megacart_rom -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-megacart" \
+		cores/fes-coleco/rtl/coleco_megacart_rom.v \
+		"$(CURDIR)/cores/fes-coleco/sim/megacart_tb.cpp"
+	@build/sim/fes-coleco-megacart/Vcoleco_megacart_rom
+	@$(MAKE) sim-fes-coleco-megacart-machine
+
+.PHONY: sim-fes-coleco-megacart
+
+.PHONY: sim-fes-coleco-megacart-machine
+sim-fes-coleco-megacart-machine:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-megacart-machine
+	$(VERILATOR) --cc --exe --build --top-module sgm_shell_machine -Wall \
+		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -DFES_COLECO_EXPANSION_V2_DEV=1 \
+		-DFES_COLECO_MEGACART_LINK=1 -DSGM_INTEGRATED=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/rtl -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-megacart-machine" \
+		cores/fes-coleco/sim/sgm_shell_machine.sv \
+		cores/fes-coleco/rtl/coleco_expansion_socket_v2.v \
+		cores/fes-coleco/rtl/coleco_expansion_ram.v \
+		cores/fes-coleco/rtl/coleco_audio_mix.v \
+		cores/fes-coleco/expansions/sgm.v \
+		cores/fes-coleco/expansions/sgm_control.v \
+		cores/fes-coleco/expansions/sgm_ay.v \
+		cores/fes-coleco/rtl/coleco_megacart_rom.v \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/megacart_machine_tb.cpp"
+	@build/sim/fes-coleco-megacart-machine/Vsgm_shell_machine
+
 sim-fes-coleco-sgm-socket:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-sgm-socket

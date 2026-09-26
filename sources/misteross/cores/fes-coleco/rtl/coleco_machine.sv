@@ -51,11 +51,17 @@ module coleco_machine (
     // MEDIA_COMMIT acknowledges the mailbox, not the subsequent cartridge
     // copy. An immediate host RELEASE must not let the CPU fetch partly
     // copied code or let the VDP run until the final write (OSS flush included).
+`ifdef FES_COLECO_MEGACART_LINK
+    wire      machine_reset = reset;
+`else
     wire      machine_reset = reset || !media_ready || !media_loaded;
+`endif
 `ifdef FES_COLECO_REGISTERED_MEDIA
+`ifndef FES_COLECO_MEGACART_LINK
     reg       media_data_valid;
     reg       media_request_done;
     reg [14:0] media_write_addr;
+`endif
 `endif
 
     wire [15:0] cpu_addr;
@@ -199,9 +205,11 @@ module coleco_machine (
         vdp_write_seen = 1'b0;
         controller_joystick = 1'b0;
 `ifdef FES_COLECO_REGISTERED_MEDIA
+`ifndef FES_COLECO_MEGACART_LINK
         media_data_valid = 1'b0;
         media_request_done = 1'b0;
         media_write_addr = 15'h0000;
+`endif
 `endif
         ce_cpu_p = 1'b0;
         ce_cpu_n = 1'b0;
@@ -307,6 +315,22 @@ module coleco_machine (
     // implementation under FES_COLECO_OSS. Quartus altsyncram also registers
     // its read addresses, even with UNREGISTERED outputs; only the default
     // simulation branch is asynchronous.
+    wire [7:0] ram_read;
+    wire [7:0] ram_peek;
+`ifdef FES_COLECO_MEGACART_LINK
+    wire [7:0] cartridge_read;
+    wire [7:0] reset_rom_read;
+    wire [7:0] cartridge_peek = 8'hff;
+    wire [7:0] reset_rom_peek = 8'hff;
+    wire [7:0] linked_read;
+    coleco_megacart_rom rom (
+        .clk(clk_sys), .reset(machine_reset), .ce_cpu_n(ce_cpu_n),
+        .mem_read(cpu_mem_read), .cpu_addr(cpu_addr), .data(linked_read),
+        .selected_bank_debug()
+    );
+    assign cartridge_read = linked_read;
+    assign reset_rom_read = linked_read;
+`else
 `ifdef FES_COLECO_REGISTERED_MEDIA
     // Both compiler RAMs have a one-clock read result. media_addr requests
     // the next byte from the GP mailbox, while media_write_addr identifies the
@@ -324,8 +348,6 @@ module coleco_machine (
 `endif
     wire [7:0] cartridge_read;
     wire [7:0] cartridge_peek;
-    wire [7:0] ram_read;
-    wire [7:0] ram_peek;
     wire [7:0] reset_rom_read;
     wire [7:0] reset_rom_peek;
 
@@ -343,6 +365,7 @@ module coleco_machine (
         .wren_b(1'b0),
         .q_b(cartridge_peek)
     );
+`endif
 
     coleco_dpram #(
         .ADDRWIDTH(10),
@@ -359,6 +382,7 @@ module coleco_machine (
         .q_b(ram_peek)
     );
 
+`ifndef FES_COLECO_MEGACART_LINK
 `ifdef QUARTUS
     localparam RESET_ROM_INIT = "cores/fes-coleco/rtl/coleco_reset_rom.mif";
 `elsif FES_COLECO_PRIVATE_BIOS
@@ -382,6 +406,7 @@ module coleco_machine (
         .wren_b(firmware_we_b),
         .q_b(reset_rom_peek)
     );
+`endif
 
     reg [7:0] io_read_data;
     always @* begin
@@ -400,7 +425,11 @@ module coleco_machine (
             else if (cpu_ram_select)
                 cpu_din = ram_read;
             else if (cpu_cartridge_select)
+`ifdef FES_COLECO_MEGACART_LINK
+                cpu_din = cartridge_read;
+`else
                 cpu_din = (media_size > 16'd16384 && {1'b0, cpu_addr[14:0]} >= media_size) ? 8'hff : cartridge_read;
+`endif
         end else if (cpu_io_read) begin
             cpu_din = io_read_data;
         end
@@ -419,6 +448,7 @@ module coleco_machine (
     // even if host execution reset is already released. Dropped media_ready
     // starts a fresh transaction; reset's rising edge also permits a load when the
     // producer keeps the committed blob asserted.
+`ifndef FES_COLECO_MEGACART_LINK
     always @(posedge clk_sys) begin
         reset_d <= reset;
         if (!media_ready || (reset && !reset_d)) begin
@@ -464,6 +494,7 @@ module coleco_machine (
 `endif
         end
     end
+`endif
 
     always @* begin
         peek_data = 8'hff;
@@ -472,7 +503,11 @@ module coleco_machine (
         else if (peek_addr[15:13] == 3'b011)
             peek_data = ram_peek;
         else if (peek_addr[15:14] == 2'b10 || peek_addr[15:14] == 2'b11)
+`ifdef FES_COLECO_MEGACART_LINK
+            peek_data = cartridge_peek;
+`else
             peek_data = (media_size > 16'd16384 && {1'b0, peek_addr[14:0]} >= media_size) ? 8'hff : cartridge_peek;
+`endif
     end
 endmodule
 

@@ -21,8 +21,13 @@ module coleco_application_gp #(
     wire [14:0] write_addr;
     wire [15:0] write_data;
     wire [1:0] write_enable;
+`ifdef FES_COLECO_MEGACART_LINK
+    localparam bit ENABLE_MEDIA_ENDPOINT = 0;
+`else
+    localparam bit ENABLE_MEDIA_ENDPOINT = 1;
+`endif
     fes_application_gp #(.ENABLE_CONTROLLER_PORTS(1), .ENABLE_KEYPAD_PORTS(1),
-                          .ENABLE_MEDIA(1), .ENABLE_MEDIA_STREAM(1),
+                          .ENABLE_MEDIA(ENABLE_MEDIA_ENDPOINT), .ENABLE_MEDIA_STREAM(ENABLE_MEDIA_ENDPOINT),
                           .ENABLE_AUDIO(1), .ENABLE_FIRMWARE(ENABLE_FIRMWARE)) endpoint (
         .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi),
         .exec_reset(exec_reset), .buttons(),
@@ -34,10 +39,14 @@ module coleco_application_gp #(
         .firmware_write_addr(firmware_write_addr), .firmware_write_data(firmware_write_data),
         .firmware_write_enable(firmware_write_enable), .firmware_ready()
     );
+`ifdef FES_COLECO_MEGACART_LINK
+    assign media_q = 8'hff;
+`else
     coleco_dpram #(.ADDRWIDTH(15), .NUMWORDS(32768)) media_ram (
         .clock(clk), .address_a(write_enable[0] ? write_addr : media_addr),
         .data_a(write_data[7:0]), .wren_a(write_enable[0]), .q_a(media_q),
         .address_b(write_addr + 15'd1), .data_b(write_data[15:8]),
         .wren_b(write_enable[1]), .q_b()
     );
+`endif
 endmodule

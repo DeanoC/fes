@@ -90,6 +90,13 @@ class ColecoSgmBuildTest(unittest.TestCase):
             path = Path(temporary) / "synth.json"
             path.write_text(json.dumps(design))
             coleco_expansion.prepare_shell_netlist(path, version=2)
+            reordered = json.loads(json.dumps(design))
+            reordered['modules']['top']['cells']['system_clock.clocks_MISTRAL_CLKBUF_Q_1'] = \
+                reordered['modules']['top']['cells'].pop('system_clock.clocks_MISTRAL_CLKBUF_Q')
+            reordered['modules']['top']['cells']['system_clock.clocks_MISTRAL_CLKBUF_Q'] = {
+                'type': 'MISTRAL_CLKBUF', 'connections': {'A': [901], 'Q': [899]}}
+            path.write_text(json.dumps(reordered))
+            coleco_expansion.prepare_shell_netlist(path, version=2)
             changed = json.loads(path.read_text())["modules"]["top"]["cells"]
             self.assertIn("plug_rdata_ff_27", changed)
             routed = {name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel}}

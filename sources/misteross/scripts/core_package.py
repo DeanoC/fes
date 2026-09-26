@@ -53,15 +53,20 @@ class CorePackage:
     rom_map_bytes: bytes | None = None
 
 
-def package_identity(manifest: bytes, payload: bytes, rom_map: bytes | None = None) -> str:
-    """Hash exact members using the format-2 or format-3 domain."""
+def package_identity(manifest: bytes, payload: bytes, rom_map: bytes | None = None,
+                     *, format_version: int | None = None) -> str:
+    """Hash exact members using their format-specific domain."""
 
     if not isinstance(manifest, bytes) or not isinstance(payload, bytes):
         raise TypeError("manifest and payload must be bytes")
     digest = hashlib.sha256()
     if rom_map is not None and not isinstance(rom_map, bytes):
         raise TypeError("rom map must be bytes")
-    digest.update(PACKAGE_DOMAIN if rom_map is None else b"FES-CORE-PACKAGE-3\n")
+    if format_version is None:
+        format_version = 2 if rom_map is None else 3
+    if format_version not in (2, 3, 4) or (format_version == 2) != (rom_map is None):
+        raise PackageError("identity members do not match format")
+    digest.update(f"FES-CORE-PACKAGE-{format_version}\n".encode())
     digest.update(struct.pack("<Q", len(manifest)))
     digest.update(manifest)
     digest.update(struct.pack("<Q", len(payload)))
@@ -132,11 +137,12 @@ def _repository(value: object) -> str:
 
 def _validate_fields(fields: object, payload: bytes | None) -> dict:
     format_version = fields.get("format") if isinstance(fields, dict) else None
-    if type(format_version) is not int or format_version not in (2, 3):
-        raise PackageError("format must be the TOML integer 2 or 3")
+    if type(format_version) is not int or format_version not in (2, 3, 4):
+        raise PackageError("format must be the TOML integer 2, 3 or 4")
     root = _exact_dict(
         fields,
-        {"format", "core", "target", "payload", "abi", "interfaces", "build"} | ({"rom"} if format_version == 3 else set()),
+        {"format", "core", "target", "payload", "abi", "interfaces", "build"} |
+        ({"rom"} if format_version == 3 else {"roms", "rom_map"} if format_version == 4 else set()),
         set(),
         "manifest",
     )
@@ -184,6 +190,31 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
         _integer(rom["size"], "rom.size", 1, MAX_ROM_MAP_SIZE)
         if HEX64_RE.fullmatch(_string(rom["sha256"], "rom.sha256")) is None:
             raise PackageError("rom.sha256 must be lowercase SHA256")
+    if format_version == 4:
+        roms = root["roms"]
+        if not isinstance(roms, list) or len(roms) != 2:
+            raise PackageError("format 4 requires two ROM sources")
+        total, seen_ids = 0, set()
+        for index, role in enumerate(("firmware", "cartridge")):
+            field = f"roms[{index}]"
+            rom = _exact_dict(roms[index], {"id", "role", "source_size", "source_offset"}, set(), field)
+            identifier = _identifier(rom["id"], field + ".id")
+            if identifier in seen_ids or rom["role"] != role:
+                raise PackageError("duplicate ROM ID or unordered roles")
+            seen_ids.add(identifier)
+            size = _integer(rom["source_size"], field + ".source_size", 1024, 262144)
+            offset = _integer(rom["source_offset"], field + ".source_offset", 0, 261120)
+            if size % 1024 or offset != total:
+                raise PackageError("ROM source sizes/offsets must be contiguous 1 KiB blocks")
+            total += size
+        if total > 262144:
+            raise PackageError("combined ROM source exceeds 256 KiB")
+        rom_map = _exact_dict(root["rom_map"], {"file", "size", "sha256"}, set(), "rom_map")
+        if rom_map["file"] != "rom-map.json":
+            raise PackageError("rom_map.file must be rom-map.json")
+        _integer(rom_map["size"], "rom_map.size", 1, MAX_ROM_MAP_SIZE)
+        if HEX64_RE.fullmatch(_string(rom_map["sha256"], "rom_map.sha256")) is None:
+            raise PackageError("rom_map.sha256 must be lowercase SHA256")
 
     _versioned_contract(root["abi"], "abi")
     interfaces = root["interfaces"]
@@ -233,7 +264,9 @@ def _decode_manifest(manifest: bytes, payload: bytes | None) -> dict:
 
 def validate_rom_map(data: bytes, fields: dict) -> dict:
     """Validate sealed map structure and bindings without decoding FPGA frames."""
-    rom = fields["rom"]
+    rom = fields["rom"] if fields["format"] == 3 else fields["rom_map"]
+    source_size = (rom["source_size"] if fields["format"] == 3 else
+                   sum(entry["source_size"] for entry in fields["roms"]))
     if len(data) != rom["size"] or hashlib.sha256(data).hexdigest() != rom["sha256"]:
         raise PackageError("ROM map size or digest does not match manifest")
 
@@ -260,10 +293,10 @@ def validate_rom_map(data: bytes, fields: dict) -> dict:
         raise PackageError("unsupported ROM map device or encoding")
     if mapping["base_sha256"] != fields["payload"]["sha256"]:
         raise PackageError("ROM map base digest mismatch")
-    if type(mapping["source_size"]) is not int or mapping["source_size"] != rom["source_size"]:
+    if type(mapping["source_size"]) is not int or mapping["source_size"] != source_size:
         raise PackageError("ROM map source size mismatch")
     blocks = mapping["blocks"]
-    if not isinstance(blocks, list) or len(blocks) != rom["source_size"] // 1024:
+    if not isinstance(blocks, list) or len(blocks) != source_size // 1024:
         raise PackageError("ROM map block count differs from source size")
     bels, sources = set(), set()
     destinations = bytearray((7605 * 7024 + 7) // 8)
@@ -273,7 +306,7 @@ def validate_rom_map(data: bytes, fields: dict) -> dict:
         if bel in bels:
             raise PackageError("duplicate ROM BEL")
         bels.add(bel)
-        offset = _integer(block["source_offset"], "ROM source offset", 0, rom["source_size"] - 1024)
+        offset = _integer(block["source_offset"], "ROM source offset", 0, source_size - 1024)
         if offset % 1024 or offset in sources:
             raise PackageError("invalid or overlapping ROM source range")
         sources.add(offset)
@@ -355,6 +388,16 @@ def encode_manifest(fields: dict) -> bytes:
         lines.extend(["", "[rom]"])
         for key in ("id", "role", "source_size", "file", "size", "sha256"):
             value = root["rom"][key]
+            lines.append(f"{key} = {_toml_string(value) if isinstance(value, str) else value}")
+    if root["format"] == 4:
+        for rom in root["roms"]:
+            lines.extend(["", "[[roms]]"])
+            for key in ("id", "role", "source_size", "source_offset"):
+                value = rom[key]
+                lines.append(f"{key} = {_toml_string(value) if isinstance(value, str) else value}")
+        lines.extend(["", "[rom_map]"])
+        for key in ("file", "size", "sha256"):
+            value = root["rom_map"][key]
             lines.append(f"{key} = {_toml_string(value) if isinstance(value, str) else value}")
     encoded = ("\n".join(lines) + "\n").encode("utf-8")
     if len(encoded) > MAX_MANIFEST_SIZE:
@@ -472,7 +515,7 @@ def _read_archive(path: Path) -> tuple[bytes, bytes, bytes | None]:
         offset += padded_size
         if name == "manifest.toml":
             fields = _decode_manifest(values[0], None)
-            if fields["format"] == 3:
+            if fields["format"] in (3, 4):
                 members.append(("rom-map.json", MAX_ROM_MAP_SIZE))
             elif len(data) > MAX_ARCHIVE_SIZE:
                 raise PackageError("format-2 archive exceeds 33 MiB")
@@ -482,7 +525,7 @@ def _read_archive(path: Path) -> tuple[bytes, bytes, bytes | None]:
 
 
 def read_package(path: Path) -> CorePackage:
-    """Read and validate an exact format-2/3 directory or restricted .fcore archive."""
+    """Read and validate an exact format-2/3/4 directory or restricted .fcore archive."""
 
     path = Path(path)
     try:
@@ -498,11 +541,12 @@ def read_package(path: Path) -> CorePackage:
     else:
         raise PackageError("package path must be a directory or regular archive")
     fields = _decode_manifest(manifest, payload)
-    if (fields["format"] == 3) != (rom_map is not None):
+    if (fields["format"] in (3, 4)) != (rom_map is not None):
         raise PackageError("package members do not match declared format")
     if rom_map is not None:
         validate_rom_map(rom_map, fields)
-    return CorePackage(manifest, fields, payload, package_identity(manifest, payload, rom_map), rom_map)
+    return CorePackage(manifest, fields, payload,
+                       package_identity(manifest, payload, rom_map, format_version=fields["format"]), rom_map)
 
 
 def main(argv: list[str] | None = None) -> int:

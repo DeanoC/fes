@@ -1,5 +1,9 @@
 # FogCast architecture
 
+The corepackage reader recognizes format 4's two ordered ROM requirements and
+sealed map. Launch and target activation of that format require the separate
+two-source transport and linked-load path before it becomes selectable.
+
 This is the canonical description of the working system.
 
 ## Normal FPGA game launch
