@@ -15,6 +15,7 @@
 #include "daemon/json.hpp"
 #include "daemon/protocol.hpp"
 #include "native/core_package.hpp"
+#include "native/sha256.hpp"
 
 namespace {
 
@@ -938,12 +939,21 @@ std::vector<std::string> ComputerResponseFixtures()
 	status.generation = 4;
 	status.capabilities.media_units[0].state = mister::MediaUnitState::empty;
 	auto& composition = status.active_package.composition;
-	composition.id = std::string(64, 'c');
 	composition.package_id = status.active_package.package_id;
-	composition.expansions = {{4, std::string(64, '4')}, {6, std::string(64, '6')}};
+	composition.expansions = {{4, std::string(64, '4')}, {7, std::string(64, '7')}};
 	composition.shell_sha256 = status.active_package.descriptor.payload.sha256;
 	composition.payload_sha256 = std::string(64, 'd');
 	composition.payload_size = 1816338;
+	// Physical sockets and the canonical misteross SlotCompositionID, so host
+	// decoders that recompute the identity accept this status.
+	std::string canonical("fes-composition-v2\0", 19);
+	canonical += composition.package_id + std::string(1, '\0');
+	for (const auto& slot : composition.expansions)
+		canonical += std::to_string(slot.slot) + ":" + slot.expansion_id + std::string(1, '\0');
+	canonical += composition.payload_sha256;
+	mister::native::Sha256 hasher;
+	hasher.Update(canonical.data(), canonical.size());
+	composition.id = mister::native::Sha256Hex(hasher.Final());
 	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
 
 	// A computer without media interfaces still reports an empty unit list.
