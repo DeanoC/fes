@@ -180,7 +180,9 @@ class ColecoSgmBuildTest(unittest.TestCase):
         cells = {
             "system_clock.pll": pll,
             "system_clock.clocks_MISTRAL_CLKBUF_Q_1": {
-                "type": "MISTRAL_CLKBUF", "connections": {"A": [901], "Q": [902]}},
+                "type": "MISTRAL_CLKBUF", "connections": {"A": [2], "Q": [2107]}},
+            "system_clock.clocks_MISTRAL_CLKBUF_Q": {
+                "type": "MISTRAL_CLKBUF", "connections": {"A": [901], "Q": [904]}},
         }
         cells.update({name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel}}
                       for name, bel in bels.items()})
@@ -189,6 +191,7 @@ class ColecoSgmBuildTest(unittest.TestCase):
             "connections": {"CLK": [2107]}}
         design = {"modules": {"top": {"cells": cells, "netnames": {
             "system_clock.pll_outclk_1": {"bits": [901]},
+            "system_clock.clocks[1]": {"bits": [904]},
             "system_clock.clocks[0]": {"bits": [2107], "attributes": {"ROUTING": route}},
         }}}}
         with tempfile.TemporaryDirectory() as temporary:

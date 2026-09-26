@@ -68,10 +68,13 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
             mapping["pins"].get(name) != value for name, value in aliases.items()):
         raise ValueError("Coleco PLL frozen pin map changed")
     output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
-    clock1 = top["cells"].get("system_clock.clocks_MISTRAL_CLKBUF_Q_1", {})
+    logical_clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
+    clock1 = [candidate for candidate in top["cells"].values()
+              if candidate.get("type") == "MISTRAL_CLKBUF" and
+              candidate.get("connections", {}).get("Q") == logical_clock1]
     if not isinstance(output1, list) or len(output1) != 1 or \
-            clock1.get("type") != "MISTRAL_CLKBUF" or \
-            clock1.get("connections", {}).get("A") != output1 or \
+            not isinstance(logical_clock1, list) or len(logical_clock1) != 1 or \
+            len(clock1) != 1 or clock1[0].get("connections", {}).get("A") != output1 or \
             cell.get("port_directions", {}).get("outclk") != "output":
         raise ValueError("Coleco frozen audio PLL net changed")
     cell["connections"]["outclk[1]"] = output1
