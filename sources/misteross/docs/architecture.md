@@ -179,17 +179,17 @@ This demonstrates composition without a new emulated-machine implementation
 or an application-name branch in host software.
 
 `fes.ramtest` is a separate utility on the same mailbox, fixed 720p
-interface, and gamepad interface. `make build-fes-ramtest` writes
-`build/fes-ramtest/core.rbf`. After execution release it pattern-tests the
-SDRAM addon and an HPS DDR window and prints the pattern, address, clock
-and error count. The SDRAM clock pin is the inverted DDR output used by
-MiSTer controllers. The default OSS bitstream runs that clock at 50 MHz;
-`make build-fes-ramtest-100` makes a separate experimental 100 MHz package.
-The latter samples the bidirectional DQ pads with phase-shifted fabric
-registers because the pinned OSS packer cannot put DDR input registers on
-those pads. The 100 MHz build has a four-domain timing gate but has not yet
-passed a full hardware scan. `make build-fes-ramtest-130` seals a 130 MHz
-OSS package into `build/fes-ramtest-130/` with `toolchains/ramtest-130.lock`;
+interface, and gamepad interface. Its OSS builds support 100 and 130 MHz only;
+`make build-fes-ramtest-100` writes `build/fes-ramtest-100/core.rbf`.
+After execution release it pattern-tests the SDRAM addon and an HPS DDR
+window and prints the pattern, address, clock and error count. The SDRAM
+clock pin is the inverted DDR output used by MiSTer controllers. Both OSS
+variants sample the bidirectional DQ pads with phase-shifted fabric registers
+because the pinned OSS packer cannot put DDR input registers on those pads.
+The 100 MHz build has a four-domain timing gate; exact-artifact
+hardware results are recorded in the [core README](../cores/fes-ramtest/README.md).
+`make build-fes-ramtest-130` seals a 130 MHz OSS package into
+`build/fes-ramtest-130/` with `toolchains/ramtest-130.lock`;
 its nextpnr carries the dual 130 MHz PLL profile and the calibrated placement
 delay prediction that closes the memory clock.
 `make build-fes-ramtest-quartus` compiles a fixed 130 MHz diagnostic with
