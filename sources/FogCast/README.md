@@ -10,6 +10,16 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- Library `fes.computer` 1.0 packages (the Apple II pathfinder, `fes.apple2`)
+  launch as ordinary `fpga_native` sessions. A format-3 package links its
+  selected `firmware` ROM at download. A shell with the optional
+  `fes.expansion.apple2-bus` selects one card per physical slot through
+  `GET`/`PUT /api/v1/library/core-entries/{game_id}/expansions[/{slot}]`;
+  launch links the ROM and cards on the host, the target relinks them
+  independently and calls the runtime's multi-slot load. See
+  [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
+  Host tests only; no Apple II kit evidence exists yet.
+
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
   for two independent digital controllers and optional `fes.keypad.ports` 1.0
   for two twelve-key keypads. The existing session input event accepts

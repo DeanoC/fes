@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 // InspectCore sends one bounded package to the target runtime's read-only
@@ -105,7 +106,8 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	if err := decodeResponse(response, &status); err != nil {
 		return protocol.Status{}, err
 	}
-	if !validCorePackageStatus(status) || (composed && status.CorePackage.Composition == nil) || (!composed && status.CorePackage.Composition != nil && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
+	singleComposed, slotComposed := status.CorePackage != nil && status.CorePackage.Composition != nil, status.CorePackage != nil && status.CorePackage.SlotComposition != nil
+	if !validCorePackageStatus(status) || (composed && singleComposed == slotComposed) || (!composed && (singleComposed || slotComposed) && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
 	return status, nil
@@ -127,6 +129,19 @@ func validCorePackageStatus(status protocol.Status) bool {
 	}
 	if value.MediaStream != nil && !protocol.MediaStreamCapable(value) {
 		return false
+	}
+	if value.Composition != nil && value.SlotComposition != nil {
+		return false
+	}
+	if c := value.SlotComposition; c != nil {
+		if id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256); err != nil || id != c.ID || c.PackageID != value.PackageID {
+			return false
+		}
+	}
+	for index, unit := range value.MediaUnits {
+		if !unit.Valid() || (index > 0 && value.MediaUnits[index-1].Unit >= unit.Unit) {
+			return false
+		}
 	}
 	if !lowerHex(value.PackageID, 64) || value.Generation == 0 || value.ABI.ID == "" ||
 		value.ABI.Major == 0 || !lowerHex(value.BuildID, 32) ||

@@ -387,6 +387,17 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		slots, err := s.composeSlotEntry(ctx, entry, inspection, data)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
+		if slots != nil {
+			transport, err := slots.Write()
+			if err != nil {
+				return coreLoadSource{}, slotExpansionUnavailable()
+			}
+			return coreLoadSource{size: int64(len(transport)), body: bytes.NewReader(transport), entry: &entry, slotComposition: &slots.Composition}, nil
+		}
 		bundle, err := s.composeCoreEntry(ctx, entry, data)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -531,9 +542,12 @@ type coreLoadSource struct {
 	romSourceSize  int64
 	expansionID    string
 	composition    *expansion.Composition
-	size           int64
-	body           io.Reader
-	entry          *catalog.CoreEntry
+	// slotComposition is the v2 tuple the host linked for a multi-socket
+	// shell; the target's independent composition must equal it.
+	slotComposition *expansion.SlotComposition
+	size            int64
+	body            io.Reader
+	entry           *catalog.CoreEntry
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

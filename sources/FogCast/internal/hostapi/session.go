@@ -1517,6 +1517,14 @@ func cloneCorePackageStatus(value *protocol.CorePackageStatus) *protocol.CorePac
 		stream := *value.MediaStream
 		copy.MediaStream = &stream
 	}
+	if value.SlotComposition != nil {
+		slots := *value.SlotComposition
+		slots.Expansions = append(slots.Expansions[:0:0], value.SlotComposition.Expansions...)
+		copy.SlotComposition = &slots
+	}
+	if value.MediaUnits != nil {
+		copy.MediaUnits = append([]protocol.MediaUnitStatus(nil), value.MediaUnits...)
+	}
 	return &copy
 }
 

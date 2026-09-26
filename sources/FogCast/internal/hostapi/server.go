@@ -72,6 +72,8 @@ type gameResult struct {
 	ROMMediaID       string              `json:"rom_media_id,omitempty"`
 	ExpansionReady   bool                `json:"expansion_ready,omitempty"`
 	FirmwareReady    bool                `json:"firmware_ready,omitempty"`
+	// SlotExpansions lists a multi-socket title's selected cards and readiness.
+	SlotExpansions []protocol.SlotExpansionStatus `json:"slot_expansions,omitempty"`
 	// ReadyHere is set only when a mesh execute session is installed.
 	// Nil omits the field and leaves Phase 0 composition Ready.
 	ReadyHere  *bool  `json:"ready_here,omitempty"`

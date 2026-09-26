@@ -97,6 +97,11 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 				}
 			}
 		}
+		slots, err := s.slotCompositionFor(ctx, entry)
+		if err != nil {
+			return nil, err
+		}
+		comp.SlotExpansions = slots
 		if inspection.Descriptor.Format == 4 && inspectErr == nil {
 			out[id] = comp
 			continue

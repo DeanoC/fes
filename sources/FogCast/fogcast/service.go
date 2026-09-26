@@ -803,7 +803,7 @@ func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, er
 // play profile. Unknown or empty ABIs stay on the Diagnostic development path.
 func RecognizedPlayABI(id string, major, minor int64) bool {
 	switch id {
-	case "fes.simple-computer", "fes.simple-game", "fes.application":
+	case "fes.simple-computer", "fes.simple-game", "fes.application", "fes.computer":
 		return major == 1 && minor == 0
 	default:
 		return false
@@ -1659,7 +1659,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		if err != nil {
 			return protocol.Status{}, err
 		}
-		if selected.composition != nil {
+		if selected.composition != nil || (selected.slotComposition != nil && selected.romID == "") {
 			composed, ok := client.(interface {
 				LoadComposedCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
 			})

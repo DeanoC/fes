@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 11
+const schemaVersion = 12
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -186,6 +186,20 @@ CREATE TABLE core_entry_roms (
 PRAGMA user_version = 11;
 `
 
+// Schema 12 records each imported card's physical slot (0 for single-socket
+// expansions) and a title's per-slot selections for multi-socket shells.
+// Existing expansions and single-expansion selections are unchanged.
+const schemaV12 = `
+ALTER TABLE core_expansions ADD COLUMN slot_index INTEGER NOT NULL DEFAULT 0 CHECK (slot_index BETWEEN 0 AND 7);
+CREATE TABLE core_entry_slot_expansions (
+  game_id TEXT NOT NULL REFERENCES core_entries(game_id) ON DELETE CASCADE,
+  slot INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 7),
+  expansion_id TEXT NOT NULL REFERENCES core_expansions(expansion_id),
+  PRIMARY KEY(game_id, slot)
+);
+PRAGMA user_version = 12;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -294,6 +308,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 10 {
 		if _, err := connection.ExecContext(ctx, schemaV11); err != nil {
 			return fmt.Errorf("apply catalog schema version 11: %w", err)
+		}
+		version = 11
+	}
+	if version == 11 {
+		if _, err := connection.ExecContext(ctx, schemaV12); err != nil {
+			return fmt.Errorf("apply catalog schema version 12: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

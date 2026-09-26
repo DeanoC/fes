@@ -159,7 +159,7 @@ func (client *Client) loadInitialized(ctx context.Context, path, packageID, root
 	}
 	if response.OK && (response.State != "running_development" ||
 		response.Execution != "development" || response.ActivePackage == nil ||
-		response.ActivePackage.PackageID != packageID || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
+		response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, nil
@@ -215,7 +215,7 @@ func (client *Client) LoadROMLinkedCore(ctx context.Context, path, packageID, ro
 	}
 	if response.OK && (response.State != "running_development" ||
 		response.Execution != "development" || response.ActivePackage == nil ||
-		response.ActivePackage.PackageID != packageID || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLink, &identity)) {
+		response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLink, &identity)) {
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, nil
@@ -285,7 +285,7 @@ func (client *Client) LoadROMLinksLinkedCore(ctx context.Context, path, packageI
 		}
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
-	if response.OK && (response.State != "running_development" || response.Execution != "development" || response.ActivePackage == nil || response.ActivePackage.PackageID != packageID || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLinks, &identity)) {
+	if response.OK && (response.State != "running_development" || response.Execution != "development" || response.ActivePackage == nil || response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLinks, &identity)) {
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, nil
@@ -334,7 +334,7 @@ func (client *Client) loadCoreWithComposition(ctx context.Context, path, package
 	}
 	if response.OK && (response.State != "running_development" ||
 		response.Execution != "development" || response.ActivePackage == nil ||
-		response.ActivePackage.PackageID != packageID || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
+		response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
 		return Protocol2Response{}, before, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, before, nil
@@ -416,7 +416,7 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 	}
-	capabilities, err := exactRawObject(object["capabilities"], []string{"programming_profiles", "abis", "active_interfaces"}, []string{"media_stream", "rom_linking"})
+	capabilities, err := exactRawObject(object["capabilities"], []string{"programming_profiles", "abis", "active_interfaces"}, []string{"media_stream", "rom_linking", "media_units"})
 	if err != nil {
 		return err
 	}
@@ -440,6 +440,23 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 		if err := validateSupportedInterfaceShape(stream["interface"]); err != nil {
+			return err
+		}
+	}
+	if raw, ok := capabilities["media_units"]; ok {
+		if err := requireRawKind(raw, rawArray); err != nil {
+			return err
+		}
+		if err := eachRaw(raw, func(item json.RawMessage) error {
+			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, nil)
+			if err != nil {
+				return err
+			}
+			if err := requireRawKinds(unit, map[string]rawKind{"unit": rawUnsigned, "interface": rawObject, "min_bytes": rawUnsigned, "max_bytes": rawUnsigned, "chunk_bytes": rawUnsigned, "state": rawString}); err != nil {
+				return err
+			}
+			return validateSupportedInterfaceShape(unit["interface"])
+		}); err != nil {
 			return err
 		}
 	}
@@ -505,11 +522,7 @@ func validateProtocol2Shape(line []byte) error {
 			}
 		}
 		if value, ok := active["composition"]; ok && !isNull(value) {
-			tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "expansion_id", "shell_sha256", "payload_sha256", "payload_size"}, nil)
-			if err != nil {
-				return err
-			}
-			if err := requireRawKinds(tuple, map[string]rawKind{"composition_id": rawString, "package_id": rawString, "expansion_id": rawString, "shell_sha256": rawString, "payload_sha256": rawString, "payload_size": rawUnsigned}); err != nil {
+			if err := validateCompositionShape(value); err != nil {
 				return err
 			}
 		}
@@ -569,6 +582,36 @@ func validateProtocol2Shape(line []byte) error {
 		}
 	}
 	return nil
+}
+
+// validateCompositionShape accepts the single-socket v1 tuple or the
+// multi-slot v2 tuple, whose expansions array replaces expansion_id.
+func validateCompositionShape(value json.RawMessage) error {
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(value, &probe); err != nil {
+		return err
+	}
+	if _, slots := probe["expansions"]; slots {
+		tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "expansions", "shell_sha256", "payload_sha256", "payload_size"}, nil)
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(tuple, map[string]rawKind{"composition_id": rawString, "package_id": rawString, "expansions": rawArray, "shell_sha256": rawString, "payload_sha256": rawString, "payload_size": rawUnsigned}); err != nil {
+			return err
+		}
+		return eachRaw(tuple["expansions"], func(item json.RawMessage) error {
+			fields, err := exactRawObject(item, []string{"slot", "expansion_id"}, nil)
+			if err != nil {
+				return err
+			}
+			return requireRawKinds(fields, map[string]rawKind{"slot": rawUnsigned, "expansion_id": rawString})
+		})
+	}
+	tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "expansion_id", "shell_sha256", "payload_sha256", "payload_size"}, nil)
+	if err != nil {
+		return err
+	}
+	return requireRawKinds(tuple, map[string]rawKind{"composition_id": rawString, "package_id": rawString, "expansion_id": rawString, "shell_sha256": rawString, "payload_sha256": rawString, "payload_size": rawUnsigned})
 }
 
 func validateDescriptorShape(raw json.RawMessage) error {
@@ -897,6 +940,9 @@ func validProtocol2Response(response Protocol2Response) bool {
 			return false
 		}
 	}
+	if len(response.Capabilities.MediaUnits) != 0 && !validMediaUnits(response) {
+		return false
+	}
 	if response.CoreData != nil && !response.CoreData.Valid() {
 		return false
 	}
@@ -1004,7 +1050,68 @@ func validSupportedInterfaces(interfaces []Protocol2Interface) bool {
 	return true
 }
 
+// validMediaUnits admits live unit reports only for an active fes.computer
+// generation. Units are ascending and unique, and each interface is active.
+func validMediaUnits(response Protocol2Response) bool {
+	active := response.ActivePackage
+	if active == nil || !positive(response.Generation) ||
+		!protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		return false
+	}
+	for index, unit := range response.Capabilities.MediaUnits {
+		if !unit.Valid() || (index > 0 && response.Capabilities.MediaUnits[index-1].Unit >= unit.Unit) {
+			return false
+		}
+		found := false
+		for _, contract := range response.Capabilities.ActiveInterfaces {
+			if contract.ID == unit.Interface.ID && contract.Major == unit.Interface.Major && contract.Minor == unit.Interface.Minor {
+				found = true
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// validSlotComposition binds a v2 tuple to an exact fes.computer 1.0 shell
+// declaring the optional Apple II slot bus; every slot is a physical socket.
+func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePackage) bool {
+	id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
+	if err != nil || id != c.ID || c.PackageID != active.PackageID || !protocol2Hex64.MatchString(c.ShellSHA256) ||
+		c.ShellSHA256 != active.Descriptor.Payload.SHA256 || c.PayloadSize < 40408 || c.PayloadSize > corepackage.MaxPayloadSize ||
+		active.PersistenceMode == "persistent" || !protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		return false
+	}
+	bus := false
+	for _, i := range active.Descriptor.Interfaces {
+		switch i.ID {
+		case expansion.Apple2Slot:
+			bus = i.Major == 1 && i.Minor == 0 && !i.Required
+		case expansion.Slot, expansion.ColecoSlot:
+			return false
+		}
+	}
+	if !bus {
+		return false
+	}
+	sockets := map[int]bool{}
+	for _, socket := range expansion.SlotSockets(expansion.Apple2Slot, expansion.Apple2Map) {
+		sockets[socket] = true
+	}
+	for _, e := range c.Expansions {
+		if !sockets[e.Slot] {
+			return false
+		}
+	}
+	return true
+}
+
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
+	if c := active.SlotComposition; c != nil && (active.Composition != nil || !validSlotComposition(*c, active)) {
+		return false
+	}
 	if active.Descriptor.Format == 4 {
 		if capabilities.ROMLinking != 1 || active.ROMLinks == nil || !active.ROMLinks.ValidFor(active.Descriptor) || active.ROMLink != nil {
 			return false

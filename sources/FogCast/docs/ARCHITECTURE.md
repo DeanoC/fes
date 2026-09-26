@@ -1476,6 +1476,71 @@ conflict responses, and unexpected storage failures remain internal errors.
 Malformed archives or incompatible compositions are rejected as admission
 errors.
 
+### Home-computer packages and slot cards
+
+`fes.computer` 1.0 (the Apple II pathfinder, `fes.apple2`) is a recognized
+play ABI. Its package declares required fixed video, `fes.keyboard.hid`,
+`fes.gamepad.ports`, stereo audio and `fes.media.apple2-floppy`, and may be
+format 3 with one `firmware` ROM linked at download. The optional
+`fes.expansion.apple2-bus` 1.0 is a multi-socket bus (`fes.apple2-bus.slots/1`,
+physical slots 2, 4, 5 and 7), not a capability bit.
+
+`catalog/core_slot_expansions.go` stores one card per `(game_id, slot)` (schema
+12); `fogcast/core_slot_expansions.go` validates import against the installed
+shell (`corepackage.ValidateSlotCards`: shell binding, physical socket and one
+trial link), exposes compare-and-swap selection and reports per-card readiness
+in library `slot_expansions`. Launch reads every selected card before target
+contact; a missing or incompatible card is an admission error, so no Stop or
+programming follows.
+
+Launch links on the host first. Format 3 uses `corepackage.PrepareROMInput`,
+which runs `expansion.ComposeSlotsROM` and records the v2 composition and
+programmed digest in the `rom-link.json` receipt beside ascending
+`slot-N.tar` members. A ROM-less shell sends `corepackage.SlotCompositionBundle`
+(`slot-composition.json`, `package.tar`, `slot-N.tar`, `linked.rbf`) through
+the existing compose route. The agent's `corepackage.StageROMInput` /
+`StageComposition` relink independently and refuse different evidence, then
+publish the shell, one `slot-N-<publication>` directory per card (exactly
+`manifest.json` and `cart.rbf`) and `composition-<publication>/linked.rbf`.
+Restart adoption relinks those retained members. `internal/misterruntime/slots.go`
+sends the runtime v2 form of `load_rom_composed_core` / `load_composed_core`
+(also `load_initialized_composed_core`, which no producer uses yet):
+
+```json
+{"protocol":2,"operation":"load_rom_composed_core","package_path":"…","package_id":"…",
+ "expansions":[{"slot":2,"path":"…/slot-2-…"},{"slot":7,"path":"…/slot-7-…"}],
+ "payload_path":"…/composition-…/linked.rbf",
+ "composition":{"composition_id":"…","package_id":"…","expansions":[{"slot":2,"expansion_id":"…"},{"slot":7,"expansion_id":"…"}],
+  "shell_sha256":"…","payload_sha256":"…","payload_size":N},
+ "programmed_path":"…/rom-link-…/programmed.rbf","rom_link":{…}}
+```
+
+The runtime reports the same v2 object under `active_package.composition`;
+`Protocol2ActivePackage` decodes it into `SlotComposition` and the agent
+publishes it as `core_package.slot_composition`. The v2 tuple is valid only
+for an exact `fes.computer` 1.0 shell with the optional bus, every slot a
+physical socket, a recomputed `fes-composition-v2` identity and volatile
+persistence. With no card selected the load is the ordinary
+`load_rom_library_core`. Single-socket ZX81 and Coleco v1 tuples are unchanged.
+
+`internal/misterruntime/computer.go` is the protocol-2 client for the other
+`fes.computer` operations. Each request is bound to the exact active package
+generation and each reply must report that same `fes.computer` generation:
+
+```json
+{"protocol":2,"operation":"set_keyboard_hid","package_id":"…","expected_generation":N,"rows":[r0,r1,r2,r3,r4,r5,r6,r7,r8]}
+{"protocol":2,"operation":"insert_media","path":"…/media.bin","expected_package_id":"…","expected_generation":N,"unit":0,"size":143360}
+{"protocol":2,"operation":"eject_media","expected_package_id":"…","expected_generation":N,"unit":0}
+```
+
+Rows are nine 16-bit values; row 0 bits 0..3 and row 8 bits 8..15 must be
+zero. `set_controller` is unchanged and carries `keypad:0` for these packages.
+Status may report `capabilities.media_units`
+(`[{"unit":0,"interface":{"id":"fes.media.apple2-floppy","major":1,"minor":0},"min_bytes":143360,"max_bytes":143360,"chunk_bytes":512,"state":"empty|loading|ready"}]`);
+the decoder accepts it only for an active `fes.computer` generation whose
+interface is active, ascending and unique by unit, and exact for the known
+floppy interface. The agent publishes it as `core_package.media_units`.
+
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented
 operational interface is declared required; omitting input creates an autonomous

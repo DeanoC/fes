@@ -331,6 +331,10 @@ host and target independently link selected expansion assets; the runtime
 programs the checked payload while retaining the original shell identity.
 No compiler runs during launch. Physical acceptance applies only to the
 artifacts in the linked validation records, not every future package or image.
+The `fes.computer` Apple II shell extends the expansion slot to several
+physical sockets: a title selects one card per slot and launch links the
+selected firmware ROM and every card into one programmed image (see
+[Apple II slot cards](core-package-library.md#apple-ii-slot-cards)).
 The sofa/tenfoot household BIOS picker is implemented, while exact-kit
 evidence remains tied to named validation records. Physical acceptance applies
 only to those artifacts, not every future package or image.
