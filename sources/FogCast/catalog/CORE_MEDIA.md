@@ -29,7 +29,9 @@ comparable values expose IDs and metadata, never filesystem paths:
 - These streaming operations use O(chunk) memory. ImportCoreMedia(ctx, data)
   and CoreMedia(ctx, id) remain allocating compatibility/test helpers.
 - CreateCoreMediaEntry(ctx, title, coreID, packageID, mediaRole, mediaID)
-  returns (CoreEntry, error). A selection is either ("blob", digest) or ("", "").
+  returns (CoreEntry, error). A selection is ("blob", digest), ("disk", digest)
+  for a `fes.computer` removable disk, or ("", ""). The catalog checks only the
+  role name; the service checks the package's declared role and size.
   Referenced bytes must exist and pass integrity validation in the transaction.
 - SelectCoreEntryMedia(ctx, gameID, expectedPackageID, expectedMediaID,
   mediaRole, mediaID) returns (CoreEntry, error). Both expected IDs must match;
@@ -59,6 +61,19 @@ chunks, incorrect full-chunk/tail lengths, invalid total size, and digest
 mismatch. SQL CASE expressions bound each blob before it reaches the driver.
 Entry creation and media selection use the streaming verifier in their existing
 transactions. Failed imports roll back all rows and close/remove temporary files.
+
+Schema 12 adds `slot_index` to imported expansions (0 for single-socket
+carts) and `core_entry_slot_expansions`, one card per `(game_id, slot)` for
+multi-socket shells. `SelectCoreEntrySlotExpansion(ctx, gameID, packageID,
+slot, expected, expansionID)` is compare-and-swap on that slot: the entry must
+still select the package, the slot's current card must equal `expected`, and a
+new card must be imported for that shell and slot. Single-expansion rows and
+their API are unchanged.
+
+Schema 13 admits the `disk` role. SQLite cannot change a CHECK constraint, so
+the migration rebuilds `core_entries` on the migration connection with foreign
+keys off (a DROP would otherwise cascade into child selections), then runs
+`foreign_key_check` before commit and restores foreign keys.
 
 Favorites and play history are owned by libraryuser and keyed by stable GameID.
 Catalog migration and selection preserve that identity. Service, API, CLI, and
