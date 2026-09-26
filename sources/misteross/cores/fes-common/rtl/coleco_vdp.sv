@@ -658,9 +658,13 @@ module coleco_vdp (
                             end
                         end else begin
                             sprite_render_col <= sprite_render_col + 1'b1;
+                            // Fetch this pixel's occupancy before deciding
+                            // priority; the previous write result is stale.
+                            sprite_eval_state <= SPRITE_RENDER_READ;
                         end
                     end else begin
                         sprite_render_rep <= sprite_render_rep + 1'b1;
+                        sprite_eval_state <= SPRITE_RENDER_READ;
                     end
                 end
 
