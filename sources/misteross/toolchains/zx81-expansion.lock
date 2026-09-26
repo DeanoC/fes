@@ -12,9 +12,9 @@ rationale = "DeanoC fork master with the indexed-node routing API and the fixes 
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "f65075bbc253b7c99e8b96169f4bc85320038329"
+commit = "267710a3d8707ca10c23e259be74f187ac54482b"
 order = 30
-rationale = "DeanoC nextpnr main f65075bb after mistral-stable was merged into it and retired: adds analogue-scored candidate selection and robust analogue repair rounds for the GPU router (PR #81), the exact-search repair check (PR #82) and the port to the indexed-node Mistral API (PR #83, fixes DeanoC/fes#229) on top of everything below. Pair with Mistral 7ed06e21 (required). Previous pin: Reviewed nextpnr PR #73 preserves explicit socket clocks, bound shell RAM/constants, correct BUF LUT emission, validated complete pin/LAB snapshots and isolated frozen LAB placement. Revision 74f26cc1 adds a physical routing-mux CRAM fence and local cart constant drivers. The real sealed ZX81 shell plus RAM cart passes HIP routing, both declared clocks, identical header and zero outside-slot non-CRC differences. Published scoped feature revision; hardware acceptance is separate. Requires Mistral 18db248 and Yosys ec34fcf3. Default and registered-memory lanes remain separately pinned."
+rationale = "Scoped FES #237 fix on f65075bb: preserve frozen routing mux selections outside the socket and their upstream paths through cartridge cleanup; reject missing, replaced or reassigned selections before RBF emission. Routed-design checks retain connected locked physical branches. Retained ZX81 replay passes both clocks, identical header and zero outside-slot CRAM changes with the fixed 1769,32,2806,7024 rectangle. Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Default and other core locks remain separately pinned; hardware acceptance is separate."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

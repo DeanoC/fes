@@ -278,6 +278,37 @@ class ZX81CartPublicationTests(unittest.TestCase):
         }}
         self.assertTrue(self.build().is_file())
 
+    def test_outside_cram_bit_rejects_before_overlay_and_removes_old_publication(self):
+        previous = self.build()
+        cart_producer.overlay_cram.reset_mock()
+        cart_producer.classify_cram_diff.return_value = {
+            "bits_inside_slot": 180212, "bits_outside_slot": 1,
+            "outside_slot_coordinates": [[1647, 132]],
+            "outside_slot_coordinates_truncated": False,
+        }
+        with self.assertRaisesRegex(ValueError, "cart changes outside reserved slot.*1647, 132"):
+            self.build()
+        cart_producer.overlay_cram.assert_not_called()
+        self.assertFalse(previous.exists())
+        self.assertFalse((self.output / "linked.rbf").exists())
+        self.assertFalse((self.output / "build-summary.json").exists())
+
+    def test_changed_header_rejects_before_overlay_and_removes_old_publication(self):
+        previous = self.build()
+        cart_producer.overlay_cram.reset_mock()
+        cart_producer.classify_cram_diff.reset_mock()
+        cart_producer.rbf_load.side_effect = [
+            SimpleNamespace(header=b"shell header"),
+            SimpleNamespace(header=b"changed header"),
+        ]
+        with self.assertRaisesRegex(ValueError, "cart changes shell ORAM/PRAM header"):
+            self.build()
+        cart_producer.classify_cram_diff.assert_not_called()
+        cart_producer.overlay_cram.assert_not_called()
+        self.assertFalse(previous.exists())
+        self.assertFalse((self.output / "linked.rbf").exists())
+        self.assertFalse((self.output / "build-summary.json").exists())
+
     def test_missing_wrong_or_failing_clock_cannot_publish(self):
         good = copy.deepcopy(self.timing)
         cases = []

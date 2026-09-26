@@ -999,6 +999,10 @@ Diagnostic 904–907 remains an HPS bench and does not seal
 for each routing mux's physical configuration bits; nominal wire/tile locations
 do not determine those bits for long wires. Existing shell pip selections remain
 fixed, and new muxes must fit the rectangle, including shared-net branches.
+Outside-rectangle frozen muxes and their upstream paths also survive orphan
+cleanup after vacant response inputs are detached. The compiler retains their
+original net ownership and rejects missing or changed protected selections
+before emitting the RBF; unused in-socket branches can still be removed.
 Surviving cart constant inputs use local slot LUT drivers after control folding,
 so they do not depend on extending distant shell constant trees. Publication
 still compares the complete emitted header and CRAM against the original sealed
