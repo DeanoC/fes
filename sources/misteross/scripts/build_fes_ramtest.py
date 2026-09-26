@@ -67,9 +67,8 @@ OUTPUT_100 = Path("build/fes-ramtest-100")
 OUTPUT_130 = Path("build/fes-ramtest-130")
 TOOLCHAIN_LOCK_130 = "toolchains/ramtest-130.lock"
 TOOLCHAIN_ROOT_130 = Path("build/toolchain-ramtest-130")
-NEXTPNR_130 = "50a2832eca88f73fe02c28e763e89f0a9d68a036"
-# ramtest-130.lock keeps the rnode_t-era Mistral that nextpnr 50a2832e builds against.
-MISTRAL_130 = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
+# ramtest-130.lock differs from toolchain.lock only in its current Yosys.
+YOSYS_130 = "1bf1ff3d709dc8182cfa61701620d87181516941"
 MEMORY_PLL_100 = {
     "duty_cycle0": "00000000000000000000000000110010",
     "duty_cycle1": "00000000000000000000000000110010",
@@ -112,7 +111,7 @@ def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
         return board._authenticate_tools(
             root, lock_path=root / TOOLCHAIN_LOCK_130,
             toolchain_root=root / TOOLCHAIN_ROOT_130,
-            expected_commits={**board.EXPECTED_TOOL_COMMITS, "mistral": MISTRAL_130, "nextpnr": NEXTPNR_130},
+            expected_commits={**board.EXPECTED_TOOL_COMMITS, "yosys": YOSYS_130},
             cache_root=cache_root,
         )
     return board._authenticate_tools(root, cache_root=cache_root)

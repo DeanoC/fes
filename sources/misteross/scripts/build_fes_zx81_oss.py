@@ -23,7 +23,7 @@ TOP = 'top'
 OUTPUT_RELATIVE = Path('build/fes-zx81-oss')
 SOCKET_OUTPUT_RELATIVE = OUTPUT_RELATIVE
 SOCKET_TOOLCHAIN_LOCK = 'toolchains/zx81-expansion.lock'
-SOCKET_TOOL_COMMITS = {'yosys': 'ec34fcf38986217af9b5558936044b7197d968a7', 'mistral': '7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039', 'nextpnr': '267710a3d8707ca10c23e259be74f187ac54482b'}
+SOCKET_TOOL_COMMITS = {'yosys': 'ec34fcf38986217af9b5558936044b7197d968a7', 'mistral': '7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039', 'nextpnr': 'a93fe013af841214ecb4f7be3af0de65f3de3a0f'}
 # SHA256 of Git blobs at SOCKET_TOOL_COMMITS['mistral']; source checkouts are
 # mutable and are not part of FunctionalInvocation's installed support closure.
 ROM_DATABASE_SHA256 = {

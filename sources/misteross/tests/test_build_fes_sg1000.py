@@ -145,7 +145,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(SG1000_TOOLCHAIN_ROOT, "build/toolchain/fes-sg1000")
         self.assertIn(SG1000_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
         self.assertEqual(SG1000_TOOL_COMMITS["yosys"], "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
-        self.assertEqual(SG1000_TOOL_COMMITS["nextpnr"], "5dea3ecd5062f1187d0b4f04a56139d5f8680cf7")
+        self.assertEqual(SG1000_TOOL_COMMITS["nextpnr"], "a93fe013af841214ecb4f7be3af0de65f3de3a0f")
         pins = load_lock(ROOT / SG1000_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
         self.assertEqual(SG1000_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
@@ -153,7 +153,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(pins["nextpnr"].commit, SG1000_TOOL_COMMITS["nextpnr"])
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "fb879d81e0352f558297bdcc61bc7a4a922fa7b0")
-        self.assertEqual(global_pins["nextpnr"].commit, "469b6670c38aa89c1f1c3b0e296868f7d9846003")
+        self.assertEqual(global_pins["nextpnr"].commit, "a93fe013af841214ecb4f7be3af0de65f3de3a0f")
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",

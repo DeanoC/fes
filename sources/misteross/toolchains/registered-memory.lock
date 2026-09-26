@@ -2,19 +2,19 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "e2d425dee148cc60c50f4e9b354a10d90eab15f4"
 order = 10
-rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de: SYNC SDP/TDP libmap cells so Coleco 256x4 sprite line banks keep a live CLK2 without CFG_ASYNC_READ). On ec34fcf3. Feature commits a7671c03 and 42e99880. Pair with nextpnr 5dea3ecd and unchanged Mistral b28e30a; this core-local lock is the Coleco HIP slot."
+rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de: SYNC SDP/TDP libmap cells so Coleco 256x4 sprite line banks keep a live CLK2 without CFG_ASYNC_READ). On ec34fcf3. Feature commits a7671c03 and 42e99880. Pair with nextpnr a93fe013 and Mistral 7ed06e21; SG-1000 and the Coleco OSS lane select this lock."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
-commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
+commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
 order = 20
-rationale = "DeanoC fork for the Coleco OSS lane: nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing including byte masks and mixed-width TDP into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses; fixed commit."
+rationale = "Indexed-node Mistral master required by nextpnr a93fe013 (rnode_unlink, timing target-position mask, hashed pnode/rnode lookups: PRs #9, #10). Carries the b28e30a M10K/PLL surface the SG-1000 and Coleco OSS lanes use, and the same ROM database digests as toolchains/fes-sms.lock. Previous pin: b28e30a."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "5dea3ecd5062f1187d0b4f04a56139d5f8680cf7"
+commit = "a93fe013af841214ecb4f7be3af0de65f3de3a0f"
 order = 30
-rationale = "GPU-router analogue signoff repair (merged PR #75 5dea3ecd onto mistral-stable 371f930a): after routing, Mistral times the design with the analogue model and re-routes near-critical nets against observed per-pip analogue delays; designs that already meet signoff are unchanged. Also reserves Arch-bound wires for their net during incremental GPU routes. Keeps the delay-only repair restore of PR #71 0fad53a7, design-WNS repair from PR #70 and narrow TDP from PR #67. Pair with Yosys e2d425de and Mistral b28e30a. The GPU device backend is enabled separately for this core-local HIP build."
+rationale = "DeanoC nextpnr main a93fe013, the merge of PR #86: Mistral placement prediction calibrated against routed delays (LAB exit cost, row change, dedicated carry and same-half LUT/FF paths). RAM130 closes 130 MHz on seed 2 and 30 of 32 seeds (DeanoC/fes#236); SMS and ZX81 improve, Coleco is neutral and SG-1000 passes fewer seeds at 16. Pair with Mistral 7ed06e21 (required). Previous pin 5dea3ecd: GPU-router analogue signoff repair (merged PR #75 5dea3ecd onto mistral-stable 371f930a): after routing, Mistral times the design with the analogue model and re-routes near-critical nets against observed per-pip analogue delays; designs that already meet signoff are unchanged. Also reserves Arch-bound wires for their net during incremental GPU routes. Keeps the delay-only repair restore of PR #71 0fad53a7, design-WNS repair from PR #70 and narrow TDP from PR #67. Pair with Yosys e2d425de and Mistral b28e30a. The GPU device backend is enabled separately for this core-local HIP build."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

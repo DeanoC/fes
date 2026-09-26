@@ -1,21 +1,20 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "fb879d81e0352f558297bdcc61bc7a4a922fa7b0"
+commit = "1bf1ff3d709dc8182cfa61701620d87181516941"
 order = 10
-rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). Feature fb879d81 adds the cyclonev_hps_interface_fpga2sdram blackbox on that pin. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 50a2832e; local feature revision, not a merged upstream release."
+rationale = "DeanoC main sampled 2026-09-26. CMake build with registered and flow-through M10K mapping and merged cyclonev_hps_interface_fpga2sdram support. Pair with nextpnr a93fe013."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
-commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
+commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
 order = 20
-rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing including byte masks and mixed-width TDP into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corrected timing target-position mask and hashed node lookups (PRs #9-10). Same pin as toolchain.lock; pair with nextpnr a93fe013."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "50a2832eca88f73fe02c28e763e89f0a9d68a036"
+commit = "a93fe013af841214ecb4f7be3af0de65f3de3a0f"
 order = 30
-rationale = "Local feature commit adds a Quartus 17.0.2 checked dual 130 MHz PLL profile and 6.538 ns capture phase to the 49ab82f5 FES baseline. Pair with Yosys fb879d81 and Mistral b28e30a. The feature revision must be published before remote bootstrap."
-
+rationale = "DeanoC nextpnr main a93fe013, the merge of PR #86 (DeanoC/fes#236): dual 130 MHz PLL with 6538 ps capture phase, HPS fpga2sdram, analogue-scored GPU repair, soft-plateau finish (#84), frozen CRAM routes (#85) and the calibrated Mistral placement prediction. Without the prediction, seed 2 misses the 130 MHz memory clock at 128.16 MHz; with it, 30 of 32 seeds close. Pair with Yosys 1bf1ff3d and Mistral 7ed06e21."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

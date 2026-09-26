@@ -20,7 +20,7 @@ top, Quartus pins and the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sms` is the OSS Yosys/nextpnr-mistral producer using the
-Coleco compatibility lock (Yosys `e2d425de`, nextpnr `5dea3ecd`). `fes.sms`
+`toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `a93fe013`). `fes.sms`
 is registered for package-only parent builds and is not in the factory image.
 
 ## Implemented slice
@@ -173,7 +173,7 @@ It authenticates the selected Mistral ROM database, verifies all 32 routed
 blank M10K lanes and seals `rom-map.json` with `core.rbf`. The kit uses the Go
 linker; Python is needed only on the build machine.
 It copies Coleco `clocks-oss.sdc`, selects
-`toolchains/fes-sms.lock` (nextpnr `469b6670`, Mistral `7ed06e21`, Yosys
+`toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys
 `e2d425de`), and uses the SMS
 `constraints-oss.qsf` (Coleco video/I2C pins plus ADV7513 I2S). Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs

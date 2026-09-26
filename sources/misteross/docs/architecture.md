@@ -188,7 +188,10 @@ MiSTer controllers. The default OSS bitstream runs that clock at 50 MHz;
 The latter samples the bidirectional DQ pads with phase-shifted fabric
 registers because the pinned OSS packer cannot put DDR input registers on
 those pads. The 100 MHz build has a four-domain timing gate but has not yet
-passed a full hardware scan. The pinned OSS PLL table stops at 100 MHz.
+passed a full hardware scan. `make build-fes-ramtest-130` seals a 130 MHz
+OSS package into `build/fes-ramtest-130/` with `toolchains/ramtest-130.lock`;
+its nextpnr carries the dual 130 MHz PLL profile and the calibrated placement
+delay prediction that closes the memory clock.
 `make build-fes-ramtest-quartus` compiles a fixed 130 MHz diagnostic with
 Quartus 17.0.2; `RAMTEST_MHZ=100` selects a separate 100 MHz diagnostic.
 Each tests the full SDRAM range at one rate and keeps the six pattern counts
@@ -378,10 +381,9 @@ configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
 slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
 SG-1000 selects `toolchains/registered-memory.lock` (Yosys `e2d425de`,
-nextpnr `5dea3ecd`, Mistral `b28e30a`). SMS selects
-`toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `469b6670`, Mistral
-`7ed06e21`) so `make build-fes-sms` uses the router that ends the seed-3
-plateau. Those two locks are different bytes and different HIP cache slots.
+nextpnr `a93fe013`, Mistral `7ed06e21`). SMS selects
+`toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `a93fe013`, Mistral
+`7ed06e21`), which keeps its own synthesis notes and ROM digests. Those two locks are different bytes and different HIP cache slots.
 Local HIP tools
 come from `make toolchain-fes` for Pong, `make toolchain-fes-zx81` for the
 standard ZX81 socket, `make toolchain-fes-coleco` for
@@ -532,7 +534,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `469b6670` provides those flags after `make toolchain-fes`.
+The locked nextpnr `a93fe013` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -625,11 +627,11 @@ scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
 one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
 recipe uses its core-local lock with Yosys `e2d425de`, nextpnr-mistral
-`5dea3ecd` with `--router gpu`, HeAP timing weight 100, criticality
+`a93fe013` with `--router gpu`, HeAP timing weight 100, criticality
 exponent 5, and `--timing-allow-fail`, and Mistral
-`b28e30a`; the selected toolchain enables the HIP device backend. Default
+`7ed06e21`; the selected toolchain enables the HIP device backend. Default
 place-and-route is first-to-pass: seeds 5, 4, 1, 2, 3, 12, 7 and 10 at
-weight 100, then the same seeds at weights 300 and 1000. nextpnr `5dea3ecd`
+weight 100, then the same seeds at weights 300 and 1000. nextpnr `a93fe013`
 times each GPU route with Mistral's analogue signoff model and re-routes
 near-critical nets when a clock misses, so the table-model and signoff
 results no longer diverge silently.
@@ -661,7 +663,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `469b6670`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -673,7 +675,7 @@ marked as path-specific are not requirements of the other lane.
 | Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
 | PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
-| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `5dea3ecd`, `--router gpu`, seed 5 first (order 5, 4, 1, 2, 3, 12, 7, 10), HeAP timing weight 100 before 300 and 1000, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `a93fe013`, `--router gpu`, seed 5 first (order 5, 4, 1, 2, 3, 12, 7, 10), HeAP timing weight 100 before 300 and 1000, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
 The concrete build entry points are `make build-fes-coleco-quartus` and
 `make build-fes-coleco`; both require a clean source checkout, seal format-2
@@ -685,7 +687,7 @@ request and 28-bit registered response. The response carries direct data,
 claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
 32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
 owns the window-enable and AY register decode. `toolchains/coleco-sgm.lock`
-pins nextpnr `469b6670` with frozen-scaffold BEL admission and bounded slot
+pins nextpnr `a93fe013` with frozen-scaffold BEL admission and bounded slot
 placement. The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
@@ -801,7 +803,7 @@ and timing evidence without sealing.
 
 `make build-fes-sms` is the OSS producer
 (`scripts/build_fes_sms_oss.py`). It uses `toolchains/fes-sms.lock`
-(nextpnr `469b6670` with Mistral `7ed06e21` and Yosys `e2d425de`), SMS `constraints-oss.qsf` (Coleco
+(nextpnr `a93fe013` with Mistral `7ed06e21` and Yosys `e2d425de`), SMS `constraints-oss.qsf` (Coleco
 video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`

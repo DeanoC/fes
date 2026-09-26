@@ -74,8 +74,8 @@ OUTPUT_RELATIVE = Path("build/fes-coleco-oss")
 COLECO_TOOLCHAIN_LOCK = "toolchains/registered-memory.lock"
 COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
 COLECO_TOOL_COMMITS = {
-    "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "5dea3ecd5062f1187d0b4f04a56139d5f8680cf7",
+    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
 RECIPE = "scripts/build_fes_coleco_oss.py"
