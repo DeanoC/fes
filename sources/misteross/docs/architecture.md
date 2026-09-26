@@ -477,6 +477,21 @@ every other outside change. This patch does not enlarge the socket rectangle.
 Changed Coleco frames regenerate their checksums; the existing ZX81 `Link`
 behavior and output remain unchanged.
 
+The Apple II slot bus `fes.expansion.apple2-bus` 1.0 uses the multi-socket
+layout `fes.apple2-bus.slots/1`: physical sockets for slots 2, 4, 5 and 7,
+stacked in placement columns 24–28 at rows 1–18, 21–38, 41–58 and 61–78, with
+disjoint half-open CRAM rectangles `(1769,32,2806,1722)`,
+`(1769,1722,2806,3442)`, `(1769,3442,2806,5162)` and `(1769,5162,2806,6882)`.
+Each card manifest carries `slot_index` (sorted between `slot` and
+`slot_major`); single-socket manifests must omit it. `ComposeSlotsContext`
+links any combination of cards, comparing every card with the original
+shell and admitting its changes only inside its own rectangle, and
+`ComposeSlotsROM` adds the format-3 ROM link, rejecting ROM destinations in
+any socket. The v2 composition ID is SHA256 of `fes-composition-v2`, NUL,
+package ID, NUL, `slot:expansion-id` NUL per card in ascending slot order,
+then the linked-payload SHA256. The single-socket `Compose` path rejects
+multi-socket cards.
+
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
 frames and regenerate the affected EDCRC/CRC16 checksums, preserving other CRAM
