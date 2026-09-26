@@ -83,14 +83,26 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.launcherInput(w, r, config.TargetID)
 			return
 		}
-		a.targetMu.Lock()
-		defer a.targetMu.Unlock()
 		if contentRead {
+			// Ensure calls this listener while Launch holds targetMu. Content
+			// reads name an enabled kit, independent of foreground selection,
+			// so they must not wait for the foreground operation to finish.
 			if !a.launcherMeshContentTarget(r.Header.Get("X-FogCast-Target-ID"), config.TargetID) {
 				writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 				return
 			}
-		} else if a.selectedTargetID() != config.TargetID {
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		// Catalogue reads do not operate the foreground session. Allow them
+		// during Launch; foreground observations and mutations retain the
+		// guard because they can reconcile session state or target settings.
+		catalogueRead := r.Method == http.MethodGet && r.URL.Path == "/api/v1/games"
+		if !catalogueRead {
+			a.targetMu.Lock()
+			defer a.targetMu.Unlock()
+		}
+		if a.selectedTargetID() != config.TargetID {
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 			return
 		}
