@@ -31,7 +31,7 @@ class RecipeRegistryTest(unittest.TestCase):
 
     def assert_existing_descriptors(self):
         self.assertTrue(
-            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000"}
+            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2"}
             <= recipes.FORMAT2_RECIPES.keys())
         expected = {
             "fes.pong": {
@@ -79,6 +79,15 @@ class RecipeRegistryTest(unittest.TestCase):
                 "package_dir_env": "FES_SG1000_PACKAGE_DIR",
                 "package_selection_env": "FES_SG1000_PACKAGE_SELECTION",
             },
+            "fes.apple2": {
+                "producer_script": "scripts/build_fes_apple2_oss.py",
+                "producer_module": "scripts.build_fes_apple2_oss",
+                "lock_path": "toolchains/apple2.lock",
+                "selection_filename": "fes-apple2.package-selection.toml",
+                "authenticate": "_authenticate_apple2_tools",
+                "package_dir_env": "FES_APPLE2_PACKAGE_DIR",
+                "package_selection_env": "FES_APPLE2_PACKAGE_SELECTION",
+            },
         }
         for core_id, fields in expected.items():
             recipe = recipes.recipe_for(core_id)
@@ -93,8 +102,9 @@ class RecipeRegistryTest(unittest.TestCase):
             self.assertEqual(recipe.hip_architectures, "gfx1100;gfx1201")
             self.assertEqual(recipe.selection_filename, fields["selection_filename"])
             self.assertEqual(recipe.cache_root, recipes.TOOLCHAIN_CACHE_ROOT)
-            self.assertEqual(recipe.quartus_role, "check only when a twin exists"
-                             if core_id == "fes.pong" else "bring-up/check oracle")
+            self.assertEqual(recipe.quartus_role, {
+                "fes.pong": "check only when a twin exists",
+                "fes.apple2": "no oracle required"}.get(core_id, "bring-up/check oracle"))
         pong = recipes.recipe_for("fes.pong")
         zx81 = recipes.recipe_for("fes.zx81")
         coleco = recipes.recipe_for("fes.coleco")
