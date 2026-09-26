@@ -26,7 +26,7 @@ data on a shifted clock in the input cells. The 130 MHz path also pipelines
 the captured data before the controller. The controller uses CAS latency 3
 at 130 MHz and CAS latency 2 at 100 MHz. A gamepad button stops a scan.
 
-The 50 MHz OSS build remains a separate path via `make build-fes-ramtest`.
+The OSS builds support 100 and 130 MHz only.
 `make build-fes-ramtest-100` seals a 100 MHz OSS package into
 `build/fes-ramtest-100/` using the pinned HIP nextpnr toolchain. The OSS packer
 does not support DDR input registers on bidirectional DQ pads, so that build
@@ -65,5 +65,7 @@ the bridges are released. The SDRAM addon does not need that release.
 `make sim-fes-ramtest` runs a short span of the same patterns against
 behavioral memory. It checks identity, the video and gamepad capability
 bits, execution release, a green status glyph, and a button stop. The
-sealed core keeps the full spans above. `make build-fes-ramtest` seals an
-RBF. The package is not registered and is not in the factory image.
+sealed core keeps the full spans above. Use `make build-fes-ramtest-100` or
+`make build-fes-ramtest-130` to seal an RBF. Direct recipe invocation requires
+`--memory-mhz 100` or `--memory-mhz 130`. The package is not registered and
+is not in the factory image.

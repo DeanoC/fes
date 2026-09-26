@@ -139,9 +139,9 @@ module top #(
     reg [1:0] hps_stop_sync = 2'b00;
     reg [1:0] stop_sync = 2'b00;
     reg [1:0] mem_reset_sync = 2'b00;
-    // The OSS placer accepts one PLL output per clock buffer and has no clock
-    // mux, so the sealed bitstream stays on the 50 MHz pin. Quartus builds
-    // select either 100 or 130 MHz for a full-span hardware diagnostic.
+    // OSS and Quartus builds select either 100 or 130 MHz directly from the
+    // PLL for a full-span hardware diagnostic. The behavioral simulation
+    // uses the reference clock without a memory PLL.
 `ifdef RAM_RATE_SWEEP
     wire clk130, clk100, clk_cap, ram_locked, mem_clk, cap_clk;
     ram_pll ram_clock (

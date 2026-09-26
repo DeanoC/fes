@@ -29,7 +29,7 @@ module does not put a package on that image.
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | package-only |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
-| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` | `toolchain.lock` | `make build-fes-ramtest` | no; not registered |
+| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` | `toolchain.lock` (100 MHz), `toolchains/ramtest-130.lock` (130 MHz) | `make build-fes-ramtest-100`, `make build-fes-ramtest-130` | no; not registered |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
