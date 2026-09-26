@@ -1232,10 +1232,20 @@ Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
 The endpoint owns no storage: accepted media words appear on a write port for
 their acknowledging clock and `unit0_state` gates presentation of unit 0.
 
-Current lane: simulation only (`make sim-fes-apple2`). There is no producer,
-lock or sealed package yet; the linked firmware lanes (column 5, rows 32–47)
-and the four slot socket rectangles are declared in RTL and in the expansion
-linker for that producer.
+`make build-fes-apple2` (`scripts/build_fes_apple2_oss.py`,
+`toolchains/apple2.lock`, `make toolchain-fes-apple2`) seals a format-3
+package from a clean committed tree. Its single ROM is `apple2-firmware`,
+role `firmware`, 16,384 bytes on the blank column-5 lanes at rows 32–47.
+The shell QSF adds the four named `FES_RESERVED_RECT` regions of
+`scripts/apple2_slots.py`; the producer requires every socket to hold only
+its pinned boundary flip-flops and every firmware destination to fall
+outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
+6–10 at HeAP weight 2000 and takes the first route that closes 52.224 MHz
+system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
+memory maps to an M10K without a clock in this toolchain, so the font M10K
+is instantiated explicitly (`rtl/apple2_video.v`) and the audio mix is
+pipelined. The package declares `fes.expansion.apple2-bus` 1.0 optional;
+building cards for the sockets is a separate producer.
 
 ## Shared native kit client
 

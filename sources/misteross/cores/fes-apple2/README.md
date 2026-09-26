@@ -37,7 +37,7 @@ The core lane is [docs/cores.md](../../docs/cores.md).
 in the 74.25 MHz HDMI domain; there is no frame buffer. The 280×192 picture is
 scaled 4× horizontally and 3× vertically to 1120×576 and centred in fixed
 1280×720p60. Text uses an original open 5×7 character set
-(`diagnostic/font.py`, `rtl/apple2_font.hex`), white on black, with inverse
+(`diagnostic/font.py`, generated as the logic function `rtl/apple2_font.vh`), white on black, with inverse
 and ~1.9 Hz flashing. Lo-res draws the sixteen colours directly. Hi-res
 follows the NTSC artifact rule: each 14 MHz half dot updates one bit of a
 four-bit window indexed by its phase, and the window is the lo-res colour

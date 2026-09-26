@@ -172,7 +172,6 @@ module apple2_machine #(
     reg irq_any;
     reg nmi_any;
     reg inh_any;
-    reg signed [18:0] audio_sum;
     integer s;
     always @* begin
         slot_data = 8'h00;
@@ -180,7 +179,6 @@ module apple2_machine #(
         irq_any = 1'b0;
         nmi_any = 1'b0;
         inh_any = 1'b0;
-        audio_sum = 19'sd0;
         for (s = 1; s < 8; s = s + 1) begin
             if (slot_response[s*`A2_BUS_RSP + `A2_BUS_DRIVE]) begin
                 slot_data = slot_data | slot_response[s*`A2_BUS_RSP +: 8];
@@ -189,12 +187,29 @@ module apple2_machine #(
             irq_any = irq_any | slot_response[s*`A2_BUS_RSP + `A2_BUS_IRQ];
             nmi_any = nmi_any | slot_response[s*`A2_BUS_RSP + `A2_BUS_NMI];
             inh_any = inh_any | slot_response[s*`A2_BUS_RSP + `A2_BUS_INH];
-            audio_sum = audio_sum + {{3{slot_response[s*`A2_BUS_RSP + 27]}},
-                                     slot_response[s*`A2_BUS_RSP + 12 +: 16]};
         end
     end
     assign slot_irq = irq_any;
     assign slot_nmi = nmi_any;
+
+    // Card PCM is summed through a registered adder tree (audio latency is
+    // irrelevant) and saturated to 16 bits.
+    function signed [18:0] pcm;
+        input integer slot;
+        pcm = {{3{slot_response[slot*`A2_BUS_RSP + 27]}}, slot_response[slot*`A2_BUS_RSP + 12 +: 16]};
+    endfunction
+    reg signed [18:0] audio_pair [0:3];
+    reg signed [18:0] audio_half [0:1];
+    reg signed [18:0] audio_sum = 19'sd0;
+    always @(posedge clk_sys) begin
+        audio_pair[0] <= pcm(1) + pcm(2);
+        audio_pair[1] <= pcm(3) + pcm(4);
+        audio_pair[2] <= pcm(5) + pcm(6);
+        audio_pair[3] <= pcm(7);
+        audio_half[0] <= audio_pair[0] + audio_pair[1];
+        audio_half[1] <= audio_pair[2] + audio_pair[3];
+        audio_sum <= audio_half[0] + audio_half[1];
+    end
     assign slot_audio = audio_sum > 19'sd32767 ? 16'sh7fff :
                         audio_sum < -19'sd32768 ? -16'sh8000 : audio_sum[15:0];
 

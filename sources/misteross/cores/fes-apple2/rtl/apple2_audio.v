@@ -16,7 +16,7 @@ module apple2_audio (
     reg last = 1'b0;
     reg signed [23:0] level = 24'sd0;   // 16.8 fixed point
     wire signed [23:0] step = speaker != last ? (speaker ? 24'sd4194304 : -24'sd4194304) : 24'sd0;
-    wire signed [17:0] mixed = {{2{level[23]}}, level[23:8]} + {{2{slot_audio[15]}}, slot_audio};
+    reg signed [17:0] mixed = 18'sd0;
 
     always @(posedge clk) begin
         if (reset) begin
@@ -26,6 +26,7 @@ module apple2_audio (
             last <= speaker;
             level <= level + step - (level >>> 12);
         end
+        mixed <= {{2{level[23]}}, level[23:8]} + {{2{slot_audio[15]}}, slot_audio};
         sample <= mixed > 18'sd32767 ? 16'sh7fff : mixed < -18'sd32768 ? -16'sh8000 : mixed[15:0];
     end
 

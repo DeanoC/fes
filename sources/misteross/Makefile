@@ -100,6 +100,7 @@ help:
 		"  sim-fes-apple2-mailbox  Replay the fes.computer golden exchanges against the shared endpoint" \
 		"  sim-fes-apple2-machine  Boot the open diagnostic and synthetic disk; compare every frame" \
 		"  sim-fes-apple2-board  Drive top.v through the mailbox: HID keys, live disk insert/eject, reset" \
+		"  build-fes-apple2  Seal FES Apple II (format 3 firmware map, four slot sockets) with HIP (CACHE_ROOT=)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  export-core-package  Seal a format-2 package directory and .fcore archive" \
 		"  program    Explicit JTAG SRAM maintenance diagnostic" \
@@ -147,7 +148,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss     export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss     export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -820,9 +821,9 @@ APPLE2_RTL := cores/fes-apple2/rtl/apple2_machine.sv cores/fes-apple2/rtl/apple2
 .PHONY: apple2-diagnostic sim-fes-apple2 sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-board
 apple2-diagnostic:
 	@mkdir -p $(APPLE2_DIAGNOSTIC)
-	$(PYTHON) cores/fes-apple2/diagnostic/font.py --hex $(APPLE2_DIAGNOSTIC)/font.hex
-	@cmp -s $(APPLE2_DIAGNOSTIC)/font.hex cores/fes-apple2/rtl/apple2_font.hex || \
-		{ echo 'cores/fes-apple2/rtl/apple2_font.hex is stale; regenerate it with diagnostic/font.py' >&2; exit 1; }
+	$(PYTHON) cores/fes-apple2/diagnostic/font.py --verilog $(APPLE2_DIAGNOSTIC)/font.vh
+	@cmp -s $(APPLE2_DIAGNOSTIC)/font.vh cores/fes-apple2/rtl/apple2_font.vh || \
+		{ echo 'cores/fes-apple2/rtl/apple2_font.vh is stale; regenerate it with diagnostic/font.py' >&2; exit 1; }
 	$(PYTHON) cores/fes-apple2/diagnostic/firmware.py --output-dir $(APPLE2_DIAGNOSTIC)
 	$(PYTHON) cores/fes-apple2/diagnostic/render.py --output-dir $(APPLE2_DIAGNOSTIC)
 
@@ -952,6 +953,10 @@ build-fes-sg1000-quartus:
 
 build-fes-sg1000:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_sg1000_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+.PHONY: build-fes-apple2
+build-fes-apple2:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_apple2_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sms-diagnostic
 sms-diagnostic:
@@ -1135,6 +1140,11 @@ toolchain-fes-coleco-sgm:
 
 toolchain-fes-sg1000:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/registered-memory.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sg1000") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+toolchain-fes-apple2:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/apple2.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-apple2") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 

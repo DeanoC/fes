@@ -41,8 +41,8 @@ ADDR = $2C
             rows = table[glyph * 8:glyph * 8 + 8]
             self.assertEqual(rows[7], 0)
             self.assertTrue(all(value & 0x81 == 0 for value in rows))
-        tracked = (ROOT / 'cores/fes-apple2/rtl/apple2_font.hex').read_text().split()
-        self.assertEqual(bytes(int(v, 16) for v in tracked), table)
+        tracked = (ROOT / 'cores/fes-apple2/rtl/apple2_font.vh').read_text()
+        self.assertEqual(tracked, font.verilog())
         self.assertEqual(font.screen_code('A'), 0xC1)
         self.assertEqual(font.screen_code('A', 'inverse'), 0x01)
         self.assertEqual(font.screen_code('A', 'flash'), 0x41)

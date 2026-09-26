@@ -7,7 +7,7 @@
 // 1120x576 and centred (80 pixels left/right, 72 lines top/bottom), so one
 // 14 MHz Apple "half dot" is two HDMI pixels.
 //
-// Text uses the open character generator (apple2_font.hex) and is always
+// Text uses the open character generator (apple2_font.vh) and is always
 // white on black. Lo-res draws the sixteen colours directly. Hi-res follows
 // the NTSC artifact rule: each half dot updates one bit of a four-bit window
 // indexed by its phase, and the window is the lo-res colour index, so the
@@ -125,12 +125,23 @@ module apple2_video (
     end
 
     // Character generator: 64 glyphs x 8 rows, bit 0 = leftmost dot.
-    reg [7:0] font [0:511];
-    initial $readmemh("cores/fes-apple2/rtl/apple2_font.hex", font);
+`include "apple2_font.vh"
+    // The OSS lane instantiates the M10K explicitly: an inferred read-only
+    // memory maps to an M10K without a clock in this toolchain.
     reg [8:0] font_addr = 9'd0;
     reg [7:0] font_q = 8'd0;
+`ifdef VERILATOR
     always @(posedge pixel_clk)
-        font_q <= font[font_addr];
+        font_q <= APPLE2_FONT[{font_addr, 3'b000} +: 8];
+`else
+    wire [9:0] font_lane;
+    MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(1), .INIT(APPLE2_FONT_INIT)) font_rom (
+        .CLK1(1'b0), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
+        .B1ADDR({1'b0, font_addr}), .B1DATA(font_lane), .ACLR0(1'b0), .ACLR1(1'b0)
+    );
+    always @(posedge pixel_clk)
+        font_q <= font_lane[7:0];
+`endif
 
     // Fetch pipeline for the next column.
     reg [7:0] next_byte = 8'd0;
