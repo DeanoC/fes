@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "fake_mmio.hpp"
+#include "fes_computer_endpoint.hpp"
 #include "native/core_package.hpp"
 #include "native/fes_gp.hpp"
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/generated/fes_computer.hpp"
 #include "native/hardware.hpp"
 #include "native/artifacts.hpp"
 
@@ -18,6 +20,8 @@
 
 #include <cstdint>
 #include <fstream>
+#include <initializer_list>
+#include <map>
 #include <regex>
 #include <string>
 #include <vector>
@@ -1710,6 +1714,636 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 	}
 }
 
+// ---- fes.computer 1.0 ----------------------------------------------------
+
+struct ComputerExchange {
+	std::string name;
+	unsigned opcode, index, argument, error, data;
+	std::uint32_t settled, toggled, gpi;
+};
+
+struct ComputerScenario {
+	std::uint16_t capabilities = 0;
+	std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> units;
+	std::vector<ComputerExchange> exchanges;
+	bool final_held = true;
+	std::vector<std::uint16_t> final_rows, final_ports;
+	std::map<unsigned, std::pair<unsigned, std::uint32_t>> final_units;
+	const ComputerExchange& Named(const std::string& name) const
+	{
+		for (const auto& exchange : exchanges)
+			if (exchange.name == name) return exchange;
+		fprintf(stderr, "missing fixture exchange %s\n", name.c_str());
+		abort();
+	}
+};
+
+std::vector<std::uint16_t> NumberList(const std::string& text)
+{
+	std::vector<std::uint16_t> values;
+	std::size_t start = 0;
+	while (start < text.size()) {
+		const auto end = text.find(',', start);
+		values.push_back(static_cast<std::uint16_t>(std::stoul(text.substr(start, end - start))));
+		if (end == std::string::npos) break;
+		start = end + 1;
+	}
+	return values;
+}
+
+// The shared golden file is sorted-key JSON; whitespace is not significant.
+std::vector<ComputerScenario> ReadComputerScenarios()
+{
+	const auto source = std::regex_replace(ReadFile(
+		"tests/fixtures/fes-computer-v1/exchanges.json"), std::regex("[[:space:]]"), "");
+	assert(source.find("\"abi\":{\"id\":\"fes.computer\",\"major\":1,\"minor\":0,\"tag\":4}") !=
+		std::string::npos);
+	std::vector<std::size_t> starts;
+	for (auto at = source.find("{\"build_id\":"); at != std::string::npos;
+		at = source.find("{\"build_id\":", at + 1))
+		starts.push_back(at);
+	assert(starts.size() == 2);
+	starts.push_back(source.size());
+	const std::regex row("\\{\"argument\":([0-9]+),\"data\":([0-9]+),\"error\":([0-9]+),"
+		"\"gpi\":([0-9]+),\"gpo\":\\[([0-9]+),([0-9]+)\\],\"index\":([0-9]+),"
+		"\"name\":\"([^\"]+)\",\"opcode\":([0-9]+)\\}");
+	const std::regex unit("\\{\"max\":([0-9]+),\"min\":([0-9]+),\"unit\":([0-9]+)\\}");
+	const std::regex final_state("\"final\":\\{\"controller_ports\":\\[([0-9,]+)\\],"
+		"\"held\":([a-z]+),\"keyboard_rows\":\\[([0-9,]+)\\],"
+		"\"unit_sha_crc32\":\\{([^}]*)\\},\"unit_states\":\\{([^}]*)\\}\\}");
+	const std::regex keyed("\"([0-9]+)\":([0-9]+)");
+	std::vector<ComputerScenario> result;
+	for (std::size_t index = 0; index + 1 < starts.size(); ++index) {
+		const auto text = source.substr(starts[index], starts[index + 1] - starts[index]);
+		ComputerScenario scenario;
+		std::smatch match;
+		assert(std::regex_search(text, match, std::regex("\"capabilities\":([0-9]+)")));
+		scenario.capabilities = static_cast<std::uint16_t>(std::stoul(match[1]));
+		assert(text.find("\"initial_request_toggle\":false") != std::string::npos);
+		for (std::sregex_iterator it(text.begin(), text.end(), row), end; it != end; ++it) {
+			const auto& m = *it;
+			scenario.exchanges.push_back({m[8].str(),
+				static_cast<unsigned>(std::stoul(m[9])), static_cast<unsigned>(std::stoul(m[7])),
+				static_cast<unsigned>(std::stoul(m[1])), static_cast<unsigned>(std::stoul(m[3])),
+				static_cast<unsigned>(std::stoul(m[2])),
+				static_cast<std::uint32_t>(std::stoul(m[5])), static_cast<std::uint32_t>(std::stoul(m[6])),
+				static_cast<std::uint32_t>(std::stoul(m[4]))});
+		}
+		for (std::sregex_iterator it(text.begin(), text.end(), unit), end; it != end; ++it)
+			scenario.units[static_cast<unsigned>(std::stoul((*it)[3]))] = {
+				static_cast<std::uint32_t>(std::stoul((*it)[2])),
+				static_cast<std::uint32_t>(std::stoul((*it)[1]))};
+		assert(std::regex_search(text, match, final_state));
+		scenario.final_ports = NumberList(match[1]);
+		assert(match[2] == "true" || match[2] == "false");
+		scenario.final_held = match[2] == "true";
+		scenario.final_rows = NumberList(match[3]);
+		const std::string crcs = match[4], states = match[5];
+		for (std::sregex_iterator it(states.begin(), states.end(), keyed), end; it != end; ++it)
+			scenario.final_units[static_cast<unsigned>(std::stoul((*it)[1]))].first =
+				static_cast<unsigned>(std::stoul((*it)[2]));
+		for (std::sregex_iterator it(crcs.begin(), crcs.end(), keyed), end; it != end; ++it)
+			scenario.final_units[static_cast<unsigned>(std::stoul((*it)[1]))].second =
+				static_cast<std::uint32_t>(std::stoul((*it)[2]));
+		result.push_back(std::move(scenario));
+	}
+	assert(result[0].exchanges.size() == 34 && result[1].exchanges.size() == 624);
+	assert(result[0].capabilities == 15 && result[1].capabilities == 17);
+	assert(result[1].units.size() == 1 && result[1].units.at(0).first == 1 &&
+		result[1].units.at(0).second == 1030);
+	return result;
+}
+
+std::string ComputerPayload(std::size_t size)
+{
+	std::string bytes(size, '\0');
+	for (std::size_t i = 0; i < size; ++i)
+		bytes[i] = static_cast<char>((7 * i + (i >> 8)) & 0xff);
+	return bytes;
+}
+
+struct ComputerMediaFile {
+	std::string path;
+	explicit ComputerMediaFile(const std::string& bytes)
+	{
+		char pattern[] = "/tmp/libmister-computer-media-XXXXXX";
+		const int fd = mkstemp(pattern);
+		assert(fd >= 0);
+		path = pattern;
+		assert(write(fd, bytes.data(), bytes.size()) == static_cast<ssize_t>(bytes.size()));
+		assert(close(fd) == 0);
+	}
+	~ComputerMediaFile() { assert(unlink(path.c_str()) == 0); }
+};
+
+mister::native::CoreDescriptor ComputerDescriptor(std::initializer_list<const char*> required)
+{
+	auto descriptor = Descriptor("00112233445566778899aabbccddeeff");
+	descriptor.core.id = "fes.apple2";
+	descriptor.abi = {FesComputerABIID, 1, 0};
+	descriptor.interfaces.clear();
+	for (const char* id : required) descriptor.interfaces.push_back({id, 1, 0, true});
+	// Manifest-only and unknown optional declarations grant no capability bit.
+	descriptor.interfaces.push_back({"fes.expansion.apple2-bus", 1, 0, false});
+	descriptor.interfaces.push_back({"vendor.optional", 3, 1, false});
+	return descriptor;
+}
+
+constexpr std::uint64_t kComputerDeadline = 1000000000ull;
+
+struct ComputerFixture {
+	ComputerFixture(std::uint16_t capabilities,
+		std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> units,
+		mister::native::CoreDescriptor declared)
+		: endpoint(capabilities, std::move(units)), gp(endpoint, clock), driver(gp),
+		  descriptor(std::move(declared))
+	{
+		context.descriptor = &descriptor;
+	}
+	mister::Error Insert(const std::string& bytes, unsigned unit = 0,
+		std::uint32_t maximum = 1030)
+	{
+		ComputerMediaFile file(bytes);
+		mister::native::ComputerMediaSnapshot snapshot;
+		assert(snapshot.Prepare(file.path, 1, maximum, clock, kComputerDeadline).ok());
+		return driver.InsertMedia(static_cast<std::uint8_t>(unit), snapshot, clock,
+			kComputerDeadline, 10000);
+	}
+	std::vector<mister_test::ComputerEndpoint::Request> Since(std::size_t start) const
+	{
+		return {endpoint.requests.begin() + static_cast<std::ptrdiff_t>(start), endpoint.requests.end()};
+	}
+	mister_test::ComputerEndpoint endpoint;
+	TickClock clock;
+	mister::native::FesGp gp;
+	mister::native::FesGpCoreDriver driver;
+	mister::native::CoreDescriptor descriptor;
+	mister::native::CoreDriverContext context;
+};
+
+bool SameRequest(const mister_test::ComputerEndpoint::Request& request,
+	const ComputerExchange& exchange)
+{
+	return request.opcode == exchange.opcode && request.index == exchange.index &&
+		request.argument == exchange.argument;
+}
+
+void ExpectRequests(const std::vector<mister_test::ComputerEndpoint::Request>& observed,
+	const ComputerScenario& scenario, const std::vector<std::string>& names)
+{
+	assert(observed.size() == names.size());
+	for (std::size_t i = 0; i < names.size(); ++i)
+		assert(SameRequest(observed[i], scenario.Named(names[i])));
+}
+
+void ExpectFinalState(const mister_test::ComputerEndpoint& endpoint,
+	const ComputerScenario& scenario)
+{
+	assert(endpoint.held == scenario.final_held);
+	assert(endpoint.rows == scenario.final_rows);
+	assert(endpoint.ports == scenario.final_ports);
+	for (const auto& unit : scenario.final_units) {
+		assert(endpoint.unit(unit.first).state == unit.second.first);
+		assert(endpoint.UnitCrc(unit.first) == unit.second.second);
+	}
+}
+
+void TestComputerReplaysSharedWireFixturesThroughDriver()
+{
+	const auto scenarios = ReadComputerScenarios();
+	for (const auto& scenario : scenarios) {
+		// Transport replay: exact GPO words, toggle, error flag and response.
+		{
+			mister_test::FakeMmio mmio;
+			TickClock clock;
+			mister::native::FesGp gp(mmio, clock);
+			for (const auto& exchange : scenario.exchanges) {
+				assert(exchange.gpi == (FesComputerSignature |
+					((exchange.toggled & FesComputerRequestMask) ? FesComputerAckMask : 0u) |
+					(exchange.error ? FesComputerErrorMask : 0u) | exchange.data));
+				PushCompleted(&mmio, (exchange.gpi & FesGpAckMask) != 0,
+					static_cast<std::uint16_t>(exchange.data), exchange.error != 0);
+				const auto before = mmio.writes.size();
+				std::uint16_t response = 0xffff;
+				const auto error = gp.Exchange(static_cast<std::uint8_t>(exchange.opcode),
+					static_cast<std::uint8_t>(exchange.index),
+					static_cast<std::uint16_t>(exchange.argument), kComputerDeadline, &response);
+				assert(error.ok() == (exchange.error == 0));
+				assert(response == exchange.data);
+				assert(mmio.writes[before].value == exchange.settled);
+				assert(mmio.writes[before + 1].value == exchange.toggled);
+			}
+		}
+		// The test endpoint reproduces every golden response and final state.
+		{
+			mister_test::ComputerEndpoint endpoint(scenario.capabilities, scenario.units);
+			TickClock clock;
+			mister::native::FesGp gp(endpoint, clock);
+			for (const auto& exchange : scenario.exchanges) {
+				std::uint16_t response = 0xffff;
+				const auto error = gp.Exchange(static_cast<std::uint8_t>(exchange.opcode),
+					static_cast<std::uint8_t>(exchange.index),
+					static_cast<std::uint16_t>(exchange.argument), kComputerDeadline, &response);
+				assert(error.ok() == (exchange.error == 0) && response == exchange.data);
+				assert(endpoint.writes[endpoint.writes.size() - 2] == exchange.settled);
+				assert(endpoint.writes.back() == exchange.toggled);
+			}
+			ExpectFinalState(endpoint, scenario);
+		}
+	}
+
+	// Driver replay, keyboard and controllers: identity, HID row deltas,
+	// controller ports, release and hold against the reference endpoint.
+	const auto& input = scenarios[0];
+	{
+		ComputerFixture f(input.capabilities, input.units, ComputerDescriptor({
+			FesComputerInterfaceVideoFixed720p60ID, FesComputerInterfaceKeyboardHidID,
+			FesComputerInterfaceGamepadPortsID, FesComputerInterfaceAudioPcmS16Stereo48kID}));
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.home_computer() && f.driver.observed_capabilities() == 15);
+		assert(f.driver.media_units().empty());
+		for (unsigned word = 0; word < 16; ++word)
+			assert(SameRequest(f.endpoint.requests[word], input.exchanges[word]));
+		mister::KeyboardHidRows rows{};
+		rows[0] = 0x0010; // usage 0x04 'A'
+		rows[8] = 0x0002; // left shift
+		auto start = f.endpoint.requests.size();
+		assert(f.driver.SetKeyboardHid(rows, kComputerDeadline).ok());
+		auto written = f.Since(start);
+		assert(written.size() == 9); // no acknowledged state before Start
+		for (unsigned row = 0; row < 9; ++row)
+			assert(written[row].opcode == FesComputerOpcodeKeyboardHid && written[row].index == row &&
+				written[row].argument == rows[row]);
+		assert(SameRequest(written[0], input.Named("keyboard-a-held")));
+		assert(SameRequest(written[8], input.Named("keyboard-left-shift")));
+		start = f.endpoint.requests.size();
+		assert(f.driver.SetController(0, 0x11, 0, kComputerDeadline).ok());
+		assert(f.driver.SetController(1, 0x28, 0, kComputerDeadline).ok());
+		ExpectRequests(f.Since(start), input, {"controller-port0", "controller-port1"});
+		start = f.endpoint.requests.size();
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		ExpectRequests(f.Since(start), input, {"release"}); // no media gate or neutral writes
+		assert(!f.endpoint.held);
+		rows[2] = 0x0100; // Return
+		start = f.endpoint.requests.size();
+		assert(f.driver.SetKeyboardHid(rows, kComputerDeadline).ok());
+		assert(f.Since(start).size() == 9); // all nine after Start
+		assert(SameRequest(f.Since(start)[2], input.Named("keyboard-return-while-running")));
+		start = f.endpoint.requests.size();
+		assert(f.driver.SetKeyboardHid(rows, kComputerDeadline).ok());
+		assert(f.Since(start).empty());
+		rows[0] = 0;
+		rows[8] = 0;
+		assert(f.driver.SetKeyboardHid(rows, kComputerDeadline).ok());
+		written = f.Since(start);
+		assert(written.size() == 2 && written[0].index == 0 && written[1].index == 8);
+		assert(f.endpoint.rows == std::vector<std::uint16_t>({0, 0, 0x100, 0, 0, 0, 0, 0, 0}));
+		// Hold neutralizes keys and ports in the core; the host treats them as neutral.
+		start = f.endpoint.requests.size();
+		assert(f.driver.Quiesce(f.context, kComputerDeadline).error.ok());
+		ExpectRequests(f.Since(start), input, {"hold-neutralises-input"});
+		assert(f.endpoint.rows == std::vector<std::uint16_t>(9, 0));
+		assert(f.endpoint.ports == std::vector<std::uint16_t>({0, 0}));
+		start = f.endpoint.requests.size();
+		assert(f.driver.SetKeyboardHid(mister::KeyboardHidRows{}, kComputerDeadline).ok());
+		assert(f.Since(start).empty());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		ExpectRequests(f.Since(start), input, {"release-again"});
+		mister::KeyboardHidRows escape{};
+		escape[2] = 0x0200;
+		start = f.endpoint.requests.size();
+		assert(f.driver.SetKeyboardHid(escape, kComputerDeadline).ok());
+		assert(f.Since(start).size() == 9);
+		assert(SameRequest(f.Since(start)[2], input.Named("keyboard-escape")));
+		ExpectFinalState(f.endpoint, input);
+		// Media requests are rejected by the driver before any exchange.
+		start = f.endpoint.requests.size();
+		assert(f.Insert("x").code == mister::ErrorCode::unsupported_interface);
+		assert(f.driver.EjectMedia(0, kComputerDeadline).code == mister::ErrorCode::unsupported_interface);
+		assert(f.Since(start).empty());
+	}
+
+	// Driver replay, live media on the synthetic 1..1030-byte unit 0.
+	const auto& media = scenarios[1];
+	{
+		ComputerFixture f(media.capabilities, media.units, ComputerDescriptor({
+			FesComputerInterfaceVideoFixed720p60ID, FesComputerInterfaceMediaApple2FloppyID}));
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		ExpectRequests(f.Since(16), media, {"info-unit0-field0", "info-unit0-field1",
+			"info-unit0-field2", "info-unit0-field3", "info-unit0-field4", "info-unit0-field5"});
+		assert(f.driver.media_units().size() == 1);
+		const auto discovered = f.driver.media_units()[0];
+		assert(discovered.unit == 0 && discovered.interface.id == "fes.media.apple2-floppy");
+		assert(discovered.min_bytes == 1 && discovered.max_bytes == 1030 &&
+			discovered.chunk_bytes == 512 && discovered.state == mister::MediaUnitState::empty);
+		auto start = f.endpoint.requests.size();
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		ExpectRequests(f.Since(start), media, {"release-without-media"});
+		const std::vector<std::string> info = {"info-unit0-field0", "info-unit0-field1",
+			"info-unit0-field2", "info-unit0-field3", "info-unit0-field4", "info-unit0-field5"};
+		std::vector<std::string> names = info;
+		for (const auto* word : {"begin-0", "begin-1", "begin-2", "begin-3"}) names.push_back(word);
+		for (unsigned chunk = 0; chunk < 3; ++chunk) {
+			for (unsigned word = 0; word < 3; ++word)
+				names.push_back("chunk" + std::to_string(chunk) + "-" + std::to_string(word));
+			for (unsigned ordinal = 0; ordinal < (chunk < 2 ? 256u : 3u); ++ordinal) {
+				char name[32];
+				snprintf(name, sizeof(name), "chunk%u-data-%03u", chunk, ordinal);
+				names.push_back(name);
+			}
+		}
+		names.push_back("commit");
+		names.push_back("info-state-ready");
+		start = f.endpoint.requests.size();
+		assert(f.Insert(ComputerPayload(1030)).ok());
+		ExpectRequests(f.Since(start), media, names);
+		assert(f.endpoint.unit(0).state == 3 && f.endpoint.UnitCrc(0) == 3897200365u);
+		assert(f.driver.media_units()[0].state == mister::MediaUnitState::ready);
+		assert(!f.endpoint.held);
+		start = f.endpoint.requests.size();
+		assert(f.driver.EjectMedia(0, kComputerDeadline).ok());
+		ExpectRequests(f.Since(start), media, {"eject", "info-state-empty"});
+		assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
+		names = info;
+		for (const auto* word : {"odd-begin-0", "odd-begin-1", "odd-begin-2", "odd-begin-3",
+			"odd-chunk-0", "odd-chunk-1", "odd-chunk-2", "odd-data-000", "odd-data-001",
+			"odd-commit", "odd-state-ready"})
+			names.push_back(word);
+		start = f.endpoint.requests.size();
+		assert(f.Insert(ComputerPayload(3)).ok());
+		ExpectRequests(f.Since(start), media, names);
+		ExpectFinalState(f.endpoint, media);
+		for (const auto& request : f.endpoint.requests)
+			assert(request.opcode != FesComputerOpcodeExecution || request.argument == 1);
+		// No keyboard or controller interface was declared.
+		start = f.endpoint.requests.size();
+		assert(f.driver.SetKeyboardHid(mister::KeyboardHidRows{}, kComputerDeadline).code ==
+			mister::ErrorCode::unsupported_interface);
+		assert(f.driver.SetController(0, 0, 0, kComputerDeadline).code ==
+			mister::ErrorCode::unsupported_interface);
+		assert(f.Since(start).empty());
+	}
+}
+
+std::vector<std::uint16_t> ComputerWords(std::uint16_t capabilities)
+{
+	auto words = IdentityWords("00112233445566778899aabbccddeeff");
+	words[FesGpIdentityAbiTagIndex] = FesComputerAbiTag;
+	words[FesGpIdentityAbiMajorIndex] = FesComputerAbiMajor;
+	words[FesGpIdentityAbiMinorIndex] = FesComputerAbiMinor;
+	words[FesGpIdentityCapabilitiesIndex] = capabilities;
+	return words;
+}
+
+void TestComputerIdentityCapabilitiesAndDiscovery()
+{
+	const auto full = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
+		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaApple2FloppyID});
+	// Registered live bits must equal the declared set; unregistered bits are ignored.
+	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu}) {
+		ComputerFixture f(static_cast<std::uint16_t>(live), {{0, {143360, 143360}}}, full);
+		const auto result = f.driver.Identify(f.context, kComputerDeadline);
+		const bool expected = (live & 31u) == 31u;
+		assert(result.error.ok() == expected);
+		if (!expected) {
+			assert(result.error.code == mister::ErrorCode::core_mismatch);
+			assert(result.error.phase == "identity");
+			assert(!f.driver.home_computer() && f.driver.media_units().empty());
+		} else {
+			assert(f.driver.media_units().size() == 1 &&
+				f.driver.media_units()[0].min_bytes == 143360 &&
+				f.driver.media_units()[0].max_bytes == 143360);
+		}
+	}
+	// Another ABI tag is a different contract.
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		auto words = ComputerWords(1);
+		words[FesGpIdentityAbiTagIndex] = FesApplicationAbiTag;
+		ScriptIdentity(&mmio, words);
+		auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID});
+		mister::native::CoreDriverContext context;
+		context.descriptor = &descriptor;
+		assert(driver.Identify(context, kComputerDeadline).error.code == mister::ErrorCode::core_mismatch);
+	}
+	// Discovery requires every declared unit to be present, empty and well formed.
+	struct InfoCase {
+		std::uint32_t minimum, maximum;
+		std::uint16_t chunk, state;
+		bool valid;
+	};
+	for (const auto& info : {InfoCase{143360, 143360, 512, 1, true},
+			InfoCase{1, 33554432, 512, 1, true}, InfoCase{0, 0, 0, 0, false},
+			InfoCase{143360, 143360, 512, 2, false}, InfoCase{143360, 143360, 512, 3, false},
+			InfoCase{143360, 143360, 256, 1, false}, InfoCase{0, 143360, 512, 1, false},
+			InfoCase{2, 1, 512, 1, false}, InfoCase{1, 33554433, 512, 1, false}}) {
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+			FesComputerInterfaceMediaApple2FloppyID});
+		mister::native::CoreDriverContext context;
+		context.descriptor = &descriptor;
+		auto words = ComputerWords(17);
+		for (auto value : {static_cast<std::uint16_t>(info.minimum),
+				static_cast<std::uint16_t>(info.minimum >> 16), static_cast<std::uint16_t>(info.maximum),
+				static_cast<std::uint16_t>(info.maximum >> 16), info.chunk, info.state})
+			words.push_back(value);
+		ScriptIdentity(&mmio, words);
+		const auto result = driver.Identify(context, kComputerDeadline);
+		assert(result.error.ok() == info.valid);
+		assert(mmio.writes.size() == 44);
+		for (unsigned field = 0; field < 6; ++field)
+			assert((mmio.writes[33 + 2 * field].value & ~FesGpRequestMask) ==
+				((FesComputerOpcodeMediaInfo << 24) | (field << 16)));
+		if (!info.valid) {
+			assert(result.error.code == mister::ErrorCode::core_mismatch);
+			assert(driver.media_units().empty());
+		}
+	}
+}
+
+void TestComputerInputValidationAndPartialRows()
+{
+	ComputerFixture f(7, {}, ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID}));
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	const auto start = f.endpoint.requests.size();
+	mister::KeyboardHidRows reserved{};
+	reserved[0] = 0x0001;
+	mister::KeyboardHidRows modifier{};
+	modifier[8] = 0x0100;
+	assert(f.driver.SetKeyboardHid(reserved, kComputerDeadline).code == mister::ErrorCode::invalid_request);
+	assert(f.driver.SetKeyboardHid(modifier, kComputerDeadline).code == mister::ErrorCode::invalid_request);
+	assert(f.driver.SetController(2, 0, 0, kComputerDeadline).code == mister::ErrorCode::invalid_request);
+	assert(f.driver.SetController(0, 0x100, 0, kComputerDeadline).code == mister::ErrorCode::invalid_request);
+	assert(f.driver.SetController(0, 1, 1, kComputerDeadline).code == mister::ErrorCode::unsupported_interface);
+	// Opcode 3 is KeyboardHid here: the game button path and simple-computer
+	// keyboard/media paths never reach this endpoint.
+	assert(f.driver.SetButtons(f.context, 1, kComputerDeadline).error.code ==
+		mister::ErrorCode::unsupported_interface);
+	assert(f.driver.SetKeyboardMatrix(0, kComputerDeadline).code == mister::ErrorCode::unsupported_interface);
+	assert(f.driver.LoadMedia({1}, kComputerDeadline).code == mister::ErrorCode::unsupported_interface);
+	assert(f.driver.ClearMedia(kComputerDeadline).code == mister::ErrorCode::unsupported_interface);
+	assert(f.Since(start).empty());
+	// A rejected row leaves the core's rows uncertain: the next snapshot writes all nine.
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp(mmio, clock);
+	mister::native::FesGpCoreDriver driver(gp);
+	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID});
+	mister::native::CoreDriverContext context;
+	context.descriptor = &descriptor;
+	ScriptIdentity(&mmio, ComputerWords(3));
+	assert(driver.Identify(context, kComputerDeadline).error.ok());
+	bool toggle = false;
+	auto reply = [&](std::uint16_t value = 0, bool failed = false) {
+		toggle = !toggle;
+		PushCompleted(&mmio, toggle, value, failed);
+	};
+	reply(); // release
+	assert(driver.Start(context, kComputerDeadline).error.ok());
+	for (unsigned i = 0; i < 9; ++i) reply();
+	mister::KeyboardHidRows rows{};
+	assert(driver.SetKeyboardHid(rows, kComputerDeadline).ok());
+	rows[3] = 0x0004;
+	rows[5] = 0x0100;
+	reply(); // row 3
+	reply(FesComputerErrorInvalidArgument, true); // row 5 rejected
+	auto before = mmio.writes.size();
+	const auto error = driver.SetKeyboardHid(rows, kComputerDeadline);
+	assert(error.code == mister::ErrorCode::io_failed && error.phase == "input");
+	assert(mmio.writes.size() == before + 4);
+	for (unsigned i = 0; i < 9; ++i) reply();
+	before = mmio.writes.size();
+	assert(driver.SetKeyboardHid(rows, kComputerDeadline).ok());
+	assert(mmio.writes.size() == before + 18);
+	reply(1); // nonzero acknowledgement is not success
+	rows[3] = 0;
+	assert(driver.SetKeyboardHid(rows, kComputerDeadline).code == mister::ErrorCode::io_failed);
+}
+
+void TestComputerMediaFailuresEjectOnceAndStayReleased()
+{
+	const auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceMediaApple2FloppyID});
+	auto no_execution = [](const std::vector<mister_test::ComputerEndpoint::Request>& requests) {
+		for (const auto& request : requests)
+			assert(request.opcode != FesComputerOpcodeExecution);
+	};
+	// CRC mismatch at Commit: one eject, unit empty, retry succeeds.
+	{
+		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		f.endpoint.corrupt_next_data = true;
+		const auto start = f.endpoint.requests.size();
+		const auto error = f.Insert(ComputerPayload(1030));
+		assert(error.code == mister::ErrorCode::io_failed && error.phase == "input");
+		assert(error.message == "FES GP command rejected with response 3");
+		const auto sent = f.Since(start);
+		assert(sent.size() == 6 + 4 + 2 * (3 + 256) + 3 + 3 + 1 + 1);
+		assert(sent[sent.size() - 2].opcode == FesComputerOpcodeMediaCommit);
+		assert(sent.back().opcode == FesComputerOpcodeMediaEject && sent.back().index == 0);
+		no_execution(sent);
+		assert(f.endpoint.unit(0).state == 1 && !f.endpoint.held);
+		assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
+		assert(f.Insert(ComputerPayload(1030)).ok());
+		assert(f.endpoint.unit(0).state == 3);
+	}
+	// A header left from an earlier failure rejects Begin; eject clears it.
+	{
+		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		std::uint16_t response = 0;
+		assert(f.gp.Exchange(FesComputerOpcodeMediaBegin, 0, 7, kComputerDeadline, &response).ok());
+		const auto start = f.endpoint.requests.size();
+		const auto error = f.Insert(ComputerPayload(3));
+		assert(error.message == "FES GP command rejected with response 2");
+		const auto sent = f.Since(start);
+		assert(sent.size() == 6 + 1 + 1 && sent.back().opcode == FesComputerOpcodeMediaEject);
+		assert(f.endpoint.unit(0).state == 1);
+		assert(f.Insert(ComputerPayload(3)).ok());
+	}
+	// A lost request is ambiguous: realign, re-identify, eject once. Nothing is replayed.
+	{
+		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		bool dropped = false;
+		f.endpoint.lose_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+			if (dropped || request.opcode != FesComputerOpcodeMediaData || request.index != 5) return false;
+			dropped = true;
+			return true;
+		};
+		const auto start = f.endpoint.requests.size();
+		const auto error = f.Insert(ComputerPayload(1030));
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message.find("deadline exceeded") != std::string::npos);
+		assert(error.message.find("media eject failed") == std::string::npos);
+		const auto sent = f.Since(start);
+		assert(sent.size() == 6 + 4 + 3 + 5 + 16 + 1);
+		for (unsigned word = 0; word < 16; ++word)
+			assert(sent[18 + word].opcode == FesComputerOpcodeIdentity && sent[18 + word].index == word);
+		assert(sent.back().opcode == FesComputerOpcodeMediaEject);
+		no_execution(sent);
+		assert(!f.gp.Poisoned() && f.endpoint.unit(0).state == 1);
+		assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
+		assert(f.Insert(ComputerPayload(1030)).ok());
+	}
+	// Failed cleanup is reported with the primary error; the unit is not known ready.
+	{
+		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		bool failing = false;
+		f.endpoint.lose_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+			if (request.opcode == FesComputerOpcodeMediaData && request.index == 5) failing = true;
+			return failing;
+		};
+		const auto error = f.Insert(ComputerPayload(1030));
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message.find("; media eject failed: ") != std::string::npos);
+		assert(f.driver.media_units()[0].state == mister::MediaUnitState::loading);
+		assert(f.gp.Poisoned() && f.endpoint.unit(0).state == 2);
+		// Explicit eject is the recovery: realign, re-identify, eject, confirm empty.
+		f.endpoint.lose_request = nullptr;
+		const auto start = f.endpoint.requests.size();
+		assert(f.driver.EjectMedia(0, kComputerDeadline).ok());
+		const auto sent = f.Since(start);
+		assert(sent.size() == 16 + 2);
+		assert(sent[16].opcode == FesComputerOpcodeMediaEject && sent[17].opcode == FesComputerOpcodeMediaInfo);
+		assert(f.endpoint.unit(0).state == 1);
+		assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
+	}
+	// Live limits are checked again; any failure after the first exchange ejects.
+	{
+		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		assert(f.Insert(ComputerPayload(3)).ok());
+		const auto start = f.endpoint.requests.size();
+		const auto error = f.Insert(ComputerPayload(1031), 0, 2000);
+		assert(error.code == mister::ErrorCode::invalid_request);
+		const auto sent = f.Since(start);
+		assert(sent.size() == 7 && sent.back().opcode == FesComputerOpcodeMediaEject);
+		assert(f.endpoint.unit(0).state == 1);
+		// Undeclared units never reach the mailbox.
+		const auto before = f.endpoint.requests.size();
+		assert(f.Insert(ComputerPayload(3), 1).code == mister::ErrorCode::unsupported_interface);
+		assert(f.driver.EjectMedia(1, kComputerDeadline).code == mister::ErrorCode::unsupported_interface);
+		assert(f.endpoint.requests.size() == before);
+	}
+}
+
 } // namespace
 
 int main()
@@ -1738,6 +2372,10 @@ int main()
 	TestFirmwareLoadHoldsResetUntilMediaRelease();
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 18 groups passed");
+	TestComputerReplaysSharedWireFixturesThroughDriver();
+	TestComputerIdentityCapabilitiesAndDiscovery();
+	TestComputerInputValidationAndPartialRows();
+	TestComputerMediaFailuresEjectOnceAndStayReleased();
+	puts("fes_gp_test: 22 groups passed");
 	return 0;
 }

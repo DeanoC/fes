@@ -7,6 +7,7 @@
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/generated/fes_computer.hpp"
 #include "native/sha256.hpp"
 
 #include <toml.hpp>
@@ -870,6 +871,44 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (!video || (stream && !blob))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"application requires fixed video and stream requires blob media");
+		return {};
+	}
+	if (descriptor.abi.id == FesComputerABIID &&
+		descriptor.abi.major == FesComputerABIMajor) {
+		if (descriptor.abi.minor > FesComputerABIMinor || !descriptor.core.system.empty())
+			return CompatibilityError(ErrorCode::unsupported_abi,
+				"unsupported FES computer ABI or system declaration");
+		// Execution is released right after identity: there is no media gate
+		// that could hold a linked cartridge, so only a firmware ROM links.
+		if (descriptor.format == 4 ||
+			(descriptor.format == 3 && descriptor.rom.role != "firmware"))
+			return CompatibilityError(ErrorCode::unsupported_abi,
+				"FES computer packages may link only a firmware ROM");
+		bool video = false;
+		for (const auto& interface : descriptor.interfaces) {
+			const bool bus = interface.id == kApple2ExpansionBusID;
+			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
+				interface.id == FesComputerInterfaceKeyboardHidID ||
+				interface.id == FesComputerInterfaceGamepadPortsID ||
+				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
+				interface.id == FesComputerInterfaceMediaApple2FloppyID;
+			const bool supported = (known || bus) && interface.major == 1 && interface.minor == 0;
+			if (!supported && interface.required)
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"required computer interface is unsupported");
+			if (!supported) continue;
+			if (bus && interface.required)
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"computer expansion bus must be optional");
+			if (bus) continue;
+			if (!interface.required)
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"computer operational interfaces must be required when declared");
+			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
+		}
+		if (!video)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"computer requires fixed video");
 		return {};
 	}
 	if (descriptor.abi.id == FesSimpleComputerABIID &&

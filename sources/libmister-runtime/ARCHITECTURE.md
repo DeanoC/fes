@@ -43,7 +43,8 @@ programmed; only an open failure returns before HDMI quiesce and FPGA
 program. See FES [soft-restart Path B](../../docs/soft-restart-path-b.md).
 
 Identity precedes video, input enablement and gameplay release. FES media
-interfaces control reset-held startup and release after a successful commit.
+interfaces control reset-held startup and release after a successful commit;
+`fes.computer` media units are the exception and never gate release.
 `fes.simple-computer` also accepts mid-session `replace_live_media` /
 `clear_media` on an active generation without holding execution reset. Tape
 loader busy is GP error 4 (invalid state) and rejects with retryable busy.
@@ -124,6 +125,33 @@ both ports before release; Quiesce holds execution then explicitly clears both
 ports before replacement. FogCast owns source assignment and disconnect release.
 Physical controller acceptance remains pending.
 
+## Home-computer ABI
+
+`fes.computer` 1.0 uses the same lifecycle and GP transport with identity
+tag 4. Admission requires fixed video; `fes.keyboard.hid`, `fes.gamepad.ports`,
+`fes.audio.pcm-s16-stereo-48k` and `fes.media.apple2-floppy` 1.0 are
+independent and must be required when declared, `fes.expansion.apple2-bus` 1.0
+must be optional, unknown optional declarations are ignored and `core.system`
+is rejected. Format 2 and format 3 firmware ROM packages are admitted; linked
+cartridges and format 4 are not, because nothing holds execution for them.
+
+Identity requires live capability bits 0 through 4 to equal the declared set,
+then discovery reads MediaInfo for each declared unit, which must be present
+and empty. Audio packets follow the declaration as for applications. Start
+only releases execution: there is no media gate, no neutral write and no evdev
+worker. Stop holds execution first; the hold neutralizes keys and ports in the
+core. `set_keyboard_hid` sends a complete nine-row USB HID snapshot and the
+driver writes only changed rows, all nine after Start. `set_controller` uses
+opcode 4 with a zero keypad. `insert_media` transfers into one declared unit
+while the machine keeps running and confirms MediaInfo ready; any failure after
+its first exchange ejects that unit once, realigning and re-identifying an
+ambiguous mailbox without repeating the ambiguous request, and leaves the
+generation active. Status reports `capabilities.media_units` from the latest
+live exchanges. The shared golden exchanges are replayed through the driver
+against an independent reference endpoint. See
+[home-computer I/O](docs/computer-io.md) for the exact protocol shapes. This
+path has host software coverage only.
+
 ## Described-core persistence
 
 The `CreateProductionHardware` facade forwards preparation, refresh, inspection,
@@ -179,6 +207,18 @@ only the FPGA programming artifact comes from the admitted composition.
 Coleco manifests may carry the canonical `fes.coleco.response-boundary/4`
 patch before the cart fields. Runtime admission accepts only its two fixed
 coordinates and binary values; ZX81 manifests cannot carry that patch.
+
+A `fes.computer` shell declaring optional `fes.expansion.apple2-bus` 1.0 is
+composed per slot instead: the composed operations carry an `expansions` array
+of `{slot, path}` and a multi-slot tuple listing `{slot, expansion_id}` in
+ascending slot order. Each card manifest adds `slot_index` (between `slot` and
+`slot_major`) equal to its request slot, uses map `fes.apple2-bus.slots/1` and
+binds the same frozen shell; every slot 1..7 is admitted until the shell's
+physical socket set is sealed. The composition ID uses the separate
+`fes-composition-v2` domain over the package, each `slot:expansion` pair and
+the payload. Every card is retained and rechecked before programming, and
+status reports the same multi-slot tuple. The two request shapes never compose
+each other's bus; single-socket ZX81 and Coleco behavior is unchanged.
 
 The network-facing target agent owns deterministic CRAM recomposition using the
 shared misteross implementation. Runtime admission verifies that agent-owned

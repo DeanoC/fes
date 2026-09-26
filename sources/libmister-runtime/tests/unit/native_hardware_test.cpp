@@ -4,6 +4,7 @@
 #include "capture_log.hpp"
 #include "fake_input.hpp"
 #include "fake_mmio.hpp"
+#include "fes_computer_endpoint.hpp"
 #include "linux/production_hardware.hpp"
 #include "native/artifacts.hpp"
 #include "native/core_package.hpp"
@@ -1249,15 +1250,26 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	const mister::Capabilities capabilities = available.hardware.capabilities();
 	assert(capabilities.programming_profiles == std::vector<std::string>({
 		"development-contained-v1", "fes-gp-v1"}));
-	assert(capabilities.abis.size() == 3);
+	assert(capabilities.abis.size() == 4);
 	assert(capabilities.abis[0].id == "fes.application");
 	assert(capabilities.abis[0].interfaces.size() == 9);
 	assert(capabilities.abis[0].interfaces[1].id == "fes.expansion.coleco-bus");
 	assert(capabilities.abis[0].interfaces[1].major == 1);
 	assert(capabilities.abis[0].interfaces[1].minor == 0);
 	assert(capabilities.abis[0].interfaces[2].id == "fes.firmware.blob");
-	assert(capabilities.abis[1].id == "fes.simple-computer");
-	assert(capabilities.abis[2].id == "fes.simple-game");
+	const auto& computer = capabilities.abis[1];
+	assert(computer.id == "fes.computer" && computer.major == 1 && computer.minor == 0);
+	std::vector<std::string> computer_interfaces;
+	for (const auto& interface : computer.interfaces) {
+		assert(interface.major == 1 && interface.minor == 0);
+		computer_interfaces.push_back(interface.id);
+	}
+	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
+		"fes.expansion.apple2-bus", "fes.gamepad.ports", "fes.keyboard.hid",
+		"fes.media.apple2-floppy", "fes.video.fixed-720p60"}));
+	assert(capabilities.abis[2].id == "fes.simple-computer");
+	assert(capabilities.abis[3].id == "fes.simple-game");
+	assert(capabilities.media_units.empty());
 
 	Fixture unavailable;
 	assert(unavailable.hardware.InspectCorePackage(package.path, id,
@@ -1995,8 +2007,214 @@ void TestFormat4TwoSourceAdmissionBeforeMutation()
 	assert(fixture.runtime.Stop().ok());
 }
 
+std::string ComputerManifest()
+{
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.simple-game", "fes.computer");
+	ReplaceAll(&manifest, "id = \"fes.gamepad\"", "id = \"fes.keyboard.hid\"");
+	for (const auto* id : {"fes.gamepad.ports", "fes.audio.pcm-s16-stereo-48k", "fes.media.apple2-floppy"})
+		manifest += std::string("\n[[interfaces]]\nid = \"") + id +
+			"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	manifest += "\n[[interfaces]]\nid = \"fes.expansion.apple2-bus\"\nmajor = 1\nminor = 0\nrequired = false\n";
+	return manifest;
+}
+
+std::string ComputerDisk(std::size_t size)
+{
+	std::string bytes(size, '\0');
+	for (std::size_t i = 0; i < size; ++i)
+		bytes[i] = static_cast<char>((i * 13u + (i >> 9)) & 0xffu);
+	return bytes;
+}
+
+void TestComputerLiveMediaLifecycleThroughRuntime()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	mister_test::ComputerEndpoint endpoint(31, {{0, {143360, 143360}}},
+		"0123456789abcdef0123456789abcdef");
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	// Every FPGA program replaces the endpoint with a freshly configured one.
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	TempDirectory package;
+	package.File("manifest.toml", ComputerManifest());
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	mister::CorePackageInspection inspection;
+	assert(fixture.runtime.InspectCore(package.path, opened.package_id, &inspection).ok());
+	assert(inspection.compatible && inspection.persistence_layout.id.empty());
+
+	TempDirectory media;
+	for (unsigned run = 0; run < 2; ++run) {
+		const auto first = endpoint.requests.size();
+		assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
+		auto status = fixture.runtime.status();
+		const auto generation = status.generation;
+		assert(status.active_package.observed.abi.id == "fes.computer");
+		assert(status.capabilities.active_interfaces.size() == 6);
+		assert(status.capabilities.media_units.size() == 1);
+		const auto unit = status.capabilities.media_units[0];
+		assert(unit.unit == 0 && unit.interface.id == "fes.media.apple2-floppy");
+		assert(unit.min_bytes == 143360 && unit.max_bytes == 143360 && unit.chunk_bytes == 512);
+		assert(unit.state == mister::MediaUnitState::empty);
+		// Identity, unit discovery, then release: no media gate, no evdev worker.
+		assert(endpoint.requests.size() - first == 16u + 6u + 1u);
+		assert(endpoint.requests.back().opcode == FesComputerOpcodeExecution &&
+			endpoint.requests.back().argument == FesComputerExecutionRelease);
+		assert(!endpoint.held && fixture.native.input.open_calls == 0);
+
+		mister::KeyboardHidRows rows{};
+		rows[0] = 0x0010;
+		rows[8] = 0x0002;
+		auto before = endpoint.requests.size();
+		assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, rows).ok());
+		assert(endpoint.requests.size() == before + 9);
+		rows[0] = 0;
+		assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, rows).ok());
+		assert(endpoint.requests.size() == before + 10);
+		assert(endpoint.rows == std::vector<std::uint16_t>({0, 0, 0, 0, 0, 0, 0, 0, 2}));
+		assert(fixture.runtime.SetController(opened.package_id, generation, 1, 0x28, 0).ok());
+		assert(endpoint.ports == std::vector<std::uint16_t>({0, 0x28}));
+		assert(fixture.runtime.SetController(opened.package_id, generation, 0, 0, 1).code ==
+			mister::ErrorCode::unsupported_interface);
+		assert(fixture.runtime.status().state == mister::State::running_development);
+
+		const auto disk = media.File("disk" + std::to_string(run) + ".dsk", ComputerDisk(143360));
+		const auto shorter = media.File("short" + std::to_string(run) + ".dsk", ComputerDisk(143359));
+		before = endpoint.requests.size();
+		assert(fixture.runtime.InsertMedia(disk, opened.package_id, generation, 0, 143360).ok());
+		assert(endpoint.unit(0).state == 3 && endpoint.unit(0).data.size() == 143360);
+		const std::string expected = ComputerDisk(143360);
+		assert(std::equal(expected.begin(), expected.end(), endpoint.unit(0).data.begin(),
+			[](char a, std::uint8_t b) { return static_cast<std::uint8_t>(a) == b; }));
+		assert(endpoint.requests.size() == before + 6 + 4 + 280 * (3 + 256) + 1 + 1);
+		for (std::size_t i = before; i < endpoint.requests.size(); ++i)
+			assert(endpoint.requests[i].opcode != FesComputerOpcodeExecution);
+		assert(!endpoint.held);
+		assert(fixture.runtime.status().capabilities.media_units[0].state == mister::MediaUnitState::ready);
+		// Outside the observed limits: rejected before hardware.
+		before = endpoint.requests.size();
+		assert(fixture.runtime.InsertMedia(shorter, opened.package_id, generation, 0, 143359).code ==
+			mister::ErrorCode::invalid_request);
+		// A file that does not match the request fails admission without an exchange.
+		assert(fixture.runtime.InsertMedia(shorter, opened.package_id, generation, 0, 143360).code ==
+			mister::ErrorCode::invalid_request);
+		assert(endpoint.requests.size() == before && endpoint.unit(0).state == 3);
+		assert(fixture.runtime.EjectMedia(opened.package_id, generation, 0).ok());
+		assert(endpoint.requests.size() == before + 2 && endpoint.unit(0).state == 1);
+		assert(fixture.runtime.status().capabilities.media_units[0].state == mister::MediaUnitState::empty);
+		assert(fixture.runtime.InsertMedia(disk, opened.package_id, generation, 0, 143360).ok());
+
+		// Stop holds execution before reprogramming; the hold itself neutralizes
+		// keys and ports in the core, so no neutral writes follow it.
+		before = endpoint.requests.size();
+		bool held_before_program = false;
+		fixture.native.fpga.on_program = [&] {
+			held_before_program = endpoint.held && endpoint.rows == std::vector<std::uint16_t>(9, 0) &&
+				endpoint.ports == std::vector<std::uint16_t>({0, 0});
+			endpoint.Reset();
+		};
+		assert(fixture.runtime.Stop().ok());
+		assert(held_before_program && endpoint.requests.size() == before + 1);
+		assert(endpoint.requests.back().opcode == FesComputerOpcodeExecution &&
+			endpoint.requests.back().argument == FesComputerExecutionHoldReset);
+		assert(fixture.runtime.status().capabilities.media_units.empty());
+		assert(fixture.native.hardware.capabilities().media_units.empty());
+		assert(fixture.runtime.InsertMedia(disk, opened.package_id, generation, 0, 143360).code ==
+			mister::ErrorCode::busy);
+		fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	}
+	// The production factory forwards the computer operations to native hardware.
+	mister_test::CaptureLog production_log;
+	std::unique_ptr<mister::Hardware> production;
+	assert(mister::CreateProductionHardware(production_log, &production).ok());
+	assert(production->SetKeyboardHid(mister::KeyboardHidRows{}).message == "FES computer is not active");
+	assert(production->InsertComputerMedia(0, "/media/disk.dsk", 143360).message ==
+		"FES computer media unit is not active");
+	assert(production->EjectComputerMedia(0).message == "FES computer media unit is not active");
+}
+
+void TestComputerSlotCompositionActivatesLinkedPayload()
+{
+	auto hash = [](const std::string& value) {
+		mister::native::Sha256 h;
+		h.Update(value.data(), value.size());
+		return mister::native::Sha256Hex(h.Final());
+	};
+	for (const bool mutate : {false, true}) {
+		std::vector<std::string> driver_events;
+		RecordingDriver driver(driver_events);
+		IntegratedFixture fixture(&driver);
+		fixture.Start();
+		TempDirectory package, slot4, slot6, composition;
+		package.File("manifest.toml", ComputerManifest());
+		package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+		mister::native::OpenedCorePackage base;
+		assert(mister::native::OpenCorePackage(package.path, "", &base).ok());
+		mister::CoreCompositionRequest request;
+		for (auto* card : {&slot4, &slot6}) {
+			const unsigned slot = card == &slot4 ? 4 : 6;
+			const std::string cart(40408, static_cast<char>('0' + slot));
+			card->File("cart.rbf", cart);
+			const std::string manifest = "{\"cart_sha256\":\"" + hash(cart) +
+				"\",\"cart_size\":40408,\"device\":\"5CSEBA6U23I7\",\"format\":1,"
+				"\"map\":\"fes.apple2-bus.slots/1\",\"recipe_sha256\":\"" + std::string(64, 'c') +
+				"\",\"revision\":\"" + std::string(40, 'd') + "\",\"shell_build_id\":\"" +
+				base.descriptor.build.id + "\",\"shell_package_id\":\"" + base.package_id +
+				"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 +
+				"\",\"slot\":\"fes.expansion.apple2-bus\",\"slot_index\":" + std::to_string(slot) +
+				",\"slot_major\":1,\"slot_minor\":0}";
+			card->File("manifest.json", manifest);
+			request.expansions.push_back({static_cast<std::uint8_t>(slot), card->path});
+			request.composition.expansions.push_back({static_cast<std::uint8_t>(slot),
+				hash(std::string("fes-expansion-v1\0", 17) + manifest)});
+		}
+		const std::string linked(40408, 'l');
+		request.payload_path = composition.File("linked.rbf", linked);
+		auto& info = request.composition;
+		info.package_id = base.package_id;
+		info.shell_sha256 = base.descriptor.payload.sha256;
+		info.payload_sha256 = hash(linked);
+		info.payload_size = linked.size();
+		std::string canonical = std::string("fes-composition-v2\0", 19) + info.package_id + std::string(1, '\0');
+		for (const auto& slot : info.expansions)
+			canonical += std::to_string(slot.slot) + ":" + slot.expansion_id + std::string(1, '\0');
+		info.id = hash(canonical + info.payload_sha256);
+		if (mutate) {
+			// Admission retains every card; the second is rechecked before programming.
+			std::unique_ptr<mister::AdmittedCorePackage> admitted;
+			assert(fixture.native.hardware.AdmitCoreComposition(package.path, base.package_id,
+				request, &admitted).ok());
+			const int fd = open((slot6.path + "/cart.rbf").c_str(), O_WRONLY);
+			assert(fd >= 0 && pwrite(fd, "x", 1, 0) == 1 && close(fd) == 0);
+			fixture.native.events.clear();
+			const auto result = fixture.native.hardware.LoadCore(std::move(admitted), 1);
+			assert(result.error.code == mister::ErrorCode::invalid_package && !result.mutation_attempted);
+			assert(fixture.native.events.empty() && driver_events.empty());
+			continue;
+		}
+		assert(fixture.runtime.LoadComposedCore(package.path, base.package_id, request).ok());
+		assert(fixture.native.fpga.programmed.back() == "linked.rbf");
+		assert(fixture.native.fpga.programmed_first_bytes.back() == 'l');
+		const auto status = fixture.runtime.status();
+		assert(status.active_package.composition.id == info.id);
+		assert(status.active_package.composition.expansion_id.empty());
+		assert(status.active_package.composition.expansions.size() == 2);
+		assert(status.active_package.composition.expansions[1].slot == 6);
+		assert(fixture.runtime.Stop().ok());
+		assert(fixture.runtime.status().active_package.composition.id.empty());
+	}
+}
+
 int main()
 {
+	TestComputerLiveMediaLifecycleThroughRuntime();
+	TestComputerSlotCompositionActivatesLinkedPayload();
 	TestFormat4TwoSourceAdmissionBeforeMutation();
 	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
@@ -2024,6 +2242,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 25 passed");
+	puts("native_hardware_test: 27 passed");
 	return 0;
 }

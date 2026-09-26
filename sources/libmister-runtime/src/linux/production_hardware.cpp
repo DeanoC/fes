@@ -187,6 +187,19 @@ public:
 	{
 		return hardware_.LoadComputerMediaStream(path, size);
 	}
+	Error SetKeyboardHid(const KeyboardHidRows& rows) override
+	{
+		return hardware_.SetKeyboardHid(rows);
+	}
+	Error InsertComputerMedia(std::uint8_t unit, const std::string& path,
+		std::uint32_t size) override
+	{
+		return hardware_.InsertComputerMedia(unit, path, size);
+	}
+	Error EjectComputerMedia(std::uint8_t unit) override
+	{
+		return hardware_.EjectComputerMedia(unit);
+	}
 
 private:
 	native::PosixArtifactOpener opener_;

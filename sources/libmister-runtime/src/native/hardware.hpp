@@ -93,6 +93,10 @@ public:
 	Error ClearComputerMedia() override;
 	Error LoadComputerFirmware(const std::string& path) override;
 	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override;
+	Error SetKeyboardHid(const KeyboardHidRows& rows) override;
+	Error InsertComputerMedia(std::uint8_t unit, const std::string& path,
+		std::uint32_t size) override;
+	Error EjectComputerMedia(std::uint8_t unit) override;
 
 private:
 	Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);

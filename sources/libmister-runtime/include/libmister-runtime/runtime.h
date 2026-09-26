@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -168,6 +169,19 @@ struct MediaStreamCapability {
 	std::uint32_t chunk_bytes = 0;
 };
 
+enum class MediaUnitState { empty, loading, ready };
+
+// One removable-media unit of an active fes.computer generation. Limits and
+// state come from the unit's live MediaInfo, not from its declaration.
+struct MediaUnitCapability {
+	std::uint8_t unit = 0;
+	SupportedInterface interface;
+	std::uint32_t min_bytes = 0;
+	std::uint32_t max_bytes = 0;
+	std::uint32_t chunk_bytes = 0;
+	MediaUnitState state = MediaUnitState::empty;
+};
+
 struct Capabilities {
 	std::uint32_t rom_linking = 0;
 	std::vector<std::string> programming_profiles;
@@ -176,20 +190,40 @@ struct Capabilities {
 	// Empty interface ID means absent. This is observed active-session data,
 	// not the compiled driver declaration registry above.
 	MediaStreamCapability media_stream;
+	// Observed units of the active fes.computer generation, ascending by unit.
+	std::vector<MediaUnitCapability> media_units;
 };
+
+// fes.keyboard.hid 1.0: rows 0..7 hold Keyboard/Keypad usages 16r..16r+15,
+// row 8 the eight modifier usages 0xe0..0xe7 in bits 0..7.
+using KeyboardHidRows = std::array<std::uint16_t, 9>;
 
 struct ObservedIdentity {
 	VersionedContract abi;
 	std::string build_id;
 };
 
+struct CoreCompositionSlot {
+	std::uint8_t slot = 0;
+	std::string expansion_id;
+};
+
+// A single-socket composition names one expansion_id. A multi-slot
+// composition instead lists one expansion per slot in ascending slot order.
 struct CoreComposition {
 	std::string id, package_id, expansion_id, shell_sha256, payload_sha256;
 	std::uint64_t payload_size = 0;
+	std::vector<CoreCompositionSlot> expansions;
+};
+
+struct CoreExpansionPath {
+	std::uint8_t slot = 0;
+	std::string path;
 };
 
 struct CoreCompositionRequest {
 	std::string expansion_path, payload_path;
+	std::vector<CoreExpansionPath> expansions;
 	CoreComposition composition;
 };
 
@@ -398,6 +432,18 @@ public:
 	{
 		return {ErrorCode::unsupported_interface, "computer media stream is unavailable", "request"};
 	}
+	virtual Error SetKeyboardHid(const KeyboardHidRows&)
+	{
+		return {ErrorCode::unsupported_interface, "keyboard HID is unavailable", "input"};
+	}
+	virtual Error InsertComputerMedia(std::uint8_t, const std::string&, std::uint32_t)
+	{
+		return {ErrorCode::unsupported_interface, "computer media units are unavailable", "request"};
+	}
+	virtual Error EjectComputerMedia(std::uint8_t)
+	{
+		return {ErrorCode::unsupported_interface, "computer media units are unavailable", "request"};
+	}
 };
 
 class Runtime {
@@ -445,6 +491,15 @@ public:
 	Error LoadComputerMediaStream(const std::string& path,
 		const std::string& expected_package_id, std::uint64_t expected_generation,
 		std::uint32_t size);
+	// fes.computer: complete HID snapshot; the driver writes only changed rows.
+	Error SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
+		const KeyboardHidRows& rows);
+	// fes.computer: live transfer into one declared media unit without holding
+	// execution reset. A failed transfer ejects that unit once.
+	Error InsertMedia(const std::string& path, const std::string& expected_package_id,
+		std::uint64_t expected_generation, std::uint8_t unit, std::uint32_t size);
+	Error EjectMedia(const std::string& expected_package_id,
+		std::uint64_t expected_generation, std::uint8_t unit);
 	Error Stop();
 	// Programs idle again after reboot_required. Stop does not.
 	Error RecoverIdle();
@@ -457,5 +512,6 @@ private:
 const char* ErrorCodeName(ErrorCode);
 const char* StateName(State);
 const char* ExecutionName(Execution);
+const char* MediaUnitStateName(MediaUnitState);
 
 } // namespace mister

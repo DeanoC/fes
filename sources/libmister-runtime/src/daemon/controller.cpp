@@ -122,6 +122,18 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.LoadComputerMediaStream(request.media_path,
 			request.expected_package_id, request.expected_generation, request.media_size);
 		break;
+	case Operation::set_keyboard_hid:
+		result = runtime_.SetKeyboardHid(request.package_id, request.expected_generation,
+			request.keyboard_rows);
+		break;
+	case Operation::insert_media:
+		result = runtime_.InsertMedia(request.media_path, request.expected_package_id,
+			request.expected_generation, request.media_unit, request.media_size);
+		break;
+	case Operation::eject_media:
+		result = runtime_.EjectMedia(request.expected_package_id,
+			request.expected_generation, request.media_unit);
+		break;
 	case Operation::load_development_rbf:
 		result = runtime_.LoadContainedDevelopmentRBF(request.rbf);
 		EmitFifoConsume("load_development_rbf", result.ok());
