@@ -61,6 +61,31 @@ clock-coverage flip-flop. The Go linker layout `fes.apple2-bus.slots/1`
 admits any combination of independently built cards into those sockets.
 Slot 6 is the built-in Disk II controller; slots 1 and 3 are vacant.
 
+### Cards
+
+`expansions/probe.v` is the open probe card (module `cart`, the socket plug
+ports nextpnr merges onto a frozen shell): a scratch/ID/counter/tone register
+file at `$C0n0`, a position-independent 256-byte `$Cn00` page
+(`diagnostic/probe_card.py`, signature `FESPROBE` at `$CnF8`) that tests the
+card and prints through the diagnostic, 1 KiB of `$C800` RAM claimed by a
+`$Cn00` access and released by `$CFFF`, and a square-wave tone on the slot
+audio. The diagnostic's `S` command scans slots and calls every probe card;
+the machine simulation links it into sockets 4 and 7.
+
+```sh
+python3 scripts/build_apple2_slot_card.py --shell build/fes-apple2-oss \
+  --package build/packages/SHELL_PACKAGE_ID --slot 4 --card probe [--cache-root DIR]
+```
+
+The card producer copies the shell's frozen routed netlist, renames only the
+chosen slot's boundary flip-flops to the canonical plug cells, places the card
+in that slot's named region (`--fes-cart-region slotN`), fences routing to its
+CRAM rectangle, requires the three shell clocks, rejects any CRAM change
+outside the socket, and publishes `build/apple2-cards/RECIPE/EXPANSION_ID.tar`
+(`manifest.json` with `slot_index`, and `cart.rbf`). The Go
+`expansion/cmd/fes-slot-link` composes any set of those archives and an
+optional firmware image onto the sealed shell, as a library launch does.
+
 ## Disk II
 
 The slot 6 controller (`apple2_disk2_card.v`) owns the `$C0E0-$C0EF`

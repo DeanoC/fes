@@ -1244,8 +1244,19 @@ outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
 system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
 memory maps to an M10K without a clock in this toolchain, so the font M10K
 is instantiated explicitly (`rtl/apple2_video.v`) and the audio mix is
-pipelined. The package declares `fes.expansion.apple2-bus` 1.0 optional;
-building cards for the sockets is a separate producer.
+pipelined. The package declares `fes.expansion.apple2-bus` 1.0 optional.
+
+`scripts/build_apple2_slot_card.py` builds one card for one physical slot
+against the exact sealed shell and its frozen `routed.json`: the scaffold
+renames only that slot's boundary flip-flops to `plug_addr_ff_N` /
+`plug_rdata_ff_N` (the other sockets keep their instance names, so nextpnr
+finds exactly one plug set), removes that slot's clock-coverage flip-flop,
+and reattaches the system PLL's second output as the Coleco card flow does.
+nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
+`--fes-cram-region`; the producer requires the three shell clocks and no CRAM
+change outside the socket, then publishes a two-member archive whose
+manifest carries `slot_index`. `expansion/cmd/fes-slot-link` composes any set
+of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## Shared native kit client
 

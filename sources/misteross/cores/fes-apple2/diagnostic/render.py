@@ -116,7 +116,7 @@ def diagnostic_screens() -> dict[str, tuple[Memory, bool, bool, bool, bool]]:
     textscr()
     message(0, firmware.CHARSET_ROW + 5, "RAM OK")
     message(0, firmware.CHARSET_ROW + 6, "LANGUAGE CARD OK")
-    message(0, firmware.CHARSET_ROW + 8, "KEYS T L H M B")
+    message(0, firmware.CHARSET_ROW + 8, "KEYS T L H M B S")
     snapshot("text", True, False, False, True)
     lores()
     snapshot("lores", False, False, False, False)
@@ -133,6 +133,8 @@ def diagnostic_screens() -> dict[str, tuple[Memory, bool, bool, bool, bool]]:
     textscr()
     snapshot("text2", True, False, False, True)
     message(0, firmware.MESSAGE_ROW, "A")
+    message(0, firmware.MESSAGE_ROW, "PROBE CARD OK IN SLOT 4")
+    message(0, firmware.MESSAGE_ROW + 1, "PROBE CARD OK IN SLOT 7")
     message(0, 22, firmware.DISK_PASS)
     snapshot("disk", True, False, False, True)
     return screens

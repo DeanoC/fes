@@ -15,7 +15,8 @@ the CPU's $C000-$FFFF window exactly as the shell's linked ROM does:
   (6-and-2 decode) used to boot the synthetic disk.
 
 Commands (Apple II keyboard codes with bit 7 set): T text, L lo-res, H hi-res,
-M mixed, B boot slot 6. Other keys are echoed. After each command the monitor
+M mixed, B boot slot 6, S scan the slots for FES probe cards and call each one
+(its result byte goes to $0380 + slot). Other keys are echoed. After each command the monitor
 writes the command code to STAGE ($03F1); RESULT ($03F0) holds $11 after the
 self tests, $A5 after a verified disk boot, or an $E0-$EF failure code.
 
@@ -166,6 +167,10 @@ FSEC    = $2E
 FCHK    = $2F
 RETRY   = $30
 HTRACK  = $31
+SLOTN   = $32
+PTR     = $33
+STUB    = $0340
+SLOTRES = $0380
 SECWANT = $3D
 TRKWANT = $41
 AUX     = $0300
@@ -197,7 +202,7 @@ HROW:   .byte {hires_row}
 MSGRAM: .byte {screen_bytes("RAM OK")}, 0
 MSGLC:  .byte {screen_bytes("LANGUAGE CARD OK")}, 0
 MSGBAD: .byte {screen_bytes("FAILED")}, 0
-MSGKEY: .byte {screen_bytes("KEYS T L H M B")}, 0
+MSGKEY: .byte {screen_bytes("KEYS T L H M B S")}, 0
 MSGMIX: .byte {screen_bytes(MIXED_TEXT)}, 0
 MSGDSK: .byte {screen_bytes(DISK_PASS)}, 0
 MSGDER: .byte {screen_bytes("DISK ERROR")}, 0
@@ -294,12 +299,63 @@ M4:     CMP #$C2            ; B
         BNE M5
         LDA $C600           ; touch the slot ROM page, then boot it
         JMP $C600
-M5:     JSR PUTC            ; echo any other key
+M5:     CMP #$D3            ; S
+        BNE M6
+        JSR SLOTSCAN
+        JMP MDONE
+M6:     JSR PUTC            ; echo any other key
         LDA SPKR            ; and click the speaker twice
         LDA SPKR
 MDONE:  LDA TMP2
         STA STAGE
         JMP MLOOP
+
+; Slot scan: call every card whose page ends in the probe signature ---------
+; X = slot * 16 and Y = slot on entry; the card's A result goes to SLOTRES+n.
+SLOTSCAN:
+        LDA #0
+        STA CURX
+        LDY #1
+SS1:    STY SLOTN
+        TYA
+        ORA #$C0
+        STA PTR+1
+        LDA #$F8
+        STA PTR
+        LDY #0
+SS2:    LDA (PTR),Y
+        CMP PROBESIG,Y
+        BNE SSNEXT
+        INY
+        CPY #8
+        BNE SS2
+        LDA #$20            ; JSR $Cn00 ; RTS stub in RAM
+        STA STUB
+        LDA #$00
+        STA STUB+1
+        LDA PTR+1
+        STA STUB+2
+        LDA #$60
+        STA STUB+3
+        LDA SLOTN
+        ASL
+        ASL
+        ASL
+        ASL
+        TAX
+        LDY SLOTN
+        JSR STUB
+        LDY SLOTN
+        STA SLOTRES,Y
+        LDA #0
+        STA CURX
+        INC CURY
+SSNEXT: LDY SLOTN
+        INY
+        CPY #8
+        BNE SS1
+        RTS
+PROBESIG: .byte "FESPROBE"
 
 ; Screens --------------------------------------------------------------------
 TEXTSCR:

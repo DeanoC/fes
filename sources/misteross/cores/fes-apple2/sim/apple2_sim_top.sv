@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Simulation board: machine, built-in slot 6 Disk II card and drive, video,
-// and a disk store preloaded from the synthetic test image. The testbench
-// drives both clocks, host reset, disk presence and keyboard events.
+// a disk store preloaded from the synthetic test image, and the open probe
+// card linked into the slot 4 and slot 7 sockets through their registered
+// boundaries. The testbench drives both clocks, host reset, disk presence and
+// keyboard events.
 `include "apple2_bus.vh"
 
 module apple2_sim_top (
@@ -40,7 +42,8 @@ module apple2_sim_top (
         .key_event(key_event), .key_code(key_code),
         .buttons(3'b000), .paddles(32'h80808080), .cassette_in(1'b0),
         .slot_request(slot_request), .slot_devsel(slot_devsel), .slot_iosel(slot_iosel),
-        .slot_response({`A2_BUS_RSP'd0, disk_response, {6{`A2_BUS_RSP'd0}}}),
+        .slot_response({slot7_response, disk_response, `A2_BUS_RSP'd0, slot4_response,
+                        {4{`A2_BUS_RSP'd0}}}),
         .video_text(text_mode), .video_mixed(mixed_mode),
         .video_page2(page2), .video_hires(hires_mode), .annunciators(),
         .video_clk(pixel_clk), .video_addr(video_addr), .video_data(video_data),
@@ -49,6 +52,29 @@ module apple2_sim_top (
         .debug_bus_data(bus_data), .debug_bus_write(bus_write)
     );
     /* verilator lint_on PINCONNECTEMPTY */
+
+    function [`A2_BUS_REQ-1:0] slot_word;
+        input [`A2_BUS_REQ-1:0] common;
+        input devsel, iosel;
+        begin
+            slot_word = common;
+            slot_word[`A2_BUS_DEVSEL] = devsel;
+            slot_word[`A2_BUS_IOSEL] = iosel;
+        end
+    endfunction
+    wire [`A2_BUS_REQ-1:0] slot4_plug_request, slot7_plug_request;
+    wire [`A2_BUS_RSP-1:0] slot4_plug_response, slot7_plug_response;
+    wire [`A2_BUS_RSP-1:0] slot4_response, slot7_response;
+    apple2_slot_socket4 slot4 (
+        .clock(clk_sys), .request(slot_word(slot_request, slot_devsel[4], slot_iosel[4])),
+        .response(slot4_response), .plug_request(slot4_plug_request), .plug_response(slot4_plug_response)
+    );
+    cart slot4_card (.FPGA_CLK1_50(clk_sys), .plug_addr(slot4_plug_request), .plug_rdata(slot4_plug_response));
+    apple2_slot_socket7 slot7 (
+        .clock(clk_sys), .request(slot_word(slot_request, slot_devsel[7], slot_iosel[7])),
+        .response(slot7_response), .plug_request(slot7_plug_request), .plug_response(slot7_plug_response)
+    );
+    cart slot7_card (.FPGA_CLK1_50(clk_sys), .plug_addr(slot7_plug_request), .plug_rdata(slot7_plug_response));
 
     wire [3:0] phases;
     wire drive2;

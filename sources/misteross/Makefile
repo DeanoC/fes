@@ -824,6 +824,9 @@ apple2-diagnostic:
 	$(PYTHON) cores/fes-apple2/diagnostic/font.py --verilog $(APPLE2_DIAGNOSTIC)/font.vh
 	@cmp -s $(APPLE2_DIAGNOSTIC)/font.vh cores/fes-apple2/rtl/apple2_font.vh || \
 		{ echo 'cores/fes-apple2/rtl/apple2_font.vh is stale; regenerate it with diagnostic/font.py' >&2; exit 1; }
+	$(PYTHON) cores/fes-apple2/diagnostic/probe_card.py --verilog $(APPLE2_DIAGNOSTIC)/probe_rom.vh
+	@cmp -s $(APPLE2_DIAGNOSTIC)/probe_rom.vh cores/fes-apple2/expansions/probe_rom.vh || \
+		{ echo 'cores/fes-apple2/expansions/probe_rom.vh is stale; regenerate it with diagnostic/probe_card.py' >&2; exit 1; }
 	$(PYTHON) cores/fes-apple2/diagnostic/firmware.py --output-dir $(APPLE2_DIAGNOSTIC)
 	$(PYTHON) cores/fes-apple2/diagnostic/render.py --output-dir $(APPLE2_DIAGNOSTIC)
 
@@ -847,7 +850,9 @@ sim-fes-apple2-machine: apple2-diagnostic
 	@mkdir -p build/sim/fes-apple2-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module apple2_sim_top $(APPLE2_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-apple2-machine" \
+		-Icores/fes-apple2/expansions \
 		cores/fes-apple2/sim/apple2_sim_top.sv $(APPLE2_RTL) \
+		cores/fes-apple2/rtl/apple2_slot_sockets.v cores/fes-apple2/expansions/probe.v \
 		"$(CURDIR)/cores/fes-apple2/sim/machine_tb.cpp"
 	@build/sim/fes-apple2-machine/Vapple2_sim_top --require-refs
 

@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / 'cores' / 'fes-apple2' / 'diagnostic'))
 import asm6502  # noqa: E402
 import firmware  # noqa: E402
 import font  # noqa: E402
+import probe_card  # noqa: E402
 
 
 class Apple2DiagnosticTest(unittest.TestCase):
@@ -46,6 +47,14 @@ ADDR = $2C
         self.assertEqual(font.screen_code('A'), 0xC1)
         self.assertEqual(font.screen_code('A', 'inverse'), 0x01)
         self.assertEqual(font.screen_code('A', 'flash'), 0x41)
+
+    def test_probe_card_page(self):
+        page = probe_card.page()
+        self.assertEqual(page[0xF8:], b"FESPROBE")
+        tracked = (ROOT / 'cores/fes-apple2/expansions/probe_rom.vh').read_text()
+        self.assertEqual(tracked, probe_card.verilog())
+        firmware_image = firmware.build_firmware()
+        self.assertIn(b"FESPROBE", firmware_image)  # the slot scan signature
 
     def test_firmware_layout(self):
         image = firmware.build_firmware()

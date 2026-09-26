@@ -33,6 +33,7 @@ struct Bench {
     int result = -1;
     int stage = -1;
     int speaker_toggles = 0;
+    int slot_result[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
     int last_speaker = 0;
     std::vector<uint8_t> frame;
     bool capturing = false;
@@ -65,6 +66,8 @@ struct Bench {
             cpu_cycles++;
             if (top.bus_write && top.bus_addr == 0x03F0) result = top.bus_data;
             if (top.bus_write && top.bus_addr == 0x03F1) stage = top.bus_data;
+            if (top.bus_write && top.bus_addr >= 0x0381 && top.bus_addr <= 0x0387)
+                slot_result[top.bus_addr - 0x0380] = top.bus_data;
         }
         if (top.speaker != last_speaker) {
             speaker_toggles++;
@@ -236,6 +239,19 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "expected two speaker toggles, saw %d\n", b.speaker_toggles - clicks);
         ok = false;
     }
+
+    // Slot scan: probe cards linked into sockets 4 and 7 run their $Cn00 pages.
+    b.stage = -1;
+    b.key('S' | 0x80);
+    if (!b.run_until("slot scan", 200'000'000'000ull, [&] { return b.stage == ('S' | 0x80); })) return 1;
+    for (int slot = 1; slot < 8; ++slot) {
+        int expected = (slot == 4 || slot == 7) ? 0xA5 : -1;
+        if (b.slot_result[slot] != expected) {
+            std::fprintf(stderr, "slot %d probe result %d, expected %d\n", slot, b.slot_result[slot], expected);
+            ok = false;
+        }
+    }
+    std::printf("slot scan found probe cards in slots 4 and 7\n");
 
     if (disk) {
         b.result = -1;
