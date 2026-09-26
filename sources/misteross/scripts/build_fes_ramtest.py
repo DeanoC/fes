@@ -69,7 +69,7 @@ TOOLCHAIN_LOCK_130 = "toolchains/ramtest-130.lock"
 TOOLCHAIN_ROOT_130 = Path("build/toolchain-ramtest-130")
 # ramtest-130.lock adds the calibrated placement prediction that closes 130 MHz.
 YOSYS_130 = "1bf1ff3d709dc8182cfa61701620d87181516941"
-NEXTPNR_130 = "89350e2bfb73686dbff967d6bea77e06692247a8"
+NEXTPNR_130 = "04a233c83edfb74c2cedce03a1864cd0d27ff3bd"
 MEMORY_PLL_100 = {
     "duty_cycle0": "00000000000000000000000000110010",
     "duty_cycle1": "00000000000000000000000000110010",

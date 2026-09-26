@@ -2,19 +2,19 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "1bf1ff3d709dc8182cfa61701620d87181516941"
 order = 10
-rationale = "DeanoC main sampled 2026-09-26. CMake build with registered and flow-through M10K mapping and merged cyclonev_hps_interface_fpga2sdram support. Pair with nextpnr 89350e2b."
+rationale = "DeanoC main sampled 2026-09-26. CMake build with registered and flow-through M10K mapping and merged cyclonev_hps_interface_fpga2sdram support. Pair with nextpnr 04a233c8."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
 order = 20
-rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corrected timing target-position mask and hashed node lookups (PRs #9-10). Same pin as toolchain.lock; pair with nextpnr 89350e2b."
+rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corrected timing target-position mask and hashed node lookups (PRs #9-10). Same pin as toolchain.lock; pair with nextpnr 04a233c8."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "89350e2bfb73686dbff967d6bea77e06692247a8"
+commit = "04a233c83edfb74c2cedce03a1864cd0d27ff3bd"
 order = 30
-rationale = "nextpnr main f65075bb (merged dual 130 MHz PLL with 6538 ps capture phase, HPS fpga2sdram, analogue-scored GPU repair) plus the calibrated Mistral placement delay prediction (PR #86, FES #236). Without it, seed 2 misses the 130 MHz memory clock at 128.16 MHz; with it, 31 of 32 seeds close. Pair with Yosys 1bf1ff3d and Mistral 7ed06e21."
+rationale = "nextpnr main 9eb8f8bf (dual 130 MHz PLL with 6538 ps capture phase, HPS fpga2sdram, analogue-scored GPU repair, soft-plateau finish #84, frozen CRAM routes #85) plus the calibrated Mistral placement delay prediction (PR #86, FES #236). Without it, seed 2 misses the 130 MHz memory clock at 128.16 MHz; with it, 30 of 32 seeds close. Pair with Yosys 1bf1ff3d and Mistral 7ed06e21."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
