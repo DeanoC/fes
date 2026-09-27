@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test analytical HPS pin geometry](validation/2026-09-27-ramtest-hps-pin-geometry.md) | Physical pin offsets in analytical HeAP regress to 96.52 MHz; exact disabled control and unchanged-logic proof. Host-only. |
 | [RAM-test paired placed composition](validation/2026-09-27-ramtest-placed-composition.md) | Matched one-cell relocation/composition probes regress versus 116.44 MHz; rejected candidate and HPS endpoint-geometry lead. Host-only. |
 | [RAM-test generic enable replication](validation/2026-09-27-ramtest-enable-replication.md) | Opt-in timing-driven enable replication preserves placements and reaches 116.44 MHz memory. Host-only; producer lock unchanged. |
 | [RAM-test enable locality](validation/2026-09-27-ramtest-enable-locality.md) | Matched HPS-ready Quartus path and isolated post-placement enable replication probe. Host-only; producer lock unchanged. |

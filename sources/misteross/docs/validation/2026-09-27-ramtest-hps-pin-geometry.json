@@ -1,0 +1,443 @@
+{
+  "artifact_root": "out/ramtest-hps-pin-geometry",
+  "artifacts_sha256": {
+    "build-coverage-red.log": "f39e639ec62b738193f3591c8ff641743ad4f1a57f3baabcc4c0dea6a3bc16e7",
+    "build-final.log": "75c0da70ca6778067a36c28a847c6ce4879825033d34ca0b316527a6c10799c5",
+    "build-green.log": "dd9d27df31d37674f007d2723ca0641b6512e66d123c5a2a55657a52b90153c6",
+    "build-red.log": "e6b80792403b86a59782f0cdc40b6c447320ef821d769518fb88eb66721f7873",
+    "check_disabled.py": "d9f60ce04fbf530686ecf806d48fac5ab425e7c0ed08ca4d5f780ba15d50405b",
+    "check_geometry.py": "7c74d16dff073257d5915ee8a8fb73276f95262b36daf7b4748b5744e5f82fcf",
+    "check_placement.py": "a23ff11863c59853d54e234bb002c78f194df8c77f3fdacb31570daa3393be16",
+    "checker-tests.json": "b35ca82c040e182f6df22e0d86aa6764dac2378e43f313f244179ff314d61273",
+    "compare_geometry.py": "7794877dc872ae00cc439beafe1c9b5df1059065b069f96e889ec0843c18cd71",
+    "compiler-build.json": "b2bef8173dccb2cf3e3c0eb1bc6b655e37b3ed12247cff6fc46d99656bf950b4",
+    "compiler.patch": "6806236754458275b6d36b89e52c0e389ddda14f02a7ed3ef735b0a2a325e5ca",
+    "control-c2-place-invalid-cli/invocation.json": "cde13de5e4261507e5ef587d9f5ef30d03fda1eb0ec54da3171181a01ba4c319",
+    "control-c2-place-invalid-cli/result.json": "ec893c12b8a28439292402167d671286d7e7d7b2a363fcf60a76d2e6b1b567c9",
+    "control-c2-place-invalid-cli/run.log": "fc4bce8a6992fdafd38131700ef429cd0cfb4aec573c990b905cc4d4b4aa0cae",
+    "control-c2-place/invocation.json": "7cf397984526e684f3da357e58530e96f1b0c355656291e092f8efbf9f221061",
+    "control-c2-place/replication.after.json": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+    "control-c2-place/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "control-c2-place/replication.before.json": "73c87a91e50ba630b40f8959dcea7a796c384a646b76ff2d45db286a74f001cc",
+    "control-c2-place/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "control-c2-place/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "control-c2-place/result.json": "2c9584f345d7d444924ab28a074531aeef2be1afa5461c06bcf91f0fd7eb8ab0",
+    "control-c2-place/routed.json": "660575b6fa509a20e61e1ace1d109101f5b5de3da16a9f7ba61bec69ad8406ca",
+    "control-c2-place/run.log": "f1401c279d40e798ae17c8422c21a1da752f21ead1ae0a3f46b4d560b0b5daff",
+    "coverage-red.log": "1d62ff292a611e271dc9fce8d860f245bf7b9715bce13edca9d6208f29c9d83d",
+    "ctest.log": "7b8f4fb519c2a98e6ec3202b6d66f86ea6692a907349998e4ee4efd824ff4b26",
+    "default-checks/default.json": "35025d595a70e039f154511a1ef260d0038fa181794efaabb3387c351676a042",
+    "default-checks/default.log": "927a989ad02c3a39f49fca79b48dd326b05ef3c2dae775a86eeafd00fcd77f46",
+    "default-checks/empty-prefix.json": "35025d595a70e039f154511a1ef260d0038fa181794efaabb3387c351676a042",
+    "default-checks/empty-prefix.log": "aad30702b36c6e0ece69c8271e9b0b994dc4f9070848eaab63d2fa788d350931",
+    "default-checks/proof.json": "5cb131f89d7b3f87d6ae15915014a6d4fc8682180a0a38d6d8fcc88acc1f75a7",
+    "disabled-proof.json": "0fd58e6bcb0ef62096e25cd70297321037de368572c0c56a2653b85fe932d212",
+    "fixture-mistral-hps-pin-geometry.pins.tsv": "49d204ee305a01a677a21b40ba8382f0cd024a5613439161f790dee8e92a3a64",
+    "fixture-mistral-hps-pin-geometry.scope.json": "7206ce0fb45757a122d05adc76335c164d5f42b7dfca7cf7b39c444222d938df",
+    "focused-green.log": "37597929bb216818b45083717622cd94e4994d7e37dcae8d7e9adeba570c169e",
+    "geometry-checker-tests.json": "05fa4c79cbc41ab48d02211eb7c11a284136a15fa7dfc1c56ce58d5286e9c97e",
+    "geometry-comparison.json": "6e5aaf23d3111b6fe303e97baf63c6df312a42697661a567c9fa808412311c51",
+    "green.log": "ce29e9f4919038e2541e8819c789f19ce112c8dd3413fa07637f85849c18055c",
+    "heap-c2/arcs.tsv": "20348d7a99f764339da5fa376d4563bd9ca34491bc1510e8e34f3ec5e10bc92d",
+    "heap-c2/core.rbf": "d63a9b2a8c8f7b3f4c5b1fa14bf97a01f34a91d43332cb61a7ebc069e40b6a93",
+    "heap-c2/geometry-proof.json": "3940ab2a6090d3fe8aeaa1b7a768c62058c921eef2953bcc9a32c080e2cdd907",
+    "heap-c2/hps-geometry.pins.tsv": "751778ebb1cc016fdce10b597bc337d49247c33b6d7f36153c79786380ae6e23",
+    "heap-c2/hps-geometry.scope.json": "90eee4b0eb7f66cf3d39714d46bb03a98e655d0bd492951c8b304412ca8a86fb",
+    "heap-c2/invocation.json": "46100ce40eed4dd70d40016f10fa0282b762ca70449ea71207a0b2f442d78d15",
+    "heap-c2/placement-proof.json": "306bd737c101d76075377e03d0936b4b48b347e63863c24cc6427f08c1da6963",
+    "heap-c2/replication.after.json": "95f3b27733988a16271f2821699d8ef21028eef22646af790ac00b4f11b51843",
+    "heap-c2/replication.after.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "heap-c2/replication.before.json": "95f3b27733988a16271f2821699d8ef21028eef22646af790ac00b4f11b51843",
+    "heap-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "heap-c2/replication.replicas.tsv": "ee3cf260f5dd5249cc4b57ab3116eb498a9e55c8e856f7fa80daf442712e4377",
+    "heap-c2/result.json": "9998423c732769591327c415ddf31a2f23b40a74c127eaeaca5ec0737d190ab3",
+    "heap-c2/routed.json": "d7f9e8049fe389b1a39805cf068a69d2a1381c683f642e52e7c240186b3b1702",
+    "heap-c2/run.log": "fbd6dfc36900ca86eccff8e2d3892aa5d7a0ac16b7c546f976e32a131d28dee1",
+    "heap-c2/snapshot-proof.json": "8f3a4d9930b4e39cbbbc441bc9e65a085dc964dedcd2b1b72e6a33fd5a93d085",
+    "heap-c2/timing.json": "1a7bef09d30b86c39004fddba14271e525dd89e6dbee00d041e7e53b026578f7",
+    "physical-pins.json": "83c9a5bb864d24b807d99d422258530512d51cb8f797300814dab379d406e364",
+    "physical_pins.py": "e603dfb55f80ee7df497b49730aeeb0264fc441c44f523c9680ae58cd3f5fe80",
+    "red.log": "c3664fadc31b7e708a482dc4c3d59f4b9af32cc40a22711dc21bad21615fb65b",
+    "run_route.py": "ef2611e852da17eec75b77263a59766b7a77ec593c1ed456b44de18b9e276050",
+    "scope.json": "2336d193a948aeb4f83e9ba25d1b5b0a6a248b08361b8c5013e4ef8fb6083841",
+    "summarize.py": "7e30a05d9ac1f82fb3543df790bc2d2862259db1c159885b865fc1006ebb0af5",
+    "test-results.json": "c13753ebe5edadd255ee662f4aec9548f0ef7c8c7b25a0a94d3ed0a53650018f",
+    "test_checker.py": "f3c28275dbeccb77b9268a382a69a77cfae98f9e8e973b1b6a755a420eebd74e",
+    "test_geometry_checker.py": "de34c7b6e77d430d704a3a7020ea0f05207d24d26db3c785bc2e032da148f35c",
+    "tools/nextpnr-hps-pin-geometry": "5078f8ce242182b88a738c53d082072bc2d16070f28fa1b0b2dfc825f38aabdf",
+    "verify_evidence.py": "39a731919be59e916bfba10a4fc8823773c025fc8bc09be17e6cc68ac2a23936"
+  },
+  "checker-tests": {
+    "identity_and_moved_positive": true,
+    "negative_cases_rejected": [
+      "mask",
+      "connection",
+      "initialization",
+      "cell_removed",
+      "pin_state",
+      "settings"
+    ]
+  },
+  "classification": "host-only analytical HeAP pin-geometry diagnostic; unchanged RTL, producer lock and shared contracts; no hardware acceptance",
+  "disabled-proof": {
+    "before_cells": 14890,
+    "classification": "full disabled placement only; final baseline timing retained from previously measured route",
+    "full_before_and_after_modules_exact": true,
+    "full_before_and_after_pin_states_exact": true,
+    "replica_manifest_exact": true
+  },
+  "external_inputs_sha256": {
+    "out/ramtest-control-mapping/all_fsm-c2/routed.json": "bf823e0ffae08a305d33546f30f6a6311fa0456129d123ada67b1115e14cea66",
+    "out/ramtest-control-mapping/all_fsm-c2/timing.json": "a057178c4398c814ab50e09da10dfc67fcb42f83aff2593739377586def53b0e",
+    "out/ramtest-control-mapping/placer-options-green/default.json": "458a93404b3b0abe9875b6752445657deaccebb1ca56a715b9122412c281f49a",
+    "out/ramtest-enable-replication/budget4-c2/replication.before.json": "3b63896e7d50055f6bfa7a8f70f0c73ada71a40bc7a5ab26224c2fef4597d32a",
+    "out/ramtest-enable-replication/budget4-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "out/ramtest-enable-replication/check_snapshots.py": "672e78a293c487a570fcbd0f14b5553a80593390beb4b2c7a702fec89e2460a5",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "out/ramtest-fsm-isolation/mistral/data/sx120f-p2r.txt": "d627a7cd77ce80b4a18ab8f9b1443f1cd8e38b59e811895e039e4d9833dada18",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-enable-replication.json": "5da12e8af32821a2c565364e133a7477a9d378e5a42007f951a4b1f2411c372d"
+  },
+  "fes_base": "7e16a063cb005cda964c9c425fd3db7aa36fe9f1",
+  "geometry-checker-tests": {
+    "negative_cases_rejected": [
+      "wire",
+      "sign",
+      "missing_pin",
+      "constant_applied",
+      "output_applied",
+      "signal_skipped"
+    ],
+    "positive": {
+      "applied": 673,
+      "considered": 1178,
+      "excluded_reasons": {
+        "clock": 11,
+        "constant_net": 430,
+        "unused_output": 64
+      },
+      "independent_database_and_connectivity_match": true,
+      "ready1_offset": [
+        -1,
+        11
+      ]
+    }
+  },
+  "geometry-comparison": {
+    "baseline": {
+      "arc_count": 673,
+      "ready_arcs": [
+        {
+          "dx": 22,
+          "dy": 29,
+          "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            29,
+            35
+          ],
+          "hps_pin": "cmd_ready_0",
+          "x_plus_2y": 80
+        },
+        {
+          "dx": 21,
+          "dy": 38,
+          "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            30,
+            26
+          ],
+          "hps_pin": "cmd_ready_1",
+          "x_plus_2y": 97
+        },
+        {
+          "dx": 20,
+          "dy": 36,
+          "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            31,
+            28
+          ],
+          "hps_pin": "cmd_ready_2",
+          "x_plus_2y": 92
+        }
+      ],
+      "sum_x_plus_2y": 53763
+    },
+    "heap": {
+      "arc_count": 673,
+      "ready_arcs": [
+        {
+          "dx": 21,
+          "dy": 31,
+          "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            30,
+            33
+          ],
+          "hps_pin": "cmd_ready_0",
+          "x_plus_2y": 83
+        },
+        {
+          "dx": 17,
+          "dy": 34,
+          "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            34,
+            30
+          ],
+          "hps_pin": "cmd_ready_1",
+          "x_plus_2y": 85
+        },
+        {
+          "dx": 28,
+          "dy": 39,
+          "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            23,
+            25
+          ],
+          "hps_pin": "cmd_ready_2",
+          "x_plus_2y": 106
+        }
+      ],
+      "sum_x_plus_2y": 69547
+    },
+    "metric": "sum over eligible HPS pin/fabric endpoint arcs of abs(dx)+2*abs(dy); tile units, not timing; after refinement before replication"
+  },
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_base": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+  "nextpnr_branch": "probe/ramtest-hps-pin-geometry",
+  "nextpnr_commit": "979039a95910f388cb0b7d69d7e9f16980e29df3",
+  "nextpnr_status": "",
+  "runs": {
+    "heap-c2": {
+      "binary_sha256": "5078f8ce242182b88a738c53d082072bc2d16070f28fa1b0b2dfc825f38aabdf",
+      "classification": "host-only analytical HeAP pin geometry diagnostic; unchanged RTL and final timing model",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-pin-geometry/tools/nextpnr-hps-pin-geometry",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-pin-geometry/heap-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-pin-geometry/heap-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-pin-geometry/heap-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.07800000160932541,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.3970000445842743,
+            "routing": 8.3510000705719,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 10.361000128090382,
+          "from": {
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_11",
+            "loc": [
+              40,
+              30
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "ddr0_test.idle[14]"
+          ],
+          "logic_arcs": 7,
+          "to": {
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_7",
+            "loc": [
+              35,
+              33
+            ],
+            "port": "ENA"
+          },
+          "to_signals": [
+            "ddr0_test.beats_left[2]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": -0.04699999839067459,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.115000069141388,
+            "routing": 10.717999935150146,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.321000017225742,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q",
+            "loc": [
+              25,
+              6
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[2]"
+          ],
+          "logic_arcs": 7,
+          "to": {
+            "cell": "display.sdram_ch_t_MISTRAL_FF_Q_1",
+            "loc": [
+              28,
+              7
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.sdram_ch_t[1]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 592.9528262310196,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-pin-geometry/heap-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-pin-geometry/heap-c2/replication",
+        "NEXTPNR_MISTRAL_HPS_PIN_GEOMETRY": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-pin-geometry/heap-c2/hps-geometry"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 75.0694351196289,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 96.51577758789062,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 240.12782287597656,
+          "constraint": 130.0052032470703
+        }
+      },
+      "geometry-proof": {
+        "applied": 673,
+        "considered": 1178,
+        "excluded_reasons": {
+          "clock": 11,
+          "constant_net": 430,
+          "unused_output": 64
+        },
+        "independent_database_and_connectivity_match": true,
+        "ready1_offset": [
+          -1,
+          11
+        ]
+      },
+      "mode": "heap",
+      "placement-proof": {
+        "full_move_list": "heap-c2/placement-proof.json",
+        "moved_cell_count": 14809,
+        "original_cells": 14890,
+        "original_pin_states_exact": 103057,
+        "packed_module_exact_except_bels": true
+      },
+      "replication_log": [
+        "Info: Enable replication considering 'ddr1_test.state_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT2_B': 2 LAB groups, 2 signal inputs.",
+        "Info: Enable replication considering 'hps_ddr.port1.slot_free_MISTRAL_ALUT4_C': 19 LAB groups, 4 signal inputs.",
+        "Info: Enable replication considering 'hps_ddr.port2.slot_free_MISTRAL_ALUT3_B': 26 LAB groups, 3 signal inputs.",
+        "Info: Enable replication considering 'hps_ddr.port0.slot_free_MISTRAL_ALUT3_B': 42 LAB groups, 3 signal inputs.",
+        "Info: Enable replication: 0 replicas, budget 4; examined at most 32 of 5 ranked candidates."
+      ],
+      "returncode": 0,
+      "snapshot-proof": {
+        "original_pin_states_unchanged": 103057,
+        "original_placements_unchanged": 14890,
+        "replicas": []
+      },
+      "synth_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+    }
+  },
+  "scope": {
+    "baseline": "out/ramtest-enable-replication/budget4-c2",
+    "changes": [
+      "analytical equations: net bounds, weights, fixed and solved RHS offsets",
+      "HeAP HPWL used for placement selection"
+    ],
+    "fes_base": "7e16a063cb005cda964c9c425fd3db7aa36fe9f1",
+    "nextpnr_base": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+    "qualification": "fresh full flow seed2/exponent2/weight10/GPU1; opt-in diagnostic",
+    "question": "Does using real FPGA2SDRAM pin offsets in analytical HeAP improve the unchanged RAM-test design?",
+    "unchanged": [
+      "RTL and synthesis",
+      "delay predictor and final delay model",
+      "simulated annealing refinement",
+      "routing settings",
+      "enable replication algorithm and budget4"
+    ]
+  },
+  "test-results": {
+    "binary_sha256": "5078f8ce242182b88a738c53d082072bc2d16070f28fa1b0b2dfc825f38aabdf",
+    "classification": "host-only compiler diagnostic; enabled full routing and full disabled-placement control owned by root",
+    "ctest": {
+      "log": "out/ramtest-hps-pin-geometry/ctest.log",
+      "seconds": 80.7,
+      "tests_failed": 0,
+      "tests_passed": 22
+    },
+    "default_placement": {
+      "comparison": "exact complete 197-cell module for absent and empty prefix",
+      "proof": "out/ramtest-hps-pin-geometry/default-checks/proof.json",
+      "status": "PASS"
+    },
+    "focused": {
+      "coverage": [
+        "fixed/solved/jointly solved RHS terms",
+        "unclamped coordinates",
+        "no extra zero RHS operations",
+        "actual HPS ready/input/data physical pin mapping",
+        "mapping independent of current BEL binding",
+        "folded constants and MISTRAL_CONST-driven PIN_SIG inputs excluded",
+        "clock, unmapped, missing-wire and unused-output exclusions",
+        "enabled no-op rejection",
+        "disabled identifier neutrality"
+      ],
+      "coverage_red": "out/ramtest-hps-pin-geometry/coverage-red.log",
+      "initial_red": "out/ramtest-hps-pin-geometry/red.log",
+      "log": "out/ramtest-hps-pin-geometry/focused-green.log",
+      "tests_passed": 5
+    },
+    "limitations": [
+      "SA and predictDelay deliberately unchanged",
+      "geometry offset is not a calibrated timing model",
+      "full design measurements pending root run"
+    ],
+    "status": "PASS"
+  }
+}
