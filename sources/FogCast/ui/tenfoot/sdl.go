@@ -384,7 +384,7 @@ func openGFXDevice(opts Options, renderer unsafe.Pointer) (gfx.Device, error) {
 	case gfx.BackendFPGAStub:
 		return gfx.NewFPGAStub(opts.Width, opts.Height)
 	case gfx.BackendLinuxFB:
-		return nil, fmt.Errorf("linuxfb is the kit framebuffer Device; use cmd/tenfoot-linuxfb-spike")
+		return nil, fmt.Errorf("linuxfb uses the native framebuffer shell; select -gfx linuxfb through tenfoot.Run")
 	default:
 		return gfx.WrapSDLRenderer(renderer, opts.Width, opts.Height)
 	}

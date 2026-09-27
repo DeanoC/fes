@@ -1542,6 +1542,8 @@ func (a *App) settingsHintLocked() string {
 		return settingsRemoveHint(kind, "path", "Left/Right system")
 	}
 	switch rowKind {
+	case settingsRowSystems:
+		return settingsActionHint(kind, "browse systems", "")
 	case settingsRowAddLibrary:
 		return settingsActionHint(kind, "add library", "")
 	case settingsRowSaveLibraries:

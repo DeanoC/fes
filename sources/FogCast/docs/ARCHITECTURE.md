@@ -729,7 +729,9 @@ SDL initialization, including in CGO-free builds. Both shells use
 `configuredApp` and the shared App, rendering, catalog and session API paths.
 The framebuffer shell reads native-width evdev records for US keyboard text
 and digital gamepad buttons/hat axes, merges held commands across devices,
-and uses the shared remapper and hold gate. It restores the mapped display
+and uses the shared remapper and hold gate. Automatic discovery filters by
+key capabilities, seeds startup affinity, and drops failed devices without
+turning held buttons into release actions; explicit input paths remain strict. It restores the mapped display
 bytes on normal exit. Inputs are selected at startup; analog sticks, pointer
 and hotplug are outside this development-testing slice. The framebuffer smoke
 uses no physical input and only verifies library loading and rendering; it

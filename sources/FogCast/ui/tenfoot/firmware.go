@@ -32,6 +32,8 @@ type FirmwarePickerRow struct {
 	Kind       string
 	Size       int64
 	Selectable bool
+	// Core binds a Systems row to its catalog entry independently of focus position.
+	Core *hostclient.AvailableCore
 }
 
 // FirmwarePickerSnapshot is renderer-facing overlay state for BIOS import.

@@ -262,3 +262,129 @@ func TestFramebufferControllerLongHold(t *testing.T) {
 		t.Fatal("long South did not open view picker")
 	}
 }
+
+func TestNativeDeviceClassification(t *testing.T) {
+	keys := make([]byte, 96)
+	set := func(code int) { keys[code/8] |= 1 << uint(code%8) }
+	set(272)
+	set(116)
+	if nativeKindFromKeys(keys) != InputNone {
+		t.Fatal("unrelated device accepted")
+	}
+	set(30)
+	set(44)
+	set(28)
+	if nativeKindFromKeys(keys) != InputKeyboard {
+		t.Fatal("keyboard not detected")
+	}
+	set(304)
+	if nativeKindFromKeys(keys) != InputGamepad {
+		t.Fatal("gamepad not detected")
+	}
+}
+func TestAutoInputDisconnectCancelsHeldAction(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	fd, err := unix.Dup(int(reader.Fd()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader.Close()
+	unix.SetNonblock(fd, true)
+	writer.Close()
+	in := &nativeInput{fd: fd, kind: InputGamepad}
+	inputs := &nativeInputs{devices: []*nativeInput{in}, automatic: true}
+	app := NewApp(nil, 1280, 720, 10)
+	now := time.Now()
+	in.button(app, ButtonNorth, 1, now)
+	inputs.applyButtons(app, now)
+	if _, err := inputs.poll(app, now.Add(time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	if app.OSKOpen() {
+		t.Fatal("disconnect emitted short North search")
+	}
+	if len(inputs.devices) != 0 || len(inputs.held) != 0 {
+		t.Fatal("lost device kept held state")
+	}
+}
+
+func TestNativeInputSeedPrefersGamepad(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	inputs := &nativeInputs{devices: []*nativeInput{{fd: 10, kind: InputKeyboard}, {fd: 11, kind: InputGamepad}}}
+	inputs.seed(a)
+	if got := a.Affinity(); got.Kind != InputGamepad || got.ID != 11 {
+		t.Fatalf("startup affinity = %#v", got)
+	}
+}
+func TestNativeInputLocalDiscovery(t *testing.T) {
+	if os.Getenv("FOGCAST_TEST_EVDEV") != "1" {
+		t.Skip("live evdev discovery is opt-in")
+	}
+	inputs, err := openNativeInputs("auto")
+	if err != nil {
+		t.Skipf("no supported input devices currently attached: %v", err)
+	}
+	defer inputs.close()
+	a := NewApp(nil, 1280, 720, 10)
+	inputs.seed(a)
+	t.Logf("classified %d supported nodes; startup owner %s; no events read", len(inputs.devices), a.Affinity().Kind)
+}
+func TestExplicitInputDisconnectStaysStrict(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	writer.Close()
+	fd := int(reader.Fd())
+	unix.SetNonblock(fd, true)
+	inputs := &nativeInputs{devices: []*nativeInput{{fd: fd}}}
+	if _, err := inputs.poll(NewApp(nil, 1280, 720, 10), time.Now()); err == nil {
+		t.Fatal("explicit input disconnect did not fail")
+	}
+}
+
+func TestAutoDroppedEventsKeepOtherDeviceHeld(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	fd, err := unix.Dup(int(r.Fd()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Close()
+	unix.SetNonblock(fd, true)
+	otherR, otherW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer otherR.Close()
+	defer otherW.Close()
+	otherFD := int(otherR.Fd())
+	unix.SetNonblock(otherFD, true)
+	lost := &nativeInput{fd: fd, kind: InputGamepad}
+	other := &nativeInput{fd: otherFD, kind: InputGamepad}
+	inputs := &nativeInputs{devices: []*nativeInput{lost, other}, automatic: true}
+	a := NewApp(nil, 1280, 720, 10)
+	inputs.seed(a)
+	now := time.Now()
+	other.button(a, ButtonDPadRight, 1, now)
+	lost.button(a, ButtonNorth, 1, now)
+	inputs.applyButtons(a, now)
+	w.Write(nativeTestEvent(0, 3, 0))
+	if quit, err := inputs.poll(a, now.Add(time.Millisecond)); err != nil || quit {
+		t.Fatalf("poll = %v, %v", quit, err)
+	}
+	if len(inputs.devices) != 1 || inputs.devices[0] != other || !inputs.held[CmdRight] {
+		t.Fatal("healthy device hold lost")
+	}
+	if a.OSKOpen() || inputs.held[CmdSearch] {
+		t.Fatal("dropped events emitted or retained search")
+	}
+}

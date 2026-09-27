@@ -219,31 +219,63 @@ func TestCoreLibraryNavigationOwnsInputAndPointer(t *testing.T) {
 	}
 }
 
-func TestCoreLibraryPendingRequestLocksNavigation(t *testing.T) {
+func TestCoreLibraryPendingRequestAllowsCancel(t *testing.T) {
 	entered := make(chan struct{})
-	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		close(entered)
-		<-release
-		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, `{"cores":[]}`)
-	}))
+	cancelled := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(entered); <-r.Context().Done(); close(cancelled) }))
 	defer server.Close()
 	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	a.mu.Lock()
 	a.openCoreLibraryLocked()
 	a.mu.Unlock()
 	<-entered
-	a.HandleCommand(CmdBack, time.Now())
-	a.HandleCommand(CmdSettings, time.Now())
 	a.HandleCommand(CmdSelect, time.Now())
-	if !a.Snapshot().CoreLibrary.Open || !a.Snapshot().CoreLibrary.Busy {
-		t.Fatal("pending request lost its overlay")
+	if !a.Snapshot().CoreLibrary.Busy {
+		t.Fatal("select interrupted pending request")
 	}
-	close(release)
-	waitCoreLibrary(t, a)
 	a.HandleCommand(CmdBack, time.Now())
 	if a.Snapshot().CoreLibrary.Open {
-		t.Fatal("completed overlay could not close")
+		t.Fatal("Back did not dismiss pending overlay")
 	}
+	select {
+	case <-cancelled:
+	case <-time.After(3 * time.Second):
+		t.Fatal("request context not cancelled")
+	}
+}
+
+func TestCoreLibraryRowsCarryCatalogIdentity(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	a.coreLibrary.Cores = []hostclient.AvailableCore{{CoreReference: hostclient.CoreReference{CoreID: "fes.sms", PackageID: "a"}, Label: "same"}, {CoreReference: hostclient.CoreReference{CoreID: "fes.coleco", PackageID: "b"}, Label: "same"}}
+	rows := a.coreLibraryRowsLocked()
+	if rows[1].Core == nil || rows[2].Core == nil || rows[1].Core.CoreID != "fes.sms" || rows[2].Core.CoreID != "fes.coleco" {
+		t.Fatalf("row identities lost: %#v", rows)
+	}
+}
+
+func TestCoreLibraryRequiresStartupBlob(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	setup := &hostclient.CoreSetup{}
+	if err := json.Unmarshal([]byte(`{"abi":{"id":"fes.application","major":1,"minor":0},"interfaces":[{"id":"fes.media.blob","major":1,"minor":0,"required":true}]}`), &setup.Descriptor); err != nil {
+		t.Fatal(err)
+	}
+	a.coreLibrary = coreLibraryState{Open: true, Online: true, Title: "requires blob", Ref: &hostclient.CoreReference{}, Setup: setup}
+	a.createCoreLibraryGameLocked()
+	if a.coreLibrary.Busy || a.coreLibrary.Status != "Choose required blob media." {
+		t.Fatalf("required blob not blocked: %#v", a.coreLibrary)
+	}
+}
+
+func TestSystemsSettingsHint(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	for i, row := range a.settingsRowsLocked() {
+		if row.ID == "systems" {
+			a.settingsIndex = i
+			if hint := a.settingsHintLocked(); !strings.Contains(hint, "browse systems") {
+				t.Fatalf("hint = %q", hint)
+			}
+			return
+		}
+	}
+	t.Fatal("systems settings row missing")
 }
