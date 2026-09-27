@@ -46,6 +46,8 @@ LIB_SOURCES := \
 	src/native/core_data.cpp \
 	src/native/core_driver.cpp \
 	src/native/fes_gp.cpp \
+	src/native/menu_display.cpp \
+	src/native/linux/menu_memory.cpp \
 	src/native/diagnostic.cpp \
 	src/native/sha256.cpp \
 	src/native/input.cpp \
@@ -69,6 +71,8 @@ DAEMON_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(DAEMON_SOURCES))
 DEPENDENCIES := $(LIB_OBJECTS:.o=.d) $(DAEMON_OBJECTS:.o=.d)
 
 TEST_BINS := \
+	$(BUILD_DIR)/tests/unit/menu_memory_test \
+	$(BUILD_DIR)/tests/unit/menu_display_test \
 	$(BUILD_DIR)/tests/unit/runtime_test \
 	$(BUILD_DIR)/tests/unit/diagnostic_test \
 	$(BUILD_DIR)/tests/unit/artifacts_test \
@@ -448,3 +452,11 @@ clean:
 	rm -rf -- "$(BUILD_DIR)"
 
 -include $(DEPENDENCIES)
+
+$(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/native/menu_display.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+$(BUILD_DIR)/tests/unit/menu_memory_test: tests/unit/menu_memory_test.cpp src/native/linux/menu_memory.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"

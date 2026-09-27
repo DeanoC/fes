@@ -6,6 +6,7 @@ Hardware-supported package paths: 0.
 | --- | --- | --- |
 | FES described package admission and GP activation | covered | pending for exact current artifacts |
 | Simple-game, simple-computer, application ABI | covered | pending |
+| Menu-display GP, immutable staging and reserved-memory primitives | covered by host tests; lifecycle/transport pending | none |
 | Sealed splash and fixed ADV7513 video | covered | pending |
 | Gamepad and controller/keypad ports | covered | pending |
 | Blob/stream media and firmware | covered | pending |

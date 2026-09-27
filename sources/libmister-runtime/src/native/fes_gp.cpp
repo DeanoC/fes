@@ -437,6 +437,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesApplicationCapabilityKeypadPorts;
 			else if (interface.id == FesApplicationInterfaceMemoryHpsDdrID)
 				capabilities |= FesApplicationCapabilityMemoryHpsDdr;
+			else if (interface.id == FesApplicationInterfaceVideoMenuDisplayID)
+				capabilities |= FesApplicationCapabilityVideoMenuDisplay;
 			continue;
 		}
 		if (computer) {
@@ -481,7 +483,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				FesApplicationCapabilityVideoFixed720p60 | FesApplicationCapabilityMediaBlob |
 				FesApplicationCapabilityMediaBlobStream | FesApplicationCapabilityAudioPcmS16Stereo48k |
 				FesApplicationCapabilityGamepadPorts | FesApplicationCapabilityKeypadPorts |
-				FesApplicationCapabilityMemoryHpsDdr;
+				FesApplicationCapabilityMemoryHpsDdr | FesApplicationCapabilityVideoMenuDisplay;
 			// Registered application and computer bits must equal the declared set.
 			if ((application && (observed[index] & application_mask) != expected[index]) ||
 				(home && (observed[index] & kComputerCapabilityMask) != expected[index]) ||

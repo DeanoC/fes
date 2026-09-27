@@ -98,6 +98,31 @@ The production archive contains only the sources in the Makefile manifest.
 Archive regeneration removes obsolete members; archive and active-tree guards
 verify construction and reject old mutation authority.
 
+## Menu presentation primitives
+
+The required `fes.video.menu-display` 1.0 application capability (bit 9)
+is admitted only alongside fixed video and HPS DDR, with those three interfaces.
+Live identity must match the declared capabilities exactly. `MenuDisplayDriver`
+validates fixed geometry, reads coherent counters, stages ordered submissions,
+and waits for drained quiescence. These primitives do not yet select an idle
+menu or expose a daemon presentation operation.
+
+`MenuFrame` creates one exact-size sealable memfd per caller. Before mapping
+staging bytes, validation requires the same device/inode, 3,686,400-byte size
+and WRITE/GROW/SHRINK/SEAL seals. A client must remove writable mappings before
+sealing. `MenuMemory` converts RGBA to B,G,R,0 in either fixed 4 MiB slot;
+frame padding remains untouched. It owns an 8 MiB mapping at `0x30000000`,
+checks the entire shared 256 MiB window against effective `/proc/iomem`
+System RAM ranges, and rejects absent or redacted evidence.
+
+Production mapping currently requires ARM Linux kernel `5.15.1-MiSTer`,
+`/dev/mem` with `O_SYNC`, and an ARM `dsb sy` after writes. The selected
+[kernel's mapping implementation](https://raw.githubusercontent.com/MiSTer-devel/Linux-Kernel_MiSTer/d7adb20b4ca595838289406c083fff78f004a8c3/arch/arm/mm/mmu.c)
+uses noncached protection for PFNs outside Linux RAM. `O_SYNC` alone does not
+establish this: boot reservation and actual target mapping qualification
+remain prerequisites for physical acceptance. Host tests inject mapping
+operations and cannot establish DDR visibility on hardware.
+
 ## Composable application ABI
 
 `fes.application` 1.0 uses the existing `fes-gp-v1` lifecycle and GP transport,

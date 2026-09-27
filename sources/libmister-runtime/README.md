@@ -17,7 +17,11 @@ ports stay in reset unless the package requires `fes.memory.hps-ddr` 1.0,
 the boot core latched the shared layout, and the package's verified identity
 and live SDR mirrors match that layout. The
 runtime contains no Main launcher, conventional game profiles, MiSTer SPI
-driver, or framebuffer.
+driver, or general framebuffer service.
+
+Menu-display GP, immutable staging and reserved-memory primitives have host
+test coverage. Idle-menu activation and local frame transport are still being
+integrated; these primitives do not change startup or Stop behavior.
 
 Package admission retains validated artifacts before mutation. Activation
 verifies live ABI/build identity before input or media controls. Initialized

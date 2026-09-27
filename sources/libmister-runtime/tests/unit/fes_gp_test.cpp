@@ -1143,6 +1143,19 @@ void TestApplicationAudioRequiresExactLiveCapability()
 	}
 }
 
+void TestApplicationMenuRequiresExactLiveCapability()
+{
+ for(const bool declared : {false,true}) for(const bool live : {false,true}) {
+  StreamFixture f;
+  f.descriptor.abi={FesApplicationABIID,1,0};
+  f.descriptor.interfaces={{FesApplicationInterfaceVideoFixed720p60ID,1,0,true},{FesApplicationInterfaceMemoryHpsDdrID,1,0,true}};
+  if(declared)f.descriptor.interfaces.push_back({FesApplicationInterfaceVideoMenuDisplayID,1,0,true});
+  auto error=f.Identify(1,32768,512,258|(live?512:0));
+  assert(error.ok()==(declared==live));
+  if(!error.ok())assert(error.code==mister::ErrorCode::core_mismatch);
+ }
+}
+
 void TestApplicationHpsDdrRequiresExactLiveCapability()
 {
 	static_assert(FesApplicationCapabilityMemoryHpsDdr == 0x100u,
@@ -2381,6 +2394,7 @@ int main()
 	TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces();
 	TestApplicationAudioRequiresExactLiveCapability();
 	TestApplicationHpsDdrRequiresExactLiveCapability();
+	TestApplicationMenuRequiresExactLiveCapability();
 	TestSharedStreamWireFixtures();
 	TestStreamIdentityRequiresObservedCapacityAndDeclaration();
 	TestStreamTransferBoundariesAndCRC();
