@@ -1231,3 +1231,7 @@ build-fes-menu-pattern:
 .PHONY: build-fes-menu-ddr
 build-fes-menu-ddr:
 	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py --mode ddr $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+.PHONY: build-fes-menu-package
+build-fes-menu-package:
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu_package.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)

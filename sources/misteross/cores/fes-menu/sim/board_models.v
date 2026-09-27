@@ -44,3 +44,10 @@ module pixel_pll (
 endmodule
 /* verilator lint_on UNUSEDSIGNAL */
 /* verilator lint_on DECLFILENAME */
+
+module cyclonev_hps_interface_mpu_general_purpose (
+    input wire [31:0] gp_in,
+    output reg [31:0] gp_out = 32'd0
+);
+    wire [31:0] observed /* verilator public_flat_rd */ = gp_in;
+endmodule

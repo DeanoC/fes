@@ -109,3 +109,28 @@ boot layout remain unchanged for the RAM tester and other consumers. The
 producer recognizes routed constant-zero drivers as well as synthesized zeros.
 The DDR recipe defaults to seed 4; `--seed 1..8` selects a bounded alternate
 and records it in the closed build inputs. Failed routes publish no RBF.
+
+## Described menu firmware
+
+`make build-fes-menu-package` builds separate format-2 `fes.menu` 1.0.0
+firmware under `build/oss/fes-menu-package`, exporting the closed package to
+`build/packages`. It requires application fixed video, HPS DDR and menu-display
+1.0. It has no playable system identity and does not change factory selection.
+The qualified RAM-test lock now includes the congestion fix from FES #266.
+GPU 0 and bounded explicit seeds retain the normal provenance/evidence gates.
+
+`menu_top.v` uses the shared application GP mailbox with an optional menu
+hook; all existing consumers leave it disabled. `fes_menu_control` implements
+fixed-layout configuration, coherent counters, ordered sequence staging and
+frame-boundary completion. Quiesce waits for the reader to drain before ACK;
+execution hold during enabled scanout rejects without abandoning responses.
+The GP and reader use the same pixel clock.
+
+`python3 scripts/sim_fes_menu.py --case gp` replays the shared golden wire
+fixture through actual GP/control/DDR RTL and verifies stalls, drain, restart,
+sequence exhaustion and coherent snapshots. `--case gp-board` checks the
+production board top, modeled GP/DDR atoms, PLL gating and explicit enable.
+These and the seven existing cases are included in `--case all`.
+
+Runtime presentation and physical acceptance remain subsequent integration;
+building this firmware does not authorize releasing physical DDR ports.

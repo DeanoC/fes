@@ -59,7 +59,7 @@ def authenticate(root, cache_root, mode):
         lock_path=root/'toolchains/ramtest.lock', toolchain_root=Path('build/toolchain-ramtest'),
         expected_commits={**board.EXPECTED_TOOL_COMMITS,
             'yosys':'b27035fcc1be6ec040df35a3adbe6d4149297cd8',
-            'nextpnr':'f60b33aa977b237d0762fdef90de42987671b21d'})
+            'nextpnr':'da1ee82b7b019ff51d62fe41fd9447961f178e1a'})
 
 
 def seed_for(mode, seed):
@@ -117,8 +117,10 @@ def layout_graph_with_constants(graph):
     return {'modules':{'top':{**graph['modules']['top'], 'cells':normalized}}}
 
 
-def validate_build_evidence(output, root, *, mode='test-pattern'):
+def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False):
     output_for(mode)
+    if menu_gp and mode != 'ddr':
+        raise board.BuildError('menu GP requires DDR package evidence')
     # A test-pattern artifact must not acquire a DDR or GP block in either graph.
     for filename in ('synth.json', 'routed.json'):
         graph = board._read_json(Path(output)/filename, filename)
@@ -129,7 +131,7 @@ def validate_build_evidence(output, root, *, mode='test-pattern'):
                         str(cell.get('parameters', {}).get('CFG_ASYNC_READ', '0')), 2):
                     raise board.BuildError('menu FIFO requires synchronous M10K reads')
         for name in (('cyclonev_hps_interface_fpga2sdram',) if mode == 'test-pattern' else ()) + (
-                     'cyclonev_hps_interface_mpu_general_purpose',):
+                     ('cyclonev_hps_interface_mpu_general_purpose',) if not menu_gp else ()):
             if counts.get(name, 0):
                 raise board.BuildError(f'pattern diagnostic uses forbidden {name}')
     required = {'cyclonev_hps_interface_peripheral_i2c':1}
@@ -137,6 +139,9 @@ def validate_build_evidence(output, root, *, mode='test-pattern'):
     if mode == 'ddr':
         required['cyclonev_hps_interface_fpga2sdram'] = 1
         forbidden = forbidden - {'cyclonev_hps_interface_fpga2sdram'}
+    if menu_gp:
+        required['cyclonev_hps_interface_mpu_general_purpose'] = 1
+        forbidden = forbidden - {'cyclonev_hps_interface_mpu_general_purpose'}
     result = evidence.validate_build_evidence(output, root, ordinary_resources=ORDINARY,
         required_resources=required, forbidden_resources=forbidden,
         required_zero_resources=frozenset({'cyclonev_oscillator'}))
