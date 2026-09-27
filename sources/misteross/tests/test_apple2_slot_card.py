@@ -81,6 +81,19 @@ class Apple2SlotCardTests(unittest.TestCase):
         with self.assertRaises(Exception):
             card.validate_cart_timing(slow)
 
+    def test_clock_guard_rejects_card_pins_off_the_socket_clock(self) -> None:
+        def routed(clk2):
+            ram = {"type": "MISTRAL_M10K", "connections": {"CLK1": [5], "CLK2": clk2}}
+            ff = {"type": "MISTRAL_FF", "connections": {"CLK": [5]}}
+            return {"modules": {"top": {"netnames": {card.SLOT_CLOCK: {"bits": [5]}},
+                                        "cells": {"fes_cart$ram": ram, "fes_cart$ff": ff,
+                                                  "machine.ff": {"type": "MISTRAL_FF",
+                                                                 "connections": {"CLK": [9]}}}}}}
+        self.assertEqual(card.validate_cart_clocks(routed([5])), 3)
+        self.assertEqual(card.validate_cart_clocks(routed([])), 2)
+        with self.assertRaisesRegex(ValueError, "fes_cart\\$ram pin CLK2"):
+            card.validate_cart_clocks(routed([117]))
+
 
 if __name__ == "__main__":
     unittest.main()

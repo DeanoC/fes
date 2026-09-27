@@ -140,6 +140,35 @@ def validate_cart_timing(timing: dict) -> dict:
     return result
 
 
+CARD_CLOCK_PORTS = {"MISTRAL_FF": ("CLK",), "MISTRAL_M10K": ("CLK1", "CLK2"),
+                    "MISTRAL_M10K_TDP": ("CLK1", "CLK2")}
+
+
+def validate_cart_clocks(routed: dict) -> int:
+    """Every connected clock pin of a merged card cell must be the shell socket clock.
+
+    The cart merge drops the card's clock buffer and reconnects the pins it
+    knows; a pin it misses (for example the read clock of a dual-clock M10K)
+    is left on an undriven net, which timing and CRAM checks cannot see.
+    """
+    top = routed["modules"]["top"]
+    clock_bits = set(top["netnames"][SLOT_CLOCK]["bits"])
+    checked = 0
+    for name, cell in top["cells"].items():
+        if not name.startswith("fes_cart$"):
+            continue
+        for port in CARD_CLOCK_PORTS.get(cell["type"], ()):
+            bits = cell.get("connections", {}).get(port)
+            if not bits:
+                continue
+            if any(bit not in clock_bits for bit in bits):
+                raise ValueError(f"card cell {name} pin {port} is not on the socket clock {SLOT_CLOCK}")
+            checked += 1
+    if not checked:
+        raise ValueError("routed card has no clocked cells on the socket clock")
+    return checked
+
+
 def card_manifest(package, slot: int, cart: bytes, recipe_sha: str, revision: str) -> bytes:
     manifest = {
         "cart_sha256": digest(cart), "cart_size": len(cart), "device": "5CSEBA6U23I7", "format": 1,
@@ -219,6 +248,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
             if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"{name} did not produce nonempty {artifact}")
     achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
+    validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()))
     if (output / "scaffold.json").read_bytes() != scaffold or (output / "cart.qsf").read_bytes() != qsf:
         raise ValueError("card scaffold or placement constraints changed during build")
     cart = (output / "cart.rbf").read_bytes()
