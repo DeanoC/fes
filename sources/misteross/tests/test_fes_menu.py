@@ -64,3 +64,13 @@ class MenuDDRProducerTests(unittest.TestCase):
                 with patch.object(menu.board,'_require_clean_source',side_effect=inspect_guard):
                     with self.assertRaisesRegex(RuntimeError,'audited entry confirmed'):
                         menu.build(ROOT,mode=mode)
+
+    def test_build_rejects_excluded_source_markdown_reads(self):
+        from unittest.mock import patch
+        from scripts.compiler_read_audit import ReadAuditError
+        for mode in ('test-pattern','ddr'):
+            with self.subTest(mode=mode):
+                with patch.object(menu.board,'_require_clean_source',
+                        side_effect=lambda *a,**kw:(ROOT/'cores/fes-menu/README.md').read_bytes()):
+                    with self.assertRaises(ReadAuditError):
+                        menu.build(ROOT,mode=mode)
