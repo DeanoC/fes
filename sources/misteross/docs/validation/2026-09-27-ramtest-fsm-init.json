@@ -1,0 +1,236 @@
+{
+  "artifact_root": "out/ramtest-fsm-init",
+  "artifacts_sha256": {
+    "build/yosys": "f08390cc37702407dc16d2999742f13a7409a1c82948f232f8cb0a7142cad513",
+    "cones.log": "8b11fe9d550809fe9e35582f2458ea2769a3bc86b97b104749c2c08ccc9bf700",
+    "cpu-route/core.rbf": "1c69aa91b8871361c5bc3b74596814818fc401b122af8ff2d0f60673a3cf86c4",
+    "cpu-route/routed.json": "c1c26e1b2802ba74a04bf1abcd97076abe64652630282d42e389b72c03e182f2",
+    "cpu-route/run.log": "05c6f1bc53bf442f6a995e6991f17bea5e8b386759789beb21c33f926fdab6b4",
+    "cpu-route/timing.json": "4cd2e1e580fd4ef4c1bc2cdd16c4b81b0cb90f7c86d35b3bb00e758cefc57cad",
+    "ddr-equiv.log": "8b4a93854b71efe8ae1cbed2615f125ea69d8a8e256a4208f72f0de1507c220d",
+    "ddr-equiv.ys": "2d53e521febe380bf9b4428601da9219d81ea8fcbfe54c9d31fa9c7e77405400",
+    "ddr.enc": "6aaddbed856bf04a8e407e5a78c77d2cbae3c8c3a6552ebe2f8eca264b473a64",
+    "ddr128-equiv.log": "9a4d8b5c91fc156fcd4d895f42f13576d126ca060ff51a7c604b7609154ac054",
+    "ddr128-equiv.ys": "e58b952eece5069a4bcf3c715198b4e977d1b60b738f120ef21297435a6bbfa8",
+    "ddr128.enc": "6aaddbed856bf04a8e407e5a78c77d2cbae3c8c3a6552ebe2f8eca264b473a64",
+    "fsm_init_alias.log": "6529ef4f9dd44fb6a8d81b3345fcc99aeae016ce935b8642f1925b45c5a672a5",
+    "fsm_init_edges.log": "4fe10691da8bcfb0f2a48eca074d9f2cfafa794b924c4430e187c76eb1a0864d",
+    "fsm_init_partial.log": "55d78d52ce7b472186b4c6848d5eb3c97d3ee209e69e885167e7b4071e35b242",
+    "intel-init.log": "fc6ec8c1c576f5f8ddec954411a7b5c0243f578c7921fd7b5866618a26db3b74",
+    "intel-summary.log": "11b74bbd81bd11e03aca11a97c4da749f2b2644b5caeb1ac7a48476a6f10e493",
+    "model-baseline-sim.log": "99401c3435e8a7ea66f6a0805e35dfd7ace1a0e3564d2a7e2cb981469db94c65",
+    "opt-summary.log": "5d7b4fb74f697dadf1998720cd489d3b57edfe68873eae79a89d3e7b50c1c18d",
+    "route/run.log": "33ad0bcc4c074077ce85c1c55b5b30543c48c126780e16ec1f77873182d30e61",
+    "sim-regression.log": "a04beeca68ffdcaa43efde152001bd96b5277c0e64b401fe80d03848f1440142",
+    "synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "synth.log": "f4be7bfd2ee92a036ba39dc3164a94f5cae1bd4067188d9161ebbc97683204d4",
+    "synth.ys": "7e3332e0957b7c6cd09741cc7374f1bb15d398f0e882d11807d4130c8be0f86e",
+    "test-green.log": "5e3121a19c2caa2f3a83d4f36458bf5351bf1b90d89c7114a2a3dc1b68a7c575",
+    "test-red.log": "492579431e88412086ba2de21ec7a1d01e076214fdd2476e36e3332a1999cdb2"
+  },
+  "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+  "classification": "host-only; no package or hardware acceptance",
+  "compiler_base": "54ea7109ff08f7ecf8ca7b5ced58e8ba62d7f4b8",
+  "compiler_binary_version": "Yosys 0.69+ 54ea7109f-dirty; candidate implementation built before commit",
+  "compiler_commit": "c156dd886d87113c30bc2bf422ccb9ae0208b2a1",
+  "compiler_implementation_commit": "6c363dfa5444401b0757d0020eeb8983d0bb37bb",
+  "cpu_comparison": {
+    "baseline_fmax": {
+      "display.pixel_clk": {
+        "achieved": 65.63833618164062,
+        "constraint": 74.25006866455078
+      },
+      "ram_clock.clocks[0]": {
+        "achieved": 71.9735107421875,
+        "constraint": 130.0052032470703
+      },
+      "ram_clock.clocks[1]": {
+        "achieved": 316.1605224609375,
+        "constraint": 130.0052032470703
+      }
+    },
+    "baseline_paths": [
+      {
+        "clock": "posedge ram_clock.clocks[0]",
+        "delays_ns": {
+          "clk-skew": 0.22699999809265137,
+          "clk-to-q": 1.1770000457763672,
+          "logic": 0.800000011920929,
+          "routing": 11.886000275611877,
+          "setup": -0.19599999487400055
+        },
+        "effective_setup_ns": 13.894000336527824,
+        "from": {
+          "cell": "hps_ddr.f2sdram",
+          "loc": [
+            52,
+            53
+          ],
+          "port": "cmd_ready_1"
+        },
+        "to": {
+          "cell": "hps_ddr.m1_address_MISTRAL_FF_Q_2",
+          "loc": [
+            16,
+            23
+          ],
+          "port": "ENA"
+        }
+      },
+      {
+        "clock": "posedge display.pixel_clk",
+        "delays_ns": {
+          "clk-skew": -0.041999999433755875,
+          "clk-to-q": 0.7310000061988831,
+          "logic": 3.1350000500679016,
+          "routing": 11.607000023126602,
+          "setup": -0.19599999487400055
+        },
+        "effective_setup_ns": 15.23500008508563,
+        "from": {
+          "cell": "display.col_s_MISTRAL_FF_Q_2",
+          "loc": [
+            16,
+            4
+          ],
+          "port": "Q"
+        },
+        "to": {
+          "cell": "display.sdram_ch_t_MISTRAL_FF_Q_6",
+          "loc": [
+            36,
+            4
+          ],
+          "port": "DATAIN"
+        }
+      }
+    ],
+    "baseline_timing_sha256": "90ea47ee75d6375078be3c6a7794d7c7197c001bbedc83ad0d640608a2807a70",
+    "candidate_fmax": {
+      "display.pixel_clk": {
+        "achieved": 62.94058609008789,
+        "constraint": 74.25006866455078
+      },
+      "ram_clock.clocks[0]": {
+        "achieved": 63.82435607910156,
+        "constraint": 130.0052032470703
+      },
+      "ram_clock.clocks[1]": {
+        "achieved": 165.69615173339844,
+        "constraint": 130.0052032470703
+      }
+    },
+    "candidate_paths": [
+      {
+        "clock": "posedge ram_clock.clocks[0]",
+        "delays_ns": {
+          "clk-skew": 0.02500000037252903,
+          "clk-to-q": 0.7310000061988831,
+          "logic": 1.3100000023841858,
+          "routing": 13.798000007867813,
+          "setup": -0.19599999487400055
+        },
+        "effective_setup_ns": 15.66800002194941,
+        "from": {
+          "cell": "ddr0_errors_MISTRAL_FF_Q_11",
+          "loc": [
+            16,
+            9
+          ],
+          "port": "Q"
+        },
+        "to": {
+          "cell": "ddr0_status_MISTRAL_FF_Q_95",
+          "loc": [
+            53,
+            2
+          ],
+          "port": "ENA"
+        }
+      },
+      {
+        "clock": "posedge display.pixel_clk",
+        "delays_ns": {
+          "clk-skew": -0.024000000208616257,
+          "clk-to-q": 0.7310000061988831,
+          "logic": 2.9300000369548798,
+          "routing": 12.446999877691269,
+          "setup": -0.19599999487400055
+        },
+        "effective_setup_ns": 15.887999925762415,
+        "from": {
+          "cell": "display.col_s_MISTRAL_FF_Q_5",
+          "loc": [
+            33,
+            9
+          ],
+          "port": "Q"
+        },
+        "to": {
+          "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4",
+          "loc": [
+            35,
+            7
+          ],
+          "port": "DATAIN"
+        }
+      }
+    ],
+    "heap_critexp": 2,
+    "heap_timingweight": 10,
+    "result": "legal diagnostic route; memory and pixel timing regress; not qualified at 130 MHz",
+    "router": "router2",
+    "seed": 2
+  },
+  "format": "fes-ramtest-fsm-init-research-v1",
+  "gpu": {
+    "heap_critexp": 2,
+    "heap_timingweight": 10,
+    "iterations": 67,
+    "overused_wires": 1,
+    "seed": 2,
+    "stalled_wire": "TD.11.18.44",
+    "status": "routing failed; no final analogue timing or RBF"
+  },
+  "reproduction": {
+    "cmake_options": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "YOSYS_ABC_EXECUTABLE": "original pinned toolchain install/bin/yosys-abc",
+      "YOSYS_COMPILER_LAUNCHER": "ccache",
+      "YOSYS_ENABLE_UNIT_TESTS": "OFF",
+      "YOSYS_WITHOUT_SLANG": "ON"
+    },
+    "ddr128_proof_script": "read_verilog sources/misteross/cores/fes-ramtest/rtl/ddr_channel.v\nchparam -set DATA_W 128 ddr_channel\nhierarchy -top ddr_channel\nproc\nopt -nosdff -nodffe\nrename ddr_channel gold\ncopy gold gate\nfsm_detect gate\nfsm_extract gate\nselect -assert-count 1 gate/t:$fsm\nfsm_opt gate\nfsm_recode -encfile out/ramtest-fsm-init/ddr128.enc gate\nfsm_map gate\nopt_clean\ndesign -save pre_miter\nmiter -equiv -flatten -make_assert -ignore_gold_x gold gate miter\nsat -verify -seq 8 -prove-asserts -set-def-inputs -enable_undef -set-init-undef miter\ndesign -load pre_miter\nequiv_make -encfile out/ramtest-fsm-init/ddr128.enc gold gate equiv\nhierarchy -top equiv\nequiv_simple -seq 4\nequiv_induct -seq 6\nequiv_status -assert\n",
+    "ddr64_proof_script": "read_verilog sources/misteross/cores/fes-ramtest/rtl/ddr_channel.v\nhierarchy -top ddr_channel\nproc\nopt -nosdff -nodffe\nrename ddr_channel gold\ncopy gold gate\nfsm_detect gate\nfsm_extract gate\nselect -assert-count 1 gate/t:$fsm\nfsm_opt gate\nfsm_recode -encfile out/ramtest-fsm-init/ddr.enc gate\nfsm_map gate\nopt_clean\ndesign -save pre_miter\nmiter -equiv -flatten -make_assert -ignore_gold_x gold gate miter\nsat -verify -seq 8 -prove-asserts -set-def-inputs -enable_undef -set-init-undef miter\ndesign -load pre_miter\nequiv_make -encfile out/ramtest-fsm-init/ddr.enc gold gate equiv\nhierarchy -top equiv\nequiv_simple -seq 4\nequiv_induct -seq 6\nequiv_status -assert\n",
+    "synthesis_cwd": "sources/misteross",
+    "synthesis_script": "read_verilog -sv -D RAM_RATE_SWEEP=1 -D RAM_130_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 -I cores/fes-common/generated cores/fes-pong/rtl/pixel_pll.v cores/fes-common/rtl/fes_application_gp.v cores/fes-common/rtl/fes_video_720p.v cores/fes-common/rtl/fes_hps_ddr.v cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-ramtest/rtl/mem_channel.v cores/fes-ramtest/rtl/ram_font.v cores/fes-ramtest/rtl/ram_display.v cores/fes-ramtest/rtl/sdram_addon_port.v cores/fes-ramtest/rtl/ddr_rates.v cores/fes-ramtest/rtl/ddr_channel.v cores/fes-ramtest/rtl/top.v cores/fes-ramtest/rtl/ram_pll.v; chparam -set BUILD_ID 128'hcd3e4c315005fde83065dff7483ae0d7 top; synth_intel_alm -nobram -nolutram -nodsp -top top; stat; write_json {fes_root}/out/ramtest-fsm-init/synth.json\n"
+  },
+  "source_comparison": "2026-09-27-ramtest-timing.json",
+  "synthesis": {
+    "aluts_after": 6506,
+    "aluts_before": 6505,
+    "ffs_after": 8221,
+    "ffs_before": 8196,
+    "initialized_fsms_extracted": 6,
+    "memory_structural_lut_levels_after": 4,
+    "memory_structural_lut_levels_before": 6,
+    "pixel_structural_levels_after": 11,
+    "pixel_structural_levels_before": 11
+  },
+  "tests": {
+    "ddr_128_equivalence_points": 2907,
+    "ddr_64_equivalence_points": 1919,
+    "ddr_startup_cycles": 8,
+    "intel_alm": {
+      "passed": 16,
+      "total": 16
+    },
+    "optimization": {
+      "passed": 96,
+      "total": 96
+    },
+    "simulation_model_cycles": 100,
+    "simulation_model_tool": "Icarus Verilog 12.0",
+    "verilator_model_limitation": "Failure also reproduces with original simlib after reset; not accepted as passing"
+  }
+}
