@@ -53,7 +53,7 @@ APPLE2_TOOLCHAIN_CONFIGURATION = (
 )
 APPLE2_TOOL_COMMITS = {
     "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
+    "nextpnr": "0259c6dc1c46dd46fe79f3923a17ad36d2513421",
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
 # First passing route wins; the order is part of the build identity. The

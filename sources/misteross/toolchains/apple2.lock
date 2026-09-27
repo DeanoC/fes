@@ -2,19 +2,19 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "e2d425dee148cc60c50f4e9b354a10d90eab15f4"
 order = 10
-rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de), the Yosys pin shared with toolchains/fes-sms.lock and coleco-sgm.lock. The Apple II needs it for the registered dual-clock video RAM port and the disk-store TDP. Pair with nextpnr a93fe013 and Mistral 7ed06e21."
+rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de), the Yosys pin shared with toolchains/fes-sms.lock and coleco-sgm.lock. The Apple II needs it for the registered dual-clock video RAM port and the disk-store TDP. Pair with nextpnr 0259c6dc and Mistral 7ed06e21."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
 order = 20
-rationale = "Indexed-node Mistral master required by nextpnr a93fe013, carrying the M10K/PLL surface and physical routing-mux CRAM footprints the frozen-socket CRAM fence and ROM map rely on."
+rationale = "Indexed-node Mistral master required by nextpnr 0259c6dc, carrying the M10K/PLL surface and physical routing-mux CRAM footprints the frozen-socket CRAM fence and ROM map rely on."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "a93fe013af841214ecb4f7be3af0de65f3de3a0f"
+commit = "0259c6dc1c46dd46fe79f3923a17ad36d2513421"
 order = 30
-rationale = "DeanoC nextpnr main a93fe013: GPU router with analogue timing repair, calibrated placement prediction (PR #86), frozen-scaffold cart merge, and the multi-region FES_RESERVED_RECT / --fes-cart-region support (PRs #79/#80) that the four Apple II slot sockets use. Pair with Mistral 7ed06e21 (required)."
+rationale = "DeanoC nextpnr 0259c6dc (PR #87 on main a93fe013): GPU router with analogue timing repair, calibrated placement prediction (PR #86), frozen-scaffold cart merge that drives every cart input from the shell (every traced cart clock on the socket clock, undriven cart inputs rejected; FES #250), and the multi-region FES_RESERVED_RECT / --fes-cart-region support (PRs #79/#80) that the four Apple II slot sockets use. Pair with Mistral 7ed06e21 (required)."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

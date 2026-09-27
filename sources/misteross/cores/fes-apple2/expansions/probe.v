@@ -56,29 +56,16 @@ module cart (
     end
 
     // $C800 RAM: registered read of the held address, one write per cycle.
-    // A single-clock M10K: the cart merge reconnects CLK1 to the socket clock
-    // but not the read clock of an inferred dual-clock M10K, which synthesis
-    // would choose here (see validate_cart_clocks in build_apple2_slot_card.py).
+    // Plain inferred memory: synthesis maps it to a dual-clock M10K, and the
+    // cart merge drives both of its clocks from the socket clock (FES #250).
     wire ram_write = strobe && ram_select && !bus_read;
-    wire [7:0] ram_q;
-`ifdef VERILATOR
     reg [7:0] ram [0:1023];
-    reg [7:0] ram_data = 8'd0;
+    reg [7:0] ram_q = 8'd0;
     always @(posedge clk) begin
         if (ram_write)
             ram[addr[9:0]] <= wdata;
-        ram_data <= ram[addr[9:0]];
+        ram_q <= ram[addr[9:0]];
     end
-    assign ram_q = ram_data;
-`else
-    wire [9:0] ram_lane;
-    // 10-bit lanes take an active-low write enable.
-    MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10)) ram (
-        .CLK1(clk), .A1ADDR(addr[9:0]), .A1DATA({2'b00, wdata}), .A1EN(!ram_write),
-        .B1ADDR(addr[9:0]), .B1DATA(ram_lane), .B1EN(1'b1), .ACLR0(1'b0), .ACLR1(1'b0)
-    );
-    assign ram_q = ram_lane[7:0];
-`endif
 
     // $Cn00 page in an explicitly placed-by-nextpnr async-read M10K.
 `include "probe_rom.vh"

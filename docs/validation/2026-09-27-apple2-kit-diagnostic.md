@@ -97,6 +97,10 @@ with a simulation check that includes the 6502 `STA abs,X` dummy read and the
 reconnect `CLK2` for dual-clock `MISTRAL_M10K` cart cells. That is a
 toolchain-lock change and needs a shell reseal.
 
+Follow-up: nextpnr `0259c6dc` fixed the merge generally, and the kit re-ran
+with inferred-RAM cards; see the
+[cart-clock re-check](2026-09-27-apple2-cart-clock-recheck.md).
+
 ## Not established
 
 Exact-image or appliance acceptance of a new runtime/agent, any Apple ROM or
