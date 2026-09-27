@@ -1,0 +1,318 @@
+{
+  "artifact_root": "out/ramtest-enable-replication",
+  "artifacts_sha256": {
+    "backend-tests.log": "fdf6e66f5b883d8b23d9d2d6a399dd4d9857d63b68ce80f9f01ddd5fef55ae0a",
+    "boundary-green.log": "47f6cb72f519f02c481b961b33dd5a921df3bd119df23ff412e5b9233b6a40ca",
+    "boundary-red.log": "4344baa320e5cf0fc4cc14575cd2edf3ceee3db098748445a13a87e87273b477",
+    "budget4-c2-v1-stopped/invocation.json": "27d95531cfa7d2ab6e91bf28b823327888abf06961ed466dc08994eede17db24",
+    "budget4-c2-v1-stopped/result.json": "15fa3677762d93f62d0f0ba05190e53e3ee2894d02f208cde54e338588128898",
+    "budget4-c2-v1-stopped/run.log": "3171c141ad7f81b2b113ba4e7a97edb087d4feb19b453abd0752edd4cadccf0d",
+    "budget4-c2/arcs.tsv": "7343ca1cfae4ee25dc4cb29dfea98a15da05656974ae97e4b420a7d7ba38bb67",
+    "budget4-c2/control-placement-proof.json": "c4a49a442b8d4c04d0ced492fd49c7b55858cbfe2d327e5c9412b7d84cdbf055",
+    "budget4-c2/core.rbf": "f438f0f9c0ac7b40060e52df4abe1bf464b1e39cadac3ddb3b4234cc8649e431",
+    "budget4-c2/invocation.json": "da2edb631d1db76d7ed7af7fafddceceb6ef654ad2cca173fd004fd2dbcdaf36",
+    "budget4-c2/replication.after.json": "5efbdc0b263f257aec1a57405aa8d7201092bba39799b90125413df9ee35cbbb",
+    "budget4-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "budget4-c2/replication.before.json": "3b63896e7d50055f6bfa7a8f70f0c73ada71a40bc7a5ab26224c2fef4597d32a",
+    "budget4-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "budget4-c2/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "budget4-c2/result.json": "9f2b54b82be1afc808e1cdbc3869a283c335ee73d0e2a1d6076505896d42a7c4",
+    "budget4-c2/routed.json": "6be0d18c132a4aae3c6cb1bbb87fcf29aa3bd0307f5418a49de896cd87b852a3",
+    "budget4-c2/run.log": "29267ca24edb3186b548d3f79f368c1c278117572f1c1a60fb0f6e4a13a4b293",
+    "budget4-c2/snapshot-proof.json": "5de3cf7bb4d148069d564d9b46953e67a2003397e2813a9b626aa9a16cbe2da5",
+    "budget4-c2/timing.json": "269e184586ee02d6a4fca0f1d3bc713e99f08abfdefd0e14b45e55d0346ee468",
+    "build-boundary-red.log": "af6cd6306db45192e68858f3d43ab26d9fcd8468453c5ffe73530602d65aff3b",
+    "build-fixture.log": "af6cd6306db45192e68858f3d43ab26d9fcd8468453c5ffe73530602d65aff3b",
+    "build-tests.log": "65290cb4af08c0d8256194c7e58d6913efe7e68ec4f24cec149f02e09ec622eb",
+    "build-v2.log": "b934c235257b78bc6b128b0174a236e31bca7c6df7c09b59d32d9c0090cb5757",
+    "build.log": "1b06d07d7f08dc281e771aec5b6e30a20e2b577c5391541a23a9b3fe02d09644",
+    "check_control.py": "1473cbe522d0fa2a48f7bf96464611f1939029f44dfb1e740263e2ea8dae42f9",
+    "check_snapshots.py": "672e78a293c487a570fcbd0f14b5553a80593390beb4b2c7a702fec89e2460a5",
+    "checker-tests.json": "27c7e17ea7f294ca87bdc094b0224a0c9d7e1f3f2e191be01d902cb2ff53ce58",
+    "cli-checks-v2/default.json": "e20d65d596270fddbac248b8dcea9eb8b525cdc0f64ca2ec01fe9f9d7b68a3f9",
+    "cli-checks-v2/default.log": "fa1755f4465122e558505d9b2280a6be1db3fd518cff8a75237d87a1c7d52b2b",
+    "cli-checks-v2/negative.log": "7517e5a1c85976344847a7956f13c00259b1b12a02a991b13d472c4dbb265d97",
+    "cli-checks-v2/too-large.log": "7517e5a1c85976344847a7956f13c00259b1b12a02a991b13d472c4dbb265d97",
+    "cli-checks-v2/zero.json": "e20d65d596270fddbac248b8dcea9eb8b525cdc0f64ca2ec01fe9f9d7b68a3f9",
+    "cli-checks-v2/zero.log": "cae1f57122a970bf999744851f4e635c894e532359944d33e1695989c3fc6dcf",
+    "cli-checks/default.json": "e20d65d596270fddbac248b8dcea9eb8b525cdc0f64ca2ec01fe9f9d7b68a3f9",
+    "cli-checks/default.log": "711e3e2465bd2de38098ef80b0aba304370a630ab8bccb3e80ca78586d73a099",
+    "cli-checks/negative.log": "7517e5a1c85976344847a7956f13c00259b1b12a02a991b13d472c4dbb265d97",
+    "cli-checks/too-large.log": "7517e5a1c85976344847a7956f13c00259b1b12a02a991b13d472c4dbb265d97",
+    "cli-checks/zero.json": "e20d65d596270fddbac248b8dcea9eb8b525cdc0f64ca2ec01fe9f9d7b68a3f9",
+    "cli-checks/zero.log": "065308b4450f4419fa13eb0f624bf409e231332f61941ff8797be895004f0dca",
+    "compiler-build-v1.json": "95a57b0b315815e692572101add7f8f22bf3bd770c890053b36c422f7439cf4e",
+    "compiler-build.json": "330d156815ab0ce0cd8edd630623630ea8e99b9c902ce9f5028721d41724bcc4",
+    "configure-tests.log": "b2e92dd453d983de38f884500daff775615c28c9dc6ec0f9b81301ceb46dea3d",
+    "ctest-details-v2.log": "6c309bc00c05ef94d8642213a40c1be7a32321723a80062f7c0bcd4040b17895",
+    "ctest-precommit.log": "d49ba565ae9abf55f37e5954bb802fd33389f915b9adb0d8a383065042355889",
+    "ctest-v2.log": "c59793ef29f55709bf39477ce68d726a6d9811252a20635fc37d7d7533a7ad72",
+    "ctest.log": "e93e4b169700cbe8ff3dcf48f824d9044abfcca28ac1ce895e46c79d5d72185e",
+    "disabled-proof.json": "538b35bb20fac390502d2da2c113cd5b99ddbeb79c3628859e34c5ff7c8b32b1",
+    "fixture-debug.log": "d2641b615749111aea7c1d73364134cc18d03a4907674b1143e09d3f58cdc9d1",
+    "parser-tests.log": "33060fd73862c5e1af97335504d5b45211fce6d229657f556d8deceeadc52ce4",
+    "policy-test.log": "9044c1186ab6e847c11f34e061cbc803e60da8752f268143756de4ea420a445a",
+    "run_route.py": "c209b0ea3b37d4b4f8f7fee2afd776dbe158ac13f1f9388613470936c0b4121c",
+    "summarize.py": "f2310e8711c0ba0bef554c2c3449f86721d6a474a18e8bc37c8b97dd4c00cce5",
+    "test-results.json": "90c09b99ddfabeacbae9eda48130a1ad4ca08b3873f1bce7e25a1809dae6f14a",
+    "test_checker.py": "07d9a607f3cf406c0ecbc119417ab56059401b3bd35a65762bf0c3cdf403c277",
+    "tools/nextpnr-enable-replication": "eb56265fea455e2adcf1c06edb3293792437866bc00bb59cbc82998c9d7a38fe",
+    "tools/nextpnr-enable-replication-v1": "f2bf1213d573906622641676e7cd85268ca28e36dee0cc0beaeaec05e59c9fc7",
+    "tracked-changes.patch": "d0880adfe4c99c12955287a9ecf5357f3dfd168d9933ca8d5f956f5d361406d1",
+    "verify_evidence.py": "16e978a0ddc4a5f3f673ec8ea75d8b95bcdda2e6ff4952305b500ea920b887d8"
+  },
+  "checker-tests": {
+    "historical_positive_passed": true,
+    "negative_cases_rejected": [
+      "missing_clone",
+      "LUT",
+      "input",
+      "partial_LAB",
+      "placement",
+      "clone_polarity",
+      "FF_polarity",
+      "missing_bus_pin",
+      "manifest_sink",
+      "undeclared_clone",
+      "shorted_replica_outputs"
+    ],
+    "two_replica_positive_passed": true,
+    "zero_replica_identity_passed": true
+  },
+  "classification": "host-only opt-in compiler qualification; unchanged RTL, producer lock and shared contracts; no hardware acceptance",
+  "disabled-proof": {
+    "default": {
+      "cells": 197,
+      "entire_module_identical": true,
+      "sha256": "e20d65d596270fddbac248b8dcea9eb8b525cdc0f64ca2ec01fe9f9d7b68a3f9"
+    },
+    "invalid_budgets_rejected": [
+      -1,
+      9
+    ],
+    "zero": {
+      "cells": 197,
+      "entire_module_identical": true,
+      "sha256": "e20d65d596270fddbac248b8dcea9eb8b525cdc0f64ca2ec01fe9f9d7b68a3f9"
+    }
+  },
+  "external_inputs_sha256": {
+    "out/ramtest-control-mapping/all_fsm-c2/routed.json": "bf823e0ffae08a305d33546f30f6a6311fa0456129d123ada67b1115e14cea66",
+    "out/ramtest-control-mapping/all_fsm-c2/timing.json": "a057178c4398c814ab50e09da10dfc67fcb42f83aff2593739377586def53b0e",
+    "out/ramtest-control-mapping/placer-options-green/default.json": "458a93404b3b0abe9875b6752445657deaccebb1ca56a715b9122412c281f49a",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-enable-locality.json": "9466498eff129a373eafb637b9f0b8fdbd4d7357d6853e859271c911b4c7523e"
+  },
+  "fes_base": "2ce945f51c9cdaab327ab71f67dff1d62f8ca362",
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_base": "19a5fe4a179cc5873dbd7641eca6b49d6f2284ad",
+  "nextpnr_branch": "feat/mistral-enable-replication",
+  "nextpnr_commit": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+  "nextpnr_status": "",
+  "runs": {
+    "budget4-c2": {
+      "binary_sha256": "eb56265fea455e2adcf1c06edb3293792437866bc00bb59cbc82998c9d7a38fe",
+      "classification": "host-only opt-in generic enable replication qualification",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/tools/nextpnr-enable-replication",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/budget4-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/budget4-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/budget4-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "control-placement-proof": {
+        "all_original_bels_match_control": true,
+        "extra_control_route_cells": 5091,
+        "moved_before_replication": [],
+        "original_cells": 14890
+      },
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.17399999499320984,
+            "clk-to-q": 1.1770000457763672,
+            "logic": 0.800000011920929,
+            "routing": 6.633000016212463,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 8.588000074028969,
+          "from": {
+            "cell": "hps_ddr.f2sdram",
+            "loc": [
+              52,
+              53
+            ],
+            "port": "cmd_ready_1"
+          },
+          "from_signals": [
+            "hps_ddr.cmd_ready_1"
+          ],
+          "logic_arcs": 2,
+          "to": {
+            "cell": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_27",
+            "loc": [
+              27,
+              14
+            ],
+            "port": "ENA"
+          },
+          "to_signals": [
+            "hps_ddr.port1.skid_address[27]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.3220000565052032,
+            "routing": 9.978999733924866,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 12.835999801754951,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q",
+            "loc": [
+              13,
+              6
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[2]"
+          ],
+          "logic_arcs": 8,
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4",
+            "loc": [
+              13,
+              6
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.ddr_ch_t[1]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 587.1465362710878,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/budget4-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/budget4-c2/replication"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 77.9058837890625,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 116.44154357910156,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "replication_log": [
+        "Info: Enable replication considering 'ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B': 2 LAB groups, 3 signal inputs.",
+        "Info: Enable replication considering 'hps_ddr.port1.slot_free_MISTRAL_ALUT3_B': 22 LAB groups, 3 signal inputs.",
+        "Info: Enable replica source=hps_ddr.port1.slot_free_MISTRAL_ALUT3_B clone=hps_ddr.port1.slot_free_MISTRAL_ALUT3_B$enable_replica bel=MISTRAL_COMB.37.25.0 sinks=4 gain=995ps slack=-1954ps criticality=0.939",
+        "Info: Enable replication: 1 replicas, budget 4; examined at most 32 of 4 ranked candidates."
+      ],
+      "returncode": 0,
+      "snapshot-proof": {
+        "original_pin_states_unchanged": 103057,
+        "original_placements_unchanged": 14890,
+        "replicas": [
+          {
+            "clone": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B$enable_replica",
+            "clone_bel": "MISTRAL_COMB.37.25.0",
+            "labs": [
+              [
+                34,
+                25
+              ],
+              [
+                35,
+                25
+              ]
+            ],
+            "moved_sinks": [
+              "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_1",
+              "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_4",
+              "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_6",
+              "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_7"
+            ],
+            "original": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+            "source_bel": "MISTRAL_COMB.24.20.36",
+            "truth_table_identical": {
+              "LUT": "00110010"
+            }
+          }
+        ]
+      },
+      "synth_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+    }
+  },
+  "test-results": {
+    "boundary_regressions": {
+      "green": 2,
+      "logs": [
+        "boundary-red.log",
+        "boundary-green.log"
+      ],
+      "red": 2
+    },
+    "ctest": {
+      "existing_fes_cram": 8,
+      "log": "ctest-details-v2.log",
+      "passed": 17,
+      "replication_backend": 9
+    },
+    "limitations": [
+      "Hold regression predicate tested directly; no real-STA-triggered rollback fixture.",
+      "Occupied MLAB exclusion reviewed; no dedicated memory-occupancy backend fixture.",
+      "Electrical extra load is not modeled by geometric admission criteria."
+    ],
+    "parser": {
+      "log": "parser-tests.log",
+      "passed": 3
+    },
+    "policy": {
+      "log": "policy-test.log",
+      "passed": true
+    }
+  }
+}
