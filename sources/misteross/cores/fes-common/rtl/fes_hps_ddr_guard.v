@@ -52,6 +52,8 @@ module fes_hps_ddr_guard #(
     // Write beats still owed for the burst the core started, read beats
     // not yet returned, and the post-hold states.
     reg [7:0]  beats_owed = 8'd0;
+    reg        owed_zero = 1'b1;   // beats_owed == 0
+    reg        owed_one = 1'b0;    // beats_owed == 1
     reg [11:0] reads_owed = 12'd0;
     reg        finishing = 1'b0;
     reg        draining = 1'b0;
@@ -72,7 +74,7 @@ module fes_hps_ddr_guard #(
     // A beat enters the guard from the core, or from the guard itself
     // while it finishes a write burst the core abandoned.
     wire from_core = (read | write) & ~waitrequest;
-    wire filler = finishing & ~skid & (beats_owed != 8'd0);
+    wire filler = finishing & ~skid & ~owed_zero;
     wire enter = from_core | filler;
     wire enter_read = from_core & read;
     wire enter_write = (from_core & write) | filler;
@@ -83,8 +85,13 @@ module fes_hps_ddr_guard #(
     // The presented command leaves when the controller takes it.
     wire slot_free = ~(m_read | m_write) | ~m_waitrequest;
 
+    // A first beat only comes from the core (a filler needs beats owed), so
+    // its burst length is the core's. The flags keep the counter's adder off
+    // the finishing decision.
     wire [7:0] beats_after = ~enter_write ? beats_owed :
-        (beats_owed == 8'd0 ? enter_burstcount - 8'd1 : beats_owed - 8'd1);
+        (owed_zero ? burstcount - 8'd1 : beats_owed - 8'd1);
+    wire owed_after = ~enter_write ? ~owed_zero :
+        (owed_zero ? burstcount != 8'd1 : ~owed_one);
     wire [11:0] reads_after = reads_owed + (enter_read ? {4'd0, burstcount} : 12'd0) -
         (returned ? 12'd1 : 12'd0);
 
@@ -120,8 +127,10 @@ module fes_hps_ddr_guard #(
         end
 
         beats_owed <= beats_after;
+        owed_zero <= ~owed_after;
+        owed_one <= beats_after == 8'd1;
         reads_owed <= reads_after;
-        finishing <= (hold | finishing) & (beats_after != 8'd0);
+        finishing <= (hold | finishing) & owed_after;
         draining <= hold | (draining & (reads_after != 12'd0));
 
         returned <= m_readdatavalid;

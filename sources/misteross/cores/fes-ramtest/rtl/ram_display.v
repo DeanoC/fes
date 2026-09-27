@@ -199,9 +199,41 @@ module ram_display (
         end
     endfunction
 
-    function [7:0] mhz_chars;
+    // Failing-bit nibble shown at a column from 7, most significant first.
+    function [3:0] bad_nibble;
+        input [127:0] bits;
+        input [5:0] column;
+        input wide;
+        integer i;
+        begin
+            bad_nibble = 4'h0;
+            for (i = 0; i < 32; i = i + 1)
+                if (column == 6'd7 + i[5:0])
+                    bad_nibble = wide ? bits[127 - 4 * i -: 4] :
+                        (i < 16 ? bits[63 - 4 * i -: 4] : 4'h0);
+        end
+    endfunction
+
+    // Character first + i of a four-character word, by constant compares.
+    function [7:0] byte4_at;
+        input [31:0] word;
+        input [5:0] column;
+        input [5:0] first;
+        begin
+            case (column)
+                first + 6'd0: byte4_at = word[31:24];
+                first + 6'd1: byte4_at = word[23:16];
+                first + 6'd2: byte4_at = word[15:8];
+                first + 6'd3: byte4_at = word[7:0];
+                default: byte4_at = 8'h00;
+            endcase
+        end
+    endfunction
+
+    function [7:0] mhz_at;
         input [7:0] value;
         input [5:0] column;
+        input [5:0] first;
         reg [23:0] text;
         begin
             case (value)
@@ -211,9 +243,9 @@ module ram_display (
                 default: text = "   ";
             endcase
             case (column)
-                6'd0: mhz_chars = text[23:16];
-                6'd1: mhz_chars = text[15:8];
-                default: mhz_chars = text[7:0];
+                first + 6'd0: mhz_at = text[23:16];
+                first + 6'd1: mhz_at = text[15:8];
+                default: mhz_at = text[7:0];
             endcase
         end
     endfunction
@@ -250,7 +282,7 @@ module ram_display (
                     else if (column == 6'd9)
                         line_char = "6";
                     else if (mhz != 8'd0 && column >= 6'd12 && column < 6'd15)
-                        line_char = mhz_chars(mhz, column - 6'd12);
+                        line_char = mhz_at(mhz, column, 6'd12);
                     else if (mhz != 8'd0 && column == 6'd16)
                         line_char = "M";
                     else if (mhz != 8'd0 && column == 6'd17)
@@ -266,7 +298,7 @@ module ram_display (
                     else if (column >= 6'd5 && column < 6'd13)
                         line_char = hex_digit(hex_nibble(cursor, column, 6'd5));
                     else if (column >= 6'd14 && column < 6'd16)
-                        line_char = byte4("AT  ", column - 6'd14);
+                        line_char = byte4_at("AT  ", column, 6'd14);
                     else if (column >= 6'd17 && column < 6'd25)
                         line_char = hex_digit(hex_nibble(fault_at, column, 6'd17));
                     else if (column >= 6'd26 && column < 6'd34)
@@ -280,7 +312,7 @@ module ram_display (
                     else if (column >= 6'd4 && column < 6'd12)
                         line_char = hex_digit(hex_nibble(err_count, column, 6'd4));
                     else if (column >= 6'd13 && column < 6'd16)
-                        line_char = byte4("WAS ", column - 6'd13);
+                        line_char = byte4_at("WAS ", column, 6'd13);
                     else if (column >= 6'd17 && column < 6'd21)
                         line_char = hex_digit(hex16(was, column, 6'd17));
                     else
@@ -292,7 +324,7 @@ module ram_display (
                     else if (column >= 6'd4 && column < 6'd8)
                         line_char = hex_digit(hex16(expected_word, column, 6'd4));
                     else if (column >= 6'd9 && column < 6'd12)
-                        line_char = byte4("GOT ", column - 6'd9);
+                        line_char = byte4_at("GOT ", column, 6'd9);
                     else if (column >= 6'd13 && column < 6'd17)
                         line_char = hex_digit(hex16(got, column, 6'd13));
                     else
@@ -474,7 +506,7 @@ module ram_display (
             port_digit = 8'h30 + {6'd0, port_index_q};
             if (line == DDR_HEAD) begin
                 if (column >= 6'd8 && column < 6'd11)
-                    ddr_char = mhz_chars(s_mhz, column - 6'd8);
+                    ddr_char = mhz_at(s_mhz, column, 6'd8);
                 else
                     ddr_char = text_at("HPS DDR     MHZ 30000000-3FFFFFFF       ", column);
             end else if (line == DDR_RATES) begin
@@ -485,7 +517,7 @@ module ram_display (
                 ddr_char = port_digit;
             end else if (line < DDR_FAULTS) begin
                 if (column >= 6'd3 && column < 6'd7)
-                    ddr_char = byte4(ddr_phase_name(q_phase), column - 6'd3);
+                    ddr_char = byte4_at(ddr_phase_name(q_phase), column, 6'd3);
                 else if (column == 6'd8)
                     ddr_char = q_reading ? "R" : "W";
                 else if (column == 6'd10)
@@ -501,7 +533,7 @@ module ram_display (
                 else if (column >= 6'd25 && column < 6'd33)
                     ddr_char = hex_digit(hex_nibble(q_errors, column, 6'd25));
                 else if (column >= 6'd34 && column < 6'd38)
-                    ddr_char = byte4(q_word, column - 6'd34);
+                    ddr_char = byte4_at(q_word, column, 6'd34);
                 else
                     ddr_char = 8'h00;
             end else if (line < DDR_BITS) begin
@@ -510,7 +542,7 @@ module ram_display (
                 else if (column >= 6'd17 && column < 6'd25)
                     ddr_char = hex_digit(hex_nibble(q_last, column, 6'd17));
                 else if (q_errors != 32'd0 && column >= 6'd29 && column < 6'd33)
-                    ddr_char = byte4(ddr_phase_name(q_fault_phase), column - 6'd29);
+                    ddr_char = byte4_at(ddr_phase_name(q_fault_phase), column, 6'd29);
                 else if (q_errors != 32'd0 && (column == 6'd26 || column == 6'd27))
                     ddr_char = text_at("                          IN            ", column);
                 else
@@ -518,8 +550,7 @@ module ram_display (
             end else begin
                 // Port 0 shows 128 bits; ports 1 and 2 show their 64.
                 if (column >= 6'd7 && column < (port_index_q == 2'd0 ? 6'd39 : 6'd23))
-                    ddr_char = hex_digit(q_bad[(port_index_q == 2'd0 ? 8'd127 : 8'd63) -
-                        {(column - 6'd7), 2'd0} -: 4]);
+                    ddr_char = hex_digit(bad_nibble(q_bad, column, port_index_q == 2'd0));
                 else
                     ddr_char = text_at("   BAD                                  ", column);
             end
