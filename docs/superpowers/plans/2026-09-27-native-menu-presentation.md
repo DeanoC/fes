@@ -49,11 +49,11 @@ Frame preparation uses a two-phase exchange on one existing Unix connection. `me
 
 **Interfaces:** Emit `FesApplicationOpcodeMenuInfo/Configure/Control/Submit`, `FesApplicationMenu*` geometry/state/index constants, and `FesApplicationInterfaceVideoMenuDisplay*` symbols. All generated consumers use those exact names and their existing language naming conventions. Golden fixtures specify contiguous mailbox toggles, including errors, delayed quiesce and accepted-versus-displayed submission.
 
-- [ ] Add failing real-YAML/emitter/fixture tests for bit 9, opcodes 18–21, exact geometry and existing opcode preservation. Assert invalid configure/state/sequence requests do not change displayed state, and low/high reads form coherent snapshots.
-- [ ] Run `make -C sources/mister-packages test`; confirm failure is missing menu definitions/fixtures.
-- [ ] Add the constants, interface and authoritative wire documentation above; generate the synthetic exchanges without changing older fixtures.
-- [ ] Run `make generate`, review every mapped consumer, then `make check-generated` and `make -C sources/mister-packages test`; require all checks pass.
-- [ ] Commit the shared contract and generated consumers together.
+- [x] Add failing real-YAML/emitter/fixture tests for bit 9, opcodes 18–21, exact geometry and existing opcode preservation. Assert invalid configure/state/sequence requests do not change displayed state, and low/high reads form coherent snapshots.
+- [x] Run `make -C sources/mister-packages test`; confirm failure is missing menu definitions/fixtures.
+- [x] Add the constants, interface and authoritative wire documentation above; generate the synthetic exchanges without changing older fixtures.
+- [x] Run `make generate`, review every mapped consumer, then `make check-generated` and `make -C sources/mister-packages test`; require all checks pass.
+- [x] Commit the shared contract and generated consumers together.
 
 ## Task 2: GP-controlled menu firmware and sealed package
 

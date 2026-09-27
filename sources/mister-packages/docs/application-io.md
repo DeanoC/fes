@@ -243,3 +243,54 @@ component revisions before integration or exact-artifact hardware acceptance.
 [Controller exchanges](../testdata/fes-application-v1/controllers.json) add exact
 wire and post-ack state vectors for port isolation, keypad masks, invalid
 requests and Hold clearing. They are also synthetic, never-deployed fixtures.
+
+## Menu display 1.0
+
+`fes.video.menu-display` 1.0 is application capability bit 9 (`0x200`). A
+menu firmware declares it required alongside fixed 720p video and HPS DDR.
+It is idle display firmware, not a playable system. ABI and transport stay
+1.0; compatibility is determined by the required interface, not the name.
+
+The fixed layout is two 4 MiB slots at offsets 0 and `0x00400000` within the
+shared HPS DDR window. A frame is 1280×720 XRGB8888, stride 5120, exactly
+3,686,400 bytes. Little-endian pixel bytes are B,G,R,unused. A client never
+supplies a physical address. Runtime verifies the geometry, selects layout
+1 while disabled/drained, and owns copying and slot reuse.
+
+| Opcode | Index / argument | Reply and state |
+| --- | --- | --- |
+| MenuInfo 18 | Argument 0; indices below | Read immutable geometry or coherent status |
+| MenuConfigure 19 | Index 0, argument 1 | Configure both fixed slots while disabled/drained; otherwise error 4 |
+| MenuControl 20 | Index 0, argument 0 | Stop submissions, disable scanout and ACK only after reads drain |
+| MenuControl 20 | Index 0, argument 1 | Enable only when configured, execution released and nonfaulted |
+| MenuSubmit 21 | Index 0 low sequence, then index 1 high sequence | Stage one ordered 32-bit sequence |
+| MenuSubmit 21 | Index 2, argument slot 0 or 1 | Accept one pending switch; ACK does not mean displayed |
+
+MenuInfo indices: 0 width, 1 height, 2 stride, 3/4 frame bytes low/high,
+5/6 slot bytes low/high, 7 format (1=XRGB8888), 8 slot count, 9 state,
+10/11 displayed sequence low/high, 12/13 underflows low/high. Each mutable
+low-word read snapshots its high word; a high read without its low returns
+error 4 and a successful high read consumes the snapshot. State bits are
+configured=1, enabled=2, pending=4, quiesced=8, faulted=16.
+
+Reset leaves execution held, no configuration, disabled scanout, drained
+reads and sequence 0. Runtime establishes identity/build/layout, releases
+DDR through the existing admission path, zeros both frame regions,
+configures, releases execution and enables the safe black initial slot 0.
+Direct execution hold while not quiesced returns error 4. Quiesce completes
+before an execution hold can hide responses needed by the reader.
+
+Submit requires enabled/nonfaulted scanout, no pending switch, ordered
+low/high/commit fields, and a nonzero sequence strictly greater than the
+last accepted sequence. Sequences never wrap; exhausted sessions require
+reactivation. Invalid opcode/index/argument/state use existing errors
+1/2/3/4 and do not change live slot or configuration. Invalid requests do
+not discard valid staged fields. Successful commit clears staging; quiesce
+cancels staging and any pending switch while draining outstanding reads.
+
+The displayed-sequence change at a frame boundary releases the previous
+slot. Runtime must wait for that change before reusing it; an acceptance
+ACK is insufficient. Underflow pixels are black and the counter is readable.
+Unexpected hold/fault fails closed until reprogramming. These definitions
+and `testdata/menu-display-v1/exchanges.json` establish the wire contract;
+consumer support and exact-artifact hardware acceptance remain separate.

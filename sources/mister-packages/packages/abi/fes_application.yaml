@@ -209,6 +209,79 @@ constants:
     value: 0x00
   - name: FesApplicationHpsDdrMaxBurst
     value: 128
+  # fes.video.menu-display 1.0: fixed, runtime-owned reserved DDR slots.
+  - name: FesApplicationOpcodeMenuInfo
+    value: 18
+  - name: FesApplicationOpcodeMenuConfigure
+    value: 19
+  - name: FesApplicationOpcodeMenuControl
+    value: 20
+  - name: FesApplicationOpcodeMenuSubmit
+    value: 21
+  - name: FesApplicationMenuWidth
+    value: 1280
+  - name: FesApplicationMenuHeight
+    value: 720
+  - name: FesApplicationMenuStride
+    value: 5120
+  - name: FesApplicationMenuFrameBytes
+    value: 3686400
+  - name: FesApplicationMenuSlotBytes
+    value: 4194304
+  - name: FesApplicationMenuSlotCount
+    value: 2
+  - name: FesApplicationMenuPixelFormat
+    value: 1
+  - name: FesApplicationMenuLayout
+    value: 1
+  - name: FesApplicationMenuStateConfigured
+    value: 1
+  - name: FesApplicationMenuStateEnabled
+    value: 2
+  - name: FesApplicationMenuStatePending
+    value: 4
+  - name: FesApplicationMenuStateQuiesced
+    value: 8
+  - name: FesApplicationMenuStateFaulted
+    value: 16
+  - name: FesApplicationMenuControlQuiesce
+    value: 0
+  - name: FesApplicationMenuControlEnable
+    value: 1
+  - name: FesApplicationMenuSubmitSequenceLoIndex
+    value: 0
+  - name: FesApplicationMenuSubmitSequenceHiIndex
+    value: 1
+  - name: FesApplicationMenuSubmitCommitIndex
+    value: 2
+  - name: FesApplicationMenuInfoWidthIndex
+    value: 0
+  - name: FesApplicationMenuInfoHeightIndex
+    value: 1
+  - name: FesApplicationMenuInfoStrideIndex
+    value: 2
+  - name: FesApplicationMenuInfoFrameBytesLoIndex
+    value: 3
+  - name: FesApplicationMenuInfoFrameBytesHiIndex
+    value: 4
+  - name: FesApplicationMenuInfoSlotBytesLoIndex
+    value: 5
+  - name: FesApplicationMenuInfoSlotBytesHiIndex
+    value: 6
+  - name: FesApplicationMenuInfoPixelFormatIndex
+    value: 7
+  - name: FesApplicationMenuInfoSlotCountIndex
+    value: 8
+  - name: FesApplicationMenuInfoStateIndex
+    value: 9
+  - name: FesApplicationMenuInfoSequenceLoIndex
+    value: 10
+  - name: FesApplicationMenuInfoSequenceHiIndex
+    value: 11
+  - name: FesApplicationMenuInfoUnderflowsLoIndex
+    value: 12
+  - name: FesApplicationMenuInfoUnderflowsHiIndex
+    value: 13
 interfaces:
   - id: fes.gamepad
     major: 1
@@ -246,3 +319,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 8
+  - id: fes.video.menu-display
+    major: 1
+    minor: 0
+    capability_bit: 9
