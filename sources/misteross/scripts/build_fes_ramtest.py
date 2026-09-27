@@ -68,7 +68,7 @@ TOOLCHAIN_ROOT = Path("build/toolchain-ramtest")
 TOOL_COMMITS = {
     **board.EXPECTED_TOOL_COMMITS,
     "yosys": "54ea7109ff08f7ecf8ca7b5ced58e8ba62d7f4b8",
-    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
+    "nextpnr": "19748aa0169df9a42a90374ff8011209ab7ab2e1",
 }
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",

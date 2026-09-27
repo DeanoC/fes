@@ -55,8 +55,13 @@ module fes_hps_ddr_guard #(
     reg [11:0] reads_owed = 12'd0;
     reg        finishing = 1'b0;
     reg        draining = 1'b0;
+    // Read data lands here straight from the controller: the route out of
+    // the hard block is long, so no logic sits on it.
+    reg              returned = 1'b0;
+    reg [DATA_W-1:0] returned_data;
 
     initial begin
+        returned_data = {DATA_W{1'b0}};
         m_read = 1'b0;
         m_write = 1'b0;
         readdatavalid = 1'b0;
@@ -81,7 +86,7 @@ module fes_hps_ddr_guard #(
     wire [7:0] beats_after = ~enter_write ? beats_owed :
         (beats_owed == 8'd0 ? enter_burstcount - 8'd1 : beats_owed - 8'd1);
     wire [11:0] reads_after = reads_owed + (enter_read ? {4'd0, burstcount} : 12'd0) -
-        (m_readdatavalid ? 12'd1 : 12'd0);
+        (returned ? 12'd1 : 12'd0);
 
     always @(posedge clk) begin
         if (slot_free) begin
@@ -119,7 +124,9 @@ module fes_hps_ddr_guard #(
         finishing <= (hold | finishing) & (beats_after != 8'd0);
         draining <= hold | (draining & (reads_after != 12'd0));
 
-        readdata <= m_readdata;
-        readdatavalid <= m_readdatavalid & ~hold & ~draining;
+        returned <= m_readdatavalid;
+        returned_data <= m_readdata;
+        readdata <= returned_data;
+        readdatavalid <= returned & ~hold & ~draining;
     end
 endmodule
