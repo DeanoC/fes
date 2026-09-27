@@ -41,7 +41,9 @@ module fes_menu_video #(
     wire [19:0] pixel_index;
     wire reader_enable = running && state != DRAIN;
     wire pixel_matches = state == DISPLAY && pixel_valid && pixel_index == raster_index;
-    wire pixel_ready = state == DISPLAY && de && pixel_index <= raster_index;
+    // Blank intervals discard only missed pixels; future-row pixels stay queued.
+    wire pixel_ready = state == DISPLAY &&
+        (de ? pixel_index <= raster_index : pixel_index < raster_index);
     assign de = h < 11'd1280 && v < 10'd720;
     assign hs = h >= 11'd1390 && h < 11'd1430;
     assign vs = v >= 10'd725 && v < 10'd730;
@@ -74,8 +76,10 @@ module fes_menu_video #(
         if (running) begin
             case (state)
                 DRAIN: if (blank && !frame_end && reader_idle) begin
-                    fetch_slot <= pending ? pending_slot : current_slot;
-                    fetch_sequence <= pending ? pending_sequence : displayed_sequence;
+                    fetch_slot <= pending ? pending_slot :
+                        (submit_valid && submit_ready ? submit_slot : current_slot);
+                    fetch_sequence <= pending ? pending_sequence :
+                        (submit_valid && submit_ready ? submit_sequence : displayed_sequence);
                     state <= START;
                 end
                 START: state <= FETCH;

@@ -71,6 +71,21 @@ int main(int argc,char**argv) {
     Verilated::commandArgs(argc,argv);
     try {
         check(argc==2,"expected artifact output directory");
+        // A submission arriving on the fetch-selection edge must be the next frame.
+        Bench race;race.output=argv[1];race.t.rst=1;race.tick();
+        race.t.rst=0;race.t.enable=1;race.inspect=true;
+        race.t.submit_slot=1;race.t.submit_sequence=42;race.t.submit_valid=1;
+        race.tick();race.t.submit_valid=0;race.next_frame();race.next_frame();
+        check(race.t.displayed_sequence==42 && race.black==0,"prefetch-edge submission lost");
+        std::cout<<"PASS prefetch_edge_submit\n";
+        Bench delayed;delayed.output=argv[1];delayed.t.rst=1;delayed.tick();
+        delayed.t.rst=0;delayed.t.enable=1;delayed.inspect=true;delayed.stall=true;
+        delayed.t.submit_slot=1;delayed.t.submit_sequence=42;delayed.t.submit_valid=1;
+        delayed.tick();delayed.t.submit_valid=0;delayed.next_frame();delayed.next_frame();
+        check(delayed.t.displayed_sequence==0 && !delayed.t.submit_ready,"unready prefetch acknowledged/lost request");
+        delayed.stall=false;delayed.next_frame();delayed.next_frame();delayed.next_frame();
+        check(delayed.t.displayed_sequence==42 && delayed.black==0,"deferred prefetch lost request");
+        std::cout<<"PASS deferred_prefetch\n";
         Bench b;b.output=argv[1];b.t.rst=1;b.tick();b.t.rst=0;b.t.enable=1;b.inspect=true;
         b.next_frame();b.next_frame();
         check(b.active==921600 && b.black==0 && b.t.underflows==0,"unstalled frame underflow");
@@ -81,6 +96,12 @@ int main(int argc,char**argv) {
         b.next_frame();b.next_frame();
         check(b.t.displayed_sequence==42 && b.black==0,"frame switch did not complete");
         std::cout<<"PASS video_timing/frame_switch/busy_submit\n";
+        while(b.h!=0 || b.v!=10)b.tick();
+        b.stall=true;for(unsigned i=0;i<1800;++i)b.tick();b.stall=false;
+        unsigned recovered=0;
+        for(unsigned i=0;i<16500;++i){b.tick();if(b.t.de&&b.t.rgb!=0)++recovered;}
+        check(recovered>0,"mid-frame stale pixels never caught up");
+        std::cout<<"PASS midframe_recovery\n";
         b.stall=true;b.next_frame();b.next_frame();
         check(b.black>0 && b.t.underflows>0,"stalls did not produce black underflow");
         b.stall=false;b.next_frame();b.next_frame();b.next_frame();

@@ -20,13 +20,13 @@ struct Bench {
     uint32_t held_address = 0;
     unsigned held_burst = 0;
     bool cancelling = false;
-    bool varied = false;
+    bool varied = false, block_commands = false;
     static uint32_t pattern(unsigned slot, unsigned pixel) {
         return (slot ? 0x5a000000u : 0xa5000000u) | pixel;
     }
     void tick() {
         top.clk = 0;
-        top.waitrequest = varied && cycle % 11 < 4;
+        top.waitrequest = block_commands || (varied && cycle % 11 < 4);
         top.pixel_ready = !varied || cycle % 13 > 2;
         top.readdatavalid = !responses.empty() && (!varied || cycle % 17 > 4);
         if (top.readdatavalid) {
@@ -78,6 +78,19 @@ struct Bench {
         check(pixels == 921600 && accepted == 230400, "frame count mismatch");
         tick(); check(top.idle && responses.empty(), "frame did not become idle");
     }
+    void held_cancel(bool reset) {
+        accepted = pixels = 0; cancelling = false; block_commands = true;
+        start(0);
+        for(unsigned i=0;i<10 && !top.read;++i) tick();
+        check(top.read,"no held command for cancellation test");
+        cancelling=true;
+        if(reset)top.rst=1;else top.enable=0;
+        for(unsigned i=0;i<10;++i){tick();check(top.read && !top.idle,"held command withdrawn on cancel");}
+        block_commands=false;
+        for(unsigned i=0;i<1000&&!top.idle;++i)tick();
+        check(top.idle&&responses.empty(),"held cancel did not drain");
+        top.rst=0;top.enable=1;cancelling=false;tick();frame(1,true);
+    }
     void cancel(bool reset) {
         varied = true; accepted = pixels = 0;
         start(0);
@@ -98,6 +111,6 @@ int main(int argc, char** argv) {
         b.top.rst = 0; b.tick();
         b.frame(0, false); std::cout << "PASS exact_frame/last_burst\n";
         b.frame(1, true); std::cout << "PASS stalled_command/delayed_response\n";
-        b.cancel(false); b.cancel(true); std::cout << "PASS disable/reset_drain\n";
+        b.cancel(false); b.cancel(true); b.held_cancel(false); b.held_cancel(true); std::cout << "PASS disable/reset_drain\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }
