@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import firmware  # noqa: E402
+import probe_card  # noqa: E402
 from font import table as font_table  # noqa: E402
 
 WIDTH, HEIGHT = 1280, 720
@@ -87,6 +88,31 @@ def render(mem: Memory, text: bool, mixed: bool, hires: bool, flash: bool) -> by
     return bytes(frame)
 
 
+def dump_lines(cards: tuple[int, ...], image: bytes, scanned: bool) -> list[str]:
+    """Rows of the firmware's D command for probe cards in `cards`.
+
+    After a slot scan each card has seen four DEVSEL accesses (STA abs,X also
+    makes a 6502 dummy read), and the last card called still owns $C800, so
+    the first vacant row writes and reads that card's RAM until the row's
+    $CFFF read releases it. The dump's own two register reads follow.
+    """
+    rows = []
+    owner = cards[-1] if scanned and cards else None
+    for slot in range(1, 8):
+        if slot == 6:
+            offset = 0x0600 + 0xF8
+            rows.append("6 " + image[offset:offset + 8].hex().upper())
+            continue
+        if slot in cards:
+            counter = (4 if scanned else 0) + 2
+            rows.append(f"{slot} {probe_card.SIGNATURE.hex().upper()} A2{counter:02X} 5A C33C")
+        else:
+            ram = "C33C" if owner is not None else "FFFF"
+            rows.append(f"{slot} {'FF' * 8} FFFF FF {ram}")
+        owner = None
+    return rows
+
+
 def diagnostic_screens() -> dict[str, tuple[Memory, bool, bool, bool, bool]]:
     """Screen memory after each machine-simulation step."""
     mem = Memory()
@@ -116,7 +142,7 @@ def diagnostic_screens() -> dict[str, tuple[Memory, bool, bool, bool, bool]]:
     textscr()
     message(0, firmware.CHARSET_ROW + 5, "RAM OK")
     message(0, firmware.CHARSET_ROW + 6, "LANGUAGE CARD OK")
-    message(0, firmware.CHARSET_ROW + 8, "KEYS T L H M B S")
+    message(0, firmware.CHARSET_ROW + 8, firmware.KEYS_TEXT)
     snapshot("text", True, False, False, True)
     lores()
     snapshot("lores", False, False, False, False)
@@ -135,6 +161,9 @@ def diagnostic_screens() -> dict[str, tuple[Memory, bool, bool, bool, bool]]:
     message(0, firmware.MESSAGE_ROW, "A")
     message(0, firmware.MESSAGE_ROW, "PROBE CARD OK IN SLOT 4")
     message(0, firmware.MESSAGE_ROW + 1, "PROBE CARD OK IN SLOT 7")
+    for row, line in enumerate(dump_lines((4, 7), firmware.build_firmware(), scanned=True)):
+        message(0, firmware.DUMP_ROW + row, line)
+    snapshot("dump", True, False, False, True)
     message(0, 22, firmware.DISK_PASS)
     snapshot("disk", True, False, False, True)
     return screens

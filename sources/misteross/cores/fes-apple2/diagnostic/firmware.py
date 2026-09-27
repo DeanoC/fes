@@ -87,6 +87,8 @@ BANNER = [
 ]
 CHARSET_ROW = 3
 MESSAGE_ROW = 20
+DUMP_ROW = 12
+KEYS_TEXT = "KEYS T L H M B S D"
 MIXED_TEXT = "MIXED MODE TEXT WINDOW"
 DISK_PASS = "DISK BOOT OK"
 
@@ -169,6 +171,7 @@ RETRY   = $30
 HTRACK  = $31
 SLOTN   = $32
 PTR     = $33
+HEXX    = $35
 STUB    = $0340
 SLOTRES = $0380
 SECWANT = $3D
@@ -202,7 +205,7 @@ HROW:   .byte {hires_row}
 MSGRAM: .byte {screen_bytes("RAM OK")}, 0
 MSGLC:  .byte {screen_bytes("LANGUAGE CARD OK")}, 0
 MSGBAD: .byte {screen_bytes("FAILED")}, 0
-MSGKEY: .byte {screen_bytes("KEYS T L H M B S")}, 0
+MSGKEY: .byte {screen_bytes(KEYS_TEXT)}, 0
 MSGMIX: .byte {screen_bytes(MIXED_TEXT)}, 0
 MSGDSK: .byte {screen_bytes(DISK_PASS)}, 0
 MSGDER: .byte {screen_bytes("DISK ERROR")}, 0
@@ -303,7 +306,11 @@ M5:     CMP #$D3            ; S
         BNE M6
         JSR SLOTSCAN
         JMP MDONE
-M6:     JSR PUTC            ; echo any other key
+M6:     CMP #$C4            ; D
+        BNE M7
+        JSR DUMP
+        JMP MDONE
+M7:     JSR PUTC            ; echo any other key
         LDA SPKR            ; and click the speaker twice
         LDA SPKR
 MDONE:  LDA TMP2
@@ -356,6 +363,92 @@ SSNEXT: LDY SLOTN
         BNE SS1
         RTS
 PROBESIG: .byte "FESPROBE"
+
+; Dump: one row per slot 1-7 from DUMP_ROW: "n " then the eight bytes the CPU
+; reads at $CnF8-$CnFF. Except for the Disk II slot it then prints the card
+; registers at $C0n1 and $C0n2, the $C0n0 read-back after writing $5A, and
+; $C800/$CBFF after a $Cn00 access claims $C800 and writes $C3/$3C to them.
+; Reading $CFFF releases $C800 again. All values are hex.
+DUMP:   LDA #{DUMP_ROW}
+        STA CURY
+        LDY #1
+DM1:    STY SLOTN
+        LDA #0
+        STA CURX
+        TYA
+        ORA #$B0
+        JSR PUTC
+        LDA #$A0
+        JSR PUTC
+        LDA SLOTN
+        ORA #$C0
+        STA PTR+1
+        LDA #$F8
+        STA PTR
+        LDY #0
+DM2:    LDA (PTR),Y
+        JSR PUTHEX
+        INY
+        CPY #8
+        BNE DM2
+        LDA SLOTN
+        CMP #6
+        BEQ DM3
+        LDA #$A0
+        JSR PUTC
+        LDA SLOTN
+        ASL
+        ASL
+        ASL
+        ASL
+        TAX
+        LDA $C081,X
+        JSR PUTHEX
+        LDA $C082,X
+        JSR PUTHEX
+        LDA #$A0
+        JSR PUTC
+        LDA #$5A
+        STA $C080,X
+        LDA #$00
+        LDA $C080,X
+        JSR PUTHEX
+        LDA #$A0
+        JSR PUTC
+        LDY #0
+        STY PTR
+        LDA (PTR),Y         ; $Cn00 access claims $C800 for this slot
+        LDA #$C3
+        STA $C800
+        LDA #$3C
+        STA $CBFF
+        LDA $C800
+        JSR PUTHEX
+        LDA $CBFF
+        JSR PUTHEX
+        LDA $CFFF           ; release $C800
+DM3:    INC CURY
+        LDY SLOTN
+        INY
+        CPY #8
+        BEQ DM4
+        JMP DM1
+DM4:    RTS
+; PUTHEX: print A as two hex digits. Preserves X and Y.
+PUTHEX: PHA
+        LSR
+        LSR
+        LSR
+        LSR
+        JSR PUTNIB
+        PLA
+        AND #$0F
+PUTNIB: STX HEXX
+        TAX
+        LDA HEXDIG,X
+        LDX HEXX
+        JMP PUTC
+HEXDIG: .byte {screen_bytes("0123456789ABCDEF")}
 
 ; Screens --------------------------------------------------------------------
 TEXTSCR:

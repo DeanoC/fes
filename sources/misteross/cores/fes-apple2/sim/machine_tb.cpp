@@ -253,7 +253,16 @@ int main(int argc, char** argv) {
     }
     std::printf("slot scan found probe cards in slots 4 and 7\n");
 
+    // Slot dump: signature bytes, card registers and $C800 RAM of every socket.
+    b.stage = -1;
+    b.key('D' | 0x80);
+    if (!b.run_until("slot dump", 200'000'000'000ull, [&] { return b.stage == ('D' | 0x80); })) return 1;
+    b.video_on = true;
+    ok = check("dump") && ok;
+    std::printf("slot dump captured\n");
+
     if (disk) {
+        b.video_on = false;
         b.result = -1;
         b.key('B' | 0x80);
         if (!b.run_until("disk boot", 12'000'000'000'000ull,

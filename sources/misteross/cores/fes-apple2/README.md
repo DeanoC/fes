@@ -74,7 +74,14 @@ file at `$C0n0`, a position-independent 256-byte `$Cn00` page
 card and prints through the diagnostic, 1 KiB of `$C800` RAM claimed by a
 `$Cn00` access and released by `$CFFF`, and a square-wave tone on the slot
 audio. The diagnostic's `S` command scans slots and calls every probe card;
-the machine simulation links it into sockets 4 and 7.
+`D` prints, per slot, the eight bytes the CPU reads at `$CnF8`, the card
+registers and a `$C800` RAM write/read-back, so the late-bound firmware alone
+can inspect a linked card on hardware. The machine simulation links the card
+into sockets 4 and 7 and checks both commands.
+
+The card's ROM and RAM are explicit single-clock M10Ks. The cart merge splices
+only the clock pins it knows onto the shell clock; the read clock of an
+inferred dual-clock M10K stays on an undriven net and reads return zero.
 
 ```sh
 python3 scripts/build_apple2_slot_card.py --shell build/fes-apple2-oss \
@@ -84,8 +91,9 @@ python3 scripts/build_apple2_slot_card.py --shell build/fes-apple2-oss \
 The card producer copies the shell's frozen routed netlist, renames only the
 chosen slot's boundary flip-flops to the canonical plug cells, places the card
 in that slot's named region (`--fes-cart-region slotN`), fences routing to its
-CRAM rectangle, requires the three shell clocks, rejects any CRAM change
-outside the socket, and publishes `build/apple2-cards/RECIPE/EXPANSION_ID.tar`
+CRAM rectangle, requires the three shell clocks, requires every card clock pin
+on the shell system clock, rejects any CRAM change outside the socket, and
+publishes `build/apple2-cards/RECIPE/EXPANSION_ID.tar`
 (`manifest.json` with `slot_index`, and `cart.rbf`). The Go
 `expansion/cmd/fes-slot-link` composes any set of those archives and an
 optional firmware image onto the sealed shell, as a library launch does.
