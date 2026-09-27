@@ -603,7 +603,7 @@ hit-tested on both room and parked now-playing screens. Stop, failures and
 return still use the ordinary session lifecycle. Per-room state preserves
 focus and selection, not hardware configuration or running RAM.
 
-`cmd/fogcast-tenfoot` is an SDL3 host-side 10-foot launcher (cover grid, shelf,
+`cmd/fogcast-tenfoot` is a host-side 10-foot launcher with SDL3 and explicit Linux framebuffer shells (cover grid, shelf,
 and list). It is another client of the public host API, not a second launch
 path:
 
@@ -724,7 +724,16 @@ and drop HID. On the kit,
 USB keyboards join the play-session input stream with gamepads; `fes.keyboard`
 packages are eligible without `fes.gamepad`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
-linuxfb is a kit framebuffer Device, not the SDL sofa shell.
+Explicit `-gfx linuxfb` dispatches to `ui/tenfoot/linuxfb_linux.go` before
+SDL initialization, including in CGO-free builds. Both shells use
+`configuredApp` and the shared App, rendering, catalog and session API paths.
+The framebuffer shell reads native-width evdev records for US keyboard text
+and digital gamepad buttons/hat axes, merges held commands across devices,
+and uses the shared remapper and hold gate. It restores the mapped display
+bytes on normal exit. Inputs are selected at startup; analog sticks, pointer
+and hotplug are outside this development-testing slice. The framebuffer smoke
+uses no physical input and only verifies library loading and rendering; it
+is separate from the broader SDL smoke.
 
 | Backend | Construction | Role |
 | --- | --- | --- |

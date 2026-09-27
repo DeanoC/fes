@@ -1,16 +1,18 @@
 # Native 10-foot launcher
 
-SDL3 10-foot launcher (Mac primary; Linux build path documented). It talks to
+Native 10-foot launcher with an SDL3 window backend and a Linux framebuffer
+backend for machines without a desktop. It talks to
 the existing FogCast public host API over HTTP. It does not own catalog,
-content transfer, or `/dev/MiSTer_cmd`. The browser shell remains the default
-UI. Fullscreen living-room use applies a local TV overscan inset and idle
+content transfer, or `/dev/MiSTer_cmd`. Tenfoot is the controller-facing UI; browser pages remain useful for host
+management. Fullscreen living-room use applies a local TV overscan inset and idle
 stills-or-video attract from the host playlist. Browse layouts are cover grid
 (default), shelf/carousel, and list. Proposed composition readiness (a core
 package is not by itself Ready) is in
 [`launch-composition.md`](../launch-composition.md).
 
 Linux SDL3 packages, native-on-Linux build/run, and the Mac-vs-Linux proof
-split are in [`LINUX.md`](./LINUX.md).
+split are in [`LINUX.md`](./LINUX.md). The [framebuffer path](./LINUX.md#framebuffer-without-sdl)
+builds and runs without SDL or CGO.
 
 ## Build
 

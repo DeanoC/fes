@@ -7,8 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
+	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 // Options configure the native launcher window.
@@ -29,12 +33,14 @@ type Options struct {
 	NoAttractSet bool
 	PrefsPath    string
 	APIHost      string
-	// GFX selects the 2D Device: sdl (default), software, fpga, or
-	// fpga-stub. Empty falls back to TENFOOT_GFX, then sdl. fpga records
-	// the FC2D command stream and rasters with Software (not HDMI FPGA
-	// UI). Production sofa runs keep WrapSDLRenderer. linuxfb is the kit
-	// framebuffer Device and is not opened from the SDL sofa shell.
+	// GFX selects sdl (default), software, fpga, fpga-stub, or linuxfb.
+	// Empty falls back to TENFOOT_GFX, then sdl. linuxfb runs the shared
+	// App directly on a Linux framebuffer without SDL. Other alternatives
+	// use the SDL window shell. fpga records FC2D, not HDMI FPGA UI.
 	GFX string
+	// Framebuffer is the Linux framebuffer node; Input is auto, none, or comma-separated evdev nodes.
+	Framebuffer string
+	Input       string
 	// InputProfile is a built-in name (identity, swap-ab) or a JSON file
 	// path. Empty is identity.
 	InputProfile string
@@ -202,5 +208,49 @@ func Run(ctx context.Context, opts Options) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return runWindow(ctx, opts.normalized())
+	opts = opts.normalized()
+	backend, err := gfx.ParseBackend(opts.GFX)
+	if err != nil {
+		return err
+	}
+	if backend == gfx.BackendLinuxFB {
+		return runFramebuffer(ctx, opts)
+	}
+	return runWindow(ctx, opts)
+}
+
+// configuredApp keeps application setup identical across native display backends.
+func configuredApp(opts Options) (*App, error) {
+	app := NewApp(NewClient(opts.APIBase, nil).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
+	if spec := strings.TrimSpace(opts.InputProfile); spec != "" {
+		profile, err := inputmap.Resolve(spec)
+		if err != nil {
+			return nil, fmt.Errorf("input profile: %w", err)
+		}
+		remap, err := inputmap.NewRemapper(profile)
+		if err != nil {
+			return nil, fmt.Errorf("input profile: %w", err)
+		}
+		app.SetRemapper(remap)
+	}
+	look, err := theme.Resolve(opts.Theme)
+	if err != nil {
+		return nil, fmt.Errorf("theme: %w", err)
+	}
+	app.SetTheme(look)
+	roomIndex, roomErr := loadRoomIndex(opts)
+	if roomErr != nil {
+		fmt.Fprintf(os.Stderr, "tenfoot: %v\n", roomErr)
+	}
+	app.SetRooms(roomIndex, opts.RoomsDir)
+	homeRooms, _ := parseHomePref(opts.Home)
+	app.SetHomeRooms(homeRooms)
+	app.SetDebugHUD(opts.DebugHUD)
+	app.SetPrefsPath(opts.prefsPath())
+	app.SetLayout(parseLayout(opts.Layout))
+	app.SetSafeAreaPct(opts.SafeAreaPct)
+	app.SetReducedMotion(opts.ReducedMotion)
+	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
+
+	return app, nil
 }
