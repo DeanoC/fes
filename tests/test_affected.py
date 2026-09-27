@@ -37,7 +37,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco'},
+            'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu'},
             'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong'},
             'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'coleco', 'apple2'},
             'cores/fes-common/rtl/fes_audio_output.v': {'coleco', 'apple2'},
