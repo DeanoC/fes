@@ -101,13 +101,14 @@ header, and an adopted endpoint is the cast address. The host verifies
 that kit's identity before the claim. A stale configured address is
 adopted from discovery when that TargetID has one endpoint, and a
 different reported identity is not claimed. Bind still rejects a
-replaced client or a changed address or TargetID. A lease this launch
-claimed is released when execution does not start and no other
-in-flight launch still holds it. A launch that starts execution keeps
-the grant and the new session bind. A launch that does not start
-execution restores the previous selected target, mesh bind, and origin
-hook, unless a later launch has already moved that field. A failed
-launch does not release a grant another launch adopted. A release
+replaced client or a changed address or TargetID. When Ensure needs to
+dial a content executor, it uses the verified endpoint adopted by the
+claimed client. A lease this launch claimed is released when execution
+does not start and no other in-flight launch still holds it. A launch
+that starts execution keeps the grant and the new session bind. A launch
+that does not start execution restores the previous selected target,
+mesh bind, and origin hook, unless a later launch has already moved that
+field. A failed launch does not release a grant another launch adopted. A release
 that fails leaves the claim unsettled so it can be retried. A grant
 the session already held stays held. Ensure runs on that executor only when
 `[mesh] ensure` is already on. An unset key or `ensure = false`

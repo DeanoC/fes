@@ -776,6 +776,7 @@ func TestPlacementRebindClaimsTheDiscoveredKit(t *testing.T) {
 	const nodeB = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
 	var staleMutations atomic.Int32
 	var liveClaims atomic.Int32
+	var liveContentDials atomic.Int32
 	stale := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			staleMutations.Add(1)
@@ -797,6 +798,9 @@ func TestPlacementRebindClaimsTheDiscoveredKit(t *testing.T) {
 					"state": "held", "generation": "gen-b", "expires_in_ms": 60000,
 				},
 			})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/mesh/content/node":
+			liveContentDials.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{"node_id": nodeB})
 		default:
 			_ = json.NewEncoder(w).Encode(map[string]string{"state": "free"})
 		}
@@ -813,6 +817,7 @@ func TestPlacementRebindClaimsTheDiscoveredKit(t *testing.T) {
 	service := phase0PlacementService()
 	service.targets = append(service.targets, TargetConfig{Name: "spare", Enabled: true, TargetID: nodeB, Address: stale.URL, Agent: "token-b"})
 	service.targetClients["spare"] = client
+	service.meshEnsure = true
 	service.resolveTarget = func(context.Context, string) ([]string, error) { return []string{live.URL}, nil }
 	entry, _ := fpgaMeshEntry("coleco-frogger")
 	service.SetMeshExecuteSession(MeshExecuteSession{
@@ -828,11 +833,11 @@ func TestPlacementRebindClaimsTheDiscoveredKit(t *testing.T) {
 	if service.selectedTarget != "dev" {
 		t.Fatalf("aborted launch left selected %q err %v", service.selectedTarget, err)
 	}
-	if staleMutations.Load() != 0 || liveClaims.Load() != 1 {
-		t.Fatalf("stale mutations %d live claims %d", staleMutations.Load(), liveClaims.Load())
+	if staleMutations.Load() != 0 || liveClaims.Load() != 1 || liveContentDials.Load() != 1 {
+		t.Fatalf("stale mutations %d live claims %d live content dials %d", staleMutations.Load(), liveClaims.Load(), liveContentDials.Load())
 	}
-	if service.meshEnsure || service.meshEnsureConfig {
-		t.Fatal("ensure flipped")
+	if !service.meshEnsure || service.meshEnsureConfig {
+		t.Fatal("ensure changed")
 	}
 }
 

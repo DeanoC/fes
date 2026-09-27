@@ -161,7 +161,7 @@ func (s *Service) rebindPlacementKit(ctx context.Context, snap launchSnapshot, c
 	s.meshMu.Unlock()
 	var exec meshcontent.Executor
 	if ensure {
-		exec = s.executorForPlacementRebind(ctx, cfg)
+		exec = s.executorForPlacementRebind(ctx, cfg, client)
 		if exec == nil || exec.NodeID() != choice.Execute {
 			if claimed {
 				snap.client = client
@@ -473,9 +473,9 @@ func placementHealthMatches(reported, nodeID string, cfg TargetConfig) bool {
 
 // executorForPlacementRebind is the content executor for a kit placement
 // is moving onto. An executor installed for that node is used as-is.
-// Otherwise the host dials the configured kit. A miss does not invent
-// an executor.
-func (s *Service) executorForPlacementRebind(ctx context.Context, cfg TargetConfig) meshcontent.Executor {
+// Otherwise the host dials the endpoint verified for the claimed kit.
+// A miss does not invent an executor.
+func (s *Service) executorForPlacementRebind(ctx context.Context, cfg TargetConfig, client serviceClient) meshcontent.Executor {
 	if s == nil {
 		return nil
 	}
@@ -490,7 +490,13 @@ func (s *Service) executorForPlacementRebind(ctx context.Context, cfg TargetConf
 			return exec
 		}
 	}
-	if remote := s.dialNamedMeshExecutor(ctx, cfg.Name); remote != nil {
+	want := meshTargetIdentityOf(cfg.Name, cfg)
+	if concrete, ok := client.(*targetclient.Client); ok && concrete != nil {
+		if endpoint := concrete.EndpointURL(); endpoint != nil {
+			want.address = endpoint.String()
+		}
+	}
+	if remote := s.dialMeshExecutor(ctx, want); remote != nil {
 		return remote
 	}
 	return nil

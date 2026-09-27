@@ -124,18 +124,25 @@ func (s *Service) dialNamedMeshExecutor(ctx context.Context, name string) *kitco
 	if s == nil {
 		return nil
 	}
+	s.targetMu.RLock()
+	want := meshTargetIdentityOf(name, targetByName(s.targets, name))
+	s.targetMu.RUnlock()
+	return s.dialMeshExecutor(ctx, want)
+}
+
+func (s *Service) dialMeshExecutor(ctx context.Context, want meshTargetIdentity) *kitcontent.Remote {
+	if s == nil {
+		return nil
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if ctx.Err() != nil {
 		return nil
 	}
-	s.targetMu.RLock()
-	want := meshTargetIdentityOf(name, targetByName(s.targets, name))
 	s.meshMu.Lock()
 	client := s.meshHTTP
 	s.meshMu.Unlock()
-	s.targetMu.RUnlock()
 	if !want.dialable() {
 		return nil
 	}
