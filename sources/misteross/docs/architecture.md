@@ -1420,3 +1420,18 @@ and underflow recovery. It has
 no board producer, described package, runtime presentation or artifact-policy
 selection yet. Board integration depends on the shared HPS DDR work; this
 reader does not create a second bridge or memory reservation policy.
+
+### Menu scanout diagnostics
+
+`cores/fes-menu/` has fixed 1280×720p60 scanout with a bounded read-only
+128-bit burst reader and a synchronous M10K FIFO. The DDR-free diagnostic
+feeds this reader with a local pattern responder; the DDR diagnostic adopts
+`fes_hps_ddr` port 0 at the pixel clock and uses the generated window base.
+Both are diagnostics, without a GP menu identity or a described launch package.
+
+`build-fes-menu-pattern` and `build-fes-menu-ddr` use the authenticated HIP
+producer with GPU 0, closed functional inputs and separate output directories.
+The DDR mode uses the qualified `toolchains/ramtest.lock`; its artifact gates
+check layout constants in both netlists, fixed pixel timing and inactive
+writes/unused ports. Neither producer programs hardware or changes image inputs.
+The runtime presenter and exact DDR scanout acceptance remain later work.

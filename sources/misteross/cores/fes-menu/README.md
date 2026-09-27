@@ -1,6 +1,7 @@
 # Menu framebuffer display
 
-The framebuffer mode is a simulation-only native menu scanout implementation.
+The framebuffer mode has a shared-DDR diagnostic wrapper and producer;
+it is not yet a runtime-presented menu.
 A separate DDR-free test-pattern diagnostic exercises the reader, FIFO, timing
 and HDMI board path. Neither mode is a registered game or launchable package.
 
@@ -72,3 +73,32 @@ restored only the retained fixed-720p transmitter power register under its
 lease before capture. This is a diagnostic procedure, not the future menu
 runtime presentation path. Stop restored idle and the session released its
 lease.
+
+Build the read-only DDR diagnostic separately:
+
+```sh
+make build-fes-menu-ddr FES_TOOLCHAIN_CACHE_ROOT=/absolute/cache/path
+python3 scripts/sim_fes_menu.py --case ddr
+```
+
+Its output is `build/oss/fes-menu/core.rbf`. It selects the qualified DDR
+Yosys/nextpnr pins in `toolchains/ramtest.lock`, connects shared port 0 at
+74.25 MHz, supplies the generated core-window base and reads slot 0 only.
+The synthesized enable is fixed on after PLL lock and recorded in the
+diagnostic contract. There is no GP identity or framebuffer upload API.
+
+The shared guard holds the port during startup. A live hold must follow
+completed local quiesce/drain. An unexpected hold while traffic remains
+latches a fault, keeps DDR held and requires reprogramming; it cannot resume
+a reader whose responses were hidden by the guard. This diagnostic does not
+claim automatic recovery or runtime admission. The DDR simulation uses the
+real shared wrapper and guards with a modeled hard block; it checks complete
+frames, slots, disabled commands, reserved-window bounds, response stalls,
+ordered hold/restart and unexpected-hold containment.
+
+The producer requires matching DDR layout constants in both synthesized and
+routed graphs and rejects all writes and unused-port commands. Building does
+not release physical DDR ports. Raw contained loading is insufficient for
+DDR use; the later described-menu/runtime integration must perform admission,
+port release and video setup through the runtime. No new DDR artifact is
+hardware-qualified by the earlier test-pattern captures.

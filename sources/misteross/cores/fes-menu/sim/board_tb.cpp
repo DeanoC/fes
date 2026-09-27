@@ -14,7 +14,7 @@ int main(int argc,char**argv) {
  for(unsigned i=0;i<1650u*750u*123u;++i) {
   tick(); if(t.HDMI_TX_VS&&!last_vs) ++frames; last_vs=t.HDMI_TX_VS;
   check(t.rootp->top__DOT__underflows==0,"board underflow");
-  if(t.HDMI_TX_DE && t.rootp->top__DOT__scanout__DOT__h==2 && t.rootp->top__DOT__scanout__DOT__v==2) {
+  if(t.HDMI_TX_DE && t.rootp->top__DOT__pattern__DOT__scanout__DOT__h==2 && t.rootp->top__DOT__pattern__DOT__scanout__DOT__v==2) {
    if(t.HDMI_TX_D==0x00ff00) {saw_green=true;if(saw_magenta)saw_return=true;}
    if(t.HDMI_TX_D==0xff00ff) saw_magenta=true;
   }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// DDR-free menu scanout diagnostic. Never selects an appliance boot/idle image.
-module top (
+// Menu scanout diagnostic. Never selects an appliance boot/idle image.
+module top #(
+    parameter [0:0] TEST_PATTERN = 1'b1,
+    parameter [0:0] DIAGNOSTIC_ENABLE = 1'b1
+) (
     input wire FPGA_CLK1_50,
     output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
     output wire [23:0] HDMI_TX_D,
@@ -33,8 +36,9 @@ module top (
             end else frames <= frames + 6'd1;
         end
     end
+    generate if (TEST_PATTERN) begin : pattern
     fes_menu_video #(.TEST_PATTERN(1'b1)) scanout (
-        .clk(pixel_clk), .rst(!locked), .enable(locked), .quiesce(1'b0),
+        .clk(pixel_clk), .rst(!locked), .enable(locked && DIAGNOSTIC_ENABLE), .quiesce(1'b0),
         .submit_valid(desired_sequence != displayed_sequence),
         .submit_slot(desired_sequence[0]), .submit_sequence(desired_sequence),
         .submit_ready(), .displayed_sequence(displayed_sequence),
@@ -42,6 +46,15 @@ module top (
         .address(), .burstcount(), .read(), .waitrequest(1'b0),
         .readdata(128'd0), .readdatavalid(1'b0)
     );
+    end else begin : ddr
+        // This diagnostic reads slot 0 only. There is no host submission ABI.
+        fes_menu_ddr scanout (
+            .clk(pixel_clk), .reset_hold(!locked), .enable(locked && DIAGNOSTIC_ENABLE),
+            .quiesce(1'b0), .submit_valid(1'b0), .submit_slot(1'b0), .submit_sequence(32'd0),
+            .submit_ready(), .displayed_sequence(displayed_sequence), .underflows(underflows),
+            .quiesced(), .faulted(), .rgb(rgb), .de(de), .hs(hs), .vs(vs)
+        );
+    end endgenerate
     assign HDMI_TX_CLK = pixel_clk;
     assign HDMI_TX_DE = locked && de;
     assign HDMI_TX_HS = locked && hs;

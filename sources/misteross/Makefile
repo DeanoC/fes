@@ -1227,3 +1227,7 @@ sim-fes-menu:
 .PHONY: build-fes-menu-pattern
 build-fes-menu-pattern:
 	$(PYTHON) scripts/build_fes_menu.py $(if $(FES_TOOLCHAIN_CACHE_ROOT),--cache-root $(FES_TOOLCHAIN_CACHE_ROOT),)
+
+.PHONY: build-fes-menu-ddr
+build-fes-menu-ddr:
+	$(PYTHON) scripts/build_fes_menu.py --mode ddr $(if $(FES_TOOLCHAIN_CACHE_ROOT),--cache-root $(FES_TOOLCHAIN_CACHE_ROOT),)
