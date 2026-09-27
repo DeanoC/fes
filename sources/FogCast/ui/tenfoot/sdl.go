@@ -213,17 +213,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"runtime"
 	"sort"
-	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
-	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 const (
@@ -279,36 +276,10 @@ func runWindow(ctx context.Context, opts Options) error {
 	}
 	defer dev.Close()
 
-	app := NewApp(NewClient(opts.APIBase, nil).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
-	if spec := strings.TrimSpace(opts.InputProfile); spec != "" {
-		profile, err := inputmap.Resolve(spec)
-		if err != nil {
-			return fmt.Errorf("input profile: %w", err)
-		}
-		remap, err := inputmap.NewRemapper(profile)
-		if err != nil {
-			return fmt.Errorf("input profile: %w", err)
-		}
-		app.SetRemapper(remap)
-	}
-	look, err := theme.Resolve(opts.Theme)
+	app, err := configuredApp(opts)
 	if err != nil {
-		return fmt.Errorf("theme: %w", err)
+		return err
 	}
-	app.SetTheme(look)
-	roomIndex, roomErr := loadRoomIndex(opts)
-	if roomErr != nil {
-		fmt.Fprintf(os.Stderr, "tenfoot: %v\n", roomErr)
-	}
-	app.SetRooms(roomIndex, opts.RoomsDir)
-	homeRooms, _ := parseHomePref(opts.Home)
-	app.SetHomeRooms(homeRooms)
-	app.SetDebugHUD(opts.DebugHUD)
-	app.SetPrefsPath(opts.prefsPath())
-	app.SetLayout(parseLayout(opts.Layout))
-	app.SetSafeAreaPct(opts.SafeAreaPct)
-	app.SetReducedMotion(opts.ReducedMotion)
-	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
 	if opts.Smoke {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.SmokeTimeout)

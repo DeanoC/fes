@@ -124,3 +124,13 @@ func TestParseArgsRejectsUnknownFlag(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestParseArgsFramebuffer(t *testing.T) {
+	opts, err := parseArgs([]string{"-gfx", "linuxfb", "-fb", "/dev/fb0", "-input", "/dev/input/event3,/dev/input/event5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.GFX != "linuxfb" || opts.Framebuffer != "/dev/fb0" || opts.Input != "/dev/input/event3,/dev/input/event5" {
+		t.Fatalf("options = %#v", opts)
+	}
+}

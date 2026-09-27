@@ -184,3 +184,46 @@ Attract video on Linux needs `ffmpeg` on PATH **and** a display for GUI proof.
 
 Prefs path on Linux: `$XDG_CONFIG_HOME/FogCast/tenfoot.json` or
 `~/.config/FogCast/tenfoot.json`.
+
+## Framebuffer without SDL
+
+For development on Linux without X11 or Wayland, run the full tenfoot App
+through its software rasterizer and existing framebuffer adapter:
+
+```sh
+CGO_ENABLED=0 go build -o bin/fogcast-tenfoot ./cmd/fogcast-tenfoot
+bin/fogcast-tenfoot -gfx linuxfb -fb /dev/fb0 -input auto -api http://127.0.0.1:8787
+```
+
+The framebuffer's geometry determines the UI size. This path needs readable
+`/dev/input/event*` nodes and a writable 32bpp BGRX framebuffer; it does not
+need SDL or DRM master. It draws directly into the current framebuffer, so use
+a console reserved for the UI. It does not acquire a VT or grab input away
+from other applications. Original framebuffer bytes are restored on normal
+exit or handled interrupt; abrupt process termination cannot restore them.
+
+`-input auto` opens readable evdev nodes at startup. Select a keyboard and
+controller explicitly with `-input /dev/input/event3,/dev/input/event5`.
+Keyboard navigation uses the usual tenfoot shortcuts (`o` for Settings,
+`q` to quit); alphanumeric entry uses a US key layout, including Shift.
+Gamepad face/shoulder/Start/Back/Guide buttons and digital hat or button D-pads
+use the shared remapper, merged held state, and short/long press behavior.
+Guide opens Settings. Analog sticks, pointer input, keyboard layout discovery,
+and device hotplug are deferred; restart after changing input devices.
+Lost evdev events or a disconnected input device end the session rather than
+leaving navigation held.
+
+The full App includes library browsing, rooms, Settings → Systems, guided core
+setup, and host API session controls. The selected host API is still the
+existing library/session coordinator; framebuffer rendering adds no host-kit
+binding or physical FPGA programming path.
+
+`-smoke -smoke-timeout 5s` performs a **display-only** check: it ignores live
+input, waits for a nonempty library, draws frames, and exits. It neither launches
+nor stops a game. `-input none` allows ordinary display-only runs. This check is
+smaller than the SDL smoke and does not prove physical controls or kit behavior.
+An opt-in unit test uses a private HTTP fixture and checks display restoration:
+
+```sh
+FOGCAST_TEST_FRAMEBUFFER=/dev/fb0 go test ./ui/tenfoot -run '^TestFramebufferLocalDisplay$' -v
+```
