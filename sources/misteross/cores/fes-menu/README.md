@@ -17,11 +17,11 @@ space for every response and keeps one burst outstanding. Cancellation drains
 issued reads and discards their data before the reader reports idle. `rst`
 here requests that drain; it must not destroy the outstanding-transfer count.
 
-`WINDOW_BASE` is supplied by the shared HPS DDR contract when board integration
-is added. Its default zero disables starts. Simulation supplies the proposed
+`WINDOW_BASE` is supplied from the generated shared HPS DDR contract by
+the DDR diagnostic wrapper. Its default zero disables starts. Simulation supplies the proposed
 window solely to verify addresses. The reader does not allocate Linux memory
 or expose an arbitrary read address. Shared DDR RTL, boot port layout and
-runtime admission are the separate in-progress HPS DDR dependency.
+runtime admission are owned by the merged HPS DDR support.
 
 The video controller uses fixed 1650x750 timing at the intended 74.25 MHz
 pixel clock. It prefetches in vertical blank, switches a pending slot only

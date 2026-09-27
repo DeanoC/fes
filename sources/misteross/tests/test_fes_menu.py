@@ -49,3 +49,18 @@ class MenuDDRProducerTests(unittest.TestCase):
                 p.write_text(json.dumps(data))
                 with self.assertRaisesRegex(BuildError,'tied low'):
                     menu.validate_build_evidence(output,ROOT,mode='ddr')
+
+    def test_build_python_reads_are_guarded_in_both_modes(self):
+        from unittest.mock import patch
+        from scripts import compiler_read_audit as audit
+        for mode in ('test-pattern','ddr'):
+            with self.subTest(mode=mode):
+                def inspect_guard(*args,**kwargs):
+                    active=audit._ACTIVE.get()
+                    self.assertIsNotNone(active,'Python producer source audit is inactive')
+                    self.assertEqual(active[0],ROOT.resolve())
+                    self.assertIn('scripts',active[1])
+                    raise RuntimeError('audited entry confirmed')
+                with patch.object(menu.board,'_require_clean_source',side_effect=inspect_guard):
+                    with self.assertRaisesRegex(RuntimeError,'audited entry confirmed'):
+                        menu.build(ROOT,mode=mode)

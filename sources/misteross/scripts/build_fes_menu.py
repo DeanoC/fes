@@ -9,7 +9,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as evidence
-from scripts.compiler_read_audit import guard_functional_source
+from scripts.compiler_read_audit import python_source_guard
 from scripts.export_core_package import encode_build_record, build_identity, functional_record_fields
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 
@@ -119,8 +119,12 @@ def validate_build_evidence(output, root, *, mode='test-pattern'):
     return result
 
 
-@guard_functional_source
 def record(root, repository, revision, identities, execution, *, mode='test-pattern'):
+    with python_source_guard(root, source_roots_for_inputs(inputs_for(mode))):
+        return _record(root, repository, revision, identities, execution, mode=mode)
+
+
+def _record(root, repository, revision, identities, execution, *, mode='test-pattern'):
     contract = CONTRACT if mode == 'test-pattern' else 'cores/fes-menu/ddr-contract.toml'
     fields = {'format':1, 'repository':repository, 'revision':revision,
               'recipe':RECIPE, 'recipe_sha256':board._sha256(board._regular_input(root, RECIPE)),
@@ -136,8 +140,12 @@ def record(root, repository, revision, identities, execution, *, mode='test-patt
         source_roots_for_inputs(inputs_for(mode)), execution, pinned_inputs=inputs_for(mode)))
 
 
-@guard_functional_source
 def build(root=ROOT, *, cache_root=None, mode='test-pattern'):
+    with python_source_guard(root, source_roots_for_inputs(inputs_for(mode))):
+        return _build(root, cache_root=cache_root, mode=mode)
+
+
+def _build(root=ROOT, *, cache_root=None, mode='test-pattern'):
     selected_inputs = inputs_for(mode)
     output_relative = output_for(mode)
     root = Path(root).resolve()
