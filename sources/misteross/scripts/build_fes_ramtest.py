@@ -132,7 +132,7 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "dependencies": {}, "tools": identities,
         "parameters": {
             "device": board.TARGET, "gpu_architectures": board.FES_GPU_ARCHITECTURES,
-            "gpu_backend": "hip", "router": "gpu", "seeds": list(PLACER_SEEDS),
+            "gpu_backend": "hip", "router": "gpu", "placer_seeds": ",".join(str(seed) for seed in PLACER_SEEDS),
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT, "top": "top",
             "pixel_clock_hz": 74_250_000, "reference_clock_hz": 50_000_000,
