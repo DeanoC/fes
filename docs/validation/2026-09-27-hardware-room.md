@@ -79,6 +79,11 @@ footer overlap.
 
 ## Results on 27 September 2026
 
+- Native race suites for catalogue, host service, host API/client and
+  rooms/tenfoot: passed. Final bound Stop/media and stale-action regression
+  tests also passed.
+- Committed-source `make check`: passed; 15 generated consumers and 30
+  fixture copies match, with no copied source pins.
 - Native SDL tenfoot build: passed on macOS arm64 with Go 1.27.1 and SDL3
   3.4.16. Linker warnings about the existing minimum macOS version remain;
   this run does not establish support for older macOS versions.
@@ -86,6 +91,12 @@ footer overlap.
   idle, running/different draft and missing artwork.
 - Appliance and shared expansion-linker race suites: passed. Browser/UI
   tests: 331 unit tests and 57 Chrome/CDP tests passed, none skipped.
+- Broader `go test -race ./...`: affected packages passed, but the whole
+  suite is not green. Unchanged native-runtime tests exceed macOS Unix
+  socket path limits with longer temporary paths. Re-running those packages
+  with `TMPDIR=/tmp` leaves two recovery-command marker failures; both
+  reproduce from an archived exact base commit (`aaf32d3f`) with the same
+  native race command. No runtime test or implementation was changed.
 - Parent Python suite: 571 tests, one unchanged macOS fsync-observation
   failure, 40 skipped. The bootstrap outside-checkout case passed with the
   external physical temporary directory.
