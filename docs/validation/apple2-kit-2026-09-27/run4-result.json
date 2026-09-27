@@ -1,0 +1,993 @@
+{
+  "inputs": {
+    "card2": "bbc5d8c1cbfa322bbb79434cce307e24f8d418a907401c00e00d0e4a7888ff96",
+    "card4": "9cf43a40e2ae947971dd4ad37ef14d08cbb702a005ef658aa5278508ad8f0649",
+    "card5": "e82e5f81541df97e4a048d0b602a359b5ae23e2a259b2fe9c2a2fced49260ae9",
+    "card7": "332d5dae3748b61cead62411b4c03f5da6e9966c6e38eb296ab8f6fcde900be7",
+    "disk": "d703348932a450cd4a7cd70cba32d2a04a2b948d824be6bde4f05d290b1272ef",
+    "firmware": "d97a495d0a047d738c40b34e116331381d640e3cc63a1b9ecd3184a3d95997c5",
+    "package": "33779b257a9c1a5eac15fd289e1eec1d936b936b3859575f48a3f3f82823360e"
+  },
+  "steps": [
+    {
+      "response": {
+        "descriptor": {
+          "abi": {
+            "id": "fes.computer",
+            "major": 1,
+            "minor": 0
+          },
+          "build": {
+            "id": "0261aaf0d14e622ab6381dd7c5b91671",
+            "recipe_sha256": "8ad6e63876109cbabccd27d9af760fbf6cc0073fbbbcbf50aee0d5b9e60c43c2",
+            "repository": "https://github.com/DeanoC/fes.git",
+            "revision": "ece829a544a695e8f5ea023c1d21461d3aaa94f3",
+            "toolchain": "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=dfe0ab9b8c307fcc18ac620fc808092a8a12d580132cd89bf5d6a3b6286af7de; nextpnr-mistral commit=a93fe013af841214ecb4f7be3af0de65f3de3a0f; sha256=6a67dd49741f3ce0a92ccdb2fd20c255bd458a281e02aa4fb878c892957020d1; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=050038609e8196cafef9f56289c75254561be71c1924d2ed027349d6481ad0a0"
+          },
+          "core": {
+            "description": "Apple II+ class computer with a linked 16 KiB firmware image, a Disk II drive and four slot sockets",
+            "id": "fes.apple2",
+            "name": "FES Apple II",
+            "version": "0.1.0"
+          },
+          "format": 3,
+          "interfaces": [
+            {
+              "id": "fes.video.fixed-720p60",
+              "major": 1,
+              "minor": 0,
+              "required": true
+            },
+            {
+              "id": "fes.keyboard.hid",
+              "major": 1,
+              "minor": 0,
+              "required": true
+            },
+            {
+              "id": "fes.gamepad.ports",
+              "major": 1,
+              "minor": 0,
+              "required": true
+            },
+            {
+              "id": "fes.audio.pcm-s16-stereo-48k",
+              "major": 1,
+              "minor": 0,
+              "required": true
+            },
+            {
+              "id": "fes.media.apple2-floppy",
+              "major": 1,
+              "minor": 0,
+              "required": true
+            },
+            {
+              "id": "fes.expansion.apple2-bus",
+              "major": 1,
+              "minor": 0,
+              "required": false
+            }
+          ],
+          "payload": {
+            "file": "core.rbf",
+            "sha256": "80ba0cd8843bbfb3ce352b24433825fed441cf37bec3f47dea1234e94a506c6a",
+            "size": 2834256
+          },
+          "rom": {
+            "file": "rom-map.json",
+            "id": "apple2-firmware",
+            "role": "firmware",
+            "sha256": "2c9e4e2a4b07fa45a39e03c4cdeb1043feaa8501887a09c7c3ce92aaa61a8151",
+            "size": 1483861,
+            "source_size": 16384
+          },
+          "target": {
+            "device": "5CSEBA6U23I7",
+            "platform": "de10_nano",
+            "programming_profile": "fes-gp-v1"
+          }
+        },
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5"
+      },
+      "step": "core-install",
+      "t": 1790492554.68
+    },
+    {
+      "response": {
+        "core_id": "fes.apple2",
+        "game_id": "fpga-apple-ii-pathfinder-kit-test-a539e8b89e54",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "title": "Apple II pathfinder kit test"
+      },
+      "step": "core-entry",
+      "t": 1790492560.892
+    },
+    {
+      "response": {
+        "media_id": "d97a495d0a047d738c40b34e116331381d640e3cc63a1b9ecd3184a3d95997c5",
+        "size": 16384
+      },
+      "step": "firmware-import",
+      "t": 1790492560.908
+    },
+    {
+      "response": {
+        "game_id": "fpga-apple-ii-pathfinder-kit-test-a539e8b89e54",
+        "media_id": "d97a495d0a047d738c40b34e116331381d640e3cc63a1b9ecd3184a3d95997c5",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "rom_id": "apple2-firmware",
+        "source_size": 16384
+      },
+      "step": "rom-select",
+      "t": 1790492560.976
+    },
+    {
+      "response": {
+        "expansion_id": "02bc5110819225d48d19a1c86d95ff206c160c8db4f0273f902fa4514ceb9331",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "slot": 2
+      },
+      "slot": 2,
+      "step": "card-import",
+      "t": 1790492561.299
+    },
+    {
+      "response": {
+        "bus": "fes.expansion.apple2-bus",
+        "expansions": [
+          {
+            "expansion_id": "02bc5110819225d48d19a1c86d95ff206c160c8db4f0273f902fa4514ceb9331",
+            "ready": true,
+            "slot": 2
+          }
+        ],
+        "game_id": "fpga-apple-ii-pathfinder-kit-test-a539e8b89e54",
+        "map": "fes.apple2-bus.slots/1",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "ready": true,
+        "sockets": [
+          2,
+          4,
+          5,
+          7
+        ]
+      },
+      "slot": 2,
+      "step": "card-select",
+      "t": 1790492561.527
+    },
+    {
+      "response": {
+        "expansion_id": "2cb80a6e0d1d0458184f820dfe7727cd5a0c246de87e5456cb42c7c40ed5298d",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "slot": 4
+      },
+      "slot": 4,
+      "step": "card-import",
+      "t": 1790492561.856
+    },
+    {
+      "response": {
+        "bus": "fes.expansion.apple2-bus",
+        "expansions": [
+          {
+            "expansion_id": "02bc5110819225d48d19a1c86d95ff206c160c8db4f0273f902fa4514ceb9331",
+            "ready": true,
+            "slot": 2
+          },
+          {
+            "expansion_id": "2cb80a6e0d1d0458184f820dfe7727cd5a0c246de87e5456cb42c7c40ed5298d",
+            "ready": true,
+            "slot": 4
+          }
+        ],
+        "game_id": "fpga-apple-ii-pathfinder-kit-test-a539e8b89e54",
+        "map": "fes.apple2-bus.slots/1",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "ready": true,
+        "sockets": [
+          2,
+          4,
+          5,
+          7
+        ]
+      },
+      "slot": 4,
+      "step": "card-select",
+      "t": 1790492562.09
+    },
+    {
+      "response": {
+        "expansion_id": "2c78712f5eff832d847683f7b6d45872df42634196b63d471dbda7d54fee139d",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "slot": 5
+      },
+      "slot": 5,
+      "step": "card-import",
+      "t": 1790492562.391
+    },
+    {
+      "response": {
+        "bus": "fes.expansion.apple2-bus",
+        "expansions": [
+          {
+            "expansion_id": "02bc5110819225d48d19a1c86d95ff206c160c8db4f0273f902fa4514ceb9331",
+            "ready": true,
+            "slot": 2
+          },
+          {
+            "expansion_id": "2cb80a6e0d1d0458184f820dfe7727cd5a0c246de87e5456cb42c7c40ed5298d",
+            "ready": true,
+            "slot": 4
+          },
+          {
+            "expansion_id": "2c78712f5eff832d847683f7b6d45872df42634196b63d471dbda7d54fee139d",
+            "ready": true,
+            "slot": 5
+          }
+        ],
+        "game_id": "fpga-apple-ii-pathfinder-kit-test-a539e8b89e54",
+        "map": "fes.apple2-bus.slots/1",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "ready": true,
+        "sockets": [
+          2,
+          4,
+          5,
+          7
+        ]
+      },
+      "slot": 5,
+      "step": "card-select",
+      "t": 1790492562.691
+    },
+    {
+      "response": {
+        "expansion_id": "66adfb220ee06c988ec0aa0c4d96125d0e827709435f1bd07ae4a76bd60df9d2",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "slot": 7
+      },
+      "slot": 7,
+      "step": "card-import",
+      "t": 1790492563.003
+    },
+    {
+      "response": {
+        "bus": "fes.expansion.apple2-bus",
+        "expansions": [
+          {
+            "expansion_id": "02bc5110819225d48d19a1c86d95ff206c160c8db4f0273f902fa4514ceb9331",
+            "ready": true,
+            "slot": 2
+          },
+          {
+            "expansion_id": "2cb80a6e0d1d0458184f820dfe7727cd5a0c246de87e5456cb42c7c40ed5298d",
+            "ready": true,
+            "slot": 4
+          },
+          {
+            "expansion_id": "2c78712f5eff832d847683f7b6d45872df42634196b63d471dbda7d54fee139d",
+            "ready": true,
+            "slot": 5
+          },
+          {
+            "expansion_id": "66adfb220ee06c988ec0aa0c4d96125d0e827709435f1bd07ae4a76bd60df9d2",
+            "ready": true,
+            "slot": 7
+          }
+        ],
+        "game_id": "fpga-apple-ii-pathfinder-kit-test-a539e8b89e54",
+        "map": "fes.apple2-bus.slots/1",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "ready": true,
+        "sockets": [
+          2,
+          4,
+          5,
+          7
+        ]
+      },
+      "slot": 7,
+      "step": "card-select",
+      "t": 1790492563.325
+    },
+    {
+      "response": {
+        "bus": "fes.expansion.apple2-bus",
+        "expansions": [
+          {
+            "expansion_id": "02bc5110819225d48d19a1c86d95ff206c160c8db4f0273f902fa4514ceb9331",
+            "ready": true,
+            "slot": 2
+          },
+          {
+            "expansion_id": "2cb80a6e0d1d0458184f820dfe7727cd5a0c246de87e5456cb42c7c40ed5298d",
+            "ready": true,
+            "slot": 4
+          },
+          {
+            "expansion_id": "2c78712f5eff832d847683f7b6d45872df42634196b63d471dbda7d54fee139d",
+            "ready": true,
+            "slot": 5
+          },
+          {
+            "expansion_id": "66adfb220ee06c988ec0aa0c4d96125d0e827709435f1bd07ae4a76bd60df9d2",
+            "ready": true,
+            "slot": 7
+          }
+        ],
+        "game_id": "fpga-apple-ii-pathfinder-kit-test-a539e8b89e54",
+        "map": "fes.apple2-bus.slots/1",
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "ready": true,
+        "sockets": [
+          2,
+          4,
+          5,
+          7
+        ]
+      },
+      "step": "expansions",
+      "t": 1790492563.622
+    },
+    {
+      "response": {
+        "media_id": "d703348932a450cd4a7cd70cba32d2a04a2b948d824be6bde4f05d290b1272ef",
+        "size": 143360
+      },
+      "step": "disk-import",
+      "t": 1790492563.646
+    },
+    {
+      "response": {
+        "core_package": {
+          "abi": {
+            "id": "fes.computer",
+            "major": 1,
+            "minor": 0
+          },
+          "active_interfaces": [
+            {
+              "id": "fes.audio.pcm-s16-stereo-48k",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.expansion.apple2-bus",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.gamepad.ports",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.keyboard.hid",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.media.apple2-floppy",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.video.fixed-720p60",
+              "major": 1,
+              "minor": 0
+            }
+          ],
+          "build_id": "0261aaf0d14e622ab6381dd7c5b91671",
+          "gamepad": true,
+          "generation": 6,
+          "media_units": [
+            {
+              "chunk_bytes": 512,
+              "interface": {
+                "id": "fes.media.apple2-floppy",
+                "major": 1,
+                "minor": 0
+              },
+              "max_bytes": 143360,
+              "min_bytes": 143360,
+              "state": "empty",
+              "unit": 0
+            }
+          ],
+          "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+          "persistence_mode": "volatile",
+          "rom_link": {
+            "map_sha256": "2c9e4e2a4b07fa45a39e03c4cdeb1043feaa8501887a09c7c3ce92aaa61a8151",
+            "programmed_sha256": "d994d1f33656000c4d7e243ea7450b7508a00287425f1b7d9dfec574883a79bc",
+            "programmed_size": 2862799,
+            "rom_id": "apple2-firmware",
+            "source_sha256": "d97a495d0a047d738c40b34e116331381d640e3cc63a1b9ecd3184a3d95997c5",
+            "source_size": 16384
+          },
+          "slot_composition": {
+            "composition_id": "fa98c0575fb9fc5a0ced353bed235ac534e6e94251b6d62b23c56554b7f00a33",
+            "expansions": [
+              {
+                "expansion_id": "02bc5110819225d48d19a1c86d95ff206c160c8db4f0273f902fa4514ceb9331",
+                "slot": 2
+              },
+              {
+                "expansion_id": "2cb80a6e0d1d0458184f820dfe7727cd5a0c246de87e5456cb42c7c40ed5298d",
+                "slot": 4
+              },
+              {
+                "expansion_id": "2c78712f5eff832d847683f7b6d45872df42634196b63d471dbda7d54fee139d",
+                "slot": 5
+              },
+              {
+                "expansion_id": "66adfb220ee06c988ec0aa0c4d96125d0e827709435f1bd07ae4a76bd60df9d2",
+                "slot": 7
+              }
+            ],
+            "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+            "payload_sha256": "145dde6e0505d015c86e27239576c82f297f32b5da1ffaac5af0029428f68a91",
+            "payload_size": 2879729,
+            "shell_sha256": "80ba0cd8843bbfb3ce352b24433825fed441cf37bec3f47dea1234e94a506c6a"
+          }
+        },
+        "execution": "fpga_native",
+        "flight_id": "4f02eb4c-b41a-4d36-b6ff-e74ccd64ea7b",
+        "game_id": "fpga-apple-ii-pathfinder-kit-test-a539e8b89e54",
+        "id": "b72b7007-b125-48f5-a309-792a4905651e",
+        "input": {
+          "metrics": {
+            "bridge_to_uinput_measurable": false,
+            "bridge_to_uinput_p95_ms": 0,
+            "capture_to_bridge_p95_ms": 0,
+            "frames_sent": 0,
+            "releases": 0,
+            "rtt_ms": 0,
+            "sequence_gaps": 0,
+            "state_resyncs": 0
+          },
+          "ready": true,
+          "session_id": "27db7c7751b2faee",
+          "state": "attached"
+        },
+        "state": "active",
+        "system": "fpga",
+        "target": "dev",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+      },
+      "step": "launch",
+      "t": 1790492601.595
+    },
+    {
+      "core_package": {
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.apple2-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.apple2-floppy",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "build_id": "0261aaf0d14e622ab6381dd7c5b91671",
+        "gamepad": true,
+        "generation": 6,
+        "media_units": [
+          {
+            "chunk_bytes": 512,
+            "interface": {
+              "id": "fes.media.apple2-floppy",
+              "major": 1,
+              "minor": 0
+            },
+            "max_bytes": 143360,
+            "min_bytes": 143360,
+            "state": "empty",
+            "unit": 0
+          }
+        ],
+        "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+        "persistence_mode": "volatile",
+        "rom_link": {
+          "map_sha256": "2c9e4e2a4b07fa45a39e03c4cdeb1043feaa8501887a09c7c3ce92aaa61a8151",
+          "programmed_sha256": "d994d1f33656000c4d7e243ea7450b7508a00287425f1b7d9dfec574883a79bc",
+          "programmed_size": 2862799,
+          "rom_id": "apple2-firmware",
+          "source_sha256": "d97a495d0a047d738c40b34e116331381d640e3cc63a1b9ecd3184a3d95997c5",
+          "source_size": 16384
+        },
+        "slot_composition": {
+          "composition_id": "fa98c0575fb9fc5a0ced353bed235ac534e6e94251b6d62b23c56554b7f00a33",
+          "expansions": [
+            {
+              "expansion_id": "02bc5110819225d48d19a1c86d95ff206c160c8db4f0273f902fa4514ceb9331",
+              "slot": 2
+            },
+            {
+              "expansion_id": "2cb80a6e0d1d0458184f820dfe7727cd5a0c246de87e5456cb42c7c40ed5298d",
+              "slot": 4
+            },
+            {
+              "expansion_id": "2c78712f5eff832d847683f7b6d45872df42634196b63d471dbda7d54fee139d",
+              "slot": 5
+            },
+            {
+              "expansion_id": "66adfb220ee06c988ec0aa0c4d96125d0e827709435f1bd07ae4a76bd60df9d2",
+              "slot": 7
+            }
+          ],
+          "package_id": "e02ec04222cefcc6dbe3094cf5eefc28aa3609bbea32b4dbe3bb64b70ecd77e5",
+          "payload_sha256": "145dde6e0505d015c86e27239576c82f297f32b5da1ffaac5af0029428f68a91",
+          "payload_size": 2879729,
+          "shell_sha256": "80ba0cd8843bbfb3ce352b24433825fed441cf37bec3f47dea1234e94a506c6a"
+        }
+      },
+      "execution": "fpga_native",
+      "step": "session",
+      "t": 1790492601.636
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "RAM OK                                  ",
+        "LANGUAGE CARD OK                        ",
+        "                                        ",
+        "KEYS T L H M B S D                      ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        "
+      ],
+      "step": "01-boot-text",
+      "t": 1790492604.316
+    },
+    {
+      "kind": "graphics",
+      "lit_border_samples": 0,
+      "mean_abs": 8.64,
+      "step": "02-lores",
+      "strong_pct": 0.0,
+      "t": 1790492605.676
+    },
+    {
+      "kind": "graphics",
+      "lit_border_samples": 0,
+      "mean_abs": 7.5,
+      "step": "03-hires",
+      "strong_pct": 0.0,
+      "t": 1790492607.052
+    },
+    {
+      "kind": "graphics",
+      "lit_border_samples": 0,
+      "mean_abs": 7.21,
+      "step": "04-mixed",
+      "strong_pct": 0.0,
+      "t": 1790492608.418
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        "
+      ],
+      "step": "05-text",
+      "t": 1790492609.648
+    },
+    {
+      "levels": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        16372,
+        0,
+        0,
+        16,
+        0,
+        16380,
+        0,
+        16,
+        0,
+        0,
+        16,
+        0,
+        16,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "peak": 16380,
+      "quiet_windows": 48,
+      "samples": 479928,
+      "step": "06-echo-audio",
+      "t": 1790492614.799,
+      "windows_over_1000": 2
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "QUICK!                                  ",
+        "                                        ",
+        "                                        ",
+        "                                        "
+      ],
+      "step": "06-echo",
+      "t": 1790492615.793
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "PROBE CARD OK IN SLOT 2                 ",
+        "PROBE CARD OK IN SLOT 4                 ",
+        "PROBE CARD OK IN SLOT 5                 ",
+        "PROBE CARD OK IN SLOT 7                 "
+      ],
+      "step": "07-slot-scan",
+      "t": 1790492617.02
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "1 FFFFFFFFFFFFFFFF FFFF FF C33C         ",
+        "2 46455350524F4245 A206 5A C33C         ",
+        "3 FFFFFFFFFFFFFFFF FFFF FF FFFF         ",
+        "4 46455350524F4245 A206 5A C33C         ",
+        "5 46455350524F4245 A206 5A C33C         ",
+        "6 FFFFFFFFFFFFFFFF                      ",
+        "7 46455350524F4245 A206 5A C33C         ",
+        "                                        ",
+        "PROBE CARD OK IN SLOT 2                 ",
+        "PROBE CARD OK IN SLOT 4                 ",
+        "PROBE CARD OK IN SLOT 5                 ",
+        "PROBE CARD OK IN SLOT 7                 "
+      ],
+      "step": "07b-slot-dump",
+      "t": 1790492618.252
+    },
+    {
+      "response_state": "active",
+      "step": "08-insert",
+      "t": 1790492619.051,
+      "unit": "ready"
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "1 FFFFFFFFFFFFFFFF FFFF FF C33C         ",
+        "2 46455350524F4245 A206 5A C33C         ",
+        "3 FFFFFFFFFFFFFFFF FFFF FF FFFF         ",
+        "4 46455350524F4245 A206 5A C33C         ",
+        "5 46455350524F4245 A206 5A C33C         ",
+        "6 FFFFFFFFFFFFFFFF                      ",
+        "7 46455350524F4245 A206 5A C33C         ",
+        "                                        ",
+        "PROBE CARD OK IN SLOT 2                 ",
+        "PROBE CARD OK IN SLOT 4                 ",
+        "DISK BOOT OKK IN SLOT 5                 ",
+        "PROBE CARD OK IN SLOT 7                 "
+      ],
+      "step": "09-disk-boot",
+      "t": 1790492624.97
+    },
+    {
+      "response_state": "active",
+      "step": "10-eject",
+      "t": 1790492625.17,
+      "unit": "empty"
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "1 FFFFFFFFFFFFFFFF FFFF FF C33C         ",
+        "2 46455350524F4245 A206 5A C33C         ",
+        "3 FFFFFFFFFFFFFFFF FFFF FF FFFF         ",
+        "4 46455350524F4245 A206 5A C33C         ",
+        "5 46455350524F4245 A206 5A C33C         ",
+        "6 FFFFFFFFFFFFFFFF                      ",
+        "7 46455350524F4245 A206 5A C33C         ",
+        "                                        ",
+        "PROBE CARD OK IN SLOT 2                 ",
+        "PROBE CARD OK IN SLOT 4                 ",
+        "DISK BOOT OKK IN SLOT 5                 ",
+        "PROBE CARD OK IN SLOT 7                 "
+      ],
+      "step": "10-after-eject",
+      "t": 1790492626.179
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "RAM OK                                  ",
+        "LANGUAGE CARD OK                        ",
+        "                                        ",
+        "KEYS T L H M B S D                      ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        "
+      ],
+      "step": "11-ctrl-f12-reset",
+      "t": 1790492629.08
+    },
+    {
+      "step": "12-reinsert",
+      "t": 1790492629.864,
+      "unit": "ready"
+    },
+    {
+      "first": [],
+      "kind": "text",
+      "problems": 0,
+      "screen": [
+        "FES APPLE II DIAGNOSTIC                 ",
+        "INVERSE TEXT  FLASHING TEXT             ",
+        "                                        ",
+        "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'",
+        "()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO",
+        "PQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./01234567",
+        "89:;<=>?                                ",
+        "                                        ",
+        "RAM OK                                  ",
+        "LANGUAGE CARD OK                        ",
+        "                                        ",
+        "KEYS T L H M B S D                      ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "                                        ",
+        "DISK BOOT OK                            ",
+        "                                        "
+      ],
+      "step": "12-second-boot",
+      "t": 1790492635.764
+    },
+    {
+      "passed": true,
+      "step": "result",
+      "t": 1790492635.764
+    },
+    {
+      "response": {
+        "flight_id": "4f02eb4c-b41a-4d36-b6ff-e74ccd64ea7b",
+        "id": "b72b7007-b125-48f5-a309-792a4905651e",
+        "input": {
+          "metrics": {
+            "bridge_to_uinput_measurable": false,
+            "bridge_to_uinput_p95_ms": 0,
+            "capture_to_bridge_p95_ms": 0.070884,
+            "frames_sent": 170,
+            "releases": 1,
+            "rtt_ms": 1.476987,
+            "sequence_gaps": 0,
+            "shutdown_reason": "session_stop",
+            "state_resyncs": 0
+          },
+          "ready": false,
+          "state": "detached"
+        },
+        "state": "idle",
+        "target": "dev",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+      },
+      "step": "stop",
+      "t": 1790492637.652
+    },
+    {
+      "lit_centre": false,
+      "step": "13-after-stop",
+      "t": 1790492640.292
+    }
+  ]
+}
