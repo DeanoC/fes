@@ -20,8 +20,10 @@ runtime contains no Main launcher, conventional game profiles, MiSTer SPI
 driver, or general framebuffer service.
 
 Menu-display GP, immutable staging and reserved-memory primitives have host
-test coverage. Idle-menu activation and local frame transport are still being
-integrated; these primitives do not change startup or Stop behavior.
+test coverage. Explicit idle-menu activation and generation-bound presentation
+are available through the library; local frame transport is being integrated.
+Default startup remains splash. An explicitly configured menu returns after
+Stop with a fresh presentation generation.
 
 Package admission retains validated artifacts before mutation. Activation
 verifies live ABI/build identity before input or media controls. Initialized

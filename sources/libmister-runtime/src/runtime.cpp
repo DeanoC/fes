@@ -11,6 +11,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <limits>
 #include <thread>
 #include <utility>
 
@@ -190,6 +191,57 @@ public:
 		return {};
 	}
 
+ Error ConfigureMenuPackage(const std::string& directory,const std::string& id)
+ {
+  if(!ValidAbsolutePath(directory)||!ValidPackageId(id))return Invalid("invalid menu package request");
+  {
+   std::lock_guard<std::mutex> lock(mutex_);
+   if(busy_||!started_||status_.state!=State::idle)return Busy("menu configuration requires idle runtime");
+   if(next_menu_generation_==std::numeric_limits<std::uint64_t>::max())return Invalid("menu generation exhausted");
+   busy_=true;
+  }
+  const HardwareResult result=hardware_.ConfigureMenuPackage(directory,id);
+  if(!result.error.ok()) {
+   if(result.mutation_attempted)return FinishLaunchFailure("configure_menu","","fes.menu",result);
+   std::lock_guard<std::mutex> lock(mutex_);busy_=false;condition_.notify_all();return result.error;
+  }
+  {
+   std::lock_guard<std::mutex> lock(mutex_);status_=FreshStatus(State::idle);busy_=false;
+  }
+  condition_.notify_all();return {};
+ }
+ Error BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output)
+ {
+  if(!output||*output)return Invalid("menu preparation requires an empty frame output");
+  std::lock_guard<std::mutex> lock(mutex_);
+  Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
+  if(!preparation_.expired())return Busy("one menu preparation is already outstanding");
+  std::unique_ptr<MenuFrame> frame;error=MenuFrame::Create(&frame);if(!error.ok())return error;
+  frame->preparation_=std::make_shared<int>(0);frame->generation_=generation;
+  preparation_=frame->preparation_;*output=std::move(frame);return {};
+ }
+ Error PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output)
+ {
+  if(!output)return Invalid("missing menu completion output");
+  {
+   std::lock_guard<std::mutex> lock(mutex_);
+   Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
+   if(frame.generation_!=generation||!frame.preparation_||preparation_.lock()!=frame.preparation_)
+    return Invalid("menu preparation does not belong to this generation");
+   error=frame.ValidateImmutable(frame.fd());if(!error.ok())return error;
+   busy_=true;
+  }
+  MenuDisplayInfo info;const Error error=hardware_.PresentMenuFrame(frame,&info);
+  frame.preparation_.reset();
+  if(!error.ok())return FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"});
+  {
+   std::lock_guard<std::mutex> lock(mutex_);
+   status_.menu_display.displayed_sequence=info.displayed_sequence;
+   status_.menu_display.underflows=info.underflows;busy_=false;*output=info;
+  }
+  condition_.notify_all();return {};
+ }
+
 	Status status() const
 	{
 		std::lock_guard<std::mutex> lock(mutex_);
@@ -220,6 +272,7 @@ public:
 		LogRecord rejection;
 		bool rejected = false;
 		bool replacing = false;
+ Status previous_status;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || !started_ || status_.state == State::starting ||
@@ -229,6 +282,7 @@ public:
 				rejected = true;
 			} else {
 				busy_ = true;
+ previous_status=status_;
 				replacing = status_.state == State::running_development;
 			}
 		}
@@ -356,7 +410,7 @@ public:
 		if (!result.error.ok())
 			return FinishLaunchFailure("load_core", info.system,
 				result.observed_core.empty() ? info.declared_core : result.observed_core,
-				result);
+				result,&previous_status);
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			status_.state = State::running_development;
@@ -431,6 +485,7 @@ public:
 	{
 		LogRecord rejection;
 		bool rejected = false;
+ Status previous_status;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || !started_ || status_.state != State::idle) {
@@ -438,7 +493,7 @@ public:
 					Busy("runtime is not idle")};
 				rejected = true;
 			} else {
-				busy_ = true;
+				busy_ = true;previous_status=status_;
 			}
 		}
 		if (rejected) {
@@ -480,7 +535,7 @@ public:
 			Log("load_development_rbf", "", "", "running");
 			return {};
 		}
-		return FinishLaunchFailure("load_development_rbf", "", "", result);
+		return FinishLaunchFailure("load_development_rbf", "", "", result,&previous_status);
 	}
 
 	Error SetController(const std::string& package_id, std::uint64_t generation,
@@ -787,6 +842,8 @@ public:
 				immediate = {"stop", "", "", "validate",
 					status_.error};
 				return_immediately = true;
+			} else if (status_.state == State::idle && status_.menu_display.available) {
+ busy_=true;
 			} else if (status_.state == State::idle) {
 				status_.error = {};
 				immediate = {"stop", "", "", "idle", {}};
@@ -893,6 +950,12 @@ public:
 	}
 
 	private:
+ Error AdmitMenuGeneration(std::uint64_t generation) const {
+  if(busy_||!started_||status_.state!=State::idle||!status_.menu_display.available)
+   return Busy("idle menu display is unavailable");
+  if(!generation||generation!=status_.menu_display.generation)return Invalid("menu generation changed");
+  return {};
+ }
 	// Caller holds mutex_. Media units bind the exact active fes.computer
 	// generation and one of its declared, observed units.
 	Error AdmitMediaUnit(const std::string& package_id, std::uint64_t generation,
@@ -966,19 +1029,28 @@ public:
 		return recovery;
 	}
 
-	Status FreshStatus(State state) const
+	Status FreshStatus(State state)
 	{
 		Status result;
 		result.state = state;
 		result.capabilities = hardware_.capabilities();
 		result.capabilities.media_stream = {};
 		result.capabilities.media_units.clear();
-		return result;
+  if(state==State::idle) {
+   result.menu_display=hardware_.menu_display();
+   if(result.menu_display.available) {
+    if(next_menu_generation_==std::numeric_limits<std::uint64_t>::max()) {
+     result.menu_display.available=false;result.menu_display.error=Invalid("menu generation exhausted");
+    } else result.menu_display.generation=++next_menu_generation_;
+   }
+   if(!result.menu_display.error.ok())result.error=result.menu_display.error;
+  }
+  return result;
 	}
 
 	Error FinishLaunchFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
-		const HardwareResult& result)
+		const HardwareResult& result,const Status* previous_status=nullptr)
 	{
 		const Error primary = result.error;
 		{
@@ -989,7 +1061,8 @@ public:
 		Log(operation, system, core, "failure", primary);
 		if (!result.mutation_attempted) {
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_ = FreshStatus(State::idle);
+   if(previous_status&&previous_status->menu_display.available)status_=*previous_status;
+   else status_=FreshStatus(State::idle);
 			status_.error = primary;
 			busy_ = false;
 			condition_.notify_all();
@@ -1088,6 +1161,8 @@ public:
 	bool started_;
 	bool stopping_;
 	std::uint64_t next_generation_;
+ std::uint64_t next_menu_generation_=0;
+ std::weak_ptr<void> preparation_;
 	std::uint64_t active_generation_;
 	std::uint64_t pending_fault_generation_;
 	std::thread fault_thread_;
@@ -1099,6 +1174,10 @@ Runtime::Runtime(Hardware& hardware, LogSink& log)
 Runtime::~Runtime() = default;
 
 Error Runtime::Start() { return impl_->Start(); }
+Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
+Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}
+Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output) {return impl_->PresentMenuFrame(generation,frame,output);}
+
 Status Runtime::status() const { return impl_->status(); }
 Error Runtime::LoadCore(const std::string& directory,
 	const std::string& expected_package_id)

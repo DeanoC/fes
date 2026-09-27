@@ -8,6 +8,8 @@
 #include "native/fes_gp.hpp"
 #include "native/hardware.hpp"
 #include "native/input.hpp"
+#include "native/menu_display.hpp"
+#include "native/linux/menu_memory.hpp"
 #include "native/linux/fpga_manager.hpp"
 #include "native/linux/i2c.hpp"
 #include "native/linux/input.hpp"
@@ -76,6 +78,7 @@ public:
 		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
 		  i2c_(clock_),
 		  fes_gp_(mmio_, clock_), fes_gp_driver_(fes_gp_),
+ menu_display_(fes_gp_,clock_),menu_memory_(),
 		  idle_video_(i2c_, clock_, log,
 			  native::Menu720p60Recipe()),
 		  game_video_(i2c_, clock_, log, native::Menu720p60Recipe()),
@@ -86,13 +89,16 @@ public:
 			  MISTER_RUNTIME_IDLE_RBF, timeouts_, &fes_gp_driver_,
 			  {"/tmp/fogcast-development/core-packages",
 			   "/usr/share/mister-runtime/core-packages"},
-			  native::SplashIdle()) {}
+			  native::SplashIdle(),&menu_display_,&menu_memory_) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{
 		hardware_.SetFaultSink(sink);
 	}
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
+ HardwareResult ConfigureMenuPackage(const std::string& path,const std::string& id) override {return hardware_.ConfigureMenuPackage(path,id);}
+ MenuDisplayStatus menu_display() const override {return hardware_.menu_display();}
+ Error PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* info) override {return hardware_.PresentMenuFrame(frame,info);}
 	Error FlushSave() override { return hardware_.FlushSave(); }
 	Error RestoreInput(std::uint64_t generation) override
 	{
@@ -209,6 +215,8 @@ private:
 	native::LinuxI2c i2c_;
 	native::FesGp fes_gp_;
 	native::FesGpCoreDriver fes_gp_driver_;
+ native::MenuDisplayDriver menu_display_;
+ native::MenuMemory menu_memory_;
 	native::SplashVideoBringup idle_video_;
 	native::FixedVideoBringup game_video_;
 	native::LinuxInput input_device_;

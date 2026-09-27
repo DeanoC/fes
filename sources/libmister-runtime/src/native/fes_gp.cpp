@@ -536,6 +536,19 @@ void FesGpCoreDriver::BeginSession()
 CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
+	if (application_ && (observed_capabilities_ & FesApplicationCapabilityVideoMenuDisplay)) {
+		std::uint16_t state = 0;
+		Error error = gp_.Exchange(FesApplicationOpcodeMenuControl, 0,
+			FesApplicationMenuControlQuiesce, deadline, &state);
+		if (error.ok()) error = gp_.Exchange(FesApplicationOpcodeMenuInfo,
+			FesApplicationMenuInfoStateIndex, 0, deadline, &state);
+		if (error.ok() && ((state & ~std::uint16_t(31)) ||
+			!(state & FesApplicationMenuStateQuiesced) ||
+			(state & (FesApplicationMenuStateEnabled | FesApplicationMenuStatePending |
+				FesApplicationMenuStateFaulted))))
+			error = {ErrorCode::io_failed, "menu did not prove drained quiescence", "quiesce"};
+		if (!error.ok()) return {WithPhase(std::move(error), "quiesce"), true, ""};
+	}
 	CoreDriverResult result = Gameplay(
 		static_cast<std::uint16_t>(FesGpGameplayHoldReset), deadline);
 	if (result.error.ok()) {

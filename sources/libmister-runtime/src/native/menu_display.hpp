@@ -5,14 +5,6 @@
 namespace mister { namespace native {
 class FesGp;
 class Clock;
-struct MenuGeometry {
- std::uint32_t width=0,height=0,stride=0,frame_bytes=0,slot_bytes=0;
-};
-struct MenuDisplayInfo {
- MenuGeometry geometry;
- bool configured=false,enabled=false,pending=false,quiesced=false,faulted=false;
- std::uint32_t displayed_sequence=0,underflows=0;
-};
 class MenuDisplayDriver {
 public:
  MenuDisplayDriver(FesGp&,Clock&);

@@ -25,7 +25,7 @@ Error Invalid(const char* text){return {ErrorCode::io_failed,text,"menu_memory"}
 Error Io(const char* text){return {ErrorCode::io_failed,std::string(text)+": "+std::strerror(errno),"menu_memory"};}
 }
 MenuFrame::~MenuFrame(){if(mapping_)munmap(mapping_,kFrameBytes);if(fd_>=0)close(fd_);}
-MenuFrame::MenuFrame(MenuFrame&& other) noexcept : fd_(other.fd_),mapping_(other.mapping_){other.fd_=-1;other.mapping_=nullptr;}
+MenuFrame::MenuFrame(MenuFrame&& other) noexcept : fd_(other.fd_),mapping_(other.mapping_),preparation_(std::move(other.preparation_)),generation_(other.generation_){other.fd_=-1;other.mapping_=nullptr;}
 Error MenuFrame::Create(std::unique_ptr<MenuFrame>* output)
 {
  if(!output)return Invalid("missing staging output");

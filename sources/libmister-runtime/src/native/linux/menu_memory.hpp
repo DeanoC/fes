@@ -6,22 +6,6 @@
 #include <memory>
 #include <string>
 namespace mister {
-// Runtime-created staging only. The descriptor never names FPGA-accessible RAM.
-class MenuFrame final {
-public:
- static Error Create(std::unique_ptr<MenuFrame>*);
- ~MenuFrame();
- MenuFrame(const MenuFrame&)=delete;
- MenuFrame& operator=(const MenuFrame&)=delete;
- MenuFrame(MenuFrame&&) noexcept;
- int fd() const {return fd_;}
- Error ValidateImmutable(int received_fd) const;
- Error ReadOnlyData(const unsigned char**) const;
-private:
- explicit MenuFrame(int fd):fd_(fd){}
- int fd_=-1;
- mutable void* mapping_=nullptr;
-};
 namespace native {
 class MenuMemoryOperations {
 public:

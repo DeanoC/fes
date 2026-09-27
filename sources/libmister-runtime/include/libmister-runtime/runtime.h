@@ -270,7 +270,44 @@ struct CorePackageInspection {
 	Error compatibility_error;
 };
 
+struct MenuGeometry {
+ std::uint32_t width=0,height=0,stride=0,frame_bytes=0,slot_bytes=0;
+};
+struct MenuDisplayInfo {
+ MenuGeometry geometry;
+ bool configured=false,enabled=false,pending=false,quiesced=false,faulted=false;
+ std::uint32_t displayed_sequence=0,underflows=0;
+};
+struct MenuDisplayStatus {
+ bool available=false;
+ std::string package_id;
+ std::uint64_t generation=0;
+ MenuGeometry geometry;
+ std::uint32_t displayed_sequence=0,underflows=0;
+ Error error;
+};
+class Runtime;
+class MenuFrame final {
+public:
+ static Error Create(std::unique_ptr<MenuFrame>*);
+ ~MenuFrame();
+ MenuFrame(const MenuFrame&)=delete;
+ MenuFrame& operator=(const MenuFrame&)=delete;
+ MenuFrame(MenuFrame&&) noexcept;
+ int fd() const {return fd_;}
+ Error ValidateImmutable(int received_fd) const;
+ Error ReadOnlyData(const unsigned char**) const;
+private:
+ friend class Runtime;
+ explicit MenuFrame(int fd):fd_(fd){}
+ int fd_=-1;
+ mutable void* mapping_=nullptr;
+ std::shared_ptr<void> preparation_;
+ std::uint64_t generation_=0;
+};
+
 struct Status {
+ MenuDisplayStatus menu_display;
 	State state = State::starting;
 	Execution execution = Execution::none;
 	std::string system;
@@ -335,6 +372,13 @@ public:
 	virtual ~Hardware() {}
 	virtual void SetFaultSink(HardwareFaultSink*) = 0;
 	virtual HardwareResult LoadIdle() = 0;
+ virtual HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) {
+  return {{ErrorCode::unsupported_interface,"menu display unavailable"},false,""};
+ }
+ virtual MenuDisplayStatus menu_display() const {return {};}
+ virtual Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) {
+  return {ErrorCode::unsupported_interface,"menu display unavailable"};
+ }
 	virtual Error FlushSave() { return {}; }
 	// FlushSave may stop input before a persistence failure. RestoreInput
 	// re-establishes the still-active generation after that proven pre-mutation
@@ -453,6 +497,9 @@ public:
 	Runtime(const Runtime&) = delete;
 	Runtime& operator=(const Runtime&) = delete;
 	Error Start();
+ Error ConfigureMenuPackage(const std::string&,const std::string&);
+ Error BeginMenuFrame(std::uint64_t,std::unique_ptr<MenuFrame>*);
+ Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;
 	Error LoadCore(const std::string& directory,
 		const std::string& expected_package_id);

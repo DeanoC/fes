@@ -104,6 +104,7 @@ mister::HardwareResult FakeHardware::LoadCore(
 	while (block_launch_ && !release_launch_) condition_.wait(lock);
 	events.push_back("load_core:" + package->info().package_id);
 	mister::HardwareResult result = core_result;
+ if(result.error.ok()||result.mutation_attempted)menu_status.available=false;
 	if (result.error.ok()) {
 		result.mutation_attempted = true;
 		if (result.observed_core.empty())
@@ -122,7 +123,7 @@ mister::HardwareResult FakeHardware::LoadIdle()
 	condition_.notify_all();
 	while (block_idle_ && !release_idle_) condition_.wait(lock);
 	block_idle_ = false;
-	if (idle_result.error.ok()) idle_result.mutation_attempted = true;
+	if (idle_result.error.ok()) {idle_result.mutation_attempted = true;menu_status.available=menu_configured;menu_status.displayed_sequence=0;}
 	return idle_result;
 }
 
@@ -145,6 +146,7 @@ mister::HardwareResult FakeHardware::LoadContainedDevelopmentRBF(
 	mister::HardwareResult result = LoadDevelopmentRBF(rbf, generation);
 	std::lock_guard<std::mutex> lock(mutex_);
 	++contained_development_calls;
+ menu_status.available=false;
 	return result;
 }
 
