@@ -103,10 +103,13 @@ Package: format 2, core `fes.menu` 1.0.0, no `core.system`, ABI `fes.application
 - [x] Run the new transport/integration tests and observe missing operations/descriptor handling failures.
 - [x] Implement bounded `recvmsg`/`sendmsg` framing with close-on-exec and RAII FD ownership. Keep ancillary bytes associated with their request phase; do not silently discard extra bytes/FDs after a newline. Detect disconnect/timeout and cancel uncommitted staging. If commit has been accepted, retain immutable data and safe slot ownership through completion or verified containment regardless of response delivery.
 - [x] Implement the small diagnostic client using generated geometry and exact transport: acquire, paint alternating full-frame patterns with pixel/row/sequence markers, unmap/seal, commit, verify displayed completion and underflows. No library/catalog or raw memory access in the client. Make bounded frame count the default; sustained mode is explicit.
-- [ ] Run protocol and daemon integration binaries, runtime tests, `make check-generated`, `make check`, and affected software tests using the existing dependency-equipped Python environment. Commit and obtain one whole-branch review before physical acceptance.
+- [x] Run protocol and daemon integration binaries, runtime tests, `make check-generated`, `make check`, and affected software tests using the existing dependency-equipped Python environment. Commit and obtain one whole-branch review before physical acceptance.
 
 
 ## Task 6: Exact-artifact kit acceptance and handoff
+
+Physical testing is deferred until the operator is available for the updated-runtime
+boot and power cycle. Software handoff proceeds; these hardware gates remain open.
 
 **Files:** Update dated FES validation evidence and runtime support matrix only after the exact paths exercised pass. No image-selection or physical-card operation is implicit.
 

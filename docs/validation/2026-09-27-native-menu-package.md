@@ -33,3 +33,21 @@ skip; the two additional producer guard/evidence cases passed the later
 Runtime presentation and designated-kit acceptance are pending. Compiler
 closure alone does not establish Linux memory reservation, DDR visibility,
 underflow-free scanout or menu/game/Stop handoff.
+
+## Rebuild after activation review
+
+The independent presentation review found that GP Enable arriving during active
+video could count underflows before initial prefetch. The delayed-enable test
+reproduced that defect. Initial activation now waits for the first blank row;
+underflow accounting begins when prefetch is armed and still detects real stalls.
+All nine menu simulations pass, including enable during active video and two
+cycles before the initial blank ends.
+
+The corrected sealed build selects committed source
+`8907788dde541788728778fdc5d2f2d2591b280b` with the same authenticated tools above.
+GPU 0, seed 4 routes legally at 90.17132568359375 MHz against 74.25 MHz.
+Package `0d1ecd3328237fb4ba93e69c69dee45f48b4251a063e54cc86e6f7a8c96b1cc2`
+contains RBF `839b4084851c7be180fbcc6612c22dd2dab546bb5fcb583e87fe732b4f7dde28`,
+2,012,379 bytes. Routed use is 1,201 combinational cells, 1,226 FFs and three
+M10Ks. Closed producer records now describe this rebuild; the original immutable
+package remains retained. Neither package has physical presentation acceptance.
