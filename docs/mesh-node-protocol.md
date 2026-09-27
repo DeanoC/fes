@@ -91,6 +91,14 @@ when the source does not advertise) and #172 (kit home host) land.
 The agent `mesh_content` switch stays default on. With the host seam
 off, that kit store is not consulted before launch.
 
+Host `[mesh] placement` also defaults off. With it on, the host builds
+Place candidates from its node inventory and reads `abis` from the
+node document of each configured kit it may place on. A launch that
+names `target` does not ask for placement. Placement does not need
+the ensure seam: with the seam off, a rebind onto another kit streams
+the launch on the Phase 0 path. See [`mesh-phase3.md`](mesh-phase3.md)
+Slice 8.
+
 ## Planes, and which contracts appear when
 
 Names match [`mesh-lan.md`](mesh-lan.md). A cell says the contract is
@@ -349,7 +357,9 @@ session bound. The host calls Ensure against that executor. Ensure's
 The agent exposes the executor's operations so the host can drive the
 store. Each call is one method. None of them programs the FPGA or
 returns an Ensure result. Pull and link are kit-lease mutations. Node,
-slot, and source reads are not.
+slot, and source reads are not. Host placement reads Node for
+`fpga_native` eligibility. Those `abis` come from packages installed
+or staged on that kit.
 
 | Call | Request | Response |
 | --- | --- | --- |

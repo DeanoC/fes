@@ -2,7 +2,9 @@
 
 **Status:** merged as #131. Phase 1 closed on main `3d34b6e0`. Phase 2
 execution is [`mesh-phase2.md`](mesh-phase2.md). Phase 3 execution is
-[`mesh-phase3.md`](mesh-phase3.md). Bob coordinates; Deano merges
+[`mesh-phase3.md`](mesh-phase3.md): Slices 1–6 are on main, and host
+production placement sits behind `[mesh] placement`, default off.
+Bob coordinates; Deano merges
 parents. Still edit strawmen in place. Caster's cast/kit
 contract review and Foggy's product review, both 2026-09-23, are
 folded into the recommended defaults and strawmen marked below.
