@@ -22,12 +22,15 @@ type KeyboardHIDPoster func(context.Context, string, uint64, hidkeys.Rows) error
 // keyboardHIDSink keeps each source's held usages; the posted state is their
 // union, so a release from one source leaves the other's hold in place. Posts
 // are serialized under mu so the runtime never sees an older state last.
+// unconfirmed marks a state whose last post failed: a repeated press or
+// release reposts it instead of reporting a success the runtime never saw.
 type keyboardHIDSink struct {
-	mu      sync.Mutex
-	poster  KeyboardHIDPoster
-	binding *KeyboardHIDBinding
-	pressed [sourceCount]map[uint8]bool
-	dirty   bool
+	mu          sync.Mutex
+	poster      KeyboardHIDPoster
+	binding     *KeyboardHIDBinding
+	pressed     [sourceCount]map[uint8]bool
+	dirty       bool
+	unconfirmed bool
 }
 
 func (s *keyboardHIDSink) setPoster(poster KeyboardHIDPoster) {
@@ -51,6 +54,7 @@ func (s *keyboardHIDSink) bind(binding *KeyboardHIDBinding) {
 	}
 	s.pressed = [sourceCount]map[uint8]bool{}
 	s.dirty = false
+	s.unconfirmed = false
 }
 
 func (s *keyboardHIDSink) bound() bool {
@@ -78,13 +82,24 @@ func (s *keyboardHIDSink) postLocked(ctx context.Context) error {
 	}
 	union := s.unionLocked()
 	// A failed post may still have applied; keep the state dirty so release
-	// always attempts neutral.
+	// always attempts neutral, and unconfirmed so a retry reposts it.
 	s.dirty = true
+	s.unconfirmed = true
 	err := s.poster(ctx, s.binding.PackageID, s.binding.Generation, hidkeys.Encode(union))
 	if err == nil {
 		s.dirty = len(union) != 0
+		s.unconfirmed = false
 	}
 	return err
+}
+
+// repostLocked answers a repeated press or release: nothing changed, but a
+// state whose last post failed is posted again.
+func (s *keyboardHIDSink) repostLocked(ctx context.Context) error {
+	if !s.unconfirmed {
+		return nil
+	}
+	return s.postLocked(ctx)
 }
 
 // applyFrom records one HID key frame from a source and posts the new union.
@@ -103,12 +118,12 @@ func (s *keyboardHIDSink) applyFrom(ctx context.Context, source inputSource, f p
 	}
 	if f.Action == uint8(remoteinput.ActionPress) {
 		if s.pressed[source][usage] {
-			return nil
+			return s.repostLocked(ctx)
 		}
 		s.pressed[source][usage] = true
 	} else {
 		if !s.pressed[source][usage] {
-			return nil
+			return s.repostLocked(ctx)
 		}
 		delete(s.pressed[source], usage)
 	}
@@ -124,7 +139,7 @@ func (s *keyboardHIDSink) releaseSource(source inputSource) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.pressed[source]) == 0 {
-		return nil
+		return s.repostLocked(context.Background())
 	}
 	s.pressed[source] = map[uint8]bool{}
 	return s.postLocked(context.Background())
@@ -142,4 +157,5 @@ func (s *keyboardHIDSink) releaseAll() {
 	}
 	s.binding = nil
 	s.dirty = false
+	s.unconfirmed = false
 }

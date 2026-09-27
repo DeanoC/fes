@@ -1615,7 +1615,9 @@ routes keyboard frames to `internal/input/keyboard_hid.go`. Host-stream and
 kit-local holds are kept per source and posted as their union; posts are ordered
 and do not hold the controller-port lock. Each change posts all nine rows with
 `set_keyboard_hid` for the observed generation (the runtime writes only changed
-rows). Source release posts the remaining holds; lease expiry, core replacement
+rows). A failed post leaves the state unconfirmed, so a repeated press or release
+posts it again rather than reporting success. Source release posts the
+remaining holds; lease expiry, core replacement
 and Stop neutralize best-effort, and the runtime itself neutralizes on Hold and
 Stop. Controller frames of the same session still use `set_controller` ports 0/1
 with `keypad:0`.

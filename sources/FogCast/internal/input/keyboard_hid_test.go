@@ -8,6 +8,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -157,5 +158,63 @@ func TestHIDPostFailureKeepsNeutralReleasePending(t *testing.T) {
 	hid.releaseAll()
 	if calls != 2 {
 		t.Fatalf("release after a failed post did not neutralize: %d", calls)
+	}
+}
+
+// A retried press or release after a failed post reposts the state the
+// runtime may not have applied; once confirmed, a duplicate posts nothing.
+func TestHIDRetryAfterFailedPostRepostsState(t *testing.T) {
+	hid := &keyboardHIDSink{}
+	var posted []hidkeys.Rows
+	fail := false
+	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+		posted = append(posted, rows)
+		if fail {
+			return errors.New("busy")
+		}
+		return nil
+	})
+	hid.bind(&KeyboardHIDBinding{PackageID: "apple2", Generation: 3})
+	code, _ := hidkeys.Code(0x04)
+	press := keyboardFrameFor(code, remoteinput.ActionPress)
+	release := keyboardFrameFor(code, remoteinput.ActionRelease)
+	held := hidkeys.Encode(map[uint8]bool{0x04: true})
+	neutral := hidkeys.Encode(map[uint8]bool{})
+	apply := func(f protocol.InputFrame) error { return hid.applyFrom(context.Background(), sourceRemote, f) }
+
+	// Press fails, then its retry reposts the held state.
+	fail = true
+	if err := apply(press); err == nil {
+		t.Fatal("press failure hidden")
+	}
+	fail = false
+	if err := apply(press); err != nil || len(posted) != 2 || posted[1] != held {
+		t.Fatalf("press retry: err=%v posts=%d", err, len(posted))
+	}
+	// Release fails, then its retry reposts neutral instead of succeeding silently.
+	fail = true
+	if err := apply(release); err == nil {
+		t.Fatal("release failure hidden")
+	}
+	fail = false
+	if err := apply(release); err != nil || len(posted) != 4 || posted[3] != neutral {
+		t.Fatalf("release retry: err=%v posts=%d", err, len(posted))
+	}
+	// Confirmed: duplicates and an empty source release post nothing.
+	if err := apply(release); err != nil || len(posted) != 4 {
+		t.Fatalf("confirmed duplicate reposted: err=%v posts=%d", err, len(posted))
+	}
+	if err := hid.releaseSource(sourceRemote); err != nil || len(posted) != 4 {
+		t.Fatalf("confirmed source release reposted: err=%v posts=%d", err, len(posted))
+	}
+	// A failed release is also repaired by the source's release.
+	if err := apply(press); err != nil {
+		t.Fatal(err)
+	}
+	fail = true
+	_ = apply(release)
+	fail = false
+	if err := hid.releaseSource(sourceRemote); err != nil || len(posted) != 7 || posted[6] != neutral {
+		t.Fatalf("source release after failure: err=%v posts=%d", err, len(posted))
 	}
 }
