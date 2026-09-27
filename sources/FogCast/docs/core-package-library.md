@@ -503,6 +503,9 @@ fogcast --api http://127.0.0.1:8787 --json change-disk /absolute/path/other.dsk
 fogcast --api http://127.0.0.1:8787 --json eject-disk
 ```
 
+`change-disk` and `eject-disk` accept the native play session of a library
+launch as well as a development load. The mutation is not bounded by the CLI's
+30-second status timeout: the host allows the transfer at least 150 s.
 `core-media-capabilities` reports the disk role with `unit` and `extensions`.
 ProDOS-order `.po` and nibble `.nib` images are different formats and are not
 accepted.

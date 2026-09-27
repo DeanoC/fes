@@ -85,12 +85,23 @@ func TestChangeTapePathRequiresPExtension(t *testing.T) {
 	}
 }
 
+// Library launches of fes.computer run as native play; development loads
+// stay accepted.
 func TestChangeDiskImportsExactImageAndEjectDiskClears(t *testing.T) {
+	for _, execution := range []string{"fpga_native", "fpga_development"} {
+		t.Run(execution, func(t *testing.T) { testChangeAndEjectDisk(t, execution) })
+	}
+	if hostMutationClient().Timeout != 0 {
+		t.Fatal("disk mutations must not use the short host client timeout")
+	}
+}
+
+func testChangeAndEjectDisk(t *testing.T, execution string) {
 	pkg := strings.Repeat("a", 64)
 	mediaID := strings.Repeat("c", 64)
 	session := func() map[string]any {
 		return map[string]any{
-			"id": "host-one", "target": "dev", "state": "active", "execution": "fpga_development",
+			"id": "host-one", "target": "dev", "state": "active", "execution": execution,
 			"core_package": map[string]any{
 				"package_id": pkg, "generation": 3,
 				"abi":               map[string]any{"id": "fes.computer", "major": 1, "minor": 0},
