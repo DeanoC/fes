@@ -421,8 +421,9 @@ Decision 7. Household display preference or last play sink first
 (living-room kit HDMI over a Mac shell). FPGA execute uses that kit's
 DisplaySink. Near the shell only for the same seat or a Phase 4
 captured remote sink. A V4L2 or ShadowCast-class preview is not a
-DisplaySink. Deano has not locked the paragraph. Which `native_emu`
-node wins when several can run the title is still open.
+DisplaySink. Deano has not locked the paragraph. When several
+`native_emu` nodes can run the title, the first candidate wins for now
+(Deano, 2026-09-27); a defined order or a selection comes later.
 
 **Second shell.** Recommended default, aligned with Caster and Foggy:
 Phase 1 still has one active Shell. A second shell may see the kit. If
@@ -460,7 +461,7 @@ the tenfoot display list. It is not a federated catalog object and it
 is not served from another node.
 
 No other product question is posed as locked. Wire encodings, TTL
-numbers, native-executor tie-break, and host node-id minting are
+numbers, the later native-executor order, and host node-id minting are
 follow-ups inside the protocol doc once Deano locks the paragraphs
 above. Advertisement TTL never frees a play lease. Only lease expiry
 does.

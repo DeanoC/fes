@@ -5,8 +5,9 @@
 `SetMeshPlacementAsk` and the display preference setter were called
 only from tests, so the sofa never placed. Slice 8 wires placement
 into the host behind `[mesh] placement`, default off. The Slice 6 kit
-HIL waits on Slice 8 and on Deano. Slice 7 waits on Deano's
-`native_emu` lock. This brief is the slice order. It does not merge
+HIL waits on Slice 8 and on Deano. Slice 7 lands with Slice 8: Deano
+set the `native_emu` tie-break on 2026-09-27 (the first candidate wins
+for now). This brief is the slice order. It does not merge
 code. Bob coordinates. Deano owns FES parent merges.
 
 **Audience:** FogCast host (placement policy), rooms UX (Foggy) when
@@ -37,9 +38,9 @@ same node. The default sofa path does not ask which machine.
 The working order is [Decision 7](mesh-lan.md#7-placement-policy) in
 [`mesh-lan.md`](mesh-lan.md). Deano has not locked that paragraph.
 Treat it the way Phase 2 treated the sha256 content-id: an unsigned
-strawman. Do not describe it as Deano's choice. Which `native_emu`
-node wins when several can run the title stays open. See Parked,
-below.
+strawman. Do not describe it as Deano's choice. When several
+`native_emu` nodes can run the title, the first candidate wins for
+now (Deano, 2026-09-27). See Slice 7.
 
 **Does not deliver:**
 
@@ -52,7 +53,8 @@ below.
 - Ready because some other node advertises Execute.
 - A V4L2 or ShadowCast-class preview counted as DisplaySink.
 - A change to `LoadIdle()` / `reboot_required`.
-- A default winner among several `native_emu` nodes.
+- A ranked or selected order among several `native_emu` nodes. Slice 7
+  only picks the first.
 
 Phase 0 stays the floor. Phase 1 and Phase 2 stay the floor on top of
 it. One configured host launching an installed package on one kit must
@@ -89,8 +91,8 @@ Owners are component strawmen. Agree files before parallel edits
 
 Slices 1–5 do not touch the kit. Slice 6 does. Slice 8 reads each
 configured kit's node document and does not mutate a kit. Caster reviews that
-boundary, and the kit HIL needs Deano present. Slice 7 does not start
-until Deano locks the `native_emu` tie-break.
+boundary, and the kit HIL needs Deano present. Slice 7 applies the
+`native_emu` tie-break Deano set on 2026-09-27.
 
 ---
 
@@ -158,7 +160,8 @@ The function has no preview input. `discovery` picture-up stays false.
 - Launchable `native_emu` only when no eligible `fpga_native`
   candidate exists. Exactly one candidate that advertises Execute
   `native_emu` is selected. Several such candidates are unresolved.
-  Do not pick a winner. That tie-break is parked.
+  Do not pick a winner. That tie-break was parked; Slice 7 now selects
+  the first.
 - Fail closed, and do not launch, when the entry is not launchable,
   no candidate can run it, every candidate that could run it has a
   mesh-major mismatch, or the caller reports a required composition
@@ -269,18 +272,36 @@ different kit needs a second kit that Deano designates.
 **Does not:** write an image or SD card. Does not remote-reboot. Does
 not add a second lease type. Does not implement kit-as-Shell.
 
-### 7. `native_emu` default tie-break — do not start
+### 7. `native_emu` default tie-break — this change (with Slice 8)
 
-**Owner:** FogCast host after Deano locks the parked question.
+**Owner:** FogCast host. Package tests only.
 
-No slice work until that lock exists. Slice 2's override may name one
-node. The empty-override case stays unresolved. A later lock can add
-one default without treating this brief as the choice. The protocol
-strawman still says a `native_emu` executor grows a mesh claim in the
-phase that places native play. That claim waits on this lock. It is
-not a second kit lease and it is not Phase 5 host-as-Execute. If the
-chosen node is a kit, that follow-up needs Caster and a kit HIL with
-Deano present.
+**Lock, Deano, 2026-09-27:** eventually several `native_emu` nodes get
+a defined order or a selection. For now the first candidate wins.
+
+`meshplace.Place` selects the first `native_emu` candidate, in
+candidate order, whose mesh major matches, when several can run the
+title and no `fpga_native` candidate can. A mismatched node cannot run
+the title, so it is skipped rather than selected. Household display
+preference and last play DisplaySink do not reorder native nodes.
+Slice 2's override still selects a named node, and a named node that
+cannot run the title still does not win. Production candidates are in
+inventory order, which is node-id order, so the pick is stable across
+reads. The FPGA case is unchanged: several eligible kits with neither
+preference nor last sink naming one stay unresolved.
+
+This slice has no production effect yet: no node advertises
+`native_emu`, and host-only titles are not projected for placement.
+Slice 6's rule still holds. A `native_emu` selection of a node other
+than the bound executor is not applied. The protocol strawman's
+`native_emu` mesh claim, for the phase that places native play,
+remains a later slice. It is not a second kit lease and it is not
+Phase 5 host-as-Execute. If a chosen node is a kit, that follow-up
+needs Caster and a kit HIL with Deano present.
+
+**Does not:** rank native nodes by display facts. Change the FPGA
+tie-break. Add a native execute claim. Apply a native selection of
+another node.
 
 ### 8. Wire placement into the host — this change
 
@@ -350,7 +371,7 @@ then streams its package and media to that kit on the Phase 0 path.
 - The installed ask copies each candidate's nested slices (#217).
 
 **Does not:** flip `[mesh] ensure`. Add a host route. Freeze the node
-document. Rank several eligible kits. Pick a `native_emu` winner.
+document. Rank several eligible kits.
 Treat a capture preview as DisplaySink. Persist the last sink across
 host restarts. Write `agent.toml`, a kit file, an image, or an SD card.
 
@@ -402,9 +423,6 @@ design. Do not describe the strawman as Deano's choice. Naming the
 existing read does not sign Decision 7 and does not freeze the node
 response.
 
-**Which `native_emu` node wins.** Not locked.
-
-When several nodes can run the title and no `fpga_native` candidate
-can, Slice 1 returns unresolved. It does not rank those nodes. Slice 2
-selects one only when the override names it. Do not add a default
-tie-break in this phase until Deano locks the sentence.
+**Which `native_emu` node wins.** Set for now by Deano, 2026-09-27:
+the first candidate wins. A defined order or a selection comes later
+and replaces it without a second design. Slice 7 applies it.
