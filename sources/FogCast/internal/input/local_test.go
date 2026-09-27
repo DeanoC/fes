@@ -911,6 +911,7 @@ func TestRemoteSetControllerDoesNotStarveLocalSocket(t *testing.T) {
 	defer conn.Close()
 	frame := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
 	const writes = 32
+	seen := localPosts.Load()
 	for i := 0; i < writes; i++ {
 		if err := conn.SetWriteDeadline(time.Now().Add(localCoreWriteTimeout)); err != nil {
 			t.Fatal(err)
@@ -919,7 +920,6 @@ func TestRemoteSetControllerDoesNotStarveLocalSocket(t *testing.T) {
 			t.Fatalf("local sock write %d while remote set_controller was stalled: %v", i, err)
 		}
 	}
-	seen := localPosts.Load()
 	wait := time.Now().Add(localCoreWriteTimeout)
 	for localPosts.Load() <= seen {
 		if time.Now().After(wait) {
