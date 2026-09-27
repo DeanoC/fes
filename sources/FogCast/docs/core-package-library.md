@@ -558,3 +558,58 @@ evidence, stages one directory per card, and calls the runtime v2
 `load_rom_composed_core` (or `load_composed_core` for a ROM-less shell). The
 session reports `core_package.slot_composition` with the v2 tuple; the host
 accepts the launch only when it equals the composition it linked.
+
+## Published systems and guided setup
+
+An optional local publication lets operators discover systems before creating
+any games. In the host's private `config.toml`, add:
+
+```toml
+[core_catalog]
+path = "/absolute/publication/catalog.json"
+library_source_id = "powerboat-library"
+```
+
+Choose a stable `library_source_id` unique to this serving library and retain it
+across restarts and publication updates. Another host library must use another id.
+The published `source_id` remains the package-provider namespace; it is not the
+host library identity.
+
+FES creates this directory with `make core-catalog`; only candidates with verified
+prepared receipts become installable. Package installation reuses the existing
+immutable store and does not change titles, ROM choices, firmware or sessions.
+Without this setting, manual package import remains available. Registered cores
+without packages show **unproduced**; missing archives show **unavailable**.
+Apple II is experimental: its linked firmware, slot cards and disks have passed
+a kit diagnostic, while appliance acceptance remains separate; Catch is a demo.
+
+Open **FPGA library**, choose **Master System** or **SG-1000** under **Systems and
+guided setup**, and use **Install core** when a package is available. The installed
+manifest supplies each named ROM requirement. Choose a private cartridge file
+(exactly 32768 bytes for the current SMS package or 16384 bytes for SG-1000), or
+enter the digest of previously imported media and choose it explicitly. Enter a
+title below and use **Add game**. The resulting title uses the ordinary library,
+readiness, mesh placement and launch paths. Creating it does not start a game.
+A package's standing is not a compatibility result; launch checks the executor.
+
+Coleco two-ROM packages show the BIOS and cartridge separately. Importing a BIOS
+does not select it globally. **Use this BIOS for the household** is an explicit
+shared-firmware change, affecting existing titles. Add-game never changes that
+shared default. The existing expansion selection APIs continue to apply to the
+new game identity. Blob/disk media still uses the declared limits and the panel's
+media controls.
+
+A lost add-game response can be retried with the same exact title, package and
+selections. It returns the same identity and can finish an empty ROM selection.
+A different existing selection returns a conflict; explicit editing is required.
+Entry creation and named ROM saving are separate durable writes, so a failed
+later save may leave a Missing entry. It must not be treated as Ready.
+
+The browser retains catalog rows in memory when its source becomes unavailable,
+for browsing only; install and setup are disabled. This is not durable offline
+storage and does not enable offline launch. Core references include the publication `source_id`, `library_source_id` and
+`core_id`/`package_id`. Created game references use the library id as `source_id`
+with `game_id`; the response also retains `publication_source_id`. Requests stay with the serving
+source and never switch the active coordinator or select an executor. This local
+publication is not catalog federation. The reusable host-client API can also be
+consumed by a future native menu; this change supplies no HDMI menu display.

@@ -328,3 +328,17 @@ the newly assembled image remains a separate exact-artifact kit operation.
 See [core package library validation](validation/2026-09-09-core-package-library.md)
 for selected revisions, software checks and the distinction between diagnostic
 and exact-image hardware acceptance.
+
+## Operator publication
+
+`config/core-library.toml` curates labels, systems and standing for registered
+recipes. `make core-catalog` publishes only supplied verified core-dev receipts;
+metadata alone cannot make a core installable. Its version-1 `catalog.json`
+contains a stable source namespace and a SHA-256 of the compact sorted-key UTF-8
+JSON body excluding `catalog_sha256`. Artifacts carry separate canonical package
+and archive identities. Unproduced rows deliberately omit artifact fields.
+
+FogCast optionally reads this local publication for browser installation and
+manifest-derived guided ROM setup. See its `docs/core-package-library.md` for
+configuration. The factory image's package set is independent of this catalog.
+Publication bundles no private ROMs and performs no compiler or kit operation.

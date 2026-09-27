@@ -192,8 +192,18 @@
       <button id="core-library-close" class="button secondary" type="button">Close</button>
     </div>
     <fieldset>
+      <legend>Systems and guided setup</legend>
+      <label for="core-system-select">Available systems</label>
+      <select id="core-system-select"><option value="">Choose a system</option></select>
+      <p id="core-system-status" role="status"></p>
+      <button id="core-system-install" class="button" type="button">Install core</button>
+      <div id="core-setup-roms"></div>
+      <p>Choose each ROM explicitly. ROMs are stored privately; FES supplies no proprietary BIOS or games. Optional media can be imported below.</p>
+      <button id="core-setup-create" class="button" type="button">Add game using the title below</button>
+    </fieldset>
+    <fieldset>
       <legend>Installed packages</legend>
-      <label for="core-package-file">Package archive (.fcore, up to 33 MiB)</label>
+      <label for="core-package-file">Package archive (.fcore, up to 65 MiB)</label>
       <input id="core-package-file" type="file" accept=".fcore">
       <button id="core-package-import" class="button" type="button">Import package</button>
       <label for="core-entry-select">Library entry</label>

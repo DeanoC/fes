@@ -165,10 +165,13 @@ func (g Game) HostOnly() bool {
 
 // CoreEntry is the stable library mapping for one FPGA-core game.
 type CoreEntry struct {
-	GameID    string `json:"game_id"`
-	Title     string `json:"title"`
-	CoreID    string `json:"core_id"`
-	PackageID string `json:"package_id"`
+	MediaID          string `json:"media_id,omitempty"`
+	MediaRole        string `json:"media_role,omitempty"`
+	FirmwareRequired bool   `json:"firmware_required,omitempty"`
+	GameID           string `json:"game_id"`
+	Title            string `json:"title"`
+	CoreID           string `json:"core_id"`
+	PackageID        string `json:"package_id"`
 }
 
 // CorePackage is the public identity projection of one installed FPGA package.

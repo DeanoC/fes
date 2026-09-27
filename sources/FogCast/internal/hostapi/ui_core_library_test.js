@@ -81,7 +81,7 @@ test('empty/null inventories work without compatibility or lifecycle calls',asyn
   await f.controller.open();
   assert.deepEqual(f.controller.snapshot().entries,[]);
   assert.deepEqual(f.controller.snapshot().packages,[]);
-  assert.equal(f.calls.length,2);
+  assert.equal(f.calls.length,3);
 });
 test('package import sends the original File body without Content-Length',async()=>{
   const f=fixture(); await f.controller.open();
@@ -275,4 +275,43 @@ test('mounted panel uses literal text, locks controls and filters same-core vers
   f.controller.close();
   assert.equal(nodes['core-library'].hidden,true);
   assert.equal(nodes['core-library'].open,false);
+});
+test('systems exist before games and setup keeps source and exact ROM choice',async()=>{
+ const calls=[];const row={library_source_id:'library-two',source_id:'source-two',core_id:'fes.sms',label:'Master System',system:'sms',standing:'supported',package_id:A,artifact_state:'installed'};
+ const controller=createController({fetchImpl:async(path,opt={})=>{calls.push({path,opt});if(path==='/api/v1/core-catalog')return response({cores:[row,{...row,core_id:'fes.sg1000',standing:'experimental',package_id:'',artifact_state:'unproduced'}]});if(path==='/api/v1/core-packages')return response({packages:[pkg(A,'fes.sms')]});if(path==='/api/v1/library/core-entries')return response({entries:[]});if(path.includes('media-capabilities'))return response(caps(A));if(path.includes('/setup?'))return response({...row,roms:[{id:'sms-cart',role:'cartridge',source_size:32768,binding:'entry'}],entries:[],capabilities:caps(A)});if(path==='/api/v1/core-media')return response({media_id:M,size:opt.body.size});if(path==='/api/v1/core-catalog/entries')return response({source_id:'library-two',publication_source_id:'source-two',entry:{game_id:'sms-title',title:'Test',core_id:'fes.sms',package_id:A}});throw Error(path);}});
+ await controller.open();assert.equal(controller.snapshot().cores.length,2);await controller.selectCore('source-two','fes.sms');
+ await controller.importSetupROM('sms-cart',{size:16384});assert.equal(calls.filter(c=>c.path==='/api/v1/core-media').length,0);
+ await controller.importSetupROM('sms-cart',{size:32768});await controller.createSetupEntry('Test');
+ const req=JSON.parse(calls.find(c=>c.path==='/api/v1/core-catalog/entries').opt.body);assert.equal(req.source_id,'source-two');assert.deepEqual(req.roms,{'sms-cart':M});assert.equal(controller.snapshot().setupGame.source_id,'library-two');
+ assert.ok(!calls.some(c=>c.path.includes('session')||c.path.includes('compatibility')));
+});
+test('offline catalog retains systems for browsing and blocks setup mutations',async()=>{
+ let offline=false;const calls=[];const row={library_source_id:'library-one',source_id:'one',core_id:'fes.sg1000',label:'SG-1000',standing:'experimental',artifact_state:'unproduced'};
+ const controller=createController({fetchImpl:async(path,opt={})=>{calls.push({path,opt});if(path==='/api/v1/core-packages')return response({packages:[]});if(path==='/api/v1/library/core-entries')return response({entries:[]});if(path==='/api/v1/core-catalog'){if(offline)throw Error('offline');return response({cores:[row]});}throw Error(path);}});
+ await controller.open();await controller.selectCore('one','fes.sg1000');await controller.installCore();assert.equal(calls.filter(c=>c.opt.method==='POST').length,0);
+ offline=true;await controller.refresh();assert.equal(controller.snapshot().cores[0].standing,'experimental');assert.equal(controller.snapshot().catalogOnline,false);await controller.installCore();await controller.createSetupEntry('test');assert.equal(calls.filter(c=>c.opt.method==='POST').length,0);
+});
+test('multiple same-size imported candidates require an explicit named choice',async()=>{
+ const c=createController({fetchImpl:async(path)=>{
+  if(path==='/api/v1/core-packages')return response({packages:[pkg(A,'fes.sg1000')]});if(path==='/api/v1/library/core-entries')return response({entries:[]});if(path==='/api/v1/core-catalog')return response({cores:[{library_source_id:'library',source_id:'source',core_id:'fes.sg1000',label:'SG-1000',standing:'supported',package_id:A,artifact_state:'installed'}]});if(path.includes('/setup?'))return response({library_source_id:'library',source_id:'source',core_id:'fes.sg1000',package_id:A,roms:[{id:'cart',role:'cartridge',source_size:16384,binding:'entry'}]});if(path.includes('media-capabilities'))return response(caps(A));throw Error(path);}});
+ await c.open();await c.selectCore('source','fes.sg1000');await c.createSetupEntry('No choice');assert.match(c.snapshot().message,/Missing cartridge/);assert.deepEqual(c.snapshot().setupROMs,{});c.chooseSetupROM('cart',M,16384);assert.equal(c.snapshot().setupROMs.cart.media_id,M);c.chooseSetupROM('cart',B,16384);assert.equal(c.snapshot().setupROMs.cart.media_id,B);
+});
+test('inventory outage invalidates previously online guided setup',async()=>{
+ let outage=false;let posts=0;const row={source_id:'publication',library_source_id:'library',core_id:'fes.sms',label:'SMS',standing:'supported',package_id:A,artifact_state:'installed'};
+ const c=createController({fetchImpl:async(path,opt={})=>{if(opt.method==='POST'){posts++;return response({});}if(outage && path==='/api/v1/core-packages')throw Error('host offline');if(path==='/api/v1/core-packages')return response({packages:[pkg(A,'fes.sms')]});if(path==='/api/v1/library/core-entries')return response({entries:[]});if(path==='/api/v1/core-catalog')return response({cores:[row]});if(path.includes('media-capabilities'))return response(caps(A));if(path.includes('/setup?'))return response({...row,roms:[]});throw Error(path);}});
+ await c.open();await c.selectCore('publication','fes.sms');outage=true;await c.refresh();assert.equal(c.snapshot().catalogOnline,false);await c.createSetupEntry('test');assert.equal(posts,0);
+});
+test('refresh and reopen keep uninstalled systems online and clear changed references',async()=>{
+ let pid=A;let setupCalls=0;
+ const c=createController({fetchImpl:async(path)=>{
+  if(path==='/api/v1/core-packages')return response({packages:[]});
+  if(path==='/api/v1/library/core-entries')return response({entries:[]});
+  if(path==='/api/v1/core-catalog')return response({cores:[{library_source_id:'library',source_id:'source',core_id:'fes.sms',label:'SMS',standing:'supported',package_id:pid,artifact_state:'available'}]});
+  if(path.includes('/setup?'))setupCalls++;
+  throw Error(path);
+ }});
+ await c.open();await c.selectCore('source','fes.sms');await c.refresh();assert.equal(c.snapshot().catalogOnline,true);assert.equal(setupCalls,0);
+ c.close();await c.open();assert.equal(c.snapshot().catalogOnline,true);
+ pid=B;await c.refresh();assert.equal(c.snapshot().catalogOnline,true);assert.equal(c.snapshot().coreRef,null);assert.equal(c.snapshot().setup,null);
+ await c.selectCore('source','fes.sms');assert.equal(c.snapshot().coreRef.package_id,B);
 });

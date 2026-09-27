@@ -74,5 +74,5 @@ normal. Keep private target addresses and credentials out of tracked files.
 - Prefer `rg` for source discovery.
 - Run the affected unit tests, build or simulate the affected experiment, and
   run `git diff --check`.
-- Commit, push, and open pull requests as needed for the requested work. Merge
-  a pull request only with user authorization.
+- Commit and push as needed for the requested work without additional approval.
+  Opening a pull request or merging requires explicit user authorization.

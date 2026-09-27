@@ -22,5 +22,5 @@ These rules apply to all work in this repository.
 - FPGA, input, video, save, and lifecycle behavior changes require real
   hardware tests before their support status can become hardware-tested.
 - Preserve unrelated user work and do not overwrite or discard it.
-- Commit, push, and open pull requests as needed for the requested work. Merge
-  a pull request only with user authorization.
+- Commit and push as needed for the requested work without additional approval.
+  Opening a pull request or merging requires explicit user authorization.

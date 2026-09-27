@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/protocol"
@@ -26,7 +27,8 @@ func TestColecoApplicationLibraryMediaBoundaries(t *testing.T) {
 					}
 					raw := colecoLibraryPackageContractsFixture(t, "fes.application", interfaces)
 					raw = capabilitiesFixtureReplace(t, raw, `id = "fes.coleco"`, `id = "`+coreID+`"`)
-					s, client, entry, inspection := newCoreEntryLaunchFixture(t, raw, "Controller stream")
+					// Package validation under -race on shared CI is not a latency assertion.
+					s, client, entry, inspection := newCoreEntryLaunchFixture(t, raw, "Controller stream", 2*time.Minute)
 					ctx := context.Background()
 					payload := bytes.Repeat([]byte{0x5a}, size)
 					// Distinguish upper cartridge addresses from the old 16 KiB range.

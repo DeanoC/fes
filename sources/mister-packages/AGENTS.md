@@ -32,5 +32,5 @@ These rules apply to all work in this repository.
 - Tests are proportional: parse, validate, and oracle-diff the real
   platform and system YAML. Do not invent a second SoC or a second
   system to prove the loader.
-- Commit, push, and open pull requests as needed for the requested work. Merge
-  a pull request only with user authorization.
+- Commit and push as needed for the requested work without additional approval.
+  Opening a pull request or merging requires explicit user authorization.

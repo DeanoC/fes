@@ -973,3 +973,22 @@ old_game = "/media/fat/games/old.rom"
 		t.Fatal("retired raw-core map accepted")
 	}
 }
+
+func TestCoreCatalogConfigRequiresLibraryIdentity(t *testing.T) {
+	base := `base_url = "http://127.0.0.1:8182"
+token = "synthetic"
+request_timeout_seconds = 15
+upload_timeout_seconds = 120
+[core_catalog]
+path = "/private/catalog.json"
+`
+	p := writeConfig(t, base)
+	if _, err := fogcast.LoadConfig(p); err == nil {
+		t.Fatal("accepted catalog without serving library identity")
+	}
+	p = writeConfig(t, base+`library_source_id = "library-one"`)
+	cfg, err := fogcast.LoadConfig(p)
+	if err != nil || cfg.CoreLibrarySourceID != "library-one" {
+		t.Fatal(cfg, err)
+	}
+}

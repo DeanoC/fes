@@ -18,7 +18,7 @@
   function createController({fetchImpl, onChange = () => {}, onCatalogChange = () => {}, requestTimeoutMs = 120000}) {
     if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs <= 0 || requestTimeoutMs > 120000) throw new Error('Invalid request timeout.');
     const state = {open:false, busy:false, loading:false, packages:[], entries:[],
-      packageId:'', entryId:'', capabilities:null, compatibility:null, media:null, message:''};
+      cores:[], catalogOnline:false, catalogMessage:'', coreRef:null, setup:null, setupROMs:{}, setupGame:null, packageId:'', entryId:'', capabilities:null, compatibility:null, media:null, message:''};
     let epoch = 0;
     let listener = () => {};
     function emit() { const value = clone(state); onChange(value); listener(value); return value; }
@@ -92,14 +92,52 @@
       }
       if (token === epoch) state.capabilities = value;
     }
+    async function catalogInventory(token) {
+      try {
+        const value = await request('/api/v1/core-catalog');
+        if (!value || !Array.isArray(value.cores) || !value.cores.every(c =>
+            typeof c.source_id === 'string' && typeof c.core_id === 'string' && typeof c.label === 'string' &&
+            typeof c.library_source_id === 'string' && c.library_source_id && ['supported','demo','experimental'].includes(c.standing) &&
+            ['unproduced','available','installed','unavailable'].includes(c.artifact_state) &&
+            (!c.package_id || digest(c.package_id)))) throw new Error('Invalid systems catalog.');
+        if (token === epoch) { state.cores = value.cores; state.catalogOnline = true; state.catalogMessage = ''; }
+      } catch (_) {
+        if (token === epoch) { state.catalogOnline = false; state.catalogMessage = 'Systems catalog unavailable. Cached systems are browse-only; setup is disabled. Manual package import remains available.'; }
+      }
+    }
+    function requireCore() {
+      if (!state.catalogOnline || !state.coreRef) throw new Error('Choose an online system.');
+      const row = state.cores.find(c => c.source_id === state.coreRef.source_id && c.core_id === state.coreRef.core_id);
+      if (!row || row.package_id !== state.coreRef.package_id) throw new Error('System changed. Refresh and choose again.');
+      return row;
+    }
+    async function loadSetup(token) {
+      const row = requireCore();
+      if (row.artifact_state !== 'installed') throw new Error('Install this core before setup.');
+      const query = new URLSearchParams({source_id:row.source_id, package_id:row.package_id});
+      const value = await request('/api/v1/core-catalog/' + encodeURIComponent(row.core_id) + '/setup?' + query);
+      if (!value || value.library_source_id !== row.library_source_id || value.source_id !== row.source_id || value.core_id !== row.core_id || value.package_id !== row.package_id ||
+          !Array.isArray(value.roms) || !value.roms.every(r => typeof r.id === 'string' && r.id && Number.isSafeInteger(r.source_size) &&
+            r.source_size > 0 && r.source_size <= MAX_MEDIA_BYTES && ['entry','household-firmware'].includes(r.binding))) throw new Error('Invalid setup requirements.');
+      if (token === epoch) state.setup = value;
+    }
     async function refresh() {
       if (state.busy) return emit();
       const token = ++epoch;
       state.loading = true;
+      state.catalogOnline = false;
       state.message = '';
       emit();
-      try { if (await inventories(token)) await capabilities(token); }
-      catch (error) { if (token === epoch) state.message = error.message; }
+      try { if (await inventories(token)) { await capabilities(token); await catalogInventory(token); if (state.coreRef && state.catalogOnline) {
+          const row = state.cores.find(c => c.source_id === state.coreRef.source_id && c.core_id === state.coreRef.core_id);
+          if (!row || row.library_source_id !== state.coreRef.library_source_id || (row.package_id || '') !== state.coreRef.package_id) {
+            state.coreRef = state.setup = state.setupGame = null; state.setupROMs = {}; state.media = null; state.packageId = '';
+          } else if (row.artifact_state === 'installed') {
+            state.setup = null;
+            try { await loadSetup(token); } catch (error) { if (token === epoch) state.message = error.message; }
+          } else { state.setup = null; state.setupROMs = {}; }
+        } } }
+      catch (error) { if (token === epoch) { state.message = error.message; state.catalogOnline = false; state.catalogMessage = 'Source unavailable. Cached systems are browse-only; refresh to enable setup.'; } }
       finally { if (token === epoch) { state.loading = false; emit(); } }
       return clone(state);
     }
@@ -109,6 +147,7 @@
       const entry = selectedEntry();
       if (id && (!item || (entry && core(item) !== entry.core_id))) return fail(new Error('Choose a package for the same core.'));
       const token = ++epoch;
+      state.coreRef = state.setup = null; state.setupROMs = {};
       state.packageId = id;
       state.capabilities = state.compatibility = state.media = null;
       state.message = '';
@@ -168,6 +207,89 @@
       }, success, true);
     }
     return {
+      async selectCore(sourceId, coreId) {
+        if (state.busy || state.loading) return emit();
+        const row = state.cores.find(c => c.source_id === sourceId && c.core_id === coreId);
+        if (!row) return fail(new Error('Unknown system.'));
+        state.coreRef = {library_source_id:row.library_source_id,source_id:row.source_id,core_id:row.core_id,package_id:row.package_id || ''};
+        state.setup = null; state.setupROMs = {}; state.setupGame = null; state.media = null;
+        state.packageId = row.artifact_state === 'installed' ? row.package_id : ''; state.entryId = '';
+        const token = ++epoch; state.loading = true; emit();
+        try { if (state.catalogOnline && row.artifact_state === 'installed') { await loadSetup(token); await capabilities(token); } }
+        catch (error) { if (token === epoch) state.message = error.message; }
+        finally { if (token === epoch) { state.loading = false; emit(); } }
+        return clone(state);
+      },
+      installCore() {
+        return mutate(async () => {
+          const row = requireCore();
+          if (row.artifact_state !== 'available' || !digest(row.package_id)) throw new Error('This core has no available package to install.');
+          const ref = {source_id:row.source_id,core_id:row.core_id,package_id:row.package_id};
+          const value = await request('/api/v1/core-catalog/install', {method:'POST', ...json(ref)});
+          if (!validPackage(value) || value.package_id !== ref.package_id || core(value) !== ref.core_id) throw new Error('Invalid install response; refresh to confirm.');
+          await inventories(epoch); await catalogInventory(epoch); state.packageId = ref.package_id;
+          await loadSetup(epoch); await capabilities(epoch);
+        }, 'Core installed. Choose inputs to add a game.');
+      },
+      chooseSetupROM(id, mediaId, size) {
+        if (state.busy || state.loading) return emit();
+        try {
+          requireCore();
+          const r = state.setup && state.setup.roms.find(r => r.id === id);
+          if (!r || !digest(mediaId) || size !== r.source_size) throw new Error('Choose an exact-size ROM for this named requirement.');
+          state.setupROMs[id] = {media_id:mediaId,size}; return emit();
+        } catch (error) { return fail(error); }
+      },
+      useStoredSetupROM(id, mediaId) {
+        return mutate(async () => {
+          requireCore(); const r = state.setup && state.setup.roms.find(r => r.id === id);
+          if (!r || !digest(mediaId)) throw new Error('Enter an imported ROM SHA-256.');
+          const value = await request('/api/v1/core-media/' + mediaId);
+          if (!value || value.media_id !== mediaId || value.size !== r.source_size) throw new Error('Stored ROM does not have the required size.');
+          state.setupROMs[id] = value;
+        }, 'Stored ROM explicitly chosen.');
+      },
+      importSetupROM(id, file) {
+        return mutate(async () => {
+          requireCore(); const r = state.setup && state.setup.roms.find(r => r.id === id);
+          boundedFile(file, MAX_MEDIA_BYTES);
+          if (!r || file.size !== r.source_size) throw new Error('Choose a ROM with exactly ' + (r ? r.source_size : 'the required') + ' bytes.');
+          const value = await request('/api/v1/core-media', {method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+          if (!value || !digest(value.media_id) || value.size !== r.source_size) throw new Error('Invalid ROM import identity.');
+          state.setupROMs[id] = value;
+        }, 'ROM stored and explicitly chosen for this setup.');
+      },
+      selectSetupFirmware(id) {
+        return mutate(async () => {
+          requireCore(); const r = state.setup && state.setup.roms.find(r => r.id === id);
+          const choice = state.setupROMs[id];
+          if (!r || r.binding !== 'household-firmware' || !choice) throw new Error('Choose the BIOS first.');
+          await request('/api/v1/library/firmware',{method:'PUT',...json({slot:'firmware',media_id:choice.media_id})});
+          await loadSetup(epoch);
+        }, 'Household BIOS selection updated explicitly. Existing titles use this shared BIOS.');
+      },
+      createSetupEntry(title) {
+        return mutate(async () => {
+          const row = requireCore();
+          if (!state.setup || row.artifact_state !== 'installed') throw new Error('Install and choose an online system first.');
+          const trimmed = String(title || '').trim();
+          if (!trimmed || new TextEncoder().encode(trimmed).length > 256) throw new Error('Title must contain 1–256 UTF-8 bytes.');
+          const roms = {};
+          for (const r of state.setup.roms) {
+            const choice = state.setupROMs[r.id];
+            if (!choice && r.binding === 'household-firmware' && state.setup.firmware_media_id) { roms[r.id] = state.setup.firmware_media_id; continue; }
+            if (!choice) throw new Error('Missing ' + r.role + ': choose ' + r.id + '.');
+            if (r.binding === 'household-firmware' && choice.media_id !== state.setup.firmware_media_id) throw new Error('Explicitly select this BIOS for the household before creating the title.');
+            roms[r.id] = choice.media_id;
+          }
+          const body = {...state.coreRef,title:trimmed,roms};
+          if (state.media) { if (!mediaAllowed()) throw new Error('Media is outside the declared limits.'); Object.assign(body,{media_role:mediaRole(),media_id:state.media.media_id}); }
+          const value = await request('/api/v1/core-catalog/entries',{method:'POST',...json(body)});
+          if (!value || value.source_id !== row.library_source_id || value.publication_source_id !== row.source_id || !validEntry(value.entry) || value.entry.core_id !== row.core_id || value.entry.package_id !== row.package_id) throw new Error('Invalid setup response; refresh to confirm.');
+          state.setupGame = {source_id:value.source_id,game_id:value.entry.game_id};
+          await inventories(epoch); await loadSetup(epoch);
+        }, 'Game added to the library. Launch checks readiness and executor compatibility.', true);
+      },
       snapshot: () => clone(state),
       subscribe(fn) { listener = fn; emit(); },
       async open() { state.open = true; emit(); return refresh(); },
@@ -259,6 +381,38 @@
       if (!state.open && dialog.open) dialog.close?.();
       for (const node of dialog.querySelectorAll('button, input, select')) node.disabled = state.busy;
       dialog.setAttribute('aria-busy', String(state.busy || state.loading));
+      const systems = byId('core-system-select');
+      if (systems) {
+        const selected = state.coreRef ? JSON.stringify([state.coreRef.source_id,state.coreRef.core_id]) : '';
+        selectOptions(systems, [['','Choose a system'], ...state.cores.map(c => [JSON.stringify([c.source_id,c.core_id]), c.label + ' — ' + c.standing + ' — ' + c.artifact_state + ' (' + c.source_id + ')'])], selected);
+        systems.disabled = state.busy || state.loading;
+        const row = state.coreRef && state.cores.find(c => c.source_id === state.coreRef.source_id && c.core_id === state.coreRef.core_id);
+        byId('core-system-status').textContent = state.catalogMessage || (row ? row.label + ': ' + row.artifact_state + '. ' + (row.standing === 'experimental' ? 'Experimental; appliance acceptance pending.' : '') : 'Choose a system to install or set up.');
+        byId('core-system-install').disabled = state.busy || state.loading || !state.catalogOnline || !row || row.artifact_state !== 'available';
+        byId('core-setup-create').disabled = state.busy || state.loading || !state.catalogOnline || !state.setup;
+        const fields = [];
+        for (const r of (state.setup ? state.setup.roms : [])) {
+          const field = el('fieldset','');
+          const legend = el('legend', r.role + ': ' + r.id + ' — exactly ' + r.source_size + ' bytes');
+          const choice = state.setupROMs[r.id];
+          const status = el('p', choice ? 'Chosen SHA-256: ' + choice.media_id : r.binding === 'household-firmware' && state.setup.firmware_media_id ? 'Shared household BIOS: ' + state.setup.firmware_media_id : 'Missing — choose a file or an imported digest.');
+          const file = el('input',''); file.type = 'file'; file.setAttribute('aria-label','Choose ' + r.id);
+          const upload = el('button','Import and choose ' + r.role); upload.type = 'button';
+          upload.addEventListener('click', () => { void controller.importSetupROM(r.id,file.files[0]); });
+          const stored = el('input',''); stored.type = 'text'; stored.placeholder = 'Imported ROM SHA-256'; stored.setAttribute('aria-label','Imported digest for ' + r.id);
+          const useStored = el('button','Choose stored ROM'); useStored.type = 'button';
+          useStored.addEventListener('click', () => { void controller.useStoredSetupROM(r.id,stored.value.trim()); });
+          const children = [legend,status,file,upload,stored,useStored];
+          if (r.binding === 'household-firmware') {
+            const select = el('button','Use this BIOS for the household'); select.type = 'button'; select.disabled = !choice;
+            select.addEventListener('click', () => { void controller.selectSetupFirmware(r.id); }); children.push(select);
+            children.push(el('p','This explicit action changes the shared BIOS used by existing titles.'));
+          }
+          for (const node of children) if (['input','button'].includes(node.tagName && node.tagName.toLowerCase())) node.disabled ||= state.busy || state.loading || !state.catalogOnline;
+          field.replaceChildren(...children); fields.push(field);
+        }
+        byId('core-setup-roms').replaceChildren(...fields);
+      }
       const entry = state.entries.find(e => e.game_id === state.entryId);
       selectOptions(byId('core-entry-select'), [['','New entry'], ...state.entries.map(e => [e.game_id,e.title + ' — ' + e.core_id])], state.entryId);
       selectOptions(byId('core-package-select'), [['','Choose package'], ...state.packages.filter(p => !entry || core(p) === entry.core_id)
@@ -287,6 +441,13 @@
     byId('core-package-select').addEventListener('change', event => { void controller.selectPackage(event.target.value); });
     byId('core-entry-select').addEventListener('change', event => { void controller.selectEntry(event.target.value); });
     const click = (id, action) => byId(id).addEventListener('click', () => { void action(); });
+    if (byId('core-system-select')) {
+      byId('core-system-select').addEventListener('change', event => {
+        if (event.target.value) { const [sourceId,coreId] = JSON.parse(event.target.value); void controller.selectCore(sourceId,coreId); }
+      });
+      click('core-system-install', () => controller.installCore());
+      click('core-setup-create', () => controller.createSetupEntry(byId('core-entry-title').value));
+    }
     click('core-package-import', () => controller.importPackage(byId('core-package-file').files[0]));
     click('core-package-check', () => controller.checkCompatibility());
     click('core-media-import', () => controller.importMedia(byId('core-media-file').files[0]));

@@ -190,7 +190,7 @@ function normalizePlan(plan = {}) {
     platforms: plan.platforms || { platforms: [] },
     collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
     coreRoutes: new Map(Object.entries(plan.coreRoutes || {}).map(([route, responses]) => {
-      if (!/^(GET|POST|PUT) \/api\/v1\/(core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)) {
+      if (!/^(GET|POST|PUT) \/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)) {
         throw new TypeError(`invalid core fixture route: ${route}`);
       }
       return [route, normalizeQueue(responses, route)];
@@ -716,7 +716,7 @@ class FixtureServer extends EventEmitter {
       requestContentLength: boundedText(record.requestContentLength, '', 24),
       requestTransferEncoding: boundedText(record.requestTransferEncoding, '', 24),
       requestBody: record.path === '/api/v1/session/launch' || record.path === '/api/v1/session/stop'
-        || /^\/api\/v1\/(core-packages|core-media|library\/core-entries)(\/|$)/.test(record.path)
+        || /^\/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/|$)/.test(record.path)
         ? boundedText(record.requestBody, '', 512)
         : undefined,
       responseOrder: record.responseOrder,
