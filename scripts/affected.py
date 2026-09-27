@@ -9,7 +9,7 @@ import subprocess
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2')
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'menu')
 EXPANSION_ROOT = 'sources/misteross/expansion'
 
 
@@ -35,7 +35,7 @@ COLECO_CONSUMERS = ('coleco', 'sg1000', 'sms')
 CORE_DIRECTORIES = {
     'fes-demo': ('demo',), 'fes-pong': ('demo', 'pong'), 'pong': ('pong',),
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
-    'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
+    'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
 }
 SHARED_RTL = {
     'coleco_vdp.sv': COLECO_CONSUMERS,
@@ -81,8 +81,9 @@ def fpga_cores(path):
                        for core in CORES for suffix in ('', '_oss'))
         if producer or parts[1] in FPGA_PRODUCER_HELPERS:
             return (), 'FPGA producer/package software tests; RTL unchanged'
-        if parts[1] == 'sim_fes_demo.py':
-            return ('demo',), 'demo simulation recipe'
+        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py'):
+            core = 'menu' if parts[1] == 'sim_fes_menu.py' else 'demo'
+            return (core,), core + ' simulation recipe'
         if parts[1] in APPLE2_SCRIPTS:
             return ('apple2',), 'Apple II socket/card recipe'
     if len(parts) == 2 and parts[0] == 'tests' and any(

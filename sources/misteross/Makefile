@@ -1219,3 +1219,7 @@ coleco-stream-diagnostic:
 	python3 cores/fes-coleco/diagnostic/generate.py --stream-size 24576 --output build/diagnostics/fes-coleco/stream-24k.rom
 	python3 cores/fes-coleco/diagnostic/generate.py --stream-size 32767 --output build/diagnostics/fes-coleco/stream-odd.rom
 	python3 cores/fes-coleco/diagnostic/generate.py --stream-size 32768 --output build/diagnostics/fes-coleco/stream-32k.rom --preview build/diagnostics/fes-coleco/stream-pass.ppm
+
+.PHONY: sim-fes-menu
+sim-fes-menu:
+	$(PYTHON) scripts/sim_fes_menu.py --verilator $(VERILATOR)
