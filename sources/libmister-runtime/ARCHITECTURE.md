@@ -108,8 +108,8 @@ and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a de
 idle. Default startup remains splash. Menu activation reuses ordinary package
 programming, identity and DDR-port admission: zero both slots, configure,
 release execution, then enable. Menu display never creates a playable active
-package, gameplay generation or input worker. Local daemon frame transport is
-still pending.
+package, gameplay generation or input worker. The existing local socket provides a bounded two-phase frame exchange; see
+[menu presentation](docs/menu-display.md).
 
 `MenuFrame` creates one exact-size sealable memfd per caller. Before mapping
 staging bytes, validation requires the same device/inode, 3,686,400-byte size

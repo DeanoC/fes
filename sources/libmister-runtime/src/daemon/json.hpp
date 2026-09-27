@@ -27,6 +27,8 @@ struct Value {
 // Parses the deliberately small JSON subset used by the local daemon.
 // `message` receives a human-readable syntax or shape failure when supplied.
 bool Parse(const std::string& input, Value* value, std::string* message);
+// Status responses include capability/interface arrays deeper than requests.
+bool ParseResponse(const std::string& input, Value* value, std::string* message);
 
 } // namespace json
 } // namespace daemon

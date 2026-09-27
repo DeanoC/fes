@@ -11,6 +11,7 @@ namespace mister {
 namespace daemon {
 
 enum class Operation {
+ configure_menu,menu_frame_begin,menu_frame_commit,
 	status,
 	inspect_core,
 	load_core,
@@ -57,6 +58,7 @@ struct Request {
 	std::string expected_package_id;
 	std::uint64_t expected_generation = 0;
 	std::uint32_t media_size = 0;
+ std::uint32_t byte_count=0;
 	std::uint8_t media_unit = 0;
 	KeyboardHidRows keyboard_rows{};
 	CoreCompositionRequest composition_request;
@@ -66,12 +68,17 @@ struct Request {
 	CoreROMLinks rom_links;
 };
 
+struct MenuFrameReply {
+ std::uint64_t generation=0;
+ bool prepared=false;
+ std::uint32_t displayed_sequence=0,underflows=0;
+};
 Error ParseRequest(const std::string& line, Request* request);
 // `ok` is the current request result.  Status::error is lifecycle evidence and
 // is intentionally encoded even when a later status request itself succeeds.
 std::string EncodeResponse(std::int64_t protocol, bool ok, const Status& status,
 	const std::string& version, const CorePackageInspection* inspected_package = nullptr,
-	const CoreData* core_data = nullptr);
+	const CoreData* core_data = nullptr,const MenuFrameReply* menu_frame = nullptr);
 
 } // namespace daemon
 } // namespace mister

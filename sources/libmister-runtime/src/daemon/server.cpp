@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "daemon/server.hpp"
+#include "daemon/menu_frame_transport.hpp"
+#include "daemon/protocol.hpp"
 
 #include <cerrno>
 #include <cstddef>
@@ -19,7 +21,6 @@ namespace mister {
 namespace daemon {
 namespace {
 
-const std::size_t kMaximumRequestPayloadBytes = 65535;
 
 Error IoError(const std::string& action, int number)
 {
@@ -41,18 +42,12 @@ void ShutdownAndClose(int descriptor)
 	(void)close(descriptor);
 }
 
-bool SendAll(int descriptor, const std::string& response)
+bool ExtraBytes(int descriptor)
 {
-	std::size_t sent = 0;
-	while (sent < response.size()) {
-		const ssize_t count = send(descriptor, response.data() + sent,
-			response.size() - sent, MSG_NOSIGNAL);
-		if (count < 0 && errno == EINTR) continue;
-		if (count <= 0) return false;
-		sent += static_cast<std::size_t>(count);
-	}
-	return true;
+ char byte;const auto count=recv(descriptor,&byte,1,MSG_PEEK|MSG_DONTWAIT);
+ return count>0;
 }
+FrameDeadline Deadline(){return std::chrono::steady_clock::now()+std::chrono::seconds(5);}
 
 } // namespace
 
@@ -269,46 +264,37 @@ void Server::CloseListener()
 
 void Server::HandleConnection(int descriptor)
 {
-	ConnectionGuard guard(*this, descriptor);
-	std::string line;
-	line.reserve(4096);
-	bool complete = false;
-	bool too_long = false;
-	bool read_failed = false;
-	while (!complete && !too_long) {
-		char buffer[4096];
-		const ssize_t count = recv(descriptor, buffer, sizeof(buffer), 0);
-		if (count < 0 && errno == EINTR) continue;
-		if (count < 0) {
-			read_failed = true;
-			break;
-		}
-		if (count == 0) break;
-		for (ssize_t index = 0; index < count; ++index) {
-			if (buffer[index] == '\n') {
-				complete = true;
-				break;
-			}
-			if (too_long) continue;
-			if (line.size() == kMaximumRequestPayloadBytes) {
-				too_long = true;
-				continue;
-			}
-			line.push_back(buffer[index]);
-		}
-	}
-
-	std::string response;
-	if (read_failed)
-		response = controller_.InvalidRequest("request read failed");
-	else if (too_long)
-		response = controller_.InvalidRequest("frame_too_large");
-	else if (!complete)
-		response = controller_.InvalidRequest("request ended before newline");
-	else
-		response = controller_.Handle(line);
-	response.push_back('\n');
-	(void)SendAll(descriptor, response);
+ ConnectionGuard guard(*this,descriptor);
+ ReceivedFrame incoming;Error error=ReceiveFrame(descriptor,Deadline(),&incoming);
+ std::string response;
+ if(!error.ok())response=controller_.InvalidRequest(error.message);
+ else if(!incoming.fds.empty())response=controller_.InvalidRequest("unexpected request descriptors");
+ else if(ExtraBytes(descriptor))response=controller_.InvalidRequest("unexpected bytes after request newline");
+ else {
+  Request request;error=ParseRequest(incoming.line,&request);
+  if(error.ok()&&request.operation==Operation::menu_frame_begin) {
+   std::unique_ptr<MenuFrame> frame;const auto preparation_deadline=Deadline();
+   response=controller_.BeginMenuFrame(request,&frame);
+   if(frame) {
+    error=SendFrame(descriptor,response,frame->fd(),preparation_deadline);if(!error.ok())return;
+    ReceivedFrame commit;error=ReceiveFrame(descriptor,preparation_deadline,&commit);
+    Request committed;
+    if(!error.ok())response=controller_.InvalidRequest(error.message);
+    else if(commit.fds.size()!=1)response=controller_.InvalidRequest("menu commit requires exactly one descriptor");
+    else if(ExtraBytes(descriptor))response=controller_.InvalidRequest("unexpected bytes after commit newline");
+    else {
+     error=ParseRequest(commit.line,&committed);
+     if(!error.ok()||committed.operation!=Operation::menu_frame_commit)
+      response=controller_.InvalidRequest("expected same-connection menu_frame_commit");
+     else response=controller_.CommitMenuFrame(committed,*frame,commit.fds[0]);
+    }
+    // Keep the immutable frame and all received descriptors through completion
+    // or verified containment, including a disconnected response recipient.
+    (void)SendFrame(descriptor,response,-1,Deadline());return;
+   }
+  } else response=controller_.Handle(incoming.line);
+ }
+ (void)SendFrame(descriptor,response,-1,Deadline());
 }
 
 void Server::ConnectionFinished()

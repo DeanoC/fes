@@ -26,6 +26,11 @@ std::string Controller::Handle(const std::string& line)
 	const CoreData* core_data = nullptr;
 	const CorePackageInspection* inspected = nullptr;
 	switch (request.operation) {
+ case Operation::configure_menu:
+  result=runtime_.ConfigureMenuPackage(request.package_path,request.package_id);break;
+ case Operation::menu_frame_begin:
+ case Operation::menu_frame_commit:
+  result={ErrorCode::invalid_request,"menu frame requires same-connection descriptor exchange","request"};break;
 	case Operation::status:
 		break;
 	case Operation::inspect_core:
@@ -150,17 +155,31 @@ std::string Controller::Handle(const std::string& line)
 	return Respond(request.protocol, result, inspected, core_data);
 }
 
+std::string Controller::BeginMenuFrame(const Request& request,std::unique_ptr<MenuFrame>* frame)
+{
+ const auto error=runtime_.BeginMenuFrame(request.expected_generation,frame);
+ MenuFrameReply reply;reply.generation=request.expected_generation;reply.prepared=true;
+ return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
+}
+std::string Controller::CommitMenuFrame(const Request& request,MenuFrame& frame,int descriptor)
+{
+ Error error=frame.ValidateImmutable(descriptor);MenuDisplayInfo info;
+ if(error.ok())error=runtime_.PresentMenuFrame(request.expected_generation,frame,&info);
+ MenuFrameReply reply;reply.generation=request.expected_generation;reply.displayed_sequence=info.displayed_sequence;reply.underflows=info.underflows;
+ return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
+}
+
 std::string Controller::InvalidRequest(const std::string& message)
 {
 	return Respond(1, {ErrorCode::invalid_request, message, "request"});
 }
 
 std::string Controller::Respond(std::int64_t protocol, const Error& result,
-	const CorePackageInspection* inspection, const CoreData* data)
+	const CorePackageInspection* inspection, const CoreData* data,const MenuFrameReply* frame)
 {
 	Status observed = runtime_.status();
 	if (!result.ok()) observed.error = result;
-	return EncodeResponse(protocol, result.ok(), observed, version_, inspection, data);
+	return EncodeResponse(protocol, result.ok(), observed, version_, inspection, data,frame);
 }
 
 } // namespace daemon

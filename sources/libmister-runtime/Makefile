@@ -65,12 +65,14 @@ DAEMON_SOURCES := \
 	src/daemon/protocol.cpp \
 	src/daemon/controller.cpp \
 	src/daemon/server.cpp \
+	src/daemon/menu_frame_transport.cpp \
 	src/daemon/main.cpp \
 	src/linux/stderr_log.cpp
 DAEMON_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(DAEMON_SOURCES))
 DEPENDENCIES := $(LIB_OBJECTS:.o=.d) $(DAEMON_OBJECTS:.o=.d)
 
 TEST_BINS := \
+ $(BUILD_DIR)/tests/unit/menu_frame_transport_test \
 	$(BUILD_DIR)/tests/unit/menu_memory_test \
 	$(BUILD_DIR)/tests/unit/menu_display_test \
 	$(BUILD_DIR)/tests/unit/runtime_test \
@@ -105,7 +107,7 @@ TEST_HEADERS := $(wildcard \
 
 .PHONY: all clean test run-tests incremental-build-test version-build-test \
 	force-version sanitize tsan archive-audit active-tree-test \
-	hardware-support-truth-test target
+	hardware-support-truth-test target menu-pattern-client
 
 all: $(ARCHIVE) $(DAEMON)
 
@@ -137,6 +139,18 @@ $(DAEMON): $(DAEMON_OBJECTS) $(ARCHIVE)
 	$(CXX) $(CXXFLAGS) $(DAEMON_OBJECTS) \
 		$(DAEMON_ARCHIVE_LINK) \
 		$(LDFLAGS) $(LDLIBS) -o "$@"
+
+menu-pattern-client: $(BUILD_DIR)/tools/menu-pattern-client
+
+$(BUILD_DIR)/tools/menu-pattern-client: tools/menu_pattern_client.cpp src/daemon/menu_frame_transport.cpp src/daemon/json.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+$(BUILD_DIR)/tests/integration/daemon_server_test: $(BUILD_DIR)/tools/menu-pattern-client
+
+$(BUILD_DIR)/tests/unit/menu_frame_transport_test: tests/unit/menu_frame_transport_test.cpp src/daemon/menu_frame_transport.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
 $(BUILD_DIR)/tests/unit/runtime_test: tests/unit/runtime_test.cpp \
 		tests/support/fake_hardware.cpp tests/support/capture_log.cpp \
@@ -280,15 +294,16 @@ $(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \
 $(BUILD_DIR)/tests/integration/daemon_server_test: \
 		tests/integration/daemon_server_test.cpp \
 		tests/support/fake_hardware.cpp \
-		src/daemon/controller.cpp src/daemon/server.cpp \
+		src/daemon/controller.cpp src/daemon/server.cpp src/daemon/menu_frame_transport.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
 		src/linux/stderr_log.cpp  src/runtime.cpp src/native/linux/menu_memory.cpp \
 		src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
+		-DMISTER_MENU_PATTERN_CLIENT=\"$(abspath $(BUILD_DIR))/tools/menu-pattern-client\" \
 		tests/integration/daemon_server_test.cpp \
 		tests/support/fake_hardware.cpp \
-		src/daemon/controller.cpp src/daemon/server.cpp \
+		src/daemon/controller.cpp src/daemon/server.cpp src/daemon/menu_frame_transport.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
 		src/linux/stderr_log.cpp  src/runtime.cpp src/native/linux/menu_memory.cpp \
 		src/native/diagnostic.cpp -o "$@"
@@ -451,7 +466,7 @@ target:
 clean:
 	rm -rf -- "$(BUILD_DIR)"
 
--include $(DEPENDENCIES)
+-include $(DEPENDENCIES) $(BUILD_DIR)/tools/menu-pattern-client.d
 
 $(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/native/menu_display.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
