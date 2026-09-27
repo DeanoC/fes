@@ -39,4 +39,14 @@ class MenuPatternProducerTests(unittest.TestCase):
                 p.write_text(json.dumps(data))
                 with self.assertRaises(BuildError): menu.validate_build_evidence(output, ROOT)
 
+    def test_evidence_rejects_asynchronous_fifo(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory); self.outputs(output)
+            p = output / 'synth.json'; data = json.loads(p.read_text())
+            data['modules']['top']['cells']['fifo'] = {
+                'type': 'MISTRAL_M10K', 'parameters': {'CFG_ASYNC_READ': '1'}}
+            p.write_text(json.dumps(data))
+            with self.assertRaisesRegex(BuildError, 'synchronous M10K'):
+                menu.validate_build_evidence(output, ROOT)
+
 if __name__ == '__main__': unittest.main()

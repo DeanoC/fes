@@ -58,3 +58,17 @@ inputs and emits no external memory commands.
 `--case board` verifies PLL-unlock output gating and automatic switching across
 120 frames. These digital models do not validate the analog PLL, HDMI link,
 DDR bandwidth, host framebuffer uploads or the future runtime presentation ABI.
+
+The FIFO uses an unconditional synchronous M10K look-ahead with recent-write
+forwarding. An earlier asynchronous mapping passed RTL simulation and timing
+but produced corrupted vertical bands on the kit; the synchronous mapping
+produced clean captures. The diagnostic producer rejects asynchronous M10Ks.
+The layer responsible for the earlier hardware corruption remains under
+investigation.
+
+The contained raw development load deliberately powers HDMI down during
+replacement and does not initialize video afterward. The recorded kit check
+restored only the retained fixed-720p transmitter power register under its
+lease before capture. This is a diagnostic procedure, not the future menu
+runtime presentation path. Stop restored idle and the session released its
+lease.
