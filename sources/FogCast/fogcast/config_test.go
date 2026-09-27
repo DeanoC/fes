@@ -992,3 +992,56 @@ path = "/private/catalog.json"
 		t.Fatal(cfg, err)
 	}
 }
+
+func TestLoadConfigMeshPlacement(t *testing.T) {
+	dir := t.TempDir()
+	first := filepath.Join(dir, "SNES")
+	second := filepath.Join(dir, "Genesis")
+	for _, root := range []string{first, second} {
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	preference := "11111111-1111-4111-8111-111111111111"
+	override := "22222222-2222-4222-8222-222222222222"
+	for _, tc := range []struct {
+		name string
+		mesh string
+		want fogcast.MeshPlacementConfig
+	}{
+		{name: "no mesh table"},
+		{name: "bare mesh table", mesh: "\n[mesh]\n"},
+		{name: "placement false", mesh: "\n[mesh]\nplacement = false\n"},
+		{name: "ensure alone", mesh: "\n[mesh]\nensure = true\n"},
+		{name: "placement true", mesh: "\n[mesh]\nplacement = true\n", want: fogcast.MeshPlacementConfig{Enabled: true}},
+		{
+			name: "household ids",
+			mesh: "\n[mesh]\nplacement = true\ndisplay_preference = \" " + preference + " \"\nplacement_override = \"" + override + "\"\n",
+			want: fogcast.MeshPlacementConfig{Enabled: true, DisplayPreference: preference, Override: override},
+		},
+		{
+			name: "ids without placement",
+			mesh: "\n[mesh]\ndisplay_preference = \"" + preference + "\"\n",
+			want: fogcast.MeshPlacementConfig{DisplayPreference: preference},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := fogcast.LoadConfig(writeConfig(t, validConfig(first, second)+tc.mesh))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.MeshPlacement != tc.want {
+				t.Fatalf("placement %+v, want %+v", cfg.MeshPlacement, tc.want)
+			}
+		})
+	}
+	for _, bad := range []string{
+		"\n[mesh]\ndisplay_preference = \"living-room\"\n",
+		"\n[mesh]\nplacement_override = \"kit-b\"\n",
+		"\n[mesh]\nplacement = \"yes\"\n",
+	} {
+		if _, err := fogcast.LoadConfig(writeConfig(t, validConfig(first, second)+bad)); err == nil {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+}

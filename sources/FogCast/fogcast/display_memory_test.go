@@ -2,6 +2,7 @@ package fogcast
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -119,6 +120,41 @@ func TestFPGAPlayStartRecordsBoundDisplaySink(t *testing.T) {
 	}
 	if got := service.PlaceOptions(); got.LastDisplaySink != "kit-living" || got.DisplayPreference != "kit-den" {
 		t.Fatalf("status changed options %+v", got)
+	}
+}
+
+func TestLastSinkWaitsForTheLaunchMedia(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		mediaErr error
+		want     string
+	}{
+		{name: "media delivered", want: "kit-living"},
+		{name: "media rejected", mediaErr: errors.New("diagnostic media rejected")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s, client, entry, inspection := newCoreEntryLaunchFixture(t, colecoLibraryPackageFixture(t), "Coleco Graphics I")
+			s.targets[0].TargetID = "kit-living"
+			active := coreEntryActiveStatus(inspection, 8, true)
+			client.mediaStatus = active
+			client.mediaErr = tc.mediaErr
+			client.stopResult = protocol.Status{State: protocol.StateIdle}
+			client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) {
+				client.statusResult = active
+				return active, nil
+			}
+			_, err := s.Launch(ctx, entry.GameID, nil)
+			if (err != nil) != (tc.mediaErr != nil) {
+				t.Fatalf("launch error %v", err)
+			}
+			if client.mediaCalls != 1 {
+				t.Fatalf("media calls %d", client.mediaCalls)
+			}
+			if got := s.PlaceOptions().LastDisplaySink; got != tc.want {
+				t.Fatalf("last sink %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

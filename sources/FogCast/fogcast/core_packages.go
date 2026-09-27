@@ -313,6 +313,15 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		return protocol.CachedLaunchResponse{}, corePackageRequestFailure(err)
 	}
 	defer s.clearUnstartedSessionTarget()
+	// The last play DisplaySink changes only when the whole launch
+	// succeeded. A firmware or media failure stops the core and leaves
+	// the remembered sink in place. This runs after the media cleanup
+	// below has joined its errors.
+	defer func() {
+		if resultErr == nil {
+			s.notePlayDisplaySink()
+		}
+	}()
 	var entry catalog.CoreEntry
 	var media *coreEntryMedia
 	var firmware *coreEntryMedia

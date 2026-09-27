@@ -303,6 +303,37 @@ func TestDialCopiesDescribedPackages(t *testing.T) {
 	}
 }
 
+func TestReadNodeReturnsOneNodeDocument(t *testing.T) {
+	pkg := strings.Repeat("cd", 32)
+	store, err := Open(t.TempDir(), "kit-a", nil, []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetPackages([]string{pkg})
+	server := httptest.NewServer(httpapi.New(meshAPI{}, "kit-token", "test", slog.New(slog.NewTextHandler(io.Discard, nil)), httpapi.WithMeshContent(store)))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := ReadNode(context.Background(), endpoint, "kit-token", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node.NodeID != "kit-a" || len(node.ABIs) != 1 || node.ABIs[0] != (meshcontent.EligibleABI{ID: "fes.application", Major: 1}) {
+		t.Fatalf("node %+v", node)
+	}
+	if len(node.Packages) != 1 || node.Packages[0] != pkg {
+		t.Fatalf("packages %v", node.Packages)
+	}
+	if _, err := ReadNode(context.Background(), endpoint, "wrong-token", server.Client()); err == nil {
+		t.Fatal("read with the wrong agent token")
+	}
+	if _, err := ReadNode(context.Background(), endpoint, "", server.Client()); err == nil {
+		t.Fatal("read without an agent token")
+	}
+}
+
 func TestRemotePackagesFollowStagedPackages(t *testing.T) {
 	root := t.TempDir()
 	store, err := Open(t.TempDir(), "kit-a", nil, nil)

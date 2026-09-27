@@ -37,7 +37,10 @@ type MeshPlacementAsk struct {
 }
 
 // SetMeshPlacementAsk installs the placement request Launch reads.
-// Nil clears it. A cleared request keeps today's bind.
+// Nil clears it. A cleared request keeps today's bind, or production
+// placement when that is on. The request is copied, including each
+// candidate's Execute and ABIs, so a later change by the caller does
+// not alter it.
 func (s *Service) SetMeshPlacementAsk(ask *MeshPlacementAsk) {
 	if s == nil {
 		return
@@ -80,14 +83,13 @@ func (s *Service) MeshSessionPlacement() MeshPlacement {
 // selection of any other node returns ErrUnboundNode and does not
 // change the bind. Unresolved and fail closed do not name an Execute
 // node, so they are not recorded and are not that refusal. No request
-// returns the snapshot unchanged.
+// returns the snapshot unchanged. A launch that names a target is the
+// caller's executor choice: placement does not run for it.
 func (s *Service) applyMatchingPlacement(ctx context.Context, gameID string, snap launchSnapshot) (launchSnapshot, error) {
-	if s == nil {
+	if s == nil || snap.requested != "" {
 		return snap, nil
 	}
-	s.meshMu.Lock()
-	ask := s.meshPlacementAsk
-	s.meshMu.Unlock()
+	ask := s.placementAsk(ctx)
 	if ask == nil {
 		return snap, nil
 	}
@@ -507,9 +509,7 @@ func (s *Service) placementEntry(gameID string, snap launchSnapshot) (meshconten
 	if snap.entryOK {
 		return snap.entry, true
 	}
-	s.meshMu.Lock()
-	entryFn := s.meshExecute.Entry
-	s.meshMu.Unlock()
+	entryFn := s.placementEntryFunc()
 	if entryFn == nil {
 		return meshcontent.Entry{}, false
 	}
