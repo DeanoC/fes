@@ -1,0 +1,62 @@
+ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080 0xFFD0501C; do printf "%s %s\n" $a $(busybox devmem $a 32); done 
+0xFFC25064 0x00044FFF
+0xFFC25068 0x2C03FFFF
+0xFFC2506C 0x00B3FFFF
+0xFFC25070 0x0076FFFF
+0xFFC25074 0x0098FFFF
+0xFFC25078 0x0005AFFF
+0xFFC2507C 0x0000003F
+0xFFC25080 0x00000000
+0xFFD0501C 0x00000007
+
+core /home/deano/kepler/worktrees/fes-altera-h2p-ddr-ram-support-17a49c0d/sources/misteross/build/fes-ramtest-quartus/comparison.fcore 3.3s {"state": "active", "game_id": null, "system": null, "expected_core": null, "observed_core": "fes.ramtest", "last_error": null, "development": true, "core_package": {"persistence_mode": "volatile", "package_id": "dd1d14f211c0cf1a8020e089ef2e5aa6bb8e60cb639710f4171fbb2597994527", "generation": 1, "abi": {"id": "fes.application", "major": 1, "minor": 0}, "build_id": "8f6dbd7c13d6ba03aa5d8477b7d67170", "active_interfaces": [{"id": "fes.gamepad", "major": 1, "minor": 0}, {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0}, {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0}], "gamepad": true}}
+ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080 0xFFD0501C; do printf "%s %s\n" $a $(busybox devmem $a 32); done; cat /run/mister-runtime.events.json | tr '}' '\n' | grep -i -E 'hps_ddr|error' | head -5 
+0xFFC25064 0x00044016
+0xFFC25068 0x2C0000D0
+0xFFC2506C 0x00B000D0
+0xFFC25070 0x00762100
+0xFFC25074 0x00982100
+0xFFC25078 0x0005A03F
+0xFFC2507C 0x00000000
+0xFFC25080 0x00003FFF
+0xFFD0501C 0x00000000
+,{"ts_utc":"1970-01-01T00:04:13.410114880Z","mono_ms":71387,"layer":"fpga","kind":"hps_ddr.ports","severity":"ok","detail":{"ok":true,"cportwidth":"0x16","cportwmap":"0xd0","cportrmap":"0xd0","rfifocmap":"0x2100","wfifocmap":"0x2100","cportrdwr":"0x3f","portcfg":"0x0"
+
+q130-t02.png
+capture q130-t02.png
+q130-t12.png
+capture q130-t12.png
+q130-t32.png
+capture q130-t32.png
+ssh for a in 0x20000000 0x20000004 0x2ABCDEF0 0x2ABCDEF4 0x2FFFFFF8 0x30000000 0x30000004 0x35555558 0x38000000 0x3C0FFEE8 0x3FFFFFF8 0x3FFFFFFC; do printf "%s %s\n" $a $(busybox devmem $a 32); done; dmesg | tail -3; uptime 
+0x20000000 0x20000000
+0x20000004 0xDFFFFFFF
+0x2ABCDEF0 0x2ABCDEF0
+0x2ABCDEF4 0xD543210F
+0x2FFFFFF8 0x2FFFFFF8
+0x30000000 0x30000000
+0x30000004 0xCFFFFFFF
+0x35555558 0x35555558
+0x38000000 0x38000000
+0x3C0FFEE8 0x3C0FFEE8
+0x3FFFFFF8 0x3FFFFFF8
+0x3FFFFFFC 0xC0000007
+[   13.052010] socfpga-dwmac ff702000.ethernet eth0: configuring for phy/rgmii link mode
+[   13.426352] input: FogCast Virtual Gamepad as /devices/virtual/input/input3
+[   20.257975] socfpga-dwmac ff702000.ethernet eth0: Link is Up - 1Gbps/Full - flow control off
+ 00:04:47 up 4 min,  load average: 0.10, 0.06, 0.01
+
+q130-t75.png
+capture q130-t75.png
+stop {"state": "idle", "game_id": null, "system": null, "expected_core": null, "observed_core": null, "last_error": null}
+ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080 0xFFD0501C; do printf "%s %s\n" $a $(busybox devmem $a 32); done 
+0xFFC25064 0x00044FFF
+0xFFC25068 0x2C03FFFF
+0xFFC2506C 0x00B3FFFF
+0xFFC25070 0x0076FFFF
+0xFFC25074 0x0098FFFF
+0xFFC25078 0x0005AFFF
+0xFFC2507C 0x0000003F
+0xFFC25080 0x00000000
+0xFFD0501C 0x00000007
+
