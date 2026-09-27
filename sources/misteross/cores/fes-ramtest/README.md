@@ -87,6 +87,10 @@ busybox devmem 0x3FFFFFFC 32   # 0xC0000007
 
 ## Builds
 
+The [2026-09-27 timing investigation](../../docs/validation/2026-09-27-ramtest-timing.md)
+compares Quartus and OSS on matched source inputs, including FSM encoding and
+routing controls. It explains the observed gap without changing this core's RTL.
+
 ```sh
 make toolchain-fes-ramtest
 make build-fes-ramtest-100
