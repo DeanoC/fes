@@ -4,6 +4,7 @@
 execution is [`mesh-phase2.md`](mesh-phase2.md). Phase 3 execution is
 [`mesh-phase3.md`](mesh-phase3.md): Slices 1–6 are on main, and host
 production placement sits behind `[mesh] placement`, default off.
+Deano locked Decision 7, the placement order, on 2026-09-27.
 Bob coordinates; Deano merges
 parents. Still edit strawmen in place. Caster's cast/kit
 contract review and Foggy's product review, both 2026-09-23, are
@@ -130,7 +131,8 @@ sink.
 
 Recommended defaults, written 2026-09-23. Items marked Caster or Foggy
 replace the earlier strawman on that point. Deano has not signed each
-bullet. Implementation work should treat the paragraph in this file as
+bullet; Decision 7 is signed (2026-09-27). Implementation work should
+treat the paragraph in this file as
 the working text and change it here rather than forking a parallel
 design.
 
@@ -264,9 +266,9 @@ without waiting for a mesh.
 
 ### 7. Placement policy
 
-**Recommended default, reconciled from Foggy's product review and
-Caster's review, 2026-09-23.** Phase 3. Deano has not locked this order.
-The general rule is not "a display near the shell."
+**Locked by Deano, 2026-09-27**, as reconciled from Foggy's product
+review and Caster's review, 2026-09-23. Phase 3. The general rule is
+not "a display near the shell."
 
 1. Prefer the household display preference, or, if none is set, the last
    DisplaySink used for play. In the usual living room that is the kit
@@ -282,6 +284,10 @@ The general rule is not "a display near the shell."
    same seat, or when Phase 4 binds a captured remote sink.
 5. A V4L2 or ShadowCast-class preview is a host preview. It is not a
    DisplaySink, and it does not win placement.
+6. For now, when the rules above still leave several kits that can run
+   the title, or several `native_emu` nodes, the first in the host's
+   node inventory wins. That inventory is in node-id order. A defined
+   order or a selection replaces this later.
 
 An optional advanced override exists for a power user. The default sofa
 path does not ask which machine.
@@ -416,14 +422,14 @@ protocol page repeats the wire-level non-goals.
 Prefer the strawman. Change the sentence in this document rather than
 forking a parallel design.
 
-**Placement order.** Recommended default, Foggy and Caster, 2026-09-23:
-Decision 7. Household display preference or last play sink first
+**Placement order.** Locked by Deano, 2026-09-27: Decision 7 as
+written. Household display preference or last play sink first
 (living-room kit HDMI over a Mac shell). FPGA execute uses that kit's
 DisplaySink. Near the shell only for the same seat or a Phase 4
 captured remote sink. A V4L2 or ShadowCast-class preview is not a
-DisplaySink. Deano has not locked the paragraph. When several
-`native_emu` nodes can run the title, the first candidate wins for now
-(Deano, 2026-09-27); a defined order or a selection comes later.
+DisplaySink. When several kits, or several `native_emu` nodes, remain,
+the first candidate wins for now; a defined order or a selection comes
+later.
 
 **Second shell.** Recommended default, aligned with Caster and Foggy:
 Phase 1 still has one active Shell. A second shell may see the kit. If
@@ -461,7 +467,7 @@ the tenfoot display list. It is not a federated catalog object and it
 is not served from another node.
 
 No other product question is posed as locked. Wire encodings, TTL
-numbers, the later native-executor order, and host node-id minting are
+numbers, the later kit and native-executor order, and host node-id minting are
 follow-ups inside the protocol doc once Deano locks the paragraphs
 above. Advertisement TTL never frees a play lease. Only lease expiry
 does.
@@ -473,7 +479,7 @@ does.
 | [`docs/mesh-node-protocol.md`](mesh-node-protocol.md) | Capability, lease, content-id, session, failure classes |
 | [`docs/mesh-phase1.md`](mesh-phase1.md) | Phase 1 execution, closed on `3d34b6e0` |
 | [`docs/mesh-phase2.md`](mesh-phase2.md) | Phase 2 execution, content plane |
-| [`docs/mesh-phase3.md`](mesh-phase3.md) | Phase 3 execution, placement (Decision 7 unsigned) |
+| [`docs/mesh-phase3.md`](mesh-phase3.md) | Phase 3 execution, placement (Decision 7 locked) |
 | [`docs/README.md`](README.md) | Index |
 | [`docs/idle-menu-rooms.md`](idle-menu-rooms.md) | Same host binary for kit-as-host; idle contracts this mesh does not reopen |
 | [`docs/soft-restart-path-b.md`](soft-restart-path-b.md) | `reboot_required` and idle recovery stay kit-local |

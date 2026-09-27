@@ -5,15 +5,17 @@
 `SetMeshPlacementAsk` and the display preference setter were called
 only from tests, so the sofa never placed. Slice 8 wires placement
 into the host behind `[mesh] placement`, default off. The Slice 6 kit
-HIL waits on Slice 8 and on Deano. Slice 7 lands with Slice 8: Deano
-set the `native_emu` tie-break on 2026-09-27 (the first candidate wins
-for now). This brief is the slice order. It does not merge
-code. Bob coordinates. Deano owns FES parent merges.
+HIL waits on Slice 8 and on Deano. On 2026-09-27 Deano locked
+Decision 7, the placement order, and set the tie-breaks: when several
+kits or several `native_emu` nodes remain, the first candidate wins
+for now. Slice 7 applies them and lands with Slice 8. This brief is
+the slice order. It does not merge code. Bob coordinates. Deano owns
+FES parent merges.
 
 **Audience:** FogCast host (placement policy), rooms UX (Foggy) when
 sofa copy lands, and Caster when a later slice touches kit or execute
 binding. Read the locks first. This brief names owners, slices, and
-the unsigned placement strawman. It does not reopen Phase 1 or Phase 2,
+the placement order Deano locked. It does not reopen Phase 1 or Phase 2,
 and it does not freeze a wire format.
 
 **Base:** the brief was written on FES `main` `019f3168`; Slice 8 is
@@ -35,12 +37,11 @@ Given a title and the nodes this host already knows, choose the
 Execute node and the DisplaySink and InputSource that belong on that
 same node. The default sofa path does not ask which machine.
 
-The working order is [Decision 7](mesh-lan.md#7-placement-policy) in
-[`mesh-lan.md`](mesh-lan.md). Deano has not locked that paragraph.
-Treat it the way Phase 2 treated the sha256 content-id: an unsigned
-strawman. Do not describe it as Deano's choice. When several
+The order is [Decision 7](mesh-lan.md#7-placement-policy) in
+[`mesh-lan.md`](mesh-lan.md). Deano locked it on 2026-09-27. When the
+display preference and last play sink leave several kits, or several
 `native_emu` nodes can run the title, the first candidate wins for
-now (Deano, 2026-09-27). See Slice 7.
+now. See Slice 7.
 
 **Does not deliver:**
 
@@ -53,8 +54,8 @@ now (Deano, 2026-09-27). See Slice 7.
 - Ready because some other node advertises Execute.
 - A V4L2 or ShadowCast-class preview counted as DisplaySink.
 - A change to `LoadIdle()` / `reboot_required`.
-- A ranked or selected order among several `native_emu` nodes. Slice 7
-  only picks the first.
+- A defined order or selection among several kits or several
+  `native_emu` nodes. Slice 7 only picks the first.
 
 Phase 0 stays the floor. Phase 1 and Phase 2 stay the floor on top of
 it. One configured host launching an installed package on one kit must
@@ -67,7 +68,7 @@ silence is not a lease release.
 
 | Doc | What it already decided |
 | --- | --- |
-| [Mesh LAN](mesh-lan.md) | Product intent, phases, Decision 4 lease policy. Decision 7 is the working placement text and is unsigned. |
+| [Mesh LAN](mesh-lan.md) | Product intent, phases, Decision 4 lease policy. Decision 7 is the placement order, locked by Deano 2026-09-27. |
 | [Mesh node protocol](mesh-node-protocol.md) | Phase 3 names Execute, Display, and Input on the session. Lease conflict rejects. Bindings stay local to the chosen nodes. Ensure completes before execute. |
 | [Phase 1 brief](mesh-phase1.md) | Soft-stop retains. Capability ads. Host inventory. In-use copy. |
 | [Phase 2 brief](mesh-phase2.md) | Content-id, ensure on the bound executor, Phase 2 Ready. sha256 stays an unsigned strawman. `[mesh] ensure` defaults off. |
@@ -138,9 +139,10 @@ The function has no preview input. `discovery` picture-up stays false.
   outcomes: selected, unresolved, or fail closed. Selected names
   Execute, and DisplaySink and InputSource only when that same node
   advertises them. Display and input are never a different node.
-- Unsigned Decision 7, applied as written. Item 3's "when an ABI /
+- Decision 7, applied as written. Item 3's "when an ABI /
   `core_package` exists" is the node-document `abis` list above, not
-  the DNS-SD family list. Do not describe the order as locked.
+  the DNS-SD family list. When Slice 1 landed the order was unsigned;
+  Deano locked it on 2026-09-27.
 - Prefer the household display preference when that id is a candidate
   that advertises DisplaySink and can execute the title. Otherwise
   the last play DisplaySink under the same test. A menu shell that
@@ -155,8 +157,9 @@ The function has no preview input. `discovery` picture-up stays false.
   selected. If several eligible kits exist, the preference or last
   sink selects one of them when it names one of them. If neither
   names one, the result is unresolved. Do not rank the kits. That
-  unresolved FPGA case is this brief's reading of the unsigned order
-  so Slice 1 does not invent a winner. It is not a new lock.
+  unresolved FPGA case was this brief's reading of the unsigned order
+  so Slice 1 did not invent a winner. Slice 7 now selects the first
+  kit.
 - Launchable `native_emu` only when no eligible `fpga_native`
   candidate exists. Exactly one candidate that advertises Execute
   `native_emu` is selected. Several such candidates are unresolved.
@@ -272,23 +275,31 @@ different kit needs a second kit that Deano designates.
 **Does not:** write an image or SD card. Does not remote-reboot. Does
 not add a second lease type. Does not implement kit-as-Shell.
 
-### 7. `native_emu` default tie-break — this change (with Slice 8)
+### 7. Default tie-breaks — this change (with Slice 8)
 
-**Owner:** FogCast host. Package tests only.
+**Owner:** FogCast host. Package and host tests only.
 
-**Lock, Deano, 2026-09-27:** eventually several `native_emu` nodes get
-a defined order or a selection. For now the first candidate wins.
+**Lock, Deano, 2026-09-27:** Decision 7 is locked as written. When it
+still leaves several kits that can run the title, or several
+`native_emu` nodes, the first candidate wins for now. A defined order
+or a selection comes later and replaces this without a second design.
 
-`meshplace.Place` selects the first `native_emu` candidate, in
-candidate order, whose mesh major matches, when several can run the
-title and no `fpga_native` candidate can. A mismatched node cannot run
-the title, so it is skipped rather than selected. Household display
-preference and last play DisplaySink do not reorder native nodes.
+`meshplace.Place` takes the household display preference, then the
+last play DisplaySink, as before. When neither names one of several
+eligible kits, it selects the first eligible kit, in candidate order,
+whose mesh major matches. Among several `native_emu` nodes it selects
+the first whose mesh major matches; preference and last sink do not
+reorder native nodes. A mismatched node cannot run the title, so it is
+skipped rather than selected. Production candidates are in inventory
+order, which is node-id order, so the pick is stable across reads.
 Slice 2's override still selects a named node, and a named node that
-cannot run the title still does not win. Production candidates are in
-inventory order, which is node-id order, so the pick is stable across
-reads. The FPGA case is unchanged: several eligible kits with neither
-preference nor last sink naming one stay unresolved.
+cannot run the title still does not win: that override miss is now
+the only unresolved outcome.
+
+With two kits and no preference, the first play after a host start
+goes to the first kit, which may not be the selected target; placement
+claims and rebinds it as in Slice 6. After that play the last sink
+keeps later placements on that kit. `display_preference` pins a kit.
 
 This slice has no production effect yet: no node advertises
 `native_emu`, and host-only titles are not projected for placement.
@@ -299,9 +310,9 @@ remains a later slice. It is not a second kit lease and it is not
 Phase 5 host-as-Execute. If a chosen node is a kit, that follow-up
 needs Caster and a kit HIL with Deano present.
 
-**Does not:** rank native nodes by display facts. Change the FPGA
-tie-break. Add a native execute claim. Apply a native selection of
-another node.
+**Does not:** rank native nodes by display facts. Add a native execute
+claim. Apply a native selection of another node. Prefer the selected
+target over the first kit.
 
 ### 8. Wire placement into the host — this change
 
@@ -360,7 +371,7 @@ then streams its package and media to that kit on the Phase 0 path.
 - One eligible kit that is the bound kit: selected, recorded, and the
   launch keeps the bind.
 - Two eligible kits: the preference or last sink selects one. Neither
-  set: unresolved, and rooms do not launch.
+  set: the first kit wins (Slice 7).
 - The override selects an eligible named node. A named node that is
   not a candidate stays unresolved.
 - No kit lists the title's ABI: fail closed.
@@ -368,11 +379,9 @@ then streams its package and media to that kit on the Phase 0 path.
   claim another kit.
 - Seam off: rows carry `placement` alone, and a rebind onto another
   kit launches without Ensure.
-- The installed ask copies each candidate's nested slices (#217).
 
 **Does not:** flip `[mesh] ensure`. Add a host route. Freeze the node
-document. Rank several eligible kits.
-Treat a capture preview as DisplaySink. Persist the last sink across
+document. Treat a capture preview as DisplaySink. Persist the last sink across
 host restarts. Write `agent.toml`, a kit file, an image, or an SD card.
 
 ---
@@ -402,27 +411,21 @@ Advertisement silence still does not release the kit lease.
 
 ---
 
-## Parked for Deano
+## Deano's decisions
 
-**Placement order.** Not locked.
+**Placement order.** Locked by Deano, 2026-09-27: [Decision
+7](mesh-lan.md#7-placement-policy) in [`mesh-lan.md`](mesh-lan.md) as
+written. Household display preference or last play sink first
+(living-room kit HDMI over a Mac shell). FPGA execute uses that kit's
+DisplaySink. Near the shell only for the same seat or a Phase 4
+captured remote sink. A V4L2 or ShadowCast-class preview is not a
+DisplaySink. The default sofa path does not ask which machine. An
+optional advanced override exists for a power user. Item 3 reads "an
+ABI / `core_package` exists" as the `abis` list from
+`GET /v1/mesh/content/node`, not the DNS-SD family list. That read is
+not a response freeze.
 
-Strawman, still unsigned: [Decision 7](mesh-lan.md#7-placement-policy) in
-[`mesh-lan.md`](mesh-lan.md). Household display preference or last
-play sink first (living-room kit HDMI over a Mac shell). FPGA execute
-uses that kit's DisplaySink. Near the shell only for the same seat or
-a Phase 4 captured remote sink. A V4L2 or ShadowCast-class preview is
-not a DisplaySink. The default sofa path does not ask which machine.
-An optional advanced override exists for a power user.
-
-`internal/meshplace` implements that strawman as Slice 1 and does not
-treat it as signed. Item 3 reads "an ABI / `core_package` exists" as
-the `abis` list from `GET /v1/mesh/content/node`, the same read Slice
-1 names. The DNS-SD family list is not that test. A later lock can
-change the order in [`mesh-lan.md`](mesh-lan.md) without a second
-design. Do not describe the strawman as Deano's choice. Naming the
-existing read does not sign Decision 7 and does not freeze the node
-response.
-
-**Which `native_emu` node wins.** Set for now by Deano, 2026-09-27:
-the first candidate wins. A defined order or a selection comes later
-and replaces it without a second design. Slice 7 applies it.
+**Tie-breaks.** Set for now by Deano, 2026-09-27: when Decision 7
+leaves several kits, or several `native_emu` nodes, the first
+candidate wins. A defined order or a selection comes later. Slice 7
+applies it.
