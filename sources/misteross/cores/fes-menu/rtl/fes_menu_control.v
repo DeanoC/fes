@@ -6,10 +6,13 @@ module fes_menu_control (
     input wire [7:0] index,
     input wire [15:0] argument,
     input wire [31:0] displayed_sequence, underflows,
-    output reg response_valid = 1'b0, response_error = 1'b0,
+    output reg response_valid = 1'b0,
+    output reg response_error = 1'b0,
     output reg [15:0] response_data = 16'd0,
-    output reg enable = 1'b0, quiesce = 1'b1,
-    output reg submit_valid = 1'b0, submit_slot = 1'b0,
+    output reg enable = 1'b0,
+    output reg quiesce = 1'b1,
+    output reg submit_valid = 1'b0,
+    output reg submit_slot = 1'b0,
     output reg [31:0] submit_sequence = 32'd0
 );
     reg configured = 1'b0, pending = 1'b0;
