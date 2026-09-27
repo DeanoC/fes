@@ -34,6 +34,12 @@ func (f hardwareMissingArtwork) Open(name string) (fs.File, error) {
 	return f.FS.Open(name)
 }
 
+// These tests verify rendering and refresh behavior, not execution speed.
+// Race instrumentation and shared CI scheduling can exceed production deadlines.
+func hardwareRenderTestBudget() rooms.Budget {
+	return rooms.Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second}
+}
+
 // TestHardwareRoomNativeRender uses the embedded production Lua, real display
 // list replay and native software renderer. Fixtures are host data, not hardware
 // acceptance. Set FES_ROOM_SCREENSHOT_DIR to retain the rendered PNGs for review.
@@ -80,7 +86,7 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 				app.session = *data.Session
 				app.roomDuringPlay = scene == "running"
 				w, h := app.roomContentSizeLocked(hardwareRoomID)
-				inst, err := rooms.New(selectedPack, rooms.Options{Width: w, Height: h, Services: hardwareRenderServices{snapshot: data}, Index: index})
+				inst, err := rooms.New(selectedPack, rooms.Options{Width: w, Height: h, Services: hardwareRenderServices{snapshot: data}, Index: index, Budget: hardwareRenderTestBudget()})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -171,15 +177,19 @@ func TestHardwareRoomReturnRefreshesProductionLua(t *testing.T) {
 	}}
 	app := NewApp(nil, 1280, 720, 20)
 	app.roomsIndex = index
-	inst, err := rooms.New(pack, rooms.Options{Width: 1280, Height: 668, Services: services, Index: index})
+	inst, err := rooms.New(pack, rooms.Options{Width: 1280, Height: 668, Services: services, Index: index, Budget: hardwareRenderTestBudget()})
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(inst.Close)
 	app.room = inst
 	if err := inst.Load(); err != nil {
 		t.Fatal(err)
 	}
 	hasText := func(s Snapshot, label string) bool {
+		if s.Room.Err != "" {
+			t.Fatalf("room failed: %s", s.Room.Err)
+		}
 		for _, op := range s.Room.Frame.Ops {
 			if op.Kind == rooms.OpText && op.Text == label {
 				return true

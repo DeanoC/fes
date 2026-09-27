@@ -122,6 +122,17 @@ build passed after these changes. Host service/API ran in 128.587s/7.556s and
 tenfoot in 26.980s. The original PR's Linux integration CI passed before this follow-up;
 its earlier green result does not validate these newer source bytes.
 
+## CI test-budget correction
+
+The follow-up CI host job at `630df0da` failed in the two production-Lua
+render/refresh tests because they inherited the 4–6 ms production wall-clock
+limits. Functional test instances now use explicit two-second budgets, matching
+the room-engine test convention, and close the refresh fixture on completion.
+Production budgets are unchanged. These tests verify rendering and state
+transitions; they do not establish production execution-time acceptance.
+Full rooms/tenfoot race suites passed (1.848s/27.019s); both failed CI tests
+also passed ten consecutive race runs with `GOMAXPROCS=1` (29.350s).
+
 ## Remaining acceptance gates
 
 No target was programmed, stopped, reset, deployed or otherwise controlled.
