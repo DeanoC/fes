@@ -11958,6 +11958,51 @@ test('controller launch and stop send client stamp headers', async () => {
 });
 
 
+test('keyboard HID events reach the host in order and failed releases are retried', async () => {
+  const core = { package_id: 'a'.repeat(64), generation: 2, gamepad: true, abi: { id: 'fes.computer', major: 1, minor: 0 },
+    active_interfaces: [{ id: 'fes.keyboard.hid', major: 1, minor: 0 }] };
+  const active = { state: 'active', execution: 'fpga_native', input: inputFixture(), core_package: core };
+  let releasePress;
+  const pressPending = new Promise(resolve => { releasePress = resolve; });
+  let inFlight = 0;
+  const hidResponse = (result) => async () => {
+    inFlight += 1;
+    assert.equal(inFlight, 1, 'HID requests overlapped');
+    try {
+      if (result === 'slow') await pressPending;
+      return result === 'fail' ? jsonResponse({ error: { code: 'MISTER_UNAVAILABLE', message: 'x' } }, 503) : jsonResponse({ ok: true });
+    } finally {
+      inFlight -= 1;
+    }
+  };
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [jsonResponse(active)],
+    '/api/v1/session/input/event': [hidResponse('slow'), hidResponse('fail'), hidResponse('ok'), hidResponse('ok'), hidResponse('ok')],
+  });
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  const hidPosts = () => calls.filter(call => call.path === '/api/v1/session/input/event')
+    .map(call => JSON.parse(call.options.body).event).map(event => [event.Code - 0x1000, event.Action]);
+
+  // A quick tap: the release is not sent until the slow press completes.
+  const press = controller.sendKeyboardHID(0x04, true);
+  const release = controller.sendKeyboardHID(0x04, false);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(hidPosts(), [[0x04, 1]]);
+  releasePress();
+  assert.equal(await press, true);
+  // The host rejected that release; it stays pending instead of being lost.
+  assert.equal(await release, false);
+  assert.deepEqual(hidPosts(), [[0x04, 1], [0x04, 0]]);
+
+  // The next event first retries the pending release, then delivers its own.
+  assert.equal(await controller.sendKeyboardHID(0x05, true), true);
+  assert.deepEqual(hidPosts(), [[0x04, 1], [0x04, 0], [0x04, 0], [0x05, 1]]);
+  assert.equal(await controller.sendKeyboardHID(0x05, false), true);
+  assert.equal(await controller.flushKeyboardHID(), true);
+  assert.deepEqual(hidPosts(), [[0x04, 1], [0x04, 0], [0x04, 0], [0x05, 1], [0x05, 0]]);
+});
+
 test('launchBlockReason requires selected ROM readiness', () => {
   const ready = { launchable: true, state: 'available', root_online: true };
   assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'This game’s required BIOS is not ready.');
@@ -11966,4 +12011,42 @@ test('launchBlockReason requires selected ROM readiness', () => {
   assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: false }), 'This game’s required ROM is not ready.');
   assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: true }), '');
   assert.equal(launchBlockReason({ ...ready, rom_required: false, rom_ready: false }), '');
+});
+
+test('keyboard HID sessions forward physical keys as HID usages', async () => {
+  const { hidUsageForCode, keyboardHIDEventRequest } = require('./ui_app.js');
+  for (const [code, usage] of [['KeyA', 0x04], ['KeyZ', 0x1d], ['Digit1', 0x1e], ['Digit0', 0x27], ['Escape', 0x29],
+    ['Backspace', 0x2a], ['Enter', 0x28], ['ArrowUp', 0x52], ['F13', 0x68], ['Numpad0', 0x62], ['ShiftRight', 0xe5], ['MetaLeft', 0xe3]]) {
+    assert.equal(hidUsageForCode(code), usage, code);
+  }
+  for (const code of ['', 'IntlRo', 'MediaPlayPause', 'constructor', undefined]) assert.equal(hidUsageForCode(code), 0);
+  const spec = keyboardHIDEventRequest(0x29, true);
+  assert.equal(spec.path, '/api/v1/session/input/event');
+  assert.equal(spec.options.method, 'POST');
+  assert.deepEqual(JSON.parse(spec.options.body), { event: { Player: 0, Device: 0, Kind: 0, Action: 1, Code: 0x1000 + 0x29, Value: 0 } });
+
+  const core = (abi, hid) => ({ package_id: 'a'.repeat(64), generation: 2, gamepad: true, abi: { id: abi, major: 1, minor: 0 },
+    active_interfaces: [{ id: hid, major: 1, minor: 0 }] });
+  assert.equal(parseSession({ state: 'active', core_package: core('fes.computer', 'fes.keyboard.hid') }).keyboard_hid, true);
+  assert.equal(parseSession({ state: 'active', core_package: core('fes.simple-computer', 'fes.keyboard.hid') }).keyboard_hid, undefined);
+  assert.equal(parseSession({ state: 'active', core_package: core('fes.computer', 'fes.keyboard') }).keyboard_hid, undefined);
+  assert.equal(parseSession({ state: 'idle' }).keyboard_hid, undefined);
+
+  const active = { state: 'active', execution: 'fpga_native', input: inputFixture(), core_package: core('fes.computer', 'fes.keyboard.hid') };
+  const detached = { ...active, input: { ...inputFixture(), state: 'detached', ready: false } };
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [jsonResponse(active), jsonResponse(detached)],
+    '/api/v1/session/input/event': [jsonResponse({ ok: true }), jsonResponse({ ok: true })],
+  });
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  assert.equal(controller.keyboardHIDAllowed(), true);
+  assert.equal(await controller.sendKeyboardHID(0x2a, true), true);
+  assert.equal(await controller.sendKeyboardHID(0x2a, false), true);
+  const posts = calls.filter(call => call.path === '/api/v1/session/input/event').map(call => JSON.parse(call.options.body).event);
+  assert.deepEqual(posts.map(event => [event.Code, event.Action]), [[0x1000 + 0x2a, 1], [0x1000 + 0x2a, 0]]);
+  await controller.loadSession();
+  assert.equal(controller.keyboardHIDAllowed(), false);
+  assert.equal(await controller.sendKeyboardHID(0x04, true), false);
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/input/event').length, 2);
 });

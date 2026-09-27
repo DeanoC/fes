@@ -21,7 +21,7 @@ type coreMediaCapabilitiesService interface {
 }
 
 func validCoreMediaPair(role, id string) bool {
-	return role == "" && id == "" || role == "blob" && corePackageIDRE.MatchString(id)
+	return role == "" && id == "" || (role == "blob" || role == protocol.DiskRole) && corePackageIDRE.MatchString(id)
 }
 
 func registerCoreMediaLibrary(mux *http.ServeMux, service Service) {

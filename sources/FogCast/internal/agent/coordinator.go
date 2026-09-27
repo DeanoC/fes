@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type Runtime interface {
@@ -333,11 +334,13 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	active.CorePackage = &protocol.CorePackageStatus{
-		ROMLink:     activation.ROMLink,
-		ROMLinks:    activation.ROMLinks,
-		Composition: activation.Composition,
-		MediaStream: activation.MediaStream,
-		PackageID:   activation.PackageID, Generation: activation.Generation,
+		ROMLink:         activation.ROMLink,
+		ROMLinks:        activation.ROMLinks,
+		Composition:     activation.Composition,
+		SlotComposition: activation.SlotComposition,
+		MediaStream:     activation.MediaStream,
+		MediaUnits:      activation.MediaUnits,
+		PackageID:       activation.PackageID, Generation: activation.Generation,
 		ABI: protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID,
 			Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces,
@@ -542,6 +545,14 @@ func cloneStatus(status protocol.Status) protocol.Status {
 		if status.CorePackage.Composition != nil {
 			compositionCopy := *status.CorePackage.Composition
 			packageCopy.Composition = &compositionCopy
+		}
+		if status.CorePackage.SlotComposition != nil {
+			slotsCopy := *status.CorePackage.SlotComposition
+			slotsCopy.Expansions = append([]expansion.SlotExpansion(nil), slotsCopy.Expansions...)
+			packageCopy.SlotComposition = &slotsCopy
+		}
+		if status.CorePackage.MediaUnits != nil {
+			packageCopy.MediaUnits = append([]protocol.MediaUnitStatus(nil), status.CorePackage.MediaUnits...)
 		}
 		packageCopy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), status.CorePackage.ActiveInterfaces...)
 		if status.CorePackage.MediaStream != nil {

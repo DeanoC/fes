@@ -51,8 +51,8 @@ func (s *Service) CoreMediaCapabilities(ctx context.Context, id string) (protoco
 	return protocol.CoreMediaCapabilities{
 		PackageID: inspection.PackageID, Source: "declared-contract",
 		Compatibility: "unknown", ImportMaxBytes: catalog.MaxCoreMediaBytes,
-		Media:     protocol.DeclaredCoreMediaCapabilities(inspection.Descriptor),
-		Firmware:  protocol.DeclaredFirmwareCapabilities(inspection.Descriptor),
+		Media:    protocol.DeclaredCoreMediaCapabilities(inspection.Descriptor),
+		Firmware: protocol.DeclaredFirmwareCapabilities(inspection.Descriptor),
 	}, nil
 }
 
@@ -101,6 +101,9 @@ type coreEntryMedia struct {
 	io.ReadCloser
 	size   int64
 	stream bool
+	// unit names the fes.computer media unit a removable disk is inserted
+	// into after Start; nil keeps the launch-time load_media delivery.
+	unit *uint8
 }
 
 func (m *coreEntryMedia) Close() error {
@@ -122,7 +125,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	if role == "" && id == "" {
 		return nil, nil
 	}
-	if role != "blob" || protocol.ValidateDigest(id) != nil {
+	if (role != "blob" && role != protocol.DiskRole) || protocol.ValidateDigest(id) != nil {
 		return nil, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	var capability *protocol.CoreMediaCapability
@@ -156,7 +159,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), closeErr)
 	}
 	// OpenCoreMedia returns a verified private snapshot, not a live SQL cursor.
-	return &coreEntryMedia{ReadCloser: reader, size: media.Size, stream: capability.Interface == protocol.MediaStreamInterface()}, nil
+	return &coreEntryMedia{ReadCloser: reader, size: media.Size, stream: capability.Interface == protocol.MediaStreamInterface(), unit: capability.Unit}, nil
 }
 
 func mapCoreMediaError(err error) error {

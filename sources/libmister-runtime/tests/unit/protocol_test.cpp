@@ -15,6 +15,7 @@
 #include "daemon/json.hpp"
 #include "daemon/protocol.hpp"
 #include "native/core_package.hpp"
+#include "native/sha256.hpp"
 
 namespace {
 
@@ -693,6 +694,310 @@ void TestFormat3InspectionSerialization()
 		RomPackageResponseFixtures());
 }
 
+void TestComputerOperationRequests()
+{
+	const std::string id(64, 'a');
+	const std::string hid_prefix = "{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"package_id\":\"" +
+		id + "\",\"expected_generation\":7,\"rows\":";
+	Request request;
+	assert(Parse(hid_prefix + "[16,0,256,0,0,0,0,32768,2]}", &request).ok());
+	assert(request.operation == Operation::set_keyboard_hid && request.package_id == id &&
+		request.expected_generation == 7);
+	assert(request.keyboard_rows == (mister::KeyboardHidRows{{16, 0, 256, 0, 0, 0, 0, 32768, 2}}));
+	assert(Parse(hid_prefix + "[65520,65535,65535,65535,65535,65535,65535,65535,255]}", &request).ok());
+	for (const auto* rows : {"[0,0,0,0,0,0,0,0]", "[0,0,0,0,0,0,0,0,0,0]", "[1,0,0,0,0,0,0,0,0]",
+			"[8,0,0,0,0,0,0,0,0]", "[0,0,0,0,0,0,0,0,256]", "[0,65536,0,0,0,0,0,0,0]",
+			"[0,-1,0,0,0,0,0,0,0]", "[0,\"1\",0,0,0,0,0,0,0]", "[0,true,0,0,0,0,0,0,0]",
+			"[0,null,0,0,0,0,0,0,0]", "{}", "0"})
+		ExpectError(hid_prefix + rows + "}", ErrorCode::invalid_request);
+	ExpectError(hid_prefix + "[0,0,0,0,0,0,0,0,0],\"extra\":0}", ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"package_id\":\"" + id +
+		"\",\"expected_generation\":0,\"rows\":[0,0,0,0,0,0,0,0,0]}", ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"package_id\":\"" + id +
+		"\",\"rows\":[0,0,0,0,0,0,0,0,0]}", ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":2,\"operation\":\"set_keyboard_hid\",\"package_id\":\"" +
+		std::string(64, 'A') + "\",\"expected_generation\":1,\"rows\":[0,0,0,0,0,0,0,0,0]}",
+		ErrorCode::invalid_request);
+
+	const std::string insert = "{\"protocol\":2,\"operation\":\"insert_media\",\"path\":\"/media/dos33.dsk\","
+		"\"expected_package_id\":\"" + id + "\",\"expected_generation\":9,\"unit\":0,\"size\":143360}";
+	assert(Parse(insert, &request).ok());
+	assert(request.operation == Operation::insert_media && request.media_path == "/media/dos33.dsk");
+	assert(request.expected_package_id == id && request.expected_generation == 9);
+	assert(request.media_unit == 0 && request.media_size == 143360);
+	for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+		{"\"unit\":0", "\"unit\":8"}, {"\"unit\":0", "\"unit\":-1"}, {"\"unit\":0", "\"unit\":\"0\""},
+		{"\"size\":143360", "\"size\":0"}, {"\"size\":143360", "\"size\":33554433"},
+		{"\"size\":143360", "\"size\":1.5"}, {",\"size\":143360", ""}, {",\"unit\":0", ""},
+		{"/media/dos33.dsk", "media/dos33.dsk"}, {"\"expected_generation\":9", "\"expected_generation\":0"},
+		{"\"size\":143360", "\"size\":143360,\"extra\":1"}}) {
+		auto bad = insert;
+		bad.replace(bad.find(replacement.first), replacement.first.size(), replacement.second);
+		ExpectError(bad, ErrorCode::invalid_request);
+	}
+	assert(Parse(std::string(insert).replace(insert.find("\"unit\":0"), 8, "\"unit\":7"), &request).ok());
+	assert(request.media_unit == 7);
+	assert(Parse(std::string(insert).replace(insert.find("\"size\":143360"), 13, "\"size\":33554432"),
+		&request).ok());
+	const std::string eject = "{\"protocol\":2,\"operation\":\"eject_media\",\"expected_package_id\":\"" +
+		id + "\",\"expected_generation\":18446744073709551615,\"unit\":0}";
+	assert(Parse(eject, &request).ok());
+	assert(request.operation == Operation::eject_media && request.media_unit == 0);
+	assert(request.expected_generation == 18446744073709551615ull);
+	for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+		{"\"unit\":0", "\"unit\":8"}, {",\"unit\":0", ""},
+		{"\"unit\":0", "\"unit\":0,\"path\":\"/media/a.dsk\""},
+		{"\"unit\":0", "\"unit\":0,\"size\":143360"}}) {
+		auto bad = eject;
+		bad.replace(bad.find(replacement.first), replacement.first.size(), replacement.second);
+		ExpectError(bad, ErrorCode::invalid_request);
+	}
+}
+
+std::string SlotTuple(const std::string& package, const std::string& slots)
+{
+	const std::string digest(64, 'e');
+	return "{\"composition_id\":\"" + digest + "\",\"package_id\":\"" + package +
+		"\",\"expansions\":" + slots + ",\"shell_sha256\":\"" + digest + "\",\"payload_sha256\":\"" +
+		digest + "\",\"payload_size\":40408}";
+}
+
+void TestSlotCompositionProtocol()
+{
+	const std::string id(64, 'a');
+	const std::string card4(64, '4'), card6(64, '6');
+	const std::string paths = "[{\"slot\":4,\"path\":\"/cards/4\"},{\"slot\":6,\"path\":\"/cards/6\"}]";
+	const std::string slots = "[{\"slot\":4,\"expansion_id\":\"" + card4 + "\"},{\"slot\":6,\"expansion_id\":\"" +
+		card6 + "\"}]";
+	const std::string prefix = "{\"protocol\":2,\"operation\":\"load_composed_core\",\"package_path\":\"/base\","
+		"\"package_id\":\"" + id + "\",";
+	const std::string composed = prefix + "\"expansions\":" + paths +
+		",\"payload_path\":\"/composition/linked.rbf\",\"composition\":" + SlotTuple(id, slots) + "}";
+	Request request;
+	assert(Parse(composed, &request).ok());
+	assert(request.operation == Operation::load_composed_core && request.package_id == id);
+	const auto& parsed = request.composition_request;
+	assert(parsed.expansion_path.empty() && parsed.payload_path == "/composition/linked.rbf");
+	assert(parsed.expansions.size() == 2 && parsed.expansions[0].slot == 4 &&
+		parsed.expansions[0].path == "/cards/4" && parsed.expansions[1].slot == 6);
+	assert(parsed.composition.expansion_id.empty() && parsed.composition.expansions.size() == 2);
+	assert(parsed.composition.expansions[1].slot == 6 &&
+		parsed.composition.expansions[1].expansion_id == card6);
+	assert(parsed.composition.id == std::string(64, 'e') && parsed.composition.payload_size == 40408);
+	const std::string link = "{\"rom_id\":\"apple2-firmware\",\"map_sha256\":\"" + id + "\",\"source_sha256\":\"" +
+		id + "\",\"source_size\":16384,\"programmed_sha256\":\"" + id + "\",\"programmed_size\":40408}";
+	const std::string rom = "{\"protocol\":2,\"operation\":\"load_rom_composed_core\",\"package_path\":\"/base\","
+		"\"package_id\":\"" + id + "\",\"expansions\":" + paths + ",\"payload_path\":\"/composition/linked.rbf\","
+		"\"composition\":" + SlotTuple(id, slots) + ",\"programmed_path\":\"/programmed.rbf\",\"rom_link\":" + link + "}";
+	assert(Parse(rom, &request).ok());
+	assert(request.operation == Operation::load_rom_composed_core);
+	assert(request.composition_request.expansions.size() == 2 && request.rom_link.source_size == 16384);
+	const std::string initialized = "{\"protocol\":2,\"operation\":\"load_initialized_composed_core\","
+		"\"package_path\":\"/base\",\"package_id\":\"" + id + "\",\"expansions\":" + paths +
+		",\"payload_path\":\"/composition/linked.rbf\",\"composition\":" + SlotTuple(id, slots) +
+		",\"programmed_path\":\"/programmed.rbf\",\"programmed_sha256\":\"" + id + "\"}";
+	assert(Parse(initialized, &request).ok());
+	assert(request.operation == Operation::load_initialized_composed_core);
+	assert(request.composition_request.composition.expansions.size() == 2);
+	// Non-composed operations never accept expansions.
+	ExpectError("{\"protocol\":2,\"operation\":\"load_rom_core\",\"package_path\":\"/base\",\"package_id\":\"" + id +
+		"\",\"expansions\":" + paths + ",\"programmed_path\":\"/p.rbf\",\"rom_link\":" + link + "}",
+		ErrorCode::invalid_request);
+	for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+		{paths, "[]"},
+		{paths, "[{\"slot\":6,\"path\":\"/cards/6\"},{\"slot\":4,\"path\":\"/cards/4\"}]"},
+		{paths, "[{\"slot\":4,\"path\":\"/cards/4\"},{\"slot\":4,\"path\":\"/cards/6\"}]"},
+		{paths, "[{\"slot\":0,\"path\":\"/cards/4\"},{\"slot\":6,\"path\":\"/cards/6\"}]"},
+		{paths, "[{\"slot\":4,\"path\":\"/cards/4\"},{\"slot\":8,\"path\":\"/cards/6\"}]"},
+		{paths, "[{\"slot\":4,\"path\":\"cards/4\"},{\"slot\":6,\"path\":\"/cards/6\"}]"},
+		{paths, "[{\"slot\":4},{\"slot\":6,\"path\":\"/cards/6\"}]"},
+		{paths, "[{\"slot\":4,\"path\":\"/cards/4\",\"id\":1},{\"slot\":6,\"path\":\"/cards/6\"}]"},
+		{paths, "{\"slot\":4,\"path\":\"/cards/4\"}"},
+		{slots, "[{\"slot\":4,\"expansion_id\":\"" + card4 + "\"}]"},
+		{slots, "[{\"slot\":4,\"expansion_id\":\"" + card4 + "\"},{\"slot\":7,\"expansion_id\":\"" + card6 + "\"}]"},
+		{slots, "[{\"slot\":4,\"expansion_id\":\"" + card4 + "\"},{\"slot\":6,\"expansion_id\":\"" +
+			std::string(64, 'G') + "\"}]"},
+		{slots, "[{\"slot\":4,\"expansion_id\":\"" + card4 + "\"},{\"slot\":6}]"},
+		{"\"expansions\":" + slots, "\"expansion_id\":\"" + card4 + "\""},
+		{"\"payload_size\":40408", "\"payload_size\":40407"},
+		{"\"payload_size\":40408", "\"payload_size\":33554433"},
+		{"\"payload_path\":\"/composition/linked.rbf\"", "\"payload_path\":\"relative.rbf\""},
+		{"\"payload_path\":\"/composition/linked.rbf\",", ""},
+		{"\"expansions\":" + paths, "\"expansions\":" + paths + ",\"expansion_path\":\"/cards/4\""}}) {
+		auto bad = composed;
+		const auto at = bad.find(replacement.first);
+		assert(at != std::string::npos);
+		bad.replace(at, replacement.first.size(), replacement.second);
+		ExpectError(bad, ErrorCode::invalid_request);
+	}
+	// The tuple binds the requested package.
+	auto other = composed;
+	other.replace(other.rfind(id), id.size(), std::string(64, 'b'));
+	ExpectError(other, ErrorCode::invalid_request);
+	// Slot compositions serialize the same tuple under active_package.composition.
+	Status status;
+	status.active_package.package_id = id;
+	status.active_package.composition = parsed.composition;
+	const auto encoded = mister::daemon::EncodeResponse(2, true, status, "test");
+	assert(encoded.find("\"composition\":{\"composition_id\":\"" + std::string(64, 'e') +
+		"\",\"package_id\":\"" + id + "\",\"expansions\":" + slots + ",\"shell_sha256\":\"" +
+		std::string(64, 'e') + "\",\"payload_sha256\":\"" + std::string(64, 'e') +
+		"\",\"payload_size\":40408}") != std::string::npos);
+	assert(encoded.find("\"expansion_id\":\"\"") == std::string::npos);
+}
+
+mister::CoreDescriptor ComputerFixtureDescriptor(bool media)
+{
+	mister::CoreDescriptor descriptor = FixtureDescriptor();
+	descriptor.format = 3;
+	descriptor.core.id = "fes.apple2";
+	descriptor.core.name = "Synthetic FES Apple II";
+	descriptor.abi = {"fes.computer", 1, 0};
+	descriptor.rom = {"apple2-firmware", "firmware", 16384, "rom-map.json", 72424,
+		"6dee28d88fbd574c21abc83e2b2a24ebc5c4685215cfd363ee122f6f01ba33fe"};
+	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true},
+		{"fes.keyboard.hid", 1, 0, true}};
+	if (media) {
+		descriptor.interfaces.push_back({"fes.gamepad.ports", 1, 0, true});
+		descriptor.interfaces.push_back({"fes.audio.pcm-s16-stereo-48k", 1, 0, true});
+		descriptor.interfaces.push_back({"fes.media.apple2-floppy", 1, 0, true});
+		descriptor.interfaces.push_back({"fes.expansion.apple2-bus", 1, 0, false});
+	}
+	return descriptor;
+}
+
+// Emitted with the production serializer; fixture updates are never hand JSON.
+std::vector<std::string> ComputerResponseFixtures()
+{
+	Status status;
+	status.state = State::idle;
+	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1"};
+	status.capabilities.rom_linking = 1;
+	status.capabilities.abis = {
+		{"fes.application", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
+			{"fes.expansion.coleco-bus", 1, 0}, {"fes.firmware.blob", 1, 0},
+			{"fes.gamepad", 1, 0}, {"fes.gamepad.ports", 1, 0}, {"fes.keypad.ports", 1, 0},
+			{"fes.media.blob", 1, 0}, {"fes.media.blob-stream", 1, 0},
+			{"fes.video.fixed-720p60", 1, 0}}},
+		{"fes.computer", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
+			{"fes.expansion.apple2-bus", 1, 0}, {"fes.gamepad.ports", 1, 0},
+			{"fes.keyboard.hid", 1, 0}, {"fes.media.apple2-floppy", 1, 0},
+			{"fes.video.fixed-720p60", 1, 0}}},
+		{"fes.simple-computer", 1, 0, {{"fes.expansion.zx81-bus", 1, 0}, {"fes.keyboard", 1, 0},
+			{"fes.media.blob", 1, 0}, {"fes.media.blob-stream", 1, 0},
+			{"fes.video.fixed-720p60", 1, 0}}},
+		{"fes.simple-game", 1, 0, {{"fes.gamepad", 1, 0}, {"fes.persistence.words", 1, 0},
+			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}}};
+	std::vector<std::string> lines;
+	// Idle runtime advertises the computer ABI and its interfaces.
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+
+	// Running Apple II loaded with load_rom_core: unit 0 discovered empty.
+	status.state = State::running_development;
+	status.execution = Execution::development;
+	status.core = "fes.apple2";
+	status.generation = 3;
+	status.core_data.mode = "volatile";
+	status.active_package.package_id = std::string(64, 'a');
+	status.active_package.descriptor = ComputerFixtureDescriptor(true);
+	status.active_package.observed = {status.active_package.descriptor.abi,
+		status.active_package.descriptor.build.id};
+	auto& link = status.active_package.rom_link;
+	link.rom_id = "apple2-firmware";
+	link.map_sha256 = status.active_package.descriptor.rom.sha256;
+	link.source_sha256 = std::string(64, 'f');
+	link.source_size = 16384;
+	link.programmed_sha256 = std::string(64, '9');
+	link.programmed_size = 1816338;
+	status.capabilities.active_interfaces = {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
+		{"fes.expansion.apple2-bus", 1, 0}, {"fes.gamepad.ports", 1, 0}, {"fes.keyboard.hid", 1, 0},
+		{"fes.media.apple2-floppy", 1, 0}, {"fes.video.fixed-720p60", 1, 0}};
+	mister::MediaUnitCapability unit;
+	unit.unit = 0;
+	unit.interface = {"fes.media.apple2-floppy", 1, 0};
+	unit.min_bytes = 143360;
+	unit.max_bytes = 143360;
+	unit.chunk_bytes = 512;
+	unit.state = mister::MediaUnitState::empty;
+	status.capabilities.media_units = {unit};
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+
+	// insert_media succeeded: unit 0 ready.
+	status.capabilities.media_units[0].state = mister::MediaUnitState::ready;
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+
+	// insert_media failed and its single eject also failed: not known ready,
+	// execution still released and the generation still active.
+	status.capabilities.media_units[0].state = mister::MediaUnitState::loading;
+	status.error = {ErrorCode::io_failed,
+		"FES GP command rejected with response 3; media eject failed: FES GP exchange "
+		"deadline exceeded: opcode=10 index=0 request=1 ack=0", "input"};
+	lines.push_back(mister::daemon::EncodeResponse(2, false, status, "fixture"));
+	status.error = {};
+
+	// Multi-slot composition loaded with load_rom_composed_core.
+	status.generation = 4;
+	status.capabilities.media_units[0].state = mister::MediaUnitState::empty;
+	auto& composition = status.active_package.composition;
+	composition.package_id = status.active_package.package_id;
+	composition.expansions = {{4, std::string(64, '4')}, {7, std::string(64, '7')}};
+	composition.shell_sha256 = status.active_package.descriptor.payload.sha256;
+	composition.payload_sha256 = std::string(64, 'd');
+	composition.payload_size = 1816338;
+	// Physical sockets and the canonical misteross SlotCompositionID, so host
+	// decoders that recompute the identity accept this status.
+	std::string canonical("fes-composition-v2\0", 19);
+	canonical += composition.package_id + std::string(1, '\0');
+	for (const auto& slot : composition.expansions)
+		canonical += std::to_string(slot.slot) + ":" + slot.expansion_id + std::string(1, '\0');
+	canonical += composition.payload_sha256;
+	mister::native::Sha256 hasher;
+	hasher.Update(canonical.data(), canonical.size());
+	composition.id = mister::native::Sha256Hex(hasher.Final());
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+
+	// A computer without media interfaces still reports an empty unit list.
+	status.generation = 5;
+	status.active_package.composition = {};
+	status.active_package.descriptor = ComputerFixtureDescriptor(false);
+	status.capabilities.active_interfaces = {{"fes.keyboard.hid", 1, 0},
+		{"fes.video.fixed-720p60", 1, 0}};
+	status.capabilities.media_units.clear();
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+
+	// A keyboard snapshot for a package without fes.keyboard.hid is rejected.
+	status.error = {ErrorCode::unsupported_interface,
+		"keyboard HID requires fes.computer with fes.keyboard.hid", "compatibility"};
+	status.generation = 6;
+	status.core = "fes.application-demo";
+	status.active_package.descriptor = FixtureDescriptor();
+	status.active_package.descriptor.core.id = "fes.application-demo";
+	status.active_package.descriptor.core.name = "Synthetic FES application";
+	status.active_package.descriptor.abi = {"fes.application", 1, 0};
+	status.active_package.descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
+	status.active_package.observed = {status.active_package.descriptor.abi,
+		status.active_package.descriptor.build.id};
+	status.active_package.rom_link = {};
+	status.capabilities.active_interfaces = {{"fes.video.fixed-720p60", 1, 0}};
+	lines.push_back(mister::daemon::EncodeResponse(2, false, status, "fixture"));
+	return lines;
+}
+
+void TestComputerResponseFixtures()
+{
+	const auto lines = ComputerResponseFixtures();
+	assert(ReadLines("tests/fixtures/protocol-v2-computer-responses.jsonl") == lines);
+	assert(lines[0].find("\"media_units\"") == std::string::npos);
+	assert(lines[1].find("\"media_units\":[{\"unit\":0,\"interface\":{\"id\":\"fes.media.apple2-floppy\","
+		"\"major\":1,\"minor\":0},\"min_bytes\":143360,\"max_bytes\":143360,\"chunk_bytes\":512,"
+		"\"state\":\"empty\"}]") != std::string::npos);
+	assert(lines[2].find("\"state\":\"ready\"") != std::string::npos);
+	assert(lines[3].find("\"state\":\"loading\"") != std::string::npos);
+	assert(lines[4].find("\"expansions\":[{\"slot\":4,") != std::string::npos);
+	assert(lines[5].find("\"media_units\":[]") != std::string::npos);
+	assert(lines[6].find("\"media_units\"") == std::string::npos);
+}
+
 int main(int argc, char** argv)
 {
  TestRetiredProtocolRejected();
@@ -709,7 +1014,14 @@ int main(int argc, char** argv)
 		for (const auto& line : RomPackageResponseFixtures()) std::cout << line << '\n';
 		return 0;
 	}
+	if (argc == 2 && std::string(argv[1]) == "--emit-computer-fixtures") {
+		for (const auto& line : ComputerResponseFixtures()) std::cout << line << '\n';
+		return 0;
+	}
 	assert(argc == 1);
+	TestComputerOperationRequests();
+	TestSlotCompositionProtocol();
+	TestComputerResponseFixtures();
 	TestFormat3InspectionSerialization();
 	TestROMLoadProtocol();
 	TestTwoSourceROMLoadProtocol();
@@ -732,5 +1044,5 @@ int main(int argc, char** argv)
 	TestSyntaxAndShapeFailures();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 21 tests passed\n";
+	std::cout << "protocol_test: 24 tests passed\n";
 }

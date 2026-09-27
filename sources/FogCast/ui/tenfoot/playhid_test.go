@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -242,5 +243,66 @@ func TestPlaySessionMouseDoesNotStealNativeAffinity(t *testing.T) {
 	}
 	if got := app.Snapshot().Grid.Focus; got != 0 {
 		t.Fatalf("play-session mouse stole focus %d", got)
+	}
+}
+
+func TestKeyboardHIDSessionForwardsEscBackspaceAsUsages(t *testing.T) {
+	t.Parallel()
+	var stops atomic.Int64
+	codes := make(chan remoteinput.Event, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session/stop":
+			stops.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case "/api/v1/session/input/event":
+			var body struct {
+				Event remoteinput.Event `json:"event"`
+			}
+			data, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(data, &body)
+			codes <- body.Event
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok":true}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	app := pointerCatalog(4)
+	app.client = NewClient(server.URL, server.Client())
+	app.session = hostclient.SessionResult{
+		State:           "active",
+		CoreKeyboardHID: true,
+		Input:           &hostclient.SessionInput{State: "attached", Ready: true},
+	}
+	if !app.ForwardsCoreKeyboard() {
+		t.Fatal("HID session must keep pointer browse off the core keyboard")
+	}
+	for _, key := range []struct {
+		name  string
+		usage uint8
+	}{{"escape", 0x29}, {"backspace", 0x2a}, {"/", 0x38}, {"a", 0x04}} {
+		if !app.HandlePlayHIDScancode(key.name, key.usage, true, time.Now()) {
+			t.Fatalf("%s not consumed", key.name)
+		}
+		select {
+		case got := <-codes:
+			usage, ok := hidkeys.Usage(got.Code)
+			if !ok || usage != key.usage || got.Device != remoteinput.DeviceKeyboard || got.Action != remoteinput.ActionPress {
+				t.Fatalf("%s posted %+v", key.name, got)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("%s not forwarded", key.name)
+		}
+	}
+	if stops.Load() != 0 || app.Snapshot().Session.Stopping {
+		t.Fatal("HID Esc/Backspace stopped the session")
+	}
+	// Without the HID interface the named-key chrome path is unchanged.
+	app.session.CoreKeyboardHID = false
+	if !app.HandlePlayHIDScancode("escape", 0x29, true, time.Now()) || !app.Snapshot().Session.Stopping {
+		t.Fatal("non-HID Esc lost its stop chrome")
 	}
 }

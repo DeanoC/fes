@@ -636,6 +636,46 @@ void TestProtocol2InspectionActivationDiagnosticAndBothStops()
 	Contains(response, "\"state\":\"idle\"");
 }
 
+void TestComputerOperationsDispatchThroughController()
+{
+	Fixture fixture;
+	auto& descriptor = fixture.hardware.core_info.descriptor;
+	descriptor.abi = {"fes.computer", 1, 0};
+	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true},
+		{"fes.keyboard.hid", 1, 0, true}, {"fes.media.apple2-floppy", 1, 0, true}};
+	mister::MediaUnitCapability unit;
+	unit.interface = {"fes.media.apple2-floppy", 1, 0};
+	unit.min_bytes = unit.max_bytes = 143360;
+	unit.chunk_bytes = 512;
+	fixture.hardware.supported.media_units = {unit};
+	fixture.Start();
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	std::string response = controller.Handle(kLoad);
+	Contains(response, "\"media_units\":[{\"unit\":0,\"interface\":{\"id\":\"fes.media.apple2-floppy\","
+		"\"major\":1,\"minor\":0},\"min_bytes\":143360,\"max_bytes\":143360,\"chunk_bytes\":512,"
+		"\"state\":\"empty\"}]");
+	response = controller.Handle(std::string("{\"protocol\":2,\"operation\":\"set_keyboard_hid\","
+		"\"package_id\":\"") + kPackageId + "\",\"expected_generation\":1,\"rows\":[16,0,0,0,0,0,0,0,2]}");
+	Contains(response, "\"ok\":true");
+	assert(fixture.hardware.keyboard_hid_calls == 1 && fixture.hardware.keyboard_hid_rows[8] == 2);
+	fixture.hardware.on_insert_media = [&] {
+		fixture.hardware.supported.media_units[0].state = mister::MediaUnitState::ready;
+	};
+	response = controller.Handle(std::string("{\"protocol\":2,\"operation\":\"insert_media\","
+		"\"path\":\"/tmp/fogcast-development/media/dos33.dsk\",\"expected_package_id\":\"") + kPackageId +
+		"\",\"expected_generation\":1,\"unit\":0,\"size\":143360}");
+	Contains(response, "\"ok\":true");
+	Contains(response, "\"state\":\"ready\"");
+	assert(fixture.hardware.insert_media_path == "/tmp/fogcast-development/media/dos33.dsk");
+	fixture.hardware.eject_media_result = {mister::ErrorCode::io_failed, "eject failed", "input"};
+	response = controller.Handle(std::string("{\"protocol\":2,\"operation\":\"eject_media\","
+		"\"expected_package_id\":\"") + kPackageId + "\",\"expected_generation\":1,\"unit\":0}");
+	Contains(response, "\"ok\":false");
+	Contains(response, "\"error\":{\"code\":\"io_failed\",\"message\":\"eject failed\",\"phase\":\"input\"}");
+	Contains(response, "\"state\":\"running_development\"");
+	assert(fixture.hardware.eject_media_calls == 1);
+}
+
 void TestProtocol1RequestsAreRejectedWithoutMutation()
 {
 	Fixture fixture;
@@ -1206,6 +1246,7 @@ int main()
 	TestOversizedVersionUsesBoundedValidFallback();
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
-	puts("daemon_server_test: 31 passed");
+	TestComputerOperationsDispatchThroughController();
+	puts("daemon_server_test: 32 passed");
 	return 0;
 }

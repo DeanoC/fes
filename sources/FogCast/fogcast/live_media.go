@@ -16,7 +16,12 @@ type liveMediaClient interface {
 
 // ReplaceLiveMedia arms a household core-media id into the active generation
 // via the mid-session live path. It does not inject LOAD "" keys.
+// A .dsk/.do name selects the fes.computer disk unit instead; see
+// replaceLiveDisk.
 func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	if protocol.AdmitDiskMediaName(name) {
+		return s.replaceLiveDisk(parent, mediaID, name, b)
+	}
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitTapeMediaName(name) {
 		return protocol.Status{}, protocol.LiveMediaRequestError()
 	}
@@ -116,13 +121,29 @@ func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.Developme
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
-	loader, ok := client.(liveMediaClient)
-	if !ok {
-		return protocol.Status{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
-	}
 	prior, err := client.Status(ctx)
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+	}
+	if unit := diskUnitBinding(b); unit.Matches(prior) {
+		// A fes.computer session ejects its disk unit; ZX81 tape clearing
+		// below is unchanged.
+		units, ok := client.(mediaUnitClient)
+		if !ok {
+			return protocol.Status{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
+		status, err := units.EjectMedia(ctx, unit)
+		if err != nil {
+			return status, preserveCorePackageError(err)
+		}
+		if state, ok := protocol.MediaUnit(status.CorePackage, unit.Unit); !unit.Matches(status) || !ok || state.State != protocol.MediaUnitEmpty {
+			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+		}
+		return s.retainLiveSessionIdentity(status, b), nil
+	}
+	loader, ok := client.(liveMediaClient)
+	if !ok {
+		return protocol.Status{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
 	if !b.MatchesLive(prior) {
 		return prior, protocol.LiveMediaIdentityError()

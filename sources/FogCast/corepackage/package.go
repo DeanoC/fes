@@ -131,6 +131,11 @@ type Staged struct {
 	rootInfo           os.FileInfo
 	publication        string
 	publicationInfo    os.FileInfo
+
+	// SlotComposition and SlotDirectories describe a multi-socket shell with
+	// one staged card directory per selected physical slot.
+	SlotComposition *expansion.SlotComposition `json:"slot_composition,omitempty"`
+	SlotDirectories []SlotDirectory            `json:"slot_directories,omitempty"`
 }
 
 // RetainProgrammedBitstream stores bytes beside this publication. Cleanup
@@ -298,8 +303,14 @@ func adoptOpenedRoot(root string, rootHandle *os.Root, rootInfo os.FileInfo) ([]
 			PackageID: packageID, Descriptor: inspection.Descriptor,
 			root: root, rootInfo: openedRoot, publication: name,
 			publicationInfo: publicationInfo})
-		if err := adoptComposition(rootHandle, &adopted[len(adopted)-1]); err != nil {
+		slots, err := adoptSlotComposition(rootHandle, &adopted[len(adopted)-1])
+		if err != nil {
 			return nil, err
+		}
+		if !slots {
+			if err := adoptComposition(rootHandle, &adopted[len(adopted)-1]); err != nil {
+				return nil, err
+			}
 		}
 		if err := adoptROMInput(rootHandle, &adopted[len(adopted)-1]); err != nil {
 			return nil, err

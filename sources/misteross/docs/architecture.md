@@ -477,6 +477,21 @@ every other outside change. This patch does not enlarge the socket rectangle.
 Changed Coleco frames regenerate their checksums; the existing ZX81 `Link`
 behavior and output remain unchanged.
 
+The Apple II slot bus `fes.expansion.apple2-bus` 1.0 uses the multi-socket
+layout `fes.apple2-bus.slots/1`: physical sockets for slots 2, 4, 5 and 7,
+stacked in placement columns 24–28 at rows 1–18, 21–38, 41–58 and 61–78, with
+disjoint half-open CRAM rectangles `(1769,32,2806,1722)`,
+`(1769,1722,2806,3442)`, `(1769,3442,2806,5162)` and `(1769,5162,2806,6882)`.
+Each card manifest carries `slot_index` (sorted between `slot` and
+`slot_major`); single-socket manifests must omit it. `ComposeSlotsContext`
+links any combination of cards, comparing every card with the original
+shell and admitting its changes only inside its own rectangle, and
+`ComposeSlotsROM` adds the format-3 ROM link, rejecting ROM destinations in
+any socket. The v2 composition ID is SHA256 of `fes-composition-v2`, NUL,
+package ID, NUL, `slot:expansion-id` NUL per card in ascending slot order,
+then the linked-payload SHA256. The single-socket `Compose` path rejects
+multi-socket cards.
+
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
 frames and regenerate the affected EDCRC/CRC16 checksums, preserving other CRAM
@@ -1204,6 +1219,44 @@ build retains the pre-synthesis input record and diagnostic reports but removes
 the RBF, manifest and passing summary so they cannot be mistaken for an
 exportable result. The recipe checkpoint itself has no FES Pong RBF, physical
 video result or hardware-support claim.
+
+## FES Apple II
+
+`cores/fes-apple2` is `fes.apple2`, an Apple II+ class home computer on the
+`fes.computer` 1.0 mailbox. Its machine, video, Disk II, slot bus and open
+diagnostic are described in [its README](../cores/fes-apple2/README.md).
+Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
+`rtl/cpu6502` (Arlet Ottens, module names only changed) and the generic
+`rtl/fes_computer_mailbox.v` endpoint, which replays the mister-packages
+`computer-exchanges.json` golden exchanges in `make sim-fes-apple2-mailbox`.
+The endpoint owns no storage: accepted media words appear on a write port for
+their acknowledging clock and `unit0_state` gates presentation of unit 0.
+
+`make build-fes-apple2` (`scripts/build_fes_apple2_oss.py`,
+`toolchains/apple2.lock`, `make toolchain-fes-apple2`) seals a format-3
+package from a clean committed tree. Its single ROM is `apple2-firmware`,
+role `firmware`, 16,384 bytes on the blank column-5 lanes at rows 32–47.
+The shell QSF adds the four named `FES_RESERVED_RECT` regions of
+`scripts/apple2_slots.py`; the producer requires every socket to hold only
+its pinned boundary flip-flops and every firmware destination to fall
+outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
+6–10 at HeAP weight 2000 and takes the first route that closes 52.224 MHz
+system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
+memory maps to an M10K without a clock in this toolchain, so the font M10K
+is instantiated explicitly (`rtl/apple2_video.v`) and the audio mix is
+pipelined. The package declares `fes.expansion.apple2-bus` 1.0 optional.
+
+`scripts/build_apple2_slot_card.py` builds one card for one physical slot
+against the exact sealed shell and its frozen `routed.json`: the scaffold
+renames only that slot's boundary flip-flops to `plug_addr_ff_N` /
+`plug_rdata_ff_N` (the other sockets keep their instance names, so nextpnr
+finds exactly one plug set), removes that slot's clock-coverage flip-flop,
+and reattaches the system PLL's second output as the Coleco card flow does.
+nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
+`--fes-cram-region`; the producer requires the three shell clocks and no CRAM
+change outside the socket, then publishes a two-member archive whose
+manifest carries `slot_index`. `expansion/cmd/fes-slot-link` composes any set
+of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## Shared native kit client
 

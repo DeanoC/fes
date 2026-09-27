@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -21,11 +22,11 @@ func TestDeclaredFirmwareCapabilitiesFollowContractNotCoreID(t *testing.T) {
 		got := DeclaredFirmwareCapabilities(descriptor)
 		want := CoreMediaCapability{Role: FirmwareRole, Format: "raw", MinBytes: FirmwareBytes, MaxBytes: FirmwareBytes,
 			Interface: RuntimeContract{ID: FirmwareInterfaceID, Major: 1}, Transport: "fes-application-mailbox-firmware-v1"}
-		if len(got) != 1 || got[0] != want || !DeclaresFirmwareSlot(descriptor) {
+		if len(got) != 1 || !reflect.DeepEqual(got[0], want) || !DeclaresFirmwareSlot(descriptor) {
 			t.Fatalf("%s: %+v", id, got)
 		}
 		got[0].MaxBytes = 1
-		if DeclaredFirmwareCapabilities(descriptor)[0] != want {
+		if !reflect.DeepEqual(DeclaredFirmwareCapabilities(descriptor)[0], want) {
 			t.Fatal("capability state leaked across calls")
 		}
 	}

@@ -5,8 +5,8 @@ The former standalone repository is archived.
 
 The C++14 library and local `mister-runtime` daemon own FPGA programming,
 physical lifecycle, media/input delivery, and recovery. FES described packages are the only product launch path. The installed driver supports
-`fes.simple-game`, `fes.simple-computer`, and `fes.application` through
-`fes-gp-v1`. Protocol 2 is the only local socket protocol.
+`fes.simple-game`, `fes.simple-computer`, `fes.application`, and
+`fes.computer` through `fes-gp-v1`. Protocol 2 is the only local socket protocol.
 
 Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
@@ -31,7 +31,7 @@ records a retired path and does not validate the current package artifacts.
 Build and validate with `make all` and `make test`. See
 [architecture](ARCHITECTURE.md), [support matrix](docs/support-matrix.md),
 [development](DEVELOPMENT.md), [application I/O](docs/application-io.md),
-[stream media](docs/media-stream.md), and
+[home-computer I/O](docs/computer-io.md), [stream media](docs/media-stream.md), and
 [core persistence](docs/core-persistence.md).
 
 The default build uses `-O2`, including appliance builds. Package admission

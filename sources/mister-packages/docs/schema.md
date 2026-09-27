@@ -298,6 +298,12 @@ Application firmware `fes.firmware.blob` 1.0 is capability bit 7 with opcodes
 or optional. See [application I/O](application-io.md). The in-tree runtime
 consumer revision is recorded in `testdata/oracles/fes-application-firmware.json`.
 
+`packages/abi/fes_computer.yaml` adds ABI `fes.computer` 1.0, tag 4, on
+`fes-gp-v1`, with the `FesComputer` prefix. It carries USB HID key state,
+controller ports, fixed audio and removable media units that transfer and eject
+while execution runs. See [home-computer I/O](computer-io.md). It adds one
+registry pair and no manifest-schema change.
+
 The optional registry extension `fes.media.blob-stream` 1.0 uses capability
 bit 3 and opcodes 7..12; new SMS packages declare it required alongside the
 legacy required interfaces. See [the authoritative stream contract](media-stream.md).
@@ -320,6 +326,10 @@ profiles:
         major: 1
       - id: fes.simple-computer
         major: 1
+      - id: fes.application
+        major: 1
+      - id: fes.computer
+        major: 1
   - id: development-contained-v1
     diagnostic_only: true
     abis: []
@@ -327,8 +337,8 @@ profiles:
 
 Profile IDs are unique. A normal profile contains one or more unique ABI-major
 pairs; a diagnostic-only profile contains no pair. The DE10-Nano registry
-contains `fes-gp-v1` paired with
-`fes.simple-game` major 1 and `fes.simple-computer` major 1.
+contains `fes-gp-v1` paired with `fes.simple-game`, `fes.simple-computer`,
+`fes.application` and `fes.computer`, each major 1.
 `development-contained-v1` is explicitly diagnostic-only and has no ABI
 fallback. MiSTer ABI packages are not activatable.
 

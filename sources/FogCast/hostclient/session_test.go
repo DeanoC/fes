@@ -124,6 +124,27 @@ func TestDecodeSessionPreservesKitFieldsAndUint64Precision(t *testing.T) {
 	}
 }
 
+func TestDecodeSessionRecognizesExactComputerKeyboardHID(t *testing.T) {
+	body := func(abi, keyboard string) []byte {
+		return []byte(`{"state":"active","execution":"fpga_native","core_package":{"package_id":"` + strings.Repeat("a", 64) +
+			`","generation":3,"gamepad":true,"abi":{"id":"` + abi + `","major":1,"minor":0},"active_interfaces":[` + keyboard + `]}}`)
+	}
+	hid := `{"id":"fes.keyboard.hid","major":1,"minor":0}`
+	result, err := DecodeSession(http.StatusOK, body("fes.computer", hid))
+	if err != nil || !result.CoreKeyboardHID || result.CoreKeyboard {
+		t.Fatalf("computer HID = %+v %v", result, err)
+	}
+	for name, raw := range map[string][]byte{
+		"other abi":       body("fes.simple-computer", hid),
+		"future hid":      body("fes.computer", `{"id":"fes.keyboard.hid","major":2,"minor":0}`),
+		"matrix keyboard": body("fes.computer", `{"id":"fes.keyboard","major":1,"minor":0}`),
+	} {
+		if result, err := DecodeSession(http.StatusOK, raw); err != nil || result.CoreKeyboardHID {
+			t.Fatalf("%s: %+v %v", name, result, err)
+		}
+	}
+}
+
 func TestDecodeSessionPreservesStructuredError(t *testing.T) {
 	result, err := DecodeSession(http.StatusConflict, []byte(`{"error":{"code":"KIT_LEASE_BLOCKED","message":"another session owns the kit"}}`))
 	if err != nil {

@@ -17,6 +17,9 @@ var ErrInvalidCoreExpansion = errors.New("catalog expansion is invalid")
 type CoreExpansion struct {
 	ExpansionID string `json:"expansion_id"`
 	PackageID   string `json:"package_id"`
+	// Slot is the physical socket of a multi-socket card; zero is omitted for
+	// single-socket expansions.
+	Slot int `json:"slot,omitempty"`
 }
 
 type CoreEntryExpansion struct {
@@ -35,14 +38,14 @@ func (s *Store) ImportCoreExpansion(ctx context.Context, asset expansion.Asset) 
 	if err != nil {
 		return CoreExpansion{}, err
 	}
-	if _, err = s.db.ExecContext(ctx, `INSERT INTO core_expansions(expansion_id,media_id,shell_package_id) VALUES(?,?,?) ON CONFLICT(expansion_id) DO NOTHING`, asset.ID, object.MediaID, asset.Manifest.ShellPackageID); err != nil {
+	if _, err = s.db.ExecContext(ctx, `INSERT INTO core_expansions(expansion_id,media_id,shell_package_id,slot_index) VALUES(?,?,?,?) ON CONFLICT(expansion_id) DO NOTHING`, asset.ID, object.MediaID, asset.Manifest.ShellPackageID, asset.Manifest.SlotIndex); err != nil {
 		return CoreExpansion{}, err
 	}
-	return CoreExpansion{ExpansionID: asset.ID, PackageID: asset.Manifest.ShellPackageID}, nil
+	return CoreExpansion{ExpansionID: asset.ID, PackageID: asset.Manifest.ShellPackageID, Slot: asset.Manifest.SlotIndex}, nil
 }
 
 func (s *Store) CoreExpansions(ctx context.Context) ([]CoreExpansion, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT expansion_id,shell_package_id FROM core_expansions ORDER BY expansion_id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT expansion_id,shell_package_id,slot_index FROM core_expansions ORDER BY expansion_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +53,7 @@ func (s *Store) CoreExpansions(ctx context.Context) ([]CoreExpansion, error) {
 	result := []CoreExpansion{}
 	for rows.Next() {
 		var row CoreExpansion
-		if err = rows.Scan(&row.ExpansionID, &row.PackageID); err != nil {
+		if err = rows.Scan(&row.ExpansionID, &row.PackageID, &row.Slot); err != nil {
 			return nil, err
 		}
 		result = append(result, row)
@@ -63,7 +66,8 @@ func (s *Store) ReadCoreExpansion(ctx context.Context, id string) (expansion.Ass
 		return expansion.Asset{}, ErrInvalidCoreExpansion
 	}
 	var mediaID, packageID string
-	err := s.db.QueryRowContext(ctx, `SELECT media_id,shell_package_id FROM core_expansions WHERE expansion_id=?`, id).Scan(&mediaID, &packageID)
+	var slot int
+	err := s.db.QueryRowContext(ctx, `SELECT media_id,shell_package_id,slot_index FROM core_expansions WHERE expansion_id=?`, id).Scan(&mediaID, &packageID, &slot)
 	if errors.Is(err, sql.ErrNoRows) {
 		return expansion.Asset{}, ErrCoreExpansionNotFound
 	}
@@ -76,7 +80,7 @@ func (s *Store) ReadCoreExpansion(ctx context.Context, id string) (expansion.Ass
 	}
 	defer reader.Close()
 	asset, err := expansion.ReadAsset(reader)
-	if err != nil || asset.ID != id || asset.Manifest.ShellPackageID != packageID {
+	if err != nil || asset.ID != id || asset.Manifest.ShellPackageID != packageID || asset.Manifest.SlotIndex != slot {
 		return expansion.Asset{}, ErrInvalidCoreExpansion
 	}
 	return asset, nil

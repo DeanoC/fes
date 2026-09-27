@@ -9,7 +9,7 @@ import subprocess
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms')
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2')
 EXPANSION_ROOT = 'sources/misteross/expansion'
 
 
@@ -35,7 +35,7 @@ COLECO_CONSUMERS = ('coleco', 'sg1000', 'sms')
 CORE_DIRECTORIES = {
     'fes-demo': ('demo',), 'fes-pong': ('demo', 'pong'), 'pong': ('pong',),
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
-    'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',),
+    'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
 }
 SHARED_RTL = {
     'coleco_vdp.sv': COLECO_CONSUMERS,
@@ -46,9 +46,12 @@ SHARED_RTL = {
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco'),
     'fes_video_720p.v': ('demo', 'pong'),
-    'fes_audio_i2s.v': ('demo', 'coleco'), 'fes_audio_pll.v': ('demo',),
-    'fes_audio_output.v': ('coleco',), 'fes_sn76489.sv': ('coleco',),
+    'fes_audio_i2s.v': ('demo', 'coleco', 'apple2'), 'fes_audio_pll.v': ('demo',),
+    'fes_audio_output.v': ('coleco', 'apple2'), 'fes_sn76489.sv': ('coleco',),
+    'fes_computer_mailbox.v': ('apple2',),
 }
+# Apple II socket generator and card producer regenerate or build its RTL.
+APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
 
 
 def fpga_cores(path):
@@ -69,6 +72,8 @@ def fpga_cores(path):
         if parts[1:3] == ('fes-common', 'rtl'):
             if len(parts) >= 5 and parts[3] == 'tv80':
                 return COLECO_CONSUMERS, 'shared TV80 consumers'
+            if len(parts) >= 5 and parts[3] == 'cpu6502':
+                return ('apple2',), 'shared 6502 consumers'
             if len(parts) == 4 and parts[3] in SHARED_RTL:
                 return SHARED_RTL[parts[3]], 'shared RTL consumers'
     if len(parts) == 2 and parts[0] == 'scripts':
@@ -78,6 +83,8 @@ def fpga_cores(path):
             return (), 'FPGA producer/package software tests; RTL unchanged'
         if parts[1] == 'sim_fes_demo.py':
             return ('demo',), 'demo simulation recipe'
+        if parts[1] in APPLE2_SCRIPTS:
+            return ('apple2',), 'Apple II socket/card recipe'
     if len(parts) == 2 and parts[0] == 'tests' and any(
             fnmatchcase(parts[1], pattern) for pattern in FPGA_SOFTWARE_TESTS):
         return (), 'FPGA producer/package software tests; RTL unchanged'

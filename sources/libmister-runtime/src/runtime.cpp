@@ -5,6 +5,7 @@
 #include "native/diagnostic.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/generated/fes_computer.hpp"
 
 #include <algorithm>
 #include <condition_variable>
@@ -82,6 +83,16 @@ std::vector<SupportedInterface> ActiveInterfaces(
 			return left.id < right.id;
 		});
 	return result;
+}
+
+bool DeclaresComputerInterface(const CoreDescriptor& descriptor, const char* id)
+{
+	if (descriptor.abi.id != native::generated::FesComputerABIID) return false;
+	for (const CoreInterface& interface : descriptor.interfaces)
+		if (interface.id == id && interface.required && interface.major == 1 &&
+			interface.minor == 0)
+			return true;
+	return false;
 }
 
 } // namespace
@@ -362,13 +373,16 @@ public:
 			if (rom_links) status_.active_package.rom_links = *rom_links;
 			if (info.descriptor.abi.id == "fes.simple-game" ||
 				info.descriptor.abi.id == "fes.simple-computer" ||
-				info.descriptor.abi.id == "fes.application") {
+				info.descriptor.abi.id == "fes.application" ||
+				info.descriptor.abi.id == native::generated::FesComputerABIID) {
 				status_.active_package.observed.abi = info.descriptor.abi;
 				status_.active_package.observed.build_id = info.descriptor.build.id;
 			}
 			status_.capabilities.active_interfaces = ActiveInterfaces(
 				info.descriptor, status_.capabilities);
-			status_.capabilities.media_stream = hardware_.capabilities().media_stream;
+			const Capabilities observed = hardware_.capabilities();
+			status_.capabilities.media_stream = observed.media_stream;
+			status_.capabilities.media_units = observed.media_units;
 			if (status_.capabilities.media_stream.interface.id.empty()) {
 				auto& interfaces = status_.capabilities.active_interfaces;
 				interfaces.erase(std::remove_if(interfaces.begin(), interfaces.end(),
@@ -673,6 +687,91 @@ public:
 		return error;
 	}
 
+	Error SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
+		const KeyboardHidRows& rows)
+	{
+		using namespace native::generated;
+		if (!ValidPackageId(package_id) || generation == 0 ||
+			(rows[0] & FesComputerKeyboardReservedRow0Mask) != 0 ||
+			(rows[FesComputerKeyboardModifierRow] & ~FesComputerKeyboardModifierMask) != 0)
+			return Invalid("invalid keyboard HID snapshot");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state != State::running_development)
+				return Busy("keyboard session is not available");
+			if (generation != active_generation_ || generation != status_.generation ||
+				package_id != status_.active_package.package_id)
+				return Invalid("keyboard package or generation changed");
+			if (!DeclaresComputerInterface(status_.active_package.descriptor,
+				FesComputerInterfaceKeyboardHidID))
+				return {ErrorCode::unsupported_interface,
+					"keyboard HID requires fes.computer with fes.keyboard.hid", "compatibility"};
+			busy_ = true;
+		}
+		const Error error = hardware_.SetKeyboardHid(rows);
+		// A failed row exchange may have applied part of the snapshot. Retire this
+		// generation through the one-shot input fault cleanup, as for controllers.
+		if (!error.ok() && error.code != ErrorCode::invalid_request &&
+			error.code != ErrorCode::unsupported_interface)
+			ReportHardwareFault({generation, error});
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		return error;
+	}
+
+	Error InsertMedia(const std::string& path, const std::string& package_id,
+		std::uint64_t generation, std::uint8_t unit, std::uint32_t size)
+	{
+		using namespace native::generated;
+		if (!ValidAbsolutePath(path) || !ValidPackageId(package_id) || generation == 0 ||
+			unit >= FesComputerMediaUnitCount || size < FesComputerMediaMinBytes ||
+			size > FesComputerMediaMaxBytes)
+			return Invalid("invalid media unit request");
+		std::string system, core;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			if (!rejected.ok()) return rejected;
+			for (const MediaUnitCapability& observed : status_.capabilities.media_units)
+				if (observed.unit == unit && (size < observed.min_bytes || size > observed.max_bytes))
+					return Invalid("media size is outside the observed unit limits");
+			busy_ = true;
+			system = status_.system;
+			core = status_.core;
+		}
+		// Execution stays released. A failed transfer ejects the unit once in the
+		// driver and leaves the generation running.
+		const Error error = hardware_.InsertComputerMedia(unit, path, size);
+		FinishMediaUnit();
+		Log("insert_media", system, core, error.ok() ? "running" : "request", error);
+		return error;
+	}
+
+	Error EjectMedia(const std::string& package_id, std::uint64_t generation,
+		std::uint8_t unit)
+	{
+		if (!ValidPackageId(package_id) || generation == 0 ||
+			unit >= native::generated::FesComputerMediaUnitCount)
+			return Invalid("invalid media unit request");
+		std::string system, core;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			if (!rejected.ok()) return rejected;
+			busy_ = true;
+			system = status_.system;
+			core = status_.core;
+		}
+		const Error error = hardware_.EjectComputerMedia(unit);
+		FinishMediaUnit();
+		Log("eject_media", system, core, error.ok() ? "running" : "request", error);
+		return error;
+	}
+
 	Error Stop()
 	{
 		LogRecord immediate;
@@ -794,6 +893,37 @@ public:
 	}
 
 	private:
+	// Caller holds mutex_. Media units bind the exact active fes.computer
+	// generation and one of its declared, observed units.
+	Error AdmitMediaUnit(const std::string& package_id, std::uint64_t generation,
+		std::uint8_t unit) const
+	{
+		if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+			status_.state != State::running_development)
+			return Busy("FES computer is not available");
+		if (generation != active_generation_ || generation != status_.generation ||
+			package_id != status_.active_package.package_id)
+			return Invalid("media package or generation changed");
+		if (status_.active_package.descriptor.abi.id != native::generated::FesComputerABIID)
+			return {ErrorCode::unsupported_interface, "media units require fes.computer",
+				"compatibility"};
+		for (const MediaUnitCapability& observed : status_.capabilities.media_units)
+			if (observed.unit == unit) return {};
+		return {ErrorCode::unsupported_interface,
+			"media unit is not declared by the active computer", "compatibility"};
+	}
+
+	void FinishMediaUnit()
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			// Publish the driver's unit state from its last live exchange.
+			status_.capabilities.media_units = hardware_.capabilities().media_units;
+			busy_ = false;
+		}
+		condition_.notify_all();
+	}
+
 	Error RestoreAfterSaveFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
 		std::uint64_t generation, const Error& cause)
@@ -842,6 +972,7 @@ public:
 		result.state = state;
 		result.capabilities = hardware_.capabilities();
 		result.capabilities.media_stream = {};
+		result.capabilities.media_units.clear();
 		return result;
 	}
 
@@ -1090,6 +1221,21 @@ Error Runtime::LoadComputerMediaStream(const std::string& path,
 {
 	return impl_->LoadComputerMediaStream(path, package_id, generation, size);
 }
+Error Runtime::SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
+	const KeyboardHidRows& rows)
+{
+	return impl_->SetKeyboardHid(package_id, generation, rows);
+}
+Error Runtime::InsertMedia(const std::string& path, const std::string& package_id,
+	std::uint64_t generation, std::uint8_t unit, std::uint32_t size)
+{
+	return impl_->InsertMedia(path, package_id, generation, unit, size);
+}
+Error Runtime::EjectMedia(const std::string& package_id, std::uint64_t generation,
+	std::uint8_t unit)
+{
+	return impl_->EjectMedia(package_id, generation, unit);
+}
 Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 {
 	return impl_->LoadDevelopmentRBF(rbf);
@@ -1142,6 +1288,16 @@ const char* ExecutionName(Execution execution)
 	switch (execution) {
 	case Execution::none: return "none";
 	case Execution::development: return "development";
+	}
+	return "invalid";
+}
+
+const char* MediaUnitStateName(MediaUnitState state)
+{
+	switch (state) {
+	case MediaUnitState::empty: return "empty";
+	case MediaUnitState::loading: return "loading";
+	case MediaUnitState::ready: return "ready";
 	}
 	return "invalid";
 }

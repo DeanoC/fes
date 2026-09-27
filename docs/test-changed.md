@@ -37,6 +37,8 @@ Make parallelism; values from 1 through 32 are accepted.
 
 `AGENTS.md` changes count as behavioral inputs. Renames select both old and new
 owners. Shared Coleco VDP, RAM and TV80 changes select Coleco, SG-1000 and SMS.
+The shared 6502, `fes.computer` mailbox and the Apple II socket generator and
+card producer select Apple II; the shared I2S audio units also select it.
 The Coleco directory conservatively selects those same consumers because its
 generated headers are shared. Pong's directory also selects the demo, which
 uses its board models. New shared units, unclassified scripts, build graph

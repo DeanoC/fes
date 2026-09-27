@@ -858,6 +858,7 @@
     const media = optionalSessionString(payload, 'media', 'The local host returned an invalid session media state.');
     const progress = own(payload, 'progress') ? parseSessionProgress(payload.progress) : undefined;
     const input = own(payload, 'input') ? parseSessionInput(payload.input) : undefined;
+    const keyboardHID = active && sessionHasKeyboardHID(payload.core_package);
     const flightRaw = optionalSessionString(payload, 'flight_id', 'The local host returned an invalid session flight id.');
     const flightID = flightRaw && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(flightRaw)
       ? flightRaw.toLowerCase()
@@ -870,7 +871,18 @@
     if (progress !== undefined) result.progress = progress;
     if (input !== undefined) result.input = input;
     if (flightID !== undefined) result.flight_id = flightID;
+    if (keyboardHID) result.keyboard_hid = true;
     return Object.freeze(result);
+  }
+
+  // fes.computer 1.0 packages with fes.keyboard.hid 1.0 take physical key
+  // state; other versions are not assumed compatible.
+  function sessionHasKeyboardHID(core) {
+    if (!core || typeof core !== 'object' || Array.isArray(core)) return false;
+    const abi = core.abi;
+    if (!abi || abi.id !== 'fes.computer' || abi.major !== 1 || abi.minor !== 0) return false;
+    return Array.isArray(core.active_interfaces) && core.active_interfaces.some(contract =>
+      contract && contract.id === 'fes.keyboard.hid' && contract.major === 1 && contract.minor === 0);
   }
 
   function sessionViewState(session) {
@@ -921,6 +933,48 @@
 
   function detachInputRequest() {
     return { path: '/api/v1/session/input/detach', options: { method: 'POST' } };
+  }
+
+  // KeyboardEvent.code to USB HID Keyboard/Keypad usage (page 0x07). Only
+  // usages 0x04..0x7f and the modifiers 0xe0..0xe7 fit fes.keyboard.hid 1.0.
+  // The browser forwards physical keys; the core maps every character.
+  const HID_KEY_CODE_BASE = 0x1000;
+  const HID_USAGE_BY_CODE = (() => {
+    const table = {
+      Enter: 0x28, Escape: 0x29, Backspace: 0x2a, Tab: 0x2b, Space: 0x2c, Minus: 0x2d, Equal: 0x2e,
+      BracketLeft: 0x2f, BracketRight: 0x30, Backslash: 0x31, IntlHash: 0x32, Semicolon: 0x33, Quote: 0x34,
+      Backquote: 0x35, Comma: 0x36, Period: 0x37, Slash: 0x38, CapsLock: 0x39, PrintScreen: 0x46,
+      ScrollLock: 0x47, Pause: 0x48, Insert: 0x49, Home: 0x4a, PageUp: 0x4b, Delete: 0x4c, End: 0x4d,
+      PageDown: 0x4e, ArrowRight: 0x4f, ArrowLeft: 0x50, ArrowDown: 0x51, ArrowUp: 0x52, NumLock: 0x53,
+      NumpadDivide: 0x54, NumpadMultiply: 0x55, NumpadSubtract: 0x56, NumpadAdd: 0x57, NumpadEnter: 0x58,
+      NumpadDecimal: 0x63, IntlBackslash: 0x64, ContextMenu: 0x65, NumpadEqual: 0x67,
+      ControlLeft: 0xe0, ShiftLeft: 0xe1, AltLeft: 0xe2, MetaLeft: 0xe3,
+      ControlRight: 0xe4, ShiftRight: 0xe5, AltRight: 0xe6, MetaRight: 0xe7,
+    };
+    for (let i = 0; i < 26; i += 1) table['Key' + String.fromCharCode(65 + i)] = 0x04 + i;
+    for (let i = 1; i <= 9; i += 1) table['Digit' + i] = 0x1e + i - 1;
+    table.Digit0 = 0x27;
+    for (let i = 1; i <= 12; i += 1) table['F' + i] = 0x3a + i - 1;
+    for (let i = 13; i <= 24; i += 1) table['F' + i] = 0x68 + i - 13;
+    for (let i = 1; i <= 9; i += 1) table['Numpad' + i] = 0x59 + i - 1;
+    table.Numpad0 = 0x62;
+    return Object.freeze(table);
+  })();
+
+  function hidUsageForCode(code) {
+    const usage = typeof code === 'string' && own(HID_USAGE_BY_CODE, code) ? HID_USAGE_BY_CODE[code] : 0;
+    return Number.isInteger(usage) ? usage : 0;
+  }
+
+  function keyboardHIDEventRequest(usage, down) {
+    return {
+      path: '/api/v1/session/input/event',
+      options: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: { Player: 0, Device: 0, Kind: 0, Action: down ? 1 : 0, Code: HID_KEY_CODE_BASE + usage, Value: 0 } }),
+      },
+    };
   }
 
   function validateLaunchSuccess(payload, requestedID) {
@@ -1985,6 +2039,91 @@
       return mutateInput('detach');
     }
 
+    // Physical keys reach a fes.keyboard.hid core only through the attached,
+    // ready input stream of the authoritative active session.
+    function keyboardHIDAllowed() {
+      return Boolean(state.sessionAuthority === 'authoritative' && state.session &&
+        state.session.state === 'active' && state.session.keyboard_hid === true &&
+        state.session.input && state.session.input.state === 'attached' && state.session.input.ready);
+    }
+
+    // HID events are delivered one at a time in event order, so a quick tap's
+    // release cannot overtake its press. A release the host did not confirm
+    // stays pending and is retried before the next event and on a short,
+    // bounded timer; releasing an idle key is harmless.
+    const keyboardHIDRetryMs = 250;
+    const keyboardHIDRetryLimit = 8;
+    const keyboardHIDPendingReleases = new Set();
+    let keyboardHIDQueue = Promise.resolve();
+    let keyboardHIDRetryTimer = null;
+    let keyboardHIDRetries = 0;
+
+    async function postKeyboardHID(usage, down) {
+      const spec = keyboardHIDEventRequest(usage, down);
+      try {
+        await request(fetchImpl, spec.path, spec.options);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function enqueueKeyboardHID(job) {
+      const result = keyboardHIDQueue.then(job);
+      keyboardHIDQueue = result.catch(() => false);
+      return result;
+    }
+
+    async function retryKeyboardHIDReleases(except) {
+      for (const pending of Array.from(keyboardHIDPendingReleases)) {
+        if (pending !== except && await postKeyboardHID(pending, false)) keyboardHIDPendingReleases.delete(pending);
+      }
+    }
+
+    function settleKeyboardHIDRetries() {
+      if (keyboardHIDPendingReleases.size === 0) {
+        keyboardHIDRetries = 0;
+        return;
+      }
+      if (keyboardHIDRetryTimer !== null || keyboardHIDRetries >= keyboardHIDRetryLimit) return;
+      keyboardHIDRetries += 1;
+      keyboardHIDRetryTimer = setTimeout(() => {
+        keyboardHIDRetryTimer = null;
+        void flushKeyboardHID();
+      }, keyboardHIDRetryMs);
+      keyboardHIDRetryTimer?.unref?.();
+    }
+
+    async function deliverKeyboardHID(usage, down) {
+      if (!keyboardHIDAllowed()) {
+        if (!down) keyboardHIDPendingReleases.add(usage);
+        return false;
+      }
+      await retryKeyboardHIDReleases(usage);
+      const delivered = await postKeyboardHID(usage, down);
+      if (down || delivered) keyboardHIDPendingReleases.delete(usage);
+      else keyboardHIDPendingReleases.add(usage);
+      settleKeyboardHIDRetries();
+      return delivered;
+    }
+
+    // A press needs an attached HID session now; a release is always queued
+    // so an unconfirmed one is retried rather than dropped.
+    function sendKeyboardHID(usage, down) {
+      if (!Number.isInteger(usage) || usage <= 0) return Promise.resolve(false);
+      if (down && !keyboardHIDAllowed()) return Promise.resolve(false);
+      return enqueueKeyboardHID(() => deliverKeyboardHID(usage, Boolean(down)));
+    }
+
+    function flushKeyboardHID() {
+      if (keyboardHIDPendingReleases.size === 0) return Promise.resolve(true);
+      return enqueueKeyboardHID(async () => {
+        if (keyboardHIDAllowed()) await retryKeyboardHIDReleases();
+        settleKeyboardHIDRetries();
+        return keyboardHIDPendingReleases.size === 0;
+      });
+    }
+
     function catalogViewSort(collection, extraSort) {
       if (extraSort !== undefined) return extraSort;
       return catalogEffectiveSort({
@@ -2958,6 +3097,9 @@
       stopSession,
       attachInput,
       detachInput,
+      keyboardHIDAllowed,
+      sendKeyboardHID,
+      flushKeyboardHID,
       observeVisibleCovers,
       setCatalogFilter,
       setCatalogSort,
@@ -2987,6 +3129,8 @@
     stopRequest,
     attachInputRequest,
     detachInputRequest,
+    hidUsageForCode,
+    keyboardHIDEventRequest,
     parseSession,
     sessionViewState,
     launchStatus,
@@ -3480,7 +3624,47 @@
   let stopSessionButton;
   let attachInputButton;
   let detachInputButton;
+  let captureKeyboardButton;
   let sessionActionReason;
+  // Keyboard capture forwards every physical key, including Escape and
+  // Backspace, to a fes.keyboard.hid session. Stop stays on the Stop button.
+  const keyboardCapture = { active: false, held: new Set() };
+
+  function releaseCapturedKeys() {
+    for (const usage of keyboardCapture.held) void controller.sendKeyboardHID(usage, false);
+    keyboardCapture.held.clear();
+    void controller.flushKeyboardHID();
+  }
+
+  function stopKeyboardCapture() {
+    if (!keyboardCapture.active && keyboardCapture.held.size === 0) return;
+    releaseCapturedKeys();
+    keyboardCapture.active = false;
+  }
+
+  function toggleKeyboardCapture() {
+    if (keyboardCapture.active) {
+      stopKeyboardCapture();
+    } else if (controller.keyboardHIDAllowed()) {
+      keyboardCapture.active = true;
+    }
+    renderSession();
+  }
+
+  function forwardCapturedKey(event, down) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const usage = hidUsageForCode(event.code);
+    if (!usage) return;
+    if (down) {
+      if (event.repeat || keyboardCapture.held.has(usage)) return;
+      keyboardCapture.held.add(usage);
+    } else {
+      if (!keyboardCapture.held.has(usage)) return;
+      keyboardCapture.held.delete(usage);
+    }
+    void controller.sendKeyboardHID(usage, down);
+  }
 
   function sessionStatusText() {
     if (state.activeMutation === 'launch') return 'Launching session…';
@@ -3545,6 +3729,11 @@
       nodes.sessionDetails.appendChild(sessionFact('Input state', session.input.state));
       nodes.sessionDetails.appendChild(sessionFact('Input readiness', session.input.ready ? 'Ready' : 'Not ready'));
     }
+    if (session.keyboard_hid) {
+      nodes.sessionDetails.appendChild(sessionFact('Keyboard', keyboardCapture.active
+        ? 'Captured: every key, including Escape and Backspace, goes to the machine. Use Stop session to end play.'
+        : 'Capture the keyboard to type on the machine.'));
+    }
   }
 
   function renderSessionPreview() {
@@ -3594,6 +3783,13 @@
       detachInputButton.addEventListener('click', detachInput);
       nodes.sessionActions.appendChild(detachInputButton);
     }
+    if (!captureKeyboardButton) {
+      captureKeyboardButton = element('button', 'button secondary', 'Capture keyboard');
+      captureKeyboardButton.id = 'capture-session-keyboard';
+      captureKeyboardButton.type = 'button';
+      captureKeyboardButton.addEventListener('click', toggleKeyboardCapture);
+      nodes.sessionActions.appendChild(captureKeyboardButton);
+    }
     if (!sessionActionReason) {
       sessionActionReason = element('p', 'launch-reason');
       sessionActionReason.id = 'session-action-reason';
@@ -3611,6 +3807,8 @@
 
   function renderSession() {
     ensureSessionActions();
+    const canCapture = controller.keyboardHIDAllowed();
+    if (!canCapture) stopKeyboardCapture();
     const busy = Boolean(state.activeMutation) || state.sessionPhase === 'loading';
     nodes.sessionPanel.setAttribute('aria-busy', String(busy));
     nodes.sessionPanel.className = sessionNeedsAttention() ? 'session-panel' : 'session-panel session-quiet';
@@ -3648,6 +3846,9 @@
     attachInputButton.disabled = Boolean(conflictReason) || !canAttach;
     detachInputButton.hidden = !canDetach && state.activeMutation !== 'detach';
     detachInputButton.disabled = Boolean(conflictReason) || !canDetach;
+    captureKeyboardButton.hidden = !canCapture;
+    captureKeyboardButton.textContent = keyboardCapture.active ? 'Release keyboard' : 'Capture keyboard';
+    captureKeyboardButton.setAttribute('aria-pressed', String(keyboardCapture.active));
     sessionActionReason.textContent = conflictReason || (!hasActiveSession ? stopReason : inputReason);
     const stopRefreshDescribed = Boolean(conflictReason) || Boolean(!hasActiveSession && stopReason);
     const inputDescribed = Boolean(conflictReason) || Boolean(hasActiveSession && inputReason);
@@ -5692,7 +5893,18 @@
   if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', bumpSettingsGeneration);
   if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', bumpSettingsGeneration);
   if (typeof document.addEventListener === 'function') {
+    document.addEventListener('keyup', event => {
+      if (keyboardCapture.active) forwardCapturedKey(event, false);
+    });
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      // Key releases are lost while the page is unfocused; release held keys.
+      window.addEventListener('blur', releaseCapturedKeys);
+    }
     document.addEventListener('keydown', event => {
+      if (keyboardCapture.active) {
+        forwardCapturedKey(event, true);
+        return;
+      }
       if (coreLibraryIsOpen()) return;
       if (attractActive) {
         event.preventDefault?.();

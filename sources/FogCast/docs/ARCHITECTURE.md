@@ -521,6 +521,39 @@ needed, then arms with `POST /api/v1/session/live-media`. The same overlay can
 eject through `POST /api/v1/session/live-media/clear`. It retries loader `BUSY`
 and leaves the session active when eject reports unavailable.
 
+### Removable disks (fes.computer media units)
+
+A `fes.computer` package declaring `fes.media.apple2-floppy` 1.0 projects
+media role `disk` (`protocol.DeclaredCoreMediaCapabilities`): format
+`apple2-dos-order`, exactly 143,360 bytes, names `.dsk`/`.do`, transport
+`fes-computer-media-unit-v1`, unit 0. Library selection
+(`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
+13) validates the exact size offline. A home computer starts with its drives
+empty: launch programs the package first and then inserts the selected disk
+into its unit; a failed insert is a failed launch and follows the existing
+library-slot Stop/recovery. The same session accepts later swaps:
+`POST /api/v1/session/live-media` with a `.dsk`/`.do` name inserts a household
+disk, and `…/live-media/clear` ejects it when the active generation has the
+floppy unit; `.p` names keep the ZX81 tape path. The CLI equivalents are
+`fogcast change-disk MEDIA_ID_OR_.dsk/.do_PATH` and `fogcast eject-disk`.
+
+`fogcast/media_units.go` binds each request to the package, generation, target
+and unit (`protocol.MediaUnitBinding`) and admits only the observed unit's
+limits from `core_package.media_units`. `targetclient/media_units.go` streams
+the exact bytes to authenticated target `POST /v1/development/insert-media`
+(fixed `Content-Length`, `application/octet-stream`) or
+`POST /v1/development/eject-media`, with the package/generation/target headers
+plus `X-FogCast-Media-Unit`, under the existing kit lease and update
+exclusion. `internal/agent/media_units.go` rechecks the binding, and
+`internal/misterruntime/computer.go` stages the bytes in a private 0700
+directory (0600 file), rechecks identity immediately before the single
+`insert_media` call (bounded to 135 s), requires the unit to report `ready`
+(`empty` after `eject_media`), removes the staging, and never replays a lost
+reply. The runtime never holds reset for these transfers and ejects the unit
+once on failure; the agent then republishes the live unit state from a fresh
+status read instead of replacing the session. Keyboard posts do not wait
+behind a disk transfer.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are
@@ -649,6 +682,10 @@ an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
 `POST /api/v1/session/input/event` instead of the sofa focus graph and do not
 steal browse or ZX81/session affinity; pointer browse stays off that session.
 Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
+A `fes.computer` session with `fes.keyboard.hid` 1.0 (`CoreKeyboardHID`)
+is the exception: `HandlePlayHIDScancode` forwards every SDL scancode that is a
+HID Keyboard/Keypad usage, including Esc, Backspace and `/`, with no chrome
+keys; Stop stays on the session chrome and the controller Select+Start chord.
 A `fes.keyboard` core maps those keys onto the ZX81 matrix. For exact
 `fes.coleco`, D-pad/left-stick and A/B events are mapped onto the Coleco P1
 keyboard bits while overlapping keyboard, D-pad, and axis holds remain joined.
@@ -1458,8 +1495,9 @@ path. A title may require a household firmware object; rooms/catalog **Ready**
 follows that fill, and `session/launch` binds firmware before cartridge media
 and reset release. Tenfoot Confirm imports an 8192-byte BIOS through the
 existing media/firmware APIs. Expansion selection binds an independently linked
-pack to the exact shell package. Later removable media work remains proposed
-in [launch composition](launch-composition.md).
+pack to the exact shell package. The Apple II disk is the first removable
+media; see [removable disks](#removable-disks-fescomputer-media-units) and
+[launch composition](launch-composition.md).
 
 Library list, detail and variant responses report expansion selection and
 readiness independently of firmware requirements, including firmware-free ZX81
@@ -1476,6 +1514,71 @@ conflict responses, and unexpected storage failures remain internal errors.
 Malformed archives or incompatible compositions are rejected as admission
 errors.
 
+### Home-computer packages and slot cards
+
+`fes.computer` 1.0 (the Apple II pathfinder, `fes.apple2`) is a recognized
+play ABI. Its package declares required fixed video, `fes.keyboard.hid`,
+`fes.gamepad.ports`, stereo audio and `fes.media.apple2-floppy`, and may be
+format 3 with one `firmware` ROM linked at download. The optional
+`fes.expansion.apple2-bus` 1.0 is a multi-socket bus (`fes.apple2-bus.slots/1`,
+physical slots 2, 4, 5 and 7), not a capability bit.
+
+`catalog/core_slot_expansions.go` stores one card per `(game_id, slot)` (schema
+12); `fogcast/core_slot_expansions.go` validates import against the installed
+shell (`corepackage.ValidateSlotCards`: shell binding, physical socket and one
+trial link), exposes compare-and-swap selection and reports per-card readiness
+in library `slot_expansions`. Launch reads every selected card before target
+contact; a missing or incompatible card is an admission error, so no Stop or
+programming follows.
+
+Launch links on the host first. Format 3 uses `corepackage.PrepareROMInput`,
+which runs `expansion.ComposeSlotsROM` and records the v2 composition and
+programmed digest in the `rom-link.json` receipt beside ascending
+`slot-N.tar` members. A ROM-less shell sends `corepackage.SlotCompositionBundle`
+(`slot-composition.json`, `package.tar`, `slot-N.tar`, `linked.rbf`) through
+the existing compose route. The agent's `corepackage.StageROMInput` /
+`StageComposition` relink independently and refuse different evidence, then
+publish the shell, one `slot-N-<publication>` directory per card (exactly
+`manifest.json` and `cart.rbf`) and `composition-<publication>/linked.rbf`.
+Restart adoption relinks those retained members. `internal/misterruntime/slots.go`
+sends the runtime v2 form of `load_rom_composed_core` / `load_composed_core`
+(also `load_initialized_composed_core`, which no producer uses yet):
+
+```json
+{"protocol":2,"operation":"load_rom_composed_core","package_path":"…","package_id":"…",
+ "expansions":[{"slot":2,"path":"…/slot-2-…"},{"slot":7,"path":"…/slot-7-…"}],
+ "payload_path":"…/composition-…/linked.rbf",
+ "composition":{"composition_id":"…","package_id":"…","expansions":[{"slot":2,"expansion_id":"…"},{"slot":7,"expansion_id":"…"}],
+  "shell_sha256":"…","payload_sha256":"…","payload_size":N},
+ "programmed_path":"…/rom-link-…/programmed.rbf","rom_link":{…}}
+```
+
+The runtime reports the same v2 object under `active_package.composition`;
+`Protocol2ActivePackage` decodes it into `SlotComposition` and the agent
+publishes it as `core_package.slot_composition`. The v2 tuple is valid only
+for an exact `fes.computer` 1.0 shell with the optional bus, every slot a
+physical socket, a recomputed `fes-composition-v2` identity and volatile
+persistence. With no card selected the load is the ordinary
+`load_rom_library_core`. Single-socket ZX81 and Coleco v1 tuples are unchanged.
+
+`internal/misterruntime/computer.go` is the protocol-2 client for the other
+`fes.computer` operations. Each request is bound to the exact active package
+generation and each reply must report that same `fes.computer` generation:
+
+```json
+{"protocol":2,"operation":"set_keyboard_hid","package_id":"…","expected_generation":N,"rows":[r0,r1,r2,r3,r4,r5,r6,r7,r8]}
+{"protocol":2,"operation":"insert_media","path":"…/media.bin","expected_package_id":"…","expected_generation":N,"unit":0,"size":143360}
+{"protocol":2,"operation":"eject_media","expected_package_id":"…","expected_generation":N,"unit":0}
+```
+
+Rows are nine 16-bit values; row 0 bits 0..3 and row 8 bits 8..15 must be
+zero. `set_controller` is unchanged and carries `keypad:0` for these packages.
+Status may report `capabilities.media_units`
+(`[{"unit":0,"interface":{"id":"fes.media.apple2-floppy","major":1,"minor":0},"min_bytes":143360,"max_bytes":143360,"chunk_bytes":512,"state":"empty|loading|ready"}]`);
+the decoder accepts it only for an active `fes.computer` generation whose
+interface is active, ascending and unique by unit, and exact for the known
+floppy interface. The agent publishes it as `core_package.media_units`.
+
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented
 operational interface is declared required; omitting input creates an autonomous
@@ -1491,9 +1594,38 @@ remain held until commit. Existing simple-game/computer behavior is unchanged.
 These software contracts do not establish exact-image hardware acceptance or
 general keyboard/mouse support. Shared controller ports are described below.
 
+### Keyboard HID for home computers
+
+An active `fes.computer` 1.0 generation with `fes.keyboard.hid` 1.0 takes USB HID
+key state, not a machine-shaped matrix. Clients send physical keys as keyboard
+events whose code is `0x1000 + usage` (`internal/hidkeys`; usages 0x04..0x7f and
+the modifiers 0xe0..0xe7): the browser maps `KeyboardEvent.code`, tenfoot uses
+SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
+map; the core owns characters, shifted symbols, repeat and reset chords. The host
+attaches input for these sessions even without controller ports and passes the
+events through `POST /api/v1/session/input/event` and the host stream unchanged.
+The browser's **Capture keyboard** session action forwards every key, including
+Escape and Backspace, until **Release keyboard**; Stop stays the Stop button.
+The browser posts these events one at a time in event order, so a release
+cannot overtake its press. A release the host does not confirm stays pending
+and is retried before the next event and on a short bounded timer.
+
+mister-agent observes `CoreObservation.KeyboardHID` (package and generation) and
+routes keyboard frames to `internal/input/keyboard_hid.go`. Host-stream and
+kit-local holds are kept per source and posted as their union; posts are ordered
+and do not hold the controller-port lock. Each change posts all nine rows with
+`set_keyboard_hid` for the observed generation (the runtime writes only changed
+rows). A failed post leaves the state unconfirmed, so a repeated press or release
+posts it again rather than reporting success. Source release posts the
+remaining holds; lease expiry, core replacement
+and Stop neutralize best-effort, and the runtime itself neutralizes on Hold and
+Stop. Controller frames of the same session still use `set_controller` ports 0/1
+with `keypad:0`.
+
 ### Shared controller ports
 
-An observed `fes.gamepad.ports` 1.0 interface attaches the ordinary host session
+An observed `fes.gamepad.ports` 1.0 interface (under `fes.application` 1.0 or
+`fes.computer` 1.0) attaches the ordinary host session
 input stream and reports `core_package.gamepad: true`. It has two digital ports;
 optional `fes.keypad.ports` 1.0 adds a twelve-key mask on each port. Attachment
 uses exact observed interface versions, not a core-ID allowlist. A migrated
@@ -1543,9 +1675,12 @@ The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 060
 not another network endpoint, and there is no additional virtual-device discovery rule.
 Other cores retain the single virtual gamepad and keyboard sink.
 
-A pad or USB keyboard on the kit writes raw input frames to that socket. mister-agent
+A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
+frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent
 shapes them with `playhid.StreamEvent` from the runtime's controller-port and keyboard
 capabilities, then applies the same keypad Start/Select aliases as the host stream.
+HID sessions keep the usages; `fes.keyboard` and native cores first map a usage to the
+ZX81 matrix or arrow code the kit sent before HID, so those cores see the same keys.
 The socket is not an HTTP route and does not consult the kit lease, so a pad on the
 kit drives the running core whichever host launched it. Frames are delivered only
 while a runtime core is bound. Delivery takes the same input lifecycle lock as host

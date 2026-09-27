@@ -387,6 +387,17 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		slots, err := s.composeSlotEntry(ctx, entry, inspection, data)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
+		if slots != nil {
+			transport, err := slots.Write()
+			if err != nil {
+				return coreLoadSource{}, slotExpansionUnavailable()
+			}
+			return coreLoadSource{size: int64(len(transport)), body: bytes.NewReader(transport), entry: &entry, slotComposition: &slots.Composition}, nil
+		}
 		bundle, err := s.composeCoreEntry(ctx, entry, data)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -436,6 +447,21 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	}
 	if media == nil {
 		return response, nil
+	}
+	if media.unit != nil {
+		// A home computer starts with its drives empty; the selected disk is
+		// inserted into its unit after Start without holding reset.
+		dev := s.libraryDevelopmentMediaBinding(*status.CorePackage)
+		unitBinding := protocol.MediaUnitBinding{PackageID: dev.PackageID, Generation: dev.Generation, Unit: *media.unit, Target: dev.Target, TargetID: dev.TargetID}
+		mediaCtx, mediaCancel := context.WithTimeout(parent, max(s.uploadTimeout, 150*time.Second))
+		defer mediaCancel()
+		unitStatus, unitErr := s.insertMediaUnitLocked(mediaCtx, media.size, media.ReadCloser, unitBinding)
+		unitErr = errors.Join(unitErr, media.Close())
+		media = nil
+		if unitErr != nil {
+			return s.recoverLibrarySlot(parent, unitStatus, unitErr)
+		}
+		return protocol.CachedLaunchResponse{Status: retainImageSHA(s.retainMediaUnitSessionIdentity(unitStatus, unitBinding), imageSHA)}, nil
 	}
 	binding := s.libraryDevelopmentMediaBinding(*status.CorePackage)
 	binding.Stream = media.stream
@@ -531,9 +557,12 @@ type coreLoadSource struct {
 	romSourceSize  int64
 	expansionID    string
 	composition    *expansion.Composition
-	size           int64
-	body           io.Reader
-	entry          *catalog.CoreEntry
+	// slotComposition is the v2 tuple the host linked for a multi-socket
+	// shell; the target's independent composition must equal it.
+	slotComposition *expansion.SlotComposition
+	size            int64
+	body            io.Reader
+	entry           *catalog.CoreEntry
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

@@ -80,7 +80,7 @@ func NewNativeTargetControllerWithConfig(listenAddress, uinputPath string) (*Tar
 	}
 	keys := NewKeyboardSink()
 	merged := newPadMerge(pads)
-	ports := &controllerPortsSink{fallback: muxSink{keys: keys, pads: merged}, keys: keys, pads: merged}
+	ports := &controllerPortsSink{fallback: muxSink{keys: keys, pads: merged}, keys: keys, hid: &keyboardHIDSink{}, pads: merged}
 	controller := newTargetControllerWithSink(listenAddress, ports)
 	controller.ports = ports
 	controller.keyboard = keys
@@ -104,6 +104,14 @@ func (c *TargetController) ObserveCore(observe func(context.Context) (CoreObserv
 	c.mu.Lock()
 	c.observe = observe
 	c.mu.Unlock()
+}
+
+// SetKeyboardHIDPoster wires set_keyboard_hid for fes.keyboard.hid sessions.
+func (c *TargetController) SetKeyboardHIDPoster(poster KeyboardHIDPoster) {
+	if c == nil || c.ports == nil || c.ports.hid == nil {
+		return
+	}
+	c.ports.hid.setPoster(poster)
 }
 
 func (c *TargetController) SetKeyboardPoster(poster func(context.Context, uint64) error) {

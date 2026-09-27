@@ -20,6 +20,11 @@ using CoreInterface = mister::CoreInterface;
 using CoreBuild = mister::CoreBuild;
 using CoreDescriptor = mister::CoreDescriptor;
 
+// Manifest-only optional slot bus of fes.computer 1.0 shells. It grants no
+// capability bit; multi-slot composition admission is its only consumer.
+constexpr const char* kApple2ExpansionBusID = "fes.expansion.apple2-bus";
+constexpr const char* kApple2ExpansionMapID = "fes.apple2-bus.slots/1";
+
 struct OpenedCorePackage {
 	CoreDescriptor descriptor;
 	std::string manifest_bytes;

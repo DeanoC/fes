@@ -89,6 +89,20 @@ public:
 	Error AbortMediaStream(std::uint64_t deadline);
 	std::uint16_t observed_capabilities() const { return observed_capabilities_; }
 
+	// fes.computer 1.0. Rows that equal the last acknowledged state are not
+	// written; after Start every row is written once, in ascending order.
+	Error SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline);
+	bool home_computer() const { return home_computer_; }
+	// Units of declared media interfaces with their last live MediaInfo state.
+	const std::vector<MediaUnitCapability>& media_units() const { return media_units_; }
+	// Live transfer while execution stays released: MediaInfo, Begin, 512-byte
+	// Chunk/Data, Commit, then MediaInfo must report ready. Any failure after the
+	// first mailbox exchange ejects the unit once within `cleanup_ms`; an
+	// ambiguous mutation is never repeated.
+	Error InsertMedia(std::uint8_t unit, const ComputerMediaSnapshot&, Clock&,
+		std::uint64_t deadline, std::uint32_t cleanup_ms);
+	Error EjectMedia(std::uint8_t unit, std::uint64_t deadline);
+
 private:
 	CoreDriverResult Gameplay(std::uint16_t, std::uint64_t);
 	CoreDriverResult NeutralizeKeyboard(std::uint64_t deadline);
@@ -100,6 +114,21 @@ private:
 		std::uint64_t deadline, bool hold_reset);
 	Error MediaBusyOrIo(const Error& error) const;
 	Error RecoverPoisonedMediaLink(std::uint64_t deadline);
+	struct LiveMediaInfo {
+		std::uint32_t minimum = 0;
+		std::uint32_t maximum = 0;
+		std::uint16_t chunk_bytes = 0;
+		std::uint16_t state = 0;
+	};
+	MediaUnitCapability* FindMediaUnit(std::uint8_t unit);
+	Error ComputerCommand(std::uint8_t opcode, std::uint8_t index, std::uint16_t argument,
+		std::uint64_t deadline);
+	Error ReadMediaInfo(std::uint8_t unit, std::uint64_t deadline, LiveMediaInfo*);
+	Error ReadMediaState(std::uint8_t unit, std::uint64_t deadline, std::uint16_t* state);
+	Error RecoverComputerMailbox(std::uint64_t deadline);
+	Error TransferMediaUnit(MediaUnitCapability&, const ComputerMediaSnapshot&, Clock&,
+		std::uint64_t deadline);
+	Error AbandonMediaUnit(MediaUnitCapability&, std::uint64_t deadline);
 	FesGp& gp_;
 	CoreDescriptor identified_{};
 	bool have_identity_ = false;
@@ -117,6 +146,11 @@ private:
 	MediaStreamInfo stream_info_;
 	bool stream_verified_ = false;
 	bool stream_pending_ = false;
+	bool home_computer_ = false;
+	bool keyboard_hid_ = false;
+	KeyboardHidRows hid_rows_{};
+	bool hid_rows_known_ = false;
+	std::vector<MediaUnitCapability> media_units_;
 };
 
 } // namespace native

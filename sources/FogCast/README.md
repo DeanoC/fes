@@ -10,6 +10,26 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- Library `fes.computer` 1.0 packages (the Apple II pathfinder, `fes.apple2`)
+  launch as ordinary `fpga_native` sessions. A format-3 package links its
+  selected `firmware` ROM at download. A shell with the optional
+  `fes.expansion.apple2-bus` selects one card per physical slot through
+  `GET`/`PUT /api/v1/library/core-entries/{game_id}/expansions[/{slot}]`;
+  launch links the ROM and cards on the host, the target relinks them
+  independently and calls the runtime's multi-slot load. See
+  [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
+  The entry's selected `disk` (exact 143,360-byte `.dsk`/`.do` DOS-order image)
+  is inserted into media unit 0 after Start, and
+  `POST /api/v1/session/live-media` (`fogcast change-disk` / `eject-disk`)
+  swaps or ejects it while the machine runs. See
+  [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
+  Its keyboard is `fes.keyboard.hid`: the browser (**Capture keyboard**),
+  tenfoot and the kit forward physical keys as USB HID usages through
+  `set_keyboard_hid`, including Esc and Backspace; controllers use
+  `set_controller` ports 0/1. See
+  [keyboard HID](docs/ARCHITECTURE.md#keyboard-hid-for-home-computers).
+  Host tests only; no Apple II kit evidence exists yet.
+
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
   for two independent digital controllers and optional `fes.keypad.ports` 1.0
   for two twelve-key keypads. The existing session input event accepts
@@ -116,7 +136,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   claims affinity without restart, and unplug returns to a remaining device;
   an attached play session forwards USB keyboard HID to the core/session path
   instead of the sofa graph (ZX81 still uses the matrix; native SNES/MD encode
-  as gamepad buttons; Esc/Backspace still stop); pointer browse does
+  as gamepad buttons; Esc/Backspace still stop, except in `fes.keyboard.hid`
+  sessions, which receive every key as a USB HID usage); pointer browse does
   not steal that session, and a foreign or recovery-required kit lease fails closed. Mac is the primary sofa target;
   Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
@@ -516,8 +537,8 @@ read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). The current process
 boundaries and source entry points are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Phase 1 Coleco firmware (household BIOS slot, Ready gate, sofa import picker)
-is in [docs/launch-composition.md](docs/launch-composition.md). Expansions and
-removable media remain proposed.
+is in [docs/launch-composition.md](docs/launch-composition.md), with the
+ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
 
 Native image assembly defaults to Mega Drive; the explicit
 `NATIVE_RUNTIME_SYSTEMS="megadrive pong snes nes"` selection adds sealed

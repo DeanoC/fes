@@ -75,8 +75,9 @@ ComputerMediaSnapshot::~ComputerMediaSnapshot()
 Error ComputerMediaSnapshot::Prepare(const std::string& path,
 	std::uint32_t minimum, std::uint32_t maximum, Clock& clock, std::uint64_t deadline)
 {
-	if (fd_ >= 0 || minimum != generated::FesSimpleComputerMediaStreamMinBytes ||
-		maximum < generated::FesSimpleComputerMediaStreamGuaranteedMaxBytes ||
+	// Callers pass live endpoint limits: stream capacity observed at discovery,
+	// or a fes.computer unit's MediaInfo range. Both share the 32 MiB bound.
+	if (fd_ >= 0 || minimum < 1 || minimum > maximum ||
 		maximum > generated::FesSimpleComputerMediaStreamMaxBytes ||
 		path.empty() || path[0] != '/' || path.find('\0') != std::string::npos)
 		return {ErrorCode::invalid_request, "invalid stream media admission", "request"};

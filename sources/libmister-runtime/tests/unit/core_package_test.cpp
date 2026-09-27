@@ -705,10 +705,121 @@ void TestFormat3IdentityAndRetainedMap()
 	}
 }
 
+void TestComputerCompatibilityComposesRecognizedInterfaces()
+{
+	using Interface = mister::CoreInterface;
+	mister::CoreDescriptor descriptor;
+	descriptor.format = 2;
+	descriptor.target = {"de10_nano", "5CSEBA6U23I7", "fes-gp-v1"};
+	descriptor.abi = {"fes.computer", 1, 0};
+	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true},
+		{"fes.keyboard.hid", 1, 0, true}, {"fes.gamepad.ports", 1, 0, true},
+		{"fes.audio.pcm-s16-stereo-48k", 1, 0, true}, {"fes.media.apple2-floppy", 1, 0, true},
+		{"fes.expansion.apple2-bus", 1, 0, false}};
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	mister::VersionedContract layout{"unset", 9, 9};
+	assert(mister::native::CorePersistenceLayout(descriptor, &layout).ok() && layout.id.empty());
+	auto check = [](const mister::CoreDescriptor& candidate) {
+		return mister::native::CheckCoreCompatibility(candidate);
+	};
+	// Video alone is a complete computer; everything else composes independently.
+	auto video = descriptor;
+	video.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
+	assert(check(video).ok());
+	auto missing = descriptor;
+	missing.interfaces.erase(missing.interfaces.begin());
+	assert(check(missing).code == mister::ErrorCode::unsupported_interface);
+	// Recognized operational interfaces must be required when declared.
+	for (std::size_t index = 0; index < 5; ++index) {
+		auto optional = descriptor;
+		optional.interfaces[index].required = false;
+		assert(check(optional).code == mister::ErrorCode::unsupported_interface);
+		auto newer = descriptor;
+		newer.interfaces[index].minor = 1;
+		assert(check(newer).code == mister::ErrorCode::unsupported_interface);
+		newer.interfaces[index].required = false;
+		// An unsupported version that is optional grants nothing; video is still required.
+		assert(check(newer).ok() == (index != 0));
+	}
+	// The slot bus is manifest-only and must be optional.
+	auto bus = descriptor;
+	bus.interfaces.back().required = true;
+	assert(check(bus).code == mister::ErrorCode::unsupported_interface);
+	bus.interfaces.back() = Interface{"fes.expansion.apple2-bus", 2, 0, false};
+	assert(check(bus).ok());
+	bus.interfaces.back().required = true;
+	assert(check(bus).code == mister::ErrorCode::unsupported_interface);
+	// Unknown optional declarations are ignored; unknown required ones fail.
+	for (const auto* id : {"vendor.extension", "fes.gamepad", "fes.keyboard",
+		"fes.persistence.words", "fes.media.blob", "fes.expansion.coleco-bus"}) {
+		auto unknown = descriptor;
+		unknown.interfaces.push_back({id, 1, 0, false});
+		assert(check(unknown).ok());
+		unknown.interfaces.back().required = true;
+		assert(check(unknown).code == mister::ErrorCode::unsupported_interface);
+	}
+	auto minor = descriptor;
+	minor.abi.minor = 1;
+	assert(check(minor).code == mister::ErrorCode::unsupported_abi);
+	auto system = descriptor;
+	system.core.system = "apple2";
+	assert(check(system).code == mister::ErrorCode::unsupported_abi);
+	auto major = descriptor;
+	major.abi.major = 2;
+	assert(check(major).code == mister::ErrorCode::unsupported_abi);
+	// Only a firmware ROM links: there is no media gate to hold a cartridge.
+	auto firmware = descriptor;
+	firmware.format = 3;
+	firmware.rom.role = "firmware";
+	assert(check(firmware).ok());
+	firmware.rom.role = "cartridge";
+	assert(check(firmware).code == mister::ErrorCode::unsupported_abi);
+	auto two_sources = descriptor;
+	two_sources.format = 4;
+	assert(check(two_sources).code == mister::ErrorCode::unsupported_abi);
+	auto contained = descriptor;
+	contained.target.programming_profile = "development-contained-v1";
+	assert(check(contained).code == mister::ErrorCode::unsupported_programming_profile);
+}
+
+void TestComputerFirmwarePackageAdmission()
+{
+	const std::string map = "{\"fixture\":true}\n";
+	std::string manifest = ReadFile(std::string(kFixtures) + "/manifests/valid-basic.toml");
+	manifest.replace(manifest.find("format = 2"), 10, "format = 3");
+	manifest.replace(manifest.find("fes.simple-game"), 15, "fes.computer");
+	manifest.replace(manifest.find("fes.gamepad"), 11, "fes.keyboard.hid");
+	manifest += "\n[[interfaces]]\nid = \"fes.media.apple2-floppy\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		"\n[[interfaces]]\nid = \"fes.expansion.apple2-bus\"\nmajor = 1\nminor = 0\nrequired = false\n"
+		"\n[rom]\nid = \"apple2-firmware\"\nrole = \"firmware\"\nsource_size = 16384\n"
+		"file = \"rom-map.json\"\nsize = " + std::to_string(map.size()) +
+		"\nsha256 = \"" + Digest(map, {map.size()}) + "\"\n";
+	TempDirectory package;
+	package.Add("manifest.toml", manifest);
+	package.Add("core.rbf", ReadFile(std::string(kFixtures) + "/payloads/fes-fixture.rbf"));
+	package.Add("rom-map.json", map);
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	assert(opened.descriptor.abi.id == "fes.computer" && opened.descriptor.format == 3);
+	assert(opened.descriptor.rom.id == "apple2-firmware" && opened.descriptor.rom.source_size == 16384);
+	assert(mister::native::CheckCoreCompatibility(opened.descriptor).ok());
+	std::string cartridge = manifest;
+	cartridge.replace(cartridge.find("role = \"firmware\""), 17, "role = \"cartridge\"");
+	TempDirectory rejected;
+	rejected.Add("manifest.toml", cartridge);
+	rejected.Add("core.rbf", ReadFile(std::string(kFixtures) + "/payloads/fes-fixture.rbf"));
+	rejected.Add("rom-map.json", map);
+	assert(mister::native::OpenCorePackage(rejected.path, "", &opened).ok());
+	assert(mister::native::CheckCoreCompatibility(opened.descriptor).code ==
+		mister::ErrorCode::unsupported_abi);
+}
+
 } // namespace
 
 int main()
 {
+	TestComputerCompatibilityComposesRecognizedInterfaces();
+	TestComputerFirmwarePackageAdmission();
 	TestSharedFormat4TwoSourceFixture();
 	TestSharedFormat3IdentityAndManifestFixtures();
 	TestFormat3IdentityAndRetainedMap();
@@ -723,6 +834,6 @@ int main()
 	TestRepositoryMatchesSharedRfc3986Contract();
 	TestCoreSystemPresenceIsValidatedAndFesGpRequiresOmission();
 	TestMissingOrNonTableCoreIsRejectedWithoutChangingResult();
-	puts("core_package_test: 11 groups passed");
+	puts("core_package_test: 13 groups passed");
 	return 0;
 }

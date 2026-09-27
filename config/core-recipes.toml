@@ -1,4 +1,4 @@
-# FES package producers (ZX81, SMS and SG-1000 format 3; other cores format 2); paths are relative to the selected misteross source.
+# FES package producers (ZX81, SMS, SG-1000 and Apple II format 3; other cores format 2); paths are relative to the selected misteross source.
 version = 1
 
 [[recipes]]
@@ -84,3 +84,17 @@ selection_filename = "fes-sg1000.package-selection.toml"
 package_dir_env = "FES_SG1000_PACKAGE_DIR"
 package_selection_env = "FES_SG1000_PACKAGE_SELECTION"
 quartus_role = "bring-up/check oracle"
+
+[[recipes]]
+core_id = "fes.apple2"
+identity_version = 2
+producer_script = "scripts/build_fes_apple2_oss.py"
+producer_module = "scripts.build_fes_apple2_oss"
+authenticate = "_authenticate_apple2_tools"
+lock_path = "toolchains/apple2.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-apple2.package-selection.toml"
+package_dir_env = "FES_APPLE2_PACKAGE_DIR"
+package_selection_env = "FES_APPLE2_PACKAGE_SELECTION"
+quartus_role = "no oracle required"
