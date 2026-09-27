@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test initialized FSMs](validation/2026-09-27-ramtest-fsm-init.md) | Yosys initialization-preserving FSM candidate, equivalence proofs and full-flow experiment. Host-only; producer lock unchanged. |
 | [RAM-test Quartus/OSS timing](validation/2026-09-27-ramtest-timing.md) | Matched-source compiler comparison, FSM control and routing probes for issue #264. Host-only; no new timing closure or hardware acceptance. |
 | [SG-1000 OSS gap ladder](validation/2026-09-16-sg1000-oss-gap-ladder.md) | OSS gaps and a synth-only HIP note. Not a current seal or parent-recipe claim. |
 | [SG-1000 Quartus bring-up](validation/2026-09-16-sg1000-quartus-bringup.md) | Quartus oracle bring-up. |
