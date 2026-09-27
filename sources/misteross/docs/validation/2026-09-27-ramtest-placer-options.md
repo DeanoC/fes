@@ -177,3 +177,6 @@ separately published `19a5fe4a` candidate. Neither changes a shared contract or
 claims hardware acceptance. The next integration step is broader qualification
 of the combined FSM/placement candidate before changing the producer lock;
 memory-clock closure still needs physical/control-path optimization.
+
+The [enable-locality follow-up](2026-09-27-ramtest-enable-locality.md) tests
+post-placement driver replication while keeping every existing cell fixed.
