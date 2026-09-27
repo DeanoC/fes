@@ -93,3 +93,15 @@ class MenuDDRProducerTests(unittest.TestCase):
             cells['zero']['parameters']['LUT']='1'*32;p.write_text(json.dumps(data))
             with self.assertRaisesRegex(BuildError,'tied low'):
                 menu.validate_build_evidence(output,ROOT,mode='ddr')
+
+    def test_routed_layout_accepts_actual_constant_nets_and_rejects_dynamic(self):
+        with tempfile.TemporaryDirectory() as d:
+            output=Path(d);self.outputs(output)
+            p=output/'routed.json';data=json.loads(p.read_text());cells=data['modules']['top']['cells']
+            cells['zero']={'type':'MISTRAL_CONST','parameters':{'LUT':'0'*32},'connections':{'Q':[123456]}}
+            cells['one']={'type':'MISTRAL_CONST','parameters':{'LUT':'0'*31+'1'},'connections':{'Q':[123457]}}
+            cfg=cells['ddr']['connections']['cfg_port_width'];cfg[:]=[123456 if bit=='0' else 123457 for bit in cfg]
+            p.write_text(json.dumps(data));menu.validate_build_evidence(output,ROOT,mode='ddr')
+            cfg[0]=123458;p.write_text(json.dumps(data))
+            with self.assertRaisesRegex(BuildError,'constant'):
+                menu.validate_build_evidence(output,ROOT,mode='ddr')

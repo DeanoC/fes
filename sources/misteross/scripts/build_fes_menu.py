@@ -89,6 +89,34 @@ def build_commands(tools, *, mode='test-pattern', seed=None):
              '--detailed-timing-report'))
 
 
+def layout_graph_with_constants(graph):
+    # nextpnr packs static cfg bits onto MISTRAL_CONST nets. Resolve only its
+    # explicit zero/one cells; arbitrary signals remain nonconstant and fail.
+    cells = graph['modules']['top']['cells']
+    constants = {}
+    for cell in cells.values():
+        lut = cell.get('parameters', {}).get('LUT')
+        q = cell.get('connections', {}).get('Q')
+        if (cell.get('type') == 'MISTRAL_CONST' and type(lut) is str
+                and len(lut) == 32 and set(lut) <= {'0','1'}
+                and int(lut,2) in (0,1) and type(q) is list and len(q) == 1
+                and type(q[0]) is int):
+            if q[0] in constants:
+                raise board.BuildError('multiple constant drivers on DDR configuration net')
+            constants[q[0]] = str(int(lut,2))
+    normalized = dict(cells)
+    for name, cell in cells.items():
+        if cell.get('type') != 'cyclonev_hps_interface_fpga2sdram':
+            continue
+        connections = dict(cell.get('connections', {}))
+        for port in evidence.HPS_DDR_CFG_PORTS:
+            bits = connections.get(port)
+            if isinstance(bits,list):
+                connections[port] = [constants.get(bit,bit) if type(bit) is int else bit for bit in bits]
+        normalized[name] = {**cell, 'connections':connections}
+    return {'modules':{'top':{**graph['modules']['top'], 'cells':normalized}}}
+
+
 def validate_build_evidence(output, root, *, mode='test-pattern'):
     output_for(mode)
     # A test-pattern artifact must not acquire a DDR or GP block in either graph.
@@ -116,7 +144,7 @@ def validate_build_evidence(output, root, *, mode='test-pattern'):
         for filename in ('synth.json','routed.json'):
             graph = board._read_json(Path(output)/filename,filename)
             result['hps_ddr'] = evidence.hps_ddr_layout_evidence(
-                graph,filename,Path(root),idle=False)
+                layout_graph_with_constants(graph),filename,Path(root),idle=False)
             cells = list(graph['modules']['top']['cells'].values())
             grounds = [['0']]
             if filename == 'routed.json':
