@@ -37,6 +37,60 @@ PLL_ROUTE_LOG = (
     "M=8 N=1 C6=6, bel altera_pll.0.14.0"
 )
 
+# fes.memory.hps-ddr: the fpga2sdram cfg_* inputs and their widths. The
+# generated header is the single source of the layout values.
+HPS_DDR_HEADER = "cores/fes-common/generated/fes_application.vh"
+HPS_DDR_CFG_PORTS = {
+    "cfg_port_width": ("PORT_WIDTH", 12),
+    "cfg_cport_type": ("CPORT_TYPE", 12),
+    "cfg_cport_wfifo_map": ("CPORT_WFIFO_MAP", 18),
+    "cfg_cport_rfifo_map": ("CPORT_RFIFO_MAP", 18),
+    "cfg_wfifo_cport_map": ("WFIFO_CPORT_MAP", 16),
+    "cfg_rfifo_cport_map": ("RFIFO_CPORT_MAP", 16),
+    "cfg_axi_mm_select": ("AXI_MM_SELECT", 6),
+}
+HPS_DDR_COMMAND_INPUTS = tuple(f"cmd_valid_{port}" for port in range(6)) + tuple(
+    f"wr_valid_{port}" for port in range(4))
+
+
+def hps_ddr_layout(source_root: Path) -> dict[str, int]:
+    text = _regular_input(Path(source_root), HPS_DDR_HEADER).read_text(encoding="utf-8")
+    layout = {}
+    for port, (macro, _) in HPS_DDR_CFG_PORTS.items():
+        match = re.search(rf"^`define FES_APPLICATION_HPS_DDR_CFG_{macro} 32'h([0-9a-f]{{8}})$", text, re.M)
+        if match is None:
+            raise BuildError(f"generated header lacks FES_APPLICATION_HPS_DDR_CFG_{macro}")
+        layout[port] = int(match.group(1), 16)
+    return layout
+
+
+def hps_ddr_layout_evidence(design: dict, label: str, source_root: Path, *, idle: bool) -> dict:
+    """Require one fpga2sdram cell whose cfg_* pins are the layout constants.
+
+    U-Boot latches the boot bitstream's copy; a core must match it. idle also
+    requires every command and write-data valid to be tied low.
+    """
+    cells = [cell for cell in design.get("modules", {}).get(TOP, {}).get("cells", {}).values()
+             if cell.get("type") == "cyclonev_hps_interface_fpga2sdram"]
+    if len(cells) != 1:
+        raise BuildError(f"{label} design must contain exactly one fpga2sdram cell")
+    connections = cells[0].get("connections", {})
+    observed = {}
+    for port, expected in hps_ddr_layout(source_root).items():
+        bits = connections.get(port)
+        width = HPS_DDR_CFG_PORTS[port][1]
+        if not isinstance(bits, list) or len(bits) != width or any(bit not in ("0", "1") for bit in bits):
+            raise BuildError(f"{label} fpga2sdram {port} must be a {width}-bit constant")
+        value = sum(1 << index for index, bit in enumerate(bits) if bit == "1")
+        if value != expected:
+            raise BuildError(f"{label} fpga2sdram {port} is 0x{value:x}, the layout is 0x{expected:x}")
+        observed[port] = f"0x{value:x}"
+    if idle:
+        for port in HPS_DDR_COMMAND_INPUTS:
+            if connections.get(port) != ["0"]:
+                raise BuildError(f"{label} fpga2sdram {port} must be tied low")
+    return {"interface": "fes.memory.hps-ddr", "major": 1, "minor": 0, "cfg": observed, "idle": idle}
+
 
 def _frequency_rows(fmax: object, expected: float, label: str, *, clock_name: str | None = None) -> tuple[str, float, float]:
     if not isinstance(fmax, dict):
@@ -161,7 +215,7 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
     fmax = timing.get("fmax")
     expected_domains = (2 if audio else 1) + (0 if memory_clock_mhz is None else 1)
     if capture_clock_mhz is not None:
-        expected_domains += 2  # independent 50 MHz HPS, memory and capture clocks
+        expected_domains += 1  # the SDRAM capture clock beside the memory clock
     if not isinstance(fmax, dict) or len(fmax) != expected_domains:
         if memory_clock_mhz is not None:
             raise BuildError("timing report must contain the pixel, memory, and audio sequential domains" if audio
@@ -176,9 +230,6 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
     ) if memory_clock_mhz is not None else None
     capture_timing = _frequency_rows(
         fmax, capture_clock_mhz, "capture clock", clock_name="ram_clock.clocks[1]"
-    ) if capture_clock_mhz is not None else None
-    reference_fabric = _frequency_rows(
-        fmax, 50.0, "50 MHz fabric clock", clock_name="hps_ddr.clk"
     ) if capture_clock_mhz is not None else None
     utilization = timing.get("utilization")
     known = (
@@ -216,10 +267,6 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
             **({"capture": {"clock": capture_timing[0], "constraint_mhz": capture_timing[1],
                             "requested_mhz": capture_clock_mhz, "achieved_mhz": capture_timing[2],
                             "status": "pass"}} if capture_timing else {}),
-            **({"reference_fabric": {"clock": reference_fabric[0],
-                                     "constraint_mhz": reference_fabric[1],
-                                     "achieved_mhz": reference_fabric[2],
-                                     "status": "pass"}} if reference_fabric else {}),
             "pixel": {
                 "clock": pixel[0],
                 "constraint_mhz": pixel[1],

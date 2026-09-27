@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Seal the 100 or 130 MHz RAM tester through the authenticated HIP lane.
 
-The core speaks fes.application 1.0 and fixed 720p. Memory traffic is local
-to the FPGA; the mailbox has no memory opcode. This recipe never programs a kit.
+The core speaks fes.application 1.0 with fixed 720p, the gamepad and
+fes.memory.hps-ddr. It tests the SDRAM addon and all three HPS DDR ports at
+the memory clock. Memory traffic is local to the FPGA; the mailbox has no
+memory opcode. This recipe never programs a kit.
 """
 from __future__ import annotations
 
@@ -48,26 +50,34 @@ RTL_SOURCES = (
     "cores/fes-pong/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_application_gp.v",
     "cores/fes-common/rtl/fes_video_720p.v",
+    "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
     "cores/fes-ramtest/rtl/mem_channel.v",
     "cores/fes-ramtest/rtl/ram_font.v",
     "cores/fes-ramtest/rtl/ram_display.v",
     "cores/fes-ramtest/rtl/sdram_addon_port.v",
-    "cores/fes-ramtest/rtl/hps_ddr_port.v",
+    "cores/fes-ramtest/rtl/ddr_rate.v",
+    "cores/fes-ramtest/rtl/ddr_channel.v",
     "cores/fes-ramtest/rtl/top.v",
 )
 RAM_PLL = "cores/fes-ramtest/rtl/ram_pll.v"
+# Both rates use toolchains/ramtest.lock: Yosys declares every fpga2sdram
+# port and nextpnr times the HPS port paths.
+TOOLCHAIN_LOCK = "toolchains/ramtest.lock"
+TOOLCHAIN_ROOT = Path("build/toolchain-ramtest")
+TOOL_COMMITS = {
+    **board.EXPECTED_TOOL_COMMITS,
+    "yosys": "54ea7109ff08f7ecf8ca7b5ced58e8ba62d7f4b8",
+    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
+}
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/functional_execution.py", "scripts/fes_build_common.py",
-    "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, "toolchain.lock",
+    "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, TOOLCHAIN_LOCK,
     QSF, board_evidence.SDC, *RTL_SOURCES,
 )
 OUTPUT_100 = Path("build/fes-ramtest-100")
 OUTPUT_130 = Path("build/fes-ramtest-130")
-TOOLCHAIN_LOCK_130 = "toolchains/ramtest-130.lock"
-TOOLCHAIN_ROOT_130 = Path("build/toolchain-ramtest-130")
-# ramtest-130.lock differs from toolchain.lock only in its current Yosys.
-YOSYS_130 = "1bf1ff3d709dc8182cfa61701620d87181516941"
 MEMORY_PLL_100 = {
     "duty_cycle0": "00000000000000000000000000110010",
     "duty_cycle1": "00000000000000000000000000110010",
@@ -96,20 +106,14 @@ def seed_for(memory_mhz: int) -> int:
 
 
 def inputs_for(memory_mhz: int) -> tuple[str, ...]:
-    if memory_mhz == 130:
-        return tuple(path for path in PINNED_INPUTS if path != "toolchain.lock") + (TOOLCHAIN_LOCK_130, RAM_PLL)
     return PINNED_INPUTS + (RAM_PLL,)
 
 
 def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
-    if memory_mhz == 130:
-        return board._authenticate_tools(
-            root, lock_path=root / TOOLCHAIN_LOCK_130,
-            toolchain_root=root / TOOLCHAIN_ROOT_130,
-            expected_commits={**board.EXPECTED_TOOL_COMMITS, "yosys": YOSYS_130},
-            cache_root=cache_root,
-        )
-    return board._authenticate_tools(root, cache_root=cache_root)
+    return board._authenticate_tools(
+        root, lock_path=root / TOOLCHAIN_LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
+        expected_commits=TOOL_COMMITS, cache_root=cache_root,
+    )
 
 
 def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], *, memory_mhz: int) -> dict:
@@ -170,8 +174,8 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
         "core": {
             "id": "fes.ramtest",
             "name": "FES RAM Tester",
-            "description": f"Fixed-720p utility that pattern-tests SDRAM at {memory_mhz} MHz and the HPS DDR bridge",
-            "version": "1.0.0",
+            "description": f"Fixed-720p utility that pattern-tests the SDRAM addon and the HPS DDR window at {memory_mhz} MHz",
+            "version": "1.1.0",
         },
         "target": {"platform": "de10_nano", "device": board.TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", **evidence["rbf"]},
@@ -179,6 +183,7 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
         "interfaces": [
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.gamepad", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0, "required": True},
         ],
         "build": {"id": build_identity(record), "repository": repository, "revision": revision,
                   "recipe_sha256": json.loads(record)["recipe_sha256"],
@@ -226,6 +231,8 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz, cache_root: Path
             memory_pll_parameters={100: MEMORY_PLL_100, 130: MEMORY_PLL_130}[memory_mhz],
             ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
             forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
+        evidence["hps_ddr"] = board_evidence.hps_ddr_layout_evidence(
+            board._read_json(output / "synth.json", "synthesis evidence"), "synthesized", root, idle=False)
         evidence.update({"build_id": build_identity(record), "device": board.TARGET,
                          "inputs": {p: board._sha256(root / p) for p in sorted(pinned_inputs)},
                          "tools": identities, "top": "top", "execution": invocation.inputs})

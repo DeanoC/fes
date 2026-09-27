@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Quartus 17.0.2 SDRAM diagnostic at 100 or 130 MHz.
+"""Quartus 17.0.2 SDRAM and HPS DDR diagnostic at 100 or 130 MHz.
 
 Set RAMTEST_MHZ=100 for the 100 MHz build; the default is 130 MHz. Each
 build writes a comparison package, RBF and TimeQuest report in its own
-directory. The OSS seal stays on the 50 MHz pin clock.
+directory. It compiles the same RTL as the OSS seal, including the three
+fes.memory.hps-ddr ports on the memory clock.
 """
 from __future__ import annotations
 
@@ -39,12 +40,15 @@ VERILOG_SOURCES = (
     "cores/fes-pong/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_application_gp.v",
     "cores/fes-common/rtl/fes_video_720p.v",
+    "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
     "cores/fes-ramtest/rtl/mem_channel.v",
     "cores/fes-ramtest/rtl/ram_font.v",
     "cores/fes-ramtest/rtl/ram_display.v",
     "cores/fes-ramtest/rtl/ram_pll.v",
     "cores/fes-ramtest/rtl/sdram_addon_port.v",
-    "cores/fes-ramtest/rtl/hps_ddr_port.v",
+    "cores/fes-ramtest/rtl/ddr_rate.v",
+    "cores/fes-ramtest/rtl/ddr_channel.v",
     "cores/fes-ramtest/rtl/top.v",
 )
 PROJECT_SDC = (
@@ -123,8 +127,9 @@ def validate_timing(sta_text: str) -> None:
             raise BuildError(f"timing report does not mention {needle}")
     if re.search(rf"\b{MHZ}(?:\.\d+)? MHz", sta_text) is None:
         raise BuildError(f"timing report does not mention {MHZ} MHz")
-    # Same-clock memory slack is the rate result. The pixel path is reported
-    # separately; a miss there does not hide a memory miss.
+    # Same-clock memory slack is the rate result, and it covers the SDRAM
+    # controller, the DDR engines and their fpga2sdram ports. The pixel path
+    # is reported separately; a miss there does not hide a memory miss.
     setup = re.search(
         r"Slow 1100mV 100C Model Setup Summary.*?Clock\s+; Slack(.*?)\n\n",
         sta_text,
@@ -132,13 +137,14 @@ def validate_timing(sta_text: str) -> None:
     )
     if setup is None:
         raise BuildError("timing report lacks the slow-corner setup summary")
+    # The capture clock only feeds IO registers, so its paths are reported
+    # under the memory clock they cross into.
     memory_rows = [
         line for line in setup.group(1).splitlines()
-        if ("ram_clock" in line and "divclk" in line)
-        or line.strip().startswith("; FPGA_CLK1_50")
+        if "ram_clock" in line and "divclk" in line
     ]
-    if len(memory_rows) < 2:
-        raise BuildError(f"timing report lacks the 50 and {MHZ} MHz setup rows")
+    if not memory_rows:
+        raise BuildError(f"timing report lacks the {MHZ} MHz memory setup row")
     for line in memory_rows:
         slack = float(line.split(";")[2])
         print(f"memory setup slack {slack:.3f} ns")
@@ -205,8 +211,8 @@ def write_package(root: Path, rbf_path: Path, archive_path: Path) -> Path:
         "core": {
             "id": "fes.ramtest",
             "name": "FES RAM Tester",
-            "description": f"Quartus comparison that pattern-tests the SDRAM addon at {MHZ} MHz",
-            "version": "1.0.0",
+            "description": f"Quartus comparison that pattern-tests the SDRAM addon and the HPS DDR window at {MHZ} MHz",
+            "version": "1.1.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": len(rbf), "sha256": hashlib.sha256(rbf).hexdigest()},
@@ -214,6 +220,7 @@ def write_package(root: Path, rbf_path: Path, archive_path: Path) -> Path:
         "interfaces": [
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.gamepad", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": BUILD_ID,

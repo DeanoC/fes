@@ -51,6 +51,25 @@ Menu video bring-up. There is no HPS GP mailbox.
 
 Recorded in `idle-contract.toml`.
 
+## HPS DDR port layout
+
+The SDR controller takes its FPGA-to-SDRAM port layout from the `cfg_*`
+inputs of the loaded bitstream's fpga2sdram cell, but only when
+`staticcfg.applycfg` is written. U-Boot writes it once, in `bridge enable`
+right after it loads this splash as `menu.rbf`. Nothing on Linux can apply a
+new layout safely, so every core that uses the HPS DDR depends on the splash.
+
+The splash therefore instantiates the cell with the `fes.memory.hps-ddr`
+layout from `cores/fes-common/generated/fes_application.vh`: a 128-bit port
+and two 64-bit Avalon-MM ports (the MiSTer sysmem layout). Its clocks and
+command inputs are tied off, so it never issues a command. The recipe rejects
+a netlist with other `cfg_*` values or a driven command input.
+`make sim-fes-splash` checks the same.
+
+A boot bitstream without the cell latches all-ones values. The SDR controller
+then accepts no command from any core, and the RAM tester reports `NACK` on
+every DDR port.
+
 ## Compiler route and artifacts
 
 Generic **OSS** Yosys / nextpnr-mistral / Mistral (`make toolchain`,

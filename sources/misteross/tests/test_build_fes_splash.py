@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from scripts import build_fes_pong as board
 from scripts import build_fes_splash as splash
+from scripts import fes_de10nano_evidence as board_evidence
 from scripts.export_core_package import build_identity
 from tests import test_build_fes_pong as pong_tests
 
@@ -30,6 +31,9 @@ class SplashProducerTests(unittest.TestCase):
         self.assertNotIn("fes_application_gp", top)
         self.assertNotIn("fes_gp", top)
         self.assertNotIn("menu.rbf", top)
+        self.assertIn("cyclonev_hps_interface_fpga2sdram hps_ddr_layout", top)
+        self.assertIn("`FES_APPLICATION_HPS_DDR_CFG_PORT_WIDTH", top)
+        self.assertIn(splash.HPS_DDR_HEADER, splash.PINNED_INPUTS)
 
     def test_commands_use_oss_lane_and_not_a_play_package(self):
         record = splash.create_build_record(
@@ -71,13 +75,25 @@ class SplashProducerTests(unittest.TestCase):
         self.assertEqual(snippet["splash_rbf"]["path"], "build/fes-splash/core.rbf")
         self.assertNotIn("fes.", snippet["splash_rbf"]["path"])
 
-    def splash_evidence(self, output: Path) -> None:
+    @staticmethod
+    def layout_cell(**changes) -> dict:
+        connections = {}
+        for port, value in board_evidence.hps_ddr_layout(ROOT).items():
+            width = board_evidence.HPS_DDR_CFG_PORTS[port][1]
+            connections[port] = ["1" if (value >> bit) & 1 else "0" for bit in range(width)]
+        for port in board_evidence.HPS_DDR_COMMAND_INPUTS:
+            connections[port] = ["0"]
+        connections.update(changes)
+        return {"type": "cyclonev_hps_interface_fpga2sdram", "connections": connections}
+
+    def splash_evidence(self, output: Path, **changes) -> None:
         pong_tests.BuildFesPongTests()._write_passing_outputs(output)
         for filename in ("synth.json", "routed.json"):
             path = output / filename
             data = json.loads(path.read_text())
             cells = data["modules"]["top"]["cells"]
             cells.pop("hps", None)
+            cells["hps_ddr_layout"] = self.layout_cell(**changes)
             path.write_text(json.dumps(data))
         log = (output / "nextpnr.log").read_text()
         (output / "nextpnr.log").write_text(
@@ -85,6 +101,7 @@ class SplashProducerTests(unittest.TestCase):
         )
         timing = json.loads((output / "timing.json").read_text())
         timing["utilization"].pop("cyclonev_hps_interface_mpu_general_purpose", None)
+        timing["utilization"]["cyclonev_hps_interface_fpga2sdram"] = {"used": 1, "available": 1}
         (output / "timing.json").write_text(json.dumps(timing))
 
     def test_evidence_accepts_oss_route_and_rejects_gp(self):
@@ -96,6 +113,8 @@ class SplashProducerTests(unittest.TestCase):
             self.assertFalse(evidence["user_io"]["probe"])
             self.assertEqual(evidence["user_io"]["core_id"], "")
             self.assertEqual(evidence["timing"]["pixel"]["requested_mhz"], 74.25)
+            self.assertEqual(evidence["hps_ddr"]["cfg"]["cfg_port_width"], "0x16")
+            self.assertTrue(evidence["hps_ddr"]["idle"])
             timing = json.loads((output / "timing.json").read_text())
             timing["utilization"]["cyclonev_hps_interface_mpu_general_purpose"] = {
                 "used": 1, "available": 1
@@ -103,6 +122,18 @@ class SplashProducerTests(unittest.TestCase):
             (output / "timing.json").write_text(json.dumps(timing))
             with self.assertRaisesRegex(board.BuildError, "forbidden"):
                 splash.validate_build_evidence(output, ROOT)
+
+    def test_evidence_rejects_a_different_ddr_layout_or_a_live_port(self):
+        width = board_evidence.HPS_DDR_CFG_PORTS["cfg_port_width"][1]
+        for changes, message in (
+            ({"cfg_port_width": ["1"] * width}, "cfg_port_width is 0xfff"),
+            ({"cmd_valid_1": ["1"]}, "cmd_valid_1 must be tied low"),
+        ):
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                self.splash_evidence(output, **changes)
+                with self.assertRaisesRegex(board.BuildError, message):
+                    splash.validate_build_evidence(output, ROOT)
 
     def test_dirty_source_gate_precedes_tool_use(self):
         with patch.object(board, "_require_clean_source", side_effect=board.BuildError("dirty")) as source, \

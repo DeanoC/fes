@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "1bf1ff3d709dc8182cfa61701620d87181516941"
+commit = "54ea7109ff08f7ecf8ca7b5ced58e8ba62d7f4b8"
 order = 10
-rationale = "DeanoC main sampled 2026-09-26. CMake build with registered and flow-through M10K mapping and merged cyclonev_hps_interface_fpga2sdram support. Pair with nextpnr a93fe013."
+rationale = "DeanoC feat/fpga2sdram-all-ports 54ea7109 on main 1bf1ff3d: the cyclonev_hps_interface_fpga2sdram blackbox declares every atom port (six command ports, four data ports, write acknowledges), so the RAM tester reaches the 128-bit port 0 and the 64-bit ports 1 and 2 of the fes.memory.hps-ddr layout. The pinned blackbox before it listed only command port 2 and data port 3. Published feature revision, not a merged upstream release. Pair with nextpnr a93fe013."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"

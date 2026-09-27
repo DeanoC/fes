@@ -53,11 +53,11 @@ help:
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
 		"  sim-fes-demo  Test composable application endpoints and reference demos" \
-		"  sim-fes-ramtest  Test the RAM tester HDMI utility and fes.application identity" \
-		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM diagnostic with HIP nextpnr" \
-		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM diagnostic with HIP nextpnr" \
-		"  toolchain-fes-ramtest-130  Provision the dedicated 130 MHz OSS toolchain" \
-		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
+		"  sim-fes-ramtest  Test the RAM tester against SDRAM and HPS DDR models, holds and identity" \
+		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
+		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
+		"  toolchain-fes-ramtest  Provision the RAM tester OSS toolchain (toolchains/ramtest.lock)" \
+		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
 		"  build-fes-splash  Produce splash RBF + native-inputs provenance (OSS, not a play package)" \
 		"  build-fes-demo  Seal autonomous video application with HIP nextpnr" \
@@ -1122,9 +1122,9 @@ toolchain-fes:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
-.PHONY: toolchain-fes-ramtest-130
-toolchain-fes-ramtest-130:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/ramtest-130.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain-ramtest-130") \
+.PHONY: toolchain-fes-ramtest
+toolchain-fes-ramtest:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/ramtest.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain-ramtest") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 

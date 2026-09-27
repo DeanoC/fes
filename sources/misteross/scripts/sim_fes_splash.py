@@ -53,6 +53,7 @@ def main() -> None:
     subprocess.run([
         args.verilator, "--cc", "--exe", "--build", "--top-module", "top",
         "-Wall", "--public-flat-rw", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL",
+        "-Icores/fes-common/generated",
         "--Mdir", str(board),
         "cores/fes-splash/sim/board_models.v",
         "cores/fes-splash/rtl/top.v",
