@@ -43,7 +43,8 @@ module top (
     );
 endmodule
 
-// One 64-bit bridge beat. The halfword is the low 16 data bits.
+// One 64-bit bridge beat at byte 0x20000000 + 8 * addr. The halfword is the
+// low 16 data bits.
 module hps_ddr_port (
     input wire clk,
     input wire start,
@@ -122,7 +123,9 @@ module hps_ddr_port (
         end else if (!seen && !waiting_read && !cmd_valid) begin
             cmd_valid <= 1'b1;
             writing <= write;
-            cmd_data <= {18'd0, 8'd1, 3'd0, 13'd0, addr, write, ~write};
+            // Word 0x04000000 + addr: byte 0x20000000 + 8 * addr, inside the
+            // FPGA-owned window that Linux never allocates.
+            cmd_data <= {18'd0, 8'd1, 3'd0, 13'h0400, addr, write, ~write};
             wr_data <= {2'b00, 8'h03, 16'd0, 48'd0, wdata};
         end else if (cmd_valid && cmd_ready) begin
             cmd_valid <= 1'b0;

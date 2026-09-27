@@ -1800,12 +1800,16 @@ addon above 50 MHz. A designated-kit halfword probe returned `0xA65A`.
 `911_hps_ddr` reads and writes one halfword through
 `cyclonev_hps_interface_fpga2sdram` at
 `cyclonev_hps_interface_fpga2sdram.52.53.0`. Command traffic stays on port
-2 and the 64-bit data uses read/write port 3. The host uses the same
-application framing and opcode 18. The timed clock is `ddr.clk` at 50 MHz.
-A development load leaves the FPGA-to-HPS port contained; the probe
-releases FPGAPORTRST, the bridge reset, and the L3 remap, then restores
-them. A designated-kit halfword probe returned `0xA65A`. This is not a
-full-memory or MiSTer-rate qualification.
+2 and the 64-bit data uses read/write port 3. Address index `n` is byte
+`0x20000000 + 8n`, inside the FPGA-owned `fes.memory.hps-ddr` window. The
+host uses the same application framing and opcode 18. The timed clock is
+`ddr.clk` at 50 MHz. A development load leaves the FPGA-to-HPS port
+contained; the probe releases FPGAPORTRST, the bridge reset, and the L3
+remap, then restores them. The controller accepts the commands only when the
+boot splash carries the shared port layout. A designated-kit halfword probe
+returned `0xA65A` before the address moved into the window. This is not a
+full-memory or MiSTer-rate qualification; `fes.ramtest` scans all three
+ports over the whole window.
 
 `scripts/cyclonev_rbf.py` and `scripts/link_static_rbf.py` decompress a
 full RBF, overlay a CRAM rectangle or `overlay_mode = "m10k_ram"` via
