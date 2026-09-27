@@ -2047,8 +2047,18 @@
         state.session.input && state.session.input.state === 'attached' && state.session.input.ready);
     }
 
-    async function sendKeyboardHID(usage, down) {
-      if (!keyboardHIDAllowed() || !Number.isInteger(usage) || usage <= 0) return false;
+    // HID events are delivered one at a time in event order, so a quick tap's
+    // release cannot overtake its press. A release the host did not confirm
+    // stays pending and is retried before the next event and on a short,
+    // bounded timer; releasing an idle key is harmless.
+    const keyboardHIDRetryMs = 250;
+    const keyboardHIDRetryLimit = 8;
+    const keyboardHIDPendingReleases = new Set();
+    let keyboardHIDQueue = Promise.resolve();
+    let keyboardHIDRetryTimer = null;
+    let keyboardHIDRetries = 0;
+
+    async function postKeyboardHID(usage, down) {
       const spec = keyboardHIDEventRequest(usage, down);
       try {
         await request(fetchImpl, spec.path, spec.options);
@@ -2056,6 +2066,62 @@
       } catch (_) {
         return false;
       }
+    }
+
+    function enqueueKeyboardHID(job) {
+      const result = keyboardHIDQueue.then(job);
+      keyboardHIDQueue = result.catch(() => false);
+      return result;
+    }
+
+    async function retryKeyboardHIDReleases(except) {
+      for (const pending of Array.from(keyboardHIDPendingReleases)) {
+        if (pending !== except && await postKeyboardHID(pending, false)) keyboardHIDPendingReleases.delete(pending);
+      }
+    }
+
+    function settleKeyboardHIDRetries() {
+      if (keyboardHIDPendingReleases.size === 0) {
+        keyboardHIDRetries = 0;
+        return;
+      }
+      if (keyboardHIDRetryTimer !== null || keyboardHIDRetries >= keyboardHIDRetryLimit) return;
+      keyboardHIDRetries += 1;
+      keyboardHIDRetryTimer = setTimeout(() => {
+        keyboardHIDRetryTimer = null;
+        void flushKeyboardHID();
+      }, keyboardHIDRetryMs);
+      keyboardHIDRetryTimer?.unref?.();
+    }
+
+    async function deliverKeyboardHID(usage, down) {
+      if (!keyboardHIDAllowed()) {
+        if (!down) keyboardHIDPendingReleases.add(usage);
+        return false;
+      }
+      await retryKeyboardHIDReleases(usage);
+      const delivered = await postKeyboardHID(usage, down);
+      if (down || delivered) keyboardHIDPendingReleases.delete(usage);
+      else keyboardHIDPendingReleases.add(usage);
+      settleKeyboardHIDRetries();
+      return delivered;
+    }
+
+    // A press needs an attached HID session now; a release is always queued
+    // so an unconfirmed one is retried rather than dropped.
+    function sendKeyboardHID(usage, down) {
+      if (!Number.isInteger(usage) || usage <= 0) return Promise.resolve(false);
+      if (down && !keyboardHIDAllowed()) return Promise.resolve(false);
+      return enqueueKeyboardHID(() => deliverKeyboardHID(usage, Boolean(down)));
+    }
+
+    function flushKeyboardHID() {
+      if (keyboardHIDPendingReleases.size === 0) return Promise.resolve(true);
+      return enqueueKeyboardHID(async () => {
+        if (keyboardHIDAllowed()) await retryKeyboardHIDReleases();
+        settleKeyboardHIDRetries();
+        return keyboardHIDPendingReleases.size === 0;
+      });
     }
 
     function catalogViewSort(collection, extraSort) {
@@ -3033,6 +3099,7 @@
       detachInput,
       keyboardHIDAllowed,
       sendKeyboardHID,
+      flushKeyboardHID,
       observeVisibleCovers,
       setCatalogFilter,
       setCatalogSort,
@@ -3566,6 +3633,7 @@
   function releaseCapturedKeys() {
     for (const usage of keyboardCapture.held) void controller.sendKeyboardHID(usage, false);
     keyboardCapture.held.clear();
+    void controller.flushKeyboardHID();
   }
 
   function stopKeyboardCapture() {

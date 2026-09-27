@@ -1606,6 +1606,9 @@ attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
 The browser's **Capture keyboard** session action forwards every key, including
 Escape and Backspace, until **Release keyboard**; Stop stays the Stop button.
+The browser posts these events one at a time in event order, so a release
+cannot overtake its press. A release the host does not confirm stays pending
+and is retried before the next event and on a short bounded timer.
 
 mister-agent observes `CoreObservation.KeyboardHID` (package and generation) and
 routes keyboard frames to `internal/input/keyboard_hid.go`. Host-stream and
