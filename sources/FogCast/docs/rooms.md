@@ -258,6 +258,8 @@ The first host projection contains ZX81 entries only. Session fields are
 `expansion_id`, `generation` (a decimal string preserving all 64 bits),
 `hardware_known` and `tape_available`; the last two prevent a missing receipt
 from being mistaken for an empty connector or a supported tape path.
+`hardware_known` requires a composition receipt naming the active package;
+a missing or mismatched receipt is displayed as unavailable hardware.
 
 `hardware.select_expansion({game_id=..., package_id=...,
 expected_expansion_id=..., expansion_id=...}, function(selection, err) ... end)`

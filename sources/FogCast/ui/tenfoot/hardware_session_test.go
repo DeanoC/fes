@@ -112,3 +112,60 @@ func TestHardwareBoundStopSaveFailureKeepsPlayUntilRetry(t *testing.T) {
 		t.Fatal("successful retry did not restore idle navigation")
 	}
 }
+
+func TestHardwareStopSessionChangedAllowsFreshExplicitStop(t *testing.T) {
+	prior := hardwareBoundSession()
+	current := hardwareBoundSession()
+	current.CorePackage.Generation++
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/stop" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		calls++
+		var body struct {
+			Expected struct {
+				Generation uint64 `json:"generation"`
+			} `json:"expected_session"`
+		}
+		if r.URL.Path != "/api/v1/session/stop" || json.NewDecoder(r.Body).Decode(&body) != nil {
+			t.Error("unexpected request")
+		}
+		if calls == 1 {
+			if body.Expected.Generation != prior.CorePackage.Generation {
+				t.Error("initial Stop lost identity")
+			}
+			w.WriteHeader(http.StatusConflict)
+			_, _ = io.WriteString(w, `{"error":{"code":"SESSION_CHANGED","message":"foreground changed"}}`)
+			return
+		}
+		if body.Expected.Generation != current.CorePackage.Generation {
+			t.Error("explicit Stop reused stale identity")
+		}
+		_, _ = io.WriteString(w, `{"state":"idle"}`)
+	}))
+	defer server.Close()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.session, app.stopExpected, app.stopPhase = prior, prior, "stopping"
+	app.retryStopLock = true
+	app.sessionKick = make(chan struct{}, 1)
+	app.doStop(context.Background(), ClientStampNow(), prior)
+	if app.retryStopLock || app.stopExpected.ID != "" || calls != 1 || !strings.Contains(app.status, "changed") {
+		t.Fatal("rejected Stop kept stale retry lock or replayed")
+	}
+	select {
+	case <-app.sessionKick:
+	default:
+		t.Fatal("changed session did not request refresh")
+	}
+	app.mu.Lock()
+	app.applySessionLocked(current)
+	app.startStopLocked()
+	done := app.stopWait
+	app.mu.Unlock()
+	<-done
+	if calls != 2 || app.session.State != "idle" || app.retryStopLock {
+		t.Fatal("new explicit Stop did not stop refreshed session")
+	}
+}

@@ -968,30 +968,36 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	s.mu.Lock()
 	priorBinding := s.inputBinding
 	s.mu.Unlock()
-	var inputErr error
-	if s.remoteInput != nil {
-		inputErr = s.detachInputNow(ctx, "session_stop")
-	}
+	var inputErr, mediaErr error
 	s.mu.Lock()
 	hadMedia := s.mediaHandle != nil
 	execution := s.execution
 	packageOwned := s.packageOwned
 	failedWithoutHandle := !hadMedia && s.mediaState == "failed"
 	s.mu.Unlock()
-	var mediaErr error
-	if hadMedia {
-		mediaErr = s.stopMediaBounded(execution)
+	prepare := func(stopCtx context.Context) {
+		if s.remoteInput != nil {
+			inputErr = s.detachInputNow(stopCtx, "session_stop")
+		}
+		if hadMedia {
+			mediaErr = s.stopMediaBounded(execution)
+		}
 	}
 	var st protocol.Status
 	var serviceErr error
 	if bound, ok := s.service.(interface {
-		StopExpected(context.Context, fogcast.SessionStopBinding) (protocol.Status, error)
+		StopExpectedWithPreparation(context.Context, fogcast.SessionStopBinding, func(context.Context)) (protocol.Status, error)
 	}); expected != nil && ok {
-		st, serviceErr = bound.StopExpected(ctx, expected.SessionStopBinding)
-	} else if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
-		st, serviceErr = s.service.Stop(ctx)
+		// The service checks its foreground binding under lifecycle admission
+		// before any coordinator teardown, and holds it through physical Stop.
+		st, serviceErr = bound.StopExpectedWithPreparation(ctx, expected.SessionStopBinding, prepare)
 	} else {
-		st, serviceErr = s.stopServiceBounded()
+		prepare(ctx)
+		if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
+			st, serviceErr = s.service.Stop(ctx)
+		} else {
+			st, serviceErr = s.stopServiceBounded()
+		}
 	}
 	if mediaErr != nil {
 		return sessionResult{}, fogcast.WithStopStage(mediaErr, "media_stop")

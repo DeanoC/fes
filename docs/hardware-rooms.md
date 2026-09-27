@@ -72,8 +72,8 @@ future LAN interface without duplicating compatibility rules.
 Room Stop actions carry the displayed session, game, launch flight, target,
 package and generation through the existing Stop endpoint. Public session IDs
 can survive launches, so an ID alone is insufficient. The host rejects stale
-actions before coordinator cleanup and rechecks the package binding under the
-service lifecycle lock before physical Stop. Tape requests retain their
+actions before coordinator cleanup. The final package binding check, input
+and media cleanup, and physical Stop share the service lifecycle lock. Tape requests retain their
 captured binding through retries instead of selecting a new foreground play.
 Ordinary sessions without library package metadata retain their existing Stop
 path.

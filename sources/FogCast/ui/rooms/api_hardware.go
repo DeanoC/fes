@@ -108,7 +108,8 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		session := L.NewTable()
 		_, tapeErr := hostclient.LiveMediaBinding(*s)
 		session.RawSetString("tape_available", lua.LBool(tapeErr == nil))
-		session.RawSetString("hardware_known", lua.LBool(s.CorePackage != nil))
+		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID
+		session.RawSetString("hardware_known", lua.LBool(known))
 		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {
 			session.RawSetString(k, lua.LString(str))
 		}
@@ -116,7 +117,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 			session.RawSetString("generation", lua.LString(strconv.FormatUint(c.Generation, 10)))
 			session.RawSetString("package_id", lua.LString(c.PackageID))
 			id := ""
-			if c.Composition != nil {
+			if known {
 				id = c.Composition.ExpansionID
 			}
 			session.RawSetString("expansion_id", lua.LString(id))

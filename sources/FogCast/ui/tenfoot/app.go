@@ -2100,6 +2100,24 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp, expected hostclient
 		a.syncGPUParkLocked()
 		return
 	}
+	if result.ErrorCode == "SESSION_CHANGED" {
+		// Admission rejected this identity without stopping it. A later explicit
+		// Stop must capture refreshed play, rather than retry the stale request.
+		a.retryStopLock = false
+		a.retryStopHint = ""
+		a.retryStopCode = ""
+		a.stopExpected = hostclient.SessionResult{}
+		a.stopPhase = "host"
+		a.stopMessage = "The running machine changed. Review it before stopping."
+		a.status = a.stopMessage
+		if a.room != nil {
+			a.room.Resume()
+			a.dropRoomNavActionsLocked()
+		}
+		a.kickSessionPollLocked()
+		a.syncGPUParkLocked()
+		return
+	}
 	if result.ErrorCode != "" {
 		a.stopPhase = "host"
 		a.stopMessage = fmt.Sprintf("host stop %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)

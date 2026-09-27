@@ -85,3 +85,68 @@ func TestStopExpectedKeepsOrdinaryStopSaveSemantics(t *testing.T) {
 		})
 	}
 }
+
+func TestStopExpectedPreparationWaitsForBindingAdmission(t *testing.T) {
+	s, c, b := testBoundStop()
+	release, err := s.acquireLifecycle(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared := make(chan struct{}, 1)
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.StopExpectedWithPreparation(context.Background(), b, func(context.Context) { prepared <- struct{}{} })
+		done <- err
+	}()
+	select {
+	case <-prepared:
+		release()
+		t.Fatal("teardown bypassed lifecycle admission")
+	case <-time.After(20 * time.Millisecond):
+	}
+	s.executionMu.Lock()
+	s.activePackageGeneration++
+	s.executionMu.Unlock()
+	release()
+	if err := <-done; !errors.Is(err, ErrSessionChanged) {
+		t.Fatal(err)
+	}
+	select {
+	case <-prepared:
+		t.Fatal("teardown ran for a rejected binding")
+	default:
+	}
+	if c.stopCalls != 0 {
+		t.Fatalf("stops=%d", c.stopCalls)
+	}
+}
+func TestStopExpectedPreparationHoldsLifecycleThroughStop(t *testing.T) {
+	s, c, b := testBoundStop()
+	entered := make(chan struct{})
+	resume := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.StopExpectedWithPreparation(context.Background(), b, func(context.Context) { close(entered); <-resume })
+		done <- err
+	}()
+	<-entered
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	release, err := s.acquireLifecycle(ctx)
+	cancel()
+	if err == nil {
+		release()
+		close(resume)
+		<-done
+		t.Fatal("lifecycle released during teardown")
+	}
+	if c.stopCalls != 0 {
+		t.Fatal("stop dispatched before teardown finished")
+	}
+	close(resume)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if c.stopCalls != 1 {
+		t.Fatalf("stops=%d", c.stopCalls)
+	}
+}

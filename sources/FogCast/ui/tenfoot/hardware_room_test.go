@@ -21,7 +21,8 @@ const liveHardwareTestScript = `
 focus = 1
 local live = {id="host-zx81",game_id="fpga-zx81",target="dev",package_id=string.rep("a",64),generation="9"}
 function load() end
-function on_resume() rooms.back() end
+resume_count = 0
+function on_resume() resume_count = resume_count + 1 rooms.back() end
 function on_input(cmd)
   if cmd == "right" then focus = focus + 1 return true end
   if cmd == "select" then session.launch("fpga-zx81") return true end
@@ -77,6 +78,7 @@ func TestHardwareRoomCanReturnDuringPlayWithoutRelaunch(t *testing.T) {
 	app := newLiveHardwareApp(t, h)
 	app.mu.Lock()
 	original := app.room
+	beforeResumes := luaGlobalNumber(app, "resume_count")
 	app.mu.Unlock()
 	if !strings.Contains(app.Snapshot().HeaderHint(), "hardware room") {
 		t.Fatalf("missing visible route: %q", app.Snapshot().HeaderHint())
@@ -90,8 +92,9 @@ func TestHardwareRoomCanReturnDuringPlayWithoutRelaunch(t *testing.T) {
 	app.mu.Lock()
 	same := app.room == original
 	focus := luaGlobalNumber(app, "focus")
+	resumes := luaGlobalNumber(app, "resume_count")
 	app.mu.Unlock()
-	if !same || focus != 2 {
+	if !same || focus != 2 || resumes != beforeResumes+1 {
 		t.Fatalf("resume lost room/focus: same=%v focus=%v", same, focus)
 	}
 	app.HandleCommand(CmdSelect, time.Now())

@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -48,7 +49,7 @@ func hardwareData(active bool) *hardwareFixture {
 		Session: &hostclient.SessionResult{State: "idle"},
 	}}
 	if active {
-		s.value.Session = &hostclient.SessionResult{ID: "still-the-same-session", Target: "fixture", GameID: "zx81-workbench", State: "active", CorePackage: &hostclient.SessionCorePackage{PackageID: pkg, Generation: 1, ABI: hostclient.SessionCoreABI{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.media.blob", Major: 1}}}}
+		s.value.Session = &hostclient.SessionResult{ID: "still-the-same-session", Target: "fixture", GameID: "zx81-workbench", State: "active", CorePackage: &hostclient.SessionCorePackage{PackageID: pkg, Generation: 1, Composition: &hostclient.SessionComposition{PackageID: pkg}, ABI: hostclient.SessionCoreABI{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.media.blob", Major: 1}}}}
 	}
 	return s
 }
@@ -212,6 +213,28 @@ func TestHardwareRoomHostSessionUnavailableAndMissingFirmware(t *testing.T) {
 			r.Activate("tape")
 			if acts := r.TakeActions(); len(acts) != 0 {
 				t.Fatalf("unavailable controls acted: %+v", acts)
+			}
+		})
+	}
+}
+
+func TestHardwareRoomDoesNotInventMissingComposition(t *testing.T) {
+	for _, mismatch := range []bool{false, true} {
+		t.Run(fmt.Sprint(mismatch), func(t *testing.T) {
+			s := hardwareData(true)
+			if mismatch {
+				s.value.Session.CorePackage.Composition.PackageID = strings.Repeat("c", 64)
+			} else {
+				s.value.Session.CorePackage.Composition = nil
+			}
+			r := loadHardware(t, s, examplePack(t, "example.hardware"))
+			f := r.Step(time.Now())
+			if !frameHas(f, "Running: Hardware unavailable") || frameHas(f, "Running: Empty socket") || frameHas(f, "Restart needed") {
+				t.Fatal("missing or mismatched receipt treated as known hardware")
+			}
+			r.Activate("power")
+			if len(r.TakeActions()) != 0 {
+				t.Fatal("unknown hardware allowed room Stop")
 			}
 		})
 	}

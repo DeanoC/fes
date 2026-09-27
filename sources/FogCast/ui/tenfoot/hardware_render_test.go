@@ -143,3 +143,57 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 		}
 	}
 }
+
+// The service changes only after the first async result has reached Lua.
+type hardwareRefreshServices struct {
+	roomServices
+	data  hostclient.HardwareSnapshot
+	calls int
+}
+
+func (s *hardwareRefreshServices) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
+	s.calls++
+	data := s.data
+	if s.calls == 1 {
+		data.Session = &hostclient.SessionResult{State: "idle"}
+	}
+	return data, nil
+}
+
+func TestHardwareRoomReturnRefreshesProductionLua(t *testing.T) {
+	index := rooms.NewIndex(rooms.Examples())
+	pack, _ := index.Find(hardwareRoomID)
+	current := hardwareBoundSession()
+	current.CorePackage.Composition = &hostclient.SessionComposition{PackageID: current.CorePackage.PackageID}
+	services := &hardwareRefreshServices{data: hostclient.HardwareSnapshot{
+		Machines: []hostclient.HardwareMachine{{GameID: current.GameID, Title: "ZX81", PackageID: current.CorePackage.PackageID, Ready: true, Socket: hostclient.HardwareSocket{ID: "rear", Supported: true}}},
+		Session:  &current,
+	}}
+	app := NewApp(nil, 1280, 720, 20)
+	app.roomsIndex = index
+	inst, err := rooms.New(pack, rooms.Options{Width: 1280, Height: 668, Services: services, Index: index})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.room = inst
+	if err := inst.Load(); err != nil {
+		t.Fatal(err)
+	}
+	hasText := func(s Snapshot, label string) bool {
+		for _, op := range s.Room.Frame.Ops {
+			if op.Kind == rooms.OpText && op.Text == label {
+				return true
+			}
+		}
+		return false
+	}
+	waitFor(t, app, "initial idle Start", func(s Snapshot) bool { return hasText(s, "Start machine") && hasText(s, "Next start: Empty socket") })
+	app.mu.Lock()
+	app.applySessionLocked(current)
+	app.openPlayingHardwareRoomLocked()
+	app.mu.Unlock()
+	waitFor(t, app, "fresh running Stop", func(s Snapshot) bool { return hasText(s, "Stop machine") && !hasText(s, "Start machine") })
+	if services.calls < 2 {
+		t.Fatal("return reused pre-launch hardware data")
+	}
+}

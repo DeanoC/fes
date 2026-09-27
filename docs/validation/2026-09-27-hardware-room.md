@@ -101,6 +101,27 @@ footer overlap.
   failure, 40 skipped. The bootstrap outside-checkout case passed with the
   external physical temporary directory.
 
+## PR review follow-up
+
+The four review findings at `3bf11290` have focused regressions:
+
+- Reusing the running workbench invokes one resume callback immediately and
+  preserves focus. The production Lua test reads idle before launch and active
+  immediately on return, without waiting for the periodic refresh.
+- Missing or mismatched composition receipts display unavailable running
+  hardware, rather than inventing an empty connector.
+- The final bound Stop admission holds the service lifecycle lock through
+  coordinator input/media cleanup and physical Stop. A rejected binding never
+  runs cleanup and preserves attached input.
+- `SESSION_CHANGED` clears the stale retry identity and refreshes state. A new
+  explicit Stop captures the refreshed play; failed-save retries retain their
+  original behavior and no Stop is automatically replayed.
+
+Full native room, tenfoot, host service and host API race suites and the SDL
+build passed after these changes. Host service/API ran in 128.587s/7.556s and
+tenfoot in 26.980s. The original PR's Linux integration CI passed before this follow-up;
+its earlier green result does not validate these newer source bytes.
+
 ## Remaining acceptance gates
 
 No target was programmed, stopped, reset, deployed or otherwise controlled.

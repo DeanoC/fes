@@ -585,6 +585,14 @@ status separately. Fit/remove use the existing compare-and-swap expansion
 selection API. Catalogue schema 14 adds optional household expansion labels
 and descriptions; these never influence admission. The session receipt's
 composition identifies running hardware independently of the saved setup.
+Missing or mismatched composition receipts remain unknown. Bound Stop checks
+the active package under the existing service lifecycle admission before
+coordinator input/media cleanup, and holds that admission through physical
+Stop. A rejected changed-session action triggers a refresh; a subsequent
+explicit Stop uses the refreshed identity. Returning to a reused room calls
+its resume hook immediately, retaining navigation focus while refreshing the
+host snapshot. Failed saves and lost Stop responses retain their existing
+retry behavior.
 See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
 
 Rooms access this projection through optional typed `rooms.HardwareServices`

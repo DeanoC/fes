@@ -51,13 +51,17 @@ func (a *App) openPlayingHardwareRoomLocked() {
 		a.openRoomLocked(hardwareRoomID)
 	} else if a.room.ID() != hardwareRoomID {
 		a.openNestedRoomLocked(hardwareRoomID)
+	} else {
+		// Reused rooms retain focus but must refresh their pre-launch snapshot.
+		a.room.Resume()
+		a.dropRoomNavActionsLocked()
 	}
 	if a.room == nil || a.room.ID() != hardwareRoomID {
 		return
 	}
 	a.roomPickerOpen = false
 	a.roomDuringPlay = true
-	a.roomWasParked = true
+	a.roomWasParked = false // This visit already loaded or resumed the room.
 	a.syncGPUParkLocked()
 	a.status = "Hardware room · the machine is still running"
 }
