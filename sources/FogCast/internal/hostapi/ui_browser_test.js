@@ -383,6 +383,7 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
       await runScenario(harness, 'core-library-import-create', basePlan({
         sessions:[fixture('session-idle.json')],
         coreRoutes:{
+          'GET /api/v1/core-catalog': coreReply({cores:[]}),
           'GET /api/v1/core-packages': [coreReply({packages:[]}), coreReply({packages:[corePackage(CORE_PACKAGE)]})],
           'GET /api/v1/library/core-entries': [coreReply({entries:[]}), coreReply({entries:[]}), coreReply({entries:[entry]})],
           'POST /api/v1/core-packages': coreReply(corePackage(CORE_PACKAGE), 201, {delayMs:100}),
@@ -447,6 +448,7 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
         await runScenario(harness, `core-library-cas-${stale}`, basePlan({
           sessions:[fixture('session-idle.json')],
           coreRoutes:{
+          'GET /api/v1/core-catalog': coreReply({cores:[]}),
             'GET /api/v1/core-packages':coreReply({packages:[corePackage(CORE_PACKAGE),corePackage(CORE_NEXT)]}),
             'GET /api/v1/library/core-entries':[coreReply({entries:[entry]}),coreReply({entries:[selected]}),coreReply({entries:[cleared]})],
             [`GET /api/v1/core-packages/${CORE_PACKAGE}/media-capabilities`]:coreCaps(CORE_PACKAGE),
