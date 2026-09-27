@@ -104,7 +104,12 @@ is not a kit-lease mutation. An empty inventory is not a placement
 decision: the launch keeps today's bind and the games rows carry no
 `placement`. `[mesh] placement_override` is the advanced override
 node id; it selects that node only when that node can already run the
-title. A launch that names `target` is the caller's executor choice,
+title. When several `native_emu` nodes can run a title and no FPGA kit
+can, Place selects the first candidate whose mesh major matches;
+candidates follow the inventory's node-id order, and preference and
+last sink do not reorder them. Several eligible FPGA kits still need
+the preference or last sink to name one, or the row stays unresolved.
+A launch that names `target` is the caller's executor choice,
 so placement does not run for it. Sofa rooms, tenfoot, the browser
 UI, and the CLI launch without `target`.
 

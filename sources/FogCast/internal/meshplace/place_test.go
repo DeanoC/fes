@@ -184,19 +184,25 @@ func TestNativeEmuDoesNotRunAnFPGATitle(t *testing.T) {
 	mustFail(t, got, ReasonNoCandidate)
 }
 
-func TestSeveralNativeEmuAreUnresolved(t *testing.T) {
+func TestSeveralNativeEmuSelectTheFirst(t *testing.T) {
 	one := emuNode(emuOne)
 	two := emuNode(emuTwo)
+	// Preference and last sink name the other node. Candidate order,
+	// not the display facts, picks among native_emu nodes.
 	forward := Place(nativeEntry(), []Candidate{one, two}, Options{
-		DisplayPreference: emuOne,
-		LastDisplaySink:   emuOne,
-	})
-	reverse := Place(nativeEntry(), []Candidate{two, one}, Options{
 		DisplayPreference: emuTwo,
 		LastDisplaySink:   emuTwo,
 	})
-	mustUnresolved(t, forward)
-	mustUnresolved(t, reverse)
+	reverse := Place(nativeEntry(), []Candidate{two, one}, Options{
+		DisplayPreference: emuOne,
+		LastDisplaySink:   emuOne,
+	})
+	mustSelected(t, forward, emuOne, true, true)
+	mustSelected(t, reverse, emuTwo, true, true)
+
+	// A shell or an FPGA kit ahead of them is not a native_emu node.
+	behind := Place(nativeEntry(), []Candidate{shellNode(shellMac), fpgaNode(kitLiving, nil), two, one}, Options{})
+	mustSelected(t, behind, emuTwo, true, true)
 }
 
 func TestNotLaunchableFailsClosed(t *testing.T) {
@@ -249,13 +255,15 @@ func TestMeshMajorDoesNotRankSeveralEligibleKits(t *testing.T) {
 	namedBad := Place(fpgaEntry(), []Candidate{good, bad}, Options{DisplayPreference: kitDen})
 	mustUnresolved(t, namedBad)
 
+	// Among native_emu nodes the first that can run the title wins, so a
+	// mismatched node ahead of it is skipped rather than selected.
 	nativeGood := emuNode(emuOne)
 	nativeBad := emuNode(emuTwo)
 	nativeBad.MeshMajorOK = false
 	native := Place(nativeEntry(), []Candidate{nativeBad, nativeGood}, Options{
-		DisplayPreference: emuOne,
+		DisplayPreference: emuTwo,
 	})
-	mustUnresolved(t, native)
+	mustSelected(t, native, emuOne, true, true)
 }
 
 func TestMissingRequiredSlotFailsClosed(t *testing.T) {
@@ -531,12 +539,12 @@ func TestOverrideSelectsOneOfSeveralNative(t *testing.T) {
 	swapped := Place(nativeEntry(), []Candidate{two, one}, Options{OverrideNodeID: emuTwo})
 	mustSelected(t, swapped, emuTwo, true, false)
 
-	empty := Place(nativeEntry(), []Candidate{one, two}, Options{
+	empty := Place(nativeEntry(), []Candidate{two, one}, Options{
 		DisplayPreference: emuOne,
-		LastDisplaySink:   emuTwo,
+		LastDisplaySink:   emuOne,
 		OverrideNodeID:    "",
 	})
-	mustUnresolved(t, empty)
+	mustSelected(t, empty, emuTwo, true, false)
 }
 
 func TestOverrideMissLeavesNotLaunchableAndMissingSlot(t *testing.T) {

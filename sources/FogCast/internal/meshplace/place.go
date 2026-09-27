@@ -3,15 +3,17 @@
 // Place is host-local. It implements the unsigned Decision 7 strawman
 // in docs/mesh-lan.md as read by docs/mesh-phase3.md. Deano has not
 // locked that order. This package does not describe the order as a
-// lock, does not store a preference, and does not name a default
-// native_emu winner.
+// lock and does not store a preference. When several native_emu nodes
+// can run a title, the first in candidate order whose mesh major
+// matches is selected; that is the current native tie-break, and a
+// defined order or selection may replace it.
 //
 // The caller passes the projected catalog entry and the candidate nodes
 // it already has. FPGA eligibility uses abis (id, major) from each
 // node's GET /v1/mesh/content/node. Place does not perform that read,
 // does not browse DNS-SD, and does not treat an empty discovery family
-// list as "any RBF". Address, human name, and candidate order are not
-// ranking keys.
+// list as "any RBF". Address and human name are not ranking keys.
+// Candidate order ranks nothing except several native_emu nodes.
 //
 // A selected result names Execute, and names DisplaySink and
 // InputSource only when that same node advertises them. Picture and
@@ -19,10 +21,9 @@
 // Execute node.
 //
 // OverrideNodeID is optional. Empty means unset and leaves automatic
-// placement unchanged, including when several native_emu nodes can
-// run the title. A set id selects that candidate when it can already
-// run the title. A name that cannot run the title, fails the mesh
-// major, or is not a candidate does not win, and Place does not
+// placement unchanged. A set id selects that candidate when it can
+// already run the title. A name that cannot run the title, fails the
+// mesh major, or is not a candidate does not win, and Place does not
 // substitute a different node.
 package meshplace
 
@@ -120,9 +121,9 @@ type Result struct {
 // mesh-major mismatch does not rank those kits.
 //
 // native_emu is considered only when no FPGA candidate can run the
-// title. Exactly one such candidate is selected. Several are
-// unresolved. Preference, last sink, and an empty override do not
-// pick among them.
+// title. Exactly one such candidate is selected. Among several, the
+// first in candidate order whose mesh major matches is selected.
+// Preference and last sink do not pick among them.
 //
 // A non-empty OverrideNodeID selects that node when it is already
 // one of those candidates and its mesh major matches. For
@@ -192,13 +193,19 @@ func finishFPGA(could []Candidate, opts Options) Result {
 }
 
 func finishNative(could []Candidate) Result {
-	_, done, stop := gate(could)
+	rows, done, stop := gate(could)
 	if stop {
 		return done
 	}
-	// Several native_emu nodes stay unresolved. Preference, last sink,
-	// an empty override, and mesh-major OK are not a tie-break. That
-	// choice is parked.
+	// Several native_emu nodes: the first in candidate order whose mesh
+	// major matches wins. A mismatched node cannot run the title, so it
+	// is skipped rather than ranked. Preference and last sink are not
+	// consulted. gate returned at least one matching row.
+	for _, candidate := range rows {
+		if candidate.MeshMajorOK {
+			return selected(candidate)
+		}
+	}
 	return Result{Outcome: OutcomeUnresolved}
 }
 
