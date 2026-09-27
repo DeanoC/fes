@@ -63,6 +63,7 @@ int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 			}
 			out->kind = FC_EV_KEY;
 			out->code = (int)e.key.key;
+			out->value = (int)e.key.scancode;
 			out->down = e.key.down ? 1 : 0;
 			out->which = (int)e.key.which;
 			return 1;
@@ -868,7 +869,7 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 			app.TypeText(text, now)
 		}
 	case evKey:
-		if app.HandlePlayHIDKey(sdlPlayKeyName(ev.code), ev.down != 0, now) {
+		if app.HandlePlayHIDScancode(sdlPlayKeyName(ev.code), sdlHIDUsage(ev.value), ev.down != 0, now) {
 			return false
 		}
 		if ev.down != 0 {
@@ -1107,6 +1108,15 @@ func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 
 func commandFromSDLKey(code C.int) Command {
 	return CommandFromKey(sdlKeyName(code))
+}
+
+// sdlHIDUsage returns the USB HID Keyboard/Keypad usage of an SDL scancode;
+// SDL scancodes are those usages. Larger scancodes have no usage.
+func sdlHIDUsage(scancode C.int) uint8 {
+	if scancode < 0 || scancode > 0xff {
+		return 0
+	}
+	return uint8(scancode)
 }
 
 func sdlPlayKeyName(code C.int) string {

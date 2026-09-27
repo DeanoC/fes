@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
@@ -18,12 +19,12 @@ func TestDeclaredCoreMediaCapabilitiesFollowContractNotCoreID(t *testing.T) {
 			got := DeclaredCoreMediaCapabilities(descriptor)
 			want := CoreMediaCapability{Role: "blob", Format: "raw", MinBytes: 1, MaxBytes: 16384,
 				Interface: RuntimeContract{ID: "fes.media.blob", Major: 1}, Transport: "fes-simple-computer-mailbox-v1"}
-			if len(got) != 1 || got[0] != want {
+			if len(got) != 1 || !reflect.DeepEqual(got[0], want) {
 				t.Fatalf("%s required=%v: %+v", id, required, got)
 			}
 			// A caller must not be able to mutate a shared capability template.
 			got[0].MaxBytes = 999999
-			if DeclaredCoreMediaCapabilities(descriptor)[0] != want {
+			if !reflect.DeepEqual(DeclaredCoreMediaCapabilities(descriptor)[0], want) {
 				t.Fatal("capability state leaked across calls")
 			}
 		}

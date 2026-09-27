@@ -31,6 +31,9 @@ enum class Operation {
 	clear_media,
 	load_firmware,
 	load_media_stream,
+	set_keyboard_hid,
+	insert_media,
+	eject_media,
 	load_development_rbf,
 	stop,
 	recover_idle,
@@ -54,6 +57,8 @@ struct Request {
 	std::string expected_package_id;
 	std::uint64_t expected_generation = 0;
 	std::uint32_t media_size = 0;
+	std::uint8_t media_unit = 0;
+	KeyboardHidRows keyboard_rows{};
 	CoreCompositionRequest composition_request;
 	std::string programmed_path;
 	std::string programmed_sha256;

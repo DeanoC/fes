@@ -167,6 +167,7 @@ func TestGenerateProgrammingProfilesPreservesDiagnosticWithoutABI(t *testing.T) 
 	for _, fragment := range []string{
 		`"fes-gp-v1", "fes.simple-game", 1, false`,
 		`"fes-gp-v1", "fes.simple-computer", 1, false`,
+		`"fes-gp-v1", "fes.computer", 1, false`,
 		`"development-contained-v1", nullptr, 0, true`,
 		`kDe10NanoProgrammingPlatform = "de10_nano"`, `kDe10NanoProgrammingDevice = "5CSEBA6U23I7"`,
 	} {
@@ -180,8 +181,8 @@ func TestGenerateProgrammingProfilesPreservesDiagnosticWithoutABI(t *testing.T) 
 	}
 	source := `#include "programming.hpp"
 using namespace mister::native::generated;
-static_assert(kDe10NanoProgrammingProfilePairCount == 4, "registry rows");
-static_assert(kDe10NanoProgrammingProfilePairs[3].diagnostic_only, "diagnostic");
+static_assert(kDe10NanoProgrammingProfilePairCount == 5, "registry rows");
+static_assert(kDe10NanoProgrammingProfilePairs[4].diagnostic_only, "diagnostic");
 `
 	if err := os.WriteFile(filepath.Join(dir, "test.cpp"), []byte(source), 0600); err != nil {
 		t.Fatal(err)

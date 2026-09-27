@@ -27,6 +27,13 @@ const (
 	MaxArchiveBytes  = maxRBFBytes + MaxManifestBytes + 4096
 )
 
+// Apple2Slot is the Apple II slot bus. Its map names the shell layout of
+// several physical sockets; each card manifest carries its slot index.
+const (
+	Apple2Slot = "fes.expansion.apple2-bus"
+	Apple2Map  = "fes.apple2-bus.slots/1"
+)
+
 var hex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var hex32 = regexp.MustCompile(`^[0-9a-f]{32}$`)
 var hex40 = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -46,6 +53,7 @@ type Manifest struct {
 	ShellPackageID string         `json:"shell_package_id"`
 	ShellSHA256    string         `json:"shell_sha256"`
 	Slot           string         `json:"slot"`
+	SlotIndex      int            `json:"slot_index,omitempty"`
 	SlotMajor      int            `json:"slot_major"`
 	SlotMinor      int            `json:"slot_minor"`
 }
@@ -70,6 +78,13 @@ func (m Manifest) validate() error {
 	if m.Format != 1 || m.Device != Device || m.SlotMinor != 0 ||
 		!supportedSocketVersion(m.Slot, m.Map, m.SlotMajor) {
 		return errors.New("unsupported expansion target, socket or version")
+	}
+	if sockets := slotPolicies(m.Slot, m.Map); sockets != nil {
+		if _, ok := sockets[m.SlotIndex]; !ok {
+			return errors.New("expansion slot index is not a socket of this shell layout")
+		}
+	} else if m.SlotIndex != 0 {
+		return errors.New("single-socket expansion must not declare a slot index")
 	}
 	if m.BoundaryPatch != nil {
 		if m.Slot != ColecoSlot || m.Map != ColecoMap ||
@@ -255,9 +270,13 @@ func CompositionID(packageID, expansionID, payloadSHA256 string) (string, error)
 }
 
 // Admit rejects incompatible or changed inputs without running the linker.
+// Multi-socket cards are admitted with AdmitSlots.
 func Admit(shell Shell, asset Asset) error {
 	if err := asset.Validate(); err != nil {
 		return err
+	}
+	if slotPolicies(asset.Manifest.Slot, asset.Manifest.Map) != nil {
+		return errors.New("multi-socket expansion requires slot composition")
 	}
 	if !supportedSocketVersion(shell.Slot, asset.Manifest.Map, shell.SlotMajor) ||
 		shell.Slot != asset.Manifest.Slot || shell.SlotMajor != asset.Manifest.SlotMajor ||

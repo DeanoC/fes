@@ -9,7 +9,7 @@ fixtures. Go emitters generate C++14, Go and Verilog consumers. FES runs
 `make generate` and `make check-generated` across the tracked modules.
 
 The programming registry contains `fes-gp-v1` for `fes.simple-game`,
-`fes.simple-computer` and `fes.application`, plus the diagnostic-only
+`fes.simple-computer`, `fes.application` and `fes.computer`, plus the diagnostic-only
 `development-contained-v1`. Conventional game profile/source pins and the
 MiSTer programming/ABI pair are retired. Format-2 structural fixtures may
 still describe arbitrary ABIs; syntax validity does not confer activation
@@ -22,4 +22,5 @@ Shared persistence layouts and wire contracts remain here.
 Run `make test` with Python `jsonschema` available and Go installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`
 to verify them. See [schema](docs/schema.md),
-[application I/O](docs/application-io.md), and [stream media](docs/media-stream.md).
+[application I/O](docs/application-io.md), [home-computer I/O](docs/computer-io.md)
+and [stream media](docs/media-stream.md).

@@ -18,9 +18,19 @@ import (
 func runLiveMediaCommand(ctx context.Context, origin string, args []string) commandResult {
 	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
 	if len(args) == 0 {
-		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape"))
+		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-.dsk/.do-path> | eject-disk"))
 	}
 	switch args[0] {
+	case "change-disk":
+		if len(args) != 2 {
+			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do-path>"))
+		}
+		return changeDiskThroughHostAPI(ctx, origin, args[1])
+	case "eject-disk":
+		if len(args) != 1 {
+			return fail(errors.New("usage: fogcast eject-disk"))
+		}
+		return ejectDiskThroughHostAPI(ctx, origin)
 	case "change-tape":
 		if len(args) != 2 {
 			return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path>"))
@@ -116,36 +126,41 @@ func resolveTapeArgument(ctx context.Context, origin, arg string) (mediaID, name
 	if apiErr != nil {
 		return "", "", protocol.LiveMediaRequestError()
 	}
+	mediaID, err = importCoreMediaBytes(ctx, origin, data)
+	return mediaID, base, err
+}
+
+func importCoreMediaBytes(ctx context.Context, origin string, data []byte) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, origin+"/api/v1/core-media", bytes.NewReader(data))
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Accept", "application/json")
 	req.ContentLength = int64(len(data))
 	resp, err := hostJSONClient().Do(req)
 	if err != nil {
-		return "", "", &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "running FogCast host API is unavailable"}
+		return "", &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "running FogCast host API is unavailable"}
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(body) > 1<<20 {
-		return "", "", errors.New("invalid core-media response")
+		return "", errors.New("invalid core-media response")
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		var envelope protocol.ErrorEnvelope
 		if json.Unmarshal(body, &envelope) == nil && envelope.Error.Code != "" {
-			return "", "", &envelope.Error
+			return "", &envelope.Error
 		}
-		return "", "", errors.New("core-media import failed")
+		return "", errors.New("core-media import failed")
 	}
 	var media struct {
 		MediaID string `json:"media_id"`
 	}
 	if json.Unmarshal(body, &media) != nil || protocol.ValidateDigest(media.MediaID) != nil {
-		return "", "", errors.New("invalid core-media response")
+		return "", errors.New("invalid core-media response")
 	}
-	return media.MediaID, base, nil
+	return media.MediaID, nil
 }
 
 type liveMediaSession struct {
@@ -156,9 +171,19 @@ type liveMediaSession struct {
 }
 
 func hostJSONClient() *http.Client {
-	return &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
-		return errors.New("redirects are not accepted")
-	}}
+	return &http.Client{Timeout: 30 * time.Second, CheckRedirect: refuseRedirect}
+}
+
+// hostMutationClient carries a non-replayable disk insert or eject. The host
+// allows the 143,360-byte transfer at least 150 s, so a short client timeout
+// could abandon an insert that still completes; only the caller's context and
+// the host's own deadline bound it.
+func hostMutationClient() *http.Client {
+	return &http.Client{CheckRedirect: refuseRedirect}
+}
+
+func refuseRedirect(*http.Request, []*http.Request) error {
+	return errors.New("redirects are not accepted")
 }
 
 func fetchLiveMediaSession(ctx context.Context, client *http.Client, origin string) (liveMediaSession, error) {
@@ -166,6 +191,25 @@ func fetchLiveMediaSession(ctx context.Context, client *http.Client, origin stri
 }
 
 func postLiveMediaSession(ctx context.Context, client *http.Client, origin, path string, data []byte, b *protocol.DevelopmentMediaBinding, id string) (liveMediaSession, error) {
+	return postSessionMedia(ctx, client, origin, path, data, b, id, tapeMedia)
+}
+
+// sessionMediaForm names the media a command addresses: which sessions carry
+// it and whether native library play is accepted.
+type sessionMediaForm struct {
+	capable func(*protocol.CorePackageStatus) bool
+	native  bool
+}
+
+var (
+	tapeMedia = sessionMediaForm{capable: protocol.LiveMediaCapable}
+	// A recognized fes.computer library launch runs as native play.
+	diskMedia = sessionMediaForm{capable: diskCapable, native: true}
+)
+
+// postSessionMedia performs one session read or live-media mutation and
+// requires the returned session to be capable of the addressed media form.
+func postSessionMedia(ctx context.Context, client *http.Client, origin, path string, data []byte, b *protocol.DevelopmentMediaBinding, id string, form sessionMediaForm) (liveMediaSession, error) {
 	var bodyReader io.Reader
 	method := http.MethodGet
 	if b != nil {
@@ -206,14 +250,106 @@ func postLiveMediaSession(ctx context.Context, client *http.Client, origin, path
 		return liveMediaSession{}, errors.New("host session request failed")
 	}
 	var session liveMediaSession
-	if json.Unmarshal(body, &session) != nil || session.ID == "" || session.Target == "" ||
-		session.State != protocol.StateActive || session.Execution != fogcast.ExecutionFPGADevelopment ||
-		!protocol.LiveMediaCapable(session.CorePackage) {
+	if json.Unmarshal(body, &session) != nil {
+		return session, protocol.LiveMediaIdentityError()
+	}
+	execution := session.Execution == fogcast.ExecutionFPGADevelopment ||
+		(form.native && session.Execution == fogcast.ExecutionFPGANative)
+	if session.ID == "" || session.Target == "" || session.State != protocol.StateActive ||
+		!execution || !form.capable(session.CorePackage) {
 		return session, protocol.LiveMediaIdentityError()
 	}
 	return session, nil
 }
 
 func liveMediaCommand(name string) bool {
-	return name == "change-tape" || name == "eject-tape"
+	return name == "change-tape" || name == "eject-tape" || name == "change-disk" || name == "eject-disk"
+}
+
+// diskCapable reports a session whose active fes.computer generation has the
+// observed Apple II floppy unit.
+func diskCapable(p *protocol.CorePackageStatus) bool {
+	_, ok := protocol.MediaUnit(p, protocol.Apple2FloppyUnit)
+	return ok
+}
+
+// changeDiskThroughHostAPI inserts a household disk into the running machine
+// through POST /api/v1/session/live-media. A .dsk/.do path is imported first.
+func changeDiskThroughHostAPI(ctx context.Context, origin, arg string) commandResult {
+	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
+	mediaID, name, err := resolveDiskArgument(ctx, origin, arg)
+	if err != nil {
+		return fail(err)
+	}
+	client := hostJSONClient()
+	prior, err := fetchDiskSession(ctx, client, origin)
+	if err != nil {
+		return fail(err)
+	}
+	b := protocol.DevelopmentMediaBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Target: prior.Target, TargetID: prior.TargetID}
+	payload, _ := json.Marshal(protocol.LiveMediaRequest{MediaID: mediaID, Name: name})
+	after, err := postSessionMedia(ctx, hostMutationClient(), origin, "/api/v1/session/live-media", payload, &b, prior.ID, diskMedia)
+	if err != nil {
+		return fail(err)
+	}
+	return diskResult(prior, after, b)
+}
+
+func ejectDiskThroughHostAPI(ctx context.Context, origin string) commandResult {
+	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
+	client := hostJSONClient()
+	prior, err := fetchDiskSession(ctx, client, origin)
+	if err != nil {
+		return fail(err)
+	}
+	b := protocol.DevelopmentMediaBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Target: prior.Target, TargetID: prior.TargetID}
+	after, err := postSessionMedia(ctx, hostMutationClient(), origin, "/api/v1/session/live-media/clear", nil, &b, prior.ID, diskMedia)
+	if err != nil {
+		return fail(err)
+	}
+	return diskResult(prior, after, b)
+}
+
+func fetchDiskSession(ctx context.Context, client *http.Client, origin string) (liveMediaSession, error) {
+	session, err := postSessionMedia(ctx, client, origin, "/api/v1/session", nil, nil, "", diskMedia)
+	if err == nil && !(protocol.DevelopmentMediaBinding{PackageID: session.CorePackage.PackageID, Generation: session.CorePackage.Generation}).Valid() {
+		err = protocol.MediaUnitIdentityError()
+	}
+	return session, err
+}
+
+func diskResult(prior, after liveMediaSession, b protocol.DevelopmentMediaBinding) commandResult {
+	if after.ID != prior.ID || after.CorePackage.PackageID != b.PackageID || after.CorePackage.Generation != b.Generation {
+		return commandResult{err: protocol.MediaUnitIdentityError(), exit: 1}
+	}
+	result := statusResult{State: after.State, CorePackage: after.CorePackage}
+	return commandResult{jsonValue: result, human: func(w io.Writer) error { return writeHumanStatusResult(w, result) }}
+}
+
+// resolveDiskArgument accepts a stored media ID or snapshots an exact
+// 143360-byte .dsk/.do file and imports it through POST /api/v1/core-media.
+func resolveDiskArgument(ctx context.Context, origin, arg string) (mediaID, name string, err error) {
+	if protocol.ValidateDigest(arg) == nil {
+		return arg, "disk.dsk", nil
+	}
+	before, err := os.Lstat(arg)
+	base := filepath.Base(arg)
+	if err != nil || !before.Mode().IsRegular() || !protocol.AdmitDiskMediaName(base) || before.Size() != protocol.Apple2FloppyBytes {
+		return "", "", protocol.DiskMediaRequestError()
+	}
+	file, err := os.Open(arg)
+	if err != nil {
+		return "", "", protocol.DiskMediaRequestError()
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(before, opened) {
+		return "", "", protocol.DiskMediaRequestError()
+	}
+	data, err := io.ReadAll(io.LimitReader(file, protocol.Apple2FloppyBytes+1))
+	if err != nil || int64(len(data)) != protocol.Apple2FloppyBytes {
+		return "", "", protocol.DiskMediaRequestError()
+	}
+	mediaID, err = importCoreMediaBytes(ctx, origin, data)
+	return mediaID, base, err
 }

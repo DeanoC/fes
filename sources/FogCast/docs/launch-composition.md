@@ -7,8 +7,9 @@ and kit acceptance. Coleco exact-package
 video/audio/input evidence is recorded in the
 [playable application validation](../../../docs/validation/2026-09-21-playable-audio.md).
 The [ZX81 expansion-bus guide](../../../docs/zx81-expansion-bus.md) documents its producer,
-selection API and acceptance procedure. Removable media remains future work;
-the first ZX81-shaped Phase 3 design lock is
+selection API and acceptance procedure. The Apple II floppy (`fes.computer`
+media unit 0) is the first implemented removable media: it is inserted after
+Start and can be swapped while the machine runs. The ZX81-shaped Phase 3 design lock is
 [ZX81 tape media](../../../docs/zx81-tape-media.md) (mid-session `.p` while
 the core is running — distinct from launch-time machine-ROM splice).
 
@@ -331,6 +332,13 @@ host and target independently link selected expansion assets; the runtime
 programs the checked payload while retaining the original shell identity.
 No compiler runs during launch. Physical acceptance applies only to the
 artifacts in the linked validation records, not every future package or image.
+The `fes.computer` Apple II shell extends the expansion slot to several
+physical sockets: a title selects one card per slot and launch links the
+selected firmware ROM and every card into one programmed image (see
+[Apple II slot cards](core-package-library.md#apple-ii-slot-cards)). Its
+removable disk is the first secondary-media slot: launch inserts the selected
+disk after Start, and the session live-media API swaps or ejects it without
+reprogramming.
 The sofa/tenfoot household BIOS picker is implemented, while exact-kit
 evidence remains tied to named validation records. Physical acceptance applies
 only to those artifacts, not every future package or image.

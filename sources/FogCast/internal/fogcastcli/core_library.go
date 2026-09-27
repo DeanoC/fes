@@ -64,6 +64,9 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		role := ""
 		if next != "" {
 			role = "blob"
+			if len(args) == 6 {
+				role = args[5]
+			}
 		}
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])+"/media"
 		data, _ = json.Marshal(map[string]string{"expected_package_id": args[2], "expected_media_id": expected, "media_role": role, "media_id": next})

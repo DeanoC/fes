@@ -4,8 +4,22 @@ package playhid
 import (
 	"strings"
 
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
+)
+
+// KeyboardMode is how the attached core consumes keyboard frames. It comes
+// from the exact negotiated interfaces, never a core ID.
+type KeyboardMode uint8
+
+const (
+	// NativeKeys rewrites a few keys onto gamepad buttons for native cores.
+	NativeKeys KeyboardMode = iota
+	// MatrixKeys keeps ZX81 matrix codes for fes.keyboard 1.0.
+	MatrixKeys
+	// HIDKeys keeps physical HID usages for fes.keyboard.hid 1.0.
+	HIDKeys
 )
 
 // ChromeStop reports session-stop keys that sofa chrome must keep while play
@@ -35,30 +49,47 @@ func Event(name string, down, coreKeyboard bool) (remoteinput.Event, bool) {
 }
 
 // PhysicalEvent maps an evdev KEY_* onto the mapper's session-neutral form:
-// ZX81 matrix codes for ULA keys, FogCast keyboard arrows otherwise.
+// the key's USB HID usage. Keys without a Keyboard/Keypad usage are dropped.
 // StreamEvent remaps that form for the attached core.
 func PhysicalEvent(linuxKey uint16, down bool) (remoteinput.Event, bool) {
-	if key, ok := zx81keys.FromLinuxKey(linuxKey); ok {
-		return keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, key, down), true
-	}
-	name, ok := linuxArrowName(linuxKey)
+	usage, ok := hidkeys.FromLinuxKey(linuxKey)
 	if !ok {
 		return remoteinput.Event{}, false
 	}
-	return arrowEvent(name, down)
+	return hidkeys.Event(usage, down)
 }
 
 // StreamEvent remaps a mapper event for the attached core. Gamepad frames pass
-// through. fes.keyboard keeps ZX81 keys and drops non-matrix keyboard frames.
-// Native cores rewrite keyboard frames onto gamepad buttons.
-func StreamEvent(e remoteinput.Event, coreKeyboard bool) (remoteinput.Event, bool) {
+// through. HID sessions keep physical usages, including Esc and Backspace, and
+// map older ZX81/arrow codes to their physical keys. fes.keyboard keeps ZX81
+// keys and drops non-matrix keyboard frames. Native cores rewrite keyboard
+// frames onto gamepad buttons. For the matrix and native modes a HID usage
+// first becomes its legacy code, so those cores see exactly the keys the
+// pre-HID mapper produced.
+func StreamEvent(e remoteinput.Event, mode KeyboardMode) (remoteinput.Event, bool) {
 	if e.Device == remoteinput.DeviceGamepad || e.Kind == remoteinput.KindButton || e.Kind == remoteinput.KindAxis {
 		return e, true
 	}
 	if e.Device != remoteinput.DeviceKeyboard && e.Kind != remoteinput.KindKey {
 		return remoteinput.Event{}, false
 	}
-	if coreKeyboard {
+	if usage, ok := hidkeys.Usage(e.Code); ok {
+		if mode == HIDKeys {
+			return e, true
+		}
+		legacy, ok := hidkeys.Legacy(usage)
+		if !ok {
+			return remoteinput.Event{}, false
+		}
+		e.Code = legacy
+	} else if mode == HIDKeys {
+		usage, ok := hidkeys.FromLegacy(e.Code)
+		if !ok {
+			return remoteinput.Event{}, false
+		}
+		return hidkeys.Event(usage, e.Action == remoteinput.ActionPress)
+	}
+	if mode == MatrixKeys {
 		return e, e.Code >= zx81keys.KeyShift
 	}
 	name, ok := nameFromPlayCode(e.Code)
@@ -123,23 +154,6 @@ func nativeEvent(name string, down bool) (remoteinput.Event, bool) {
 		return remoteinput.Event{}, false
 	}
 	return keyEvent(remoteinput.DeviceGamepad, remoteinput.KindButton, key, down), true
-}
-
-func arrowEvent(name string, down bool) (remoteinput.Event, bool) {
-	var key remoteinput.Code
-	switch name {
-	case "up":
-		key = remoteinput.KeyUp
-	case "down":
-		key = remoteinput.KeyDown
-	case "left":
-		key = remoteinput.KeyLeft
-	case "right":
-		key = remoteinput.KeyRight
-	default:
-		return remoteinput.Event{}, false
-	}
-	return keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, key, down), true
 }
 
 func nameFromPlayCode(code remoteinput.Code) (string, bool) {

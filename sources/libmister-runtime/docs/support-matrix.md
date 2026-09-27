@@ -14,6 +14,10 @@ Hardware-supported package paths: 0.
 | Format-3 ROM-map inspection and receipt-bound activation | covered | none |
 | Format-4 two-ROM receipt-bound activation through production adapter | covered | [Coleco synthetic diagnostic](../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md); appliance acceptance pending |
 | Static ZX81 and Coleco composition | covered | pending |
+| `fes.computer` admission, identity and firmware ROM activation | covered | none |
+| `fes.computer` HID keyboard rows and controller ports | covered | none |
+| `fes.computer` live media units (insert/eject without reset hold) | covered | none |
+| Multi-slot Apple II slot-bus composition (socket set provisional) | covered | none |
 | Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |
 | `fes-gp-v1` HPS SDRAM bridge release after user mode | covered | pending |

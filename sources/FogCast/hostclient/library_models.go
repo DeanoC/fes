@@ -33,7 +33,10 @@ type Game struct {
 	ROMID          string `json:"rom_id,omitempty"`
 	ROMMediaID     string `json:"rom_media_id,omitempty"`
 	ExpansionReady bool   `json:"expansion_ready,omitempty"`
-	FirmwareReady  bool   `json:"firmware_ready,omitempty"`
+	// SlotExpansions lists a multi-socket title's selected cards. Any card
+	// that is not ready blocks launch like an unready single expansion.
+	SlotExpansions []SlotExpansion `json:"slot_expansions,omitempty"`
+	FirmwareReady  bool            `json:"firmware_ready,omitempty"`
 	// ReadyHere is Phase 2 Ready for this shell. Nil means the mesh
 	// ensure seam is off and LaunchBlock stays composition. A false
 	// pointer is Unavailable (or Checking while a slot is mid-pull).
@@ -133,6 +136,11 @@ func (g Game) catalogLaunchBlock() LaunchBlock {
 	}
 	if g.ExpansionID != "" && !g.ExpansionReady {
 		return LaunchMissingExpansion
+	}
+	for _, card := range g.SlotExpansions {
+		if !card.Ready {
+			return LaunchMissingExpansion
+		}
 	}
 	if g.FirmwareRequired && !g.FirmwareReady {
 		return LaunchMissingFirmware
@@ -581,4 +589,12 @@ type SessionEvent struct {
 	Media        string           `json:"media,omitempty"`
 	Progress     *SessionProgress `json:"progress,omitempty"`
 	Input        *SessionInput    `json:"input,omitempty"`
+}
+
+// SlotExpansion is one selected card of a multi-socket title (for example an
+// Apple II slot card) and whether it is admitted against the exact shell.
+type SlotExpansion struct {
+	Slot        int    `json:"slot"`
+	ExpansionID string `json:"expansion_id"`
+	Ready       bool   `json:"ready"`
 }

@@ -9,10 +9,12 @@
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/generated/fes_computer.hpp"
 #include "native/hardware.hpp"
 #include "native/linux/mmio.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <cstdlib>
 #include <ctime>
@@ -98,6 +100,35 @@ static_assert(FesApplicationOpcodeIdentity == FesGpOpcodeIdentity &&
 	FesApplicationOpcodeMediaStreamCommit == FesSimpleComputerOpcodeMediaStreamCommit &&
 	FesApplicationOpcodeMediaStreamAbort == FesSimpleComputerOpcodeMediaStreamAbort,
 	"application codec requires matching shared control and media opcodes");
+
+// fes.computer shares the FES GP transport, identity layout and execution
+// control; only its tag, capabilities and remaining opcodes are its own.
+static_assert(FesComputerSignature == FesGpSignature &&
+	FesComputerRequestMask == FesGpRequestMask && FesComputerOpcodeMask == FesGpOpcodeMask &&
+	FesComputerIndexMask == FesGpIndexMask && FesComputerArgumentMask == FesGpArgumentMask &&
+	FesComputerAckMask == FesGpAckMask && FesComputerErrorMask == FesGpErrorMask &&
+	FesComputerResponseMask == FesGpResponseMask &&
+	FesComputerIdentityMagic0 == FesGpIdentityMagic0 &&
+	FesComputerIdentityMagic1 == FesGpIdentityMagic1 &&
+	FesComputerTransportMajor == FesGpTransportMajor &&
+	FesComputerTransportMinor == FesGpTransportMinor &&
+	FesComputerIdentityAbiTagIndex == FesGpIdentityAbiTagIndex &&
+	FesComputerIdentityCapabilitiesIndex == FesGpIdentityCapabilitiesIndex &&
+	FesComputerIdentityBuildIDStartIndex == FesGpIdentityBuildIDStartIndex &&
+	FesComputerIdentityWordCount == FesGpIdentityWordCount &&
+	FesComputerOpcodeIdentity == FesGpOpcodeIdentity &&
+	FesComputerOpcodeExecution == FesGpOpcodeGameplay &&
+	FesComputerControlIndex == FesGpControlIndex &&
+	FesComputerExecutionHoldReset == FesGpGameplayHoldReset &&
+	FesComputerExecutionRelease == FesGpGameplayRelease &&
+	FesComputerMediaUnitCount * FesComputerMediaInfoStride <= 0x100u &&
+	FesComputerMediaChunkMaxBytes / 2u <= 0x100u,
+	"fes.computer requires the shared FES GP transport and control layout");
+
+constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
+	FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+	FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
+	FesComputerCapabilityMediaApple2Floppy);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -364,12 +395,30 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		static_cast<std::uint16_t>(FesGpTransportMinor);
 	const bool computer = descriptor.abi.id == FesSimpleComputerABIID;
 	const bool application = descriptor.abi.id == FesApplicationABIID;
+	const bool home = descriptor.abi.id == FesComputerABIID;
 	expected[FesGpIdentityAbiTagIndex] = static_cast<std::uint16_t>(
-		application ? FesApplicationAbiTag : computer ? FesSimpleComputerAbiTag : FesGpAbiTag);
+		application ? FesApplicationAbiTag : home ? FesComputerAbiTag :
+		computer ? FesSimpleComputerAbiTag : FesGpAbiTag);
 	expected[FesGpIdentityAbiMajorIndex] = static_cast<std::uint16_t>(descriptor.abi.major);
 	expected[FesGpIdentityAbiMinorIndex] = static_cast<std::uint16_t>(descriptor.abi.minor);
 	std::uint16_t capabilities = 0;
 	for (const CoreInterface& interface : descriptor.interfaces) {
+		if (home) {
+			// Admission requires every recognized operational interface to be
+			// required when declared; the bus and unknown optionals grant nothing.
+			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+			if (interface.id == FesComputerInterfaceVideoFixed720p60ID)
+				capabilities |= FesComputerCapabilityVideoFixed720p60;
+			else if (interface.id == FesComputerInterfaceKeyboardHidID)
+				capabilities |= FesComputerCapabilityKeyboardHid;
+			else if (interface.id == FesComputerInterfaceGamepadPortsID)
+				capabilities |= FesComputerCapabilityGamepadPorts;
+			else if (interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID)
+				capabilities |= FesComputerCapabilityAudioPcmS16Stereo48k;
+			else if (interface.id == FesComputerInterfaceMediaApple2FloppyID)
+				capabilities |= FesComputerCapabilityMediaApple2Floppy;
+			continue;
+		}
 		if (application) {
 			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
 			if (interface.id == FesApplicationInterfaceGamepadID)
@@ -430,8 +479,10 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				FesApplicationCapabilityVideoFixed720p60 | FesApplicationCapabilityMediaBlob |
 				FesApplicationCapabilityMediaBlobStream | FesApplicationCapabilityAudioPcmS16Stereo48k |
 				FesApplicationCapabilityGamepadPorts | FesApplicationCapabilityKeypadPorts;
+			// Registered application and computer bits must equal the declared set.
 			if ((application && (observed[index] & application_mask) != expected[index]) ||
-				(!application && (observed[index] & expected[index]) != expected[index]))
+				(home && (observed[index] & kComputerCapabilityMask) != expected[index]) ||
+				(!application && !home && (observed[index] & expected[index]) != expected[index]))
 				return Mismatch("live FES GP capabilities do not match package interfaces",
 					"capabilities=" + std::to_string(expected[index]),
 					"capabilities=" + std::to_string(observed[index]));
@@ -470,6 +521,11 @@ void FesGpCoreDriver::BeginSession()
 	stream_info_ = {};
 	stream_verified_ = false;
 	stream_pending_ = false;
+	home_computer_ = false;
+	keyboard_hid_ = false;
+	hid_rows_ = {};
+	hid_rows_known_ = false;
+	media_units_.clear();
 }
 
 CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
@@ -479,7 +535,14 @@ CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 		static_cast<std::uint16_t>(FesGpGameplayHoldReset), deadline);
 	if (result.error.ok()) {
 		reset_held_ = true;
-		result.error = NeutralizeControllers(deadline);
+		if (home_computer_) {
+			// A computer hold neutralizes every key row and both ports in the
+			// core itself; the host input state is neutral from here on.
+			hid_rows_ = {};
+			hid_rows_known_ = true;
+		} else {
+			result.error = NeutralizeControllers(deadline);
+		}
 	}
 	result.error = WithPhase(std::move(result.error), "quiesce");
 	return result;
@@ -514,6 +577,53 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 				controller_ports_ = (observed_capabilities_ & FesApplicationCapabilityGamepadPorts) != 0;
 			if (interface.id == FesApplicationInterfaceKeypadPortsID)
 				keypad_ports_ = (observed_capabilities_ & FesApplicationCapabilityKeypadPorts) != 0;
+		}
+	}
+	home_computer_ = error.ok() && context.descriptor->abi.id == FesComputerABIID;
+	keyboard_hid_ = false;
+	hid_rows_ = {};
+	hid_rows_known_ = false;
+	media_units_.clear();
+	if (home_computer_) {
+		// Identity already proved that the live capabilities equal these
+		// required declarations, so each one is an operational interface.
+		for (const auto& interface : context.descriptor->interfaces) {
+			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+			if (interface.id == FesComputerInterfaceKeyboardHidID) keyboard_hid_ = true;
+			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
+			if (interface.id == FesComputerInterfaceMediaApple2FloppyID) {
+				MediaUnitCapability unit;
+				unit.unit = static_cast<std::uint8_t>(FesComputerApple2FloppyUnit);
+				unit.interface = {interface.id, interface.major, interface.minor};
+				media_units_.push_back(unit);
+			}
+		}
+		std::sort(media_units_.begin(), media_units_.end(),
+			[](const MediaUnitCapability& a, const MediaUnitCapability& b) { return a.unit < b.unit; });
+		// Discovery reads each declared unit's live limits. A freshly programmed
+		// endpoint leaves every implemented unit empty; limits come from Info.
+		for (auto& unit : media_units_) {
+			LiveMediaInfo info;
+			if (error.ok()) error = ReadMediaInfo(unit.unit, deadline, &info);
+			if (error.ok() && (info.state != FesComputerMediaStateEmpty ||
+				info.chunk_bytes != FesComputerMediaChunkMaxBytes ||
+				info.minimum < FesComputerMediaMinBytes || info.minimum > info.maximum ||
+				info.maximum > FesComputerMediaMaxBytes))
+				error = Mismatch("invalid live media unit",
+					"empty unit, 512-byte chunks, 1 <= minimum <= maximum <= " +
+						std::to_string(FesComputerMediaMaxBytes),
+					"unit=" + std::to_string(unit.unit) + " state=" + std::to_string(info.state) +
+						" chunk=" + std::to_string(info.chunk_bytes) + " minimum=" +
+						std::to_string(info.minimum) + " maximum=" + std::to_string(info.maximum));
+			if (!error.ok()) break;
+			unit.min_bytes = info.minimum;
+			unit.max_bytes = info.maximum;
+			unit.chunk_bytes = info.chunk_bytes;
+			unit.state = MediaUnitState::empty;
+		}
+		if (!error.ok()) {
+			keyboard_hid_ = false;
+			media_units_.clear();
 		}
 	}
 	bool stream_declared = false;
@@ -592,6 +702,10 @@ CoreDriverResult FesGpCoreDriver::SetButtons(const CoreDriverContext&,
 {
 	if (application_ && !gamepad_)
 		return {{ErrorCode::unsupported_interface, "application gamepad is inactive", "input"}, false, ""};
+	// Opcode 3 is KeyboardHid on fes.computer; its controllers use opcode 4.
+	if (home_computer_)
+		return {{ErrorCode::unsupported_interface, "computer gamepad buttons are unavailable", "input"},
+			false, ""};
 	if ((map & ~static_cast<std::uint16_t>(FesGpButtonMask)) != 0)
 		return {{ErrorCode::invalid_request, "FES GP button mask is invalid"}, false, ""};
 	std::uint16_t response = 0;
@@ -607,6 +721,22 @@ CoreDriverResult FesGpCoreDriver::SetButtons(const CoreDriverContext&,
 Error FesGpCoreDriver::SetController(std::uint8_t port, std::uint16_t buttons,
 	std::uint16_t keypad, std::uint64_t deadline)
 {
+	if (home_computer_) {
+		if (!controller_ports_)
+			return {ErrorCode::unsupported_interface, "controller ports are inactive", "input"};
+		if (port >= FesComputerControllerPortCount ||
+			(buttons & ~FesComputerControllerButtonMask) != 0)
+			return {ErrorCode::invalid_request, "invalid controller snapshot", "input"};
+		// fes.computer has no keypad interface.
+		if (keypad != 0)
+			return {ErrorCode::unsupported_interface, "keypad ports are inactive", "input"};
+		std::uint16_t response = 0;
+		Error error = gp_.Exchange(FesComputerOpcodeControllerButtons, port, buttons,
+			deadline, &response);
+		if (error.ok() && response != 0)
+			error = {ErrorCode::io_failed, "invalid controller acknowledgement", "input"};
+		return WithPhase(error, "input");
+	}
 	if (!application_ || !controller_ports_)
 		return {ErrorCode::unsupported_interface, "controller ports are inactive", "input"};
 	if (port >= FesApplicationControllerPortCount ||
@@ -990,10 +1120,212 @@ Error FesGpCoreDriver::LoadMediaStream(const ComputerMediaSnapshot& media,
 	return WithPhase(error, "input");
 }
 
+Error FesGpCoreDriver::SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline)
+{
+	if (!home_computer_ || !keyboard_hid_)
+		return {ErrorCode::unsupported_interface, "keyboard HID is inactive", "input"};
+	if ((rows[0] & FesComputerKeyboardReservedRow0Mask) != 0 ||
+		(rows[FesComputerKeyboardModifierRow] & ~FesComputerKeyboardModifierMask) != 0)
+		return {ErrorCode::invalid_request, "invalid keyboard HID rows", "input"};
+	const bool known = hid_rows_known_;
+	// Rows are separate ordered transactions. Until every row of this snapshot
+	// is acknowledged the next snapshot writes all rows again.
+	hid_rows_known_ = false;
+	for (std::uint8_t row = 0; row < FesComputerKeyboardRowCount; ++row) {
+		if (known && rows[row] == hid_rows_[row]) continue;
+		std::uint16_t response = 0;
+		Error error = gp_.Exchange(FesComputerOpcodeKeyboardHid, row, rows[row], deadline,
+			&response);
+		if (error.ok() && response != 0)
+			error = {ErrorCode::io_failed, "invalid keyboard HID acknowledgement", "input"};
+		if (!error.ok()) return WithPhase(error, "input");
+		hid_rows_[row] = rows[row];
+	}
+	hid_rows_known_ = true;
+	return {};
+}
+
+MediaUnitCapability* FesGpCoreDriver::FindMediaUnit(std::uint8_t unit)
+{
+	if (!home_computer_) return nullptr;
+	for (auto& candidate : media_units_)
+		if (candidate.unit == unit) return &candidate;
+	return nullptr;
+}
+
+Error FesGpCoreDriver::ComputerCommand(std::uint8_t opcode, std::uint8_t index,
+	std::uint16_t argument, std::uint64_t deadline)
+{
+	std::uint16_t response = 0;
+	Error error = gp_.Exchange(opcode, index, argument, deadline, &response);
+	if (error.ok() && response != 0) error = Io("invalid FES computer media acknowledgement");
+	return WithPhase(error, "input");
+}
+
+Error FesGpCoreDriver::ReadMediaInfo(std::uint8_t unit, std::uint64_t deadline,
+	LiveMediaInfo* info)
+{
+	std::uint16_t words[FesComputerMediaInfoStateField + 1] = {};
+	for (std::uint8_t field = 0; field <= FesComputerMediaInfoStateField; ++field) {
+		const Error error = gp_.Exchange(FesComputerOpcodeMediaInfo,
+			static_cast<std::uint8_t>(unit * FesComputerMediaInfoStride + field), 0, deadline,
+			&words[field]);
+		if (!error.ok()) return WithPhase(error, "input");
+	}
+	info->minimum = words[FesComputerMediaInfoMinLoField] |
+		(static_cast<std::uint32_t>(words[FesComputerMediaInfoMinHiField]) << 16);
+	info->maximum = words[FesComputerMediaInfoMaxLoField] |
+		(static_cast<std::uint32_t>(words[FesComputerMediaInfoMaxHiField]) << 16);
+	info->chunk_bytes = words[FesComputerMediaInfoChunkMaxField];
+	info->state = words[FesComputerMediaInfoStateField];
+	return {};
+}
+
+Error FesGpCoreDriver::ReadMediaState(std::uint8_t unit, std::uint64_t deadline,
+	std::uint16_t* state)
+{
+	return WithPhase(gp_.Exchange(FesComputerOpcodeMediaInfo,
+		static_cast<std::uint8_t>(unit * FesComputerMediaInfoStride + FesComputerMediaInfoStateField),
+		0, deadline, state), "input");
+}
+
+Error FesGpCoreDriver::RecoverComputerMailbox(std::uint64_t deadline)
+{
+	if (!gp_.Poisoned()) return {};
+	// Realign from the live ACK, then prove that the same core still answers
+	// before any media mutation. The ambiguous request itself is not repeated.
+	Error error = gp_.Realign(deadline);
+	if (error.ok() && !have_identity_) error = Io("FES computer identity is unavailable");
+	if (error.ok()) error = gp_.Identify(identified_, deadline);
+	return WithPhase(error, "input");
+}
+
+Error FesGpCoreDriver::TransferMediaUnit(MediaUnitCapability& unit,
+	const ComputerMediaSnapshot& media, Clock& clock, std::uint64_t deadline)
+{
+	LiveMediaInfo info;
+	Error error = ReadMediaInfo(unit.unit, deadline, &info);
+	if (!error.ok()) return error;
+	if (info.state < FesComputerMediaStateEmpty || info.state > FesComputerMediaStateReady)
+		return Io("FES computer media unit is absent");
+	unit.state = info.state == FesComputerMediaStateReady ? MediaUnitState::ready :
+		info.state == FesComputerMediaStateLoading ? MediaUnitState::loading : MediaUnitState::empty;
+	if (info.chunk_bytes != FesComputerMediaChunkMaxBytes ||
+		info.minimum < FesComputerMediaMinBytes || info.minimum > info.maximum ||
+		info.maximum > FesComputerMediaMaxBytes)
+		return Io("invalid live FES computer media unit limits");
+	unit.min_bytes = info.minimum;
+	unit.max_bytes = info.maximum;
+	unit.chunk_bytes = info.chunk_bytes;
+	if (media.size() < info.minimum || media.size() > info.maximum)
+		return {ErrorCode::invalid_request, "media size is outside the live unit limits", "request"};
+	const std::uint16_t header[] = {static_cast<std::uint16_t>(media.size()),
+		static_cast<std::uint16_t>(media.size() >> 16),
+		static_cast<std::uint16_t>(media.crc32()),
+		static_cast<std::uint16_t>(media.crc32() >> 16)};
+	for (std::uint8_t word = 0; word < 4 && error.ok(); ++word) {
+		error = ComputerCommand(FesComputerOpcodeMediaBegin,
+			static_cast<std::uint8_t>(unit.unit * FesComputerMediaHeaderStride + word),
+			header[word], deadline);
+		// Word 0 makes the unit loading at once: the machine sees an empty drive.
+		if (word == FesComputerMediaBeginTotalLoWord) unit.state = MediaUnitState::loading;
+	}
+	std::array<std::uint8_t, FesComputerMediaChunkMaxBytes> bytes = {};
+	for (std::uint32_t offset = 0; offset < media.size() && error.ok();) {
+		const auto length = std::min<std::uint32_t>(bytes.size(), media.size() - offset);
+		error = media.Read(offset, bytes.data(), length, clock, deadline);
+		const std::uint16_t chunk[] = {static_cast<std::uint16_t>(offset),
+			static_cast<std::uint16_t>(offset >> 16), static_cast<std::uint16_t>(length)};
+		for (std::uint8_t word = 0; word < 3 && error.ok(); ++word)
+			error = ComputerCommand(FesComputerOpcodeMediaChunk,
+				static_cast<std::uint8_t>(unit.unit * FesComputerMediaHeaderStride + word),
+				chunk[word], deadline);
+		for (std::uint32_t byte = 0; byte < length && error.ok(); byte += 2) {
+			const std::uint16_t word = static_cast<std::uint16_t>(bytes[byte] |
+				(byte + 1 < length ? static_cast<std::uint16_t>(bytes[byte + 1]) << 8 : 0));
+			error = ComputerCommand(FesComputerOpcodeMediaData,
+				static_cast<std::uint8_t>(byte / 2), word, deadline);
+		}
+		offset += length;
+	}
+	if (error.ok())
+		error = ComputerCommand(FesComputerOpcodeMediaCommit, unit.unit, 0, deadline);
+	std::uint16_t state = 0;
+	if (error.ok()) error = ReadMediaState(unit.unit, deadline, &state);
+	if (error.ok() && state != FesComputerMediaStateReady)
+		error = Io("FES computer media unit is not ready after commit");
+	if (error.ok()) unit.state = MediaUnitState::ready;
+	return WithPhase(error, "input");
+}
+
+Error FesGpCoreDriver::AbandonMediaUnit(MediaUnitCapability& unit, std::uint64_t deadline)
+{
+	Error error = RecoverComputerMailbox(deadline);
+	if (error.ok())
+		error = ComputerCommand(FesComputerOpcodeMediaEject, unit.unit, 0, deadline);
+	// Without an acknowledged eject the unit is not known to be ready.
+	unit.state = error.ok() ? MediaUnitState::empty : MediaUnitState::loading;
+	return error;
+}
+
+Error FesGpCoreDriver::InsertMedia(std::uint8_t unit, const ComputerMediaSnapshot& media,
+	Clock& clock, std::uint64_t deadline, std::uint32_t cleanup_ms)
+{
+	MediaUnitCapability* target = FindMediaUnit(unit);
+	if (target == nullptr)
+		return {ErrorCode::unsupported_interface,
+			"media unit is not declared by the active computer", "request"};
+	if (media.size() < FesComputerMediaMinBytes || media.size() > FesComputerMediaMaxBytes)
+		return {ErrorCode::invalid_request, "media size exceeds the computer media limit", "request"};
+	Error error = RecoverComputerMailbox(deadline);
+	if (error.ok()) error = TransferMediaUnit(*target, media, clock, deadline);
+	if (error.ok()) return {};
+	// Never repeat an ambiguous mutation: eject this unit once, report the
+	// failure and leave execution released.
+	const Error ejected = AbandonMediaUnit(*target, AddDeadline(gp_.NowMs(), cleanup_ms));
+	if (!ejected.ok()) error.message += "; media eject failed: " + ejected.message;
+	return error;
+}
+
+Error FesGpCoreDriver::EjectMedia(std::uint8_t unit, std::uint64_t deadline)
+{
+	MediaUnitCapability* target = FindMediaUnit(unit);
+	if (target == nullptr)
+		return {ErrorCode::unsupported_interface,
+			"media unit is not declared by the active computer", "request"};
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
+	error = ComputerCommand(FesComputerOpcodeMediaEject, unit, 0, deadline);
+	// A completed rejection changes no endpoint state; an ambiguous one might.
+	if (!error.ok()) {
+		if (gp_.Poisoned()) target->state = MediaUnitState::loading;
+		return error;
+	}
+	target->state = MediaUnitState::empty;
+	std::uint16_t state = 0;
+	error = ReadMediaState(unit, deadline, &state);
+	if (error.ok() && state != FesComputerMediaStateEmpty) {
+		target->state = state == FesComputerMediaStateReady ? MediaUnitState::ready :
+			MediaUnitState::loading;
+		error = Io("FES computer media unit is not empty after eject");
+	}
+	return WithPhase(error, "input");
+}
+
 CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
 	if (stream_pending_) return {Io("incomplete media stream cannot start"), false, ""};
+	if (home_computer_) {
+		// No media gate: a home computer starts with empty drives and is released
+		// right after identity. The first HID snapshot then writes every row.
+		hid_rows_known_ = false;
+		CoreDriverResult result = Gameplay(
+			static_cast<std::uint16_t>(FesComputerExecutionRelease), deadline);
+		if (result.error.ok()) reset_held_ = false;
+		result.error = WithPhase(std::move(result.error), "transport");
+		return result;
+	}
 	const Error controller_neutral = NeutralizeControllers(deadline);
 	if (!controller_neutral.ok()) return {controller_neutral, true, ""};
 	if (computer_) {

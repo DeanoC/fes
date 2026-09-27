@@ -323,6 +323,17 @@ var colecoResponseBoundaryCoordinates = []cramCoordinate{
 	{x: 3333, y: 802},
 }
 
+// apple2Sockets is the fes.apple2-bus.slots/1 shell layout: four sockets
+// stacked in placement columns 24-28 at rows 1-18, 21-38, 41-58 and 61-78.
+// Each half-open CRAM rectangle also spans one tile row above and below its
+// placement rows, so neighbouring rectangles never overlap.
+var apple2Sockets = map[int]socketPolicy{
+	2: {Apple2Slot, Apple2Map, 1769, 32, 2806, 1722},
+	4: {Apple2Slot, Apple2Map, 1769, 1722, 2806, 3442},
+	5: {Apple2Slot, Apple2Map, 1769, 3442, 2806, 5162},
+	7: {Apple2Slot, Apple2Map, 1769, 5162, 2806, 6882},
+}
+
 func policyFor(slot, mapping string) (socketPolicy, error) {
 	switch {
 	case slot == Slot && mapping == Map:
@@ -339,15 +350,16 @@ func policyFor(slot, mapping string) (socketPolicy, error) {
 func supportedSocketVersion(slot, mapping string, major int) bool {
 	return (slot == Slot && mapping == Map && major == 1) ||
 		(slot == ColecoSlot && mapping == ColecoMap && major == 1) ||
-		(slot == ColecoSlot && mapping == ColecoMapV2 && major == 2)
+		(slot == ColecoSlot && mapping == ColecoMapV2 && major == 2) ||
+		(slot == Apple2Slot && mapping == Apple2Map && major == 1)
 }
 
 func (p socketPolicy) inside(x, y int) bool {
 	return x >= p.x0 && x < p.x1 && y >= p.y0 && y < p.y1
 }
 
-// ROM linking currently belongs to the ZX81 socket and retains its original
-// overlap check until another core declares a ROM map alongside a slot.
+// ROM linking with a single socket belongs to the ZX81 socket and retains its
+// original overlap check. Multi-socket shells check every socket instead.
 func insideSocket(x, y int) bool { return zx81Socket.inside(x, y) }
 
 func crcCompanionColumn(x int) bool {

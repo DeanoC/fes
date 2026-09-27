@@ -124,17 +124,123 @@ private:
 	bool Key(const std::string& key) {return Take((offset_==0 ? "{\"" : ",\"")+key+"\":");}
 	const std::string& bytes_;std::size_t offset_=0;
 };
+Error OpenExpansion(const std::vector<std::string>& roots, const std::string& path, OpenedCoreExpansion* out) {
+	PosixArtifactOpener opener;
+	const int dir=Directory(roots,path);
+	if (dir<0) return Invalid("expansion path is outside trusted roots");
+	Error error;
+	if (!ClosedDirectory(dir)) error=Invalid("expansion directory must contain only manifest.json and cart.rbf");
+	if (error.ok()) error=opener.OpenRelative(dir,path,"manifest.json",65536,&out->manifest);
+	if (error.ok()) error=opener.OpenRelative(dir,path,"cart.rbf",MaximumPayload,&out->cart);
+	close(dir);
+	if (!error.ok()) return error;
+	return Read(out->manifest,&out->manifest_bytes,nullptr);
+}
+Error OpenLinkedPayload(const std::vector<std::string>& roots, const std::string& path,
+	std::uint64_t size, Artifact* payload) {
+	PosixArtifactOpener opener;
+	const auto slash=path.find_last_of('/');
+	if (slash==std::string::npos) return Invalid("invalid linked payload path");
+	const std::string parent=path.substr(0,slash), name=path.substr(slash+1);
+	if (name!="linked.rbf") return Invalid("linked payload must be named linked.rbf");
+	const int payload_dir=Directory(roots,parent);
+	if (payload_dir<0) return Invalid("linked payload path is outside trusted roots");
+	const Error error=opener.OpenRelative(payload_dir,parent,name,MaximumPayload,payload);close(payload_dir);
+	if (!error.ok()) return error;
+	if (payload->size()!=size) return Invalid("linked payload size does not match composition");
+	return {};
+}
+// fes.apple2-bus.slots/1 socket set. The shell's physical sockets are not
+// final, so every Apple II slot 1..7 is admitted until that table is sealed.
+bool Apple2SlotSocket(std::uint64_t slot) {return slot>=1 && slot<=7;}
+// The target agent links cards into their own reserved socket rectangles with
+// the shared misteross implementation; this admission verifies its result.
+Error OpenSlotComposition(const std::vector<std::string>& roots,
+	const OpenedCorePackage& base, const CoreCompositionRequest& request, OpenedCoreComposition* output) {
+	const auto& descriptor=base.descriptor;
+	bool bus=false;
+	for (const auto& interface : descriptor.interfaces) {
+		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus" &&
+			interface.id!=kApple2ExpansionBusID) continue;
+		if (bus || interface.id!=kApple2ExpansionBusID || interface.major!=1 || interface.minor!=0 || interface.required)
+			return Invalid("base package has an unsupported or ambiguous expansion bus");
+		bus=true;
+	}
+	if (!bus || descriptor.abi.id!="fes.computer" || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
+		return Invalid("base package does not declare the optional Apple II slot bus");
+	const auto& info=request.composition;
+	if (!request.expansion_path.empty() || !info.expansion_id.empty() ||
+		!Hex(info.id,64) || !Hex(info.package_id,64) || !Hex(info.shell_sha256,64) || !Hex(info.payload_sha256,64) ||
+		info.package_id!=base.package_id || info.shell_sha256!=descriptor.payload.sha256 ||
+		info.payload_size<40408 || info.payload_size>MaximumPayload)
+		return Invalid("invalid composition identity or base binding");
+	if (request.expansions.empty() || request.expansions.size()>7 ||
+		request.expansions.size()!=info.expansions.size())
+		return Invalid("multi-slot composition requires one to seven bound slots");
+	// Domain, NUL, package, NUL, then "<slot>:<expansion>" NUL per ascending
+	// slot, then the linked payload digest (misteross SlotCompositionID).
+	std::string canonical("fes-composition-v2\0",19);
+	canonical+=info.package_id+std::string(1,'\0');
+	unsigned previous=0;
+	for (std::size_t i=0;i<info.expansions.size();++i) {
+		const auto& slot=info.expansions[i];
+		if (slot.slot<=previous || !Apple2SlotSocket(slot.slot) || request.expansions[i].slot!=slot.slot ||
+			!Hex(slot.expansion_id,64))
+			return Invalid("composition slots must ascend, be unique sockets and match the request");
+		previous=slot.slot;
+		canonical+=std::to_string(slot.slot)+":"+slot.expansion_id+std::string(1,'\0');
+	}
+	canonical+=info.payload_sha256;
+	if (Hash(canonical)!=info.id) return Invalid("composition ID does not match canonical identity");
+	OpenedCoreComposition opened;opened.info=info;
+	for (std::size_t i=0;i<request.expansions.size();++i) {
+		OpenedCoreExpansion expansion;expansion.slot=request.expansions[i].slot;
+		Error error=OpenExpansion(roots,request.expansions[i].path,&expansion);
+		if (!error.ok()) return error;
+		ManifestReader reader(expansion.manifest_bytes);
+		std::string cart_hash,device,map,recipe,revision,build,package,shell,slot;
+		std::uint64_t size=0,format=0,index=0,major=0,minor=0;
+		if (reader.HasBoundaryPatch() ||
+			!reader.Text("cart_sha256",&cart_hash) || !reader.Number("cart_size",&size) ||
+			!reader.Text("device",&device) || !reader.Number("format",&format) || !reader.Text("map",&map) ||
+			!reader.Text("recipe_sha256",&recipe) || !reader.Text("revision",&revision) ||
+			!reader.Text("shell_build_id",&build) || !reader.Text("shell_package_id",&package) ||
+			!reader.Text("shell_sha256",&shell) || !reader.Text("slot",&slot) ||
+			!reader.Number("slot_index",&index) || !reader.Number("slot_major",&major) ||
+			!reader.Number("slot_minor",&minor) || !reader.End())
+			return Invalid("expansion manifest must use canonical JSON");
+		if (!Hex(cart_hash,64) || !Hex(recipe,64) || !Hex(revision,40) || !Hex(build,32) ||
+			format!=1 || device!="5CSEBA6U23I7" || descriptor.target.device!=device ||
+			slot!=kApple2ExpansionBusID || map!=kApple2ExpansionMapID || major!=1 || minor!=0 ||
+			index!=expansion.slot || !Apple2SlotSocket(index) ||
+			size<40408 || size!=expansion.cart.size() || package!=base.package_id ||
+			build!=descriptor.build.id || shell!=descriptor.payload.sha256)
+			return Invalid("expansion manifest does not match its slot and frozen shell");
+		if (Hash(std::string("fes-expansion-v1\0",17)+expansion.manifest_bytes)!=info.expansions[i].expansion_id)
+			return Invalid("expansion ID does not match canonical manifest");
+		expansion.cart_sha256=cart_hash;
+		opened.expansions.push_back(std::move(expansion));
+	}
+	Error error=OpenLinkedPayload(roots,request.payload_path,info.payload_size,&opened.payload);
+	if (!error.ok()) return error;
+	error=RecheckCoreComposition(opened);
+	if (!error.ok()) return error;
+	*output=std::move(opened);return {};
+}
 } // namespace
 
 Error RecheckCoreComposition(const OpenedCoreComposition& opened) {
 	std::string bytes, digest;
-	Error error=Read(opened.manifest,&bytes,nullptr);
-	if (!error.ok()) return error;
-	if (bytes!=opened.manifest_bytes) return Invalid("expansion manifest changed after admission");
-	error=Read(opened.cart,nullptr,&digest);
-	if (!error.ok()) return error;
-	if (digest!=opened.cart_sha256) return Invalid("expansion cart changed after admission");
-	error=Read(opened.payload,nullptr,&digest);
+	if (opened.expansions.empty()) return Invalid("composition retains no expansion");
+	for (const auto& expansion : opened.expansions) {
+		Error error=Read(expansion.manifest,&bytes,nullptr);
+		if (!error.ok()) return error;
+		if (bytes!=expansion.manifest_bytes) return Invalid("expansion manifest changed after admission");
+		error=Read(expansion.cart,nullptr,&digest);
+		if (!error.ok()) return error;
+		if (digest!=expansion.cart_sha256) return Invalid("expansion cart changed after admission");
+	}
+	const Error error=Read(opened.payload,nullptr,&digest);
 	if (!error.ok()) return error;
 	if (digest!=opened.info.payload_sha256) return Invalid("linked payload changed after admission");
 	return {};
@@ -143,6 +249,8 @@ Error RecheckCoreComposition(const OpenedCoreComposition& opened) {
 Error OpenCoreComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage& base, const CoreCompositionRequest& request, OpenedCoreComposition* output) {
 	if (!output) return Invalid("missing composition output");
+	if (!request.expansions.empty() || !request.composition.expansions.empty())
+		return OpenSlotComposition(roots,base,request,output);
 	const auto& descriptor=base.descriptor;
 	std::string socket;
 	std::uint16_t socket_major=0;
@@ -166,18 +274,10 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 		info.expansion_id+std::string(1,'\0')+info.payload_sha256;
 	if (Hash(canonical)!=info.id) return Invalid("composition ID does not match canonical identity");
 	OpenedCoreComposition opened;opened.info=info;
-	PosixArtifactOpener opener;
-	const int dir=Directory(roots,request.expansion_path);
-	if (dir<0) return Invalid("expansion path is outside trusted roots");
-	Error error;
-	if (!ClosedDirectory(dir)) error=Invalid("expansion directory must contain only manifest.json and cart.rbf");
-	if (error.ok()) error=opener.OpenRelative(dir,request.expansion_path,"manifest.json",65536,&opened.manifest);
-	if (error.ok()) error=opener.OpenRelative(dir,request.expansion_path,"cart.rbf",MaximumPayload,&opened.cart);
-	close(dir);
+	OpenedCoreExpansion expansion;
+	Error error=OpenExpansion(roots,request.expansion_path,&expansion);
 	if (!error.ok()) return error;
-	error=Read(opened.manifest,&opened.manifest_bytes,nullptr);
-	if (!error.ok()) return error;
-	ManifestReader reader(opened.manifest_bytes);
+	ManifestReader reader(expansion.manifest_bytes);
 	if (reader.HasBoundaryPatch() &&
 		(socket!="fes.expansion.coleco-bus" || !reader.ColecoBoundaryPatch()))
 		return Invalid("expansion manifest must use canonical JSON");
@@ -197,21 +297,15 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 				(map=="fes.coleco-bus.socket/2" && major==2))))) || minor!=0 ||
 		(major==2 && reader.HasBoundaryPatch()) ||
 		major!=socket_major ||
-		size<40408 || size!=opened.cart.size() || package!=base.package_id ||
+		size<40408 || size!=expansion.cart.size() || package!=base.package_id ||
 		build!=descriptor.build.id || shell!=descriptor.payload.sha256)
 		return Invalid("expansion manifest does not match the supported bus and frozen shell");
-	if (Hash(std::string("fes-expansion-v1\0",17)+opened.manifest_bytes)!=info.expansion_id)
+	if (Hash(std::string("fes-expansion-v1\0",17)+expansion.manifest_bytes)!=info.expansion_id)
 		return Invalid("expansion ID does not match canonical manifest");
-	opened.cart_sha256=cart_hash;
-	const auto slash=request.payload_path.find_last_of('/');
-	if (slash==std::string::npos) return Invalid("invalid linked payload path");
-	const std::string parent=request.payload_path.substr(0,slash), name=request.payload_path.substr(slash+1);
-	if (name!="linked.rbf") return Invalid("linked payload must be named linked.rbf");
-	const int payload_dir=Directory(roots,parent);
-	if (payload_dir<0) return Invalid("linked payload path is outside trusted roots");
-	error=opener.OpenRelative(payload_dir,parent,name,MaximumPayload,&opened.payload);close(payload_dir);
+	expansion.cart_sha256=cart_hash;
+	opened.expansions.push_back(std::move(expansion));
+	error=OpenLinkedPayload(roots,request.payload_path,info.payload_size,&opened.payload);
 	if (!error.ok()) return error;
-	if (opened.payload.size()!=info.payload_size) return Invalid("linked payload size does not match composition");
 	error=RecheckCoreComposition(opened);
 	if (!error.ok()) return error;
 	*output=std::move(opened);return {};

@@ -13,6 +13,7 @@
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/generated/fes_computer.hpp"
 #include "native/input.hpp"
 #include "native/video.hpp"
 
@@ -560,11 +561,37 @@ Capabilities NativeHardware::capabilities() const
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(application));
+		SupportedABI computer_io;
+		computer_io.id = generated::FesComputerABIID;
+		computer_io.major = generated::FesComputerABIMajor;
+		computer_io.minor = generated::FesComputerABIMinor;
+		computer_io.interfaces = {
+			{kApple2ExpansionBusID, 1, 0},
+			{generated::FesComputerInterfaceAudioPcmS16Stereo48kID,
+				generated::FesComputerInterfaceAudioPcmS16Stereo48kMajor,
+				generated::FesComputerInterfaceAudioPcmS16Stereo48kMinor},
+			{generated::FesComputerInterfaceGamepadPortsID,
+				generated::FesComputerInterfaceGamepadPortsMajor,
+				generated::FesComputerInterfaceGamepadPortsMinor},
+			{generated::FesComputerInterfaceKeyboardHidID,
+				generated::FesComputerInterfaceKeyboardHidMajor,
+				generated::FesComputerInterfaceKeyboardHidMinor},
+			{generated::FesComputerInterfaceMediaApple2FloppyID,
+				generated::FesComputerInterfaceMediaApple2FloppyMajor,
+				generated::FesComputerInterfaceMediaApple2FloppyMinor},
+			{generated::FesComputerInterfaceVideoFixed720p60ID,
+				generated::FesComputerInterfaceVideoFixed720p60Major,
+				generated::FesComputerInterfaceVideoFixed720p60Minor}};
+		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
+			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
+		result.abis.insert(result.abis.begin(), std::move(computer_io));
 		std::sort(result.abis.begin(), result.abis.end(),
 			[](const SupportedABI& a, const SupportedABI& b) { return a.id < b.id; });
 		if (active_driver_ == fes_gp_driver_) {
 			MediaStreamInfo info;
 			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
+			if (driver != nullptr && driver->home_computer())
+				result.media_units = driver->media_units();
 			if (driver != nullptr && driver->StreamInfo(&info).ok()) {
 				result.media_stream.interface = {generated::FesSimpleComputerInterfaceMediaBlobStreamID,
 					generated::FesSimpleComputerInterfaceMediaBlobStreamMajor,
@@ -670,6 +697,48 @@ Error NativeHardware::LoadComputerMediaStream(const std::string& path, std::uint
 		}
 	}
 	return error;
+}
+
+Error NativeHardware::SetKeyboardHid(const KeyboardHidRows& rows)
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver == nullptr)
+		return {ErrorCode::unsupported_interface, "FES computer is not active", "input"};
+	return driver->SetKeyboardHid(rows, Deadline(clock_, timeouts_.core_io_ms));
+}
+
+Error NativeHardware::InsertComputerMedia(std::uint8_t unit, const std::string& path,
+	std::uint32_t size)
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	const MediaUnitCapability* info = nullptr;
+	if (driver != nullptr)
+		for (const auto& candidate : driver->media_units())
+			if (candidate.unit == unit) info = &candidate;
+	if (info == nullptr)
+		return {ErrorCode::unsupported_interface, "FES computer media unit is not active", "request"};
+	if (size < info->min_bytes || size > info->max_bytes)
+		return {ErrorCode::invalid_request, "size is outside the observed media unit limits", "request"};
+	// One budget covers the snapshot, CRC and every transfer exchange. Execution
+	// stays released throughout; cleanup has its own bounded deadline.
+	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	ComputerMediaSnapshot snapshot;
+	Error error = snapshot.Prepare(path, info->min_bytes, info->max_bytes, clock_, deadline);
+	if (!error.ok()) return WithPhase(error, "request");
+	if (snapshot.size() != size)
+		return {ErrorCode::invalid_request, "media size does not match request", "request"};
+	return driver->InsertMedia(unit, snapshot, clock_, deadline, timeouts_.core_io_ms);
+}
+
+Error NativeHardware::EjectComputerMedia(std::uint8_t unit)
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver == nullptr)
+		return {ErrorCode::unsupported_interface, "FES computer media unit is not active", "request"};
+	return driver->EjectMedia(unit, Deadline(clock_, timeouts_.core_io_ms));
 }
 
 Error NativeHardware::AttachProgrammedBitstream(AdmittedCorePackage* package,
@@ -874,9 +943,14 @@ HardwareResult NativeHardware::LoadCore(
 		if (identity_verified)
 			identity_verified->store(true);
 		bool audio = false;
-		if (admitted->opened_.descriptor.abi.id == generated::FesApplicationABIID)
+		// Application and computer audio are the same interface and contract.
+		const std::string& abi = admitted->opened_.descriptor.abi.id;
+		const char* const audio_id = abi == generated::FesComputerABIID ?
+			generated::FesComputerInterfaceAudioPcmS16Stereo48kID :
+			generated::FesApplicationInterfaceAudioPcmS16Stereo48kID;
+		if (abi == generated::FesApplicationABIID || abi == generated::FesComputerABIID)
 			for (const auto& interface : admitted->opened_.descriptor.interfaces)
-				if (interface.id == generated::FesApplicationInterfaceAudioPcmS16Stereo48kID &&
+				if (interface.id == audio_id &&
 					interface.required && interface.major == 1 && interface.minor == 0)
 					audio = true;
 		// Identity already proved the exact declared/live capability set.

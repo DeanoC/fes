@@ -22,10 +22,14 @@ historic_pattern='stage[-_ ]?c0|poc[0-9]*|fogcast-runtime|native[-_ ]personality
 
 # Package schema guard versions are not the removed runtime-v2 lifecycle.
 # Exempt only their exact generated preprocessor lines; other v2 names still fail.
+# The shared multi-slot composition identity domain is likewise exempt only as
+# the one literal that seeds its canonical hash in core_composition.cpp.
 if grep -ERni --include='*.[ch]' --include='*.cpp' --include='*.hpp' \
 	--include='Makefile' "$historic_pattern" \
 	"$root/include" "$root/src" "$root/Makefile" |
-	grep -Ev '/src/native/generated/[^/:]+\.hpp:[0-9]+:(#(ifndef|define) MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2|#endif // MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2)$' 	>"$temporary/source-names.log"; then
+	grep -Ev '/src/native/generated/[^/:]+\.hpp:[0-9]+:(#(ifndef|define) MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2|#endif // MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2)$' |
+	grep -Ev '/src/native/core_composition\.cpp:[0-9]+:[[:space:]]*std::string canonical\("fes-composition-v2\\0",19\);$' \
+	>"$temporary/source-names.log"; then
 	echo "historic compatibility term remains in the active tree" >&2
 	cat "$temporary/source-names.log" >&2
 	exit 1
@@ -53,10 +57,12 @@ executable_list=$(find "$build" -maxdepth 1 -type f \
 built_name_pattern='fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|poc[0-9]*|broker|coordinator|backendfence|replay|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
 # The generated ProgressTag constant's C++ mangling ends in "sTagE".
 # Exclude only that exact generated symbol, retaining the historic-name guard.
+# The exact shared composition identity domain string is likewise excluded.
 for output in "$archive" "$daemon"; do
 	strings "$output" >"$temporary/$(basename "$output").strings"
+	grep -Fxv -e 'fes-composition-v2' "$temporary/$(basename "$output").strings" |
 	grep -Fv -e '__gxx_personality_v0' \
-		-e '_ZN6mister6native9generatedL20FesGpPongProgressTagE' "$temporary/$(basename "$output").strings" \
+		-e '_ZN6mister6native9generatedL20FesGpPongProgressTagE' \
 		>"$temporary/$(basename "$output").project-strings" || true
 	if grep -Eai "$built_name_pattern" "$temporary/$(basename "$output").project-strings" \
 		>"$temporary/built-names.log"; then

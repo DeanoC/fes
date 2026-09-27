@@ -3,6 +3,7 @@ package playhid
 import (
 	"testing"
 
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -54,40 +55,99 @@ func TestEventNativeUsesGamepadNotZX81(t *testing.T) {
 	}
 }
 
-func TestPhysicalEventArrowsAndZX81(t *testing.T) {
+func TestPhysicalEventCarriesHIDUsages(t *testing.T) {
 	t.Parallel()
-	a, ok := PhysicalEvent(30, true) // KEY_A
-	if !ok || a.Code != zx81keys.Letter('A') || a.Device != remoteinput.DeviceKeyboard {
-		t.Fatalf("KEY_A = %+v ok=%v", a, ok)
+	for _, tc := range []struct {
+		linux uint16
+		usage uint8
+	}{{30, 0x04}, {103, 0x52}, {1, 0x29}, {14, 0x2a}, {42, 0xe1}, {54, 0xe5}, {29, 0xe0}, {28, 0x28}, {11, 0x27}} {
+		e, ok := PhysicalEvent(tc.linux, true)
+		usage, isHID := hidkeys.Usage(e.Code)
+		if !ok || !isHID || usage != tc.usage || e.Device != remoteinput.DeviceKeyboard || e.Kind != remoteinput.KindKey || e.Action != remoteinput.ActionPress {
+			t.Fatalf("KEY %d = %+v ok=%v", tc.linux, e, ok)
+		}
 	}
-	up, ok := PhysicalEvent(linuxKeyUp, true)
-	if !ok || up.Code != remoteinput.KeyUp || up.Device != remoteinput.DeviceKeyboard {
-		t.Fatalf("KEY_UP = %+v ok=%v", up, ok)
+	if _, ok := PhysicalEvent(304, true); ok { // BTN_SOUTH
+		t.Fatal("gamepad button mapped as a keyboard key")
 	}
-	if _, ok := PhysicalEvent(1, true); ok { // KEY_ESC
-		t.Fatal("Escape is chrome, not a physical play HID event")
+}
+
+// The kit sends HID usages; matrix and native cores must still receive
+// exactly the keys the ZX81/arrow mapper produced before.
+func TestStreamEventKeepsLegacyCoresOnTheirKeys(t *testing.T) {
+	t.Parallel()
+	arrows := map[uint16]remoteinput.Code{103: remoteinput.KeyUp, 105: remoteinput.KeyLeft, 106: remoteinput.KeyRight, 108: remoteinput.KeyDown}
+	// Every evdev KEY_* code, pressed and released: the pre-HID mapper
+	// (ZX81 matrix, then arrows) and the HID route must agree, including
+	// keys either side drops.
+	for linux := uint16(0); linux < 0x300; linux++ {
+		for _, down := range []bool{true, false} {
+			physical, physicalOK := PhysicalEvent(linux, down)
+			var legacy remoteinput.Event
+			legacyOK := false
+			if key, ok := zx81keys.FromLinuxKey(linux); ok {
+				legacy, legacyOK = keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, key, down), true
+			} else if code, ok := arrows[linux]; ok {
+				legacy, legacyOK = keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, code, down), true
+			}
+			for _, mode := range []KeyboardMode{MatrixKeys, NativeKeys} {
+				got, gotOK := remoteinput.Event{}, false
+				if physicalOK {
+					got, gotOK = StreamEvent(physical, mode)
+				}
+				want, wantOK := remoteinput.Event{}, false
+				if legacyOK {
+					want, wantOK = StreamEvent(legacy, mode)
+				}
+				if gotOK != wantOK || got != want {
+					t.Fatalf("KEY %d down=%v mode %d: got %+v/%v want %+v/%v", linux, down, mode, got, gotOK, want, wantOK)
+				}
+			}
+		}
+	}
+}
+
+func TestStreamEventHIDKeepsPhysicalKeysIncludingChrome(t *testing.T) {
+	t.Parallel()
+	for _, linux := range []uint16{1, 14, 30, 58, 125} { // Esc, Backspace, A, CapsLock, LeftMeta
+		e, _ := PhysicalEvent(linux, false)
+		got, ok := StreamEvent(e, HIDKeys)
+		if !ok || got != e {
+			t.Fatalf("KEY %d = %+v ok=%v", linux, got, ok)
+		}
+	}
+	zx, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, zx81keys.Letter('Q'), true), HIDKeys)
+	if usage, _ := hidkeys.Usage(zx.Code); !ok || usage != 0x14 || zx.Action != remoteinput.ActionPress {
+		t.Fatalf("legacy Q = %+v ok=%v", zx, ok)
+	}
+	arrow, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, remoteinput.KeyLeft, false), HIDKeys)
+	if usage, _ := hidkeys.Usage(arrow.Code); !ok || usage != 0x50 || arrow.Action != remoteinput.ActionRelease {
+		t.Fatalf("legacy left = %+v ok=%v", arrow, ok)
+	}
+	if _, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, remoteinput.KeyEscape, true), HIDKeys); ok {
+		t.Fatal("unmapped legacy code reached an HID core")
 	}
 }
 
 func TestStreamEventNativeRewritesKeyboardToGamepad(t *testing.T) {
 	t.Parallel()
-	zx, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, zx81keys.Letter('W'), true), false)
+	zx, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, zx81keys.Letter('W'), true), NativeKeys)
 	if !ok || zx.Device != remoteinput.DeviceGamepad || zx.Code != remoteinput.ButtonDPadUp {
 		t.Fatalf("native W = %+v ok=%v", zx, ok)
 	}
-	arrow, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, remoteinput.KeyLeft, true), false)
+	arrow, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, remoteinput.KeyLeft, true), NativeKeys)
 	if !ok || arrow.Code != remoteinput.ButtonDPadLeft {
 		t.Fatalf("native arrow = %+v ok=%v", arrow, ok)
 	}
-	if _, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, zx81keys.Letter('J'), true), false); ok {
+	if _, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, zx81keys.Letter('J'), true), NativeKeys); ok {
 		t.Fatal("native J must not keep a ZX81 code")
 	}
-	keep, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, zx81keys.Letter('J'), true), true)
+	keep, ok := StreamEvent(keyEvent(remoteinput.DeviceKeyboard, remoteinput.KindKey, zx81keys.Letter('J'), true), MatrixKeys)
 	if !ok || keep.Code != zx81keys.Letter('J') {
 		t.Fatalf("fes.keyboard J = %+v ok=%v", keep, ok)
 	}
 	pad := remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonA}
-	got, ok := StreamEvent(pad, false)
+	got, ok := StreamEvent(pad, NativeKeys)
 	if !ok || got != pad {
 		t.Fatalf("gamepad pass-through = %+v ok=%v", got, ok)
 	}

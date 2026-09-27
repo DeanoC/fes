@@ -43,7 +43,9 @@ Host endpoint configuration is explicit; target discovery is separate.
 Every eligible physical evdev gamepad is opened; polls merge in stable device
 path order into one `remoteinput.Event` stream. Physical USB keyboards are
 opened on the same hub so play-session HID can reach the kit-local input
-socket without stealing browse focus. The virtual FogCast device
+socket without stealing browse focus. Keyboard events carry the key's USB HID
+usage; mister-agent keeps it for `fes.keyboard.hid` cores and maps it to the
+ZX81 matrix or native gamepad keys for the other cores. The virtual FogCast device
 (`BUS_VIRTUAL` / name `FogCast Virtual Gamepad`), other virtual-bus nodes, devices
 without gamepad buttons, and duplicate `/dev/input/js*` joystick interfaces are
 excluded. Standard Linux gamepad buttons and the kit's 081f:e401 USB pad are

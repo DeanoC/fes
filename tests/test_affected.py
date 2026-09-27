@@ -39,8 +39,8 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
             'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco'},
             'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong'},
-            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'coleco'},
-            'cores/fes-common/rtl/fes_audio_output.v': {'coleco'},
+            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'coleco', 'apple2'},
+            'cores/fes-common/rtl/fes_audio_output.v': {'coleco', 'apple2'},
             'cores/fes-common/rtl/fes_sn76489.sv': {'coleco'},
             'cores/fes-pong/sim/board_models.v': {'demo', 'pong'},
             'cores/pong/rtl/pong_game.sv': {'pong'},
@@ -49,6 +49,11 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
             'scripts/sim_fes_demo.py': {'demo'},
+            'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
+            'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2'},
+            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2'},
+            'scripts/apple2_slots.py': {'apple2'},
+            'scripts/build_apple2_slot_card.py': {'apple2'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):

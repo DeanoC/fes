@@ -21,6 +21,10 @@ type CoreMediaCapability struct {
 	MaxBytes  int64           `json:"max_bytes"`
 	Interface RuntimeContract `json:"interface"`
 	Transport string          `json:"transport"`
+	// Unit is the fes.computer media unit a removable-media role occupies.
+	Unit *uint8 `json:"unit,omitempty"`
+	// Extensions lists the file names a live-media request may carry.
+	Extensions []string `json:"extensions,omitempty"`
 }
 
 // DeclaredCoreMediaCapabilities contains transport interpretations, never core
@@ -28,6 +32,9 @@ type CoreMediaCapability struct {
 // or transport semantics. Optional declarations still require active runtime
 // support at launch.
 func DeclaredCoreMediaCapabilities(descriptor corepackage.Descriptor) []CoreMediaCapability {
+	if ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
+		return declaredComputerMedia(descriptor)
+	}
 	result := make([]CoreMediaCapability, 0)
 	if !supportsBlobABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return result

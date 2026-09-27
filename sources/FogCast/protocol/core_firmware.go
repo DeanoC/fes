@@ -56,6 +56,18 @@ type CoreComposition struct {
 	ExpansionReady   bool   `json:"expansion_ready,omitempty"`
 	FirmwareRequired bool   `json:"firmware_required"`
 	FirmwareReady    bool   `json:"firmware_ready"`
+	// SlotExpansions lists the cards a multi-socket shell title selects, in
+	// ascending slot order. Every card must be ready for the title to launch.
+	SlotExpansions []SlotExpansionStatus `json:"slot_expansions,omitempty"`
+}
+
+// SlotExpansionStatus is one selected card for a physical slot. Ready means
+// the card is stored intact and admitted against the title's exact shell
+// together with the title's other selected cards.
+type SlotExpansionStatus struct {
+	Slot        int    `json:"slot"`
+	ExpansionID string `json:"expansion_id"`
+	Ready       bool   `json:"ready"`
 }
 
 // FirmwareReady reports whether a title's firmware slot is composition-ready.
