@@ -19,6 +19,7 @@ fixtures do not establish consumer or hardware acceptance.
 | fes.gamepad.ports | 5 | Two independently addressed eight-button controllers |
 | fes.keypad.ports | 6 | Twelve numeric keypad keys on each controller port |
 | fes.firmware.blob | 7 | Exact 8192-byte firmware overlay while reset is held |
+| fes.memory.hps-ddr | 8 | FPGA-owned HPS DDR3 window through the fpga2sdram ports |
 
 V1 runtime admission requires video. Gamepad and media are independently
 composable: a video-only autonomous demo is valid, as is video with gamepad
@@ -149,6 +150,45 @@ Errors are invalid opcode=1, index=2, argument=3, state=4. Opcodes whose
 capability is absent return invalid opcode. All invalid requests acknowledge
 the toggle without changing application state. Lifecycle failures must not
 release execution; ambiguous mutating requests must not be retried blindly.
+
+## HPS DDR
+
+`fes.memory.hps-ddr` 1.0 is capability bit 8 and must be declared required.
+It has no GP opcode: memory traffic stays inside the FPGA. The core owns the
+`FesApplicationHpsDdrWindowBytes` HPS DDR3 bytes from
+`FesApplicationHpsDdrWindowBase`: 0x20000000 to 0x3fffffff, the SoC
+`FPGA_CORE_MEMORY` window. Linux boots with `mem=511M memmap=513M$511M` and
+never allocates those bytes. The ports reach all of DDR, so a command outside
+the window is a core defect that can corrupt Linux.
+
+The core instantiates `cyclonev_hps_interface_fpga2sdram` and drives its
+`cfg_*` inputs with the `FesApplicationHpsDdrCfg*` constants. They are the
+MiSTer sysmem layout, re-derived by a test from Quartus's port allocation:
+
+| Port | Width | Command port | Read/write data FIFOs | Word address |
+| --- | --- | --- | --- | --- |
+| 0 | 128-bit Avalon-MM | 0 | 0 and 1 | byte address / 16 |
+| 1 | 64-bit Avalon-MM | 1 | 2 | byte address / 8 |
+| 2 | 64-bit Avalon-MM | 2 | 3 | byte address / 8 |
+
+The SDR controller does not follow those inputs live. It uses the layout that
+`staticcfg.applycfg` latched when U-Boot enabled the bridges at boot, with the
+boot splash loaded. The FES splash drives the same constants. A boot bitstream
+without an fpga2sdram cell latches unusable values: the designated kit then
+accepted no command at all. The SDR registers `CPORTWIDTH` through `PORTCFG`
+mirror the loaded core's `cfg_*` inputs, not the latched layout.
+
+Traffic follows Avalon-MM: a command holds until waitrequest is low, a burst is
+1 through `FesApplicationHpsDdrMaxBurst` (128) beats, byte enables select the
+bytes written, and read data returns in order with readdatavalid. While
+execution reset is held the core issues no new command; a burst the controller
+has already accepted completes.
+
+Every programming contains the FPGA ports. The runtime releases `FPGAPORTRST`
+only after identity proves this capability and the SDR mirror registers equal
+the constants. Every other package keeps the ports in reset: a core without the
+cell does not drive its command inputs, and its unconnected `cfg_*` inputs read
+as one.
 
 ## Audio
 

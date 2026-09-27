@@ -182,6 +182,32 @@ constants:
     value: 0
   - name: FesApplicationFirmwareDataTailIndex
     value: 1
+  # fes.memory.hps-ddr 1.0. The core owns these HPS DDR3 bytes; Linux boots
+  # with mem=511M memmap=513M$511M and never allocates them.
+  - name: FesApplicationHpsDdrWindowBase
+    value: 0x20000000
+  - name: FesApplicationHpsDdrWindowBytes
+    value: 0x20000000
+  # fpga2sdram cfg_* inputs of the MiSTer sysmem layout. U-Boot latches the
+  # boot splash's copy with staticcfg.applycfg; a core must drive the same
+  # values. Port 0: 128-bit Avalon-MM, command 0, data FIFOs 0 and 1.
+  # Port 1: 64-bit, command 1, FIFO 2. Port 2: 64-bit, command 2, FIFO 3.
+  - name: FesApplicationHpsDdrCfgPortWidth
+    value: 0x016
+  - name: FesApplicationHpsDdrCfgCportType
+    value: 0x03f
+  - name: FesApplicationHpsDdrCfgCportWfifoMap
+    value: 0x000d0
+  - name: FesApplicationHpsDdrCfgCportRfifoMap
+    value: 0x000d0
+  - name: FesApplicationHpsDdrCfgWfifoCportMap
+    value: 0x2100
+  - name: FesApplicationHpsDdrCfgRfifoCportMap
+    value: 0x2100
+  - name: FesApplicationHpsDdrCfgAxiMmSelect
+    value: 0x00
+  - name: FesApplicationHpsDdrMaxBurst
+    value: 128
 interfaces:
   - id: fes.gamepad
     major: 1
@@ -215,3 +241,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 7
+  - id: fes.memory.hps-ddr
+    major: 1
+    minor: 0
+    capability_bit: 8

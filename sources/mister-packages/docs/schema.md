@@ -298,6 +298,11 @@ Application firmware `fes.firmware.blob` 1.0 is capability bit 7 with opcodes
 or optional. See [application I/O](application-io.md). The in-tree runtime
 consumer revision is recorded in `testdata/oracles/fes-application-firmware.json`.
 
+Application HPS DDR `fes.memory.hps-ddr` 1.0 is capability bit 8. Its
+`FesApplicationHpsDdr*` constants give the FPGA-owned DDR3 window and the
+fpga2sdram `cfg_*` layout; `registers/cyclone_v/sdram.yaml` names the SDR
+registers that mirror those inputs. See [application I/O](application-io.md).
+
 `packages/abi/fes_computer.yaml` adds ABI `fes.computer` 1.0, tag 4, on
 `fes-gp-v1`, with the `FesComputer` prefix. It carries USB HID key state,
 controller ports, fixed audio and removable media units that transfer and eject
