@@ -73,7 +73,7 @@ def build_commands(tools, *, mode='test-pattern'):
     return ((str(tools['yosys']), '-p', program),
             (str(tools['nextpnr-mistral']), '--json', f'{output}/synth.json',
              '--device', board.TARGET, '--qsf', QSF, '--sdc', evidence.SDC,
-             '--freq', '74.25', '--seed', '1', '--router', 'gpu', '--gpu-device', '0',
+             '--freq', '74.25', '--seed', '2' if mode == 'ddr' else '1', '--router', 'gpu', '--gpu-device', '0',
              '--rbf', f'{output}/core.rbf', '--compress-rbf',
              '--write', f'{output}/routed.json', '--report', f'{output}/timing.json',
              '--detailed-timing-report'))
@@ -133,7 +133,7 @@ def _record(root, repository, revision, identities, execution, *, mode='test-pat
               'dependencies':{}, 'tools':identities,
               'parameters':{'device':board.TARGET, 'top':'top', 'mode':mode,
                   'ddr':mode == 'ddr', 'format2_package':False, 'gpu_backend':'hip', 'router':'gpu',
-                  'gpu_architectures':board.FES_GPU_ARCHITECTURES, 'seed':1,
+                  'gpu_architectures':board.FES_GPU_ARCHITECTURES, 'seed':2 if mode == 'ddr' else 1,
                   'pixel_clock_hz':74250000, 'reference_clock_hz':50000000,
                   'diagnostic_enable':True, 'ddr_slot':0}}
     return encode_build_record(functional_record_fields(root, fields,
