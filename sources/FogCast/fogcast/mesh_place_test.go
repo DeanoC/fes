@@ -20,6 +20,37 @@ import (
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
+func TestSetMeshPlacementAskCopiesCandidateSlices(t *testing.T) {
+	service := &Service{}
+	candidates := []meshplace.Candidate{
+		{
+			NodeID:  "node-a",
+			Execute: []string{meshcontent.ExecuteFPGANative},
+			ABIs:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+		},
+		{
+			NodeID:  "node-b",
+			Execute: []string{meshcontent.ExecuteNativeEmu},
+			ABIs:    []meshcontent.EligibleABI{{ID: "fes.simple-game", Major: 1}},
+		},
+	}
+	service.SetMeshPlacementAsk(&MeshPlacementAsk{Candidates: candidates})
+
+	for i := range candidates {
+		candidates[i].Execute[0] = "changed"
+		candidates[i].ABIs[0].ID = "changed"
+	}
+	candidates[0].NodeID = "changed"
+
+	got := service.meshPlacementAsk.Candidates
+	if got[0].NodeID != "node-a" || got[0].Execute[0] != meshcontent.ExecuteFPGANative || got[0].ABIs[0].ID != "fes.application" {
+		t.Fatalf("first stored candidate changed: %+v", got[0])
+	}
+	if got[1].NodeID != "node-b" || got[1].Execute[0] != meshcontent.ExecuteNativeEmu || got[1].ABIs[0].ID != "fes.simple-game" {
+		t.Fatalf("second stored candidate changed: %+v", got[1])
+	}
+}
+
 func TestPlacementOnBoundExecutorRecordsRolesAndKeepsBind(t *testing.T) {
 	t.Run("automatic selection", func(t *testing.T) {
 		service, exec := placementBoundService(t, true)

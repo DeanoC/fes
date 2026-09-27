@@ -3,6 +3,7 @@ package fogcast
 import (
 	"context"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/DeanoC/FogCast/internal/kitcontent"
@@ -49,6 +50,10 @@ func (s *Service) SetMeshPlacementAsk(ask *MeshPlacementAsk) {
 	}
 	copied := *ask
 	copied.Candidates = append([]meshplace.Candidate(nil), ask.Candidates...)
+	for i := range copied.Candidates {
+		copied.Candidates[i].Execute = slices.Clone(copied.Candidates[i].Execute)
+		copied.Candidates[i].ABIs = slices.Clone(copied.Candidates[i].ABIs)
+	}
 	copied.OverrideNodeID = strings.TrimSpace(ask.OverrideNodeID)
 	s.meshPlacementAsk = &copied
 }
