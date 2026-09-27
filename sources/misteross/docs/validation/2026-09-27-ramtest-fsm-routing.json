@@ -1,0 +1,386 @@
+{
+  "artifact_root": "out/ramtest-fsm-isolation",
+  "artifacts_sha256": {
+    "all_fsm_control/run.log": "11a6cc96bb042d75985c5fbdc1dfe4b4f2daf8cf653e0a8da0348c9f71047470",
+    "all_fsm_fixed/arcs.tsv": "94acc1138bde4ceffc99df381fdd3cbbe46b7e1d75c9ea998986c806d20dcbae",
+    "all_fsm_fixed/core.rbf": "2442e2f373d5029b206a52f7842634715844c5edcebc641dd91173ca8c4a1b8d",
+    "all_fsm_fixed/routed.json": "8cbc8c0970920b11f103fd95ee9fcd951a9c61c2190ede25ae70a98233065c77",
+    "all_fsm_fixed/run.log": "b316af85f98c03b31b45bc7112cbeaf5c4f6b9853617e03f5427e2b5b9d2bc6b",
+    "all_fsm_fixed/timing.json": "7d2f4d3f26adc5c45cb6f9d593165759bfd8c3fb8e028c202b3803f2884a1982",
+    "build-full.log": "fa95c8335b5ffed67235a76b8e94ee1d25f25ce862697fddd64b36d45c26a2a9",
+    "build/nextpnr-mistral": "6150c379caafcdb420a44b9bbe3b975ea04eac44664e5860e3a1296731f4c30a",
+    "cones.log": "a9491658feb6039cbfa46487b684a72242c66fca248c74807c1e6919099607a4",
+    "cones.py": "2d49104d59511aafa1cbe219a8b0598421fabccb18344dd53c13c36fa4507fc5",
+    "control-prefix-check.json": "4d442b4e3bd030773ea670e32b4f748bf0244a5f27393800ffc25b979fdf9a23",
+    "ddr_only/route/arcs.tsv": "9f8f45c21d8f58dc15112d885dd1ea6aefd5352a72406ca8b5da9f0500128070",
+    "ddr_only/route/core.rbf": "8b843492ebe9dcbc249f3348e20b754d6067f1f9a981a2a7ee515775e7570033",
+    "ddr_only/route/routed.json": "3c589e7364379867ce84194e18d47eca6203807f7c95a3124a9bcfe230dd13d9",
+    "ddr_only/route/run.log": "1cfd3f0497058e4cd56044a7ff362b90e450414833fa685c91abb8623599e2d6",
+    "ddr_only/route/timing.json": "e4453095610a6a82fedca930cfea025cd6b6b36eca9f19b6edc63a0089616e85",
+    "ddr_only/synth.json": "1abc6e733bd16371e00a068ddb29196233fd821dfddbda11cf403eae96f3c0ae",
+    "ddr_only/synth.log": "b19168a96272652edbd5a90d55328a6a72262a30aebc9797d31cfbee27858f9a",
+    "ddr_only/synth.ys": "aa9e4dcca5f3d86af8317b04e20e975c105dfb50133ba6f43c03380be3c758ec",
+    "legacy/cell-graph-check.log": "b9ea78871cdb64375e12b6cc2f163781f8f58e9a33f8e7da0c4302f52892fe2b",
+    "legacy/route/arcs.tsv": "4cca94b4b28343bd7f240e145a2851a949143da99da594ca0738258de5c0a207",
+    "legacy/route/core.rbf": "d3d89f9d47ab6f044d1cf925070e9ece854726d6768306900fad1c63b30c9d73",
+    "legacy/route/routed.json": "ef496581a6e948b8ad4b33d09a5a97a29ed8e9b7f235444b002c645393aec2ca",
+    "legacy/route/run.log": "3fcd54c4a14455c5518afeb95439dc7749ebcf443e264076df7ae44bd573e4f9",
+    "legacy/route/timing.json": "e68a17a973f3d1149778f843d2a4775fcfa7967ab8b630709838e65a205dcdcd",
+    "legacy/synth.json": "5dad126610945159a5a5df4ad548c9b4e9b7bee357109904d1d5076e3176989f",
+    "legacy/synth.log": "3b54a3a627c35d7f3433d31c7b90054ddca27d9f080c6dbbf29a6a1132c7a1d3",
+    "legacy/synth.ys": "1c7c31fecf682637431998e5edbfce66cc0f24dd2ca33e357f6d0e91022adeea",
+    "plateau-green.log": "f6880b85394c29b17c33d52672288a5c59a4a78ea2cacd6382a0c376fb03a7c8",
+    "plateau-red.log": "57e471778f37275c9ce831d070b43d3b9d24eefbd6a775fad36ee0b1cb49a69a",
+    "summarize.py": "490ca45173f2e04c1f37ae4a1aa4749b4f1cb9c1fb68f4b39e0a649b5c515131",
+    "timing-gate.log": "9efc6053b153c2155633d8ba80a3d4932031cc9939db4a95e0337ad0617c715d",
+    "tools/nextpnr-f60b33aa": "4cd2c340396f863a8cc08fffe672021288948f2ced2af8269cf725b3c2f1ee2b",
+    "tools/yosys-abc": "929fb6dae5bd08f01989ac694afa399d2062813015a28d0953745c54036d8423"
+  },
+  "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+  "classification": "host-only; no package or hardware acceptance",
+  "compiler_binary_version_note": "Built before source commit; version string names f60b33aa, source implementation is the candidate commit.",
+  "control_prefix_check": {
+    "placement": {
+      "control_is_prefix": true,
+      "matching_entries": 55
+    },
+    "routing": {
+      "control_is_prefix": true,
+      "matching_entries": 67
+    }
+  },
+  "external_inputs_sha256": {
+    "out/ramtest-fsm-init/build/yosys": "f08390cc37702407dc16d2999742f13a7409a1c82948f232f8cb0a7142cad513",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-fsm-init.json": "c55d01f9514284b0a7d1274eec2c237345d7d2b3dfb82cf6d9010bfa7503a9c1",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-timing.json": "81eca2eb2a42425348beca1474b29fcb2770052e237530d60eba1874f39f0aca"
+  },
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_base": "f60b33aa977b237d0762fdef90de42987671b21d",
+  "nextpnr_commit": "e89caa684fa5801ae677fcd2e43f33effa0dc544",
+  "nextpnr_diff_sha256": "d127d3069a0bf24c2c2ce0d7cb36d4b2d4473aea328041d0bbcc595101bf2ff8",
+  "route_settings": {
+    "detailed_timing_report": true,
+    "device": "5CSEBA6U23I7",
+    "freq": 74.25,
+    "gpu_device": 1,
+    "placer_heap_critexp": 2,
+    "placer_heap_timingweight": 10,
+    "qsf": "sources/misteross/cores/fes-ramtest/constraints.qsf",
+    "router": "gpu",
+    "sdc": "sources/misteross/boards/de10nano/clocks.sdc",
+    "seed": 2,
+    "timing_allow_fail": true
+  },
+  "runs": {
+    "all_fsm_control": {
+      "completed_normally": false,
+      "errors": [
+        "ERROR: Routing design failed."
+      ],
+      "initial_first_legal_iteration": null,
+      "last_iteration": [
+        67,
+        1
+      ],
+      "log": "all_fsm_control/run.log",
+      "nextpnr_commit": "f60b33aa977b237d0762fdef90de42987671b21d",
+      "synthesis_input": "out/ramtest-fsm-init/synth.json"
+    },
+    "all_fsm_fixed": {
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.004999999888241291,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.6770000457763672,
+            "routing": 8.657999940216541,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 10.874999997206032,
+          "from": {
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_15",
+            "loc": [
+              13,
+              27
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "ddr1_test.idle[6]"
+          ],
+          "logic_arcs": 8,
+          "to": {
+            "cell": "ddr1_read_MISTRAL_FF_Q",
+            "loc": [
+              27,
+              25
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "ddr1_read"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": -0.017999999225139618,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.9070000350475311,
+            "routing": 12.044999986886978,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 14.469000034034252,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_3",
+            "loc": [
+              34,
+              9
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[3]"
+          ],
+          "logic_arcs": 8,
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_3",
+            "loc": [
+              35,
+              7
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.ddr_ch_t[5]"
+          ]
+        }
+      ],
+      "errors": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 69.11327362060547,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 91.95402526855469,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 233.99063110351562,
+          "constraint": 130.0052032470703
+        }
+      },
+      "initial_first_legal_iteration": 78,
+      "last_iteration": [
+        49,
+        0
+      ],
+      "log": "all_fsm_fixed/run.log",
+      "nextpnr_commit": "e89caa684fa5801ae677fcd2e43f33effa0dc544",
+      "synthesis_input": "out/ramtest-fsm-init/synth.json"
+    },
+    "ddr_only": {
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": -0.0020000000949949026,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.6980000138282776,
+            "routing": 8.39400002360344,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 10.625000048661605,
+          "from": {
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_9",
+            "loc": [
+              12,
+              30
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "ddr0_test.idle[15]"
+          ],
+          "logic_arcs": 7,
+          "to": {
+            "cell": "ddr0_address_MISTRAL_FF_Q_25",
+            "loc": [
+              7,
+              14
+            ],
+            "port": "ENA"
+          },
+          "to_signals": [
+            "ddr0_address[25]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": -0.017000000923871994,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.9300000369548798,
+            "routing": 10.310999900102615,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.758999947458506,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_4",
+            "loc": [
+              17,
+              4
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[4]"
+          ],
+          "logic_arcs": 8,
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_1",
+            "loc": [
+              30,
+              1
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.ddr_ch_t[2]"
+          ]
+        }
+      ],
+      "errors": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 72.67970275878906,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 94.11764526367188,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 303.7504577636719,
+          "constraint": 130.0052032470703
+        }
+      },
+      "initial_first_legal_iteration": 54,
+      "last_iteration": [
+        77,
+        1
+      ],
+      "log": "ddr_only/route/run.log",
+      "nextpnr_commit": "f60b33aa977b237d0762fdef90de42987671b21d",
+      "synthesis_input": "out/ramtest-fsm-isolation/ddr_only/synth.json"
+    },
+    "legacy": {
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": -0.0989999994635582,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.1880000233650208,
+            "routing": 8.186000145971775,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 9.81000018119812,
+          "from": {
+            "cell": "hps_ddr.port2.skid_MISTRAL_FF_Q",
+            "loc": [
+              19,
+              29
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "hps_ddr.port2.draining_MISTRAL_ALUT2_A_Q[2]"
+          ],
+          "logic_arcs": 6,
+          "to": {
+            "cell": "ddr2_address_MISTRAL_FF_Q_22",
+            "loc": [
+              15,
+              9
+            ],
+            "port": "ENA"
+          },
+          "to_signals": [
+            "ddr2_address[23]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": -0.032999999821186066,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.56400004401803,
+            "routing": 11.285999916493893,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 14.35199997201562,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_1",
+            "loc": [
+              16,
+              4
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[0]"
+          ],
+          "logic_arcs": 11,
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q",
+            "loc": [
+              17,
+              3
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.ddr_ch_t[2]"
+          ]
+        }
+      ],
+      "errors": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 69.67669677734375,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 101.93679809570312,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 380.80023193359375,
+          "constraint": 130.0052032470703
+        }
+      },
+      "initial_first_legal_iteration": 44,
+      "last_iteration": [
+        50,
+        0
+      ],
+      "log": "legacy/route/run.log",
+      "nextpnr_commit": "f60b33aa977b237d0762fdef90de42987671b21d",
+      "synthesis_input": "out/ramtest-fsm-isolation/legacy/synth.json"
+    }
+  },
+  "synthesis_scripts": {
+    "ddr_only": "read_verilog -sv -D RAM_RATE_SWEEP=1 -D RAM_130_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 -I cores/fes-common/generated cores/fes-pong/rtl/pixel_pll.v cores/fes-common/rtl/fes_application_gp.v cores/fes-common/rtl/fes_video_720p.v cores/fes-common/rtl/fes_hps_ddr.v cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-ramtest/rtl/mem_channel.v cores/fes-ramtest/rtl/ram_font.v cores/fes-ramtest/rtl/ram_display.v cores/fes-ramtest/rtl/sdram_addon_port.v cores/fes-ramtest/rtl/ddr_rates.v cores/fes-ramtest/rtl/ddr_channel.v cores/fes-ramtest/rtl/top.v cores/fes-ramtest/rtl/ram_pll.v; chparam -set BUILD_ID 128'hcd3e4c315005fde83065dff7483ae0d7 top; synth_intel_alm -nobram -nolutram -nodsp -top top -run begin:coarse; proc; flatten; setattr -set fsm_encoding \"none\" w:ddr_speed.state w:sdram_test.state w:sdram.state; synth_intel_alm -nobram -nolutram -nodsp -top top -run coarse:; stat; write_json {fes_root}/out/ramtest-fsm-isolation/ddr_only/synth.json\n",
+    "legacy": "read_verilog -sv -D RAM_RATE_SWEEP=1 -D RAM_130_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 -I cores/fes-common/generated cores/fes-pong/rtl/pixel_pll.v cores/fes-common/rtl/fes_application_gp.v cores/fes-common/rtl/fes_video_720p.v cores/fes-common/rtl/fes_hps_ddr.v cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-ramtest/rtl/mem_channel.v cores/fes-ramtest/rtl/ram_font.v cores/fes-ramtest/rtl/ram_display.v cores/fes-ramtest/rtl/sdram_addon_port.v cores/fes-ramtest/rtl/ddr_rates.v cores/fes-ramtest/rtl/ddr_channel.v cores/fes-ramtest/rtl/top.v cores/fes-ramtest/rtl/ram_pll.v; chparam -set BUILD_ID 128'hcd3e4c315005fde83065dff7483ae0d7 top; synth_intel_alm -nobram -nolutram -nodsp -top top -run begin:coarse; proc; flatten; setattr -set fsm_encoding \"none\" w:ddr0_test.state w:ddr1_test.state w:ddr2_test.state w:ddr_speed.state w:sdram_test.state w:sdram.state; synth_intel_alm -nobram -nolutram -nodsp -top top -run coarse:; stat; write_json {fes_root}/out/ramtest-fsm-isolation/legacy/synth.json\n"
+  },
+  "yosys_commit": "c156dd886d87113c30bc2bf422ccb9ae0208b2a1"
+}
