@@ -34,6 +34,17 @@ func TestExpansionSelectionPersistsAndRejectsStaleBinding(t *testing.T) {
 	if selected.ExpansionID != imported.ExpansionID {
 		t.Fatal("wrong selection")
 	}
+	copy, err := store.SetCoreExpansionPresentation(ctx, asset.ID, " Household test card ", " A synthetic fixture, not a RAM capacity claim. ")
+	if err != nil || copy.Label != "Household test card" || copy.ExpansionID != asset.ID {
+		t.Fatalf("presentation %+v %v", copy, err)
+	}
+	for _, invalid := range []struct{ label, description string }{
+		{"line\nbreak", ""}, {strings.Repeat("x", 121), ""}, {"test", strings.Repeat("x", 2001)}, {"test", "escape\x1b"}, {"\xff", ""},
+	} {
+		if _, err := store.SetCoreExpansionPresentation(ctx, asset.ID, invalid.label, invalid.description); err != ErrInvalidCoreExpansion {
+			t.Fatalf("invalid presentation accepted: %v", err)
+		}
+	}
 	if _, err = store.SelectCoreEntryExpansion(ctx, entry.GameID, packageID, "", ""); err != ErrCoreEntryConflict {
 		t.Fatalf("stale selection: %v", err)
 	}
@@ -51,6 +62,14 @@ func TestExpansionSelectionPersistsAndRejectsStaleBinding(t *testing.T) {
 	got, err := reopened.CoreEntryExpansion(ctx, entry.GameID)
 	if err != nil || got != selected {
 		t.Fatalf("reopened %v %v", got, err)
+	}
+	retained, err := reopened.CoreExpansionPresentation(ctx, asset.ID)
+	if err != nil || retained != copy {
+		t.Fatalf("presentation not retained: %+v %v", retained, err)
+	}
+	listed, err := reopened.CoreExpansions(ctx)
+	if err != nil || len(listed) != 1 || listed[0].Label != copy.Label || listed[0].Description != copy.Description {
+		t.Fatalf("inventory lost presentation: %+v %v", listed, err)
 	}
 	loaded, err := reopened.ReadCoreExpansion(ctx, asset.ID)
 	if err != nil || !bytes.Equal(loaded.Cart, cart) {

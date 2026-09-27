@@ -928,7 +928,7 @@ func (s *sessionCoordinator) stopMediaBounded(execution string) error {
 	return first
 }
 
-func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease, releaseIdle bool) (sessionResult, error) {
+func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease, releaseIdle bool, expected *sessionStopExpectation) (sessionResult, error) {
 	if releaseIdle {
 		return s.releaseIdleGrants(ctx, stamp)
 	}
@@ -938,6 +938,18 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	if expected != nil {
+		// This observation is inside the launch/stop admission guard. A stale
+		// room cannot detach input, stop media, or release a different play's
+		// lease before discovering that its displayed identity has changed.
+		status, err := s.service.Status(ctx)
+		if err != nil {
+			return sessionResult{}, err
+		}
+		if !expected.matches(s.publicSession(status, nil)) {
+			return sessionResult{}, fogcast.ErrSessionChanged
+		}
+	}
 	// Capture host idle before probing the currently selected target. After
 	// Soft-stop, idle settings may select an unrelated kit; that probe must
 	// not hide retained grants from an explicit Stop. A Soft-stopped legacy
@@ -972,7 +984,11 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	}
 	var st protocol.Status
 	var serviceErr error
-	if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
+	if bound, ok := s.service.(interface {
+		StopExpected(context.Context, fogcast.SessionStopBinding) (protocol.Status, error)
+	}); expected != nil && ok {
+		st, serviceErr = bound.StopExpected(ctx, expected.SessionStopBinding)
+	} else if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
 		st, serviceErr = s.service.Stop(ctx)
 	} else {
 		st, serviceErr = s.stopServiceBounded()

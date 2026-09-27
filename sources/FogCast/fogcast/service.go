@@ -2059,6 +2059,16 @@ func (s *Service) allowSelectedTargetRepair(parent context.Context) {
 }
 
 func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
+	return s.stopExpected(parent, nil)
+}
+
+// StopExpected preserves the ordinary Stop/save lifecycle while refusing to
+// stop a different foreground play from the one the caller observed.
+func (s *Service) StopExpected(parent context.Context, expected SessionStopBinding) (protocol.Status, error) {
+	return s.stopExpected(parent, &expected)
+}
+
+func (s *Service) stopExpected(parent context.Context, expected *SessionStopBinding) (protocol.Status, error) {
 	s.executionMu.Lock()
 	activeExecution := s.activeExecution
 	pendingRejection := s.packageRejection != nil
@@ -2074,6 +2084,9 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 		return protocol.Status{}, WithStopStage(err, "lifecycle")
 	}
 	defer releaseLifecycle()
+	if expected != nil && !s.matchesStopBinding(*expected) {
+		return protocol.Status{}, ErrSessionChanged
+	}
 	return s.stopLocked(ctx, parent, timeout)
 }
 

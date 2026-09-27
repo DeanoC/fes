@@ -34,6 +34,9 @@ type RoomSnapshot struct {
 	Parents []string
 	// ReducedMotion is the launcher preference currently exposed to the script.
 	ReducedMotion bool
+	// DuringPlay means the room owns local navigation while the core runs.
+	DuringPlay bool
+	Notice     string
 }
 
 // RoomPickerRow is one entry of the Home overlay.
@@ -185,9 +188,10 @@ func (a *App) openRoomLocked(id string) {
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
+	w, h := a.roomContentSizeLocked(pack.ID)
 	inst, err := rooms.New(pack, rooms.Options{
-		Width:         a.grid.contentWidth(),
-		Height:        a.grid.contentHeight(),
+		Width:         w,
+		Height:        h,
 		Services:      roomServices{client: a.client},
 		Index:         a.roomsIndex,
 		Theme:         a.theme,
@@ -259,13 +263,22 @@ func (a *App) leaveRoomLocked() {
 // resizeRoomsLocked pushes the current safe content box into the open room
 // and any suspended parents.
 func (a *App) resizeRoomsLocked() {
-	w, h := a.grid.contentWidth(), a.grid.contentHeight()
 	if a.room != nil {
+		w, h := a.roomContentSizeLocked(a.room.ID())
 		a.room.Resize(w, h)
 	}
 	for _, parent := range a.roomStack {
+		w, h := a.roomContentSizeLocked(parent.ID())
 		parent.Resize(w, h)
 	}
+}
+
+func (a *App) roomContentSizeLocked(id string) (int, int) {
+	w, h := a.grid.contentWidth(), a.grid.contentHeight()
+	if id == hardwareRoomID {
+		h = max(1, h-hardwareRoomFooterHeight)
+	}
+	return w, h
 }
 
 func roomCommandName(cmd Command) string {
@@ -280,10 +293,26 @@ func (a *App) applyRoomActionsLocked() {
 		switch act.Kind {
 		case rooms.ActionLaunch:
 			a.launchFromRoomLocked(act.GameID)
+		case rooms.ActionStop:
+			if a.roomSessionMatchesLocked(act) {
+				a.startStopLocked()
+			}
+		case rooms.ActionOpenTape:
+			if a.roomSessionMatchesLocked(act) {
+				a.openTapePickerLocked()
+			}
+		case rooms.ActionResumeSession:
+			a.resumeRoomSessionLocked()
+		case rooms.ActionHome:
+			a.openRoomPickerLocked()
 		case rooms.ActionOpenRoom:
 			a.openNestedRoomLocked(act.RoomID)
 			return
 		case rooms.ActionBack:
+			if a.roomDuringPlay {
+				a.resumeRoomSessionLocked()
+				return
+			}
 			a.leaveRoomLocked()
 			return
 		case rooms.ActionOpenLibrary:
@@ -307,7 +336,13 @@ func (a *App) dropRoomNavActionsLocked() {
 }
 
 func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
+	if a.sessionStopOfferedLocked() {
+		a.status = "Stop the running machine before opening the library."
+		return
+	}
 	a.closeAllRoomsLocked()
+	a.roomDuringPlay = false
+	a.syncGPUParkLocked()
 	a.roomPickerOpen = false
 	a.platformID = strings.TrimSpace(act.Platform)
 	a.collectionID = strings.TrimSpace(act.Collection)
@@ -322,6 +357,10 @@ func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 func (a *App) launchFromRoomLocked(gameID string) {
 	gameID = strings.TrimSpace(gameID)
 	if gameID == "" {
+		return
+	}
+	if a.sessionStopOfferedLocked() {
+		a.status = "Stop the running machine before starting a new hardware setup."
 		return
 	}
 	if game, ok := a.room.CachedGame(gameID); ok {
@@ -446,6 +485,7 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 	if a.room == nil {
 		return RoomSnapshot{}
 	}
+	w, h := a.roomContentSizeLocked(a.room.ID())
 	snap := RoomSnapshot{
 		Open:          true,
 		ID:            a.room.ID(),
@@ -454,12 +494,14 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		Err:           a.roomErr,
 		OffsetX:       a.grid.contentLeft(),
 		OffsetY:       a.grid.contentTop(),
-		Width:         a.grid.contentWidth(),
-		Height:        a.grid.contentHeight(),
+		Width:         w,
+		Height:        h,
 		Destination:   a.roomDestinationLocked(),
 		Choice:        a.roomChoiceSnapshotLocked(),
 		Parents:       a.roomParentIDsLocked(),
 		ReducedMotion: a.room.ReducedMotion(),
+		DuringPlay:    a.roomDuringPlay,
+		Notice:        a.roomSessionNotice,
 	}
 	if withImages {
 		snap.Images = a.room.Images()

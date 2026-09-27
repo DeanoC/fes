@@ -129,6 +129,13 @@ func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (hostclient
 	return c.Client.StopRetainLease(ctx, hostStamp(stamp))
 }
 
+func (c *Client) StopExpectedStamped(ctx context.Context, expected hostclient.SessionResult, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if expected.ID == "" {
+		return c.StopStamped(ctx, stamp)
+	}
+	return c.Client.StopRetainLeaseExpected(ctx, expected, hostStamp(stamp))
+}
+
 // ReleaseIdleLease is shell exit after that Soft-stop when the service is
 // idle. An empty body asks idle cleanup to release the retained kit lease.
 // B/Back stays on StopStamped.

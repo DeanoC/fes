@@ -225,6 +225,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerCoreData(mux, service)
 	registerMeshHostContent(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
+	registerHardware(mux, service, session)
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
@@ -331,11 +332,11 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerDevelopmentMediaRoute(mux, session)
 	registerLiveMediaSessionRoutes(mux, session)
 	mux.HandleFunc("POST /api/v1/session/stop", func(w http.ResponseWriter, r *http.Request) {
-		stamp, retainLease, releaseIdle, err := decodeOptionalStopRequest(w, r)
+		stamp, retainLease, releaseIdle, expected, err := decodeOptionalStopRequest(w, r)
 		if err != nil {
 			return
 		}
-		result, err := session.stop(r.Context(), stamp, retainLease, releaseIdle)
+		result, err := session.stop(r.Context(), stamp, retainLease, releaseIdle, expected)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -928,6 +929,9 @@ func rejectBody(w http.ResponseWriter, r *http.Request) error {
 
 func writeSessionError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, fogcast.ErrSessionChanged):
+		writeError(w, http.StatusConflict, "SESSION_CHANGED", fogcast.ErrSessionChanged.Error())
+		return
 	case errors.Is(err, meshcontent.ErrContentMissingNoSource):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": apiError{
 			Code: "CONTENT_MISSING", Message: "required content is missing and no source advertises it",

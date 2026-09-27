@@ -12,6 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/google/uuid"
 )
 
@@ -115,14 +117,37 @@ type stopBody struct {
 	RetainLease bool `json:"retain_lease"`
 	// ReleaseIdle drops idle retained grants and does not stop a surviving play.
 	ReleaseIdle bool `json:"release_idle"`
+	// Expected binds a room action to the play shown when it was chosen.
+	Expected *sessionStopExpectation `json:"expected_session,omitempty"`
 }
 
-func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientStamp, bool, bool, error) {
+type sessionStopExpectation struct {
+	fogcast.SessionStopBinding
+	ID       string `json:"id"`
+	FlightID string `json:"flight_id"`
+}
+
+func (e sessionStopExpectation) valid() bool {
+	return strings.TrimSpace(e.ID) == e.ID && e.ID != "" && len(e.ID) <= 128 &&
+		protocol.ValidateGameID(e.GameID) == nil && protocol.ValidateDigest(e.PackageID) == nil && e.Generation != 0 &&
+		strings.TrimSpace(e.Target) == e.Target && e.Target != "" && len(e.Target) <= 256 &&
+		strings.TrimSpace(e.TargetID) == e.TargetID && len(e.TargetID) <= 256 &&
+		(e.FlightID == "" || validHostFlightID(e.FlightID))
+}
+
+func (e sessionStopExpectation) matches(actual sessionResult) bool {
+	return actual.State != protocol.StateIdle && actual.CorePackage != nil && actual.GameID != nil &&
+		e.ID == actual.ID && e.FlightID == actual.FlightID && e.GameID == *actual.GameID &&
+		e.Target == actual.Target && e.TargetID == actual.TargetID &&
+		e.PackageID == actual.CorePackage.PackageID && e.Generation == actual.CorePackage.Generation
+}
+
+func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientStamp, bool, bool, *sessionStopExpectation, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must be empty or one JSON object")
-		return clientStamp{}, false, false, err
+		return clientStamp{}, false, false, nil, err
 	}
 	body = bytes.TrimSpace(body)
 	var parsed stopBody
@@ -131,18 +156,22 @@ func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientSt
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&parsed); err != nil {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must be empty or one JSON object")
-			return clientStamp{}, false, false, err
+			return clientStamp{}, false, false, nil, err
 		}
 		if err := decoder.Decode(&struct{}{}); err != io.EOF {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must contain exactly one JSON object")
-			return clientStamp{}, false, false, errors.New("trailing JSON")
+			return clientStamp{}, false, false, nil, errors.New("trailing JSON")
 		}
 	}
 	if parsed.RetainLease && parsed.ReleaseIdle {
 		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request cannot both retain and release the lease")
-		return clientStamp{}, false, false, errors.New("retain and release")
+		return clientStamp{}, false, false, nil, errors.New("retain and release")
 	}
-	return parseClientStamp(r, parsed.ClientTsUTC, parsed.ClientMonoMS, parsed.FlightID), parsed.RetainLease, parsed.ReleaseIdle, nil
+	if parsed.Expected != nil && (!parsed.Expected.valid() || parsed.ReleaseIdle) {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "expected session must identify the displayed package play")
+		return clientStamp{}, false, false, nil, errors.New("invalid expected session")
+	}
+	return parseClientStamp(r, parsed.ClientTsUTC, parsed.ClientMonoMS, parsed.FlightID), parsed.RetainLease, parsed.ReleaseIdle, parsed.Expected, nil
 }
 
 // uiEvent is one sofa/tenfoot action in the debug ingest ring. It is not a

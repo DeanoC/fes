@@ -1,7 +1,10 @@
 package rooms
 
 import (
+	"strconv"
 	"strings"
+
+	"github.com/DeanoC/FogCast/protocol"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -11,6 +14,7 @@ func (r *Instance) installAPI() {
 	L.SetGlobal("gfx", r.installGfx())
 	L.SetGlobal("image", r.installImage())
 	L.SetGlobal("library", r.installLibrary())
+	L.SetGlobal("hardware", r.installHardware())
 	L.SetGlobal("rooms", r.installRooms())
 	L.SetGlobal("session", r.installSession())
 	L.SetGlobal("store", r.installStore())
@@ -57,6 +61,10 @@ func (r *Instance) installRooms() *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	L.SetFuncs(t, map[string]lua.LGFunction{
+		"home": func(L *lua.LState) int {
+			r.actions = append(r.actions, Action{Kind: ActionHome})
+			return 0
+		},
 		"open": func(L *lua.LState) int {
 			id := strings.TrimSpace(L.CheckString(1))
 			if id == "" {
@@ -110,6 +118,18 @@ func (r *Instance) installSession() *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	L.SetFuncs(t, map[string]lua.LGFunction{
+		"stop": func(L *lua.LState) int {
+			r.actions = append(r.actions, roomSessionAction(L, ActionStop))
+			return 0
+		},
+		"open_tape": func(L *lua.LState) int {
+			r.actions = append(r.actions, roomSessionAction(L, ActionOpenTape))
+			return 0
+		},
+		"resume": func(L *lua.LState) int {
+			r.actions = append(r.actions, Action{Kind: ActionResumeSession})
+			return 0
+		},
 		"launch": func(L *lua.LState) int {
 			id := strings.TrimSpace(L.CheckString(1))
 			if id == "" {
@@ -124,6 +144,19 @@ func (r *Instance) installSession() *lua.LTable {
 		},
 	})
 	return t
+}
+
+// The host process ID alone is not a play identity. Carry the exact observed
+// target/package/generation and flight through Stop and live-media controls.
+func roomSessionAction(L *lua.LState, kind ActionKind) Action {
+	s := L.CheckTable(1)
+	id := optString(s, "id")
+	generation, err := strconv.ParseUint(optString(s, "generation"), 10, 64)
+	binding := protocol.DevelopmentMediaBinding{PackageID: optString(s, "package_id"), Generation: generation, Target: optString(s, "target"), TargetID: optString(s, "target_id")}
+	if id == "" || err != nil || !binding.Valid() || binding.Target == "" {
+		L.ArgError(1, "expected live session binding required")
+	}
+	return Action{Kind: kind, SessionID: id, GameID: optString(s, "game_id"), FlightID: optString(s, "flight_id"), MediaBinding: binding}
 }
 
 func (r *Instance) installStore() *lua.LTable {

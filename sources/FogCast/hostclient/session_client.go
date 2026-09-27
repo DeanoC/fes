@@ -76,6 +76,36 @@ func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (SessionRes
 	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", http.NoBody, c.stopHTTP, stamp, "stop", "idle")
 }
 
+// StopExpectedStamped stops only the package play captured by expected. Host
+// session IDs alone persist across launches, so the full play identity is sent.
+func (c *Client) StopExpectedStamped(ctx context.Context, expected SessionResult, stamp ClientStamp) (SessionResult, error) {
+	return c.stopExpectedStamped(ctx, expected, stamp, false)
+}
+
+// StopRetainLeaseExpected is the same bound action with sofa Soft-stop's lease
+// behavior. A stale view cannot silently select a newer foreground play.
+func (c *Client) StopRetainLeaseExpected(ctx context.Context, expected SessionResult, stamp ClientStamp) (SessionResult, error) {
+	return c.stopExpectedStamped(ctx, expected, stamp, true)
+}
+
+func (c *Client) stopExpectedStamped(ctx context.Context, expected SessionResult, stamp ClientStamp, retainLease bool) (SessionResult, error) {
+	if strings.TrimSpace(expected.ID) == "" || protocol.ValidateGameID(expected.GameID) != nil || strings.TrimSpace(expected.Target) == "" ||
+		expected.CorePackage == nil || protocol.ValidateDigest(expected.CorePackage.PackageID) != nil || expected.CorePackage.Generation == 0 {
+		return SessionResult{}, fmt.Errorf("the displayed session identity is unavailable; refresh before stopping")
+	}
+	payload, err := json.Marshal(map[string]any{
+		"retain_lease": retainLease,
+		"expected_session": map[string]any{
+			"id": expected.ID, "game_id": expected.GameID, "target": expected.Target, "target_id": expected.TargetID,
+			"package_id": expected.CorePackage.PackageID, "generation": expected.CorePackage.Generation, "flight_id": expected.FlightID,
+		},
+	})
+	if err != nil {
+		return SessionResult{}, err
+	}
+	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader(payload), c.stopHTTP, stamp, "stop", "idle")
+}
+
 // StopRetainLease is the sofa Soft-stop. retain_lease asks idle cleanup to
 // keep the kit lease. Stamps stay on the existing client-clock headers.
 func (c *Client) StopRetainLease(ctx context.Context, stamp ClientStamp) (SessionResult, error) {

@@ -6,6 +6,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
@@ -17,9 +20,19 @@ var ErrInvalidCoreExpansion = errors.New("catalog expansion is invalid")
 type CoreExpansion struct {
 	ExpansionID string `json:"expansion_id"`
 	PackageID   string `json:"package_id"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
 	// Slot is the physical socket of a multi-socket card; zero is omitted for
 	// single-socket expansions.
 	Slot int `json:"slot,omitempty"`
+}
+
+// CoreExpansionPresentation is household-authored copy for an exact immutable
+// expansion. It never grants compatibility or changes the archive identity.
+type CoreExpansionPresentation struct {
+	ExpansionID string `json:"expansion_id"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
 }
 
 type CoreEntryExpansion struct {
@@ -45,7 +58,7 @@ func (s *Store) ImportCoreExpansion(ctx context.Context, asset expansion.Asset) 
 }
 
 func (s *Store) CoreExpansions(ctx context.Context) ([]CoreExpansion, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT expansion_id,shell_package_id,slot_index FROM core_expansions ORDER BY expansion_id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT expansion_id,shell_package_id,slot_index,label,description FROM core_expansions ORDER BY expansion_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -53,12 +66,55 @@ func (s *Store) CoreExpansions(ctx context.Context) ([]CoreExpansion, error) {
 	result := []CoreExpansion{}
 	for rows.Next() {
 		var row CoreExpansion
-		if err = rows.Scan(&row.ExpansionID, &row.PackageID, &row.Slot); err != nil {
+		if err = rows.Scan(&row.ExpansionID, &row.PackageID, &row.Slot, &row.Label, &row.Description); err != nil {
 			return nil, err
 		}
 		result = append(result, row)
 	}
 	return result, rows.Err()
+}
+
+func (s *Store) CoreExpansionPresentation(ctx context.Context, id string) (CoreExpansionPresentation, error) {
+	if protocol.ValidateDigest(id) != nil {
+		return CoreExpansionPresentation{}, ErrInvalidCoreExpansion
+	}
+	value := CoreExpansionPresentation{ExpansionID: id}
+	err := s.db.QueryRowContext(ctx, `SELECT label,description FROM core_expansions WHERE expansion_id=?`, id).Scan(&value.Label, &value.Description)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CoreExpansionPresentation{}, ErrCoreExpansionNotFound
+	}
+	return value, err
+}
+
+func (s *Store) SetCoreExpansionPresentation(ctx context.Context, id, label, description string) (CoreExpansionPresentation, error) {
+	label, description = strings.TrimSpace(label), strings.TrimSpace(description)
+	if protocol.ValidateDigest(id) != nil || !validExpansionCopy(label, 120, false) || !validExpansionCopy(description, 2000, true) {
+		return CoreExpansionPresentation{}, ErrInvalidCoreExpansion
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE core_expansions SET label=?,description=? WHERE expansion_id=?`, label, description, id)
+	if err != nil {
+		return CoreExpansionPresentation{}, err
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return CoreExpansionPresentation{}, err
+	}
+	if changed != 1 {
+		return CoreExpansionPresentation{}, ErrCoreExpansionNotFound
+	}
+	return CoreExpansionPresentation{ExpansionID: id, Label: label, Description: description}, nil
+}
+
+func validExpansionCopy(value string, limit int, multiline bool) bool {
+	if len(value) > limit || !utf8.ValidString(value) {
+		return false
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) && !(multiline && r == '\n') {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Store) ReadCoreExpansion(ctx context.Context, id string) (expansion.Asset, error) {

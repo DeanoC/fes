@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 13
+const schemaVersion = 14
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -222,6 +222,14 @@ CREATE INDEX core_entries_core_id ON core_entries(core_id);
 PRAGMA user_version = 13;
 `
 
+// Presentation belongs to the household catalogue, not the immutable expansion
+// identity or its compatibility contract.
+const schemaV14 = `
+ALTER TABLE core_expansions ADD COLUMN label TEXT NOT NULL DEFAULT '';
+ALTER TABLE core_expansions ADD COLUMN description TEXT NOT NULL DEFAULT '';
+PRAGMA user_version = 14;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -363,6 +371,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		}
 		if err := foreignKeyCheck(ctx, connection); err != nil {
 			return fmt.Errorf("apply catalog schema version 13: %w", err)
+		}
+		version = 13
+	}
+	if version == 13 {
+		if _, err := connection.ExecContext(ctx, schemaV14); err != nil {
+			return fmt.Errorf("apply catalog schema version 14: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

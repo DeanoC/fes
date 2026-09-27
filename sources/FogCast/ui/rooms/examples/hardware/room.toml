@@ -1,0 +1,10 @@
+id = "hardware"
+title = "The ZX81 workbench"
+author = "FES"
+description = "Explore your ZX81, fit an expansion and change tapes while it runs."
+version = 1
+main = "main.lua"
+
+[theme]
+background = "#eee8dc"
+accent = "#a43e31"
