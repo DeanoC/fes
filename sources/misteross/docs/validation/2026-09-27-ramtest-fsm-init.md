@@ -1,5 +1,10 @@
 # RAM tester: initialization-preserving FSM extraction, 2026-09-27
 
+**Placement-option correction:** exponent 2 in this record is the requested
+CLI value. The tested Mistral versions actually forced exponent **7** and beta
+**0.5**. The measured results and same-placement comparisons still stand. See
+the [placer-option investigation](2026-09-27-ramtest-placer-options.md).
+
 Follow-up to [the timing diagnosis](2026-09-27-ramtest-timing.md) for
 [FES #264](https://github.com/DeanoC/fes/issues/264). Host-only compiler work;
 no RAM-test RTL, protocol, producer lock or hardware acceptance change.

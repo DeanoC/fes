@@ -94,6 +94,9 @@ The [initialized-FSM follow-up](../../docs/validation/2026-09-27-ramtest-fsm-ini
 records the Yosys candidate, equivalence checks and unchanged-source experiment.
 The [FSM isolation and routing follow-up](../../docs/validation/2026-09-27-ramtest-fsm-routing.md)
 records the GPU convergence fix and the remaining timeout/control-path limit.
+The [placement-option follow-up](../../docs/validation/2026-09-27-ramtest-placer-options.md)
+corrects the earlier effective exponent, verifies preserved defaults, and measures
+the combined FSM/placement improvement; the 130 MHz target remains unresolved.
 
 ```sh
 make toolchain-fes-ramtest

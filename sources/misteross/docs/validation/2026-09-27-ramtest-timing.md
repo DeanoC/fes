@@ -1,5 +1,10 @@
 # RAM tester: Quartus versus OSS timing, 2026-09-27
 
+**Placement-option correction:** exponent 2 in this record is the requested
+CLI value. The tested Mistral versions actually forced exponent **7** and beta
+**0.5**. The measured results and same-placement comparisons still stand. See
+the [placer-option investigation](2026-09-27-ramtest-placer-options.md).
+
 Issue: [FES #264](https://github.com/DeanoC/fes/issues/264).
 This is host-only compiler research. It changes no RTL, package recipe,
 compiler lock, ABI, or hardware acceptance status.
