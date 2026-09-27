@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Seal the 100 or 130 MHz RAM tester through the authenticated HIP lane.
 
-The core speaks fes.application 1.0 and fixed 720p. Memory traffic is local
-to the FPGA; the mailbox has no memory opcode. This recipe never programs a kit.
+The core speaks fes.application 1.0 with fixed 720p, the gamepad and
+fes.memory.hps-ddr. It tests the SDRAM addon and all three HPS DDR ports at
+the memory clock. Memory traffic is local to the FPGA; the mailbox has no
+memory opcode. This recipe never programs a kit.
 """
 from __future__ import annotations
 
@@ -20,11 +22,12 @@ from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as board_evidence
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
+from scripts.search_placer_qor import SearchError, route_after_synth
 
 QSF = "cores/fes-ramtest/constraints.qsf"
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json",
-    "yosys.log", "nextpnr.log", "build-summary.json", "manifest.toml",
+    "yosys.log", "nextpnr.log", "build-summary.json", "manifest.toml", "qor-ranking.json",
 )
 ORDINARY_RESOURCES = frozenset({
     "MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO",
@@ -48,26 +51,34 @@ RTL_SOURCES = (
     "cores/fes-pong/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_application_gp.v",
     "cores/fes-common/rtl/fes_video_720p.v",
+    "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
     "cores/fes-ramtest/rtl/mem_channel.v",
     "cores/fes-ramtest/rtl/ram_font.v",
     "cores/fes-ramtest/rtl/ram_display.v",
     "cores/fes-ramtest/rtl/sdram_addon_port.v",
-    "cores/fes-ramtest/rtl/hps_ddr_port.v",
+    "cores/fes-ramtest/rtl/ddr_rates.v",
+    "cores/fes-ramtest/rtl/ddr_channel.v",
     "cores/fes-ramtest/rtl/top.v",
 )
 RAM_PLL = "cores/fes-ramtest/rtl/ram_pll.v"
+# Both rates use toolchains/ramtest.lock: Yosys declares every fpga2sdram
+# port and nextpnr times the HPS port paths.
+TOOLCHAIN_LOCK = "toolchains/ramtest.lock"
+TOOLCHAIN_ROOT = Path("build/toolchain-ramtest")
+TOOL_COMMITS = {
+    **board.EXPECTED_TOOL_COMMITS,
+    "yosys": "b27035fcc1be6ec040df35a3adbe6d4149297cd8",
+    "nextpnr": "f60b33aa977b237d0762fdef90de42987671b21d",
+}
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/functional_execution.py", "scripts/fes_build_common.py",
-    "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, "toolchain.lock",
+    "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, TOOLCHAIN_LOCK,
     QSF, board_evidence.SDC, *RTL_SOURCES,
 )
 OUTPUT_100 = Path("build/fes-ramtest-100")
 OUTPUT_130 = Path("build/fes-ramtest-130")
-TOOLCHAIN_LOCK_130 = "toolchains/ramtest-130.lock"
-TOOLCHAIN_ROOT_130 = Path("build/toolchain-ramtest-130")
-# ramtest-130.lock differs from toolchain.lock only in its current Yosys.
-YOSYS_130 = "1bf1ff3d709dc8182cfa61701620d87181516941"
 MEMORY_PLL_100 = {
     "duty_cycle0": "00000000000000000000000000110010",
     "duty_cycle1": "00000000000000000000000000110010",
@@ -91,25 +102,25 @@ def output_for(memory_mhz: int) -> Path:
     return {100: OUTPUT_100, 130: OUTPUT_130}[memory_mhz]
 
 
-def seed_for(memory_mhz: int) -> int:
-    return {100: 6, 130: 2}[memory_mhz]
+# The build ID hashes the source revision, so each commit synthesises a
+# slightly different netlist and no single seed stays good. The seal routes
+# the seeds in turn and keeps the first that meets every clock at signoff.
+PLACER_SEEDS = (2, 6, 1, 3, 4, 5, 7, 8)
+# nextpnr's HeAP defaults, so the search places as a plain run does
+PLACER_TIMING_WEIGHT = 10
+PLACER_CRITICALITY_EXPONENT = 2
+ROUTE_TIMEOUT_SECONDS = 1800
 
 
 def inputs_for(memory_mhz: int) -> tuple[str, ...]:
-    if memory_mhz == 130:
-        return tuple(path for path in PINNED_INPUTS if path != "toolchain.lock") + (TOOLCHAIN_LOCK_130, RAM_PLL)
     return PINNED_INPUTS + (RAM_PLL,)
 
 
 def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
-    if memory_mhz == 130:
-        return board._authenticate_tools(
-            root, lock_path=root / TOOLCHAIN_LOCK_130,
-            toolchain_root=root / TOOLCHAIN_ROOT_130,
-            expected_commits={**board.EXPECTED_TOOL_COMMITS, "yosys": YOSYS_130},
-            cache_root=cache_root,
-        )
-    return board._authenticate_tools(root, cache_root=cache_root)
+    return board._authenticate_tools(
+        root, lock_path=root / TOOLCHAIN_LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
+        expected_commits=TOOL_COMMITS, cache_root=cache_root,
+    )
 
 
 def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], *, memory_mhz: int) -> dict:
@@ -121,7 +132,9 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "dependencies": {}, "tools": identities,
         "parameters": {
             "device": board.TARGET, "gpu_architectures": board.FES_GPU_ARCHITECTURES,
-            "gpu_backend": "hip", "router": "gpu", "seed": seed_for(memory_mhz), "top": "top",
+            "gpu_backend": "hip", "router": "gpu", "placer_seeds": ",".join(str(seed) for seed in PLACER_SEEDS),
+            "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
+            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT, "top": "top",
             "pixel_clock_hz": 74_250_000, "reference_clock_hz": 50_000_000,
             "memory_clock_hz": memory_mhz * 1_000_000, "pll_fractional_vco_multiplier": True,
         },
@@ -157,7 +170,7 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_
         (str(tools["yosys"]), "-p", program),
         (str(tools["nextpnr-mistral"]), "--json", f"{output}/synth.json",
          "--device", board.TARGET, "--qsf", QSF, "--sdc", board_evidence.SDC,
-         "--freq", "74.25", "--seed", str(seed_for(memory_mhz)), "--router", "gpu",
+         "--freq", "74.25", "--seed", str(PLACER_SEEDS[0]), "--router", "gpu",
          "--rbf", f"{output}/core.rbf", "--compress-rbf",
          "--write", f"{output}/routed.json", "--report", f"{output}/timing.json",
          "--detailed-timing-report"),
@@ -170,8 +183,8 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
         "core": {
             "id": "fes.ramtest",
             "name": "FES RAM Tester",
-            "description": f"Fixed-720p utility that pattern-tests SDRAM at {memory_mhz} MHz and the HPS DDR bridge",
-            "version": "1.0.0",
+            "description": f"Fixed-720p utility that pattern-tests the SDRAM addon and the HPS DDR window at {memory_mhz} MHz",
+            "version": "1.1.0",
         },
         "target": {"platform": "de10_nano", "device": board.TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", **evidence["rbf"]},
@@ -179,6 +192,7 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
         "interfaces": [
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.gamepad", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0, "required": True},
         ],
         "build": {"id": build_identity(record), "repository": repository, "revision": revision,
                   "recipe_sha256": json.loads(record)["recipe_sha256"],
@@ -218,17 +232,29 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz, cache_root: Path
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
             memory_mhz=memory_mhz)
         board._run_tool(commands[0], root, output / "yosys.log", output_relative=output_relative, env=invocation.env, audit_source_root=root)
-        board._run_tool(commands[1] + ("--gpu-device", str(gpu_device)), root, output / "nextpnr.log",
-                        output_relative=output_relative, env=invocation.env, audit_source_root=root)
+        try:
+            winner = route_after_synth(
+                nextpnr=authenticated["nextpnr-mistral"].path, fixture=output / "synth.json", dest=output,
+                device=board.TARGET, qsf=root / QSF, sdc=root / board_evidence.SDC, freq="74.25",
+                seeds=PLACER_SEEDS, weights=(PLACER_TIMING_WEIGHT,), critexp=PLACER_CRITICALITY_EXPONENT,
+                budget=len(PLACER_SEEDS), mode="first-pass", extra=("--router", "gpu"),
+                timeout=ROUTE_TIMEOUT_SECONDS, gpu_devices=(gpu_device,),
+                env=invocation.env, audit_source_root=root)
+        except SearchError as exc:
+            raise board.BuildError(str(exc)) from exc
         evidence = board_evidence.validate_build_evidence(
             output, root, memory_clock_mhz=float(memory_mhz),
             capture_clock_mhz=float(memory_mhz),
             memory_pll_parameters={100: MEMORY_PLL_100, 130: MEMORY_PLL_130}[memory_mhz],
             ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
             forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
+        evidence["hps_ddr"] = board_evidence.hps_ddr_layout_evidence(
+            board._read_json(output / "synth.json", "synthesis evidence"), "synthesized", root, idle=False)
         evidence.update({"build_id": build_identity(record), "device": board.TARGET,
                          "inputs": {p: board._sha256(root / p) for p in sorted(pinned_inputs)},
                          "tools": identities, "top": "top", "execution": invocation.inputs})
+        evidence["route"]["placer_seed"] = winner.seed
+        evidence["route"]["placer_heap_timingweight"] = winner.weight
         board._write_atomic(output / "build-summary.json",
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
         encoded = manifest(record, evidence, repository, revision, identities, memory_mhz=memory_mhz)

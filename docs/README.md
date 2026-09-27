@@ -35,6 +35,7 @@ Use these when the start-here page names the job and you need the steps.
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
 | Pong settings and best rally | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
+| Use or test the SoC DDR3 from a core | [HPS DDR](hps-ddr.md) |
 | ZX81 package, expansion cart, tape design | [FES ZX81](fes-zx81.md), [expansion bus](zx81-expansion-bus.md), [tape media](zx81-tape-media.md) |
 | Freeze-scaffold cartridge experiments | [FPGA expansion](fpga-expansion.md) |
 | Who assembles `linux.img` | [Image assembly](image-assembly.md) |

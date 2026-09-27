@@ -28,11 +28,21 @@ Only `fes-gp-v1` packages activate. The contained profile is diagnostic-only.
 Replacement stops and neutralizes old input, quiesces HDMI and the outgoing
 driver, then programs once. Ambiguous quiesce is not repeated. FPGA-manager
 containment and control readback remain bounded. Every program contains the
-bridges before configuration. After user-mode readback, `fes-gp-v1` releases
-the SDR FPGA ports (`0x3fff`), bridge reset (`0`), and L3 remap (`0x19`).
-`development-contained-v1` stays contained, including splash, idle, and raw
-development RBFs. A programming/activation fault receives
-at most one defined-idle recovery. `Stop` does not program again from
+bridges and resets the SDR FPGA ports (`FPGAPORTRST` `0`) before configuration.
+After user-mode readback, `fes-gp-v1` releases only the bridge reset (`0`) and
+L3 remap (`0x19`). `development-contained-v1` stays contained, including
+splash, idle, and raw development RBFs. The ports leave reset only for a
+package that requires `fes.memory.hps-ddr` 1.0 on a boot whose U-Boot core
+latched the shared layout. The FPGA manager learns that from the SDR mirrors
+before its first program in a boot and records it under `/run`, and the
+interface is advertised and admitted only then. After identity proves
+capability bit 8 and before execution release, the FPGA manager reads the SDR
+mirrors `CPORTWIDTH` through `PORTCFG` and writes `FPGAPORTRST` `0x3fff` only
+when every FPGA field equals the shared layout. A mismatch fails activation as
+`core_mismatch` (phase `identity`), naming the register with observed and
+expected values; an MMIO failure or expired deadline is `program_failed`
+(phase `programming`). Both leave the ports in reset. A programming/activation
+fault receives at most one defined-idle recovery. `Stop` does not program again from
 `reboot_required`. `recover_idle` is the explicit second `LoadIdle`; if that
 also fails, the state stays `reboot_required` and a board reboot is the
 remaining recovery. A soft board reboot after FPGA or HPS activity can wedge
@@ -96,8 +106,10 @@ Admission requires fixed-720p60 video; known operational declarations must be
 required, while absent interfaces impose no requirement. The Coleco firmware
 overlay `fes.firmware.blob` 1.0 is the exception: a package may declare it
 optional so BIOS-free titles share the same bitstream. Unknown optional
-interfaces are ignored. Blob-stream requires blob. See
-[application I/O](docs/application-io.md) for the complete runtime contract.
+interfaces are ignored. Blob-stream requires blob. `fes.memory.hps-ddr` 1.0
+(capability bit 8) adds no GP command; it only gates the SDR port release
+above. See [application I/O](docs/application-io.md) for the complete runtime
+contract.
 
 The existing `FesGpCoreDriver` verifies application identity and capabilities,
 reuses the shared button/media codecs, and never issues keyboard commands to

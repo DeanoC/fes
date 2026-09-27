@@ -1116,7 +1116,7 @@ void TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces()
 	missing.descriptor.abi = {FesApplicationABIID, 1, 0};
 	missing.descriptor.interfaces = {{FesApplicationInterfaceGamepadID, 1, 0, true}};
 	assert(missing.Identify(1, 32768, 512, 2).code == mister::ErrorCode::core_mismatch);
-	for (const unsigned extra : {1u, 4u, 8u, 16u}) {
+	for (const unsigned extra : {1u, 4u, 8u, 16u, 256u}) {
 		StreamFixture f;
 		f.descriptor.abi = {FesApplicationABIID, 1, 0};
 		f.descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true},
@@ -1139,6 +1139,33 @@ void TestApplicationAudioRequiresExactLiveCapability()
 			assert(f.driver.Start(f.context, 1000000).error.ok());
 			f.Reply(0);
 			assert(f.driver.Quiesce(f.context, 1000000).error.ok());
+		}
+	}
+}
+
+void TestApplicationHpsDdrRequiresExactLiveCapability()
+{
+	static_assert(FesApplicationCapabilityMemoryHpsDdr == 0x100u,
+		"fes.memory.hps-ddr is capability bit 8");
+	for (const bool declared : {false, true}) {
+		for (const bool live : {false, true}) {
+			StreamFixture f;
+			f.descriptor.abi = {FesApplicationABIID, 1, 0};
+			f.descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true}};
+			if (declared)
+				f.descriptor.interfaces.push_back({FesApplicationInterfaceMemoryHpsDdrID, 1, 0, true});
+			const std::uint16_t caps = FesApplicationCapabilityVideoFixed720p60 |
+				(live ? FesApplicationCapabilityMemoryHpsDdr : 0u);
+			const auto error = f.Identify(1, 32768, 512, caps);
+			if (declared == live) {
+				assert(error.ok());
+				continue;
+			}
+			// A live bit without a declaration, or a declaration without the live
+			// bit, is a different core: never release its ports.
+			assert(error.code == mister::ErrorCode::core_mismatch);
+			assert(error.expected == (declared ? "capabilities=258" : "capabilities=2"));
+			assert(error.observed == (live ? "capabilities=258" : "capabilities=2"));
 		}
 	}
 }
@@ -2353,6 +2380,7 @@ int main()
 	TestApplicationReplaysSharedWireFixturesThroughDriver();
 	TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces();
 	TestApplicationAudioRequiresExactLiveCapability();
+	TestApplicationHpsDdrRequiresExactLiveCapability();
 	TestSharedStreamWireFixtures();
 	TestStreamIdentityRequiresObservedCapacityAndDeclaration();
 	TestStreamTransferBoundariesAndCRC();
@@ -2376,6 +2404,6 @@ int main()
 	TestComputerIdentityCapabilitiesAndDiscovery();
 	TestComputerInputValidationAndPartialRows();
 	TestComputerMediaFailuresEjectOnceAndStayReleased();
-	puts("fes_gp_test: 22 groups passed");
+	puts("fes_gp_test: 23 groups passed");
 	return 0;
 }

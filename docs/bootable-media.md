@@ -58,6 +58,36 @@ inputs or policy that produce different disk bytes fail without moving current.
 Unchanged evidence is fully reverified and reused. Legacy one-level outputs
 can be read-only refresh candidates; new publication uses both hashes.
 
+## U-Boot and the FAT idle core
+
+The card boots one idle core. Media assembly copies the sealed misteross
+splash to FAT `/idle.rbf`, and the rootfs holds the same bytes at
+`/usr/share/mister-runtime/idle.rbf` for Stop. Image policy
+(`image/build/native-inputs.toml`) and media assembly reject a FAT boot core
+that differs from the rootfs idle core.
+
+U-Boot is derived from the locked MiSTer `uboot.img`. That file is four 64 KiB
+SPL copies, then U-Boot proper as a legacy mkimage image at `0x40000`. Its
+compiled-in default environment says `core=menu.rbf`, and `fpgaload` programs
+that FAT file before `bridge enable`. `scripts/media_uboot.py` changes the
+value to `core=idle.rbf`, which is the same length, and recomputes the legacy
+data and header CRC-32s. The SPL copies and all other bytes are unchanged.
+`boot-media.lock.toml` pins the upstream bytes as `[uboot_upstream]` and the
+derived bytes as `[uboot]`. `make media` verifies the upstream image, derives
+U-Boot into `out/work/boot-media/`, and checks the derived hash and its
+`core=idle.rbf` environment before writing partition 2. The manifest records
+the written U-Boot as `uboot.sha256` and the upstream as
+`uboot.upstream_sha256`. The FAT core keeps the `splash` manifest fields, with
+`splash.fat_destination = "/idle.rbf"`.
+
+U-Boot, the kernel and FAT `/idle.rbf` change only when a card is
+reprovisioned with new media. A network or appliance update replaces only the
+system image. It does not rewrite U-Boot or FAT boot files, and it does not
+delete them. A card provisioned before this change keeps U-Boot `core=menu.rbf`
+and FAT `/menu.rbf` until it is reprovisioned. It still boots, but the
+runtime offers `fes.memory.hps-ddr` only after a boot that latched the correct
+port layout (see [HPS DDR](hps-ddr.md#boot-requirement)).
+
 ## Select and reverify a previous generation
 
 Choose the retained disk/evidence hash pair from its directory and media.json:
@@ -192,25 +222,24 @@ card, verify all of the following before releasing the lease:
 - Before calling the result exact-artifact acceptance, compare installed bytes
   with the retained manifests for this exact cold receipt. Compare the installed
   rootfs (`/media/fat/linux/linux.img`), kernel
-  (`/media/fat/linux/zImage_dtb`), FAT splash artifact (`/media/fat/menu.rbf`;
-  U-Boot still programs `core=menu.rbf`),
+  (`/media/fat/linux/zImage_dtb`), FAT boot idle core (`/media/fat/idle.rbf`,
+  which U-Boot programs as `core=idle.rbf`),
   and installed runtime Stop-idle artifact
   (`/usr/share/mister-runtime/idle.rbf`) with `rootfs.sha256`, `kernel.sha256`,
-  `splash.sha256`, and `idle.sha256` in `fes-media.toml`. Splash and Stop-idle
-  are independent slots; their hashes currently match because both slots
-  reuse the sealed misteross splash bitstream until a second idle exists.
+  `splash.sha256`, and `idle.sha256` in `fes-media.toml`. The FAT and rootfs
+  copies are the same sealed core, so `splash.sha256` equals `idle.sha256`.
 - Compare the installed rootfs, agent, runtime, kernel, splash, idle artifact and all
   selected package payloads before exact-artifact acceptance. Run:
 
   ```sh
   sha256sum /media/fat/linux/linux.img /media/fat/linux/zImage_dtb \
-    /media/fat/menu.rbf /usr/share/mister-runtime/idle.rbf
+    /media/fat/idle.rbf /usr/share/mister-runtime/idle.rbf
   sha256sum /usr/sbin/mister-agent /usr/sbin/mister-runtime \
     /usr/share/mister-runtime/core-packages/*/core.rbf
   ```
 
   Compare the first line to the external `fes-media.toml` (`splash.sha256` for
-  `/menu.rbf`, `idle.sha256` for rootfs idle); compare the agent,
+  FAT `/idle.rbf`, `idle.sha256` for rootfs idle); compare the agent,
   runtime and each package digest to the retained cold `manifest.tsv` bound by
   that generation's `image.json`. Do not use a manifest from a different
   source revision, recipe or cold receipt.

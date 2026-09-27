@@ -1,13 +1,82 @@
 schema: mister-packages.v1
 kind: register_bank
 id: cyclone_v.sdram
-description: SDR controller FPGA-port reset used during programming.
+description: >-
+  SDR controller FPGA-port reset and FPGA-port configuration mirrors. The
+  mirror fields follow the loaded core's fpga2sdram cfg_* inputs live. The
+  controller keeps using the layout latched by the last staticcfg.applycfg,
+  which U-Boot writes once at boot with the boot splash loaded.
 
 registers:
+  - name: CPORTWIDTH
+    offset: 0x5064
+    access: ro
+    description: Command-port widths. Bits 11:0 mirror cfg_port_width.
+    address_symbols: [kSdrCportWidthAddress]
+    fields:
+      - name: FPGA
+        bits: "11:0"
+        mask_symbol: kSdrCportWidthFpgaMask
+  - name: CPORTWMAP
+    offset: 0x5068
+    access: ro
+    description: Command-port write-FIFO map. Bits 17:0 mirror cfg_cport_wfifo_map.
+    address_symbols: [kSdrCportWmapAddress]
+    fields:
+      - name: FPGA
+        bits: "17:0"
+        mask_symbol: kSdrCportWmapFpgaMask
+  - name: CPORTRMAP
+    offset: 0x506c
+    access: ro
+    description: Command-port read-FIFO map. Bits 17:0 mirror cfg_cport_rfifo_map.
+    address_symbols: [kSdrCportRmapAddress]
+    fields:
+      - name: FPGA
+        bits: "17:0"
+        mask_symbol: kSdrCportRmapFpgaMask
+  - name: RFIFOCMAP
+    offset: 0x5070
+    access: ro
+    description: Read-FIFO command-port map. Bits 15:0 mirror cfg_rfifo_cport_map.
+    address_symbols: [kSdrRfifoCmapAddress]
+    fields:
+      - name: FPGA
+        bits: "15:0"
+        mask_symbol: kSdrRfifoCmapFpgaMask
+  - name: WFIFOCMAP
+    offset: 0x5074
+    access: ro
+    description: Write-FIFO command-port map. Bits 15:0 mirror cfg_wfifo_cport_map.
+    address_symbols: [kSdrWfifoCmapAddress]
+    fields:
+      - name: FPGA
+        bits: "15:0"
+        mask_symbol: kSdrWfifoCmapFpgaMask
+  - name: CPORTRDWR
+    offset: 0x5078
+    access: ro
+    description: Command-port directions. Bits 11:0 mirror cfg_cport_type.
+    address_symbols: [kSdrCportRdwrAddress]
+    fields:
+      - name: FPGA
+        bits: "11:0"
+        mask_symbol: kSdrCportRdwrFpgaMask
+  - name: PORTCFG
+    offset: 0x507c
+    access: ro
+    description: Port protocol. Bits 5:0 mirror cfg_axi_mm_select (1 is AXI).
+    address_symbols: [kSdrPortCfgAddress]
+    fields:
+      - name: FPGA
+        bits: "5:0"
+        mask_symbol: kSdrPortCfgFpgaMask
   - name: FPGAPORTRST
     offset: 0x5080
     access: rw
-    description: SDR FPGA port reset. Runtime writes 0 to disable, 0x3fff to enable.
+    description: >-
+      SDR FPGA port reset. Runtime writes 0 to disable and 0x3fff to enable,
+      only for a core that proved fes.memory.hps-ddr.
     address_symbols: [kSdrFpgaPortResetAddress]
     writes:
       - symbol: kSdrFpgaPortsDisabled

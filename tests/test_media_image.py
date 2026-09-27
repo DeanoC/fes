@@ -99,7 +99,7 @@ class RealImageTests(unittest.TestCase):
         result = self.verify()
         self.assertEqual(result.partition_types, (0x0c, 0xa2))
         self.assertEqual(result.fat_type, "FAT32")
-        self.assertEqual(result.paths, ("/fogcast", "/linux", "/linux/linux.img", "/linux/zImage_dtb", "/menu.rbf"))
+        self.assertEqual(result.paths, ("/fogcast", "/idle.rbf", "/linux", "/linux/linux.img", "/linux/zImage_dtb"))
         with self.image.open("rb") as f:
             mbr = f.read(512)
         self.assertEqual(mbr[:440], bytes(440))
@@ -118,9 +118,11 @@ class RealImageTests(unittest.TestCase):
         self.assertEqual(data['kernel']['destination'], '/linux/zImage_dtb')
         self.assertEqual(data['uboot']['destination'], 'partition_2')
         self.assertEqual(data['idle']['rootfs_destination'], '/usr/share/mister-runtime/idle.rbf')
-        self.assertEqual(data['splash']['fat_destination'], '/menu.rbf')
+        self.assertEqual(data['splash']['fat_destination'], '/idle.rbf')
         self.assertNotIn('fat_destination', data['idle'])
         self.assertEqual(data['splash']['sha256'], data['idle']['sha256'])
+        self.assertEqual(data['uboot']['sha256'], self.lock.uboot.sha256)
+        self.assertEqual(data['uboot']['upstream_sha256'], self.lock.uboot_upstream.sha256)
         self.assertEqual(data['output'], {'path': 'fes.img', 'size': self.image.stat().st_size, 'sha256': digest(self.image)})
         self.assertEqual(data['assembly']['sha256'], [digest(self.image)] * 2)
         self.assertEqual(data['checks'], {'structural_media': 'pass', 'assembly_reproducibility': 'pass',
@@ -141,7 +143,8 @@ class RealImageTests(unittest.TestCase):
                  ('rootfs', 'path', '../linux.img'), ('rootfs', 'child_manifest_sha256', '0' * 64),
                  ('rootfs', 'image_receipt_sha256', '0' * 64),
                  ('kernel', 'repository', 'https://unselected.example'), ('kernel', 'destination', '/kernel'),
-                 ('uboot', 'revision', '0' * 40), ('splash', 'fat_destination', '/idle.rbf'),
+                 ('uboot', 'revision', '0' * 40), ('splash', 'fat_destination', '/menu.rbf'),
+                 ('uboot', 'upstream_sha256', '0' * 64),
                  ('partition_1', 'active', False), ('partition_2', 'sector_count', 2047),
                  ('fat', 'serial', 1), ('output', 'path', '../fes.img'),
                  ('assembly', 'sha256', [digest(self.image), '0' * 64]),
@@ -253,8 +256,8 @@ class RealImageTests(unittest.TestCase):
             base = 1048576 + (32 + 2 * fat_sectors) * 512
             stream.seek(base)
             entries = stream.read(512)
-        menu = next(entries[n:n + 32] for n in range(0, 512, 32) if entries[n:n + 11] == b"MENU    RBF")
-        cluster = struct.unpack_from("<H", menu, 26)[0]
+        idle = next(entries[n:n + 32] for n in range(0, 512, 32) if entries[n:n + 11] == b"IDLE    RBF")
+        cluster = struct.unpack_from("<H", idle, 26)[0]
         self.mutate(base + (cluster - 2) * 512)
         with self.assertRaisesRegex(ValueError, "payload"):
             self.verify()
@@ -317,7 +320,7 @@ class RealImageTests(unittest.TestCase):
             self.verify(self.rehash_manifest())
 
     def test_owned_readonly_file_rejected_with_rehashed_manifest(self):
-        subprocess.run(["mattrib", "-i", f"{self.copy}@@1048576", "+r", "::/menu.rbf"], check=True)
+        subprocess.run(["mattrib", "-i", f"{self.copy}@@1048576", "+r", "::/idle.rbf"], check=True)
         with self.assertRaisesRegex(ValueError, "attributes|directory"):
             self.verify(self.rehash_manifest())
 
@@ -402,7 +405,7 @@ class RealImageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "idle"):
             media_inside.assemble(Path(self.scratch.name) / "invalid", dataclasses.replace(self.payloads, idle=wrong), self.lock)
 
-    def test_splash_may_differ_from_rootfs_idle(self):
+    def test_fat_boot_core_must_equal_rootfs_idle(self):
         splash = Path(self.scratch.name) / "splash.rbf"
         splash.write_bytes(b"splash-rbf-fixture" * 1024)
         provenance = dataclasses.replace(
@@ -411,13 +414,14 @@ class RealImageTests(unittest.TestCase):
             splash_sha256=digest(splash),
         )
         inputs = dataclasses.replace(self.payloads, splash=splash, provenance=provenance)
-        image, manifest = media_inside.assemble(Path(self.scratch.name) / "diverged", inputs, self.lock)
-        data = tomllib.loads(manifest.read_text())
-        self.assertEqual(data['splash']['sha256'], digest(splash))
-        self.assertEqual(data['idle']['sha256'], digest(self.idle))
-        self.assertNotEqual(data['splash']['sha256'], data['idle']['sha256'])
-        self.assertEqual(data['splash']['fat_destination'], '/menu.rbf')
-        self.assertEqual(data['idle']['rootfs_destination'], '/usr/share/mister-runtime/idle.rbf')
-        self.assertNotIn('fat_destination', data['idle'])
-        result = media_inside.verify_image(image, manifest, inputs, self.lock)
-        self.assertIn('/menu.rbf', result.paths)
+        with self.assertRaisesRegex(ValueError, "idle core"):
+            media_inside.assemble(Path(self.scratch.name) / "diverged", inputs, self.lock)
+        with self.assertRaisesRegex(ValueError, "idle core"):
+            media_inside.verify_image(self.copy, self.manifest, inputs, self.lock)
+
+    def test_uboot_naming_menu_rbf_is_rejected(self):
+        uboot = Path(self.scratch.name) / "uboot.img"
+        uboot.write_bytes(self.uboot.read_bytes() + b"\0core=menu.rbf\0")
+        lock = dataclasses.replace(self.lock, uboot=Payload("uboot.img", uboot.stat().st_size, digest(uboot)))
+        with self.assertRaisesRegex(ValueError, "menu.rbf"):
+            media_inside.assemble(Path(self.scratch.name) / "menu", dataclasses.replace(self.payloads, uboot=uboot), lock)

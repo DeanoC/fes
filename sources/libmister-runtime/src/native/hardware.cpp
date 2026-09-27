@@ -54,6 +54,37 @@ bool RequiresFesGamepad(const CoreDescriptor& descriptor)
 	return false;
 }
 
+// Admission accepts this interface only as a required application declaration.
+bool RequiresHpsDdr(const CoreDescriptor& descriptor)
+{
+	if (descriptor.abi.id != generated::FesApplicationABIID) return false;
+	for (const CoreInterface& interface : descriptor.interfaces)
+		if (interface.id == generated::FesApplicationInterfaceMemoryHpsDdrID &&
+			interface.required &&
+			interface.major == generated::FesApplicationInterfaceMemoryHpsDdrMajor &&
+			interface.minor == generated::FesApplicationInterfaceMemoryHpsDdrMinor)
+			return true;
+	return false;
+}
+
+// The SDR controller keeps the port layout U-Boot latched from its boot
+// core; under any other layout every DDR command is refused.
+Error BootHpsDdrLayoutError()
+{
+	return {ErrorCode::unsupported_interface,
+		"fes.memory.hps-ddr needs the boot core to latch its port layout; "
+		"this card's U-Boot idle core does not"};
+}
+
+// A live layout mismatch is a core that does not implement its declared
+// interface. MMIO failures stay with the FPGA manager's programming phase.
+Error HpsDdrError(Error error)
+{
+	const char* const phase = error.code == ErrorCode::core_mismatch ?
+		"identity" : "programming";
+	return WithPhase(std::move(error), phase);
+}
+
 Error ProgramError(Error error)
 {
 	error.code = ErrorCode::program_failed;
@@ -333,6 +364,8 @@ Error NativeHardware::AdmitCorePackage(const std::string& directory,
 	Error error = native::OpenCorePackage(package_roots_, directory,
 		expected_id, &opened);
 	if (error.ok()) error = CheckCoreCompatibility(opened.descriptor);
+	if (error.ok() && RequiresHpsDdr(opened.descriptor) && !fpga_.BootHpsDdrLayout())
+		error = BootHpsDdrLayoutError();
 	ProgrammingProfile profile = ProgrammingProfile::development_contained_v1;
 	CoreDriver* driver = nullptr;
 	if (error.ok()) error = driver_registry_.Resolve(opened.descriptor,
@@ -379,6 +412,9 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 		expected_id, &opened);
 	if (!error.ok()) return error;
 	Error compatibility = CheckCoreCompatibility(opened.descriptor);
+	if (compatibility.ok() && RequiresHpsDdr(opened.descriptor) &&
+		!fpga_.BootHpsDdrLayout())
+		compatibility = BootHpsDdrLayoutError();
 	ProgrammingProfile profile = ProgrammingProfile::development_contained_v1;
 	CoreDriver* driver = nullptr;
 	if (compatibility.ok())
@@ -558,6 +594,10 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesApplicationInterfaceMediaBlobID, 1, 0},
 			{generated::FesApplicationInterfaceMediaBlobStreamID, 1, 0},
 			{generated::FesApplicationInterfaceVideoFixed720p60ID, 1, 0}};
+		// Advertised only when the boot core latched the port layout.
+		if (fpga_.BootHpsDdrLayout())
+			application.interfaces.push_back(
+				{generated::FesApplicationInterfaceMemoryHpsDdrID, 1, 0});
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(application));
@@ -931,6 +971,18 @@ HardwareResult NativeHardware::LoadCore(
 			identified.error = WithPhase(std::move(identified.error), phase);
 		}
 		return {identified.error, true, identified.observed_core};
+	}
+	if (RequiresHpsDdr(admitted->opened_.descriptor)) {
+		// Identity proved capability bit 8. The ports leave reset only when the
+		// live fpga2sdram inputs also match, and before execution is released.
+		error = fpga_.ReleaseHpsDdrPorts(Deadline(clock_, timeouts_.core_io_ms));
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "hps_ddr", error});
+		if (!error.ok()) {
+			const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+			return {stopped.ok() ? HpsDdrError(std::move(error)) :
+				WithPhase(stopped, "input"), true, identified.observed_core};
+		}
 	}
 	if (admitted->data_file_) {
 		error = admitted->driver_->RestoreData(admitted->context_,

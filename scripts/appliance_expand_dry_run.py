@@ -222,7 +222,8 @@ def plan_extra_partition(layout, card_bytes=SYNTHETIC_CARD_BYTES):
         'keep_on_fat': [
             '/linux/linux.img',
             '/linux/zImage_dtb',
-            '/menu.rbf',
+            '/idle.rbf',
+            '/menu.rbf',  # boot core of cards provisioned before core=idle.rbf
             '/fogcast/agent.toml',
             '/fogcast/launcher.json',
             '/fogcast/releases/',

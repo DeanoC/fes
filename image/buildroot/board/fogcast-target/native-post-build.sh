@@ -78,7 +78,7 @@ if [ "$native_mode" = package-only ]; then
     printf '%s\n' 'native-post-build: idle input is not a regular non-symlink file' >&2
     exit 1
   }
-  [ "$splash_fat_destination" = /menu.rbf ] || {
+  [ "$splash_fat_destination" = /idle.rbf ] || {
     printf '%s\n' 'native-post-build: splash FAT destination differs from image policy' >&2
     exit 1
   }

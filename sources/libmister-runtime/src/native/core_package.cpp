@@ -848,6 +848,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesApplicationInterfaceMediaBlobID ||
 				interface.id == FesApplicationInterfaceMediaBlobStreamID ||
 				interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID ||
+				interface.id == FesApplicationInterfaceMemoryHpsDdrID ||
 				firmware;
 			const bool supported = known && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)

@@ -141,6 +141,9 @@ def check_inputs(inputs, lock, scratch):
     for name in ("rootfs", "idle", "kernel", "uboot"):
         regular(getattr(inputs, name), name)
     regular(inputs.splash_payload(), "splash")
+    # FAT /idle.rbf (U-Boot core=idle.rbf) and the rootfs Stop idle are one core.
+    if digest(inputs.splash_payload()) != digest(inputs.idle):
+        raise ValueError("FAT /idle.rbf differs from the rootfs idle core")
     verify_file(inputs.kernel, lock.kernel.size, lock.kernel.sha256, "kernel")
     verify_file(inputs.uboot, lock.uboot.size, lock.uboot.sha256, "U-Boot")
     if lock.uboot.size > BOOT_SIZE:
@@ -148,6 +151,8 @@ def check_inputs(inputs, lock, scratch):
     uboot_data = inputs.uboot.read_bytes()
     if any(value.encode() not in uboot_data for value in lock.environment):
         raise ValueError("U-Boot environment differs from lock")
+    if b"menu.rbf" in uboot_data:
+        raise ValueError("U-Boot still names menu.rbf; use the derived FES U-Boot")
     # debugfs command uses only a generated scratch filename, never caller text.
     extracted = scratch / "embedded-idle.rbf"
     run("debugfs", "-R", f'dump /usr/share/mister-runtime/idle.rbf "{extracted}"', inputs.rootfs)
@@ -226,11 +231,11 @@ def _assemble_once(image, inputs, lock, scratch):
         stream.write(struct.pack("<HH", time, date))
     staged = scratch / "payloads"
     staged.mkdir()
-    for name, source in (("menu.rbf", inputs.splash_payload()), ("zImage_dtb", inputs.kernel), ("linux.img", inputs.rootfs)):
+    for name, source in (("idle.rbf", inputs.splash_payload()), ("zImage_dtb", inputs.kernel), ("linux.img", inputs.rootfs)):
         destination = staged / name
         shutil.copyfile(source, destination)
         os.utime(destination, (SOURCE_DATE_EPOCH, SOURCE_DATE_EPOCH))
-    run("mcopy", "-m", "-i", device, staged / "menu.rbf", "::/menu.rbf")
+    run("mcopy", "-m", "-i", device, staged / "idle.rbf", "::/idle.rbf")
     run("mmd", "-i", device, "::/linux")
     run("mcopy", "-m", "-i", device, staged / "zImage_dtb", "::/linux/zImage_dtb")
     run("mcopy", "-m", "-i", device, staged / "linux.img", "::/linux/linux.img")
@@ -272,7 +277,7 @@ def manifest_data(image, inputs, lock, config_sha, assembly_hashes, *, rootfs_ve
                          'child_manifest_sha256': provenance.child_manifest_sha256},
               'splash': {'repository': provenance.splash_repository, 'revision': provenance.splash_revision,
                          'path': provenance.splash_path, 'size': provenance.splash_size,
-                         'sha256': provenance.splash_sha256, 'fat_destination': '/menu.rbf'},
+                         'sha256': provenance.splash_sha256, 'fat_destination': '/idle.rbf'},
               'idle': {'repository': provenance.idle_repository, 'revision': provenance.idle_revision,
                        'path': provenance.idle_path, 'size': provenance.idle_size, 'sha256': provenance.idle_sha256,
                        'rootfs_destination': '/usr/share/mister-runtime/idle.rbf'},
@@ -295,6 +300,8 @@ def manifest_data(image, inputs, lock, config_sha, assembly_hashes, *, rootfs_ve
         source = getattr(lock, name)
         result[name] = {'repository': lock.repository, 'revision': lock.commit, 'path': source.path,
                         'size': source.size, 'sha256': source.sha256, 'destination': destination}
+    # The written U-Boot is derived (core=idle.rbf); record its upstream input.
+    result['uboot']['upstream_sha256'] = lock.uboot_upstream.sha256
     return result
 
 
@@ -439,7 +446,7 @@ def _verify_fat_unused(fat, fat_sectors, clusters, has_config, has_launcher=Fals
         dotdot = (b"..         \x10\x00", "..")
         schemas = {
             "/": [(b"FESDATA    \x08\x00", "label"),
-                  (b"MENU    RBF\x20\x18", "/menu.rbf"),
+                  (b"IDLE    RBF\x20\x18", "/idle.rbf"),
                   (b"LINUX      \x10\x08", "/linux"),
                   (b"FOGCAST    \x10\x08", "/fogcast")],
             "/linux": [dot, dotdot,
@@ -553,7 +560,7 @@ def verify_image(image, manifest, inputs, lock, agent_config_sha256=None, *, roo
         device = f"{image}@@{PART1_OFFSET}"
         listing = run("mdir", "-a", "-b", "-s", "-i", device, "::/")
         paths = tuple(sorted(line.removeprefix("::").rstrip("/") for line in listing.splitlines() if line))
-        owned = {"/menu.rbf": inputs.splash_payload(), "/linux/zImage_dtb": inputs.kernel,
+        owned = {"/idle.rbf": inputs.splash_payload(), "/linux/zImage_dtb": inputs.kernel,
                  "/linux/linux.img": inputs.rootfs}
         expected_paths = set(owned) | {"/linux", "/fogcast"}
         if agent_config_sha256:

@@ -1,27 +1,43 @@
 {
-  "build_id": "d7836bb7fd25e4ed7278f7697af77217",
+  "build_id": "e6f9fcf4fa624c547337eb28bbbb004d",
   "device": "5CSEBA6U23I7",
   "format2_package": false,
+  "hps_ddr": {
+    "cfg": {
+      "cfg_axi_mm_select": "0x0",
+      "cfg_cport_rfifo_map": "0xd0",
+      "cfg_cport_type": "0x3f",
+      "cfg_cport_wfifo_map": "0xd0",
+      "cfg_port_width": "0x16",
+      "cfg_rfifo_cport_map": "0x2100",
+      "cfg_wfifo_cport_map": "0x2100"
+    },
+    "idle": true,
+    "interface": "fes.memory.hps-ddr",
+    "major": 1,
+    "minor": 0
+  },
   "inputs": {
     "boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "cores/fes-common/generated/fes_application.vh": "a248fcb9f641a63ca59aec74aa7c0df61183e0c2ad836001690561730990c57a",
     "cores/fes-splash/constraints.qsf": "c38882cbba0b0e3050e86f7d2acd7e7b090fb9329e43e2a6c4f438ab7c7df83f",
     "cores/fes-splash/idle-contract.toml": "15f38a30e636dcbaade06275e53a356181983cf18a70996f06c0cc1fb16fb524",
     "cores/fes-splash/rtl/fes_splash_core.v": "9740e47e25ffa8a9bd124339bcefd18a48c62ac5500f8d862e5abe435e50a7a6",
     "cores/fes-splash/rtl/pixel_pll.v": "691a5ad78d887c8b724446e922f4b6ddfb3436326dc3f59bf9037cd7ac649fa4",
-    "cores/fes-splash/rtl/top.v": "c49f4908312fcfeb765a577f8ab357d51a78d011835876919aaa7ef9fad3fc23",
-    "scripts/build_fes_splash.py": "96d482dea67b0bca9327d236ac4efb6f2600ef585d6f60dda4a3b7d9ce84057a",
-    "scripts/fes_build_common.py": "d946b0e8211b08db82012b089a7ee354fee6361b1d5f0c248a8821e80fa41655",
-    "scripts/fes_de10nano_evidence.py": "3d3a1e0590244590bb42e116503b74350fac5d9e5c837750bb969e79e293bd5e",
-    "toolchain.lock": "411d35bd981451a6be566228b9760b3be4b4e678794dc993b60b0cc5d049dae3"
+    "cores/fes-splash/rtl/top.v": "90e2eff85da066615e8b408b71fed77ff7de16f499651074598ae7ea3d9c6306",
+    "scripts/build_fes_splash.py": "855d72943336bac86a54ec34d95ee601f805f9cdc9f22393e5407a023b4e0f17",
+    "scripts/fes_build_common.py": "6c8f73431c84949a5c8486145a2f5f64067a38534460539b4bb6435ce3425f9a",
+    "scripts/fes_de10nano_evidence.py": "1437ee3c632d68fb58da871dab207cc3006eabfe3a01bf157d1385009bff2b58",
+    "toolchain.lock": "414a2db742279faf6e38505eb1d296bcdf4063f1c757c24b1bcf0a6d4dc1c451"
   },
   "rbf": {
-    "sha256": "feb0a66a3384d56a234fcdbd4ee2665fe366310946b206f5aefbfa6ad6e6e83f",
-    "size": 1962648
+    "sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+    "size": 1963100
   },
   "resources": {
     "MISTRAL_BUF": {
       "available": 0,
-      "used": 11
+      "used": 10
     },
     "MISTRAL_CLKENA": {
       "available": 8,
@@ -67,6 +83,10 @@
       "available": 6,
       "used": 1
     },
+    "cyclonev_hps_interface_fpga2sdram": {
+      "available": 1,
+      "used": 1
+    },
     "cyclonev_hps_interface_mpu_general_purpose": {
       "available": 1,
       "used": 0
@@ -104,11 +124,12 @@
     "MISTRAL_NOT": 11,
     "MISTRAL_OB": 28,
     "altera_pll": 1,
+    "cyclonev_hps_interface_fpga2sdram": 1,
     "cyclonev_hps_interface_peripheral_i2c": 1
   },
   "timing": {
     "pixel": {
-      "achieved_mhz": 247.52474975585938,
+      "achieved_mhz": 204.58265686035156,
       "clock": "pixel_clk",
       "constraint_mhz": 74.25006866455078,
       "requested_mhz": 74.25,
@@ -124,9 +145,9 @@
     "status": "pass"
   },
   "tools": {
-    "mistral": "commit=b28e30a36b5139aaed5a5d361a30b542e6b7c758; sha256=b695fec274f7bb912b5295cf9ae5589c6c9d3c3babce26b759f5ee583ae60f62",
-    "nextpnr-mistral": "commit=30ac6f47bd94aec97467bee9fcd2ff09643fbc55; sha256=59ebe861c2031597fa5915b65a107e4b0f131fba5a5005adae27de8a6b6b4825; gpu-router=OFF; hip-architectures=unused",
-    "yosys": "commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=6a192ec0dbb6fed333719e4361fa93f62cadc244ecbb6faf3363f502b9fb80a6"
+    "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=a7c7f48093bb7ea04b00a47387a0bbca2ddee43dab48afa68e57b612199b0300",
+    "nextpnr-mistral": "commit=a93fe013af841214ecb4f7be3af0de65f3de3a0f; sha256=7d1b6090f343d4c9d5785c93d17951014b6078751dd033fd880465723813329a; gpu-router=OFF; hip-architectures=unused",
+    "yosys": "commit=fb879d81e0352f558297bdcc61bc7a4a922fa7b0; sha256=ff5a6d8057f232bdcb4f161f755e431df8255512e12b1cd55d18138ea83668ca"
   },
   "top": "top",
   "user_io": {

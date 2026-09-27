@@ -17,6 +17,7 @@
 #include "native/hardware.hpp"
 #include "native/core_data.hpp"
 #include "native/input.hpp"
+#include "native/linux/fpga_manager.hpp"
 #include "native/linux/i2c.hpp"
 #include "native/linux/input.hpp"
 #include "native/video.hpp"
@@ -198,7 +199,21 @@ public:
 		if (calls == fail_call) return failure;
 		return result;
 	}
+	bool BootHpsDdrLayout() override { return boot_hps_ddr_layout; }
+	mister::Error ReleaseHpsDdrPorts(std::uint64_t deadline) override
+	{
+		events_.push_back("fpga.hps_ddr");
+		hps_ddr_deadlines.push_back(deadline);
+		++hps_ddr_calls;
+		if (on_hps_ddr) on_hps_ddr();
+		return hps_ddr_result;
+	}
 	std::vector<std::string>& events_;
+	mister::Error hps_ddr_result;
+	bool boot_hps_ddr_layout = true;
+	std::vector<std::uint64_t> hps_ddr_deadlines;
+	std::function<void()> on_hps_ddr;
+	int hps_ddr_calls = 0;
 	mister::native::NativeResult result;
 	mister::native::NativeResult failure = {
 		{mister::ErrorCode::program_failed, "injected program failure"}, true};
@@ -1252,11 +1267,15 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		"development-contained-v1", "fes-gp-v1"}));
 	assert(capabilities.abis.size() == 4);
 	assert(capabilities.abis[0].id == "fes.application");
-	assert(capabilities.abis[0].interfaces.size() == 9);
+	assert(capabilities.abis[0].interfaces.size() == 10);
 	assert(capabilities.abis[0].interfaces[1].id == "fes.expansion.coleco-bus");
 	assert(capabilities.abis[0].interfaces[1].major == 1);
 	assert(capabilities.abis[0].interfaces[1].minor == 0);
 	assert(capabilities.abis[0].interfaces[2].id == "fes.firmware.blob");
+	assert(capabilities.abis[0].interfaces[8].id == "fes.memory.hps-ddr");
+	assert(capabilities.abis[0].interfaces[8].major == 1);
+	assert(capabilities.abis[0].interfaces[8].minor == 0);
+	assert(capabilities.abis[0].interfaces[9].id == "fes.video.fixed-720p60");
 	const auto& computer = capabilities.abis[1];
 	assert(computer.id == "fes.computer" && computer.major == 1 && computer.minor == 0);
 	std::vector<std::string> computer_interfaces;
@@ -1351,6 +1370,271 @@ void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
 			active = true;
 	assert(active);
 	assert(fixture.runtime.Stop().ok());
+}
+
+// A video-only application, optionally requiring fes.memory.hps-ddr 1.0.
+void PopulateHpsDdrApplication(TempDirectory* package, bool hps_ddr,
+	mister::native::OpenedCorePackage* opened)
+{
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.simple-game", "fes.application");
+	const auto first = manifest.find("[[interfaces]]");
+	const auto second = manifest.find("[[interfaces]]", first + 1);
+	assert(first != std::string::npos && second != std::string::npos);
+	manifest.erase(first, second - first); // remove gamepad; retain fixed video
+	if (hps_ddr)
+		manifest += "\n[[interfaces]]\nid = \"fes.memory.hps-ddr\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package->File("manifest.toml", manifest);
+	package->File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	assert(mister::native::OpenCorePackage(package->path, "", opened).ok());
+}
+
+// The successful MSEL 9 readback sequence that the FPGA manager test scripts.
+void ScriptFpgaProgramming(mister_test::FakeMmio* mmio)
+{
+	using namespace mister::native::generated;
+	const auto mode = [](std::uint32_t value) { return (9u << 3) | value; };
+	mmio->values[kFpgaControlAddress] = 0xa5a500c2u;
+	mmio->values[kFpgaMonitorAddress] = 7;
+	for (const std::uint32_t value : {4u, 0u, 1u, 1u, 2u, 2u, 3u, 3u, 4u, 4u})
+		mmio->PushRead(kFpgaStatusAddress, mode(value));
+	for (const std::uint32_t value : {1u, 3u, 7u})
+		mmio->PushRead(kFpgaMonitorAddress, value);
+	for (const std::uint32_t value : {1u, 0u, 1u, 1u, 1u})
+		mmio->PushRead(kFpgaDclkStatusAddress, value);
+}
+
+void SetHpsDdrMirrors(mister_test::FakeMmio* mmio, bool matching)
+{
+	using namespace mister::native::generated;
+	const std::pair<std::uint32_t, std::uint32_t> mirrors[] = {
+		{kSdrCportWidthAddress, FesApplicationHpsDdrCfgPortWidth},
+		{kSdrCportWmapAddress, FesApplicationHpsDdrCfgCportWfifoMap},
+		{kSdrCportRmapAddress, FesApplicationHpsDdrCfgCportRfifoMap},
+		{kSdrRfifoCmapAddress, FesApplicationHpsDdrCfgRfifoCportMap},
+		{kSdrWfifoCmapAddress, FesApplicationHpsDdrCfgWfifoCportMap},
+		{kSdrCportRdwrAddress, FesApplicationHpsDdrCfgCportType},
+		{kSdrPortCfgAddress, FesApplicationHpsDdrCfgAxiMmSelect}};
+	// A core without the fpga2sdram cell leaves every cfg_* input reading one.
+	for (const auto& mirror : mirrors)
+		mmio->values[mirror.first] = matching ? mirror.second : 0xffffffffu;
+}
+
+// Programming, the FES GP mailbox and the SDR registers share one bus, as in
+// production, so the fake records the complete activation write order.
+void TestHpsDdrPortsReleaseAfterIdentityBeforeExecution()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	enum class Core { undeclared, matching, missing_cell };
+	for (const Core core : {Core::undeclared, Core::matching, Core::missing_cell}) {
+		const bool declared = core != Core::undeclared;
+		TempDirectory temporary;
+		TempDirectory package;
+		OpenedCorePackage opened;
+		PopulateHpsDdrApplication(&package, declared, &opened);
+		std::vector<std::string> events;
+		RecordingOpener opener(events);
+		mister_test::FakeMmio mmio;
+		FixedClock clock(100);
+		LinuxFpgaManager fpga(mmio, clock, temporary.File("boot-hps-ddr", "latched\n"));
+		RecordingI2c i2c(events);
+		RecordingVideo idle_video(events);
+		LedgerLog log(events);
+		FixedVideoBringup game_video(i2c, clock, log, Menu720p60Recipe());
+		RecordingInput input(events, clock);
+		const InputDeviceIdentity identity = {
+			"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001, 0x0001};
+		FesGp transport(mmio, clock);
+		FesGpCoreDriver driver(transport);
+		NativeHardware hardware(opener, fpga, idle_video, game_video, input, identity,
+			clock, log, temporary.File("idle.rbf", "idle"), {30000, 10000, 10000},
+			&driver, {"/tmp"});
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		assert(hardware.AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+		ScriptFpgaProgramming(&mmio);
+		SetHpsDdrMirrors(&mmio, core == Core::matching);
+		auto words = FesGpIdentityWords();
+		words[FesGpIdentityAbiTagIndex] = FesApplicationAbiTag;
+		words[FesGpIdentityCapabilitiesIndex] = static_cast<std::uint16_t>(
+			FesApplicationCapabilityVideoFixed720p60 |
+			(declared ? FesApplicationCapabilityMemoryHpsDdr : 0u));
+		ScriptFesGpIdentity(&mmio, words);
+		PushFesGpResponse(&mmio, true, 0); // execution release
+		const mister::HardwareResult loaded = hardware.LoadCore(std::move(admitted), 1);
+
+		// Programming holds the ports in reset and releases only the bridge
+		// reset and L3 remap; identity follows directly.
+		std::vector<std::uint32_t> port_resets;
+		std::size_t remap = mmio.writes.size();
+		for (std::size_t index = 0; index < mmio.writes.size(); ++index) {
+			const auto& write = mmio.writes[index];
+			if (write.offset == kSdrFpgaPortResetAddress) port_resets.push_back(write.value);
+			if (write.offset == kL3RemapAddress && write.value == kL3RemapFpgaEnabled)
+				remap = index;
+		}
+		assert(remap < mmio.writes.size());
+		assert(mmio.writes[remap - 1].offset == kBridgeResetAddress);
+		assert(mmio.writes[remap - 1].value == kBridgesReleased);
+		const std::size_t identity_end = remap + 1 + FesGpIdentityWordCount * 2;
+		assert(mmio.writes.size() >= identity_end);
+		for (std::size_t index = remap + 1; index < identity_end; ++index)
+			assert(mmio.writes[index].offset == kFpgaGpoAddress);
+		std::size_t mirror_reads = 0;
+		for (const std::uint32_t read : mmio.reads)
+			if (read == kSdrCportWidthAddress) ++mirror_reads;
+		assert(mirror_reads == (declared ? 1u : 0u));
+		if (core == Core::missing_cell) {
+			assert(loaded.error.code == mister::ErrorCode::core_mismatch);
+			assert(loaded.error.phase == "identity");
+			assert(loaded.error.message ==
+				"HPS DDR CPORTWIDTH mismatch: observed=0xfff expected=0x16");
+			assert(loaded.mutation_attempted);
+			// Neither the ports nor execution leave reset.
+			assert(port_resets == std::vector<std::uint32_t>({kSdrFpgaPortsDisabled}));
+			assert(mmio.writes.size() == identity_end);
+			continue;
+		}
+		if (!loaded.error.ok()) fprintf(stderr, "HPS DDR activation: %s\n",
+			loaded.error.message.c_str());
+		assert(loaded.error.ok());
+		std::size_t release = identity_end;
+		if (core == Core::matching) {
+			assert(mmio.writes[release].offset == kSdrFpgaPortResetAddress);
+			assert(mmio.writes[release].value == kSdrFpgaPortsEnabled);
+			++release;
+			assert(port_resets == std::vector<std::uint32_t>({
+				kSdrFpgaPortsDisabled, kSdrFpgaPortsEnabled}));
+		} else {
+			assert(port_resets == std::vector<std::uint32_t>({kSdrFpgaPortsDisabled}));
+		}
+		// The execution-release request is the only exchange after the ports.
+		assert(mmio.writes.size() == release + 2);
+		const std::uint32_t command = mmio.writes.back().value;
+		assert(mmio.writes.back().offset == kFpgaGpoAddress);
+		assert((command & FesGpOpcodeMask) ==
+			FesGpOpcodeGameplay * (FesGpOpcodeMask & (~FesGpOpcodeMask + 1u)));
+		assert((command & FesGpArgumentMask) == FesGpGameplayRelease);
+	}
+}
+
+// A card whose U-Boot core did not latch the layout (an old splash kept by
+// a network update) neither advertises nor admits fes.memory.hps-ddr.
+void TestHpsDdrNeedsTheBootLayout()
+{
+	using namespace mister::native;
+	for (const bool latched : {true, false}) {
+		TempDirectory temporary;
+		TempDirectory declaring;
+		TempDirectory plain;
+		OpenedCorePackage declared;
+		OpenedCorePackage undeclared;
+		PopulateHpsDdrApplication(&declaring, true, &declared);
+		PopulateHpsDdrApplication(&plain, false, &undeclared);
+		std::vector<std::string> events;
+		RecordingOpener opener(events);
+		mister_test::FakeMmio mmio;
+		FixedClock clock(100);
+		LinuxFpgaManager fpga(mmio, clock,
+			temporary.File("boot-hps-ddr", latched ? "latched\n" : "absent\n"));
+		RecordingI2c i2c(events);
+		RecordingVideo idle_video(events);
+		LedgerLog log(events);
+		FixedVideoBringup game_video(i2c, clock, log, Menu720p60Recipe());
+		RecordingInput input(events, clock);
+		const InputDeviceIdentity identity = {
+			"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001, 0x0001};
+		FesGp transport(mmio, clock);
+		FesGpCoreDriver driver(transport);
+		NativeHardware hardware(opener, fpga, idle_video, game_video, input, identity,
+			clock, log, temporary.File("idle.rbf", "idle"), {30000, 10000, 10000},
+			&driver, {"/tmp"});
+
+		bool advertised = false;
+		for (const auto& abi : hardware.capabilities().abis)
+			for (const auto& interface : abi.interfaces)
+				if (interface.id == "fes.memory.hps-ddr") advertised = true;
+		assert(advertised == latched);
+
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		const mister::Error admission =
+			hardware.AdmitCorePackage(declaring.path, declared.package_id, &admitted);
+		mister::CorePackageInspection inspection;
+		assert(hardware.InspectCorePackage(declaring.path, declared.package_id,
+			&inspection).ok());
+		if (latched) {
+			assert(admission.ok());
+			assert(inspection.compatible);
+		} else {
+			assert(admission.code == mister::ErrorCode::unsupported_interface);
+			assert(!inspection.compatible);
+			assert(inspection.compatibility_error.code == mister::ErrorCode::unsupported_interface);
+		}
+		// Cores that do not declare the interface are unaffected.
+		std::unique_ptr<mister::AdmittedCorePackage> other;
+		assert(hardware.AdmitCorePackage(plain.path, undeclared.package_id, &other).ok());
+		// The verdict came from the record, not the bus.
+		assert(mmio.reads.empty());
+	}
+}
+
+void TestHpsDdrReleaseFailureRecoversBeforeExecution()
+{
+	struct Case {
+		bool declared;
+		mister::Error failure;
+		const char* phase;
+	};
+	const Case cases[] = {
+		{false, {}, ""},
+		{true, {}, ""},
+		{true, {mister::ErrorCode::core_mismatch,
+			"HPS DDR PORTCFG mismatch: observed=0x1 expected=0x0", "",
+			"PORTCFG=0x0", "PORTCFG=0x1"}, "identity"},
+		{true, {mister::ErrorCode::program_failed,
+			"HPS DDR CPORTRDWR read failed: injected"}, "programming"},
+	};
+	for (const Case& item : cases) {
+		std::vector<std::string> driver_events;
+		RecordingDriver gp(driver_events);
+		IntegratedFixture fixture(&gp);
+		fixture.Start();
+		TempDirectory package;
+		mister::native::OpenedCorePackage opened;
+		PopulateHpsDdrApplication(&package, item.declared, &opened);
+		RecordingFpga& fpga = fixture.native.fpga;
+		fpga.hps_ddr_result = item.failure;
+		fpga.on_hps_ddr = [&] {
+			assert(driver_events == std::vector<std::string>({
+				"driver.begin", "driver.identify"}));
+		};
+		gp.on_start = [&] { assert(fpga.hps_ddr_calls == (item.declared ? 1 : 0)); };
+		const mister::Error error = fixture.runtime.LoadCore(package.path, opened.package_id);
+		assert(fpga.hps_ddr_calls == (item.declared ? 1 : 0));
+		const mister::Status status = fixture.runtime.status();
+		if (item.failure.ok()) {
+			assert(error.ok());
+			assert(status.state == mister::State::running_development);
+			if (item.declared)
+				assert(fpga.hps_ddr_deadlines == std::vector<std::uint64_t>({10100}));
+			bool active = false;
+			for (const auto& contract : status.capabilities.active_interfaces)
+				if (contract.id == "fes.memory.hps-ddr") active = true;
+			assert(active == item.declared);
+			assert(fixture.runtime.Stop().ok());
+			continue;
+		}
+		assert(error.code == item.failure.code && error.phase == item.phase);
+		assert(error.message == item.failure.message);
+		assert(error.expected == item.failure.expected);
+		assert(error.observed == item.failure.observed);
+		assert(Count(driver_events, "driver.start") == 0);
+		// The one defined-idle recovery holds the identified core and reprograms.
+		assert(Count(driver_events, "driver.quiesce") == 1);
+		assert(fpga.calls == 3);
+		assert(status.state == mister::State::idle);
+		assert(status.error.code == item.failure.code && status.error.phase == item.phase);
+	}
 }
 
 void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
@@ -2219,6 +2503,9 @@ int main()
 	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
+	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();
+	TestHpsDdrReleaseFailureRecoversBeforeExecution();
+	TestHpsDdrNeedsTheBootLayout();
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();
@@ -2242,6 +2529,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 27 passed");
+	puts("native_hardware_test: 29 passed");
 	return 0;
 }

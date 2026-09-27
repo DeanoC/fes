@@ -16,16 +16,16 @@ try:
     from . import appliance
     from . import platform as fes_platform
     from .appliance_media_inside import Inputs
-    from .media_inputs import digest, verify_file
+    from .media_inputs import derived_uboot_path, digest, verify_file
 except ImportError:
     import appliance
     import platform as fes_platform
     from appliance_media_inside import Inputs
-    from media_inputs import digest, verify_file
+    from media_inputs import derived_uboot_path, digest, verify_file
 
 PROFILE='native-integration-dev'
 RECIPE_FILES=('scripts/appliance.py','scripts/appliance_inside.py','scripts/appliance_media.py','scripts/appliance_media_inside.py',
-    'scripts/media.py','scripts/media_inputs.py','scripts/media_inside.py','scripts/media_container.py','scripts/platform.py','scripts/prepare_launcher.py',
+    'scripts/media.py','scripts/media_inputs.py','scripts/media_uboot.py','scripts/media_inside.py','scripts/media_container.py','scripts/platform.py','scripts/prepare_launcher.py',
     'boot-media.lock.toml','containers/boot-media/Dockerfile','containers/boot-media/create-builder-user.sh','containers/boot-media/packages.sha256')
 
 
@@ -130,7 +130,9 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     idle_lock=policy['idle_rbf']
     splash_lock=policy['splash_rbf']
     if idle_lock['install_path']!='/usr/share/mister-runtime/idle.rbf':raise ValueError('selected idle install path differs')
-    if splash_lock['fat_destination']!='/menu.rbf':raise ValueError('selected splash FAT destination differs')
+    if splash_lock['fat_destination']!='/idle.rbf':raise ValueError('selected splash FAT destination differs')
+    if (splash_lock['sha256'],splash_lock['size'])!=(idle_lock['sha256'],idle_lock['size']):
+        raise ValueError('selected FAT boot core differs from the rootfs idle core')
     verify_file(idle,idle_lock['size'],idle_lock['sha256'],'selected factory idle')
     splash=scratch/'splash.rbf'
     native_splash=root/'image/build/cache/target-image/native/splash.rbf'
@@ -142,7 +144,8 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
         verify_file(splash,splash_lock['size'],splash_lock['sha256'],'selected splash')
     kernel_copy=scratch/'kernel';shutil.copyfile(kernel,kernel_copy)
     verify_file(kernel_copy,lock.kernel.size,lock.kernel.sha256,'kernel snapshot')
-    uboot_source=root/'out/work/boot-media'/('image-creator-'+lock.commit)/lock.uboot.path
+    # verified_inputs derived the FES U-Boot from the locked upstream image.
+    uboot_source=derived_uboot_path(root,lock)
     uboot=scratch/'uboot';shutil.copyfile(appliance.regular(uboot_source),uboot)
     verify_file(uboot,lock.uboot.size,lock.uboot.sha256,'U-Boot snapshot')
     config,config_sha=media.resolve_agent_config(agent_config,scratch,auto=not unprovisioned)

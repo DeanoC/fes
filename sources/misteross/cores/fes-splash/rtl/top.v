@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+`include "fes_application.vh"
+
 // Board-firmware splash shell: HDMI pixels plus HPS I2C to the ADV7513.
-// No HPS GP mailbox and no MiSTer user-io.
+// No HPS GP mailbox and no MiSTer user-io. U-Boot loads this bitstream and
+// latches its FPGA-to-SDRAM port layout, so it carries the fes.memory.hps-ddr
+// configuration with every port idle.
 // Hold DE/HS/VS/RGB until the soft pixel PLL locks after FPGA reconfig
 // (ADV VSYNC-absent black dig 2026-09-22). No extra refclk sequential
 // domain — splash timing evidence requires a single pixel clock domain.
@@ -55,6 +59,38 @@ module top (
         .hdmi_vs(splash_vs),
         .frame_tick(),
         .phase()
+    );
+
+    // The controller adopts these cfg_* values once, when U-Boot's bridge
+    // enable writes staticcfg.applycfg with this bitstream loaded. Every
+    // fes.memory.hps-ddr core drives the same values. No clock and no
+    // command reaches the ports here; only pins every pinned Yosys
+    // blackbox declares are connected.
+    localparam [31:0] DDR_PORT_WIDTH = `FES_APPLICATION_HPS_DDR_CFG_PORT_WIDTH;
+    localparam [31:0] DDR_CPORT_TYPE = `FES_APPLICATION_HPS_DDR_CFG_CPORT_TYPE;
+    localparam [31:0] DDR_CPORT_WFIFO_MAP = `FES_APPLICATION_HPS_DDR_CFG_CPORT_WFIFO_MAP;
+    localparam [31:0] DDR_CPORT_RFIFO_MAP = `FES_APPLICATION_HPS_DDR_CFG_CPORT_RFIFO_MAP;
+    localparam [31:0] DDR_WFIFO_CPORT_MAP = `FES_APPLICATION_HPS_DDR_CFG_WFIFO_CPORT_MAP;
+    localparam [31:0] DDR_RFIFO_CPORT_MAP = `FES_APPLICATION_HPS_DDR_CFG_RFIFO_CPORT_MAP;
+    localparam [31:0] DDR_AXI_MM_SELECT = `FES_APPLICATION_HPS_DDR_CFG_AXI_MM_SELECT;
+    cyclonev_hps_interface_fpga2sdram hps_ddr_layout (
+        .cfg_axi_mm_select(DDR_AXI_MM_SELECT[5:0]),
+        .cfg_cport_rfifo_map(DDR_CPORT_RFIFO_MAP[17:0]),
+        .cfg_cport_type(DDR_CPORT_TYPE[11:0]),
+        .cfg_cport_wfifo_map(DDR_CPORT_WFIFO_MAP[17:0]),
+        .cfg_port_width(DDR_PORT_WIDTH[11:0]),
+        .cfg_rfifo_cport_map(DDR_RFIFO_CPORT_MAP[15:0]),
+        .cfg_wfifo_cport_map(DDR_WFIFO_CPORT_MAP[15:0]),
+        .cmd_port_clk_0(1'b0), .cmd_port_clk_1(1'b0), .cmd_port_clk_2(1'b0),
+        .cmd_port_clk_3(1'b0), .cmd_port_clk_4(1'b0), .cmd_port_clk_5(1'b0),
+        .cmd_valid_0(1'b0), .cmd_valid_1(1'b0), .cmd_valid_2(1'b0),
+        .cmd_valid_3(1'b0), .cmd_valid_4(1'b0), .cmd_valid_5(1'b0),
+        .wr_clk_0(1'b0), .wr_clk_1(1'b0), .wr_clk_2(1'b0), .wr_clk_3(1'b0),
+        .wr_valid_0(1'b0), .wr_valid_1(1'b0), .wr_valid_2(1'b0), .wr_valid_3(1'b0),
+        .rd_clk_0(1'b0), .rd_clk_1(1'b0), .rd_clk_2(1'b0), .rd_clk_3(1'b0),
+        .rd_ready_0(1'b1), .rd_ready_1(1'b1), .rd_ready_2(1'b1), .rd_ready_3(1'b1),
+        .wrack_ready_0(1'b1), .wrack_ready_1(1'b1), .wrack_ready_2(1'b1),
+        .wrack_ready_3(1'b1), .wrack_ready_4(1'b1), .wrack_ready_5(1'b1)
     );
 
     assign HDMI_TX_CLK = pixel_clk;
