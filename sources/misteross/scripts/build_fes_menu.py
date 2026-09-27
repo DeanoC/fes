@@ -64,7 +64,7 @@ def authenticate(root, cache_root, mode):
 
 def build_commands(tools, *, mode='test-pattern'):
     if set(tools) != {'yosys','nextpnr-mistral'}:
-        raise board.BuildError('menu pattern requires authenticated Yosys and nextpnr')
+        raise board.BuildError('menu diagnostic requires authenticated Yosys and nextpnr')
     output = output_for(mode)
     sources = SOURCES + (DDR_SOURCES if mode == 'ddr' else ())
     select = 'chparam -set TEST_PATTERN 0 top; ' if mode == 'ddr' else ''
@@ -165,11 +165,11 @@ def _build(root=ROOT, *, cache_root=None, mode='test-pattern'):
         invocation.verify()
         final = authenticate(root, cache_root, mode)
         if {name:tool.identity for name,tool in final.items()} != identities:
-            raise board.BuildError('tool identity changed during pattern build')
+            raise board.BuildError('tool identity changed during menu diagnostic build')
         if board._require_clean_source(root,pinned_inputs=selected_inputs) != (repository,revision):
-            raise board.BuildError('source identity changed during pattern build')
+            raise board.BuildError('source identity changed during menu diagnostic build')
         if record(root,repository,revision,identities,invocation.inputs,mode=mode) != inputs:
-            raise board.BuildError('pattern functional inputs changed during build')
+            raise board.BuildError('menu diagnostic functional inputs changed during build')
         result.update({'build_id':build_identity(inputs), 'execution':invocation.inputs,
                        'mode':mode, 'ddr':mode == 'ddr', 'format2_package':False,
                        'source_commit':revision, 'tools':identities,
@@ -191,6 +191,6 @@ def main():
     args=parser.parse_args()
     try:print(build(args.root,cache_root=args.cache_root,mode=args.mode))
     except (board.BuildError,ValueError) as exc:
-        print(f'FES menu pattern: {exc}',file=sys.stderr);return 1
+        print(f'FES menu diagnostic: {exc}',file=sys.stderr);return 1
     return 0
 if __name__=='__main__':raise SystemExit(main())
