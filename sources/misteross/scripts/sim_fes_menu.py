@@ -23,10 +23,10 @@ def main():
             sources.append(ROOT / "cores/fes-menu/rtl/fes_menu_video.v")
         subprocess.run([
             args.verilator, "--cc", "--exe", "--build", "--top-module", top,
-            "-Wall", "--Mdir", str(output), "-GWINDOW_BASE=805306368",
+            "-Wall", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL", "--Mdir", str(output), "-GWINDOW_BASE=805306368",
             *map(str, sources), str(ROOT / f"cores/fes-menu/sim/{case}_tb.cpp"),
         ], cwd=ROOT, check=True)
-        subprocess.run([str(output / f"V{top}")], cwd=ROOT, check=True)
+        subprocess.run([str(output / f"V{top}"), *([str(output)] if case == "video" else [])], cwd=ROOT, check=True)
 
 
 if __name__ == "__main__":

@@ -1401,8 +1401,9 @@ separate evidence schema.
 ## Native menu display simulation
 
 `cores/fes-menu` contains a simulation-only bounded XRGB8888 framebuffer
-reader. `python3 scripts/sim_fes_menu.py --case reader` checks exact frame
-length, burst bounds, stalls, pixel ordering and cancellation drain. It has
+reader and fixed-timing video controller. `python3 scripts/sim_fes_menu.py` checks exact frame
+length, burst bounds, stalls, pixel ordering, cancellation drain, frame switching
+and underflow recovery. It has
 no board producer, described package, runtime presentation or artifact-policy
 selection yet. Board integration depends on the shared HPS DDR work; this
 reader does not create a second bridge or memory reservation policy.
