@@ -62,7 +62,17 @@ def authenticate(root, cache_root, mode):
             'nextpnr':'f60b33aa977b237d0762fdef90de42987671b21d'})
 
 
-def build_commands(tools, *, mode='test-pattern'):
+def seed_for(mode, seed):
+    output_for(mode)
+    if seed is None:
+        return 3 if mode == 'ddr' else 1
+    if type(seed) is not int or not 1 <= seed <= 8:
+        raise ValueError('menu diagnostic seed must be an integer from 1 to 8')
+    return seed
+
+
+def build_commands(tools, *, mode='test-pattern', seed=None):
+    selected_seed = seed_for(mode, seed)
     if set(tools) != {'yosys','nextpnr-mistral'}:
         raise board.BuildError('menu diagnostic requires authenticated Yosys and nextpnr')
     output = output_for(mode)
@@ -73,7 +83,7 @@ def build_commands(tools, *, mode='test-pattern'):
     return ((str(tools['yosys']), '-p', program),
             (str(tools['nextpnr-mistral']), '--json', f'{output}/synth.json',
              '--device', board.TARGET, '--qsf', QSF, '--sdc', evidence.SDC,
-             '--freq', '74.25', '--seed', '2' if mode == 'ddr' else '1', '--router', 'gpu', '--gpu-device', '0',
+             '--freq', '74.25', '--seed', str(selected_seed), '--router', 'gpu', '--gpu-device', '0',
              '--rbf', f'{output}/core.rbf', '--compress-rbf',
              '--write', f'{output}/routed.json', '--report', f'{output}/timing.json',
              '--detailed-timing-report'))
@@ -119,12 +129,12 @@ def validate_build_evidence(output, root, *, mode='test-pattern'):
     return result
 
 
-def record(root, repository, revision, identities, execution, *, mode='test-pattern'):
+def record(root, repository, revision, identities, execution, *, mode='test-pattern', seed=None):
     with python_source_guard(root, source_roots_for_inputs(inputs_for(mode))):
-        return _record(root, repository, revision, identities, execution, mode=mode)
+        return _record(root, repository, revision, identities, execution, mode=mode, seed=seed)
 
 
-def _record(root, repository, revision, identities, execution, *, mode='test-pattern'):
+def _record(root, repository, revision, identities, execution, *, mode='test-pattern', seed=None):
     contract = CONTRACT if mode == 'test-pattern' else 'cores/fes-menu/ddr-contract.toml'
     fields = {'format':1, 'repository':repository, 'revision':revision,
               'recipe':RECIPE, 'recipe_sha256':board._sha256(board._regular_input(root, RECIPE)),
@@ -133,19 +143,19 @@ def _record(root, repository, revision, identities, execution, *, mode='test-pat
               'dependencies':{}, 'tools':identities,
               'parameters':{'device':board.TARGET, 'top':'top', 'mode':mode,
                   'ddr':mode == 'ddr', 'format2_package':False, 'gpu_backend':'hip', 'router':'gpu',
-                  'gpu_architectures':board.FES_GPU_ARCHITECTURES, 'seed':2 if mode == 'ddr' else 1,
+                  'gpu_architectures':board.FES_GPU_ARCHITECTURES, 'seed':seed_for(mode, seed),
                   'pixel_clock_hz':74250000, 'reference_clock_hz':50000000,
                   'diagnostic_enable':True, 'ddr_slot':0}}
     return encode_build_record(functional_record_fields(root, fields,
         source_roots_for_inputs(inputs_for(mode)), execution, pinned_inputs=inputs_for(mode)))
 
 
-def build(root=ROOT, *, cache_root=None, mode='test-pattern'):
+def build(root=ROOT, *, cache_root=None, mode='test-pattern', seed=None):
     with python_source_guard(root, source_roots_for_inputs(inputs_for(mode))):
-        return _build(root, cache_root=cache_root, mode=mode)
+        return _build(root, cache_root=cache_root, mode=mode, seed=seed)
 
 
-def _build(root=ROOT, *, cache_root=None, mode='test-pattern'):
+def _build(root=ROOT, *, cache_root=None, mode='test-pattern', seed=None):
     selected_inputs = inputs_for(mode)
     output_relative = output_for(mode)
     root = Path(root).resolve()
@@ -155,9 +165,9 @@ def _build(root=ROOT, *, cache_root=None, mode='test-pattern'):
     invocation = FunctionalInvocation(authenticated, 0)
     output = board._prepare_output(root, relative=output_relative, build_outputs=OUTPUTS)
     try:
-        inputs = record(root, repository, revision, identities, invocation.inputs, mode=mode)
+        inputs = record(root, repository, revision, identities, invocation.inputs, mode=mode, seed=seed)
         board._write_atomic(output/'build-inputs.json', inputs)
-        commands = build_commands({name:authenticated[name].path for name in ('yosys','nextpnr-mistral')}, mode=mode)
+        commands = build_commands({name:authenticated[name].path for name in ('yosys','nextpnr-mistral')}, mode=mode, seed=seed)
         for command,log in zip(commands,('yosys.log','nextpnr.log')):
             board._run_tool(command,root,output/log,output_relative=output_relative,
                             env=invocation.env,audit_source_root=root)
@@ -168,10 +178,10 @@ def _build(root=ROOT, *, cache_root=None, mode='test-pattern'):
             raise board.BuildError('tool identity changed during menu diagnostic build')
         if board._require_clean_source(root,pinned_inputs=selected_inputs) != (repository,revision):
             raise board.BuildError('source identity changed during menu diagnostic build')
-        if record(root,repository,revision,identities,invocation.inputs,mode=mode) != inputs:
+        if record(root,repository,revision,identities,invocation.inputs,mode=mode,seed=seed) != inputs:
             raise board.BuildError('menu diagnostic functional inputs changed during build')
         result.update({'build_id':build_identity(inputs), 'execution':invocation.inputs,
-                       'mode':mode, 'ddr':mode == 'ddr', 'format2_package':False,
+                       'mode':mode, 'seed':seed_for(mode,seed), 'ddr':mode == 'ddr', 'format2_package':False,
                        'source_commit':revision, 'tools':identities,
                        'inputs':{p:board._sha256(root/p) for p in selected_inputs}})
         board._write_atomic(output/'build-summary.json',(json.dumps(result,indent=2)+'\n').encode())
@@ -187,9 +197,10 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root',type=Path,default=ROOT)
     parser.add_argument('--cache-root',type=Path)
+    parser.add_argument('--seed',type=int,choices=range(1,9))
     parser.add_argument('--mode',choices=('test-pattern','ddr'),default='test-pattern')
     args=parser.parse_args()
-    try:print(build(args.root,cache_root=args.cache_root,mode=args.mode))
+    try:print(build(args.root,cache_root=args.cache_root,mode=args.mode,seed=args.seed))
     except (board.BuildError,ValueError) as exc:
         print(f'FES menu diagnostic: {exc}',file=sys.stderr);return 1
     return 0

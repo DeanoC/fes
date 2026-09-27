@@ -74,3 +74,10 @@ class MenuDDRProducerTests(unittest.TestCase):
                         side_effect=lambda *a,**kw:(ROOT/'cores/fes-menu/README.md').read_bytes()):
                     with self.assertRaises(ReadAuditError):
                         menu.build(ROOT,mode=mode)
+
+    def test_explicit_seed_is_bounded_and_used_by_router(self):
+        tools={'yosys':Path('/auth/yosys'),'nextpnr-mistral':Path('/auth/nextpnr')}
+        _,route=menu.build_commands(tools,mode='ddr',seed=4)
+        self.assertEqual(route[route.index('--seed')+1],'4')
+        for seed in (0,9,True):
+            with self.assertRaises(ValueError):menu.build_commands(tools,mode='ddr',seed=seed)
