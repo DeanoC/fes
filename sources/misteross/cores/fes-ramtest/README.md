@@ -29,14 +29,18 @@ phase-shifted capture clock and a fabric input register.
 
 ## HPS DDR
 
-The three `fes.memory.hps-ddr` ports scan the FPGA-owned DDR window
-`0x20000000-0x3fffffff` at the same time, on the memory clock:
+The three `fes.memory.hps-ddr` ports scan the core DDR window
+`0x30000000-0x3fffffff` at the same time, on the memory clock:
 
 | Port | Width | Span |
 | --- | --- | --- |
-| 0 | 128-bit | `0x20000000-0x2fffffff` |
-| 1 | 64-bit | `0x30000000-0x37ffffff` |
-| 2 | 64-bit | `0x38000000-0x3fffffff` |
+| 0 | 128-bit | `0x30000000-0x37ffffff` |
+| 1 | 64-bit | `0x38000000-0x3bffffff` |
+| 2 | 64-bit | `0x3c000000-0x3fffffff` |
+
+The DDR below `0x30000000` is kept from Linux too, but the kernel's
+`MiSTer_fb` console framebuffer sits at `0x22000000`; its cursor overwrote
+test data there on the kit. The tester stays inside the interface window.
 
 Each port writes its span and reads it back for seven patterns. Every
 64-bit lane at byte address `a` holds a value of `a` alone:
@@ -75,9 +79,10 @@ address mapping. Each 32-bit word at byte `a` reads `a` and the word at
 `a + 4` reads `~a`:
 
 ```sh
-busybox devmem 0x20000000 32   # 0x20000000
-busybox devmem 0x20000004 32   # 0xDFFFFFFB
+busybox devmem 0x30000000 32   # 0x30000000
+busybox devmem 0x30000004 32   # 0xCFFFFFFF
 busybox devmem 0x3FFFFFF8 32   # 0x3FFFFFF8
+busybox devmem 0x3FFFFFFC 32   # 0xC0000007
 ```
 
 ## Builds

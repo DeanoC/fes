@@ -63,7 +63,7 @@ static bool ddr_clean(Vbench& top) {
 
 // Each 64-bit lane at byte address a ends the scan holding {~a, a}.
 static void require_signature(Vbench& top, uint32_t address) {
-    top.peek_slot = ((address >> 27) & 7u) << 9 | ((address >> 3) & 0x1ffu);
+    top.peek_slot = ((address >> 26) & 3u) << 9 | ((address >> 3) & 0x1ffu);
     top.eval();
     const uint64_t expected = (static_cast<uint64_t>(~address) << 32) | address;
     require(top.peek_data == expected, "HPS DDR lane does not hold the ADDR signature");
@@ -93,7 +93,7 @@ int main() {
     require(both, "memory scan did not pass");
     require(green, "HDMI did not show a passing status");
     require(!top.ddr_open, "an HPS DDR write burst was left open");
-    for (uint32_t base : {0x20000000u, 0x30000000u, 0x38000000u})
+    for (uint32_t base : {0x30000000u, 0x38000000u, 0x3c000000u})
         for (uint32_t offset : {0x0u, 0x8u, 0xff8u})
             require_signature(top, base + offset);
 

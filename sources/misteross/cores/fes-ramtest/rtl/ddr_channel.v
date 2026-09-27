@@ -19,8 +19,8 @@
 module ddr_channel #(
     parameter integer DATA_W = 64,
     parameter integer ADDR_W = 29,
-    parameter [31:0] BASE = 32'h20000000,
-    parameter [31:0] BYTES = 32'h08000000,
+    parameter [31:0] BASE = 32'h30000000,
+    parameter [31:0] BYTES = 32'h04000000,
     parameter integer MHZ = 100,
     parameter [23:0] TIMEOUT = 24'd1000000
 ) (

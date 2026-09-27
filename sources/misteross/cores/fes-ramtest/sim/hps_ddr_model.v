@@ -42,8 +42,9 @@ module cyclonev_hps_interface_fpga2sdram (
     output reg [79:0] rd_data_2, output reg [79:0] rd_data_3,
     output reg rd_valid_0, output reg rd_valid_1, output reg rd_valid_2, output reg rd_valid_3
 ); /* verilator public_module */
-    // 64-bit lanes indexed by {a[29:27], a[11:3]}: the window base selects
-    // each port's region, and each simulated span is at most 4 KiB.
+    // 64-bit lanes indexed by {a[27:26], a[11:3]}: the port bases
+    // 0x30000000, 0x38000000 and 0x3c000000 select a region, and each
+    // simulated span is at most 4 KiB.
     reg [63:0] mem [0:4095] /* verilator public_flat_rd */;
     reg violation /* verilator public_flat_rd */;
     reg [31:0] accepted [0:2] /* verilator public_flat_rd */;
@@ -82,12 +83,12 @@ module cyclonev_hps_interface_fpga2sdram (
 
     function [11:0] slot;
         input [31:0] a;
-        slot = {a[29:27], a[11:3]};
+        slot = {1'b0, a[27:26], a[11:3]};
     endfunction
 
     function in_span;
         input [31:0] a;
-        in_span = a[31:29] == 3'b001 && a[26:12] == 15'd0;
+        in_span = a[31:28] == 4'b0011 && a[25:12] == 14'd0;
     endfunction
 
     // Refuse roughly one command cycle in four, and while 14 reads wait.

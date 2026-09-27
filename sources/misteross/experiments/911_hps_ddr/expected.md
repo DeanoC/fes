@@ -11,9 +11,9 @@ This is the FPGA-to-HPS DDR bridge (on-SoC DDR). It is not the MiSTer
 GPIO SDRAM addon. The configuration constants match the MiSTer 64-bit
 port-2 command wiring: burst length 1, low halfword, byte enables
 `0x03`. The 64-bit data for that command returns on read/write port 3.
-Index 0 selects 64-bit word `0x04000000 + address`, byte
-`0x20000000 + 8 * address`: the FPGA-owned `fes.memory.hps-ddr` window,
-which Linux never allocates. The controller only accepts these commands
+Index 0 selects 64-bit word `0x06000000 + address`, byte
+`0x30000000 + 8 * address`: the `fes.memory.hps-ddr` window, which Linux
+never allocates. The controller only accepts these commands
 when the boot splash carries the same port layout (see
 `cores/fes-splash/README.md`).
 

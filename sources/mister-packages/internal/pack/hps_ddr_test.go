@@ -82,13 +82,20 @@ func TestHpsDdrLayoutIsTheMiSTerSysmemLayout(t *testing.T) {
 	}
 	base, _ := app.Constant("FesApplicationHpsDdrWindowBase")
 	size, _ := app.Constant("FesApplicationHpsDdrWindowBytes")
-	found := false
-	for _, window := range platform.SoC.Windows {
-		if window.Name == "FPGA_CORE_MEMORY" {
-			found = uint64(window.Base) == uint64(base) && uint64(window.Size) == uint64(size)
-		}
+	// The MiSTer core DDRAM window: {4'b0011, ...} byte addresses.
+	if base != 0x30000000 || size != 0x10000000 {
+		t.Errorf("HPS DDR window 0x%x+0x%x is not 0x30000000+256 MiB", base, size)
 	}
-	if !found {
-		t.Errorf("HPS DDR window 0x%x+0x%x is not the SoC FPGA_CORE_MEMORY window", base, size)
+	windows := map[string]Window{}
+	for _, window := range platform.SoC.Windows {
+		windows[window.Name] = window
+	}
+	start, end := uint64(base), uint64(base)+uint64(size)
+	reserved, framebuffer := windows["FPGA_CORE_MEMORY"], windows["KERNEL_FRAMEBUFFER"]
+	if start < uint64(reserved.Base) || end > uint64(reserved.Base)+uint64(reserved.Size) {
+		t.Errorf("HPS DDR window 0x%x+0x%x leaves the FPGA_CORE_MEMORY reservation", base, size)
+	}
+	if framebuffer.Size == 0 || (start < uint64(framebuffer.Base)+uint64(framebuffer.Size) && uint64(framebuffer.Base) < end) {
+		t.Errorf("HPS DDR window 0x%x+0x%x overlaps the kernel framebuffer", base, size)
 	}
 }

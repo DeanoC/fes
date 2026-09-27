@@ -474,7 +474,7 @@ module ram_display (
                 if (column >= 6'd8 && column < 6'd11)
                     ddr_char = mhz_chars(s_mhz, column - 6'd8);
                 else
-                    ddr_char = text_at("HPS DDR     MHZ 20000000-3FFFFFFF       ", column);
+                    ddr_char = text_at("HPS DDR     MHZ 30000000-3FFFFFFF       ", column);
             end else if (line == DDR_RATES) begin
                 ddr_char = ddr_rates(column);
             end else if (column == 6'd0) begin

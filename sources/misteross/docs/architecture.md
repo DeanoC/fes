@@ -181,7 +181,7 @@ or an application-name branch in host software.
 `fes.ramtest` is a separate utility on the same mailbox with fixed 720p, the
 gamepad and `fes.memory.hps-ddr` 1.0. After execution release it pattern-tests
 the SDRAM addon and all three HPS DDR ports at the memory clock, 100 or
-130 MHz. The DDR ports scan the whole FPGA-owned window `0x20000000-0x3fffffff`
+130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
 The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
 OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers

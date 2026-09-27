@@ -1801,7 +1801,7 @@ addon above 50 MHz. A designated-kit halfword probe returned `0xA65A`.
 `cyclonev_hps_interface_fpga2sdram` at
 `cyclonev_hps_interface_fpga2sdram.52.53.0`. Command traffic stays on port
 2 and the 64-bit data uses read/write port 3. Address index `n` is byte
-`0x20000000 + 8n`, inside the FPGA-owned `fes.memory.hps-ddr` window. The
+`0x30000000 + 8n`, inside the `fes.memory.hps-ddr` window. The
 host uses the same application framing and opcode 18. The timed clock is
 `ddr.clk` at 50 MHz. A development load leaves the FPGA-to-HPS port
 contained; the probe releases FPGAPORTRST, the bridge reset, and the L3

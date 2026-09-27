@@ -182,12 +182,13 @@ constants:
     value: 0
   - name: FesApplicationFirmwareDataTailIndex
     value: 1
-  # fes.memory.hps-ddr 1.0. The core owns these HPS DDR3 bytes; Linux boots
-  # with mem=511M memmap=513M$511M and never allocates them.
+  # fes.memory.hps-ddr 1.0. The core owns these HPS DDR3 bytes, the MiSTer
+  # core DDRAM window. Linux boots with mem=511M memmap=513M$511M and never
+  # allocates them; the kernel framebuffer below 0x30000000 is not included.
   - name: FesApplicationHpsDdrWindowBase
-    value: 0x20000000
+    value: 0x30000000
   - name: FesApplicationHpsDdrWindowBytes
-    value: 0x20000000
+    value: 0x10000000
   # fpga2sdram cfg_* inputs of the MiSTer sysmem layout. U-Boot latches the
   # boot splash's copy with staticcfg.applycfg; a core must drive the same
   # values. Port 0: 128-bit Avalon-MM, command 0, data FIFOs 0 and 1.

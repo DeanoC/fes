@@ -15,12 +15,21 @@ windows:
     data_width: 32
     base_symbol: HPS_REG_APERTURE_BASE_ADDR
     size_symbol: HPS_REG_APERTURE_SIZE_IN_BYTES
+  # DDR3 that mem=511M memmap=513M$511M keeps from the Linux allocator.
   - name: FPGA_CORE_MEMORY
     base: 0x20000000
     size: 0x20000000
     data_width: 32
     base_symbol: FPGA_CORE_MEMORY_BASE_ADDR
     size_symbol: FPGA_CORE_MEMORY_SIZE_IN_BYTES
+  # Inside that reservation the MiSTer kernel's MiSTer_fb device-tree node
+  # claims this range and fbcon draws the console there (fb0 at 0x22001000).
+  - name: KERNEL_FRAMEBUFFER
+    base: 0x22000000
+    size: 0x00800000
+    data_width: 32
+    base_symbol: KERNEL_FRAMEBUFFER_BASE_ADDR
+    size_symbol: KERNEL_FRAMEBUFFER_SIZE_IN_BYTES
 
 buses:
   - name: hps_to_fpga

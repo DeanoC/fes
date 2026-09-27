@@ -156,10 +156,13 @@ release execution; ambiguous mutating requests must not be retried blindly.
 `fes.memory.hps-ddr` 1.0 is capability bit 8 and must be declared required.
 It has no GP opcode: memory traffic stays inside the FPGA. The core owns the
 `FesApplicationHpsDdrWindowBytes` HPS DDR3 bytes from
-`FesApplicationHpsDdrWindowBase`: 0x20000000 to 0x3fffffff, the SoC
-`FPGA_CORE_MEMORY` window. Linux boots with `mem=511M memmap=513M$511M` and
-never allocates those bytes. The ports reach all of DDR, so a command outside
-the window is a core defect that can corrupt Linux.
+`FesApplicationHpsDdrWindowBase`: 0x30000000 to 0x3fffffff, the MiSTer core
+DDRAM window. Linux boots with `mem=511M memmap=513M$511M` and never
+allocates the SoC `FPGA_CORE_MEMORY` reservation (0x20000000 to 0x3fffffff),
+but the lower half is not free: the MiSTer kernel's `MiSTer_fb` node claims
+`KERNEL_FRAMEBUFFER` (0x22000000, 8 MiB) and fbcon draws its console there.
+The ports reach all of DDR, so a command outside the window is a core defect
+that can corrupt the kernel or Linux.
 
 The core instantiates `cyclonev_hps_interface_fpga2sdram` and drives its
 `cfg_*` inputs with the `FesApplicationHpsDdrCfg*` constants. They are the
