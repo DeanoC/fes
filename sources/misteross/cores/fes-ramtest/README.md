@@ -102,6 +102,12 @@ Each rate seals a package into `build/fes-ramtest-100/` or
 74.25 MHz video domains. Direct recipe invocation requires `--memory-mhz 100`
 or `--memory-mhz 130`.
 
+The build ID hashes the source revision, so each commit synthesises a slightly
+different netlist. The seal therefore routes `PLACER_SEEDS` in turn and keeps
+the first seed that meets every clock at analogue signoff.
+`qor-ranking.json` lists the seeds it tried, and `build-summary.json`
+records the winning seed.
+
 The Quartus 17.0.2 diagnostic compiles the same RTL:
 
 ```sh

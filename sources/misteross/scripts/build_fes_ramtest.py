@@ -22,11 +22,12 @@ from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as board_evidence
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
+from scripts.search_placer_qor import SearchError, route_after_synth
 
 QSF = "cores/fes-ramtest/constraints.qsf"
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json",
-    "yosys.log", "nextpnr.log", "build-summary.json", "manifest.toml",
+    "yosys.log", "nextpnr.log", "build-summary.json", "manifest.toml", "qor-ranking.json",
 )
 ORDINARY_RESOURCES = frozenset({
     "MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO",
@@ -101,8 +102,14 @@ def output_for(memory_mhz: int) -> Path:
     return {100: OUTPUT_100, 130: OUTPUT_130}[memory_mhz]
 
 
-def seed_for(memory_mhz: int) -> int:
-    return {100: 2, 130: 2}[memory_mhz]
+# The build ID hashes the source revision, so each commit synthesises a
+# slightly different netlist and no single seed stays good. The seal routes
+# the seeds in turn and keeps the first that meets every clock at signoff.
+PLACER_SEEDS = (2, 6, 1, 3, 4, 5, 7, 8)
+# nextpnr's HeAP defaults, so the search places as a plain run does
+PLACER_TIMING_WEIGHT = 10
+PLACER_CRITICALITY_EXPONENT = 2
+ROUTE_TIMEOUT_SECONDS = 1800
 
 
 def inputs_for(memory_mhz: int) -> tuple[str, ...]:
@@ -125,7 +132,9 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "dependencies": {}, "tools": identities,
         "parameters": {
             "device": board.TARGET, "gpu_architectures": board.FES_GPU_ARCHITECTURES,
-            "gpu_backend": "hip", "router": "gpu", "seed": seed_for(memory_mhz), "top": "top",
+            "gpu_backend": "hip", "router": "gpu", "seeds": list(PLACER_SEEDS),
+            "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
+            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT, "top": "top",
             "pixel_clock_hz": 74_250_000, "reference_clock_hz": 50_000_000,
             "memory_clock_hz": memory_mhz * 1_000_000, "pll_fractional_vco_multiplier": True,
         },
@@ -161,7 +170,7 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_
         (str(tools["yosys"]), "-p", program),
         (str(tools["nextpnr-mistral"]), "--json", f"{output}/synth.json",
          "--device", board.TARGET, "--qsf", QSF, "--sdc", board_evidence.SDC,
-         "--freq", "74.25", "--seed", str(seed_for(memory_mhz)), "--router", "gpu",
+         "--freq", "74.25", "--seed", str(PLACER_SEEDS[0]), "--router", "gpu",
          "--rbf", f"{output}/core.rbf", "--compress-rbf",
          "--write", f"{output}/routed.json", "--report", f"{output}/timing.json",
          "--detailed-timing-report"),
@@ -223,8 +232,16 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz, cache_root: Path
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
             memory_mhz=memory_mhz)
         board._run_tool(commands[0], root, output / "yosys.log", output_relative=output_relative, env=invocation.env, audit_source_root=root)
-        board._run_tool(commands[1] + ("--gpu-device", str(gpu_device)), root, output / "nextpnr.log",
-                        output_relative=output_relative, env=invocation.env, audit_source_root=root)
+        try:
+            winner = route_after_synth(
+                nextpnr=authenticated["nextpnr-mistral"].path, fixture=output / "synth.json", dest=output,
+                device=board.TARGET, qsf=root / QSF, sdc=root / board_evidence.SDC, freq="74.25",
+                seeds=PLACER_SEEDS, weights=(PLACER_TIMING_WEIGHT,), critexp=PLACER_CRITICALITY_EXPONENT,
+                budget=len(PLACER_SEEDS), mode="first-pass", extra=("--router", "gpu"),
+                timeout=ROUTE_TIMEOUT_SECONDS, gpu_devices=(gpu_device,),
+                env=invocation.env, audit_source_root=root)
+        except SearchError as exc:
+            raise board.BuildError(str(exc)) from exc
         evidence = board_evidence.validate_build_evidence(
             output, root, memory_clock_mhz=float(memory_mhz),
             capture_clock_mhz=float(memory_mhz),
@@ -236,6 +253,8 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz, cache_root: Path
         evidence.update({"build_id": build_identity(record), "device": board.TARGET,
                          "inputs": {p: board._sha256(root / p) for p in sorted(pinned_inputs)},
                          "tools": identities, "top": "top", "execution": invocation.inputs})
+        evidence["route"]["placer_seed"] = winner.seed
+        evidence["route"]["placer_heap_timingweight"] = winner.weight
         board._write_atomic(output / "build-summary.json",
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
         encoded = manifest(record, evidence, repository, revision, identities, memory_mhz=memory_mhz)
