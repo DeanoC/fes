@@ -17,6 +17,8 @@ type fakePad struct {
 	polls    int
 }
 
+func (*fakePad) IsKeyboard() bool { return false }
+
 func (p *fakePad) Poll() ([]remoteinput.Event, error) {
 	p.polls++
 	if p.err != nil {

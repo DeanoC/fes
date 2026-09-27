@@ -144,3 +144,5 @@ func (d *Device) Poll() ([]remoteinput.Event, error) {
 	}
 	return out, nil
 }
+
+func (d *Device) IsKeyboard() bool { return d != nil && d.mapper != nil && d.mapper.keyboard }
