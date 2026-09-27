@@ -60,15 +60,18 @@ func TestWrongABIDoesNotSelect(t *testing.T) {
 	mustFail(t, got, ReasonNoCandidate)
 }
 
-func TestSeveralFPGAKitsAreUnresolvedWithoutANamedSink(t *testing.T) {
+func TestSeveralFPGAKitsSelectTheFirstWithoutANamedSink(t *testing.T) {
 	living := fpgaNode(kitLiving, colecoABIs())
 	den := fpgaNode(kitDen, colecoABIs())
+	// No preference and no last sink: the first kit in candidate order wins.
 	forward := Place(fpgaEntry(), []Candidate{living, den}, Options{})
 	reverse := Place(fpgaEntry(), []Candidate{den, living}, Options{})
-	mustUnresolved(t, forward)
-	if forward != reverse {
-		t.Fatalf("order changed the result\n%+v\n%+v", forward, reverse)
-	}
+	mustSelected(t, forward, kitLiving, true, true)
+	mustSelected(t, reverse, kitDen, true, true)
+
+	// A shell and a native_emu node ahead of the kits do not win.
+	behind := Place(fpgaEntry(), []Candidate{shellNode(shellMac), emuNode(emuOne), den, living}, Options{})
+	mustSelected(t, behind, kitDen, true, true)
 }
 
 func TestSameNodeListedTwiceIsOneKit(t *testing.T) {
@@ -128,12 +131,13 @@ func TestPreferenceIgnoredWhenItIsNotADisplayThatCanExecute(t *testing.T) {
 	})
 	mustSelected(t, headlessPreference, kitDen, true, true)
 
-	// Neither name is a DisplaySink that can execute. Do not rank.
+	// Neither name is a DisplaySink that can execute, so the first kit
+	// wins.
 	neither := Place(fpgaEntry(), []Candidate{living, den, noSink}, Options{
 		DisplayPreference: "kit-headless",
 		LastDisplaySink:   shellMac,
 	})
-	mustUnresolved(t, neither)
+	mustSelected(t, neither, kitLiving, true, true)
 }
 
 func TestOneHeadlessKitStillSelectsExecute(t *testing.T) {
@@ -184,19 +188,25 @@ func TestNativeEmuDoesNotRunAnFPGATitle(t *testing.T) {
 	mustFail(t, got, ReasonNoCandidate)
 }
 
-func TestSeveralNativeEmuAreUnresolved(t *testing.T) {
+func TestSeveralNativeEmuSelectTheFirst(t *testing.T) {
 	one := emuNode(emuOne)
 	two := emuNode(emuTwo)
+	// Preference and last sink name the other node. Candidate order,
+	// not the display facts, picks among native_emu nodes.
 	forward := Place(nativeEntry(), []Candidate{one, two}, Options{
-		DisplayPreference: emuOne,
-		LastDisplaySink:   emuOne,
-	})
-	reverse := Place(nativeEntry(), []Candidate{two, one}, Options{
 		DisplayPreference: emuTwo,
 		LastDisplaySink:   emuTwo,
 	})
-	mustUnresolved(t, forward)
-	mustUnresolved(t, reverse)
+	reverse := Place(nativeEntry(), []Candidate{two, one}, Options{
+		DisplayPreference: emuOne,
+		LastDisplaySink:   emuOne,
+	})
+	mustSelected(t, forward, emuOne, true, true)
+	mustSelected(t, reverse, emuTwo, true, true)
+
+	// A shell or an FPGA kit ahead of them is not a native_emu node.
+	behind := Place(nativeEntry(), []Candidate{shellNode(shellMac), fpgaNode(kitLiving, nil), two, one}, Options{})
+	mustSelected(t, behind, emuTwo, true, true)
 }
 
 func TestNotLaunchableFailsClosed(t *testing.T) {
@@ -231,31 +241,33 @@ func TestMeshMajorMismatchFailsClosed(t *testing.T) {
 	mustFail(t, native, ReasonMeshMajor)
 }
 
-func TestMeshMajorDoesNotRankSeveralEligibleKits(t *testing.T) {
+func TestMeshMajorMismatchIsSkippedAmongSeveralKits(t *testing.T) {
 	good := fpgaNode(kitLiving, colecoABIs())
 	bad := fpgaNode(kitDen, colecoABIs())
 	bad.MeshMajorOK = false
 
-	// Both kits can run the title. One mesh major mismatches. That
-	// mismatch is not a rank, so the other kit is not the default winner.
+	// Both kits can run the title. One mesh major mismatches, so it is
+	// skipped and the first kit that matches wins.
 	got := Place(fpgaEntry(), []Candidate{bad, good}, Options{})
-	mustUnresolved(t, got)
+	mustSelected(t, got, kitLiving, true, true)
 
 	namedGood := Place(fpgaEntry(), []Candidate{bad, good}, Options{DisplayPreference: kitLiving})
 	mustSelected(t, namedGood, kitLiving, true, true)
 
-	// Naming the mismatched kit does not select it, and does not fall
-	// through to the other kit.
-	namedBad := Place(fpgaEntry(), []Candidate{good, bad}, Options{DisplayPreference: kitDen})
-	mustUnresolved(t, namedBad)
+	// Naming the mismatched kit does not select it. The first kit that
+	// matches wins instead.
+	namedBad := Place(fpgaEntry(), []Candidate{bad, good}, Options{DisplayPreference: kitDen})
+	mustSelected(t, namedBad, kitLiving, true, true)
 
+	// Among native_emu nodes the first that can run the title wins, so a
+	// mismatched node ahead of it is skipped rather than selected.
 	nativeGood := emuNode(emuOne)
 	nativeBad := emuNode(emuTwo)
 	nativeBad.MeshMajorOK = false
 	native := Place(nativeEntry(), []Candidate{nativeBad, nativeGood}, Options{
-		DisplayPreference: emuOne,
+		DisplayPreference: emuTwo,
 	})
-	mustUnresolved(t, native)
+	mustSelected(t, native, emuOne, true, true)
 }
 
 func TestMissingRequiredSlotFailsClosed(t *testing.T) {
@@ -531,12 +543,12 @@ func TestOverrideSelectsOneOfSeveralNative(t *testing.T) {
 	swapped := Place(nativeEntry(), []Candidate{two, one}, Options{OverrideNodeID: emuTwo})
 	mustSelected(t, swapped, emuTwo, true, false)
 
-	empty := Place(nativeEntry(), []Candidate{one, two}, Options{
+	empty := Place(nativeEntry(), []Candidate{two, one}, Options{
 		DisplayPreference: emuOne,
-		LastDisplaySink:   emuTwo,
+		LastDisplaySink:   emuOne,
 		OverrideNodeID:    "",
 	})
-	mustUnresolved(t, empty)
+	mustSelected(t, empty, emuTwo, true, false)
 }
 
 func TestOverrideMissLeavesNotLaunchableAndMissingSlot(t *testing.T) {

@@ -1,17 +1,19 @@
 // Package meshplace chooses where one title plays.
 //
-// Place is host-local. It implements the unsigned Decision 7 strawman
-// in docs/mesh-lan.md as read by docs/mesh-phase3.md. Deano has not
-// locked that order. This package does not describe the order as a
-// lock, does not store a preference, and does not name a default
-// native_emu winner.
+// Place is host-local. It implements Decision 7 in docs/mesh-lan.md,
+// which Deano has locked, as read by docs/mesh-phase3.md. This package
+// does not store a preference. When the household display preference
+// and the last play DisplaySink leave several eligible kits, or when
+// several native_emu nodes can run a title, the first in candidate
+// order whose mesh major matches is selected. Those are the current
+// tie-breaks; a defined order or selection may replace them.
 //
 // The caller passes the projected catalog entry and the candidate nodes
 // it already has. FPGA eligibility uses abis (id, major) from each
 // node's GET /v1/mesh/content/node. Place does not perform that read,
 // does not browse DNS-SD, and does not treat an empty discovery family
-// list as "any RBF". Address, human name, and candidate order are not
-// ranking keys.
+// list as "any RBF". Address and human name are not ranking keys.
+// Candidate order is only the last tie-break.
 //
 // A selected result names Execute, and names DisplaySink and
 // InputSource only when that same node advertises them. Picture and
@@ -19,10 +21,9 @@
 // Execute node.
 //
 // OverrideNodeID is optional. Empty means unset and leaves automatic
-// placement unchanged, including when several native_emu nodes can
-// run the title. A set id selects that candidate when it can already
-// run the title. A name that cannot run the title, fails the mesh
-// major, or is not a candidate does not win, and Place does not
+// placement unchanged. A set id selects that candidate when it can
+// already run the title. A name that cannot run the title, fails the
+// mesh major, or is not a candidate does not win, and Place does not
 // substitute a different node.
 package meshplace
 
@@ -35,10 +36,9 @@ type Outcome string
 const (
 	// OutcomeSelected names one Execute node.
 	OutcomeSelected Outcome = "selected"
-	// OutcomeUnresolved means Place will not name an Execute node.
-	// Several eligible nodes and no tie-break is one case. A set
-	// override that does not name an eligible candidate is another:
-	// Place does not substitute a different node.
+	// OutcomeUnresolved means Place will not name an Execute node: a
+	// set override does not name an eligible candidate, and Place does
+	// not substitute a different node.
 	OutcomeUnresolved Outcome = "unresolved"
 	// OutcomeFailClosed means do not launch.
 	OutcomeFailClosed Outcome = "fail_closed"
@@ -112,17 +112,17 @@ type Result struct {
 // Place chooses Execute for one entry.
 //
 // One eligible fpga_native kit is selected. When several eligible kits
-// exist, one of them is selected only when the household display
-// preference, or otherwise the last play DisplaySink, names one that
-// advertises DisplaySink and whose mesh major matches. Otherwise the
-// FPGA result is unresolved. Eligible for that count means Execute
-// fpga_native and meshcontent.ABIMatches against the caller's abis. A
-// mesh-major mismatch does not rank those kits.
+// exist, the household display preference selects one when it names a
+// kit that advertises DisplaySink and whose mesh major matches;
+// otherwise the last play DisplaySink under the same test; otherwise
+// the first kit in candidate order whose mesh major matches. Eligible
+// means Execute fpga_native and meshcontent.ABIMatches against the
+// caller's abis. A kit whose mesh major does not match is skipped.
 //
 // native_emu is considered only when no FPGA candidate can run the
-// title. Exactly one such candidate is selected. Several are
-// unresolved. Preference, last sink, and an empty override do not
-// pick among them.
+// title. Exactly one such candidate is selected. Among several, the
+// first in candidate order whose mesh major matches is selected.
+// Preference and last sink do not pick among them.
 //
 // A non-empty OverrideNodeID selects that node when it is already
 // one of those candidates and its mesh major matches. For
@@ -188,26 +188,39 @@ func finishFPGA(could []Candidate, opts Options) Result {
 	if c, ok := preferred(rows, opts.LastDisplaySink); ok {
 		return selected(c)
 	}
-	return Result{Outcome: OutcomeUnresolved}
+	// Neither display fact names an eligible kit: the first kit wins.
+	return firstMeshMajorOK(rows)
 }
 
 func finishNative(could []Candidate) Result {
-	_, done, stop := gate(could)
+	rows, done, stop := gate(could)
 	if stop {
 		return done
 	}
-	// Several native_emu nodes stay unresolved. Preference, last sink,
-	// an empty override, and mesh-major OK are not a tie-break. That
-	// choice is parked.
-	return Result{Outcome: OutcomeUnresolved}
+	// Several native_emu nodes: the first wins. Preference and last
+	// sink are not consulted.
+	return firstMeshMajorOK(rows)
+}
+
+// firstMeshMajorOK is the current tie-break: the first row, in candidate
+// order, whose mesh major matches. A mismatched node cannot run the
+// title, so it is skipped rather than selected. gate has already
+// returned when no row matches.
+func firstMeshMajorOK(rows []Candidate) Result {
+	for _, candidate := range rows {
+		if candidate.MeshMajorOK {
+			return selected(candidate)
+		}
+	}
+	return fail(ReasonMeshMajor)
 }
 
 // gate applies the shared fail-closed checks. stop is true when the
 // result is already final: no row, every row mesh-major mismatched, or
 // exactly one selectable node. Several rows that include at least one
 // mesh-major match return stop false so the caller can apply its own
-// tie-break. A mismatched peer stays in rows. It is not deleted to
-// manufacture a single winner.
+// tie-break. A mismatched peer stays in rows; preference, last sink,
+// and the first-match tie-break all skip it.
 func gate(could []Candidate) ([]Candidate, Result, bool) {
 	rows := oneRowPerNode(could)
 	if len(rows) == 0 {

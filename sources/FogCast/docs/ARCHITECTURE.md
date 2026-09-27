@@ -77,14 +77,59 @@ session id. The kit lease remains the target-side ownership authority.
 
 The host keeps the household display preference and the last play
 DisplaySink in process memory (`internal/meshpref`). Both values are
-node ids. Empty means unset. A successful FPGA play on a bound target
-records that target's node id (`target_id`) as the last DisplaySink.
+node ids. Empty means unset. Open seeds the preference from
+`[mesh] display_preference`. A library FPGA launch on a bound target
+records that target's node id (`target_id`) as the last DisplaySink
+once the whole launch has succeeded, including its firmware and media
+delivery. A launch whose media fails leaves the remembered sink alone.
 Development loads, status reads, stops, and host-only play leave that
-memory unchanged. The record stays on the host. `PlaceOptions` copies
+memory unchanged. The last sink is not written to config. `PlaceOptions` copies
 the two ids into `meshplace.Options`.
 
+Production placement is off unless the host config sets
+`[mesh] placement = true`. `fogcast-api` and the `fogcast` CLI call
+`EnableMeshPlacement` after open, next to `EnableMeshContent`. The
+switch does not turn `[mesh] ensure` on. With it on, each launch and
+each games read builds the placement ask from the node inventory
+(`GET /api/v1/mesh/nodes`): node id, mesh major, Execute kinds,
+DisplaySink, and InputSource per advertisement. An `fpga_native` row
+carries the `abis` from that node's `GET /v1/mesh/content/node`, read
+with the agent token of the enabled configured target whose
+`target_id` is that node id (`kitcontent.ReadNode`). The document must
+name the same node id. A failed read, another node id, a disabled
+target, and a node this host has not configured give no `abis`, which
+is not eligibility. A read is reused for ten seconds, a failure is
+remembered for five, and one read is bounded at two seconds. The read
+is not a kit-lease mutation. An empty inventory is not a placement
+decision: the launch keeps today's bind and the games rows carry no
+`placement`. `[mesh] placement_override` is the advanced override
+node id; it selects that node only when that node can already run the
+title. Among several eligible FPGA kits, Place takes the display
+preference, then the last play DisplaySink, then the first kit whose
+mesh major matches. Among several `native_emu` nodes, when no FPGA kit
+can run the title, it takes the first whose mesh major matches;
+preference and last sink do not reorder them. Candidates follow the
+inventory's node-id order, so with two kits and no preference the
+first play after a host start may go to a kit other than the selected
+target, and the last sink then keeps later placements there. An
+override that names no eligible node is the only unresolved result.
+A launch that names `target` is the caller's executor choice,
+so placement does not run for it. Sofa rooms, tenfoot, the browser
+UI, and the CLI launch without `target`.
+
+Production placement does not need the ensure seam. When no mesh
+session is installed, the host projects the title itself
+(`meshCatalogEntry`), so Launch can run Place and the games list can
+write `placement`. Those rows omit `ready_here`: composition Ready
+stays the Ready signal, and `hostclient` `LaunchBlock` still blocks
+`placement_unresolved` and `placement_fail_closed`. A title the
+projection does not name, including host-only and firmware-missing
+rows, carries no `placement`. A test that installs an ask with
+`SetMeshPlacementAsk` uses that ask as it is, and a seam-off view with
+no projection ignores it.
+
 When a launch asks for placement, `LaunchOn` calls `meshplace.Place`
-with those options, the caller's candidates, and an optional override
+with those options, the ask's candidates, and an optional override
 node id. If Place selects the executor this session is already bound
 to, the session records that Execute node and its local DisplaySink
 and InputSource. Launch and Ensure keep that bind and do not claim
@@ -112,16 +157,20 @@ field. A failed launch does not release a grant another launch adopted. A releas
 that fails leaves the claim unsettled so it can be retried. A grant
 the session already held stays held. Ensure runs on that executor only when
 `[mesh] ensure` is already on. An unset key or `ensure = false`
-keeps Ensure off after the rebind and still binds the claimed kit.
-Picture and the pad stay on that kit. A menu-host preview is not the
+keeps Ensure off after the rebind and still binds the claimed kit,
+so the launch streams its package and media to that kit on the
+existing path. Picture and the pad stay on that kit. A menu-host preview is not the
 DisplaySink. A `native_emu` selection that is not the bound executor
-is not applied. A launch that is not asking for placement keeps the
+is not applied. An unresolved or fail-closed result names no node, so
+that launch keeps its bind; rooms do not offer it. A launch that is not asking for placement keeps the
 Phase 0 and Phase 1 bind. The games list reads that same ask when it
 builds Ready. That read does not record the decision and does not
 claim a lease. When the selected kit is one this host already sees
 in use, Ready is the lease-held block, so Confirm does not launch.
-Decision 7 remains the unsigned strawman `meshplace` already applies.
-`[mesh] ensure` stays off unless the operator set it.
+`meshplace` applies Decision 7 as Deano locked it, with the
+first-candidate tie-breaks.
+`[mesh] ensure` and `[mesh] placement` stay off unless the operator
+set them.
 
 ## Process ownership
 
@@ -1092,7 +1141,7 @@ kit's lease and rebinds the session, then Ensure and bind use that
 kit. A conflict returns before the rebind. A `native_emu` selection
 of any other node returns `ErrUnboundNode` before Ensure and before
 bind, and the bound node stays where it was. A launch that did not
-ask does not call Place.
+ask does not call Place, and a launch that names a target does not ask.
 A known target that is already disabled is refused before Ensure. An
 implicit target with an empty TargetID is the bound node only when its
 name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
@@ -1190,7 +1239,8 @@ off until the operator sets `ensure = true`. The default stays off
 until #177 (legacy fallback when the source does not advertise) and
 #172 (kit home host) land. The agent installs a
 launcher-backed content source unless `mesh_content = false`, which
-restores a nil source and an empty ABI list. With the switch on, the
+restores a nil source and an empty ABI list. An empty ABI list also
+makes that kit ineligible for production placement. With the switch on, the
 node document's ABIs and package ids are read from installed package
 manifests when that document is served. A directory named with the
 64-hex package id, or with a Stage publication
@@ -1233,11 +1283,13 @@ false, `ready_block` (the ReadyHere block), and `next_action`. A true
 missing firmware, ROM, or expansion, and the rest), so Play is not
 offered for a host-only row whose root is offline.
 
-When a placement ask is installed, that same games read runs
+When a placement ask is installed, or production placement builds
+one, that same games read runs
 `meshplace.Place` for each projected title and writes `placement`
 (`selected`, `unresolved`, or `fail_closed`). The read uses the
-candidates on the ask. It does not record the decision, does not dial
-a kit, and does not launch. `selected` leaves this Ready result in
+candidates on the ask. Building the production ask may read a kit's
+content node document; the read does not record the decision, does
+not claim a lease, and does not launch. `selected` leaves this Ready result in
 place, so Play stays the existing launch and does not ask which
 machine. When that selection names a kit this host already sees in
 use, Ready is cleared to `lease_held` so Confirm does not launch and
@@ -1269,8 +1321,10 @@ do not Play.
 `enrichLaunchable`, so a firmware-ready Coleco or ZX81 package is not
 reclassified as browse-only.
 
-When the session is not installed, `ready_here`, `ready_block`,
-`next_action`, and `placement` are omitted.
+When the session is not installed, `ready_here`, `ready_block`, and
+`next_action` are omitted. `placement` is omitted too, unless
+production placement is on and the host projects that title: then the
+row carries `placement` alone.
 Phase 0 and Phase 1 Ready stays composition against the bound executor:
 Coleco and ZX81 packages and host-only titles stay Ready and launch as
 they do now. A neighbor Execute advertisement still does not grant Ready.

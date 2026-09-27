@@ -90,7 +90,7 @@ func TestStoredIDsFeedPlace(t *testing.T) {
 		want       meshplace.Outcome
 		execute    string
 	}{
-		{name: "empty stays unresolved", want: meshplace.OutcomeUnresolved},
+		{name: "empty takes the first kit", want: meshplace.OutcomeSelected, execute: "kit-living"},
 		{name: "preference selects", preference: "kit-den", want: meshplace.OutcomeSelected, execute: "kit-den"},
 		{name: "last sink selects when preference is unset", playSink: "kit-living", want: meshplace.OutcomeSelected, execute: "kit-living"},
 		{name: "preference wins over last sink", preference: "kit-den", playSink: "kit-living", want: meshplace.OutcomeSelected, execute: "kit-den"},

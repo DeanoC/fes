@@ -5,8 +5,8 @@
 // agent.toml, a kit file, or an SD card, and it has no JSON encoding.
 // PlaceOptions copies the ids into meshplace.Options. Override and a
 // missing composition slot stay unset for the caller to fill.
-// meshplace applies the unsigned Decision 7 strawman; this package only
-// supplies the ids that function already accepts.
+// meshplace applies Decision 7. This package only supplies the ids
+// that function already accepts.
 package meshpref
 
 import (

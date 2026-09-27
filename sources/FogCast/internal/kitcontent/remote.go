@@ -104,6 +104,29 @@ func Dial(ctx context.Context, endpoint *url.URL, token string, client *http.Cli
 	return remote, nil
 }
 
+// Node is one read of a kit's node document: its node id, eligible
+// ABIs, and described package ids. An empty ABI list is not eligibility.
+type Node struct {
+	NodeID   string
+	ABIs     []meshcontent.EligibleABI
+	Packages []string
+}
+
+// ReadNode reads the kit's node document once, the same GET Dial makes.
+// It returns no executor and does not mutate the kit. The read has a
+// deadline when ctx does not.
+func ReadNode(ctx context.Context, endpoint *url.URL, token string, client *http.Client) (Node, error) {
+	remote, err := Dial(ctx, endpoint, token, client)
+	if err != nil {
+		return Node{}, err
+	}
+	return Node{
+		NodeID:   remote.nodeID,
+		ABIs:     append([]meshcontent.EligibleABI(nil), remote.abis...),
+		Packages: append([]string(nil), remote.packages...),
+	}, nil
+}
+
 func (r *Remote) storeNodeDocument(doc nodeDocument) {
 	abis := make([]meshcontent.EligibleABI, 0, len(doc.ABIs))
 	for _, abi := range doc.ABIs {

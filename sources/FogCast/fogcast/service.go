@@ -195,10 +195,19 @@ type Service struct {
 	// when placement rebinds to that FPGA node and ensure is already on.
 	// Production leaves it nil and dials the configured kit.
 	meshPlacementExecutors map[string]meshcontent.Executor
-	meshEnsureConfig       bool
-	meshEnsure             bool
-	meshHTTP               *http.Client
-	meshDialAt             time.Time
+	// meshPlacementConfig is [mesh] placement as Open read it.
+	// EnableMeshPlacement turns meshPlacement on when it is enabled.
+	// With meshPlacement on and no installed ask, Launch and the games
+	// list build the ask from the node inventory.
+	meshPlacementConfig MeshPlacementConfig
+	meshPlacement       bool
+	// placementNodes caches the node document reads placement uses for
+	// fpga_native eligibility. The key is the node id.
+	placementNodes   map[string]placementNodeRead
+	meshEnsureConfig bool
+	meshEnsure       bool
+	meshHTTP         *http.Client
+	meshDialAt       time.Time
 	// meshDialID is the selected-target identity of the last dial attempt.
 	// meshInstalled is the identity that installed meshExecute. A different
 	// selected target drops that executor and dials the new endpoint.
@@ -280,7 +289,9 @@ type Service struct {
 	activeSystem             protocol.System
 	plays                    map[string]targetPlay
 	// displayMemory is host process memory for the household display
-	// preference and the last play DisplaySink. It is not config.
+	// preference and the last play DisplaySink. Open seeds the
+	// preference from [mesh] display_preference. The last sink is not
+	// written to config.
 	displayMemory            *meshpref.Memory
 	selectedTargetReconciled bool
 	// selectedTargetRepairAllowed permits one same-target connection repair after status is unreachable.
@@ -446,6 +457,8 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	service.coreCatalogPath = config.CoreCatalogPath
 	service.coreLibrarySourceID = config.CoreLibrarySourceID
 	service.meshEnsureConfig = config.MeshEnsure
+	service.meshPlacementConfig = config.MeshPlacement
+	service.SetDisplayPreference(config.MeshPlacement.DisplayPreference)
 	service.meshHTTP = &http.Client{}
 	if config.ZX81MachineROM.Script != "" {
 		service.SetMachineROMLinker(PythonMachineROM{
@@ -587,6 +600,24 @@ func (s *Service) retainSessionTargetLocked() {
 		s.plays = make(map[string]targetPlay)
 	}
 	s.plays[s.activeTarget] = targetPlay{execution: s.activeExecution, gameID: s.activeGameID, system: s.activeSystem}
+}
+
+// notePlayDisplaySink records the last play DisplaySink once a library
+// FPGA launch has finished, including its firmware and media. It takes
+// targetMu and then executionMu. A launch that did not leave FPGA play
+// active does not record.
+func (s *Service) notePlayDisplaySink() {
+	if s == nil {
+		return
+	}
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	if s.activeExecution != ExecutionFPGANative {
+		return
+	}
+	s.notePlayDisplaySinkLocked()
 }
 
 // notePlayDisplaySinkLocked records the bound target's node id as the
@@ -1747,9 +1778,6 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		s.activeExecution = ExecutionFPGANative
 	}
 	s.retainSessionTargetLocked()
-	if s.activeExecution == ExecutionFPGANative {
-		s.notePlayDisplaySinkLocked()
-	}
 	s.activeGameID, s.activeSystem = "", ""
 	s.activePackageID, s.activePackageGeneration = "", 0
 	s.packageRejection = nil

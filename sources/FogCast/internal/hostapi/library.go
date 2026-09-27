@@ -685,7 +685,9 @@ type meshReadyService interface {
 
 // applyMeshReadiness writes ReadyHere onto each row when a mesh execute
 // session is installed, and writes placement when that view asked Place.
-// The ensure seam stays off when the service does not report one:
+// A placement-only row, from a view with the ensure seam off, writes
+// placement and omits ready_here, so composition Ready still decides the
+// row. The ensure seam stays off when the service does not report one:
 // launchable and composition fields stay as they are, and placement is
 // omitted.
 func applyMeshReadiness(ctx context.Context, service Service, games []gameResult) {
@@ -709,11 +711,14 @@ func applyMeshReadiness(ctx context.Context, service Service, games []gameResult
 		if !ok {
 			return
 		}
-		ready := decision.Ready
-		game.ReadyHere = &ready
 		if decision.Placement != "" {
 			game.Placement = string(decision.Placement)
 		}
+		if decision.PlacementOnly {
+			return
+		}
+		ready := decision.Ready
+		game.ReadyHere = &ready
 		if ready {
 			return
 		}

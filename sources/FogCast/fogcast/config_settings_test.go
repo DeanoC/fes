@@ -171,3 +171,57 @@ watch_root = "` + legacyRoot + `"
 		t.Fatalf("legacy watch_root remained: %#v", persisted.Library)
 	}
 }
+
+func TestWriteCanonicalConfigKeepsTheMeshTable(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	preference := "11111111-1111-4111-8111-111111111111"
+	override := "22222222-2222-4222-8222-222222222222"
+	content := `base_url = "http://192.0.2.20:8182"
+token = "test-token"
+request_timeout_seconds = 17
+upload_timeout_seconds = 71
+
+[mesh]
+ensure = true
+placement = true
+display_preference = "` + preference + `"
+placement_override = "` + override + `"
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	targets := []TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.30:8182", Agent: "test-token", AgentSet: true}}
+	if err := writeCanonicalConfig(path, nil, targets, "dev"); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := MeshPlacementConfig{Enabled: true, DisplayPreference: preference, Override: override}
+	if !loaded.MeshEnsure || loaded.MeshPlacement != want {
+		t.Fatalf("mesh ensure %v placement %+v", loaded.MeshEnsure, loaded.MeshPlacement)
+	}
+
+	onlyEnsure := filepath.Join(dir, "ensure.toml")
+	if err := os.WriteFile(onlyEnsure, []byte("base_url = \"http://192.0.2.20:8182\"\ntoken = \"test-token\"\n\n[mesh]\nensure = true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCanonicalConfig(onlyEnsure, nil, targets, "dev"); err != nil {
+		t.Fatal(err)
+	}
+	written, err := os.ReadFile(onlyEnsure)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw struct {
+		Mesh map[string]any `toml:"mesh"`
+	}
+	if err := toml.Unmarshal(written, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(raw.Mesh) != 1 || raw.Mesh["ensure"] != true {
+		t.Fatalf("rewrite added mesh keys the operator did not set: %v", raw.Mesh)
+	}
+}
