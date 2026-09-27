@@ -44,7 +44,7 @@ SHARED_RTL = {
     'coleco_video_720p.v': COLECO_CONSUMERS,
     't80pa.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
-    'fes_application_gp.v': ('demo', 'coleco'),
+    'fes_application_gp.v': ('demo', 'coleco', 'menu'),
     'fes_video_720p.v': ('demo', 'pong'),
     'fes_audio_i2s.v': ('demo', 'coleco', 'apple2'), 'fes_audio_pll.v': ('demo',),
     'fes_audio_output.v': ('coleco', 'apple2'), 'fes_sn76489.sv': ('coleco',),
