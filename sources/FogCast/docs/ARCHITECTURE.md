@@ -1624,6 +1624,11 @@ with `keypad:0`.
 
 ### Shared controller ports
 
+The kit input hub forwards physical keyboards on player 0 without reserving a
+gamepad port. Only physical gamepads occupy the two stable controller slots;
+keyboard connection or removal does not shift either controller. Keyboard
+disconnect releases its held keys independently.
+
 An observed `fes.gamepad.ports` 1.0 interface (under `fes.application` 1.0 or
 `fes.computer` 1.0) attaches the ordinary host session
 input stream and reports `core_package.gamepad: true`. It has two digital ports;

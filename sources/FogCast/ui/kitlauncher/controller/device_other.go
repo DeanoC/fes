@@ -25,3 +25,5 @@ func (d *Device) Info() (string, string) {
 	}
 	return d.Path, d.Name
 }
+
+func (*Device) IsKeyboard() bool { return false }

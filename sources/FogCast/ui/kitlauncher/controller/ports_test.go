@@ -47,3 +47,36 @@ func TestHubFinalDisconnectDeliversNeutralBeforeError(t *testing.T) {
 		t.Fatal("missing disconnected state")
 	}
 }
+
+type fakeKeyboard struct{ fakePad }
+
+func (*fakeKeyboard) IsKeyboard() bool { return true }
+
+func TestHubKeyboardDoesNotConsumeControllerSlots(t *testing.T) {
+	key, ok := NewKeyboardMapper().Map(1, 30, 1)
+	if !ok {
+		t.Fatal("keyboard A mapping failed")
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	keyboard := &fakeKeyboard{fakePad{id: "event0", events: []remoteinput.Event{key}}}
+	first := &fakePad{id: "event3", events: []remoteinput.Event{a}}
+	second := &fakePad{id: "event7", events: []remoteinput.Event{a}}
+	h := NewHub(nil, []padSource{keyboard, first, second})
+	got, err := h.Poll()
+	if err != nil || len(got) != 3 {
+		t.Fatalf("events %+v: %v", got, err)
+	}
+	if got[0].Device != remoteinput.DeviceKeyboard || got[0].Player != 0 || got[1].Player != 0 || got[2].Player != 1 {
+		t.Fatalf("keyboard and controller players %+v", got)
+	}
+	keyboard.err = errors.New("unplug keyboard")
+	got, err = h.Poll()
+	if err != nil || len(got) != 3 || got[0].Device != remoteinput.DeviceKeyboard || got[0].Action != remoteinput.ActionRelease || got[1].Player != 0 || got[2].Player != 1 {
+		t.Fatalf("keyboard disconnect %+v: %v", got, err)
+	}
+	h.add(&fakeKeyboard{fakePad{id: "event1", events: []remoteinput.Event{key}}})
+	got, err = h.Poll()
+	if err != nil || len(got) != 3 || got[0].Device != remoteinput.DeviceKeyboard || got[0].Player != 0 || got[1].Player != 0 || got[2].Player != 1 {
+		t.Fatalf("keyboard reconnect %+v: %v", got, err)
+	}
+}

@@ -14,6 +14,7 @@ type padSource interface {
 	Poll() ([]remoteinput.Event, error)
 	Close() error
 	Info() (id, name string)
+	IsKeyboard() bool
 }
 
 // Hub multiplexes eligible USB gamepads into one Pad stream and applies remap.
@@ -72,6 +73,11 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 		sources = append(sources, inputmap.Source{ID: id, Name: name, Events: events, Err: err})
 	}
 	sourced, live := h.mux.Merge(sources)
+	keyboards := make(map[string]bool, len(h.pads))
+	for _, p := range h.pads {
+		id, _ := p.Info()
+		keyboards[id] = p.IsKeyboard()
+	}
 	liveIDs := make(map[string]struct{}, len(live))
 	for _, src := range live {
 		liveIDs[src.ID] = struct{}{}
@@ -91,6 +97,9 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 	h.pads = next
 	// Assign only free slots, in stable device order. Surviving pads never move.
 	for _, src := range live {
+		if keyboards[src.ID] {
+			continue
+		}
 		if _, ok := h.ports[src.ID]; ok {
 			continue
 		}
@@ -110,7 +119,7 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 	out := released
 	for _, source := range sourced {
 		port, ok := h.ports[source.DeviceID]
-		if !ok {
+		if !ok && !keyboards[source.DeviceID] {
 			continue
 		}
 		source.Event.Player = port
