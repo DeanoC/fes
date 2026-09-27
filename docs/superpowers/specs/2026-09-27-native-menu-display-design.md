@@ -1,6 +1,7 @@
 # Native HDMI menu display design
 
-Status: proposed; hardware and implementation are not approved by this document.
+Status: proposed; depends on the in-progress HPS DDR implementation and its
+qualification. This document does not approve hardware or implementation.
 Base: FES 221d0251. The controller fix b4c39848 is a separate branch.
 
 ## Intent and scope
@@ -26,15 +27,23 @@ in misteross/docs/oss-experiments.md. It does not prove scanout bandwidth,
 Linux-owned buffer allocation, coherency, or safe buffer destruction. Its
 hard-coded scratch-address probe is not a production memory allocation method.
 
-The image kernel is 5.15.1-MiSTer. There is no selected DMA buffer allocator
-for this path. Runtime programming already contains the SDR ports and bridges;
-a menu needs an explicit activation path, not an implicit change to contained
-raw-RBF loading.
+The active `kepler/altera-h2p-ddr-ram-support` worktree defines
+`fes.memory.hps-ddr` 1.0, shared `fes_hps_ddr`/guard RTL and a reserved core
+window at `0x30000000–0x3fffffff`. Its runtime companion is
+`kepler/hps-ddr-runtime`. These are dependencies, not menu-owned files to
+reimplement. Current branch evidence includes b6e2d9f0 and 0eb54627; changes
+and kit testing remain in progress, so no acceptance is inferred.
+
+The boot splash must carry the shared port layout before U-Boot applies the
+SDR configuration. Runtime layout mirrors alone cannot establish the latched
+boot configuration. The window avoids the kernel framebuffer at 0x22000000.
+Use the dependency's final shared constants, boot requirements and admission
+rules when it lands; never change the live SDR static configuration from Linux.
 
 ## Approaches
 
 Recommended: HPS DDR pixel buffers. Reuse the software renderer and transfer
-only buffer addresses/control through GP. A bounded kernel allocation path and
+only buffer addresses/control through GP. A bounded reserved-window presenter and
 streaming reader are new work, but color and artwork do not require a second UI.
 
 Alternative: GP-uploaded on-chip pixel buffers. Avoids shared Linux memory,
@@ -50,11 +59,12 @@ second drawing vocabulary, font/image limits, and substantial UI coupling.
   capability limits, completion semantics and generated constants.
 - misteross builds a separate menu display firmware: fixed video timing,
   DDR read engine, line FIFO, frame-boundary buffer switching and GP controls.
-- libmister-runtime owns the Linux DMA allocation driver and userspace adapter,
+- libmister-runtime owns the reserved-window mapping and userspace adapter,
   firmware admission, display generation, presentation and physical teardown.
 - FogCast supplies pixels and retains browsing state. A kit shell uses shared
   UI/rendering services; it does not grant the agent or UI MMIO access.
-- FES selects artifacts and builds the kernel module/DT integration and image.
+- FES selects artifacts and assembles the image, including the DDR dependency
+  boot splash. No independent menu kernel allocator is proposed.
 
 Do not add an import from kitlauncher to tenfoot to sidestep existing package
 boundaries. Resolve reuse through a common rendering/application service or a
@@ -74,18 +84,26 @@ prefetch must tolerate contention and blanking without stretching HDMI timing.
 An underflow outputs black for the affected pixels and increments a readable
 counter. Continuous underflow is a failed feasibility result.
 
-The kernel driver allocates two contiguous DMA-coherent buffers with a 32-bit
-DMA mask and exposes only those allocations to the runtime. No /dev/mem
-framebuffer, guessed physical address, or userspace virtual address is used.
-The proof must establish the DMA-to-f2sdram address interpretation on this SoC.
-Mapping and write ordering use the kernel DMA API; GP submission follows a
-completed pixel copy and the required memory ordering barrier.
+Reserve two 4 MiB slots at offsets 0 and 0x00400000 within the dependency's
+core-owned DDR window while menu firmware is active. Each scanout reads only
+3,686,400 bytes of its slot. Derive physical addresses from shared window
+constants, validate all arithmetic/ranges and use the shared port's word
+address convention. Other cores may reuse the window after menu teardown;
+these are not persistent allocations or concurrently owned game buffers.
+
+Runtime alone maps this reserved region using a noncached Linux mapping with
+verified ARM write ordering. Do not allocate ordinary Linux pages and hand
+their addresses to the FPGA. Confirm the final dependency's reservation and
+boot requirements before mapping; absence or disagreement rejects activation.
+ARM pixel writes must be visible before GP submission; qualify this with
+alternating frame patterns and address/stride markers on the kit. Never use
+experiment 911's old scratch addresses or the kernel's framebuffer region.
 
 Runtime controls buffer descriptors. The UI does not submit physical addresses.
 A bounded local presentation operation carries exact-size pixels through a
 runtime-owned shared-memory staging descriptor passed over the existing Unix
 socket with SCM_RIGHTS. The runtime copies a complete staged frame to the
-available DMA buffer before submission. JSON carries control metadata only.
+available reserved DDR buffer before submission. JSON carries control metadata only.
 Validate descriptor size, generation and byte count before copying. Allow only
 one pending submission; stale or busy submissions return an explicit result.
 
@@ -99,16 +117,18 @@ is exposed by the production firmware.
 
 Switch buffers only at a frame boundary. A displayed-sequence acknowledgment
 means the previous buffer is no longer read and can be reused. Quiesce stops
-new requests, drains outstanding reads and then acknowledges. Runtime retains
-allocations until quiesce or verified physical bridge containment; close of a
-UI connection must never free memory still reachable by the FPGA.
+new requests, drains outstanding reads and then acknowledges. Runtime prevents reuse of the reserved region until quiesce or verified
+physical bridge containment; a UI disconnect must never permit writes racing
+with scanout.
 
 ## Lifecycle
 
 Menu activation is a runtime-owned idle firmware operation with exact artifact
-validation and live identity checking. It is not a launchable game package and
-must not enter the library. GP identity is verified while DDR stays contained;
-buffers are configured before enabling the required SDR port and scanout.
+validation and live identity checking. Use the dependency's described
+`fes.application` / `fes.memory.hps-ddr` admission path and shared guards; the
+menu is not published as a playable library entry. GP identity/layout checks
+precede port release, and buffer configuration precedes scanout enablement.
+Do not add an alternate bridge-release path for menu firmware.
 Only the menu generation can present. Gameplay and contained diagnostic loads
 reject menu submissions.
 
@@ -118,18 +138,20 @@ new core. Stop restores configured menu firmware, establishes a new display
 generation and requests a fresh complete frame; FogCast retains selection and
 search independently. Do not reuse an old DMA address or generation.
 
-Allocation, identity or scanout failure keeps the existing bounded runtime
+Mapping, identity or scanout failure keeps the existing bounded runtime
 failure/recovery behavior. Retain the boot splash as fallback and boot artifact.
 Do not create another recovery coordinator or silently mark a failed menu as
-working. If bus quiescence is ambiguous, retain allocations until containment
+working. If bus quiescence is ambiguous, prevent region reuse until containment
 is verified; inability to establish containment follows existing reboot-required
-behavior. Kernel removal/unbind is refused while DMA remains active.
+behavior. No menu process owns kernel allocations or independent bridge controls.
 
 ## Staged delivery and validation
 
-1. DMA allocation/addressing and bounded DDR-reader diagnostic. Verify read
-   bursts, backpressure, range bounds, command drain, alternating buffers and
-   coherent ARM writes. Extend models beyond experiment 911's single beat.
+1. Adopt the merged and qualified DDR dependency. The other agent owns RAM
+   support/testing, shared guards and bridge admission. Menu work adds bounded
+   read-only scanout simulation using that interface: burst backpressure,
+   range bounds, drain, alternating buffers and ordered ARM writes. Do not
+   duplicate its RAM test or alter its in-progress worktree.
 2. Fixed HDMI diagnostic scanout with color bars, sequence markers and readable
    underflow count. Seal through the current OSS lane on GPU 0. Quartus may
    check timing as an oracle; report toolchain defects separately.
@@ -139,7 +161,8 @@ behavior. Kernel removal/unbind is refused while DMA remains active.
 4. Shared UI kit shell and mesh-aware source/executor selection using existing
    services. Reuse guided setup and avoid implementing a second core catalog.
 5. FES artifact selection and image/media integration only after diagnostics
-   succeed. Kernel/DT changes require provisioned media and boot identity checks.
+   succeed. The dependency's boot port-layout requirements require provisioned media
+   and boot identity checks where the existing card lacks that layout.
 
 Physical diagnostics require the designated kit lease. Show tearing-free
 alternating patterns, no underflows during a ten-minute normal-load test,
@@ -147,6 +170,6 @@ controller navigation, and repeat menu/game/Stop cycles. Measure presentation
 latency and CPU/memory load before setting supported responsiveness claims.
 No simulation or earlier image receipt counts as exact-artifact acceptance.
 
-If DDR addressing, kernel allocation, routing or sustained scanout fails, stop
+If dependency qualification, reserved-window mapping, routing or sustained scanout fails, stop
 at that proof and report evidence. Revisit resolution/transport explicitly;
 do not silently replace the design or claim menu integration is complete.
