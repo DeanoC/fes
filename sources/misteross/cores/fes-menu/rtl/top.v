@@ -7,8 +7,8 @@ module top (
     inout wire HDMI_I2C_SCL, HDMI_I2C_SDA
 );
     wire scl_in, sda_in, scl_low, sda_low, pixel_clk, locked;
-    MISTRAL_IO scl_pad (.I(1'b0), .OE(scl_low), .O(scl_in), .PAD(HDMI_I2C_SCL));
-    MISTRAL_IO sda_pad (.I(1'b0), .OE(sda_low), .O(sda_in), .PAD(HDMI_I2C_SDA));
+    MISTRAL_IO hdmi_scl_pad (.I(1'b0), .OE(scl_low), .O(scl_in), .PAD(HDMI_I2C_SCL));
+    MISTRAL_IO hdmi_sda_pad (.I(1'b0), .OE(sda_low), .O(sda_in), .PAD(HDMI_I2C_SDA));
     (* BEL = "cyclonev_hps_interface_peripheral_i2c.52.60.0" *)
     cyclonev_hps_interface_peripheral_i2c hdmi_i2c (
         .scl(scl_in), .sda(sda_in), .out_clk(scl_low), .out_data(sda_low)
