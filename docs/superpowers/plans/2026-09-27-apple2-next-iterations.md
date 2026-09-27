@@ -16,7 +16,8 @@ Suggested order: 1 → 2 → 3, then 4 before 5 (both touch media units), with 6
 Done in this iteration: nextpnr PR DeanoC/nextpnr#87 maps every traced cart
 clock onto the socket clock and rejects cart inputs on undriven nets.
 `toolchains/apple2.lock` pins it, and the Apple II probe card went back to a
-plain inferred RAM.
+plain inferred RAM. The shell and cards were resealed and passed a
+[kit re-check](../../validation/2026-09-27-apple2-cart-clock-recheck.md).
 
 - Other locks (`toolchain.lock`, `zx81-expansion.lock`, `coleco-sgm.lock`,
   `coleco-expansion.lock`) still pin `a93fe013`. Today's ZX81 and SGM carts are
