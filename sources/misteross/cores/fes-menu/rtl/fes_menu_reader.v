@@ -35,6 +35,21 @@ module fes_menu_reader #(
     reg [19:0] index = 20'd0;
     reg [127:0] front = 128'd0;
     (* ramstyle = "M10K" *) reg [127:0] fifo [0:255];
+    wire [7:0] next_head = head + 8'd1;
+    reg [127:0] fifo_peek;
+    reg [127:0] last_write_data;
+    reg [7:0] last_write_address;
+    reg last_write_valid = 1'b0;
+    // Keep the RAM read register unconditional for synchronous M10K inference.
+    // Forward the most recent write when it collided with the look-ahead read.
+    always @(posedge clk) begin
+        fifo_peek <= fifo[next_head];
+        if (push) begin
+            last_write_data <= readdata;
+            last_write_address <= tail;
+            last_write_valid <= 1'b1;
+        end
+    end
     wire accepting = read && !waitrequest;
     wire returning = readdatavalid && outstanding != 9'd0;
     wire push = returning && active && enable && !rst;
@@ -68,7 +83,8 @@ module fes_menu_reader #(
         if (pop) begin
             head <= head + 8'd1;
             if (count > 9'd1)
-                front <= fifo[head + 8'd1];
+                front <= last_write_valid && last_write_address == next_head ?
+                    last_write_data : fifo_peek;
         end
         case ({push, pop})
             2'b10: count <= count + 9'd1;
