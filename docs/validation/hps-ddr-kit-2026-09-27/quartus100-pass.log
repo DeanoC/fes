@@ -1,5 +1,5 @@
 core /home/deano/kepler/worktrees/fes-altera-h2p-ddr-ram-support-17a49c0d/sources/misteross/build/fes-ramtest-quartus-100/comparison.fcore 3.2s {"state": "active", "game_id": null, "system": null, "expected_core": null, "observed_core": "fes.ramtest", "last_error": null, "development": true, "core_package": {"persistence_mode": "volatile", "package_id": "bdccabccdd6e25d863679e604b86266ff6a17ed690299171ff53a56951238456", "generation": 1, "abi": {"id": "fes.application", "major": 1, "minor": 0}, "build_id": "faf5475111d28ebe201ea2befebf5868", "active_interfaces": [{"id": "fes.gamepad", "major": 1, "minor": 0}, {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0}, {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0}], "gamepad": true}}
-ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080 0xFFD0501C; do printf "%s %s\n" $a $(busybox devmem $a 32); done; cat /run/mister-runtime.events.json | tr '}' '\n' | grep -i -E 'hps_ddr' | head -3 
+ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080 0xFFD0501C; do printf "%s %s\n" $a $(busybox devmem $a 32); done; cat /run/mister-runtime.events.json | tr '}' '\n' | grep -i -E 'hps_ddr' | head -3
 0xFFC25064 0x00044016
 0xFFC25068 0x2C0000D0
 0xFFC2506C 0x00B000D0
@@ -15,7 +15,7 @@ q100-t05.png
 capture q100-t05.png
 q100-t30.png
 capture q100-t30.png
-ssh for a in 0x30000000 0x30000004 0x33333330 0x33333334 0x37FFFFF8 0x38000000 0x38000004 0x3A5A5A58 0x3C000000 0x3E0FFEE8 0x3FFFFFF8 0x3FFFFFFC; do printf "%s %s\n" $a $(busybox devmem $a 32); done; dmesg | tail -2; uptime 
+ssh for a in 0x30000000 0x30000004 0x33333330 0x33333334 0x37FFFFF8 0x38000000 0x38000004 0x3A5A5A58 0x3C000000 0x3E0FFEE8 0x3FFFFFF8 0x3FFFFFFC; do printf "%s %s\n" $a $(busybox devmem $a 32); done; dmesg | tail -2; uptime
 0x30000000 0x30000000
 0x30000004 0xCFFFFFFF
 0x33333330 0x33333330
@@ -37,7 +37,7 @@ capture q100-t90.png
 q100-t150.png
 capture q100-t150.png
 stop {"state": "idle", "game_id": null, "system": null, "expected_core": null, "observed_core": null, "last_error": null}
-ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080 0xFFD0501C; do printf "%s %s\n" $a $(busybox devmem $a 32); done 
+ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080 0xFFD0501C; do printf "%s %s\n" $a $(busybox devmem $a 32); done
 0xFFC25064 0x00044016
 0xFFC25068 0x2C0000D0
 0xFFC2506C 0x00B000D0
@@ -47,4 +47,3 @@ ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0
 0xFFC2507C 0x00000000
 0xFFC25080 0x00000000
 0xFFD0501C 0x00000007
-
