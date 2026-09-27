@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "b27035fcc1be6ec040df35a3adbe6d4149297cd8"
 order = 10
-rationale = "DeanoC/yosys main b27035fc, which merged #16: the cyclonev_hps_interface_fpga2sdram blackbox declares every atom port (six command ports, four data ports, write acknowledges), so the RAM tester reaches the 128-bit port 0 and the 64-bit ports 1 and 2 of the fes.memory.hps-ddr layout. Pair with nextpnr f60b33aa."
+rationale = "DeanoC/yosys main b27035fc, which merged #16: the cyclonev_hps_interface_fpga2sdram blackbox declares every atom port (six command ports, four data ports, write acknowledges), so the RAM tester reaches the 128-bit port 0 and the 64-bit ports 1 and 2 of the fes.memory.hps-ddr layout. Pair with nextpnr da1ee82b."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corr
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "f60b33aa977b237d0762fdef90de42987671b21d"
+commit = "da1ee82b7b019ff51d62fe41fd9447961f178e1a"
 order = 30
-rationale = "DeanoC/nextpnr main f60b33aa, which merged #88 (Quartus 17.0.2 fpga2sdram timing arcs, so the RAM tester's HPS port paths are in its timing gate) and #91 (the analogue repair ends when a restore cannot recover its slack; with --rbf the analogue signoff, not the GPU router's table-model check, is the timing gate). Pair with Yosys b27035fc and Mistral 7ed06e21."
+rationale = "DeanoC/nextpnr fix/gpu-plateau-overused-wire da1ee82b, which selects all congested arcs before ripping up any, so the menu DDR seed-1 route cannot hide the second user of an overused wire (DeanoC/fes#266). Descends from f60b33aa, which merged #88 (Quartus 17.0.2 fpga2sdram timing arcs) and #91 (analogue repair stall handling). Pair with Yosys b27035fc and Mistral 7ed06e21."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
