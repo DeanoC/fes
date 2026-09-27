@@ -248,3 +248,47 @@ func TestGamesPlacementJSON(t *testing.T) {
 		t.Fatalf("unasked %+v", zx)
 	}
 }
+
+func TestGamesPlacementOnlyKeepsCompositionReady(t *testing.T) {
+	service := &meshReadyList{
+		launchableFake: launchableFake{
+			fakeService: fakeService{games: meshReadyCatalog(), game: meshReadyCatalog()[0]},
+			launchable:  map[protocol.System]bool{protocol.SystemColecoVision: false, "zx81": false, protocol.SystemSNES: true},
+		},
+		on: true,
+		decisions: map[string]fogcast.GameMeshReady{
+			"fpga-coleco-dk": {Placement: "selected", PlacementOnly: true},
+			"fpga-zx81-maze": {Placement: "unresolved", PlacementOnly: true},
+		},
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	for _, absent := range []string{`"ready_here"`, `"ready_block"`, `"next_action"`} {
+		if strings.Contains(response.Body.String(), absent) {
+			t.Fatalf("placement-only rows carried %s: %s", absent, response.Body.String())
+		}
+	}
+	var page struct {
+		Games []hostclient.Game `json:"games"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]hostclient.Game{}
+	for _, game := range page.Games {
+		byID[game.ID] = game
+	}
+	coleco := byID["fpga-coleco-dk"]
+	if coleco.Placement != hostclient.PlacementSelected || coleco.ReadyHere != nil || !coleco.LaunchEligible() {
+		t.Fatalf("selected %+v block %s", coleco, coleco.LaunchBlock())
+	}
+	maze := byID["fpga-zx81-maze"]
+	if maze.Placement != hostclient.PlacementUnresolved || maze.ReadyHere != nil || maze.LaunchEligible() || maze.LaunchBlock() != hostclient.LaunchPlacementUnresolved {
+		t.Fatalf("unresolved %+v block %s", maze, maze.LaunchBlock())
+	}
+	if frogger := byID["fpga-frogger"]; frogger.Placement != "" || frogger.LaunchBlock() != hostclient.LaunchMissingFirmware {
+		t.Fatalf("unasked %+v block %s", frogger, frogger.LaunchBlock())
+	}
+}

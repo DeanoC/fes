@@ -85,6 +85,19 @@ type Config struct {
 	// does not advertise can fall back to the legacy launch, and until
 	// the kit's home host is the content source.
 	MeshEnsure bool
+	// MeshPlacement is production placement. It defaults off. Open
+	// records it and EnableMeshPlacement turns it on.
+	MeshPlacement MeshPlacementConfig
+}
+
+// MeshPlacementConfig is the [mesh] placement switch and the household
+// node ids placement reads. An empty id is unset. DisplayPreference is
+// the household display preference. Override is the advanced override:
+// it selects that node only when that node can already run the title.
+type MeshPlacementConfig struct {
+	Enabled           bool
+	DisplayPreference string
+	Override          string
 }
 
 // TargetConfig describes one named MiSTer agent. Disabled targets may omit
@@ -240,7 +253,10 @@ type fileConfig struct {
 }
 
 type fileMesh struct {
-	Ensure *bool `toml:"ensure"`
+	Ensure            *bool  `toml:"ensure"`
+	Placement         *bool  `toml:"placement"`
+	DisplayPreference string `toml:"display_preference,omitempty"`
+	PlacementOverride string `toml:"placement_override,omitempty"`
 }
 
 type fileTarget struct {
@@ -414,6 +430,10 @@ func LoadConfig(path string) (Config, error) {
 	library.Libraries = append([]catalog.Root(nil), libraries...)
 	library.Targets = append([]TargetConfig(nil), targets...)
 	library.SelectedTarget = selectedTarget
+	placement, err := meshPlacementFrom(raw.Mesh)
+	if err != nil {
+		return Config{}, err
+	}
 
 	if raw.CoreCatalog.Path != "" && !validLibrarySourceID(raw.CoreCatalog.LibrarySourceID) {
 		return Config{}, fmt.Errorf("core_catalog requires a stable library_source_id unique to this serving library")
@@ -436,9 +456,32 @@ func LoadConfig(path string) (Config, error) {
 		LibraryMedia:        libraryMedia,
 		Library:             library,
 		MeshEnsure:          meshEnsureFrom(raw.Mesh),
+		MeshPlacement:       placement,
 		CoreCatalogPath:     raw.CoreCatalog.Path,
 		CoreLibrarySourceID: raw.CoreCatalog.LibrarySourceID,
 	}, nil
+}
+
+// meshPlacementFrom defaults placement off. A missing or bare [mesh]
+// table stays off, and so does placement = false. The two node ids are
+// optional; a value that is not a node id is rejected rather than
+// ignored. The ids are read whether or not placement is on.
+func meshPlacementFrom(raw *fileMesh) (MeshPlacementConfig, error) {
+	if raw == nil {
+		return MeshPlacementConfig{}, nil
+	}
+	placement := MeshPlacementConfig{
+		Enabled:           raw.Placement != nil && *raw.Placement,
+		DisplayPreference: strings.TrimSpace(raw.DisplayPreference),
+		Override:          strings.TrimSpace(raw.PlacementOverride),
+	}
+	if placement.DisplayPreference != "" && !discovery.ValidID(placement.DisplayPreference) {
+		return MeshPlacementConfig{}, fmt.Errorf("mesh display_preference must be a node id")
+	}
+	if placement.Override != "" && !discovery.ValidID(placement.Override) {
+		return MeshPlacementConfig{}, fmt.Errorf("mesh placement_override must be a node id")
+	}
+	return placement, nil
 }
 
 // meshEnsureFrom defaults the ensure seam off. A missing or bare [mesh]

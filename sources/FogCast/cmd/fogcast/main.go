@@ -25,6 +25,7 @@ func main() {
 			return nil, err
 		}
 		opened.EnableMeshContent()
+		opened.EnableMeshPlacement()
 		return opened, nil
 	}
 	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr, open))

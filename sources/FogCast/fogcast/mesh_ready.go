@@ -22,19 +22,23 @@ const (
 // is installed. NextAction is empty when Ready is true. Placement is
 // the host predicate rooms read when this view asked Place. Empty
 // means the row is not asking. It is not sofa copy and it does not
-// name an Execute node.
+// name an Execute node. PlacementOnly means ReadyHere was not
+// evaluated because the ensure seam is off: Ready, Block, and
+// NextAction are unset, and callers keep composition Ready.
 type GameMeshReady struct {
-	Ready      bool
-	Block      meshcontent.Block
-	NextAction string
-	Placement  meshplace.Outcome
+	Ready         bool
+	Block         meshcontent.Block
+	NextAction    string
+	Placement     meshplace.Outcome
+	PlacementOnly bool
 }
 
-// GamesMeshReady evaluates ReadyHere for ids. The boolean is false when
-// the ensure seam is off: no executor is installed, or the session has
-// no catalog projection. Callers then keep Phase 0 and Phase 1
-// composition Ready and omit the ready fields. This does not call
-// Ensure and does not pull.
+// GamesMeshReady evaluates ReadyHere for ids. With the ensure seam off
+// (no executor is installed, or the session has no catalog projection)
+// the rows carry placement only, and only when a placement ask and a
+// projection exist; otherwise the boolean is false. Callers then keep
+// Phase 0 and Phase 1 composition Ready and omit the ready fields. This
+// does not call Ensure and does not pull.
 //
 // When a placement ask is installed, each projected title also runs
 // Place with that ask. The read does not record the decision and does
@@ -63,7 +67,7 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 	nodes := append([]MeshNode(nil), s.meshNodes...)
 	s.meshMu.Unlock()
 	if session.Executor == nil || session.Entry == nil {
-		return nil, false
+		return s.gamesPlacementOnly(ctx, ids)
 	}
 	entries := make(map[string]meshcontent.Entry, len(ids))
 	ordered := make([]meshcontent.Entry, 0, len(ids))
@@ -96,7 +100,7 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 	out := make(map[string]GameMeshReady, len(entries))
 	foreign := neighborExecuteAd(nodes, session.BoundNode)
 	majorOK := meshMajorOK(nodes, session.BoundNode)
-	ask, placeOpts, asked := s.placementAskForReady()
+	ask, placeOpts, asked := s.placementAskForReady(ctx)
 	for id, entry := range entries {
 		if ctx.Err() != nil {
 			return nil, false
@@ -122,15 +126,14 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 
 // placementAskForReady is the placement request the games view reads.
 // Nil means this row is not asking, so Phase 2 Ready stays as it is.
-// The returned ask is the installed value. This does not record a
-// decision and does not dial a kit.
-func (s *Service) placementAskForReady() (*MeshPlacementAsk, meshplace.Options, bool) {
+// The ask is the installed value, or the one production placement
+// builds. This does not record a decision and does not claim a lease.
+// Building the production ask may read a kit's content document.
+func (s *Service) placementAskForReady(ctx context.Context) (*MeshPlacementAsk, meshplace.Options, bool) {
 	if s == nil {
 		return nil, meshplace.Options{}, false
 	}
-	s.meshMu.Lock()
-	ask := s.meshPlacementAsk
-	s.meshMu.Unlock()
+	ask := s.placementAsk(ctx)
 	if ask == nil {
 		return nil, meshplace.Options{}, false
 	}
@@ -138,6 +141,47 @@ func (s *Service) placementAskForReady() (*MeshPlacementAsk, meshplace.Options, 
 	opts.OverrideNodeID = ask.OverrideNodeID
 	opts.MissingRequiredSlot = ask.MissingRequiredSlot
 	return ask, opts, true
+}
+
+// gamesPlacementOnly is the games view when the ensure seam is off.
+// Each title the placement projection names runs Place with the ask.
+// The rows carry placement only. ReadyHere is not evaluated, so
+// composition Ready stays the Ready signal and ready_here stays
+// omitted. The read does not record the decision and does not claim a
+// lease. With no ask, or no projection, the boolean is false and the
+// rows are unchanged.
+func (s *Service) gamesPlacementOnly(ctx context.Context, ids []string) (map[string]GameMeshReady, bool) {
+	entryFn := s.placementEntryFunc()
+	if entryFn == nil {
+		return nil, false
+	}
+	entries := make(map[string]meshcontent.Entry, len(ids))
+	for _, id := range ids {
+		if ctx.Err() != nil {
+			return nil, false
+		}
+		if _, seen := entries[id]; seen {
+			continue
+		}
+		if entry, ok := entryFn(id); ok {
+			entries[id] = entry
+		}
+	}
+	if len(entries) == 0 {
+		return nil, false
+	}
+	// The ask is built only when a title projects, so a page without a
+	// package-backed title does not read a kit.
+	ask, opts, asked := s.placementAskForReady(ctx)
+	if !asked {
+		return nil, false
+	}
+	out := make(map[string]GameMeshReady, len(entries))
+	for id, entry := range entries {
+		result := meshplace.Place(entry, ask.Candidates, opts)
+		out[id] = GameMeshReady{Placement: result.Outcome, PlacementOnly: true}
+	}
+	return out, true
 }
 
 // applyPlacementReadiness folds one Place result into a ReadyHere
