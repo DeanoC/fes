@@ -64,14 +64,15 @@
 port reset is startup/reset containment, distinct from the reader's local
 cancellation request: the guard hides responses during hold. Any live hold
 must follow reader quiesce/drain; simulate this ordering with the merged
-guard. An unexpected port reset requires a fresh reader state only after
-the guard has drained, not waiting forever for hidden responses. Diagnostic top scans deterministic slot 0 only after an explicit simulation-controlled enable; synthesis diagnostic enable is fixed and named in its manifest. No GP presentation contract is claimed in this slice. The resulting RBF remains contained-diagnostic-only until a later described-menu/runtime plan adds identity and admission.
+guard. An unexpected port reset fails closed until reprogramming: the guard has no
+public drain-completion signal. Ordered local quiesce/drain followed by hold
+and restart remains supported. Diagnostic top scans deterministic slot 0 only after an explicit simulation-controlled enable; synthesis diagnostic enable is fixed and named in its manifest. No GP presentation contract is claimed in this slice. The resulting RBF remains contained-diagnostic-only until a later described-menu/runtime plan adds identity and admission.
 
-- [ ] Write producer tests proving the final shared DDR source and generated constants are selected, correct layout evidence is mandatory, alternate layout is rejected, and no unrelated splash/recipe/artifact policy changes occur. Board simulation must check initial reset/PLL lock and disabled DDR commands before enable.
-- [ ] Run `python3 -m unittest tests.test_fes_menu`; confirm missing producer behavior fails.
-- [ ] Implement a producer using existing common compiler/electrical/provenance helpers, with distinct `build/oss/fes-menu/` outputs. Synthesis and routing diagnostics include DDR layout and clock/resource evidence. Preserve the normal authenticated execution/source audit path; do not mutate another producer's globals or invent a sealing shortcut. An exported diagnostic has no play-package claim.
-- [ ] Run board simulation and focused producer tests. Run synthesis, then GPU-0 routing only once the simulation and source selection are clean and committed. Require 74.25 MHz pixel timing and the same DDR layout evidence as the dependency. If nextpnr fails, use Quartus only to characterize the gap and report it separately; do not switch output policy to Quartus.
-- [ ] Record source commit, tool pins, artifact hashes, simulation assertions and timing result in the existing validation convention. Commit producer/documentation. No physical programming follows automatically.
+- [x] Write producer tests proving the final shared DDR source and generated constants are selected, correct layout evidence is mandatory, alternate layout is rejected, and no unrelated splash/recipe/artifact policy changes occur. Board simulation must check initial reset/PLL lock and disabled DDR commands before enable.
+- [x] Run `python3 -m unittest tests.test_fes_menu`; confirm missing producer behavior fails.
+- [x] Implement a producer using existing common compiler/electrical/provenance helpers, with distinct `build/oss/fes-menu/` outputs. Synthesis and routing diagnostics include DDR layout and clock/resource evidence. Preserve the normal authenticated execution/source audit path; do not mutate another producer's globals or invent a sealing shortcut. An exported diagnostic has no play-package claim.
+- [x] Run board simulation and focused producer tests. Run synthesis, then GPU-0 routing only once the simulation and source selection are clean and committed. Require 74.25 MHz pixel timing and the same DDR layout evidence as the dependency. If nextpnr fails, use Quartus only to characterize the gap and report it separately; do not switch output policy to Quartus.
+- [x] Record source commit, tool pins, artifact hashes, simulation assertions and timing result in the existing validation convention. Commit producer/documentation. No physical programming follows automatically.
 
 ## Handoff and subsequent plans
 
@@ -91,5 +92,10 @@ Tasks 1–2 are implemented and independently reviewed at `74e025e3`.
 Review found and fixed a prefetch-edge submission race and failure to discard
 stale pixels during horizontal blanking. Regressions now cover both, plus
 held-command cancellation and request retention across failed prefetch.
-Task 3 remains gated on the other agent's merged, qualified DDR support.
-No board build, kit operation, runtime contract or image selection is claimed.
+Task 3 adopts the merged shared DDR support from main `e21c49b9`. Both
+diagnostic producers pass authenticated GPU-0 builds at `4ba67c6d`; DDR
+closes at 97.27 MHz against 74.25 MHz. The default read/write RAM tester and
+all seven menu simulation cases pass. Independent review covers the shared
+compile-time specialization, producer source audit and routed constant
+validation. See [the diagnostic evidence](../../validation/2026-09-27-native-menu-ddr-diagnostic.md).
+No DDR kit operation, runtime presentation contract or image selection is claimed.

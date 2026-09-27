@@ -54,7 +54,10 @@ class RamTestAbiTest(unittest.TestCase):
             self.assertIn(f"`FES_APPLICATION_HPS_DDR_CFG_{macro}", wrapper)
         # Quartus f2sdram::add_port wiring: port 0 readdatavalid is data port 1.
         self.assertIn(".m_readdatavalid(rd_valid_1)", wrapper)
-        self.assertIn(".cmd_data_0({18'd0, m0_burstcount, 4'd0, m0_address, m0_write, m0_read})", wrapper)
+        self.assertIn(".cmd_data_0({18'd0, m0_burstcount, 4'd0, m0_address, command_write0, m0_read})", wrapper)
+        for parameter in ("P0_WRITE_ENABLE", "P1_ENABLE", "P2_ENABLE"):
+            self.assertIn(f"parameter [0:0] {parameter} = 1'b1", wrapper)
+        self.assertIn("wire command_write0 = P0_WRITE_ENABLE && m0_write;", wrapper)
         self.assertIn("fes_hps_ddr_guard", wrapper)
         top = (CORE / "rtl" / "top.v").read_text()
         self.assertIn("`FES_APPLICATION_HPS_DDR_WINDOW_BASE", top)
