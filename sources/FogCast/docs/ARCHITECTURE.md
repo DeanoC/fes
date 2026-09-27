@@ -604,7 +604,7 @@ hit-tested on both room and parked now-playing screens. Stop, failures and
 return still use the ordinary session lifecycle. Per-room state preserves
 focus and selection, not hardware configuration or running RAM.
 
-`cmd/fogcast-tenfoot` is an SDL3 host-side 10-foot launcher (cover grid, shelf,
+`cmd/fogcast-tenfoot` is a host-side 10-foot launcher with SDL3 and explicit Linux framebuffer shells (cover grid, shelf,
 and list). It is another client of the public host API, not a second launch
 path:
 
@@ -725,7 +725,18 @@ and drop HID. On the kit,
 USB keyboards join the play-session input stream with gamepads; `fes.keyboard`
 packages are eligible without `fes.gamepad`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
-linuxfb is a kit framebuffer Device, not the SDL sofa shell.
+Explicit `-gfx linuxfb` dispatches to `ui/tenfoot/linuxfb_linux.go` before
+SDL initialization, including in CGO-free builds. Both shells use
+`configuredApp` and the shared App, rendering, catalog and session API paths.
+The framebuffer shell reads native-width evdev records for US keyboard text
+and digital gamepad buttons/hat axes, merges held commands across devices,
+and uses the shared remapper and hold gate. Automatic discovery filters by
+key capabilities, seeds startup affinity, and drops failed devices without
+turning held buttons into release actions; explicit input paths remain strict. It restores the mapped display
+bytes on normal exit. Inputs are selected at startup; analog sticks, pointer
+and hotplug are outside this development-testing slice. The framebuffer smoke
+uses no physical input and only verifies library loading and rendering; it
+is separate from the broader SDL smoke.
 
 | Backend | Construction | Role |
 | --- | --- | --- |
@@ -2017,3 +2028,13 @@ Mesh projection preserves explicitly selected primary blob/disk content. Linked
 ROM content supplies the primary slot only when no such media is selected.
 Incomplete ROM selections retain their package-backed browse row; normal launch
 validation still enforces required ROM inputs.
+
+The tenfoot `core_library.go` overlay consumes the same `hostclient` catalog/setup
+methods as the browser, reached through Settings → Systems. It keeps publication
+and serving-library references intact without changing session placement. Existing
+file enumeration, OSK, overlay geometry and renderer are reused; selected file
+bytes stream to core-media after regular-file and descriptor size checks. BIOS
+selection remains a separate explicit host API action. Asynchronous operations
+lock overlay mutation and use bounded contexts; failed refresh retains cached
+rows with setup disabled. App/renderer snapshots copy row data and pointer hit
+routing gives the systems overlay priority over room/catalog widgets.

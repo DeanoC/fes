@@ -252,6 +252,7 @@ type Snapshot struct {
 	DebugHUD        DebugHUDSnapshot
 	Room            RoomSnapshot
 	RoomPicker      RoomPickerSnapshot
+	CoreLibrary     FirmwarePickerSnapshot
 	FirmwarePicker  FirmwarePickerSnapshot
 	TapePicker      TapePickerSnapshot
 	ReducedMotion   bool
@@ -265,9 +266,10 @@ type DebugHUDSnapshot struct {
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
 type App struct {
-	client *Client
-	ctx    context.Context
-	cancel context.CancelFunc
+	coreLibrary coreLibraryState
+	client      *Client
+	ctx         context.Context
+	cancel      context.CancelFunc
 
 	mu        sync.Mutex
 	games     []hostclient.Game
@@ -724,6 +726,14 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
+	if a.coreLibrary.Open {
+		if a.settingsOSKOpenLocked() {
+			a.handleSettingsOSKLocked(cmd)
+		} else {
+			a.handleCoreLibraryLocked(cmd)
+		}
+		return
+	}
 	if a.consumeAttractLocked(cmd, now) {
 		return
 	}
@@ -1495,6 +1505,7 @@ func (a *App) Snapshot() Snapshot {
 		DebugHUD:        a.debugHUDSnapshotLocked(),
 		Room:            a.roomSnapshotLocked(true),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
+		CoreLibrary:     a.coreLibrarySnapshotLocked(),
 		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
 		TapePicker:      a.tapePickerSnapshotLocked(),
 		ReducedMotion:   a.reducedMotion,
@@ -1611,6 +1622,10 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 			snap.Buffer = shared.MaskSecret(a.settingsOSKField.Buffer)
 		case settingsOSKDevelopmentPath:
 			snap.Prompt = "DIAGNOSTIC RBF path"
+		case settingsOSKCoreTitle:
+			snap.Prompt = "Game title"
+		case settingsOSKCorePath:
+			snap.Prompt = "ROM or media path"
 		case settingsOSKFirmwarePath:
 			snap.Prompt = "Coleco BIOS path"
 		case settingsOSKTapePath:
@@ -1659,7 +1674,7 @@ func (a *App) browseHoldEnabled() bool {
 }
 
 func (a *App) browseHoldEnabledLocked() bool {
-	if a.gpuParked || a.stopPhase == "stopping" || a.launch.Phase == "launching" || a.retryStopLock || a.developmentLoadingLocked() {
+	if a.coreLibrary.Open || a.gpuParked || a.stopPhase == "stopping" || a.launch.Phase == "launching" || a.retryStopLock || a.developmentLoadingLocked() {
 		return false
 	}
 	switch a.session.State {

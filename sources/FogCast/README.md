@@ -10,6 +10,14 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- The tenfoot **Settings → Systems** overlay browses the configured published
+  core catalog, installs packages and creates normal library games from their
+  manifest-declared ROM requirements. Gamepad, keyboard and pointer navigation
+  use the existing file picker and on-screen keyboard. BIOS replacement is an
+  explicit household action. Cached systems remain browsable when the host is
+  unavailable; setup requires an online catalog. See
+  [guided core setup](docs/core-package-library.md#tenfoot-guided-core-setup).
+
 - Library `fes.computer` 1.0 packages (the Apple II pathfinder, `fes.apple2`)
   launch as ordinary `fpga_native` sessions. A format-3 package links its
   selected `firmware` ROM at download. A shell with the optional
@@ -145,8 +153,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   FPGA records a versioned FC2D command stream and rasters through Software
   (`-gfx fpga` / `TENFOOT_GFX=fpga`; `IsStub` true until a programmed 2D
   core exists — not HDMI FPGA UI); FPGA stub remains the thin Software
-  wrapper without a stream (`fpga-stub`); linuxfb
-  rasters with Software and Present-blits onto a 32bpp Linux framebuffer
+  wrapper without a stream (`fpga-stub`). `fogcast-tenfoot -gfx linuxfb`
+  runs the full shared app without SDL on a 32bpp Linux framebuffer,
+  with native evdev keyboard and digital gamepad input. Build using
+  `CGO_ENABLED=0 go build ./cmd/fogcast-tenfoot`; see the
+  [Linux framebuffer guide](docs/native-tenfoot-launcher/LINUX.md#framebuffer-without-sdl).
+  The older proof commands also raster with Software and Present-blit onto that framebuffer
   (`make build-tenfoot-linuxfb-spike`, CGO-free ARMv7, no SDL; the spike
   also reads evdev/joystick and moves a cursor). A sibling
   `make build-tenfoot-linuxfb-grid` paints a fake cover-grid on the same

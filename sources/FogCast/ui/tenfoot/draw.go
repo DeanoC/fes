@@ -167,6 +167,16 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 	drawFirmwarePicker(dev, snap, labels, used)
 	drawTapePicker(dev, snap, labels, used)
 	drawSettings(dev, snap, labels, used)
+	if snap.CoreLibrary.Open {
+		overlay := snap
+		overlay.FirmwarePicker = snap.CoreLibrary
+		drawFilePicker(dev, overlay, labels, used, func(row FirmwarePickerRow) string {
+			if row.Kind == firmwarePickerKindFile {
+				return row.Name + " · " + formatByteSize(row.Size)
+			}
+			return row.Name
+		})
+	}
 	drawFilters(dev, snap, labels, used)
 	drawOSK(dev, snap, labels, used)
 	drawDebugHUD(dev, snap)

@@ -118,7 +118,7 @@ func launchOverlayPanel(snap Snapshot) (rectI, bool) {
 }
 
 func roomDestGeom(snap Snapshot) (rectI, bool) {
-	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open || snap.FirmwarePicker.Open || snap.TapePicker.Open || launchOverlayVisible(snap) {
+	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open || snap.CoreLibrary.Open || snap.FirmwarePicker.Open || snap.TapePicker.Open || launchOverlayVisible(snap) {
 		return rectI{}, false
 	}
 	if !snap.Room.Destination.Set() {

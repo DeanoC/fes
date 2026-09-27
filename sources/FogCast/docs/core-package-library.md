@@ -613,3 +613,35 @@ with `game_id`; the response also retains `publication_source_id`. Requests stay
 source and never switch the active coordinator or select an executor. This local
 publication is not catalog federation. The reusable host-client API can also be
 consumed by a future native menu; this change supplies no HDMI menu display.
+
+## Tenfoot guided core setup
+
+Open **Settings → Systems** in `fogcast-tenfoot`. The serving host needs the
+optional `[core_catalog]` configuration described above. The system list includes
+published systems before any games exist, with package availability and standing.
+Select an available system, then **Install core**. An installed system opens setup
+immediately. Requirements come from its package descriptor, including exact ROM
+sizes and optional declared blob/disk inputs.
+
+Choose each ROM using the local file picker (Home, configured library roots and
+mounted-media roots) or **Type a path…**. Paths refer to the machine running
+`fogcast-tenfoot`; only the selected file bytes are uploaded to the serving host.
+This does not browse a remote host's filesystem. Incorrect sizes and nonregular
+files are rejected before upload. A preselected household BIOS is reused; a newly
+imported BIOS needs the separate **Use selected BIOS for household** action.
+
+Select **Title** to enter the game name with the existing on-screen keyboard, then
+**Add game to library**. The game belongs to the serving library; package publication
+source and executor remain separate. Creation refreshes ordinary library browsing
+and does not launch or alter the current session. Repeating the same explicit
+selection uses the host's idempotent setup behavior. Back returns from file selection
+to setup, from setup to systems, then closes the overlay.
+
+Refresh systems revalidates the host catalog and clears the setup selection. If
+refresh fails, previous system rows remain visible but install/setup is disabled.
+This tenfoot flow does not implement kit HDMI output or catalog federation.
+
+Pending tenfoot Systems requests keep selection locked to prevent duplicate
+submission. Back dismisses the overlay and cancels its request context; stale
+responses are ignored. Dismissing a request does not undo a host operation
+that has already completed.
