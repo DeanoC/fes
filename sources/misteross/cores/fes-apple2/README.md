@@ -79,9 +79,11 @@ registers and a `$C800` RAM write/read-back, so the late-bound firmware alone
 can inspect a linked card on hardware. The machine simulation links the card
 into sockets 4 and 7 and checks both commands.
 
-The card's ROM and RAM are explicit single-clock M10Ks. The cart merge splices
-only the clock pins it knows onto the shell clock; the read clock of an
-inferred dual-clock M10K stays on an undriven net and reads return zero.
+The card's ROM is an explicit M10K and its RAM a plain inferred memory, which
+synthesis maps to a dual-clock M10K. The toolchain's cart merge drives every
+cart clock pin from the socket clock and rejects undriven cart inputs (FES
+#250; nextpnr before that left the RAM read clock floating and reads returned
+zero on hardware).
 
 ```sh
 python3 scripts/build_apple2_slot_card.py --shell build/fes-apple2-oss \
@@ -155,3 +157,5 @@ simulations, not an RBF, timing or kit result.
 Disk writes and write-back to the host, a second drive, cassette input,
 floating-bus reads, mid-line video effects, 80-column and lower-case display,
 undocumented 6502 opcodes and cycle-exact Disk II LSS timing.
+The planned next iterations and their open decisions are in
+[the Apple II next-iterations plan](../../../../docs/superpowers/plans/2026-09-27-apple2-next-iterations.md).
