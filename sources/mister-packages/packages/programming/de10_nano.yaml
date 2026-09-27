@@ -7,7 +7,8 @@ description: >-
 platform: de10_nano
 device: 5CSEBA6U23I7
 profiles:
-  # After user mode the runtime releases the SDR FPGA ports, bridge reset, and L3 remap.
+  # After user mode the runtime releases the bridge reset and L3 remap. The SDR
+  # FPGA ports stay in reset unless a fes.memory.hps-ddr core proves its layout.
   - id: fes-gp-v1
     diagnostic_only: false
     abis:

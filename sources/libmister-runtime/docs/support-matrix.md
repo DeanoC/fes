@@ -20,7 +20,7 @@ Hardware-supported package paths: 0.
 | Multi-slot Apple II slot-bus composition (socket set provisional) | covered | none |
 | Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |
-| `fes-gp-v1` HPS SDRAM bridge release after user mode | covered | pending |
+| `fes-gp-v1` bridge release after user mode; SDR FPGA ports only after `fes.memory.hps-ddr` identity and mirror match | covered | pending |
 
 Conventional Main launches, raw game profiles, protocol 1 and MiSTer package
 activation are retired. Existing catalog/cache/save files are not migrated or

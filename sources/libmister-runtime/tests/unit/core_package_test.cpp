@@ -347,6 +347,28 @@ void TestApplicationCompatibilityComposesInterfaces()
 	assert(!mister::native::CheckCoreCompatibility(firmware).ok());
 	firmware.interfaces.back().required = false;
 	assert(mister::native::CheckCoreCompatibility(firmware).ok());
+	// HPS DDR is operational: required when declared, like every non-firmware interface.
+	auto memory = descriptor;
+	memory.interfaces.push_back({"fes.memory.hps-ddr", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(memory).ok());
+	memory.interfaces.back().required = false;
+	assert(mister::native::CheckCoreCompatibility(memory).code ==
+		mister::ErrorCode::unsupported_interface);
+	memory.interfaces.back().minor = 1;
+	assert(mister::native::CheckCoreCompatibility(memory).ok());
+	memory.interfaces.back().required = true;
+	assert(mister::native::CheckCoreCompatibility(memory).code ==
+		mister::ErrorCode::unsupported_interface);
+	for (const char* abi : {"fes.simple-game", "fes.computer"}) {
+		auto other = memory;
+		other.abi = {abi, 1, 0};
+		other.interfaces = {{"fes.video.fixed-720p60", 1, 0, true},
+			{"fes.memory.hps-ddr", 1, 0, true}};
+		if (other.abi.id == "fes.simple-game")
+			other.interfaces.push_back({"fes.gamepad", 1, 0, true});
+		assert(mister::native::CheckCoreCompatibility(other).code ==
+			mister::ErrorCode::unsupported_interface);
+	}
 	descriptor.interfaces.push_back({"vendor.extension", 9, 9, false});
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
 	descriptor.interfaces.back().required = true;

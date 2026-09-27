@@ -25,6 +25,7 @@ const char kDiagnosticKindFifoDispatch[] = "fifo.dispatch";
 const char kDiagnosticKindFifoConsume[] = "fifo.consume";
 const char kDiagnosticKindCapFdOpen[] = "cap.fd.open";
 const char kDiagnosticKindFpgaManager[] = "fpga_manager.state";
+const char kDiagnosticKindHpsDdrPorts[] = "hps_ddr.ports";
 const char kDiagnosticKindCoreNameChange[] = "corename.change";
 const char kDiagnosticKindMainStart[] = "main.start";
 const char kDiagnosticKindMainExit[] = "main.exit";

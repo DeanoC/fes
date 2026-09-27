@@ -25,6 +25,21 @@ using generated::kSdrFpgaPortResetAddress;
 using generated::kBridgeResetAddress;
 using generated::kL3RemapAddress;
 
+using generated::kSdrCportWidthAddress;
+using generated::kSdrCportWmapAddress;
+using generated::kSdrCportRmapAddress;
+using generated::kSdrRfifoCmapAddress;
+using generated::kSdrWfifoCmapAddress;
+using generated::kSdrCportRdwrAddress;
+using generated::kSdrPortCfgAddress;
+using generated::kSdrCportWidthFpgaMask;
+using generated::kSdrCportWmapFpgaMask;
+using generated::kSdrCportRmapFpgaMask;
+using generated::kSdrRfifoCmapFpgaMask;
+using generated::kSdrWfifoCmapFpgaMask;
+using generated::kSdrCportRdwrFpgaMask;
+using generated::kSdrPortCfgFpgaMask;
+
 using generated::kFpgaModeMask;
 using generated::kFpgaMselMask;
 using generated::kFpgaMselShift;
@@ -62,6 +77,7 @@ public:
 	NativeResult Program(const Artifact&,
 		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) override;
+	Error ReleaseHpsDdrPorts(std::uint64_t absolute_deadline_ms) override;
 
 private:
 	Mmio& mmio_;

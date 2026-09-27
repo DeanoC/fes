@@ -167,12 +167,41 @@ std::vector<mister_test::FakeMmio::Write> SuccessfulWrites(bool release_bridges)
 		{kDclkStatus, 1}, {kDclkCount, 0x5000}, {kDclkStatus, 1},
 		{kControl, 0xa5a50280u},
 	};
+	// FPGAPORTRST stays 0: only a verified fes.memory.hps-ddr core releases it.
 	if (release_bridges) {
-		writes.push_back({kSdr, 0x3fffu});
 		writes.push_back({kBridgeReset, 0});
 		writes.push_back({kRemap, 0x19u});
 	}
 	return writes;
+}
+
+struct HpsDdrMirror {
+	const char* name;
+	const char* key;
+	std::uint32_t address;
+	std::uint32_t mask;
+	std::uint32_t expected;
+};
+
+// Independent copy of the SDR mirror fields and the fes.memory.hps-ddr layout.
+const HpsDdrMirror kHpsDdrMirrors[] = {
+	{"CPORTWIDTH", "cportwidth", 0xffc25064u, 0xfffu, 0x16u},
+	{"CPORTWMAP", "cportwmap", 0xffc25068u, 0x3ffffu, 0xd0u},
+	{"CPORTRMAP", "cportrmap", 0xffc2506cu, 0x3ffffu, 0xd0u},
+	{"RFIFOCMAP", "rfifocmap", 0xffc25070u, 0xffffu, 0x2100u},
+	{"WFIFOCMAP", "wfifocmap", 0xffc25074u, 0xffffu, 0x2100u},
+	{"CPORTRDWR", "cportrdwr", 0xffc25078u, 0xfffu, 0x3fu},
+	{"PORTCFG", "portcfg", 0xffc2507cu, 0x3fu, 0x0u},
+};
+
+constexpr std::size_t kHpsDdrMirrorCount =
+	sizeof(kHpsDdrMirrors) / sizeof(kHpsDdrMirrors[0]);
+
+void ConfigureHpsDdrMirrors(mister_test::FakeMmio& mmio)
+{
+	// Bits outside each FPGA field are HPS-owned and must not be compared.
+	for (const HpsDdrMirror& mirror : kHpsDdrMirrors)
+		mmio.values[mirror.address] = mirror.expected | ~mirror.mask;
 }
 
 bool HasWrite(const mister_test::FakeMmio& mmio, std::uint32_t address,
@@ -310,22 +339,177 @@ void TestFesGpInitializationWaitsForContainmentAndConfigurationReset()
 	EXPECT(nconfig < gpo);
 	EXPECT(mmio.writes[gpo].value == 0);
 	std::size_t disabled = mmio.writes.size();
-	std::size_t sdr = mmio.writes.size();
 	std::size_t bridge = mmio.writes.size();
 	std::size_t remap = mmio.writes.size();
 	for (std::size_t index = 0; index < mmio.writes.size(); ++index) {
 		if (mmio.writes[index].offset == kControl &&
 			mmio.writes[index].value == 0xa5a50280u) disabled = index;
-		if (mmio.writes[index].offset == kSdr &&
-			mmio.writes[index].value == 0x3fffu) sdr = index;
 		if (mmio.writes[index].offset == kBridgeReset &&
 			mmio.writes[index].value == 0) bridge = index;
 		if (mmio.writes[index].offset == kRemap &&
 			mmio.writes[index].value == 0x19u) remap = index;
 	}
-	EXPECT(disabled < sdr);
-	EXPECT(sdr < bridge);
+	EXPECT(disabled < bridge);
 	EXPECT(bridge < remap);
+	EXPECT(remap < mmio.writes.size());
+	EXPECT(!HasWrite(mmio, kSdr, 0x3fffu));
+	EXPECT(mmio.values[kSdr] == 0);
+}
+
+void TestEveryProfileLeavesSdrPortsInReset()
+{
+	const mister::native::ProgrammingProfile profiles[] = {
+		mister::native::ProgrammingProfile::fes_gp_v1,
+		mister::native::ProgrammingProfile::development_contained_v1,
+	};
+	for (const auto profile : profiles) {
+		TempArtifact input(4);
+		mister_test::FakeMmio mmio;
+		ConfigureSuccess(mmio);
+		ConfigureHpsDdrMirrors(mmio);
+		mmio.values[kSdr] = 0x3fffu;
+		FixedClock clock(1);
+		mister::native::LinuxFpgaManager manager(mmio, clock);
+		EXPECT(manager.Program(input.artifact, profile, 100).error.ok());
+		std::size_t sdr_writes = 0;
+		for (const auto& write : mmio.writes) {
+			if (write.offset != kSdr) continue;
+			++sdr_writes;
+			EXPECT(write.value == 0);
+		}
+		EXPECT(sdr_writes == 1);
+		EXPECT(mmio.values[kSdr] == 0);
+		// Programming never inspects the SDR mirrors; activation does.
+		for (const HpsDdrMirror& mirror : kHpsDdrMirrors)
+			for (std::uint32_t read : mmio.reads) EXPECT(read != mirror.address);
+	}
+}
+
+void TestHpsDdrPortsReleaseOnlyForTheSharedLayout()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	FixedClock clock(1);
+	{
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		mister::native::LinuxFpgaManager manager(mmio, clock);
+		const mister::Error released = manager.ReleaseHpsDdrPorts(100);
+		if (!released.ok()) fprintf(stderr, "release error: %s\n", released.message.c_str());
+		EXPECT(released.ok());
+		EXPECT(mmio.reads.size() == kHpsDdrMirrorCount);
+		for (std::size_t index = 0; index < kHpsDdrMirrorCount; ++index)
+			EXPECT(mmio.reads[index] == kHpsDdrMirrors[index].address);
+		EXPECT(mmio.writes.size() == 1);
+		EXPECT(mmio.writes[0].offset == kSdr && mmio.writes[0].value == 0x3fffu);
+		EXPECT(capture.Count("hps_ddr.ports") == 1);
+		const mister::DiagnosticEvent* event = capture.Find("hps_ddr.ports");
+		EXPECT(event != nullptr);
+		EXPECT(event->layer == "fpga" && event->severity == "ok");
+		EXPECT(mister_test::HasBool(*event, "ok", true));
+		for (const HpsDdrMirror& mirror : kHpsDdrMirrors)
+			EXPECT(mister_test::HasString(*event, mirror.key, Hex(mirror.expected)));
+		EXPECT(mister_test::Field(*event, "register") == nullptr);
+	}
+
+	// Each field must match; the first mismatch is reported after the whole
+	// live layout is read, and FPGAPORTRST is never written.
+	for (std::size_t wrong = 0; wrong < kHpsDdrMirrorCount; ++wrong) {
+		capture.Clear();
+		const HpsDdrMirror& mirror = kHpsDdrMirrors[wrong];
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		const std::uint32_t observed = mirror.expected ^ 1u;
+		mmio.values[mirror.address] = observed;
+		mister::native::LinuxFpgaManager manager(mmio, clock);
+		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
+		EXPECT(error.code == mister::ErrorCode::core_mismatch);
+		EXPECT(error.message == std::string("HPS DDR ") + mirror.name +
+			" mismatch: observed=" + Hex(observed) + " expected=" + Hex(mirror.expected));
+		EXPECT(error.expected == std::string(mirror.name) + "=" + Hex(mirror.expected));
+		EXPECT(error.observed == std::string(mirror.name) + "=" + Hex(observed));
+		EXPECT(mmio.reads.size() == kHpsDdrMirrorCount);
+		EXPECT(mmio.writes.empty());
+		const mister::DiagnosticEvent* event = capture.Find("hps_ddr.ports");
+		EXPECT(event != nullptr && event->severity == "error");
+		EXPECT(mister_test::HasBool(*event, "ok", false));
+		EXPECT(mister_test::HasString(*event, "register", mirror.name));
+		EXPECT(mister_test::HasString(*event, mirror.key, Hex(observed)));
+	}
+
+	// A core without the fpga2sdram cell leaves every cfg_* input reading one.
+	{
+		mister_test::FakeMmio mmio;
+		for (const HpsDdrMirror& mirror : kHpsDdrMirrors)
+			mmio.values[mirror.address] = 0xffffffffu;
+		mister::native::LinuxFpgaManager manager(mmio, clock);
+		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
+		EXPECT(error.code == mister::ErrorCode::core_mismatch);
+		EXPECT(error.message == "HPS DDR CPORTWIDTH mismatch: observed=0xfff expected=0x16");
+		EXPECT(mmio.writes.empty());
+	}
+}
+
+void TestHpsDdrPortFailuresLeavePortsInReset()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	for (std::size_t failing = 0; failing < kHpsDdrMirrorCount; ++failing) {
+		capture.Clear();
+		const HpsDdrMirror& mirror = kHpsDdrMirrors[failing];
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		mmio.PushReadError(mirror.address,
+			{mister::ErrorCode::io_failed, "scripted mirror read"});
+		FixedClock clock(1);
+		mister::native::LinuxFpgaManager manager(mmio, clock);
+		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
+		EXPECT(error.code == mister::ErrorCode::program_failed);
+		EXPECT(error.message == std::string("HPS DDR ") + mirror.name +
+			" read failed: scripted mirror read");
+		EXPECT(mmio.reads.size() == failing + 1);
+		EXPECT(mmio.writes.empty());
+		const mister::DiagnosticEvent* event = capture.Find("hps_ddr.ports");
+		EXPECT(event != nullptr && mister_test::HasBool(*event, "ok", false));
+		EXPECT(mister_test::HasString(*event, "register", mirror.name));
+	}
+	{
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		FixedClock clock(10);
+		mister::native::LinuxFpgaManager manager(mmio, clock);
+		const mister::Error error = manager.ReleaseHpsDdrPorts(10);
+		EXPECT(error.code == mister::ErrorCode::program_failed);
+		EXPECT(error.message == "HPS DDR port check deadline exceeded");
+		EXPECT(mmio.reads.empty() && mmio.writes.empty());
+	}
+	{
+		// The clock passes the deadline after the last mirror read: no release.
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		AdvancingClock clock;
+		mister::native::LinuxFpgaManager manager(mmio, clock);
+		const mister::Error error = manager.ReleaseHpsDdrPorts(kHpsDdrMirrorCount);
+		EXPECT(error.code == mister::ErrorCode::program_failed);
+		EXPECT(error.message == "HPS DDR port check deadline exceeded");
+		EXPECT(mmio.reads.size() == kHpsDdrMirrorCount);
+		EXPECT(mmio.writes.empty());
+	}
+	{
+		capture.Clear();
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		mmio.PushWriteError(kSdr, {mister::ErrorCode::io_failed, "scripted port release"});
+		FixedClock clock(1);
+		mister::native::LinuxFpgaManager manager(mmio, clock);
+		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
+		EXPECT(error.code == mister::ErrorCode::program_failed);
+		EXPECT(error.message == "HPS DDR FPGAPORTRST release failed: scripted port release");
+		EXPECT(mmio.writes.size() == 1);
+		const mister::DiagnosticEvent* event = capture.Find("hps_ddr.ports");
+		EXPECT(event != nullptr && mister_test::HasBool(*event, "ok", false));
+		EXPECT(mister_test::HasString(*event, "register", "FPGAPORTRST"));
+	}
 }
 
 void TestContainedProfileLeavesBridgesContained()
@@ -712,6 +896,12 @@ int main()
 		TestFesGpInitializationWaitsForContainmentAndConfigurationReset, &count);
 	Run("contained profile leaves bridges contained",
 		TestContainedProfileLeavesBridgesContained, &count);
+	Run("every profile leaves SDR ports in reset",
+		TestEveryProfileLeavesSdrPortsInReset, &count);
+	Run("HPS DDR ports release only for the shared layout",
+		TestHpsDdrPortsReleaseOnlyForTheSharedLayout, &count);
+	Run("HPS DDR failures leave ports in reset",
+		TestHpsDdrPortFailuresLeavePortsInReset, &count);
 	Run("MSEL mapping and CTRL/GPO RMW preservation",
 		TestMselMappingAndControlRmwPreserveUnrelatedBits, &count);
 	Run("4 KiB stream boundary order",
