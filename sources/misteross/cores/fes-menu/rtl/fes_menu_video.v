@@ -27,13 +27,13 @@ module fes_menu_video #(
     reg [9:0] v = 10'd720;
     reg [19:0] raster_index = 20'd0;
     reg pending = 1'b0;
+    reg armed = 1'b0;
     reg pending_slot = 1'b0;
     reg [31:0] pending_sequence = 32'd0;
     reg current_slot = 1'b0;
     reg fetch_slot = 1'b0;
     reg [31:0] fetch_sequence = 32'd0;
     wire running = enable && !quiesce && !rst;
-    wire blank = v >= 10'd720;
     wire frame_end = h == 11'd1649 && v == 10'd749;
     wire blank_start = h == 11'd1279 && v == 10'd719;
     wire reader_idle;
@@ -98,7 +98,9 @@ module fes_menu_video #(
         end
         if (running) begin
             case (state)
-                DRAIN: if (blank && !frame_end && reader_idle) begin
+                DRAIN: if (h < 11'd1280 && v == 10'd720 && reader_idle) begin
+                    // Start only in the first blank row, with 29 rows to prefetch.
+                    armed <= 1'b1;
                     fetch_slot <= pending ? pending_slot :
                         (submit_valid && submit_ready ? submit_slot : current_slot);
                     fetch_sequence <= pending ? pending_sequence :
@@ -120,8 +122,9 @@ module fes_menu_video #(
         end else begin
             state <= DRAIN;
             pending <= 1'b0;
+            armed <= 1'b0;
         end
-        if (de && running && !pixel_matches && underflows != 32'hffffffff)
+        if (de && armed && running && !pixel_matches && underflows != 32'hffffffff)
             underflows <= underflows + 32'd1;
         if (rst) begin
             h <= 11'd0;
@@ -129,6 +132,7 @@ module fes_menu_video #(
             raster_index <= 20'd0;
             displayed_sequence <= 32'd0;
             underflows <= 32'd0;
+            armed <= 1'b0;
             current_slot <= 1'b0;
         end
     end

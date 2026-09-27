@@ -71,6 +71,17 @@ int main(int argc,char**argv) {
     Verilated::commandArgs(argc,argv);
     try {
         check(argc==2,"expected artifact output directory");
+        // Linux may enable well after release, including just before blank ends.
+        for (unsigned delay : {1650u*40u, 1650u*30u-2u}) {
+            Bench late; late.output=argv[1];late.t.rst=1;late.tick();
+            late.t.rst=0;late.t.enable=0;
+            for(unsigned i=0;i<delay;++i)late.tick();
+            late.t.enable=1;late.inspect=true;
+            late.next_frame();late.next_frame();late.next_frame();
+            check(late.active==921600 && late.black==0 && late.t.underflows==0,
+                  "delayed enable falsely reported underflow");
+        }
+        std::cout<<"PASS delayed_active_and_end_blank_enable\n";
         // A submission arriving on the fetch-selection edge must be the next frame.
         Bench race;race.output=argv[1];race.t.rst=1;race.tick();
         race.t.rst=0;race.t.enable=1;race.inspect=true;

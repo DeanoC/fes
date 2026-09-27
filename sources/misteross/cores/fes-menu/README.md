@@ -24,7 +24,9 @@ or expose an arbitrary read address. Shared DDR RTL, boot port layout and
 runtime admission are owned by the merged HPS DDR support.
 
 The video controller uses fixed 1650x750 timing at the intended 74.25 MHz
-pixel clock. It prefetches in vertical blank, switches a pending slot only
+pixel clock. Initial enable waits for the first row of vertical blank before
+arming prefetch; host scheduling during active video cannot create a startup
+underflow. Once armed, missing pixels still count as underflows. It switches a pending slot only
 at a frame boundary, and acknowledges its sequence only once its initial
 pixels are available. One submission may be pending. A frame that cannot
 start safely is black and its submission remains pending for a later frame.
