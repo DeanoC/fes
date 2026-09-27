@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "54ea7109ff08f7ecf8ca7b5ced58e8ba62d7f4b8"
 order = 10
-rationale = "DeanoC feat/fpga2sdram-all-ports 54ea7109 on main 1bf1ff3d: the cyclonev_hps_interface_fpga2sdram blackbox declares every atom port (six command ports, four data ports, write acknowledges), so the RAM tester reaches the 128-bit port 0 and the 64-bit ports 1 and 2 of the fes.memory.hps-ddr layout. The pinned blackbox before it listed only command port 2 and data port 3. Published feature revision, not a merged upstream release. Pair with nextpnr 19748aa0."
+rationale = "DeanoC feat/fpga2sdram-all-ports 54ea7109 on main 1bf1ff3d: the cyclonev_hps_interface_fpga2sdram blackbox declares every atom port (six command ports, four data ports, write acknowledges), so the RAM tester reaches the 128-bit port 0 and the 64-bit ports 1 and 2 of the fes.memory.hps-ddr layout. The pinned blackbox before it listed only command port 2 and data port 3. Published feature revision, not a merged upstream release. Pair with nextpnr f95cef3d."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corr
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "19748aa0169df9a42a90374ff8011209ab7ab2e1"
+commit = "f95cef3d90074c2e3c79c16fc5df73cdb5824817"
 order = 30
-rationale = "DeanoC nextpnr feat/fpga2sdram-timing 19748aa0 (PR #88) on main 69f79006: times cyclonev_hps_interface_fpga2sdram with Quartus 17.0.2 TimeQuest arcs (setup/hold into the command, write-data and ready pins, clock-to-output from ready, acknowledge and read-data pins, slow 1100 mV 100 C), so the RAM tester's HPS port paths are in its timing gate. Carries main a93fe013 (calibrated placement prediction, dual 130 MHz PLL with 6538 ps capture phase) and #87. Published feature revision, not a merged upstream release. Pair with Yosys 54ea7109 and Mistral 7ed06e21."
+rationale = "DeanoC nextpnr fix/analogue-repair-stall f95cef3d (PR #91) on main fdbfb4a8, which merged #88 (the Quartus 17.0.2 fpga2sdram timing arcs that put the RAM tester's HPS port paths in its timing gate). The analogue repair no longer restores a best routing forever when recalibration has lowered its slack, and the GPU router's table-model legality check no longer fails a run whose analogue signoff passes. Published feature revision, not a merged upstream release. Pair with Yosys 54ea7109 and Mistral 7ed06e21."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

@@ -68,7 +68,7 @@ TOOLCHAIN_ROOT = Path("build/toolchain-ramtest")
 TOOL_COMMITS = {
     **board.EXPECTED_TOOL_COMMITS,
     "yosys": "54ea7109ff08f7ecf8ca7b5ced58e8ba62d7f4b8",
-    "nextpnr": "19748aa0169df9a42a90374ff8011209ab7ab2e1",
+    "nextpnr": "f95cef3d90074c2e3c79c16fc5df73cdb5824817",
 }
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
@@ -102,7 +102,7 @@ def output_for(memory_mhz: int) -> Path:
 
 
 def seed_for(memory_mhz: int) -> int:
-    return {100: 6, 130: 2}[memory_mhz]
+    return {100: 2, 130: 2}[memory_mhz]
 
 
 def inputs_for(memory_mhz: int) -> tuple[str, ...]:
