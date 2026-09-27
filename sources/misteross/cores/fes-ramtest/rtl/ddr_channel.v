@@ -61,12 +61,14 @@ module ddr_channel #(
     // Read beats in flight. The controller holds 14 transactions itself.
     localparam [11:0] READ_LIMIT = 12'd512;
 
-    localparam [2:0] ST_WRITE = 3'd0;
-    localparam [2:0] ST_READ = 3'd1;
-    localparam [2:0] ST_DRAIN = 3'd2;
-    localparam [2:0] ST_DONE = 3'd3;
-    localparam [2:0] ST_STOP = 3'd4;
-    localparam [2:0] ST_NACK = 3'd5;
+    localparam [2:0] ST_WRITE_START = 3'd0;
+    localparam [2:0] ST_WRITE = 3'd1;
+    localparam [2:0] ST_READ_START = 3'd2;
+    localparam [2:0] ST_READ = 3'd3;
+    localparam [2:0] ST_DRAIN = 3'd4;
+    localparam [2:0] ST_DONE = 3'd5;
+    localparam [2:0] ST_STOP = 3'd6;
+    localparam [2:0] ST_NACK = 3'd7;
 
     function [7:0] burst_of;
         input [2:0] which;
@@ -135,7 +137,10 @@ module ddr_channel #(
     reg [31:0] beat_addr;     // byte address of the beat being written
     reg [31:0] next_addr;     // beat_addr + STEP
     reg [7:0]  beats_left;    // write beats left in this burst, this one included
+    reg        burst_end;     // beats_left == 1
+    reg        pass_end;      // beat_addr is the last word of the span
     reg [31:0] cmd_addr;      // byte address of the next read command
+    reg        cmd_end;       // cmd_addr is past the span
     reg        cmds_done;     // every read command of the pass has been taken
     reg [11:0] in_flight;     // read beats requested and not yet returned
     reg [31:0] read_addr;     // byte address of the next returned beat
@@ -158,32 +163,32 @@ module ddr_channel #(
 
     wire [7:0] burst = burst_of(phase);
     wire [31:0] burst_bytes = {24'd0, burst} << SHIFT;
+    wire [31:0] cmd_following = cmd_addr + burst_bytes;
     wire write_taken = write & ~waitrequest;
     wire read_taken = read & ~waitrequest;
     wire [11:0] in_flight_after = in_flight + (read_taken ? {4'd0, burstcount} : 12'd0) -
         (readdatavalid ? 12'd1 : 12'd0);
-    wire room = in_flight_after + {4'd0, burst} <= READ_LIMIT;
+    // Room for the next read burst, from registers only: in_flight lags a
+    // command taken this cycle, so two bursts are kept in reserve.
+    reg [11:0] read_room_limit;
+    wire room = in_flight <= read_room_limit;
     wire waiting = write | read | (in_flight != 12'd0);
     wire progress = write_taken | read_taken | readdatavalid;
 
+    // Decisions on the Avalon handshake use precomputed flags (burst_end,
+    // pass_end, cmd_end); each pass is loaded in its own start state so the
+    // datapath registers stay out of the reset and handshake paths.
     integer g;
     always @(posedge clk) begin
         write_pass_end <= 1'b0;
         read_pass_end <= 1'b0;
+        read_room_limit <= READ_LIMIT - {3'd0, burst, 1'b0};
         if (reset) begin
-            state <= ST_WRITE;
+            state <= ST_WRITE_START;
             phase <= 3'd0;
             reading <= 1'b0;
-            write <= 1'b1;
+            write <= 1'b0;
             read <= 1'b0;
-            address <= BASE[31:SHIFT];
-            burstcount <= burst_of(3'd0);
-            beat_addr <= BASE;
-            next_addr <= BASE + STEP;
-            beats_left <= burst_of(3'd0);
-            writedata <= word_value(3'd0, BASE, 1'b0);
-            byteenable <= word_enables(3'd0, BASE);
-            shown_addr <= BASE;
             errors <= 32'd0;
             fault_addr <= 32'd0;
             last_addr <= 32'd0;
@@ -194,7 +199,6 @@ module ddr_channel #(
             stopped <= 1'b0;
             in_flight <= 12'd0;
             idle <= 24'd0;
-            pass_cycles <= 32'd0;
             diff_valid <= 1'b0;
             group_valid <= 1'b0;
         end else begin
@@ -232,6 +236,21 @@ module ddr_channel #(
             end
 
             case (state)
+                ST_WRITE_START: begin
+                    state <= ST_WRITE;
+                    write <= 1'b1;
+                    address <= BASE[31:SHIFT];
+                    burstcount <= burst;
+                    beats_left <= burst;
+                    burst_end <= burst == 8'd1;
+                    beat_addr <= BASE;
+                    next_addr <= BASE + STEP;
+                    pass_end <= BASE == LAST;
+                    writedata <= word_value(phase, BASE, 1'b0);
+                    byteenable <= word_enables(phase, BASE);
+                    shown_addr <= BASE;
+                    pass_cycles <= 32'd0;
+                end
                 ST_WRITE: begin
                     if (idle == TIMEOUT) begin
                         write <= 1'b0;
@@ -240,27 +259,19 @@ module ddr_channel #(
                     end else if (write_taken) begin
                         beat_addr <= next_addr;
                         next_addr <= next_addr + STEP;
+                        pass_end <= next_addr == LAST;
                         writedata <= word_value(phase, next_addr, 1'b0);
                         byteenable <= word_enables(phase, next_addr);
-                        if (beats_left != 8'd1) begin
+                        if (!burst_end) begin
                             beats_left <= beats_left - 8'd1;
-                        end else if (beat_addr == LAST) begin
+                            burst_end <= beats_left == 8'd2;
+                        end else if (pass_end) begin
                             // Pass written: read it back from the start.
                             write <= 1'b0;
                             write_pass_end <= 1'b1;
                             write_cycles <= pass_cycles;
                             reading <= 1'b1;
-                            state <= ST_READ;
-                            read <= 1'b1;
-                            address <= BASE[31:SHIFT];
-                            burstcount <= burst;
-                            cmd_addr <= BASE + burst_bytes;
-                            cmds_done <= 1'b0;
-                            read_addr <= BASE;
-                            read_next <= BASE + STEP;
-                            expected <= word_value(phase, BASE, 1'b1);
-                            shown_addr <= BASE;
-                            pass_cycles <= 32'd0;
+                            state <= ST_READ_START;
                         end else if (stop) begin
                             write <= 1'b0;
                             stopped <= 1'b1;
@@ -269,9 +280,24 @@ module ddr_channel #(
                             address <= next_addr[31:SHIFT];
                             burstcount <= burst;
                             beats_left <= burst;
+                            burst_end <= burst == 8'd1;
                             shown_addr <= next_addr;
                         end
                     end
+                end
+                ST_READ_START: begin
+                    state <= ST_READ;
+                    read <= 1'b1;
+                    address <= BASE[31:SHIFT];
+                    burstcount <= burst;
+                    cmd_addr <= BASE + burst_bytes;
+                    cmd_end <= burst_bytes == BYTES;
+                    cmds_done <= 1'b0;
+                    read_addr <= BASE;
+                    read_next <= BASE + STEP;
+                    expected <= word_value(phase, BASE, 1'b1);
+                    shown_addr <= BASE;
+                    pass_cycles <= 32'd0;
                 end
                 ST_READ: begin
                     if (idle == TIMEOUT) begin
@@ -281,12 +307,13 @@ module ddr_channel #(
                     end else begin
                         if (read_taken) begin
                             shown_addr <= cmd_addr;
-                            if (cmd_addr == BASE + BYTES || stop) begin
+                            if (cmd_end || stop) begin
                                 read <= 1'b0;
                                 cmds_done <= 1'b1;
                             end else begin
                                 address <= cmd_addr[31:SHIFT];
-                                cmd_addr <= cmd_addr + burst_bytes;
+                                cmd_addr <= cmd_following;
+                                cmd_end <= cmd_following == BASE + BYTES;
                                 read <= room;
                             end
                         end else if (!read && !cmds_done) begin
@@ -295,7 +322,7 @@ module ddr_channel #(
                             else if (room)
                                 read <= 1'b1;
                         end
-                        if (cmds_done && in_flight_after == 12'd0 && !readdatavalid) begin
+                        if (cmds_done && in_flight == 12'd0 && !read && !readdatavalid) begin
                             drain <= 3'd4;
                             state <= ST_DRAIN;
                         end
@@ -317,17 +344,7 @@ module ddr_channel #(
                             state <= ST_DONE;
                         end else begin
                             phase <= phase + 3'd1;
-                            state <= ST_WRITE;
-                            write <= 1'b1;
-                            address <= BASE[31:SHIFT];
-                            burstcount <= burst_of(phase + 3'd1);
-                            beats_left <= burst_of(phase + 3'd1);
-                            beat_addr <= BASE;
-                            next_addr <= BASE + STEP;
-                            writedata <= word_value(phase + 3'd1, BASE, 1'b0);
-                            byteenable <= word_enables(phase + 3'd1, BASE);
-                            shown_addr <= BASE;
-                            pass_cycles <= 32'd0;
+                            state <= ST_WRITE_START;
                         end
                     end
                 end

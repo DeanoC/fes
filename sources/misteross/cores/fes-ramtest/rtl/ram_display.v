@@ -346,7 +346,9 @@ module ram_display (
         end
     endfunction
 
-    // One row per pattern. Columns are 50 MHz, then 130, then 100.
+    // One row per pattern. Columns are 50 MHz, then 130, then 100. The row's
+    // three counts are selected a stage earlier into table_counts_q.
+    reg [95:0] table_counts_q = 96'd0;
     function [7:0] pattern_row;
         input [2:0] which;
         input [5:0] column;
@@ -354,11 +356,11 @@ module ram_display (
             if (column < 6'd4)
                 pattern_row = byte4(pattern_name(which), column);
             else if (column < 6'd14)
-                pattern_row = pattern_digits(pattern_count(s_pat50, which), s_pat_ok[0], column, 6'd5);
+                pattern_row = pattern_digits(table_counts_q[31:0], s_pat_ok[0], column, 6'd5);
             else if (column < 6'd23)
-                pattern_row = pattern_digits(pattern_count(s_pat75, which), s_pat_ok[1], column, 6'd14);
+                pattern_row = pattern_digits(table_counts_q[63:32], s_pat_ok[1], column, 6'd14);
             else
-                pattern_row = pattern_digits(pattern_count(s_pat100, which), s_pat_ok[2], column, 6'd23);
+                pattern_row = pattern_digits(table_counts_q[95:64], s_pat_ok[2], column, 6'd23);
         end
     endfunction
 
@@ -524,33 +526,29 @@ module ram_display (
         end
     endfunction
 
-    function [7:0] screen_char;
+    function [7:0] table_char;
         input [4:0] line;
         input [5:0] column;
         reg [4:0] table_line;
         begin
             table_line = line - TABLE_FIRST;
-            if (line < 5'd6)
-                screen_char = line_char(line, column, "SDRAM", s_phase, s_reading, s_addr,
-                    s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail);
-            else if (line >= DDR_HEAD && line <= DDR_RATES)
-                screen_char = ddr_char(line, column);
-            else if (line == BUTTON_ROW)
-                screen_char = text_at("BUTTON STOPS                            ", column);
+            if (line == BUTTON_ROW)
+                table_char = text_at("BUTTON STOPS                            ", column);
             else if (line == TABLE_HEAD)
-                screen_char = rate_head(column);
+                table_char = rate_head(column);
             else if (line >= TABLE_FIRST && line < TABLE_FIRST + 5'd6)
-                screen_char = pattern_row(table_line[2:0], column);
+                table_char = pattern_row(table_line[2:0], column);
             else
-                screen_char = 8'h00;
+                table_char = 8'h00;
         end
     endfunction
 
-    // The row selects a DDR port bundle, then the character decode is
-    // registered away from that, then the glyph lookup away from the
-    // decode. The pixel clock cannot carry these in one 74.25 MHz cycle.
-    // The 3x scale is counted here so the raster does not divide the HDMI
-    // counters on this clock.
+    // The row selects a DDR port bundle. Each screen section then decodes
+    // its character in parallel into its own register, one register picks
+    // the section, and the glyph lookup follows. The pixel clock cannot
+    // carry a whole-screen decode in one 74.25 MHz cycle. The 3x scale is
+    // counted here so the raster does not divide the HDMI counters on this
+    // clock.
     reg [9:0] field_x = 10'd0;
     reg [9:0] field_y = 10'd0;
     reg [1:0] x_phase = 2'd0;
@@ -565,6 +563,16 @@ module ram_display (
     reg [2:0] glyph_row_s = 3'd0;
     reg [2:0] glyph_col_s = 3'd0;
     reg active_s = 1'b0;
+    reg [7:0] sdram_ch_t = 8'h00;
+    reg [7:0] ddr_ch_t = 8'h00;
+    reg [7:0] table_ch_t = 8'h00;
+    reg [2:0] glyph_row_t = 3'd0;
+    reg [2:0] glyph_col_t = 3'd0;
+    reg active_t = 1'b0;
+    reg status_t = 1'b0;
+    reg failed_t = 1'b0;
+    reg passed_t = 1'b0;
+    reg halted_t = 1'b0;
     reg [7:0] ch_q = 8'h00;
     reg [2:0] glyph_row_q = 3'd0;
     reg [2:0] glyph_col_q = 3'd0;
@@ -583,7 +591,7 @@ module ram_display (
 
     wire [4:0] row_q = y_q[7:3];
     wire [1:0] port_now = ddr_port_of(row_q);
-    wire [7:0] ch_now = screen_char(row_s, col_s);
+    wire [4:0] table_now = row_q - TABLE_FIRST;
     wire ddr_status_row = row_s >= DDR_SUMMARY && row_s < DDR_FAULTS;
     wire status_now = row_s == 5'd5 || ddr_status_row;
     wire failed_now = ddr_status_row ? (q_nack || q_errors != 32'd0) : s_fail;
@@ -644,15 +652,29 @@ module ram_display (
         glyph_col_s <= x_q[2:0];
         active_s <= active_q;
         port_index_q <= port_now;
+        table_counts_q <= {pattern_count(s_pat100, table_now[2:0]),
+            pattern_count(s_pat75, table_now[2:0]), pattern_count(s_pat50, table_now[2:0])};
         port_q <= port_now == 2'd0 ? ddr0_sync1 : (port_now == 2'd1 ? ddr1_sync1 : ddr2_sync1);
-        ch_q <= ch_now;
-        glyph_row_q <= glyph_row_s;
-        glyph_col_q <= glyph_col_s;
-        active_c <= active_s;
-        status_c <= status_now;
-        failed_c <= failed_now;
-        passed_c <= passed_now;
-        halted_c <= halted_now;
+        sdram_ch_t <= row_s < 5'd6 ? line_char(row_s, col_s, "SDRAM", s_phase, s_reading, s_addr,
+            s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail) : 8'h00;
+        ddr_ch_t <= row_s >= DDR_HEAD && row_s <= DDR_RATES ? ddr_char(row_s, col_s) : 8'h00;
+        table_ch_t <= table_char(row_s, col_s);
+        glyph_row_t <= glyph_row_s;
+        glyph_col_t <= glyph_col_s;
+        active_t <= active_s;
+        status_t <= status_now;
+        failed_t <= failed_now;
+        passed_t <= passed_now;
+        halted_t <= halted_now;
+        // At most one section decodes a character on any row.
+        ch_q <= sdram_ch_t | ddr_ch_t | table_ch_t;
+        glyph_row_q <= glyph_row_t;
+        glyph_col_q <= glyph_col_t;
+        active_c <= active_t;
+        status_c <= status_t;
+        failed_c <= failed_t;
+        passed_c <= passed_t;
+        halted_c <= halted_t;
         pixels_q <= glyph_pixels;
         glyph_col_p <= glyph_col_q;
         active_p <= active_c;
