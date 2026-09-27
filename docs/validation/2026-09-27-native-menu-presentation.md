@@ -65,3 +65,7 @@ Ten-minute underflow-free HDMI/DDR operation, CPU/latency measurements and
 menu/game/Stop handoff remain untested. Physical diagnostics need the updated runtime installed before the first
 FPGA program of a qualified DDR boot, with its startup latch record intact. Network runtime replacement alone
 does not qualify U-Boot's latched layout; see [DDR boot requirements](../hps-ddr.md).
+
+A runtime-only boot candidate is now prepared; see the
+[2026-09-28 diagnostic image record](2026-09-28-native-menu-diagnostic-image.md).
+It has not been deployed; physical qualification remains pending.
