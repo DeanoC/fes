@@ -1789,6 +1789,21 @@ showed vacant 901 `plug_addr` following GPO, then composed cart A INIT
 words and cart B banks 0–3. That is a development-RBF diagnostic, not
 image acceptance. Primitive `MISTRAL_FF`
 `BEL` attributes survive Yosys; inferred `reg` `BEL` does not.
+
+`895_m10k_async_stream` isolates the [issue #260](https://github.com/DeanoC/fes/issues/260)
+256x40 async read at a 74.25 MHz pixel clock. It fills one M10K, performs
+65,536 one-cycle address reads and 65,536 reads with each address held an
+extra cycle, then gates the RAM clock for direct address/data inspection.
+The pinned diagnostic RBF SHA-256 is
+`e761d0c9d68e614f9b098b28073ac8a1ebc8b5c9baf2988872b84c8c49b8f28b`.
+On the designated kit, the one-cycle error count saturated at 16,383 while
+the held-address count was zero. The first requested address 2 returned the
+word for address 1. With the RAM clock stopped, changing the address left
+the output unchanged; restoring the clock updated it to the selected word.
+This is development hardware diagnosis of the current 40-bit mapping, not
+image acceptance or a characterization of 10/20-bit async reads. See
+`experiments/895_m10k_async_stream/expected.md` for the probe contract.
+
 `910_sdram_addon` reads and writes one 16-bit word on the MiSTer GPIO
 SDRAM addon. The 32/64/128 MB modules share this header. Each DQ bit is a
 width-one `altiobuf_bidir`. The host uses `fes.application` framing plus
