@@ -92,6 +92,8 @@ compares Quartus and OSS on matched source inputs, including FSM encoding and
 routing controls. It explains the observed gap without changing this core's RTL.
 The [initialized-FSM follow-up](../../docs/validation/2026-09-27-ramtest-fsm-init.md)
 records the Yosys candidate, equivalence checks and unchanged-source experiment.
+The [FSM isolation and routing follow-up](../../docs/validation/2026-09-27-ramtest-fsm-routing.md)
+records the GPU convergence fix and the remaining timeout/control-path limit.
 
 ```sh
 make toolchain-fes-ramtest
