@@ -299,6 +299,10 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 }
 
 func drawFirmwarePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
+	drawFilePicker(dev, snap, labels, used, firmwarePickerRowLabel)
+}
+
+func drawFilePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}, rowLabel func(FirmwarePickerRow) string) {
 	panel, ok := firmwarePickerPanel(snap)
 	if !ok {
 		return
@@ -323,7 +327,7 @@ func drawFirmwarePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 			th := drawTheme(snap)
 			fillRect(dev, float32(x+8), float32(rowY), 6, float32(panel.RowH-4), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
 		}
-		drawLabel(dev, labels, used, fmt.Sprintf("fw-%d", idx), x+20, rowY+8, panelW-40, 16, firmwarePickerRowLabel(rows[idx]))
+		drawLabel(dev, labels, used, fmt.Sprintf("fw-%d", idx), x+20, rowY+8, panelW-40, 16, rowLabel(rows[idx]))
 	}
 	status := strings.TrimSpace(snap.FirmwarePicker.Status)
 	if status == "" {

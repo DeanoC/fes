@@ -2016,3 +2016,13 @@ Mesh projection preserves explicitly selected primary blob/disk content. Linked
 ROM content supplies the primary slot only when no such media is selected.
 Incomplete ROM selections retain their package-backed browse row; normal launch
 validation still enforces required ROM inputs.
+
+The tenfoot `core_library.go` overlay consumes the same `hostclient` catalog/setup
+methods as the browser, reached through Settings → Systems. It keeps publication
+and serving-library references intact without changing session placement. Existing
+file enumeration, OSK, overlay geometry and renderer are reused; selected file
+bytes stream to core-media after regular-file and descriptor size checks. BIOS
+selection remains a separate explicit host API action. Asynchronous operations
+lock overlay mutation and use bounded contexts; failed refresh retains cached
+rows with setup disabled. App/renderer snapshots copy row data and pointer hit
+routing gives the systems overlay priority over room/catalog widgets.

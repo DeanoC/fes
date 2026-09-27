@@ -23,6 +23,7 @@ const (
 	PointerRoomDestination
 	PointerLaunchOverlay
 	PointerFirmwarePicker
+	PointerCoreLibrary
 	PointerTapePicker
 	PointerHardwareRoom
 )
@@ -66,6 +67,8 @@ func (k PointerKind) String() string {
 		return "room-destination"
 	case PointerLaunchOverlay:
 		return "launch-overlay"
+	case PointerCoreLibrary:
+		return "core-library"
 	case PointerFirmwarePicker:
 		return "firmware-picker"
 	case PointerTapePicker:
@@ -92,6 +95,16 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 			}
 			if geom.contains(x, y) {
 				return PointerHit{}
+			}
+		}
+		return PointerHit{Kind: PointerBackdrop}
+	}
+	if snap.CoreLibrary.Open {
+		overlay := snap
+		overlay.FirmwarePicker = snap.CoreLibrary
+		if panel, ok := firmwarePickerPanel(overlay); ok {
+			if idx, hit := panel.rowAt(x, y); hit && idx >= 0 && idx < len(snap.CoreLibrary.Rows) {
+				return PointerHit{Kind: PointerCoreLibrary, Index: idx}
 			}
 		}
 		return PointerHit{Kind: PointerBackdrop}
@@ -324,6 +337,7 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		FocusDetail:     a.focusDetailLocked(),
 		Room:            a.roomSnapshotLocked(false),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
+		CoreLibrary:     a.coreLibrarySnapshotLocked(),
 		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
 		TapePicker:      a.tapePickerSnapshotLocked(),
 	}
@@ -363,6 +377,10 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 	case PointerRoomPicker:
 		if hit.Index >= 0 {
 			a.roomPickerIndex = hit.Index
+		}
+	case PointerCoreLibrary:
+		if !a.coreLibrary.Busy && hit.Index >= 0 && hit.Index < len(a.coreLibraryRowsLocked()) {
+			a.coreLibrary.Index = hit.Index
 		}
 	case PointerFirmwarePicker:
 		if hit.Index >= 0 && hit.Index < len(a.firmwarePickerRows) {
@@ -415,6 +433,8 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 		a.handleViewPickerLocked(CmdSelect)
 	case PointerRoomPicker:
 		a.handleRoomPickerLocked(CmdSelect)
+	case PointerCoreLibrary:
+		a.handleCoreLibraryLocked(CmdSelect)
 	case PointerFirmwarePicker:
 		a.handleFirmwarePickerLocked(CmdSelect)
 	case PointerTapePicker:
@@ -447,6 +467,8 @@ func (a *App) pointerBackdropLocked(now time.Time) {
 	switch {
 	case a.settingsOSKOpenLocked():
 		a.handleSettingsOSKLocked(CmdBack)
+	case a.coreLibrary.Open:
+		a.handleCoreLibraryLocked(CmdBack)
 	case a.nameEntryOpenLocked():
 		a.handleNameEntryLocked(CmdBack)
 	case a.searchOpen:
