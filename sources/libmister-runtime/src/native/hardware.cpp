@@ -67,6 +67,15 @@ bool RequiresHpsDdr(const CoreDescriptor& descriptor)
 	return false;
 }
 
+// The SDR controller keeps the port layout U-Boot latched from its boot
+// core; under any other layout every DDR command is refused.
+Error BootHpsDdrLayoutError()
+{
+	return {ErrorCode::unsupported_interface,
+		"fes.memory.hps-ddr needs the boot core to latch its port layout; "
+		"this card's U-Boot idle core does not"};
+}
+
 // A live layout mismatch is a core that does not implement its declared
 // interface. MMIO failures stay with the FPGA manager's programming phase.
 Error HpsDdrError(Error error)
@@ -355,6 +364,8 @@ Error NativeHardware::AdmitCorePackage(const std::string& directory,
 	Error error = native::OpenCorePackage(package_roots_, directory,
 		expected_id, &opened);
 	if (error.ok()) error = CheckCoreCompatibility(opened.descriptor);
+	if (error.ok() && RequiresHpsDdr(opened.descriptor) && !fpga_.BootHpsDdrLayout())
+		error = BootHpsDdrLayoutError();
 	ProgrammingProfile profile = ProgrammingProfile::development_contained_v1;
 	CoreDriver* driver = nullptr;
 	if (error.ok()) error = driver_registry_.Resolve(opened.descriptor,
@@ -401,6 +412,9 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 		expected_id, &opened);
 	if (!error.ok()) return error;
 	Error compatibility = CheckCoreCompatibility(opened.descriptor);
+	if (compatibility.ok() && RequiresHpsDdr(opened.descriptor) &&
+		!fpga_.BootHpsDdrLayout())
+		compatibility = BootHpsDdrLayoutError();
 	ProgrammingProfile profile = ProgrammingProfile::development_contained_v1;
 	CoreDriver* driver = nullptr;
 	if (compatibility.ok())
@@ -579,8 +593,11 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesApplicationInterfaceKeypadPortsID, 1, 0},
 			{generated::FesApplicationInterfaceMediaBlobID, 1, 0},
 			{generated::FesApplicationInterfaceMediaBlobStreamID, 1, 0},
-			{generated::FesApplicationInterfaceMemoryHpsDdrID, 1, 0},
 			{generated::FesApplicationInterfaceVideoFixed720p60ID, 1, 0}};
+		// Advertised only when the boot core latched the port layout.
+		if (fpga_.BootHpsDdrLayout())
+			application.interfaces.push_back(
+				{generated::FesApplicationInterfaceMemoryHpsDdrID, 1, 0});
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(application));

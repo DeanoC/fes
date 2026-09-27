@@ -32,7 +32,10 @@ bridges and resets the SDR FPGA ports (`FPGAPORTRST` `0`) before configuration.
 After user-mode readback, `fes-gp-v1` releases only the bridge reset (`0`) and
 L3 remap (`0x19`). `development-contained-v1` stays contained, including
 splash, idle, and raw development RBFs. The ports leave reset only for a
-package that requires `fes.memory.hps-ddr` 1.0: after identity proves
+package that requires `fes.memory.hps-ddr` 1.0 on a boot whose U-Boot core
+latched the shared layout. The FPGA manager learns that from the SDR mirrors
+before its first program in a boot and records it under `/run`, and the
+interface is advertised and admitted only then. After identity proves
 capability bit 8 and before execution release, the FPGA manager reads the SDR
 mirrors `CPORTWIDTH` through `PORTCFG` and writes `FPGAPORTRST` `0x3fff` only
 when every FPGA field equals the shared layout. A mismatch fails activation as

@@ -87,6 +87,49 @@ private:
 	mutable std::size_t calls_ = 0;
 };
 
+// Per-boot HPS DDR record: a path in a fresh directory, with the given
+// content or (content == nullptr) absent.
+struct BootRecord {
+	explicit BootRecord(const char* content)
+	{
+		char pattern[] = "/tmp/libmister-boot.XXXXXX";
+		EXPECT(mkdtemp(pattern) != nullptr);
+		directory = pattern;
+		path = directory + "/boot-hps-ddr";
+		if (content != nullptr) {
+			const int descriptor = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+			EXPECT(descriptor >= 0);
+			const std::string text(content);
+			EXPECT(write(descriptor, text.data(), text.size()) ==
+				static_cast<ssize_t>(text.size()));
+			EXPECT(close(descriptor) == 0);
+		}
+	}
+	~BootRecord()
+	{
+		unlink(path.c_str());
+		EXPECT(rmdir(directory.c_str()) == 0);
+	}
+	std::string Read() const
+	{
+		const int descriptor = open(path.c_str(), O_RDONLY);
+		if (descriptor < 0) return "<none>";
+		char text[64] = {};
+		const ssize_t got = read(descriptor, text, sizeof(text) - 1);
+		close(descriptor);
+		return got < 0 ? "<error>" : std::string(text, static_cast<std::size_t>(got));
+	}
+	std::string directory;
+	std::string path;
+};
+
+// The boot core latched the layout; the programming tests need no capture.
+const BootRecord& Latched()
+{
+	static const BootRecord record("latched\n");
+	return record;
+}
+
 struct TempArtifact {
 	explicit TempArtifact(std::size_t size)
 	{
@@ -255,7 +298,7 @@ void TestProgramEmitsFpgaManagerStateAndFailure()
 	mister_test::FakeMmio mmio;
 	ConfigureSuccess(mmio);
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	EXPECT(result.error.ok());
@@ -280,7 +323,7 @@ void TestProgramEmitsFpgaManagerStateAndFailure()
 	ConfigurePreflight(failing, 9);
 	failing.PushReadError(kStatus,
 		{mister::ErrorCode::io_failed, "scripted preflight failure"});
-	mister::native::LinuxFpgaManager failing_manager(failing, clock);
+	mister::native::LinuxFpgaManager failing_manager(failing, clock, Latched().path);
 	const auto failed = failing_manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	EXPECT(!failed.error.ok());
@@ -303,7 +346,7 @@ void TestProgramsWithExactContainmentConfigurationAndReleaseOrder()
 	mmio.expected_writes = SuccessfulWrites(true);
 	mmio.enforce_expected_writes = true;
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	if (!result.error.ok()) fprintf(stderr, "program error: %s\n",
@@ -321,7 +364,7 @@ void TestFesGpInitializationWaitsForContainmentAndConfigurationReset()
 	mister_test::FakeMmio mmio;
 	ConfigureSuccess(mmio);
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	EXPECT(result.error.ok());
@@ -369,7 +412,7 @@ void TestEveryProfileLeavesSdrPortsInReset()
 		ConfigureHpsDdrMirrors(mmio);
 		mmio.values[kSdr] = 0x3fffu;
 		FixedClock clock(1);
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		EXPECT(manager.Program(input.artifact, profile, 100).error.ok());
 		std::size_t sdr_writes = 0;
 		for (const auto& write : mmio.writes) {
@@ -393,7 +436,7 @@ void TestHpsDdrPortsReleaseOnlyForTheSharedLayout()
 	{
 		mister_test::FakeMmio mmio;
 		ConfigureHpsDdrMirrors(mmio);
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		const mister::Error released = manager.ReleaseHpsDdrPorts(100);
 		if (!released.ok()) fprintf(stderr, "release error: %s\n", released.message.c_str());
 		EXPECT(released.ok());
@@ -421,7 +464,7 @@ void TestHpsDdrPortsReleaseOnlyForTheSharedLayout()
 		ConfigureHpsDdrMirrors(mmio);
 		const std::uint32_t observed = mirror.expected ^ 1u;
 		mmio.values[mirror.address] = observed;
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
 		EXPECT(error.code == mister::ErrorCode::core_mismatch);
 		EXPECT(error.message == std::string("HPS DDR ") + mirror.name +
@@ -442,11 +485,95 @@ void TestHpsDdrPortsReleaseOnlyForTheSharedLayout()
 		mister_test::FakeMmio mmio;
 		for (const HpsDdrMirror& mirror : kHpsDdrMirrors)
 			mmio.values[mirror.address] = 0xffffffffu;
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
 		EXPECT(error.code == mister::ErrorCode::core_mismatch);
 		EXPECT(error.message == "HPS DDR CPORTWIDTH mismatch: observed=0xfff expected=0x16");
 		EXPECT(mmio.writes.empty());
+	}
+}
+
+// The layout is learned from the boot core before this boot's first
+// program, recorded, and reused by a later runtime without MMIO.
+void TestBootHpsDdrLayoutIsCapturedBeforeTheFirstProgram()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	FixedClock clock(1);
+	BootRecord record(nullptr);
+	{
+		TempArtifact input(4);
+		mister_test::FakeMmio mmio;
+		ConfigureSuccess(mmio);
+		ConfigureHpsDdrMirrors(mmio);
+		mister::native::LinuxFpgaManager manager(mmio, clock, record.path);
+		EXPECT(manager.Program(input.artifact,
+			mister::native::ProgrammingProfile::fes_gp_v1, 100).error.ok());
+		EXPECT(mmio.reads.size() > kHpsDdrMirrorCount);
+		for (std::size_t index = 0; index < kHpsDdrMirrorCount; ++index)
+			EXPECT(mmio.reads[index] == kHpsDdrMirrors[index].address);
+		EXPECT(record.Read() == "latched\n");
+		const std::size_t reads = mmio.reads.size();
+		EXPECT(manager.BootHpsDdrLayout());
+		EXPECT(mmio.reads.size() == reads);
+		const mister::DiagnosticEvent* event = capture.Find("hps_ddr.boot");
+		EXPECT(event != nullptr && event->severity == "ok");
+		EXPECT(mister_test::HasBool(*event, "latched", true));
+		EXPECT(mister_test::HasString(*event, "source", "mirrors"));
+	}
+	{
+		// A restarted runtime: the FPGA holds another core now.
+		mister_test::FakeMmio mmio;
+		mister::native::LinuxFpgaManager manager(mmio, clock, record.path);
+		EXPECT(manager.BootHpsDdrLayout());
+		EXPECT(mmio.reads.empty());
+		EXPECT(manager.ReleaseHpsDdrPorts(100).code == mister::ErrorCode::core_mismatch);
+	}
+}
+
+// A boot core with another layout leaves the interface unavailable for the
+// whole boot, even for a core whose own mirrors match.
+void TestBootWithoutTheHpsDdrLayoutRefusesTheInterface()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	FixedClock clock(1);
+	for (std::size_t wrong = 0; wrong < kHpsDdrMirrorCount; ++wrong) {
+		capture.Clear();
+		BootRecord record(nullptr);
+		const HpsDdrMirror& mirror = kHpsDdrMirrors[wrong];
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		mmio.values[mirror.address] = mirror.expected ^ 1u;
+		mister::native::LinuxFpgaManager manager(mmio, clock, record.path);
+		EXPECT(!manager.BootHpsDdrLayout());
+		EXPECT(record.Read() == "absent\n");
+		const mister::DiagnosticEvent* event = capture.Find("hps_ddr.boot");
+		EXPECT(event != nullptr && event->severity == "warning");
+		EXPECT(mister_test::HasString(*event, "register", mirror.name));
+		ConfigureHpsDdrMirrors(mmio);
+		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
+		EXPECT(error.code == mister::ErrorCode::unsupported_interface);
+		EXPECT(mmio.writes.empty());
+	}
+	// An unreadable mirror is no layout either.
+	{
+		BootRecord record(nullptr);
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		mmio.PushReadError(kHpsDdrMirrors[0].address, {mister::ErrorCode::program_failed, "bus"});
+		mister::native::LinuxFpgaManager manager(mmio, clock, record.path);
+		EXPECT(!manager.BootHpsDdrLayout());
+		EXPECT(record.Read() == "absent\n");
+	}
+	// Anything but the exact record fails closed, without MMIO.
+	for (const char* content : {"", "latched", "latched\nx", "yes\n", "absent\n"}) {
+		BootRecord record(content);
+		mister_test::FakeMmio mmio;
+		ConfigureHpsDdrMirrors(mmio);
+		mister::native::LinuxFpgaManager manager(mmio, clock, record.path);
+		EXPECT(!manager.BootHpsDdrLayout());
+		EXPECT(mmio.reads.empty());
 	}
 }
 
@@ -462,7 +589,7 @@ void TestHpsDdrPortFailuresLeavePortsInReset()
 		mmio.PushReadError(mirror.address,
 			{mister::ErrorCode::io_failed, "scripted mirror read"});
 		FixedClock clock(1);
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
 		EXPECT(error.code == mister::ErrorCode::program_failed);
 		EXPECT(error.message == std::string("HPS DDR ") + mirror.name +
@@ -477,7 +604,7 @@ void TestHpsDdrPortFailuresLeavePortsInReset()
 		mister_test::FakeMmio mmio;
 		ConfigureHpsDdrMirrors(mmio);
 		FixedClock clock(10);
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		const mister::Error error = manager.ReleaseHpsDdrPorts(10);
 		EXPECT(error.code == mister::ErrorCode::program_failed);
 		EXPECT(error.message == "HPS DDR port check deadline exceeded");
@@ -488,7 +615,7 @@ void TestHpsDdrPortFailuresLeavePortsInReset()
 		mister_test::FakeMmio mmio;
 		ConfigureHpsDdrMirrors(mmio);
 		AdvancingClock clock;
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		const mister::Error error = manager.ReleaseHpsDdrPorts(kHpsDdrMirrorCount);
 		EXPECT(error.code == mister::ErrorCode::program_failed);
 		EXPECT(error.message == "HPS DDR port check deadline exceeded");
@@ -501,7 +628,7 @@ void TestHpsDdrPortFailuresLeavePortsInReset()
 		ConfigureHpsDdrMirrors(mmio);
 		mmio.PushWriteError(kSdr, {mister::ErrorCode::io_failed, "scripted port release"});
 		FixedClock clock(1);
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		const mister::Error error = manager.ReleaseHpsDdrPorts(100);
 		EXPECT(error.code == mister::ErrorCode::program_failed);
 		EXPECT(error.message == "HPS DDR FPGAPORTRST release failed: scripted port release");
@@ -518,7 +645,7 @@ void TestContainedProfileLeavesBridgesContained()
 	mister_test::FakeMmio mmio;
 	ConfigureSuccess(mmio);
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::development_contained_v1, 100);
 	if (!result.error.ok()) fprintf(stderr, "program error: %s\n",
@@ -552,7 +679,7 @@ void TestMselMappingAndControlRmwPreserveUnrelatedBits()
 		mister_test::FakeMmio mmio;
 		ConfigureSuccess(mmio, item.msel);
 		FixedClock clock(1);
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 		EXPECT(result.error.ok());
@@ -574,7 +701,7 @@ void TestStreamsAcrossFourKiBReadBoundaryInWordOrder()
 	mister_test::FakeMmio mmio;
 	ConfigureSuccess(mmio);
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	EXPECT(result.error.ok());
@@ -594,7 +721,7 @@ void TestUnsupportedMselFailsBeforeMutation()
 	mister_test::FakeMmio mmio;
 	ConfigurePreflight(mmio, 3);
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	ExpectProgramFailure(result, false, "MSEL", 3);
@@ -611,7 +738,7 @@ void TestEveryPreflightReadFailureIsNotAttempted()
 		mmio.PushReadError(address,
 			{mister::ErrorCode::io_failed, "scripted preflight read"});
 		FixedClock clock(1);
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 		ExpectProgramFailure(result, false, "preflight", 0);
@@ -627,7 +754,7 @@ void TestDeadlineAfterPreflightBeforeFirstWriteIsNotAttempted()
 	mister_test::FakeMmio mmio;
 	ConfigureSuccess(mmio);
 	PreWriteDeadlineClock clock;
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	ExpectProgramFailure(result, false, "bridge containment interface", 0);
@@ -641,7 +768,7 @@ void TestResetPhaseTimeoutRemainsContained()
 	ConfigurePreflight(mmio, 9);
 	mmio.PushRead(kStatus, Mode(9, 4));
 	AdvancingClock clock;
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 1000);
 	ExpectProgramFailure(result, true, "reset phase", Mode(9, 4));
@@ -656,7 +783,7 @@ void TestConfigurationPhaseTimeoutRemainsContained()
 	PushReads(mmio, kStatus, {Mode(9, 4), Mode(9, 1)});
 	mmio.values[kStatus] = Mode(9, 1);
 	AdvancingClock clock;
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 1000);
 	ExpectProgramFailure(result, true, "configuration phase", Mode(9, 1));
@@ -671,7 +798,7 @@ void TestNstatusDropFailsImmediatelyAndRemainsContained()
 	mmio.scripted_reads[kMonitor].clear();
 	mmio.PushRead(kMonitor, 0);
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	ExpectProgramFailure(result, true, "nSTATUS", 0);
@@ -686,7 +813,7 @@ void TestConfDoneTimeoutRemainsContained()
 	mmio.scripted_reads[kMonitor].clear();
 	mmio.values[kMonitor] = 1;
 	AdvancingClock clock;
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 1000);
 	ExpectProgramFailure(result, true, "CONF_DONE", 1);
@@ -701,7 +828,7 @@ void TestDclkFourTimeoutRemainsContained()
 	mmio.scripted_reads[kDclkStatus].clear();
 	mmio.values[kDclkStatus] = 0;
 	AdvancingClock clock;
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 1000);
 	ExpectProgramFailure(result, true, "DCLK 0x4", 0);
@@ -721,7 +848,7 @@ void TestInitializationPhaseTimeoutRemainsContained()
 	mmio.scripted_reads[kDclkStatus].clear();
 	PushReads(mmio, kDclkStatus, {0, 1});
 	AdvancingClock clock;
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 1000);
 	ExpectProgramFailure(result, true, "initialization phase", Mode(9, 2));
@@ -742,7 +869,7 @@ void TestDclkFiveThousandTimeoutRemainsContained()
 	PushReads(mmio, kDclkStatus, {0, 1, 0});
 	mmio.values[kDclkStatus] = 0;
 	AdvancingClock clock;
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 1000);
 	ExpectProgramFailure(result, true, "DCLK 0x5000", 0);
@@ -762,7 +889,7 @@ void TestUserModeTimeoutRemainsContained()
 	mmio.scripted_reads[kDclkStatus].clear();
 	PushReads(mmio, kDclkStatus, {0, 1, 0, 1});
 	AdvancingClock clock;
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 1000);
 	ExpectProgramFailure(result, true, "user mode", Mode(9, 3));
@@ -775,7 +902,7 @@ void TestStreamDeadlineRemainsContained()
 	mister_test::FakeMmio mmio;
 	ConfigureSuccess(mmio);
 	StreamDeadlineClock clock(mmio);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	ExpectProgramFailure(result, true, "stream", 4);
@@ -790,7 +917,7 @@ void TestShortReadRemainsContained()
 	mister_test::FakeMmio mmio;
 	ConfigureSuccess(mmio);
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	ExpectProgramFailure(result, true, "stream read", 0);
@@ -805,7 +932,7 @@ void TestDataWriteFailureRemainsContained()
 	mmio.PushWriteError(kData,
 		{mister::ErrorCode::io_failed, "scripted data write"});
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	ExpectProgramFailure(result, true, "stream write", 0x03020100u);
@@ -832,7 +959,7 @@ void TestManagerReadbackErrorsRemainContained()
 		ConfigureSuccess(mmio);
 		PushReadFailureAfter(mmio, item.address, item.successful_reads);
 		FixedClock clock(1);
-		mister::native::LinuxFpgaManager manager(mmio, clock);
+		mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 		const auto result = manager.Program(input.artifact,
 			mister::native::ProgrammingProfile::fes_gp_v1, 100);
 		ExpectProgramFailure(result, true, item.phase, item.last);
@@ -849,7 +976,7 @@ void TestManagerReadbackMismatchRemainsContained()
 	mmio.PushRead(kControl, kControlSeed);
 	mmio.PushRead(kControl, 0xa5a50281u);
 	FixedClock clock(1);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 100);
 	ExpectProgramFailure(result, true, "manager CTRL readback", 0xa5a50281u);
@@ -867,7 +994,7 @@ void TestInitialDeadlineIsNotAttempted()
 	TempArtifact input(4);
 	mister_test::FakeMmio mmio;
 	FixedClock clock(10);
-	mister::native::LinuxFpgaManager manager(mmio, clock);
+	mister::native::LinuxFpgaManager manager(mmio, clock, Latched().path);
 	const auto result = manager.Program(input.artifact,
 		mister::native::ProgrammingProfile::fes_gp_v1, 10);
 	EXPECT(result.error.code == mister::ErrorCode::program_failed);
@@ -902,6 +1029,10 @@ int main()
 		TestHpsDdrPortsReleaseOnlyForTheSharedLayout, &count);
 	Run("HPS DDR failures leave ports in reset",
 		TestHpsDdrPortFailuresLeavePortsInReset, &count);
+	Run("boot HPS DDR layout captured before the first program",
+		TestBootHpsDdrLayoutIsCapturedBeforeTheFirstProgram, &count);
+	Run("boot without the HPS DDR layout refuses the interface",
+		TestBootWithoutTheHpsDdrLayoutRefusesTheInterface, &count);
 	Run("MSEL mapping and CTRL/GPO RMW preservation",
 		TestMselMappingAndControlRmwPreserveUnrelatedBits, &count);
 	Run("4 KiB stream boundary order",

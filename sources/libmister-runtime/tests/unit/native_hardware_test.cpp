@@ -199,6 +199,7 @@ public:
 		if (calls == fail_call) return failure;
 		return result;
 	}
+	bool BootHpsDdrLayout() override { return boot_hps_ddr_layout; }
 	mister::Error ReleaseHpsDdrPorts(std::uint64_t deadline) override
 	{
 		events_.push_back("fpga.hps_ddr");
@@ -209,6 +210,7 @@ public:
 	}
 	std::vector<std::string>& events_;
 	mister::Error hps_ddr_result;
+	bool boot_hps_ddr_layout = true;
 	std::vector<std::uint64_t> hps_ddr_deadlines;
 	std::function<void()> on_hps_ddr;
 	int hps_ddr_calls = 0;
@@ -1435,7 +1437,7 @@ void TestHpsDdrPortsReleaseAfterIdentityBeforeExecution()
 		RecordingOpener opener(events);
 		mister_test::FakeMmio mmio;
 		FixedClock clock(100);
-		LinuxFpgaManager fpga(mmio, clock);
+		LinuxFpgaManager fpga(mmio, clock, temporary.File("boot-hps-ddr", "latched\n"));
 		RecordingI2c i2c(events);
 		RecordingVideo idle_video(events);
 		LedgerLog log(events);
@@ -1513,6 +1515,66 @@ void TestHpsDdrPortsReleaseAfterIdentityBeforeExecution()
 		assert((command & FesGpOpcodeMask) ==
 			FesGpOpcodeGameplay * (FesGpOpcodeMask & (~FesGpOpcodeMask + 1u)));
 		assert((command & FesGpArgumentMask) == FesGpGameplayRelease);
+	}
+}
+
+// A card whose U-Boot core did not latch the layout (an old splash kept by
+// a network update) neither advertises nor admits fes.memory.hps-ddr.
+void TestHpsDdrNeedsTheBootLayout()
+{
+	using namespace mister::native;
+	for (const bool latched : {true, false}) {
+		TempDirectory temporary;
+		TempDirectory declaring;
+		TempDirectory plain;
+		OpenedCorePackage declared;
+		OpenedCorePackage undeclared;
+		PopulateHpsDdrApplication(&declaring, true, &declared);
+		PopulateHpsDdrApplication(&plain, false, &undeclared);
+		std::vector<std::string> events;
+		RecordingOpener opener(events);
+		mister_test::FakeMmio mmio;
+		FixedClock clock(100);
+		LinuxFpgaManager fpga(mmio, clock,
+			temporary.File("boot-hps-ddr", latched ? "latched\n" : "absent\n"));
+		RecordingI2c i2c(events);
+		RecordingVideo idle_video(events);
+		LedgerLog log(events);
+		FixedVideoBringup game_video(i2c, clock, log, Menu720p60Recipe());
+		RecordingInput input(events, clock);
+		const InputDeviceIdentity identity = {
+			"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001, 0x0001};
+		FesGp transport(mmio, clock);
+		FesGpCoreDriver driver(transport);
+		NativeHardware hardware(opener, fpga, idle_video, game_video, input, identity,
+			clock, log, temporary.File("idle.rbf", "idle"), {30000, 10000, 10000},
+			&driver, {"/tmp"});
+
+		bool advertised = false;
+		for (const auto& abi : hardware.capabilities().abis)
+			for (const auto& interface : abi.interfaces)
+				if (interface.id == "fes.memory.hps-ddr") advertised = true;
+		assert(advertised == latched);
+
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		const mister::Error admission =
+			hardware.AdmitCorePackage(declaring.path, declared.package_id, &admitted);
+		mister::CorePackageInspection inspection;
+		assert(hardware.InspectCorePackage(declaring.path, declared.package_id,
+			&inspection).ok());
+		if (latched) {
+			assert(admission.ok());
+			assert(inspection.compatible);
+		} else {
+			assert(admission.code == mister::ErrorCode::unsupported_interface);
+			assert(!inspection.compatible);
+			assert(inspection.compatibility_error.code == mister::ErrorCode::unsupported_interface);
+		}
+		// Cores that do not declare the interface are unaffected.
+		std::unique_ptr<mister::AdmittedCorePackage> other;
+		assert(hardware.AdmitCorePackage(plain.path, undeclared.package_id, &other).ok());
+		// The verdict came from the record, not the bus.
+		assert(mmio.reads.empty());
 	}
 }
 
@@ -2443,6 +2505,7 @@ int main()
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
 	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();
 	TestHpsDdrReleaseFailureRecoversBeforeExecution();
+	TestHpsDdrNeedsTheBootLayout();
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();

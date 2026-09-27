@@ -116,10 +116,22 @@ phase `programming`. Either leaves the ports in reset and takes the ordinary
 one-shot idle recovery. The `hps_ddr.ports` diagnostic (layer `fpga`) records
 the observed fields. Packages without the interface never release the ports.
 
-The mirrors show the loaded core's inputs. The controller keeps the layout
-latched at boot, which the splash supplies; the runtime does not rewrite it.
-Host tests cover admission, identity, register order and failures. Physical
-HPS DDR traffic through this path remains pending.
+The mirrors show the loaded core's inputs, not the layout the controller
+latched. U-Boot's `bridge enable` latches the layout of the core U-Boot
+loaded, and the runtime cannot rewrite it. A card whose boot core lacks the
+layout refuses every DDR command, for example an old splash kept by a
+network update. So before its first program in a boot, the FPGA manager
+reads the same mirrors from the still-loaded boot core. It records the
+verdict in `/run/mister-runtime-boot-hps-ddr`: `latched` or `absent`. A
+runtime restarted in the same boot reuses that record, and any other
+content counts as absent. The `hps_ddr.boot` diagnostic reports the
+verdict. Without `latched`, the protocol registry omits the interface.
+Admission and inspection then report `unsupported_interface`, and port
+release refuses before it reads the mirrors.
+
+Host tests cover the boot capture, admission, identity, register order and
+failures. The FES kit diagnostic of 2026-09-27 exercised the port release
+with DDR traffic. The boot capture has no hardware check yet.
 
 ## Shared HDMI audio
 

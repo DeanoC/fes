@@ -8,6 +8,7 @@
 #include "native/linux/mmio.hpp"
 
 #include <cstdint>
+#include <string>
 
 namespace mister {
 namespace native {
@@ -71,17 +72,28 @@ using generated::kBridgesReleased;
 using generated::kL3RemapContained;
 using generated::kL3RemapFpgaEnabled;
 
+// Per-boot record of the layout the SDR controller latched (/run is tmpfs).
+constexpr char kBootHpsDdrRecordPath[] = "/run/mister-runtime-boot-hps-ddr";
+
 class LinuxFpgaManager final : public FpgaManager {
 public:
-	LinuxFpgaManager(Mmio&, Clock&);
+	LinuxFpgaManager(Mmio&, Clock&,
+		std::string boot_record_path = kBootHpsDdrRecordPath);
 	NativeResult Program(const Artifact&,
 		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) override;
 	Error ReleaseHpsDdrPorts(std::uint64_t absolute_deadline_ms) override;
+	// Read once per boot, before this boot's first program: the FPGA then
+	// still holds the core U-Boot latched the layout from. The verdict is
+	// kept in the boot record, so a restarted runtime reuses it.
+	bool BootHpsDdrLayout() override;
 
 private:
 	Mmio& mmio_;
 	Clock& clock_;
+	std::string boot_record_path_;
+	bool boot_layout_known_ = false;
+	bool boot_layout_ = false;
 };
 
 } // namespace native

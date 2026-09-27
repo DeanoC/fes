@@ -13,8 +13,9 @@ Raw RBF loading is an explicit, idle-only hardware diagnostic using
 Startup, Stop, and bounded failure recovery load the sealed splash through the
 contained programming profile and ADV7513 video path. A `fes-gp-v1` package
 load releases the HPS bridges after the FPGA enters user mode. The SDR FPGA
-ports stay in reset unless the package requires `fes.memory.hps-ddr` 1.0 and
-its verified identity and live SDR mirrors match the shared layout. The
+ports stay in reset unless the package requires `fes.memory.hps-ddr` 1.0,
+the boot core latched the shared layout, and the package's verified identity
+and live SDR mirrors match that layout. The
 runtime contains no Main launcher, conventional game profiles, MiSTer SPI
 driver, or framebuffer.
 
