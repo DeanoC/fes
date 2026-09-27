@@ -78,6 +78,70 @@ Linux signature check, after the OSS 100 and Quartus 130 scans:
   example `0x3FFFFFF8 → 0x3FFFFFF8, 0xC0000007`.
 - The kernel stayed healthy (no new dmesg, uptime continuous).
 
+## FES U-Boot loading FAT `/idle.rbf`
+
+Later the same day, with explicit authorization for this device, the kit's
+card was updated in place. The card is `/dev/mmcblk0`, `SD64G`, serial
+`0x6e6a902d`, in the appliance layout with the A2 partition p2 at sector
+2099200. The update ran under the kit lease:
+
+1. **Backup.** The whole 1 MiB of p2 was saved to this host and to FAT
+   `/fes-backup/p2-upstream-e2d46cf9.bin` (sha256 `59cebe7a…`). Its first
+   515141 bytes are the upstream MiSTer U-Boot, `e2d46cf9…`.
+2. **U-Boot.** The derived FES U-Boot,
+   `21533e9903675329e3273aebced63c87dfa781f79327c121f24153ee2a11ecb9`
+   (`core=idle.rbf`), was written to p2. The read-back matched, and the rest
+   of the partition was unchanged.
+3. **FAT.** FAT `/idle.rbf` was added: the sealed splash `43dc7e9d…`. FAT
+   `/menu.rbf` was renamed away for the test, so only `/idle.rbf` could
+   supply a layout.
+4. **Reboot.** A warm reboot, not a power cycle, gave boot ID `c0bd4172…`.
+   The installed runtime reached idle.
+
+On that boot:
+
+- **The gate refused DDR.** The runtime built from FES `877f382c`
+  (`ef51402e…`) was bind-mounted over the installed runtime. The installed
+  runtime had already loaded its own idle core (`feb0a66a…`, no fpga2sdram
+  cell), so the new runtime's boot capture read all-ones mirrors. It
+  recorded `absent` (`hps_ddr.boot`, `latched=false`), and the OSS 100
+  package load was refused. That is the correct result for what it could
+  observe.
+- **The scan passed from `/idle.rbf`.** The record was then seeded with
+  `latched` by hand, an operator override for this diagnostic only. The
+  runtime was restarted and the same package loaded. `FPGAPORTRST` became
+  `0x3FFF`, and SDRAM plus all three DDR ports passed 7/7 with zero errors.
+  MB/s write/read: P0 1572/1564, P1 704/690, P2 703/684. The Linux signature
+  check held `{~a, a}` from `0x30000000` to `0x3FFFFFFC`.
+- **What that proves.** With `/menu.rbf` absent, a failed core load would
+  still have been followed by `bridge enable` latching unusable values. So
+  the pass shows the FES U-Boot programmed FAT `/idle.rbf` and latched its
+  layout.
+- **Cleanup.** The bind mount and the seeded record were removed. The
+  installed runtime `d5776191…` restarted and reached idle, and `/menu.rbf`
+  was restored. The card now keeps the FES U-Boot, `/idle.rbf` and
+  `/menu.rbf`.
+
+**Not covered:**
+- A cold power cycle.
+- The boot capture seeing the U-Boot core itself. That needs an image whose
+  installed runtime has the gate, so that the gated runtime is the first to
+  program in a boot.
+- Exact-artifact media acceptance. The rest of the card (kernel, rootfs,
+  agent) is still the earlier image.
+
+Evidence: `uboot-idle-oss100-pass.png` and `uboot-idle-run.log`.
+
+On the same boot, with the same seeded record and runtime, the OSS 100 MHz
+package resealed on the merged tool pins was scanned. The pins are Yosys
+`b27035fc` and nextpnr `f60b33aa`, from misteross at FES `877f382c`, seed 1,
+with signoff memory 100.75 MHz and pixel 76.65 MHz. The package is
+`4b6847eed6d9846722577cf03c6d0b555acf54d5b70dfa322a007761de777d1c`
+(archive `96e4327c…`, build `810c0554ac8c5abf9119b5c557a81488`). SDRAM and all
+three DDR ports passed 7/7 with zero errors. MB/s write/read: P0 1571/1563,
+P1 712/707, P2 712/703. `FPGAPORTRST` was `0x3FFF` while it ran and `0`
+after Stop. Evidence: `merged-oss100-pass.png` and `merged-oss100-run.log`.
+
 ## Found on the way
 
 - **Old splash:** with the pre-FES card `menu.rbf`, U-Boot latched unusable
@@ -100,6 +164,8 @@ In [`hps-ddr-kit-2026-09-27/`](hps-ddr-kit-2026-09-27/):
 
 ## Next
 
-Image integration: build the image with this branch's runtime so that the
-release is not a bind mount. Then run package acceptance of the OSS
-package through a library launch.
+1. Image integration: build the image with this branch's runtime so that the
+   port release and boot capture need no bind mount.
+2. Provision media with the FES U-Boot and `/idle.rbf`, and check a cold
+   boot.
+3. Run package acceptance of the OSS package through a library launch.
