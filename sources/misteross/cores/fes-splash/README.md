@@ -56,7 +56,7 @@ Recorded in `idle-contract.toml`.
 The SDR controller takes its FPGA-to-SDRAM port layout from the `cfg_*`
 inputs of the loaded bitstream's fpga2sdram cell, but only when
 `staticcfg.applycfg` is written. U-Boot writes it once, in `bridge enable`
-right after it loads this splash as `menu.rbf`. Nothing on Linux can apply a
+right after it loads this splash as FAT `/idle.rbf`. Nothing on Linux can apply a
 new layout safely, so every core that uses the HPS DDR depends on the splash.
 
 The splash therefore instantiates the cell with the `fes.memory.hps-ddr`
@@ -103,7 +103,6 @@ Sim writes two 720p frames under `build/sim/fes-splash-frames/` (`frame0.png`,
 ## FES slice 4
 
 Pin **`sealed/fes-splash.rbf`** (not `build/fes-splash/core.rbf`) in
-`image/build/native-inputs.toml` as `[splash_rbf]` (FAT `/menu.rbf`, U-Boot
-`core=menu.rbf` filename unchanged) and reuse the same digest as `[idle_rbf]`
-until a second bitstream exists. IdleRecipe: no Probe, no `0x002f`. See
+`image/build/native-inputs.toml` as `[splash_rbf]` (FAT `/idle.rbf`, FES
+U-Boot `core=idle.rbf`) and reuse the same digest as `[idle_rbf]`. IdleRecipe: no Probe, no `0x002f`. See
 `sealed/README.md`.

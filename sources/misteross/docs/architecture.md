@@ -264,8 +264,8 @@ sealed/fes-splash.rbf
 ```
 
 The tracked `sealed/` copy is the FES `[splash_rbf]` / `[idle_rbf]` pin.
-Reuse splash bytes for Stop idle; keep FAT `/menu.rbf` / `core=menu.rbf` as
-the filename until a U-Boot reseal. A sealed RBF requires a clean committed
+The same bytes are the boot core, FAT `/idle.rbf` loaded by the FES U-Boot
+(`core=idle.rbf`), and the Stop idle core. A sealed RBF requires a clean committed
 tree and `make toolchain`. `--synth-only` is a dirty-tree Yosys probe.
 Quartus is not part of this recipe. No build command programs hardware.
 

@@ -69,7 +69,7 @@ class SplashProducerTests(unittest.TestCase):
             "https://github.com/DeanoC/misteross", "b" * 40,
             {"rbf": {"sha256": "c" * 64, "size": 12}},
         ))
-        self.assertEqual(snippet["splash_rbf"]["fat_destination"], "/menu.rbf")
+        self.assertEqual(snippet["splash_rbf"]["fat_destination"], "/idle.rbf")
         self.assertEqual(snippet["idle_rbf"]["install_path"], "/usr/share/mister-runtime/idle.rbf")
         self.assertEqual(snippet["splash_rbf"]["sha256"], snippet["idle_rbf"]["sha256"])
         self.assertEqual(snippet["splash_rbf"]["path"], "build/fes-splash/core.rbf")

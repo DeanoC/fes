@@ -17,9 +17,10 @@ retired for day-to-day work. FES `sources/misteross` is the source of truth.
 | Provenance | `sealed/fes-splash.build-summary.json` |
 | Lane | OSS Yosys/nextpnr, `gpu-router=OFF` |
 
-FES pins this path as `[splash_rbf]` / `[idle_rbf]` (same bytes until a
-second idle bitstream exists). FAT install stays `/menu.rbf`. IdleRecipe
-must omit Probe (`0x0014`) and HPS framebuffer (`0x002f`).
+FES pins this path as `[splash_rbf]` and `[idle_rbf]`, with the same bytes:
+U-Boot loads it as FAT `/idle.rbf` (`core=idle.rbf`), and Stop idle loads it
+from the rootfs. IdleRecipe must omit Probe (`0x0014`) and HPS framebuffer
+(`0x002f`).
 
 Rebuild with `make build-fes-splash`, then replace these files and update
 digests here and in the FES pin.

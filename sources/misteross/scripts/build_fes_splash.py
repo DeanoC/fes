@@ -167,8 +167,8 @@ def native_inputs_snippet(repository: str, revision: str, evidence: dict | None 
     digest = payload["sha256"] if payload else "SEALED_RBF_SHA256"
     size = payload["size"] if payload else 0
     comment = (
-        "# FES slice 4 pin candidate. Filename stays /menu.rbf until a U-Boot reseal.\n"
-        "# Stop idle reuses these splash bytes until a second bitstream exists.\n"
+        "# FES pin candidate: U-Boot loads these bytes as FAT /idle.rbf, and Stop\n"
+        "# idle loads the same bytes from the rootfs.\n"
         "# IdleRecipe must omit Probe (0x0014) and HPS fb (0x002f).\n"
     )
     if payload is None:
@@ -181,7 +181,7 @@ def native_inputs_snippet(repository: str, revision: str, evidence: dict | None 
         "path = 'build/fes-splash/core.rbf'\n"
         f"sha256 = {digest!r}\n"
         f"size = {size}\n"
-        "fat_destination = '/menu.rbf'\n"
+        "fat_destination = '/idle.rbf'\n"
         "\n"
         "[idle_rbf]\n"
         f"repository = {repository!r}\n"
