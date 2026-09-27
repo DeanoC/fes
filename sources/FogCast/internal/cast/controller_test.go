@@ -282,6 +282,9 @@ func TestControllerKillsAndReapsPartialProcessBeforeScrubbingToken(t *testing.T)
 	}
 
 	close(process.waitCh)
+	// The short timeout above bounds Start while the process is blocked.
+	// Give the asynchronous reap and token scrub their normal Stop budget.
+	controller.config.StopTimeout = testConfig().StopTimeout
 	if err := controller.Stop(context.Background(), "session", 9); err != nil {
 		t.Fatalf("retry cleanup = %v", err)
 	}
