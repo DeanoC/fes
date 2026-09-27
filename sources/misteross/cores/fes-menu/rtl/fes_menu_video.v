@@ -2,7 +2,8 @@
 // Fixed timing never waits for memory. Fetch a complete frame's ordered stream
 // with initial prefetch in vertical blank; late pixels are discarded by index.
 module fes_menu_video #(
-    parameter [31:0] WINDOW_BASE = 32'd0
+    parameter [31:0] WINDOW_BASE = 32'd0,
+    parameter [0:0] TEST_PATTERN = 1'b0
 ) (
     input wire clk, rst, enable, quiesce,
     input wire submit_valid, submit_slot,
@@ -51,14 +52,36 @@ module fes_menu_video #(
     assign quiesced = (!enable || quiesce) && reader_idle && state == DRAIN;
     assign submit_ready = running && !pending && (state == DISPLAY || state == DRAIN);
 
-    fes_menu_reader #(.WINDOW_BASE(WINDOW_BASE)) reader (
+    wire [27:0] reader_address;
+    wire [7:0] reader_burstcount;
+    wire reader_read, reader_waitrequest, reader_readdatavalid;
+    wire [127:0] reader_readdata;
+    generate if (TEST_PATTERN) begin : pattern_source
+        fes_menu_pattern_memory memory (
+            .clk(clk), .address(reader_address), .burstcount(reader_burstcount),
+            .read(reader_read), .waitrequest(reader_waitrequest),
+            .readdata(reader_readdata), .readdatavalid(reader_readdatavalid)
+        );
+        assign address = 28'd0;
+        assign burstcount = 8'd0;
+        assign read = 1'b0;
+    end else begin : ddr_source
+        assign address = reader_address;
+        assign burstcount = reader_burstcount;
+        assign read = reader_read;
+        assign reader_waitrequest = waitrequest;
+        assign reader_readdata = readdata;
+        assign reader_readdatavalid = readdatavalid;
+    end endgenerate
+
+    fes_menu_reader #(.WINDOW_BASE(TEST_PATTERN ? 32'h00001000 : WINDOW_BASE)) reader (
         .clk(clk), .rst(rst), .enable(reader_enable), .slot(fetch_slot),
         .start(state == START && running), .pixel_ready(pixel_ready),
         .pixel_valid(pixel_valid), .pixel_bgrx(pixel_bgrx),
         .pixel_index(pixel_index), .done(), .idle(reader_idle),
-        .address(address), .burstcount(burstcount), .read(read),
-        .waitrequest(waitrequest), .readdata(readdata),
-        .readdatavalid(readdatavalid)
+        .address(reader_address), .burstcount(reader_burstcount), .read(reader_read),
+        .waitrequest(reader_waitrequest), .readdata(reader_readdata),
+        .readdatavalid(reader_readdatavalid)
     );
     always @(posedge clk) begin
         if (h == 11'd1649) begin

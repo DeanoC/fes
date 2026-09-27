@@ -1,7 +1,8 @@
 # Menu framebuffer display
 
-This is a simulation-only native menu scanout implementation. It is not a
-registered core, launchable package, sealed RBF, or supported kit display yet.
+The framebuffer mode is a simulation-only native menu scanout implementation.
+A separate DDR-free test-pattern diagnostic exercises the reader, FIFO, timing
+and HDMI board path. Neither mode is a registered game or launchable package.
 
 Run from misteross:
 
@@ -34,3 +35,26 @@ submissions, deliberate underflow, delayed-data recovery, reset/drain, pending
 switch cancellation and counter saturation. It writes `slot0.ppm` and
 `slot1.ppm` under `build/sim/fes-menu-video/` for inspection. These modeled
 results do not establish kit DDR bandwidth or routed clock closure.
+
+Build the standalone diagnostic with authenticated, pinned tools (GPU 0):
+
+```sh
+make build-fes-menu-pattern FES_TOOLCHAIN_CACHE_ROOT=/absolute/cache/path
+```
+
+The output is `build/oss/fes-menu-pattern/core.rbf`; its closed input record and
+build summary are retained beside it. The source must be committed and clean.
+Use the existing kit lease and development-RBF load path; this diagnostic does
+not replace the appliance boot or idle image.
+
+The local pattern memory responds to real reader bursts without instantiating
+DDR or GP hardware. Eight color bars, a one-pixel white border and a lower
+checkerboard check geometry and color order. The upper-left marker alternates
+green/magenta every 60 frames through normal sequence submissions. Any reader
+underflow turns white pixels red. The pattern mode ignores external memory
+inputs and emits no external memory commands.
+
+`sim_fes_menu.py --case pattern` verifies full frames, switching and quiesce.
+`--case board` verifies PLL-unlock output gating and automatic switching across
+120 frames. These digital models do not validate the analog PLL, HDMI link,
+DDR bandwidth, host framebuffer uploads or the future runtime presentation ABI.

@@ -1223,3 +1223,7 @@ coleco-stream-diagnostic:
 .PHONY: sim-fes-menu
 sim-fes-menu:
 	$(PYTHON) scripts/sim_fes_menu.py --verilator $(VERILATOR)
+
+.PHONY: build-fes-menu-pattern
+build-fes-menu-pattern:
+	$(PYTHON) scripts/build_fes_menu.py $(if $(FES_TOOLCHAIN_CACHE_ROOT),--cache-root $(FES_TOOLCHAIN_CACHE_ROOT),)
