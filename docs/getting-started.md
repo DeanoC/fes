@@ -130,7 +130,11 @@ defaults to false, so this file leaves the content ensure seam off. That
 default stays off until #177 (legacy fallback when the source does not
 advertise) and #172 (kit home host) land. Set `ensure = true` under a
 `[mesh]` table only when this host should run that seam before a
-package-backed FPGA launch. To add a mounted library,
+package-backed FPGA launch. `[mesh] placement` also defaults to false;
+`placement = true` lets the host choose the kit for a package-backed
+title from its discovered nodes, with optional `display_preference`
+and `placement_override` node ids
+([mesh Phase 3](mesh-phase3.md)). To add a mounted library,
 append a table using an existing absolute directory:
 
 ```toml

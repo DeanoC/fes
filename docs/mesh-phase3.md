@@ -1,8 +1,13 @@
 # Mesh LAN — Phase 3 execution brief
 
-**Status:** Phase 3 not started. This brief is the slice order. It does
-not place a title, and it does not merge code. Bob coordinates. Deano
-owns FES parent merges.
+**Status:** Slices 1–6 are on main (#212, #213, #214, #216, #219,
+#221). Before Slice 8, no production code installed a placement ask:
+`SetMeshPlacementAsk` and the display preference setter were called
+only from tests, so the sofa never placed. Slice 8 wires placement
+into the host behind `[mesh] placement`, default off. The Slice 6 kit
+HIL waits on Slice 8 and on Deano. Slice 7 waits on Deano's
+`native_emu` lock. This brief is the slice order. It does not merge
+code. Bob coordinates. Deano owns FES parent merges.
 
 **Audience:** FogCast host (placement policy), rooms UX (Foggy) when
 sofa copy lands, and Caster when a later slice touches kit or execute
@@ -10,13 +15,14 @@ binding. Read the locks first. This brief names owners, slices, and
 the unsigned placement strawman. It does not reopen Phase 1 or Phase 2,
 and it does not freeze a wire format.
 
-**Base:** FES `main` `019f3168`. Phase 1 closed at `3d34b6e0`
+**Base:** the brief was written on FES `main` `019f3168`; Slice 8 is
+based on `01ec80af`. Phase 1 closed at `3d34b6e0`
 (Soft-stop #132, capability advertisements #134, host inventory and
 in-use #137). Kit Soft-stop / ads / inventory smoke closed green
 2026-09-25. Phase 2 Slices 1–9 wiring is on main via #173
 (`2ebab245`). Slice 9 kit HIL closed green 2026-09-25 (H1–H5; H6 N/A;
-H7 documented). #207 (GET `/games` versus Launch session lock) stays
-parked. Acceptance in [`mesh-phase1.md`](mesh-phase1.md) and
+H7 documented). #246 fixed #207: content and catalogue GETs no longer
+wait behind a launch. Acceptance in [`mesh-phase1.md`](mesh-phase1.md) and
 [`mesh-phase2.md`](mesh-phase2.md) stays as written.
 
 ---
@@ -76,12 +82,13 @@ Owners are component strawmen. Agree files before parallel edits
 | Workstream | Strawman owner | What Phase 3 changes | What it must not do |
 | --- | --- | --- | --- |
 | **Coordination** | Bob | Slice order and this brief | Parent merge. That stays Deano's. |
-| **Host / placement** | FogCast host | Policy selection, then a host-local record of preference and last sink, then attaching a decision that matches the bound executor | Kit mutation. A second lease. Routable I/O. Flipping `[mesh] ensure`. |
+| **Host / placement** | FogCast host | Policy selection, then a host-local record of preference and last sink, then attaching a decision that matches the bound executor, then building the ask in production behind `[mesh] placement` | Kit mutation. A second lease. Routable I/O. Flipping `[mesh] ensure`. |
 | **Rooms UX** | Foggy | Sofa stays quiet when policy selected one node. Unresolved does not launch. | A default "which machine" prompt. Collapse Checking, Missing, Needs a choice, In use, and version skew into one string. |
 | **Cast / kit** | Caster, only when a slice binds a different executor | Later apply onto a kit the session was not already bound to | Power, image, or SD mutation. Remote reboot. Kit-as-Shell. |
 | **Parent merge** | Deano | Merge to `main` | — |
 
-Slices 1–5 do not touch the kit. Slice 6 does. Caster reviews that
+Slices 1–5 do not touch the kit. Slice 6 does. Slice 8 reads each
+configured kit's node document and does not mutate a kit. Caster reviews that
 boundary, and the kit HIL needs Deano present. Slice 7 does not start
 until Deano locks the `native_emu` tie-break.
 
@@ -89,7 +96,7 @@ until Deano locks the `native_emu` tie-break.
 
 ## Ordered slices
 
-### 1. Host-only placement policy selection — first slice
+### 1. Host-only placement policy selection — on main (#212)
 
 **Owner:** FogCast host. New package `internal/meshplace`. Package
 tests only.
@@ -170,7 +177,7 @@ launch. Does not install a mesh session. Does not flip
 mutate a kit, image, or SD card. Does not add a host route. Does not
 implement the override. Does not start a `native_emu` mesh claim.
 
-### 2. Optional advanced override — still package-only
+### 2. Optional advanced override — on main (#213)
 
 **Owner:** FogCast host. Same package.
 
@@ -187,7 +194,7 @@ No sofa prompt. No host route yet. No kit. No Powerboat. No HIL.
 **Does not:** lock the `native_emu` tie-break. Does not route picture
 or pad to another node.
 
-### 3. Host-local preference and last sink
+### 3. Host-local preference and last sink — on main (#214)
 
 **Owner:** FogCast host.
 
@@ -199,7 +206,7 @@ host memory for this slice.
 **Does not:** write `agent.toml`, the SD card, or any kit file. Does
 not dial the kit. No Powerboat. No HIL.
 
-### 4. Record the decision when it matches the bound executor
+### 4. Record the decision when it matches the bound executor — on main (#216)
 
 **Owner:** FogCast host.
 
@@ -215,7 +222,7 @@ today's bind.
 `[mesh] ensure` on. Does not change Phase 2 Ready while the seam is
 off. No kit mutation. No Powerboat. No HIL.
 
-### 5. Rooms stay quiet on a selection
+### 5. Rooms stay quiet on a selection — on main (#219)
 
 **Owner:** Foggy for sofa behavior. FogCast host for the predicate
 the room reads.
@@ -232,7 +239,7 @@ Host and rooms tests. No kit. No Powerboat. No HIL.
 **Does not:** treat an Execute advertisement as Ready. Does not show
 a capture preview as the sink.
 
-### 6. Bind a different FPGA executor — kit HIL, Deano present
+### 6. Bind a different FPGA executor — on main (#221); kit HIL open
 
 **Owner:** FogCast host. Caster reviews this boundary.
 
@@ -248,11 +255,16 @@ is Phase 4.
 **Kit HIL, Deano present.** Do not start it from an unattended agent.
 Follow [kit sharing](kit-sharing.md) and the designated kit in the
 selected FogCast `docs/DEVELOPMENT.md`. Release the lease when the
-check ends. Cover: the chosen kit is the one that plays; a second
+check ends. The HIL needs Slice 8: before it, nothing in production
+asked for placement. Set `[mesh] placement = true` on the host under
+test. Cover: the chosen kit is the one that plays; a second
 shell sees in use and does not take the lease; Soft-stop retains;
 empty-body stop releases; a preview on the menu host is not the
 DisplaySink; `[mesh] ensure` left unset still takes the Phase 0 and
-Phase 1 launch path.
+Phase 1 launch path, including after a placement rebind; `[mesh]
+placement` left unset keeps today's bind. One
+designated kit covers selection of the bound kit. Rebinding onto a
+different kit needs a second kit that Deano designates.
 
 **Does not:** write an image or SD card. Does not remote-reboot. Does
 not add a second lease type. Does not implement kit-as-Shell.
@@ -270,6 +282,78 @@ not a second kit lease and it is not Phase 5 host-as-Execute. If the
 chosen node is a kit, that follow-up needs Caster and a kit HIL with
 Deano present.
 
+### 8. Wire placement into the host — this change
+
+**Owner:** FogCast host. Host tests only. No kit mutation. Lands
+before the Slice 6 kit HIL.
+
+Slices 1–6 left placement as seams with no production caller. This
+slice builds the placement ask in the host. The switch defaults off.
+
+**Switch.** `[mesh] placement = true` in the host `config.toml` turns
+production placement on. `fogcast-api` and the `fogcast` CLI call
+`EnableMeshPlacement` after open. An unset key or `placement = false`
+keeps today's bind, and games rows keep Phase 0, Phase 1, and Phase 2
+Ready. The switch does not turn `[mesh] ensure` on.
+
+**Candidates.** One row per Phase 1 inventory node (`GET
+/api/v1/mesh/nodes`): node id, mesh major, Execute kinds, DisplaySink,
+and InputSource from its advertisement. An `fpga_native` row carries
+the `abis` of that node's `GET /v1/mesh/content/node`, read with the
+agent token of the enabled configured target whose `target_id` is
+that node id. The document must name the same node. A failed read,
+another node id, a disabled target, and a node this host has not
+configured give no `abis`, which is not eligibility. Those `abis`
+come from packages installed or staged on the kit, so a kit whose
+image ships no package of an ABI family is not eligible for that
+family. A read is reused for a short TTL, a failure backs off, and a
+read is bounded. It is not a kit-lease mutation and not a route or
+response freeze. An empty inventory is not a placement decision: the
+launch keeps today's bind.
+
+**Household ids.** `[mesh] display_preference` seeds the household
+display preference at open. `[mesh] placement_override` is Slice 2's
+advanced override (#211). It selects that node only when that node
+can already run the title, and a named node that cannot is not
+replaced. Both are node ids; empty is unset; any other value fails
+config load. The last play DisplaySink stays host memory. It changes
+only after the launch has also delivered its firmware and media
+(#215).
+
+**Explicit target.** A launch that names `target` is the caller's
+executor choice. Placement does not run for it. Rooms, tenfoot, the
+browser UI, and the CLI launch without `target`.
+
+**Seam off.** Placement does not need `[mesh] ensure`. With no mesh
+session installed, the host projects the title itself, so Launch runs
+Place and `GET /api/v1/games` writes `placement` without
+`ready_here`. Composition Ready stays the Ready signal, and hostclient
+`LaunchBlock` blocks `unresolved` and `fail_closed`. A selection of
+another FPGA kit claims and rebinds that kit as in Slice 6; the launch
+then streams its package and media to that kit on the Phase 0 path.
+
+**Acceptance:**
+
+- Switch unset or false: no ask, no `placement` field, no node read,
+  no rebind.
+- One eligible kit that is the bound kit: selected, recorded, and the
+  launch keeps the bind.
+- Two eligible kits: the preference or last sink selects one. Neither
+  set: unresolved, and rooms do not launch.
+- The override selects an eligible named node. A named node that is
+  not a candidate stays unresolved.
+- No kit lists the title's ABI: fail closed.
+- An explicit `target` launch does not read a node and does not
+  claim another kit.
+- Seam off: rows carry `placement` alone, and a rebind onto another
+  kit launches without Ensure.
+- The installed ask copies each candidate's nested slices (#217).
+
+**Does not:** flip `[mesh] ensure`. Add a host route. Freeze the node
+document. Rank several eligible kits. Pick a `native_emu` winner.
+Treat a capture preview as DisplaySink. Persist the last sink across
+host restarts. Write `agent.toml`, a kit file, an image, or an SD card.
+
 ---
 
 ## Phase 0 / Phase 1 / Phase 2 floor
@@ -286,8 +370,11 @@ keeps the Phase 0 and Phase 1 path. No Phase 3 slice flips that
 default. Kit-local pad (#172) is already on main (#179, #187, #192)
 and is not a Phase 3 dependency. Do not reopen that feed.
 
-#207 stays parked. Placement work does not pick up the GET `/games`
-versus Launch session lock.
+`[mesh] placement` defaults off. An unset key or `placement = false`
+keeps the Phase 0, Phase 1, and Phase 2 bind and Ready.
+
+#207 is closed by #246. Content and catalogue GETs no longer wait
+behind a launch.
 
 Another node's Execute advertisement still does not make a row Ready.
 Advertisement silence still does not release the kit lease.
