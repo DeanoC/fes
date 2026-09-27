@@ -60,7 +60,12 @@
 
 **Files:** Create `sources/misteross/cores/fes-menu/rtl/top.v`, `sources/misteross/cores/fes-menu/sim/board_tb.cpp`, `sources/misteross/scripts/build_fes_menu.py`, `sources/misteross/tests/test_fes_menu.py`; extend the menu simulation script and README and `sources/misteross/docs/architecture.md`. Reuse selected splash pixel PLL and established board pin/electrical evidence; do not alter splash RTL.
 
-**Interfaces:** Top connects `fes_menu_video` to `fes_hps_ddr` port 0 at the pixel clock and uses its p0_reset. Tie unused writes and ports inactive according to the dependency. Diagnostic top scans deterministic slot 0 only after an explicit simulation-controlled enable; synthesis diagnostic enable is fixed and named in its manifest. No GP presentation contract is claimed in this slice. The resulting RBF remains contained-diagnostic-only until a later described-menu/runtime plan adds identity and admission.
+**Interfaces:** Top connects `fes_menu_video` to `fes_hps_ddr` port 0 at the pixel clock and uses its p0_reset. Tie unused writes and ports inactive according to the dependency. Shared
+port reset is startup/reset containment, distinct from the reader's local
+cancellation request: the guard hides responses during hold. Any live hold
+must follow reader quiesce/drain; simulate this ordering with the merged
+guard. An unexpected port reset requires a fresh reader state only after
+the guard has drained, not waiting forever for hidden responses. Diagnostic top scans deterministic slot 0 only after an explicit simulation-controlled enable; synthesis diagnostic enable is fixed and named in its manifest. No GP presentation contract is claimed in this slice. The resulting RBF remains contained-diagnostic-only until a later described-menu/runtime plan adds identity and admission.
 
 - [ ] Write producer tests proving the final shared DDR source and generated constants are selected, correct layout evidence is mandatory, alternate layout is rejected, and no unrelated splash/recipe/artifact policy changes occur. Board simulation must check initial reset/PLL lock and disabled DDR commands before enable.
 - [ ] Run `python3 -m unittest tests.test_fes_menu`; confirm missing producer behavior fails.
