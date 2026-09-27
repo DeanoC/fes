@@ -444,8 +444,10 @@ module top #(
         .p2_writedata(ddr2_wdata), .p2_byteenable(ddr2_be), .p2_write(ddr2_write)
     );
 
+    wire [191:0] ddr_cycles;
+    wire [95:0] ddr_rate_digits /* verilator public_flat_rd */;
     ddr_channel #(.DATA_W(128), .ADDR_W(28), .BASE(DDR_BASE),
-                  .BYTES(DDR_WIDE_BYTES), .MHZ(DDR_MHZ)) ddr0_test (
+                  .BYTES(DDR_WIDE_BYTES)) ddr0_test (
         .clk(mem_clk), .reset(ddr0_reset), .stop(stop_sync[1]),
         .address(ddr0_address), .burstcount(ddr0_burst), .waitrequest(ddr0_wait),
         .readdata(ddr0_rdata), .readdatavalid(ddr0_rvalid), .read(ddr0_read),
@@ -455,10 +457,10 @@ module top #(
         .fault_addr(ddr0_status[229:198]), .last_addr(ddr0_status[197:166]),
         .fault_phase(ddr0_status[165:163]), .bad(ddr0_status[162:35]),
         .done(ddr0_done), .nack(ddr0_nack), .stopped(ddr0_stopped),
-        .write_rate(ddr0_status[31:16]), .read_rate(ddr0_status[15:0])
+        .write_cycles(ddr_cycles[31:0]), .read_cycles(ddr_cycles[63:32])
     );
     ddr_channel #(.DATA_W(64), .ADDR_W(29), .BASE(DDR1_BASE),
-                  .BYTES(DDR_NARROW_BYTES), .MHZ(DDR_MHZ)) ddr1_test (
+                  .BYTES(DDR_NARROW_BYTES)) ddr1_test (
         .clk(mem_clk), .reset(ddr1_reset), .stop(stop_sync[1]),
         .address(ddr1_address), .burstcount(ddr1_burst), .waitrequest(ddr1_wait),
         .readdata(ddr1_rdata), .readdatavalid(ddr1_rvalid), .read(ddr1_read),
@@ -468,10 +470,10 @@ module top #(
         .fault_addr(ddr1_status[229:198]), .last_addr(ddr1_status[197:166]),
         .fault_phase(ddr1_status[165:163]), .bad(ddr1_status[98:35]),
         .done(ddr1_done), .nack(ddr1_nack), .stopped(ddr1_stopped),
-        .write_rate(ddr1_status[31:16]), .read_rate(ddr1_status[15:0])
+        .write_cycles(ddr_cycles[95:64]), .read_cycles(ddr_cycles[127:96])
     );
     ddr_channel #(.DATA_W(64), .ADDR_W(29), .BASE(DDR2_BASE),
-                  .BYTES(DDR_NARROW_BYTES), .MHZ(DDR_MHZ)) ddr2_test (
+                  .BYTES(DDR_NARROW_BYTES)) ddr2_test (
         .clk(mem_clk), .reset(ddr2_reset), .stop(stop_sync[1]),
         .address(ddr2_address), .burstcount(ddr2_burst), .waitrequest(ddr2_wait),
         .readdata(ddr2_rdata), .readdatavalid(ddr2_rvalid), .read(ddr2_read),
@@ -481,8 +483,15 @@ module top #(
         .fault_addr(ddr2_status[229:198]), .last_addr(ddr2_status[197:166]),
         .fault_phase(ddr2_status[165:163]), .bad(ddr2_status[98:35]),
         .done(ddr2_done), .nack(ddr2_nack), .stopped(ddr2_stopped),
-        .write_rate(ddr2_status[31:16]), .read_rate(ddr2_status[15:0])
+        .write_cycles(ddr_cycles[159:128]), .read_cycles(ddr_cycles[191:160])
     );
+    ddr_rates #(.WIDE_NUMERATOR({8'd0, DDR_WIDE_BYTES} * DDR_MHZ),
+                .NARROW_NUMERATOR({8'd0, DDR_NARROW_BYTES} * DDR_MHZ)) ddr_speed (
+        .clk(mem_clk), .cycles(ddr_cycles), .digits(ddr_rate_digits)
+    );
+    assign ddr0_status[31:0] = {ddr_rate_digits[15:0], ddr_rate_digits[31:16]};
+    assign ddr1_status[31:0] = {ddr_rate_digits[47:32], ddr_rate_digits[63:48]};
+    assign ddr2_status[31:0] = {ddr_rate_digits[79:64], ddr_rate_digits[95:80]};
     assign ddr0_status[261:230] = ddr0_errors;
     assign ddr1_status[261:230] = ddr1_errors;
     assign ddr2_status[261:230] = ddr2_errors;

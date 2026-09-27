@@ -22,7 +22,7 @@ def main() -> None:
         CORE / "rtl" / "ram_display.v",
         CORE / "rtl" / "sdram_addon_port.v",
         CORE / "rtl" / "ddr_channel.v",
-        CORE / "rtl" / "ddr_rate.v",
+        CORE / "rtl" / "ddr_rates.v",
         COMMON / "rtl" / "fes_hps_ddr.v",
         COMMON / "rtl" / "fes_hps_ddr_guard.v",
         COMMON / "rtl" / "fes_application_gp.v",

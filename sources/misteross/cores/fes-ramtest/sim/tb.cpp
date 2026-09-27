@@ -93,6 +93,16 @@ int main() {
     require(both, "memory scan did not pass");
     require(green, "HDMI did not show a passing status");
     require(!top.ddr_open, "an HPS DDR write burst was left open");
+    // Six MB/s readings, one divider in turn: each is four decimal digits.
+    for (int i = 0; i < 1000; ++i)
+        tick(top);
+    const auto& digits = top.bench->dut->ddr_rate_digits;
+    for (int slot = 0; slot < 6; ++slot) {
+        const uint32_t word = (digits[slot / 2] >> ((slot % 2) * 16)) & 0xffffu;
+        require(word != 0, "an HPS DDR pass has no MB/s reading");
+        for (int nibble = 0; nibble < 4; ++nibble)
+            require(((word >> (nibble * 4)) & 0xfu) <= 9u, "an HPS DDR MB/s reading is not decimal");
+    }
     for (uint32_t base : {0x30000000u, 0x38000000u, 0x3c000000u})
         for (uint32_t offset : {0x0u, 0x8u, 0xff8u})
             require_signature(top, base + offset);

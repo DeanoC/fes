@@ -15,13 +15,12 @@
 // A data mismatch is counted and the scan continues; bad accumulates the
 // failing bit positions. No progress for TIMEOUT cycles is NACK and ends the
 // scan. stop ends it after the current burst. The last write and read
-// passes report MB/s (decimal digits) for this port.
+// passes report their length in cycles (ddr_rates turns them into MB/s).
 module ddr_channel #(
     parameter integer DATA_W = 64,
     parameter integer ADDR_W = 29,
     parameter [31:0] BASE = 32'h30000000,
     parameter [31:0] BYTES = 32'h04000000,
-    parameter integer MHZ = 100,
     parameter [23:0] TIMEOUT = 24'd1000000
 ) (
     input  wire              clk,
@@ -49,8 +48,8 @@ module ddr_channel #(
     output reg               done,
     output reg               nack,
     output reg               stopped,
-    output wire [15:0]       write_rate,
-    output wire [15:0]       read_rate
+    output reg  [31:0]       write_cycles,
+    output reg  [31:0]       read_cycles
 );
     localparam integer LANES = DATA_W / 64;
     localparam integer STEP = DATA_W / 8;
@@ -148,8 +147,6 @@ module ddr_channel #(
     reg [DATA_W-1:0] expected;
     reg [23:0] idle;
     reg [31:0] pass_cycles;
-    reg [31:0] write_cycles, read_cycles;
-    reg        write_pass_end, read_pass_end;
     reg [2:0]  drain;
 
     // Compare pipeline: difference, grouped OR, then count.
@@ -180,8 +177,6 @@ module ddr_channel #(
     // datapath registers stay out of the reset and handshake paths.
     integer g;
     always @(posedge clk) begin
-        write_pass_end <= 1'b0;
-        read_pass_end <= 1'b0;
         read_room_limit <= READ_LIMIT - {3'd0, burst, 1'b0};
         if (reset) begin
             state <= ST_WRITE_START;
@@ -197,6 +192,8 @@ module ddr_channel #(
             done <= 1'b0;
             nack <= 1'b0;
             stopped <= 1'b0;
+            write_cycles <= 32'd0;
+            read_cycles <= 32'd0;
             in_flight <= 12'd0;
             idle <= 24'd0;
             diff_valid <= 1'b0;
@@ -268,7 +265,6 @@ module ddr_channel #(
                         end else if (pass_end) begin
                             // Pass written: read it back from the start.
                             write <= 1'b0;
-                            write_pass_end <= 1'b1;
                             write_cycles <= pass_cycles;
                             reading <= 1'b1;
                             state <= ST_READ_START;
@@ -336,7 +332,6 @@ module ddr_channel #(
                         stopped <= 1'b1;
                         state <= ST_STOP;
                     end else begin
-                        read_pass_end <= 1'b1;
                         read_cycles <= pass_cycles;
                         reading <= 1'b0;
                         if (phase == PHASES - 3'd1) begin
@@ -361,10 +356,4 @@ module ddr_channel #(
         end
     end
 
-    ddr_rate #(.NUMERATOR({8'd0, BYTES} * MHZ)) write_speed (
-        .clk(clk), .start(write_pass_end), .cycles(write_cycles), .digits(write_rate)
-    );
-    ddr_rate #(.NUMERATOR({8'd0, BYTES} * MHZ)) read_speed (
-        .clk(clk), .start(read_pass_end), .cycles(read_cycles), .digits(read_rate)
-    );
 endmodule

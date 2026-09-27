@@ -65,7 +65,7 @@ class RamTestAbiTest(unittest.TestCase):
             self.assertIn(name, channel)
         for recipe in ("build_fes_ramtest.py", "build_fes_ramtest_quartus.py"):
             text = (ROOT / "scripts" / recipe).read_text()
-            for source in ("fes_hps_ddr.v", "fes_hps_ddr_guard.v", "ddr_channel.v", "ddr_rate.v"):
+            for source in ("fes_hps_ddr.v", "fes_hps_ddr_guard.v", "ddr_channel.v", "ddr_rates.v"):
                 self.assertIn(source, text)
             self.assertNotIn("hps_ddr_port.v", text)
         sim = (ROOT / "scripts" / "sim_fes_ramtest.py").read_text()

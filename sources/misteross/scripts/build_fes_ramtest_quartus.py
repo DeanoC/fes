@@ -47,7 +47,7 @@ VERILOG_SOURCES = (
     "cores/fes-ramtest/rtl/ram_display.v",
     "cores/fes-ramtest/rtl/ram_pll.v",
     "cores/fes-ramtest/rtl/sdram_addon_port.v",
-    "cores/fes-ramtest/rtl/ddr_rate.v",
+    "cores/fes-ramtest/rtl/ddr_rates.v",
     "cores/fes-ramtest/rtl/ddr_channel.v",
     "cores/fes-ramtest/rtl/top.v",
 )
