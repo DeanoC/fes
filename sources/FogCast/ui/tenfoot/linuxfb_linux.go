@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -47,6 +48,7 @@ func runFramebuffer(ctx context.Context, opts Options) error {
 		return err
 	}
 	defer inputs.close()
+	inputs.seed(app)
 	if opts.Smoke {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.SmokeTimeout)
@@ -100,6 +102,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 
 type nativeInput struct {
 	fd       int
+	kind     InputKind
 	pending  []byte
 	shifts   map[uint16]bool
 	commands map[uint16]Command
@@ -107,8 +110,9 @@ type nativeInput struct {
 	controls map[uint16]Command
 }
 type nativeInputs struct {
-	devices []*nativeInput
-	held    map[Command]bool
+	devices   []*nativeInput
+	held      map[Command]bool
+	automatic bool
 }
 
 func openNativeInputs(spec string) (*nativeInputs, error) {
@@ -126,7 +130,7 @@ func openNativeInputs(spec string) (*nativeInputs, error) {
 	default:
 		paths = strings.Split(spec, ",")
 	}
-	result := &nativeInputs{}
+	result := &nativeInputs{automatic: spec == "" || spec == "auto"}
 	for _, path := range paths {
 		fd, err := unix.Open(strings.TrimSpace(path), unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 		if err != nil {
@@ -136,10 +140,15 @@ func openNativeInputs(spec string) (*nativeInputs, error) {
 			}
 			continue
 		}
-		result.devices = append(result.devices, &nativeInput{fd: fd})
+		kind := nativeDeviceKind(fd)
+		if result.automatic && kind == InputNone {
+			unix.Close(fd)
+			continue
+		}
+		result.devices = append(result.devices, &nativeInput{fd: fd, kind: kind})
 	}
 	if len(result.devices) == 0 {
-		return nil, fmt.Errorf("linuxfb: no readable evdev inputs (use -input none for a display-only check)")
+		return nil, fmt.Errorf("linuxfb: no readable supported keyboard/gamepad evdev inputs (use -input none for a display-only check)")
 	}
 	return result, nil
 }
@@ -149,7 +158,8 @@ func (ins *nativeInputs) close() {
 	}
 }
 func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
-	for _, in := range ins.devices {
+devices:
+	for _, in := range append([]*nativeInput(nil), ins.devices...) {
 		// Bound draining so a noisy device cannot starve rendering or cancellation.
 		for batch := 0; batch < 8; batch++ {
 			var b [nativeEventSize * 32]byte
@@ -158,9 +168,17 @@ func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
 				break
 			}
 			if err != nil {
+				if ins.automatic {
+					ins.drop(app, in)
+					continue devices
+				}
 				return false, fmt.Errorf("linuxfb input: %w", err)
 			}
 			if n == 0 {
+				if ins.automatic {
+					ins.drop(app, in)
+					continue devices
+				}
 				return false, fmt.Errorf("linuxfb input: device closed")
 			}
 			in.pending = append(in.pending, b[:n]...)
@@ -168,6 +186,10 @@ func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
 				typ, code, value := decodeNativeEvent(in.pending[:nativeEventSize])
 				in.pending = in.pending[nativeEventSize:]
 				if typ == 0 && code == 3 {
+					if ins.automatic {
+						ins.drop(app, in)
+						continue devices
+					}
 					return false, fmt.Errorf("linuxfb input: evdev dropped events; restart to resynchronise")
 				}
 				if typ == 1 {
@@ -399,4 +421,60 @@ func nativeHIDUsage(code uint16) uint8 {
 		return uint8(code + 28)
 	}
 	return map[uint16]uint8{1: 41, 12: 45, 13: 46, 14: 42, 15: 43, 26: 47, 27: 48, 28: 40, 29: 224, 39: 51, 40: 52, 41: 53, 42: 225, 43: 49, 51: 54, 52: 55, 53: 56, 54: 229, 56: 226, 57: 44, 58: 57, 97: 228, 100: 230, 102: 74, 103: 82, 104: 75, 105: 80, 106: 79, 107: 77, 108: 81, 109: 78, 110: 73, 111: 76, 125: 227, 126: 231}[code]
+}
+
+// EVIOCGBIT(EV_KEY, 96) reads the Linux key capability bitmap. Only actual
+// keyboards or supported gamepad button devices belong in automatic selection.
+func nativeDeviceKind(fd int) InputKind {
+	var keys [96]byte
+	const request = uintptr(0x80000000 | (96 << 16) | ('E' << 8) | 0x21)
+	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), request, uintptr(unsafe.Pointer(&keys[0])))
+	if err != 0 {
+		return InputNone
+	}
+	return nativeKindFromKeys(keys[:])
+}
+func nativeKindFromKeys(keys []byte) InputKind {
+	has := func(code int) bool { return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0 }
+	if has(304) || has(305) {
+		return InputGamepad
+	}
+	if has(30) && has(44) && has(28) {
+		return InputKeyboard
+	}
+	return InputNone
+}
+func (ins *nativeInputs) seed(app *App) {
+	for _, in := range ins.devices {
+		app.SeedInput(in.kind, in.fd)
+	}
+	app.FinishInputSeed()
+}
+func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
+	unix.Close(lost.fd)
+	for i, in := range ins.devices {
+		if in == lost {
+			ins.devices = append(ins.devices[:i], ins.devices[i+1:]...)
+			break
+		}
+	}
+	// Cancel lost holds without synthesizing a short press on disconnect.
+	remaining := map[Command]bool{}
+	for _, in := range ins.devices {
+		for _, cmd := range in.controls {
+			remaining[cmd] = true
+		}
+	}
+	for cmd := range ins.held {
+		if !remaining[cmd] {
+			app.hold.Cancel(cmd)
+			app.Release(cmd)
+			delete(ins.held, cmd)
+		}
+	}
+	for _, cmd := range lost.commands {
+		app.Release(cmd)
+	}
+	app.DetachInput(InputKeyboard, lost.fd)
+	app.DetachInput(InputGamepad, lost.fd)
 }

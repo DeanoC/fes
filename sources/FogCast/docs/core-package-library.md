@@ -640,3 +640,8 @@ to setup, from setup to systems, then closes the overlay.
 Refresh systems revalidates the host catalog and clears the setup selection. If
 refresh fails, previous system rows remain visible but install/setup is disabled.
 This tenfoot flow does not implement kit HDMI output or catalog federation.
+
+Pending tenfoot Systems requests keep selection locked to prevent duplicate
+submission. Back dismisses the overlay and cancels its request context; stale
+responses are ignored. Dismissing a request does not undo a host operation
+that has already completed.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 
 type coreLibraryState struct {
 	Open, Busy, Online                                     bool
+	Cancel                                                 context.CancelFunc
 	Gen, Index                                             int
 	Cores                                                  []hostclient.AvailableCore
 	Ref                                                    *hostclient.CoreReference
@@ -36,6 +38,7 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 		add("Refresh systems", "refresh")
 		for _, r := range s.Cores {
 			add(r.Label+" · "+r.Standing+" · "+r.ArtifactState, "system")
+			rows[len(rows)-1].Core = &r
 		}
 		return rows
 	}
@@ -58,6 +61,9 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			status := "choose file"
 			if s.MediaRole == m.Role && s.MediaID != "" {
 				status = "selected"
+			}
+			if m.Role == "blob" && protocol.RequiresCoreMedia(s.Setup.Descriptor) {
+				status = "required · " + status
 			}
 			add(m.Role+" · "+status, "media:"+m.Role)
 		}
@@ -105,6 +111,7 @@ func (a *App) coreLibraryAsyncLocked(work func(context.Context) error, done func
 		parent = context.Background()
 	}
 	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+	s.Cancel = cancel
 	go func() {
 		defer cancel()
 		err := work(ctx)
@@ -114,6 +121,7 @@ func (a *App) coreLibraryAsyncLocked(work func(context.Context) error, done func
 			return
 		}
 		a.coreLibrary.Busy = false
+		a.coreLibrary.Cancel = nil
 		if err != nil {
 			a.coreLibrary.Status = err.Error()
 			return
@@ -172,6 +180,15 @@ func (a *App) loadCoreSetupLocked(install bool) {
 func (a *App) handleCoreLibraryLocked(cmd Command) {
 	s := &a.coreLibrary
 	if s.Busy {
+		if cmd == CmdBack || cmd == CmdHome || cmd == CmdSettings {
+			if s.Cancel != nil {
+				s.Cancel()
+				s.Cancel = nil
+			}
+			s.Gen++
+			s.Open = false
+			s.Busy = false
+		}
 		return
 	}
 	if cmd == CmdBack || cmd == CmdHome || cmd == CmdSettings {
@@ -225,7 +242,11 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		return
 	}
 	if row.Kind == "system" {
-		r := s.Cores[s.Index-1]
+		if row.Core == nil {
+			s.Status = "System changed; refresh and choose again"
+			return
+		}
+		r := *row.Core
 		if r.PackageID == "" || r.ArtifactState == "unavailable" || r.ArtifactState == "unproduced" {
 			s.Status = "No installable package has been published for this system."
 			return
@@ -382,6 +403,10 @@ func (a *App) createCoreLibraryGameLocked() {
 	}
 	if strings.TrimSpace(s.Title) == "" {
 		s.Status = "Enter a game title."
+		return
+	}
+	if protocol.RequiresCoreMedia(s.Setup.Descriptor) && (s.MediaRole != "blob" || s.MediaID == "") {
+		s.Status = "Choose required blob media."
 		return
 	}
 	roms := map[string]string{}

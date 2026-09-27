@@ -202,7 +202,8 @@ a console reserved for the UI. It does not acquire a VT or grab input away
 from other applications. Original framebuffer bytes are restored on normal
 exit or handled interrupt; abrupt process termination cannot restore them.
 
-`-input auto` opens readable evdev nodes at startup. Select a keyboard and
+`-input auto` opens readable evdev nodes at startup only when their key
+capabilities identify a keyboard or supported gamepad. Select a keyboard and
 controller explicitly with `-input /dev/input/event3,/dev/input/event5`.
 Keyboard navigation uses the usual tenfoot shortcuts (`o` for Settings,
 `q` to quit); alphanumeric entry uses a US key layout, including Shift.
@@ -210,8 +211,10 @@ Gamepad face/shoulder/Start/Back/Guide buttons and digital hat or button D-pads
 use the shared remapper, merged held state, and short/long press behavior.
 Guide opens Settings. Analog sticks, pointer input, keyboard layout discovery,
 and device hotplug are deferred; restart after changing input devices.
-Lost evdev events or a disconnected input device end the session rather than
-leaving navigation held.
+In automatic mode, a disconnected device or lost evdev events drop that
+device and cancel its held actions while the UI continues. Explicit input
+paths remain strict: device loss ends the UI. Startup hints prefer a detected
+gamepad, otherwise a keyboard.
 
 The full App includes library browsing, rooms, Settings → Systems, guided core
 setup, and host API session controls. The selected host API is still the
