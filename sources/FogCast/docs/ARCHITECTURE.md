@@ -104,11 +104,15 @@ is not a kit-lease mutation. An empty inventory is not a placement
 decision: the launch keeps today's bind and the games rows carry no
 `placement`. `[mesh] placement_override` is the advanced override
 node id; it selects that node only when that node can already run the
-title. When several `native_emu` nodes can run a title and no FPGA kit
-can, Place selects the first candidate whose mesh major matches;
-candidates follow the inventory's node-id order, and preference and
-last sink do not reorder them. Several eligible FPGA kits still need
-the preference or last sink to name one, or the row stays unresolved.
+title. Among several eligible FPGA kits, Place takes the display
+preference, then the last play DisplaySink, then the first kit whose
+mesh major matches. Among several `native_emu` nodes, when no FPGA kit
+can run the title, it takes the first whose mesh major matches;
+preference and last sink do not reorder them. Candidates follow the
+inventory's node-id order, so with two kits and no preference the
+first play after a host start may go to a kit other than the selected
+target, and the last sink then keeps later placements there. An
+override that names no eligible node is the only unresolved result.
 A launch that names `target` is the caller's executor choice,
 so placement does not run for it. Sofa rooms, tenfoot, the browser
 UI, and the CLI launch without `target`.
@@ -162,7 +166,8 @@ Phase 0 and Phase 1 bind. The games list reads that same ask when it
 builds Ready. That read does not record the decision and does not
 claim a lease. When the selected kit is one this host already sees
 in use, Ready is the lease-held block, so Confirm does not launch.
-Decision 7 remains the unsigned strawman `meshplace` already applies.
+`meshplace` applies Decision 7 as Deano locked it, with the
+first-candidate tie-breaks.
 `[mesh] ensure` and `[mesh] placement` stay off unless the operator
 set them.
 

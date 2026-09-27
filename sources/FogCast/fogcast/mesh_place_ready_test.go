@@ -64,11 +64,14 @@ func TestGamesPlacementPredicate(t *testing.T) {
 
 	t.Run("unresolved is not ready and names no node", func(t *testing.T) {
 		s := placementReadyService(entry, pkg)
+		// Tie-breaks now select among eligible kits, so unresolved is an
+		// override that names no candidate.
 		s.SetMeshPlacementAsk(&MeshPlacementAsk{
 			Candidates: []meshplace.Candidate{
 				placeFPGACandidate("kit-a", true),
 				placeFPGACandidate("kit-b", true),
 			},
+			OverrideNodeID: "kit-gone",
 		})
 		got := mustPlacementReady(t, s, entry.TitleID)
 		assertPlacementBlocked(t, got, meshplace.OutcomeUnresolved, BlockPlacementUnresolved)
@@ -138,6 +141,7 @@ func TestGamesPlacementPredicate(t *testing.T) {
 				placeFPGACandidate("kit-a", true),
 				placeFPGACandidate("kit-b", true),
 			},
+			OverrideNodeID: "kit-gone",
 		})
 		got := mustPlacementReady(t, s, entry.TitleID)
 		if got.Ready || got.Block != meshcontent.BlockLeaseHeld || got.NextAction != "wait_for_lease" || got.Placement != meshplace.OutcomeUnresolved {
