@@ -1789,6 +1789,32 @@ showed vacant 901 `plug_addr` following GPO, then composed cart A INIT
 words and cart B banks 0–3. That is a development-RBF diagnostic, not
 image acceptance. Primitive `MISTRAL_FF`
 `BEL` attributes survive Yosys; inferred `reg` `BEL` does not.
+
+`895_m10k_async_stream` isolates the [issue #260](https://github.com/DeanoC/fes/issues/260)
+256x40 async read at a 74.25 MHz pixel clock. It fills one M10K, performs
+65,536 one-cycle address reads and 65,536 reads with each address held an
+extra cycle, then gates the RAM clock for direct address/data inspection.
+The pinned diagnostic RBF SHA-256 is
+`e761d0c9d68e614f9b098b28073ac8a1ebc8b5c9baf2988872b84c8c49b8f28b`.
+On the designated kit, the one-cycle error count saturated at 16,383 while
+the held-address count was zero. The first requested address 2 returned the
+word for address 1. With the RAM clock stopped, changing the address left
+the output unchanged; restoring the clock updated it to the selected word.
+This is development hardware diagnosis of the current 40-bit mapping, not
+image acceptance or a characterization of 10/20-bit async reads. See
+`experiments/895_m10k_async_stream/expected.md` for the probe contract.
+
+`896_mlab_async_stream` uses the same 256x40 logical stream with
+`ramstyle="MLAB"`, permitting the flow-through read that Cyclone V M10K
+cannot implement. Pinned synthesis produced 320 MLAB cells and no M10K;
+the seed-1 routed RBF SHA-256 was
+`31b68cf63cfe6c3ac16bd45c1ed444b6a215696ae3ea426db559c7a2347ddb3f`.
+Signoff reported 77.33 MHz against 74.25 MHz. On the designated kit,
+65,536 one-cycle reads and 65,536 held-address reads had zero errors, and
+changing the read address with the RAM clock stopped changed the data to the
+correct word. This validates the diagnostic artifact, not a full menu core
+or image. See `experiments/896_mlab_async_stream/expected.md`.
+
 `910_sdram_addon` reads and writes one 16-bit word on the MiSTer GPIO
 SDRAM addon. The 32/64/128 MB modules share this header. Each DQ bit is a
 width-one `altiobuf_bidir`. The host uses `fes.application` framing plus
@@ -1800,12 +1826,16 @@ addon above 50 MHz. A designated-kit halfword probe returned `0xA65A`.
 `911_hps_ddr` reads and writes one halfword through
 `cyclonev_hps_interface_fpga2sdram` at
 `cyclonev_hps_interface_fpga2sdram.52.53.0`. Command traffic stays on port
-2 and the 64-bit data uses read/write port 3. The host uses the same
-application framing and opcode 18. The timed clock is `ddr.clk` at 50 MHz.
-A development load leaves the FPGA-to-HPS port contained; the probe
-releases FPGAPORTRST, the bridge reset, and the L3 remap, then restores
-them. A designated-kit halfword probe returned `0xA65A`. This is not a
-full-memory or MiSTer-rate qualification.
+2 and the 64-bit data uses read/write port 3. Address index `n` is byte
+`0x30000000 + 8n`, inside the `fes.memory.hps-ddr` window. The
+host uses the same application framing and opcode 18. The timed clock is
+`ddr.clk` at 50 MHz. A development load leaves the FPGA-to-HPS port
+contained; the probe releases FPGAPORTRST, the bridge reset, and the L3
+remap, then restores them. The controller accepts the commands only when the
+boot splash carries the shared port layout. A designated-kit halfword probe
+returned `0xA65A` before the address moved into the window. This is not a
+full-memory or MiSTer-rate qualification; `fes.ramtest` scans all three
+ports over the whole window.
 
 `scripts/cyclonev_rbf.py` and `scripts/link_static_rbf.py` decompress a
 full RBF, overlay a CRAM rectangle or `overlay_mode = "m10k_ram"` via

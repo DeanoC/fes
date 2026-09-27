@@ -28,6 +28,7 @@ module ram_font (
                 "G": bitmap = 64'h3C66606E66663C00;
                 "H": bitmap = 64'h6666667E66666600;
                 "I": bitmap = 64'h7E18181818187E00;
+                "K": bitmap = 64'h666C7870786C6600;
                 "L": bitmap = 64'h6060606060607E00;
                 "M": bitmap = 64'h63777F6B63636300;
                 "N": bitmap = 64'h66767E7E6E666600;
@@ -40,8 +41,10 @@ module ram_font (
                 "V": bitmap = 64'h66666666663C1800;
                 "W": bitmap = 64'h66666666666E3C00;
                 "X": bitmap = 64'h66663C183C666600;
+                "Y": bitmap = 64'h6666663C18181800;
                 "Z": bitmap = 64'h7E060C1830607E00;
                 "/": bitmap = 64'h0002040810204000;
+                "-": bitmap = 64'h0000007E00000000;
                 default: bitmap = 64'h0000000000000000;
             endcase
         end

@@ -178,27 +178,33 @@ A white palette can be created with
 This demonstrates composition without a new emulated-machine implementation
 or an application-name branch in host software.
 
-`fes.ramtest` is a separate utility on the same mailbox, fixed 720p
-interface, and gamepad interface. Its OSS builds support 100 and 130 MHz only;
-`make build-fes-ramtest-100` writes `build/fes-ramtest-100/core.rbf`.
-After execution release it pattern-tests the SDRAM addon and an HPS DDR
-window and prints the pattern, address, clock and error count. The SDRAM
-clock pin is the inverted DDR output used by MiSTer controllers. Both OSS
-variants sample the bidirectional DQ pads with phase-shifted fabric registers
+`fes.ramtest` is a separate utility on the same mailbox with fixed 720p, the
+gamepad and `fes.memory.hps-ddr` 1.0. After execution release it pattern-tests
+the SDRAM addon and all three HPS DDR ports at the memory clock, 100 or
+130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
+together with seven patterns and report errors, failing bits and MB/s per port.
+The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
+OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
 because the pinned OSS packer cannot put DDR input registers on those pads.
-The 100 MHz build has a four-domain timing gate; exact-artifact
-hardware results are recorded in the [core README](../cores/fes-ramtest/README.md).
-`make build-fes-ramtest-130` seals a 130 MHz OSS package into
-`build/fes-ramtest-130/` with `toolchains/ramtest-130.lock`;
-its nextpnr carries the dual 130 MHz PLL profile and the calibrated placement
-delay prediction that closes the memory clock.
-`make build-fes-ramtest-quartus` compiles a fixed 130 MHz diagnostic with
-Quartus 17.0.2; `RAMTEST_MHZ=100` selects a separate 100 MHz diagnostic.
-Each tests the full SDRAM range at one rate and keeps the six pattern counts
-on screen. A gamepad button, or a keyboard key the host maps to one, stops
-the scan. The ABI has no memory opcode. A `fes-gp-v1` package load
-releases the HPS bridges after user mode. A raw development RBF stays
-contained, so the HPS path fails until the bridges are released.
+`make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
+`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with
+`toolchains/ramtest.lock`, whose Yosys declares every fpga2sdram port. Their
+timing gate covers the memory, capture and video domains, and the recipe checks
+the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
+compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
+a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
+maps to one, stops the scans. The ABI has no memory opcode. Hardware results
+are recorded in the [core README](../cores/fes-ramtest/README.md).
+
+`cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port
+module: the fpga2sdram cell in the generated layout (a 128-bit port and two
+64-bit Avalon-MM ports) with a registered guard per port
+(`fes_hps_ddr_guard.v`). The core's execution reset holds the ports; the guard
+then finishes a write burst the core started, with byte enables cleared, and
+hides read data issued before the hold, because the controller cannot recover
+a burst stopped midway. The endpoint parameter `ENABLE_HPS_DDR` advertises
+capability bit 8. The runtime releases the FPGA ports only after identity and
+the SDR mirror registers prove the layout.
 
 `scripts/build_fes_demo.py` reuses the existing board tool-authentication,
 timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
@@ -235,6 +241,13 @@ and no MiSTer user-io: command `0x0014` Probe has no responder, and command
 `0x002f` HPS framebuffer is absent. There is no observed core-ID string.
 U-Boot does not Probe. FES IdleRecipe must omit Probe and HPS fb.
 
+The splash also carries an idle fpga2sdram cell driving the
+`fes.memory.hps-ddr` layout. U-Boot's `bridge enable` writes
+`staticcfg.applycfg` with this bitstream loaded, and the SDR controller keeps
+that layout until the next boot; no later core can change it from Linux. The
+recipe rejects a netlist whose cell carries other `cfg_*` values or a driven
+command input.
+
 `make sim-fes-splash` checks three full 1650×750 frames, the mark, motion, and
 the I2C low-or-release board path. It writes `build/sim/fes-splash-frames/`
 for visual inspection. `make build-fes-splash` (`scripts/build_fes_splash.py`)
@@ -251,8 +264,8 @@ sealed/fes-splash.rbf
 ```
 
 The tracked `sealed/` copy is the FES `[splash_rbf]` / `[idle_rbf]` pin.
-Reuse splash bytes for Stop idle; keep FAT `/menu.rbf` / `core=menu.rbf` as
-the filename until a U-Boot reseal. A sealed RBF requires a clean committed
+The same bytes are the boot core, FAT `/idle.rbf` loaded by the FES U-Boot
+(`core=idle.rbf`), and the Stop idle core. A sealed RBF requires a clean committed
 tree and `make toolchain`. `--synth-only` is a dirty-tree Yosys probe.
 Quartus is not part of this recipe. No build command programs hardware.
 

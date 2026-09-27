@@ -167,8 +167,14 @@ if [ "$native_mode" = package-only ]; then
   }
 
   splash_destination=$(read_package_lock_value splash_rbf fat_destination)
-  [ "$splash_destination" = /menu.rbf ] || {
-    printf '%s\n' 'fetch-native-runtime-inputs: splash FAT destination must be /menu.rbf' >&2
+  [ "$splash_destination" = /idle.rbf ] || {
+    printf '%s\n' 'fetch-native-runtime-inputs: splash FAT destination must be /idle.rbf' >&2
+    exit 2
+  }
+  # U-Boot core=idle.rbf and the runtime Stop idle are one sealed core.
+  [ "$(read_package_lock_value splash_rbf sha256)" = "$(read_package_lock_value idle_rbf sha256)" ] &&
+    [ "$(read_package_lock_value splash_rbf size)" = "$(read_package_lock_value idle_rbf size)" ] || {
+    printf '%s\n' 'fetch-native-runtime-inputs: splash and idle slots must pin the same core' >&2
     exit 2
   }
   idle_install_path=$(read_package_lock_value idle_rbf install_path)

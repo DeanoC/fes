@@ -1,11 +1,29 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Connects the utility core to a behavioral SDRAM chip. HPS DDR uses the
-// cyclonev_hps_interface_fpga2sdram stand-in compiled beside this bench.
+// cyclonev_hps_interface_fpga2sdram stand-in compiled beside this bench;
+// the test reads its violation flag, open bursts and one 64-bit lane.
 module bench (
     input wire FPGA_CLK1_50,
     output wire HDMI_TX_DE,
-    output wire [23:0] HDMI_TX_D
+    output wire [23:0] HDMI_TX_D,
+    input wire [11:0] peek_slot,
+    output wire [63:0] peek_data,
+    output wire ddr_violation,
+    output wire ddr_open,
+    output wire ddr_finishing,
+    output wire ddr_draining_reads
 );
+    // A guard finishing a write burst, or hiding reads issued before a hold.
+    assign ddr_finishing = dut.hps_ddr.port0.finishing | dut.hps_ddr.port1.finishing |
+        dut.hps_ddr.port2.finishing;
+    assign ddr_draining_reads =
+        (dut.hps_ddr.port0.draining && dut.hps_ddr.port0.reads_owed != 12'd0) ||
+        (dut.hps_ddr.port1.draining && dut.hps_ddr.port1.reads_owed != 12'd0) ||
+        (dut.hps_ddr.port2.draining && dut.hps_ddr.port2.reads_owed != 12'd0);
+    assign peek_data = dut.hps_ddr.f2sdram.mem[peek_slot];
+    assign ddr_violation = dut.hps_ddr.f2sdram.violation;
+    assign ddr_open = dut.hps_ddr.f2sdram.owed[0] != 8'd0 ||
+        dut.hps_ddr.f2sdram.owed[1] != 8'd0 || dut.hps_ddr.f2sdram.owed[2] != 8'd0;
     wire sdram_clk, sdram_cke, sdram_ncs, sdram_nras, sdram_ncas, sdram_nwe;
     wire sdram_dqml, sdram_dqmh;
     wire [1:0] sdram_ba;

@@ -89,8 +89,9 @@ cache, saves, core-data, launcher-cache and evidence from that partition. The
 bootloader, kernel and boot environment retain their locked bytes. The
 kernel mounts `/linux/linux.img`, now the small stable bootstrap. Factory system
 bytes live at `/fogcast/releases/images/<sha256>.img`; the corresponding manifest
-is present on FAT and baked into the bootstrap. `/menu.rbf`, kernel, agent and
-launcher configuration are included. On first boot no state file is necessary:
+is present on FAT and baked into the bootstrap. FAT `/idle.rbf` (the core the
+derived U-Boot programs as `core=idle.rbf`), kernel, agent and launcher
+configuration are included. On first boot no state file is necessary:
 the verified factory is selected, then the native services start normally.
 
 The extra space holds factory, known-good, previous and a staged candidate.
@@ -134,8 +135,12 @@ rollback refer to the image actually booted.
 
 Rollback selects the previous confirmed release as a new protected trial.
 Corrupt/torn selection state chooses factory and preserves the corrupt record
-for repair. Updates never replace bootstrap, kernel, U-Boot, credentials or saves.
-Recovery assumes those stable files and the card/watchdog hardware still work.
+for repair. Updates never replace bootstrap, kernel, U-Boot, FAT boot files,
+credentials or saves. Recovery assumes those stable files and the card/watchdog
+hardware still work. A change to U-Boot or FAT `/idle.rbf` therefore needs new
+media ([bootable media](bootable-media.md#u-boot-and-the-fat-idle-core)). A card
+provisioned with the earlier `core=menu.rbf` U-Boot keeps FAT `/menu.rbf` and
+that boot layout until it is reprovisioned; updates do not delete it.
 
 See the selected FogCast `docs/appliance-updates.md` for the target routes and
 `docs/ARCHITECTURE.md` for the bootstrap/store/coordinator source entry points.

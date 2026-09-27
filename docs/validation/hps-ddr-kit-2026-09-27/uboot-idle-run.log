@@ -1,0 +1,98 @@
+claim {"expires_in_ms": 89999, "state": "held", "generation": "53abfce3c020425815d2b18fed7cca764c6576b0a6abfcba7c72f26b3739b336", "owner": "claude-hps-ddr", "purpose": "FES U-Boot core=idle.rbf write to /dev/mmcblk0p2 (authorized) and reboot", "expires_at": "1970-01-01T02:27:01.26078955Z"}
+ssh mkdir -p /media/fat/fes-backup && dd if=/dev/mmcblk0p2 of=/media/fat/fes-backup/p2-upstream-e2d46cf9.bin bs=512 count=2048 2>/dev/null && sync && sha256sum /media/fat/fes-backup/p2-upstream-e2d46cf9.bin | cut -c1-16
+59cebe7a86626ff0
+
+ssh cp /tmp/idle.rbf /media/fat/idle.rbf && sync && sha256sum /media/fat/idle.rbf | cut -c1-16
+43dc7e9db350dbde
+
+ssh dd if=/tmp/uboot-fes.img of=/dev/mmcblk0p2 bs=512 conv=fsync 2>&1 | tail -n 1; sync; echo 3 > /proc/sys/vm/drop_caches; head -c 515141 /dev/mmcblk0p2 | sha256sum | cut -c1-16; dd if=/dev/mmcblk0p2 bs=512 count=2048 2>/dev/null | tail -c 533435 | sha256sum | cut -c1-16; tail -c 533435 /media/fat/fes-backup/p2-upstream-e2d46cf9.bin | sha256sum | cut -c1-16
+1006+1 records out
+21533e9903675329
+190d78f6366dc662
+190d78f6366dc662
+
+ssh mv /media/fat/menu.rbf /media/fat/menu.rbf.fes-test && sync && ls /media/fat/*.rbf*
+/media/fat/bob-menu-idle-smoke.rbf
+/media/fat/bob-splash-idle-restore.rbf
+/media/fat/idle.rbf
+/media/fat/menu.rbf.fes-test
+
+close {"expires_in_ms": 0, "state": "revoking", "generation": "53abfce3c020425815d2b18fed7cca764c6576b0a6abfcba7c72f26b3739b336", "owner": "claude-hps-ddr", "purpose": "FES U-Boot core=idle.rbf write to /dev/mmcblk0p2 (authorized) and reboot", "expires_at": "1970-01-01T02:27:01.26078955Z", "reason": "owner released lease"}
+claim {"expires_in_ms": 89999, "state": "held", "generation": "39fbf626dd2a31194b9af7b6fe6e44392d15addddb9b4e7e7c70b6e42f425f32", "owner": "claude-hps-ddr", "purpose": "Reboot to test FES U-Boot core=idle.rbf", "expires_at": "1970-01-01T02:27:21.58969176Z"}
+ssh sync; (sleep 5; reboot) >/dev/null 2>&1 & echo scheduled
+scheduled
+
+close {"expires_in_ms": 0, "state": "revoking", "generation": "39fbf626dd2a31194b9af7b6fe6e44392d15addddb9b4e7e7c70b6e42f425f32", "owner": "claude-hps-ddr", "purpose": "Reboot to test FES U-Boot core=idle.rbf", "expires_at": "1970-01-01T02:27:21.58969176Z", "reason": "owner released lease"}
+claim {"expires_in_ms": 89999, "state": "held", "generation": "05aa1765631bffffb9b29567d2bd630d79d78d06f338ada37f0b268e8bf60cde", "owner": "claude-hps-ddr", "purpose": "FES U-Boot idle.rbf: runtime boot-layout gate and DDR scan", "expires_at": "1970-01-01T00:03:42.03122642Z"}
+ssh rm -f /run/mister-runtime-boot-hps-ddr; mount --bind /tmp/mister-runtime-hps-ddr /usr/sbin/mister-runtime && kill $(cat /run/mister-runtime.pid); sleep 8; sha256sum /usr/sbin/mister-runtime | cut -c1-16; echo record=$(cat /run/mister-runtime-boot-hps-ddr); tail -c 4000 /run/mister-runtime.events.json | tr "}" "\n" | grep hps_ddr.boot | tail -n 1
+ef51402e58048de5
+record=absent
+,{"ts_utc":"1970-01-01T00:02:13.268442420Z","mono_ms":2,"layer":"fpga","kind":"hps_ddr.boot","severity":"warning","detail":{"latched":false,"source":"mirrors","recorded":true,"cportwidth":"0xfff","cportwmap":"0x3ffff","cportrmap":"0x3ffff","rfifocmap":"0xffff","wfifocmap":"0xffff","cportrdwr":"0xfff","portcfg":"0x3f","register":"CPORTWIDTH"
+
+core /home/deano/kepler/worktrees/fes-altera-h2p-ddr-ram-support-17a49c0d/sources/misteross/build/packages/e4251e820533677eda97dde2e52aa377560ccf36a58312220aa20b825628fbce.fcore FAILED target rejected request (HTTP 503) 503 MISTER_UNAVAILABLE
+ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080; do printf "%s %s\n" $a $(busybox devmem $a 32); done; tail -c 4000 /run/mister-runtime.events.json | tr "}" "\n" | grep -E "hps_ddr" | tail -n 2
+0xFFC25064 0x00044FFF
+0xFFC25068 0x2C03FFFF
+0xFFC2506C 0x00B3FFFF
+0xFFC25070 0x0076FFFF
+0xFFC25074 0x0098FFFF
+0xFFC25078 0x0005AFFF
+0xFFC2507C 0x0000003F
+0xFFC25080 0x00000000
+,{"ts_utc":"1970-01-01T00:02:13.268442420Z","mono_ms":2,"layer":"fpga","kind":"hps_ddr.boot","severity":"warning","detail":{"latched":false,"source":"mirrors","recorded":true,"cportwidth":"0xfff","cportwmap":"0x3ffff","cportrmap":"0x3ffff","rfifocmap":"0xffff","wfifocmap":"0xffff","cportrdwr":"0xfff","portcfg":"0x3f","register":"CPORTWIDTH"
+
+stop {"state": "idle", "game_id": null, "system": null, "expected_core": null, "observed_core": null, "last_error": null}
+ssh rm -f /run/mister-runtime-boot-hps-ddr; printf "latched\n" > /run/mister-runtime-boot-hps-ddr; kill $(cat /run/mister-runtime.pid); sleep 8; echo record=$(cat /run/mister-runtime-boot-hps-ddr); tail -n 1 /var/log/mister-runtime.log
+record=latched
+mister-runtime operation=start phase=idle system=- core=- error=none message=-
+
+core /home/deano/kepler/worktrees/fes-altera-h2p-ddr-ram-support-17a49c0d/sources/misteross/build/packages/e4251e820533677eda97dde2e52aa377560ccf36a58312220aa20b825628fbce.fcore 3.5s {"state": "active", "game_id": null, "system": null, "expected_core": null, "observed_core": "fes.ramtest", "last_error": null, "development": true, "core_package": {"persistence_mode": "volatile", "package_id": "e4251e820533677eda97dde2e52aa377560ccf36a58312220aa20b825628fbce", "generation": 1, "abi": {"id": "fes.application", "major": 1, "minor": 0}, "build_id": "760d9d6009265338297d871afee8f607", "active_interfaces": [{"id": "fes.gamepad", "major": 1, "minor": 0}, {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0}, {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0}], "gamepad": true}}
+ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080; do printf "%s %s\n" $a $(busybox devmem $a 32); done; tail -c 4000 /run/mister-runtime.events.json | tr "}" "\n" | grep -E "hps_ddr" | tail -n 2
+0xFFC25064 0x00044016
+0xFFC25068 0x2C0000D0
+0xFFC2506C 0x00B000D0
+0xFFC25070 0x00762100
+0xFFC25074 0x00982100
+0xFFC25078 0x0005A03F
+0xFFC2507C 0x00000000
+0xFFC25080 0x00003FFF
+,{"ts_utc":"1970-01-01T00:02:33.098660310Z","mono_ms":10386,"layer":"fpga","kind":"hps_ddr.ports","severity":"ok","detail":{"ok":true,"cportwidth":"0x16","cportwmap":"0xd0","cportrmap":"0xd0","rfifocmap":"0x2100","wfifocmap":"0x2100","cportrdwr":"0x3f","portcfg":"0x0"
+
+uboot-oss100-t05.png
+capture uboot-oss100-t05.png
+ioctl(VIDIOC_QBUF): Bad file descriptor
+uboot-oss100-t60.png
+capture uboot-oss100-t60.png
+uboot-oss100-t150.png
+capture uboot-oss100-t150.png
+ssh for a in 0x30000000 0x30000004 0x37FFFFF8 0x38000000 0x3C000000 0x3FFFFFF8 0x3FFFFFFC; do printf "%s %s\n" $a $(busybox devmem $a 32); done; uptime
+0x30000000 0x30000000
+0x30000004 0xCFFFFFFF
+0x37FFFFF8 0x37FFFFF8
+0x38000000 0x38000000
+0x3C000000 0x3C000000
+0x3FFFFFF8 0x3FFFFFF8
+0x3FFFFFFC 0xC0000007
+ 00:05:08 up 5 min,  load average: 0.13, 0.10, 0.04
+
+stop {"state": "idle", "game_id": null, "system": null, "expected_core": null, "observed_core": null, "last_error": null}
+ssh for a in 0xFFC25064 0xFFC25068 0xFFC2506C 0xFFC25070 0xFFC25074 0xFFC25078 0xFFC2507C 0xFFC25080; do printf "%s %s\n" $a $(busybox devmem $a 32); done; tail -c 4000 /run/mister-runtime.events.json | tr "}" "\n" | grep -E "hps_ddr" | tail -n 2
+0xFFC25064 0x00044FFF
+0xFFC25068 0x2C03FFFF
+0xFFC2506C 0x00B3FFFF
+0xFFC25070 0x0076FFFF
+0xFFC25074 0x0098FFFF
+0xFFC25078 0x0005AFFF
+0xFFC2507C 0x0000003F
+0xFFC25080 0x00000000
+,{"ts_utc":"1970-01-01T00:02:33.098660310Z","mono_ms":10386,"layer":"fpga","kind":"hps_ddr.ports","severity":"ok","detail":{"ok":true,"cportwidth":"0x16","cportwmap":"0xd0","cportrmap":"0xd0","rfifocmap":"0x2100","wfifocmap":"0x2100","cportrdwr":"0x3f","portcfg":"0x0"
+
+ssh umount -l /usr/sbin/mister-runtime; rm -f /run/mister-runtime-boot-hps-ddr; kill $(cat /run/mister-runtime.pid); sleep 8; sha256sum /usr/sbin/mister-runtime | cut -c1-16; mount | grep -c mister-runtime; mv /media/fat/menu.rbf.fes-test /media/fat/menu.rbf && sync; ls /media/fat/*.rbf; rm -f /tmp/mister-runtime-hps-ddr
+d5776191048b112f
+0
+/media/fat/bob-menu-idle-smoke.rbf
+/media/fat/bob-splash-idle-restore.rbf
+/media/fat/idle.rbf
+/media/fat/menu.rbf
+
+close {"expires_in_ms": 0, "state": "revoking", "generation": "05aa1765631bffffb9b29567d2bd630d79d78d06f338ada37f0b268e8bf60cde", "owner": "claude-hps-ddr", "purpose": "FES U-Boot idle.rbf: runtime boot-layout gate and DDR scan", "expires_at": "1970-01-01T00:06:42.07554088Z", "reason": "owner released lease"}

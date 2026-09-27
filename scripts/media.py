@@ -399,8 +399,11 @@ def provenance_for(root, fogcast, cold):
         splash = policy['splash_rbf']
         if idle['install_path'] != '/usr/share/mister-runtime/idle.rbf':
             raise ValueError('noncanonical idle destination')
-        if splash['fat_destination'] != '/menu.rbf':
+        if splash['fat_destination'] != '/idle.rbf':
             raise ValueError('noncanonical splash FAT destination')
+        # U-Boot's core=idle.rbf and the runtime's Stop idle are one core.
+        if (splash['sha256'], splash['size']) != (idle['sha256'], idle['size']):
+            raise ValueError('FAT boot core differs from the rootfs idle core')
         return Provenance(cold['fes_revision'], PROFILE,
             hashlib.sha256(json.dumps(recipe_fingerprint(cold_build.MEDIA_RECIPE_FILES), sort_keys=True).encode()).hexdigest(),
             cold['image_receipt_sha256'], cold['child_manifest_sha256'],

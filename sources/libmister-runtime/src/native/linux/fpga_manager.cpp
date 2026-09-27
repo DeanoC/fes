@@ -5,7 +5,9 @@
 
 #include "native/artifacts.hpp"
 #include "native/diagnostic.hpp"
+#include "native/generated/fes_application.hpp"
 
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -115,12 +117,10 @@ public:
 			"bridge containment remap");
 	}
 
+	// The SDR FPGA ports stay in reset: only ReleaseHpsDdrPorts releases them.
 	Error EnableBridges()
 	{
-		Error error = Write(kSdrFpgaPortResetAddress, kSdrFpgaPortsEnabled,
-			"bridge release SDR");
-		if (!error.ok()) return error;
-		error = Write(kBridgeResetAddress, kBridgesReleased,
+		const Error error = Write(kBridgeResetAddress, kBridgesReleased,
 			"bridge release reset");
 		if (!error.ok()) return error;
 		return Write(kL3RemapAddress, kL3RemapFpgaEnabled,
@@ -179,14 +179,119 @@ std::uint32_t ClockDataRatio(std::uint32_t msel)
 	return ratios[low];
 }
 
+struct HpsDdrMirror {
+	const char* name;
+	const char* key;
+	std::uint32_t address;
+	std::uint32_t mask;
+	std::uint32_t expected;
+};
+
+// Each SDR mirror's FPGA field follows one fpga2sdram cfg_* input of the
+// loaded core, not the layout the controller latched at boot.
+const HpsDdrMirror kHpsDdrMirrors[] = {
+	{"CPORTWIDTH", "cportwidth", kSdrCportWidthAddress, kSdrCportWidthFpgaMask,
+		generated::FesApplicationHpsDdrCfgPortWidth},
+	{"CPORTWMAP", "cportwmap", kSdrCportWmapAddress, kSdrCportWmapFpgaMask,
+		generated::FesApplicationHpsDdrCfgCportWfifoMap},
+	{"CPORTRMAP", "cportrmap", kSdrCportRmapAddress, kSdrCportRmapFpgaMask,
+		generated::FesApplicationHpsDdrCfgCportRfifoMap},
+	{"RFIFOCMAP", "rfifocmap", kSdrRfifoCmapAddress, kSdrRfifoCmapFpgaMask,
+		generated::FesApplicationHpsDdrCfgRfifoCportMap},
+	{"WFIFOCMAP", "wfifocmap", kSdrWfifoCmapAddress, kSdrWfifoCmapFpgaMask,
+		generated::FesApplicationHpsDdrCfgWfifoCportMap},
+	{"CPORTRDWR", "cportrdwr", kSdrCportRdwrAddress, kSdrCportRdwrFpgaMask,
+		generated::FesApplicationHpsDdrCfgCportType},
+	{"PORTCFG", "portcfg", kSdrPortCfgAddress, kSdrPortCfgFpgaMask,
+		generated::FesApplicationHpsDdrCfgAxiMmSelect},
+};
+
+constexpr std::size_t kHpsDdrMirrorCount =
+	sizeof(kHpsDdrMirrors) / sizeof(kHpsDdrMirrors[0]);
+
+// Reads the mirrors into observed[] and compares their FPGA fields with the
+// shared layout. Returns the name of the first unreadable or differing
+// register, or nullptr when every field matches; *count is how many were read.
+const char* CompareHpsDdrMirrors(Mmio& mmio, std::uint32_t* observed,
+	std::size_t* count, Error* read_error)
+{
+	for (*count = 0; *count < kHpsDdrMirrorCount; ++*count) {
+		const HpsDdrMirror& mirror = kHpsDdrMirrors[*count];
+		std::uint32_t value = 0;
+		const Error read = mmio.Read32(mirror.address, &value);
+		if (!read.ok()) {
+			*read_error = read;
+			return mirror.name;
+		}
+		observed[*count] = value & mirror.mask;
+	}
+	for (std::size_t index = 0; index < kHpsDdrMirrorCount; ++index)
+		if (observed[index] != kHpsDdrMirrors[index].expected)
+			return kHpsDdrMirrors[index].name;
+	return nullptr;
+}
+
+const char kBootLayoutLatched[] = "latched\n";
+const char kBootLayoutAbsent[] = "absent\n";
+
 } // namespace
 
-LinuxFpgaManager::LinuxFpgaManager(Mmio& mmio, Clock& clock)
-	: mmio_(mmio), clock_(clock) {}
+LinuxFpgaManager::LinuxFpgaManager(Mmio& mmio, Clock& clock,
+	std::string boot_record_path)
+	: mmio_(mmio), clock_(clock), boot_record_path_(std::move(boot_record_path)) {}
+
+bool LinuxFpgaManager::BootHpsDdrLayout()
+{
+	if (boot_layout_known_) return boot_layout_;
+	boot_layout_known_ = true;
+	// An earlier runtime this boot recorded the verdict before it programmed.
+	// Any other content is treated as no layout.
+	const int existing = open(boot_record_path_.c_str(), O_RDONLY | O_CLOEXEC);
+	if (existing >= 0) {
+		char text[16] = {};
+		const ssize_t got = read(existing, text, sizeof(text) - 1);
+		close(existing);
+		boot_layout_ = got == ssize_t(sizeof(kBootLayoutLatched) - 1) &&
+			std::string(text) == kBootLayoutLatched;
+		EmitDiagnostic(kDiagnosticLayerFpga, kDiagnosticKindHpsDdrBoot,
+			boot_layout_ ? "ok" : "warning",
+			{DiagnosticBool("latched", boot_layout_), DiagnosticString("source", "record")});
+		return boot_layout_;
+	}
+	std::uint32_t observed[kHpsDdrMirrorCount] = {};
+	std::size_t count = 0;
+	Error read_error;
+	const char* differing = CompareHpsDdrMirrors(mmio_, observed, &count, &read_error);
+	boot_layout_ = differing == nullptr;
+	// Record before any program: afterwards the mirrors show another core.
+	const char* verdict = boot_layout_ ? kBootLayoutLatched : kBootLayoutAbsent;
+	const int record = open(boot_record_path_.c_str(),
+		O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
+	bool recorded = false;
+	if (record >= 0) {
+		const std::size_t length = std::string(verdict).size();
+		recorded = write(record, verdict, length) == ssize_t(length);
+		recorded = close(record) == 0 && recorded;
+	}
+	std::vector<DiagnosticField> detail;
+	detail.push_back(DiagnosticBool("latched", boot_layout_));
+	detail.push_back(DiagnosticString("source", "mirrors"));
+	detail.push_back(DiagnosticBool("recorded", recorded));
+	for (std::size_t index = 0; index < count; ++index)
+		detail.push_back(DiagnosticString(kHpsDdrMirrors[index].key,
+			DiagnosticHex32(observed[index])));
+	if (differing != nullptr) detail.push_back(DiagnosticString("register", differing));
+	if (!read_error.ok()) detail.push_back(DiagnosticString("error", read_error.message));
+	EmitDiagnostic(kDiagnosticLayerFpga, kDiagnosticKindHpsDdrBoot,
+		boot_layout_ ? "ok" : "warning", detail);
+	return boot_layout_;
+}
 
 NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	ProgrammingProfile profile, std::uint64_t deadline)
 {
+	// Learn the boot layout while the boot core is still loaded.
+	BootHpsDdrLayout();
 	if (artifact.fd() < 0 || artifact.size() == 0)
 		return Failed("invalid RBF artifact", false);
 	if (clock_.NowMs() >= deadline) return Failed("deadline exceeded", false);
@@ -339,6 +444,70 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	}
 
 	return {{}, true};
+}
+
+Error LinuxFpgaManager::ReleaseHpsDdrPorts(std::uint64_t deadline)
+{
+	// Read every mirror before comparing so the diagnostic records the whole
+	// live layout. The registers are read-only; only FPGAPORTRST is written.
+	std::uint32_t observed[kHpsDdrMirrorCount] = {};
+	const char* failed = nullptr;
+	Error error;
+	std::size_t count = 0;
+	if (!BootHpsDdrLayout()) {
+		// The ports would accept nothing: the boot core's layout was latched.
+		EmitDiagnostic(kDiagnosticLayerFpga, kDiagnosticKindHpsDdrPorts, "error",
+			{DiagnosticBool("ok", false), DiagnosticString("register", "boot layout")});
+		return {ErrorCode::unsupported_interface,
+			"HPS DDR: the SDR controller did not latch the fes.memory.hps-ddr layout at boot"};
+	}
+	for (; count < kHpsDdrMirrorCount; ++count) {
+		const HpsDdrMirror& mirror = kHpsDdrMirrors[count];
+		if (clock_.NowMs() >= deadline) {
+			error = {ErrorCode::program_failed, "HPS DDR port check deadline exceeded"};
+			break;
+		}
+		std::uint32_t value = 0;
+		const Error read = mmio_.Read32(mirror.address, &value);
+		if (!read.ok()) {
+			failed = mirror.name;
+			error = {ErrorCode::program_failed,
+				std::string("HPS DDR ") + mirror.name + " read failed: " + read.message};
+			break;
+		}
+		observed[count] = value & mirror.mask;
+	}
+	for (std::size_t index = 0; error.ok() && index < count; ++index) {
+		const HpsDdrMirror& mirror = kHpsDdrMirrors[index];
+		if (observed[index] == mirror.expected) continue;
+		failed = mirror.name;
+		const std::string expected = DiagnosticHex32(mirror.expected);
+		const std::string seen = DiagnosticHex32(observed[index]);
+		error = {ErrorCode::core_mismatch,
+			std::string("HPS DDR ") + mirror.name + " mismatch: observed=" + seen +
+				" expected=" + expected,
+			"", std::string(mirror.name) + "=" + expected,
+			std::string(mirror.name) + "=" + seen};
+	}
+	if (error.ok() && clock_.NowMs() >= deadline)
+		error = {ErrorCode::program_failed, "HPS DDR port check deadline exceeded"};
+	if (error.ok()) {
+		const Error written = mmio_.Write32(kSdrFpgaPortResetAddress, kSdrFpgaPortsEnabled);
+		if (!written.ok()) {
+			failed = "FPGAPORTRST";
+			error = {ErrorCode::program_failed,
+				"HPS DDR FPGAPORTRST release failed: " + written.message};
+		}
+	}
+	std::vector<DiagnosticField> detail;
+	detail.push_back(DiagnosticBool("ok", error.ok()));
+	for (std::size_t index = 0; index < count; ++index)
+		detail.push_back(DiagnosticString(kHpsDdrMirrors[index].key,
+			DiagnosticHex32(observed[index])));
+	if (failed != nullptr) detail.push_back(DiagnosticString("register", failed));
+	EmitDiagnostic(kDiagnosticLayerFpga, kDiagnosticKindHpsDdrPorts,
+		error.ok() ? "ok" : "error", detail);
+	return error;
 }
 
 } // namespace native

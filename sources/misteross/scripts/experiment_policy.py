@@ -6350,6 +6350,104 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "895_m10k_async_stream": ExperimentPolicy(
+            name="895_m10k_async_stream",
+            sources=("experiments/895_m10k_async_stream/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            additional_clocks_mhz={"pixel_clock": 74.25},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(pattern for pattern in _COMMON_SOURCE_PATTERNS
+                  if pattern not in {"PLL", "M10K"}),
+                "LED", "GPIO", "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+                "MISTRAL_M10K": 1,
+            },
+            nobram=False,
+            m10k_async_read=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "A1EN", "B1EN")},
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/895_m10k_async_stream/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/895_m10k_async_stream/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "896_mlab_async_stream": ExperimentPolicy(
+            name="896_mlab_async_stream",
+            sources=("experiments/896_mlab_async_stream/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            additional_clocks_mhz={"pixel_clock": 74.25},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            forbidden_source_patterns=(
+                *(pattern for pattern in _COMMON_SOURCE_PATTERNS
+                  if pattern not in {"PLL", "MLAB"}),
+                "LED", "GPIO", "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+                "MISTRAL_MLAB": 320,
+            },
+            nolutram=False,
+            nobram=True,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/896_mlab_async_stream/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/895_m10k_async_stream/sim/tb.cpp",
+                ),
+            ),
+        ),
         "900_expansion_bus": ExperimentPolicy(
             name="900_expansion_bus",
             sources=("experiments/900_expansion_bus/rtl/cart.v",),

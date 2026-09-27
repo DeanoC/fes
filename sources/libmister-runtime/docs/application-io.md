@@ -9,7 +9,8 @@ existing requirements, wire identities and startup behavior.
 Every admitted application declares required `fes.video.fixed-720p60` 1.0.
 It may additionally declare `fes.audio.pcm-s16-stereo-48k`, `fes.gamepad`,
 `fes.gamepad.ports`, `fes.keypad.ports`, `fes.media.blob`,
-`fes.media.blob-stream` and optional `fes.firmware.blob` 1.0. Stream requires
+`fes.media.blob-stream`, `fes.memory.hps-ddr` and optional
+`fes.firmware.blob` 1.0. Stream requires
 blob. Supported operational declarations other than firmware must be required;
 optionality for those interfaces is expressed by omission. Firmware may be
 declared required or optional so BIOS-free titles can share a firmware-capable
@@ -22,7 +23,7 @@ commands. Registered live capability bits must exactly match supported declared
 interfaces; an undeclared live media endpoint cannot silently change startup.
 Capability bits 0 through 3 are gamepad,
 video, blob and stream; bit 4 is stereo PCM audio, bit 5 is controller ports,
-bit 6 is keypad ports and bit 7 is firmware blob. Opcodes 1/2/3 are
+bit 6 is keypad ports, bit 7 is firmware blob and bit 8 is HPS DDR. Opcodes 1/2/3 are
 identity/execution/buttons; 4 through 6 use the existing blob codec, 7 through
 12 use the existing stream codec, and 15 through 17 are firmware begin/data/commit
 for an exact 8192-byte overlay while reset stays held. This map is distinct from
@@ -97,6 +98,40 @@ worker. FogCast owns physical source assignment and sends neutral snapshots on
 disconnect/release. The runtime neutralizes both ports before Start and after
 holding execution during Stop/replacement. Existing one-gamepad packages retain
 their worker and wire commands unchanged.
+
+## HPS DDR
+
+`fes.memory.hps-ddr` 1.0 is required when present and has no GP opcode. The
+core owns the mister-packages HPS DDR3 window through the fpga2sdram ports and
+drives the `FesApplicationHpsDdrCfg*` layout on their `cfg_*` inputs.
+
+Every program leaves `FPGAPORTRST` at 0. After identity proves capability bit
+8 and before execution release, the FPGA manager reads `CPORTWIDTH`,
+`CPORTWMAP`, `CPORTRMAP`, `RFIFOCMAP`, `WFIFOCMAP`, `CPORTRDWR` and `PORTCFG`,
+masks each FPGA field and compares it with the layout. Only an exact match
+writes `FPGAPORTRST` `0x3fff`. The first mismatch fails activation as
+`core_mismatch`, phase `identity`, naming the register with its observed and
+expected values; an MMIO failure or expired deadline is `program_failed`,
+phase `programming`. Either leaves the ports in reset and takes the ordinary
+one-shot idle recovery. The `hps_ddr.ports` diagnostic (layer `fpga`) records
+the observed fields. Packages without the interface never release the ports.
+
+The mirrors show the loaded core's inputs, not the layout the controller
+latched. U-Boot's `bridge enable` latches the layout of the core U-Boot
+loaded, and the runtime cannot rewrite it. A card whose boot core lacks the
+layout refuses every DDR command, for example an old splash kept by a
+network update. So before its first program in a boot, the FPGA manager
+reads the same mirrors from the still-loaded boot core. It records the
+verdict in `/run/mister-runtime-boot-hps-ddr`: `latched` or `absent`. A
+runtime restarted in the same boot reuses that record, and any other
+content counts as absent. The `hps_ddr.boot` diagnostic reports the
+verdict. Without `latched`, the protocol registry omits the interface.
+Admission and inspection then report `unsupported_interface`, and port
+release refuses before it reads the mirrors.
+
+Host tests cover the boot capture, admission, identity, register order and
+failures. The FES kit diagnostic of 2026-09-27 exercised the port release
+with DDR traffic. The boot capture has no hardware check yet.
 
 ## Shared HDMI audio
 

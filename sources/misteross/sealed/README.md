@@ -10,16 +10,17 @@ retired for day-to-day work. FES `sources/misteross` is the source of truth.
 
 | Field | Value |
 | --- | --- |
-| Source recipe | `make build-fes-splash` (PLL lock-gate HDMI after reconfig) |
-| Sealed | FES `2609827b8de1397b6d6a2fc877be56e657e1ba11` |
-| sha256 | `feb0a66a3384d56a234fcdbd4ee2665fe366310946b206f5aefbfa6ad6e6e83f` |
-| size | 1962648 |
+| Source recipe | `make build-fes-splash` (PLL lock-gate HDMI after reconfig; idle fpga2sdram cell with the `fes.memory.hps-ddr` layout U-Boot latches at boot) |
+| Sealed | FES `808bd7c275e1a9934cbca15f9177c553e8c406c7` |
+| sha256 | `43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6` |
+| size | 1963100 |
 | Provenance | `sealed/fes-splash.build-summary.json` |
 | Lane | OSS Yosys/nextpnr, `gpu-router=OFF` |
 
-FES pins this path as `[splash_rbf]` / `[idle_rbf]` (same bytes until a
-second idle bitstream exists). FAT install stays `/menu.rbf`. IdleRecipe
-must omit Probe (`0x0014`) and HPS framebuffer (`0x002f`).
+FES pins this path as `[splash_rbf]` and `[idle_rbf]`, with the same bytes:
+U-Boot loads it as FAT `/idle.rbf` (`core=idle.rbf`), and Stop idle loads it
+from the rootfs. IdleRecipe must omit Probe (`0x0014`) and HPS framebuffer
+(`0x002f`).
 
 Rebuild with `make build-fes-splash`, then replace these files and update
 digests here and in the FES pin.

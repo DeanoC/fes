@@ -5,9 +5,10 @@ Which packages exist, their ABI and their standing are
 and select one. For persistent Pong settings and best rally, see
 [core persistence](core-persistence.md).
 
-The locked splash and Stop-idle RBFs are the in-tree misteross seal
-`sources/misteross/sealed/fes-splash.rbf` (FAT `/menu.rbf` and rootfs
-`/usr/share/mister-runtime/idle.rbf`). Attract and rooms are not that
+The locked idle core is the in-tree misteross seal
+`sources/misteross/sealed/fes-splash.rbf`. It is installed twice: FAT
+`/idle.rbf`, which U-Boot programs at boot (`core=idle.rbf`), and rootfs
+`/usr/share/mister-runtime/idle.rbf`, which the runtime loads for Stop. Attract and rooms are not that
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,

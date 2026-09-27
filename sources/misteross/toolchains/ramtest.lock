@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "1bf1ff3d709dc8182cfa61701620d87181516941"
+commit = "b27035fcc1be6ec040df35a3adbe6d4149297cd8"
 order = 10
-rationale = "DeanoC main sampled 2026-09-26. CMake build with registered and flow-through M10K mapping and merged cyclonev_hps_interface_fpga2sdram support. Pair with nextpnr a93fe013."
+rationale = "DeanoC/yosys main b27035fc, which merged #16: the cyclonev_hps_interface_fpga2sdram blackbox declares every atom port (six command ports, four data ports, write acknowledges), so the RAM tester reaches the 128-bit port 0 and the 64-bit ports 1 and 2 of the fes.memory.hps-ddr layout. Pair with nextpnr f60b33aa."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corr
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "a93fe013af841214ecb4f7be3af0de65f3de3a0f"
+commit = "f60b33aa977b237d0762fdef90de42987671b21d"
 order = 30
-rationale = "DeanoC nextpnr main a93fe013, the merge of PR #86 (DeanoC/fes#236): dual 130 MHz PLL with 6538 ps capture phase, HPS fpga2sdram, analogue-scored GPU repair, soft-plateau finish (#84), frozen CRAM routes (#85) and the calibrated Mistral placement prediction. Without the prediction, seed 2 misses the 130 MHz memory clock at 128.16 MHz; with it, 30 of 32 seeds close. Pair with Yosys 1bf1ff3d and Mistral 7ed06e21."
+rationale = "DeanoC/nextpnr main f60b33aa, which merged #88 (Quartus 17.0.2 fpga2sdram timing arcs, so the RAM tester's HPS port paths are in its timing gate) and #91 (the analogue repair ends when a restore cannot recover its slack; with --rbf the analogue signoff, not the GPU router's table-model check, is the timing gate). Pair with Yosys b27035fc and Mistral 7ed06e21."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

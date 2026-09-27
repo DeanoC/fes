@@ -3,6 +3,8 @@
 
 This is not a format-2 play package. The sealed outputs are the RBF plus
 provenance for FES native-inputs (`splash_rbf` / `idle_rbf`) to pin later.
+U-Boot latches the splash's fpga2sdram layout at boot, so the netlist must
+carry the fes.memory.hps-ddr configuration with every port idle.
 """
 from __future__ import annotations
 
@@ -23,6 +25,7 @@ from scripts.fes_build_common import validate_timing_resources
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_splash.py"
 CONTRACT = "cores/fes-splash/idle-contract.toml"
+HPS_DDR_HEADER = board_evidence.HPS_DDR_HEADER
 QSF = "cores/fes-splash/constraints.qsf"
 SDC = "boards/de10nano/clocks.sdc"
 OUTPUT_RELATIVE = Path("build/fes-splash")
@@ -39,6 +42,7 @@ PINNED_INPUTS = (
     "toolchain.lock",
     QSF,
     SDC,
+    HPS_DDR_HEADER,
     *RTL_SOURCES,
 )
 # FES checkout root is the parent of sources/misteross. Version 1 requires
@@ -59,6 +63,7 @@ OSS_CONFIGURATION = "gpu-router=OFF; hip-architectures=unused"
 REQUIRED_RESOURCES = {
     "altera_pll": 1,
     "cyclonev_hps_interface_peripheral_i2c": 1,
+    "cyclonev_hps_interface_fpga2sdram": 1,
 }
 FORBIDDEN_RESOURCES = board.FORBIDDEN_RESOURCES | {
     "cyclonev_hps_interface_mpu_general_purpose",
@@ -106,6 +111,7 @@ def create_build_record(root: Path, repository: str, revision: str,
             "device": board.TARGET,
             "format2_package": False,
             "gpu_router": "OFF",
+            "hps_ddr_layout": "fes.memory.hps-ddr 1.0",
             "pixel_clock_hz": 74_250_000,
             "pll_fractional_vco_multiplier": True,
             "probe": False,
@@ -123,7 +129,7 @@ def build_commands(root: Path, tools: dict[str, Path], *, synth_only: bool = Fal
         raise board.BuildError("build commands require authenticated OSS tool paths")
     output = OUTPUT_RELATIVE.as_posix()
     program = (
-        f"read_verilog -sv {' '.join(RTL_SOURCES)}; "
+        f"read_verilog -sv -I {Path(HPS_DDR_HEADER).parent.as_posix()} {' '.join(RTL_SOURCES)}; "
         "synth_intel_alm -nobram -nolutram -nodsp -top top; "
         f"stat; write_json {output}/synth.json"
     )
@@ -161,8 +167,8 @@ def native_inputs_snippet(repository: str, revision: str, evidence: dict | None 
     digest = payload["sha256"] if payload else "SEALED_RBF_SHA256"
     size = payload["size"] if payload else 0
     comment = (
-        "# FES slice 4 pin candidate. Filename stays /menu.rbf until a U-Boot reseal.\n"
-        "# Stop idle reuses these splash bytes until a second bitstream exists.\n"
+        "# FES pin candidate: U-Boot loads these bytes as FAT /idle.rbf, and Stop\n"
+        "# idle loads the same bytes from the rootfs.\n"
         "# IdleRecipe must omit Probe (0x0014) and HPS fb (0x002f).\n"
     )
     if payload is None:
@@ -175,7 +181,7 @@ def native_inputs_snippet(repository: str, revision: str, evidence: dict | None 
         "path = 'build/fes-splash/core.rbf'\n"
         f"sha256 = {digest!r}\n"
         f"size = {size}\n"
-        "fat_destination = '/menu.rbf'\n"
+        "fat_destination = '/idle.rbf'\n"
         "\n"
         "[idle_rbf]\n"
         f"repository = {repository!r}\n"
@@ -196,6 +202,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     board_evidence._pll_cell_parameters(routed, "routed")
     board._i2c_evidence(synthesis, "synthesized")
     board._i2c_evidence(routed, "routed")
+    hps_ddr = board_evidence.hps_ddr_layout_evidence(synthesis, "synthesized", source_root, idle=True)
     counts = board._cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
@@ -259,6 +266,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         "resources": resources,
         "synthesis_cells": {name: counts[name] for name in sorted(counts)},
         "user_io": {"probe": False, "hps_fb": False, "core_id": ""},
+        "hps_ddr": hps_ddr,
         "rbf": {"sha256": board._sha256(rbf), "size": rbf.stat().st_size},
     }
 

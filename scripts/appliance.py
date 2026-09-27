@@ -29,7 +29,8 @@ MAX_IMAGE_SIZE = (4 << 30) - 1
 MAX_MANIFEST_SIZE = 8192
 MANIFEST_FIELDS = {'format','board','boot_abi','version','kernel_sha256','image_sha256','image_size','fes_revision','fogcast_revision','runtime_revision'}
 BOOTSTRAP_RECIPE_FILES = ('scripts/appliance.py','scripts/appliance_inside.py','scripts/media.py',
-                          'scripts/media_container.py','scripts/media_inputs.py','scripts/platform.py')
+                          'scripts/media_container.py','scripts/media_inputs.py','scripts/media_uboot.py',
+                          'scripts/platform.py')
 
 
 def canonical(data):

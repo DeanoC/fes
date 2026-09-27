@@ -25,17 +25,27 @@ chs_start = "feffff"
 chs_end = "feffff"
 
 [uboot]
+# FES U-Boot: the upstream MiSTer uboot.img below with its compiled-in
+# default environment changed from core=menu.rbf to core=idle.rbf and the
+# legacy-image data/header CRC-32s recomputed (scripts/media_uboot.py).
+# U-Boot programs FAT /idle.rbf, the same sealed core as the rootfs
+# /usr/share/mister-runtime/idle.rbf, before `bridge enable`. Changing it
+# requires media reprovisioning; a network update never rewrites U-Boot.
 path = "uboot.img"
 size = 515141
-sha256 = "e2d46cf9fe1ec40ca2c9c7409870249f267e06f70e5736dc6d30b4e21fe62a64"
-# core=menu.rbf is the locked U-Boot filename for the splash slot. Policy
-# names that artifact splash; changing the filename requires resealing U-Boot.
+sha256 = "21533e9903675329e3273aebced63c87dfa781f79327c121f24153ee2a11ecb9"
 environment = [
   "mmcroot=/dev/mmcblk0p1",
   "bootimage=/linux/zImage_dtb",
-  "core=menu.rbf",
+  "core=idle.rbf",
   "loop=linux/linux.img ro rootwait",
 ]
+
+[uboot_upstream]
+# Unmodified image-creator input, verified before derivation.
+path = "uboot.img"
+size = 515141
+sha256 = "e2d46cf9fe1ec40ca2c9c7409870249f267e06f70e5736dc6d30b4e21fe62a64"
 
 [kernel]
 path = "zImage_dtb"

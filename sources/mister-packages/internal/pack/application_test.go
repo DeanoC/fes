@@ -32,7 +32,7 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 			}
 		}
 	}
-	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports", "fes.firmware.blob"}
+	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports", "fes.firmware.blob", "fes.memory.hps-ddr"}
 	if len(app.Interfaces) != len(want) {
 		t.Fatal("interface count")
 	}

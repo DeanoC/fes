@@ -103,6 +103,16 @@ constexpr std::uint32_t FesApplicationOpcodeFirmwareCommit = 0x11u;
 constexpr std::uint32_t FesApplicationFirmwareBytes = 0x2000u;
 constexpr std::uint32_t FesApplicationFirmwareDataPairIndex = 0x0u;
 constexpr std::uint32_t FesApplicationFirmwareDataTailIndex = 0x1u;
+constexpr std::uint32_t FesApplicationHpsDdrWindowBase = 0x30000000u;
+constexpr std::uint32_t FesApplicationHpsDdrWindowBytes = 0x10000000u;
+constexpr std::uint32_t FesApplicationHpsDdrCfgPortWidth = 0x16u;
+constexpr std::uint32_t FesApplicationHpsDdrCfgCportType = 0x3fu;
+constexpr std::uint32_t FesApplicationHpsDdrCfgCportWfifoMap = 0xd0u;
+constexpr std::uint32_t FesApplicationHpsDdrCfgCportRfifoMap = 0xd0u;
+constexpr std::uint32_t FesApplicationHpsDdrCfgWfifoCportMap = 0x2100u;
+constexpr std::uint32_t FesApplicationHpsDdrCfgRfifoCportMap = 0x2100u;
+constexpr std::uint32_t FesApplicationHpsDdrCfgAxiMmSelect = 0x0u;
+constexpr std::uint32_t FesApplicationHpsDdrMaxBurst = 0x80u;
 constexpr const char* FesApplicationInterfaceGamepadID = "fes.gamepad";
 constexpr std::uint16_t FesApplicationInterfaceGamepadMajor = 1u;
 constexpr std::uint16_t FesApplicationInterfaceGamepadMinor = 0u;
@@ -135,6 +145,10 @@ constexpr const char* FesApplicationInterfaceFirmwareBlobID = "fes.firmware.blob
 constexpr std::uint16_t FesApplicationInterfaceFirmwareBlobMajor = 1u;
 constexpr std::uint16_t FesApplicationInterfaceFirmwareBlobMinor = 0u;
 constexpr std::uint32_t FesApplicationCapabilityFirmwareBlob = 0x80u;
+constexpr const char* FesApplicationInterfaceMemoryHpsDdrID = "fes.memory.hps-ddr";
+constexpr std::uint16_t FesApplicationInterfaceMemoryHpsDdrMajor = 1u;
+constexpr std::uint16_t FesApplicationInterfaceMemoryHpsDdrMinor = 0u;
+constexpr std::uint32_t FesApplicationCapabilityMemoryHpsDdr = 0x100u;
 
 } // namespace generated
 } // namespace native

@@ -87,7 +87,7 @@ commit = '2222222222222222222222222222222222222222'
 path = 'menu.rbf'
 sha256 = '$idle_sha'
 size = $idle_size
-fat_destination = '/menu.rbf'
+fat_destination = '/idle.rbf'
 
 [idle_rbf]
 repository = 'https://fixture.invalid/idle'

@@ -74,6 +74,10 @@ int main(int argc, char **argv) {
     }
 
     require(board.root.top__DOT__pll_locked, "sim PLL locked");
+    require(board.root.top__DOT__hps_ddr_layout__DOT__layout_ok,
+            "fpga2sdram configuration is not the fes.memory.hps-ddr layout");
+    require(board.root.top__DOT__hps_ddr_layout__DOT__idle,
+            "splash presents an HPS DDR command");
 
     unsigned lit = 0;
     unsigned letters = 0;

@@ -46,9 +46,19 @@ struct NativeResult {
 class FpgaManager {
 public:
 	virtual ~FpgaManager() {}
+	// Every program leaves the SDR FPGA ports in reset.
 	virtual NativeResult Program(const Artifact&,
 		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) = 0;
+	// fes.memory.hps-ddr: releases the SDR FPGA ports only when the loaded
+	// core's fpga2sdram mirrors equal the shared layout. A mismatch is
+	// core_mismatch; any failure leaves the ports in reset.
+	virtual Error ReleaseHpsDdrPorts(std::uint64_t absolute_deadline_ms) = 0;
+	// Whether the SDR controller latched the fes.memory.hps-ddr layout at
+	// boot. U-Boot's bridge enable applies the port layout of the core it
+	// loaded; it never changes afterwards. Without it every DDR command is
+	// refused, so the interface is neither advertised nor admitted.
+	virtual bool BootHpsDdrLayout() = 0;
 };
 
 class NativeHardware final : public Hardware {

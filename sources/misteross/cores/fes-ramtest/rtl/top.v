@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// RAM tester utility. The host speaks fes.application 1.0. The picture is
-// fixed 720p. Memory traffic is local to the core; the ABI has no memory opcode.
+`include "fes_application.vh"
+
+// RAM tester utility. The host speaks fes.application 1.0 with the gamepad and
+// fes.memory.hps-ddr interfaces. The picture is fixed 720p. Memory traffic is
+// local to the core; the ABI has no memory opcode.
 module top #(
     // The Quartus comparison stamps the same id the package manifest carries,
     // so the kit identity probe accepts the bitstream. The OSS seal overrides
     // this default from the build record.
     parameter [127:0] BUILD_ID = `ifdef QUARTUS `RAMTEST_BUILD_ID `else 128'h00000000000000000000000000000000 `endif,
     // Simulation uses a short span of the same patterns. The sealed core
-    // keeps the full SDRAM addon and the HPS window.
+    // keeps the full SDRAM addon and the whole HPS DDR window.
     // Simulation walks past 64K halfwords so the address pattern's high half
     // is nonzero. 2176 only crossed a row, and the high XOR stayed zero.
     parameter [31:0] SDRAM_WORDS = `ifdef SIM 32'd65552 `else 32'h04000000 `endif,
-    parameter [31:0] HPS_WORDS = `ifdef SIM 32'd64 `else 32'h00040000 `endif,
-    parameter [31:0] HPS_BASE = `ifdef SIM 32'd0 `else 32'h01000000 `endif
+    // Bytes each DDR port scans. Port 0 takes the first half of the window,
+    // ports 1 and 2 a quarter each, so the three cover all of it.
+    parameter [31:0] DDR_WIDE_BYTES = `ifdef SIM 32'd4096 `else `FES_APPLICATION_HPS_DDR_WINDOW_BYTES / 2 `endif,
+    parameter [31:0] DDR_NARROW_BYTES = `ifdef SIM 32'd4096 `else `FES_APPLICATION_HPS_DDR_WINDOW_BYTES / 4 `endif
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -79,7 +84,7 @@ module top #(
         .gp_out(hps_to_fpga)
     );
 
-    fes_application_gp #(.ENABLE_GAMEPAD(1)) endpoint (
+    fes_application_gp #(.ENABLE_GAMEPAD(1), .ENABLE_HPS_DDR(1)) endpoint (
         .clk(pixel_clk),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
@@ -100,26 +105,19 @@ module top #(
     );
 
     wire sdram_start, sdram_write, sdram_done;
-    wire hps_start, hps_write, hps_done;
     wire [25:0] sdram_addr;
-    wire [31:0] hps_addr;
     wire [15:0] sdram_wdata, sdram_rdata;
-    wire [15:0] hps_wdata, hps_rdata;
     wire sdram_pass /* verilator public_flat_rd */;
     wire sdram_fail /* verilator public_flat_rd */;
-    wire hps_pass /* verilator public_flat_rd */;
-    wire hps_fail /* verilator public_flat_rd */;
     wire sdram_stopped /* verilator public_flat_rd */;
-    wire hps_stopped /* verilator public_flat_rd */;
     wire [31:0] sdram_errors /* verilator public_flat_rd */;
-    wire [31:0] hps_errors /* verilator public_flat_rd */;
-    wire [2:0] sdram_phase, hps_phase;
-    wire sdram_reading, hps_reading;
-    wire [31:0] sdram_shown, hps_shown;
-    wire [31:0] sdram_fault, hps_fault;
-    wire [31:0] sdram_last, hps_last;
-    wire [15:0] sdram_was, hps_was;
-    wire [15:0] sdram_expect, hps_expect, sdram_got, hps_got;
+    wire [2:0] sdram_phase;
+    wire sdram_reading;
+    wire [31:0] sdram_shown;
+    wire [31:0] sdram_fault;
+    wire [31:0] sdram_last;
+    wire [15:0] sdram_was;
+    wire [15:0] sdram_expect, sdram_got;
     wire [15:0] dq_out, dq_rise, dq_fall;
 `ifndef RAM_OSS_HIGH_SPEED
 `ifndef RAM_100_ONLY
@@ -135,8 +133,6 @@ module top #(
 `endif
 `endif
     wire dq_oe;
-    reg [1:0] hps_reset_sync = 2'b00;
-    reg [1:0] hps_stop_sync = 2'b00;
     reg [1:0] stop_sync = 2'b00;
     reg [1:0] mem_reset_sync = 2'b00;
     // OSS and Quartus builds select either 100 or 130 MHz directly from the
@@ -255,11 +251,6 @@ module top #(
     wire [7:0] sdram_mhz = 8'd50;
 `endif
 
-    always @(posedge FPGA_CLK1_50) begin
-        hps_reset_sync <= {hps_reset_sync[0], mailbox_reset};
-        hps_stop_sync <= {hps_stop_sync[0], stop_level};
-    end
-
     // Per-pattern counts stay on screen after the next rate re-inits the chip.
     wire [191:0] sdram_patterns;
     reg [191:0] pat50 = 192'd0;
@@ -300,16 +291,6 @@ module top #(
         .fault_addr(sdram_fault), .last_addr(sdram_last), .fault_got(sdram_was),
         .errors(sdram_errors), .pattern_errors(sdram_patterns),
         .shown_expect(sdram_expect), .shown_got(sdram_got)
-    );
-    mem_channel #(.ADDR_W(32), .WORDS(HPS_WORDS), .BASE(HPS_BASE)) hps_test (
-        .clk(FPGA_CLK1_50), .reset(hps_reset_sync[1]), .stop(hps_stop_sync[1]),
-        .start(hps_start), .write(hps_write), .addr(hps_addr), .wdata(hps_wdata),
-        .done(hps_done), .rdata(hps_rdata),
-        .busy(), .pass(hps_pass), .fail(hps_fail), .stopped(hps_stopped),
-        .phase(hps_phase), .reading(hps_reading), .shown_addr(hps_shown),
-        .fault_addr(hps_fault), .last_addr(hps_last), .fault_got(hps_was),
-        .errors(hps_errors), .pattern_errors(),
-        .shown_expect(hps_expect), .shown_got(hps_got)
     );
 
     sdram_addon_port sdram (
@@ -406,11 +387,119 @@ module top #(
         end
     endgenerate
 
-    hps_ddr_port hps_ddr (
-        .clk(FPGA_CLK1_50),
-        .start(hps_start), .write(hps_write), .addr(hps_addr), .wdata(hps_wdata),
-        .done(hps_done), .rdata(hps_rdata)
+    // HPS DDR: the three fes.memory.hps-ddr ports scan the window together
+    // on the memory clock. Execution hold and a memory PLL change hold them.
+    wire ddr0_reset, ddr1_reset, ddr2_reset;
+    wire [27:0] ddr0_address;
+    wire [28:0] ddr1_address, ddr2_address;
+    wire [7:0] ddr0_burst, ddr1_burst, ddr2_burst;
+    wire ddr0_wait, ddr1_wait, ddr2_wait;
+    wire [127:0] ddr0_rdata, ddr0_wdata;
+    wire [63:0] ddr1_rdata, ddr1_wdata, ddr2_rdata, ddr2_wdata;
+    wire ddr0_rvalid, ddr1_rvalid, ddr2_rvalid;
+    wire ddr0_read, ddr1_read, ddr2_read;
+    wire ddr0_write, ddr1_write, ddr2_write;
+    wire [15:0] ddr0_be;
+    wire [7:0] ddr1_be, ddr2_be;
+    wire [297:0] ddr0_status, ddr1_status, ddr2_status;
+    wire ddr0_done /* verilator public_flat_rd */;
+    wire ddr1_done /* verilator public_flat_rd */;
+    wire ddr2_done /* verilator public_flat_rd */;
+    wire ddr0_nack /* verilator public_flat_rd */;
+    wire ddr1_nack /* verilator public_flat_rd */;
+    wire ddr2_nack /* verilator public_flat_rd */;
+    wire ddr0_stopped /* verilator public_flat_rd */;
+    wire ddr1_stopped /* verilator public_flat_rd */;
+    wire ddr2_stopped /* verilator public_flat_rd */;
+    wire [31:0] ddr0_errors /* verilator public_flat_rd */;
+    wire [31:0] ddr1_errors /* verilator public_flat_rd */;
+    wire [31:0] ddr2_errors /* verilator public_flat_rd */;
+`ifdef RAM_130_ONLY
+    localparam integer DDR_MHZ = 130;
+`elsif RAM_RATE_SWEEP
+    localparam integer DDR_MHZ = 100;
+`else
+    localparam integer DDR_MHZ = 50;
+`endif
+    localparam [31:0] DDR_BASE = `FES_APPLICATION_HPS_DDR_WINDOW_BASE;
+    localparam [31:0] DDR1_BASE = DDR_BASE + (`FES_APPLICATION_HPS_DDR_WINDOW_BYTES / 2);
+    localparam [31:0] DDR2_BASE = DDR1_BASE + (`FES_APPLICATION_HPS_DDR_WINDOW_BYTES / 4);
+
+    fes_hps_ddr hps_ddr (
+        .hold(mailbox_reset | rate_reset),
+        .p0_clk(mem_clk), .p0_reset(ddr0_reset),
+        .p0_address(ddr0_address), .p0_burstcount(ddr0_burst),
+        .p0_waitrequest(ddr0_wait), .p0_readdata(ddr0_rdata),
+        .p0_readdatavalid(ddr0_rvalid), .p0_read(ddr0_read),
+        .p0_writedata(ddr0_wdata), .p0_byteenable(ddr0_be), .p0_write(ddr0_write),
+        .p1_clk(mem_clk), .p1_reset(ddr1_reset),
+        .p1_address(ddr1_address), .p1_burstcount(ddr1_burst),
+        .p1_waitrequest(ddr1_wait), .p1_readdata(ddr1_rdata),
+        .p1_readdatavalid(ddr1_rvalid), .p1_read(ddr1_read),
+        .p1_writedata(ddr1_wdata), .p1_byteenable(ddr1_be), .p1_write(ddr1_write),
+        .p2_clk(mem_clk), .p2_reset(ddr2_reset),
+        .p2_address(ddr2_address), .p2_burstcount(ddr2_burst),
+        .p2_waitrequest(ddr2_wait), .p2_readdata(ddr2_rdata),
+        .p2_readdatavalid(ddr2_rvalid), .p2_read(ddr2_read),
+        .p2_writedata(ddr2_wdata), .p2_byteenable(ddr2_be), .p2_write(ddr2_write)
     );
+
+    wire [191:0] ddr_cycles;
+    wire [95:0] ddr_rate_digits /* verilator public_flat_rd */;
+    ddr_channel #(.DATA_W(128), .ADDR_W(28), .BASE(DDR_BASE),
+                  .BYTES(DDR_WIDE_BYTES)) ddr0_test (
+        .clk(mem_clk), .reset(ddr0_reset), .stop(stop_sync[1]),
+        .address(ddr0_address), .burstcount(ddr0_burst), .waitrequest(ddr0_wait),
+        .readdata(ddr0_rdata), .readdatavalid(ddr0_rvalid), .read(ddr0_read),
+        .writedata(ddr0_wdata), .byteenable(ddr0_be), .write(ddr0_write),
+        .phase(ddr0_status[297:295]), .reading(ddr0_status[294]),
+        .shown_addr(ddr0_status[293:262]), .errors(ddr0_errors),
+        .fault_addr(ddr0_status[229:198]), .last_addr(ddr0_status[197:166]),
+        .fault_phase(ddr0_status[165:163]), .bad(ddr0_status[162:35]),
+        .done(ddr0_done), .nack(ddr0_nack), .stopped(ddr0_stopped),
+        .write_cycles(ddr_cycles[31:0]), .read_cycles(ddr_cycles[63:32])
+    );
+    ddr_channel #(.DATA_W(64), .ADDR_W(29), .BASE(DDR1_BASE),
+                  .BYTES(DDR_NARROW_BYTES)) ddr1_test (
+        .clk(mem_clk), .reset(ddr1_reset), .stop(stop_sync[1]),
+        .address(ddr1_address), .burstcount(ddr1_burst), .waitrequest(ddr1_wait),
+        .readdata(ddr1_rdata), .readdatavalid(ddr1_rvalid), .read(ddr1_read),
+        .writedata(ddr1_wdata), .byteenable(ddr1_be), .write(ddr1_write),
+        .phase(ddr1_status[297:295]), .reading(ddr1_status[294]),
+        .shown_addr(ddr1_status[293:262]), .errors(ddr1_errors),
+        .fault_addr(ddr1_status[229:198]), .last_addr(ddr1_status[197:166]),
+        .fault_phase(ddr1_status[165:163]), .bad(ddr1_status[98:35]),
+        .done(ddr1_done), .nack(ddr1_nack), .stopped(ddr1_stopped),
+        .write_cycles(ddr_cycles[95:64]), .read_cycles(ddr_cycles[127:96])
+    );
+    ddr_channel #(.DATA_W(64), .ADDR_W(29), .BASE(DDR2_BASE),
+                  .BYTES(DDR_NARROW_BYTES)) ddr2_test (
+        .clk(mem_clk), .reset(ddr2_reset), .stop(stop_sync[1]),
+        .address(ddr2_address), .burstcount(ddr2_burst), .waitrequest(ddr2_wait),
+        .readdata(ddr2_rdata), .readdatavalid(ddr2_rvalid), .read(ddr2_read),
+        .writedata(ddr2_wdata), .byteenable(ddr2_be), .write(ddr2_write),
+        .phase(ddr2_status[297:295]), .reading(ddr2_status[294]),
+        .shown_addr(ddr2_status[293:262]), .errors(ddr2_errors),
+        .fault_addr(ddr2_status[229:198]), .last_addr(ddr2_status[197:166]),
+        .fault_phase(ddr2_status[165:163]), .bad(ddr2_status[98:35]),
+        .done(ddr2_done), .nack(ddr2_nack), .stopped(ddr2_stopped),
+        .write_cycles(ddr_cycles[159:128]), .read_cycles(ddr_cycles[191:160])
+    );
+    ddr_rates #(.WIDE_NUMERATOR({8'd0, DDR_WIDE_BYTES} * DDR_MHZ),
+                .NARROW_NUMERATOR({8'd0, DDR_NARROW_BYTES} * DDR_MHZ)) ddr_speed (
+        .clk(mem_clk), .cycles(ddr_cycles), .digits(ddr_rate_digits)
+    );
+    assign ddr0_status[31:0] = {ddr_rate_digits[15:0], ddr_rate_digits[31:16]};
+    assign ddr1_status[31:0] = {ddr_rate_digits[47:32], ddr_rate_digits[63:48]};
+    assign ddr2_status[31:0] = {ddr_rate_digits[79:64], ddr_rate_digits[95:80]};
+    assign ddr0_status[261:230] = ddr0_errors;
+    assign ddr1_status[261:230] = ddr1_errors;
+    assign ddr2_status[261:230] = ddr2_errors;
+    assign ddr0_status[34:32] = {ddr0_done, ddr0_nack, ddr0_stopped};
+    assign ddr1_status[34:32] = {ddr1_done, ddr1_nack, ddr1_stopped};
+    assign ddr2_status[34:32] = {ddr2_done, ddr2_nack, ddr2_stopped};
+    assign ddr1_status[162:99] = 64'd0;
+    assign ddr2_status[162:99] = 64'd0;
 
     ram_display display (
         .pixel_clk(pixel_clk),
@@ -421,10 +510,7 @@ module top #(
         .sdram_mhz(sdram_mhz),
         .sdram_pass(sdram_pass), .sdram_fail(sdram_fail), .sdram_stopped(sdram_stopped),
         .pat50(pat50), .pat75(pat75), .pat100(pat100), .pat_ok(pat_ok),
-        .hps_phase(hps_phase), .hps_reading(hps_reading), .hps_addr(hps_shown),
-        .hps_fault(hps_fault), .hps_last(hps_last), .hps_was(hps_was),
-        .hps_errors(hps_errors), .hps_expect(hps_expect), .hps_got(hps_got),
-        .hps_pass(hps_pass), .hps_fail(hps_fail), .hps_stopped(hps_stopped),
+        .ddr0(ddr0_status), .ddr1(ddr1_status), .ddr2(ddr2_status),
         .red(play_red), .green(play_green), .blue(play_blue)
     );
 
