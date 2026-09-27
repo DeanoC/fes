@@ -154,6 +154,7 @@ type SessionSnapshot struct {
 	DevelopmentState  string
 	Diagnostic        bool
 	LoadTape          bool
+	HardwareRoom      bool
 }
 
 // KitLeaseSnapshot is status-only kit ownership from GET /v1/kit/lease.
@@ -382,6 +383,7 @@ type App struct {
 	stopWait           chan struct{}
 	sessionGen         int
 	stopPhase          string
+	stopExpected       hostclient.SessionResult
 	stopMessage        string
 	gpuParked          bool
 	sessionKick        chan struct{}
@@ -421,6 +423,14 @@ type App struct {
 	roomFrame             rooms.Frame
 	roomErr               string
 	roomWasParked         bool
+	roomDuringPlay        bool
+	roomSessionNotice     string
+	playHIDHeld           map[playHIDKey]remoteinput.Event
+	playHIDTail           chan struct{}
+	playHIDContext        context.Context
+	playHIDCancel         context.CancelFunc
+	playHIDEpoch          uint64
+	playHIDPending        int
 	roomPickerOpen        bool
 	roomPickerIndex       int
 	roomCoverSem          chan struct{}
@@ -446,6 +456,7 @@ type App struct {
 	tapePickerPath        string
 	tapePickerStatus      string
 	tapePickerRows        []TapePickerRow
+	tapePickerSession     hostclient.SessionResult
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -600,6 +611,7 @@ func (a *App) Stop() {
 	a.mu.Lock()
 	a.hideAttractLocked()
 	a.stopPreviewLocked()
+	a.cancelPlayHIDLocked()
 	a.closeAllRoomsLocked()
 	a.attractClosed = true
 	cancel := a.cancel
@@ -735,6 +747,14 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		if a.firmwarePickerOpen || a.tapePickerOpen {
 			return
 		}
+		if a.sessionStopOfferedLocked() {
+			if a.roomDuringPlay {
+				a.resumeRoomSessionLocked()
+			} else {
+				a.openPlayingHardwareRoomLocked()
+			}
+			return
+		}
 		if roomOwnsInput {
 			a.handleRoomLocked(cmd)
 			return
@@ -750,6 +770,11 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 		if a.sessionStopOfferedLocked() {
+			if a.roomDuringPlay {
+				a.toggleRoomPickerLocked()
+			} else {
+				a.openPlayingHardwareRoomLocked()
+			}
 			return
 		}
 		if a.firmwarePickerOpen {
@@ -801,11 +826,19 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.handleFirmwarePickerLocked(cmd)
 		return
 	}
-	if a.roomPickerOpen && !a.sessionStopOfferedLocked() {
+	if a.roomPickerOpen && (!a.sessionStopOfferedLocked() || a.roomDuringPlay) {
 		a.handleRoomPickerLocked(cmd)
 		return
 	}
-	if a.room != nil && !a.sessionStopOfferedLocked() {
+	if a.room != nil && (!a.sessionStopOfferedLocked() || a.roomDuringPlay) {
+		if cmd == CmdStop {
+			a.startStopLocked()
+			return
+		}
+		if cmd == CmdBack && a.roomDuringPlay && !a.roomChoiceOpen && !a.detailOpen {
+			a.resumeRoomSessionLocked()
+			return
+		}
 		a.handleRoomLocked(cmd)
 		return
 	}
@@ -1917,6 +1950,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		return
 	}
 	a.sessionTitle = game.Title
+	a.cancelPlayHIDLocked()
 	a.launch = LaunchSnapshot{
 		GameID:  game.ID,
 		Phase:   "launching",
@@ -2009,6 +2043,12 @@ func (a *App) startStopLocked() {
 		a.stopQueued = true
 		return
 	}
+	if !a.retryStopLock {
+		a.stopExpected = a.session
+	}
+	a.roomDuringPlay = false
+	a.roomPickerOpen = false
+	a.cancelPlayHIDLocked()
 	a.stopPhase = "stopping"
 	a.stopMessage = "stopping session"
 	a.bumpSessionGenLocked()
@@ -2022,10 +2062,11 @@ func (a *App) startStopLocked() {
 		"game_id": a.session.GameID,
 		"state":   a.session.State,
 	})
+	expected := a.stopExpected
 	done := make(chan struct{})
 	a.stopWait = done
 	go func() {
-		a.doStop(ctx, stamp)
+		a.doStop(ctx, stamp, expected)
 		a.mu.Lock()
 		if a.stopWait == done {
 			a.stopWait = nil
@@ -2035,8 +2076,14 @@ func (a *App) startStopLocked() {
 	}()
 }
 
-func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
-	result, err := a.client.StopStamped(ctx, stamp)
+func (a *App) doStop(ctx context.Context, stamp ClientStamp, expected hostclient.SessionResult) {
+	var result hostclient.SessionResult
+	var err error
+	if expected.CorePackage != nil && expected.GameID != "" {
+		result, err = a.client.StopExpectedStamped(ctx, expected, stamp)
+	} else {
+		result, err = a.client.StopStamped(ctx, stamp)
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.stopPhase != "stopping" {
@@ -2050,6 +2097,24 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 		if result.ErrorCode == "" {
 			a.stopResponseLost = true
 		}
+		a.syncGPUParkLocked()
+		return
+	}
+	if result.ErrorCode == "SESSION_CHANGED" {
+		// Admission rejected this identity without stopping it. A later explicit
+		// Stop must capture refreshed play, rather than retry the stale request.
+		a.retryStopLock = false
+		a.retryStopHint = ""
+		a.retryStopCode = ""
+		a.stopExpected = hostclient.SessionResult{}
+		a.stopPhase = "host"
+		a.stopMessage = "The running machine changed. Review it before stopping."
+		a.status = a.stopMessage
+		if a.room != nil {
+			a.room.Resume()
+			a.dropRoomNavActionsLocked()
+		}
+		a.kickSessionPollLocked()
 		a.syncGPUParkLocked()
 		return
 	}
@@ -2107,6 +2172,9 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if a == nil {
 		return false
 	}
+	if a.handlePlayingRoomKey(name, down, now) {
+		return true
+	}
 	a.mu.Lock()
 	hid := a.forwardsKeyboardHIDLocked()
 	a.mu.Unlock()
@@ -2129,7 +2197,7 @@ func (a *App) ForwardsPlayHID() bool {
 }
 
 func (a *App) forwardsPlayHIDLocked() bool {
-	if a.session.State != "active" {
+	if a.session.State != "active" || a.roomDuringPlay || a.tapePickerOpen || a.firmwarePickerOpen {
 		return false
 	}
 	if a.session.Input == nil {
@@ -2159,6 +2227,9 @@ func (a *App) ConsumePlayHID() bool {
 // active package can arm a mailbox. Other keys encode for the attached core.
 // Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
+	if a.handlePlayingRoomKey(name, down, now) {
+		return true
+	}
 	if !a.ConsumePlayHID() {
 		return false
 	}
@@ -2229,14 +2300,17 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 		return false
 	}
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	ready := a.forwardsPlayHIDLocked()
 	foreign := a.playHIDFailClosedLocked()
-	client := a.client
-	a.mu.Unlock()
-	if !ready || foreign || client == nil {
+	if !ready || foreign || a.client == nil {
 		return false
 	}
-	go func() { _ = client.SendCoreKey(context.Background(), event) }()
+	if (event.Action == remoteinput.ActionPress || event.Kind == remoteinput.KindAxis && event.Value != 0) && a.playHIDPending >= maxPendingPlayHID {
+		return false
+	}
+	a.rememberPlayHIDLocked(event)
+	a.queuePlayHIDLocked([]remoteinput.Event{event})
 	return true
 }
 
@@ -2513,6 +2587,9 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	if result.ErrorCode != "" {
 		return
 	}
+	if !samePlayHIDSession(a.session, result) {
+		a.cancelPlayHIDLocked()
+	}
 	a.session = result
 	a.rememberFlightLocked(result.FlightID)
 	// Keep retainedIdleLease. Soft-stop of foreground B can promote A, and
@@ -2526,6 +2603,8 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		a.clearStaleDevelopmentLoadLocked()
 	}
 	if a.session.State != "active" && a.stopPhase != "stopping" && !a.retryStopLock {
+		a.roomDuringPlay = false
+		a.playHIDHeld = nil
 		a.stopPhase = "idle"
 		a.stopMessage = ""
 		if a.launch.Phase == "ok" {
@@ -2543,7 +2622,7 @@ func (a *App) syncGPUParkLocked() {
 	if a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" || a.retryStopLock || a.developmentLoadingLocked() {
 		a.hold.Clear()
 	}
-	want := a.session.State == "active" || a.stopPhase == "stopping" || a.retryStopLock
+	want := a.session.State == "active" && !a.roomDuringPlay || a.stopPhase == "stopping" || a.retryStopLock
 	if want == a.gpuParked {
 		if want {
 			a.closeCollectionOverlaysLocked()
@@ -2640,6 +2719,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		DevelopmentState:  devState,
 		Diagnostic:        diagnostic,
 		LoadTape:          a.sessionLiveMediaOfferedLocked(),
+		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }
 

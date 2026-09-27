@@ -238,6 +238,7 @@ func (a *App) closeTapePickerLocked() {
 	a.tapePickerIndex = 0
 	a.tapePickerPath = ""
 	a.tapePickerAtRoots = false
+	a.tapePickerSession = hostclient.SessionResult{}
 	if a.settingsOSKKind == settingsOSKTapePath {
 		a.closeSettingsOSKLocked()
 	}
@@ -249,13 +250,20 @@ func (a *App) sessionLiveMediaOfferedLocked() bool {
 
 func (a *App) openTapePickerLocked() {
 	if !a.sessionLiveMediaOfferedLocked() {
+		a.status = "Live tape is unavailable for this running machine."
+		a.roomSessionNotice = a.status
 		return
 	}
+	if a.tapePickerBusy {
+		return
+	}
+	a.releasePlayHIDLocked()
 	a.closeFirmwarePickerLocked()
 	a.closeDetailLocked()
 	a.roomChoiceOpen = false
 	a.roomChoice = nil
 	a.tapePickerOpen = true
+	a.tapePickerSession = a.session
 	a.tapePickerBusy = false
 	a.tapePickerGen++
 	a.showTapePickerRootsLocked("Choose a .p tape to arm on the running ZX81.")
@@ -294,7 +302,7 @@ func (a *App) handleTapePickerLocked(cmd Command) {
 	}
 	if a.tapePickerBusy {
 		if cmd == CmdBack {
-			a.tapePickerStatus = "Tape arm in progress"
+			a.tapePickerStatus = "Tape change in progress"
 			a.status = a.tapePickerStatus
 		}
 		return
@@ -469,7 +477,7 @@ func (a *App) startTapeArmLocked(path string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.doTapeArm(ctx, gen, path)
+	go a.doTapeArm(ctx, gen, a.tapePickerSession, path)
 }
 
 func (a *App) startTapeEjectLocked() {
@@ -495,17 +503,22 @@ func (a *App) startTapeEjectLocked() {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.doTapeEject(ctx, gen)
+	go a.doTapeEject(ctx, gen, a.tapePickerSession)
 }
 
-func (a *App) doTapeArm(ctx context.Context, gen int, path string) {
-	result, err := importAndArmTape(ctx, a.client, path)
+func (a *App) doTapeArm(ctx context.Context, gen int, prior hostclient.SessionResult, path string) {
+	result, err := importAndArmTape(ctx, a.client, prior, path)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.tapePickerGen != gen {
 		return
 	}
 	a.tapePickerBusy = false
+	if !samePlayHIDSession(a.session, prior) {
+		a.tapePickerStatus = "The running machine changed. Close the picker and choose tape again."
+		a.status = a.tapePickerStatus
+		return
+	}
 	if err != nil {
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
@@ -516,14 +529,19 @@ func (a *App) doTapeArm(ctx context.Context, gen int, path string) {
 	a.status = "Tape armed."
 }
 
-func (a *App) doTapeEject(ctx context.Context, gen int) {
-	result, err := clearLiveMediaWithRetry(ctx, a.client)
+func (a *App) doTapeEject(ctx context.Context, gen int, prior hostclient.SessionResult) {
+	result, err := clearLiveMediaWithRetry(ctx, a.client, prior)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.tapePickerGen != gen {
 		return
 	}
 	a.tapePickerBusy = false
+	if !samePlayHIDSession(a.session, prior) {
+		a.tapePickerStatus = "The running machine changed. Close the picker and choose tape again."
+		a.status = a.tapePickerStatus
+		return
+	}
 	if err != nil {
 		// Eject failure leaves the active session alone. Unavailable is not Stop.
 		a.tapePickerStatus = liveMediaStatusMessage(err)
@@ -535,7 +553,7 @@ func (a *App) doTapeEject(ctx context.Context, gen int) {
 	a.status = "Tape ejected."
 }
 
-func clearLiveMediaWithRetry(ctx context.Context, client *Client) (hostclient.SessionResult, error) {
+func clearLiveMediaWithRetry(ctx context.Context, client *Client, prior hostclient.SessionResult) (hostclient.SessionResult, error) {
 	if client == nil {
 		return hostclient.SessionResult{}, fmt.Errorf("host API is unavailable")
 	}
@@ -555,7 +573,7 @@ func clearLiveMediaWithRetry(ctx context.Context, client *Client) (hostclient.Se
 			case <-timer.C:
 			}
 		}
-		result, err = client.ClearLiveMedia(ctx)
+		result, err = client.ClearLiveMediaForSession(ctx, prior)
 		if err == nil || !ejectRetryable(err) {
 			return result, err
 		}
@@ -576,7 +594,7 @@ func ejectRetryable(err error) bool {
 	return api.Code == protocol.CodeMiSTerUnavailable
 }
 
-func importAndArmTape(ctx context.Context, client *Client, path string) (hostclient.SessionResult, error) {
+func importAndArmTape(ctx context.Context, client *Client, prior hostclient.SessionResult, path string) (hostclient.SessionResult, error) {
 	if client == nil {
 		return hostclient.SessionResult{}, fmt.Errorf("host API is unavailable")
 	}
@@ -592,5 +610,5 @@ func importAndArmTape(ctx context.Context, client *Client, path string) (hostcli
 	if !protocol.AdmitTapeMediaSize(media.Size) {
 		return hostclient.SessionResult{}, protocol.LiveMediaRequestError()
 	}
-	return client.ReplaceLiveMedia(ctx, media.MediaID, name)
+	return client.ReplaceLiveMediaForSession(ctx, prior, media.MediaID, name)
 }

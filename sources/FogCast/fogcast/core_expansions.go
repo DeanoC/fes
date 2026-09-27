@@ -82,6 +82,17 @@ func (s *Service) SelectCoreEntryExpansion(ctx context.Context, gameID, packageI
 		return catalog.CoreEntryExpansion{}, err
 	}
 	defer release()
+	entry, err := s.CoreEntry(ctx, gameID)
+	if err != nil {
+		return catalog.CoreEntryExpansion{}, err
+	}
+	selected, err := store.CoreEntryExpansion(ctx, gameID)
+	if err != nil {
+		return catalog.CoreEntryExpansion{}, expansionError(err)
+	}
+	if entry.PackageID != packageID || selected.ExpansionID != expected {
+		return catalog.CoreEntryExpansion{}, expansionError(catalog.ErrCoreEntryConflict)
+	}
 	if id != "" {
 		asset, err := store.ReadCoreExpansion(ctx, id)
 		if err != nil {

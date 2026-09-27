@@ -64,10 +64,18 @@ type SessionCoreABI struct {
 // older fixture bodies may omit them.
 type SessionCorePackage struct {
 	PackageID        string                 `json:"package_id,omitempty"`
+	Composition      *SessionComposition    `json:"composition,omitempty"`
 	Generation       uint64                 `json:"generation"`
 	Gamepad          bool                   `json:"gamepad"`
 	ABI              SessionCoreABI         `json:"abi"`
 	ActiveInterfaces []SessionCoreInterface `json:"active_interfaces"`
+}
+
+// SessionComposition is the expansion identity verified for the active load.
+// It must never be reconstructed from the mutable library setup.
+type SessionComposition struct {
+	PackageID   string `json:"package_id"`
+	ExpansionID string `json:"expansion_id"`
 }
 
 // SessionResult is the common host response for session reads and mutations.

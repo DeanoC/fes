@@ -383,6 +383,13 @@ func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 // drawRoomChrome keeps host/kit health, launch progress and the input hint
 // visible over any room without the library header.
 func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
+	if snap.Room.ID == hardwareRoomID {
+		x, y := snap.Room.OffsetX, snap.Room.OffsetY+snap.Room.Height
+		fillRect(dev, float32(x), float32(y), float32(snap.Room.Width), hardwareRoomFooterHeight, 37, 48, 45, 255)
+		drawLabel(dev, labels, used, "hardware-status", x+16, y+6, snap.Room.Width-32, 15, hardwareRoomStatus(snap))
+		drawLabel(dev, labels, used, "hardware-hint", x+16, y+29, snap.Room.Width-32, 14, snap.HeaderHint())
+		return
+	}
 	g := snap.Grid
 	x := g.contentLeft()
 	w := g.contentWidth()
@@ -410,6 +417,23 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	}
 	hint := snap.HeaderHint()
 	drawDebug(dev, x+w-8*len(hint)-8, y+4, hint, 1)
+}
+
+func hardwareRoomStatus(snap Snapshot) string {
+	if snap.Room.Notice != "" {
+		return snap.Room.Notice
+	}
+	if snap.Health.Line != "" && (!snap.Health.Ready || !snap.Health.TargetReachable || !snap.Health.TargetReady) {
+		return snap.Health.Line
+	}
+	if snap.KitLease.Line != "" && (snap.KitLease.Unreachable || snap.KitLease.State == "busy") {
+		return snap.KitLease.Line
+	}
+	status := strings.TrimSpace(snap.Status)
+	if strings.HasPrefix(status, "host accepted launch") {
+		return "The machine is running. Return to play whenever you are ready."
+	}
+	return status
 }
 
 func drawLaunchOverlay(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {

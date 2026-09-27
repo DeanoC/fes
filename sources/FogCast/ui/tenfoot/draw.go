@@ -425,6 +425,9 @@ func drawNowPlaying(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 		drawLabel(dev, labels, used, fmt.Sprintf("np-ev-%d", i), x, y, maxW, 15, line)
 		y += 22
 	}
+	drawHardwareRoomButton(dev, snap, labels, used)
+	drawTapePicker(dev, snap, labels, used)
+	drawOSK(dev, snap, labels, used)
 	drawDebugHUD(dev, snap)
 	for key, item := range labels {
 		if _, ok := used[key]; ok {

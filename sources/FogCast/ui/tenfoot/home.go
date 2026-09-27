@@ -171,7 +171,19 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 		ID: "", Label: "Library", Detail: "browse every title",
 		Library: true, Kind: HomeKindLibrary,
 	})
+	if a.sessionStopOfferedLocked() {
+		for i := range rows {
+			if homeRowNeedsIdle(rows[i]) {
+				rows[i].Invalid = true
+				rows[i].Detail = "Stop the running machine before opening the library or another title."
+			}
+		}
+	}
 	return rows
+}
+
+func homeRowNeedsIdle(row RoomPickerRow) bool {
+	return row.Kind == HomeKindLibrary || row.Kind == HomeKindRecents || row.Kind == HomeKindRecent
 }
 
 func (a *App) homeFocusKeyLocked() string {
@@ -237,6 +249,10 @@ func (a *App) goHomeNowLocked() {
 }
 
 func (a *App) activateHomeRowLocked(row RoomPickerRow) {
+	if a.sessionStopOfferedLocked() && homeRowNeedsIdle(row) {
+		a.status = "Stop the running machine before opening the library or another title."
+		return
+	}
 	if row.Invalid {
 		a.status = row.Detail
 		return
@@ -252,6 +268,9 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 		a.launchRecentFromHomeLocked(row.ID)
 	case HomeKindPinned, HomeKindRoom:
 		a.roomPickerOpen = false
+		if a.room != nil && a.room.ID() == row.ID {
+			return
+		}
 		a.closeAllRoomsLocked()
 		a.openRoomLocked(row.ID)
 	default:

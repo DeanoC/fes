@@ -24,6 +24,7 @@ const (
 	PointerLaunchOverlay
 	PointerFirmwarePicker
 	PointerTapePicker
+	PointerHardwareRoom
 )
 
 // PointerHit is one hit-test result in logical sofa pixels.
@@ -69,6 +70,8 @@ func (k PointerKind) String() string {
 		return "firmware-picker"
 	case PointerTapePicker:
 		return "tape-picker"
+	case PointerHardwareRoom:
+		return "hardware-room"
 	default:
 		return "none"
 	}
@@ -78,9 +81,6 @@ func (k PointerKind) String() string {
 func HitTest(snap Snapshot, x, y int) PointerHit {
 	if snap.Attract.Active {
 		return PointerHit{Kind: PointerAttract}
-	}
-	if snap.GPUParked {
-		return PointerHit{}
 	}
 	if snap.OSK.Open {
 		geom, keys, ok := oskLayout(snap)
@@ -95,6 +95,12 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 			}
 		}
 		return PointerHit{Kind: PointerBackdrop}
+	}
+	if snap.GPUParked && !snap.TapePicker.Open {
+		if button, ok := hardwareRoomButton(snap); ok && button.contains(x, y) {
+			return PointerHit{Kind: PointerHardwareRoom}
+		}
+		return PointerHit{}
 	}
 	if panel, ok := collectionMenuPanel(snap); ok {
 		if snap.CollectionMenu.Confirm {
@@ -237,7 +243,10 @@ func (a *App) PointerMoveFrom(id, x, y int, now time.Time) {
 		a.applyPointerFocusLocked(a.hitTestLocked(x, y))
 		return
 	}
-	if a.gpuParked || a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked() {
+	if a.gpuParked {
+		return
+	}
+	if !a.roomDuringPlay && (a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked()) {
 		return
 	}
 	a.noteInputLocked(InputMouse, id)
@@ -270,7 +279,15 @@ func (a *App) PointerClickFrom(id, x, y int, now time.Time) {
 		a.activatePointerHitLocked(hit, now)
 		return
 	}
-	if a.gpuParked || a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked() {
+	if a.gpuParked {
+		hit := a.hitTestLocked(x, y)
+		if hit.Kind == PointerHardwareRoom {
+			a.noteInputLocked(InputMouse, id)
+			a.activatePointerHitLocked(hit, now)
+		}
+		return
+	}
+	if !a.roomDuringPlay && (a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked()) {
 		return
 	}
 	a.noteInputLocked(InputMouse, id)
@@ -297,6 +314,7 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		PickerRows:      a.pickerRowsLocked(),
 		CollectionMenu:  a.collectionMenuSnapshotLocked(),
 		GPUParked:       a.gpuParked,
+		Session:         a.sessionSnapshotLocked(),
 		Launch:          a.launch,
 		Attract:         AttractSnapshot{Active: a.attractActive},
 		Settings:        a.settingsSnapshotLocked(),
@@ -401,6 +419,8 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 		a.handleFirmwarePickerLocked(CmdSelect)
 	case PointerTapePicker:
 		a.handleTapePickerLocked(CmdSelect)
+	case PointerHardwareRoom:
+		a.openPlayingHardwareRoomLocked()
 	case PointerRoomChoice:
 		a.handleRoomChoiceLocked(CmdSelect)
 	case PointerLaunchOverlay:

@@ -578,6 +578,31 @@ listener. See [the host connection contract](launcher-host.md).
 
 ## Native 10-foot launcher
 
+The embedded **ZX81 workbench** (`example.hardware`) reads host-owned hardware
+setups through `GET /api/v1/library/hardware`. The projection validates each
+expansion against its exact installed shell, and includes ordinary session
+status separately. Fit/remove use the existing compare-and-swap expansion
+selection API. Catalogue schema 14 adds optional household expansion labels
+and descriptions; these never influence admission. The session receipt's
+composition identifies running hardware independently of the saved setup.
+Missing or mismatched composition receipts remain unknown. Bound Stop checks
+the active package under the existing service lifecycle admission before
+coordinator input/media cleanup, and holds that admission through physical
+Stop. A rejected changed-session action triggers a refresh; a subsequent
+explicit Stop uses the refreshed identity. Returning to a reused room calls
+its resume hook immediately, retaining navigation focus while refreshing the
+host snapshot. Failed saves and lost Stop responses retain their existing
+retry behavior.
+See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
+
+Rooms access this projection through optional typed `rooms.HardwareServices`
+and `hostclient`, without arbitrary Lua networking. A room visited while
+playing changes presentation only: it releases held computer keys, keeps the
+session/lease, and opens the existing tape picker. That overlay is drawn and
+hit-tested on both room and parked now-playing screens. Stop, failures and
+return still use the ordinary session lifecycle. Per-room state preserves
+focus and selection, not hardware configuration or running RAM.
+
 `cmd/fogcast-tenfoot` is an SDL3 host-side 10-foot launcher (cover grid, shelf,
 and list). It is another client of the public host API, not a second launch
 path:

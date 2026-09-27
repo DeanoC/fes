@@ -12,6 +12,10 @@ The intended explore-and-play experience is specified in
 pads in [rooms-controller-bindings.md](rooms-controller-bindings.md). This
 page is the authoring and API guide.
 
+The embedded [ZX81 hardware workbench](../../../docs/hardware-rooms.md)
+adds an illustrated view of host-owned setups, exact-package expansion
+selection, and the existing live tape picker during play.
+
 Rooms are Lua scripts plus data, run inside the launcher in a sandboxed
 [gopher-lua](https://github.com/yuin/gopher-lua) VM (`ui/rooms`). A script
 never touches the graphics device: each frame it records primitives into a
@@ -221,6 +225,18 @@ a launch is not Completed.
 - `session.launch(game_id)` launches through the ordinary host path (the
   same admission rules as the library); `session.state()` is the current
   host session state.
+- `session.stop(snapshot.session)` requests the ordinary Stop/save path;
+  `session.open_tape(snapshot.session)`
+  opens the native live `.p` picker only for an eligible active session.
+  `session.resume()` returns from a room to the running session. They never
+  replace a live tape swap with a launch. Both carry the exact observed play
+  identity, so a stale room cannot act on another foreground play. The
+  launcher rejects Launch while
+  a session is active. A script must explain Stop's memory consequences.
+- `rooms.home()` opens the FES Home picker. In a room visited during play,
+  Back returns to the playing view without stopping it. The visible Hardware
+  room button, physical keyboard Home and controller Select/View return to
+  `example.hardware`; held computer keys are released before menu input.
 - `rooms.open(id)` opens a nested room (Back returns here and calls
   `on_resume`), `rooms.back()`, `rooms.list()`, and
   `rooms.open_library{platform=, collection=, layout=}` leaves to the
@@ -228,6 +244,35 @@ a launch is not Completed.
 - `store.get(key[, default])` / `store.set(key, value)` persist strings,
   numbers, booleans and plain tables per room in
   `<config>/FogCast/rooms/<id>.state.json`.
+
+### `hardware` (optional host services)
+
+`hardware.read(function(snapshot, err) ... end)` asynchronously returns
+`machines` and `session`, plus `session_error` when the running state is
+unavailable. Machines expose `game_id`, `title`, `core_id`, `package_id`,
+`package_ready`, `firmware_ready`, `ready`, `unavailable_reason`,
+`draft_expansion_id`, `socket = {id, label, supported}`, and
+`choices = {{expansion_id, label, description, ready, unavailable_reason}}`.
+The first host projection contains ZX81 entries only. Session fields are
+`id`, `game_id`, `state`, `target`, `target_id`, `flight_id`, `package_id`,
+`expansion_id`, `generation` (a decimal string preserving all 64 bits),
+`hardware_known` and `tape_available`; the last two prevent a missing receipt
+from being mistaken for an empty connector or a supported tape path.
+`hardware_known` requires a composition receipt naming the active package;
+a missing or mismatched receipt is displayed as unavailable hardware.
+
+`hardware.select_expansion({game_id=..., package_id=...,
+expected_expansion_id=..., expansion_id=...}, function(selection, err) ... end)`
+saves through the existing host API. Both expansion fields are required;
+empty strings explicitly mean an empty connector. The callback receives
+`{game_id, expansion_id}` on success. Read again after success or failure,
+and never replay an ambiguous mutation automatically. One hardware read and
+one save may be outstanding per room. Unsupported launchers report an error
+to the callback instead of failing the room.
+
+Keep configuration out of `store`: it is presentation state, not the host
+catalogue. Room code may display compatibility results but must not infer
+them from labels, art or hardware family names.
 - `log(...)` / `print(...)` write to stderr and the debug HUD.
 
 `require "name"` loads `stdlib` modules first, then `name` with dots as

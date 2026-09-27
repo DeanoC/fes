@@ -126,25 +126,31 @@ type Instance struct {
 	store    *store
 	logs     []string
 
-	started      time.Time
-	last         time.Time
-	elapsed      float64
-	fatal        error
-	loaded       bool
-	sessionState string
-	roomTable    *lua.LTable
-	dest         Destination
+	started         time.Time
+	last            time.Time
+	elapsed         float64
+	fatal           error
+	loaded          bool
+	sessionState    string
+	roomTable       *lua.LTable
+	dest            Destination
+	hardwareReading bool
+	hardwareSaving  bool
 }
 
 type asyncResult struct {
-	cb          *lua.LFunction
-	err         error
-	games       []hostclient.Game
-	platforms   []hostclient.Platform
-	collections []hostclient.Collection
-	game        *hostclient.Game
-	imageKey    string
-	img         *image.RGBA
+	cb           *lua.LFunction
+	err          error
+	games        []hostclient.Game
+	platforms    []hostclient.Platform
+	collections  []hostclient.Collection
+	game         *hostclient.Game
+	imageKey     string
+	img          *image.RGBA
+	hardware     *hostclient.HardwareSnapshot
+	selection    *hostclient.CoreEntryExpansion
+	hardwareRead bool
+	hardwareSave bool
 }
 
 // New creates the VM and installs the API. Load runs the script.
@@ -567,6 +573,12 @@ func (r *Instance) drainResults() {
 }
 
 func (r *Instance) applyResult(res asyncResult) {
+	if res.hardwareRead {
+		r.hardwareReading = false
+	}
+	if res.hardwareSave {
+		r.hardwareSaving = false
+	}
 	if res.imageKey != "" {
 		r.applyImage(res)
 		return
@@ -577,6 +589,13 @@ func (r *Instance) applyResult(res asyncResult) {
 	var payload lua.LValue = lua.LNil
 	switch {
 	case res.err != nil:
+	case res.hardware != nil:
+		payload = r.hardwareTable(*res.hardware)
+	case res.selection != nil:
+		t := r.L.NewTable()
+		t.RawSetString("game_id", lua.LString(res.selection.GameID))
+		t.RawSetString("expansion_id", lua.LString(res.selection.ExpansionID))
+		payload = t
 	case res.games != nil:
 		payload = r.gamesTable(res.games)
 	case res.platforms != nil:

@@ -4,7 +4,10 @@
 // the same script works on every backend and hit-testing reads the frame.
 package rooms
 
-import "github.com/DeanoC/FogCast/ui/gfx"
+import (
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/ui/gfx"
+)
 
 // OpKind is one display-list primitive.
 type OpKind uint8
@@ -67,12 +70,15 @@ func (f Frame) HitAt(x, y float32) (Hit, bool) {
 
 // Action is a request a script made of the launcher during the last call.
 type Action struct {
-	Kind       ActionKind
-	GameID     string
-	RoomID     string
-	Platform   string
-	Collection string
-	Layout     string
+	Kind         ActionKind
+	GameID       string
+	RoomID       string
+	Platform     string
+	Collection   string
+	Layout       string
+	SessionID    string
+	FlightID     string
+	MediaBinding protocol.DevelopmentMediaBinding
 }
 
 // ActionKind names a launcher request.
@@ -83,4 +89,8 @@ const (
 	ActionOpenRoom
 	ActionBack
 	ActionOpenLibrary
+	ActionStop
+	ActionOpenTape
+	ActionResumeSession
+	ActionHome
 )

@@ -62,6 +62,16 @@ func (c *Client) ReplaceLiveMedia(ctx context.Context, mediaID, name string) (Se
 	if err != nil {
 		return SessionResult{}, err
 	}
+	return c.ReplaceLiveMediaForSession(ctx, prior, mediaID, name)
+}
+
+// ReplaceLiveMediaForSession uses the package/target/generation captured when
+// the tape picker opened. It never re-resolves a changed foreground session.
+func (c *Client) ReplaceLiveMediaForSession(ctx context.Context, prior SessionResult, mediaID, name string) (SessionResult, error) {
+	mediaID, name = strings.TrimSpace(mediaID), strings.TrimSpace(name)
+	if protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitTapeMediaName(name) {
+		return SessionResult{}, protocol.LiveMediaRequestError()
+	}
 	b, err := LiveMediaBinding(prior)
 	if err != nil {
 		return SessionResult{}, err
@@ -80,6 +90,11 @@ func (c *Client) ClearLiveMedia(ctx context.Context) (SessionResult, error) {
 	if err != nil {
 		return SessionResult{}, err
 	}
+	return c.ClearLiveMediaForSession(ctx, prior)
+}
+
+// ClearLiveMediaForSession ejects only from the captured package generation.
+func (c *Client) ClearLiveMediaForSession(ctx context.Context, prior SessionResult) (SessionResult, error) {
 	b, err := LiveMediaBinding(prior)
 	if err != nil {
 		return SessionResult{}, err

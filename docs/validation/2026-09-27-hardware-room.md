@@ -1,0 +1,144 @@
+# ZX81 hardware-room verification
+
+Scope: FogCast host catalogue/API/client, sandboxed room services, the embedded
+ZX81 workbench and native tenfoot navigation. Base FES commit:
+`aaf32d3f290ba67929e751a2436ebedf658fbf40`. The PR's commits identify the result.
+No runtime, FPGA, shared capability definition, image recipe or toolchain
+selection changes are included.
+
+## Behavioral coverage
+
+- Exact installed shell admission for available expansions; wrong shell bytes
+  and another package's cards are not offered as compatible.
+- Compare-and-swap selection rejects stale package and expansion edits.
+- Catalogue descriptions survive reopen and do not change immutable identity.
+- A staged synthetic ROM/expansion launch captures the running composition;
+  later draft selection leaves that composition and target operation count
+  unchanged.
+- The production Lua room inspects before saving, saves/removes via the typed
+  host method, keeps draft and running hardware separate, and issues ordinary
+  launch/Stop/tape actions.
+- Missing artwork, missing firmware, unavailable session/host, failed edits
+  and room resume preserve usable navigation and block unavailable mutations.
+- The native room retains focus through play and tape controls; Home,
+  controller Select/View and the visible pointer button return during play.
+- Tape busy/retry, unavailable and hard failure keep session/package/generation
+  and avoid Stop/relaunch. Failed save stays in the ordinary failure lifecycle.
+- Displayed play identity is retained across room actions and tape retries;
+  stale actions cannot control a replacement foreground play. Queued keyboard
+  input is invalidated on Stop, play identity change and shutdown.
+
+## Reproduce the software checks
+
+Use a short physical temporary directory for Unix socket paths on macOS,
+then the focused module tests (`mkdir -p /private/tmp/fhr-go`):
+
+```sh
+cd sources/FogCast
+TMPDIR=/private/tmp/fhr-go \
+CGO_LDFLAGS_ALLOW='-Wl,-weak_framework,ScreenCaptureKit' \
+  go test -race ./catalog ./hostclient ./fogcast ./internal/hostapi ./ui/rooms ./ui/tenfoot
+```
+
+The allowlist is for existing macOS capture link flags. CGO-free host tests
+cannot exercise the native stream-adapter assertion. The native tenfoot build
+is `make -C sources/FogCast build-fogcast-tenfoot`; it includes SDL3.
+
+From the FES root, use the documented schema-test Python environment and a
+physical temporary directory outside the checkout on macOS (the system
+`/var` alias otherwise trips existing symlink/path checks):
+
+```sh
+mkdir -p /private/tmp/fes-hardware-room-tests
+TMPDIR=/private/tmp/fes-hardware-room-tests \
+CGO_LDFLAGS_ALLOW='-Wl,-weak_framework,ScreenCaptureKit' \
+  out/test-venv/bin/python scripts/test_changed.py --base aaf32d3f
+make check PYTHON="$PWD/out/test-venv/bin/python"
+```
+
+The existing parent fsync-publication test reads Linux `/proc/self/fd` and
+fails on macOS; its test and implementation are unchanged from the base.
+The affected runner stops at this parent failure, so its subsequent planned
+host, appliance, shared-linker, browser UI and generated-consistency commands
+are run directly. This is a platform limitation, not a passing affected run.
+
+Native display-list rendering uses the actual embedded Lua and `drawRoom`
+through `gfx.Software`, with a synthetic host catalogue. To export idle,
+running/draft-different and missing-artwork views at 1280×720 and 1024×600:
+
+```sh
+cd sources/FogCast
+FES_ROOM_SCREENSHOT_DIR="$PWD/../../out/hardware-room/screenshots" \
+  go test ./ui/tenfoot -run TestHardwareRoomNativeRender -count=1
+```
+
+The screenshots' card labels are test fixtures, not an inventory or hardware
+acceptance result. They establish rendering of this implementation, separate
+from the older browser concept. A rendering review caught and corrected native
+footer overlap.
+
+## Results on 27 September 2026
+
+- Native race suites for catalogue, host service, host API/client and
+  rooms/tenfoot: passed. Final bound Stop/media and stale-action regression
+  tests also passed.
+- Committed-source `make check`: passed; 15 generated consumers and 30
+  fixture copies match, with no copied source pins.
+- Native SDL tenfoot build: passed on macOS arm64 with Go 1.27.1 and SDL3
+  3.4.16. Linker warnings about the existing minimum macOS version remain;
+  this run does not establish support for older macOS versions.
+- Production-room software rendering: passed at 1280×720 and 1024×600 for
+  idle, running/different draft and missing artwork.
+- Appliance and shared expansion-linker race suites: passed. Browser/UI
+  tests: 331 unit tests and 57 Chrome/CDP tests passed, none skipped.
+- Broader `go test -race ./...`: affected packages passed, but the whole
+  suite is not green. Unchanged native-runtime tests exceed macOS Unix
+  socket path limits with longer temporary paths. Re-running those packages
+  with `TMPDIR=/tmp` leaves two recovery-command marker failures; both
+  reproduce from an archived exact base commit (`aaf32d3f`) with the same
+  native race command. No runtime test or implementation was changed.
+- Parent Python suite: 571 tests, one unchanged macOS fsync-observation
+  failure, 40 skipped. The bootstrap outside-checkout case passed with the
+  external physical temporary directory.
+
+## PR review follow-up
+
+The four review findings at `3bf11290` have focused regressions:
+
+- Reusing the running workbench invokes one resume callback immediately and
+  preserves focus. The production Lua test reads idle before launch and active
+  immediately on return, without waiting for the periodic refresh.
+- Missing or mismatched composition receipts display unavailable running
+  hardware, rather than inventing an empty connector.
+- The final bound Stop admission holds the service lifecycle lock through
+  coordinator input/media cleanup and physical Stop. A rejected binding never
+  runs cleanup and preserves attached input.
+- `SESSION_CHANGED` clears the stale retry identity and refreshes state. A new
+  explicit Stop captures the refreshed play; failed-save retries retain their
+  original behavior and no Stop is automatically replayed.
+
+Full native room, tenfoot, host service and host API race suites and the SDL
+build passed after these changes. Host service/API ran in 128.587s/7.556s and
+tenfoot in 26.980s. The original PR's Linux integration CI passed before this follow-up;
+its earlier green result does not validate these newer source bytes.
+
+## CI test-budget correction
+
+The follow-up CI host job at `630df0da` failed in the two production-Lua
+render/refresh tests because they inherited the 4–6 ms production wall-clock
+limits. Functional test instances now use explicit two-second budgets, matching
+the room-engine test convention, and close the refresh fixture on completion.
+Production budgets are unchanged. These tests verify rendering and state
+transitions; they do not establish production execution-time acceptance.
+Full rooms/tenfoot race suites passed (1.848s/27.019s); both failed CI tests
+also passed ten consecutive race runs with `GOMAXPROCS=1` (29.350s).
+
+## Remaining acceptance gates
+
+No target was programmed, stopped, reset, deployed or otherwise controlled.
+No full image assembly or FPGA build was needed for this software slice.
+Physical keyboard, mouse and controller use at TV distance, an SDL interaction
+run, and an exact-package mid-session tape replace/eject on a designated leased
+kit remain unrun. The kit check must verify unchanged running program/RAM as
+well as host session/package/generation, including busy and unavailable eject.
+Software fixtures and renderer screenshots cannot establish those results.

@@ -202,6 +202,12 @@ func (s Snapshot) HeaderHint() string {
 		}
 		return oskHintFor(kind, s.OSK.Page)
 	}
+	if s.Room.DuringPlay && !s.GPUParked && !s.TapePicker.Open {
+		if s.RoomPicker.Open {
+			return roomPickerHint(kind)
+		}
+		return selectWord(kind) + " choose  " + backWord(kind) + " return to session  ·  Machine keeps running"
+	}
 	if s.GPUParked || s.Session.State == "active" || s.Session.RetryStop {
 		if s.TapePicker.Open {
 			if h := strings.TrimSpace(s.TapePicker.Hint); h != "" {
@@ -210,6 +216,10 @@ func (s Snapshot) HeaderHint() string {
 			return tapePickerHint(kind)
 		}
 		hint := sessionChromeHint(kind, s.Session.RetryStop, s.Session.LoadTape)
+		if s.Session.HardwareRoom {
+			hint = strings.Replace(hint, "  "+layoutWord(kind)+" layout", "", 1)
+			hint += "  " + hardwareRoomWord(kind) + " hardware room"
+		}
 		if h := strings.TrimSpace(s.Session.InputHint); h != "" {
 			return hint + "  " + h
 		}
@@ -278,6 +288,9 @@ func (s Snapshot) HeaderHint() string {
 				return selectWord(kind) + " import  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
 			}
 			return selectWord(kind) + " play  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
+		}
+		if s.Room.ID == hardwareRoomID {
+			return selectWord(kind) + " choose  ·  Arrows / D-pad move  ·  " + backWord(kind) + " back  ·  Home button opens rooms"
 		}
 		action := strings.TrimSpace(s.Room.Destination.Action)
 		if action == "" {

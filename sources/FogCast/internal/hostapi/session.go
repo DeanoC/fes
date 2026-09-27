@@ -928,7 +928,7 @@ func (s *sessionCoordinator) stopMediaBounded(execution string) error {
 	return first
 }
 
-func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease, releaseIdle bool) (sessionResult, error) {
+func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease, releaseIdle bool, expected *sessionStopExpectation) (sessionResult, error) {
 	if releaseIdle {
 		return s.releaseIdleGrants(ctx, stamp)
 	}
@@ -938,6 +938,18 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	if expected != nil {
+		// This observation is inside the launch/stop admission guard. A stale
+		// room cannot detach input, stop media, or release a different play's
+		// lease before discovering that its displayed identity has changed.
+		status, err := s.service.Status(ctx)
+		if err != nil {
+			return sessionResult{}, err
+		}
+		if !expected.matches(s.publicSession(status, nil)) {
+			return sessionResult{}, fogcast.ErrSessionChanged
+		}
+	}
 	// Capture host idle before probing the currently selected target. After
 	// Soft-stop, idle settings may select an unrelated kit; that probe must
 	// not hide retained grants from an explicit Stop. A Soft-stopped legacy
@@ -956,26 +968,36 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	s.mu.Lock()
 	priorBinding := s.inputBinding
 	s.mu.Unlock()
-	var inputErr error
-	if s.remoteInput != nil {
-		inputErr = s.detachInputNow(ctx, "session_stop")
-	}
+	var inputErr, mediaErr error
 	s.mu.Lock()
 	hadMedia := s.mediaHandle != nil
 	execution := s.execution
 	packageOwned := s.packageOwned
 	failedWithoutHandle := !hadMedia && s.mediaState == "failed"
 	s.mu.Unlock()
-	var mediaErr error
-	if hadMedia {
-		mediaErr = s.stopMediaBounded(execution)
+	prepare := func(stopCtx context.Context) {
+		if s.remoteInput != nil {
+			inputErr = s.detachInputNow(stopCtx, "session_stop")
+		}
+		if hadMedia {
+			mediaErr = s.stopMediaBounded(execution)
+		}
 	}
 	var st protocol.Status
 	var serviceErr error
-	if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
-		st, serviceErr = s.service.Stop(ctx)
+	if bound, ok := s.service.(interface {
+		StopExpectedWithPreparation(context.Context, fogcast.SessionStopBinding, func(context.Context)) (protocol.Status, error)
+	}); expected != nil && ok {
+		// The service checks its foreground binding under lifecycle admission
+		// before any coordinator teardown, and holds it through physical Stop.
+		st, serviceErr = bound.StopExpectedWithPreparation(ctx, expected.SessionStopBinding, prepare)
 	} else {
-		st, serviceErr = s.stopServiceBounded()
+		prepare(ctx)
+		if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
+			st, serviceErr = s.service.Stop(ctx)
+		} else {
+			st, serviceErr = s.stopServiceBounded()
+		}
 	}
 	if mediaErr != nil {
 		return sessionResult{}, fogcast.WithStopStage(mediaErr, "media_stop")
