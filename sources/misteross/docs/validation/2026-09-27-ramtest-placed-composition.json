@@ -1,0 +1,1067 @@
+{
+  "artifact_root": "out/ramtest-placed-composition",
+  "artifacts_sha256": {
+    "build-green.log": "c2044367dec70f7f450eb59290373ccec88b3514d4f1783bb1e72fbbbcef7b7a",
+    "build-paired.log": "b24a67dc1e0414f65898086724e3b5c323bae27f8d8843b3e9444a4d88ee7941",
+    "build-preflight.log": "fbb10d6d58ba10b3f2d84519258b146a0181b09430441167c3d6e4a4c8e77f67",
+    "build-red.log": "12c83d746d10d550c0039d173825f07de0aede5491e2535de5076fc836b41c2f",
+    "check_pair.py": "7386a63c491eeadffe3a9dd58cef16c10bcf3a1304fca38b999db928b69af147",
+    "check_snapshots.py": "70cf6b6e0f663aeeb784ac33e1990f9f9327f175929e29b8f5b7cfe37cea3808",
+    "checker-tests.json": "b01ecff740b51ecd7873e4842563726b49ed02150e55034f37891b81b581784f",
+    "compiler-build.json": "50c831760c31ab3e2da0aa0c3d560283bee7ce2cf12d6e14a42d62d90d005837",
+    "compiler.patch": "0185af2b7b271fea39374000d167afe07f6316faa5534f45ec222b1c53753f40",
+    "compose-c2/arcs.tsv": "94ced9d8284c7fbb892efbd1b55058312e00699445a47c7a1e851f0dfc4ec691",
+    "compose-c2/composition.after.json": "05009fbfd0274d283c88968134844c103382b341ad194df03d86018dec67adb9",
+    "compose-c2/composition.after.json.pins.tsv": "9e312e571e37461ac0260d78dcfbb5ab355a6b503db6b5ac2f8c7c7f7c10acc4",
+    "compose-c2/composition.before.json": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+    "compose-c2/composition.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "compose-c2/composition.experiment.tsv": "b6dece3afb07cc7341f31076925a7e62d7e2be3ca3f123abb95169a96517741a",
+    "compose-c2/core.rbf": "d1c076549509e6570be9931e2321fee611180962960b1c04b27d66fa6eb71342",
+    "compose-c2/invocation.json": "f7a86926dcf8850645694574c36662ffe46830a218f142ecd27893ea40e2c137",
+    "compose-c2/replication.after.json": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+    "compose-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "compose-c2/replication.before.json": "73c87a91e50ba630b40f8959dcea7a796c384a646b76ff2d45db286a74f001cc",
+    "compose-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "compose-c2/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "compose-c2/result.json": "6c24fafb84226e01fec3c0dbd2dd6609354ae80f2680fcbac498911171b4fa10",
+    "compose-c2/routed.json": "4881a166aea3a6bcf167b6932b8055e4e74ee618b4165e55ce125728d1c851fc",
+    "compose-c2/run.log": "c592933645f4619d9e5c693d515f4d6bfbf3453249ee7f34b7b2285a5d837043",
+    "compose-c2/snapshot-proof.json": "14ab8dc2461d367060a0570e9baf9a7ff72ee52332c47ac6b7c329a5ec4de686",
+    "compose-c2/timing.json": "611da688e058b54264073def7c46ba46d2fc202029ff956c6bc88a882d674f4b",
+    "ctest.log": "80e6038edeff87022f1a8968fd01a98ec888faaff53424590722834e6f725278",
+    "default-checks/default.json": "35025d595a70e039f154511a1ef260d0038fa181794efaabb3387c351676a042",
+    "default-checks/default.log": "def034b073db3808f7864d3aac23f90c5f654a44b3cb53ec08a738aa1c74630e",
+    "default-checks/mode-alone.json": "35025d595a70e039f154511a1ef260d0038fa181794efaabb3387c351676a042",
+    "default-checks/mode-alone.log": "fa1755f4465122e558505d9b2280a6be1db3fd518cff8a75237d87a1c7d52b2b",
+    "default-checks/proof.json": "e5aceaa675bc0c7f77eaa5afaee531752014e520301232173dc0308ff538637a",
+    "green.log": "9dfe0036b56e1383f0408740e0f46bda9cc879794a6de5e974023b2ca8184e74",
+    "hps-geometry-followup.md": "0cd76370fb9589d43b6858ca87c011f7dd307da87ae236dd9e151734f4194467",
+    "pair-proof.json": "2a69090657b5c4ef67935a910d15be0a6455990905876dc480e48688b718373c",
+    "preflight-debug.log": "82da65704fdefb0d7a50090fb5e9e560d91ba508d6d6133fba8bc14270fd3e46",
+    "preflight-debug2.log": "2bfb442c050e3c50d455eb0a907fe8e03b0142b29215b1ef239fdb350e3fcf62",
+    "preflight-debug3.log": "fc8e528004f87c9adf8c9b882b4b03dc6924e2f8ad14418855a8754b88d2f14d",
+    "preflight-final.log": "5dc5747cd07400f5ceedbdd580d0f6cc0abbce0ed791fd88e1e8cbea43bc87fe",
+    "preflight.log": "aa496bb7d481ece90f3c08082c5182184e14c9e135fff40d83d2459038d14a75",
+    "preflight/mistral-real-composition-compose.after.json": "0780c57a829b986dbfb3b303c3fdd5bc63c1765efc3e029f90515490744a2c15",
+    "preflight/mistral-real-composition-compose.after.json.pins.tsv": "9e312e571e37461ac0260d78dcfbb5ab355a6b503db6b5ac2f8c7c7f7c10acc4",
+    "preflight/mistral-real-composition-compose.before.json": "ad51a538632a8cea23afc4d6ac58abc8ccdc3e539bf4669cd3ad3844bc973630",
+    "preflight/mistral-real-composition-compose.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "preflight/mistral-real-composition-compose.experiment.tsv": "b6dece3afb07cc7341f31076925a7e62d7e2be3ca3f123abb95169a96517741a",
+    "preflight/mistral-real-composition-relocate.after.json": "77a2e4f56f85eef6788d4a6aace5512d35b41a9c3e11a973ab74f13c73332a8e",
+    "preflight/mistral-real-composition-relocate.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "preflight/mistral-real-composition-relocate.before.json": "ad51a538632a8cea23afc4d6ac58abc8ccdc3e539bf4669cd3ad3844bc973630",
+    "preflight/mistral-real-composition-relocate.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "preflight/mistral-real-composition-relocate.experiment.tsv": "7ac8dc9712f10f48a8115921b1f43ce487cd5f1c5ff1cb0bb40b90a88a43ca83",
+    "red.log": "c5662c1f20dc18ad1b2589824eb11226a04a85d5c016227339646c687bf3b6f5",
+    "relocate-c2/arcs.tsv": "6a181602f1e05672748f5f7e8d89db33144c7c16b2b6a0a04781fe4c0d6d162b",
+    "relocate-c2/composition.after.json": "d8a51d4b8e78a9a18af1a01788408c4825685e5cf184c94bef1c0a1ac3997d1b",
+    "relocate-c2/composition.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "relocate-c2/composition.before.json": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+    "relocate-c2/composition.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "relocate-c2/composition.experiment.tsv": "7ac8dc9712f10f48a8115921b1f43ce487cd5f1c5ff1cb0bb40b90a88a43ca83",
+    "relocate-c2/core.rbf": "e5abe7f59207f8621a86a4270dcc627aa2a76bb0a3f2d49c2c7818ea142ceb00",
+    "relocate-c2/invocation.json": "ceb49f9cbe7e4228b6b7767b7130fed861aaec2219600cb355efc9a6279ff316",
+    "relocate-c2/replication.after.json": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+    "relocate-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "relocate-c2/replication.before.json": "73c87a91e50ba630b40f8959dcea7a796c384a646b76ff2d45db286a74f001cc",
+    "relocate-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "relocate-c2/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "relocate-c2/result.json": "26e5a6e969e66cc3868cc8764d684cdde40465ff8760f46121af670b4270b86f",
+    "relocate-c2/routed.json": "4bf2a6ac96fb9468914c390782fed09bf1e16aa2754c7cc45f6834d5d08b6b10",
+    "relocate-c2/run.log": "ee8fd188945ac86785d20d671242c3280cda1f8279fd0c4263bcffcbee468717",
+    "relocate-c2/snapshot-proof.json": "334bde7e04711213b1c5d8c7670261a578db7a38489610185c3c474167ba4340",
+    "relocate-c2/timing.json": "1a27a10027c4ee0137400a3f9a2bf2b75eda4a1fa63a3dfaad392648b4a5e53b",
+    "run_route.py": "bdf5a9b508d61cb1728f13d699ab78c6ecefd0583134597f874b74dfa6b8385e",
+    "summarize.py": "4b8ccdae047c012df4f7a0ddab09bfc0e6ecf6f486f63cce5136554867098244",
+    "test-results.json": "ccd8df0bfcdbc9a29e265b9cef3e95c6345a0532a92f1e39d1646d8642641269",
+    "test_checker.py": "2839544de66d25101ca22e8d9203d803d0bafa251301571bd18e53b851f32671",
+    "tools/nextpnr-placed-composition": "4c9bc5e95564c8fe763ec43c279a1765a5263d606d3779a09511703f83a655cd",
+    "verify_evidence.py": "4c2569ee864362c94629817629283032fb00279fa9e8f854dcc0089062e93e4e"
+  },
+  "checker-tests": {
+    "negative_cases_rejected": [
+      "unchanged",
+      "LUT",
+      "input",
+      "output",
+      "placement",
+      "producer",
+      "replica",
+      "new_pin_polarity",
+      "old_pin_polarity",
+      "missing_bus_pin"
+    ],
+    "relocation_control_positive_passed": true,
+    "synthetic_positive_on_real_baseline_passed": true,
+    "truth_rows_checked": 16
+  },
+  "classification": "host-only paired fixture-specific relocation/composition diagnostic; unchanged RTL, producer lock and shared contracts; no hardware acceptance",
+  "external_inputs_sha256": {
+    "out/ramtest-control-mapping/all_fsm-c2/routed.json": "bf823e0ffae08a305d33546f30f6a6311fa0456129d123ada67b1115e14cea66",
+    "out/ramtest-control-mapping/all_fsm-c2/timing.json": "a057178c4398c814ab50e09da10dfc67fcb42f83aff2593739377586def53b0e",
+    "out/ramtest-control-mapping/placer-options-green/default.json": "458a93404b3b0abe9875b6752445657deaccebb1ca56a715b9122412c281f49a",
+    "out/ramtest-enable-replication/budget4-c2/replication.after.json": "5efbdc0b263f257aec1a57405aa8d7201092bba39799b90125413df9ee35cbbb",
+    "out/ramtest-enable-replication/budget4-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "out/ramtest-enable-replication/budget4-c2/timing.json": "269e184586ee02d6a4fca0f1d3bc713e99f08abfdefd0e14b45e55d0346ee468",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-enable-replication.json": "5da12e8af32821a2c565364e133a7477a9d378e5a42007f951a4b1f2411c372d"
+  },
+  "fes_base": "c35e6d3d1e8d56fe011ff433cadfd33f54b37ae1",
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_base": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+  "nextpnr_branch": "probe/ramtest-placed-composition",
+  "nextpnr_commit": "d5b8aa56709bcac3bdf8beeccfbb432d43ca8209",
+  "nextpnr_status": "",
+  "pair-proof": {
+    "both_exact_baseline_module_and_pins": true,
+    "proofs": {
+      "compose": {
+        "changed_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+        "exact_baseline_module_and_pins": true,
+        "manifest": {
+          "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+          "distance": "1",
+          "mask": "12320",
+          "mode": "compose",
+          "new_bel": "MISTRAL_COMB.24.21.19",
+          "old_bel": "MISTRAL_COMB.24.20.36",
+          "predicted_max_input_output_ps": "6785"
+        },
+        "mode": "compose",
+        "new_bel": "MISTRAL_COMB.24.21.19",
+        "new_pin": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B.D",
+        "new_type": "MISTRAL_ALUT4",
+        "old_bel": "MISTRAL_COMB.24.20.36",
+        "old_type": "MISTRAL_ALUT3",
+        "original_pin_states_unchanged": 103061,
+        "other_placements_unchanged": 14890,
+        "retained_enable_users": 107,
+        "retained_producer_users": 6,
+        "retained_replica_users": 4,
+        "truth_rows": [
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 0,
+            "ready": 0,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 0,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 0,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 1,
+            "ready": 0,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 1,
+            "ready": 0,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 1,
+            "write": 1
+          }
+        ]
+      },
+      "relocate": {
+        "changed_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+        "exact_baseline_module_and_pins": true,
+        "manifest": {
+          "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+          "distance": "1",
+          "mask": "50",
+          "mode": "relocate",
+          "new_bel": "MISTRAL_COMB.24.21.19",
+          "old_bel": "MISTRAL_COMB.24.20.36",
+          "predicted_max_input_output_ps": "6785"
+        },
+        "mode": "relocate",
+        "new_bel": "MISTRAL_COMB.24.21.19",
+        "new_pin": null,
+        "new_type": "MISTRAL_ALUT3",
+        "old_bel": "MISTRAL_COMB.24.20.36",
+        "old_type": "MISTRAL_ALUT3",
+        "original_pin_states_unchanged": 103061,
+        "other_placements_unchanged": 14890,
+        "retained_enable_users": 107,
+        "retained_producer_users": 7,
+        "retained_replica_users": 4,
+        "truth_rows": [
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 0,
+            "ready": 0,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 0,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 0,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 1,
+            "ready": 0,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 1,
+            "ready": 0,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 1,
+            "write": 1
+          }
+        ]
+      }
+    },
+    "same_destination": "MISTRAL_COMB.24.21.19"
+  },
+  "runs": {
+    "compose-c2": {
+      "binary_sha256": "4c9bc5e95564c8fe763ec43c279a1765a5263d606d3779a09511703f83a655cd",
+      "classification": "host-only paired one-cell relocation/composition diagnostic; unchanged RTL",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/tools/nextpnr-placed-composition",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/compose-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/compose-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/compose-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": -0.004999999888241291,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.315000057220459,
+            "routing": 7.040999948978424,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 8.886000017635524,
+          "from": {
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_7",
+            "loc": [
+              42,
+              17
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "ddr1_test.idle[22]"
+          ],
+          "logic_arcs": 5,
+          "to": {
+            "cell": "ddr1_test.write_cycles_MISTRAL_FF_Q_4",
+            "loc": [
+              3,
+              38
+            ],
+            "port": "ENA"
+          },
+          "to_signals": [
+            "ddr1_test.write_cycles[12]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.486000031232834,
+            "routing": 10.562000036239624,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.58300007879734,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_5",
+            "loc": [
+              13,
+              6
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[5]"
+          ],
+          "logic_arcs": 8,
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4",
+            "loc": [
+              13,
+              6
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.ddr_ch_t[1]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 616.3043052291032,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/compose-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/compose-c2/replication",
+        "NEXTPNR_MISTRAL_PLACED_COMPOSITION": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/compose-c2/composition",
+        "NEXTPNR_MISTRAL_PLACED_COMPOSITION_MODE": "compose"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 73.6214370727539,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 112.53657531738281,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "replication_log": [
+        "Info: Enable replication considering 'ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B': 2 LAB groups, 3 signal inputs.",
+        "Info: Enable replication considering 'hps_ddr.port1.slot_free_MISTRAL_ALUT3_B': 22 LAB groups, 3 signal inputs.",
+        "Info: Enable replica source=hps_ddr.port1.slot_free_MISTRAL_ALUT3_B clone=hps_ddr.port1.slot_free_MISTRAL_ALUT3_B$enable_replica bel=MISTRAL_COMB.37.25.0 sinks=4 gain=995ps slack=-1954ps criticality=0.939",
+        "Info: Enable replication: 1 replicas, budget 4; examined at most 32 of 4 ranked candidates.",
+        "Info: Diagnostic placed composition mode=compose: hps_ddr.port1.slot_free_MISTRAL_ALUT3_B MISTRAL_ALUT4 mask=0x3020 MISTRAL_COMB.24.20.36 -> MISTRAL_COMB.24.21.19; 107 ENA users, producer retained with 6 users, replica retained with 4 users."
+      ],
+      "returncode": 0,
+      "snapshot-proof": {
+        "changed_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+        "exact_baseline_module_and_pins": true,
+        "manifest": {
+          "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+          "distance": "1",
+          "mask": "12320",
+          "mode": "compose",
+          "new_bel": "MISTRAL_COMB.24.21.19",
+          "old_bel": "MISTRAL_COMB.24.20.36",
+          "predicted_max_input_output_ps": "6785"
+        },
+        "mode": "compose",
+        "new_bel": "MISTRAL_COMB.24.21.19",
+        "new_pin": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B.D",
+        "new_type": "MISTRAL_ALUT4",
+        "old_bel": "MISTRAL_COMB.24.20.36",
+        "old_type": "MISTRAL_ALUT3",
+        "original_pin_states_unchanged": 103061,
+        "other_placements_unchanged": 14890,
+        "retained_enable_users": 107,
+        "retained_producer_users": 6,
+        "retained_replica_users": 4,
+        "truth_rows": [
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 0,
+            "ready": 0,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 0,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 0,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 1,
+            "ready": 0,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 1,
+            "ready": 0,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 1,
+            "write": 1
+          }
+        ]
+      },
+      "synth_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+    },
+    "relocate-c2": {
+      "binary_sha256": "4c9bc5e95564c8fe763ec43c279a1765a5263d606d3779a09511703f83a655cd",
+      "classification": "host-only paired one-cell relocation/composition diagnostic; unchanged RTL",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/tools/nextpnr-placed-composition",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/relocate-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/relocate-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/relocate-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.03700000047683716,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.412000060081482,
+            "routing": 6.776000052690506,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 8.760000124573708,
+          "from": {
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_7",
+            "loc": [
+              42,
+              17
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "ddr1_test.idle[22]"
+          ],
+          "logic_arcs": 6,
+          "to": {
+            "cell": "ddr1_test.burst_end_MISTRAL_FF_Q",
+            "loc": [
+              37,
+              23
+            ],
+            "port": "ENA"
+          },
+          "to_signals": [
+            "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D_Q[0]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": 0.006000000052154064,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 3.453000068664551,
+            "routing": 9.31499993801117,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.309000018052757,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_5",
+            "loc": [
+              13,
+              6
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[5]"
+          ],
+          "logic_arcs": 7,
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_1",
+            "loc": [
+              15,
+              3
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.ddr_ch_t[2]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 583.8173923538998,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/relocate-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/relocate-c2/replication",
+        "NEXTPNR_MISTRAL_PLACED_COMPOSITION": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-composition/relocate-c2/composition",
+        "NEXTPNR_MISTRAL_PLACED_COMPOSITION_MODE": "relocate"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 75.13712310791016,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 114.1552505493164,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "replication_log": [
+        "Info: Enable replication considering 'ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B': 2 LAB groups, 3 signal inputs.",
+        "Info: Enable replication considering 'hps_ddr.port1.slot_free_MISTRAL_ALUT3_B': 22 LAB groups, 3 signal inputs.",
+        "Info: Enable replica source=hps_ddr.port1.slot_free_MISTRAL_ALUT3_B clone=hps_ddr.port1.slot_free_MISTRAL_ALUT3_B$enable_replica bel=MISTRAL_COMB.37.25.0 sinks=4 gain=995ps slack=-1954ps criticality=0.939",
+        "Info: Enable replication: 1 replicas, budget 4; examined at most 32 of 4 ranked candidates.",
+        "Info: Diagnostic placed composition mode=relocate: hps_ddr.port1.slot_free_MISTRAL_ALUT3_B MISTRAL_ALUT3 mask=0x0032 MISTRAL_COMB.24.20.36 -> MISTRAL_COMB.24.21.19; 107 ENA users, producer retained with 7 users, replica retained with 4 users."
+      ],
+      "returncode": 0,
+      "snapshot-proof": {
+        "changed_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+        "exact_baseline_module_and_pins": true,
+        "manifest": {
+          "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+          "distance": "1",
+          "mask": "50",
+          "mode": "relocate",
+          "new_bel": "MISTRAL_COMB.24.21.19",
+          "old_bel": "MISTRAL_COMB.24.20.36",
+          "predicted_max_input_output_ps": "6785"
+        },
+        "mode": "relocate",
+        "new_bel": "MISTRAL_COMB.24.21.19",
+        "new_pin": null,
+        "new_type": "MISTRAL_ALUT3",
+        "old_bel": "MISTRAL_COMB.24.20.36",
+        "old_type": "MISTRAL_ALUT3",
+        "original_pin_states_unchanged": 103061,
+        "other_placements_unchanged": 14890,
+        "retained_enable_users": 107,
+        "retained_producer_users": 7,
+        "retained_replica_users": 4,
+        "truth_rows": [
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 0,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 0,
+            "ready": 0,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 0,
+            "ready": 1,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 0,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 0,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 1,
+            "ready": 0,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 1,
+            "old": 1,
+            "read": 1,
+            "ready": 0,
+            "valid": 1,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 0,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 0,
+            "write": 1
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 1,
+            "write": 0
+          },
+          {
+            "new": 0,
+            "old": 0,
+            "read": 1,
+            "ready": 1,
+            "valid": 1,
+            "write": 1
+          }
+        ]
+      },
+      "synth_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+    }
+  },
+  "test-results": {
+    "classification": "host-only compiler diagnostic; full routed timing qualification owned by root",
+    "ctest": {
+      "backend_tests_passed": 19,
+      "backend_tests_skipped": 1,
+      "log": "out/ramtest-placed-composition/ctest.log",
+      "optional_real_snapshot_fixture": "skipped when fixture env absent; separately passed",
+      "seconds": 80.27,
+      "status": "PASS"
+    },
+    "default_placement": {
+      "comparison": "entire 197-cell module exact for absent prefix and mode alone",
+      "proof": "out/ramtest-placed-composition/default-checks/proof.json",
+      "status": "PASS"
+    },
+    "frozen_binary_sha256": "4c9bc5e95564c8fe763ec43c279a1765a5263d606d3779a09511703f83a655cd",
+    "real_snapshot_preflight": {
+      "classification": "optional test-only import and mutation, no packing/placement/routing; not supported route replay",
+      "evidence": "out/ramtest-placed-composition/preflight",
+      "import_repairs": [
+        "restore pin states from complete sidecar",
+        "restore missing packed ram_clock.pll outclk[1] connection to ram_clock.pll_outclk_1"
+      ],
+      "log": "out/ramtest-placed-composition/preflight-final.log",
+      "source": "out/ramtest-enable-replication/budget4-c2/replication.after.json",
+      "status": "PASS",
+      "verified": [
+        "all baseline and final BELs legal",
+        "original LAB42 inputs; ALUT4 fixed-site43 inputs illegal",
+        "compose and relocate choose identical MISTRAL_COMB.24.21.19"
+      ]
+    },
+    "status": "PASS",
+    "synthetic_backend": {
+      "coverage": [
+        "paired same-site search",
+        "16-row independent truth oracle",
+        "unchanged other placements",
+        "exact relocation connections and user indices",
+        "physical D-pin mapping",
+        "disabled mode"
+      ],
+      "log": "out/ramtest-placed-composition/green.log",
+      "status": "PASS",
+      "tests": 2
+    }
+  }
+}
