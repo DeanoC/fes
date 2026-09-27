@@ -41,6 +41,7 @@ const (
 	settingsRowAddLibrary = iota
 	settingsRowSaveLibraries
 	settingsRowDevelopmentRBF
+	settingsRowSystems
 	settingsRowClose
 	settingsTrailingCount
 )
@@ -56,6 +57,8 @@ const (
 	settingsOSKDevelopmentPath
 	settingsOSKFirmwarePath
 	settingsOSKTapePath
+	settingsOSKCorePath
+	settingsOSKCoreTitle
 )
 
 type settingsTargetDraft struct {
@@ -245,6 +248,7 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		SettingsRow{ID: "add-library", Label: "Add library", Value: "A add"},
 		SettingsRow{ID: "save-libraries", Label: "Save libraries", Value: save},
 		SettingsRow{ID: "development-rbf", Label: "DIAGNOSTIC RBF", Value: devValue},
+		SettingsRow{ID: "systems", Label: "Systems", Value: "Install cores and add games"},
 		SettingsRow{ID: "close", Label: "Close", Value: "B back"},
 	)
 	return rows
@@ -913,6 +917,10 @@ func (a *App) handleSettingsLibraryRowsLocked(cmd Command) {
 		if cmd == CmdSelect {
 			a.openDevelopmentPathOSKLocked()
 		}
+	case kind == settingsRowSystems:
+		if cmd == CmdSelect {
+			a.openCoreLibraryLocked()
+		}
 	case kind == settingsRowClose:
 		if cmd == CmdSelect {
 			a.closeSettingsLocked()
@@ -1080,6 +1088,8 @@ func (a *App) handleSettingsOSKLocked(cmd Command) {
 
 func (a *App) submitSettingsOSKLocked() {
 	switch a.settingsOSKKind {
+	case settingsOSKCorePath, settingsOSKCoreTitle:
+		a.submitCoreLibraryOSKLocked()
 	case settingsOSKLibraryPath:
 		a.submitLibraryPathOSKLocked()
 	case settingsOSKTargetName:

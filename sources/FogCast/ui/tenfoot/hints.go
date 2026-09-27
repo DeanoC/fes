@@ -246,6 +246,9 @@ func (s Snapshot) HeaderHint() string {
 	if s.RoomPicker.Open {
 		return roomPickerHint(kind)
 	}
+	if s.CoreLibrary.Open {
+		return s.CoreLibrary.Hint
+	}
 	if s.FirmwarePicker.Open {
 		if h := strings.TrimSpace(s.FirmwarePicker.Hint); h != "" {
 			return h
@@ -276,6 +279,9 @@ func (s Snapshot) HeaderHint() string {
 				return h
 			}
 			return roomChoiceHint(kind)
+		}
+		if s.CoreLibrary.Open {
+			return s.CoreLibrary.Hint
 		}
 		if s.FirmwarePicker.Open {
 			if h := strings.TrimSpace(s.FirmwarePicker.Hint); h != "" {
