@@ -1967,3 +1967,18 @@ launch behavior, including the older ZX81 Python prototype during transition.
 The image selector preserves all three sealed format-3 members. Host-side tests
 do not establish hardware acceptance or kit performance; those remain evidence
 for the exact tested package and software.
+
+### Local core publication
+
+The optional `[core_catalog] path`, with a stable per-library `library_source_id`, selects a FES-published version-1 index.
+`corecatalog` reads a bounded closed schema and verifies the canonical index
+digest, contained relative archive paths, file size and SHA-256. FogCast stages
+canonical package bytes and checks package/core identities before importing to
+its existing core-package store. Available systems and manifest-derived setup
+requirements are exposed under `/api/v1/core-catalog`; existing manual APIs remain
+available when publication is disabled. Guided title setup writes the existing
+catalog and ROM selections locally; target compatibility remains a launch gate.
+It never acquires a kit grant, changes placement or binds a live session.
+Publication namespaces are stable across generations. Serving-library identities
+are configured separately, so identical local game ids from two hosts remain
+distinct. Both identities are independent of executor identities. No second mesh catalog, coordinator or lease is introduced.

@@ -1,0 +1,44 @@
+version = 1
+source_id = "fes-first-party"
+
+[[cores]]
+core_id = "fes.pong"
+label = "Pong"
+system = "pong"
+standing = "supported"
+
+[[cores]]
+core_id = "fes.zx81"
+label = "ZX81"
+system = "zx81"
+standing = "supported"
+
+[[cores]]
+core_id = "fes.coleco"
+label = "ColecoVision"
+system = "colecovision"
+standing = "supported"
+
+[[cores]]
+core_id = "fes.sms"
+label = "Master System"
+system = "sms"
+standing = "supported"
+
+[[cores]]
+core_id = "fes.sg1000"
+label = "SG-1000"
+system = "sg1000"
+standing = "supported"
+
+[[cores]]
+core_id = "fes.catch"
+label = "Catch"
+system = "catch"
+standing = "demo"
+
+[[cores]]
+core_id = "fes.apple2"
+label = "Apple II"
+system = "apple2"
+standing = "experimental"

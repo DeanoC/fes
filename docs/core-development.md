@@ -269,3 +269,11 @@ the final `receipt.json`, and `preparation.json` binding the prepared candidate.
 Preparation used the retained build-cache checkout at `27bc483`; its four
 selected component revisions match the acceptance checkout. The build-cache
 checkout and live host library were otherwise left unchanged.
+
+## Publish prepared cores for setup
+
+`make core-catalog CORE_CATALOG_ARGS='--prepared fes.sms=/absolute/prepared.json --output /absolute/new-catalog'` publishes a local catalog and verified archives from frozen candidates. Repeat `--prepared` for other cores. Registered cores without candidates remain visible but cannot be installed. Publication never builds cores, contacts a host or uses a kit. `config/core-library.toml` supplies display metadata; manifests retain ABI and ROM authority.
+
+Configure FogCast `[core_catalog] path` to the resulting `catalog.json` and set a stable `library_source_id` unique to that host library. The publication namespace can be shared across hosts; their game-library namespaces must be distinct.
+
+To publish a new core, register its producer recipe in `config/core-recipes.toml`, add display metadata to `config/core-library.toml`, and supply its verified prepared receipt to `make core-catalog`. Existing supported descriptor contracts need no browser-specific core registration. The publication metadata regression checks coverage against the recipe registry.

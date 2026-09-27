@@ -62,21 +62,23 @@ const (
 )
 
 type Config struct {
-	BaseURL        string
-	Token          string
-	Targets        []TargetConfig
-	SelectedTarget string
-	MetadataRoot   string
-	RequestTimeout time.Duration
-	UploadTimeout  time.Duration
-	Libraries      []catalog.Root
-	RemoteInput    RemoteInputConfig
-	HostEmulator   HostEmulatorConfig
-	ZX81MachineROM ZX81MachineROMConfig
-	Media          MediaConfig
-	Metadata       MetadataConfig
-	LibraryMedia   []librarymedia.Root
-	Library        LibraryConfig
+	CoreCatalogPath     string
+	CoreLibrarySourceID string
+	BaseURL             string
+	Token               string
+	Targets             []TargetConfig
+	SelectedTarget      string
+	MetadataRoot        string
+	RequestTimeout      time.Duration
+	UploadTimeout       time.Duration
+	Libraries           []catalog.Root
+	RemoteInput         RemoteInputConfig
+	HostEmulator        HostEmulatorConfig
+	ZX81MachineROM      ZX81MachineROMConfig
+	Media               MediaConfig
+	Metadata            MetadataConfig
+	LibraryMedia        []librarymedia.Root
+	Library             LibraryConfig
 	// MeshEnsure is the production ensure seam. It defaults off. Open
 	// records it and does not dial; EnableMeshContent turns the seam on
 	// only when this is true. The default stays off until a source that
@@ -212,7 +214,13 @@ type MediaConfig struct {
 	Audio          remotemedia.AudioConfig
 }
 
+type fileCoreCatalog struct {
+	Path            string `toml:"path"`
+	LibrarySourceID string `toml:"library_source_id"`
+}
+
 type fileConfig struct {
+	CoreCatalog           fileCoreCatalog      `toml:"core_catalog"`
 	TargetID              string               `toml:"target_id,omitempty"`
 	BaseURL               string               `toml:"base_url"`
 	Token                 string               `toml:"token"`
@@ -407,6 +415,9 @@ func LoadConfig(path string) (Config, error) {
 	library.Targets = append([]TargetConfig(nil), targets...)
 	library.SelectedTarget = selectedTarget
 
+	if raw.CoreCatalog.Path != "" && !validLibrarySourceID(raw.CoreCatalog.LibrarySourceID) {
+		return Config{}, fmt.Errorf("core_catalog requires a stable library_source_id unique to this serving library")
+	}
 	return Config{
 		BaseURL:        selected.Address,
 		Token:          selected.Agent,
@@ -418,13 +429,15 @@ func LoadConfig(path string) (Config, error) {
 		RemoteInput: RemoteInputConfig{
 			Enabled: raw.RemoteInput.Enabled,
 		},
-		HostEmulator:   hostEmulator,
-		ZX81MachineROM: machineROM,
-		Media:          media,
-		Metadata:       metadata,
-		LibraryMedia:   libraryMedia,
-		Library:        library,
-		MeshEnsure:     meshEnsureFrom(raw.Mesh),
+		HostEmulator:        hostEmulator,
+		ZX81MachineROM:      machineROM,
+		Media:               media,
+		Metadata:            metadata,
+		LibraryMedia:        libraryMedia,
+		Library:             library,
+		MeshEnsure:          meshEnsureFrom(raw.Mesh),
+		CoreCatalogPath:     raw.CoreCatalog.Path,
+		CoreLibrarySourceID: raw.CoreCatalog.LibrarySourceID,
 	}, nil
 }
 

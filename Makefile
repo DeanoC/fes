@@ -23,6 +23,7 @@ TARGET_ACCEPTANCE_SELECTION_DIR ?= out/$(PROFILE)/development
 TARGET_ACCEPTANCE_ARGS ?=
 PACKAGE_ACCEPTANCE_ARGS ?=
 PACKAGE_ACCEPTANCE_ISOLATED_ARGS ?=
+CORE_CATALOG_ARGS ?=
 CORE_DEV_ARGS ?=
 CORE_DEV_ACCEPT_ARGS ?=
 TEST_CHANGED_ARGS ?= --base origin/main
@@ -108,3 +109,7 @@ check-generated:
 STATUS_ARGS ?=
 status:
 	@$(PYTHON) scripts/status.py $(STATUS_ARGS)
+
+.PHONY: core-catalog
+core-catalog:
+	$(PYTHON) scripts/core_catalog.py $(CORE_CATALOG_ARGS)

@@ -204,6 +204,15 @@ func (s *Service) meshCatalogEntry(gameID string) (meshcontent.Entry, bool) {
 	if err != nil {
 		return meshcontent.Entry{}, false
 	}
+	// Named linked ROMs live in core_entry_roms, independently of optional
+	// blob/disk media. Project their source identity without changing storage.
+	if inspection.Descriptor.ROM != nil || inspection.Descriptor.Format == 4 {
+		selected, _, err := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
+		if err != nil {
+			return meshcontent.Entry{}, false
+		}
+		entry.MediaID = selected.MediaID
+	}
 	abi := inspection.Descriptor.ABI
 	if !RecognizedPlayABI(abi.ID, abi.Major, abi.Minor) {
 		return meshcontent.Entry{}, false

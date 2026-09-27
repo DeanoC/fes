@@ -224,6 +224,8 @@ type Service struct {
 	placementHoldMu         sync.Mutex
 	placementHolds          map[serviceClient]*placementClaimRecord
 	closeKitLeases          func(context.Context) error
+	coreCatalogPath         string
+	coreLibrarySourceID     string
 	corePackages            *corepackage.Store
 	activePackageID         string
 	activePackageGeneration uint64
@@ -441,6 +443,8 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		options = append(options, WithLibraryMedia(media))
 	}
 	service := newService(config, paths, store, scanner, preparer, client, options...)
+	service.coreCatalogPath = config.CoreCatalogPath
+	service.coreLibrarySourceID = config.CoreLibrarySourceID
 	service.meshEnsureConfig = config.MeshEnsure
 	service.meshHTTP = &http.Client{}
 	if config.ZX81MachineROM.Script != "" {
