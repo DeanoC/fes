@@ -137,7 +137,7 @@ Before a game load, revoke presentation, quiesce reads, contain bridges, then
 reuse the existing serialized programming path. Late frames cannot reach the
 new core. Stop restores configured menu firmware, establishes a new display
 generation and requests a fresh complete frame; FogCast retains selection and
-search independently. Do not reuse an old DMA address or generation.
+search independently. Do not reuse an old presentation handle or generation.
 
 Mapping, identity or scanout failure keeps the existing bounded runtime
 failure/recovery behavior. Retain the boot splash as fallback and boot artifact.

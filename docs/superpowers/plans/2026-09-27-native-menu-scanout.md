@@ -36,11 +36,11 @@
 
 **Interfaces:** `fes_menu_reader` consumes clock/reset, enable, slot (1 bit), start, downstream ready and a read-only 128-bit Avalon response. It produces pixel_valid, pixel_bgrx[31:0], pixel_index[19:0], done, idle, address[27:0], burstcount[7:0], read. Connect waitrequest/readdatavalid/readdata to shared port 0; port addresses are byte addresses divided by 16. The selected slot is latched at start. A second start while busy is rejected by the caller.
 
-- [ ] Write reader simulation tests named `exact_frame`, `stalled_command`, `delayed_response`, `last_burst`, and `reset_drain`. A frame yields 921,600 ordered pixel words; accepted DDR beats total 230,400. Assert all burst counts are 1–128, every byte range is in the selected frame, commands remain stable under waitrequest, and disabling stops new reads while issued responses drain. In reset testing, returned old data is discarded before idle becomes true.
-- [ ] Run `python3 scripts/sim_fes_menu.py --case reader` from misteross; confirm the missing implementation/test assertions fail.
-- [ ] Implement the reader. Use a bounded FIFO with room reserved for every outstanding response, a maximum of one outstanding burst, and up to 128 beats per burst. Use shared window constants, not duplicate physical base literals. No asynchronous framebuffer read or arbitrary host address port.
-- [ ] Run the reader cases with deterministic varied waitrequest/read latency and consumer backpressure. Expected: all assertions pass and both slots produce their distinct patterns.
-- [ ] Commit reader, harness and script together with `cores/fes-menu/README.md` documenting simulation-only status.
+- [x] Write reader simulation tests named `exact_frame`, `stalled_command`, `delayed_response`, `last_burst`, and `reset_drain`. A frame yields 921,600 ordered pixel words; accepted DDR beats total 230,400. Assert all burst counts are 1–128, every byte range is in the selected frame, commands remain stable under waitrequest, and disabling stops new reads while issued responses drain. In reset testing, returned old data is discarded before idle becomes true.
+- [x] Run `python3 scripts/sim_fes_menu.py --case reader` from misteross; confirm the missing implementation/test assertions fail.
+- [x] Implement the reader. Use a bounded FIFO with room reserved for every outstanding response, a maximum of one outstanding burst, and up to 128 beats per burst. Use shared window constants, not duplicate physical base literals. No asynchronous framebuffer read or arbitrary host address port.
+- [x] Run the reader cases with deterministic varied waitrequest/read latency and consumer backpressure. Expected: all assertions pass and both slots produce their distinct patterns.
+- [x] Commit reader, harness and script together with `cores/fes-menu/README.md` documenting simulation-only status.
 
 ## Task 2: Timing, frame switching and underflow behavior
 
@@ -48,11 +48,11 @@
 
 **Interfaces:** `fes_menu_video` consumes pixel clock/reset, enable, quiesce, submit_valid, submit_slot and submit_sequence[31:0]. It produces submit_ready, displayed_sequence[31:0], quiesced, underflows[31:0], RGB[23:0], DE/HS/VS, and the reader's port-0 signals. `submit_ready` is false while one request is pending; no request overwrites the pending slot/sequence. `quiesced` requires no pending reads and no future command emission.
 
-- [ ] Write `video_timing`, `frame_switch`, `late_response`, `underflow`, `busy_submit`, and `quiesce` cases. Assert positive HS/VS, 1650x750 totals, 1280x720 active pixels; decode known B,G,R byte markers correctly. Assert each complete frame contains only one slot pattern, and displayed_sequence changes only at a frame boundary after old reads drain. Under forced stalls, sync timing remains unchanged, missing pixels are black and the counter increases. Counter saturates at UINT32_MAX. Quiesce leaves no accepted commands outstanding.
-- [ ] Run `python3 scripts/sim_fes_menu.py --case video`; observe failing tests before adding the video implementation.
-- [ ] Implement fixed timing and frame-local pixel indexing. Tag prefetched pixels by frame/index; discard missed/stale pixels instead of shifting the rest of a scan line. Preload before enabling visible output. If the next slot cannot be safely adopted, retain the current slot and defer its displayed acknowledgment to a later frame boundary. Do not stretch timing to wait for DDR.
-- [ ] Run reader and video cases including enable/reset during delayed responses and quiesce during a pending switch. Export marker/color-bar PPM frames as inspection artifacts. Expected: assertions pass; no underflow in the unstalled case, deliberate underflow only in the stalled case.
-- [ ] Commit video behavior and its tests with updated README. Document which simulated stall envelopes were tested; do not extrapolate to real DDR bandwidth.
+- [x] Write `video_timing`, `frame_switch`, `late_response`, `underflow`, `busy_submit`, and `quiesce` cases. Assert positive HS/VS, 1650x750 totals, 1280x720 active pixels; decode known B,G,R byte markers correctly. Assert each complete frame contains only one slot pattern, and displayed_sequence changes only at a frame boundary after old reads drain. Under forced stalls, sync timing remains unchanged, missing pixels are black and the counter increases. Counter saturates at UINT32_MAX. Quiesce leaves no accepted commands outstanding.
+- [x] Run `python3 scripts/sim_fes_menu.py --case video`; observe failing tests before adding the video implementation.
+- [x] Implement fixed timing and frame-local pixel indexing. Tag prefetched pixels by frame/index; discard missed/stale pixels instead of shifting the rest of a scan line. Preload before enabling visible output. If the next slot cannot be safely adopted, retain the current slot and defer its displayed acknowledgment to a later frame boundary. Do not stretch timing to wait for DDR.
+- [x] Run reader and video cases including enable/reset during delayed responses and quiesce during a pending switch. Export marker/color-bar PPM frames as inspection artifacts. Expected: assertions pass; no underflow in the unstalled case, deliberate underflow only in the stalled case.
+- [x] Commit video behavior and its tests with updated README. Document which simulated stall envelopes were tested; do not extrapolate to real DDR bandwidth.
 
 ## Task 3: DDR dependency adoption and diagnostic synthesis
 
@@ -79,3 +79,12 @@ proof should the UI-shell plan reuse tenfoot and mesh source/executor selection.
 Image/boot policy comes last. These requirements are deferred explicitly rather
 than hidden inside this simulation slice; this plan does not complete the full
 approved design by itself.
+
+## Execution record
+
+Tasks 1–2 are implemented and independently reviewed at `74e025e3`.
+Review found and fixed a prefetch-edge submission race and failure to discard
+stale pixels during horizontal blanking. Regressions now cover both, plus
+held-command cancellation and request retention across failed prefetch.
+Task 3 remains gated on the other agent's merged, qualified DDR support.
+No board build, kit operation, runtime contract or image selection is claimed.
