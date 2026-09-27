@@ -313,33 +313,38 @@ func TestProductionPlacementSelectsTheBoundKitWithTheSeamOff(t *testing.T) {
 	}
 }
 
-func TestProductionPlacementNeedsATieBreakBetweenTwoKits(t *testing.T) {
+func TestProductionPlacementPicksAmongTwoKits(t *testing.T) {
 	s, _, gameID, _, _ := wiredPongFixture(t)
 	living := newPlacementAgent(t, wireKitB, wireSimpleGame)
 	s.targets = append(s.targets, wireTarget("living", wireKitB, living))
 	s.meshNodes = append(s.meshNodes, wireKitNode(wireKitB))
 
+	s.meshPlacementConfig.Override = wireKitC
 	rows, on := s.GamesMeshReady(context.Background(), []string{gameID})
 	if !on || rows[gameID].Placement != meshplace.OutcomeUnresolved || !rows[gameID].PlacementOnly {
-		t.Fatalf("rows %#v on %v", rows, on)
-	}
-
-	s.SetDisplayPreference(wireKitA)
-	rows, on = s.GamesMeshReady(context.Background(), []string{gameID})
-	if !on || rows[gameID].Placement != meshplace.OutcomeSelected {
-		t.Fatalf("preference rows %#v on %v", rows, on)
-	}
-
-	s.SetDisplayPreference("")
-	s.meshPlacementConfig.Override = wireKitC
-	rows, _ = s.GamesMeshReady(context.Background(), []string{gameID})
-	if rows[gameID].Placement != meshplace.OutcomeUnresolved {
-		t.Fatalf("an override naming no candidate was replaced: %#v", rows[gameID])
+		t.Fatalf("an override naming no candidate was replaced: %#v on %v", rows, on)
 	}
 	s.meshPlacementConfig.Override = wireKitB
 	rows, _ = s.GamesMeshReady(context.Background(), []string{gameID})
 	if rows[gameID].Placement != meshplace.OutcomeSelected {
 		t.Fatalf("override %#v", rows[gameID])
+	}
+	s.meshPlacementConfig.Override = ""
+
+	// Neither a preference nor a last sink names a kit: the first kit in
+	// inventory order wins. That is the bound kit here, so the launch
+	// records it and keeps the bind.
+	rows, _ = s.GamesMeshReady(context.Background(), []string{gameID})
+	if rows[gameID].Placement != meshplace.OutcomeSelected {
+		t.Fatalf("first kit rows %#v", rows)
+	}
+	boundName, err := launchAndObserveBind(t, s, gameID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := MeshPlacement{Execute: wireKitA, DisplaySink: wireKitA, InputSource: wireKitA}
+	if boundName != "dev" || s.MeshSessionPlacement() != want {
+		t.Fatalf("bound %q placement %+v", boundName, s.MeshSessionPlacement())
 	}
 }
 
@@ -452,7 +457,7 @@ func TestInstalledAskWithAnEntryOnlySessionCarriesPlacementOnly(t *testing.T) {
 	if !on || len(rows) != 1 {
 		t.Fatalf("rows %#v on %v", rows, on)
 	}
-	if row := rows[entry.TitleID]; row.Placement != meshplace.OutcomeUnresolved || !row.PlacementOnly || row.Ready {
+	if row := rows[entry.TitleID]; row.Placement != meshplace.OutcomeSelected || !row.PlacementOnly || row.Ready {
 		t.Fatalf("row %#v", row)
 	}
 }

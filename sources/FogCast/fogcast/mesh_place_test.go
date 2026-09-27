@@ -1071,11 +1071,14 @@ func TestLaunchWithoutPlacementAskKeepsBind(t *testing.T) {
 
 	t.Run("unresolved selection does not rebind", func(t *testing.T) {
 		service, exec := placementBoundService(t, true)
+		// An override that names no candidate is unresolved: Place does
+		// not substitute another node, and the launch keeps its bind.
 		service.SetMeshPlacementAsk(&MeshPlacementAsk{
 			Candidates: []meshplace.Candidate{
 				placeFPGACandidate("node-a", true),
 				placeFPGACandidate("node-b", true),
 			},
+			OverrideNodeID: "node-gone",
 		})
 		assertUnaskedLaunchKeepsBind(t, service, exec)
 	})
