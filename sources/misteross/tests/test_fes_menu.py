@@ -81,3 +81,15 @@ class MenuDDRProducerTests(unittest.TestCase):
         self.assertEqual(route[route.index('--seed')+1],'4')
         for seed in (0,9,True):
             with self.assertRaises(ValueError):menu.build_commands(tools,mode='ddr',seed=seed)
+
+    def test_routed_zero_driver_is_accepted_but_one_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            output=Path(d);self.outputs(output)
+            p=output/'routed.json';data=json.loads(p.read_text());cells=data['modules']['top']['cells']
+            cells['zero']={'type':'MISTRAL_CONST','parameters':{'LUT':'0'*32},'connections':{'Q':[123456]}}
+            cells['ddr']['connections']['cmd_valid_1']=[123456]
+            p.write_text(json.dumps(data))
+            menu.validate_build_evidence(output,ROOT,mode='ddr')
+            cells['zero']['parameters']['LUT']='1'*32;p.write_text(json.dumps(data))
+            with self.assertRaisesRegex(BuildError,'tied low'):
+                menu.validate_build_evidence(output,ROOT,mode='ddr')

@@ -102,3 +102,10 @@ not release physical DDR ports. Raw contained loading is insufficient for
 DDR use; the later described-menu/runtime integration must perform admission,
 port release and video setup through the runtime. No new DDR artifact is
 hardware-qualified by the earlier test-pattern captures.
+
+The shared wrapper's compile-time specialization disables port-0 writes and
+ports 1/2 at the hard-block command pins. Its default read/write behavior and
+boot layout remain unchanged for the RAM tester and other consumers. The
+producer recognizes routed constant-zero drivers as well as synthesized zeros.
+The DDR recipe defaults to seed 4; `--seed 1..8` selects a bounded alternate
+and records it in the closed build inputs. Failed routes publish no RBF.

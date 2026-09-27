@@ -32,7 +32,7 @@ module fes_menu_ddr (
         .address(address), .burstcount(burstcount), .read(read), .waitrequest(waitrequest),
         .readdata(readdata), .readdatavalid(readdatavalid)
     );
-    fes_hps_ddr memory (
+    fes_hps_ddr #(.P0_WRITE_ENABLE(1'b0), .P1_ENABLE(1'b0), .P2_ENABLE(1'b0)) memory (
         .hold(reset_hold || faulted),
         .p0_clk(clk), .p0_reset(port_reset), .p0_address(address), .p0_burstcount(burstcount),
         .p0_waitrequest(waitrequest), .p0_readdata(readdata), .p0_readdatavalid(readdatavalid),

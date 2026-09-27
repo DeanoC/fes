@@ -14,7 +14,14 @@
 // The wiring follows Quartus 17.0 f2sdram::add_port (ip/altera/hps/util/
 // procedures.tcl). Its Avalon ports leave wr_valid undriven; here it follows
 // the write strobe, and every unused input is tied off explicitly.
-module fes_hps_ddr (
+// Compile-time specialization for masters that tie the corresponding inputs
+// low. Defaults retain the full three-port read/write interface and boot layout.
+// A disabled operation must not be submitted by its master.
+module fes_hps_ddr #(
+    parameter [0:0] P0_WRITE_ENABLE = 1'b1,
+    parameter [0:0] P1_ENABLE = 1'b1,
+    parameter [0:0] P2_ENABLE = 1'b1
+) (
     input  wire         hold,
 
     input  wire         p0_clk,
@@ -120,6 +127,14 @@ module fes_hps_ddr (
         .m_writedata(m2_writedata), .m_byteenable(m2_byteenable), .m_write(m2_write)
     );
 
+    // Keep unused hard-block operations physically tied low even when generic
+    // guard state registers cannot be reduced to constants by synthesis.
+    wire command_write0 = P0_WRITE_ENABLE && m0_write;
+    wire command_read1 = P1_ENABLE && m1_read;
+    wire command_write1 = P1_ENABLE && m1_write;
+    wire command_read2 = P2_ENABLE && m2_read;
+    wire command_write2 = P2_ENABLE && m2_write;
+
     cyclonev_hps_interface_fpga2sdram f2sdram (
         .cfg_axi_mm_select(AXI_MM_SELECT[5:0]),
         .cfg_cport_rfifo_map(CPORT_RFIFO_MAP[17:0]),
@@ -134,15 +149,15 @@ module fes_hps_ddr (
         .cmd_port_clk_3(1'b0),
         .cmd_port_clk_4(1'b0),
         .cmd_port_clk_5(1'b0),
-        .cmd_valid_0(m0_read | m0_write),
-        .cmd_valid_1(m1_read | m1_write),
-        .cmd_valid_2(m2_read | m2_write),
+        .cmd_valid_0(m0_read | command_write0),
+        .cmd_valid_1(command_read1 | command_write1),
+        .cmd_valid_2(command_read2 | command_write2),
         .cmd_valid_3(1'b0),
         .cmd_valid_4(1'b0),
         .cmd_valid_5(1'b0),
-        .cmd_data_0({18'd0, m0_burstcount, 4'd0, m0_address, m0_write, m0_read}),
-        .cmd_data_1({18'd0, m1_burstcount, 3'd0, m1_address, m1_write, m1_read}),
-        .cmd_data_2({18'd0, m2_burstcount, 3'd0, m2_address, m2_write, m2_read}),
+        .cmd_data_0({18'd0, m0_burstcount, 4'd0, m0_address, command_write0, m0_read}),
+        .cmd_data_1({18'd0, m1_burstcount, 3'd0, m1_address, command_write1, command_read1}),
+        .cmd_data_2({18'd0, m2_burstcount, 3'd0, m2_address, command_write2, command_read2}),
         .cmd_data_3(60'd0),
         .cmd_data_4(60'd0),
         .cmd_data_5(60'd0),
@@ -156,10 +171,10 @@ module fes_hps_ddr (
         .wr_clk_1(p0_clk),
         .wr_clk_2(p1_clk),
         .wr_clk_3(p2_clk),
-        .wr_valid_0(m0_write),
-        .wr_valid_1(m0_write),
-        .wr_valid_2(m1_write),
-        .wr_valid_3(m2_write),
+        .wr_valid_0(command_write0),
+        .wr_valid_1(command_write0),
+        .wr_valid_2(command_write1),
+        .wr_valid_3(command_write2),
         .wr_data_0({2'b00, m0_byteenable[7:0], 16'd0, m0_writedata[63:0]}),
         .wr_data_1({2'b00, m0_byteenable[15:8], 16'd0, m0_writedata[127:64]}),
         .wr_data_2({2'b00, m1_byteenable, 16'd0, m1_writedata}),

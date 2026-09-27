@@ -65,7 +65,7 @@ def authenticate(root, cache_root, mode):
 def seed_for(mode, seed):
     output_for(mode)
     if seed is None:
-        return 3 if mode == 'ddr' else 1
+        return 4 if mode == 'ddr' else 1
     if type(seed) is not int or not 1 <= seed <= 8:
         raise ValueError('menu diagnostic seed must be an integer from 1 to 8')
     return seed
@@ -117,14 +117,21 @@ def validate_build_evidence(output, root, *, mode='test-pattern'):
             graph = board._read_json(Path(output)/filename,filename)
             result['hps_ddr'] = evidence.hps_ddr_layout_evidence(
                 graph,filename,Path(root),idle=False)
-            cells = graph['modules']['top']['cells'].values()
+            cells = list(graph['modules']['top']['cells'].values())
+            grounds = [['0']]
+            if filename == 'routed.json':
+                grounds += [c.get('connections',{}).get('Q') for c in cells
+                    if c.get('type') == 'MISTRAL_CONST'
+                    and set(str(c.get('parameters',{}).get('LUT',''))) == {'0'}
+                    and isinstance(c.get('connections',{}).get('Q'),list)
+                    and len(c['connections']['Q']) == 1]
             connections = next(c['connections'] for c in cells
                 if c.get('type') == 'cyclonev_hps_interface_fpga2sdram')
             inactive = tuple(f'cmd_valid_{port}' for port in range(1,6)) + tuple(
                 f'wr_valid_{port}' for port in range(4))
-            if any(connections.get(port) != ['0'] for port in inactive):
+            if any(connections.get(port) not in grounds for port in inactive):
                 raise board.BuildError('menu DDR writes and unused ports must be tied low')
-            if connections.get('cmd_data_0', [])[1:2] != ['0']:
+            if connections.get('cmd_data_0', [])[1:2] not in grounds:
                 raise board.BuildError('menu DDR command write bit must be tied low')
     return result
 
@@ -156,6 +163,7 @@ def build(root=ROOT, *, cache_root=None, mode='test-pattern', seed=None):
 
 
 def _build(root=ROOT, *, cache_root=None, mode='test-pattern', seed=None):
+    seed = seed_for(mode, seed)
     selected_inputs = inputs_for(mode)
     output_relative = output_for(mode)
     root = Path(root).resolve()
