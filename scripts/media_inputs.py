@@ -9,13 +9,20 @@ import subprocess
 import tempfile
 import tomllib
 
+try:
+    from . import media_uboot
+except ImportError:
+    import media_uboot
+
 
 EXPECTED_LAYOUT = "de10-nano-mister-v1"
-# core=menu.rbf is the locked U-Boot filename for the splash slot.
+# U-Boot programs FAT /idle.rbf (core=idle.rbf), the same sealed core the
+# runtime loads from the rootfs for Stop idle. media_uboot derives it from the
+# upstream MiSTer uboot.img, whose default environment says core=menu.rbf.
 EXPECTED_ENVIRONMENT = (
     "mmcroot=/dev/mmcblk0p1",
     "bootimage=/linux/zImage_dtb",
-    "core=menu.rbf",
+    "core=idle.rbf",
     "loop=linux/linux.img ro rootwait",
 )
 
@@ -53,6 +60,7 @@ class MediaLock:
     uboot: Payload
     kernel: Payload
     environment: tuple[str, ...]
+    uboot_upstream: Payload
 
     @classmethod
     def load(cls, path: Path):
@@ -66,15 +74,18 @@ class MediaLock:
             raise ValueError(f"invalid boot-media lock: {error}") from error
         _fields(data, {"format", "repository", "commit", "layout", "sector_size",
                        "total_sectors", "disk_id", "fat_serial", "fat_label",
-                       "partition_1", "partition_2", "uboot", "kernel"})
+                       "partition_1", "partition_2", "uboot", "uboot_upstream", "kernel"})
         partition_1 = _partition(data["partition_1"])
         partition_2 = _partition(data["partition_2"])
         uboot, environment = _uboot(data["uboot"])
+        uboot_upstream = _payload(data["uboot_upstream"], "uboot.img")
+        if uboot_upstream.sha256 == uboot.sha256:
+            raise ValueError("derived U-Boot must differ from the upstream image")
         kernel = _payload(data["kernel"], "zImage_dtb")
         lock = cls(data["format"], data["repository"], data["commit"], data["layout"],
                    data["sector_size"], data["total_sectors"], data["disk_id"],
                    data["fat_serial"], data["fat_label"], partition_1, partition_2,
-                   uboot, kernel, environment)
+                   uboot, kernel, environment, uboot_upstream)
         _validate(lock)
         return lock
 
@@ -207,6 +218,29 @@ def _populate_cache(cache, lock, run):
         shutil.rmtree(temporary_parent, ignore_errors=True)
 
 
+def derived_uboot_path(root: Path, lock: MediaLock):
+    """Return the private cache path of the derived FES U-Boot."""
+    return Path(root) / "out/work/boot-media" / ("uboot-" + lock.uboot.sha256 + ".img")
+
+
+def _derive_uboot(root, lock, upstream):
+    derived = media_uboot.derive_locked(upstream.read_bytes(), lock)
+    path = derived_uboot_path(root, lock)
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise ValueError("derived U-Boot cache path must be a regular file")
+    if not path.exists() or path.read_bytes() != derived:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=path.name + ".tmp-", delete=False) as stream:
+            stream.write(derived)
+            temporary = Path(stream.name)
+        try:
+            temporary.chmod(0o444)
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
+    verify_file(path, lock.uboot.size, lock.uboot.sha256, "derived U-Boot")
+    return path
+
+
 def resolve_payloads(root: Path, lock: MediaLock, run):
     root = Path(root)
     cache = root / "out/work/boot-media" / ("image-creator-" + lock.commit)
@@ -219,13 +253,9 @@ def resolve_payloads(root: Path, lock: MediaLock, run):
         if not cache.exists():
             _populate_cache(cache, lock, run)
         _validate_cache(cache, lock)
-        uboot = cache / lock.uboot.path
+        upstream = cache / lock.uboot_upstream.path
         kernel = cache / lock.kernel.path
-        verify_file(uboot, lock.uboot.size, lock.uboot.sha256, "uboot.img")
+        verify_file(upstream, lock.uboot_upstream.size, lock.uboot_upstream.sha256, "uboot.img")
         verify_file(kernel, lock.kernel.size, lock.kernel.sha256, "zImage_dtb")
-        uboot_bytes = uboot.read_bytes()
-        for value in lock.environment:
-            if value.encode() not in uboot_bytes:
-                raise ValueError("U-Boot environment string differs from boot-media lock: " + value)
         _require_clean(cache)
-        return Payloads(uboot, kernel)
+        return Payloads(_derive_uboot(root, lock, upstream), kernel)

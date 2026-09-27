@@ -3,18 +3,20 @@ format = 1
 [mister_runtime]
 mount_path = '/runtime-source'
 
-# Splash: FAT / U-Boot (`core=menu.rbf`). Filename stays menu.rbf until a
-# U-Boot reseal. Stop-idle: rootfs LoadIdle() artifact. Both slots reuse
-# the in-tree misteross splash seal. repository/commit are provenance
-# (seal with the fes.memory.hps-ddr port layout U-Boot latches at boot);
-# fetch copies the FES path.
+# One idle core, two install locations. splash_rbf: FAT /idle.rbf, which the
+# derived FES U-Boot programs (`core=idle.rbf`, boot-media.lock.toml) before
+# `bridge enable`. idle_rbf: the rootfs LoadIdle() artifact for Stop idle.
+# Both slots must pin the same in-tree misteross splash seal (fetch/verify
+# reject a difference). repository/commit are provenance (seal with the
+# fes.memory.hps-ddr port layout U-Boot latches at boot); fetch copies the
+# FES path.
 [splash_rbf]
 repository = 'sources/misteross'
 commit = '808bd7c275e1a9934cbca15f9177c553e8c406c7'
 path = 'sealed/fes-splash.rbf'
 sha256 = '43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6'
 size = 1963100
-fat_destination = '/menu.rbf'
+fat_destination = '/idle.rbf'
 
 [idle_rbf]
 repository = 'sources/misteross'

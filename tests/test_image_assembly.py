@@ -51,7 +51,7 @@ class ImageAssemblyTest(unittest.TestCase):
         for section in ('splash_rbf', 'idle_rbf'):
             self.assertEqual({key: policy[section][key] for key in expected},
                              expected, section)
-        self.assertEqual(policy['splash_rbf']['fat_destination'], '/menu.rbf')
+        self.assertEqual(policy['splash_rbf']['fat_destination'], '/idle.rbf')
         self.assertEqual(policy['idle_rbf']['install_path'],
                          '/usr/share/mister-runtime/idle.rbf')
         sealed = ROOT / 'sources/misteross/sealed/fes-splash.rbf'

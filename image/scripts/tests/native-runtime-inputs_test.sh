@@ -31,7 +31,7 @@ commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
 path = 'sealed/fes-splash.rbf'
 sha256 = '$idle_sha'
 size = $idle_size
-fat_destination = '/menu.rbf'
+fat_destination = '/idle.rbf'
 
 [idle_rbf]
 repository = 'https://github.com/DeanoC/misteross'
@@ -222,6 +222,33 @@ if NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_INPUT_LOCK="$fixture/idle-onl
   fail 'fetch accepted a lock without splash_rbf'
 fi
 
+# Cards provisioned before the derived U-Boot keep FAT /menu.rbf; new policy
+# must not name it, and the FAT boot core must be the rootfs idle core.
+sed "s#fat_destination = '/idle.rbf'#fat_destination = '/menu.rbf'#" "$lock" > "$fixture/menu-destination.lock"
+for script in fetch verify; do
+  if [ "$script" = fetch ]; then set --; else set -- "$fixture/menu-destination.lock" "$fogcast" "$cache/idle.rbf" "$cache/splash.rbf"; fi
+  if NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_INPUT_LOCK="$fixture/menu-destination.lock" \
+    sh "$repo/scripts/$script-native-runtime-inputs.sh" "$@" \
+    >"$fixture/menu-destination.out" 2>"$fixture/menu-destination.err"; then
+    fail "$script accepted the legacy /menu.rbf FAT destination"
+  fi
+  grep -Fq 'splash FAT destination must be /idle.rbf' "$fixture/menu-destination.err" || \
+    fail "$script did not reject the legacy /menu.rbf FAT destination"
+done
+awk 'BEGIN { splash=0 } /^\[/ { splash=($0 == "[splash_rbf]") }
+  splash && /^sha256 = / { print "sha256 = '"'"'0000000000000000000000000000000000000000000000000000000000000000'"'"'"; next }
+  { print }' "$lock" > "$fixture/split-core.lock"
+for script in fetch verify; do
+  if [ "$script" = fetch ]; then set --; else set -- "$fixture/split-core.lock" "$fogcast" "$cache/idle.rbf" "$cache/splash.rbf"; fi
+  if NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_INPUT_LOCK="$fixture/split-core.lock" \
+    sh "$repo/scripts/$script-native-runtime-inputs.sh" "$@" \
+    >"$fixture/split-core.out" 2>"$fixture/split-core.err"; then
+    fail "$script accepted different splash and idle cores"
+  fi
+  grep -Fq 'splash and idle slots must pin the same core' "$fixture/split-core.err" || \
+    fail "$script did not reject different splash and idle cores"
+done
+
 if NATIVE_RUNTIME_MODE=format1 sh "$repo/scripts/fetch-native-runtime-inputs.sh" \
   >"$fixture/legacy.out" 2>"$fixture/legacy.err"; then
   fail 'legacy format-1 mode was accepted'
@@ -329,7 +356,7 @@ for section in ('splash_rbf', 'idle_rbf'):
     for key, value in expected.items():
         if policy[section][key] != value:
             raise SystemExit(f'{section}.{key}={policy[section][key]!r}')
-if policy['splash_rbf']['fat_destination'] != '/menu.rbf':
+if policy['splash_rbf']['fat_destination'] != '/idle.rbf':
     raise SystemExit('splash fat_destination')
 if policy['idle_rbf']['install_path'] != '/usr/share/mister-runtime/idle.rbf':
     raise SystemExit('idle install_path')

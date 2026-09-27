@@ -155,7 +155,7 @@ class MediaTests(unittest.TestCase):
         (self.root / 'image/build/native-inputs.toml').write_text(
             '[splash_rbf]\nrepository="https://github.com/DeanoC/misteross"\n'
             'commit="' + 'd' * 40 + '"\npath="sealed/fes-splash.rbf"\nsize=4\nsha256="' + digest_idle
-            + '"\nfat_destination="/menu.rbf"\n'
+            + '"\nfat_destination="/idle.rbf"\n'
             '[idle_rbf]\nrepository="https://github.com/DeanoC/misteross"\n'
             'commit="' + 'd' * 40 + '"\npath="sealed/fes-splash.rbf"\nsize=4\nsha256="' + digest_idle
             + '"\ninstall_path="/usr/share/mister-runtime/idle.rbf"\n')
@@ -1145,7 +1145,8 @@ class InterfaceTests(unittest.TestCase):
     def test_recipe_split(self):
         cold = set(cold_build.BUILD_RECIPE_FILES)
         media_files = set(cold_build.MEDIA_RECIPE_FILES)
-        for name in ('media.py', 'media_inputs.py', 'media_container.py', 'media_inside.py', 'platform.py'):
+        for name in ('media.py', 'media_inputs.py', 'media_uboot.py', 'media_container.py', 'media_inside.py',
+                     'platform.py'):
             self.assertNotIn(ROOT / 'scripts' / name, cold)
             self.assertIn(ROOT / 'scripts' / name, media_files)
         self.assertIn(ROOT / 'boot-media.lock.toml', media_files)
