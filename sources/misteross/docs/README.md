@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test placement options](validation/2026-09-27-ramtest-placer-options.md) | Ignored HeAP options fixed, preserved-default control, and improved combined FSM/placement timing. Host-only; producer lock unchanged. |
 | [RAM-test FSM routing](validation/2026-09-27-ramtest-fsm-routing.md) | GPU initial-route convergence fix, FSM isolation controls and remaining timeout/control-path limit. Host-only; producer lock unchanged. |
 | [RAM-test initialized FSMs](validation/2026-09-27-ramtest-fsm-init.md) | Yosys initialization-preserving FSM candidate, equivalence proofs and full-flow experiment. Host-only; producer lock unchanged. |
 | [RAM-test Quartus/OSS timing](validation/2026-09-27-ramtest-timing.md) | Matched-source compiler comparison, FSM control and routing probes for issue #264. Host-only; no new timing closure or hardware acceptance. |
