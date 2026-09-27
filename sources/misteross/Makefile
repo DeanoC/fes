@@ -834,6 +834,7 @@ sim-fes-apple2: sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-boa
 
 sim-fes-apple2-mailbox:
 	$(require_local_sim)
+	@mkdir -p build/sim/fes-computer-mailbox-input build/sim/fes-computer-mailbox-media
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated -GENABLE_KEYBOARD=1\'b1 -GENABLE_PORTS=1\'b1 -GENABLE_AUDIO=1\'b1 \
 		--Mdir "$(CURDIR)/build/sim/fes-computer-mailbox-input" \
