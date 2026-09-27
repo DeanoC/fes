@@ -301,3 +301,17 @@ test('inventory outage invalidates previously online guided setup',async()=>{
  const c=createController({fetchImpl:async(path,opt={})=>{if(opt.method==='POST'){posts++;return response({});}if(outage && path==='/api/v1/core-packages')throw Error('host offline');if(path==='/api/v1/core-packages')return response({packages:[pkg(A,'fes.sms')]});if(path==='/api/v1/library/core-entries')return response({entries:[]});if(path==='/api/v1/core-catalog')return response({cores:[row]});if(path.includes('media-capabilities'))return response(caps(A));if(path.includes('/setup?'))return response({...row,roms:[]});throw Error(path);}});
  await c.open();await c.selectCore('publication','fes.sms');outage=true;await c.refresh();assert.equal(c.snapshot().catalogOnline,false);await c.createSetupEntry('test');assert.equal(posts,0);
 });
+test('refresh and reopen keep uninstalled systems online and clear changed references',async()=>{
+ let pid=A;let setupCalls=0;
+ const c=createController({fetchImpl:async(path)=>{
+  if(path==='/api/v1/core-packages')return response({packages:[]});
+  if(path==='/api/v1/library/core-entries')return response({entries:[]});
+  if(path==='/api/v1/core-catalog')return response({cores:[{library_source_id:'library',source_id:'source',core_id:'fes.sms',label:'SMS',standing:'supported',package_id:pid,artifact_state:'available'}]});
+  if(path.includes('/setup?'))setupCalls++;
+  throw Error(path);
+ }});
+ await c.open();await c.selectCore('source','fes.sms');await c.refresh();assert.equal(c.snapshot().catalogOnline,true);assert.equal(setupCalls,0);
+ c.close();await c.open();assert.equal(c.snapshot().catalogOnline,true);
+ pid=B;await c.refresh();assert.equal(c.snapshot().catalogOnline,true);assert.equal(c.snapshot().coreRef,null);assert.equal(c.snapshot().setup,null);
+ await c.selectCore('source','fes.sms');assert.equal(c.snapshot().coreRef.package_id,B);
+});

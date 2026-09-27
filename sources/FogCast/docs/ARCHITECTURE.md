@@ -1982,3 +1982,12 @@ It never acquires a kit grant, changes placement or binds a live session.
 Publication namespaces are stable across generations. Serving-library identities
 are configured separately, so identical local game ids from two hosts remain
 distinct. Both identities are independent of executor identities. No second mesh catalog, coordinator or lease is introduced.
+
+A successful catalog refresh retains online catalog state when the selected
+package changes or is not yet installed. Changed references and their setup
+choices are cleared; setup is fetched only for an installed selection. Setup
+request failures do not masquerade as a failed catalog fetch.
+Mesh projection preserves explicitly selected primary blob/disk content. Linked
+ROM content supplies the primary slot only when no such media is selected.
+Incomplete ROM selections retain their package-backed browse row; normal launch
+validation still enforces required ROM inputs.

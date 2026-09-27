@@ -162,6 +162,9 @@ func TestCoreSetupExactCartridgeSizesAndRetry(t *testing.T) {
 			if err != nil || comps[entry.GameID].ROMReady {
 				t.Fatalf("missing ROM became ready: %+v %v", comps, err)
 			}
+			if _, ok := s.meshCatalogEntry(entry.GameID); !ok {
+				t.Fatal("incomplete title disappeared from mesh")
+			}
 			wrong, _, err := s.ImportCoreMedia(ctx, int64(tc.size-1), bytes.NewReader(make([]byte, tc.size-1)))
 			if err != nil {
 				t.Fatal(err)
@@ -196,6 +199,16 @@ func TestCoreSetupExactCartridgeSizesAndRetry(t *testing.T) {
 			projected, ok := s.meshCatalogEntry(entry.GameID)
 			if !ok || len(projected.Slots) != 2 || projected.Slots[0].Package.PackageID != pid || projected.Slots[1].Content == nil || projected.Slots[1].Content.Digest != media.MediaID {
 				t.Fatalf("named ROM absent from mesh projection: %+v %v", projected, ok)
+			}
+
+			// A removable disk/blob keeps the primary content identity even with a linked ROM.
+			_, err = s.catalog.(*catalog.Store).SelectCoreEntryMedia(ctx, entry.GameID, pid, "", "disk", other.MediaID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			withDisk, ok := s.meshCatalogEntry(entry.GameID)
+			if !ok || len(withDisk.Slots) != 2 || withDisk.Slots[1].Content.Digest != other.MediaID {
+				t.Fatalf("disk identity overwritten: %+v %v", withDisk, ok)
 			}
 			root := filepath.Dir(s.coreCatalogPath)
 			s.catalog.(*catalog.Store).Close()

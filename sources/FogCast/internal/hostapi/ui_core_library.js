@@ -128,7 +128,15 @@
       state.catalogOnline = false;
       state.message = '';
       emit();
-      try { if (await inventories(token)) { await capabilities(token); await catalogInventory(token); if (state.coreRef && state.catalogOnline) await loadSetup(token); } }
+      try { if (await inventories(token)) { await capabilities(token); await catalogInventory(token); if (state.coreRef && state.catalogOnline) {
+          const row = state.cores.find(c => c.source_id === state.coreRef.source_id && c.core_id === state.coreRef.core_id);
+          if (!row || row.library_source_id !== state.coreRef.library_source_id || (row.package_id || '') !== state.coreRef.package_id) {
+            state.coreRef = state.setup = state.setupGame = null; state.setupROMs = {}; state.media = null; state.packageId = '';
+          } else if (row.artifact_state === 'installed') {
+            state.setup = null;
+            try { await loadSetup(token); } catch (error) { if (token === epoch) state.message = error.message; }
+          } else { state.setup = null; state.setupROMs = {}; }
+        } } }
       catch (error) { if (token === epoch) { state.message = error.message; state.catalogOnline = false; state.catalogMessage = 'Source unavailable. Cached systems are browse-only; refresh to enable setup.'; } }
       finally { if (token === epoch) { state.loading = false; emit(); } }
       return clone(state);
