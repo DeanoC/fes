@@ -1,7 +1,8 @@
 # Native HDMI menu display design
 
-Status: proposed; depends on the in-progress HPS DDR implementation and its
-qualification. This document does not approve hardware or implementation.
+Status: design approved by the user on 2026-09-27; depends on the in-progress
+HPS DDR implementation and its qualification. Implementation plan review and
+exact-artifact hardware acceptance remain separate.
 Base: FES 221d0251. The controller fix b4c39848 is a separate branch.
 
 ## Intent and scope
