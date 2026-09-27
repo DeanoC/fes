@@ -1804,6 +1804,17 @@ This is development hardware diagnosis of the current 40-bit mapping, not
 image acceptance or a characterization of 10/20-bit async reads. See
 `experiments/895_m10k_async_stream/expected.md` for the probe contract.
 
+`896_mlab_async_stream` uses the same 256x40 logical stream with
+`ramstyle="MLAB"`, permitting the flow-through read that Cyclone V M10K
+cannot implement. Pinned synthesis produced 320 MLAB cells and no M10K;
+the seed-1 routed RBF SHA-256 was
+`31b68cf63cfe6c3ac16bd45c1ed444b6a215696ae3ea426db559c7a2347ddb3f`.
+Signoff reported 77.33 MHz against 74.25 MHz. On the designated kit,
+65,536 one-cycle reads and 65,536 held-address reads had zero errors, and
+changing the read address with the RAM clock stopped changed the data to the
+correct word. This validates the diagnostic artifact, not a full menu core
+or image. See `experiments/896_mlab_async_stream/expected.md`.
+
 `910_sdram_addon` reads and writes one 16-bit word on the MiSTer GPIO
 SDRAM addon. The 32/64/128 MB modules share this header. Each DQ bit is a
 width-one `altiobuf_bidir`. The host uses `fes.application` framing plus
