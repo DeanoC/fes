@@ -1,0 +1,274 @@
+{
+  "artifact_sha256": {
+    "build-complete.log": "1e6ae8a8cb6cde1aea8c31a500aa9a5c1d4630ec7ddb3e631c34e797755d3a76",
+    "control-proof.json": "63b88511d9282e23220a4a4c2de0ee19ffee893bed607840f065421b68b0af23",
+    "copy-proof.json": "b2f4650499d7feba9def06fd5c475732c0ec0c91311913cd7e396ef01404d5eb",
+    "ctest.log": "bb6722da805c8daf66d84e0130f6d3d384841df4e8cb499226ec74652f73383f",
+    "place-control/invocation.json": "df99609e8b8df674e2f10cb44d511dbc594323f9a8baa5a6e80d8d2b026c6746",
+    "place-control/place.log": "c60881ce5a8079d9f37e7e958d156e3f4ca7933b8185b544b94f05bb283feed1",
+    "place-control/placed.json": "e2dfb987bf4c03432241d61ab6c981b4569225fe9d32eeb1be60976fc02ce5a9",
+    "place-control/result.json": "39eaf3fe8f7108dd1eb07bac42c925968ac7fa444c16d6115d16948f799499e9",
+    "place-control/retained.after.json": "cd2d4d8622097a4680d6b9b3c1a3ad70ec9e9a5ddacdc971ec0b7c9cd6a880e5",
+    "place-control/retained.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "place-control/retained.audit.json": "d3a112e07abb8bce1e29f57378613fda7b9925242ca9b528b0f65918ac765009",
+    "place-control/retained.before.json": "153d2d88adaba8dbc969f35030b0990d01762cd2ba52451c81350860bf8e518e",
+    "place-control/retained.before.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "place-control/retained.inputs.tsv": "012488e6abf8467c244a78f2fef20c0dd6ec3fe48ff5b65f48184bee75d29066",
+    "place-control/retained.outputs.tsv": "10af7738a335ca35d66b578d89667c65f2a88a90a4bad5532a2bb3950284ff7c",
+    "place-control/retained.protected-labs.tsv": "071b5a194f8992c649facf4a1565f98563a53cfdb5afec29741888a765d04913",
+    "place-control/retained.replicas.tsv": "7df07c3c95d02e6db5b9ffefd4cb479804c66920d2f990fa9811d8c578ba0877",
+    "place-control/timeout.after.json": "153d2d88adaba8dbc969f35030b0990d01762cd2ba52451c81350860bf8e518e",
+    "place-control/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "place-control/timeout.before.json": "849175cec671e3bdb90246e700f70d20747f9cd2bc4153cbac83a37ee736b390",
+    "place-control/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "place-control/timeout.manifest.json": "f6eb2767647b813403c8e2bd93ee30a8e8b07fd49b4b571e4d5f7e8111057f3d",
+    "place-control/timeout.sites.tsv": "6ff95a751898ebba75021d3e1136d61d0496e6beff738b46436b3e9e55850d36",
+    "place-control/timing.json": "7fefe43cb3caac93ab464c287c5f380f0659667da3f42cb0f6b8cff4f8096b69",
+    "place-copy/feedback.after.json": "8bf861ccc7ecbeff3bb52fa153f8fbc1f492bc093192a058c81eedae251bf4f5",
+    "place-copy/feedback.after.json.pins.tsv": "6ddaf4c1ff0ccc52fd7a0ead5e2b44e2de1a417c4aac45f5e723a3105366be36",
+    "place-copy/feedback.before.json": "cd2d4d8622097a4680d6b9b3c1a3ad70ec9e9a5ddacdc971ec0b7c9cd6a880e5",
+    "place-copy/feedback.before.json.pins.tsv": "1b5a5941f98732dc7b7e0b30cca3f4fb8f5b27d9ad4a773d3e94c40b0dcc2512",
+    "place-copy/invocation.json": "f46e83757b0403985b54cc36dbfc92d02433ab4b562d2be8ae64b64078ade39a",
+    "place-copy/place.log": "c6f1377495d56d8ba6cda87613ca22b827d12f1e741ba0d4ed2297acc9b12468",
+    "place-copy/placed.json": "36df82944e918c4ed81fd586d44cafbef58021724f7c54c21d345cb3382b26d0",
+    "place-copy/result.json": "e109cf593f1b8333909d7c26db4d0b8b7b961a33acccfc74d47a68c005a5cfe1",
+    "place-copy/retained.after.json": "cd2d4d8622097a4680d6b9b3c1a3ad70ec9e9a5ddacdc971ec0b7c9cd6a880e5",
+    "place-copy/retained.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "place-copy/retained.audit.json": "d3a112e07abb8bce1e29f57378613fda7b9925242ca9b528b0f65918ac765009",
+    "place-copy/retained.before.json": "153d2d88adaba8dbc969f35030b0990d01762cd2ba52451c81350860bf8e518e",
+    "place-copy/retained.before.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "place-copy/retained.inputs.tsv": "012488e6abf8467c244a78f2fef20c0dd6ec3fe48ff5b65f48184bee75d29066",
+    "place-copy/retained.outputs.tsv": "10af7738a335ca35d66b578d89667c65f2a88a90a4bad5532a2bb3950284ff7c",
+    "place-copy/retained.protected-labs.tsv": "071b5a194f8992c649facf4a1565f98563a53cfdb5afec29741888a765d04913",
+    "place-copy/retained.replicas.tsv": "7df07c3c95d02e6db5b9ffefd4cb479804c66920d2f990fa9811d8c578ba0877",
+    "place-copy/timeout.after.json": "153d2d88adaba8dbc969f35030b0990d01762cd2ba52451c81350860bf8e518e",
+    "place-copy/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "place-copy/timeout.before.json": "849175cec671e3bdb90246e700f70d20747f9cd2bc4153cbac83a37ee736b390",
+    "place-copy/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "place-copy/timeout.manifest.json": "f6eb2767647b813403c8e2bd93ee30a8e8b07fd49b4b571e4d5f7e8111057f3d",
+    "place-copy/timeout.sites.tsv": "6ff95a751898ebba75021d3e1136d61d0496e6beff738b46436b3e9e55850d36",
+    "place-copy/timing.json": "1deaac90c6902c378b5a69a5f134a9b51a4e2421c6699a9790f6b24ebf8c473c",
+    "route-copy/arcs.tsv": "e634bc0b98b76fd6de0d138ad344a4493d1d63f341b1618ddd0f1e376d44d85d",
+    "route-copy/core.rbf": "4f08fa8a6d8d029dc56e73bed66585f2c6ce00c49007dd47999ee703fd277e45",
+    "route-copy/feedback.after.json": "bab23dd5c1821e549e4a86b56620af74424d2cc710d3559fe0b6397b7f004656",
+    "route-copy/feedback.after.json.pins.tsv": "6ddaf4c1ff0ccc52fd7a0ead5e2b44e2de1a417c4aac45f5e723a3105366be36",
+    "route-copy/feedback.before.json": "0c50a302ee2306cea1d3966353c59d681f738614c35ebd156b24f9941bbc2ae5",
+    "route-copy/feedback.before.json.pins.tsv": "1b5a5941f98732dc7b7e0b30cca3f4fb8f5b27d9ad4a773d3e94c40b0dcc2512",
+    "route-copy/invocation.json": "7578c4277d9493cff2c67e1f89f492685c98a465bb013d94921a10eefd0cf667",
+    "route-copy/ready-trace.arcs.tsv": "638fc4a4524ea99de52e7698dcfd0fa84861341df9a88a835c6df77449aa186d",
+    "route-copy/ready-trace.hops.tsv": "d6ef01cedaa50f7ba4e2c3639dbbbf6e93ed7f80e9dbc777801aced2e708b734",
+    "route-copy/ready-trace.observed.tsv": "d757648a955742f113cd2b9a9187a6e71d73d78bfe6148447ff107ea3ad74c78",
+    "route-copy/ready-trace.state.json": "71284f13309ea716d91db4c927928c481c60e9ac8538cf7874232ef5f16d24f9",
+    "route-copy/ready-trace.types.tsv": "5220870584dd50fd069da8fbf060647570e9c62a08db64476742393b1dc506a1",
+    "route-copy/replication.after.json": "a79fdc34542648a950c379be952ccc0e08350babd48638c2b4124aa48bad569d",
+    "route-copy/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "route-copy/replication.before.json": "391df8b39a77cd3acdf80481b698a4d4e6c9290971f3245843cb5fd6b8e11947",
+    "route-copy/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "route-copy/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "route-copy/result.json": "fe455c16f78d8b5c0894438ee4461790cdc3efa84434357b5e846e9952d9b996",
+    "route-copy/retained.after.json": "0c50a302ee2306cea1d3966353c59d681f738614c35ebd156b24f9941bbc2ae5",
+    "route-copy/retained.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "route-copy/retained.audit.json": "d3a112e07abb8bce1e29f57378613fda7b9925242ca9b528b0f65918ac765009",
+    "route-copy/retained.before.json": "8bf86c45c4cddef88d21c6a3c6197bfe5207b14e862d842dac34b5d3346d90fd",
+    "route-copy/retained.before.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "route-copy/retained.inputs.tsv": "012488e6abf8467c244a78f2fef20c0dd6ec3fe48ff5b65f48184bee75d29066",
+    "route-copy/retained.outputs.tsv": "10af7738a335ca35d66b578d89667c65f2a88a90a4bad5532a2bb3950284ff7c",
+    "route-copy/retained.protected-labs.tsv": "071b5a194f8992c649facf4a1565f98563a53cfdb5afec29741888a765d04913",
+    "route-copy/retained.replicas.tsv": "7df07c3c95d02e6db5b9ffefd4cb479804c66920d2f990fa9811d8c578ba0877",
+    "route-copy/routed.json": "540e977be969c0574d6648b66c1d79dd82853e97164de2b86dfe3870e3717967",
+    "route-copy/run.log": "d5fd90c9738fdd94d9ceb52a30fce539404e2696fa4e86b96de64eb738debee3",
+    "route-copy/timeout.after.json": "8bf86c45c4cddef88d21c6a3c6197bfe5207b14e862d842dac34b5d3346d90fd",
+    "route-copy/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "route-copy/timeout.before.json": "a79fdc34542648a950c379be952ccc0e08350babd48638c2b4124aa48bad569d",
+    "route-copy/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "route-copy/timeout.manifest.json": "f6eb2767647b813403c8e2bd93ee30a8e8b07fd49b4b571e4d5f7e8111057f3d",
+    "route-copy/timeout.sites.tsv": "6ff95a751898ebba75021d3e1136d61d0496e6beff738b46436b3e9e55850d36",
+    "route-copy/timing.json": "334df8644c6f49d5acf8c8b6b52a6c997a17633e55a68755a6599b2d961ef018",
+    "test-green-build.log": "31aee5bed2d6de6c12d725866d8735fce4b0c6c6d92fadb6532a1c53d6cfdc02",
+    "test-green.log": "93a116b3c84bf2bbbb87eb92c60e09c5800419c06efee451c3a1f25716d3129c",
+    "test-red-build.log": "c8cc8a5028efe47e570847fed495d4297e518baa8f28d68637e99d29f479bdc9",
+    "tools/nextpnr-feedback-copy": "b1ed22bc16a99fbefa3a91235a4cf62eebc4cc5f519c9b13e4df10f38abba7dc"
+  },
+  "binary_sha256": "b1ed22bc16a99fbefa3a91235a4cf62eebc4cc5f519c9b13e4df10f38abba7dc",
+  "compiler_base": "ffe2351ea769cabe49dfa7eb4c8b5960dc0b0093",
+  "compiler_commit": "c6f25983307d2782c29876773717ff1d9be9cba2",
+  "compiler_source_sha256": {
+    "mistral/CMakeLists.txt": "e7dd8586fdf4d1849150b286e610d2f38166d3fa8cb69816255df09966903774",
+    "mistral/arch.cc": "e8409e7a45e0c76f623c8dc69859be0acfbf59de4652af1b1c062451129c2418",
+    "mistral/feedback_state_copy.cc": "beb7fcc567e59b16e5f403c4e8f0ffecc715641ff6dc09deb49cdf327008c20e",
+    "mistral/tests/feedback_state_copy.cc": "33347dd5381beae2f93dde5afdbff071c07927ac656cd4cf845efd83ff869301"
+  },
+  "constraints_mhz": {
+    "display.pixel_clk": 74.25006866455078,
+    "ram_clock.clocks[0]": 130.0052032470703,
+    "ram_clock.clocks[1]": 130.0052032470703
+  },
+  "control": {
+    "byte_equal": [
+      "timing.json",
+      "timeout.before.json.pins.tsv",
+      "timeout.after.json.pins.tsv",
+      "retained.before.json.pins.tsv",
+      "retained.after.json.pins.tsv",
+      "timeout.manifest.json",
+      "retained.audit.json"
+    ],
+    "json_equal_except_creator": [
+      "placed.json",
+      "timeout.before.json",
+      "timeout.after.json",
+      "retained.before.json",
+      "retained.after.json"
+    ],
+    "total_checked": 12
+  },
+  "copy_structure": {
+    "added_ff": 2,
+    "all_original_cells_and_nets_unchanged_except_four_connections": true,
+    "control_exact_before_hook": true,
+    "copies": [
+      {
+        "copy_bel": "MISTRAL_FF.39.32.52",
+        "original_bel": "MISTRAL_FF.39.32.58",
+        "rewired": [
+          {
+            "cell": "ddr1_test.write_MISTRAL_ALUT5_C",
+            "pin": "B"
+          },
+          {
+            "cell": "hps_ddr.port1.enter_read_MISTRAL_ALUT5_Q",
+            "pin": "B"
+          }
+        ],
+        "source": "hps_ddr.port1.draining_MISTRAL_FF_Q"
+      },
+      {
+        "copy_bel": "MISTRAL_FF.39.27.58",
+        "original_bel": "MISTRAL_FF.39.27.56",
+        "rewired": [
+          {
+            "cell": "ddr1_test.write_MISTRAL_ALUT5_C",
+            "pin": "E"
+          },
+          {
+            "cell": "hps_ddr.port1.enter_read_MISTRAL_ALUT5_Q",
+            "pin": "D"
+          }
+        ],
+        "source": "hps_ddr.port1.finishing_MISTRAL_FF_Q"
+      }
+    ],
+    "original_cells": 14927,
+    "original_nets": 16674,
+    "original_pins_checked": 103282,
+    "rewired_inputs": 4
+  },
+  "final_hold_violations_reported": false,
+  "final_warning_count": 1,
+  "fmax_mhz_baseline": {
+    "display.pixel_clk": 76.9585952758789,
+    "ram_clock.clocks[0]": 116.91803741455078,
+    "ram_clock.clocks[1]": 332.4941101074219
+  },
+  "fmax_mhz_copy": {
+    "display.pixel_clk": 75.40909576416016,
+    "ram_clock.clocks[0]": 116.7133560180664,
+    "ram_clock.clocks[1]": 332.4941101074219
+  },
+  "input_sha256": {
+    "out/ramtest-feedback-local-copy/check_control.py": "84ed7281ee21adf26425b3dd47c2ddc56b46f41f8f4e780be7cd239a1b757b7c",
+    "out/ramtest-feedback-local-copy/check_copy.py": "3c20e1a3b920a24a939f8dd622fb6d69d440f57f6674401c306746bde36da35a",
+    "out/ramtest-feedback-local-copy/run_place.py": "9f0c7867a83e6e976fede91ff4d2078bf4394aa3055102da421985366ca5180e",
+    "out/ramtest-feedback-local-copy/run_route.py": "096a3ac110dae034aa21049d5365dd090da023e99feaec9f39368b3ceb6bd984",
+    "out/ramtest-feedback-local-copy/summarize.py": "070c0778dc6110c0f4c1bb35dc8bc276bb0ad1608e094ae23534dccf3ff3c96c",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "out/ramtest-observation-validity/best-c2/invocation.json": "2ff9c900f6b8fcb4c155ef3cc5c706e0b01f6773d2562fb62fc190f9b7b7bf34",
+    "out/ramtest-observation-validity/best-c2/routed.json": "8abacff0bbff422d1c18a8b55291fe5d0ce001cfd19a2216608bb2c88f919800",
+    "out/ramtest-observation-validity/best-c2/timing.json": "341becd14b93ea7ca0ab13e3d5465ecdebd52be765198c4da84d74f476082c41",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4"
+  },
+  "memory_path_baseline": {
+    "capture": {
+      "cell": "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_5",
+      "loc": [
+        34,
+        22
+      ],
+      "port": "ENA"
+    },
+    "launch": {
+      "cell": "hps_ddr.f2sdram",
+      "loc": [
+        52,
+        53
+      ],
+      "port": "cmd_ready_1"
+    },
+    "logic_ps": 800,
+    "route_arcs_ps": [
+      {
+        "delay_ps": 3602,
+        "net": "hps_ddr.cmd_ready_1"
+      },
+      {
+        "delay_ps": 1407,
+        "net": "hps_ddr.port1.slot_free"
+      },
+      {
+        "delay_ps": 1552,
+        "net": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B_Q"
+      }
+    ],
+    "routing_ps": 6561,
+    "total_ps": 8553
+  },
+  "memory_path_copy": {
+    "capture": {
+      "cell": "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_5",
+      "loc": [
+        34,
+        22
+      ],
+      "port": "ENA"
+    },
+    "launch": {
+      "cell": "hps_ddr.f2sdram",
+      "loc": [
+        52,
+        53
+      ],
+      "port": "cmd_ready_1"
+    },
+    "logic_ps": 800,
+    "route_arcs_ps": [
+      {
+        "delay_ps": 3607,
+        "net": "hps_ddr.cmd_ready_1"
+      },
+      {
+        "delay_ps": 1423,
+        "net": "hps_ddr.port1.slot_free"
+      },
+      {
+        "delay_ps": 1546,
+        "net": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B_Q"
+      }
+    ],
+    "routing_ps": 6576,
+    "total_ps": 8568
+  },
+  "memory_path_routing_delta_ps": 15,
+  "new_routed_cells": [
+    "hps_ddr.port1.draining_MISTRAL_FF_Q$local_state_copy",
+    "hps_ddr.port1.draining_MISTRAL_FF_Q$local_state_copy$ROUTETHRU",
+    "hps_ddr.port1.finishing_MISTRAL_FF_Q$local_state_copy",
+    "hps_ddr.port1.finishing_MISTRAL_FF_Q$local_state_copy$ROUTETHRU"
+  ],
+  "rbf_sha256": "4f08fa8a6d8d029dc56e73bed66585f2c6ce00c49007dd47999ee703fd277e45",
+  "route_returncode": 0,
+  "route_seconds": 657.439,
+  "routed_cells_baseline": 20014,
+  "routed_cells_copy": 20018,
+  "shared_cells_preserve_bels": 20014
+}

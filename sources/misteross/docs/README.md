@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test fixed-placement feedback-state copies](validation/2026-09-28-ramtest-feedback-local-copy.md) | Two legal same-LAB FF copies preserve all 20,014 original routed BELs but memory slips to 116.71 MHz; no gain stacked. Host-only. |
 | [RAM-test HPS-ready pin predictor](validation/2026-09-28-ramtest-hps-ready-pin-predict.md) | Using ready-1's actual GIN location in an opt-in placement estimate moves the sink farther from that pin and stops at a retained-enable guard. Disabled control exactly matches baseline; no route or gain. Host-only. |
 | [RAM-test feedback-state copies](validation/2026-09-28-ramtest-feedback-state-replicas.md) | Quartus fits port 1 feedback in four nearby LUTs and pairs original/copy state FFs. A private two-FF OSS copy trial worsens placement timing and stops at the retained-enable guard; no route or gain. Host-only. |
 | [RAM-test control-and-data locality](validation/2026-09-28-ramtest-ready-locality.md) | Quartus also clusters data generators and upstream state. Two legal, restored group translations worsen placement predictions through remaining feedback/control boundaries; neither routed or stacked. Host-only. |
