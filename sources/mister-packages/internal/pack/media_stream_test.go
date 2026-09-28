@@ -96,12 +96,16 @@ func TestMediaStreamConstantsAndLegacyOracle(t *testing.T) {
 	if abi.Major != 1 || abi.Minor != 0 || abi.Tag != 2 {
 		t.Fatal("base ABI changed")
 	}
-	if len(abi.Interfaces) != 4 {
+	if len(abi.Interfaces) != 5 {
 		t.Fatal("unexpected interfaces")
 	}
 	got := abi.Interfaces[3]
 	if got.ID != "fes.media.blob-stream" || got.Major != 1 || got.Minor != 0 || got.CapabilityBit != 3 {
 		t.Fatalf("stream interface: %+v", got)
+	}
+	audio := abi.Interfaces[4]
+	if audio.ID != "fes.audio.pcm-s16-stereo-48k" || audio.Major != 1 || audio.Minor != 0 || audio.CapabilityBit != 4 {
+		t.Fatalf("audio interface: %+v", audio)
 	}
 }
 

@@ -84,7 +84,7 @@ func TestLoadABIFesSimpleComputerContract(t *testing.T) {
 			t.Errorf("constant %s = 0x%x, %t; want 0x%x", name, got, ok, want)
 		}
 	}
-	if len(abi.Interfaces) != 4 {
+	if len(abi.Interfaces) != 5 {
 		t.Fatalf("interfaces = %#v", abi.Interfaces)
 	}
 	if abi.Interfaces[0].ID != "fes.keyboard" || abi.Interfaces[0].CapabilityBit != 0 {
@@ -95,6 +95,13 @@ func TestLoadABIFesSimpleComputerContract(t *testing.T) {
 	}
 	if abi.Interfaces[2].ID != "fes.media.blob" || abi.Interfaces[2].CapabilityBit != 2 {
 		t.Fatalf("media interface = %#v", abi.Interfaces[2])
+	}
+	if abi.Interfaces[3].ID != "fes.media.blob-stream" || abi.Interfaces[3].CapabilityBit != 3 {
+		t.Fatalf("stream interface = %#v", abi.Interfaces[3])
+	}
+	audio := abi.Interfaces[4]
+	if audio.ID != "fes.audio.pcm-s16-stereo-48k" || audio.Major != 1 || audio.Minor != 0 || audio.CapabilityBit != 4 {
+		t.Fatalf("audio interface = %#v", audio)
 	}
 }
 
