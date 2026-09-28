@@ -1,0 +1,3511 @@
+{
+  "all-depths": {
+    "baseline": {
+      "ch0_address": [
+        6,
+        5,
+        5,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7
+      ],
+      "ch0_beats": [
+        6,
+        5,
+        5,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7
+      ],
+      "ch1_address": [
+        7,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        8,
+        7,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        8,
+        7,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        8
+      ],
+      "ch1_beats": [
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7
+      ],
+      "ch2_address": [
+        7,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        8,
+        7,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        8,
+        7,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        8
+      ],
+      "ch2_beats": [
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7
+      ]
+    },
+    "candidate": {
+      "ch0_address": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "ch0_beats": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "ch1_address": [
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5
+      ],
+      "ch1_beats": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "ch2_address": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "ch2_beats": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ]
+    }
+  },
+  "arrivals": {
+    "groups": [
+      {
+        "baseline_worst_arrival_ns": 9.968999862670898,
+        "candidate_worst_arrival_ns": 8.57699966430664,
+        "channel": 0,
+        "improved": 28,
+        "regressed": 0,
+        "root_bit": 202,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -0.4380006790161133,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.828999996185303,
+              "min_arrival_ns": 3.994999885559082
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -1.1860003471374512,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.175999641418457,
+              "min_arrival_ns": 4.3420000076293945
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_10",
+            "max_arrival_change_ns": -0.8390007019042969,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.741000175476074,
+              "min_arrival_ns": 3.9070000648498535
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_11",
+            "max_arrival_change_ns": -1.5629997253417969,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.175999641418457,
+              "min_arrival_ns": 4.3420000076293945
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_12",
+            "max_arrival_change_ns": -0.8390007019042969,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.175999641418457,
+              "min_arrival_ns": 4.3420000076293945
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_13",
+            "max_arrival_change_ns": -0.8390007019042969,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.828999996185303,
+              "min_arrival_ns": 3.994999885559082
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_14",
+            "max_arrival_change_ns": -1.1860003471374512,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.175999641418457,
+              "min_arrival_ns": 4.3420000076293945
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_15",
+            "max_arrival_change_ns": -0.8390007019042969,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.621000289916992,
+              "min_arrival_ns": 5.140999794006348
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_16",
+            "max_arrival_change_ns": -1.0440006256103516,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.621000289916992,
+              "min_arrival_ns": 5.140999794006348
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_17",
+            "max_arrival_change_ns": -1.0440006256103516,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_18",
+            "max_arrival_change_ns": -0.4380006790161133,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.621000289916992,
+              "min_arrival_ns": 5.140999794006348
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.736000061035156,
+              "min_arrival_ns": 3.9019999504089355
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_19",
+            "max_arrival_change_ns": -1.885000228881836,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.828999996185303,
+              "min_arrival_ns": 3.994999885559082
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -1.1860003471374512,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_20",
+            "max_arrival_change_ns": -0.4380006790161133,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.968999862670898,
+              "min_arrival_ns": 5.488999843597412
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_21",
+            "max_arrival_change_ns": -1.3920001983642578,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.741000175476074,
+              "min_arrival_ns": 3.9070000648498535
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_22",
+            "max_arrival_change_ns": -1.5629997253417969,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_23",
+            "max_arrival_change_ns": -0.4380006790161133,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_24",
+            "max_arrival_change_ns": -0.4380006790161133,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.522000312805176,
+              "min_arrival_ns": 4.688000202178955
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_25",
+            "max_arrival_change_ns": -0.4930000305175781,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.968999862670898,
+              "min_arrival_ns": 5.488999843597412
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.522000312805176,
+              "min_arrival_ns": 4.688000202178955
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_26",
+            "max_arrival_change_ns": -1.4469995498657227,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.57699966430664,
+              "min_arrival_ns": 4.743000030517578
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_27",
+            "max_arrival_change_ns": -0.4380006790161133,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.175999641418457,
+              "min_arrival_ns": 4.3420000076293945
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -1.128000259399414,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.828999996185303,
+              "min_arrival_ns": 3.994999885559082
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -1.1860003471374512,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.828999996185303,
+              "min_arrival_ns": 3.994999885559082
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -1.1860003471374512,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.175999641418457,
+              "min_arrival_ns": 4.3420000076293945
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -1.128000259399414,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.175999641418457,
+              "min_arrival_ns": 4.3420000076293945
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -0.8390007019042969,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 7.828999996185303,
+              "min_arrival_ns": 3.994999885559082
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_8",
+            "max_arrival_change_ns": -1.4749999046325684,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.175999641418457,
+              "min_arrival_ns": 4.3420000076293945
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_9",
+            "max_arrival_change_ns": -0.8390007019042969,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 28,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 9.293000221252441,
+        "candidate_worst_arrival_ns": 7.916999816894531,
+        "channel": 0,
+        "improved": 8,
+        "regressed": 0,
+        "root_bit": 1614,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 7.916999816894531,
+              "min_arrival_ns": 4.435999870300293
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -1.3760004043579102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 7.916999816894531,
+              "min_arrival_ns": 4.435999870300293
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -1.3760004043579102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 7.480000019073486,
+              "min_arrival_ns": 3.999000072479248
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -1.813000202178955,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 7.916999816894531,
+              "min_arrival_ns": 4.435999870300293
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -1.3760004043579102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 7.480000019073486,
+              "min_arrival_ns": 3.999000072479248
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -1.813000202178955,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 7.916999816894531,
+              "min_arrival_ns": 4.435999870300293
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -1.3760004043579102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 7.916999816894531,
+              "min_arrival_ns": 4.435999870300293
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -1.3760004043579102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 7.916999816894531,
+              "min_arrival_ns": 4.435999870300293
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -1.3760004043579102,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 8,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 10.041999816894531,
+        "candidate_worst_arrival_ns": 9.12399959564209,
+        "channel": 1,
+        "improved": 29,
+        "regressed": 0,
+        "root_bit": 3255,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -0.6970005035400391,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.67199993133545,
+              "min_arrival_ns": 4.269999980926514
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -1.5520000457763672,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_10",
+            "max_arrival_change_ns": -1.0850000381469727,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.12399959564209,
+              "min_arrival_ns": 5.486000061035156
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_11",
+            "max_arrival_change_ns": -0.08100032806396484,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.435999870300293,
+              "min_arrival_ns": 4.797999858856201
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_12",
+            "max_arrival_change_ns": -0.3810005187988281,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.435999870300293,
+              "min_arrival_ns": 4.797999858856201
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_13",
+            "max_arrival_change_ns": -0.7690000534057617,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_14",
+            "max_arrival_change_ns": -0.6970005035400391,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.585000038146973,
+              "min_arrival_ns": 4.947000026702881
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_15",
+            "max_arrival_change_ns": -0.23200035095214844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.140999794006348,
+              "min_arrival_ns": 3.739000082015991
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.656000137329102,
+              "min_arrival_ns": 5.01800012588501
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_16",
+            "max_arrival_change_ns": -0.4849996566772461,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.435999870300293,
+              "min_arrival_ns": 4.797999858856201
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_17",
+            "max_arrival_change_ns": -0.3810005187988281,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.920000076293945,
+              "min_arrival_ns": 4.51800012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.585000038146973,
+              "min_arrival_ns": 4.947000026702881
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_18",
+            "max_arrival_change_ns": -1.3350000381469727,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_19",
+            "max_arrival_change_ns": -0.6970005035400391,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -0.6970005035400391,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_20",
+            "max_arrival_change_ns": -1.0850000381469727,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.307999610900879,
+              "min_arrival_ns": 3.9059998989105225
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_21",
+            "max_arrival_change_ns": -1.1879997253417969,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.79699993133545,
+              "min_arrival_ns": 4.394999980926514
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_22",
+            "max_arrival_change_ns": -1.6770000457763672,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.562999725341797,
+              "min_arrival_ns": 4.925000190734863
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_23",
+            "max_arrival_change_ns": -0.6420001983642578,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.656000137329102,
+              "min_arrival_ns": 5.01800012588501
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_24",
+            "max_arrival_change_ns": -0.16100025177001953,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_25",
+            "max_arrival_change_ns": -0.6970005035400391,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.140999794006348,
+              "min_arrival_ns": 3.739000082015991
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.562999725341797,
+              "min_arrival_ns": 4.925000190734863
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_26",
+            "max_arrival_change_ns": -0.5780000686645508,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.435999870300293,
+              "min_arrival_ns": 4.797999858856201
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_27",
+            "max_arrival_change_ns": -0.7690000534057617,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.12399959564209,
+              "min_arrival_ns": 5.486000061035156
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_28",
+            "max_arrival_change_ns": -0.08100032806396484,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.281000137329102,
+              "min_arrival_ns": 3.878999948501587
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -1.1610002517700195,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.140999794006348,
+              "min_arrival_ns": 3.739000082015991
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -1.0209999084472656,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -0.6970005035400391,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.435999870300293,
+              "min_arrival_ns": 4.797999858856201
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -0.3810005187988281,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 10.041999816894531,
+              "min_arrival_ns": 4.639999866485596
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -1.9219999313354492,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.585000038146973,
+              "min_arrival_ns": 4.947000026702881
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_8",
+            "max_arrival_change_ns": -0.23200035095214844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 8.119999885559082,
+              "min_arrival_ns": 4.48199987411499
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_9",
+            "max_arrival_change_ns": -0.6970005035400391,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 29,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 9.932999610900879,
+        "candidate_worst_arrival_ns": 7.5970001220703125,
+        "channel": 1,
+        "improved": 8,
+        "regressed": 0,
+        "root_bit": 4207,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 7.5970001220703125,
+              "min_arrival_ns": 4.872000217437744
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -2.3359994888305664,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 7.5970001220703125,
+              "min_arrival_ns": 4.872000217437744
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -2.3359994888305664,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 7.5970001220703125,
+              "min_arrival_ns": 4.872000217437744
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -2.3359994888305664,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 7.5970001220703125,
+              "min_arrival_ns": 4.872000217437744
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -2.3359994888305664,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 7.5970001220703125,
+              "min_arrival_ns": 4.872000217437744
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -2.3359994888305664,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 7.5970001220703125,
+              "min_arrival_ns": 4.872000217437744
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -2.3359994888305664,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 7.5970001220703125,
+              "min_arrival_ns": 4.872000217437744
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -2.3359994888305664,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 7.5970001220703125,
+              "min_arrival_ns": 4.872000217437744
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -2.3359994888305664,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 8,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 10.055000305175781,
+        "candidate_worst_arrival_ns": 8.777000427246094,
+        "channel": 2,
+        "improved": 29,
+        "regressed": 0,
+        "root_bit": 5528,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.42300033569336,
+              "min_arrival_ns": 4.916999816894531
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -1.238999366760254,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_10",
+            "max_arrival_change_ns": -1.7430000305175781,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_11",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_12",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.755999565124512,
+              "min_arrival_ns": 5.25
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_13",
+            "max_arrival_change_ns": -0.9060001373291016,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_14",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_15",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.755999565124512,
+              "min_arrival_ns": 5.25
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_16",
+            "max_arrival_change_ns": -0.9060001373291016,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.42300033569336,
+              "min_arrival_ns": 4.916999816894531
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_17",
+            "max_arrival_change_ns": -1.238999366760254,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.42300033569336,
+              "min_arrival_ns": 4.916999816894531
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_18",
+            "max_arrival_change_ns": -1.238999366760254,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.777000427246094,
+              "min_arrival_ns": 5.270999908447266
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_19",
+            "max_arrival_change_ns": -0.8849992752075195,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -1.7430000305175781,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.42300033569336,
+              "min_arrival_ns": 4.916999816894531
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_20",
+            "max_arrival_change_ns": -1.6319999694824219,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_21",
+            "max_arrival_change_ns": -1.7430000305175781,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.777000427246094,
+              "min_arrival_ns": 5.270999908447266
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_22",
+            "max_arrival_change_ns": -1.2779998779296875,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.777000427246094,
+              "min_arrival_ns": 5.270999908447266
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_23",
+            "max_arrival_change_ns": -1.2779998779296875,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_24",
+            "max_arrival_change_ns": -1.7430000305175781,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_25",
+            "max_arrival_change_ns": -1.7430000305175781,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.777000427246094,
+              "min_arrival_ns": 5.270999908447266
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_26",
+            "max_arrival_change_ns": -1.2779998779296875,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_27",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_28",
+            "max_arrival_change_ns": -1.7430000305175781,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_8",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.312000274658203,
+              "min_arrival_ns": 4.806000232696533
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_9",
+            "max_arrival_change_ns": -1.3499994277954102,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 29,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 10.118000030517578,
+        "candidate_worst_arrival_ns": 7.289000034332275,
+        "channel": 2,
+        "improved": 8,
+        "regressed": 0,
+        "root_bit": 6450,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 6.985000133514404,
+              "min_arrival_ns": 3.6070001125335693
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -3.132999897003174,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 6.985000133514404,
+              "min_arrival_ns": 3.6070001125335693
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -3.132999897003174,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 7.289000034332275,
+              "min_arrival_ns": 3.9110000133514404
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -2.8289999961853027,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 6.985000133514404,
+              "min_arrival_ns": 3.6070001125335693
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -3.132999897003174,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 6.985000133514404,
+              "min_arrival_ns": 3.6070001125335693
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -3.132999897003174,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 7.289000034332275,
+              "min_arrival_ns": 3.9110000133514404
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -2.8289999961853027,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 6.985000133514404,
+              "min_arrival_ns": 3.6070001125335693
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -3.132999897003174,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 6.985000133514404,
+              "min_arrival_ns": 3.6070001125335693
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -3.132999897003174,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 8,
+        "unchanged": 0
+      }
+    ],
+    "scope": "Matched FF ENA max arrival from any posedge memory launch. No capture-clock/setup adjustment; NOT setup slack, NOT matched-launch timeout path delay. Different physical placements/routes.",
+    "source_sha256": {
+      "out/ramtest-enable-replication/budget4-c2/timing.json": "269e184586ee02d6a4fca0f1d3bc713e99f08abfdefd0e14b45e55d0346ee468",
+      "out/ramtest-timeout-partition/partition-c2/timing.json": "b60b9f3f7f953cb0d60d296ac5639bf9b656c987eef65e1d343de07a56c57f5e"
+    }
+  },
+  "artifact_root": "out/ramtest-timeout-partition",
+  "artifacts_sha256": {
+    "all-depths.json": "718e63dad6c40eb98ae5df478cc4f0a82875e11376338e5c93026056c2d0fcec",
+    "all_depths.py": "84caea29030ab5fdc5c374980f1d4f74e0f99d9bf0a4bc977a4b04959e4f5ce0",
+    "arrivals.json": "5b2d2243eccc1bc4a6187c48ecd4217db1639cb5255f15937d838cefc01752b6",
+    "channel0/control.v": "07e05972cac641fed11726d1424df8080611aa140329974b24ece665865b48b1",
+    "channel0/map.log": "d2a95548b661c26275ab27f0d6579a7a0fed00a7f84d14a8040dc95d807889ee",
+    "channel0/map.ys": "dda17c5e056cdd9bbd5b74ed2ffb9ff7815016bc0da80f69b72b8f0fe444d22e",
+    "channel0/mapped.json": "fddfa0bde7f7ba28364adf253173792292e7bcc59bddd2be3ae2c81b81166e43",
+    "channel1/control.v": "a303a5993e8e7cb8ad2312ce31a5a9c806dade09689a6ae8bbc8eb0046a58d00",
+    "channel1/map.log": "1898a9b74b72530557e1d87ba1da25916080f70fa5d1c1e05497ccdc95b04f57",
+    "channel1/map.ys": "e831b123eefc9e6040dd6b67481bcfc6f73b65ed5c9be57872df4841a927d633",
+    "channel1/mapped.json": "6398c4c7cf83c7b17710b9cc54d9b5aba797699c87eab6b9e267fa4a0234ae70",
+    "channel2/control.v": "e6d97c5f4a6ad5b8d81bdc4edbe464d64509654a0d17a8daf45521117353abe9",
+    "channel2/map.log": "783f52bea9a6b72515632856542d7b130559035fd3b9e78659f675cca0b06fc7",
+    "channel2/map.ys": "6c8b98221a65970b3003ad2dd9eee2cd7fe95f32323f3b7c1713baf3eea647cc",
+    "channel2/mapped.json": "cf3e15e4dd6ddbd896a08bb2cc37e8b4e9cb4d42483698ea509cd1cffa2f3216",
+    "check-green.log": "875a197e5c09ed30365f075bc75c8a21733c466ecaf942fcdc187870ea39fa7c",
+    "check-red.log": "f0f8aeefd6e8854257c75ae40e60c3cac67167c8f4392bc600abd7821a09b1c5",
+    "check-tests.json": "f0bc12745ff81329d987a7d0eed5dcae99f19fc12b6d02c8b3e821d2cf7a1c18",
+    "check.json": "f8cd984054966be5ad7e522ab6eeb56503e7243847680bd5f081ba6142c6bfd6",
+    "check_rewrite.py": "31df04d73376e05918973af83f4525c07917905f9d163d58a75b5aa018db7b67",
+    "cofactor-exploration/channel0/control.v": "2914a130012fe6341b8db74dfb407b9eca961746c1bacd32a612f64fa7074a69",
+    "cofactor-exploration/channel0/map.log": "586678529519ec57d4952d602d8ea3e3e18f76463bd19f976e156d15f7c74bd6",
+    "cofactor-exploration/channel0/map.ys": "dda17c5e056cdd9bbd5b74ed2ffb9ff7815016bc0da80f69b72b8f0fe444d22e",
+    "cofactor-exploration/channel0/mapped.json": "bdf27d48baf2a5892b78f3f3695d978854639c7ddadd8f23eb79e84419f03b53",
+    "cofactor-exploration/channel1/control.v": "711974cd9c1b8f7923378410592f0e65655203202ce0dcb96f60e3a1b506f2ed",
+    "cofactor-exploration/channel1/map.log": "37c3fa8d77ed5d023194334ccd7260c144e7d68c810bdc3ea2c19c58a9b53162",
+    "cofactor-exploration/channel1/map.ys": "e831b123eefc9e6040dd6b67481bcfc6f73b65ed5c9be57872df4841a927d633",
+    "cofactor-exploration/channel1/mapped.json": "e2df8a29b23a48ce84f6edc319f812f3fd07792c9fcd9e1150a56849cf7c0dbf",
+    "cofactor-exploration/channel2/control.v": "0613489734297e8ecb6caeff2a6fa8f3d85a676742cea47f727c3b4dfd2de404",
+    "cofactor-exploration/channel2/map.log": "24e78907813e21c2a6eac87ef2681c3f29d725167f0d389d2f292bc9514d4217",
+    "cofactor-exploration/channel2/map.ys": "6c8b98221a65970b3003ad2dd9eee2cd7fe95f32323f3b7c1713baf3eea647cc",
+    "cofactor-exploration/channel2/mapped.json": "6b5172998df63fc238faab82dc32c95d0d52392dcc0615ee1f9a27883120af1a",
+    "cofactor-exploration/rewrite.json": "14187d83535238600a436314bfeac3fcce95dbd0c5e99b1b7a8f76f36bff3d57",
+    "cofactor-exploration/rewrite.py": "2ce8e5ee017a85461adae23e41724a4ca0a77704224203d4b7eb7b3ecea10cbf",
+    "cofactor-exploration/synth.json": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "compare_arrivals.py": "2cf3d90ecc4ed15af218bf62d3c179be873b29385b56e282fd0dc2c1a362db96",
+    "cones.json": "a6a6af784e1891b3fcbc54a438a931ddd9a03e2aecd7cc103bf55669156e1576",
+    "equivalence/gate.v": "622155968ddec5e3e9203e481c2c55bc1337f8c7055ee434b4191d2d6057e808",
+    "equivalence/gold.v": "5af4e7ec204088d53642c251f34292e64cc34b98291c6813aa89d9922ba78770",
+    "equivalence/inventory.json": "7d3fdcb855c61087c2a489a1fdf2bd0ae1739d612eabbd95da1c7e56d297adb7",
+    "equivalence/proof.log": "17352288702eb5363b14ccd478ef5cf7de13056396e2d91d1fcac3b540097e08",
+    "equivalence/proof.ys": "834da7374ae9b6dfa347e1a7022d8dbeb6c7c387e47c1fd9f01aa2886b698e99",
+    "equivalence/result.json": "7ad4f926035b25b4cee7ee19fa985269a878299280427c1fca262bcf4028a8d4",
+    "green.log": "f2ea3b8438e3ccbf6b43ce925dd4ad3f8d051d67bcf79724ff2ae6609566522d",
+    "partition-c2/arcs.tsv": "bc4d601c6789512894fd60359d52d5d37f63a4d1b5a102d3b8baca735f74bc80",
+    "partition-c2/core.rbf": "f94fc90dad85474ede8beb15c28a5aefba362b08d70e42ba36c68651401ee198",
+    "partition-c2/invocation.json": "a47dc411377ce6e348b7fd2970e1265ca8c3d189dd6736cf5cfc5769153ddca2",
+    "partition-c2/replication.after.json": "7b33c47bb30d4a611e5b56913a9ee76da824336eb9c68b8925fdba34ca11d65e",
+    "partition-c2/replication.after.json.pins.tsv": "977c3e02afa7656dadaad2d3ee78570e9a2455de347268012422c5a93ab62f68",
+    "partition-c2/replication.before.json": "7b33c47bb30d4a611e5b56913a9ee76da824336eb9c68b8925fdba34ca11d65e",
+    "partition-c2/replication.before.json.pins.tsv": "977c3e02afa7656dadaad2d3ee78570e9a2455de347268012422c5a93ab62f68",
+    "partition-c2/replication.replicas.tsv": "ee3cf260f5dd5249cc4b57ab3116eb498a9e55c8e856f7fa80daf442712e4377",
+    "partition-c2/result.json": "834f7038622dfde798529641fafe4ad3dbf294b90c75753e83cf1e17a8b81906",
+    "partition-c2/routed.json": "a757ab3895af37d8d83783d3ed8797ee0530d56e947af8e7511b8213428dd2e6",
+    "partition-c2/run.log": "22c3546ec543adbee700d066d61ce838b4d2ccf6542905f0b858778c2d9b6835",
+    "partition-c2/snapshot-proof.json": "6a1e922bd0da3e716dcf370142369ce1a81ea45963e5cb1a03c3a5c40d9a8a7e",
+    "partition-c2/timing.json": "b60b9f3f7f953cb0d60d296ac5639bf9b656c987eef65e1d343de07a56c57f5e",
+    "ready-placements.json": "848573e40245efddf7689a116b529ec926c6fa01e15c5b219b04c30456437ffc",
+    "red.log": "af3a4dd7694a974e1a953e5af6f78df45b9d0e793d7d7947500f9362cab997d5",
+    "rewrite.json": "27cccaacb3e1785c5301d034614277f9002da8193ac728cc8e49f4147db448cd",
+    "rewrite.py": "7092d97e099fdf04bb6579c0fef14674f4908f708a1db3f99f5aa9fc66b62ec6",
+    "root-users.json": "f7a548974fb347b706bf4dbdc55509a94e046c57a2db5a0cbea33b46c9eb63bd",
+    "run_route.py": "2b79b0f4f6613d662f308b276b03b7698a2695657647116bc76a96a0bde1c970",
+    "scope.json": "d9d428a0e4d4366ed78fcb9b229211955f2d8e145c7473860653102337a96e29",
+    "summarize.py": "f7c7c86b245c034535bd8c496a71be933ca5453fcfa399808226c46fe849591d",
+    "synth.json": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "test_check_rewrite.py": "ec7d67adf8fce688df21be4e673c2cb4a2235988a7af96d946a2ebdd0c9d19f1",
+    "test_rewrite.py": "989bf2e8213a8e800bd2bd69d5efd766b113299a96499fd42c7dde033f25a678",
+    "validation.json": "02d02fce692bf73744f3df2429ec69a072f9ca9fce39553dd1b97f92cae68b4a"
+  },
+  "check": {
+    "added_cells": 41,
+    "candidate_sha256": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "channels": [
+      {
+        "channel": 0,
+        "cut_support_sizes": [
+          15,
+          11
+        ],
+        "new_comparator_cells": 5,
+        "new_equality": 16954,
+        "old_comparator_cells": 6,
+        "old_equality": 934,
+        "roots": [
+          202,
+          1614
+        ]
+      },
+      {
+        "channel": 1,
+        "cut_support_sizes": [
+          15,
+          11
+        ],
+        "new_comparator_cells": 5,
+        "new_equality": 16964,
+        "old_comparator_cells": 7,
+        "old_equality": 3462,
+        "roots": [
+          3255,
+          4207
+        ]
+      },
+      {
+        "channel": 2,
+        "cut_support_sizes": [
+          15,
+          11
+        ],
+        "new_comparator_cells": 5,
+        "new_equality": 16977,
+        "old_comparator_cells": 7,
+        "old_equality": 5996,
+        "roots": [
+          5528,
+          6450
+        ]
+      }
+    ],
+    "checker_sha256": "31df04d73376e05918973af83f4525c07917905f9d163d58a75b5aa018db7b67",
+    "gold_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "passed": true,
+    "preserved_cells": 14935,
+    "removed_cells": 6,
+    "scope": "Structural boundary preservation, comparator cube and dominance; SAT separately proves all Boolean outputs."
+  },
+  "check-tests": {
+    "command": "python3 -m unittest discover -s out/ramtest-timeout-partition -p test_check_rewrite.py -v",
+    "files": {
+      "out/ramtest-control-factoring/equivalence/prove.py": "0e748994e859d92df33d28dda382ceab3cbb5839ff77fbac80410631bb1e02cc",
+      "out/ramtest-timeout-partition/check-green.log": "875a197e5c09ed30365f075bc75c8a21733c466ecaf942fcdc187870ea39fa7c",
+      "out/ramtest-timeout-partition/check-red.log": "f0f8aeefd6e8854257c75ae40e60c3cac67167c8f4392bc600abd7821a09b1c5",
+      "out/ramtest-timeout-partition/check.json": "f8cd984054966be5ad7e522ab6eeb56503e7243847680bd5f081ba6142c6bfd6",
+      "out/ramtest-timeout-partition/check_rewrite.py": "31df04d73376e05918973af83f4525c07917905f9d163d58a75b5aa018db7b67",
+      "out/ramtest-timeout-partition/equivalence/inventory.json": "7d3fdcb855c61087c2a489a1fdf2bd0ae1739d612eabbd95da1c7e56d297adb7",
+      "out/ramtest-timeout-partition/equivalence/proof.log": "17352288702eb5363b14ccd478ef5cf7de13056396e2d91d1fcac3b540097e08",
+      "out/ramtest-timeout-partition/equivalence/proof.ys": "834da7374ae9b6dfa347e1a7022d8dbeb6c7c387e47c1fd9f01aa2886b698e99",
+      "out/ramtest-timeout-partition/equivalence/result.json": "7ad4f926035b25b4cee7ee19fa985269a878299280427c1fca262bcf4028a8d4",
+      "out/ramtest-timeout-partition/rewrite.json": "27cccaacb3e1785c5301d034614277f9002da8193ac728cc8e49f4147db448cd",
+      "out/ramtest-timeout-partition/synth.json": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+      "out/ramtest-timeout-partition/test_check_rewrite.py": "ec7d67adf8fce688df21be4e673c2cb4a2235988a7af96d946a2ebdd0c9d19f1"
+    },
+    "green": "All eight tests passed.",
+    "passed": true,
+    "proof_scope": "Existing unchanged full boundary SAT helper; no FF identity export needed because all original FF/hardblock cells and names are unchanged.",
+    "red": "Missing check_rewrite implementation: test import failed, captured in check-red.log.",
+    "tests": 8
+  },
+  "cones": {
+    "cells": 14976,
+    "paths": {
+      "idle1_beats2": {
+        "chain": [
+          {
+            "cell": "timeout_partition_ch1_part2",
+            "parameters": {
+              "LUT": "0000000000010000000000000000000000000000000000000000000000000000"
+            },
+            "path_input": "C",
+            "type": "MISTRAL_ALUT6"
+          },
+          {
+            "cell": "timeout_partition_ch1_reduce",
+            "parameters": {
+              "LUT": "1000000000000000"
+            },
+            "path_input": "C",
+            "type": "MISTRAL_ALUT4"
+          },
+          {
+            "cell": "timeout_partition_ch1_control4",
+            "parameters": {
+              "LUT": "01001100"
+            },
+            "path_input": "C",
+            "type": "MISTRAL_ALUT3"
+          },
+          {
+            "cell": "timeout_partition_ch1_control1",
+            "parameters": {
+              "LUT": "1110000000100000"
+            },
+            "path_input": "C",
+            "type": "MISTRAL_ALUT4"
+          }
+        ],
+        "destination_ff": "ddr1_test.beats_left_MISTRAL_FF_Q_6",
+        "lut_levels": 4
+      },
+      "idle2_address25": {
+        "chain": [
+          {
+            "cell": "timeout_partition_ch2_part3",
+            "parameters": {
+              "LUT": "0000000000000000000000000000000000000000000000000000000000001000"
+            },
+            "path_input": "F",
+            "type": "MISTRAL_ALUT6"
+          },
+          {
+            "cell": "timeout_partition_ch2_reduce",
+            "parameters": {
+              "LUT": "1000000000000000"
+            },
+            "path_input": "D",
+            "type": "MISTRAL_ALUT4"
+          },
+          {
+            "cell": "timeout_partition_ch2_control4",
+            "parameters": {
+              "LUT": "01001100"
+            },
+            "path_input": "C",
+            "type": "MISTRAL_ALUT3"
+          },
+          {
+            "cell": "timeout_partition_ch2_control0",
+            "parameters": {
+              "LUT": "1111000000000000001100000000000001010000000000000001000000000000"
+            },
+            "path_input": "C",
+            "type": "MISTRAL_ALUT6"
+          }
+        ],
+        "destination_ff": "ddr2_address_MISTRAL_FF_Q_25",
+        "lut_levels": 4
+      },
+      "ready1_address27": {
+        "chain": [
+          {
+            "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+            "parameters": {
+              "LUT": "1011"
+            },
+            "path_input": "A",
+            "type": "MISTRAL_ALUT2"
+          },
+          {
+            "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+            "parameters": {
+              "LUT": "00110010"
+            },
+            "path_input": "B",
+            "type": "MISTRAL_ALUT3"
+          }
+        ],
+        "destination_ff": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_27",
+        "lut_levels": 2
+      }
+    },
+    "types": {
+      "MISTRAL_ALUT2": 1079,
+      "MISTRAL_ALUT3": 1121,
+      "MISTRAL_ALUT4": 1024,
+      "MISTRAL_ALUT5": 1508,
+      "MISTRAL_ALUT6": 459,
+      "MISTRAL_ALUT_ARITH": 1350,
+      "MISTRAL_CLKBUF": 4,
+      "MISTRAL_FF": 8221,
+      "MISTRAL_IB": 1,
+      "MISTRAL_IO": 18,
+      "MISTRAL_NOT": 118,
+      "MISTRAL_OB": 51,
+      "altddio_out": 1,
+      "altera_pll": 2,
+      "altiobuf_bidir": 16,
+      "cyclonev_hps_interface_fpga2sdram": 1,
+      "cyclonev_hps_interface_mpu_general_purpose": 1,
+      "cyclonev_hps_interface_peripheral_i2c": 1
+    }
+  },
+  "equivalence": {
+    "boundary_cells": 8317,
+    "candidate_sha256": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "ff_model_sha256": "9939cd1c1edfbdde75fe6d4c2ae018fdc3ba59762caec3cba06c0853f064daa4",
+    "flipflops": 8221,
+    "gold_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "passed": true,
+    "scope": "Strict equality of every FF/hardblock input and top output for every assignment of shared Q/hardblock/top inputs; no ignored unknown cells.",
+    "sink_bits": 58673,
+    "source_bits": 8696,
+    "yosys_returncode": 0
+  },
+  "external_inputs_sha256": {
+    "out/ramtest-control-factoring/compare_cones.py": "81115dd1406ea4fb8312170e503d9bd29d72d74ccdc70418f2fc04c7831df9d2",
+    "out/ramtest-control-factoring/equivalence/prove.py": "0e748994e859d92df33d28dda382ceab3cbb5839ff77fbac80410631bb1e02cc",
+    "out/ramtest-enable-replication/budget4-c2/invocation.json": "da2edb631d1db76d7ed7af7fafddceceb6ef654ad2cca173fd004fd2dbcdaf36",
+    "out/ramtest-enable-replication/budget4-c2/routed.json": "6be0d18c132a4aae3c6cb1bbb87fcf29aa3bd0307f5418a49de896cd87b852a3",
+    "out/ramtest-enable-replication/budget4-c2/timing.json": "269e184586ee02d6a4fca0f1d3bc713e99f08abfdefd0e14b45e55d0346ee468",
+    "out/ramtest-enable-replication/check_snapshots.py": "672e78a293c487a570fcbd0f14b5553a80593390beb4b2c7a702fec89e2460a5",
+    "out/ramtest-enable-replication/tools/nextpnr-enable-replication": "eb56265fea455e2adcf1c06edb3293792437866bc00bb59cbc82998c9d7a38fe",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/abc9_map.v": "16ab6df1c1cec13576706e8f14b23a3e4192d439c21c8345dacf3cea26d4c217",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/abc9_model.v": "96479f981e035a1f985615dbb9e4e96ece6a55caa927ecbf02e82000f1cccf08",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/abc9_unmap.v": "07c96ef54a061bd4b34e07e080145e80a0fd56141baaa730b7d55dd7fbc73481",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v": "c3f6cb34359cf7e687780a1d8d853be16da291b482b9a467164243eb310f9f33",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/alm_sim.v": "c812ff26762b308fb4cfd51305e21467e02971f6e189ff57fbc758d5f58b0bf4",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/arith_alm_map.v": "b2b3dcdce789ad09be53dd9066e0eecde7cdc3ebc9bdf58ed00e649a5bde21d9",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k.txt": "83107f7beebdd59afa8936c0c497032e24f9442289cfa4363c78c2c563cd7c75",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_aclr.txt": "603d9f289d15240c2fa4de9d915a170bd4b07318678379f51e470bc02b8daed0",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_aclr_map.v": "78b41783a012501dc7256f47e123d1131b3ddc879b595e60688d4f041b98869e",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_async.txt": "941513e9ae3507db2ff1f5ae3e1575240f8af6521b0cb0849d6139413e41bc9d",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_async_map.v": "c49a9c748cc421a2e33743cc3e7e94aeaf40b6128529cb1f722cd24471dd8472",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_map.v": "85a77369ad51caaf273b2f47e1920194bc62a9c76461da7e7519f4f6665c47b5",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_mixed.txt": "8306ed2c01077bb4a272548f5dc3c6c8ff633bf77a9cfe53f1d61f5e3656d5ee",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_mixed_map.v": "f703e56075f60d8fa0f5f2d044dfc648227bbd7a1f3d7238bfae3b95583b3dac",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp.txt": "9896a52d45d0da5aeec398e02d711ce907996041e3257896413a0750bfe774fb",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_byte.txt": "fb39e8ff4937e3a55df788d0b0b46c951e3373de58cf292b7c8a9eba823cd99a",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_byte_map.v": "2afde59318a748d27999fe9c5ed17c4e32d6607f9b36c96f70d1de771f5b1309",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_map.v": "c59fff1946a0e4ffa372214392d781c91feb54c3c529c302209cd6dd96190b03",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_mixed.txt": "71c27ac4a1d64d8adb2e4175600d67a06a92646bfa165370a3fe47ddc66f7185",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_mixed_map.v": "fd4d5a4cf5da2c2eae02c09426495cf12f12672766e8d57df6712b95bdc69347",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/dff_map.v": "8281b81ba0f0699bce381083ea5d03c4884ff755858de4fe12111ee5aa678661",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/dff_sim.v": "9939cd1c1edfbdde75fe6d4c2ae018fdc3ba59762caec3cba06c0853f064daa4",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/dsp_map.v": "bf4aadd88ef82cd617d49aaa2881de80e09a46fd9aae6bb35d6f6039e02e5671",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/dsp_sim.v": "0e39b87aeebd14582aae668dc8a2d2cac35e4670a47fc3e9b1d1d53353c2ff77",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/lutram_mlab.txt": "a3d25444d37c6c176f8b3c3f3867ce321107726904e7a545e5c231b4c3deb168",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/megafunction_bb.v": "ae9d4168cf30c30df94a58c37796cc03373e5ba829573cd3ad79cc178434e21a",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/mem_sim.v": "dc337ffc0d8719d8ee06575062347dfdfa83fce5fae73da14f463d59fa4da869",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/misc_sim.v": "61c61824ffc029aef50950b3dd419ae368706cbe568aa6987cbe1d5f696feb17",
+    "out/ramtest-fsm-init/build/share/intel_alm/cyclonev/cells_sim.v": "880c9d6d6fc24e1722bff7c70fbb34f65cd07ac023c8ca08703da3a833dfb8e6",
+    "out/ramtest-fsm-init/build/yosys": "f08390cc37702407dc16d2999742f13a7409a1c82948f232f8cb0a7142cad513",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "out/ramtest-fsm-init/synth.ys": "7e3332e0957b7c6cd09741cc7374f1bb15d398f0e882d11807d4130c8be0f86e",
+    "out/ramtest-fsm-isolation/nextpnr/common/kernel/report.cc": "3d1bc5f5d877e93af364a7dca063886fc12ef786d84df22ee31fd153c6280326",
+    "out/ramtest-fsm-isolation/nextpnr/common/kernel/timing.cc": "a48d654ee5b28a1de1ff899139e714e9f5ebfe12f9a58e51ba2002eed380ab88",
+    "out/ramtest-fsm-isolation/tools/yosys-abc": "929fb6dae5bd08f01989ac694afa399d2062813015a28d0953745c54036d8423",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-common/generated/fes_application.vh": "a248fcb9f641a63ca59aec74aa7c0df61183e0c2ad836001690561730990c57a",
+    "sources/misteross/cores/fes-common/generated/fes_computer.vh": "00bb0fee2d0b6d3b69c4370967fcc930812f52f10634e97f206307c28148a9a9",
+    "sources/misteross/cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+    "sources/misteross/cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+    "sources/misteross/cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+    "sources/misteross/cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+    "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+    "sources/misteross/cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb",
+    "sources/misteross/docs/validation/2026-09-28-ramtest-abc-area-recovery.json": "f9998daa818ddd85c6e61f7957f12cf02e56a4ce574c039269c1b2424c584aae",
+    "sources/misteross/docs/validation/2026-09-28-ramtest-quartus-control-cones.json": "bc9dc75604c5bb211d4851319ad3027231943a4fbb0f1501897674c08bc2ad63"
+  },
+  "fes_base": "0a74708812923c873eb267dd31d2c85951b213b2",
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_commit": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+  "ready-placements": [
+    {
+      "baseline": "cyclonev_hps_interface_fpga2sdram.52.53.0",
+      "candidate": "cyclonev_hps_interface_fpga2sdram.52.53.0",
+      "cell": "hps_ddr.f2sdram"
+    },
+    {
+      "baseline": "MISTRAL_COMB.30.26.48",
+      "candidate": "MISTRAL_COMB.24.19.43",
+      "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q"
+    },
+    {
+      "baseline": "MISTRAL_COMB.30.26.37",
+      "candidate": "MISTRAL_COMB.23.1.12",
+      "cell": "hps_ddr.port1.skid_MISTRAL_FF_Q_ENA_MISTRAL_ALUT3_Q"
+    },
+    {
+      "baseline": "MISTRAL_FF.30.26.28",
+      "candidate": "MISTRAL_FF.2.1.50",
+      "cell": "hps_ddr.port1.skid_MISTRAL_FF_Q"
+    }
+  ],
+  "rewrite": {
+    "added_cells": [
+      "timeout_partition_ch0_part0",
+      "timeout_partition_ch0_part1",
+      "timeout_partition_ch0_part2",
+      "timeout_partition_ch0_part3",
+      "timeout_partition_ch0_reduce",
+      "timeout_partition_ch0_control0",
+      "timeout_partition_ch0_control1",
+      "timeout_partition_ch0_control2",
+      "timeout_partition_ch0_control3",
+      "timeout_partition_ch0_control4",
+      "timeout_partition_ch0_control5",
+      "timeout_partition_ch0_control6",
+      "timeout_partition_ch1_part0",
+      "timeout_partition_ch1_part1",
+      "timeout_partition_ch1_part2",
+      "timeout_partition_ch1_part3",
+      "timeout_partition_ch1_reduce",
+      "timeout_partition_ch1_control0",
+      "timeout_partition_ch1_control1",
+      "timeout_partition_ch1_control2",
+      "timeout_partition_ch1_control3",
+      "timeout_partition_ch1_control4",
+      "timeout_partition_ch1_control5",
+      "timeout_partition_ch1_control6",
+      "timeout_partition_ch1_control7",
+      "timeout_partition_ch1_control8",
+      "timeout_partition_ch1_control9",
+      "timeout_partition_ch2_part0",
+      "timeout_partition_ch2_part1",
+      "timeout_partition_ch2_part2",
+      "timeout_partition_ch2_part3",
+      "timeout_partition_ch2_reduce",
+      "timeout_partition_ch2_control0",
+      "timeout_partition_ch2_control1",
+      "timeout_partition_ch2_control2",
+      "timeout_partition_ch2_control3",
+      "timeout_partition_ch2_control4",
+      "timeout_partition_ch2_control5",
+      "timeout_partition_ch2_control6",
+      "timeout_partition_ch2_control7",
+      "timeout_partition_ch2_control8"
+    ],
+    "candidate_sha256": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "channels": [
+      {
+        "channel": 0,
+        "comparator_cells": 5,
+        "idle_bits": [
+          2212,
+          2204,
+          2236,
+          2216,
+          2240,
+          2195,
+          2210,
+          2206,
+          2228,
+          2218,
+          2220,
+          2208,
+          2238,
+          2214,
+          2202,
+          2222,
+          2224,
+          2232,
+          2198,
+          2234,
+          2230,
+          2242,
+          2226,
+          2200
+        ],
+        "local_cell_count": 7,
+        "original_cone_cells": [
+          "ddr0_test.cmd_end_MISTRAL_ALUT2_B",
+          "ddr0_test.pass_end_MISTRAL_ALUT3_C",
+          "hps_ddr.port0.enter_read_MISTRAL_ALUT5_Q",
+          "ddr0_test.pass_cycles_MISTRAL_FF_Q_SCLR_MISTRAL_ALUT2_Q",
+          "ddr0_burst_MISTRAL_FF_Q_ENA_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT2_Q",
+          "ddr0_test.write_MISTRAL_ALUT5_C",
+          "ddr0_stopped_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT3_Q",
+          "ddr0_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q",
+          "ddr0_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT2_B",
+          "ddr0_test.pass_end_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q",
+          "ddr0_test.pass_end_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT6_F",
+          "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+          "ddr0_burst_MISTRAL_FF_Q_ENA_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT2_Q",
+          "ddr0_burst_MISTRAL_FF_Q_ENA_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_D",
+          "ddr0_test.burst_end_MISTRAL_ALUT3_A"
+        ],
+        "original_equality": 934,
+        "other_input_bits": [
+          295,
+          297,
+          299,
+          927,
+          928,
+          933,
+          994,
+          1001,
+          1598,
+          1604,
+          1721,
+          3082,
+          3087,
+          3088
+        ],
+        "roots": [
+          202,
+          1614
+        ]
+      },
+      {
+        "channel": 1,
+        "comparator_cells": 5,
+        "idle_bits": [
+          4659,
+          4667,
+          4665,
+          4649,
+          4643,
+          4671,
+          4645,
+          4651,
+          4635,
+          4653,
+          4633,
+          4677,
+          4675,
+          4669,
+          4647,
+          4657,
+          4641,
+          4663,
+          4661,
+          4655,
+          4637,
+          4630,
+          4673,
+          4639
+        ],
+        "local_cell_count": 10,
+        "original_cone_cells": [
+          "ddr1_test.write_MISTRAL_ALUT5_C",
+          "ddr1_test.burst_end_MISTRAL_ALUT3_B",
+          "ddr1_test.pass_cycles_MISTRAL_FF_Q_SCLR_MISTRAL_ALUT2_Q",
+          "hps_ddr.port1.enter_read_MISTRAL_ALUT5_Q",
+          "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q",
+          "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_Q",
+          "ddr1_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_C_MISTRAL_ALUT2_Q",
+          "ddr1_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_C_MISTRAL_ALUT3_C",
+          "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q",
+          "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_E",
+          "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+          "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT3_Q",
+          "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B",
+          "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D",
+          "ddr1_test.burst_end_MISTRAL_ALUT3_A"
+        ],
+        "original_equality": 3462,
+        "other_input_bits": [
+          994,
+          3345,
+          3455,
+          3456,
+          3458,
+          3472,
+          3732,
+          3734,
+          3800,
+          4240,
+          4309,
+          5414,
+          5424,
+          5425
+        ],
+        "roots": [
+          3255,
+          4207
+        ]
+      },
+      {
+        "channel": 2,
+        "comparator_cells": 5,
+        "idle_bits": [
+          6021,
+          6020,
+          6019,
+          6018,
+          6026,
+          6025,
+          6024,
+          6023,
+          6007,
+          6006,
+          6005,
+          6004,
+          6030,
+          6029,
+          6028,
+          6027,
+          6012,
+          6011,
+          6010,
+          6009,
+          6017,
+          6016,
+          6015,
+          6014
+        ],
+        "local_cell_count": 9,
+        "original_cone_cells": [
+          "ddr2_test.cmd_end_MISTRAL_ALUT2_B",
+          "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_C_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT2_Q_1",
+          "hps_ddr.port2.enter_read_MISTRAL_ALUT5_Q",
+          "ddr2_test.write_MISTRAL_ALUT5_E",
+          "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q",
+          "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q",
+          "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q",
+          "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B",
+          "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q",
+          "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F",
+          "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+          "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D",
+          "ddr2_test.pass_end_MISTRAL_ALUT5_C"
+        ],
+        "original_equality": 5996,
+        "other_input_bits": [
+          994,
+          5616,
+          5726,
+          5727,
+          5732,
+          5733,
+          5993,
+          5994,
+          6032,
+          6039,
+          6569,
+          7697,
+          7702,
+          7703
+        ],
+        "roots": [
+          5528,
+          6450
+        ]
+      }
+    ],
+    "original_cells_preserved": 14935,
+    "removed_root_cells": [
+      "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+      "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+      "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+      "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+      "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+      "ddr2_test.pass_end_MISTRAL_ALUT5_C"
+    ],
+    "source_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+  },
+  "root-users": [
+    {
+      "channel": 0,
+      "count": 28,
+      "root_bit": 202,
+      "users": [
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_1",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_10",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_11",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_12",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_13",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_14",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_15",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_16",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_17",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_18",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_19",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_2",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_20",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_21",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_22",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_23",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_24",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_25",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_26",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_27",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_3",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_4",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_5",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_6",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_7",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_8",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_address_MISTRAL_FF_Q_9",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        }
+      ]
+    },
+    {
+      "channel": 0,
+      "count": 8,
+      "root_bit": 1614,
+      "users": [
+        {
+          "cell": "ddr0_test.beats_left_MISTRAL_FF_Q",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_1",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_2",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_3",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_4",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_5",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_6",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_7",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        }
+      ]
+    },
+    {
+      "channel": 1,
+      "count": 29,
+      "root_bit": 3255,
+      "users": [
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_1",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_10",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_11",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_12",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_13",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_14",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_15",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_16",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_17",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_18",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_19",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_2",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_20",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_21",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_22",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_23",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_24",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_25",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_26",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_27",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_28",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_3",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_4",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_5",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_6",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_7",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_8",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_address_MISTRAL_FF_Q_9",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        }
+      ]
+    },
+    {
+      "channel": 1,
+      "count": 8,
+      "root_bit": 4207,
+      "users": [
+        {
+          "cell": "ddr1_test.beats_left_MISTRAL_FF_Q",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_1",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_2",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_3",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_4",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_5",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_6",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_7",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        }
+      ]
+    },
+    {
+      "channel": 2,
+      "count": 29,
+      "root_bit": 5528,
+      "users": [
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_1",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_10",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_11",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_12",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_13",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_14",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_15",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_16",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_17",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_18",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_19",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_2",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_20",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_21",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_22",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_23",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_24",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_25",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_26",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_27",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_28",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_3",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_4",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_5",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_6",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_7",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_8",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_address_MISTRAL_FF_Q_9",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        }
+      ]
+    },
+    {
+      "channel": 2,
+      "count": 8,
+      "root_bit": 6450,
+      "users": [
+        {
+          "cell": "ddr2_test.beats_left_MISTRAL_FF_Q",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_1",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_2",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_3",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_4",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_5",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_6",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        },
+        {
+          "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_7",
+          "port": "ENA",
+          "type": "MISTRAL_FF"
+        }
+      ]
+    }
+  ],
+  "runs": {
+    "partition-c2": {
+      "binary_sha256": "eb56265fea455e2adcf1c06edb3293792437866bc00bb59cbc82998c9d7a38fe",
+      "classification": "host-only local timeout-partition diagnostic; unchanged RTL, costs, delay model, nextpnr and route settings",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/tools/nextpnr-enable-replication",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/partition-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/partition-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/partition-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.15700000524520874,
+            "clk-to-q": 1.1770000457763672,
+            "logic": 0.800000011920929,
+            "routing": 7.4150002002716064,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 9.35300026834011,
+          "from": {
+            "cell": "hps_ddr.f2sdram",
+            "loc": [
+              52,
+              53
+            ],
+            "port": "cmd_ready_1"
+          },
+          "from_rtl_signals": [
+            "hps_ddr.cmd_ready_1",
+            "hps_ddr.f2sdram_cmd_valid_1[0]"
+          ],
+          "from_signals": [
+            "hps_ddr.cmd_ready_1"
+          ],
+          "logic_arcs": 2,
+          "logic_types": {
+            "MISTRAL_ALUT2": 1,
+            "MISTRAL_ALUT3": 1
+          },
+          "to": {
+            "cell": "hps_ddr.port1.skid_MISTRAL_FF_Q",
+            "loc": [
+              2,
+              1
+            ],
+            "port": "ENA"
+          },
+          "to_rtl_signals": [
+            "hps_ddr.port1.skid"
+          ],
+          "to_signals": [
+            "hps_ddr.port1.owed_after_MISTRAL_FF_DATAIN_Q[1]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": 0.012000000104308128,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.2960000336170197,
+            "routing": 10.56799989938736,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.41099994443357,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_4",
+            "loc": [
+              10,
+              4
+            ],
+            "port": "Q"
+          },
+          "from_rtl_signals": [
+            "display.col_s[4]"
+          ],
+          "from_signals": [
+            "display.col_s[4]"
+          ],
+          "logic_arcs": 7,
+          "logic_types": {
+            "MISTRAL_ALUT2": 1,
+            "MISTRAL_ALUT4": 1,
+            "MISTRAL_ALUT6": 5
+          },
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_7",
+            "loc": [
+              15,
+              4
+            ],
+            "port": "DATAIN"
+          },
+          "to_rtl_signals": [
+            "display.ddr_ch_t[6]"
+          ],
+          "to_signals": [
+            "display.ddr_ch_t[6]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 960.2571944519877,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/partition-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/partition-c2/replication"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 74.5656509399414,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 106.91757202148438,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 419.1012268066406,
+          "constraint": 130.0052032470703
+        }
+      },
+      "rbf_bytes": 7007204,
+      "replication_log": [
+        "Info: Enable replication considering 'ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_E': 5 LAB groups, 5 signal inputs.",
+        "Info: Enable replication: 0 replicas, budget 4; examined at most 32 of 2 ranked candidates."
+      ],
+      "returncode": 0,
+      "snapshot_proof": {
+        "original_pin_states_unchanged": 103277,
+        "original_placements_unchanged": 14925,
+        "replicas": []
+      },
+      "synth_sha256": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117"
+    }
+  },
+  "scope": {
+    "classification": "host-only fixture-specific postmapped cone rewrite; not a production pass",
+    "fes_base": "0a74708812923c873eb267dd31d2c85951b213b2",
+    "gates": [
+      "comparatortruth/mutationtests",
+      "structuralpreservation/comparatorcube/dominance",
+      "full arbitrary-state boundary SAT",
+      "same-settings fresh fullGPU1route and finalanalogue timing"
+    ],
+    "hypothesis": "The timeout equality and downstream feedback enables can be mapped shallower locally without changing global ABC area policy or unrelated mapped cells",
+    "inputs": "Exact best116.44MHz synth.json, models and frozen nextpnr71c513",
+    "transformation": "Replace six address/beats ENA rootdrivers across3DDR channels. Perchannel remap downstream Boolean cut using existing equality signal plus otherFFQs, default synth_intel_alm/ABC9. Feed localcut with4parallel6bit equality partitions+AND4. Retain all sharedoldinteriors. No state or D/ENA boundary changes.",
+    "unchanged": [
+      "RTL",
+      "BUILD_ID",
+      "FF/hardblock parameters/init",
+      "all original cells except6root drivers",
+      "timing models",
+      "physical compiler and options",
+      "productionlocks",
+      "sharedcontracts",
+      "hardware"
+    ]
+  },
+  "source_verification": {
+    "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+    "oss_revision": "5c15931aae47494a89b2a5a3cf673bc9f2f09a4a",
+    "rtl_sha256": {
+      "cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+      "cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+      "cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+      "cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+      "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+      "cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+      "cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+      "cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+      "cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+      "cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+      "cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+      "cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+      "cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb"
+    }
+  },
+  "validation": {
+    "candidate_sha256": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "cone_summary_byte_identical_regeneration": true,
+    "focused_failures": 0,
+    "focused_tests": 11,
+    "full_rewrite_byte_identical_regeneration": [
+      "synth.json",
+      "rewrite.json",
+      "channel0/mapped.json",
+      "channel1/mapped.json",
+      "channel2/mapped.json"
+    ],
+    "independent_mapping_review": "no blockers; unchanged outside cells and no combinational cycles",
+    "independent_semantic_review": "no blockers; comparator cube/dominance and full SAT verified",
+    "other_byte_identical_regeneration": [
+      "all-depths.json",
+      "arrivals.json",
+      "ready-placements.json"
+    ]
+  },
+  "yosys_commit": "c156dd886d87113c30bc2bf422ccb9ae0208b2a1"
+}
