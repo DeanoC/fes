@@ -12,10 +12,11 @@ The locked idle core is the in-tree misteross seal
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2` and `fes.catch` HIP/nextpnr producers. The default
-target-image selector installs the ordered closed `fes.pong`, `fes.zx81` and
-`fes.coleco` package set, while focused profiles may select a smaller package
-set. `fes.sms`, `fes.sg1000` and `fes.apple2` are registered for package-only
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2` and `fes.catch` HIP/nextpnr
+producers. The default target-image selector installs the ordered closed
+`fes.menu`, `fes.pong`, `fes.zx81` and `fes.coleco` package set, while focused
+profiles may select a smaller package set. `fes.sms`, `fes.sg1000` and
+`fes.apple2` are registered for package-only
 host-library acceptance. Their selection filenames are
 `fes-sms.package-selection.toml`, `fes-sg1000.package-selection.toml` and
 `fes-apple2.package-selection.toml`. They are not in the
@@ -31,7 +32,7 @@ An older sealed SMS package does not accept a bitstream built from a later
 tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
-the ordered `fes.pong`, `fes.zx81` and `fes.coleco` package set. The FES
+the ordered `fes.menu`, `fes.pong`, `fes.zx81` and `fes.coleco` package set. The FES
 image route is package-only. Quartus is reserved for a documented bring-up or
 oracle/check when a system is not yet supported by nextpnr; the package-only
 route does not invoke it.
