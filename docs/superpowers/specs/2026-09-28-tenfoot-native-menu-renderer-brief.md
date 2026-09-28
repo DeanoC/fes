@@ -1,6 +1,6 @@
 # Tenfoot renderer on the native HDMI menu — brief
 
-Status: DRAFT — for Deano to lock. No code yet. Base: FES fb069f29.
+Status: LOCKED 2026-09-28 (Deano). No code yet. Base: FES fb069f29.
 
 ## 1. Why and where we are
 
@@ -33,44 +33,60 @@ costs 76.2 ms average and 95.6 ms maximum, about 13 fps
 - FogCast#151 — tenfoot authenticated kit lease / host status proxy; FogCast#138 — Linux GUI display proof.
 - FogCast#273 — rooms destination panel and five availability states (no renderer content).
 
-## 3. Decisions to lock
+## 3. Locked decisions
 
-1. **Renderer process and language.**
-   - Proposed default: tenfoot (Go) gains a menu-display `gfx.Device` backend built on
-     the existing `ui/menudisplay` client, without importing kitlauncher. It runs as the
-     on-kit renderer and replaces the `fbgrid` shell. No SDL on the kit.
-   - Alternative: keep `fogcast-kit` as the process and move shared tenfoot drawing into
-     a common package. The spec allows a "common rendering/application service" too.
-2. **Frame pipeline and fps budget.**
-   - Proposed default: present only when the frame changes, as full 1280x720 frames, with
-     no continuous animation until #270 lands and presents are measured again.
-   - Alternative: set a fixed frame-rate target now (for example 30 fps) and require
-     #270 to meet it before tenfoot ships.
-3. **Input source.**
-   - Proposed default: the renderer reads the kit-local pad directly through evdev,
-     following the standing rule in fes#172. Input goes to the core once a game owns the display.
-   - Alternative: route menu input through the agent's virtual pad, as the sofa launcher
-     does today (`docs/sofa-launcher-design.md`).
-4. **Lease and agent coordination (#268 review nit-4).**
-   - Proposed default: the agent stays the single coordinator and lease owner. The
-     renderer is a display client of the agent and holds no lease (ties to FogCast#151).
-   - Alternative: the renderer holds a kit-local lease for menu sessions, which risks
-     the "second coordinator/lease" the menu-core-library draft rejects.
-5. **Menu → game handoff.**
-   - Proposed default: both mechanisms. Clients pause presenting before Launch, as
-     `fogcast-kit` already does, and #270 gives the runtime lifecycle priority as the
-     backstop. The renderer keeps browse state across Stop and redraws on a new generation.
-   - Alternative: rely on runtime priority only and drop the client pause contract.
-6. **Error and unsafe states.**
-   - Proposed default: on a present failure or splash fallback, back off with a bounded
-     retry and show a plain status. Never loop reprograms; recovery stays with the runtime.
-   - Alternative: stop presenting after the first failure until an explicit user action or
-     a new generation.
-7. **UX states needing copy.** These are placement_unresolved, placement_fail_closed,
-   offline cached browse, connecting/retry, busy/launching/stopping, kit leased by
-   someone else, and menu unavailable/splash fallback. See §4.
+Deano locked the proposed defaults on 2026-09-28. "Considered" lines record the
+alternatives that were set aside.
+
+1. **Renderer process and language.** Locked: proposed default. Tenfoot (Go) gains a
+   menu-display `gfx.Device` backend built on the existing `ui/menudisplay` client, without
+   importing kitlauncher. It runs as the on-kit renderer and replaces the `fbgrid` shell.
+   No SDL on the kit. Considered: keep `fogcast-kit` with shared drawing in a common package.
+2. **Frame pipeline and fps budget.** Locked: proposed default. Present only when the
+   frame changes, as full 1280x720 frames. No continuous animation until #270 lands and
+   presents are measured again. Considered: a fixed fps target (e.g. 30) gating #270.
+3. **Input source.** Locked: proposed default. The renderer reads the kit-local pad
+   directly through evdev (fes#172). Input goes to the core once a game owns the display.
+   Considered: the agent virtual pad, as `docs/sofa-launcher-design.md` does today.
+4. **Lease and agent coordination (#268 review nit-4).** Locked: proposed default. The
+   agent stays the single coordinator and lease owner. The renderer is a display client
+   of the agent and holds no lease (FogCast#151). Considered: a kit-local renderer lease,
+   rejected as the "second coordinator/lease" the menu-core-library draft rules out.
+5. **Menu → game handoff.** Locked: proposed default. Clients pause presenting before
+   Launch, as `fogcast-kit` already does, and #270 gives the runtime lifecycle priority as
+   the backstop. The renderer keeps browse state across Stop and redraws on a new
+   generation. Considered: runtime priority only.
+6. **Error and unsafe states.** Locked: proposed default. On a present failure or splash
+   fallback, back off with a bounded retry and show a plain status. Never loop reprograms;
+   recovery stays with the runtime. Considered: stop presenting until user action.
+7. **UX states needing copy.** Locked: proposed default. See §4.
+8. **The main menu is a room.** Locked 2026-09-28 (Deano). The main menu is composed
+   through the existing rooms model and API, not a hardcoded screen. It includes
+   favourites and similar content. Its initial entries are a Utils room (tools such as the
+   RAM tester, `sources/misteross/cores/fes-ramtest/README.md`), a Settings room and a Room
+   selector room. The main menu changes by updating room data (adding API entries where
+   needed), never by redesigning the renderer. This follows the rooms-driven idle lock:
+   "The living-room product is rooms on the FogCast host/tenfoot renderer"
+   (`docs/idle-menu-rooms.md:42`), and the on-kit grid "retires toward rooms"
+   (`docs/idle-menu-rooms.md:124-125`). Phase 2 did not deliver "rooms on kit HDMI"
+   (`docs/idle-menu-rooms-phase2.md:23`).
 
 If Deano changes the §3 defaults for input (#3) or error handling (#6), re-check §4 with Foggy.
+
+### Main-menu room vs the current rooms model
+
+Rooms are sandboxed Lua packs (`room.toml` + `main.lua`) that tenfoot replays through
+`gfx.Device` (`sources/FogCast/docs/rooms.md:19-24`, `:82-96`). Launcher bindings come
+from FogCast#272 (`sources/FogCast/docs/rooms-controller-bindings.md`). Availability
+states come from FogCast#273 (`rooms.md:189-195`). Attract is off in rooms unless a room
+opts in (#271, `sources/FogCast/docs/rooms-experience.md:162-164`).
+
+| Need | Status |
+| --- | --- |
+| (a) Nested rooms (Utils, Settings, Room selector) | Already supported: `rooms.open(id)` / `rooms.back()` with parent stack and `on_resume` (`rooms.md:112`, `:240-243`; `ui/rooms/api_room.go:64-95`). Room selector: `rooms.list()` plus the `lobby` example ("Every installed room on one wall", `ui/rooms/examples/lobby/room.toml`). |
+| (b) Non-game entries | Partly supported. Destination kinds are `game`, `room`, `library` and `unresolved` (`rooms.md:189-191`). The RAM tester works as a `game` destination only if `fes.ramtest` is a catalog core entry. Rooms cannot open launcher Settings (`settings`/`home` are never delivered, `rooms.md:110`). Needs: an allowlisted launcher-action entry (e.g. `rooms.action("settings")` or destination `kind="action"`), plus a decision on publishing utility cores as entries. |
+| (c) Favourites | Already supported: `library.query{collection="favorites"}` and the game `favorite` field (`rooms.md:163`, `:168-169`). The list is dynamic, from the stored household library-user store (`rooms-experience.md:106`). |
+| (d) Designated default/main room | Needs: the start preference is only `library` or `rooms` (Go-drawn Home picker) (`rooms.md:44-46`; `ui/tenfoot/run.go:60-62`). Add a `home_room` preference (room id) used at start and for Home, falling back to the picker. Ship the main-menu pack as embedded or kit-installed data; a user pack with the same id replaces it (`rooms.md:37-38`). There is no remote room-install API today. |
 
 ## 4. UX copy table (Foggy)
 
@@ -90,6 +106,8 @@ Back), not the button glyphs.
 | busy/launching/stopping | Lifecycle operation in flight | "Starting {title}…" / "Stopping {title}…" / "One moment…" (operation unknown) | None | No |
 | kit leased by someone else | Another session holds the kit lease | "In use" / "Someone else is playing on this machine. You can play when they're done." | Back | No |
 | menu unavailable/splash fallback | Menu present failed or runtime fell back to splash | Retrying: "The menu is restarting…"; retries used up: "The menu couldn't start. Restart the machine, or check it from FogCast on your computer." | None on the kit | No |
+| main-menu room empty | A room has no entries to show (e.g. favourites empty) | TBD (Foggy) | TBD (Foggy) | No |
+| main-menu room missing | `home_room` pack absent or invalid; falls back to the Home picker | TBD (Foggy) | TBD (Foggy) | No |
 
 - placement_fail_closed shows Back only, because retrying won't change a policy
   refusal. Keep it separate from placement_unresolved and from the rooms states
@@ -100,6 +118,8 @@ Back), not the button glyphs.
 - In busy/launching/stopping, ignore all input except Back, and Back only closes overlays.
 - In use: with a friendly name, show "{name} is playing {title}", never the raw lease
   owner. There is no take-over or steal option.
+- A room that fails to compile or errors already gets a Go-drawn error panel, and Back returns
+  Home (`sources/FogCast/docs/rooms.md:67-70`). Its kit copy follows the general rules above.
 - The renderer can't draw while the kit is on splash. The menu-unavailable copy
   therefore appears after recovery, or on the host if status is mirrored there.
 
@@ -111,9 +131,11 @@ Back), not the button glyphs.
 
 ## 6. Next step
 
-Once this is locked, split it into small PRs:
+Split into small PRs. The renderer draws any room generically through the room API; the
+main menu is seeded room data.
 
-1. Tenfoot menu-display `gfx.Device` backend (change-driven presents), host tests only.
-2. On-kit tenfoot entry point with evdev input and agent status client, replacing `fbgrid` behind config.
-3. Handoff and error states: pause before Launch, redraw on new generation, bounded retry, copy table wired.
-4. Image switch to the tenfoot renderer, plus a separate HIL validation record.
+1. Room API: an allowlisted launcher-action entry (Settings, etc.) and a `home_room` preference with picker fallback; tests only.
+2. Tenfoot menu-display `gfx.Device` backend with change-driven presents; host tests.
+3. On-kit tenfoot entry point: the generic room renderer and navigation, including nested rooms and back stack, with evdev input and agent status client, replacing `fbgrid` behind config.
+4. Seed the main-menu room pack (favourites, Utils with the RAM tester entry, Settings, Room selector) and set it as `home_room` on the kit.
+5. Status and error states from §4: pause before Launch, redraw on new generation, bounded retry, copy wired; then the image switch plus a separate HIL record.
