@@ -42,6 +42,20 @@ generation are checked before copying. Pixels are not JSON fields.
 Commit returns its own `menu_frame` generation, displayed sequence and
 underflow count. Those completion fields remain bound to this frame even if
 current status changes concurrently. Begin's displayed sequence is null.
+`underflows` is the per-present delta, not the cumulative hardware counter.
+A healthy present, including one whose counter was already nonzero before
+the copy, reports 0. A tolerated glitch reports the pixels missed during
+that present, at most one 720p scanline (1280). The counter increments once
+per missing active pixel. Three consecutive presents with any positive
+delta, or one delta above 1280, fails that present. The runtime then
+reprograms the configured menu, at most twice in ten minutes. The next
+failure in that window loads the splash and sets `menu_display.error`.
+A later successful `configure_menu` clears the streak and that budget.
+Programming and port reset clear the hardware counter, so activation still
+requires zero. There is no GP clear. FogCast clients accept a delta at or
+below 1280 and refuse a larger one. The runtime and the agent decode this
+nested status strictly and must ship in the same image; capability-gated
+emission and tolerant decoding are not implemented.
 A GP submit ACK is not completion: the runtime waits for displayed sequence
 before reusing the previous slot. Only one preparation/submission is outstanding.
 EOF or the fixed five-second preparation deadline releases an uncommitted
@@ -55,10 +69,20 @@ silently consumed. Split JSON and ancillary delivery remain in their request
 phase. Multiple, misplaced or truncated descriptors are rejected and closed.
 
 Game launch, contained diagnostics and Stop revoke old menu generations.
-Stop restores an explicitly configured menu with a new generation and requires
-a fresh complete frame; Stop from splash idle remains idempotent. Missing
-completion or uncertain drain disables the menu configuration and uses the
-existing physical splash containment path. Failed containment requires reboot.
+Launch, core-data access, Stop, contained development load, idle recovery
+and `configure_menu` wait up to two seconds (`kMenuFrameMutationWait`) when
+a menu frame is the in-flight work. New frames are rejected while that wait
+holds. The operation then uses its normal busy checks. It does not quiesce
+or program until the frame fence is clear, and the copy stays inside that
+fence. The copy converts each row in a cached buffer and writes aligned
+words; it checks cancel every four rows. There is no client-visible cancel:
+a lifecycle operation does not abort the frame, it waits for it. Stop
+restores an explicitly configured menu with a new generation and requires
+a fresh complete frame. On a menu kit, Stop reprograms the FPGA, blips
+HDMI, and can end in `reboot_required` if the menu reload and the splash
+reload both fail. Stop from splash idle remains idempotent. A present that
+misses completion or trips the underflow limit reactivates the menu within
+the budget above before using the splash path. Failed containment requires reboot.
 
 ## Pattern client
 
@@ -76,7 +100,7 @@ selects a sustained, bounded run (maximum one hour); it cannot combine with
 Patterns alternate full-color bars, fine pixel/row boundaries, a top-row
 sequence marker and a final-column row/sequence marker. Every frame covers the
 exact full staging area. The client checks generation, geometry, file size,
-completion sequence and zero underflows, and prints frame count, elapsed time,
+completion sequence and an underflow delta of at most one scanline, and prints frame count, elapsed time,
 average/maximum commit latency and its own CPU/RSS. Measure daemon CPU separately
 for hardware acceptance. The diagnostic does not restore idle configuration;
 the kit operator owns restoration and lease release.

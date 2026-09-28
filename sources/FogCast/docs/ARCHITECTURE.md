@@ -396,7 +396,11 @@ profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
 evidence, including a failed menu, so physical idle can still be confirmed for
-appliance maintenance.
+appliance maintenance. `underflows` on that object and on a frame completion
+is the runtime's per-present delta. The kit painter and the Linux menu
+client accept a delta of at most one 720p scanline and refuse a larger one.
+The runtime and this agent must ship in the same image because decoding is
+strict; capability-gated emission and tolerant decoding are not implemented.
 `load_core` carries a rooted staged directory and package ID. The target retains
 active and in-flight `Staged` ownership, reconciles a lost mutation reply by
 observing identity plus a new generation, and retries failed cleanup only at a
