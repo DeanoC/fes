@@ -74,5 +74,7 @@ designated kit. Do not assume the same authorization for another device.
   acceptance. A full image rebuild remains mandatory when Buildroot, init
   scripts, package contents, image configuration, or locked inputs change.
   Native image assembly lives in the FES `image/` recipe.
-- Commit and push as needed for the requested work without additional approval.
-  Opening a pull request or merging requires explicit user authorization.
+- Commit, push, and open PRs as needed for the requested work without additional
+  approval. Only merging a PR requires review by Deano or by another agent or
+  model reviewer (for example a Codex review or a domain-reviewer agent). Agents
+  never merge on their own authority.

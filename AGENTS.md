@@ -110,5 +110,7 @@ root-switch tests, watchdog diagnostics and exact-artifact hardware acceptance.
 
 Handoff: state scope, base and result commit (or uncommitted diff), tests and
 results, hardware classification, effects on module/shared contracts,
-and the next integration step. Commit and push as needed for the requested work without additional approval.
-Opening a PR or merging requires explicit user authorization.
+and the next integration step. Commit, push, and open PRs as needed for the
+requested work without additional approval. Only merging a PR requires review
+by Deano or by another agent or model reviewer (for example a Codex review or
+a domain-reviewer agent). Agents never merge on their own authority.
