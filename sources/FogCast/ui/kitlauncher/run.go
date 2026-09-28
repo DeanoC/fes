@@ -133,7 +133,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	loggedSplash := false
 	paintKitHDMI := func(m Model) {
-		if ShouldPaintHDMI(m) {
+		if ShouldPaintHDMI(m) || c.menuDisplay && m.Session.State != "active" {
 			if present != nil {
 				present(m)
 			}
@@ -141,7 +141,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		// Log once when idle is confirmed and the recipe has no HPS framebuffer.
 		// Do not blank-and-fail: the service keeps running and splash stays up.
-		if loggedSplash || m.Busy || m.Session.HPSFramebuffer || m.Session.State != "idle" {
+		if loggedSplash || c.menuDisplay || m.Busy || m.Session.HPSFramebuffer || m.Session.State != "idle" {
 			return
 		}
 		loggedSplash = true

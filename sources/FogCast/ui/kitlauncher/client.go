@@ -27,6 +27,7 @@ type Config struct {
 	Theme        string `json:"theme,omitempty"`
 	Shelf        string `json:"shelf,omitempty"`
 	AudioChrome  bool   `json:"audio_chrome,omitempty"`
+	MenuDisplay  bool   `json:"menu_display,omitempty"`
 	// HPSFramebuffer is the kit-local idle contract until a session
 	// observation overrides it. False matches SplashIdle: no SPI 0x002f,
 	// so the kit must not paint linuxfb over FPGA splash pixels.
@@ -73,6 +74,7 @@ func SaveConfig(c Config) error {
 		Theme          string `json:"theme,omitempty"`
 		Shelf          string `json:"shelf,omitempty"`
 		AudioChrome    bool   `json:"audio_chrome,omitempty"`
+		MenuDisplay    bool   `json:"menu_display,omitempty"`
 		HPSFramebuffer bool   `json:"hps_framebuffer,omitempty"`
 	}{
 		API:            c.API,
@@ -83,6 +85,7 @@ func SaveConfig(c Config) error {
 		Theme:          c.Theme,
 		Shelf:          normalizeShelf(c.Shelf),
 		AudioChrome:    c.AudioChrome,
+		MenuDisplay:    c.MenuDisplay,
 		HPSFramebuffer: c.HPSFramebuffer,
 	}
 	data, err := json.MarshalIndent(out, "", "  ")
@@ -113,10 +116,11 @@ func validLauncherToken(token string) bool {
 }
 
 type Client struct {
-	config  Config
-	HTTP    *http.Client
-	Library *hostclient.Client
-	Cache   *DiskStore
+	config      Config
+	menuDisplay bool
+	HTTP        *http.Client
+	Library     *hostclient.Client
+	Cache       *DiskStore
 	// localCore reports whether a runtime core is bound. fogcast-kit installs
 	// it. Play input uses the result and ignores host reachability. Nil leaves
 	// play input off.
@@ -157,7 +161,7 @@ func NewClient(c Config) *Client {
 	// Poll and mutation clients carry different whole-request deadlines.
 	// A shared header deadline would incorrectly shorten Launch/Stop.
 	h := &http.Client{Transport: authenticated{transport, c}, Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	client := &Client{config: c, HTTP: h, Library: hostclient.NewClient(c.API, h)}
+	client := &Client{config: c, menuDisplay: c.MenuDisplay, HTTP: h, Library: hostclient.NewClient(c.API, h)}
 	if root := cacheRoot(c); root != "" {
 		if store, err := OpenDiskStore(root); err == nil {
 			client.Cache = store
@@ -165,6 +169,11 @@ func NewClient(c Config) *Client {
 	}
 	return client
 }
+
+// SetMenuDisplay is a process-only override. Saving a theme does not turn a
+// diagnostic command-line selection into provisioned menu configuration.
+func (c *Client) SetMenuDisplay(enabled bool) { c.menuDisplay = enabled }
+func (c *Client) MenuDisplayEnabled() bool    { return c != nil && c.menuDisplay }
 
 type Session struct {
 	State     string `json:"state"`

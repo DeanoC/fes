@@ -24,6 +24,21 @@ import (
 	"github.com/DeanoC/FogCast/ui/theme"
 )
 
+func TestKitSelectsNativeMenuDisplayWithoutHPSFramebuffer(t *testing.T) {
+	m := kitlauncher.Model{Session: kitlauncher.Session{State: "idle"}}
+	fbOpened := false
+	display, err := openKitDisplay(m, kitlauncher.Config{MenuDisplay: true},
+		func(string) (*gfx.LinuxFB, error) { fbOpened = true; return nil, errors.New("fb must stay closed") },
+		gfx.NewMenuDisplay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer display.Close()
+	if fbOpened || display.Config().Width != 1280 || display.Config().Height != 720 {
+		t.Fatal("menu display selection failed")
+	}
+}
+
 func TestKitReadingFooterKeepsRecoveryInstructionsAndSelectedTitle(t *testing.T) {
 	m := kitlauncher.Model{Message: "Target retains an earlier error; use Stop to clear it, then retry."}
 	m.SetCatalog([]hostclient.Game{{ID: "fpga-pong", Title: "Verified FES Pong package 20260919", System: "fpga"}})

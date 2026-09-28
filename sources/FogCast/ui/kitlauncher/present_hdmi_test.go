@@ -66,6 +66,25 @@ func TestShouldPaintHDMISkipsSplashIdleAndKeepsTemporaryOverlay(t *testing.T) {
 	}
 }
 
+func TestRunMenuDisplayPaintsIdleWithoutFramebuffer(t *testing.T) {
+	server := idleFramebufferServer(t, ``)
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	var paints atomic.Int64
+	err := Run(ctx, NewClient(Config{API: server.URL, MenuDisplay: true}), func(m Model) {
+		if m.Session.State == "idle" && !m.Session.HPSFramebuffer {
+			paints.Add(1)
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paints.Load() == 0 {
+		t.Fatal("native menu did not paint idle without linuxfb")
+	}
+}
+
 func TestApplyObservedSessionKeepsOmittedFramebufferAndHonorsExplicitFalse(t *testing.T) {
 	current := Session{State: "idle", HPSFramebuffer: true}
 	omitted := adaptSession(hostclient.SessionResult{State: "idle"})

@@ -68,6 +68,7 @@ func run() error {
 	noTransition := flag.Bool("no-transition", false, "disable kit scene transition overlays")
 	audioChrome := flag.Bool("audio-chrome", false, "paint attract edge chrome from a measured level file, or a labeled idle pulse when none exists")
 	audioLevelFile := flag.String("audio-level-file", "", "optional 0..1 level file used as a measured injector")
+	menuDisplay := flag.Bool("menu-display", false, "present the kit shell through the local described HDMI menu")
 	flag.Parse()
 	if !*noTransition {
 		switch strings.ToLower(strings.TrimSpace(os.Getenv("FOGCAST_NO_TRANSITION"))) {
@@ -175,6 +176,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	activeMenuDisplay := c.MenuDisplay || *menuDisplay
 	th, err := loadKitTheme(*themeSpec, c.Theme)
 	if err != nil {
 		return err
@@ -187,7 +189,7 @@ func run() error {
 	// Open linuxfb only when an idle that still enables the HPS framebuffer
 	// actually paints. Splash idle (no 0x002f) must not fail the service or
 	// blank FPGA splash pixels when /dev/fb0 is missing.
-	var d *gfx.LinuxFB
+	var d kitDisplay
 	defer func() {
 		if d != nil {
 			d.Close()
@@ -197,6 +199,7 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	client := kitlauncher.NewClient(c)
+	client.SetMenuDisplay(activeMenuDisplay)
 	client.SetLocalInput(localInputConfig())
 	covers := shared.NewCoverCache()
 	stills := shared.NewStillCache()
@@ -223,15 +226,17 @@ func run() error {
 	audioSource := audioreact.Combined{Measured: measured, Idle: audioreact.IdlePulse{Enabled: audioEnabled}}
 	wasConnected := false
 	present := func(m kitlauncher.Model) {
-		if !kitlauncher.ShouldPaintHDMI(m) {
+		if !kitlauncher.ShouldPaintHDMI(m) && !activeMenuDisplay {
 			return
 		}
 		if d == nil {
-			opened, err := openTemporaryLinuxFB(m, c.Framebuffer, gfx.OpenLinuxFB)
+			selected := c
+			selected.MenuDisplay = activeMenuDisplay
+			opened, err := openKitDisplay(m, selected, gfx.OpenLinuxFB, gfx.NewMenuDisplay)
 			if opened == nil {
 				if err != nil && !fbNoted {
 					fbNoted = true
-					log.Printf("kit hdmi: HPS framebuffer unavailable: %v; leaving splash visible", err)
+					log.Printf("kit hdmi: display unavailable: %v; leaving current FPGA pixels visible", err)
 				}
 				return
 			}
@@ -405,6 +410,21 @@ func run() error {
 		return err
 	}
 	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.OpenWith(remap) })
+}
+
+type kitDisplay interface {
+	gfx.Device
+	Config() gfx.FBConfig
+}
+
+func openKitDisplay(m kitlauncher.Model, c kitlauncher.Config, openFB func(string) (*gfx.LinuxFB, error), openMenu func(string) (*gfx.MenuDisplay, error)) (kitDisplay, error) {
+	if c.MenuDisplay {
+		if openMenu == nil {
+			return nil, fmt.Errorf("menu display opener unavailable")
+		}
+		return openMenu("/run/mister-runtime.sock")
+	}
+	return openTemporaryLinuxFB(m, c.Framebuffer, openFB)
 }
 
 // openTemporaryLinuxFB opens the HPS framebuffer for a temporary overlay.
