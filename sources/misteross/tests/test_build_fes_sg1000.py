@@ -225,9 +225,9 @@ class BuildFesSg1000Tests(unittest.TestCase):
                 build_fes_sg1000_oss._audio_evidence(wrong)
 
     def test_oss_audio_timing_rejects_missing_or_failing_domain(self) -> None:
-        good = {"audio_clock": {"constraint": 12.288, "achieved": 13.0}}
+        good = {"system_clock.clocks[1]": {"constraint": 12.288, "achieved": 13.0}}
         self.assertEqual(build_fes_sg1000_oss._audio_timing(good)[2], 13.0)
-        for fmax in ({}, {"audio_clock": {"constraint": 12.288, "achieved": 12.287}}):
+        for fmax in ({}, {"system_clock.clocks[1]": {"constraint": 12.288, "achieved": 12.287}}):
             with self.assertRaises(BuildError):
                 build_fes_sg1000_oss._audio_timing(fmax)
 

@@ -362,7 +362,7 @@ def _audio_evidence(design: dict) -> None:
 
 
 def _audio_timing(fmax: object) -> tuple[str, float, float]:
-    return _frequency_row(fmax, 12.288, "audio clock")
+    return _frequency_row(fmax, 12.288, "audio clock", "system_clock.clocks[1]")
 
 
 def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
@@ -383,7 +383,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "50 MHz -> 52.224 MHz" not in route_text:
         raise BuildError("route log does not contain the shared 50-to-52.224 MHz system/audio PLL")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 52.224, "system clock", "clk_sys")
+    system = _frequency_row(timing.get("fmax"), 52.224, "system clock", "system_clock.clocks[0]")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     audio = _audio_timing(timing.get("fmax"))
     utilization = timing.get("utilization")
