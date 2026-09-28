@@ -394,6 +394,9 @@ The target package lifecycle uses runtime protocol 2. A read-only
 `inspect_package` exchange negotiates the exact ABI registry and programming
 profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
+The strict status decoder accepts the runtime's optional `menu_display`
+evidence, including a failed menu, so physical idle can still be confirmed for
+appliance maintenance.
 `load_core` carries a rooted staged directory and package ID. The target retains
 active and in-flight `Staged` ownership, reconciles a lost mutation reply by
 observing identity plus a new generation, and retries failed cleanup only at a
