@@ -775,10 +775,9 @@ two PLLs, four routed 3.3 V I2S outputs and passing system, pixel and audio
 timing domains before sealing version 1.2.0. Reset is not held for an
 application media upload. The open `sound-16k.rom` diagnostic emits a steady
 tone alongside the Graphics I display for a later leased kit check.
-`--synth-only` runs Yosys without a clean tree and does not seal. HIP
-`--router gpu` of that synth-only netlist (BUILD_ID all zeros, seed 4) met
-the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. A sealed
-BUILD_ID changes the placement search space. `fes.sg1000` is registered as a
+`--synth-only` runs Yosys without a clean tree and does not seal. The selected
+HIP seed 3 must meet the structured 52.224 MHz system, 74.25 MHz pixel and
+12.288 MHz audio timing rows on the exact sealed BUILD_ID. `fes.sg1000` is registered as a
 package-only parent recipe and is not in the factory image. A historical
 launch/Stop record does not accept the current bitstream.
 

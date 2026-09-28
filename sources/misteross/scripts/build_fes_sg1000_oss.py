@@ -39,10 +39,9 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-# Seed 4 is the Coleco production seed. R13 HIP-routed the synth-only
-# BUILD_ID=0 netlist with this seed on a live HIP backend. A sealed
-# BUILD_ID changes the placement search space; re-check the seed at R14.
-SEED = 4
+# Seed 3 closes all three clock domains with the shared system/audio PLL.
+# A sealed BUILD_ID changes placement, so each committed source must re-route.
+SEED = 3
 SG1000_GPU_BACKEND = "hip"
 SG1000_GPU_ROUTER = "HIP"
 SG1000_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -243,12 +242,12 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        # Seed 4 HIP-routed the synth-only BUILD_ID=0 netlist (R13). The GPU
+        # Seed 3 HIP-routed the shared system/audio PLL netlist. The GPU
         # router can report a provisional timing shortfall before its final
         # repair/signoff pass; allow that intermediate result, then require
         # the structured final timing evidence below to meet both clock
         # constraints. Timing-driven rip-up is intentionally not enabled.
-        # A sealed BUILD_ID changes placement; re-check the seed at R14.
+        # A sealed BUILD_ID changes placement; require final signoff each time.
         "--seed", str(SEED),
         "--router", ROUTER,
         "--timing-allow-fail",
