@@ -2,6 +2,7 @@ package targetclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -239,6 +240,193 @@ func TestCancelledOldRenewerCannotInvalidateReplacementLease(t *testing.T) {
 	if got := request.Header.Get(KitLeaseHeader); got != "token-2" {
 		t.Fatalf("replacement token = %q", got)
 	}
+}
+
+func TestKitLeaseReleaseGrantDropsTheToken(t *testing.T) {
+	releases := 0
+	lease, _ := newHeldKitLease(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_in_ms":60000},"token":"lease-secret"}`)
+		case "/v1/kit/release":
+			releases++
+			if r.Header.Get(KitLeaseHeader) == "" {
+				t.Error("release omitted the kit lease header")
+			}
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected", http.StatusInternalServerError)
+		}
+	})
+	notHeld, err := lease.ReleaseGrant(context.Background())
+	if err != nil || notHeld || lease.Held() {
+		t.Fatalf("notHeld %v held %v err %v", notHeld, lease.Held(), err)
+	}
+	held, lost, renewing := kitLeaseGrantState(lease)
+	if held || lost || renewing {
+		t.Fatalf("after release held %v lost %v renewing %v", held, lost, renewing)
+	}
+	notHeld, err = lease.ReleaseGrant(context.Background())
+	if err != nil || notHeld || releases != 1 {
+		t.Fatalf("second notHeld %v releases %d err %v", notHeld, releases, err)
+	}
+}
+
+func TestKitLeaseReleaseGrantForgetsMissingGrant(t *testing.T) {
+	claims := 0
+	lease, client := newHeldKitLease(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			claims++
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"g%d","expires_in_ms":60000},"token":"lease-%d"}`, claims, claims)
+		case "/v1/kit/release":
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"error":{"code":"KIT_LEASE_REQUIRED","message":"KIT_LEASE_REQUIRED"}}`)
+		default:
+			http.Error(w, "unexpected", http.StatusInternalServerError)
+		}
+	})
+	notHeld, err := lease.ReleaseGrant(context.Background())
+	if err != nil || !notHeld || lease.Held() {
+		t.Fatalf("notHeld %v held %v err %v", notHeld, lease.Held(), err)
+	}
+	held, lost, renewing := kitLeaseGrantState(lease)
+	if held || lost || renewing {
+		t.Fatalf("forgotten grant held %v lost %v renewing %v", held, lost, renewing)
+	}
+	if err := client.AcquireContentPullLease(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !lease.Held() || claims != 2 {
+		t.Fatalf("reclaim held %v claims %d", lease.Held(), claims)
+	}
+}
+
+func TestKitLeaseReleaseGrantConflictIsNotHeld(t *testing.T) {
+	lease, _ := newHeldKitLease(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_in_ms":60000},"token":"lease-secret"}`)
+		case "/v1/kit/release":
+			w.WriteHeader(http.StatusConflict)
+			fmt.Fprint(w, `{"error":{"code":"KIT_LEASE_BUSY","message":"KIT_LEASE_BUSY"}}`)
+		default:
+			http.Error(w, "unexpected", http.StatusInternalServerError)
+		}
+	})
+	notHeld, err := lease.ReleaseGrant(context.Background())
+	if err != nil || !notHeld || lease.Held() {
+		t.Fatalf("notHeld %v held %v err %v", notHeld, lease.Held(), err)
+	}
+	_, lost, renewing := kitLeaseGrantState(lease)
+	if lost || renewing {
+		t.Fatalf("lost %v renewing %v", lost, renewing)
+	}
+}
+
+func TestKitLeaseReleaseGrantNotFoundIsNotHeld(t *testing.T) {
+	lease, _ := newHeldKitLease(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_in_ms":60000},"token":"lease-secret"}`)
+		case "/v1/kit/release":
+			http.Error(w, "missing", http.StatusNotFound)
+		default:
+			http.Error(w, "unexpected", http.StatusInternalServerError)
+		}
+	})
+	notHeld, err := lease.ReleaseGrant(context.Background())
+	if err != nil || !notHeld || lease.Held() {
+		t.Fatalf("notHeld %v held %v err %v", notHeld, lease.Held(), err)
+	}
+}
+
+func TestKitLeaseReleaseGrantServerErrorKeepsTheToken(t *testing.T) {
+	lease, _ := newHeldKitLease(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_in_ms":60000},"token":"lease-secret"}`)
+		case "/v1/kit/release":
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"error":{"code":"INTERNAL","message":"release failed"}}`)
+		default:
+			http.Error(w, "unexpected", http.StatusInternalServerError)
+		}
+	})
+	notHeld, err := lease.ReleaseGrant(context.Background())
+	if err == nil || notHeld || !lease.Held() {
+		t.Fatalf("notHeld %v held %v err %v", notHeld, lease.Held(), err)
+	}
+	held, lost, renewing := kitLeaseGrantState(lease)
+	if !held || lost || !renewing {
+		t.Fatalf("held %v lost %v renewing %v", held, lost, renewing)
+	}
+}
+
+func TestKitLeaseReleaseKeepsGrantWhenKitRequiresTheLease(t *testing.T) {
+	lease, _ := newHeldKitLease(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_in_ms":60000},"token":"lease-secret"}`)
+		case "/v1/kit/release":
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"error":{"code":"KIT_LEASE_REQUIRED","message":"KIT_LEASE_REQUIRED"}}`)
+		default:
+			http.Error(w, "unexpected", http.StatusInternalServerError)
+		}
+	})
+	if err := lease.Release(context.Background()); err == nil {
+		t.Fatal("release succeeded")
+	}
+	held, lost, renewing := kitLeaseGrantState(lease)
+	if !held || lost || !renewing {
+		t.Fatalf("held %v lost %v renewing %v", held, lost, renewing)
+	}
+}
+
+func TestClientReleaseKitGrantRequiresALease(t *testing.T) {
+	var client *Client
+	notHeld, err := client.ReleaseKitGrant(context.Background())
+	if notHeld || !errors.Is(err, ErrKitLeaseLost) {
+		t.Fatalf("nil client notHeld %v err %v", notHeld, err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer server.Close()
+	u, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	notHeld, err = NewClient(u, "bearer", server.Client()).ReleaseKitGrant(context.Background())
+	if notHeld || !errors.Is(err, ErrKitLeaseLost) {
+		t.Fatalf("unleased client notHeld %v err %v", notHeld, err)
+	}
+}
+
+func newHeldKitLease(t *testing.T, handler http.HandlerFunc) (*KitLease, *Client) {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	u, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := NewKitLease(u, "bearer", server.Client(), "test", "game")
+	t.Cleanup(func() { _ = lease.Close(context.Background()) })
+	client := NewClient(u, "bearer", server.Client()).WithKitLease(lease)
+	request, err := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Authorize(request, true); err != nil {
+		t.Fatal(err)
+	}
+	return lease, client
+}
+
+func kitLeaseGrantState(lease *KitLease) (held, lost, renewing bool) {
+	lease.mu.Lock()
+	defer lease.mu.Unlock()
+	return lease.grant.Token != "", lease.lost, lease.cancel != nil
 }
 
 func TestKitLeaseFailedReleaseKeepsGrantForRetry(t *testing.T) {

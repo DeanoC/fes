@@ -939,7 +939,10 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	// unsettled so this defer can retry it. A grant the session already
 	// held is not placementClaimed. A rebind that does not start
 	// execution restores the previous session unless a later launch has
-	// already moved it.
+	// already moved it, and leaves the previous kit's lease untouched.
+	// A rebind that starts execution releases that previous lease through
+	// the kit lease API (#281). The release runs after claim cleanup,
+	// with no Service lock held.
 	var placementSettled bool
 	var placementKept bool
 	if snap.placementClaimed || snap.placementUndo.installedName != "" {
@@ -953,11 +956,13 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 			if snap.placementKept != nil && !placementKept {
 				s.restorePlacementSession(snap.placementUndo)
 			}
-			if !snap.placementClaimed || placementSettled {
-				return
+			if snap.placementClaimed && !placementSettled {
+				if s.releaseClaimedContentLease(snap) {
+					placementSettled = true
+				}
 			}
-			if s.releaseClaimedContentLease(snap) {
-				placementSettled = true
+			if snap.placementKept != nil && placementKept {
+				s.releaseLeftPlacementLease(snap.placementUndo)
 			}
 		}()
 	}
