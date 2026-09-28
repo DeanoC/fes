@@ -94,8 +94,8 @@ Copy supplied by Foggy 2026-09-28.
 
 General rules for every state: one headline plus one plain sentence. Use the game's
 name, never the internal state name. Keep IPs, `user@host` lease owners and error
-codes off the main line; a small details line is fine. Name the actions (Retry,
-Back), not the button glyphs.
+codes off the main line; a small details line is fine. Never show pack IDs or paths on
+screen. Name the actions (Retry, Back), not the button glyphs.
 
 | State | When | Headline / line | Actions | Launch allowed |
 | --- | --- | --- | --- | --- |
@@ -106,8 +106,8 @@ Back), not the button glyphs.
 | busy/launching/stopping | Lifecycle operation in flight | "Starting {title}…" / "Stopping {title}…" / "One moment…" (operation unknown) | None | No |
 | kit leased by someone else | Another session holds the kit lease | "In use" / "Someone else is playing on this machine. You can play when they're done." | Back | No |
 | menu unavailable/splash fallback | Menu present failed or runtime fell back to splash | Retrying: "The menu is restarting…"; retries used up: "The menu couldn't start. Restart the machine, or check it from FogCast on your computer." | None on the kit | No |
-| main-menu room empty | A room has no entries to show (e.g. favourites empty) | TBD (Foggy) | TBD (Foggy) | No |
-| main-menu room missing | `home_room` pack absent or invalid; falls back to the Home picker | TBD (Foggy) | TBD (Foggy) | No |
+| main-menu room empty | A room has no entries to show | Favourites: "No favourites yet" / "Mark a game as a favourite and it'll show up here." Other rooms: "Nothing here yet" / "This room is empty. Pick another room from the Room selector." | Room selector, Back | n/a (nothing to launch) |
+| main-menu room missing | `home_room` pack absent or invalid; falls back to the Home picker | Small notice on the picker: "Showing the basic menu" / "Your home menu couldn't load, so here's the simple list instead. Your games still work." | None (dismissible or fades) | Yes, from the fallback picker if otherwise healthy |
 
 - placement_fail_closed shows Back only, because retrying won't change a policy
   refusal. Keep it separate from placement_unresolved and from the rooms states
@@ -115,6 +115,10 @@ Back), not the button glyphs.
 - Offline is a banner over the browse grid, not a blocking screen. The Play button is
   disabled and labelled "Offline". Whether kit-local titles may launch while offline is
   a possible later Deano decision and is out of scope here.
+- An empty room leaves the other rooms usable, including Utils and Settings.
+- The main-menu-missing notice never takes focus or blocks input. The fallback exists so
+  play isn't blocked. The pack id and reason go only to host / FogCast-on-computer
+  diagnostics, never to the TV.
 - In busy/launching/stopping, ignore all input except Back, and Back only closes overlays.
 - In use: with a friendly name, show "{name} is playing {title}", never the raw lease
   owner. There is no take-over or steal option.
@@ -139,3 +143,5 @@ main menu is seeded room data.
 3. On-kit tenfoot entry point: the generic room renderer and navigation, including nested rooms and back stack, with evdev input and agent status client, replacing `fbgrid` behind config.
 4. Seed the main-menu room pack (favourites, Utils with the RAM tester entry, Settings, Room selector) and set it as `home_room` on the kit.
 5. Status and error states from §4: pause before Launch, redraw on new generation, bounded retry, copy wired; then the image switch plus a separate HIL record.
+   This includes replacing the in-use string "This executor is in use." in FogCast
+   code and tests with the §4 copy (`ui/rooms/destination.go:276`, `ui/tenfoot/app.go:1949`, and tests).
