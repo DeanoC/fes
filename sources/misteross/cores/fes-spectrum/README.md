@@ -69,5 +69,7 @@ an RBF, timing or kit result.
 
 ULA contention, a floating bus, 128K paging, AY sound, Interface 1 / DivMMC,
 and tape write-back. `make build-fes-spectrum` sealed the shell recorded in
-`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. Probe cards and a
-kit session are still open.
+`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. A kit ROM link of
+the 48K BASIC ROM is recorded in
+`docs/validation/2026-09-28-spectrum-basic-kit.md`. Probe cards, keyboard
+checks, and tape checks are still open.

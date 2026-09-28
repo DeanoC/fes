@@ -1286,8 +1286,10 @@ seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
 Simulation is `make sim-fes-spectrum`. The shell seal is recorded in
-`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. That record is not
-kit acceptance, and it does not seal a probe card.
+`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. A kit link of the
+48K BASIC ROM is recorded in
+`docs/validation/2026-09-28-spectrum-basic-kit.md`. Probe cards, keyboard
+checks, and tape checks remain open.
 
 ## Shared native kit client
 
