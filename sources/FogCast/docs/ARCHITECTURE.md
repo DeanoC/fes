@@ -95,7 +95,18 @@ each games read builds the placement ask from the node inventory
 DisplaySink, and InputSource per advertisement. An `fpga_native` row
 carries the `abis` from that node's `GET /v1/mesh/content/node`, read
 with the agent token of the enabled configured target whose
-`target_id` is that node id (`kitcontent.ReadNode`). The document must
+`target_id` is that node id (`kitcontent.ReadNode`). The read dials one
+endpoint: the node's discovered inventory address when the current
+browse window saw that node at exactly one origin; otherwise the origin
+the kit's target client verified and adopted (`AdoptEndpoint`) when it
+differs from the configured address; otherwise the configured address.
+A node id that discovery saw at more than one address is ambiguous
+(`address_conflict` on its inventory row, with no `address`); the read
+then uses the adopted or configured endpoint and sends the agent token
+to neither advertised contender. Rows kept from an earlier window after
+a browse error are not a current address, so an adopted endpoint wins
+over them. The read does not rewrite the configured target, the config
+file, or the target client. The document must
 name the same node id. A failed read, another node id, a disabled
 target, and a node this host has not configured give no `abis`, which
 is not eligibility. A read is reused for ten seconds, a failure is
@@ -1097,7 +1108,13 @@ strawman leaves the seconds unsigned. Parsed TTL silence is absence for a
 future placement choice only and does not release the kit lease. Phase 0
 announcements that omit `mesh` stay directly bindable. The host collects those
 announcements into an in-memory node inventory (`node_id`, mesh version, and
-the `cap` bag) and serves it at `GET /api/v1/mesh/nodes`. The inventory does
+the `cap` bag) and serves it at `GET /api/v1/mesh/nodes`. The inventory has
+one row per node id. Instances of one node at one address (the same kit
+seen on two host interfaces) are one row; when the browse window's
+instances of a node id name more than one address, the row carries
+`address_conflict: true` and no `address`, and uniqueness is checked on
+every instance before the rows are collapsed. A browse error keeps the
+previous rows. The inventory does
 not adopt an endpoint, claim a lease, or make a title Ready. A later browse
 that no longer sees a node, including a node that omitted `ttl`, drops that
 row only. A mesh major other than 1 does not remove that direct bind; a
