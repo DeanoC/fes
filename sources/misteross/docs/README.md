@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test HPS-ready timing trace](validation/2026-09-28-ramtest-ready-timing.md) | Exact control reproduction confirms missing HPS waveforms, calibrated fallback and candidate-scoring exclusion; longer ready routes remain slower under fixed weights. Host-only; best remains 118.57 MHz. |
 | [RAM-test command cut with joint guard](validation/2026-09-28-ramtest-command-cut.md) | A 720-pin predicted guard passes, but shared ready routing regresses memory to 115.02 MHz; best remains 118.57. Host-only. |
 | [RAM-test broader HPS ready cut](validation/2026-09-28-ramtest-ready-cut.md) | Quartus-like mapping improves all 107 targeted skid enables, but the retained command branch limits memory to 115.78 MHz; best remains 118.57. Host-only. |
 | [RAM-test timeout placement refinement](validation/2026-09-28-ramtest-timeout-refine.md) | One replacement LUT move improves all 29 targeted address-enable arrivals, but HPS ready becomes limiting at 118.22 MHz; best remains 118.57. Host-only. |
