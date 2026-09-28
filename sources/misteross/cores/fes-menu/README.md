@@ -1,9 +1,11 @@
 # Menu framebuffer display
 
-The framebuffer mode has a shared-DDR diagnostic wrapper and producer;
-it is not yet a runtime-presented menu.
-A separate DDR-free test-pattern diagnostic exercises the reader, FIFO, timing
-and HDMI board path. Neither mode is a registered game or launchable package.
+The `fes.menu` described package is runtime-presented on the designated kit:
+the runtime configures its shared-DDR scanout, accepts sealed RGBA frames and
+restores the menu after a game stops. This path has exact-artifact diagnostic
+evidence, but is not selected as the factory menu in a product image. The
+earlier framebuffer and DDR-free test-pattern wrappers remain separate
+diagnostics for the reader, FIFO, timing and HDMI board path. None is a game.
 
 Run from misteross:
 
@@ -60,7 +62,7 @@ inputs and emits no external memory commands.
 `sim_fes_menu.py --case pattern` verifies full frames, switching and quiesce.
 `--case board` verifies PLL-unlock output gating and automatic switching across
 120 frames. These digital models do not validate the analog PLL, HDMI link,
-DDR bandwidth, host framebuffer uploads or the future runtime presentation ABI.
+DDR bandwidth, host framebuffer uploads or runtime presentation behavior.
 
 The FIFO uses an unconditional synchronous M10K look-ahead with recent-write
 forwarding. An earlier asynchronous mapping passed RTL simulation and timing
@@ -72,9 +74,9 @@ investigation.
 The contained raw development load deliberately powers HDMI down during
 replacement and does not initialize video afterward. The recorded kit check
 restored only the retained fixed-720p transmitter power register under its
-lease before capture. This is a diagnostic procedure, not the future menu
-runtime presentation path. Stop restored idle and the session released its
-lease.
+lease before capture. This is a diagnostic procedure, separate from the
+described-package runtime presentation path. Stop restored idle and the
+session released its lease.
 
 Build the read-only DDR diagnostic separately:
 
@@ -101,8 +103,8 @@ ordered hold/restart and unexpected-hold containment.
 The producer requires matching DDR layout constants in both synthesized and
 routed graphs and rejects all writes and unused-port commands. Building does
 not release physical DDR ports. Raw contained loading is insufficient for
-DDR use; the later described-menu/runtime integration must perform admission,
-port release and video setup through the runtime. No new DDR artifact is
+DDR use; the described-menu/runtime integration performs admission,
+port release and video setup through the runtime. The diagnostic alone is not
 hardware-qualified by the earlier test-pattern captures.
 
 The shared wrapper's compile-time specialization disables port-0 writes and
@@ -134,5 +136,8 @@ sequence exhaustion and coherent snapshots. `--case gp-board` checks the
 production board top, modeled GP/DDR atoms, PLL gating and explicit enable.
 These and the seven existing cases are included in `--case all`.
 
-Runtime presentation and physical acceptance remain subsequent integration;
-building this firmware does not authorize releasing physical DDR ports.
+Runtime presentation is implemented and has exact-artifact kit diagnostic
+evidence in `docs/validation/2026-09-28-native-menu-kit-presentation.md`.
+Factory-image selection and release acceptance remain separate integration
+gates; building this firmware alone does not authorize releasing physical DDR
+ports.

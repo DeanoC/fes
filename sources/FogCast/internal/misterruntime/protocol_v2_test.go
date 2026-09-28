@@ -260,6 +260,21 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 	}
 }
 
+func TestProtocol2StatusAcceptsPromotedMenuFailures(t *testing.T) {
+	valid := fixtureLines(t, "protocol-v2.jsonl")[1]
+	for _, phase := range []string{"menu", "menu_memory"} {
+		t.Run(phase, func(t *testing.T) {
+			withError := strings.Replace(valid, `"error":null`, `"error":{"code":"io_failed","message":"menu scanout failed","phase":"`+phase+`"}`, 1)
+			fixture := newSequenceSocketFixture(t, []string{withError + "\n"})
+			status, err := NewClient(fixture.path).Protocol2Status(context.Background())
+			if err != nil || !validIdle(status) {
+				t.Fatalf("promoted %s error rejected: %#v, %v", phase, status, err)
+			}
+			fixture.wait(t)
+		})
+	}
+}
+
 func TestProtocol2PackageOperationsBindSuccessfulRepliesToRequestedIdentityAndState(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	otherID := strings.Repeat("d", 64)

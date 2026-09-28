@@ -1055,7 +1055,7 @@ func validProtocol2Error(remote Protocol2Error) bool {
 		return false
 	}
 	switch remote.Phase {
-	case "core_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle":
+	case "core_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle", "menu", "menu_memory":
 		return true
 	default:
 		return false
