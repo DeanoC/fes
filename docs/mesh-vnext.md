@@ -173,8 +173,13 @@ a new code and a 30 s lockout that doubles on each consecutive lockout
 up to 10 min; counters are per kit, not per client address (Q2). The
 host writes one `[[targets]]` row on the existing private settings
 path (owner-only file): name, address, the kit's id, inline token,
-`enabled`. The host does not mint the id. Explicit-add (address plus
-access key) stays under Advanced for multicast-blocked networks.
+`enabled`. The host does not mint the id. **Locked (Q15):** no machine
+is ever added without its pairing code, including the first kit on a
+new computer. Explicit-add under Advanced (multicast-blocked networks)
+is address **plus the TV's code**, the same PAKE run at a typed
+address; raw token entry is not a product path once pairing ships.
+**Locked (Q16):** one computer per machine; a paired kit refuses
+pairing with a second host (Q8).
 
 **UX (Foggy).** The TV says "machine", never "kit", "node", "target"
 or "executor". The main line shows no UUIDs, IPs, tokens, owner strings
@@ -207,7 +212,8 @@ call to it has succeeded.
 4. Success: "{name} is ready" / "Games can now play on {name}." Done.
 - Nothing listed: "No new machines found" / "Check it's switched on
   and showing a pairing code. Still missing? Add it by address." The
-  link opens explicit-add under Advanced, never the default.
+  link opens explicit-add under Advanced (address plus the TV's code),
+  never the default.
 - Rows with a duplicate id or MAC are shown but not selectable (§2.7).
 
 ### 2.4b Launcher token and kit B's "Offline – local library"
@@ -225,7 +231,7 @@ cannot work even with a token.
 per-kit launcher token and sends it, with its launcher URL, inside the
 PAKE channel; the kit writes `launcher.json`. The listener accepts a
 set of per-kit launcher credentials, and a launch from a kit's own
-menu targets that kit (slice P4, §4).
+menu targets that kit (slices P4a/P4b, §4).
 
 **UX (Foggy), split the footer causes:**
 - Host unreachable or no listener: the kit can't tell these apart, so
@@ -291,7 +297,7 @@ state for clone checks. Adding TXT keys is not a byte freeze.
 | Stale address (#259) | Read ABIs and health at the reconciled endpoint; check token and id. | Nothing when reconcile works. Else: "Can't reach {name} at its last address. Looking for it…" |
 | Both hostnames `mister` | Never key off hostname; use `target_id` and MAC. | No copy. Label is the user's name, or "MiSTer …{MAC tail}". |
 | Config write fails | Fail closed; kit stays unpaired; no half-written token. | Host: "Couldn't save {name}. Nothing was changed. Try again." TV: "Pairing didn't finish." |
-| Paired to another host | Refuse (Q8). Never take its token. | Host, greyed row: "Already paired with another computer." |
+| Paired to another host | Refuse (Q8; one computer per machine, Q16). Never take its token. | Host, greyed row: "Already paired with another computer." |
 | Duplicate id or MAC | Refuse pair and place (§2.6). | Host: "Two machines are claiming to be the same one. This usually means an SD card was copied. Set one of them up fresh before playing." |
 | CID witness mismatch | Kit regenerates id, token, derived MAC (§2.6); old row 401s. | TV: "This card was copied from another machine, so it's being set up fresh." Then a code. Host's old row shows the reimage sentence. |
 
@@ -361,7 +367,7 @@ true` does not turn `ensure` on. Both default off.
   no question (the Slice 5 no-prompt rule). *[tech fix]* This is an
   explicit target on the launch from that kit's launcher, which skips
   placement; it does not write the household `display_preference`.
-  It needs P4 (today only the single selected kit's menu can launch).
+  It needs P4a (today only the single selected kit's menu can launch).
 - **From the computer (browser, rooms, CLI):** a "Plays on {name}"
   chip beside Play, only with two or more eligible machines. It shows
   the real placement answer, never a guess *[tech note: the games row
@@ -369,8 +375,8 @@ true` does not turn `ensure` on. Both default off.
   also covers the first-play-after-restart surprise. Tapping it offers
   "Just this time" *[tech fix: an explicit `target` on that launch,
   not `placement_override`, which is a host-wide config key]* or
-  "Always play here" (`display_preference`; needs a settings write
-  route, cf. #211; scope is Q17).
+  "Always play here" (household-wide: the single `display_preference`,
+  locked Q17; needs a settings write route, cf. #211).
 - **Override miss:** "{title} can't play on {name}." If another
   machine is eligible, offer "Play on {other}" explicitly. Never fall
   through silently.
@@ -411,7 +417,8 @@ waits for Deano.
 | P1 | Kit identity and code (image + agent + `fogcast-kit`) | First-boot token under `/media/fat/fogcast/` with the mount check; CID witness; clone recovery incl. derived `ethaddr` (§2.6); unprovisioned kit shows the pairing code on its idle screen; local "Pair with a computer". | IMG-2/IMG-3 can land alongside. | Image test: never overwrite token or hand-set `ethaddr`; clone fixture regenerates; token absent from logs. |
 | P2 | Pairing handshake (kit endpoint + host API) | Kit pairing endpoint live only in pairing mode; PAKE; TTL, tries, lockout/backoff per §2.4; host writes the row via the private settings path; duplicate id/MAC refused; staged rotation (§2.5). | P1. | Unit: wrong code, expiry, lockout doubling, duplicate refusal, crash-at-each-rotation-step recovers; no token in logs or GET. |
 | P3 | Settings UI hookup (Foggy/Luna) | Machines list, Add machine, code entry, name, status words, §2.7 copy. Hand-edited TOML stays developer-only. | P2. | UI tests per state; copy review by Foggy. |
-| P4 | Launcher provisioning | Host mints per-kit launcher token in P2's channel; kit writes `launcher.json`; listener accepts per-kit credentials; kit-menu launch targets its own kit. Fixes kit B "Offline". | P2. | Two kits' menus both browse and launch on their own TV; wrong token 401. HIL: P-pair (§5). |
+| P4a | Multi-kit launcher listener (**pulled forward, in progress**) | Listener accepts a set of per-kit launcher credentials; a kit-menu launch targets its own kit, not the selected target. Independent of the PAKE slices; interim credentials come in via the Q14 path. Fixes kit B "Offline". | None. | Two kits' menus both browse and launch on their own TV; wrong token 401; no token in logs. |
+| P4b | Launcher provisioning via pairing | Host mints the per-kit launcher token in P2's channel; kit writes `launcher.json`. | P2, P4a. | Pairing alone makes the kit menu work. HIL: P-pair (§5). |
 | R1 | #281 | Successful rebind releases the old kit's lease via the lease API (best-effort, logged); failed rebind keeps it. | None. | Unit, both paths. |
 | L1 | #259 (in progress) | ABIs from the reconciled endpoint; keep token and node-id checks. | None. | Stale address → eligible; wrong id ineligible. Optional HIL **C0-stale** (§5). |
 | L2 | #177 | Missing content source → legacy launch, not `ContentMissingError`. | #172 (issue open; pad work on main per phase 3). | Source down: Phase 0 path. |
@@ -420,8 +427,9 @@ waits for Deano.
 | L5 | #178 | Ensure dials the named `LaunchOn` target when the selected one is offline. | L2 if both touch activation. | Selected down, named up. |
 | L6 | #174 (optional) | Pass the `LaunchOn` ctx into `activateMeshExecutor`. | None. | Cancel doesn't outlive caller. |
 
-Lane 1 can run in parallel with pairing where owners differ; the order
-above is the merge priority.
+P4a is pulled forward and runs now, in parallel with P1–P2. Lane 1 can
+also run in parallel where owners differ; the order above is the merge
+priority.
 
 ---
 
@@ -477,7 +485,7 @@ Remove `kit2` only from that file. Do not print tokens.
 3. Mode stays `0600`. The token is absent from logs and from GET.
 4. A second scratch row that repeats B's `target_id` is refused.
 5. Re-run C1 on the paired row, not the hand-written token.
-6. Kit B's menu leaves "Offline" and browses the host (P4).
+6. Kit B's menu leaves "Offline" and browses the host (P4a, then P4b).
 7. Run the deferred C1-pad in the same session.
 
 HIL2 without P-pair does not close §2.
@@ -526,14 +534,16 @@ DECIDED items change only by editing this file.
 | Q7 | DECIDED | Yes: `make media` defaults to unprovisioned once pairing ships; baking is opt-in. | Stops new cards inheriting a host token. |
 | Q8 | DECIDED | Refuse; move via local "Pair with a different computer" ("This disconnects it from {old host}. Continue?"), which rotates the token. | Ownership changes need someone at the machine. |
 | Q9 | DECIDED | Both: MAC tail in TXT for labels; full MAC and CID state in authenticated health. | Unpaired label needs it pre-auth; clone checks need trusted data. |
-| Q10 | DECIDED | One pairing provisions agent and per-kit launcher tokens (P4). | Kit B's "Offline" came from the second token. |
+| Q10 | DECIDED | One pairing provisions agent and per-kit launcher tokens (P4b; listener P4a). | Kit B's "Offline" came from the second token. |
 | Q11 | DECIDED | `GET /api/v1/games` p95 ≤ 300 ms warm with 2 kits; ≤ 1 s with one hung kit (per-kit read timeout 500 ms, snapshot TTL); cached list shown at once. | Foggy's sofa target: full list within about a second. |
 | Q12 | DECIDED | Keep good, previous, factory, pending/trial, and the running image; delete others oldest-first only as staging needs. | Never delete anything boot or rollback can reach. |
 | Q13 | DECIDED (moot) | HIL2 ran GREEN on `.85` configs; #259 stays slice L1 with optional C0-stale. | Done. |
 | Q14 | DECIDED (Deano) | Interim onboarding: a host `[[targets]]` row with the card's **own** token via the settings UI or PATCH, not hand-edited TOML. Never clone tokens across cards; never log them. | Uses the private write path and redaction until pairing lands. |
-| Q15 | OPEN-DEANO | Should a machine ever be adopted without a code? | Product trust call. Default here: never. |
-| Q16 | OPEN-DEANO | May one machine be paired to two computers at once (e.g. Powerboat and the ai-dev-mac rooms host), sharing it through the kit lease? | Ownership model. Default here: one host (Q8). |
-| Q17 | OPEN-DEANO | Is "Always play here" household-wide (today's single host `display_preference`) or per seat/shell? | Changes what "always" means to others in the house. |
+| Q15 | LOCKED (Deano, 2026-09-28) | Never add a machine without its pairing code, including the first kit on a new computer; explicit-add is address plus code. | No silent trust on the LAN. |
+| Q16 | LOCKED (Deano, 2026-09-28) | One computer per machine; no multi-host pairing. | One owner per kit; moving is the Q8 local re-pair. |
+| Q17 | LOCKED (Deano, 2026-09-28) | "Always play here" is household-wide: the single host `display_preference`. | Matches today's config; no per-seat state. |
+
+No questions are open.
 
 ### Sequence
 
@@ -544,6 +554,7 @@ and the first-boot script land before P-pair. #278 does not block HIL2.
 | --- | --- | --- |
 | Done | HIL2 GREEN (picture only); #281 filed. | C1-pad. |
 | Week 0–1 | L1 #259 (in progress) and R1 #281; Foggy review of this copy. | A default flip. |
-| Weeks 1–3 | P1 → P2 → P3/P4 (P3 and P4 in parallel); IMG-2/IMG-3 alongside P1. | `placement` default on. |
+| Now | P4a multi-kit launcher listener (in progress). | Pairing. |
+| Weeks 1–3 | P1 → P2 → P3/P4b (in parallel); IMG-2/IMG-3 alongside P1. | `placement` default on. |
 | Week 3–4 | P-pair HIL with Deano (incl. deferred C1-pad). | Ensure default. |
 | Then | L2–L6 in order; gates review; flip a default only in a follow-up showing every gate green, plus an ensure HIL. | A silent switch. |
