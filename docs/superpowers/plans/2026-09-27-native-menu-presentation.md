@@ -108,18 +108,19 @@ Package: format 2, core `fes.menu` 1.0.0, no `core.system`, ABI `fes.application
 
 ## Task 6: Exact-artifact kit acceptance and handoff
 
-Physical testing is deferred until the operator is available for the updated-runtime
-boot and power cycle. Software handoff proceeds; these hardware gates remain open.
+The operator completed the cold boot and designated-kit session on 2026-09-28.
+The [hardware record](../../validation/2026-09-28-native-menu-kit-presentation.md)
+classifies the result as an exact-artifact diagnostic pass, not a product-image release.
 
 **Files:** Update dated FES validation evidence and runtime support matrix only after the exact paths exercised pass. No image-selection or physical-card operation is implicit.
 
 **Interfaces:** Use the existing target agent lease and designated kit. Select exact menu package and runtime binary identities. Explicitly configure that package through the local daemon diagnostic protocol; retain the current splash fallback and release the lease at finish.
 
-- [ ] Confirm availability and claim the existing kit lease. Verify boot-latched DDR evidence, actual reserved Linux range, target kernel noncached mapping semantics and ARM store ordering; reject the test if these cannot be established. Do not infer boot admission from historical mirrors or provision media without separate exact-device authorization.
-- [ ] Test alternating markers, full RGB/stride/last-pixel boundaries and displayed-sequence acknowledgements with the diagnostic client. Measure latency and runtime CPU/memory usage. Require no underflows for ten minutes under normal kit load; sustained stalls are failure, not accepted black output.
-- [ ] Exercise prepare/disconnect, accepted-commit/disconnect, late generation, menu→known accepted game→Stop→menu, repeated cycles and malformed frame recovery. Confirm fresh generation and fresh complete frame after Stop; use existing containment/reboot-required diagnostics for ambiguous failures.
-- [ ] Stop the diagnostic client, restore the previously selected idle configuration and release the lease. Record source/package/RBF/runtime identities, boot identity, measurements, all failures and exact hardware classification.
-- [ ] Commit/push the tested branch and hand off for a user-authorized PR. Next separate plan: tenfoot kit renderer and mesh-aware shell reuse, then FES image/boot selection. This plan does not ship a factory on-kit menu by itself.
+- [x] Confirm availability and claim the existing kit lease. Verify boot-latched DDR evidence, actual reserved Linux range, target kernel noncached mapping semantics and ARM store ordering; reject the test if these cannot be established. Do not infer boot admission from historical mirrors or provision media without separate exact-device authorization.
+- [x] Test alternating markers, full RGB/stride/last-pixel boundaries and displayed-sequence acknowledgements with the diagnostic client. Measure latency and runtime CPU/memory usage. Require no underflows for ten minutes under normal kit load; sustained stalls are failure, not accepted black output.
+- [x] Exercise prepare/disconnect, accepted-commit/disconnect, late generation, menu→known accepted game→Stop→menu, repeated cycles and malformed frame recovery. Confirm fresh generation and fresh complete frame after Stop; use existing containment/reboot-required diagnostics for ambiguous failures.
+- [x] Stop the diagnostic client, restore the previously selected idle configuration and release the lease. Record source/package/RBF/runtime identities, boot identity, measurements, all failures and exact hardware classification.
+- [x] Commit/push the tested branch and hand off for a user-authorized PR. Next separate plan: tenfoot kit renderer and mesh-aware shell reuse, then FES image/boot selection. This plan does not ship a factory on-kit menu by itself.
 
 ## Self-review and execution handoff
 

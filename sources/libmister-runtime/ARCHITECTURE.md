@@ -114,7 +114,9 @@ package, gameplay generation or input worker. The existing local socket provides
 `MenuFrame` creates one exact-size sealable memfd per caller. Before mapping
 staging bytes, validation requires the same device/inode, 3,686,400-byte size
 and WRITE/GROW/SHRINK/SEAL seals. A client must remove writable mappings before
-sealing. `MenuMemory` converts RGBA to B,G,R,0 in either fixed 4 MiB slot;
+sealing. The runtime reads sealed staging through a private, read-only mapping;
+the selected kit kernel rejects a shared mapping after `F_SEAL_WRITE`.
+`MenuMemory` converts RGBA to B,G,R,0 in either fixed 4 MiB slot;
 frame padding remains untouched. It owns an 8 MiB mapping at `0x30000000`,
 checks the entire shared 256 MiB window against effective `/proc/iomem`
 System RAM ranges, and rejects absent or redacted evidence.
