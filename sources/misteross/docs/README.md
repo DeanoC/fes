@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test isolated ready fallback search](validation/2026-09-28-ramtest-ready-fallback.md) | Two legal candidate trees regress timing and are rejected; the corrected 116.92 MHz stack and RBF remain unchanged. Frozen-model, 224-endpoint checks. Host-only. |
 | [RAM-test completed analogue observations](validation/2026-09-28-ramtest-observation-validity.md) | Stops unfinished hops entering calibration while preserving valid zero delays. Matched fresh routes establish a corrected retained-stack baseline of 116.92 MHz; 130 MHz remains unresolved. Host-only. |
 | [RAM-test HPS-ready timing trace](validation/2026-09-28-ramtest-ready-timing.md) | Exact control reproduction confirms missing HPS waveforms, calibrated fallback and candidate-scoring exclusion; longer ready routes remain slower under fixed weights. Host-only; best remains 118.57 MHz. |
 | [RAM-test command cut with joint guard](validation/2026-09-28-ramtest-command-cut.md) | A 720-pin predicted guard passes, but shared ready routing regresses memory to 115.02 MHz; best remains 118.57. Host-only. |
