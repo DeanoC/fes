@@ -480,6 +480,77 @@ func TestLaunchPresentsLoadingBeforeDispatch(t *testing.T) {
 	}
 }
 
+func TestMenuLaunchDrainsPresentationBeforeDispatch(t *testing.T) {
+	launched := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","state":"available","root_online":true,"launchable":true}]}`))
+		case "/api/v1/session/launch":
+			close(launched)
+			_, _ = w.Write([]byte(`{"state":"active","game_id":"pong"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	draining := make(chan struct{})
+	release := make(chan struct{})
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		close(draining)
+		<-release
+		return nil
+	}, func() {})
+	ready := false
+	var busyPaints atomic.Int64
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, client, func(m Model) {
+			if m.Busy {
+				busyPaints.Add(1)
+			}
+			if len(m.Games) > 0 {
+				ready = true
+			}
+		}, func() (Pad, error) {
+			if !ready {
+				return nil, errors.New("wait")
+			}
+			return &pressPad{}, nil
+		})
+	}()
+	select {
+	case <-draining:
+	case <-ctx.Done():
+		t.Fatal("launch did not enter menu handoff")
+	}
+	select {
+	case <-launched:
+		t.Fatal("launch overlapped menu presentation")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-launched:
+	case <-ctx.Done():
+		t.Fatal("launch was not dispatched after menu handoff")
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if busyPaints.Load() != 0 {
+		t.Fatalf("menu painted %d loading frames", busyPaints.Load())
+	}
+}
+
 type silentPad struct{}
 
 func (*silentPad) Poll() ([]remoteinput.Event, error) { return nil, nil }

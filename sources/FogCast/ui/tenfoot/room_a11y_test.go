@@ -14,9 +14,6 @@ const swallowRoomScript = `
 function on_input(cmd)
   return true
 end
-function draw()
-  gfx.rect(0, 0, 20, 20, "#fff")
-end
 `
 
 func TestRoomScriptCannotSuppressBackOrSettings(t *testing.T) {

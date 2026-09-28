@@ -801,6 +801,19 @@ is separate from the broader SDL smoke.
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
+The on-kit `fogcast-kit` may explicitly select `menu_display: true` (or
+`-menu-display`) instead of the temporary linuxfb painter. It reuses the
+existing `kitlauncher` browse/session model and `fbgrid` renderer. `gfx.MenuDisplay`
+rasters RGBA8888 in software and queues only the newest complete frame. Its
+local `ui/menudisplay` client reads the runtime's menu generation and fixed
+1280×720 geometry, fills the runtime-created memfd, seals it and waits for
+displayed-sequence completion through protocol 2. The UI receives no DDR
+address or FPGA register access; stale generations and unavailable menu
+firmware reject frames at the runtime. Submission runs off the pad loop.
+The configured FogCast service still supplies library/setup operations and
+the host session path still launches games. Cached offline titles remain
+browse-only. This option does not install or select menu firmware in an image.
+
 Tenfoot looks are data-driven. `ui/theme` loads colour, spacing,
 typography roles, cover-chrome, vignette, bezel, and cabinet tokens from a built-in name (`default`,
 `arcade`, `night`) or a JSON/TOML file. Roles are explicit pixel sizes

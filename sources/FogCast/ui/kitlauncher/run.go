@@ -125,6 +125,9 @@ func boundedSessionText(value string, limit int) string {
 // Run keeps device/UI work on one loop. Slow host requests run outside that loop;
 // observations started before a mutation cannot undo its resulting state.
 func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pad, error)) error {
+	if c.menuDisplay && (c.menuPause == nil || c.menuResume == nil) {
+		return errors.New("menu display handoff unavailable")
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	m := Model{
@@ -133,6 +136,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	loggedSplash := false
 	paintKitHDMI := func(m Model) {
+		if c.menuDisplay {
+			if !m.Busy && m.Session.State != "active" && present != nil {
+				present(m)
+			}
+			return
+		}
 		if ShouldPaintHDMI(m) {
 			if present != nil {
 				present(m)
@@ -141,7 +150,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		// Log once when idle is confirmed and the recipe has no HPS framebuffer.
 		// Do not blank-and-fail: the service keeps running and splash stays up.
-		if loggedSplash || m.Busy || m.Session.HPSFramebuffer || m.Session.State != "idle" {
+		if loggedSplash || c.menuDisplay || m.Busy || m.Session.HPSFramebuffer || m.Session.State != "idle" {
 			return
 		}
 		loggedSplash = true
@@ -295,6 +304,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		if m.AttractActive {
 			m.hideAttract()
 		}
+		if c.menuDisplay {
+			pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+			err := c.menuPause(pauseCtx)
+			pauseCancel()
+			if err != nil {
+				m.Busy = false
+				m.Message = "Please try again"
+				c.menuResume()
+				paintKitHDMI(m)
+				return
+			}
+		}
 		// Loading and stopping copy is a temporary overlay, and only when this
 		// idle still enables the HPS framebuffer. Splash has no linuxfb picture.
 		m.Message = "Loading game"
@@ -360,6 +381,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			if o.mutation {
+				if c.menuDisplay {
+					c.menuResume()
+				}
 				m.Busy = false
 				m.Message = o.message
 				nextPoll = time.Time{}

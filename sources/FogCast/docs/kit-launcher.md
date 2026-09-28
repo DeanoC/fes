@@ -12,6 +12,16 @@ hero; the standalone `tenfoot-linuxfb-grid` command remains a hardcoded
 paint/input fixture for framebuffer tests. Existing SDL rendering files are
 unchanged.
 
+An explicitly configured described HDMI menu can paint that same shell using
+`menu_display: true` in the provisioned `launcher.json` or `-menu-display`.
+The kit process sends complete sealed RGBA frames to the local runtime socket;
+the runtime gates every submission by the current menu generation and alone
+owns DDR/FPGA access. The sender keeps only the latest pending frame, so a
+display acknowledgment does not block pad input. When menu firmware is
+unavailable, the current FPGA picture is left alone. This development option
+requires the separately configured menu package; the factory image still
+selects the splash.
+
 Build with `make build-fogcast-kit`. The native image installs the command and
 supervises it after runtime and agent startup. Its default configuration is
 `/media/fat/fogcast/launcher.json`; FES generates and embeds that file through

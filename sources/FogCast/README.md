@@ -158,6 +158,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   with native evdev keyboard and digital gamepad input. Build using
   `CGO_ENABLED=0 go build ./cmd/fogcast-tenfoot`; see the
   [Linux framebuffer guide](docs/native-tenfoot-launcher/LINUX.md#framebuffer-without-sdl).
+  The CGO-free on-kit `fogcast-kit` shell can explicitly select the described
+  HDMI menu path with `menu_display: true` in `launcher.json` or
+  `-menu-display`. It keeps the host-backed library, cached offline browsing,
+  controller and session model and paints through the local runtime's sealed
+  frame socket. The option requires separately configured menu firmware; it
+  does not replace the factory splash or give the UI DDR/FPGA ownership.
   The older proof commands also raster with Software and Present-blit onto that framebuffer
   (`make build-tenfoot-linuxfb-spike`, CGO-free ARMv7, no SDL; the spike
   also reads evdev/joystick and moves a cursor). A sibling

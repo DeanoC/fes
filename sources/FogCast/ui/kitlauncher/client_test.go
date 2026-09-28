@@ -93,6 +93,34 @@ func TestLoadConfigAcceptsHPSFramebuffer(t *testing.T) {
 	}
 }
 
+func TestMenuDisplayConfigSurvivesThemeSave(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "launcher.json")
+	body := `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a","menu_display":true}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(p)
+	if err != nil || !c.MenuDisplay {
+		t.Fatalf("config=%+v err=%v", c, err)
+	}
+	c.Theme = "neon"
+	if err := SaveConfig(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadConfig(p)
+	if err != nil || !got.MenuDisplay {
+		t.Fatalf("saved config=%+v err=%v", got, err)
+	}
+}
+
+func TestTemporaryMenuDisplaySelectionDoesNotChangeSavedConfig(t *testing.T) {
+	c := NewClient(Config{MenuDisplay: false})
+	c.SetMenuDisplay(true)
+	if !c.MenuDisplayEnabled() || c.config.MenuDisplay {
+		t.Fatal("temporary selection changed saved config")
+	}
+}
+
 func TestLoadConfigAcceptsOptionalShelf(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "launcher.json")
 	body := `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a","shelf":"megadrive"}`
