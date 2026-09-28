@@ -207,7 +207,10 @@ Needs a choice opens an edition list unless a household edition preference
 is saved for that query and platform, Missing opens the library, Checking
 and Unavailable show honest copy (Unavailable also opens Details). A kit
 lease held by another session turns a Ready title into Unavailable with
-the copy "This executor is in use." Confirm explains and does not launch
+the copy "In use" / "Someone else is playing on this machine. You can play
+when they're done." (or "{name} is playing {title}" when a friendly name
+exists). There is no take-over option. (The "executor in use" wording is
+only for logs and host diagnostics.) Confirm explains and does not launch
 or take that lease. The shell that already holds the grant, including after
 Soft-stop, stays Ready. A saved
 preference that still matches makes Confirm Play and Details open the shared
