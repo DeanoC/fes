@@ -1,0 +1,2478 @@
+{
+  "artifact_root": "out/ramtest-observation-validity",
+  "artifacts_sha256": {
+    "backend-green.log": "90e3061cbd6edc2d718c500e9649769dfe7c146c1fe2ec0faefac896a79f955b",
+    "backend-red.log": "0a623895850d0e4b362693ccc155d9cfbbd695e3e2791da3c3e23323702a1a01",
+    "best-c2/arcs.tsv": "e08da1caf9f9ee8cf0280bca01338352eb50bff3be3241c15b89c11ee1bbe3a5",
+    "best-c2/baseline-proof.json": "272f06defc61077741c870558506b9b13e84a1272b2fdf0a4d99c8de35ce22d4",
+    "best-c2/core.rbf": "b477f3d50f1bb9355d5ca8d6564ac0a78ddc82f90e2b7e06ca0674d10957d173",
+    "best-c2/invocation.json": "2ff9c900f6b8fcb4c155ef3cc5c706e0b01f6773d2562fb62fc190f9b7b7bf34",
+    "best-c2/measurements.json": "2f896b7459abc2d29527af91534b13ec3a3fa10693badcc3a5a3f96c372c0e08",
+    "best-c2/ready-trace.arcs.tsv": "c9a6d152d7c6adcef586bb64f02fdcfbea4ee3d7c4a506d4f9b4ab46b6d90744",
+    "best-c2/ready-trace.hops.tsv": "1ebf1b7ea138d30c308ab4a543a868149dc0d0aa94d73153d8df1f2912ca7333",
+    "best-c2/ready-trace.observed.tsv": "76a063369398ee8f6772b361b2c87023b28136c8ac432b75e99e817bae2ad397",
+    "best-c2/ready-trace.state.json": "40eb153ceed1369e37944d1dcbd0365b1c8d52a3affab3ea089a87e3bbaf6f69",
+    "best-c2/ready-trace.types.tsv": "012923f2daba848a5780d1d881a5037fb5ae46b0d9ba6a318ac1f508ba253d3a",
+    "best-c2/region-proof.json": "917da84a792f7a2bc34c9a3ab8c7781f584f05c595943503c2e618b94aafb059",
+    "best-c2/replication.after.json": "402787f526351a3e2e919d607ec47af5859a17f94ca2ec8d95ba0cb8cd629042",
+    "best-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "best-c2/replication.before.json": "a5e17378c1b05f5780865f7166c3b35c1cc3c511915638a4dd83dd89d13a7e19",
+    "best-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "best-c2/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "best-c2/result.json": "0071d19bd58b7ab5a5317d5b4a7e1a3f850bff142db737951bbf35e9181abb70",
+    "best-c2/retained-proof.json": "571d185c0c42c084a1f2b380d2e69006d93fdc278af25f885376e813662f3728",
+    "best-c2/retained.after.json": "b0ab480de6466b2701d999c85c14b194eb02937894555cd7d3176d58f3d0ea08",
+    "best-c2/retained.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "best-c2/retained.audit.json": "d3a112e07abb8bce1e29f57378613fda7b9925242ca9b528b0f65918ac765009",
+    "best-c2/retained.before.json": "f12d6719634b0015481048f66ea34a0ae69928b3b5c3459a2e8c1f731e32a1a0",
+    "best-c2/retained.before.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "best-c2/retained.inputs.tsv": "012488e6abf8467c244a78f2fef20c0dd6ec3fe48ff5b65f48184bee75d29066",
+    "best-c2/retained.outputs.tsv": "10af7738a335ca35d66b578d89667c65f2a88a90a4bad5532a2bb3950284ff7c",
+    "best-c2/retained.protected-labs.tsv": "071b5a194f8992c649facf4a1565f98563a53cfdb5afec29741888a765d04913",
+    "best-c2/retained.replicas.tsv": "7df07c3c95d02e6db5b9ffefd4cb479804c66920d2f990fa9811d8c578ba0877",
+    "best-c2/routed.json": "8abacff0bbff422d1c18a8b55291fe5d0ce001cfd19a2216608bb2c88f919800",
+    "best-c2/run.log": "a0c865d974d511ac7615c6425d163570e516a5bfe1feab6729c3b92ea51f4428",
+    "best-c2/snapshot-proof.json": "a10fca325f94caa3e349a9f45d34d6ed7d52237f0b886386392be4af90962391",
+    "best-c2/structural-checks.log": "ddd05f78bebe02db5c130055c5feffea05422759db39ac5a2b38942ff03c2813",
+    "best-c2/timeout.after.json": "f12d6719634b0015481048f66ea34a0ae69928b3b5c3459a2e8c1f731e32a1a0",
+    "best-c2/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "best-c2/timeout.before.json": "402787f526351a3e2e919d607ec47af5859a17f94ca2ec8d95ba0cb8cd629042",
+    "best-c2/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "best-c2/timeout.manifest.json": "f6eb2767647b813403c8e2bd93ee30a8e8b07fd49b4b571e4d5f7e8111057f3d",
+    "best-c2/timeout.sites.tsv": "6ff95a751898ebba75021d3e1136d61d0496e6beff738b46436b3e9e55850d36",
+    "best-c2/timing.json": "341becd14b93ea7ca0ab13e3d5465ecdebd52be765198c4da84d74f476082c41",
+    "best-c2/trace-check.log": "769e1c761b44d7bf3a6bfc5e304876d2717df08d9deeae6b90bef952500026f5",
+    "best-c2/trace-proof.json": "769e1c761b44d7bf3a6bfc5e304876d2717df08d9deeae6b90bef952500026f5",
+    "build-circuit-control.log": "0ce415d02302126af028f0e3d0645bed0e941c6df2f94e2c72f27fa87e5b67b3",
+    "build-green.log": "fff34128020b396583c5c14f9c4935292f4cf5986e5601800a538655aa0d0dfd",
+    "build-red.log": "e02ea8933d80de0762fbcb9db0fc7ac52f646db9ff4fa55727845ce26754824c",
+    "check_fresh.py": "9284ec707e7d6b3d34ec680435d86a3067b969d7b3188abdc1177d9b4a9ec3af",
+    "check_trace.py": "b37c03d6eaad73b9b20d26977b512ebffd9d7e72821a5b7de83effdec924ca9a",
+    "checker-completed-red.log": "cab518f77b3c7877a740d0f0a43bc90f171e2335d7412233911c60cebc13daa7",
+    "checker-green.log": "25660486d75d5f4b9efa5b4fdd11e9e694dfc634802c6601b239be93e2d13722",
+    "checker-manifest-red.log": "6639e67216d737fa45cb8a0b5e1e79f2989d8b74c05de6ebb5176570f928ebb1",
+    "checker-old-trace-rejection.log": "f5ea87d93d441df8b292176fad0d1460878b67a2389d5871046abee8b34cc8f0",
+    "checker-tests.json": "77238d765b615de02986a36b8eb96350aaf01da890c8d0bb385fbe6601b7b78b",
+    "circuit-control.log": "65937d336a8164f157e9e94af6d653b3168b09b85b68d6bde87906470e7771ec",
+    "command-c2/arcs.tsv": "72d2d4e353cd08f80647186248d268b2ee1d657dc0f645ba58a57751fb2c0a91",
+    "command-c2/baseline-proof.json": "cc308c6619c103263e4420258bcad257971b3d13afb7d8c71483cc3d5838d36a",
+    "command-c2/command-proof.json": "a38900cedf0f9619bcb2c7ec7f31da9968c874c8b2232bdc6d2562334f3af550",
+    "command-c2/command.after.json": "ead8785f172b448dc27d8926d60dd69aec0beea1067fa1b2e0297d2791aa59ef",
+    "command-c2/command.after.json.pins.tsv": "44fce5d5e7f9199f31da421b428784537ac7f3f3ab7707f9921152bae3a4b7a4",
+    "command-c2/command.audit.json": "c461d7934565084b553f7839a4adcd974ee35495b1f2498592448a8e271a1ed9",
+    "command-c2/command.before.json": "f69bd22effa12be86af33ba8ace48c7711777f42a6fb06ce3e32b44ed8873133",
+    "command-c2/command.before.json.pins.tsv": "76dde456f5f36f04a38df4bc16036b39e33cdcc0f2fc082719865322e230bff1",
+    "command-c2/command.closure-seeds.tsv": "d9ba881625861a0a356ca9b1ed172afd4b4dd8a8395489d3197997d037aa0402",
+    "command-c2/command.endpoint-slacks.tsv": "f763555109606b63863beebfa5d32380d0cc6675a73e6bcff346994dcef9dfd7",
+    "command-c2/command.loads.tsv": "1a4f00bcd87934a0c78cb2d78c9b64df0c217cde8a4dd944441b7d39caef2c33",
+    "command-c2/command.protected-labs.tsv": "071b5a194f8992c649facf4a1565f98563a53cfdb5afec29741888a765d04913",
+    "command-c2/command.trials.tsv": "0c679bba05a8b7b7620d1fcbb176c1f79a72a35cefab00f2d8c36ca2fbe8e14e",
+    "command-c2/core.rbf": "11093d0819dc13ba1709f874cbea4b8a5f4240a410cefaf83dae2777267561b4",
+    "command-c2/invocation.json": "250e9d5f5070d05497876541311f5f08e4e0776f08b7b5306ae0ccb55f0bfd71",
+    "command-c2/measurements.json": "879cd9a2f8aaf66c93fe09893b275f036351375ebb2a080a4a870f7f3395f9bc",
+    "command-c2/ready-proof.json": "989ffc38f1e0a4d64c96c9da65a3afb9769233dd924f5422ffa87832efd04050",
+    "command-c2/ready-trace.arcs.tsv": "e3c264add925719191f3c1dd1c8ccd50289f6403b86f515cafac0dd32603b017",
+    "command-c2/ready-trace.hops.tsv": "5b4d474aa295155fcb6ae250962dfebc60fbf1427f9453ed8dce682ec66f0644",
+    "command-c2/ready-trace.observed.tsv": "60c327b20364b1bb83107ae7e730bf164ec212b538b9b2ec4a522bac5d49477d",
+    "command-c2/ready-trace.state.json": "3a46c9335dcc403df161c94369f291d8e92b9ff0474041697c9bd113f8929022",
+    "command-c2/ready-trace.types.tsv": "e375d788fee0eb7d7487405016f9dfe8bccabdd9fdae7293e50f1a9705e5ad66",
+    "command-c2/ready.after.json": "f69bd22effa12be86af33ba8ace48c7711777f42a6fb06ce3e32b44ed8873133",
+    "command-c2/ready.after.json.pins.tsv": "76dde456f5f36f04a38df4bc16036b39e33cdcc0f2fc082719865322e230bff1",
+    "command-c2/ready.audit.json": "78a5e4b18cb982fad4aa23ae98de0ed0747dc6337d0f855a9f0544c852259194",
+    "command-c2/ready.before.json": "c1840dfff6ac964d50101b5d6ead74dc4e0f11f33fc418fbc1e5643122d7ed5c",
+    "command-c2/ready.before.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "command-c2/ready.endpoint-slacks.tsv": "2a1c1470a786d083db767b2173cfc9996663763ae202be8115ac561e2c079445",
+    "command-c2/ready.geometry.tsv": "a0bb311524b082c6fb05d9a397222a212a31df55897f9edfaa2c3c1a36e8d5a4",
+    "command-c2/ready.loads.tsv": "7174e1ce061286cbdd08b17065952506c37cf72284e2558c7fa2aea0919d86ce",
+    "command-c2/ready.moves.tsv": "50df166fc44d83f6c4ba5a4a99acc8065db83d98134ea5a340e881ae2d693c99",
+    "command-c2/ready.protected-labs.tsv": "071b5a194f8992c649facf4a1565f98563a53cfdb5afec29741888a765d04913",
+    "command-c2/ready.trials.tsv": "abc99c807c436861fa0353f81d7e2834d52ea16c55b018eaa7f0acbc54811cd1",
+    "command-c2/refine-proof.json": "a1282ae8af8bf0f4e0af650bd51186fa3560e3f58a9243227091fce4101eb089",
+    "command-c2/refine.after.json": "c1840dfff6ac964d50101b5d6ead74dc4e0f11f33fc418fbc1e5643122d7ed5c",
+    "command-c2/refine.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "command-c2/refine.audit.json": "c8915240aeb0e5e672a76fb245218c9c1de63e5790f6d65a0f78c511fbc2990b",
+    "command-c2/refine.before.json": "b0ab480de6466b2701d999c85c14b194eb02937894555cd7d3176d58f3d0ea08",
+    "command-c2/refine.before.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "command-c2/refine.endpoint-slacks.tsv": "41b3c147df2434c4d7b35dc3a57e918b1500201d2cd447f85f677e1e9a8cdebe",
+    "command-c2/refine.moves.tsv": "6b1ddcf6b865b8aa2b7433fe0e74a820cb0c95e2d94249cf4289324d93e0c4d9",
+    "command-c2/refine.protected-labs.tsv": "071b5a194f8992c649facf4a1565f98563a53cfdb5afec29741888a765d04913",
+    "command-c2/refine.trials.tsv": "e37956c8f7ac02bbc616450e790c6197ce47c3e2ef5aea3533c526cb89f81beb",
+    "command-c2/region-proof.json": "5ac2e4f938339136db1c46c9694dec21de0a9808caaed518fc408aed13773769",
+    "command-c2/replication.after.json": "402787f526351a3e2e919d607ec47af5859a17f94ca2ec8d95ba0cb8cd629042",
+    "command-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "command-c2/replication.before.json": "a5e17378c1b05f5780865f7166c3b35c1cc3c511915638a4dd83dd89d13a7e19",
+    "command-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "command-c2/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "command-c2/result.json": "9a5ce40293ce2e915cbc0ae732e34f6845e19255c265b859fe42470123f61a84",
+    "command-c2/retained-proof.json": "0becf84dcb6327127ae7bb26ea794d6e5914eeea5cc50ddeca77e7717546384d",
+    "command-c2/retained.after.json": "b0ab480de6466b2701d999c85c14b194eb02937894555cd7d3176d58f3d0ea08",
+    "command-c2/retained.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "command-c2/retained.audit.json": "d3a112e07abb8bce1e29f57378613fda7b9925242ca9b528b0f65918ac765009",
+    "command-c2/retained.before.json": "f12d6719634b0015481048f66ea34a0ae69928b3b5c3459a2e8c1f731e32a1a0",
+    "command-c2/retained.before.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "command-c2/retained.inputs.tsv": "012488e6abf8467c244a78f2fef20c0dd6ec3fe48ff5b65f48184bee75d29066",
+    "command-c2/retained.outputs.tsv": "10af7738a335ca35d66b578d89667c65f2a88a90a4bad5532a2bb3950284ff7c",
+    "command-c2/retained.protected-labs.tsv": "071b5a194f8992c649facf4a1565f98563a53cfdb5afec29741888a765d04913",
+    "command-c2/retained.replicas.tsv": "7df07c3c95d02e6db5b9ffefd4cb479804c66920d2f990fa9811d8c578ba0877",
+    "command-c2/routed.json": "918ebd2642f46cccd3aa9eb929e4ef54f0dc1a6a4a6184d14245a141c2751acb",
+    "command-c2/run.log": "0c23c7cd1b7b2e50ed19944795c2573a7b80fb632d98250e70179b3521352ab8",
+    "command-c2/snapshot-proof.json": "f974e76b19a724c159956bae4f54dd7538495aacae13079f855727037ae2c400",
+    "command-c2/structural-checks.log": "0961e5ad301dd114341de06d157377e1345370f7cfe64d01d3f005ca9bbb504a",
+    "command-c2/timeout.after.json": "f12d6719634b0015481048f66ea34a0ae69928b3b5c3459a2e8c1f731e32a1a0",
+    "command-c2/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "command-c2/timeout.before.json": "402787f526351a3e2e919d607ec47af5859a17f94ca2ec8d95ba0cb8cd629042",
+    "command-c2/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "command-c2/timeout.manifest.json": "f6eb2767647b813403c8e2bd93ee30a8e8b07fd49b4b571e4d5f7e8111057f3d",
+    "command-c2/timeout.sites.tsv": "6ff95a751898ebba75021d3e1136d61d0496e6beff738b46436b3e9e55850d36",
+    "command-c2/timing.json": "8ec6796550e6fdf1afde5fbc5d119be3e72b8726536541409dcdb4caeebefe83",
+    "command-c2/trace-check.log": "a2e5d1913624fcf9a77f0bb71b8b71c4e271d45102733d54b35b1679b0a59ae7",
+    "command-c2/trace-proof.json": "a2e5d1913624fcf9a77f0bb71b8b71c4e271d45102733d54b35b1679b0a59ae7",
+    "compiler-build.json": "f8184a8a590ef0e68432d9d186287fd131e26a17db9817a938865275351cb8b5",
+    "ctest-detail.log": "688accce2a795392edbec170ac6a30b90cab527eb5f0fe2e258b357e998831fb",
+    "ctest.log": "6f13f9f620c462ddf91bb7897f68e37383d6531b7f810434b62ad1c7e7446042",
+    "default-checks/absent.json": "280f26837cd5a75b95a16c1de3972b021f9508ac4c2692b939b32f36f106fe69",
+    "default-checks/absent.log": "658a1324d3bff2b56269a7887a3710187b84e4592bba06902a0950544907ce47",
+    "default-checks/empty.json": "280f26837cd5a75b95a16c1de3972b021f9508ac4c2692b939b32f36f106fe69",
+    "default-checks/empty.log": "def034b073db3808f7864d3aac23f90c5f654a44b3cb53ec08a738aa1c74630e",
+    "default-checks/proof.json": "a94d6d77545cedf4ff0e70a4b0800256ca7bf3f718e27f076c23c4822ba2ba45",
+    "measure.py": "bec723a71eb5251c7706b51670abf89384fd1b756be2064ce7dc8e3c93610e22",
+    "run_route.py": "a3b807d620112f8ac2a257d60263827f33bfdd408c6a898b4fe4d1e8cb962536",
+    "scope.json": "17b923d69f894f426c807d000227108813fdfdb0e3f5b0dd1e070461019baf2a",
+    "summarize.py": "c7ce172eaaf83187b88ee9dda78f14caca171dacfc55fa33e8bf66b7a8b042ec",
+    "test_check_trace.py": "f13c30f1e44fe794777b6905bd4b7b75b5730b8a6cf5845fa6af3417a834206e",
+    "tests.json": "2b5f95462cf98feda6865caa72ac683356aa3475a467f74ab5f5602ea0c09fa5",
+    "tools/nextpnr-observation-validity": "47ae7e0e939199866adefb85c1f2735738d659df4307c7ba8bfa191fd11c47f2",
+    "validation.json": "18534001a328f0eba2e4c7815839c2193220a287cc4692031958303d24bd466d",
+    "verify_evidence.py": "5b9551674973bb7771bc6157cb6e1703b782fe4eb8550c317a87c3f67b982bf9"
+  },
+  "checker-tests": {
+    "inherited_failed_cache_rejection_cases": 1,
+    "inherited_trace_negative_mutants": 28,
+    "manifest_RED": "Completed-only manifest requirement absent at first invocation; explicit false now rejected.",
+    "new_observation_negative_cases": 5,
+    "new_positive_cases": [
+      "module-derived five-arc configuration",
+      "module-derived three-arc configuration",
+      "valid zero observation outside failed HPS sources retained"
+    ],
+    "passed": true,
+    "real_old_production_trace_rejected": true,
+    "red_scope": "New function absent at first test run; inherited audit remained passing. New actual-observation assertions now reject current and stale invalid records.",
+    "scope": "No compiler/build/route changes; fresh-map qualification, not cleanup of previously imported observations.",
+    "sha256": {
+      "out/ramtest-observation-validity/check_trace.py": "b37c03d6eaad73b9b20d26977b512ebffd9d7e72821a5b7de83effdec924ca9a",
+      "out/ramtest-observation-validity/checker-completed-red.log": "cab518f77b3c7877a740d0f0a43bc90f171e2335d7412233911c60cebc13daa7",
+      "out/ramtest-observation-validity/checker-green.log": "25660486d75d5f4b9efa5b4fdd11e9e694dfc634802c6601b239be93e2d13722",
+      "out/ramtest-observation-validity/checker-manifest-red.log": "6639e67216d737fa45cb8a0b5e1e79f2989d8b74c05de6ebb5176570f928ebb1",
+      "out/ramtest-observation-validity/checker-old-trace-rejection.log": "f5ea87d93d441df8b292176fad0d1460878b67a2389d5871046abee8b34cc8f0",
+      "out/ramtest-observation-validity/test_check_trace.py": "f13c30f1e44fe794777b6905bd4b7b75b5730b8a6cf5845fa6af3417a834206e",
+      "out/ramtest-ready-timing/check_trace.py": "ed8fc406ecbb405288173468463449599ef8af4b614e4d22ccb3459661f424b0",
+      "out/ramtest-ready-timing/test_check_trace.py": "c1912c6c931c062819cc33412280524ecf2a71be7d03d63e0baa2ae4e0c9ad1b",
+      "out/ramtest-ready-timing/trace-c2/ready-trace.arcs.tsv": "356fadb67699218cdb76ba53fe1431596194b24577b1832225ee7135a050014e",
+      "out/ramtest-ready-timing/trace-c2/ready-trace.hops.tsv": "a4c923d397e50a3bd11aa3176d4dcb005e760ff416b7d0e33864bc1a0cba9956",
+      "out/ramtest-ready-timing/trace-c2/ready-trace.observed.tsv": "f2d0d6a8471c65fda737565c8a3fb0d055ee6756926a94785930a842e9ed2b46",
+      "out/ramtest-ready-timing/trace-c2/ready-trace.state.json": "a40f522e6b4b489b2e6d4faaf0762a3ac0ba21c96645e72af9bef88a354b1790",
+      "out/ramtest-ready-timing/trace-c2/ready-trace.types.tsv": "dfb05f8849ba8070181cf376857b28044f8d16a382fecef8b7f3d13b1da9fa74"
+    },
+    "test_methods": 9
+  },
+  "classification": "host-only; completed-hop observation correctness and fresh baselines; no hardware acceptance",
+  "compiler-build": {
+    "binary": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/tools/nextpnr-observation-validity",
+    "binary_sha256": "47ae7e0e939199866adefb85c1f2735738d659df4307c7ba8bfa191fd11c47f2",
+    "build_note": "Only completed analogue hops are emitted to the unchanged observation collector. Valid zero hops and failed-job completed prefixes remain. Numerical simulation, failed-cache override seeding, routing policy and retained-map cleanup behavior unchanged. Binary built from committed source bytes immediately before commit metadata changed.",
+    "measurement_control": "d7a186c0fe68849a707ebd34ac42fc09e5e4643e",
+    "production_digest": "f3b2ccf0dede4d3f933caaba366b666eaf62e9ed999b168cb0b0e25d8adae186",
+    "production_files": {
+      "common/kernel/context.cc": "df7e50d68ef4c61208e84bf7ee5532cdd818a4ed2dcc6d985dc6253139f53d53",
+      "mistral/CMakeLists.txt": "6e6371f42944c7470a36c2b930c64ccb184cebb92524dd1a19a9a74c14bf4fe8",
+      "mistral/analogue.cc": "22a967c7d5c6274f5407051423ed3bf2ea2345d9d95caa29719d816790b4eff4",
+      "mistral/arch.cc": "06aa06d8a62e823eebe36acad30c601f7a02104ae4fee8623c8f6adc3b0e44ab",
+      "mistral/arch.h": "9251faa8ca68d45ac33715014402741447231dfb4434e9824f5bcd9cfc873525",
+      "mistral/bitstream.cc": "d36b24a164aa64604d5380a9630ef371bc55cdf1d48957fee007bc750a5ed19f",
+      "mistral/command_cut.cc": "47a7acf7ba2326d72e1402948850805f54a75a5b371df58584d1dd9f09119f73",
+      "mistral/command_cut_policy.h": "4233cd60adad23e1849ae0007e8837968a288e478415af77b3869659773ff1f5",
+      "mistral/delay.cc": "12f85da5f6bdc8e99a00512f08584d89c64648fcde1a4d55ccf8fccfe82834e5",
+      "mistral/enable_replication.cc": "7c82be3fa090376b937de0408b06ffeaf0b291f5958915fa8fc61209d0aa55ce",
+      "mistral/enable_replication_policy.h": "0315f3f7e535401823da606085a6973fdd999a9e5a5cdd251f843863e8675087",
+      "mistral/placed_timeout.cc": "02ed1caf8137ff2c2302744c2981cfd812958d2699e292ab39ee4758b954d5a8",
+      "mistral/placed_timeout_payload.inc": "5242b68a6faa72fb52bfb9be20147578a118723113e226f5a46df811a8897bf8",
+      "mistral/placed_timeout_region.h": "54cd6cb73e5acf9e271c2fbaa047f572eb69aac071eb77621430efd94df38bca",
+      "mistral/ready_cut.cc": "82298d6bb2ceea7739f07b2689fcb624655fca2c15b4aecbe4ecd71cdfa6acce",
+      "mistral/ready_cut_policy.h": "6864d47359f0450f5c0b44ccaa5e3d6ef6841b0ed5ca743b4243a493075c20e2",
+      "mistral/ready_timing.cc": "88b28a8a501ad879476e7f81d10222e5ba9dbd225a0ab36a239a26b018ffc330",
+      "mistral/retained_enable.cc": "dc8c4bf776dcedf236b5080647ab8c7b92565767e4259732626ce35f7f9bd943",
+      "mistral/retained_enable_policy.h": "f45859826513a76dd1aec757638afa691dc42625cd413ccdd4f679ab568429e6",
+      "mistral/timeout_refine.cc": "7bdb0bfbcacbd761a1a5f99a54a66373c91928b2f91218227d2b12ea1ea68e88",
+      "mistral/timeout_refine_policy.h": "0d9162e3a84851635503fc41ebc07edc20679ebf1ce458f628011ab2b1f5a62d"
+    },
+    "source_base": "d7a186c0fe68849a707ebd34ac42fc09e5e4643e",
+    "source_branch": "fix/mistral-completed-observations",
+    "source_commit": "cfa17a490df916ab64579d630070d328da189e06",
+    "tests": {
+      "behavioral_red_failures": 3,
+      "build_log": "build-green.log",
+      "ctest_targets_passed": 1,
+      "ctest_test_cases_passed": 32,
+      "ctest_test_cases_skipped": 1,
+      "ctest_test_cases_total": 33,
+      "default_controls": [
+        "absent",
+        "empty"
+      ],
+      "evidence_sha256": {
+        "backend-green.log": "90e3061cbd6edc2d718c500e9649769dfe7c146c1fe2ec0faefac896a79f955b",
+        "backend-red.log": "0a623895850d0e4b362693ccc155d9cfbbd695e3e2791da3c3e23323702a1a01",
+        "build-circuit-control.log": "0ce415d02302126af028f0e3d0645bed0e941c6df2f94e2c72f27fa87e5b67b3",
+        "build-green.log": "fff34128020b396583c5c14f9c4935292f4cf5986e5601800a538655aa0d0dfd",
+        "build-red.log": "e02ea8933d80de0762fbcb9db0fc7ac52f646db9ff4fa55727845ce26754824c",
+        "circuit-control.log": "65937d336a8164f157e9e94af6d653b3168b09b85b68d6bde87906470e7771ec",
+        "ctest-detail.log": "688accce2a795392edbec170ac6a30b90cab527eb5f0fe2e258b357e998831fb",
+        "ctest.log": "6f13f9f620c462ddf91bb7897f68e37383d6531b7f810434b62ad1c7e7446042",
+        "default-checks/proof.json": "a94d6d77545cedf4ff0e70a4b0800256ca7bf3f718e27f076c23c4822ba2ba45"
+      },
+      "fixture_scope": "Real HPS first-hop collector failure; synthetic completed generated/NO_DELAY/P2P zero prefixes before failure; repeated max and unique calibration aggregation; real configured LAB circuit with exact parent quad 60/63/79/83 ps. Optional full-design import fixture skipped. No full route run by compiler agent.",
+      "focused_test_cases_passed": 6,
+      "pre_fix_positive_circuit_control_passed": true
+    }
+  },
+  "external_inputs_sha256": {
+    "out/ramtest-command-cut/check_command.py": "a34ab65c9f7de6b589dcc53cc19bd5ba2aeffb3fb05aa33fe207c3b1d9ec547b",
+    "out/ramtest-enable-replication/budget4-c2/invocation.json": "da2edb631d1db76d7ed7af7fafddceceb6ef654ad2cca173fd004fd2dbcdaf36",
+    "out/ramtest-enable-replication/check_snapshots.py": "672e78a293c487a570fcbd0f14b5553a80593390beb4b2c7a702fec89e2460a5",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "out/ramtest-fsm-init/synth.ys": "7e3332e0957b7c6cd09741cc7374f1bb15d398f0e882d11807d4130c8be0f86e",
+    "out/ramtest-fsm-isolation/mistral/data/sx120f-p2r.txt": "d627a7cd77ce80b4a18ab8f9b1443f1cd8e38b59e811895e039e4d9833dada18",
+    "out/ramtest-fsm-isolation/mistral/libmistral/cv-rmux.cc": "ec663ca7153cb9ca5bbde8128a2e406445017b71700c3ae3cf139c5ab51666ee",
+    "out/ramtest-fsm-isolation/mistral/libmistral/cv-rnodetypes.ipp": "dbe5a1906837aca2d0f30dbb2feb49277f9fcb90d4fe0487c3154cebb5b80818",
+    "out/ramtest-fsm-isolation/nextpnr/mistral/lab.cc": "5b24bc4c553cb1e29daa838b47ab7547b6e3d7480548d80d0a2369af6284b89f",
+    "out/ramtest-placed-timeout/check_snapshots.py": "515f43f793b93f7eabe5b6fa162b5a67c774c9d9c2103672e107aec2eaa1ce29",
+    "out/ramtest-placed-timeout/payload.json": "74b9712ebcf19a5a51bd1f48210732054a2d29d7d5c406622e9d195893985713",
+    "out/ramtest-ready-cut/check_cut.py": "b0737c9f5934170304e4b53493a5a991cb2a6ba7975550fa7a2c700b94baf3ce",
+    "out/ramtest-ready-cut/cut-c2/ready.after.json": "87f4df3c415cbb01724481af73d7f3ced2eecda6a78ebd7aca0f8508576f476d",
+    "out/ramtest-ready-cut/cut-c2/ready.after.json.pins.tsv": "76dde456f5f36f04a38df4bc16036b39e33cdcc0f2fc082719865322e230bff1",
+    "out/ramtest-ready-timing/base-arch.h": "0120f3072a056d32067a170b2c7cf32ed8cc6ee0ae53bc6f000c2056a15f9f9a",
+    "out/ramtest-ready-timing/base-delay.cc": "9ca4a16d07d79273ba27d436ff86e5fce0788d3ac587bdae38e3aad2e23a9d0a",
+    "out/ramtest-ready-timing/check_trace.py": "ed8fc406ecbb405288173468463449599ef8af4b614e4d22ccb3459661f424b0",
+    "out/ramtest-ready-timing/test_check_trace.py": "c1912c6c931c062819cc33412280524ecf2a71be7d03d63e0baa2ae4e0c9ad1b",
+    "out/ramtest-ready-timing/trace-c2/command.after.json": "d2bc55ab55f9f27b6739023e2463e92c4cc8c64426e5521f474b0ea08e332bc0",
+    "out/ramtest-ready-timing/trace-c2/command.after.json.pins.tsv": "44fce5d5e7f9199f31da421b428784537ac7f3f3ab7707f9921152bae3a4b7a4",
+    "out/ramtest-ready-timing/trace-c2/command.before.json": "9d0ba9bfbf9f1e18e9d2b30668f31112aa2e4b18865f1cd0906f9265d1a31b1c",
+    "out/ramtest-ready-timing/trace-c2/command.before.json.pins.tsv": "76dde456f5f36f04a38df4bc16036b39e33cdcc0f2fc082719865322e230bff1",
+    "out/ramtest-ready-timing/trace-c2/core.rbf": "bb93787cfa86fbe690dc1588707c51af2c336eb0945c92fc3e8980d977dc1724",
+    "out/ramtest-ready-timing/trace-c2/ready-trace.arcs.tsv": "356fadb67699218cdb76ba53fe1431596194b24577b1832225ee7135a050014e",
+    "out/ramtest-ready-timing/trace-c2/ready-trace.hops.tsv": "a4c923d397e50a3bd11aa3176d4dcb005e760ff416b7d0e33864bc1a0cba9956",
+    "out/ramtest-ready-timing/trace-c2/ready-trace.observed.tsv": "f2d0d6a8471c65fda737565c8a3fb0d055ee6756926a94785930a842e9ed2b46",
+    "out/ramtest-ready-timing/trace-c2/ready-trace.state.json": "a40f522e6b4b489b2e6d4faaf0762a3ac0ba21c96645e72af9bef88a354b1790",
+    "out/ramtest-ready-timing/trace-c2/ready-trace.types.tsv": "dfb05f8849ba8070181cf376857b28044f8d16a382fecef8b7f3d13b1da9fa74",
+    "out/ramtest-ready-timing/trace-c2/ready.after.json": "9d0ba9bfbf9f1e18e9d2b30668f31112aa2e4b18865f1cd0906f9265d1a31b1c",
+    "out/ramtest-ready-timing/trace-c2/ready.after.json.pins.tsv": "76dde456f5f36f04a38df4bc16036b39e33cdcc0f2fc082719865322e230bff1",
+    "out/ramtest-ready-timing/trace-c2/ready.before.json": "8635582e7c02976c7878b6f3f1aeccdf6d81b6e33c31c674ce6de65557afc152",
+    "out/ramtest-ready-timing/trace-c2/ready.before.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "out/ramtest-ready-timing/trace-c2/refine.after.json": "8635582e7c02976c7878b6f3f1aeccdf6d81b6e33c31c674ce6de65557afc152",
+    "out/ramtest-ready-timing/trace-c2/refine.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "out/ramtest-ready-timing/trace-c2/refine.before.json": "5ab0b6e51cfe8bbfe803cc39ab0ed90bede86f8b44c660d9d7bac89dcb6bd678",
+    "out/ramtest-ready-timing/trace-c2/refine.before.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "out/ramtest-ready-timing/trace-c2/replication.after.json": "7311efb267af240cc9916c8d8ac7101d82d75f63bcbbbe2734697c14dc1ae8f3",
+    "out/ramtest-ready-timing/trace-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "out/ramtest-ready-timing/trace-c2/replication.before.json": "f9081e11e14b725dc594dd7d2e42a9cfdf8556b7f1a6437d0a09a5d3ce7eb568",
+    "out/ramtest-ready-timing/trace-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "out/ramtest-ready-timing/trace-c2/retained.after.json": "5ab0b6e51cfe8bbfe803cc39ab0ed90bede86f8b44c660d9d7bac89dcb6bd678",
+    "out/ramtest-ready-timing/trace-c2/retained.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "out/ramtest-ready-timing/trace-c2/retained.before.json": "abad2825b7e59f5e6782168fe2b0586e930c2b9d9a4a07dc17502f2559b5c7fb",
+    "out/ramtest-ready-timing/trace-c2/retained.before.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "out/ramtest-ready-timing/trace-c2/routed.json": "d01fd252b7878fb8570b8b27285a48753beab139282b7f8980ffd485903cf2f9",
+    "out/ramtest-ready-timing/trace-c2/timeout.after.json": "abad2825b7e59f5e6782168fe2b0586e930c2b9d9a4a07dc17502f2559b5c7fb",
+    "out/ramtest-ready-timing/trace-c2/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "out/ramtest-ready-timing/trace-c2/timeout.before.json": "7311efb267af240cc9916c8d8ac7101d82d75f63bcbbbe2734697c14dc1ae8f3",
+    "out/ramtest-ready-timing/trace-c2/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "out/ramtest-ready-timing/trace-c2/timing.json": "60f1a6ce8716cbbc7d852dcfef2ed90e728c5eeaa1cbc3c1c30f073c7aa04568",
+    "out/ramtest-retained-enable/check_retained.py": "2de7fb360831f2f5f182e1fc910fec2710cb41dfea1b5efe910dd1fd4f1a829c",
+    "out/ramtest-retained-enable/copy-c2/core.rbf": "bb1a7101f4c8f12fe4ea8c6201304dc2be319169274f5352e8020f14b6630daa",
+    "out/ramtest-retained-enable/copy-c2/replication.after.json": "2f330461a6cdb3df0cc8403e6961b51b6553a461693e89fbb121c9d0dceb200c",
+    "out/ramtest-retained-enable/copy-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "out/ramtest-retained-enable/copy-c2/replication.before.json": "333acabf367d9a60ef5de77b817c9efed307d8464392940236aee8c9fd3645e5",
+    "out/ramtest-retained-enable/copy-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "out/ramtest-retained-enable/copy-c2/retained.after.json": "76d798094f16890f6c4663ffdd8b2daf6c39c74ab85ef04e5d9e3c18d2dd74f7",
+    "out/ramtest-retained-enable/copy-c2/retained.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "out/ramtest-retained-enable/copy-c2/retained.before.json": "cff66b6f53de575f82b17ad05b0b0b98e61bcf61612ceb7823dc17eb8bfebffc",
+    "out/ramtest-retained-enable/copy-c2/retained.before.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "out/ramtest-retained-enable/copy-c2/routed.json": "7dde8a173d63c26cf271f7a5e40d621917401b8634a34b663cca3cef3a59bf22",
+    "out/ramtest-retained-enable/copy-c2/timeout.after.json": "cff66b6f53de575f82b17ad05b0b0b98e61bcf61612ceb7823dc17eb8bfebffc",
+    "out/ramtest-retained-enable/copy-c2/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "out/ramtest-retained-enable/copy-c2/timeout.before.json": "2f330461a6cdb3df0cc8403e6961b51b6553a461693e89fbb121c9d0dceb200c",
+    "out/ramtest-retained-enable/copy-c2/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "out/ramtest-retained-enable/copy-c2/timing.json": "4d2b563923baf0306666f1e69861b2a88ad309049b17591807c089b82aba6542",
+    "out/ramtest-timeout-partition/equivalence/result.json": "7ad4f926035b25b4cee7ee19fa985269a878299280427c1fca262bcf4028a8d4",
+    "out/ramtest-timeout-partition/rewrite.json": "27cccaacb3e1785c5301d034614277f9002da8193ac728cc8e49f4147db448cd",
+    "out/ramtest-timeout-partition/synth.json": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "out/ramtest-timeout-refine/check_refine.py": "244216debf72d0170980d80cb62e21ac3e6b204c163fd0682676fffb256d4a20",
+    "out/ramtest-timeout-refine/refine-c2/refine.after.json": "02445fe99773e73fac21cc030caf2cf61dd0f1a933d51d3f7e029df38b81a9b4",
+    "out/ramtest-timeout-refine/refine-c2/refine.after.json.pins.tsv": "cefadcdc6ce5d2971408b00436ff455a7dd45e83b9b38fef93596707bf1d79e9",
+    "out/ramtest-timeout-regions/check_regions.py": "cfab009bc09d7b4c72bf8c191de46dceee31b14cf47a00cdbb8ecefc5854771c",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-common/generated/fes_application.vh": "a248fcb9f641a63ca59aec74aa7c0df61183e0c2ad836001690561730990c57a",
+    "sources/misteross/cores/fes-common/generated/fes_computer.vh": "00bb0fee2d0b6d3b69c4370967fcc930812f52f10634e97f206307c28148a9a9",
+    "sources/misteross/cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+    "sources/misteross/cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+    "sources/misteross/cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+    "sources/misteross/cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+    "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+    "sources/misteross/cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb"
+  },
+  "fes_base": "323949ec2053b84dae954919efae0ff9d3f68046",
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_base": "d7a186c0fe68849a707ebd34ac42fc09e5e4643e",
+  "runs": {
+    "best-c2": {
+      "calibration_state": {
+        "analogue_cache_valid": true,
+        "arcs": 3,
+        "bitstream_configured": true,
+        "cache_unchanged": true,
+        "calibration_types": 256,
+        "calibration_unchanged": true,
+        "complete_paths": 3,
+        "context_checksum_unchanged": true,
+        "failed_jobs_may_contribute_partial_hops": true,
+        "failed_recomputations": 3,
+        "hops": 39,
+        "observations_completed_hops_only": true,
+        "observed_pips": 146023,
+        "pip_delay_calibrated": true,
+        "placements_unchanged": true,
+        "prior": 1.25,
+        "prior_bits": 1067450368,
+        "prior_hex": "0x1.4p+0",
+        "ready_nets": 3,
+        "routes_unchanged": true,
+        "wire_delays_zero_contract": true
+      },
+      "common_named_nets": 21761,
+      "common_named_routing_attributes_changed": 13287,
+      "configuration": "best-c2",
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.210999995470047,
+            "clk-to-q": 1.1770000457763672,
+            "logic": 0.800000011920929,
+            "routing": 6.5609999895095825,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 8.553000047802925,
+          "logic_arcs": 2,
+          "path": [
+            {
+              "delay": 0.210999995470047,
+              "from": {
+                "bel": "cyclonev_hps_interface_fpga2sdram.52.53.0",
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_port_clk_1"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.34.22.14",
+                "cell": "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_5",
+                "loc": [
+                  34,
+                  22
+                ],
+                "port": "CLK"
+              },
+              "type": "clk-skew"
+            },
+            {
+              "delay": 1.1770000457763672,
+              "from": {
+                "bel": "cyclonev_hps_interface_fpga2sdram.52.53.0",
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "to": {
+                "bel": "cyclonev_hps_interface_fpga2sdram.52.53.0",
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "type": "clk-to-q"
+            },
+            {
+              "delay": 3.6019999980926514,
+              "from": {
+                "bel": "cyclonev_hps_interface_fpga2sdram.52.53.0",
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "net": "hps_ddr.cmd_ready_1",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.30.26.48",
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  30,
+                  26
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "bel": "MISTRAL_COMB.30.26.48",
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  30,
+                  26
+                ],
+                "port": "A"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.30.26.48",
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  30,
+                  26
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.406999945640564,
+              "from": {
+                "bel": "MISTRAL_COMB.30.26.48",
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  30,
+                  26
+                ],
+                "port": "Q"
+              },
+              "net": "hps_ddr.port1.slot_free",
+              "sources": [
+                "cores/fes-common/rtl/fes_hps_ddr_guard.v:86.10-86.19"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.24.20.36",
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+                "loc": [
+                  24,
+                  20
+                ],
+                "port": "B"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "bel": "MISTRAL_COMB.24.20.36",
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+                "loc": [
+                  24,
+                  20
+                ],
+                "port": "B"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.24.20.36",
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+                "loc": [
+                  24,
+                  20
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.5520000457763672,
+              "from": {
+                "bel": "MISTRAL_COMB.24.20.36",
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+                "loc": [
+                  24,
+                  20
+                ],
+                "port": "Q"
+              },
+              "net": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B_Q",
+              "sources": [],
+              "to": {
+                "bel": "MISTRAL_FF.34.22.14",
+                "cell": "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_5",
+                "loc": [
+                  34,
+                  22
+                ],
+                "port": "ENA"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": -0.19599999487400055,
+              "from": {
+                "bel": "MISTRAL_FF.34.22.14",
+                "cell": "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_5",
+                "loc": [
+                  34,
+                  22
+                ],
+                "port": "ENA"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.34.22.14",
+                "cell": "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_5",
+                "loc": [
+                  34,
+                  22
+                ],
+                "port": "ENA"
+              },
+              "type": "setup"
+            }
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": 0.006000000052154064,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 3.453000068664551,
+            "routing": 9.00000011920929,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 12.994000199250877,
+          "logic_arcs": 7,
+          "path": [
+            {
+              "delay": 0.006000000052154064,
+              "from": {
+                "bel": "MISTRAL_FF.13.6.56",
+                "cell": "display.col_s_MISTRAL_FF_Q_5",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "CLK"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.15.3.58",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_1",
+                "loc": [
+                  15,
+                  3
+                ],
+                "port": "CLK"
+              },
+              "type": "clk-skew"
+            },
+            {
+              "delay": 0.7310000061988831,
+              "from": {
+                "bel": "MISTRAL_FF.13.6.56",
+                "cell": "display.col_s_MISTRAL_FF_Q_5",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.13.6.56",
+                "cell": "display.col_s_MISTRAL_FF_Q_5",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "type": "clk-to-q"
+            },
+            {
+              "delay": 0.5740000009536743,
+              "from": {
+                "bel": "MISTRAL_FF.13.6.56",
+                "cell": "display.col_s_MISTRAL_FF_Q_5",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "net": "display.col_s[5]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.13.6.42",
+                "cell": "display.s_pat_ok_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.6050000190734863,
+              "from": {
+                "bel": "MISTRAL_COMB.13.6.42",
+                "cell": "display.s_pat_ok_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "A"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.13.6.42",
+                "cell": "display.s_pat_ok_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.2860000133514404,
+              "from": {
+                "bel": "MISTRAL_COMB.13.6.42",
+                "cell": "display.s_pat_ok_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "net": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT3_C_B_MISTRAL_ALUT4_C_1_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_Q_E[2]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.12.13.43",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "loc": [
+                  12,
+                  13
+                ],
+                "port": "C"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "bel": "MISTRAL_COMB.12.13.43",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "loc": [
+                  12,
+                  13
+                ],
+                "port": "C"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.12.13.43",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "loc": [
+                  12,
+                  13
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.3860000371932983,
+              "from": {
+                "bel": "MISTRAL_COMB.12.13.43",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "loc": [
+                  12,
+                  13
+                ],
+                "port": "Q"
+              },
+              "net": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1_E[2]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.12.13.49",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  12,
+                  13
+                ],
+                "port": "C"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.5120000243186951,
+              "from": {
+                "bel": "MISTRAL_COMB.12.13.49",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  12,
+                  13
+                ],
+                "port": "C"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.12.13.49",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  12,
+                  13
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 2.0280001163482666,
+              "from": {
+                "bel": "MISTRAL_COMB.12.13.49",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT6_C_Q_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  12,
+                  13
+                ],
+                "port": "Q"
+              },
+              "net": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT3_C_Q[1]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.12.8.6",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT_ARITH_SO",
+                "loc": [
+                  12,
+                  8
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 1.3420000076293945,
+              "from": {
+                "bel": "MISTRAL_COMB.12.8.6",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT_ARITH_SO",
+                "loc": [
+                  12,
+                  8
+                ],
+                "port": "A"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.12.8.6",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT_ARITH_SO",
+                "loc": [
+                  12,
+                  8
+                ],
+                "port": "SO"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.7589999437332153,
+              "from": {
+                "bel": "MISTRAL_COMB.12.8.6",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT_ARITH_SO",
+                "loc": [
+                  12,
+                  8
+                ],
+                "port": "SO"
+              },
+              "net": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO[5]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.12.4.49",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_Q",
+                "loc": [
+                  12,
+                  4
+                ],
+                "port": "F"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "bel": "MISTRAL_COMB.12.4.49",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_Q",
+                "loc": [
+                  12,
+                  4
+                ],
+                "port": "F"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.12.4.49",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_Q",
+                "loc": [
+                  12,
+                  4
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1,
+              "from": {
+                "bel": "MISTRAL_COMB.12.4.49",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_Q",
+                "loc": [
+                  12,
+                  4
+                ],
+                "port": "Q"
+              },
+              "net": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO[3]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.17.4.43",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT_ARITH_SO_1_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_Q",
+                "loc": [
+                  17,
+                  4
+                ],
+                "port": "D"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "bel": "MISTRAL_COMB.17.4.43",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT_ARITH_SO_1_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_Q",
+                "loc": [
+                  17,
+                  4
+                ],
+                "port": "D"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.17.4.43",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT_ARITH_SO_1_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_Q",
+                "loc": [
+                  17,
+                  4
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0.9670000076293945,
+              "from": {
+                "bel": "MISTRAL_COMB.17.4.43",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT_ARITH_SO_1_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_Q",
+                "loc": [
+                  17,
+                  4
+                ],
+                "port": "Q"
+              },
+              "net": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT_ARITH_SO_1_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT6_F_Q[4]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_MCOMB.15.3.55",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT5_Q_3",
+                "loc": [
+                  15,
+                  3
+                ],
+                "port": "E"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "bel": "MISTRAL_MCOMB.15.3.55",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT5_Q_3",
+                "loc": [
+                  15,
+                  3
+                ],
+                "port": "E"
+              },
+              "to": {
+                "bel": "MISTRAL_MCOMB.15.3.55",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT5_Q_3",
+                "loc": [
+                  15,
+                  3
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0,
+              "from": {
+                "bel": "MISTRAL_MCOMB.15.3.55",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT5_Q_3",
+                "loc": [
+                  15,
+                  3
+                ],
+                "port": "Q"
+              },
+              "net": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q[2]",
+              "sources": [],
+              "to": {
+                "bel": "MISTRAL_FF.15.3.58",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_1",
+                "loc": [
+                  15,
+                  3
+                ],
+                "port": "DATAIN"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": -0.19599999487400055,
+              "from": {
+                "bel": "MISTRAL_FF.15.3.58",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_1",
+                "loc": [
+                  15,
+                  3
+                ],
+                "port": "DATAIN"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.15.3.58",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_1",
+                "loc": [
+                  15,
+                  3
+                ],
+                "port": "DATAIN"
+              },
+              "type": "setup"
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 580.2129375829827,
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 76.9585952758789,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 116.91803741455078,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "gin_observed_pips": 16219,
+      "gin_zero_observed_pips": 0,
+      "historical_fmax": {
+        "display.pixel_clk": {
+          "achieved": 76.9585952758789,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 118.56770324707031,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "input_sha256": {
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/core.rbf": "b477f3d50f1bb9355d5ca8d6564ac0a78ddc82f90e2b7e06ca0674d10957d173",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/ready-trace.observed.tsv": "76a063369398ee8f6772b361b2c87023b28136c8ac432b75e99e817bae2ad397",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/ready-trace.state.json": "40eb153ceed1369e37944d1dcbd0365b1c8d52a3affab3ea089a87e3bbaf6f69",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/result.json": "0071d19bd58b7ab5a5317d5b4a7e1a3f850bff142db737951bbf35e9181abb70",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/retained.after.json": "b0ab480de6466b2701d999c85c14b194eb02937894555cd7d3176d58f3d0ea08",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/routed.json": "8abacff0bbff422d1c18a8b55291fe5d0ce001cfd19a2216608bb2c88f919800",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/run.log": "a0c865d974d511ac7615c6425d163570e516a5bfe1feab6729c3b92ea51f4428",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/timing.json": "341becd14b93ea7ca0ab13e3d5465ecdebd52be765198c4da84d74f476082c41",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/trace-proof.json": "769e1c761b44d7bf3a6bfc5e304876d2717df08d9deeae6b90bef952500026f5",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/measure.py": "bec723a71eb5251c7706b51670abf89384fd1b756be2064ce7dc8e3c93610e22",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-retained-enable/copy-c2/core.rbf": "bb1a7101f4c8f12fe4ea8c6201304dc2be319169274f5352e8020f14b6630daa",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-retained-enable/copy-c2/routed.json": "7dde8a173d63c26cf271f7a5e40d621917401b8634a34b663cca3cef3a59bf22",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-retained-enable/copy-c2/timing.json": "4d2b563923baf0306666f1e69861b2a88ad309049b17591807c089b82aba6542"
+      },
+      "passed": true,
+      "postplacement_cells_preserved": 14927,
+      "rbf_bytes": 7007204,
+      "rbf_identical_to_historical": false,
+      "route_through_buffers_added": 5087,
+      "scope": "Fresh correction-only compiler rebaseline with identical pre-route mapping/placement. Calibration changes may alter both numerical delay and full routing; MHz differences are not isolated physical speedups.",
+      "trace": {
+        "arc_delays": [
+          {
+            "context_quad_ps": [
+              0,
+              3417,
+              0,
+              3417
+            ],
+            "context_scalar_ps": 3417,
+            "failure_hop": 0,
+            "failure_reason": "empty_input_wave",
+            "override_argument_quad_ps": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_fallback_quad_ps": [
+              2894,
+              3417,
+              2894,
+              3417
+            ],
+            "sink_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+            "sink_port": "A",
+            "source_port": "cmd_ready_0"
+          },
+          {
+            "context_quad_ps": [
+              0,
+              3602,
+              0,
+              3602
+            ],
+            "context_scalar_ps": 3602,
+            "failure_hop": 0,
+            "failure_reason": "empty_input_wave",
+            "override_argument_quad_ps": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_fallback_quad_ps": [
+              3022,
+              3602,
+              3022,
+              3602
+            ],
+            "sink_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+            "sink_port": "A",
+            "source_port": "cmd_ready_1"
+          },
+          {
+            "context_quad_ps": [
+              0,
+              3028,
+              0,
+              3028
+            ],
+            "context_scalar_ps": 3028,
+            "failure_hop": 0,
+            "failure_reason": "empty_input_wave",
+            "override_argument_quad_ps": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_fallback_quad_ps": [
+              2702,
+              3028,
+              2702,
+              3028
+            ],
+            "sink_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+            "sink_port": "A",
+            "source_port": "cmd_ready_2"
+          }
+        ],
+        "arcs_verified": 3,
+        "calibration_types_verified": 256,
+        "failed_cache_quad_seeds": [
+          {
+            "arc": 0,
+            "cached_quad": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "context_quad": [
+              0,
+              3417,
+              0,
+              3417
+            ],
+            "raw_fallback_quad": [
+              2894,
+              3417,
+              2894,
+              3417
+            ]
+          },
+          {
+            "arc": 1,
+            "cached_quad": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "context_quad": [
+              0,
+              3602,
+              0,
+              3602
+            ],
+            "raw_fallback_quad": [
+              3022,
+              3602,
+              3022,
+              3602
+            ]
+          },
+          {
+            "arc": 2,
+            "cached_quad": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "context_quad": [
+              0,
+              3028,
+              0,
+              3028
+            ],
+            "raw_fallback_quad": [
+              2702,
+              3028,
+              2702,
+              3028
+            ]
+          }
+        ],
+        "failed_recomputations": 3,
+        "fresh_observation_validity": {
+          "distinct_failed_ready_first_pips": 3,
+          "failed_ready_arcs_without_observation": 3,
+          "observations_from_failed_ready_sources": 0,
+          "other_zero_observations_preserved": 32586,
+          "scope": "Fresh-context current and previously used branches of the three failed HPS-ready sources have no learned pip entries. This does not clean an imported/stale map and does not prove all other zero entries invalid. Completed zero and valid-prefix behavior is covered by compiler tests."
+        },
+        "hops_verified": 39,
+        "incomplete_hops_with_observations": [],
+        "input_sha256": {
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/mistral/data/sx120f-p2r.txt": "d627a7cd77ce80b4a18ab8f9b1443f1cd8e38b59e811895e039e4d9833dada18",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/mistral/libmistral/cv-rmux.cc": "ec663ca7153cb9ca5bbde8128a2e406445017b71700c3ae3cf139c5ab51666ee",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/mistral/libmistral/cv-rnodetypes.ipp": "dbe5a1906837aca2d0f30dbb2feb49277f9fcb90d4fe0487c3154cebb5b80818",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/nextpnr/mistral/lab.cc": "5b24bc4c553cb1e29daa838b47ab7547b6e3d7480548d80d0a2369af6284b89f",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/ready-trace.arcs.tsv": "c9a6d152d7c6adcef586bb64f02fdcfbea4ee3d7c4a506d4f9b4ab46b6d90744",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/ready-trace.hops.tsv": "1ebf1b7ea138d30c308ab4a543a868149dc0d0aa94d73153d8df1f2912ca7333",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/ready-trace.observed.tsv": "76a063369398ee8f6772b361b2c87023b28136c8ac432b75e99e817bae2ad397",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/ready-trace.state.json": "40eb153ceed1369e37944d1dcbd0365b1c8d52a3affab3ea089a87e3bbaf6f69",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/ready-trace.types.tsv": "012923f2daba848a5780d1d881a5037fb5ae46b0d9ba6a318ac1f508ba253d3a",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/best-c2/routed.json": "8abacff0bbff422d1c18a8b55291fe5d0ce001cfd19a2216608bb2c88f919800",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/check_trace.py": "b37c03d6eaad73b9b20d26977b512ebffd9d7e72821a5b7de83effdec924ca9a",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-ready-timing/base-arch.h": "0120f3072a056d32067a170b2c7cf32ed8cc6ee0ae53bc6f000c2056a15f9f9a",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-ready-timing/base-delay.cc": "9ca4a16d07d79273ba27d436ff86e5fce0788d3ac587bdae38e3aad2e23a9d0a"
+        },
+        "observed_pips_verified": 146023,
+        "passed": true,
+        "scope": "Exact recorded route/pin mapping, complete calibration arithmetic, per-hop fallback provenance and Context scalar/quad sums. Read-only assertions are reviewed compiler checks; route/RBF identity is a separate full-flow check. A recorded failed zero hop can be traced to the unchanged merge logic, but this checker does not repair or validate the physical timing model."
+      },
+      "warnings": [
+        "Warning: Max frequency for clock 'ram_clock.clocks[0]': 116.92 MHz (FAIL at 130.01 MHz)"
+      ]
+    },
+    "command-c2": {
+      "calibration_state": {
+        "analogue_cache_valid": true,
+        "arcs": 5,
+        "bitstream_configured": true,
+        "cache_unchanged": true,
+        "calibration_types": 256,
+        "calibration_unchanged": true,
+        "complete_paths": 5,
+        "context_checksum_unchanged": true,
+        "failed_jobs_may_contribute_partial_hops": true,
+        "failed_recomputations": 5,
+        "hops": 79,
+        "observations_completed_hops_only": true,
+        "observed_pips": 146045,
+        "pip_delay_calibrated": true,
+        "placements_unchanged": true,
+        "prior": 1.25,
+        "prior_bits": 1067450368,
+        "prior_hex": "0x1.4p+0",
+        "ready_nets": 3,
+        "routes_unchanged": true,
+        "wire_delays_zero_contract": true
+      },
+      "common_named_nets": 21763,
+      "common_named_routing_attributes_changed": 13289,
+      "configuration": "command-c2",
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.006000000052154064,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.2030000388622284,
+            "routing": 7.051999986171722,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 8.796000036410987,
+          "logic_arcs": 5,
+          "path": [
+            {
+              "delay": 0.006000000052154064,
+              "from": {
+                "bel": "MISTRAL_FF.39.19.10",
+                "cell": "ddr2_test.idle_MISTRAL_FF_Q_20",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "CLK"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.10.36.44",
+                "cell": "ddr2_test.write_cycles_MISTRAL_FF_Q_30",
+                "loc": [
+                  10,
+                  36
+                ],
+                "port": "CLK"
+              },
+              "type": "clk-skew"
+            },
+            {
+              "delay": 0.7310000061988831,
+              "from": {
+                "bel": "MISTRAL_FF.39.19.10",
+                "cell": "ddr2_test.idle_MISTRAL_FF_Q_20",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "Q"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.39.19.10",
+                "cell": "ddr2_test.idle_MISTRAL_FF_Q_20",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "Q"
+              },
+              "type": "clk-to-q"
+            },
+            {
+              "delay": 1.3389999866485596,
+              "from": {
+                "bel": "MISTRAL_FF.39.19.10",
+                "cell": "ddr2_test.idle_MISTRAL_FF_Q_20",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "Q"
+              },
+              "net": "ddr2_test.idle[21]",
+              "sources": [
+                "cores/fes-ramtest/rtl/ddr_channel.v:148.16-148.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_MCOMB.39.19.36",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "C"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "bel": "MISTRAL_MCOMB.39.19.36",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "C"
+              },
+              "to": {
+                "bel": "MISTRAL_MCOMB.39.19.36",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0.10199999809265137,
+              "from": {
+                "bel": "MISTRAL_MCOMB.39.19.36",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "Q"
+              },
+              "net": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E[4]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_MCOMB.39.19.55",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "E"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "bel": "MISTRAL_MCOMB.39.19.55",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "E"
+              },
+              "to": {
+                "bel": "MISTRAL_MCOMB.39.19.55",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0.6489999890327454,
+              "from": {
+                "bel": "MISTRAL_MCOMB.39.19.55",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  39,
+                  19
+                ],
+                "port": "Q"
+              },
+              "net": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C[0]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_MCOMB.39.20.30",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+                "loc": [
+                  39,
+                  20
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.5120000243186951,
+              "from": {
+                "bel": "MISTRAL_MCOMB.39.20.30",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+                "loc": [
+                  39,
+                  20
+                ],
+                "port": "A"
+              },
+              "to": {
+                "bel": "MISTRAL_MCOMB.39.20.30",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+                "loc": [
+                  39,
+                  20
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.6979999542236328,
+              "from": {
+                "bel": "MISTRAL_MCOMB.39.20.30",
+                "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+                "loc": [
+                  39,
+                  20
+                ],
+                "port": "Q"
+              },
+              "net": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D[1]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.35.32.18",
+                "cell": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT5_Q",
+                "loc": [
+                  35,
+                  32
+                ],
+                "port": "E"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "bel": "MISTRAL_COMB.35.32.18",
+                "cell": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT5_Q",
+                "loc": [
+                  35,
+                  32
+                ],
+                "port": "E"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.35.32.18",
+                "cell": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT5_Q",
+                "loc": [
+                  35,
+                  32
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 2.1480000019073486,
+              "from": {
+                "bel": "MISTRAL_COMB.35.32.18",
+                "cell": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT5_Q",
+                "loc": [
+                  35,
+                  32
+                ],
+                "port": "Q"
+              },
+              "net": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN[1]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.7.37.36",
+                "cell": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT2_B",
+                "loc": [
+                  7,
+                  37
+                ],
+                "port": "B"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "bel": "MISTRAL_COMB.7.37.36",
+                "cell": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT2_B",
+                "loc": [
+                  7,
+                  37
+                ],
+                "port": "B"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.7.37.36",
+                "cell": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT2_B",
+                "loc": [
+                  7,
+                  37
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.1160000562667847,
+              "from": {
+                "bel": "MISTRAL_COMB.7.37.36",
+                "cell": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT2_B",
+                "loc": [
+                  7,
+                  37
+                ],
+                "port": "Q"
+              },
+              "net": "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT2_B_Q",
+              "sources": [],
+              "to": {
+                "bel": "MISTRAL_FF.10.36.44",
+                "cell": "ddr2_test.write_cycles_MISTRAL_FF_Q_30",
+                "loc": [
+                  10,
+                  36
+                ],
+                "port": "ENA"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": -0.19599999487400055,
+              "from": {
+                "bel": "MISTRAL_FF.10.36.44",
+                "cell": "ddr2_test.write_cycles_MISTRAL_FF_Q_30",
+                "loc": [
+                  10,
+                  36
+                ],
+                "port": "ENA"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.10.36.44",
+                "cell": "ddr2_test.write_cycles_MISTRAL_FF_Q_30",
+                "loc": [
+                  10,
+                  36
+                ],
+                "port": "ENA"
+              },
+              "type": "setup"
+            }
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.7200000882148743,
+            "routing": 9.098000019788742,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 12.353000119328499,
+          "logic_arcs": 8,
+          "path": [
+            {
+              "delay": 0.7310000061988831,
+              "from": {
+                "bel": "MISTRAL_FF.13.6.56",
+                "cell": "display.col_s_MISTRAL_FF_Q_5",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.13.6.56",
+                "cell": "display.col_s_MISTRAL_FF_Q_5",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "type": "clk-to-q"
+            },
+            {
+              "delay": 0.6029999852180481,
+              "from": {
+                "bel": "MISTRAL_FF.13.6.56",
+                "cell": "display.col_s_MISTRAL_FF_Q_5",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "net": "display.col_s[5]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.13.6.37",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_1_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_Q",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.6050000190734863,
+              "from": {
+                "bel": "MISTRAL_COMB.13.6.37",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_1_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_Q",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "A"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.13.6.37",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_1_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_Q",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.8020000457763672,
+              "from": {
+                "bel": "MISTRAL_COMB.13.6.37",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_1_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_Q",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "net": "display.q_reading_MISTRAL_ALUT5_A_1_Q_MISTRAL_ALUT4_Q_D[2]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.12.12.54",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q_1",
+                "loc": [
+                  12,
+                  12
+                ],
+                "port": "B"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "bel": "MISTRAL_COMB.12.12.54",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q_1",
+                "loc": [
+                  12,
+                  12
+                ],
+                "port": "B"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.12.12.54",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q_1",
+                "loc": [
+                  12,
+                  12
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.7860000133514404,
+              "from": {
+                "bel": "MISTRAL_COMB.12.12.54",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q_1",
+                "loc": [
+                  12,
+                  12
+                ],
+                "port": "Q"
+              },
+              "net": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q_F[3]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.12.12.37",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q",
+                "loc": [
+                  12,
+                  12
+                ],
+                "port": "D"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.5120000243186951,
+              "from": {
+                "bel": "MISTRAL_COMB.12.12.37",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q",
+                "loc": [
+                  12,
+                  12
+                ],
+                "port": "D"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.12.12.37",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q",
+                "loc": [
+                  12,
+                  12
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.6069999933242798,
+              "from": {
+                "bel": "MISTRAL_COMB.12.12.37",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT6_Q",
+                "loc": [
+                  12,
+                  12
+                ],
+                "port": "Q"
+              },
+              "net": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_Q_C[0]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.13.4.6",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F",
+                "loc": [
+                  13,
+                  4
+                ],
+                "port": "D"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.5120000243186951,
+              "from": {
+                "bel": "MISTRAL_COMB.13.4.6",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F",
+                "loc": [
+                  13,
+                  4
+                ],
+                "port": "D"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.13.4.6",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F",
+                "loc": [
+                  13,
+                  4
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0.10400000214576721,
+              "from": {
+                "bel": "MISTRAL_COMB.13.4.6",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F",
+                "loc": [
+                  13,
+                  4
+                ],
+                "port": "Q"
+              },
+              "net": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q[3]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.13.4.30",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D",
+                "loc": [
+                  13,
+                  4
+                ],
+                "port": "D"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "bel": "MISTRAL_COMB.13.4.30",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D",
+                "loc": [
+                  13,
+                  4
+                ],
+                "port": "D"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.13.4.30",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D",
+                "loc": [
+                  13,
+                  4
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.8980000019073486,
+              "from": {
+                "bel": "MISTRAL_COMB.13.4.30",
+                "cell": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D",
+                "loc": [
+                  13,
+                  4
+                ],
+                "port": "Q"
+              },
+              "net": "display.s_reading_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT3_Q_A_MISTRAL_ALUT5_B_C_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_D_Q[4]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.17.7.43",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  17,
+                  7
+                ],
+                "port": "E"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "bel": "MISTRAL_COMB.17.7.43",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  17,
+                  7
+                ],
+                "port": "E"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.17.7.43",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  17,
+                  7
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0.6850000023841858,
+              "from": {
+                "bel": "MISTRAL_COMB.17.7.43",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  17,
+                  7
+                ],
+                "port": "Q"
+              },
+              "net": "display.q_reading_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_F_Q[5]",
+              "sources": [
+                "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "bel": "MISTRAL_COMB.17.6.7",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  17,
+                  6
+                ],
+                "port": "F"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "bel": "MISTRAL_COMB.17.6.7",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  17,
+                  6
+                ],
+                "port": "F"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.17.6.7",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  17,
+                  6
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0.6129999756813049,
+              "from": {
+                "bel": "MISTRAL_COMB.17.6.7",
+                "cell": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q",
+                "loc": [
+                  17,
+                  6
+                ],
+                "port": "Q"
+              },
+              "net": "display.q_reading_MISTRAL_ALUT5_A_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT4_D_Q[1]",
+              "sources": [],
+              "to": {
+                "bel": "MISTRAL_COMB.13.6.1",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4$ROUTETHRU",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "bel": "MISTRAL_COMB.13.6.1",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4$ROUTETHRU",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "A"
+              },
+              "to": {
+                "bel": "MISTRAL_COMB.13.6.1",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4$ROUTETHRU",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0,
+              "from": {
+                "bel": "MISTRAL_COMB.13.6.1",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4$ROUTETHRU",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "Q"
+              },
+              "net": "display.ddr_ch_t_MISTRAL_FF_Q_4$ROUTETHRU$conn$Q",
+              "sources": [],
+              "to": {
+                "bel": "MISTRAL_FF.13.6.4",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "DATAIN"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": -0.19599999487400055,
+              "from": {
+                "bel": "MISTRAL_FF.13.6.4",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "DATAIN"
+              },
+              "to": {
+                "bel": "MISTRAL_FF.13.6.4",
+                "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4",
+                "loc": [
+                  13,
+                  6
+                ],
+                "port": "DATAIN"
+              },
+              "type": "setup"
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 605.6259091489483,
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 80.95199584960938,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 113.68804931640625,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "gin_observed_pips": 16142,
+      "gin_zero_observed_pips": 0,
+      "historical_fmax": {
+        "display.pixel_clk": {
+          "achieved": 80.95199584960938,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 115.0218505859375,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "input_sha256": {
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/command.after.json": "ead8785f172b448dc27d8926d60dd69aec0beea1067fa1b2e0297d2791aa59ef",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/core.rbf": "11093d0819dc13ba1709f874cbea4b8a5f4240a410cefaf83dae2777267561b4",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/ready-trace.observed.tsv": "60c327b20364b1bb83107ae7e730bf164ec212b538b9b2ec4a522bac5d49477d",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/ready-trace.state.json": "3a46c9335dcc403df161c94369f291d8e92b9ff0474041697c9bd113f8929022",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/result.json": "9a5ce40293ce2e915cbc0ae732e34f6845e19255c265b859fe42470123f61a84",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/routed.json": "918ebd2642f46cccd3aa9eb929e4ef54f0dc1a6a4a6184d14245a141c2751acb",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/run.log": "0c23c7cd1b7b2e50ed19944795c2573a7b80fb632d98250e70179b3521352ab8",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/timing.json": "8ec6796550e6fdf1afde5fbc5d119be3e72b8726536541409dcdb4caeebefe83",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/trace-proof.json": "a2e5d1913624fcf9a77f0bb71b8b71c4e271d45102733d54b35b1679b0a59ae7",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/measure.py": "bec723a71eb5251c7706b51670abf89384fd1b756be2064ce7dc8e3c93610e22",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-ready-timing/trace-c2/core.rbf": "bb93787cfa86fbe690dc1588707c51af2c336eb0945c92fc3e8980d977dc1724",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-ready-timing/trace-c2/routed.json": "d01fd252b7878fb8570b8b27285a48753beab139282b7f8980ffd485903cf2f9",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-ready-timing/trace-c2/timing.json": "60f1a6ce8716cbbc7d852dcfef2ed90e728c5eeaa1cbc3c1c30f073c7aa04568"
+      },
+      "passed": true,
+      "postplacement_cells_preserved": 14928,
+      "rbf_bytes": 7007204,
+      "rbf_identical_to_historical": false,
+      "route_through_buffers_added": 5088,
+      "scope": "Fresh correction-only compiler rebaseline with identical pre-route mapping/placement. Calibration changes may alter both numerical delay and full routing; MHz differences are not isolated physical speedups.",
+      "trace": {
+        "arc_delays": [
+          {
+            "context_quad_ps": [
+              0,
+              3516,
+              0,
+              3516
+            ],
+            "context_scalar_ps": 3516,
+            "failure_hop": 0,
+            "failure_reason": "empty_input_wave",
+            "override_argument_quad_ps": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_fallback_quad_ps": [
+              2966,
+              3516,
+              2966,
+              3516
+            ],
+            "sink_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+            "sink_port": "A",
+            "source_port": "cmd_ready_0"
+          },
+          {
+            "context_quad_ps": [
+              0,
+              4609,
+              0,
+              4609
+            ],
+            "context_scalar_ps": 4609,
+            "failure_hop": 0,
+            "failure_reason": "empty_input_wave",
+            "override_argument_quad_ps": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_fallback_quad_ps": [
+              3838,
+              4609,
+              3838,
+              4609
+            ],
+            "sink_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+            "sink_port": "A",
+            "source_port": "cmd_ready_1"
+          },
+          {
+            "context_quad_ps": [
+              0,
+              5606,
+              0,
+              5606
+            ],
+            "context_scalar_ps": 5606,
+            "failure_hop": 0,
+            "failure_reason": "empty_input_wave",
+            "override_argument_quad_ps": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_fallback_quad_ps": [
+              4683,
+              5606,
+              4683,
+              5606
+            ],
+            "sink_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+            "sink_port": "E",
+            "source_port": "cmd_ready_1"
+          },
+          {
+            "context_quad_ps": [
+              0,
+              5081,
+              0,
+              5081
+            ],
+            "context_scalar_ps": 5081,
+            "failure_hop": 0,
+            "failure_reason": "empty_input_wave",
+            "override_argument_quad_ps": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_fallback_quad_ps": [
+              4168,
+              5081,
+              4168,
+              5081
+            ],
+            "sink_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT4_C",
+            "sink_port": "B",
+            "source_port": "cmd_ready_1"
+          },
+          {
+            "context_quad_ps": [
+              0,
+              3129,
+              0,
+              3129
+            ],
+            "context_scalar_ps": 3129,
+            "failure_hop": 0,
+            "failure_reason": "empty_input_wave",
+            "override_argument_quad_ps": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_fallback_quad_ps": [
+              2775,
+              3129,
+              2775,
+              3129
+            ],
+            "sink_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+            "sink_port": "A",
+            "source_port": "cmd_ready_2"
+          }
+        ],
+        "arcs_verified": 5,
+        "calibration_types_verified": 256,
+        "failed_cache_quad_seeds": [
+          {
+            "arc": 0,
+            "cached_quad": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "context_quad": [
+              0,
+              3516,
+              0,
+              3516
+            ],
+            "raw_fallback_quad": [
+              2966,
+              3516,
+              2966,
+              3516
+            ]
+          },
+          {
+            "arc": 1,
+            "cached_quad": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "context_quad": [
+              0,
+              4609,
+              0,
+              4609
+            ],
+            "raw_fallback_quad": [
+              3838,
+              4609,
+              3838,
+              4609
+            ]
+          },
+          {
+            "arc": 2,
+            "cached_quad": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "context_quad": [
+              0,
+              5606,
+              0,
+              5606
+            ],
+            "raw_fallback_quad": [
+              4683,
+              5606,
+              4683,
+              5606
+            ]
+          },
+          {
+            "arc": 3,
+            "cached_quad": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "context_quad": [
+              0,
+              5081,
+              0,
+              5081
+            ],
+            "raw_fallback_quad": [
+              4168,
+              5081,
+              4168,
+              5081
+            ]
+          },
+          {
+            "arc": 4,
+            "cached_quad": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "context_quad": [
+              0,
+              3129,
+              0,
+              3129
+            ],
+            "raw_fallback_quad": [
+              2775,
+              3129,
+              2775,
+              3129
+            ]
+          }
+        ],
+        "failed_recomputations": 5,
+        "fresh_observation_validity": {
+          "distinct_failed_ready_first_pips": 3,
+          "failed_ready_arcs_without_observation": 5,
+          "observations_from_failed_ready_sources": 0,
+          "other_zero_observations_preserved": 32629,
+          "scope": "Fresh-context current and previously used branches of the three failed HPS-ready sources have no learned pip entries. This does not clean an imported/stale map and does not prove all other zero entries invalid. Completed zero and valid-prefix behavior is covered by compiler tests."
+        },
+        "hops_verified": 79,
+        "incomplete_hops_with_observations": [],
+        "input_sha256": {
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/mistral/data/sx120f-p2r.txt": "d627a7cd77ce80b4a18ab8f9b1443f1cd8e38b59e811895e039e4d9833dada18",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/mistral/libmistral/cv-rmux.cc": "ec663ca7153cb9ca5bbde8128a2e406445017b71700c3ae3cf139c5ab51666ee",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/mistral/libmistral/cv-rnodetypes.ipp": "dbe5a1906837aca2d0f30dbb2feb49277f9fcb90d4fe0487c3154cebb5b80818",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/nextpnr/mistral/lab.cc": "5b24bc4c553cb1e29daa838b47ab7547b6e3d7480548d80d0a2369af6284b89f",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/check_trace.py": "b37c03d6eaad73b9b20d26977b512ebffd9d7e72821a5b7de83effdec924ca9a",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/ready-trace.arcs.tsv": "e3c264add925719191f3c1dd1c8ccd50289f6403b86f515cafac0dd32603b017",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/ready-trace.hops.tsv": "5b4d474aa295155fcb6ae250962dfebc60fbf1427f9453ed8dce682ec66f0644",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/ready-trace.observed.tsv": "60c327b20364b1bb83107ae7e730bf164ec212b538b9b2ec4a522bac5d49477d",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/ready-trace.state.json": "3a46c9335dcc403df161c94369f291d8e92b9ff0474041697c9bd113f8929022",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/ready-trace.types.tsv": "e375d788fee0eb7d7487405016f9dfe8bccabdd9fdae7293e50f1a9705e5ad66",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-observation-validity/command-c2/routed.json": "918ebd2642f46cccd3aa9eb929e4ef54f0dc1a6a4a6184d14245a141c2751acb",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-ready-timing/base-arch.h": "0120f3072a056d32067a170b2c7cf32ed8cc6ee0ae53bc6f000c2056a15f9f9a",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-ready-timing/base-delay.cc": "9ca4a16d07d79273ba27d436ff86e5fce0788d3ac587bdae38e3aad2e23a9d0a"
+        },
+        "observed_pips_verified": 146045,
+        "passed": true,
+        "scope": "Exact recorded route/pin mapping, complete calibration arithmetic, per-hop fallback provenance and Context scalar/quad sums. Read-only assertions are reviewed compiler checks; route/RBF identity is a separate full-flow check. A recorded failed zero hop can be traced to the unchanged merge logic, but this checker does not repair or validate the physical timing model."
+      },
+      "warnings": [
+        "Warning: Max frequency for clock 'ram_clock.clocks[0]': 113.69 MHz (FAIL at 130.01 MHz)"
+      ]
+    }
+  },
+  "scope": {
+    "classification": "host-only; no RTL/recipe/lock/contracts or hardware change",
+    "compiler_base": "d7a186c0fe68849a707ebd34ac42fc09e5e4643e",
+    "fes_base": "323949ec2053b84dae954919efae0ff9d3f68046",
+    "scope": "Record only completed analogue-hop observations. Preserve valid zero-delay hops and completed prefixes of failed arcs. Do not change cached-override semantics or candidate search. Qualify command-cut and retained-best mappings separately from historical model."
+  },
+  "source_verification": {
+    "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+    "oss_revision": "5c15931aae47494a89b2a5a3cf673bc9f2f09a4a",
+    "rtl_sha256": {
+      "cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+      "cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+      "cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+      "cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+      "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+      "cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+      "cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+      "cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+      "cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+      "cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+      "cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+      "cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+      "cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb"
+    }
+  },
+  "tests": {
+    "behavioral_red_failures": 3,
+    "build_log": "build-green.log",
+    "ctest_targets_passed": 1,
+    "ctest_test_cases_passed": 32,
+    "ctest_test_cases_skipped": 1,
+    "ctest_test_cases_total": 33,
+    "default_controls": [
+      "absent",
+      "empty"
+    ],
+    "evidence_sha256": {
+      "backend-green.log": "90e3061cbd6edc2d718c500e9649769dfe7c146c1fe2ec0faefac896a79f955b",
+      "backend-red.log": "0a623895850d0e4b362693ccc155d9cfbbd695e3e2791da3c3e23323702a1a01",
+      "build-circuit-control.log": "0ce415d02302126af028f0e3d0645bed0e941c6df2f94e2c72f27fa87e5b67b3",
+      "build-green.log": "fff34128020b396583c5c14f9c4935292f4cf5986e5601800a538655aa0d0dfd",
+      "build-red.log": "e02ea8933d80de0762fbcb9db0fc7ac52f646db9ff4fa55727845ce26754824c",
+      "circuit-control.log": "65937d336a8164f157e9e94af6d653b3168b09b85b68d6bde87906470e7771ec",
+      "ctest-detail.log": "688accce2a795392edbec170ac6a30b90cab527eb5f0fe2e258b357e998831fb",
+      "ctest.log": "6f13f9f620c462ddf91bb7897f68e37383d6531b7f810434b62ad1c7e7446042",
+      "default-checks/proof.json": "a94d6d77545cedf4ff0e70a4b0800256ca7bf3f718e27f076c23c4822ba2ba45"
+    },
+    "fixture_scope": "Real HPS first-hop collector failure; synthetic completed generated/NO_DELAY/P2P zero prefixes before failure; repeated max and unique calibration aggregation; real configured LAB circuit with exact parent quad 60/63/79/83 ps. Optional full-design import fixture skipped. No full route run by compiler agent.",
+    "focused_test_cases_passed": 6,
+    "pre_fix_positive_circuit_control_passed": true
+  },
+  "validation": {
+    "classification": "host-only; no hardware acceptance",
+    "compiled_commit": "cfa17a490df916ab64579d630070d328da189e06",
+    "compiler_source_clean_and_production_bytes_match_frozen_build": true,
+    "deterministic_regeneration": [
+      "command-c2/refine-proof.json",
+      "command-c2/trace-proof.json",
+      "command-c2/baseline-proof.json",
+      "command-c2/ready-proof.json",
+      "command-c2/command-proof.json",
+      "command-c2/retained-proof.json",
+      "command-c2/snapshot-proof.json",
+      "command-c2/region-proof.json",
+      "command-c2/measurements.json",
+      "best-c2/trace-proof.json",
+      "best-c2/baseline-proof.json",
+      "best-c2/retained-proof.json",
+      "best-c2/snapshot-proof.json",
+      "best-c2/region-proof.json",
+      "best-c2/measurements.json"
+    ],
+    "nested_input_hash_checks": 236,
+    "passed": true
+  }
+}
