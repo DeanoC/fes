@@ -457,6 +457,12 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				interface.minor == FesSimpleComputerInterfaceMediaBlobStreamMinor)
 				capabilities = static_cast<std::uint16_t>(capabilities |
 					FesSimpleComputerCapabilityMediaBlobStream);
+			else if (interface.id == FesSimpleComputerInterfaceAudioPcmS16Stereo48kID &&
+				interface.required &&
+				interface.major == FesSimpleComputerInterfaceAudioPcmS16Stereo48kMajor &&
+				interface.minor == FesSimpleComputerInterfaceAudioPcmS16Stereo48kMinor)
+				capabilities = static_cast<std::uint16_t>(capabilities |
+					FesSimpleComputerCapabilityAudioPcmS16Stereo48k);
 			continue;
 		}
 		if (interface.id == FesGpInterfaceGamepadID)
@@ -484,10 +490,17 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				FesApplicationCapabilityMediaBlobStream | FesApplicationCapabilityAudioPcmS16Stereo48k |
 				FesApplicationCapabilityGamepadPorts | FesApplicationCapabilityKeypadPorts |
 				FesApplicationCapabilityMemoryHpsDdr | FesApplicationCapabilityVideoMenuDisplay;
+			const std::uint16_t simple_computer_mask = FesSimpleComputerCapabilityKeyboard |
+				FesSimpleComputerCapabilityVideoFixed720p60 |
+				FesSimpleComputerCapabilityMediaBlob |
+				FesSimpleComputerCapabilityMediaBlobStream |
+				FesSimpleComputerCapabilityAudioPcmS16Stereo48k;
 			// Registered application and computer bits must equal the declared set.
 			if ((application && (observed[index] & application_mask) != expected[index]) ||
 				(home && (observed[index] & kComputerCapabilityMask) != expected[index]) ||
-				(!application && !home && (observed[index] & expected[index]) != expected[index]))
+				(computer && (observed[index] & simple_computer_mask) != expected[index]) ||
+				(!application && !home && !computer &&
+					(observed[index] & expected[index]) != expected[index]))
 				return Mismatch("live FES GP capabilities do not match package interfaces",
 					"capabilities=" + std::to_string(expected[index]),
 					"capabilities=" + std::to_string(observed[index]));

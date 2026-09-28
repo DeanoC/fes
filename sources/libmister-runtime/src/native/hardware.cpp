@@ -582,6 +582,9 @@ Capabilities NativeHardware::capabilities() const
 		computer.minor = generated::FesSimpleComputerABIMinor;
 		computer.interfaces = {
 			{"fes.expansion.zx81-bus", 1, 0},
+			{generated::FesSimpleComputerInterfaceAudioPcmS16Stereo48kID,
+				generated::FesSimpleComputerInterfaceAudioPcmS16Stereo48kMajor,
+				generated::FesSimpleComputerInterfaceAudioPcmS16Stereo48kMinor},
 			{generated::FesSimpleComputerInterfaceKeyboardID,
 				generated::FesSimpleComputerInterfaceKeyboardMajor,
 				generated::FesSimpleComputerInterfaceKeyboardMinor},
@@ -1032,8 +1035,11 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		const std::string& abi = admitted->opened_.descriptor.abi.id;
 		const char* const audio_id = abi == generated::FesComputerABIID ?
 			generated::FesComputerInterfaceAudioPcmS16Stereo48kID :
+			abi == generated::FesSimpleComputerABIID ?
+			generated::FesSimpleComputerInterfaceAudioPcmS16Stereo48kID :
 			generated::FesApplicationInterfaceAudioPcmS16Stereo48kID;
-		if (abi == generated::FesApplicationABIID || abi == generated::FesComputerABIID)
+		if (abi == generated::FesApplicationABIID || abi == generated::FesComputerABIID ||
+			abi == generated::FesSimpleComputerABIID)
 			for (const auto& interface : admitted->opened_.descriptor.interfaces)
 				if (interface.id == audio_id &&
 					interface.required && interface.major == 1 && interface.minor == 0)
