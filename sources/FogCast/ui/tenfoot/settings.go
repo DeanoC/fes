@@ -273,8 +273,14 @@ func formatSettingsRegions(selected []string, cursor int) string {
 	return strings.Join(parts, "  ")
 }
 
+// settingsBlockedLocked is the silent refuse used by the settings key.
+// A room action entry uses the same conditions but must say so.
+func (a *App) settingsBlockedLocked() bool {
+	return a.gpuParked || a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" || a.developmentLoadingLocked()
+}
+
 func (a *App) openSettingsLocked() {
-	if a.gpuParked || a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" || a.developmentLoadingLocked() {
+	if a.settingsBlockedLocked() {
 		return
 	}
 	a.searchOpen = false

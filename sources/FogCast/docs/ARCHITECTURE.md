@@ -95,7 +95,18 @@ each games read builds the placement ask from the node inventory
 DisplaySink, and InputSource per advertisement. An `fpga_native` row
 carries the `abis` from that node's `GET /v1/mesh/content/node`, read
 with the agent token of the enabled configured target whose
-`target_id` is that node id (`kitcontent.ReadNode`). The document must
+`target_id` is that node id (`kitcontent.ReadNode`). The read dials one
+endpoint: the node's discovered inventory address when the current
+browse window saw that node at exactly one origin; otherwise the origin
+the kit's target client verified and adopted (`AdoptEndpoint`) when it
+differs from the configured address; otherwise the configured address.
+A node id that discovery saw at more than one address is ambiguous
+(`address_conflict` on its inventory row, with no `address`); the read
+then uses the adopted or configured endpoint and sends the agent token
+to neither advertised contender. Rows kept from an earlier window after
+a browse error are not a current address, so an adopted endpoint wins
+over them. The read does not rewrite the configured target, the config
+file, or the target client. The document must
 name the same node id. A failed read, another node id, a disabled
 target, and a node this host has not configured give no `abis`, which
 is not eligibility. A read is reused for ten seconds, a failure is
@@ -150,10 +161,30 @@ replaced client or a changed address or TargetID. When Ensure needs to
 dial a content executor, it uses the verified endpoint adopted by the
 claimed client. A lease this launch claimed is released when execution
 does not start and no other in-flight launch still holds it. A launch
-that starts execution keeps the grant and the new session bind. A launch
+that starts execution keeps the grant and the new session bind. It then
+releases the grant the session still held on the kit the rebind left:
+after the new bind has started execution and claim cleanup has run,
+`LaunchOn` posts `POST /v1/kit/release` with that grant on the left
+kit's client (`releaseLeftPlacementLease`), never an idle Stop, which
+would reprogram a menu kit. The release runs synchronously before
+`LaunchOn` returns, with no Service lock held and its own 5-second
+deadline, independent of the caller's context. It is skipped when the
+session is back on the left kit, when the left kit is the same client,
+grant, or kit (node id or TargetID) as the new bind, when the session
+does not hold a grant there, when that kit still has a live play, and
+when another launch holds or is releasing that grant; a skipped
+release leaves the grant as it was. A kit answer that the grant is
+already gone (404, 409, or `KIT_LEASE_REQUIRED`) counts as released
+and forgets the local grant. Any other failure is logged (target name
+and node id, never the token) and does not undo the rebind or change
+the launch result. The grant stays with the client, which resumes
+renewing it while the lease is open, and is kept in the stopped-lease
+list so a later explicit Stop retries the release. When the left kit
+is unreachable, renewal fails, the client drops the grant, and the
+kit's lease ends by its TTL (90 seconds in production). A launch
 that does not start execution restores the previous selected target,
 mesh bind, and origin hook, unless a later launch has already moved that
-field. A failed launch does not release a grant another launch adopted. A release
+field, and leaves the previous kit's lease untouched. A failed launch does not release a grant another launch adopted. A release
 that fails leaves the claim unsettled so it can be retried. A grant
 the session already held stays held. Ensure runs on that executor only when
 `[mesh] ensure` is already on. An unset key or `ensure = false`
@@ -396,7 +427,11 @@ profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
 evidence, including a failed menu, so physical idle can still be confirmed for
-appliance maintenance.
+appliance maintenance. `underflows` on that object and on a frame completion
+is the runtime's per-present delta. The kit painter and the Linux menu
+client accept a delta of at most one 720p scanline and refuse a larger one.
+The runtime and this agent must ship in the same image because decoding is
+strict; capability-gated emission and tolerant decoding are not implemented.
 `load_core` carries a rooted staged directory and package ID. The target retains
 active and in-flight `Staged` ownership, reconciles a lost mutation reply by
 observing identity plus a new generation, and retries failed cleanup only at a
@@ -629,6 +664,33 @@ watcher cannot run back-to-back.
 The kit reconnects with the existing `launcher.json` API URL on that launcher
 listener. See [the host connection contract](launcher-host.md).
 
+The launcher listener serves one or more paired kits. `launcher-host.json`
+holds either the single-kit `token`/`target_id` pair or a `pairings` list of
+them (the single pair, when present, counts as the first pairing). Each
+request's bearer is matched in constant time against every pairing token,
+and `X-FogCast-Target-ID` must be that token's kit. A bearer identifies
+exactly one kit: startup refuses a configuration in which one token is
+paired with more than one `target_id` (the error names the fix, mint a
+per-kit bearer), so multi-kit use requires a separate bearer per kit. A
+launcher bearer must also differ from the host-to-agent token of every
+target in `config.toml`, enabled or not, not only the selected one. The
+single-kit form (one top-level token for one target) is unchanged.
+
+The host still has one foreground session. Catalogue, platform, health,
+attract, artwork, presentation, and cache reads are served to every enabled
+paired kit, whether or not it is the selected target. A kit-menu launch
+(`POST /api/v1/session/launch`) sets `target` to the requesting kit, so it
+launches on that kit and bypasses mesh placement. While another kit has a
+play, that launch returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt,
+stop, or rebind the other play; relaunching on the same kit is unchanged.
+`GET /api/v1/session` returns the foreground session only to the kit that
+owns it; every other enabled paired kit gets its own idle or active view,
+which does not touch the foreground session. Stop, `GET /api/v1/status`,
+session input, and launcher input are owner-only; another paired kit gets
+403 `TARGET_MISMATCH`. Per-kit concurrent sessions are follow-up #288.
+Health, `rom_cached`, and `/api/v1/library/cache` still describe the
+selected target (#289).
+
 ## Native 10-foot launcher
 
 The embedded **ZX81 workbench** (`example.hardware`) reads host-owned hardware
@@ -680,7 +742,7 @@ Native SDL3 UI
   -> POST /api/v1/session/development-rbf (raw octet-stream from a local path OSK)
   -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome; additive flight_id)
   -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id plus host/client clocks)
-  -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps; not a kit mutation)
+  -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps, plus launcher-action rejection and home-room fallback; not a kit mutation)
   -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
   -> POST /api/v1/session/stop (empty body releases the kit lease; optional client stamp JSON; retain_lease true keeps it; release_idle drops idle grants without stopping a surviving play; X-FogCast-Client-* headers)
   -> GET /api/v1/health (poll; kit chrome)
@@ -705,13 +767,16 @@ Invalid client clocks are ignored and do not fail the mutation. The current
 `flight_id` is also additive on `GET /api/v1/session` and on launch/stop
 responses. Focus and nav stamps, plus a copy of launch/stop actions, go to
 `POST /api/v1/debug/ui-events` (`layer=ui`, kinds `ui.launch` / `ui.stop` /
-`ui.focus` / `ui.nav`); fog-flight joins those rows to host and target events
+`ui.focus` / `ui.nav` / `ui.launcher_action` / `ui.home_room_fallback`); fog-flight joins those rows to host and target events
 by `flight_id` when it is present. Token-like detail keys are dropped.
+`ui.home_room_fallback` carries `room` and `reason` for a `home_room` that
+could not be opened. `ui.launcher_action` records an id the allowlist
+rejected. Neither is a kit mutation.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, reduced motion, the look name, the optional debug HUD, and Home
-(`home` start screen plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` and optional `tenfoot.json` prefs). The Home overlay lists pinned rooms, recently played games, installed rooms, and the library. There is no host
+(`home` start screen, optional `home_room` id, plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
+`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
@@ -1090,7 +1155,13 @@ strawman leaves the seconds unsigned. Parsed TTL silence is absence for a
 future placement choice only and does not release the kit lease. Phase 0
 announcements that omit `mesh` stay directly bindable. The host collects those
 announcements into an in-memory node inventory (`node_id`, mesh version, and
-the `cap` bag) and serves it at `GET /api/v1/mesh/nodes`. The inventory does
+the `cap` bag) and serves it at `GET /api/v1/mesh/nodes`. The inventory has
+one row per node id. Instances of one node at one address (the same kit
+seen on two host interfaces) are one row; when the browse window's
+instances of a node id name more than one address, the row carries
+`address_conflict: true` and no `address`, and uniqueness is checked on
+every instance before the rows are collapsed. A browse error keeps the
+previous rows. The inventory does
 not adopt an endpoint, claim a lease, or make a title Ready. A later browse
 that no longer sees a node, including a node that omitted `ttl`, drops that
 row only. A mesh major other than 1 does not remove that direct bind; a
@@ -1269,9 +1340,12 @@ lists when the read fails. An empty ABI list
 is not eligibility. A nil content source advertises nothing. When the
 source is the launcher credential, the kit sends its own target id on
 `GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`.
-The host admits those two GETs for any enabled configured kit. They do
-not require that kit to be the listener's paired identity or the
-foreground selected target. Other launcher operations still require both.
+The host admits those two GETs for any enabled configured kit that
+presents a valid launcher bearer. They do not require that kit to be
+paired to the presented bearer or to be the foreground selected target.
+Other launcher operations require the requesting kit to be the bearer's
+paired kit; session ownership, not selection, then gates stop, status,
+and input (see the kit-only host description above).
 A pull still caps each write at `min(quota-used, free-reserve)`, re-reads free
 space while copying, and counts `partial/` bytes toward the 2 GiB
 quota. A failed dial leaves the host seam off, so Phase 0 and Phase 1

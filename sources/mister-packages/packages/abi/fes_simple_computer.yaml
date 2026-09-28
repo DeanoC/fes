@@ -172,3 +172,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 3
+  - id: fes.audio.pcm-s16-stereo-48k
+    major: 1
+    minor: 0
+    capability_bit: 4

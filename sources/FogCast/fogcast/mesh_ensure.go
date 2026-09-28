@@ -185,8 +185,10 @@ type launchSnapshot struct {
 	// when this launch did not claim one.
 	placementClaimSettled *bool
 	// placementKept is set when execution starts. LaunchOn restores
-	// the previous session when it stays false. Nil when this launch
-	// did not rebind the session.
+	// the previous session when it stays false and leaves that kit's
+	// lease untouched. When it is set, LaunchOn releases the lease the
+	// session held on the kit the rebind left (#281). Nil when this
+	// launch did not rebind the session.
 	placementKept *bool
 	// placementUndo is the session state from before this rebind.
 	// LaunchOn applies it when execution does not start.

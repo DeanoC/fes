@@ -46,8 +46,10 @@ SHARED_RTL = {
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu'),
     'fes_video_720p.v': ('demo', 'pong'),
-    'fes_audio_i2s.v': ('demo', 'coleco', 'apple2', 'spectrum'), 'fes_audio_pll.v': ('demo',),
-    'fes_audio_output.v': ('coleco', 'apple2', 'spectrum'), 'fes_sn76489.sv': ('coleco',),
+    'fes_audio_i2s.v': ('demo', 'coleco', 'sg1000', 'apple2', 'spectrum'),
+    'fes_audio_pll.v': ('demo',),
+    'fes_audio_output.v': ('coleco', 'sg1000', 'apple2', 'spectrum'),
+    'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_computer_mailbox.v': ('apple2', 'spectrum'),
     't80pa.v': ('coleco', 'sg1000', 'sms', 'spectrum'),
 }

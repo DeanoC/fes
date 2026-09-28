@@ -135,6 +135,13 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 			confirm: ConfirmOpenLibraryBrowse,
 		},
 		{
+			name:    "settings action",
+			dest:    Destination{Kind: KindAction, LauncherAction: "settings", Availability: AvailReady, Label: "Settings"},
+			status:  "Open settings.",
+			action:  "Open settings.",
+			confirm: ConfirmLauncherAction,
+		},
+		{
 			name:    "unresolved location",
 			dest:    Destination{Kind: KindUnresolved, Label: "ColecoVision"},
 			status:  "Choose a title from this location.",
@@ -156,6 +163,44 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 				t.Fatalf("confirm %v want %v", d.Confirm(), tc.confirm)
 			}
 		})
+	}
+}
+
+func TestParseKindDropsUnknownAndAcceptsAction(t *testing.T) {
+	t.Parallel()
+	if parseKind("nope") != "" || parseKind("shell") != "" || parseKind("") != "" {
+		t.Fatal("unknown kinds must stay empty")
+	}
+	if parseKind("action") != KindAction || parseKind(" ACTION ") != KindAction {
+		t.Fatal("action kind must parse")
+	}
+	if parseKind("game") != KindGame || parseKind("room") != KindRoom {
+		t.Fatal("existing kinds changed")
+	}
+}
+
+func TestLauncherActionAllowlistIsSettingsOnly(t *testing.T) {
+	t.Parallel()
+	if !LauncherActionAllowed("settings") || !LauncherActionAllowed(" settings ") {
+		t.Fatal("settings must be allowlisted")
+	}
+	for _, id := range []string{"", "Settings", "shell", "settings;rm", "../settings", "settings extra"} {
+		if LauncherActionAllowed(id) {
+			t.Fatalf("id %q must be rejected", id)
+		}
+	}
+}
+
+func TestLauncherActionStaysReadyUnderForeignLease(t *testing.T) {
+	t.Parallel()
+	d := Destination{Kind: KindAction, LauncherAction: "settings", Availability: AvailReady}
+	d.FillCopy()
+	got := ApplyForeignLease(d, true)
+	if got.Availability != AvailReady || got.Confirm() != ConfirmLauncherAction || got.LeaseHeld {
+		t.Fatalf("action under foreign lease %+v", got)
+	}
+	if got.Status == "This executor is in use." {
+		t.Fatal("launcher action must not use the lease copy")
 	}
 }
 

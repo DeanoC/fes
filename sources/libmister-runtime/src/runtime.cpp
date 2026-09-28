@@ -19,6 +19,11 @@
 namespace mister {
 namespace {
 
+// Shared by launch, core-data, Stop, development load, idle recovery and
+// menu configure. Only an in-flight menu frame is waited out; every other
+// busy reason still rejects immediately after the wait returns.
+constexpr std::chrono::milliseconds kMenuFrameMutationWait(2000);
+
 Error Busy(const char* message)
 {
 	return {ErrorCode::busy, message, "lifecycle"};
@@ -196,7 +201,8 @@ public:
  {
   if(!ValidAbsolutePath(directory)||!ValidPackageId(id))return Invalid("invalid menu package request");
   {
-   std::lock_guard<std::mutex> lock(mutex_);
+   std::unique_lock<std::mutex> lock(mutex_);
+   WaitForMenuFrame(lock);
    if(busy_||!started_||status_.state!=State::idle)return Busy("menu configuration requires idle runtime");
    if(next_menu_generation_==std::numeric_limits<std::uint64_t>::max())return Invalid("menu generation exhausted");
    busy_=true;
@@ -236,6 +242,9 @@ public:
   MenuDisplayInfo info;const Error error=hardware_.PresentMenuFrame(frame,&info);
   frame.preparation_.reset();
   if(!error.ok()) {
+   // Hardware keeps the menu package while a bounded reactivation is allowed
+   // and clears it once that limit is exhausted. LoadIdle then reprograms the
+   // package or the splash. The copy has already finished or been cancelled.
    const Error failure=FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"});
    { std::lock_guard<std::mutex> lock(mutex_);menu_frame_busy_=false; }
    condition_.notify_all();return failure;
@@ -495,7 +504,8 @@ public:
 		bool rejected = false;
  Status previous_status;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
 			if (busy_ || !started_ || status_.state != State::idle) {
 				rejection = {"load_development_rbf", "", "", "validate",
 					Busy("runtime is not idle")};
@@ -841,7 +851,8 @@ public:
 		bool return_immediately = false;
 		std::uint64_t retired_generation = 0;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
 			if (busy_ || pending_fault_generation_ != 0 || !started_) {
 				immediate = {"stop", status_.system, status_.core, "validate",
 					Busy("runtime mutation is busy")};
@@ -911,7 +922,8 @@ public:
 	{
 		bool retry_idle = false;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
 			if (busy_ || pending_fault_generation_ != 0 || !started_) {
 				const Error error = Busy("runtime mutation is busy");
 				Log("recover_idle", status_.system, status_.core, "validate", error);
@@ -958,13 +970,15 @@ public:
 	}
 
 	private:
- // Give a pending core-data operation or launch one bounded opportunity to
- // claim the runtime after the current display transfer. New frames cannot
- // enter while a mutation waits, so a 60 Hz menu cannot starve a launch.
+ // Give one lifecycle operation a bounded chance to claim the runtime after
+ // the current display transfer. New frames cannot enter while it waits.
+ // Launch, core-data, Stop, development load, idle recovery and menu
+ // configure share kMenuFrameMutationWait. The caller proceeds only after
+ // the frame fence drops, then applies its existing busy checks.
  void WaitForMenuFrame(std::unique_lock<std::mutex>& lock) {
   if(!menu_frame_busy_)return;
   ++menu_mutation_waiters_;
-  condition_.wait_for(lock,std::chrono::seconds(2),[this]{return !menu_frame_busy_;});
+  condition_.wait_for(lock,kMenuFrameMutationWait,[this]{return !menu_frame_busy_;});
   --menu_mutation_waiters_;
  }
  Error AdmitMenuGeneration(std::uint64_t generation) const {
@@ -1058,9 +1072,9 @@ public:
    if(result.menu_display.available) {
     if(next_menu_generation_==std::numeric_limits<std::uint64_t>::max()) {
      result.menu_display.available=false;result.menu_display.error=Invalid("menu generation exhausted");
+     result.error=result.menu_display.error;
     } else result.menu_display.generation=++next_menu_generation_;
    }
-   if(!result.menu_display.error.ok())result.error=result.menu_display.error;
   }
   return result;
 	}

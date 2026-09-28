@@ -2,6 +2,7 @@
 #include "daemon/menu_frame_transport.hpp"
 #include "daemon/json.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/menu_underflow.hpp"
 #include <chrono>
 #include <algorithm>
 #include <cstring>
@@ -114,7 +115,7 @@ int main(int argc,char** argv){
   for(const auto& pair:{std::pair<const char*,std::uint64_t>{"width",FesApplicationMenuWidth},{"height",FesApplicationMenuHeight},{"stride",FesApplicationMenuStride},{"byte_count",FesApplicationMenuFrameBytes},{"slot_bytes",FesApplicationMenuSlotBytes}})
    if(Number(Field(menu,pair.first))!=pair.second)throw std::runtime_error("unsupported menu geometry");
   const auto generation=Number(Field(menu,"generation"));if(!generation)throw std::runtime_error("zero menu generation");
-  auto last=Number(Field(menu,"displayed_sequence"));double total_ms=0,max_ms=0;std::uint64_t count=0;
+  auto last=Number(Field(menu,"displayed_sequence"));double total_ms=0,max_ms=0;std::uint64_t count=0,last_underflows=0;
   const auto start=std::chrono::steady_clock::now();auto tick=start;
   while(seconds?std::chrono::steady_clock::now()-start<std::chrono::seconds(seconds):count<frames){
    if(last>=std::numeric_limits<std::uint32_t>::max())throw std::runtime_error("menu sequence exhausted");
@@ -132,14 +133,16 @@ int main(int argc,char** argv){
    const auto commit="{\"protocol\":2,\"operation\":\"menu_frame_commit\",\"generation\":"+std::to_string(generation)+",\"byte_count\":"+std::to_string(FesApplicationMenuFrameBytes)+"}";
    const auto submitted=std::chrono::steady_clock::now();Check(SendFrame(connection.fd(),commit,fd,Deadline()));
    ReceivedFrame completed;Check(ReceiveFrame(connection.fd(),Deadline(),&completed));const auto reply=Response(completed);const auto& displayed=Field(reply,"menu_frame");
-   if(!completed.fds.empty()||Number(Field(displayed,"generation"))!=generation||Number(Field(displayed,"displayed_sequence"))!=last+1||Number(Field(displayed,"underflows")))throw std::runtime_error("frame completion mismatch or underflow");
+   const auto underflows=Number(Field(displayed,"underflows"));
+   if(!completed.fds.empty()||Number(Field(displayed,"generation"))!=generation||Number(Field(displayed,"displayed_sequence"))!=last+1||underflows>mister::native::kMenuUnderflowPresentCap)throw std::runtime_error("frame completion mismatch or underflow");
+   last_underflows=underflows;
    const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-submitted).count();total_ms+=ms;max_ms=std::max(max_ms,ms);++last;++count;
    tick+=std::chrono::milliseconds(interval);std::this_thread::sleep_until(tick);
   }
   rusage usage{};if(getrusage(RUSAGE_SELF,&usage)<0)throw std::runtime_error("read client resource usage failed");
   const double cpu=usage.ru_utime.tv_sec+usage.ru_stime.tv_sec+(usage.ru_utime.tv_usec+usage.ru_stime.tv_usec)/1000000.0;
   const auto elapsed=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
-  std::cout<<"frames="<<count<<" generation="<<generation<<" displayed_sequence="<<last<<" underflows=0 elapsed_s="<<elapsed<<" present_avg_ms="<<(count?total_ms/count:0)<<" present_max_ms="<<max_ms<<" client_cpu_s="<<cpu<<" client_maxrss_kib="<<usage.ru_maxrss<<"\n";
+  std::cout<<"frames="<<count<<" generation="<<generation<<" displayed_sequence="<<last<<" underflows="<<last_underflows<<" elapsed_s="<<elapsed<<" present_avg_ms="<<(count?total_ms/count:0)<<" present_max_ms="<<max_ms<<" client_cpu_s="<<cpu<<" client_maxrss_kib="<<usage.ru_maxrss<<"\n";
   return 0;
  } catch(const std::exception& error){std::cerr<<"menu-pattern-client: "<<error.what()<<"\n";return 1;}
 }

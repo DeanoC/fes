@@ -5,8 +5,8 @@
 // TMS9918-style VDP, dual-port RAM wrappers and the 16 KiB mailbox blob are
 // the Coleco modules. The SG-1000 first slice only replaces the memory map
 // and the 8255 joystick ports. There is no BIOS shim; the cartridge occupies
-// 0x0000. Audio, mappers, 32/48 KiB retail images and SC-3000 keyboard
-// hardware remain outside this slice.
+// 0x0000. The shared TI PSG provides mono sound. Mappers, 32/48 KiB retail
+// images and SC-3000 keyboard hardware remain outside this slice.
 
 `ifdef FES_SG1000_OSS
 `define FES_SG1000_REGISTERED_MEDIA
@@ -34,7 +34,10 @@ module sg1000_machine (
     output wire        logical_blank,
     output wire [7:0]  vdp_status,
     output wire [15:0] cpu_addr_debug,
-    output wire        cpu_halt_n
+    output wire        cpu_halt_n,
+    output wire signed [15:0] psg_sample,
+    output wire        psg_write_debug,
+    output wire        psg_ce_debug
 );
     localparam [13:0] CARTRIDGE_LAST = 14'h3fff;
 
@@ -71,7 +74,7 @@ module sg1000_machine (
     wire ce_raster;
 
     tms9918_raster_ce #(
-        .SYSTEM_CLOCK_HZ(52_000_000)
+        .SYSTEM_CLOCK_HZ(52_224_000)
     ) raster_timing (
         .clk(clk_sys),
         .reset(machine_reset),
@@ -194,6 +197,32 @@ module sg1000_machine (
     wire peek_ram_select = peek_addr[15:14] == 2'b11;
     wire peek_cartridge_select = peek_addr[15:14] == 2'b00;
     wire ppi_select = cpu_addr[7:2] == 6'b110111;
+    reg psg_write_seen;
+    reg [25:0] psg_phase;
+    wire [26:0] psg_phase_next = {1'b0, psg_phase} + 27'd3579545;
+    wire psg_ce = psg_phase_next >= 27'd52224000;
+    assign psg_ce_debug = psg_ce;
+    wire [26:0] psg_phase_wrapped = psg_phase_next - 27'd52224000;
+    wire psg_write = ce_cpu_n && !nIORQ && !nWR &&
+                     cpu_addr[7:6] == 2'b01 && !psg_write_seen;
+    assign psg_write_debug = psg_write;
+    always @(posedge clk_sys) begin
+        if (machine_reset) begin
+            psg_phase <= 26'd0;
+            psg_write_seen <= 1'b0;
+        end else begin
+            psg_phase <= psg_ce ? psg_phase_wrapped[25:0] :
+                                  psg_phase_next[25:0];
+            if (nIORQ || nWR)
+                psg_write_seen <= 1'b0;
+            else if (psg_write)
+                psg_write_seen <= 1'b1;
+        end
+    end
+    fes_sn76489 psg (
+        .clk(clk_sys), .reset(machine_reset), .ce(psg_ce),
+        .write(psg_write), .data(cpu_dout), .sample(psg_sample)
+    );
     wire [7:0] cartridge_read;
     wire [7:0] cartridge_peek;
     wire [7:0] ram_read;

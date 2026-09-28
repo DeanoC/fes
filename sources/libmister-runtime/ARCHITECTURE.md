@@ -117,8 +117,17 @@ staging bytes, validation requires the same device/inode, 3,686,400-byte size
 and WRITE/GROW/SHRINK/SEAL seals. A client must remove writable mappings before
 sealing. The runtime reads sealed staging through a private, read-only mapping;
 the selected kit kernel rejects a shared mapping after `F_SEAL_WRITE`.
-`MenuMemory` converts RGBA to B,G,R,0 in either fixed 4 MiB slot;
-frame padding remains untouched. It owns an 8 MiB mapping at `0x30000000`,
+`MenuMemory` converts RGBA to B,G,R,0 in a cached row buffer, then writes
+either fixed 4 MiB slot with naturally aligned word stores. Host builds use
+volatile words. ARMv7 uses `ldmia`/`stmia` of eight words, which stays inside
+one 4KB page because a row and the slot are 32-byte aligned. The mapping
+stays `O_SYNC` (strongly ordered on the qualified kernel); it is not
+write-combined. Frame padding remains untouched. The copy checks a cancel
+flag every four rows and does not submit a partial frame. A lifecycle
+operation sets that flag before it quiesces menu firmware or programs
+another core, so the window is not written after teardown begins. Black fill
+still runs after the new image is programmed. `MenuMemory` owns an 8 MiB
+mapping at `0x30000000`,
 checks the entire shared 256 MiB window against effective `/proc/iomem`
 System RAM ranges, and rejects absent or redacted evidence.
 
@@ -136,24 +145,45 @@ lifecycle lock while its caller fills the file. Both the generation and
 runtime-created preparation identity bind `PresentMenuFrame`; immutable
 validation precedes any copy. Presentation holds the existing busy fence
 through copy, submission and displayed-sequence polling. ACK alone never
-releases the previous slot. A core-data request or launch arriving during a
-presentation waits up to two seconds for that frame to finish. While it waits,
-new menu frames cannot enter; other busy lifecycle operations still reject
-immediately. The mutation then claims the same busy fence or returns busy if
-the frame did not finish, recovery intervened, or another mutation claimed it.
-Stop reactivates an explicitly configured menu
-with a fresh generation, including Stop from menu idle; splash Stop stays
-idempotent. A rejected pre-mutation game admission preserves the menu and its
+releases the previous slot. Only one submission is pending. Launch,
+core-data, Stop, contained development load, idle recovery and menu
+configure share one named two-second wait (`kMenuFrameMutationWait`) when
+the only in-flight work is a menu frame. While any of them waits, new menu
+frames cannot enter. After the frame fence drops, the operation applies its
+existing busy checks and either claims the fence or returns busy. It does
+not quiesce or program until that fence is clear, so it cannot race the
+copy. A same-thread re-entry still returns busy after the bound, because the
+frame cannot finish until the caller returns. Stop reactivates an explicitly
+configured menu with a fresh generation, including Stop from menu idle; that
+reprograms the FPGA and blips HDMI. Splash Stop stays idempotent. If both
+the menu reload and the splash reload fail, Stop ends in `reboot_required`.
+A rejected pre-mutation game admission preserves the menu and its
 preparation. Replacement and contained diagnostics revoke the old generation.
 
-Menu quiesce proves drained state before execution hold. A missing completion
-or uncertain drain disables the configured menu and uses the existing splash
-programming/bridge-containment path, without repeating an ambiguous GP
-command. Failed containment leaves reboot-required. Mapping remains owned by
-the production hardware adapter; new writes require successful menu
-reactivation after verified programming. Menu activation failures report
-unavailable with the error even when splash recovery succeeds. Host tests do
-not establish physical scanout acceptance.
+Menu quiesce proves drained state before execution hold. The hardware
+underflow counter is cumulative and is not cleared by a GP command. It
+resets when the bitstream is programmed and when port reset is asserted.
+Each present records the counter before the copy and judges only the delta
+during that present. A delta of at most one scanline (1280 pixels) is
+displayed. Three consecutive presents with any positive delta, or one delta
+above that cap, fails the present. The failure keeps the configured package
+and the existing idle path reprograms it, at most twice per ten minutes.
+The next failure in that window drops the package, sets `menu_display.error`,
+and the same idle path loads splash. A successful `configure_menu` clears
+the streak and the reactivation budget. The published `underflows` value is
+that per-present delta, not the cumulative counter. Activation still
+requires a zero counter because programming reset it. A missing completion
+or uncertain drain uses the same bounded reactivation before splash.
+`menu_unsafe_` still skips a second GP quiesce on the splash path. Failed
+containment leaves reboot-required. Mapping remains owned by the production
+hardware adapter; new frame copies require `AllowCopies` after the new image
+is programmed. Menu activation failures report unavailable with the error on
+`menu_display` even when splash recovery succeeds. A later idle status does
+not copy that menu error into top-level `status.error`; the operation that
+failed assigns `status.error` itself. The runtime and the FogCast agent
+decode this nested status strictly and must ship in the same image.
+Capability-gated emission and tolerant decoding are not implemented. Host
+tests do not establish physical scanout acceptance.
 
 ## Composable application ABI
 

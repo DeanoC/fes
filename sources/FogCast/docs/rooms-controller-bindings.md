@@ -94,8 +94,8 @@ shoulder buttons that are not Back / Home / Settings are passed through:
 | LB / RB | `filter_prev` / `filter_next` |
 | Select / View / `BACK` | `layout_cycle` |
 | Start / Menu | `quit` (launcher; not a room action) |
-| Guide | settings overlay (not delivered) |
-| hold B | rooms picker (`CmdHome`; not delivered) |
+| Guide | settings overlay (not delivered). A room can publish an allowlisted Settings destination; that is not this button |
+| hold B | Home (`CmdHome`; not delivered). Opens `home_room` when that pack can be opened; otherwise the rooms picker |
 
 Example rooms today: Confirm performs the destination’s primary action
 (Play / enter room / honest next action). Y / North / a pointer tap on the
@@ -114,7 +114,7 @@ essential action.
 
 | Shortcut | Binding | Result |
 | --- | --- | --- |
-| Rooms picker | hold East / B (≥450 ms), or `h` / Home | Toggle the room picker (`CmdHome`) |
+| Home | hold East / B (≥450 ms), or `h` / Home | Open `home_room` as the root when it can be opened; otherwise toggle the room picker (`CmdHome`) |
 | Library view list | hold South / A (library browse only; disabled in a room) | View picker |
 | Favorite | hold North / Y (library browse only) | Toggle favorite |
 | Filters | hold West / X (library browse only) | Filter overlay |

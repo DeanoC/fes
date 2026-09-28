@@ -24,8 +24,9 @@ const (
 )
 
 // placementNodeRead is one node document read for placement. identity
-// is the configured kit the read used; a read for another identity is
-// not reused. ok is false when the read failed or named another node.
+// is the kit and endpoint the read used (see placementReadAddress). A
+// read for another identity, including another endpoint, is not reused.
+// ok is false when the read failed or named another node.
 type placementNodeRead struct {
 	identity meshTargetIdentity
 	abis     []meshcontent.EligibleABI
@@ -129,13 +130,19 @@ func (s *Service) placementCandidates(ctx context.Context) []meshplace.Candidate
 
 // placementNodeABIs is the abis placement passes for nodeID. The node
 // must be an enabled configured kit with an address, an agent token,
-// and that TargetID, and its content document must name nodeID. A
-// failed read, another node id, and an unconfigured node return nil,
-// which is not eligibility. A read is reused for placementNodeTTL and
-// a failure for placementNodeBackoff. A read the caller canceled is
+// and that TargetID, and its content document must name nodeID. The
+// document is read at one endpoint: the one discovered inventory origin
+// for this node, otherwise the origin AdoptEndpoint reconciled on the
+// kit's target client when that differs from the configured address,
+// otherwise the configured address (#259). The read keeps the
+// configured token and does not rewrite s.targets, the config file, or
+// the target client. A failed
+// read, another node id, and an unconfigured or disabled node return
+// nil, which is not eligibility. A read is reused for placementNodeTTL
+// and a failure for placementNodeBackoff. A read the caller canceled is
 // not remembered. The read is not a kit-lease mutation.
 func (s *Service) placementNodeABIs(ctx context.Context, nodeID string) []meshcontent.EligibleABI {
-	cfg, ok := s.targetForPlacementNode(nodeID)
+	cfg, clientEndpoint, ok := s.targetForPlacementRead(nodeID)
 	if !ok {
 		return nil
 	}
@@ -143,6 +150,7 @@ func (s *Service) placementNodeABIs(ctx context.Context, nodeID string) []meshco
 	if !want.dialable() || want.nodeID != nodeID {
 		return nil
 	}
+	want.address = placementReadAddress(want.address, s.discoveredPlacementOrigin(nodeID), clientEndpoint)
 	s.meshMu.Lock()
 	cached, hit := s.placementNodes[nodeID]
 	client := s.meshHTTP
@@ -169,8 +177,87 @@ func (s *Service) placementNodeABIs(ctx context.Context, nodeID string) []meshco
 	return append([]meshcontent.EligibleABI(nil), abis...)
 }
 
-// readPlacementNode reads one kit's content document with that kit's
-// agent token. The document must name the configured node id.
+// placementReadAddress is the one address a placement node read dials.
+// A unique discovered origin from the current browse window is the
+// freshest evidence and wins, so a target client adopted at an earlier
+// claim cannot pin the read to an endpoint the kit has since left.
+// Otherwise (no row, an ambiguous claim, or rows retained after a browse
+// error) the origin AdoptEndpoint reconciled on the target client is
+// used, otherwise the configured address. The configured token and
+// node-id check apply to every choice.
+func placementReadAddress(configured, discovered, reconciled string) string {
+	if origin, err := normalizeHTTPOrigin(discovered); err == nil {
+		return origin
+	}
+	if origin, different := differingPlacementOrigin(reconciled, configured); different {
+		return origin
+	}
+	return configured
+}
+
+// differingPlacementOrigin is candidate when it normalizes to an HTTP
+// origin other than configured. An empty or invalid candidate is not
+// used. configured is compared as an origin when it normalizes.
+func differingPlacementOrigin(candidate, configured string) (string, bool) {
+	origin, err := normalizeHTTPOrigin(candidate)
+	if err != nil {
+		return "", false
+	}
+	if configuredOrigin, cfgErr := normalizeHTTPOrigin(configured); cfgErr == nil && configuredOrigin == origin {
+		return "", false
+	}
+	if configured == origin {
+		return "", false
+	}
+	return origin, true
+}
+
+// discoveredPlacementOrigin is the inventory origin for nodeID when the
+// current browse window's advertisements for that node normalize to
+// exactly one HTTP origin. Invalid addresses are ignored, matching
+// probeTarget. It returns "" when there is no row, when discovery saw
+// that node id at several addresses (AddressConflict, or several rows),
+// and when the rows were retained after a browse error. The caller then
+// keeps the reconciled or configured address and sends the bearer to no
+// contender. meshMu is not held across a read.
+func (s *Service) discoveredPlacementOrigin(nodeID string) string {
+	if s == nil || nodeID == "" {
+		return ""
+	}
+	s.meshMu.Lock()
+	retained := s.meshNodesRetained
+	nodes := append([]MeshNode(nil), s.meshNodes...)
+	s.meshMu.Unlock()
+	if retained {
+		return ""
+	}
+	var origin string
+	found := false
+	for _, node := range nodes {
+		if node.NodeID != nodeID {
+			continue
+		}
+		if node.AddressConflict {
+			return ""
+		}
+		next, err := normalizeHTTPOrigin(node.Address)
+		if err != nil {
+			continue
+		}
+		if found && next != origin {
+			return ""
+		}
+		origin = next
+		found = true
+	}
+	if !found {
+		return ""
+	}
+	return origin
+}
+
+// readPlacementNode reads one kit's content document at want.address
+// with the configured agent token. The document must name want.nodeID.
 func readPlacementNode(ctx context.Context, want meshTargetIdentity, client *http.Client) ([]meshcontent.EligibleABI, bool) {
 	endpoint, err := url.Parse(want.address)
 	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" {

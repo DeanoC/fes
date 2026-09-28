@@ -135,6 +135,12 @@ with DDR traffic. The boot capture has no hardware check yet.
 
 ## Shared HDMI audio
 
+`fes.simple-computer` also admits this same required-when-present audio
+interface at capability bit 4. Its known live capability bits must match the
+manifest exactly; silent simple computers keep audio packets disabled. This
+adds no GP command or host PCM stream. SG-1000 hardware audio acceptance is
+separate from these runtime software checks.
+
 The required-when-present audio interface adds signed 16-bit stereo samples at
 48 kHz. It uses standard I2S with a one-bit delay and 32-bit slots, continuous
 3.072 MHz BCLK and 12.288 MHz MCLK. Execution hold emits zero samples by the

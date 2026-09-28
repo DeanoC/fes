@@ -138,7 +138,7 @@ func TestFesSimpleComputerGoldenExchangeFixture(t *testing.T) {
 	for _, iface := range abi.Interfaces {
 		// This immutable fixture represents a legacy package, not every
 		// interface now available in the registry.
-		if iface.ID == "fes.media.blob-stream" {
+		if iface.ID == "fes.media.blob-stream" || iface.ID == "fes.audio.pcm-s16-stereo-48k" {
 			continue
 		}
 		capabilities |= 1 << iface.CapabilityBit

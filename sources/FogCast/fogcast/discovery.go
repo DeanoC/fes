@@ -25,6 +25,9 @@ type MeshNode struct {
 	Capabilities discovery.Capabilities `json:"capabilities"`
 	Address      string                 `json:"address,omitempty"`
 	TTLSeconds   *int                   `json:"ttl_seconds,omitempty"`
+	// AddressConflict is true when advertisements for this node id named
+	// more than one address in the browse window. Address is then empty.
+	AddressConflict bool `json:"address_conflict,omitempty"`
 }
 
 // SilenceReleasesLease reports whether dropping this row frees a kit lease.
@@ -424,7 +427,9 @@ func (s *Service) MeshNodes() []MeshNode {
 }
 
 // ObserveMesh browses node advertisements and replaces the inventory with
-// that window. A browse error keeps the previous rows. Replacing the rows,
+// that window. A browse error keeps the previous rows and marks them
+// retained until the next successful browse; placement does not dial a
+// retained row's address (see discoveredPlacementOrigin). Replacing the rows,
 // including with an empty set when an advertisement goes quiet or omits ttl,
 // does not release a kit lease and does not change the Phase 0 target bind.
 func (s *Service) ObserveMesh(ctx context.Context) ([]MeshNode, error) {
@@ -436,6 +441,9 @@ func (s *Service) ObserveMesh(ctx context.Context) ([]MeshNode, error) {
 	}
 	observed, err := collect(ctx)
 	if err != nil {
+		s.meshMu.Lock()
+		s.meshNodesRetained = true
+		s.meshMu.Unlock()
 		return s.MeshNodes(), err
 	}
 	nodes := make([]MeshNode, 0, len(observed))
@@ -445,18 +453,20 @@ func (s *Service) ObserveMesh(ctx context.Context) ([]MeshNode, error) {
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].NodeID < nodes[j].NodeID })
 	s.meshMu.Lock()
 	s.meshNodes = nodes
+	s.meshNodesRetained = false
 	s.meshMu.Unlock()
 	return s.MeshNodes(), nil
 }
 
 func meshNodeFrom(n discovery.ObservedNode) MeshNode {
 	node := MeshNode{
-		NodeID:       n.NodeID,
-		TargetID:     n.TargetID,
-		Mesh:         n.Mesh,
-		Cap:          n.Cap,
-		Capabilities: n.Capabilities,
-		Address:      n.Address,
+		NodeID:          n.NodeID,
+		TargetID:        n.TargetID,
+		Mesh:            n.Mesh,
+		Cap:             n.Cap,
+		Capabilities:    n.Capabilities,
+		Address:         n.Address,
+		AddressConflict: n.AddressConflict,
 	}
 	if n.TTLSeconds != nil {
 		seconds := *n.TTLSeconds

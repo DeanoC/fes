@@ -88,6 +88,9 @@ def plan(root, base, head="HEAD", jobs=2):
                 add("fpga", "sg1000 linked ROM RTL simulation", fpga,
                     ["make", "sim-fes-sg1000-rom-link", "PYTHON=" + sys.executable],
                     tools=["verilator", "c++"], files=["Makefile"])
+                add("fpga", "sg1000 audio identity simulation", fpga,
+                    ["make", "sim-fes-sg1000-gp-audio", "PYTHON=" + sys.executable],
+                    tools=["verilator", "c++"], files=["Makefile"])
     return {"format": 1, "root": str(root), "base": base_commit, "head": selected,
             "checkout_head": current, "merge_base": ancestor, "local_paths": local,
             "impact": impact, "commands": commands,
@@ -125,7 +128,9 @@ def execute(result):
     preflight(result)
     environment = dict(os.environ)
     # These are native software tests even when the shell was used to cross-build.
-    for key in ("GOOS", "GOARCH", "GOARM"):
+    # Each lane is a standalone test command; inherited parent make flags can
+    # add directory chatter to nested `make -n` output and break exact recipes.
+    for key in ("GOOS", "GOARCH", "GOARM", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS"):
         environment.pop(key, None)
     result["results"] = []
     for command in result["commands"]:

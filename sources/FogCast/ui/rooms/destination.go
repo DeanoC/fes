@@ -25,8 +25,22 @@ const (
 	KindGame       Kind = "game"
 	KindRoom       Kind = "room"
 	KindLibrary    Kind = "library"
+	KindAction     Kind = "action"
 	KindUnresolved Kind = "unresolved"
 )
+
+// launcherActions is the fixed set of launcher-internal operations a room
+// may name. Ids are not commands: there is no shell, path, network, or
+// parameter. Rooms cannot extend this set.
+var launcherActions = map[string]struct{}{
+	"settings": {},
+}
+
+// LauncherActionAllowed reports whether id is one of those operations.
+func LauncherActionAllowed(id string) bool {
+	_, ok := launcherActions[strings.TrimSpace(id)]
+	return ok
+}
 
 // ConfirmIntent is what Confirm must do so it never silently no-ops.
 type ConfirmIntent int
@@ -41,24 +55,28 @@ const (
 	ConfirmLaunch
 	ConfirmEnterRoom
 	ConfirmOpenLibraryBrowse
+	ConfirmLauncherAction
 )
 
 // Destination is the selected location a room publishes to the launcher.
 type Destination struct {
-	Kind         Kind
-	Label        string
-	System       string
-	GameID       string
-	RoomID       string
-	Availability Availability
-	Status       string
-	Action       string
-	Note         string
-	NoteBy       string
-	Query        string
-	Platform     string
-	Matches      []hostclient.Game
-	History      History
+	Kind   Kind
+	Label  string
+	System string
+	GameID string
+	RoomID string
+	// LauncherAction is the allowlisted operation id when Kind is KindAction.
+	// It is not the Action copy line.
+	LauncherAction string
+	Availability   Availability
+	Status         string
+	Action         string
+	Note           string
+	NoteBy         string
+	Query          string
+	Platform       string
+	Matches        []hostclient.Game
+	History        History
 	// LeaseHeld is a foreign kit lease. The same shell's Soft-stop retained
 	// grant leaves this false so that shell stays Ready.
 	LeaseHeld bool
@@ -104,7 +122,7 @@ func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostc
 // launch or take the lease. A host-only title stays Ready so Play reaches
 // the host executor. An Execute advertisement is not an input.
 func ApplyForeignLease(d Destination, foreign bool) Destination {
-	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Availability != AvailReady {
+	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Availability != AvailReady {
 		return d
 	}
 	if game, ok := d.Game(); ok && game.HostOnly() {
@@ -241,6 +259,16 @@ func (d *Destination) FillCopy() {
 		d.Status = "Browse the full library."
 		d.Action = "Open library."
 		return
+	case KindAction:
+		switch d.LauncherAction {
+		case "settings":
+			d.Status = "Open settings."
+			d.Action = "Open settings."
+		default:
+			d.Status = "This action is not available."
+			d.Action = "This action is not available."
+		}
+		return
 	case KindUnresolved:
 		if d.Availability == "" {
 			d.Status = "Choose a title from this location."
@@ -308,6 +336,8 @@ func (d Destination) Confirm() ConfirmIntent {
 		return ConfirmEnterRoom
 	case KindLibrary:
 		return ConfirmOpenLibraryBrowse
+	case KindAction:
+		return ConfirmLauncherAction
 	}
 	switch d.Availability {
 	case AvailChecking:
@@ -386,5 +416,5 @@ func (d Destination) Game() (hostclient.Game, bool) {
 
 // Set reports whether the room has published a selected location.
 func (d Destination) Set() bool {
-	return d.Kind != "" || d.Availability != "" || strings.TrimSpace(d.Label) != "" || strings.TrimSpace(d.GameID) != "" || strings.TrimSpace(d.RoomID) != ""
+	return d.Kind != "" || d.Availability != "" || strings.TrimSpace(d.Label) != "" || strings.TrimSpace(d.GameID) != "" || strings.TrimSpace(d.RoomID) != "" || strings.TrimSpace(d.LauncherAction) != ""
 }

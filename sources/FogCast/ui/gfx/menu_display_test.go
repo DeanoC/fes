@@ -13,6 +13,7 @@ import (
 type testMenuClient struct {
 	mu           sync.Mutex
 	generation   uint64
+	underflows   uint64
 	pixels       []byte
 	calls        int
 	fail         bool
@@ -24,6 +25,7 @@ type testMenuClient struct {
 func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	c.mu.Lock()
 	generation := c.generation
+	underflows := c.underflows
 	c.mu.Unlock()
 	if c.statusSeen != nil {
 		select {
@@ -31,7 +33,7 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 		default:
 		}
 	}
-	return menudisplay.Status{Available: true, Generation: generation, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes}, nil
+	return menudisplay.Status{Available: true, Generation: generation, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows}, nil
 }
 func (c *testMenuClient) Present(_ context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
 	c.mu.Lock()
@@ -143,6 +145,52 @@ func TestMenuDisplayRendersAndRetriesAfterFailure(t *testing.T) {
 	client.mu.Unlock()
 	if calls != 2 || got[0] != 80 {
 		t.Fatalf("calls=%d pixels=%v", calls, got)
+	}
+}
+
+func TestMenuDisplayToleratesTransientUnderflow(t *testing.T) {
+	client := &testMenuClient{generation: 3, underflows: 40, ready: make(chan struct{}, 1)}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.Present()
+	select {
+	case <-client.ready:
+	case <-time.After(time.Second):
+		t.Fatal("transient underflow blocked presentation")
+	}
+	if client.calls != 1 {
+		t.Fatalf("commits=%d", client.calls)
+	}
+}
+
+func TestMenuDisplayRejectsUnderflowAboveCap(t *testing.T) {
+	client := &testMenuClient{
+		generation: 3,
+		underflows: menudisplay.TransientUnderflowCap + 1,
+		ready:      make(chan struct{}, 1),
+		statusSeen: make(chan uint64, 1),
+	}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.Present()
+	select {
+	case <-client.statusSeen:
+	case <-time.After(time.Second):
+		t.Fatal("status was not read")
+	}
+	select {
+	case <-client.ready:
+		t.Fatal("underflow above the cap was presented")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if client.calls != 0 || d.LastError() == nil || d.LastError().Error() != "menu scanout underflow" {
+		t.Fatalf("calls=%d err=%v", client.calls, d.LastError())
 	}
 }
 

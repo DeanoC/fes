@@ -196,11 +196,12 @@ as one.
 ## Audio
 
 `fes.audio.pcm-s16-stereo-48k` 1.0 is required when present and absent for silent
-applications. It leaves the application ABI version and existing capabilities
-unchanged: older runtimes reject its required interface before programming;
-silent packages remain usable. Declared and observed audio capability must
-agree, just like input and media. There is no new GP opcode and no audio data
-upload or streaming API.
+applications and simple computers. It leaves the owning ABI version and existing
+capabilities unchanged: older runtimes reject its required interface before
+programming; silent packages remain usable. On `fes.simple-computer` it uses
+capability bit 4. Declared and observed audio capability must agree, just like
+input and media. There is no new GP opcode and no audio data upload or streaming
+API.
 
 Applications produce two signed 16-bit two's-complement samples at 48,000 stereo
 frames per second. The shared RTL latches the pair atomically in its audio-clock

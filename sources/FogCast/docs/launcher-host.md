@@ -12,7 +12,8 @@ session routes stay on this listener; `fogcast-kit` reconnects with the
 existing `launcher.json` API URL for those. Kit-local play input does not use
 this listener.
 
-The file is a regular file readable only by its owner, containing:
+The file is a regular file readable only by its owner. Either form is valid.
+One paired kit:
 
 ```json
 {
@@ -22,22 +23,62 @@ The file is a regular file readable only by its owner, containing:
 }
 ```
 
-The listen address uses a literal IP and explicit port. The token is distinct
-from the host-to-agent token; it is not written to public settings or logs.
+Several paired kits. A target id appears once and a token appears once: a
+bearer identifies exactly one kit, because stop, status, and input are
+scoped to the kit that owns the session. Startup refuses one token paired
+with more than one `target_id` and names the fix: mint a separate per-kit
+bearer. The single-kit fields above may also be combined with `pairings`;
+those two fields then count as one pairing, ahead of the list, and their
+token may not be reused by a pairing.
+
+```json
+{
+  "listen": "0.0.0.0:8789",
+  "pairings": [
+    {
+      "token": "placeholder-token-for-kit-a-at-least-32-characters",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+    },
+    {
+      "token": "placeholder-token-for-kit-b-at-least-32-characters",
+      "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+    }
+  ]
+}
+```
+
+The listen address uses a literal IP and explicit port. Every launcher token
+is distinct from the host-to-agent token of every target in `config.toml`,
+enabled or not; startup refuses a reuse. Tokens are compared in constant time
+and are not written to public settings or logs.
 Configuration is opt-in, read at host startup, and enables remote input
 composition so successful FPGA launches attach the existing input bridge.
 Generated media provisioning supplies the corresponding API URL, token, and
 identity to the kit; the launcher does not obtain a kit lease credential.
 
 Each request sends `Authorization: Bearer <token>` and
-`X-FogCast-Target-ID: <target_id>`. The configured selected target must match the
-paired identity. `GET /api/v1/mesh/content/source` and
-`GET /api/v1/mesh/content/object` are the exception: an enabled configured kit
-may read them with its own target id while another target stays selected.
-Those two GETs still require the launcher bearer token. A disabled or unknown
-target id is rejected. Other launcher operations still require the paired
-identity and the foreground selection. Target settings updates and admitted launcher operations are
-serialized so an address/selection edit cannot redirect an in-flight launch.
+`X-FogCast-Target-ID: <target_id>`. The bearer must match a configured pairing
+token. For everything except the two mesh content GETs, that target id must be
+the matched token's kit. Catalogue, platform, health, attract, cache,
+and presentation reads are served to every enabled paired kit, whether or not
+it is the host's selected target. `GET /api/v1/session` returns the foreground
+session only to the session owner; every other enabled paired kit receives its
+own idle or active view and does not touch that session. `POST /api/v1/session/launch`
+from a kit names that kit explicitly, so the kit menu launches on the kit
+itself. Stop, launcher input, status, and session input are only for the
+session owner. `GET /api/v1/mesh/content/source` and
+`GET /api/v1/mesh/content/object` still accept any enabled configured kit, with
+the launcher bearer, while another target stays selected. A disabled, unknown,
+or unpaired target id is rejected. Missing or invalid authentication returns
+401, identity mismatch returns 403, and unavailable routes return 404. Target
+settings updates and admitted launcher operations are serialized so an
+address/selection edit cannot redirect an in-flight launch.
+The host still has one foreground session. A kit launch while another kit
+has a play returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt,
+stop, or rebind that play; stop it on its own kit first. Relaunching on
+the same kit is unchanged. Two kits playing at once needs per-target
+sessions and Stop (#288). Health, `rom_cached`, and `/api/v1/library/cache`
+still describe the selected target (#289).
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
 `Offline - local library`. Local D-pad/A still browse that snapshot. Offline
@@ -47,8 +88,8 @@ launch path; all lifecycle mutations go through the persistent host session API.
 
 Allowed operations are:
 
-- `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`,
-  `/api/v1/library/cache`.
+- `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`,
+  `/api/v1/library/cache`. `GET /api/v1/status` is only for the session owner.
   Games may include `play_count` and `last_played_at` when user library state
   already has them (omitted when zero). When the selected target answers a
   lease-free cache inventory, games with remembered content also include
@@ -68,9 +109,13 @@ Allowed operations are:
 - `GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`
   for one `id` query. These reads are admitted for any enabled configured
   kit, not only the foreground selected target.
-- `GET /api/v1/session` and `/api/v1/session/input`.
+- `GET /api/v1/session` for the session owner. Any other enabled paired kit
+  receives that kit's own idle or active view.
+- `GET /api/v1/session/input` for the session owner only.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.
-- `POST /api/v1/session/stop` with no body.
+  The listener sets `target` to the requesting kit. 409
+  `SESSION_BUSY_OTHER_KIT` while another kit has a play.
+- `POST /api/v1/session/stop` with no body, for the session owner only.
 - `POST /api/v1/launcher/input?session_id=<session_id>` remains the host
   listener's controller stream. `fogcast-kit` does not call it for a gamepad
   or USB keyboard plugged into the kit. Those devices write raw input frames

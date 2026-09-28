@@ -17,7 +17,8 @@ module top #(
     output wire        HDMI_TX_HS,
     output wire        HDMI_TX_VS,
     inout  wire        HDMI_I2C_SCL,
-    inout  wire        HDMI_I2C_SDA
+    inout  wire        HDMI_I2C_SDA,
+    output wire        HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
 );
     wire clk_sys;
     wire pixel_clk;
@@ -33,6 +34,15 @@ module top #(
     wire [7:0] logical_y;
     wire [3:0] logical_pixel;
     wire logical_blank;
+    wire signed [15:0] psg_sample;
+    wire audio_clk, audio_locked;
+
+    fes_audio_output audio (
+        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked),
+        .hold(exec_reset), .left_sample(psg_sample), .right_sample(psg_sample),
+        .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
+    );
+    assign HDMI_MCLK = audio_clk;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
         .gp_in(fpga_to_hps),
@@ -70,10 +80,10 @@ module top #(
     );
 `endif
 
-    sys_pll system_clock (
+    coleco_system_pll system_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(clk_sys)
+        .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
 
     pixel_pll video_clock (
@@ -82,7 +92,12 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
-    fes_computer_gp gp_mailbox (
+    fes_computer_gp #(
+`ifdef FES_SG1000_ROM_LINK
+        .ENABLE_MEDIA_BLOB(0),
+`endif
+        .ENABLE_AUDIO(1)
+    ) gp_mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
@@ -136,7 +151,10 @@ module top #(
         .logical_blank(logical_blank),
         .vdp_status(),
         .cpu_addr_debug(),
-        .cpu_halt_n()
+        .cpu_halt_n(),
+        .psg_sample(psg_sample),
+        .psg_write_debug(),
+        .psg_ce_debug()
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
