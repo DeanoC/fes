@@ -958,6 +958,12 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 					interface.minor != FesSimpleComputerInterfaceMediaBlobStreamMinor))
 					return CompatibilityError(ErrorCode::unsupported_interface,
 						"required media stream interface is unsupported");
+			} else if (interface.id == FesSimpleComputerInterfaceAudioPcmS16Stereo48kID) {
+				if (!interface.required ||
+					interface.major != FesSimpleComputerInterfaceAudioPcmS16Stereo48kMajor ||
+					interface.minor != FesSimpleComputerInterfaceAudioPcmS16Stereo48kMinor)
+					return CompatibilityError(ErrorCode::unsupported_interface,
+						"simple-computer audio must be required at version 1.0");
 			} else if (interface.required) {
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required interface is unsupported");

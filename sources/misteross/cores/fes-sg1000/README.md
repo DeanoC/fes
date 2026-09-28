@@ -8,7 +8,7 @@ reduced SG-1000-compatible console slice that uses the existing
 `fes.simple-computer` 1.0 mailbox and the DE10-Nano fixed 720p shell.
 
 SG-1000 is a Coleco sibling, not a second console stack. TV80, the bounded
-TMS9918-style VDP, dual-port RAM wrappers, the GP mailbox, both PLL wrappers
+TMS9918-style VDP, dual-port RAM wrappers, the GP mailbox, video/system PLLs
 and the 720p HDMI shell are the Coleco modules. This tree supplies the
 SG-1000 memory map, the 8255 joystick ports, the board top, Quartus pins and
 the oracle recipe.
@@ -23,7 +23,7 @@ recipe; it is not in the factory image.
 
 ## Implemented first slice
 
-- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
+- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
   domain (Coleco `t80pa` / `tv80`).
 - Exact 16 KiB `cartridge-rom` linked into the RBF before FPGA download,
   mapped at `0x0000–0x3fff`. Pad shorter fixed-map images with `0xff` before
@@ -33,13 +33,16 @@ recipe; it is not in the factory image.
   Text and Multicolor rendering on the fixed 256×192 logical raster.
 - Two joysticks on the SG-1000 8255 ports `0xdc` / `0xdd`, adapted from the
   existing 40-bit keyboard matrix.
+- SN76489-compatible PSG writes at I/O `0x40–0x7f`, converted to signed stereo
+  PCM and serialized as 48 kHz I2S over the board HDMI audio pins. System and
+  audio clocks share Coleco's 52.224/12.288 MHz PLL; video uses the second PLL.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
 Text mode suppresses sprites, Multicolor keeps them active, and unsupported
 mode selectors render only the R7 backdrop. The shared 256×262 logical raster
 uses a fractional enable for a nominal 60 Hz frame cadence. Composite sync,
 half-line behavior and cycle-perfect raster effects remain outside this slice.
-Audio (SN76489), SC-3000 keyboard, banked 32/48 KiB cartridges and expansion
+SC-3000 keyboard, banked 32/48 KiB cartridges and expansion
 hardware remain outside this slice. The OSS producer can seal from a clean
 tree; the package-only recipe does not change the factory image.
 
@@ -52,11 +55,13 @@ tree; the package-only recipe does not change the factory image.
 | `0xc000–0xffff` | mirrored 1 KiB CPU RAM |
 | I/O `0xbe` | VDP data |
 | I/O `0xbf` | VDP control/status |
+| I/O `0x40–0x7f` | SN76489 PSG write |
 | I/O `0xdc`/`0xde` | joystick port A (P1 plus P2 left half) |
 | I/O `0xdd`/`0xdf` | joystick port B (P2 right/fire; unused bits 1) |
 
-The keyboard rows, build identity and fixed-video interfaces use the existing
-`fes.simple-computer` boundary. The format-3 manifest requires no startup
+The keyboard rows, build identity, fixed-video and audio interfaces use the
+existing `fes.simple-computer` boundary. The ROM-linked build reports keyboard,
+video and audio capability bits (`0x13`). The format-3 manifest requires no startup
 `fes.media.blob`; the host and target agent link the selected cartridge before
 programming, then release reset. The diagnostic mailbox build still exercises
 the legacy media handshake in simulation and the Quartus oracle.
@@ -113,6 +118,12 @@ cached bytes at `C001` and `C002` make the live polling path observable in
 simulation. Its preview accepts the unchanged 40-bit keyboard matrix with,
 for example, `--controllers --matrix 0xfffffffdfe`.
 
+It also emits `build/diagnostics/fes-sg1000/sound-16k.rom`: the same visual
+signature while alternating an approximately 437 Hz tone and white noise about
+once per second. This is an exact-size open
+cartridge for a leased kit audio check; it does not establish hardware audio
+acceptance by itself.
+
 `make sim-fes-sg1000` is the cheap Verilator machine check (media copy, RAM
 mirror, joystick ports, Graphics I diagnostic and live controller diagnostic).
 It is host simulation, not hardware acceptance.
@@ -130,14 +141,17 @@ the linked cartridge does not depend on a startup media upload.
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 
 `make build-fes-sg1000-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
-for `fes.sg1000` 1.0.0. It requires a clean committed tree, writes
+for `fes.sg1000` 1.2.0. It requires a clean committed tree, writes
 `build/fes-sg1000-quartus/build-inputs.json`, embeds that build id, and seals
 a format-2 package when timing passes. It does not program hardware.
 
 `make build-fes-sg1000` is the format-3 OSS recipe
 (`scripts/build_fes_sg1000_oss.py`). It exports a blank 16-lane M10K ROM and
 authenticated `rom-map.json` for the target agent's Go linker. The manifest
-requires one exact 16 KiB `cartridge-rom` and no startup media blob.
+requires one exact 16 KiB `cartridge-rom`, required
+`fes.audio.pcm-s16-stereo-48k` 1.0, and no startup media blob. The producer
+requires two PLLs, the four routed HDMI audio pads, and passing system,
+pixel and audio timing domains.
 It copies Coleco `constraints-oss.qsf` and `clocks-oss.sdc`, and selects
 the shared `toolchains/registered-memory.lock`. Yosys defines
 `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and

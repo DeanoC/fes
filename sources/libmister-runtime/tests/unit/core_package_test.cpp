@@ -264,6 +264,13 @@ void TestSimpleComputerCompatibilityRequiresKeyboardVideoAndMedia()
 	stream.interfaces.back() = {"fes.media.blob-stream", 1, 0, true};
 	stream.interfaces.erase(stream.interfaces.begin() + 2);
 	assert(!mister::native::CheckCoreCompatibility(stream).ok()); // legacy remains required
+	auto audio = descriptor;
+	audio.interfaces.push_back({"fes.audio.pcm-s16-stereo-48k", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(audio).ok());
+	audio.interfaces.back().required = false;
+	assert(!mister::native::CheckCoreCompatibility(audio).ok());
+	audio.interfaces.back() = {"fes.audio.pcm-s16-stereo-48k", 2, 0, true};
+	assert(!mister::native::CheckCoreCompatibility(audio).ok());
 }
 
 void TestLinkedCartridgeRejectsResetHeldMediaContracts()

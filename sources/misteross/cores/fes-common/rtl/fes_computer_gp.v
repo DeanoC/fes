@@ -11,7 +11,8 @@
 // does not discard in-progress stream staging.
 module fes_computer_gp #(
     parameter ENABLE_MEDIA_STREAM = 0,
-    parameter ENABLE_MEDIA_BLOB = 1
+    parameter ENABLE_MEDIA_BLOB = 1,
+    parameter ENABLE_AUDIO = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -37,6 +38,9 @@ module fes_computer_gp #(
          32'h00000000) |
         (ENABLE_MEDIA_STREAM ?
          `FES_SIMPLE_COMPUTER_INTERFACE_MEDIA_BLOB_STREAM_CAPABILITY_MASK :
+         32'h00000000) |
+        ((ENABLE_AUDIO != 0) ?
+         `FES_SIMPLE_COMPUTER_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK :
          32'h00000000);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_SIMPLE_COMPUTER_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_SIMPLE_COMPUTER_IDENTITY_MAGIC1_INDEX;

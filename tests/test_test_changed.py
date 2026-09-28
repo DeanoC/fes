@@ -109,6 +109,7 @@ class TestChangedTest(unittest.TestCase):
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(set(targets), {"sim-fes-coleco", "sim-fes-sg1000",
                                       "sim-fes-sg1000-oss", "sim-fes-sg1000-rom-link",
+                                      "sim-fes-sg1000-gp-audio",
                                       "sim-fes-sms", "sim-fes-sms-oss"})
 
     def test_staged_and_untracked_changes_are_included_without_mutation(self):
@@ -157,7 +158,7 @@ class TestChangedTest(unittest.TestCase):
 
     def test_executor_uses_argument_arrays_native_env_and_stops_on_failure(self):
         result = self.plan()
-        with patch.object(test_changed, "preflight"), patch.object(test_changed.subprocess, "run", return_value=subprocess.CompletedProcess([], 7)) as run, patch.dict(os.environ, {"GOOS": "linux", "GOARCH": "arm"}):
+        with patch.object(test_changed, "preflight"), patch.object(test_changed.subprocess, "run", return_value=subprocess.CompletedProcess([], 7)) as run, patch.dict(os.environ, {"GOOS": "linux", "GOARCH": "arm", "MAKEFLAGS": "w", "MFLAGS": "w", "MAKELEVEL": "1"}):
             # revision uses check_output internally, so keep the exact prior HEAD
             # observation independent of the mocked command executor.
             with patch.object(test_changed, "revision", return_value=result["head"]):
@@ -166,6 +167,8 @@ class TestChangedTest(unittest.TestCase):
         self.assertIsInstance(run.call_args.args[0], list)
         self.assertNotIn("shell", run.call_args.kwargs)
         self.assertNotIn("GOARCH", run.call_args.kwargs["env"])
+        for key in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL"):
+            self.assertNotIn(key, run.call_args.kwargs["env"])
         self.assertEqual(result["status"], "failed")
         self.assertTrue(result["not_started"])
 

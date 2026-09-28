@@ -1290,6 +1290,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		"fes.expansion.apple2-bus", "fes.gamepad.ports", "fes.keyboard.hid",
 		"fes.media.apple2-floppy", "fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
+	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
 	assert(capabilities.abis[3].id == "fes.simple-game");
 	assert(capabilities.media_units.empty());
 
@@ -1341,6 +1342,43 @@ void TestApplicationVideoOnlyLifecycleNeedsNoInput()
 	}
 	}
 	}
+}
+
+void TestSimpleComputerAudioIsEnabledOnlyAfterIdentity()
+{
+	std::vector<std::string> driver_events;
+	RecordingDriver driver(driver_events);
+	Fixture fixture(&driver);
+	auto load = [&](bool audio, std::uint64_t generation) {
+		TempDirectory package;
+		std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+		ReplaceAll(&manifest, "fes.simple-game", "fes.simple-computer");
+		ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard");
+		manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		if (audio)
+			manifest += "\n[[interfaces]]\nid = \"fes.audio.pcm-s16-stereo-48k\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		package.File("manifest.toml", manifest);
+		package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+		mister::native::OpenedCorePackage opened;
+		assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		assert(fixture.hardware.AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+		return fixture.hardware.LoadCore(std::move(admitted), generation);
+	};
+	auto has_phase = [&](const char* phase) {
+		for (const auto& entry : fixture.log.records())
+			if (entry.phase == phase && entry.error.ok()) return true;
+		return false;
+	};
+	assert(load(true, 1).error.ok());
+	assert(has_phase("audio_setup") && has_phase("audio_enable"));
+	fixture.log.Clear();
+	assert(load(false, 2).error.ok());
+	assert(!has_phase("audio_setup") && !has_phase("audio_enable"));
+	fixture.log.Clear();
+	driver.identify_result.error = {mister::ErrorCode::core_mismatch, "injected identity failure"};
+	assert(!load(true, 3).error.ok());
+	assert(!has_phase("audio_setup") && !has_phase("audio_enable"));
 }
 
 void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
@@ -2688,6 +2726,7 @@ int main()
 	TestFormat4TwoSourceAdmissionBeforeMutation();
 	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
+	TestSimpleComputerAudioIsEnabledOnlyAfterIdentity();
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
 	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();
 	TestHpsDdrReleaseFailureRecoversBeforeExecution();
