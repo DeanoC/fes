@@ -199,7 +199,7 @@ validate_supervisor_assignment \
   }
 validate_start_commands \
   "$runtime_service" \
-  '/usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &' \
+  '/usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime "$@" &' \
   'printf '\''%s\n'\'' "$!" > /run/mister-runtime-supervisor.pid' \
   runtime
 

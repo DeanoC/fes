@@ -105,6 +105,7 @@ class MediaTests(unittest.TestCase):
         (self.output / 'verification.json').write_text(json.dumps(cold_build.verification_record(self.output, sha, False)))
         self.packages = {}
         for index, (core_id, selection_name, package_id) in enumerate((
+                ('fes.menu', 'fes-menu.package-selection.toml', 'd' * 64),
                 ('fes.pong', 'fes-pong.package-selection.toml', 'a' * 64),
                 ('fes.zx81', 'fes-zx81.package-selection.toml', 'b' * 64),
                 ('fes.coleco', 'fes-coleco.package-selection.toml', 'c' * 64))):
@@ -134,7 +135,7 @@ class MediaTests(unittest.TestCase):
         self.package = self.packages['fes.pong']
         image_fingerprint, image_inputs = cold_build.image_fingerprint(
             'cold-fp', {'sources': {}}, tuple(
-                self.packages[core_id] for core_id in ('fes.pong', 'fes.zx81', 'fes.coleco')))
+                self.packages[core_id] for core_id in ('fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco')))
         (self.output / 'inputs.json').write_text(json.dumps(image_inputs))
         cold_build.write_receipt(self.output, 'image', image_fingerprint,
                                  ['linux.img', 'manifest.tsv', 'inputs.json'])

@@ -37,6 +37,8 @@ def publish(root, metadata, prepared, output):
     for row in rows:
         if set(row) != {'core_id', 'label', 'system', 'standing'} or row['core_id'] in seen:
             raise ValueError('invalid or duplicate core metadata')
+        if row['core_id'] == 'fes.menu':
+            raise ValueError('idle menu firmware is not a playable catalog core')
         recipes.recipe_for(row['core_id'])
         if (not isinstance(row['label'], str) or not row['label'].strip() or len(row['label']) > 128
                 or any(ord(c) < 32 for c in row['label'])

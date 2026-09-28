@@ -146,6 +146,7 @@ consumers, and all shared fixture copies without running synthesis.
 The parent publishes and receipts these external image inputs:
 
 ```text
+fes-menu.package-selection.toml
 fes-pong.package-selection.toml
 fes-zx81.package-selection.toml
 fes-coleco.package-selection.toml
@@ -161,6 +162,12 @@ the selection in its installed build inputs. Cold builds compare the selection
 from both independent passes. Development and cold receipts include the exact
 selection, manifest, payload and optional ROM-map hashes; a metadata-only manifest change
 invalidates image reuse even when the RBF bytes do not change.
+
+`fes.menu` is an image service package, not a playable library core. The native
+image installs its sealed selection at
+`/usr/share/mister-runtime/selections/fes-menu.package.toml`. Runtime startup
+uses that exact package and the kit UI enables native HDMI presentation. The
+boot splash remains the fallback if menu activation fails.
 
 On a host with a running `fogcast-api`, inspect and explicitly load a package:
 

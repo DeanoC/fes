@@ -35,8 +35,13 @@ case "${1:-start}" in
     fi
     # Config, networking and the host may appear later. The shared supervisor
     # retries an unsuccessful process without holding up the boot sequence.
-    /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
-      --config /media/fat/fogcast/launcher.json &
+    if [ -f /usr/share/mister-runtime/selections/fes-menu.package.toml ]; then
+      /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
+        --config /media/fat/fogcast/launcher.json --menu-display &
+    else
+      /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
+        --config /media/fat/fogcast/launcher.json &
+    fi
     printf '%s\n' "$!" > "$supervisor_pid"
     ;;
   stop) stop_service ;;

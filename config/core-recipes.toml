@@ -2,6 +2,20 @@
 version = 1
 
 [[recipes]]
+core_id = "fes.menu"
+identity_version = 2
+producer_script = "scripts/build_fes_menu_package.py"
+producer_module = "scripts.build_fes_menu_package"
+authenticate = "_authenticate_tools"
+lock_path = "toolchains/ramtest.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-menu.package-selection.toml"
+package_dir_env = "FES_MENU_PACKAGE_DIR"
+package_selection_env = "FES_MENU_PACKAGE_SELECTION"
+quartus_role = "no oracle required"
+
+[[recipes]]
 core_id = "fes.catch"
 identity_version = 2
 producer_script = "scripts/build_fes_catch.py"
