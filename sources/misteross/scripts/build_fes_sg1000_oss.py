@@ -67,9 +67,8 @@ ABI_DEFINITION = "cores/fes-sg1000/generated/fes_simple_computer.vh"
 QSF = "cores/fes-sg1000/constraints-oss.qsf"
 SDC = "cores/fes-sg1000/clocks-oss.sdc"
 RTL_SOURCES = (
-    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-coleco/rtl/coleco_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
-    "cores/fes-common/rtl/fes_audio_pll.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_sn76489.sv",
@@ -119,7 +118,7 @@ ORDINARY_RESOURCES = frozenset(
     }
 )
 REQUIRED_RESOURCES = {
-    "altera_pll": 3,
+    "altera_pll": 2,
     "cyclonev_hps_interface_mpu_general_purpose": 1,
     "cyclonev_hps_interface_peripheral_i2c": 1,
 }
@@ -195,7 +194,7 @@ def create_build_record(
             "gpu_architectures": SG1000_GPU_ARCHITECTURES,
             "gpu_backend": SG1000_GPU_BACKEND,
             "pixel_clock_hz": 74_250_000,
-            "sys_clock_hz": 52_000_000,
+            "sys_clock_hz": 52_224_000,
             "reference_clock_hz": 50_000_000,
             "seed": SEED,
             "router": ROUTER,
@@ -337,15 +336,16 @@ def validate_synth_evidence(output: Path) -> dict:
 
 
 def _audio_evidence(design: dict) -> None:
-    """Require a 50 MHz audio PLL and four real, correctly placed I2S pads."""
+    """Require the shared system/audio PLL and four real, routed I2S pads."""
     module = design["modules"][TOP]
     cells = module.get("cells", {})
     clocks = [cell for cell in cells.values()
               if cell.get("type") == "altera_pll"
-              and cell.get("parameters", {}).get("output_clock_frequency0") == "12.288 MHz"
+              and cell.get("parameters", {}).get("output_clock_frequency0") == "52.224 MHz"
+              and cell.get("parameters", {}).get("output_clock_frequency1") == "12.288 MHz"
               and cell.get("parameters", {}).get("reference_clock_frequency") == "50.0 MHz"]
     if len(clocks) != 1:
-        raise BuildError("audio requires exactly one 50-to-12.288 MHz PLL")
+        raise BuildError("audio requires one shared 52.224/12.288 MHz PLL")
     for port, pin in AUDIO_PINS.items():
         entry = module.get("ports", {}).get(port, {})
         pads = [cell for cell in cells.values() if cell.get("type") == "MISTRAL_OB"
@@ -380,12 +380,10 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text)
-    if "50 MHz -> 52 MHz" not in route_text:
-        raise BuildError("route log does not contain the 50-to-52 MHz system PLL")
-    if not re.search(r"PLL 'audio_clock.pll': 50 MHz -> 12\.288 MHz, direct", route_text):
-        raise BuildError("route log does not prove the 12.288 MHz audio PLL")
+    if "50 MHz -> 52.224 MHz" not in route_text:
+        raise BuildError("route log does not contain the shared 50-to-52.224 MHz system/audio PLL")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 52.0, "system clock", "clk_sys")
+    system = _frequency_row(timing.get("fmax"), 52.224, "system clock", "clk_sys")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     audio = _audio_timing(timing.get("fmax"))
     utilization = timing.get("utilization")
@@ -401,7 +399,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
             "system": {
                 "clock": system[0],
                 "constraint_mhz": system[1],
-                "requested_mhz": 52.0,
+                "requested_mhz": 52.224,
                 "achieved_mhz": system[2],
                 "status": "pass",
             },

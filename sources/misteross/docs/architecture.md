@@ -746,7 +746,8 @@ The SG-1000-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 1 Ki
 RAM at `0xc000`), the 8255 joystick ports `0xdc`/`0xdd`, and PSG write decode at
 `0x40–0x7f`. Coleco's SN76489-compatible PSG is driven by a fractional
 3,579,545 Hz enable. Its signed mono sample feeds both channels of the shared
-PCM-to-I2S output, with a separate 12.288 MHz audio PLL. There is no BIOS shim.
+PCM-to-I2S output. Coleco's two-output PLL supplies 52.224 MHz system and
+12.288 MHz audio from one board PLL; video uses the other. There is no BIOS shim.
 
 `make sim-fes-sg1000` is the diagnostic Verilator machine check
 (`-DTV80_REFRESH=1` only). `make sim-fes-sg1000-oss` compiles the same
@@ -770,7 +771,7 @@ blank 16-lane M10K cartridge, and the format-3 package carries a validated
 `rom-map.json`, exact 16 KiB `cartridge-rom` requirement and required
 `fes.audio.pcm-s16-stereo-48k` 1.0. The ROM-linked build reports GP mask
 `0x13` (keyboard, video, audio), with no media-blob bit. The producer checks
-three PLLs, four routed 3.3 V I2S outputs and passing system, pixel and audio
+two PLLs, four routed 3.3 V I2S outputs and passing system, pixel and audio
 timing domains before sealing version 1.2.0. Reset is not held for an
 application media upload. The open `sound-16k.rom` diagnostic emits a steady
 tone alongside the Graphics I display for a later leased kit check.

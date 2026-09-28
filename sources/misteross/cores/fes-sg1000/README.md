@@ -23,7 +23,7 @@ recipe; it is not in the factory image.
 
 ## Implemented first slice
 
-- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
+- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
   domain (Coleco `t80pa` / `tv80`).
 - Exact 16 KiB `cartridge-rom` linked into the RBF before FPGA download,
   mapped at `0x0000–0x3fff`. Pad shorter fixed-map images with `0xff` before
@@ -34,7 +34,8 @@ recipe; it is not in the factory image.
 - Two joysticks on the SG-1000 8255 ports `0xdc` / `0xdd`, adapted from the
   existing 40-bit keyboard matrix.
 - SN76489-compatible PSG writes at I/O `0x40–0x7f`, converted to signed stereo
-  PCM and serialized as 48 kHz I2S over the board HDMI audio pins.
+  PCM and serialized as 48 kHz I2S over the board HDMI audio pins. System and
+  audio clocks share Coleco's 52.224/12.288 MHz PLL; video uses the second PLL.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
 Text mode suppresses sprites, Multicolor keeps them active, and unsupported
@@ -148,7 +149,7 @@ a format-2 package when timing passes. It does not program hardware.
 authenticated `rom-map.json` for the target agent's Go linker. The manifest
 requires one exact 16 KiB `cartridge-rom`, required
 `fes.audio.pcm-s16-stereo-48k` 1.0, and no startup media blob. The producer
-requires three PLLs, the four routed HDMI audio pads, and passing system,
+requires two PLLs, the four routed HDMI audio pads, and passing system,
 pixel and audio timing domains.
 It copies Coleco `constraints-oss.qsf` and `clocks-oss.sdc`, and selects
 the shared `toolchains/registered-memory.lock`. Yosys defines

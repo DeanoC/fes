@@ -74,7 +74,7 @@ module sg1000_machine (
     wire ce_raster;
 
     tms9918_raster_ce #(
-        .SYSTEM_CLOCK_HZ(52_000_000)
+        .SYSTEM_CLOCK_HZ(52_224_000)
     ) raster_timing (
         .clk(clk_sys),
         .reset(machine_reset),
@@ -200,9 +200,9 @@ module sg1000_machine (
     reg psg_write_seen;
     reg [25:0] psg_phase;
     wire [26:0] psg_phase_next = {1'b0, psg_phase} + 27'd3579545;
-    wire psg_ce = psg_phase_next >= 27'd52000000;
+    wire psg_ce = psg_phase_next >= 27'd52224000;
     assign psg_ce_debug = psg_ce;
-    wire [26:0] psg_phase_wrapped = psg_phase_next - 27'd52000000;
+    wire [26:0] psg_phase_wrapped = psg_phase_next - 27'd52224000;
     wire psg_write = ce_cpu_n && !nIORQ && !nWR &&
                      cpu_addr[7:6] == 2'b01 && !psg_write_seen;
     assign psg_write_debug = psg_write;

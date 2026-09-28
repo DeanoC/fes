@@ -189,7 +189,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
                          {"fes.keyboard", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"})
 
     def test_both_sg1000_recipes_include_audio_sources_and_pins(self) -> None:
-        for source in ("fes_sn76489.sv", "fes_audio_pll.v", "fes_audio_output.v", "fes_audio_i2s.v"):
+        for source in ("fes_sn76489.sv", "coleco_system_pll.v", "fes_audio_output.v", "fes_audio_i2s.v"):
             self.assertTrue(any(item.endswith(source) for item in OSS_RTL_SOURCES), source)
             self.assertTrue(any(item.endswith(source) for item in (*VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES)), source)
         for qsf in (build_fes_sg1000_oss.QSF, "cores/fes-sg1000/constraints.qsf"):
@@ -202,8 +202,9 @@ class BuildFesSg1000Tests(unittest.TestCase):
     def test_oss_audio_evidence_rejects_bad_pll_and_pads(self) -> None:
         pins = {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
                 "HDMI_LRCLK": "PIN_T11", "HDMI_I2S": "PIN_T13"}
-        cells = {"audio_clock.pll": {"type": "altera_pll", "parameters": {
-            "output_clock_frequency0": "12.288 MHz", "reference_clock_frequency": "50.0 MHz"}}}
+        cells = {"system_clock.pll": {"type": "altera_pll", "parameters": {
+            "output_clock_frequency0": "52.224 MHz", "output_clock_frequency1": "12.288 MHz",
+            "reference_clock_frequency": "50.0 MHz"}}}
         ports = {}
         for index, (port, pin) in enumerate(pins.items()):
             ports[port] = {"direction": "output", "bits": [index]}
@@ -212,7 +213,8 @@ class BuildFesSg1000Tests(unittest.TestCase):
         design = {"modules": {"top": {"ports": ports, "cells": cells}}}
         build_fes_sg1000_oss._audio_evidence(design)
         for mutate in (
-            lambda d: d["modules"]["top"]["cells"].pop("audio_clock.pll"),
+            lambda d: d["modules"]["top"]["cells"].pop("system_clock.pll"),
+            lambda d: d["modules"]["top"]["cells"]["system_clock.pll"]["parameters"].update({"output_clock_frequency1": "13.000 MHz"}),
             lambda d: d["modules"]["top"]["cells"]["HDMI_I2S"]["connections"].update({"I": ["0"]}),
             lambda d: d["modules"]["top"]["cells"]["HDMI_LRCLK"]["attributes"].update({"LOC": "PIN_BAD"}),
             lambda d: d["modules"]["top"]["ports"].pop("HDMI_SCLK"),

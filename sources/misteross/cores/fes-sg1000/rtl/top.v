@@ -37,9 +37,6 @@ module top #(
     wire signed [15:0] psg_sample;
     wire audio_clk, audio_locked;
 
-    fes_audio_pll audio_clock (
-        .refclk(FPGA_CLK1_50), .clk(audio_clk), .locked(audio_locked)
-    );
     fes_audio_output audio (
         .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked),
         .hold(exec_reset), .left_sample(psg_sample), .right_sample(psg_sample),
@@ -83,10 +80,10 @@ module top #(
     );
 `endif
 
-    sys_pll system_clock (
+    coleco_system_pll system_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(clk_sys)
+        .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
 
     pixel_pll video_clock (

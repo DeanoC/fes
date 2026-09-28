@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
     unsigned psg_ticks = 0;
     for (unsigned i = 0; i < 520000; ++i)
         tick(dut, sound_prog, registered_media_data, nullptr, &psg_ticks);
-    require(psg_ticks == 35795 || psg_ticks == 35796,
+    require(psg_ticks == 35641 || psg_ticks == 35642,
             "PSG fractional clock rate is not 3.579545 MHz");
     dut.reset = 1;
     for (unsigned i = 0; i < 4; ++i)

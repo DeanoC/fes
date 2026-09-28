@@ -39,9 +39,8 @@ QSF_PINS = "cores/fes-sg1000/constraints.qsf"
 SDC = "cores/fes-sg1000/clocks.sdc"
 # Shared Coleco sibling modules. SG-1000 does not fork TV80, VDP, video, GP or PLL.
 VERILOG_SOURCES = (
-    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-coleco/rtl/coleco_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
-    "cores/fes-common/rtl/fes_audio_pll.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_computer_gp.v",
@@ -163,7 +162,7 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "reference_clock_hz": 50_000_000,
             "seed": 1,
-            "sys_clock_hz": 52_000_000,
+            "sys_clock_hz": 52_224_000,
             "top": TOP,
         },
     }
@@ -247,8 +246,8 @@ def _prepare_output(root: Path) -> Path:
 
 
 def require_clocks(sta_text: str) -> None:
-    if "52.0" not in sta_text and "52.00" not in sta_text:
-        raise BuildError("timing report does not mention the 52 MHz system clock")
+    if "52.224" not in sta_text:
+        raise BuildError("timing report does not mention the 52.224 MHz system clock")
     if "74.25" not in sta_text and "74.27" not in sta_text:
         raise BuildError("timing report does not mention the 74.25 MHz pixel clock")
 
