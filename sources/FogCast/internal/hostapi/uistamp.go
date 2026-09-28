@@ -29,10 +29,12 @@ const (
 )
 
 var allowedUIKinds = map[string]struct{}{
-	"ui.launch": {},
-	"ui.stop":   {},
-	"ui.focus":  {},
-	"ui.nav":    {},
+	"ui.launch":             {},
+	"ui.stop":               {},
+	"ui.focus":              {},
+	"ui.nav":                {},
+	"ui.launcher_action":    {},
+	"ui.home_room_fallback": {},
 }
 
 var droppedUIDetailKeys = map[string]struct{}{

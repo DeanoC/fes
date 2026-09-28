@@ -31,16 +31,30 @@ func (r *Instance) Destination() Destination {
 
 func (r *Instance) destinationSet(L *lua.LState) int {
 	opts := L.CheckTable(1)
+	kind := parseKind(optString(opts, "kind"))
+	launcherAction := ""
+	if kind == KindAction {
+		// Checked on every call. Room scripts are dynamic Lua, so this API
+		// boundary is the validation; nothing is stored until it passes.
+		launcherAction = optString(opts, "action")
+		if launcherAction == "" {
+			L.RaiseError("destination.set: launcher action required")
+		}
+		if !LauncherActionAllowed(launcherAction) {
+			L.RaiseError("destination.set: unknown launcher action %q", launcherAction)
+		}
+	}
 	d := Destination{
-		Kind:     parseKind(optString(opts, "kind")),
-		Label:    optString(opts, "label"),
-		System:   optString(opts, "system"),
-		GameID:   optString(opts, "game_id"),
-		RoomID:   optString(opts, "room_id"),
-		Note:     optString(opts, "note"),
-		NoteBy:   optString(opts, "note_by"),
-		Query:    optString(opts, "query"),
-		Platform: optString(opts, "platform"),
+		Kind:           kind,
+		Label:          optString(opts, "label"),
+		System:         optString(opts, "system"),
+		GameID:         optString(opts, "game_id"),
+		RoomID:         optString(opts, "room_id"),
+		LauncherAction: launcherAction,
+		Note:           optString(opts, "note"),
+		NoteBy:         optString(opts, "note_by"),
+		Query:          optString(opts, "query"),
+		Platform:       optString(opts, "platform"),
 	}
 	if d.NoteBy == "" {
 		d.NoteBy = strings.TrimSpace(r.pack.Author)
@@ -52,6 +66,8 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		}
 	}
 	switch {
+	case d.Kind == KindAction:
+		d.Availability = AvailReady
 	case optBool(opts, "resolving"):
 		d.Availability = AvailChecking
 		if d.Kind == "" {
@@ -150,6 +166,7 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 	t.RawSetString("system", lua.LString(d.System))
 	t.RawSetString("game_id", lua.LString(d.GameID))
 	t.RawSetString("room_id", lua.LString(d.RoomID))
+	t.RawSetString("launcher_action", lua.LString(d.LauncherAction))
 	t.RawSetString("availability", lua.LString(d.Availability))
 	t.RawSetString("state", lua.LString(d.Availability))
 	t.RawSetString("status", lua.LString(d.Status))
@@ -278,7 +295,7 @@ func applyPlayFacts(g hostclient.Game, row *lua.LTable) hostclient.Game {
 
 func parseKind(s string) Kind {
 	switch Kind(strings.ToLower(strings.TrimSpace(s))) {
-	case KindGame, KindRoom, KindLibrary, KindUnresolved:
+	case KindGame, KindRoom, KindLibrary, KindUnresolved, KindAction:
 		return Kind(strings.ToLower(strings.TrimSpace(s)))
 	default:
 		return ""

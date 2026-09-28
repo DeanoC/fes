@@ -117,6 +117,24 @@ func TestParseArgsNoAttractFalseIsSet(t *testing.T) {
 	}
 }
 
+func TestParseArgsHomeRoom(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-home-room", "main-menu"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.HomeRoom != "main-menu" {
+		t.Fatalf("home room %#v", opts.HomeRoom)
+	}
+	opts, err = parseArgs(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.HomeRoom != "" {
+		t.Fatalf("unset home room %#v", opts.HomeRoom)
+	}
+}
+
 func TestParseArgsRejectsUnknownFlag(t *testing.T) {
 	t.Parallel()
 	_, err := parseArgs([]string{"-bogus"})

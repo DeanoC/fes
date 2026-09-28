@@ -612,6 +612,97 @@ func TestAssetImageDecodeAndBudget(t *testing.T) {
 	}
 }
 
+func TestDestinationActionAllowlist(t *testing.T) {
+	src := `
+function load()
+  destination.set{ kind = "action", action = "settings", label = "Settings" }
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "actions", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	d := r.Destination()
+	if d.Kind != KindAction || d.LauncherAction != "settings" || d.Availability != AvailReady {
+		t.Fatalf("dest %+v", d)
+	}
+	if d.Confirm() != ConfirmLauncherAction {
+		t.Fatalf("confirm %v", d.Confirm())
+	}
+	if d.Status != "Open settings." || d.Action != "Open settings." {
+		t.Fatalf("copy %+v", d)
+	}
+	if err := r.CheckGlobal(`destination.get().kind == "action" and destination.get().launcher_action == "settings" and destination.get().availability == "ready" and destination.get().action == "Open settings."`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDestinationRejectsUnknownAndMissingAction(t *testing.T) {
+	keep := `
+function load()
+  destination.set{ kind = "room", room_id = "other", label = "Other" }
+end
+function on_input(cmd)
+  if cmd == "right" then destination.set{ kind = "action", action = "shell" }
+  elseif cmd == "left" then destination.set{ kind = "action" }
+  elseif cmd == "up" then destination.set{ kind = "action", action = "  " }
+  elseif cmd == "down" then destination.set{ kind = "nope", action = "settings", label = "Nope" }
+  end
+  return true
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "reject", keep, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Destination(); got.Kind != KindRoom || got.RoomID != "other" {
+		t.Fatalf("setup dest %+v", got)
+	}
+	r.Input("right")
+	if r.Err() == nil || !strings.Contains(r.Err().Error(), `destination.set: unknown launcher action "shell"`) {
+		t.Fatalf("unknown action error %v", r.Err())
+	}
+	if got := r.Destination(); got.Kind == KindAction || got.LauncherAction != "" {
+		t.Fatalf("unknown action stored %+v", got)
+	}
+
+	r2 := newRoom(t, memPack(t, "missing-action", keep, nil), Options{})
+	if err := r2.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r2.Input("left")
+	if r2.Err() == nil || !strings.Contains(r2.Err().Error(), "destination.set: launcher action required") {
+		t.Fatalf("missing action error %v", r2.Err())
+	}
+	if got := r2.Destination(); got.Kind == KindAction || got.LauncherAction != "" {
+		t.Fatalf("missing action stored %+v", got)
+	}
+
+	r3 := newRoom(t, memPack(t, "blank-action", keep, nil), Options{})
+	if err := r3.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r3.Input("up")
+	if r3.Err() == nil || !strings.Contains(r3.Err().Error(), "destination.set: launcher action required") {
+		t.Fatalf("blank action error %v", r3.Err())
+	}
+
+	r4 := newRoom(t, memPack(t, "unknown-kind", keep, nil), Options{})
+	if err := r4.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r4.Input("down")
+	if r4.Err() != nil {
+		t.Fatal(r4.Err())
+	}
+	if got := r4.Destination(); got.Kind == KindAction || got.LauncherAction != "" {
+		t.Fatalf("unknown kind became an action %+v", got)
+	}
+	if got := r4.Destination(); got.Kind != KindUnresolved {
+		t.Fatalf("unknown kind dest %+v", got)
+	}
+}
+
 func TestRoomsOpenValidatesAgainstIndex(t *testing.T) {
 	other := memPack(t, "other", "function draw() end", nil)
 	src := "function on_input(cmd)\n if cmd == 'right' then rooms.open('other') elseif cmd == 'left' then rooms.open('missing') elseif cmd == 'back' then rooms.back() end\n return true\nend\nfunction draw() end"
