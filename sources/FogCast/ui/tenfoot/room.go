@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -119,6 +120,19 @@ func (a *App) SetHomeRooms(on bool) {
 	a.homeRooms = on
 }
 
+// SetHomeRoom names the room opened as the root at start and for Home when
+// Home is rooms. Empty, or an id that cannot be opened, uses the picker.
+// The id is kept even when it fails the pack id rule so the fallback can
+// name it in host diagnostics.
+func (a *App) SetHomeRoom(id string) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.homeRoom = strings.TrimSpace(id)
+}
+
 // RoomOpen reports whether a scripted room owns the screen.
 func (a *App) RoomOpen() bool {
 	a.mu.Lock()
@@ -138,7 +152,13 @@ func (a *App) roomsAvailableLocked() bool {
 }
 
 func (a *App) showHomeLocked() {
-	if a.homeRooms && a.roomsIndex != nil && a.roomsIndex.ValidCount() > 0 {
+	if !a.homeRooms {
+		return
+	}
+	if a.openHomeRoomAsRootLocked() {
+		return
+	}
+	if a.roomsIndex != nil && a.roomsIndex.ValidCount() > 0 {
 		a.openRoomPickerLocked()
 	}
 }
@@ -183,6 +203,13 @@ func (a *App) openRoomLocked(id string) {
 		a.status = a.roomErr
 		return
 	}
+	a.openValidRoomLocked(pack)
+}
+
+// openValidRoomLocked replaces the current room with pack. It reports
+// false only when rooms.New fails; a script error still leaves the
+// instance up so the existing error panel can show it.
+func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 	a.closeRoomLocked()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
@@ -201,7 +228,7 @@ func (a *App) openRoomLocked(id string) {
 	if err != nil {
 		a.roomErr = err.Error()
 		a.status = a.roomErr
-		return
+		return false
 	}
 	a.room = inst
 	a.roomErr = ""
@@ -211,10 +238,108 @@ func (a *App) openRoomLocked(id string) {
 	if err := inst.Load(); err != nil {
 		a.roomErr = err.Error()
 		a.status = "room failed: " + err.Error()
-		return
+		return true
 	}
 	a.applyRoomActionsLocked()
 	a.status = pack.Title
+	return true
+}
+
+// openHomeRoomAsRootLocked opens home_room as the only room when Home is
+// rooms and the pack can be created. It reports false when Home is the
+// library, no id is set, play already owns the screen, or the pack cannot
+// be opened. A false result leaves the caller on today's picker path.
+func (a *App) openHomeRoomAsRootLocked() bool {
+	if a == nil || !a.homeRooms || a.roomDuringPlay || a.sessionStopOfferedLocked() {
+		return false
+	}
+	id := strings.TrimSpace(a.homeRoom)
+	if id == "" {
+		return false
+	}
+	pack, reason, ok := a.resolveHomeRoomLocked(id)
+	if !ok {
+		a.noteHomeRoomFallbackLocked(id, reason)
+		return false
+	}
+	if a.reclaimHomeRoomLocked(id) {
+		return true
+	}
+	prevStatus := a.status
+	a.closeAllRoomsLocked()
+	a.roomPickerOpen = false
+	if a.openValidRoomLocked(pack) {
+		return true
+	}
+	a.closeRoomLocked()
+	a.roomErr = ""
+	a.status = prevStatus
+	a.noteHomeRoomFallbackLocked(id, "open failed")
+	return false
+}
+
+func (a *App) resolveHomeRoomLocked(id string) (rooms.Pack, string, bool) {
+	if !rooms.ValidRoomID(id) {
+		return rooms.Pack{}, "invalid id", false
+	}
+	if a.roomsIndex == nil {
+		return rooms.Pack{}, "missing", false
+	}
+	pack, ok := a.roomsIndex.Find(id)
+	if !ok {
+		return rooms.Pack{}, "missing", false
+	}
+	if !pack.Valid() {
+		return rooms.Pack{}, "invalid", false
+	}
+	return pack, "", true
+}
+
+// reclaimHomeRoomLocked makes an already-open home room the only room.
+// The root-most live instance is kept so Home does not reload it.
+func (a *App) reclaimHomeRoomLocked(id string) bool {
+	var home *rooms.Instance
+	for _, parent := range a.roomStack {
+		if parent != nil && parent.ID() == id && parent.Err() == nil {
+			home = parent
+			break
+		}
+	}
+	if home == nil && a.room != nil && a.room.ID() == id && a.room.Err() == nil {
+		home = a.room
+	}
+	if home == nil {
+		return false
+	}
+	switched := a.room != home
+	if switched {
+		a.closeRoomLocked()
+	}
+	for _, parent := range a.roomStack {
+		if parent != nil && parent != home {
+			parent.Close()
+		}
+	}
+	a.roomStack = nil
+	a.room = home
+	a.roomPickerOpen = false
+	a.roomWasParked = a.gpuParked
+	a.resizeRoomsLocked()
+	if switched {
+		a.postUIEventLocked("ui.nav", map[string]string{"reason": "home-room", "view": "room:" + home.ID()})
+		home.Resume()
+		a.applyRoomActionsLocked()
+	}
+	return a.room != nil && a.room.ID() == id
+}
+
+func (a *App) noteHomeRoomFallbackLocked(id, reason string) {
+	// TODO(slice 5): fallback notice copy per brief §4
+	fmt.Fprintf(os.Stderr, "tenfoot: home_room %q fallback: %s\n", id, reason)
+	a.postUIEventLocked("ui.home_room_fallback", map[string]string{
+		"room":   id,
+		"reason": reason,
+	})
 }
 
 // closeRoomLocked closes the current room only; parents on roomStack stay alive.
@@ -240,8 +365,8 @@ func (a *App) closeAllRoomsLocked() {
 	a.roomStack = nil
 }
 
-// leaveRoomLocked resumes the suspended parent room or, at the root,
-// returns to the picker.
+// leaveRoomLocked resumes the suspended parent room or, at the root
+// (including a home_room root), returns to the picker.
 func (a *App) leaveRoomLocked() {
 	a.closeRoomOverlaysLocked()
 	if n := len(a.roomStack); n > 0 {
@@ -304,7 +429,10 @@ func (a *App) applyRoomActionsLocked() {
 		case rooms.ActionResumeSession:
 			a.resumeRoomSessionLocked()
 		case rooms.ActionHome:
-			a.openRoomPickerLocked()
+			if !a.openHomeRoomAsRootLocked() {
+				a.openRoomPickerLocked()
+			}
+			return
 		case rooms.ActionOpenRoom:
 			a.openNestedRoomLocked(act.RoomID)
 			return

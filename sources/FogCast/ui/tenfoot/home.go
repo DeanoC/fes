@@ -244,6 +244,9 @@ func (a *App) goHomeNowLocked() {
 		return
 	}
 	a.closeSettingsLocked()
+	if a.openHomeRoomAsRootLocked() {
+		return
+	}
 	a.openRoomPickerLocked()
 	a.status = "home"
 }

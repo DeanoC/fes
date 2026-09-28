@@ -396,7 +396,11 @@ profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
 evidence, including a failed menu, so physical idle can still be confirmed for
-appliance maintenance.
+appliance maintenance. `underflows` on that object and on a frame completion
+is the runtime's per-present delta. The kit painter and the Linux menu
+client accept a delta of at most one 720p scanline and refuse a larger one.
+The runtime and this agent must ship in the same image because decoding is
+strict; capability-gated emission and tolerant decoding are not implemented.
 `load_core` carries a rooted staged directory and package ID. The target retains
 active and in-flight `Staged` ownership, reconciles a lost mutation reply by
 observing identity plus a new generation, and retries failed cleanup only at a
@@ -680,7 +684,7 @@ Native SDL3 UI
   -> POST /api/v1/session/development-rbf (raw octet-stream from a local path OSK)
   -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome; additive flight_id)
   -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id plus host/client clocks)
-  -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps; not a kit mutation)
+  -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps, plus launcher-action rejection and home-room fallback; not a kit mutation)
   -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
   -> POST /api/v1/session/stop (empty body releases the kit lease; optional client stamp JSON; retain_lease true keeps it; release_idle drops idle grants without stopping a surviving play; X-FogCast-Client-* headers)
   -> GET /api/v1/health (poll; kit chrome)
@@ -705,13 +709,16 @@ Invalid client clocks are ignored and do not fail the mutation. The current
 `flight_id` is also additive on `GET /api/v1/session` and on launch/stop
 responses. Focus and nav stamps, plus a copy of launch/stop actions, go to
 `POST /api/v1/debug/ui-events` (`layer=ui`, kinds `ui.launch` / `ui.stop` /
-`ui.focus` / `ui.nav`); fog-flight joins those rows to host and target events
+`ui.focus` / `ui.nav` / `ui.launcher_action` / `ui.home_room_fallback`); fog-flight joins those rows to host and target events
 by `flight_id` when it is present. Token-like detail keys are dropped.
+`ui.home_room_fallback` carries `room` and `reason` for a `home_room` that
+could not be opened. `ui.launcher_action` records an id the allowlist
+rejected. Neither is a kit mutation.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, reduced motion, the look name, the optional debug HUD, and Home
-(`home` start screen plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` and optional `tenfoot.json` prefs). The Home overlay lists pinned rooms, recently played games, installed rooms, and the library. There is no host
+(`home` start screen, optional `home_room` id, plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
+`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are

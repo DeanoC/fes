@@ -67,6 +67,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	debugHUD := fs.Bool("debug-hud", envTruthy("FOGCAST_DEBUG_HUD"), "paint the optional corner overlay (flight, lease gen/ttl, last error)")
 	roomsDir := fs.String("rooms", envOr("FOGCAST_ROOMS", ""), "room pack directory (default <config>/FogCast/rooms; embedded examples are always available)")
 	home := fs.String("home", "", "screen shown at start: library or rooms (default tenfoot.json home, else library)")
+	homeRoom := fs.String("home-room", "", "room id opened at start and for Home when -home is rooms (default tenfoot.json home_room, else FOGCAST_HOME_ROOM)")
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
@@ -117,6 +118,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		RoomsDir:     *roomsDir,
 		Home:         *home,
 		HomeSet:      homeSet,
+		HomeRoom:     strings.TrimSpace(*homeRoom),
 	}, nil
 }
 

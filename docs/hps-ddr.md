@@ -56,7 +56,10 @@ never allocates `0x1ff00000` and above. The lower half of the reservation is
 not free, though. The MiSTer kernel's `MiSTer_fb` node claims `0x22000000`
 (8 MiB) and fbcon draws its console there. On the kit, its blinking cursor
 overwrote RAM tester data at `0x22001000`. The ports can reach all of DDR, so
-an address outside the window is a core defect.
+an address outside the window is a core defect. The runtime writes menu
+frames as aligned words and barriers them before scanout submission. It does
+not write the window after a lifecycle operation begins quiescing menu
+firmware or programming another core.
 
 ## Using it in a core
 

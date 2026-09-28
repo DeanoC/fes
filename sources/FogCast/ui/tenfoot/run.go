@@ -61,6 +61,10 @@ type Options struct {
 	// back to tenfoot.json home, then library.
 	Home    string
 	HomeSet bool
+	// HomeRoom is a room id opened as the root room at start and for Home
+	// when Home is rooms. Empty falls back to tenfoot.json home_room, then
+	// FOGCAST_HOME_ROOM. A missing or invalid id falls back to the picker.
+	HomeRoom string
 	// ReducedMotion skips decorative room animation. Empty falls back to
 	// FOGCAST_TENFOOT_REDUCED_MOTION / FOGCAST_REDUCED_MOTION, then
 	// tenfoot.json reduced_motion.
@@ -170,6 +174,13 @@ func (o Options) normalized() Options {
 	} else {
 		o.Home = homePrefValue(false)
 	}
+	o.HomeRoom = strings.TrimSpace(o.HomeRoom)
+	if o.HomeRoom == "" && prefsErr == nil {
+		o.HomeRoom = strings.TrimSpace(prefs.HomeRoom)
+	}
+	if o.HomeRoom == "" {
+		o.HomeRoom = strings.TrimSpace(os.Getenv("FOGCAST_HOME_ROOM"))
+	}
 	if envTruthy(os.Getenv("FOGCAST_TENFOOT_REDUCED_MOTION")) || envTruthy(os.Getenv("FOGCAST_REDUCED_MOTION")) {
 		o.ReducedMotion = true
 		o.ReducedMotionSet = true
@@ -245,6 +256,7 @@ func configuredApp(opts Options) (*App, error) {
 	app.SetRooms(roomIndex, opts.RoomsDir)
 	homeRooms, _ := parseHomePref(opts.Home)
 	app.SetHomeRooms(homeRooms)
+	app.SetHomeRoom(opts.HomeRoom)
 	app.SetDebugHUD(opts.DebugHUD)
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))

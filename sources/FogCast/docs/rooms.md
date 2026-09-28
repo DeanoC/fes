@@ -38,14 +38,31 @@ The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
 
 Open **Home** with **h** / **Home** on a keyboard, or **hold B** on a
-gamepad (a shortcut, not the only Home route). Home lists pinned rooms,
-recently played games, every installed room, and the full library.
-Selecting a room opens it (first visit uses the authored start; later
-visits restore the last valid location). Settings has a **Home** row:
-Left/Right chooses the start screen (`library` or `rooms`, persisted as
-`home` in `tenfoot.json`, or `-home`); Confirm goes Home now. Details /
-**Y** / `i` pins or unpins the focused room (`pinned_rooms` in
-`tenfoot.json`). **GUIDE/o** opens that system menu as a tap.
+gamepad (a shortcut, not the only Home route). When `home` is `rooms`
+and `home_room` names a pack that can be opened, start and Home open
+that room as the root and clear the nested stack. Home does not toggle
+the picker in that case; if that root room is already showing, Home
+stays there. Otherwise Home lists pinned rooms, recently played games,
+every installed room, and the full library. Selecting a room opens it
+(first visit uses the authored start; later visits restore the last
+valid location). Settings has a **Home** row: Left/Right chooses the
+start screen (`library` or `rooms`, persisted as `home` in
+`tenfoot.json`, or `-home`); Confirm goes Home now. There is no Settings
+row for `home_room`. Details / **Y** / `i` pins or unpins the focused
+room (`pinned_rooms` in `tenfoot.json`). **GUIDE/o** opens that system
+menu as a tap.
+
+`home_room` is a room id. Precedence is `-home-room`, then `tenfoot.json`
+`home_room`, then `FOGCAST_HOME_ROOM`. The id must match the pack id
+rule (`[a-z0-9][a-z0-9._-]{0,63}`). It applies only when `home` is
+`rooms`; `library` is unchanged. If the id is malformed, the pack is
+missing or invalid, or the room cannot be created, the Home picker is
+shown. The id and reason are written to stderr and posted once per
+start or Home attempt as `ui.home_room_fallback` (`room`, `reason`).
+They are not shown on the TV. Back inside a nested room pops as usual.
+Back at the home-room root opens the Home picker. While a session is
+active, Home keeps the playing-view path and does not substitute
+`home_room`.
 
 In a room, **B/Esc** goes back (closes Details first, then the parent
 room, then Home). Rooms cannot suppress **Back** or the **system menu**.
@@ -107,7 +124,7 @@ Define any of these globals:
 | `load()` | once, after the file has run; start `library.*` queries here |
 | `update(dt)` | every tick before `draw`; `dt` in seconds (clamped to 0.1) |
 | `draw()` | every tick; the only place `gfx.*` drawing calls are allowed |
-| `on_input(cmd) -> bool` | a command name (below); return `true` when consumed. `settings` and `home` are never delivered. FES owns **Back** after overlays (Details / choice / launch); unconsumed `back` is not required for leave |
+| `on_input(cmd) -> bool` | a command name (below); return `true` when consumed. `settings` and `home` are never delivered. A room can still offer Settings by publishing an allowlisted action destination (below). FES owns **Back** after overlays (Details / choice / launch); unconsumed `back` is not required for leave |
 | `on_hover(id)` / `on_activate(id)` | pointer over / primary click on a region registered with `gfx.hit` |
 | `on_resume()` | when the launcher returns to this room after a play session or a nested room (the room instance is suspended, not reloaded, while a nested room is open) |
 | `on_resize(w, h)` | when the safe content box changes (safe-area nudge); `room.width`/`room.height` are already updated |
@@ -186,15 +203,37 @@ the current node after a match lands, do not refocus. Lobby, Workbench, and
 TMS9918 Family publish too, so the strip is present in those rooms as well
 as Mushroom Kingdom.
 
-`destination.set{kind, label, system, game_id, room_id, query, platform,
+`destination.set{kind, label, system, game_id, room_id, action, query, platform,
 matches, resolving, missing, note, note_by}` publishes one location.
-`kind` is `game`, `room`, `library`, or `unresolved`. Omit availability to
+`kind` is `game`, `room`, `library`, `action`, or `unresolved`. Omit availability to
 let the host classify `matches` into Checking / Missing / Needs a choice /
 Unavailable / Ready. `resolving=true` is Checking. Unresolved without a
 match probe is a non-game location (a platform row, an empty list): the
 strip shows **Unresolved** and Confirm stays with the room. Republishing
 `matches` does not overwrite host `play_count` or `last_played_at` on
 catalog rows the room already cached.
+
+`kind = "action"` is a launcher-internal operation, not a shell command.
+The only allowlisted id is `settings`:
+
+```lua
+destination.set{ kind = "action", action = "settings", label = "Settings" }
+```
+
+Rooms are dynamic Lua, so the check runs on every `destination.set`
+call; that API boundary is the validation. A missing id, or any id other
+than `settings`, raises a Lua error (`destination.set: unknown launcher
+action "..."` or `destination.set: launcher action required`) and is not
+stored. The room's existing error panel shows it. An accepted action is
+Ready. The host may still refuse it at Confirm — Settings does not open
+while a session is active or launching, a stop is in progress, the GPU
+is parked, or a development load is running — and then shows a short
+status instead of doing nothing. Confirm runs the action. Details
+(Y / `i`, or a pointer tap on the compact strip) shows the status line
+and does not run it. `destination.get()` keeps `action` as the panel
+copy and reports the id as `launcher_action`. There is no `rooms.action`
+call.
+
 `destination.classify(games, {q=})` returns that result without changing
 focus. `destination.play_history(game_or_facts)`
 returns `{played, completed, line}` from play facts; `completed` is true
@@ -203,7 +242,8 @@ destinations expose the same `played` / `completed` / `history` fields.
 `destination.get()` / `destination.clear()`.
 
 Confirm never silently no-ops: Ready plays, a room destination enters,
-Needs a choice opens an edition list unless a household edition preference
+and an allowlisted action runs or explains why it cannot. Needs a choice
+opens an edition list unless a household edition preference
 is saved for that query and platform, Missing opens the library, Checking
 and Unavailable show honest copy (Unavailable also opens Details). A kit
 lease held by another session turns a Ready title into Unavailable with
@@ -236,7 +276,8 @@ a launch is not Completed.
   identity, so a stale room cannot act on another foreground play. The
   launcher rejects Launch while
   a session is active. A script must explain Stop's memory consequences.
-- `rooms.home()` opens the FES Home picker. In a room visited during play,
+- `rooms.home()` opens the home room when `home_room` is valid, and
+  otherwise the FES Home picker. In a room visited during play,
   Back returns to the playing view without stopping it. The visible Hardware
   room button, physical keyboard Home and controller Select/View return to
   `example.hardware`; held computer keys are released before menu input.
