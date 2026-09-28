@@ -269,7 +269,11 @@ Each capture is written as a JPEG and `acceptance.json` records the exact
 package, input count, media digest and capture digest. Capture digests prove
 which bytes were recorded; visual interpretation remains a human HDMI review.
 The lane is intentionally not part of ordinary CI because it requires the
-designated physical kit and `/dev/video0`.
+designated physical kit and the ShadowCast node
+`/dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0`.
+That is the default `--video-device`. Powerboat also has a second capture
+card, so do not substitute `/dev/videoN`; the stable paths are in the FogCast
+[dedicated fixture](../sources/FogCast/docs/DEVELOPMENT.md#dedicated-fixture).
 
 The `--media` option remains an explicit development upload after library launch;
 it can replace library-selected media for that diagnostic session. Its receipt

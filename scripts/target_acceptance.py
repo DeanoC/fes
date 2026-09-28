@@ -486,7 +486,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--entry", action="append", default=[], metavar="CORE=GAME_ID",
                         help="select an exact library entry; required when core/package matches are ambiguous")
     result.add_argument("--capture-dir", default=os.environ.get("FES_ACCEPTANCE_CAPTURE_DIR"))
-    result.add_argument("--video-device", default=os.environ.get("FES_HDMI_DEVICE", "/dev/video0"))
+    result.add_argument("--video-device", default=os.environ.get(
+        "FES_HDMI_DEVICE",
+        "/dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0",
+    ))
     result.add_argument("--capture-size", default=os.environ.get("FES_HDMI_SIZE", "1280x720"))
     result.add_argument("--capture-input-format", choices=("yuyv422", "mjpeg"), default="yuyv422",
                         help="V4L2 capture format (default: yuyv422; MJPEG is opt-in)")

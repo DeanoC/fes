@@ -200,7 +200,7 @@ Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
 
 The designated disposable kit is:
 
-- Host: `powerboat` (`192.168.10.203`)
+- Host: `powerboat` (`192.168.10.202`)
 - Native MiSTer Pi: `192.168.10.84`, SSH `root` / `1`
 - ROM share: `//DEANO-CLAWZ/Games`
 - ROM directory inside the share: `Games`
@@ -208,19 +208,35 @@ The designated disposable kit is:
 - Host config: `~/.config/fogcast/config.toml` (untracked, mode `0600`)
 - Host API: `http://127.0.0.1:8787`
 - Target API: `http://192.168.10.84:8182`
-- HDMI capture: ShadowCast 3 on `/dev/video0`
+- HDMI capture: ShadowCast 3 at `/dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0`
+
+Powerboat has two USB capture cards. `/dev/videoN` follows enumeration order,
+so capture always uses a `/dev/v4l/by-id` path and never `/dev/videoN`.
+
+- ShadowCast (kit HDMI, back USB-C, 5 Gbit/s): `/dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0`
+- ASUS TUF 4KPRO (front USB-A, 10 Gbit/s): `/dev/v4l/by-id/usb-ASUS_4KPRO_802B003090700329-video-index0`
+
+Powerboat loads `uvcvideo` with `quirks=0x80` globally. The 4KPRO needs that
+quirk, and the ShadowCast still produces normal frames with it. A udev rule
+and retry script keep the 4KPRO working across replugs and reboots.
+
+A ShadowCast still is:
+
+```sh
+ffmpeg -hide_banner -loglevel error -y -f v4l2 -input_format mjpeg -video_size 1920x1080 -framerate 30 -i /dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0 -vf 'select=eq(n\,4)' -frames:v 1 OUT.png
+```
 
 Smoke and deploy scripts default to that Pi. Override with
 `FOGCAST_TARGET_HOST` and `FOGCAST_TARGET_API` when using another device.
 The private `config.toml` `[[targets]]` address must match the designated
 kit. Do not commit credentials or print them in logs.
 
-The Powerboat kit host (`192.168.10.203:8789`, `fogcast-api-sofa` plus
+The Powerboat kit host (`192.168.10.202:8789`, `fogcast-api-sofa` plus
 `launcher-host.json`) uses the same private `config.toml`. Run that binary
 with `--headless` so the kit listener stays up without DISPLAY, DRM, or
 V4L2/FFmpeg preview. On Powerboat the API binds `127.0.0.1:8787` and the
 launcher binds `*:8789`. `fogcast-kit` reconnects to
-`http://192.168.10.203:8789` with the existing `launcher.json` API URL.
+`http://192.168.10.202:8789` with the existing `launcher.json` API URL.
 Enable LaunchBox metadata there with `[metadata] provider = "launchbox"` and
 an absolute archive path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).
 

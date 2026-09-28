@@ -1024,7 +1024,7 @@ Record exact runtime and FogCast merge SHAs for Task 7.
   - `docs/superpowers/specs/2026-08-31-libmister-runtime-design.md`
 
 **Interfaces:**
-- Consumes: exact merged runtime/FogCast identities, locked idle RBF, reviewed image scripts, target `192.168.10.239`, host API `127.0.0.1:8787`, ShadowCast `/dev/video0`, and the known-good legacy path.
+- Consumes: exact merged runtime/FogCast identities, locked idle RBF, reviewed image scripts, target `192.168.10.239`, host API `127.0.0.1:8787`, ShadowCast `/dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0`, and the known-good legacy path.
 - Produces: either (a) preserved failure evidence plus fresh legacy/Menu restoration and no truth commit, or (b) native idle HDMI physical evidence, fresh legacy/Sonic proof, and reviewed truth-document commit.
 
 - [ ] **Step 1: Freeze authorities and create a fresh evidence root**
@@ -1119,12 +1119,12 @@ capture_dir=$(mktemp -d \
   build/output/target-image/native-dev/evidence.XXXXXX)
 {
   v4l2-ctl --list-devices
-  v4l2-ctl --device /dev/video0 --all
-  v4l2-ctl --device /dev/video0 --list-formats-ext
+  v4l2-ctl --device /dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0 --all
+  v4l2-ctl --device /dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0 --list-formats-ext
 } >"$capture_dir/v4l2-video0-report.txt"
 timeout 20s ffmpeg -hide_banner -loglevel error \
   -f v4l2 -input_format mjpeg -video_size 1920x1080 -framerate 30 \
-  -i /dev/video0 -vf fps=1 -frames:v 5 -strftime 1 -y \
+  -i /dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0 -vf fps=1 -frames:v 5 -strftime 1 -y \
   "$capture_dir/idle-%Y%m%dT%H%M%S.png" \
   2>"$capture_dir/ffmpeg.stderr"
 frame_count=$(find "$capture_dir" -maxdepth 1 -type f \

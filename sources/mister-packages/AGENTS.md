@@ -32,5 +32,7 @@ These rules apply to all work in this repository.
 - Tests are proportional: parse, validate, and oracle-diff the real
   platform and system YAML. Do not invent a second SoC or a second
   system to prove the loader.
-- Commit and push as needed for the requested work without additional approval.
-  Opening a pull request or merging requires explicit user authorization.
+- Commit, push, and open PRs as needed for the requested work without additional
+  approval. Only merging a PR requires review by Deano or by another agent or
+  model reviewer (for example a Codex review or a domain-reviewer agent). Agents
+  never merge on their own authority.

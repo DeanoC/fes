@@ -74,5 +74,7 @@ normal. Keep private target addresses and credentials out of tracked files.
 - Prefer `rg` for source discovery.
 - Run the affected unit tests, build or simulate the affected experiment, and
   run `git diff --check`.
-- Commit and push as needed for the requested work without additional approval.
-  Opening a pull request or merging requires explicit user authorization.
+- Commit, push, and open PRs as needed for the requested work without additional
+  approval. Only merging a PR requires review by Deano or by another agent or
+  model reviewer (for example a Codex review or a domain-reviewer agent). Agents
+  never merge on their own authority.
