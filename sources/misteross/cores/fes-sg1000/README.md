@@ -119,7 +119,8 @@ simulation. Its preview accepts the unchanged 40-bit keyboard matrix with,
 for example, `--controllers --matrix 0xfffffffdfe`.
 
 It also emits `build/diagnostics/fes-sg1000/sound-16k.rom`: the same visual
-signature with a steady, moderate-volume PSG tone. This is an exact-size open
+signature while alternating an approximately 437 Hz tone and white noise about
+once per second. This is an exact-size open
 cartridge for a leased kit audio check; it does not establish hardware audio
 acceptance by itself.
 

@@ -109,6 +109,7 @@ class TestChangedTest(unittest.TestCase):
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(set(targets), {"sim-fes-coleco", "sim-fes-sg1000",
                                       "sim-fes-sg1000-oss", "sim-fes-sg1000-rom-link",
+                                      "sim-fes-sg1000-gp-audio",
                                       "sim-fes-sms", "sim-fes-sms-oss"})
 
     def test_staged_and_untracked_changes_are_included_without_mutation(self):

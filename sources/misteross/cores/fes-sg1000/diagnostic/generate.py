@@ -38,6 +38,16 @@ def cartridge(controllers: bool = False, sound: bool = False) -> bytes:
         assert -128 <= displacement <= 127
         emit(0x20, displacement & 0xFF)
 
+    def sound_pause() -> None:
+        emit(0x16, 0x02)  # LD D,2: two full 16-bit busy waits, about one second
+        outer = len(code)
+        emit(0x01, 0xFF, 0xFF)  # LD BC,FFFF
+        inner = len(code)
+        emit(0x0B, 0x78, 0xB1)  # DEC BC; LD A,B; OR C
+        jr_nz(inner)
+        emit(0x15)  # DEC D
+        jr_nz(outer)
+
     def copy(destination: int, data: bytes) -> None:
         address(destination)
         emit(0x21, 0, 0)  # LD HL,table (fixed up after code)
@@ -80,11 +90,19 @@ def cartridge(controllers: bool = False, sound: bool = False) -> bytes:
     if not dynamic:
         emit(0xDB, 0xDC, 0x32, 0x01, 0xC0)  # IN A,(DC); LD (C001),A
         if sound:
+            cycle = len(code)
+            out(0x40, 0xFF)  # mute noise before the tone phase
             # SN76489 tone 0: 3,579,545 / (32 * 256) ~= 437 Hz.
-            # Moderate volume makes this a steady, easy-to-identify test tone.
             for value in (0x80, 0x10, 0x94):
                 out(0x40, value)
-        emit(0x76, 0x18, 0xFD)  # HALT; JR back
+            sound_pause()
+            out(0x40, 0x9F)  # mute tone 0 before white noise
+            for value in (0xE4, 0xF4):
+                out(0x40, value)
+            sound_pause()
+            emit(0xC3, cycle & 0xFF, cycle >> 8)  # repeat tone/noise phases
+        else:
+            emit(0x76, 0x18, 0xFD)  # HALT; JR back
     else:
         emit(0xAF, 0x32, 0x01, 0xC0, 0x32, 0x02, 0xC0)
         poll = len(code)

@@ -135,7 +135,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
-        self.assertEqual(SEED, 4)
+        self.assertEqual(SEED, 3)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertIn("--timing-allow-fail", nextpnr)
@@ -348,9 +348,11 @@ class BuildFesSg1000Tests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             data = output.read_bytes()
             self.assertEqual(len(data), 16384)
-            # Tone 0 divider = 0x100, volume = loudest. The two OUTs use the
-            # same PSG port and the program retains the RAM/video signature.
+            # Tone 0 divider = 0x100. The repeating diagnostic also switches
+            # to white noise, so both sound paths can be checked on the kit.
             self.assertIn(bytes.fromhex("3e80d3403e10d3403e94d340"), data)
+            self.assertIn(bytes.fromhex("3ee4d3403ef4d340"), data)
+            self.assertIn(bytes.fromhex("3e9fd340"), data)
             self.assertIn(b"\x32\x00\xc0", data)
 
 

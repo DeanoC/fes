@@ -88,6 +88,9 @@ def plan(root, base, head="HEAD", jobs=2):
                 add("fpga", "sg1000 linked ROM RTL simulation", fpga,
                     ["make", "sim-fes-sg1000-rom-link", "PYTHON=" + sys.executable],
                     tools=["verilator", "c++"], files=["Makefile"])
+                add("fpga", "sg1000 audio identity simulation", fpga,
+                    ["make", "sim-fes-sg1000-gp-audio", "PYTHON=" + sys.executable],
+                    tools=["verilator", "c++"], files=["Makefile"])
     return {"format": 1, "root": str(root), "base": base_commit, "head": selected,
             "checkout_head": current, "merge_base": ancestor, "local_paths": local,
             "impact": impact, "commands": commands,

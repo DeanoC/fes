@@ -222,14 +222,32 @@ int main(int argc, char **argv) {
     require(cycles < 100000, "sound program did not HALT");
     require(psg_writes == 5, "PSG must accept each OUT exactly once");
     require(heard_sample, "PSG tone/noise program produced no PCM");
+
+    // Isolate noise after reset: tone 0 cannot satisfy this sign-change test.
+    const std::vector<uint8_t> noise_prog{
+        0x3e, 0xe4, 0xd3, 0x40,  // white noise, fixed shift rate
+        0x3e, 0xf4, 0xd3, 0x40,  // unmute noise only
+        0x76
+    };
+    load_blob(dut, noise_prog, registered_media_data);
+    dut.reset = 0;
+    cycles = 0;
+    for (; cycles < 100000 && dut.cpu_halt_n; ++cycles)
+        tick(dut, noise_prog, registered_media_data);
+    require(cycles < 100000, "noise-only program did not HALT");
     unsigned psg_ticks = 0;
-    for (unsigned i = 0; i < 520000; ++i)
-        tick(dut, sound_prog, registered_media_data, nullptr, &psg_ticks);
+    bool noise_positive = false, noise_negative = false;
+    for (unsigned i = 0; i < 520000; ++i) {
+        tick(dut, noise_prog, registered_media_data, nullptr, &psg_ticks);
+        noise_positive |= int16_t(dut.psg_sample) > 0;
+        noise_negative |= int16_t(dut.psg_sample) < 0;
+    }
     require(psg_ticks == 35641 || psg_ticks == 35642,
             "PSG fractional clock rate is not 3.579545 MHz");
+    require(noise_positive && noise_negative, "noise-only PSG phase did not vary");
     dut.reset = 1;
     for (unsigned i = 0; i < 4; ++i)
-        tick(dut, sound_prog, registered_media_data);
+        tick(dut, noise_prog, registered_media_data);
     require(int16_t(dut.psg_sample) == 0, "PSG reset did not mute PCM");
 
     if (argc > 1) {
