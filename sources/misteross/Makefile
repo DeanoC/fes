@@ -897,6 +897,7 @@ sim-fes-sg1000: sg1000-diagnostic
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/fes_sn76489.sv \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
 		cores/fes-common/rtl/tv80/tv80_reg.v \
@@ -919,6 +920,7 @@ sim-fes-sg1000-oss: sg1000-diagnostic
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine-oss" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/fes_sn76489.sv \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
 		cores/fes-common/rtl/tv80/tv80_reg.v \
@@ -942,12 +944,26 @@ sim-fes-sg1000-rom-link: sg1000-diagnostic
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-sg1000/rtl/sg1000_rom_link.v \
 		cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/fes_sn76489.sv \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
 	@build/sim/fes-sg1000-rom-link/Vsg1000_machine \
 		build/diagnostics/fes-sg1000/graphics-i-16k.rom
+
+.PHONY: sim-fes-sg1000-gp-audio
+sim-fes-sg1000-gp-audio:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-sg1000-gp-audio
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+		-GENABLE_MEDIA_BLOB=0 -GENABLE_AUDIO=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-PINCONNECTEMPTY \
+		-Icores/fes-sg1000/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-sg1000-gp-audio" \
+		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-sg1000/sim/gp_audio_tb.cpp"
+	@build/sim/fes-sg1000-gp-audio/Vfes_computer_gp
 
 .PHONY: sim-fes-sg1000-quartus
 sim-fes-sg1000-quartus:
