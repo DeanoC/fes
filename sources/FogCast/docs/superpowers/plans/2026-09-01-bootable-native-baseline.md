@@ -1296,7 +1296,7 @@ using the runner as acceptance evidence.
 **Interfaces:**
 - Consumes: clean, pulled runtime and FogCast main checkouts; rebuilt and
   verified reproducible native and legacy images; ShadowCast 3 at
-  `/dev/video0`; and the known legacy image.
+  `/dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0`; and the known legacy image.
 - Produces: dated physical evidence and truthful Milestone 2 completion state.
 
 - [ ] **Step 1: Clean main checkouts, rebuild verified images, and freeze exact inputs before touching the device**
@@ -1369,10 +1369,10 @@ mkdir -p "$capture_root"
 capture_dir=$(mktemp -d "$capture_root/evidence.XXXXXX")
 {
   v4l2-ctl --list-devices
-  v4l2-ctl --device /dev/video0 --all
-  v4l2-ctl --device /dev/video0 --list-formats-ext
+  v4l2-ctl --device /dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0 --all
+  v4l2-ctl --device /dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0 --list-formats-ext
 } > "$capture_dir/v4l2-video0-report.txt"
-ffmpeg -hide_banner -loglevel error -f v4l2 -i /dev/video0 \
+ffmpeg -hide_banner -loglevel error -f v4l2 -i /dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0 \
   -t 5 -vf fps=1 -frames:v 5 -strftime 1 -y \
   "$capture_dir"/idle-%Y%m%dT%H%M%S.png
 set -- "$capture_dir"/idle-*.png
