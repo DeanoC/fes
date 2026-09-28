@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test feedback-state copies](validation/2026-09-28-ramtest-feedback-state-replicas.md) | Quartus fits port 1 feedback in four nearby LUTs and pairs original/copy state FFs. A private two-FF OSS copy trial worsens placement timing and stops at the retained-enable guard; no route or gain. Host-only. |
 | [RAM-test control-and-data locality](validation/2026-09-28-ramtest-ready-locality.md) | Quartus also clusters data generators and upstream state. Two legal, restored group translations worsen placement predictions through remaining feedback/control boundaries; neither routed or stacked. Host-only. |
 | [RAM-test existing enable-replica reuse](validation/2026-09-28-ramtest-ready-reuse.md) | One ENA reassignment gains 880 ps at the target; memory 117.87 MHz trades against pixel 74.69 MHz and control regressions. Kept separately, not stacked. Host-only. |
 | [RAM-test relaxed ready routing and Quartus locality](validation/2026-09-28-ramtest-ready-relaxed.md) | Occupancy-relaxed minimum remains 3602 ps. Quartus clusters both control banks near the HPS output; no gain adopted. Host-only. |
