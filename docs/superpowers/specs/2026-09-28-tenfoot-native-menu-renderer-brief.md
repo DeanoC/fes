@@ -70,17 +70,38 @@ costs 76.2 ms average and 95.6 ms maximum, about 13 fps
    offline cached browse, connecting/retry, busy/launching/stopping, kit leased by
    someone else, and menu unavailable/splash fallback. See §4.
 
+If Deano changes the §3 defaults for input (#3) or error handling (#6), re-check §4 with Foggy.
+
 ## 4. UX copy table (Foggy)
 
-| State | When | Copy (Foggy) | Launch allowed |
-| --- | --- | --- | --- |
-| placement_unresolved | Mesh cannot resolve a source/executor for the title | TBD (Foggy) | No |
-| placement_fail_closed | Placement policy refuses the title (fail closed) | TBD (Foggy) | No |
-| offline cached browse | Configured host unreachable; cached rows only | TBD (Foggy) | No |
-| connecting/retry | Renderer connecting to agent/host or backing off | TBD (Foggy) | No |
-| busy/launching/stopping | Lifecycle operation in flight | TBD (Foggy) | No |
-| kit leased by someone else | Another session holds the kit lease | TBD (Foggy) | No |
-| menu unavailable/splash fallback | Menu present failed or runtime fell back to splash | TBD (Foggy) | No |
+Copy supplied by Foggy 2026-09-28.
+
+General rules for every state: one headline plus one plain sentence. Use the game's
+name, never the internal state name. Keep IPs, `user@host` lease owners and error
+codes off the main line; a small details line is fine. Name the actions (Retry,
+Back), not the button glyphs.
+
+| State | When | Headline / line | Actions | Launch allowed |
+| --- | --- | --- | --- | --- |
+| placement_unresolved | Mesh cannot resolve a source/executor for the title | "Can't find a machine to play this on" / "Nothing on your network can run {title} right now. Check the machine is switched on, then try again." | Retry, Back | No |
+| placement_fail_closed | Placement policy refuses the title (fail closed) | "Not available on this TV" / "Your settings don't allow {title} to play here." | Back | No |
+| offline cached browse | Configured host unreachable; cached rows only | Banner "Offline, showing your saved list" / "Can't reach {host name}. You can browse, but games won't start until it's back." | Retry connection | No |
+| connecting/retry | Renderer connecting to agent/host or backing off | "Connecting…"; backoff: "Can't connect yet. Trying again in {n}s." | Retry now | No |
+| busy/launching/stopping | Lifecycle operation in flight | "Starting {title}…" / "Stopping {title}…" / "One moment…" (operation unknown) | None | No |
+| kit leased by someone else | Another session holds the kit lease | "In use" / "Someone else is playing on this machine. You can play when they're done." | Back | No |
+| menu unavailable/splash fallback | Menu present failed or runtime fell back to splash | Retrying: "The menu is restarting…"; retries used up: "The menu couldn't start. Restart the machine, or check it from FogCast on your computer." | None on the kit | No |
+
+- placement_fail_closed shows Back only, because retrying won't change a policy
+  refusal. Keep it separate from placement_unresolved and from the rooms states
+  (Needs a choice, version skew, in use). Don't merge them into one "Unavailable".
+- Offline is a banner over the browse grid, not a blocking screen. The Play button is
+  disabled and labelled "Offline". Whether kit-local titles may launch while offline is
+  a possible later Deano decision and is out of scope here.
+- In busy/launching/stopping, ignore all input except Back, and Back only closes overlays.
+- In use: with a friendly name, show "{name} is playing {title}", never the raw lease
+  owner. There is no take-over or steal option.
+- The renderer can't draw while the kit is on splash. The menu-unavailable copy
+  therefore appears after recovery, or on the host if status is mirrored there.
 
 ## 5. Out of scope
 
