@@ -1,0 +1,2064 @@
+{
+  "artifact_root": "out/ramtest-control-factoring",
+  "artifacts_sha256": {
+    "abc-policy/if-help.txt": "7061718dd6ff80e3ee05cb890d6d229eaeb6d0585897c6e5cc17864e978bae15",
+    "abc-policy/nomfs-fresh/cones.json": "c58804e7504f6d6906be1ef2478ae4fafdc5ef39d540e77dd736ad7fb846aac5",
+    "abc-policy/nomfs-fresh/invocation.json": "95ae9e3dec5fb45aba902507498e7dffe3d6ea886b6c283ed69ee5e14de3863b",
+    "abc-policy/nomfs-fresh/map.log": "4a4f497718ece84af7d88500bf0e4b8ee123cbfd700981804eb002b8027acf29",
+    "abc-policy/nomfs-fresh/map.ys": "18b9ca3fa61b9f433ee75c8e18eca137082643296cfc16c3bc60431493da7b6f",
+    "abc-policy/nomfs-fresh/result.json": "87ae35730a92bb5eafc3eec13f2ac8821d4191a119196aa77721c9d3b0831a92",
+    "abc-policy/nomfs-fresh/stdout.log": "4a4f497718ece84af7d88500bf0e4b8ee123cbfd700981804eb002b8027acf29",
+    "abc-policy/nomfs-fresh/synth.json": "2a36baabb8beb6c7242ad2edd4237882ffa29eec48204c43703f824715ae6b73",
+    "abc-policy/nomfs/invocation.json": "d2947778a53e84124fb132158c3c1afe70cecf32dfc5a935f2dcf986bf81d863",
+    "abc-policy/nomfs/map.log": "97fc7978afec3690ede4c6607cb12fac299f952f3a8248686defdc5339a1c18d",
+    "abc-policy/nomfs/map.ys": "f474a125f2e5b2dbc16cba5e70bbcc10288031b7b8ba1877da8210ab28159b82",
+    "abc-policy/nomfs/result.json": "0324fcceeaf90c26c01b2ffea9efbd32c7aa612c8d9a5a3d99042423505f900f",
+    "abc-policy/nomfs/stdout.log": "97fc7978afec3690ede4c6607cb12fac299f952f3a8248686defdc5339a1c18d",
+    "abc-policy/norecovery/abc.script": "bed8f3c38718b410e5d25177e0b26c91fb6ae64f3fc63f9b1d5ca7e762000f94",
+    "abc-policy/norecovery/cones.json": "27567d2ab80cb4e6d25ce7997613b44f143b354f1f31c419aef4c72e3c9b9af3",
+    "abc-policy/norecovery/invocation.json": "650bdf12752a50df7b23217b56188a6cd4f9a71d42b7cb981df840da10687b1f",
+    "abc-policy/norecovery/map.log": "a6d2f96ce897998046386372b32aafab1fd1d28e0ba70ed288d4a3cd7e3fd19f",
+    "abc-policy/norecovery/map.ys": "cfc759e5a42f39e0fcf314b562556d2223aad147d22013cda88763cebc5232ac",
+    "abc-policy/norecovery/result.json": "44143c1939b28fe498e5a01607738763c7ed83c071bf9c10037b3fd967bf7e64",
+    "abc-policy/norecovery/stdout.log": "a6d2f96ce897998046386372b32aafab1fd1d28e0ba70ed288d4a3cd7e3fd19f",
+    "abc-policy/norecovery/synth.json": "7f6e7faa450b6bc36cbd5451203f0fe9241b9be336784cc37b403e11ed273c1f",
+    "abc-policy/options-smoke.log": "60fcce94d77777f5d10bdd3293996056a6ccf787b6136bcb9e693356965e64bc",
+    "abc-policy/probe.blif": "94bb83dd4bf387f83197d60bd2565f2c13a4eada2470c5a10821b3fd9cffeedf",
+    "baseline-cones.json": "079a2ad4b387e050d7520f01d0a8df32d302a4e12e0e74c0236c76acd35819eb",
+    "compare_cones.py": "81115dd1406ea4fb8312170e503d9bd29d72d74ccdc70418f2fc04c7831df9d2",
+    "equivalence/README.md": "7c09cff0559058ea44361982eec0fc711a7b9c7fb8cb8faadd0cb971fd50af97",
+    "equivalence/fixture-debug/gate.json": "eeba8fc277b41efb6774144ffc88a22b91261f3b02a6f956996bc8bdd41131ad",
+    "equivalence/fixture-debug/gold.json": "8be0802f54cfbfd648d800c835c98b1e93154a77c9d268d0cbab24bb3d3a76d0",
+    "equivalence/fixture-debug/mutant/gate.v": "49b8b9d2f5bf68a10b446b33c7bfbaa9749135d6072dd926e699da4d082a41ad",
+    "equivalence/fixture-debug/mutant/gold.v": "e22d126f80e35540c4132423a7e6793d68f169001a3e19856a4079534538da08",
+    "equivalence/fixture-debug/mutant/inventory.json": "21ebe783ef089d252bdd7ce854109457c9a1b37626624de4063947665a667660",
+    "equivalence/fixture-debug/mutant/proof.log": "b5cebdf450d8a75223b917e76358e9bb642fab40752a9050636ff3fa873776ea",
+    "equivalence/fixture-debug/mutant/proof.ys": "2c100ffe26941a3bc48549ed7b1ac06fa506ab513741918a35d5d9be28c1c87d",
+    "equivalence/fixture-debug/mutant/result.json": "ec68166ce8b341f554f0d47e1d2bff58e6cafbcb6f2da8b55bff3ca8aa46658a",
+    "equivalence/fixture-debug/proof/gate.v": "b473952cf00997fdb7720df119bd14cb7eda246ae1e15472dd46fd97d4ca856b",
+    "equivalence/fixture-debug/proof/gold.v": "e22d126f80e35540c4132423a7e6793d68f169001a3e19856a4079534538da08",
+    "equivalence/fixture-debug/proof/inventory.json": "7d52374808e077757c9f41b27265f327d1d4dead07f3b4bd7d6b41b7eaf0b292",
+    "equivalence/fixture-debug/proof/proof.log": "b2cf64f3dd600e6038a8640d9b5559cfeda743221b78ca80e772b733010983b8",
+    "equivalence/fixture-debug/proof/proof.ys": "d280eec7728c809ffe29aa318b12aa1abb3b12f108b390eb58ccd66e32d464c5",
+    "equivalence/fixture-debug/proof/result.json": "d2cb7c0b7dc2f71e327f6c9df579275177dbe58de27f1c3c39cc7a4dd5518b84",
+    "equivalence/gate-identity/export.log": "99c8789070dcdc9032b813418db662df20e7ec7e592b9761d596920f4b96e47d",
+    "equivalence/gate-identity/preautoname.il": "a88ad7976b4127a33d9edef010701d610a649b7de31595e52b37a7673943d9d3",
+    "equivalence/gate-identity/preautoname.json": "341a130bb0feac6f44d08c33103a49596b7d886e342c979f6a27104b7cf4d5e4",
+    "equivalence/gate-identity/stdout.log": "d8fed94e74a14ae7482d2795f982c730a3ca87a6338436c2eadc811622ca0f89",
+    "equivalence/gate-identity/synth.json": "7f6e7faa450b6bc36cbd5451203f0fe9241b9be336784cc37b403e11ed273c1f",
+    "equivalence/gate-identity/synth.log": "d8fed94e74a14ae7482d2795f982c730a3ca87a6338436c2eadc811622ca0f89",
+    "equivalence/gate-identity/synth.ys": "913c88d0d572edb93223756ee61b52bf6e78fc994ed6bbd63130d78d5692a26a",
+    "equivalence/gate.v": "bee4499dee86e685495f82a7af3e180f39043814a0ed50365e273e5e3eb454f9",
+    "equivalence/gold-identity/export.log": "7c0c0799e42cf155c8ca0122eb24d67614d4ee770f6f2510cf8d6e2cbc952830",
+    "equivalence/gold-identity/preautoname.il": "86528fd6192581a44a4d8b0b9cd9b60c97572d4547e3cd99495343f89d1555a8",
+    "equivalence/gold-identity/preautoname.json": "ea31d936c354b163b1a3467bfa16b691f16b3f97aecc22a71c8fbcb924185885",
+    "equivalence/gold-identity/stdout.log": "4c0b1688f905e54331bebafb500d4dc83c9ae0e9b3c3e2e35ebc97670a543303",
+    "equivalence/gold-identity/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "equivalence/gold-identity/synth.log": "4c0b1688f905e54331bebafb500d4dc83c9ae0e9b3c3e2e35ebc97670a543303",
+    "equivalence/gold-identity/synth.ys": "59f4cacbdf2b53358d803bf41c419048ba1114eb5d3f24a73371d70f7815c39c",
+    "equivalence/gold.v": "9fc5d19076dff38c722510ea7b094a816f2d0f1010f85936a93c167062a07818",
+    "equivalence/green.log": "bde54cb6b7202dc4dba7a00261487970f0951d739dda2e8cee180177ef71f5c6",
+    "equivalence/identities.json": "57423553fadf80ebf49c49beeb2284759a25b5ccde9534ed8c14ccb7f84b33d9",
+    "equivalence/identities.py": "02198db9991bba37ac88b8e52c6852968d7ffc6225abe49ddfd7101b3d1b3d1a",
+    "equivalence/inventory.json": "02c84ae8e2a9fbeb34249b71ceac5d40635e92dff8891bd805307004d36b174a",
+    "equivalence/proof.log": "cca5a94f7bf34511e337088ef8439531ae45a365cecc9f196d56dbbcc8e5588f",
+    "equivalence/proof.ys": "612c37b04a99b74b03200cee224d82ec2ad487887bcf2f2d27c06d5ad9e537ef",
+    "equivalence/prove.py": "0e748994e859d92df33d28dda382ceab3cbb5839ff77fbac80410631bb1e02cc",
+    "equivalence/red.log": "e642741716271841a61fe4c32bc454c47732a351ca40ac1e57c31696a4ba2a64",
+    "equivalence/result.json": "733ac1a54cf19aec67b6b54a93fe32b342d8167b8a4d85bc7a739e97a1d946aa",
+    "equivalence/run.log": "733ac1a54cf19aec67b6b54a93fe32b342d8167b8a4d85bc7a739e97a1d946aa",
+    "equivalence/stale-red.log": "be8b9d4190126dddefef1595d9a2e69f977bd7f2601312ef2754ce943394f809",
+    "equivalence/test_prove.py": "29587023dbc3ce3746c9ffb838c2247481d9b9169a0bd1e5f3fd970d5fe7fbd8",
+    "equivalence/tests.json": "8251f6d520e292a3c176cafb6f7fd917ee856ea22a58cccda76613beba2fb9b5",
+    "mapping-findings.md": "99cf965e7fc309431320941e92f11529b9a27b4bf755c8c7c07acdff52b2499c",
+    "norecovery-c2/arcs.tsv": "0339fd4ac3321947f24c53ea9c006eaa7cd7a98cd99e862dda5d4562907fa042",
+    "norecovery-c2/core.rbf": "29572adfa272a17d1bf8dc076332650415a2b3959f35084ca30cb1a10abbd5d6",
+    "norecovery-c2/invocation.json": "2251a4bc10ba6d758accfd272bb21da40d9b200601fea6db80a8ea0b5a220c80",
+    "norecovery-c2/replication.after.json": "50a338b280b2be69592e84269cb8859d54f925f631dfbcc5e4289fb434cd10e7",
+    "norecovery-c2/replication.after.json.pins.tsv": "b11832442fb020712eb55ffb433fce86c5ffe76ba0d5c2f9be4aa92a3e25d5c4",
+    "norecovery-c2/replication.before.json": "50a338b280b2be69592e84269cb8859d54f925f631dfbcc5e4289fb434cd10e7",
+    "norecovery-c2/replication.before.json.pins.tsv": "b11832442fb020712eb55ffb433fce86c5ffe76ba0d5c2f9be4aa92a3e25d5c4",
+    "norecovery-c2/replication.replicas.tsv": "ee3cf260f5dd5249cc4b57ab3116eb498a9e55c8e856f7fa80daf442712e4377",
+    "norecovery-c2/result.json": "5886eab6e1ca11f35f8cdfdf9dade0ac0196412aaaedf6b1de188393fc502f34",
+    "norecovery-c2/routed.json": "abcdc4e379e79631394936d2edb0fd524982fc86cb3188648e570a18dc6ccf74",
+    "norecovery-c2/run.log": "6950850ac8cc62f3c36780286574b4bef810afc083301748ede075b461085f89",
+    "norecovery-c2/snapshot-proof.json": "ae0d1c3593f8b033945c8ab7d1f7d8856c30e0cf23dffbebd43d66f4e22ecff1",
+    "norecovery-c2/timing.json": "15816f5b7abc209ac328c5de26b13e376188040170a2aefd2876b19b8cfb65ab",
+    "run_route.py": "fa6fcad8f1e23e84c11608e7137b29b1b96cff8798191af2992b870e32ebe6e6",
+    "scope.json": "e3406fa68acad27ba4597bf1b1c5e52a1df351fd529ad831f65dbd0c5a0c4e1f",
+    "summarize.py": "dcf1803539b9c154282dec967816d9a85c67a0ace568e6a8fa4a3816950af69e",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-9ceXGT/abc.script": "56bbe03df63d7a27726596bf1b06616f34a8ceb2ca53e3d7b53804df93232270",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-9ceXGT/input.box": "a4a727a671ac83938f8c7a17b01bb847cbcfb3b6dd8ac7fba5371de9b37da5ca",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-9ceXGT/input.lut": "fc67fa3c21ece469c0719ac8600e434b38fc05abf3848e4e49ff79a4ead01ae1",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-9ceXGT/input.sym": "6846f3f200b9dc127ca096d4ae7bab29c34c8c0f12bb3b240f8380bdd1e60bf7",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-9ceXGT/input.xaig": "3fdd4c5a1ecaa72a364b5d63aa057d1e05cdc74902939d8bee2f2f3f88c067b7",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-9ceXGT/output.aig": "cbbb5b1d851be133c90bb19a30612d1dcc2bb52b7c1396f042219daf339fe599",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-CwwHpz/abc.script": "e7ff99b1c7c3a38873c771eb8d52e43235c75f8e1713aaf26e1008893a6fa225",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-CwwHpz/input.box": "0eb182e41cbe60daeea65abdd3faee83895f5448b3d15f75d21b83500f11d2b2",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-CwwHpz/input.lut": "fc67fa3c21ece469c0719ac8600e434b38fc05abf3848e4e49ff79a4ead01ae1",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-CwwHpz/input.sym": "f470beb488b9997eb07257e62f90ca9d3aac5fcfc36aea6d0c486002c4e3c01d",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-CwwHpz/input.xaig": "f26fb2d9eb0841e7dae1bad31cfcd178c68c286ca20a9331b77a805ae066cd6e",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-CwwHpz/output.aig": "dda12641d28ed3e7d4f8f82ea44143d6e8527a5f05a12458f063931850980f10",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-gxny3k/abc.script": "8d52d0049e53fe13f44193d5ca773f04597d48d315652723b06116d43d7fe741",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-gxny3k/input.box": "a4a727a671ac83938f8c7a17b01bb847cbcfb3b6dd8ac7fba5371de9b37da5ca",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-gxny3k/input.lut": "fc67fa3c21ece469c0719ac8600e434b38fc05abf3848e4e49ff79a4ead01ae1",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-gxny3k/input.sym": "e4c95520db5757fd176515827022fe366b4a4ff74ee2cf0b9223c2163849770d",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-gxny3k/input.xaig": "285c5d8dad5eb80968f4bf92d6ed8a25fb69198c9641e6f28ed37b38a0421f14",
+    "timeout-trace/abc-temporary/_tmp_yosys-abc-gxny3k/output.aig": "15a860e4b20c399df2f2463dc5476e43effd62ca027d551534f5832dca010b92",
+    "timeout-trace/baseline-check.json": "2f37aa79a45bb12329e5f3070313a41043063d6976ef1de94d52f7a2ef953509",
+    "timeout-trace/coarse-export.log": "99425dfe5b55e19f4d3761efeb37cddadccbc3c3c3d67ba348c5693a0bc2753f",
+    "timeout-trace/coarse.il": "3227b45b34ac77a0dc4f9c7fec07ad452363b040feda266619ca45c32ad223d8",
+    "timeout-trace/coarse.json": "76221eba0a1e3d7f505ed2c35dd88fef61b0238badc5ce6a62fd1364b5f91ed9",
+    "timeout-trace/findings.md": "04c615d192dc3dd70347dfe3901862c244dee0f30ae9601c428d96ea81fef9b8",
+    "timeout-trace/fresh-default-check.json": "e6289ee593f721234e2e01f5ba2af9e24e3d607b579e419b205bb253c0c03567",
+    "timeout-trace/fresh-default-stdout.log": "e3f390b7bfab86e0aaef7c48fe32e0b8b751a9c00a120344f8353b14c476980d",
+    "timeout-trace/fresh-default.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "timeout-trace/fresh-default.log": "e3f390b7bfab86e0aaef7c48fe32e0b8b751a9c00a120344f8353b14c476980d",
+    "timeout-trace/fresh-default.ys": "ad3c42bd9b7aa828a625a1a23fdcb70a94cf8f1bbfbca28e4f2faea1b726dbf0",
+    "timeout-trace/invalid-skipped-memory-map/INVALID.txt": "1a7db7a375ab44e0bab8895e31b36795c4b805a3f54c8eaf7497da16c0ceb535",
+    "timeout-trace/invalid-skipped-memory-map/baseline-check.json": "029486729807f1c488cea2d143acdb0e21d14a53d7c817346d171f99016eba92",
+    "timeout-trace/invalid-skipped-memory-map/coarse.il": "4e7066d5204858776c7c087fd413a3a74434593ac105b75aef337340f743c3af",
+    "timeout-trace/invalid-skipped-memory-map/coarse.json": "35e0355ac8a7af5a3417c95b0289000c7acd5dd114283b684119a75939d0a7c8",
+    "timeout-trace/invalid-skipped-memory-map/map-stdout.log": "a729cc4e9e6c01719623d52b23ffb27a2624c3d23f4efa1997c181872cd1b171",
+    "timeout-trace/invalid-skipped-memory-map/map.log": "a729cc4e9e6c01719623d52b23ffb27a2624c3d23f4efa1997c181872cd1b171",
+    "timeout-trace/invalid-skipped-memory-map/map.ys": "13a256c8c2d7bec8b29891854df9a1a98992d85e5acbe3eac92d97220e34b050",
+    "timeout-trace/invalid-skipped-memory-map/mapped.json": "267191cdca89029fe3e56e34c2988a2295a77574b53ae03706a6a80ede26f10b",
+    "timeout-trace/invalid-skipped-memory-map/postabc.il": "d855a6baace5965e0803b4b4a1afc449e3d92b1f08467bdc44bac6f40429f017",
+    "timeout-trace/invalid-skipped-memory-map/postabc.json": "d6d5391aa8dbd74b6a73e9292c0f1a98726d46be8a5e769d55bf35d92f0feaf7",
+    "timeout-trace/invalid-skipped-memory-map/preabc.il": "2543446badf00f5e4635ec7f921f59439b4c64befab3fb3005e3fe2341c67f82",
+    "timeout-trace/invalid-skipped-memory-map/preabc.json": "65c43ca9fedcfe0efc93dd633b599f8192b02954b77b9d57c17fbb027dac5747",
+    "timeout-trace/invalid-skipped-memory-map/snapshot.log": "ec7824fe592a7909891548f72c671acfc94079b8531d318b9e26deaeeedaea50",
+    "timeout-trace/invalid-skipped-memory-map/stdout.log": "ec7824fe592a7909891548f72c671acfc94079b8531d318b9e26deaeeedaea50",
+    "timeout-trace/invalid-skipped-memory-map/trace.json": "b6942d55b3352338f9fdbf6ee07f9aa09c19b9a652645be8c07256417527b6cd",
+    "timeout-trace/mapped.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "timeout-trace/postabc-export.log": "baa7a24dc14da6a3908282915188bdc9daac21a64d507d874d1c3c88272c22d4",
+    "timeout-trace/postabc.il": "cf8c6f1bf4cac9a13f9ba2f10fcce0ef76665a9015a2ed7dd3aa6dbd841ceb95",
+    "timeout-trace/postabc.json": "3bfc7cba4323b3f2cec4e8b405a290572a8081216333f9e1d70f6e0c8c77313f",
+    "timeout-trace/preabc-export.log": "5483b78d036b7f774874be18c9f26cb21d783cf99b2169a99c9df5d2842ef25b",
+    "timeout-trace/preabc.il": "553be61242097ba4df8c4c4cedf677b7a264886e7f80cac9fab2e12f058f7188",
+    "timeout-trace/preabc.json": "f6fc93e56776182879026abb237095de1b73de8cef2f35d495c4776037ffc587",
+    "timeout-trace/snapshot.log": "ba6ecf9d71d3c7e6240315b351f37e1ff55b3b7e1104e554c2af72f547a9dd08",
+    "timeout-trace/snapshot.ys": "a53e0cffe1df9f9406ab4473abbc0eb0490a51eedb54a85867fa941dda9ed61d",
+    "timeout-trace/stdout.log": "ba6ecf9d71d3c7e6240315b351f37e1ff55b3b7e1104e554c2af72f547a9dd08",
+    "timeout-trace/trace.json": "f818244221e457caaf2bb3bb8dfb04a2bebfcfb80e16eb87e8504b4cfb466dd1",
+    "timeout-trace/trace.py": "ebfc82484cf978e7dbc08eb3aa46484ff0eff4369f0a97047def9bbde78b56a4",
+    "timeout-trace/trace.txt": "81db3f8733aa7382d64e3c23057dfe3a9a8858b9061af44e11841ef017f72922",
+    "validation.json": "cf60502124bdc3909548836b2f7522a6423b51baecfe9c2ddd2776b1455ba14c"
+  },
+  "boundary_equivalence": {
+    "boundary_cells": 8317,
+    "candidate_sha256": "7f6e7faa450b6bc36cbd5451203f0fe9241b9be336784cc37b403e11ed273c1f",
+    "ff_model_sha256": "9939cd1c1edfbdde75fe6d4c2ae018fdc3ba59762caec3cba06c0853f064daa4",
+    "flipflops": 8221,
+    "gold_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "passed": true,
+    "scope": "Strict equality of every FF/hardblock input and top output for every assignment of shared Q/hardblock/top inputs; no ignored unknown cells.",
+    "sink_bits": 58673,
+    "source_bits": 8696,
+    "yosys_returncode": 0
+  },
+  "classification": "Host-only ABC9 mapping-policy diagnostic; unchanged RTL and physical compiler. No producer lock or hardware change.",
+  "equivalence_tests": {
+    "helper_sha256": "0e748994e859d92df33d28dda382ceab3cbb5839ff77fbac80410631bb1e02cc",
+    "identities_helper_sha256": "02198db9991bba37ac88b8e52c6852968d7ffc6225abe49ddfd7101b3d1b3d1a",
+    "note": "After full proof, helper only added removal of stale result.json at entry. SAT wrapper, identity matching, models and script unchanged.",
+    "proof_log_sha256": "cca5a94f7bf34511e337088ef8439531ae45a365cecc9f196d56dbbcc8e5588f",
+    "proof_result_sha256": "733ac1a54cf19aec67b6b54a93fe32b342d8167b8a4d85bc7a739e97a1d946aa",
+    "proof_script_sha256": "612c37b04a99b74b03200cee224d82ec2ad487887bcf2f2d27c06d5ad9e537ef",
+    "tests_failed": 0,
+    "tests_passed": 8,
+    "tests_sha256": "29587023dbc3ce3746c9ffb838c2247481d9b9169a0bd1e5f3fd970d5fe7fbd8"
+  },
+  "external_inputs_sha256": {
+    "out/ramtest-enable-replication/budget4-c2/invocation.json": "da2edb631d1db76d7ed7af7fafddceceb6ef654ad2cca173fd004fd2dbcdaf36",
+    "out/ramtest-enable-replication/budget4-c2/timing.json": "269e184586ee02d6a4fca0f1d3bc713e99f08abfdefd0e14b45e55d0346ee468",
+    "out/ramtest-enable-replication/check_snapshots.py": "672e78a293c487a570fcbd0f14b5553a80593390beb4b2c7a702fec89e2460a5",
+    "out/ramtest-enable-replication/tools/nextpnr-enable-replication": "eb56265fea455e2adcf1c06edb3293792437866bc00bb59cbc82998c9d7a38fe",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/abc9_map.v": "16ab6df1c1cec13576706e8f14b23a3e4192d439c21c8345dacf3cea26d4c217",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/abc9_model.v": "96479f981e035a1f985615dbb9e4e96ece6a55caa927ecbf02e82000f1cccf08",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/abc9_unmap.v": "07c96ef54a061bd4b34e07e080145e80a0fd56141baaa730b7d55dd7fbc73481",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/alm_map.v": "c3f6cb34359cf7e687780a1d8d853be16da291b482b9a467164243eb310f9f33",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/alm_sim.v": "c812ff26762b308fb4cfd51305e21467e02971f6e189ff57fbc758d5f58b0bf4",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/arith_alm_map.v": "b2b3dcdce789ad09be53dd9066e0eecde7cdc3ebc9bdf58ed00e649a5bde21d9",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k.txt": "83107f7beebdd59afa8936c0c497032e24f9442289cfa4363c78c2c563cd7c75",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_aclr.txt": "603d9f289d15240c2fa4de9d915a170bd4b07318678379f51e470bc02b8daed0",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_aclr_map.v": "78b41783a012501dc7256f47e123d1131b3ddc879b595e60688d4f041b98869e",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_async.txt": "941513e9ae3507db2ff1f5ae3e1575240f8af6521b0cb0849d6139413e41bc9d",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_async_map.v": "c49a9c748cc421a2e33743cc3e7e94aeaf40b6128529cb1f722cd24471dd8472",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_map.v": "85a77369ad51caaf273b2f47e1920194bc62a9c76461da7e7519f4f6665c47b5",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_mixed.txt": "8306ed2c01077bb4a272548f5dc3c6c8ff633bf77a9cfe53f1d61f5e3656d5ee",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_mixed_map.v": "f703e56075f60d8fa0f5f2d044dfc648227bbd7a1f3d7238bfae3b95583b3dac",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp.txt": "9896a52d45d0da5aeec398e02d711ce907996041e3257896413a0750bfe774fb",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_byte.txt": "fb39e8ff4937e3a55df788d0b0b46c951e3373de58cf292b7c8a9eba823cd99a",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_byte_map.v": "2afde59318a748d27999fe9c5ed17c4e32d6607f9b36c96f70d1de771f5b1309",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_map.v": "c59fff1946a0e4ffa372214392d781c91feb54c3c529c302209cd6dd96190b03",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_mixed.txt": "71c27ac4a1d64d8adb2e4175600d67a06a92646bfa165370a3fe47ddc66f7185",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/bram_m10k_tdp_mixed_map.v": "fd4d5a4cf5da2c2eae02c09426495cf12f12672766e8d57df6712b95bdc69347",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/dff_map.v": "8281b81ba0f0699bce381083ea5d03c4884ff755858de4fe12111ee5aa678661",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/dff_sim.v": "9939cd1c1edfbdde75fe6d4c2ae018fdc3ba59762caec3cba06c0853f064daa4",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/dsp_map.v": "bf4aadd88ef82cd617d49aaa2881de80e09a46fd9aae6bb35d6f6039e02e5671",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/dsp_sim.v": "0e39b87aeebd14582aae668dc8a2d2cac35e4670a47fc3e9b1d1d53353c2ff77",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/lutram_mlab.txt": "a3d25444d37c6c176f8b3c3f3867ce321107726904e7a545e5c231b4c3deb168",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/megafunction_bb.v": "ae9d4168cf30c30df94a58c37796cc03373e5ba829573cd3ad79cc178434e21a",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/mem_sim.v": "dc337ffc0d8719d8ee06575062347dfdfa83fce5fae73da14f463d59fa4da869",
+    "out/ramtest-fsm-init/build/share/intel_alm/common/misc_sim.v": "61c61824ffc029aef50950b3dd419ae368706cbe568aa6987cbe1d5f696feb17",
+    "out/ramtest-fsm-init/build/share/intel_alm/cyclonev/cells_sim.v": "880c9d6d6fc24e1722bff7c70fbb34f65cd07ac023c8ca08703da3a833dfb8e6",
+    "out/ramtest-fsm-init/build/yosys": "f08390cc37702407dc16d2999742f13a7409a1c82948f232f8cb0a7142cad513",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "out/ramtest-fsm-init/synth.ys": "7e3332e0957b7c6cd09741cc7374f1bb15d398f0e882d11807d4130c8be0f86e",
+    "out/ramtest-fsm-isolation/tools/yosys-abc": "929fb6dae5bd08f01989ac694afa399d2062813015a28d0953745c54036d8423",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-common/generated/fes_application.vh": "a248fcb9f641a63ca59aec74aa7c0df61183e0c2ad836001690561730990c57a",
+    "sources/misteross/cores/fes-common/generated/fes_computer.vh": "00bb0fee2d0b6d3b69c4370967fcc930812f52f10634e97f206307c28148a9a9",
+    "sources/misteross/cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+    "sources/misteross/cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+    "sources/misteross/cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+    "sources/misteross/cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+    "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+    "sources/misteross/cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb",
+    "sources/misteross/docs/validation/2026-09-28-ramtest-quartus-control-cones.json": "bc9dc75604c5bb211d4851319ad3027231943a4fbb0f1501897674c08bc2ad63"
+  },
+  "fes_base": "051d957b7db5dd3dd66eeff9b662a54fe893beb7",
+  "fresh_default_identity": {
+    "cells": 14941,
+    "top_module_exact": true
+  },
+  "mapping": {
+    "default": {
+      "cells": 14941,
+      "paths": {
+        "idle1_beats2": {
+          "chain": [
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+              "parameters": {
+                "LUT": "0000000000000100"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+              "parameters": {
+                "LUT": "00000000000100000000000000000000"
+              },
+              "path_input": "E",
+              "type": "MISTRAL_ALUT5"
+            },
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q",
+              "parameters": {
+                "LUT": "10000000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT3"
+            },
+            {
+              "cell": "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B",
+              "parameters": {
+                "LUT": "0010"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D",
+              "parameters": {
+                "LUT": "1110010000000000"
+              },
+              "path_input": "D",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "parameters": {
+                "LUT": "01110000"
+              },
+              "path_input": "C",
+              "type": "MISTRAL_ALUT3"
+            }
+          ],
+          "destination_ff": "ddr1_test.beats_left_MISTRAL_FF_Q_6",
+          "lut_levels": 7
+        },
+        "idle2_address25": {
+          "chain": [
+            {
+              "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+              "parameters": {
+                "LUT": "0000000000000001"
+              },
+              "path_input": "A",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+              "parameters": {
+                "LUT": "10000000000000000000000000000000"
+              },
+              "path_input": "E",
+              "type": "MISTRAL_ALUT5"
+            },
+            {
+              "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+              "parameters": {
+                "LUT": "10000000"
+              },
+              "path_input": "A",
+              "type": "MISTRAL_ALUT3"
+            },
+            {
+              "cell": "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B",
+              "parameters": {
+                "LUT": "0010"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1011"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F",
+              "parameters": {
+                "LUT": "0000000000000000000000000000000000000000000000001111111001010100"
+              },
+              "path_input": "F",
+              "type": "MISTRAL_ALUT6"
+            },
+            {
+              "cell": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "parameters": {
+                "LUT": "11010000"
+              },
+              "path_input": "C",
+              "type": "MISTRAL_ALUT3"
+            }
+          ],
+          "destination_ff": "ddr2_address_MISTRAL_FF_Q_25",
+          "lut_levels": 8
+        },
+        "ready1_address27": {
+          "chain": [
+            {
+              "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1011"
+              },
+              "path_input": "A",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+              "parameters": {
+                "LUT": "00110010"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT3"
+            }
+          ],
+          "destination_ff": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_27",
+          "lut_levels": 2
+        }
+      },
+      "types": {
+        "MISTRAL_ALUT2": 1077,
+        "MISTRAL_ALUT3": 1120,
+        "MISTRAL_ALUT4": 1019,
+        "MISTRAL_ALUT5": 1504,
+        "MISTRAL_ALUT6": 436,
+        "MISTRAL_ALUT_ARITH": 1350,
+        "MISTRAL_CLKBUF": 4,
+        "MISTRAL_FF": 8221,
+        "MISTRAL_IB": 1,
+        "MISTRAL_IO": 18,
+        "MISTRAL_NOT": 118,
+        "MISTRAL_OB": 51,
+        "altddio_out": 1,
+        "altera_pll": 2,
+        "altiobuf_bidir": 16,
+        "cyclonev_hps_interface_fpga2sdram": 1,
+        "cyclonev_hps_interface_mpu_general_purpose": 1,
+        "cyclonev_hps_interface_peripheral_i2c": 1
+      }
+    },
+    "no_final_mfs": {
+      "cells": 14992,
+      "paths": {
+        "idle1_beats2": {
+          "chain": [
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+              "parameters": {
+                "LUT": "0000000000000100"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+              "parameters": {
+                "LUT": "00000000000100000000000000000000"
+              },
+              "path_input": "E",
+              "type": "MISTRAL_ALUT5"
+            },
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q",
+              "parameters": {
+                "LUT": "10000000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT3"
+            },
+            {
+              "cell": "ddr1_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr1_burst_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "0010"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr1_burst_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_D",
+              "parameters": {
+                "LUT": "1110010000000000"
+              },
+              "path_input": "D",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "parameters": {
+                "LUT": "11010000"
+              },
+              "path_input": "C",
+              "type": "MISTRAL_ALUT3"
+            }
+          ],
+          "destination_ff": "ddr1_test.beats_left_MISTRAL_FF_Q_6",
+          "lut_levels": 7
+        },
+        "idle2_address25": {
+          "chain": [
+            {
+              "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q",
+              "parameters": {
+                "LUT": "0000000000000001"
+              },
+              "path_input": "A",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q",
+              "parameters": {
+                "LUT": "10000000000000000000000000000000"
+              },
+              "path_input": "E",
+              "type": "MISTRAL_ALUT5"
+            },
+            {
+              "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+              "parameters": {
+                "LUT": "10000000"
+              },
+              "path_input": "A",
+              "type": "MISTRAL_ALUT3"
+            },
+            {
+              "cell": "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B",
+              "parameters": {
+                "LUT": "0010"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1011"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F",
+              "parameters": {
+                "LUT": "0000000000000000000000000000000011111110010101000000000000000000"
+              },
+              "path_input": "F",
+              "type": "MISTRAL_ALUT6"
+            },
+            {
+              "cell": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "parameters": {
+                "LUT": "11010000"
+              },
+              "path_input": "C",
+              "type": "MISTRAL_ALUT3"
+            }
+          ],
+          "destination_ff": "ddr2_address_MISTRAL_FF_Q_25",
+          "lut_levels": 8
+        },
+        "ready1_address27": {
+          "chain": [
+            {
+              "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1011"
+              },
+              "path_input": "A",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+              "parameters": {
+                "LUT": "00110010"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT3"
+            }
+          ],
+          "destination_ff": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_27",
+          "lut_levels": 2
+        }
+      },
+      "types": {
+        "MISTRAL_ALUT2": 1084,
+        "MISTRAL_ALUT3": 1099,
+        "MISTRAL_ALUT4": 998,
+        "MISTRAL_ALUT5": 1570,
+        "MISTRAL_ALUT6": 453,
+        "MISTRAL_ALUT_ARITH": 1353,
+        "MISTRAL_CLKBUF": 4,
+        "MISTRAL_FF": 8221,
+        "MISTRAL_IB": 1,
+        "MISTRAL_IO": 18,
+        "MISTRAL_NOT": 118,
+        "MISTRAL_OB": 51,
+        "altddio_out": 1,
+        "altera_pll": 2,
+        "altiobuf_bidir": 16,
+        "cyclonev_hps_interface_fpga2sdram": 1,
+        "cyclonev_hps_interface_mpu_general_purpose": 1,
+        "cyclonev_hps_interface_peripheral_i2c": 1
+      }
+    },
+    "no_recovery_rounds": {
+      "cells": 15590,
+      "paths": {
+        "idle1_beats2": {
+          "chain": [
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+              "parameters": {
+                "LUT": "0000000000000100"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+              "parameters": {
+                "LUT": "00000000000100000000000000000000"
+              },
+              "path_input": "E",
+              "type": "MISTRAL_ALUT5"
+            },
+            {
+              "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q",
+              "parameters": {
+                "LUT": "10000000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT3"
+            },
+            {
+              "cell": "ddr1_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT2_Q",
+              "parameters": {
+                "LUT": "1000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr1_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT2_B",
+              "parameters": {
+                "LUT": "0010"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT2"
+            },
+            {
+              "cell": "ddr1_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D_1",
+              "parameters": {
+                "LUT": "1110010000000000"
+              },
+              "path_input": "D",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr1_test.burst_end_MISTRAL_ALUT5_D",
+              "parameters": {
+                "LUT": "01010111111111110000000000000000"
+              },
+              "path_input": "E",
+              "type": "MISTRAL_ALUT5"
+            }
+          ],
+          "destination_ff": "ddr1_test.beats_left_MISTRAL_FF_Q_6",
+          "lut_levels": 7
+        },
+        "idle2_address25": {
+          "chain": [
+            {
+              "cell": "ddr2_test.pass_end_MISTRAL_ALUT5_C_1_E_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q",
+              "parameters": {
+                "LUT": "0000000000000001"
+              },
+              "path_input": "A",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr2_test.pass_end_MISTRAL_ALUT5_C_1_E_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q",
+              "parameters": {
+                "LUT": "10000000000000000000000000000000"
+              },
+              "path_input": "E",
+              "type": "MISTRAL_ALUT5"
+            },
+            {
+              "cell": "ddr2_test.pass_end_MISTRAL_ALUT5_C_1_E_MISTRAL_ALUT3_Q",
+              "parameters": {
+                "LUT": "10000000"
+              },
+              "path_input": "A",
+              "type": "MISTRAL_ALUT3"
+            },
+            {
+              "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT4_Q",
+              "parameters": {
+                "LUT": "1110111100001111"
+              },
+              "path_input": "D",
+              "type": "MISTRAL_ALUT4"
+            },
+            {
+              "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_E",
+              "parameters": {
+                "LUT": "00000000000000001011000100000000"
+              },
+              "path_input": "E",
+              "type": "MISTRAL_ALUT5"
+            },
+            {
+              "cell": "ddr2_test.cmd_end_MISTRAL_ALUT4_C",
+              "parameters": {
+                "LUT": "0101011100000000"
+              },
+              "path_input": "D",
+              "type": "MISTRAL_ALUT4"
+            }
+          ],
+          "destination_ff": "ddr2_address_MISTRAL_FF_Q_25",
+          "lut_levels": 6
+        },
+        "ready1_address27": {
+          "chain": [
+            {
+              "cell": "hps_ddr.cmd_ready_1_MISTRAL_ALUT5_B",
+              "parameters": {
+                "LUT": "00110010001100100011001000000000"
+              },
+              "path_input": "B",
+              "type": "MISTRAL_ALUT5"
+            }
+          ],
+          "destination_ff": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_27",
+          "lut_levels": 1
+        }
+      },
+      "types": {
+        "MISTRAL_ALUT2": 1047,
+        "MISTRAL_ALUT3": 755,
+        "MISTRAL_ALUT4": 974,
+        "MISTRAL_ALUT5": 2782,
+        "MISTRAL_ALUT6": 244,
+        "MISTRAL_ALUT_ARITH": 1353,
+        "MISTRAL_CLKBUF": 4,
+        "MISTRAL_FF": 8221,
+        "MISTRAL_IB": 1,
+        "MISTRAL_IO": 18,
+        "MISTRAL_NOT": 118,
+        "MISTRAL_OB": 51,
+        "altddio_out": 1,
+        "altera_pll": 2,
+        "altiobuf_bidir": 16,
+        "cyclonev_hps_interface_fpga2sdram": 1,
+        "cyclonev_hps_interface_mpu_general_purpose": 1,
+        "cyclonev_hps_interface_peripheral_i2c": 1
+      }
+    }
+  },
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_commit": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+  "runs": {
+    "norecovery-c2": {
+      "binary_sha256": "eb56265fea455e2adcf1c06edb3293792437866bc00bb59cbc82998c9d7a38fe",
+      "classification": "host-only mapping-policy diagnostic; unchanged RTL, costs, delay model, nextpnr and route settings",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/tools/nextpnr-enable-replication",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-control-factoring/abc-policy/norecovery/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-control-factoring/norecovery-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-control-factoring/norecovery-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-control-factoring/norecovery-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": -0.08399999886751175,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 3.4890000596642494,
+            "routing": 5.539999902248383,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 9.479999974370003,
+          "from": {
+            "cell": "ddr1_status_MISTRAL_FF_Q_168",
+            "loc": [
+              22,
+              27
+            ],
+            "port": "Q"
+          },
+          "from_rtl_signals": [
+            "ddr1_status[296]"
+          ],
+          "from_signals": [
+            "ddr1_done_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E[1]"
+          ],
+          "logic_arcs": 24,
+          "logic_types": {
+            "MISTRAL_ALUT3": 1,
+            "MISTRAL_ALUT4": 1,
+            "MISTRAL_ALUT5": 2,
+            "MISTRAL_ALUT_ARITH": 20
+          },
+          "to": {
+            "cell": "ddr1_test.cmd_end_MISTRAL_FF_Q",
+            "loc": [
+              36,
+              14
+            ],
+            "port": "DATAIN"
+          },
+          "to_rtl_signals": [
+            "ddr1_test.cmd_end"
+          ],
+          "to_signals": [
+            "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_E_Q[2]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": 0.03999999910593033,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 3.0550000369548798,
+            "routing": 9.662999987602234,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.293000034987926,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_3",
+            "loc": [
+              13,
+              6
+            ],
+            "port": "Q"
+          },
+          "from_rtl_signals": [
+            "display.col_s[3]"
+          ],
+          "from_signals": [
+            "display.col_s[3]"
+          ],
+          "logic_arcs": 7,
+          "logic_types": {
+            "MISTRAL_ALUT2": 1,
+            "MISTRAL_ALUT4": 1,
+            "MISTRAL_ALUT5": 1,
+            "MISTRAL_ALUT6": 3,
+            "MISTRAL_ALUT_ARITH": 1
+          },
+          "to": {
+            "cell": "display.sdram_ch_t_MISTRAL_FF_Q_6",
+            "loc": [
+              28,
+              2
+            ],
+            "port": "DATAIN"
+          },
+          "to_rtl_signals": [
+            "display.sdram_ch_t[2]"
+          ],
+          "to_signals": [
+            "display.sdram_ch_t[2]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 814.1202622200362,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-control-factoring/norecovery-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-control-factoring/norecovery-c2/replication"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 75.2275619506836,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 105.48523712158203,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 231.98643493652344,
+          "constraint": 130.0052032470703
+        }
+      },
+      "replication_log": [
+        "Info: Enable replication: 0 replicas, budget 4; examined at most 32 of 1 ranked candidates."
+      ],
+      "returncode": 0,
+      "snapshot_proof": {
+        "original_pin_states_unchanged": 107630,
+        "original_placements_unchanged": 15539,
+        "replicas": []
+      },
+      "synth_sha256": "7f6e7faa450b6bc36cbd5451203f0fe9241b9be336784cc37b403e11ed273c1f"
+    }
+  },
+  "scope": {
+    "fes_base": "051d957b7db5dd3dd66eeff9b662a54fe893beb7",
+    "modes": {
+      "default": "unchanged original full synthesis; exact saved top module required",
+      "nomfs": "only remove final mfs pass via existing abc9.nomfs scratchpad",
+      "norecovery": "same preprocessing, LUT cost/delay model and W600; &if -F0 -A0, no mfs"
+    },
+    "not_claimed": [
+      "all area-oriented processing disabled",
+      "Quartus Boolean cut reproduced",
+      "delay model calibration",
+      "130 MHz closure",
+      "hardware acceptance"
+    ],
+    "owner": "misteross compiler investigation",
+    "qualification": "ABC equivalence, independent boundary equivalence/state inventory, then fresh GPU1 seed2/c2/weight10/beta0.5/budget4 full route with best frozen nextpnr",
+    "question": "Does ABC9 area recovery serialize the Quartus-matched RAM-test control paths?",
+    "unchanged": [
+      "RTL",
+      "BUILD_ID",
+      "initialization",
+      "producer lock",
+      "physical timing model",
+      "route options",
+      "shared contracts"
+    ]
+  },
+  "source_verification": {
+    "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+    "oss_revision": "5c15931aae47494a89b2a5a3cf673bc9f2f09a4a",
+    "rtl_sha256": {
+      "cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+      "cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+      "cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+      "cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+      "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+      "cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+      "cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+      "cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+      "cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+      "cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+      "cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+      "cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+      "cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb"
+    }
+  },
+  "timeout_trace": [
+    {
+      "address_bit": 11075,
+      "destination_ff": "$auto$ff.cc:337:slice$34053",
+      "destination_type": "$dffe",
+      "enable_port": "EN",
+      "idle_bit": 3802,
+      "length": 3,
+      "path": [
+        {
+          "cell": "$flatten\\ddr2_test.$eq$cores/fes-ramtest/rtl/ddr_channel.v:299$6080",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_test.idle[0]"
+              ],
+              [
+                "ddr2_test.idle[1]"
+              ],
+              [
+                "ddr2_test.idle[2]"
+              ],
+              [
+                "ddr2_test.idle[3]"
+              ],
+              [
+                "ddr2_test.idle[4]"
+              ],
+              [
+                "ddr2_test.idle[5]"
+              ],
+              [
+                "ddr2_test.idle[6]"
+              ],
+              [
+                "ddr2_test.idle[7]"
+              ],
+              [
+                "ddr2_test.idle[8]"
+              ],
+              [
+                "ddr2_test.idle[9]"
+              ],
+              [
+                "ddr2_test.idle[10]"
+              ],
+              [
+                "ddr2_test.idle[11]"
+              ],
+              [
+                "ddr2_test.idle[12]"
+              ],
+              [
+                "ddr2_test.idle[13]"
+              ],
+              [
+                "ddr2_test.idle[14]"
+              ],
+              [
+                "ddr2_test.idle[15]"
+              ],
+              [
+                "ddr2_test.idle[16]"
+              ],
+              [
+                "ddr2_test.idle[17]"
+              ],
+              [
+                "ddr2_test.idle[18]"
+              ],
+              [
+                "ddr2_test.idle[19]"
+              ],
+              [
+                "ddr2_test.idle[20]"
+              ],
+              [
+                "ddr2_test.idle[21]"
+              ],
+              [
+                "ddr2_test.idle[22]"
+              ],
+              [
+                "ddr2_test.idle[23]"
+              ]
+            ],
+            "B": [
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "1"
+              ],
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "1"
+              ],
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "0"
+              ],
+              [
+                "1"
+              ],
+              [
+                "0"
+              ],
+              [
+                "1"
+              ],
+              [
+                "1"
+              ],
+              [
+                "1"
+              ],
+              [
+                "1"
+              ]
+            ]
+          },
+          "parameters": {
+            "A_SIGNED": "00000000000000000000000000000000",
+            "A_WIDTH": "00000000000000000000000000011000",
+            "B_SIGNED": "00000000000000000000000000000000",
+            "B_WIDTH": "00000000000000000000000000010100",
+            "Y_WIDTH": "00000000000000000000000000000001"
+          },
+          "path_input": "A",
+          "type": "$eq"
+        },
+        {
+          "cell": "$auto$simple.cc:194:make_patterns_logic$34063",
+          "input_aliases": {
+            "A": [
+              [
+                "$flatten\\ddr2_test.$eq$cores/fes-ramtest/rtl/ddr_channel.v:252$6030_Y"
+              ],
+              [
+                "ddr2_test.state[6]"
+              ]
+            ],
+            "B": [
+              [
+                "1"
+              ],
+              [
+                "1"
+              ]
+            ]
+          },
+          "parameters": {
+            "A_SIGNED": "00000000000000000000000000000000",
+            "A_WIDTH": "00000000000000000000000000000010",
+            "B_SIGNED": "00000000000000000000000000000000",
+            "B_WIDTH": "00000000000000000000000000000010",
+            "Y_WIDTH": "00000000000000000000000000000001"
+          },
+          "path_input": "A",
+          "type": "$ne"
+        },
+        {
+          "cell": "$auto$simple.cc:211:make_patterns_logic$34075",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34070"
+              ],
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34068"
+              ],
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34066"
+              ],
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34064"
+              ],
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34062"
+              ],
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34060"
+              ],
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34058"
+              ],
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34056"
+              ],
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34054"
+              ],
+              [
+                "$auto$fsm_map.cc:74:implement_pattern_cache$32735"
+              ]
+            ]
+          },
+          "parameters": {
+            "A_SIGNED": "00000000000000000000000000000000",
+            "A_WIDTH": "00000000000000000000000000001010",
+            "Y_WIDTH": "00000000000000000000000000000001"
+          },
+          "path_input": "A",
+          "type": "$reduce_and"
+        }
+      ],
+      "stage": "coarse"
+    },
+    {
+      "address_bit": 8103,
+      "destination_ff": "$auto$ff.cc:337:slice$43634",
+      "destination_type": "MISTRAL_FF",
+      "enable_port": "ENA",
+      "idle_bit": 3613,
+      "length": 9,
+      "path": [
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$68754",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_test.idle[22]"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_test.idle[23]"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "B",
+          "type": "$_OR_"
+        },
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$68761",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$67193[10]"
+              ]
+            ],
+            "B": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$67193[11]"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "B",
+          "type": "$_OR_"
+        },
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$68765",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$67206[4]"
+              ]
+            ],
+            "B": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$67206[5]"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "B",
+          "type": "$_OR_"
+        },
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$68769",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$67217"
+              ]
+            ],
+            "B": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$67213[2]"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "B",
+          "type": "$_OR_"
+        },
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$43597",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$rtlil.cc:3236:Not$34248"
+              ]
+            ],
+            "B": [
+              [
+                "$auto$rtlil.cc:3473:NotGate$128233",
+                "$auto$simplemap.cc:271:simplemap_eqne$42642[1]",
+                "$auto$simplemap.cc:271:simplemap_eqne$42804[2]",
+                "$auto$simplemap.cc:271:simplemap_eqne$42814[2]"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "A",
+          "type": "$_OR_"
+        },
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$43560",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34062"
+              ]
+            ],
+            "B": [
+              [
+                "$auto$simple.cc:193:make_patterns_logic$34060"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "A",
+          "type": "$_AND_"
+        },
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$43565",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$43197[2]",
+                "$auto$simplemap.cc:148:simplemap_reduce$43557[2]"
+              ]
+            ],
+            "B": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$43557[3]"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "A",
+          "type": "$_AND_"
+        },
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$43567",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$43202[0]",
+                "$auto$simplemap.cc:148:simplemap_reduce$43563[0]"
+              ]
+            ],
+            "B": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$43563[1]"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "B",
+          "type": "$_AND_"
+        },
+        {
+          "cell": "$auto$simplemap.cc:157:simplemap_reduce$43569",
+          "input_aliases": {
+            "A": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$43566"
+              ]
+            ],
+            "B": [
+              [
+                "$auto$simplemap.cc:148:simplemap_reduce$43557[4]"
+              ]
+            ]
+          },
+          "parameters": {},
+          "path_input": "A",
+          "type": "$_AND_"
+        }
+      ],
+      "stage": "preabc"
+    },
+    {
+      "address_bit": 1232,
+      "destination_ff": "$auto$ff.cc:337:slice$43634",
+      "destination_type": "$__MISTRAL_FF_SYNCONLY",
+      "enable_port": "ENA",
+      "idle_bit": 4406,
+      "length": 8,
+      "path": [
+        {
+          "cell": "$abc$270189$lut$aiger270188$11484",
+          "input_aliases": {
+            "A": [
+              [
+                "$abc$270189$ddr2_test.idle[23]",
+                "$abc$270189$ddr2_test.idle[23]",
+                "$techmap272804$auto$alumacc.cc:548:replace_alu$35029.slice[23].alm_i.B",
+                "ddr2_test.idle[23]"
+              ],
+              [
+                "$abc$270189$ddr2_test.idle[22]",
+                "$abc$270189$ddr2_test.idle[22]",
+                "$techmap272803$auto$alumacc.cc:548:replace_alu$35029.slice[22].alm_i.B",
+                "ddr2_test.idle[22]"
+              ],
+              [
+                "$abc$270189$ddr2_test.idle[21]",
+                "$abc$270189$ddr2_test.idle[21]",
+                "$techmap272802$auto$alumacc.cc:548:replace_alu$35029.slice[21].alm_i.B",
+                "ddr2_test.idle[21]"
+              ],
+              [
+                "$abc$270189$ddr2_test.idle[20]",
+                "$abc$270189$ddr2_test.idle[20]",
+                "$techmap272801$auto$alumacc.cc:548:replace_alu$35029.slice[20].alm_i.B",
+                "ddr2_test.idle[20]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "0000000000000001",
+            "WIDTH": "00000000000000000000000000000100"
+          },
+          "path_input": "A",
+          "type": "$lut"
+        },
+        {
+          "cell": "$abc$270189$lut$aiger270188$11488",
+          "input_aliases": {
+            "A": [
+              [
+                "$abc$270189$ddr2_test.idle[19]",
+                "$abc$270189$ddr2_test.idle[19]",
+                "$techmap272800$auto$alumacc.cc:548:replace_alu$35029.slice[19].alm_i.B",
+                "ddr2_test.idle[19]"
+              ],
+              [
+                "$abc$270189$ddr2_test.idle[18]",
+                "$abc$270189$ddr2_test.idle[18]",
+                "$techmap272799$auto$alumacc.cc:548:replace_alu$35029.slice[18].alm_i.B",
+                "ddr2_test.idle[18]"
+              ],
+              [
+                "$abc$270189$ddr2_test.idle[17]",
+                "$abc$270189$ddr2_test.idle[17]",
+                "$techmap272798$auto$alumacc.cc:548:replace_alu$35029.slice[17].alm_i.B",
+                "ddr2_test.idle[17]"
+              ],
+              [
+                "$abc$270189$ddr2_test.idle[16]",
+                "$abc$270189$ddr2_test.idle[16]",
+                "$techmap272797$auto$alumacc.cc:548:replace_alu$35029.slice[16].alm_i.B",
+                "ddr2_test.idle[16]"
+              ],
+              [
+                "$abc$270189$aiger270188$11484"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "10000000000000000000000000000000",
+            "WIDTH": "00000000000000000000000000000101"
+          },
+          "path_input": "A",
+          "type": "$lut"
+        },
+        {
+          "cell": "$abc$270189$lut$aiger270188$11490",
+          "input_aliases": {
+            "A": [
+              [
+                "$abc$270189$aiger270188$11488"
+              ],
+              [
+                "$abc$270189$aiger270188$11481"
+              ],
+              [
+                "$abc$270189$aiger270188$11474"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "10000000",
+            "WIDTH": "00000000000000000000000000000011"
+          },
+          "path_input": "A",
+          "type": "$lut"
+        },
+        {
+          "cell": "$abc$270189$lut$aiger270188$13802",
+          "input_aliases": {
+            "A": [
+              [
+                "$abc$270189$ddr2_test.state[4]",
+                "$abc$270189$ddr2_test.state[4]",
+                "ddr2_test.state[4]"
+              ],
+              [
+                "$abc$270189$aiger270188$11490"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "1000",
+            "WIDTH": "00000000000000000000000000000010"
+          },
+          "path_input": "A",
+          "type": "$lut"
+        },
+        {
+          "cell": "$abc$270189$lut$aiger270188$13803",
+          "input_aliases": {
+            "A": [
+              [
+                "$abc$270189$aiger$o8248",
+                "$abc$270189$auto$ff.cc:792:flip_bits$128360",
+                "$auto$ff.cc:792:flip_bits$128360"
+              ],
+              [
+                "$abc$270189$aiger270188$13802"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "0010",
+            "WIDTH": "00000000000000000000000000000010"
+          },
+          "path_input": "A",
+          "type": "$lut"
+        },
+        {
+          "cell": "$auto$abc_ops_reintegrate.cc:652:reintegrate$271452",
+          "input_aliases": {
+            "A": [
+              [
+                "$abc$270189$aiger270188$14077"
+              ],
+              [
+                "$abc$270189$aiger270188$13803"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "1011",
+            "WIDTH": "00000000000000000000000000000010"
+          },
+          "path_input": "A",
+          "type": "$lut"
+        },
+        {
+          "cell": "$abc$270189$lut$aiger$o8617",
+          "input_aliases": {
+            "A": [
+              [
+                "$abc$270189$aiger$o9858",
+                "$abc$270189$ddr2_test.state[6]",
+                "$abc$270189$ddr2_test.state[6]",
+                "ddr2_test.state[6]"
+              ],
+              [
+                "$abc$270189$ddr2_test.state[4]",
+                "$abc$270189$ddr2_test.state[4]",
+                "ddr2_test.state[4]"
+              ],
+              [
+                "$abc$270189$auto$opt_reduce.cc:137:opt_pmux$32123",
+                "$auto$aigmap.cc:125:execute$244426",
+                "$auto$opt_reduce.cc:137:opt_pmux$32123"
+              ],
+              [
+                "$abc$270189$hps_ddr.port2.enter_read",
+                "hps_ddr.port2.enter_read"
+              ],
+              [
+                "$abc$270189$aiger270188$14638"
+              ],
+              [
+                "$abc$270189$auto$rtlil.cc:3476:OrGate$128241",
+                "$auto$aigmap.cc:125:execute$264080",
+                "$auto$rtlil.cc:3476:OrGate$128241"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "0000000000000000000000000000000000000000000000001111111001010100",
+            "WIDTH": "00000000000000000000000000000110"
+          },
+          "path_input": "A",
+          "type": "$lut"
+        },
+        {
+          "cell": "$abc$270189$lut$aiger$o8447",
+          "input_aliases": {
+            "A": [
+              [
+                "$abc$270189$aiger$o9858",
+                "$abc$270189$ddr2_test.state[6]",
+                "$abc$270189$ddr2_test.state[6]",
+                "ddr2_test.state[6]"
+              ],
+              [
+                "$abc$270189$aiger270188$13079"
+              ],
+              [
+                "$abc$270189$auto$simple.cc:210:make_patterns_logic$34216",
+                "$auto$simple.cc:210:make_patterns_logic$34216"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "11010000",
+            "WIDTH": "00000000000000000000000000000011"
+          },
+          "path_input": "A",
+          "type": "$lut"
+        }
+      ],
+      "stage": "postabc"
+    },
+    {
+      "address_bit": 5565,
+      "destination_ff": "ddr2_address_MISTRAL_FF_Q_25",
+      "destination_type": "MISTRAL_FF",
+      "enable_port": "ENA",
+      "idle_bit": 6014,
+      "length": 8,
+      "path": [
+        {
+          "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_test.idle[23]"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_test.idle[22]"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_test.idle[21]"
+              ]
+            ],
+            "D": [
+              [
+                "ddr2_test.idle[20]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "0000000000000001"
+          },
+          "path_input": "A",
+          "type": "MISTRAL_ALUT4"
+        },
+        {
+          "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E[0]",
+                "ddr2_test.idle[19]"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E[1]",
+                "ddr2_test.idle[18]"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E[2]",
+                "ddr2_test.idle[17]"
+              ]
+            ],
+            "D": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E[3]",
+                "ddr2_test.idle[16]"
+              ]
+            ],
+            "E": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E[4]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "10000000000000000000000000000000"
+          },
+          "path_input": "E",
+          "type": "MISTRAL_ALUT5"
+        },
+        {
+          "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C[0]"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C[1]"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C[2]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "10000000"
+          },
+          "path_input": "A",
+          "type": "MISTRAL_ALUT3"
+        },
+        {
+          "cell": "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA[1]",
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_E[0]",
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D[0]",
+                "ddr2_read_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E[0]",
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D_Q[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_10_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_11_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_12_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_13_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_14_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_15_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_16_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_17_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_19_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_1_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_20_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_21_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_22_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_23_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_24_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_25_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_26_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_27_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_28_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_28_C_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_C_MISTRAL_ALUT3_C_Q[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_29_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_2_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_3_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_4_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_5_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_6_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_7_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_8_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_9_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_1_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_3_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_4_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_A[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_10_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_11_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_16_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_2_A_MISTRAL_ALUT5_D_Q[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_4_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_5_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_7_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_8_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT6_Q_1_F[3]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT6_Q_2_F[3]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT6_Q_3_F[1]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_FF_Q_DATAIN_MISTRAL_NOT_Q_A_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_NOT_A_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_ALUT5_A_Q[0]",
+                "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_C[0]",
+                "ddr2_test.state[4]",
+                "ddr2_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_F[0]",
+                "hps_ddr.port2.enter_byteenable_MISTRAL_ALUT2_Q_6_A_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT3_C_Q[0]"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D[1]",
+                "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q[3]",
+                "ddr2_test.write_MISTRAL_ALUT4_A_Q[0]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "1000"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "cell": "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E[2]",
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_E[2]",
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F[0]",
+                "ddr2_test.group_valid_MISTRAL_ALUT4_C_Q[0]",
+                "ddr2_test.group_valid_MISTRAL_ALUT4_C_Q_MISTRAL_ALUT6_F_E[0]",
+                "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_D[0]",
+                "ddr2_test.state_MISTRAL_FF_Q_3_DATAIN[0]",
+                "ddr2_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E[0]",
+                "ddr2_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_1_D[1]",
+                "ddr2_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT6_F_D_MISTRAL_ALUT3_C_Q[2]",
+                "hps_ddr.port2.reads_after_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT5_E_Q[2]",
+                "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_FF_DATAIN_Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_E[5]",
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F[1]",
+                "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_D[5]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "0010"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B_Q[0]",
+                "ddr2_test.cmds_done_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_E[5]"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_E[3]",
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B_Q[1]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "1011"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA[0]",
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_Q[0]",
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_E[0]",
+                "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_10_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_11_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_13_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_14_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_15_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_16_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_17_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_19_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_20_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_22_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_2_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_5_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_6_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_7_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_8_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_9_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmds_done_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_E[0]",
+                "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_C_MISTRAL_ALUT6_F_Q[0]",
+                "ddr2_test.state[6]",
+                "ddr2_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_E[0]"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA[1]",
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_E[0]",
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D[0]",
+                "ddr2_read_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E[0]",
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D_Q[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_10_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_11_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_12_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_13_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_14_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_15_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_16_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_17_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_19_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_1_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_20_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_21_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_22_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_23_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_24_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_25_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_26_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_27_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_28_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_28_C_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_C_MISTRAL_ALUT3_C_Q[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_29_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_2_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_3_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_4_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_5_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_6_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_7_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_8_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_9_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT3_Q_C[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_1_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_3_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_4_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_Q_A[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_10_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_11_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_16_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_2_A_MISTRAL_ALUT5_D_Q[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_4_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_5_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_7_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_8_D[0]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT6_Q_1_F[3]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT6_Q_2_F[3]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT5_A_Q_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT6_Q_3_F[1]",
+                "ddr2_test.pass_end_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT4_Q_B_MISTRAL_FF_Q_DATAIN_MISTRAL_NOT_Q_A_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_NOT_A_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_ALUT5_A_Q[0]",
+                "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_C[0]",
+                "ddr2_test.state[4]",
+                "ddr2_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_F[0]",
+                "hps_ddr.port2.enter_byteenable_MISTRAL_ALUT2_Q_6_A_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT3_C_Q[0]"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA[2]",
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_E[1]",
+                "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_C_MISTRAL_ALUT6_F_Q[1]"
+              ]
+            ],
+            "D": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA[3]",
+                "ddr2_test.cmds_done_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_E[3]",
+                "ddr2_test.in_flight_after_MISTRAL_ALUT3_Q_2_C_MISTRAL_ALUT5_E_Q[2]",
+                "ddr2_test.in_flight_after_MISTRAL_ALUT5_Q_E[2]",
+                "hps_ddr.port2.enter_read",
+                "hps_ddr.port2.reads_after_MISTRAL_ALUT5_Q_3_E[2]",
+                "hps_ddr.port2.reads_after_MISTRAL_ALUT5_Q_E[2]"
+              ]
+            ],
+            "E": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA[4]",
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_E[2]"
+              ]
+            ],
+            "F": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA[5]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "0000000000000000000000000000000000000000000000001111111001010100"
+          },
+          "path_input": "F",
+          "type": "MISTRAL_ALUT6"
+        },
+        {
+          "cell": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+          "input_aliases": {
+            "A": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA[0]",
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_Q[0]",
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_E[0]",
+                "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_10_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_11_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_13_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_14_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_15_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_16_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_17_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_19_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_20_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_22_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_2_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_5_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_6_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_7_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_8_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q_9_B[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmd_following_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_Q_1_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO[0]",
+                "ddr2_test.cmds_done_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_E[0]",
+                "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_C_MISTRAL_ALUT6_F_Q[0]",
+                "ddr2_test.state[6]",
+                "ddr2_test.write_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_E[0]"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_Q[1]",
+                "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q[2]"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_Q[2]"
+              ]
+            ]
+          },
+          "parameters": {
+            "LUT": "11010000"
+          },
+          "path_input": "C",
+          "type": "MISTRAL_ALUT3"
+        }
+      ],
+      "stage": "mapped"
+    }
+  ],
+  "trace_identity": {
+    "cells": 14941,
+    "snapshot_method": "write_rtlil without sort only; JSON conversion must be separate",
+    "top_module_exact": true
+  },
+  "validation": {
+    "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+    "cone_summaries_byte_identical_regeneration": 3,
+    "fresh_default_top_exact": true,
+    "il_trace_top_exact": true,
+    "independent_equivalence_review": "no blockers; exact export correspondence, bijection, init, model and SAT checked",
+    "independent_mapping_review": "no blockers; source and policy scope verified",
+    "source_files_verified": 13
+  },
+  "yosys_commit": "c156dd886d87113c30bc2bf422ccb9ae0208b2a1"
+}

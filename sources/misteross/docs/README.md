@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test ABC9 area recovery](validation/2026-09-28-ramtest-abc-area-recovery.md) | Disabling recovery rounds shortens two control paths and passes full boundary equivalence, but regresses memory to 105.49 MHz; rejected. Host-only. |
 | [RAM-test fitted Quartus control cones](validation/2026-09-28-ramtest-quartus-control-cones.md) | Passing 130 MHz fit uses broader ready-enable mapping, three-level timeout logic and different D/ENA choices; matched paths and decoded fitted functions. Host-only. |
 | [RAM-test fixed analytical HPS anchor](validation/2026-09-28-ramtest-hps-fixed-anchor.md) | Fixed-only and fixed-plus-pin-offset flows regress to 90.80/95.01 MHz despite better physical locality; exact disabled control. Host-only. |
 | [RAM-test analytical HPS pin geometry](validation/2026-09-27-ramtest-hps-pin-geometry.md) | Physical pin offsets in analytical HeAP regress to 96.52 MHz; exact disabled control and unchanged-logic proof. Host-only. |
