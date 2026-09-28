@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test exact ready shortest path](validation/2026-09-28-ramtest-ready-shortest.md) | Certified fixed-occupancy minimum equals the retained 3602 ps ready1 route. No gain; corrected stack stays 116.92 MHz. Host-only. |
 | [RAM-test isolated ready fallback search](validation/2026-09-28-ramtest-ready-fallback.md) | Two legal candidate trees regress timing and are rejected; the corrected 116.92 MHz stack and RBF remain unchanged. Frozen-model, 224-endpoint checks. Host-only. |
 | [RAM-test completed analogue observations](validation/2026-09-28-ramtest-observation-validity.md) | Stops unfinished hops entering calibration while preserving valid zero delays. Matched fresh routes establish a corrected retained-stack baseline of 116.92 MHz; 130 MHz remains unresolved. Host-only. |
 | [RAM-test HPS-ready timing trace](validation/2026-09-28-ramtest-ready-timing.md) | Exact control reproduction confirms missing HPS waveforms, calibrated fallback and candidate-scoring exclusion; longer ready routes remain slower under fixed weights. Host-only; best remains 118.57 MHz. |
