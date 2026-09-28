@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"log"
+	"net"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -237,6 +238,7 @@ func run() error {
 	}
 	audioSource := audioreact.Combined{Measured: measured, Idle: audioreact.IdlePulse{Enabled: audioEnabled}}
 	wasConnected := false
+	kitIdentity := readKitIdentity("/sys/class/net/eth0/address")
 	present := func(m kitlauncher.Model) {
 		if !kitlauncher.ShouldPaintHDMI(m) && !activeMenuDisplay {
 			return
@@ -294,7 +296,7 @@ func run() error {
 			frame.Audio = sample
 			fbgrid.PaintAttract(d, frame)
 			paintSceneFX(d, cfg.Width, cfg.Height, fx, now, look)
-			d.Present()
+			presentKitFrame(d, cfg.Width, look, kitIdentity)
 			return
 		}
 		if m.WheelOpen && !m.Busy {
@@ -342,7 +344,7 @@ func run() error {
 			lastKey = key
 			fbgrid.PaintWheel(d, frame)
 			paintSceneFX(d, w, h, fx, now, look)
-			d.Present()
+			presentKitFrame(d, w, look, kitIdentity)
 			return
 		}
 		start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
@@ -407,7 +409,7 @@ func run() error {
 			frame.Audio = sample
 			fbgrid.PaintDetail(d, frame)
 			paintSceneFX(d, w, h, fx, now, look)
-			d.Present()
+			presentKitFrame(d, w, look, kitIdentity)
 			return
 		}
 		fbgrid.Paint(d, grid)
@@ -415,13 +417,47 @@ func run() error {
 			fbgrid.PaintOSK(d, modelOSKFrame(m, w, h, look, grid))
 		}
 		paintSceneFX(d, w, h, fx, now, look)
-		d.Present()
+		presentKitFrame(d, w, look, kitIdentity)
 	}
 	remap, err := loadKitRemapper(*inputProfile, c.InputProfile)
 	if err != nil {
 		return err
 	}
 	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.OpenWith(remap) })
+}
+
+func readKitIdentity(addressPath string) string {
+	data, err := os.ReadFile(addressPath)
+	if err != nil {
+		return "KIT MAC UNAVAILABLE"
+	}
+	mac, err := net.ParseMAC(strings.TrimSpace(string(data)))
+	if err != nil || len(mac) != 6 {
+		return "KIT MAC UNAVAILABLE"
+	}
+	return "KIT " + mac.String()
+}
+
+func presentKitFrame(d gfx.Device, width int, th theme.Theme, identity string) {
+	th = th.Complete()
+	if identity != "" && th.HeaderH > 0 {
+		size := th.CaptionPx()
+		if size > th.HeaderH-8 {
+			size = th.HeaderH - 8
+		}
+		if size > 0 {
+			weight := th.CaptionWeight()
+			textWidth := gfx.MeasureTextWeight(identity, size, weight)
+			x := width - textWidth - 16
+			if x > width/2 {
+				d.SetBlend(gfx.BlendNone)
+				d.FillRect(gfx.Rect{X: float32(x - 8), W: float32(width - x + 8), H: float32(th.HeaderH)}, th.HeaderBar)
+				y := (th.HeaderH - gfx.TextHeightWeight(size, weight)) / 2
+				d.DrawTextWeight(x, y, identity, size, weight, th.Header)
+			}
+		}
+	}
+	d.Present()
 }
 
 type kitDisplay interface {

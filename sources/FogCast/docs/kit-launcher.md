@@ -21,6 +21,10 @@ display acknowledgment does not block pad input. When menu firmware is
 unavailable, the current FPGA picture is left alone. The FES native integration
 image selects the sealed `fes.menu` package and starts this display path at boot.
 The boot splash remains the fallback when menu activation fails.
+The kit shell shows the effective `eth0` MAC at the right of its top bar on
+wheel, browse, detail and attract screens. This label remains visible when
+the host is offline and follows the SD card's first-boot address assignment
+or a manual `ethaddr=` override.
 
 Build with `make build-fogcast-kit`. The native image installs the command and
 supervises it after runtime and agent startup. Its default configuration is

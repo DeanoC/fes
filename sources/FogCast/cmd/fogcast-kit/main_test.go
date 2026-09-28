@@ -39,6 +39,44 @@ func TestKitSelectsNativeMenuDisplayWithoutHPSFramebuffer(t *testing.T) {
 	}
 }
 
+func TestKitIdentityUsesEffectiveEthernetAddress(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "address")
+	if err := os.WriteFile(path, []byte("02:46:43:A9:6A:37\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := readKitIdentity(path); got != "KIT 02:46:43:a9:6a:37" {
+		t.Fatalf("identity=%q", got)
+	}
+	if err := os.WriteFile(path, []byte("not-a-mac\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := readKitIdentity(path); got != "KIT MAC UNAVAILABLE" {
+		t.Fatalf("invalid identity=%q", got)
+	}
+}
+
+func TestKitIdentityPaintsAtRightEdgeBeforePresent(t *testing.T) {
+	d := gfx.NewRecorder()
+	label := "KIT 02:46:43:a9:6a:37"
+	presentKitFrame(d, 1280, theme.Default(), label)
+	var drawn *gfx.Call
+	for i := range d.Calls {
+		call := &d.Calls[i]
+		if call.Text == label {
+			drawn = call
+		}
+	}
+	if drawn == nil {
+		t.Fatal("identity was not painted")
+	}
+	if drawn.X <= 640 || drawn.X+gfx.MeasureTextWeight(label, drawn.SizePx, drawn.Weight) > 1280-12 {
+		t.Fatalf("identity is not right aligned: %+v", *drawn)
+	}
+	if last := d.Calls[len(d.Calls)-1].Op; last != "Present" {
+		t.Fatalf("last operation=%s", last)
+	}
+}
+
 func TestKitReadingFooterKeepsRecoveryInstructionsAndSelectedTitle(t *testing.T) {
 	m := kitlauncher.Model{Message: "Target retains an earlier error; use Stop to clear it, then retry."}
 	m.SetCatalog([]hostclient.Game{{ID: "fpga-pong", Title: "Verified FES Pong package 20260919", System: "fpga"}})
