@@ -103,7 +103,8 @@ The tracked modules contain the host, runtime, shared package definitions and
 FPGA product sources in one FES commit. Original repository URLs and imported
 histories are recorded in [config/source-imports.toml](../config/source-imports.toml).
 The current profile remains package-only and installs the ordered closed
-`fes.pong`, `fes.zx81` and `fes.coleco` set through the HIP/nextpnr route.
+`fes.menu`, `fes.pong`, `fes.zx81` and `fes.coleco` set through the HIP/nextpnr
+route. `fes.menu` is idle display firmware, not a playable library entry.
 
 `make check` validates committed module selection and cleanliness, FES native
 artifact policy, package YAML, generated consumers and shared fixtures. It
@@ -115,10 +116,10 @@ FogCast consumes the negotiated runtime ABI registry rather than a second unused
 Go allowlist.
 
 `native-integration-dev` uses FES's package-only interface and publishes the
-ordered per-core selection records for `fes.pong`, `fes.zx81` and `fes.coleco`
-plus its sealed `core-packages/` directory. Systems whose nextpnr route is not
-implemented yet are checked explicitly with Quartus; that check is not an image
-production route.
+ordered per-core selection records for `fes.menu`, `fes.pong`, `fes.zx81` and
+`fes.coleco` plus its sealed `core-packages/` directory. Systems whose nextpnr
+route is not implemented yet are checked explicitly with Quartus; that check
+is not an image production route.
 
 ## Keep, combine, split and add
 
@@ -156,7 +157,8 @@ This does not require a fixed agent team for every change.
 
 ## Current profile
 
-The factory image is the ordered `fes.pong`, `fes.zx81`, `fes.coleco` set.
+The factory image is the ordered `fes.menu`, `fes.pong`, `fes.zx81`,
+`fes.coleco` set. The menu selection is not a playable core.
 Package, image and QEMU commands do not inherit NES, SNES, Mega Drive, or any
 other historical kit result. Later revisions need their own evidence.
 [Core status](core-status.md) is the package matrix.

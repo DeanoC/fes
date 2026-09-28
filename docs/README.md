@@ -16,9 +16,10 @@ a dated record. A dated record is not the schedule.
 | Share the kit | [Kit sharing](kit-sharing.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
 
-The factory image is the ordered closed package set `fes.pong`, `fes.zx81`,
-`fes.coleco`, built with HIP/nextpnr. Other registered packages are not in
-that image. The matrix is [core status](core-status.md).
+The factory image is the ordered closed package set `fes.menu`, `fes.pong`,
+`fes.zx81`, `fes.coleco`, built with HIP/nextpnr. `fes.menu` provides the idle
+display and is not a playable library entry. Other registered packages are not
+in that image. The matrix is [core status](core-status.md).
 
 Shell examples in the parent guides start at the FES repository root.
 A component Makefile is a different command set. `make` inside

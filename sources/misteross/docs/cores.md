@@ -17,11 +17,13 @@ they were written. They are not the schedule for this tree.
 ## Current cores
 
 Parent recipe rows live in FES `config/core-recipes.toml`. The factory image
-installs only `fes.pong`, `fes.zx81` and `fes.coleco`. A producer in this
+installs the idle display `fes.menu` and playable `fes.pong`, `fes.zx81` and
+`fes.coleco`. A producer in this
 module does not put a package on that image.
 
 | Package | Tree | Mailbox | Lock | OSS seal | In factory image |
 | --- | --- | --- | --- | --- | --- |
+| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchains/ramtest.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco` | yes; optional Coleco bus 2.0 socket |

@@ -22,8 +22,9 @@ driver, or general framebuffer service.
 Menu-display GP, immutable staging and reserved-memory primitives have host
 test coverage. Explicit idle-menu activation and generation-bound presentation
 use the existing local socket with immutable descriptor transfer.
-Default startup remains splash. An explicitly configured menu returns after
-Stop with a fresh presentation generation.
+Default startup remains splash unless the image passes an explicitly selected
+menu package to the daemon. That menu returns after Stop with a fresh
+presentation generation.
 
 Package admission retains validated artifacts before mutation. Activation
 verifies live ABI/build identity before input or media controls. Initialized

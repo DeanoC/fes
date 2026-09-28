@@ -18,9 +18,9 @@ The kit process sends complete sealed RGBA frames to the local runtime socket;
 the runtime gates every submission by the current menu generation and alone
 owns DDR/FPGA access. The sender keeps only the latest pending frame, so a
 display acknowledgment does not block pad input. When menu firmware is
-unavailable, the current FPGA picture is left alone. This development option
-requires the separately configured menu package; the factory image still
-selects the splash.
+unavailable, the current FPGA picture is left alone. The FES native integration
+image selects the sealed `fes.menu` package and starts this display path at boot.
+The boot splash remains the fallback when menu activation fails.
 
 Build with `make build-fogcast-kit`. The native image installs the command and
 supervises it after runtime and agent startup. Its default configuration is

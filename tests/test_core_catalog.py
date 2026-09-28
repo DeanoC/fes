@@ -73,12 +73,17 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
     def test_curated_metadata_covers_registered_cores(self):
         value = core_catalog.publish(ROOT, ROOT / 'config/core-library.toml', {}, self.root / 'all')
         rows = {row['core_id']: row for row in value['entries']}
-        self.assertEqual(set(rows), set(core_catalog.recipes.load_recipes()))
+        self.assertEqual(set(rows), set(core_catalog.recipes.load_recipes()) - {'fes.menu'})
         self.assertEqual(rows['fes.apple2']['standing'], 'experimental')
         self.assertEqual(rows['fes.catch']['standing'], 'demo')
         self.assertIn('fes.sms', rows)
         self.assertIn('fes.sg1000', rows)
         self.assertTrue(all('package_id' not in row for row in rows.values()))
+
+    def test_idle_menu_cannot_be_published_as_a_playable_core(self):
+        self.metadata.write_text(self.metadata.read_text().replace('fes.pong', 'fes.menu'))
+        with self.assertRaisesRegex(ValueError, 'not a playable catalog core'):
+            core_catalog.publish(ROOT, self.metadata, {}, self.root / 'out')
 
     def test_output_collision_preserves_existing_catalog(self):
         output=self.root/'out';output.mkdir();(output/'catalog.json').write_text('retained')

@@ -19,6 +19,7 @@ selected_package_cores() {
       *) package_id=$remaining; remaining= ;;
     esac
     case "$package_id" in
+      fes.menu) printf '%s\n' menu ;;
       fes.pong) printf '%s\n' pong ;;
       fes.zx81) printf '%s\n' zx81 ;;
       fes.coleco) printf '%s\n' coleco ;;

@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -16,9 +17,14 @@
 #define MISTER_RUNTIME_VERSION "unknown"
 #endif
 
-int main()
+int main(int argc, char** argv)
 {
 	mister::StderrLogSink log;
+	if (argc != 1 && (argc != 4 || std::string(argv[1]) != "--menu-package")) {
+		log.Write({"daemon_arguments", "", "", "failure",
+			{mister::ErrorCode::invalid_request, "expected --menu-package DIRECTORY PACKAGE_ID"}});
+		return 2;
+	}
 	mister::DiagnosticRing ring;
 	mister::DiagnosticFileSink events(ring, mister::kDiagnosticEventsPath);
 	mister::InstallDiagnosticSink(&events);
@@ -53,6 +59,11 @@ int main()
 	const mister::Error startup = runtime.Start();
 	if (!startup.ok())
 		log.Write({"daemon_start", "", "", "failure", startup});
+	if (startup.ok() && argc == 4) {
+		const mister::Error menu = runtime.ConfigureMenuPackage(argv[2], argv[3]);
+		if (!menu.ok())
+			log.Write({"daemon_menu", "", "fes.menu", "failure", menu});
+	}
 
 	mister::daemon::Controller controller(runtime, MISTER_RUNTIME_VERSION);
 	mister::daemon::Server server("/run/mister-runtime.sock", controller);

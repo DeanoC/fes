@@ -7,6 +7,7 @@ TARGET_IMAGE_OUTPUT_VOLUME ?= fogcast-target-image-output
 
 export NATIVE_RUNTIME_MODE FES_PACKAGE_IDS \
 	FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION \
+	FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION \
 	FES_ZX81_PACKAGE_DIR FES_ZX81_PACKAGE_SELECTION \
 	FES_COLECO_PACKAGE_DIR FES_COLECO_PACKAGE_SELECTION \
 	FOGCAST_DIR TARGET_IMAGE_OUTPUT_VOLUME
@@ -22,6 +23,7 @@ test:
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
 	sh scripts/tests/target-image-sources_test.sh
 	sh scripts/tests/kit-init_test.sh
+	sh scripts/tests/native-menu-init_test.sh
 	sh scripts/tests/ethaddr-init_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh
 	sh scripts/tests/rootfs-package-cleanup_test.sh

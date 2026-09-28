@@ -181,6 +181,10 @@ package_id = '$package_id'
 EOF
   chmod 0444 "$package_selection"
   case "$package_core" in
+    menu)
+      FES_MENU_PACKAGE_DIR=$package_dir
+      FES_MENU_PACKAGE_SELECTION=$package_selection
+      ;;
     pong)
       FES_PONG_PACKAGE_DIR=$package_dir
       FES_PONG_PACKAGE_SELECTION=$package_selection
@@ -196,10 +200,12 @@ EOF
   esac
 }
 
+package_fixture menu d
 package_fixture pong a
 package_fixture zx81 b
 package_fixture coleco c
-export FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco
+export FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco
+export FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION
 export FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION
 export FES_ZX81_PACKAGE_DIR FES_ZX81_PACKAGE_SELECTION
 export FES_COLECO_PACKAGE_DIR FES_COLECO_PACKAGE_SELECTION
@@ -228,7 +234,7 @@ test -x "$target/usr/sbin/fogcast-kit"
 test -x "$target/etc/init.d/S60fogcast-kit"
 test -x "$target/etc/init.d/S15fes-ethaddr"
 test "$(stat -c %a "$target/usr/share/mister-runtime/idle.rbf")" = 644
-test "$(find "$target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 4
+test "$(find "$target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 5
 test "$(stat -c %a "$target/usr/share/mister-runtime/core-packages/$(printf '%064d' 0 | tr 0 a)")" = 555
 test "$(stat -c %a "$target/usr/share/mister-runtime/core-packages/$(printf '%064d' 0 | tr 0 a)/core.rbf")" = 444
 test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-pong.package.toml")" = 444
@@ -236,6 +242,9 @@ grep -Fq 'mister_runtime_commit=1111111111111111111111111111111111111111' \
   "$target/usr/share/mister-runtime/build-inputs"
 grep -Fq 'fes.pong_package_id=' \
   "$target/usr/share/mister-runtime/build-inputs"
+grep -Fq 'fes.menu_package_id=' \
+  "$target/usr/share/mister-runtime/build-inputs"
+test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-menu.package.toml")" = 444
 grep -Fq 'fes.zx81_package_id=' \
   "$target/usr/share/mister-runtime/build-inputs"
 grep -Fq 'fes.coleco_package_id=' \

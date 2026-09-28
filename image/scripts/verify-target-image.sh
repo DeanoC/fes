@@ -74,6 +74,7 @@ inspection_package_id() {
 				*) package_id_name=$remaining; remaining= ;;
 			esac
 			case "$package_id_name" in
+				fes.menu) package_selection_path=${FES_MENU_PACKAGE_SELECTION:-} ;;
 				fes.pong) package_selection_path=${FES_PONG_PACKAGE_SELECTION:-} ;;
 				fes.zx81) package_selection_path=${FES_ZX81_PACKAGE_SELECTION:-} ;;
 				fes.coleco) package_selection_path=${FES_COLECO_PACKAGE_SELECTION:-} ;;
