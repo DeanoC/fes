@@ -1286,8 +1286,9 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		computer_interfaces.push_back(interface.id);
 	}
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
-		"fes.expansion.apple2-bus", "fes.gamepad.ports", "fes.keyboard.hid",
-		"fes.media.apple2-floppy", "fes.video.fixed-720p60"}));
+		"fes.expansion.apple2-bus", "fes.expansion.spectrum-bus", "fes.gamepad.ports",
+		"fes.keyboard.hid", "fes.media.apple2-floppy", "fes.media.spectrum-tape",
+		"fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
 	assert(capabilities.abis[3].id == "fes.simple-game");
 	assert(capabilities.media_units.empty());

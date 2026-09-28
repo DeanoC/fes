@@ -4,8 +4,10 @@ The `fes.computer` 1.0 ABI uses identity tag 4 on the existing `fes-gp-v1`
 programming profile and GP transport. The authoritative wire contract is
 mister-packages [home-computer I/O](../../mister-packages/docs/computer-io.md);
 the constants are generated from `packages/abi/fes_computer.yaml` into
-`src/native/generated/fes_computer.hpp`. The first consumer is the FES Apple II
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md)).
+`src/native/generated/fes_computer.hpp`. The consumers are the FES Apple II
+([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md))
+and the FES ZX Spectrum
+([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)).
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 
@@ -14,11 +16,13 @@ packages keep their requirements, wire identities and startup behavior.
 A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions
 above 0 and any `core.system` value are rejected. `fes.video.fixed-720p60` 1.0
 is required. The recognized operational set is `fes.video.fixed-720p60`,
-`fes.keyboard.hid`, `fes.gamepad.ports`, `fes.audio.pcm-s16-stereo-48k` and
-`fes.media.apple2-floppy`, each 1.0; each must be declared required when
-present. `fes.expansion.apple2-bus` 1.0 is a manifest-only slot bus and must be
-optional. Unknown or unsupported-version optional declarations are ignored and
-grant nothing; unknown or unsupported required declarations fail admission.
+`fes.keyboard.hid`, `fes.gamepad.ports`, `fes.audio.pcm-s16-stereo-48k`,
+`fes.media.apple2-floppy` and `fes.media.spectrum-tape`, each 1.0; each must
+be declared required when present. A shell declares at most one of the two
+unit-0 media interfaces. `fes.expansion.apple2-bus` 1.0 and
+`fes.expansion.spectrum-bus` 1.0 are manifest-only multi-socket buses and must
+be optional. Unknown or unsupported-version optional declarations are ignored
+and grant nothing; unknown or unsupported required declarations fail admission.
 
 Format 2 and format 3 with a `firmware` ROM are admitted. Format 3 with a
 `cartridge` ROM and format 4 are rejected: this ABI releases execution right
@@ -28,16 +32,16 @@ Firmware ROM packages activate through `load_rom_core`,
 `rom_link` receipt. The ABI has no persistence interface, so library loads
 record volatile core data.
 
-Native capabilities advertise the ABI with all six interfaces:
+Native capabilities advertise the ABI with every recognized interface:
 
 ```json
-{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
+{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
 ```
 
 ## Lifecycle
 
 Identity must equal the manifest: tag 4, ABI 1.0, build ID, and live
-capability bits 0 through 4 equal to the declared required recognized set.
+capability bits 0 through 5 equal to the declared required recognized set.
 Unregistered live bits above 4 are ignored, as for applications. Discovery
 then reads MediaInfo fields 0 through 5 for every declared media unit
 (`fes.media.apple2-floppy` is unit 0). The unit must be present and empty, with

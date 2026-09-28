@@ -297,8 +297,8 @@ func validateCoreMediaSelection(role, id string) error {
 	if role == "" && id == "" {
 		return nil
 	}
-	if (role != "blob" && role != protocol.DiskRole) || protocol.ValidateDigest(id) != nil {
-		return fmt.Errorf("%w: expected blob or disk role and media digest, or both empty", ErrInvalidCoreMedia)
+	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole) || protocol.ValidateDigest(id) != nil {
+		return fmt.Errorf("%w: expected blob, disk or cassette role and media digest, or both empty", ErrInvalidCoreMedia)
 	}
 	return nil
 }

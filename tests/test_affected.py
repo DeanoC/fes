@@ -34,13 +34,13 @@ class AffectedTests(unittest.TestCase):
     def test_core_families_include_cross_core_consumers(self):
         cases = {
             'cores/fes-common/rtl/coleco_vdp.sv': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sg1000', 'sms'},
+            'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sg1000', 'sms', 'spectrum'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
             'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu'},
             'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong'},
-            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'coleco', 'apple2'},
-            'cores/fes-common/rtl/fes_audio_output.v': {'coleco', 'apple2'},
+            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'coleco', 'apple2', 'spectrum'},
+            'cores/fes-common/rtl/fes_audio_output.v': {'coleco', 'apple2', 'spectrum'},
             'cores/fes-common/rtl/fes_sn76489.sv': {'coleco'},
             'cores/fes-pong/sim/board_models.v': {'demo', 'pong'},
             'cores/pong/rtl/pong_game.sv': {'pong'},
@@ -53,9 +53,12 @@ class AffectedTests(unittest.TestCase):
             'scripts/sim_fes_menu.py': {'menu'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2'},
-            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2'},
+            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'spectrum'},
+            'cores/fes-common/rtl/t80pa.v': {'coleco', 'sg1000', 'sms', 'spectrum'},
             'scripts/apple2_slots.py': {'apple2'},
             'scripts/build_apple2_slot_card.py': {'apple2'},
+            'cores/fes-spectrum/rtl/spectrum_machine.sv': {'spectrum'},
+            'scripts/spectrum_slots.py': {'spectrum'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):

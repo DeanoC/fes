@@ -18,10 +18,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   unavailable; setup requires an online catalog. See
   [guided core setup](docs/core-package-library.md#tenfoot-guided-core-setup).
 
-- Library `fes.computer` 1.0 packages (the Apple II pathfinder, `fes.apple2`)
+- Library `fes.computer` 1.0 packages (the Apple II pathfinder, `fes.apple2`,
+  and the ZX Spectrum pathfinder, `fes.spectrum`)
   launch as ordinary `fpga_native` sessions. A format-3 package links its
   selected `firmware` ROM at download. A shell with the optional
-  `fes.expansion.apple2-bus` selects one card per physical slot through
+  `fes.expansion.apple2-bus` or `fes.expansion.spectrum-bus` selects one card per physical socket through
   `GET`/`PUT /api/v1/library/core-entries/{game_id}/expansions[/{slot}]`;
   launch links the ROM and cards on the host, the target relinks them
   independently and calls the runtime's multi-slot load. See

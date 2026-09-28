@@ -13,6 +13,7 @@ module fes_computer_mailbox #(
     parameter bit ENABLE_PORTS = 0,
     parameter bit ENABLE_AUDIO = 0,
     parameter bit ENABLE_APPLE2_FLOPPY = 0,
+    parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter integer MEDIA_AW = 18,
     parameter [31:0] UNIT0_MIN = `FES_COMPUTER_APPLE2_FLOPPY_BYTES,
     parameter [31:0] UNIT0_MAX = `FES_COMPUTER_APPLE2_FLOPPY_BYTES
@@ -30,13 +31,16 @@ module fes_computer_mailbox #(
     output reg  [1:0]   unit0_state,
     output reg  [31:0]  unit0_size
 );
-    localparam bit MEDIA = ENABLE_APPLE2_FLOPPY;
+    // Unit 0 is one drive. A shell enables the Apple II floppy or the
+    // Spectrum tape, not both.
+    localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_SPECTRUM_TAPE;
     localparam [15:0] CAPABILITIES =
         16'(`FES_COMPUTER_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK) |
         (ENABLE_KEYBOARD ? 16'(`FES_COMPUTER_INTERFACE_KEYBOARD_HID_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_PORTS ? 16'(`FES_COMPUTER_INTERFACE_GAMEPAD_PORTS_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_AUDIO ? 16'(`FES_COMPUTER_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK) : 16'd0) |
-        (ENABLE_APPLE2_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_APPLE2_FLOPPY_CAPABILITY_MASK) : 16'd0);
+        (ENABLE_APPLE2_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_APPLE2_FLOPPY_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_SPECTRUM_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_TAPE_CAPABILITY_MASK) : 16'd0);
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
     localparam [15:0] E_INDEX = 16'(`FES_COMPUTER_ERROR_INVALID_INDEX);
     localparam [15:0] E_ARGUMENT = 16'(`FES_COMPUTER_ERROR_INVALID_ARGUMENT);

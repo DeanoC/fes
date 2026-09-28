@@ -22,6 +22,9 @@ func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string,
 	if protocol.AdmitDiskMediaName(name) {
 		return s.replaceLiveDisk(parent, mediaID, name, b)
 	}
+	if protocol.AdmitSpectrumTapeName(name) {
+		return s.replaceLiveCassette(parent, mediaID, name, b)
+	}
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitTapeMediaName(name) {
 		return protocol.Status{}, protocol.LiveMediaRequestError()
 	}
@@ -111,6 +114,27 @@ func (s *Service) replaceLiveMediaLocked(ctx context.Context, size int64, body i
 	return s.retainLiveSessionIdentity(status, b), nil
 }
 
+// ejectComputerUnit empties one fes.computer media unit when the active
+// generation's observed interface is that unit. ZX81 tape clearing is unchanged.
+func (s *Service) ejectComputerUnit(ctx context.Context, client interface{}, prior protocol.Status, b protocol.DevelopmentMediaBinding, unit protocol.MediaUnitBinding, want protocol.RuntimeContract) (protocol.Status, bool, error) {
+	observed, ok := protocol.MediaUnit(prior.CorePackage, unit.Unit)
+	if !ok || observed.Interface != want || !unit.Matches(prior) {
+		return protocol.Status{}, false, nil
+	}
+	units, ok := client.(mediaUnitClient)
+	if !ok {
+		return protocol.Status{}, true, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	status, err := units.EjectMedia(ctx, unit)
+	if err != nil {
+		return status, true, preserveCorePackageError(err)
+	}
+	if state, ok := protocol.MediaUnit(status.CorePackage, unit.Unit); !unit.Matches(status) || !ok || state.State != protocol.MediaUnitEmpty {
+		return protocol.Status{}, true, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	return s.retainLiveSessionIdentity(status, b), true, nil
+}
+
 func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	if err := s.prepareLiveMediaClient(ctx, b); err != nil {
 		return protocol.Status{}, err
@@ -125,21 +149,11 @@ func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.Developme
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	if unit := diskUnitBinding(b); unit.Matches(prior) {
-		// A fes.computer session ejects its disk unit; ZX81 tape clearing
-		// below is unchanged.
-		units, ok := client.(mediaUnitClient)
-		if !ok {
-			return protocol.Status{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
-		}
-		status, err := units.EjectMedia(ctx, unit)
-		if err != nil {
-			return status, preserveCorePackageError(err)
-		}
-		if state, ok := protocol.MediaUnit(status.CorePackage, unit.Unit); !unit.Matches(status) || !ok || state.State != protocol.MediaUnitEmpty {
-			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
-		}
-		return s.retainLiveSessionIdentity(status, b), nil
+	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, diskUnitBinding(b), protocol.Apple2FloppyInterface()); handled || err != nil {
+		return status, err
+	}
+	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, cassetteUnitBinding(b), protocol.SpectrumTapeInterface()); handled || err != nil {
+		return status, err
 	}
 	loader, ok := client.(liveMediaClient)
 	if !ok {

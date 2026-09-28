@@ -4,7 +4,7 @@
 [The YAML](../packages/abi/fes_computer.yaml) owns constants, emitted as
 `FesComputer*` and `FES_COMPUTER_*` Verilog macros. It is a separate ABI from
 `fes.simple-computer` (tag 2) and `fes.application` (tag 3); both remain
-unchanged. The first consumer is the FES Apple II. These definitions and the
+unchanged. The consumers are the FES Apple II and the FES ZX Spectrum. These definitions and the
 synthetic fixtures do not establish consumer or hardware acceptance.
 
 A home computer differs from the existing ABIs in three ways: it has a full
@@ -22,15 +22,18 @@ removable media by unit.
 | fes.gamepad.ports | 2 | Two eight-button controller ports, as in `fes.application` |
 | fes.audio.pcm-s16-stereo-48k | 3 | Fixed 48 kHz stereo PCM over I2S, as in `fes.application` |
 | fes.media.apple2-floppy | 4 | Media unit 0: one Apple II 5.25-inch DOS 3.3 order disk image |
+| fes.media.spectrum-tape | 5 | Media unit 0: one ZX Spectrum `.tap` image, 1..65536 bytes |
 
 Admission requires video. Every other interface is independently composable.
 Each recognized operational interface a core implements must be declared
 required by the manifest and advertised in live identity; live capabilities
 must equal the declared registered set. Unknown required interfaces and
 unsupported versions fail admission; unknown optional interfaces are ignored
-and grant nothing. Expansion interfaces such as `fes.expansion.apple2-bus` are
-manifest-only optional declarations, not capability bits. Launch-time firmware
-is supplied by package ROM linking (format 3), not by this mailbox.
+and grant nothing. A shell declares at most one unit-0 media interface.
+Expansion interfaces such as `fes.expansion.apple2-bus` and
+`fes.expansion.spectrum-bus` are manifest-only optional declarations, not
+capability bits. Launch-time firmware is supplied by package ROM linking
+(format 3), not by this mailbox.
 
 ## Mailbox framing and discovery
 
@@ -181,6 +184,17 @@ logical interleave, volume 254 and 6-and-2 data encoding. Version 1.0 is read
 only: the drive reports write protect and writes are not returned to the host.
 ProDOS order (`.po`) and nibble (`.nib`) images are different formats; a host
 may convert `.po` to DOS order before transfer, but must not send it as is.
+
+### fes.media.spectrum-tape 1.0
+
+Unit 0. The unit accepts 1..65,536 bytes: a `.tap` image, a sequence of
+blocks each stored as a little-endian uint16 length followed by that many
+payload bytes. The core plays complete blocks into the EAR bit while the
+machine runs (header pilot 8063 edges, data pilot 3223, sync 667/735, bit
+pulses 855 or 1710 T-states, then a one-second pause). A trailing partial
+block is not played. Version 1.0 does not return MIC writes to the host.
+This unit is the Spectrum shell's unit 0; it is not combined with
+`fes.media.apple2-floppy` on one shell.
 
 ## Audio
 

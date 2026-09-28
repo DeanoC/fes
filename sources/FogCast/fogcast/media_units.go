@@ -141,6 +141,10 @@ func diskUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitBindi
 	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: protocol.Apple2FloppyUnit, Target: b.Target, TargetID: b.TargetID}
 }
 
+func cassetteUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitBinding {
+	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: protocol.SpectrumTapeUnit, Target: b.Target, TargetID: b.TargetID}
+}
+
 // replaceLiveDisk inserts a household disk image into the running machine.
 func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitDiskMediaName(name) {
@@ -173,6 +177,45 @@ func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, 
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	unit := diskUnitBinding(b)
+	status, err := s.insertMediaUnitLocked(ctx, info.Size, reader, unit)
+	if err != nil {
+		return status, err
+	}
+	return s.retainMediaUnitSessionIdentity(status, unit), nil
+}
+
+// replaceLiveCassette inserts a .tap image into the running Spectrum.
+func (s *Service) replaceLiveCassette(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitSpectrumTapeName(name) {
+		return protocol.Status{}, protocol.CassetteMediaRequestError()
+	}
+	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, 150*time.Second))
+	defer cancel()
+	release, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	defer release()
+	store, ok := s.catalog.(coreMediaCatalog)
+	if !ok {
+		return protocol.Status{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	info, err := store.CoreMediaInfo(ctx, mediaID)
+	if err != nil {
+		return protocol.Status{}, mapCoreMediaError(err)
+	}
+	if !protocol.AdmitSpectrumTapeSize(info.Size) {
+		return protocol.Status{}, protocol.CassetteMediaRequestError()
+	}
+	opened, reader, err := store.OpenCoreMedia(ctx, mediaID)
+	if err != nil {
+		return protocol.Status{}, mapCoreMediaError(err)
+	}
+	defer reader.Close()
+	if opened != info {
+		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+	}
+	unit := cassetteUnitBinding(b)
 	status, err := s.insertMediaUnitLocked(ctx, info.Size, reader, unit)
 	if err != nil {
 		return status, err

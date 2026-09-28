@@ -892,13 +892,18 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"FES computer packages may link only a firmware ROM");
 		bool video = false;
+		int media_units = 0;
+		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
-			const bool bus = interface.id == kApple2ExpansionBusID;
+			const bool bus = interface.id == kApple2ExpansionBusID ||
+				interface.id == kSpectrumExpansionBusID;
+			const bool media = interface.id == FesComputerInterfaceMediaApple2FloppyID ||
+				interface.id == FesComputerInterfaceMediaSpectrumTapeID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
 				interface.id == FesComputerInterfaceKeyboardHidID ||
 				interface.id == FesComputerInterfaceGamepadPortsID ||
 				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
-				interface.id == FesComputerInterfaceMediaApple2FloppyID;
+				media;
 			const bool supported = (known || bus) && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
@@ -907,12 +912,22 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (bus && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"computer expansion bus must be optional");
-			if (bus) continue;
+			if (bus) {
+				buses++;
+				continue;
+			}
 			if (!interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"computer operational interfaces must be required when declared");
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
+			if (media) media_units++;
 		}
+		if (media_units > 1)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"computer unit 0 accepts one media interface");
+		if (buses > 1)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"computer shell declares more than one expansion bus");
 		if (!video)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer requires fixed video");

@@ -128,7 +128,7 @@ static_assert(FesComputerSignature == FesGpSignature &&
 constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
 	FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
-	FesComputerCapabilityMediaApple2Floppy);
+	FesComputerCapabilityMediaApple2Floppy | FesComputerCapabilityMediaSpectrumTape);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -417,6 +417,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityAudioPcmS16Stereo48k;
 			else if (interface.id == FesComputerInterfaceMediaApple2FloppyID)
 				capabilities |= FesComputerCapabilityMediaApple2Floppy;
+			else if (interface.id == FesComputerInterfaceMediaSpectrumTapeID)
+				capabilities |= FesComputerCapabilityMediaSpectrumTape;
 			continue;
 		}
 		if (application) {
@@ -609,9 +611,12 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
 			if (interface.id == FesComputerInterfaceKeyboardHidID) keyboard_hid_ = true;
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
-			if (interface.id == FesComputerInterfaceMediaApple2FloppyID) {
+			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
+				interface.id == FesComputerInterfaceMediaSpectrumTapeID) {
 				MediaUnitCapability unit;
-				unit.unit = static_cast<std::uint8_t>(FesComputerApple2FloppyUnit);
+				unit.unit = static_cast<std::uint8_t>(
+					interface.id == FesComputerInterfaceMediaSpectrumTapeID ?
+					FesComputerSpectrumTapeUnit : FesComputerApple2FloppyUnit);
 				unit.interface = {interface.id, interface.major, interface.minor};
 				media_units_.push_back(unit);
 			}

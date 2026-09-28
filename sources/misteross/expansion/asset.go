@@ -32,6 +32,10 @@ const (
 const (
 	Apple2Slot = "fes.expansion.apple2-bus"
 	Apple2Map  = "fes.apple2-bus.slots/1"
+	// SpectrumSlot is the ZX Spectrum edge connector. Its map names the four
+	// physical sockets of the shell; each card manifest carries its socket index.
+	SpectrumSlot = "fes.expansion.spectrum-bus"
+	SpectrumMap  = "fes.spectrum-bus.sockets/1"
 )
 
 var hex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)

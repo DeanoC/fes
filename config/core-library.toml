@@ -42,3 +42,9 @@ core_id = "fes.apple2"
 label = "Apple II"
 system = "apple2"
 standing = "experimental"
+
+[[cores]]
+core_id = "fes.spectrum"
+label = "ZX Spectrum"
+system = "spectrum"
+standing = "experimental"

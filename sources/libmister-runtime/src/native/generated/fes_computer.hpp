@@ -95,6 +95,9 @@ constexpr std::uint32_t FesComputerMediaCRC32Polynomial = 0xedb88320u;
 constexpr std::uint32_t FesComputerMediaCRC32FinalXor = 0xffffffffu;
 constexpr std::uint32_t FesComputerApple2FloppyUnit = 0x0u;
 constexpr std::uint32_t FesComputerApple2FloppyBytes = 0x23000u;
+constexpr std::uint32_t FesComputerSpectrumTapeUnit = 0x0u;
+constexpr std::uint32_t FesComputerSpectrumTapeMinBytes = 0x1u;
+constexpr std::uint32_t FesComputerSpectrumTapeMaxBytes = 0x10000u;
 constexpr const char* FesComputerInterfaceVideoFixed720p60ID = "fes.video.fixed-720p60";
 constexpr std::uint16_t FesComputerInterfaceVideoFixed720p60Major = 1u;
 constexpr std::uint16_t FesComputerInterfaceVideoFixed720p60Minor = 0u;
@@ -115,6 +118,10 @@ constexpr const char* FesComputerInterfaceMediaApple2FloppyID = "fes.media.apple
 constexpr std::uint16_t FesComputerInterfaceMediaApple2FloppyMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaApple2FloppyMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaApple2Floppy = 0x10u;
+constexpr const char* FesComputerInterfaceMediaSpectrumTapeID = "fes.media.spectrum-tape";
+constexpr std::uint16_t FesComputerInterfaceMediaSpectrumTapeMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaSpectrumTapeMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaSpectrumTape = 0x20u;
 
 } // namespace generated
 } // namespace native

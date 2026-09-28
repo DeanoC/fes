@@ -59,8 +59,8 @@ func (s *Service) CoreEntrySlotExpansions(ctx context.Context, gameID string) (C
 
 func (s *Service) slotExpansionView(ctx context.Context, store coreSlotExpansionCatalog, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) (CoreEntrySlotExpansions, error) {
 	view := CoreEntrySlotExpansions{GameID: entry.GameID, PackageID: entry.PackageID, Sockets: []int{}, Expansions: []protocol.SlotExpansionStatus{}}
-	if sockets := corepackage.SlotSockets(inspection.Descriptor); sockets != nil {
-		view.Bus, view.Map, view.Sockets = expansion.Apple2Slot, expansion.Apple2Map, sockets
+	if bus, mapping, sockets, ok := corepackage.SlotLayout(inspection.Descriptor); ok {
+		view.Bus, view.Map, view.Sockets = bus, mapping, sockets
 	}
 	_, statuses, err := s.readSlotCards(ctx, store, entry, inspection, base)
 	if err != nil && statuses == nil {

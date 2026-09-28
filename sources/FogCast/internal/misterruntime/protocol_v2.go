@@ -1125,20 +1125,24 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 		active.PersistenceMode == "persistent" || !protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
-	bus := false
+	var bus string
 	for _, i := range active.Descriptor.Interfaces {
 		switch i.ID {
-		case expansion.Apple2Slot:
-			bus = i.Major == 1 && i.Minor == 0 && !i.Required
+		case expansion.Apple2Slot, expansion.SpectrumSlot:
+			if bus != "" || i.Major != 1 || i.Minor != 0 || i.Required {
+				return false
+			}
+			bus = i.ID
 		case expansion.Slot, expansion.ColecoSlot:
 			return false
 		}
 	}
-	if !bus {
+	mapping, ok := expansion.SlotMap(bus, 1)
+	if !ok {
 		return false
 	}
 	sockets := map[int]bool{}
-	for _, socket := range expansion.SlotSockets(expansion.Apple2Slot, expansion.Apple2Map) {
+	for _, socket := range expansion.SlotSockets(bus, mapping) {
 		sockets[socket] = true
 	}
 	for _, e := range c.Expansions {

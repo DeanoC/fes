@@ -246,16 +246,16 @@ func validCommand(args []string) bool {
 	case "core-settings-set":
 		return len(args) == 5
 	case "core-media-select":
-		return len(args) == 5 || (len(args) == 6 && (args[5] == "blob" || args[5] == "disk"))
+		return len(args) == 5 || (len(args) == 6 && (args[5] == "blob" || args[5] == "disk" || args[5] == "cassette"))
 	case "core-settings", "core-progress", "core-firmware-select":
 		return len(args) == 2
 	case "core-entry":
 		return len(args) == 3 || len(args) == 4 || len(args) == 5 || len(args) == 6
 	case "core-select":
 		return len(args) == 4
-	case "core-list", "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync", "eject-tape", "eject-disk":
+	case "core-list", "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync", "eject-tape", "eject-disk", "eject-cassette":
 		return len(args) == 1
-	case "core-media-capabilities", "core-media-install", "core-install", "core-check", "search", "launch", "favorite", "unfavorite", "core-inspect", "core-load", "core-media", "change-tape", "change-disk":
+	case "core-media-capabilities", "core-media-install", "core-install", "core-check", "search", "launch", "favorite", "unfavorite", "core-inspect", "core-load", "core-media", "change-tape", "change-disk", "change-cassette":
 		return len(args) == 2
 	default:
 		return false

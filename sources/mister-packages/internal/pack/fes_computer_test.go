@@ -36,6 +36,8 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerMediaHeaderStride": 4, "FesComputerMediaChunkMaxBytes": 512,
 		"FesComputerMediaMaxBytes": 33554432, "FesComputerMediaCRC32Polynomial": 0xedb88320,
 		"FesComputerApple2FloppyUnit": 0, "FesComputerApple2FloppyBytes": 143360,
+		"FesComputerSpectrumTapeUnit": 0, "FesComputerSpectrumTapeMinBytes": 1,
+		"FesComputerSpectrumTapeMaxBytes": 65536,
 	} {
 		got, ok := abi.Constant(name)
 		if !ok || got != want {
@@ -48,6 +50,7 @@ func TestFesComputerContract(t *testing.T) {
 	}{
 		{"fes.video.fixed-720p60", 0}, {"fes.keyboard.hid", 1}, {"fes.gamepad.ports", 2},
 		{"fes.audio.pcm-s16-stereo-48k", 3}, {"fes.media.apple2-floppy", 4},
+		{"fes.media.spectrum-tape", 5},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)

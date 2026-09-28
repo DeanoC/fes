@@ -2161,10 +2161,16 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
 		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaApple2FloppyID});
 	// Registered live bits must equal the declared set; unregistered bits are ignored.
-	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu}) {
+	// Bit 5 is fes.media.spectrum-tape, so a live word with that bit set does
+	// not match a shell that did not declare the tape.
+	const unsigned registered = FesComputerCapabilityVideoFixed720p60 |
+		FesComputerCapabilityKeyboardHid | FesComputerCapabilityGamepadPorts |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMediaApple2Floppy |
+		FesComputerCapabilityMediaSpectrumTape;
+	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu, 31u | 64u}) {
 		ComputerFixture f(static_cast<std::uint16_t>(live), {{0, {143360, 143360}}}, full);
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
-		const bool expected = (live & 31u) == 31u;
+		const bool expected = (live & registered) == 31u;
 		assert(result.error.ok() == expected);
 		if (!expected) {
 			assert(result.error.code == mister::ErrorCode::core_mismatch);

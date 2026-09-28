@@ -24,6 +24,8 @@ using CoreDescriptor = mister::CoreDescriptor;
 // capability bit; multi-slot composition admission is its only consumer.
 constexpr const char* kApple2ExpansionBusID = "fes.expansion.apple2-bus";
 constexpr const char* kApple2ExpansionMapID = "fes.apple2-bus.slots/1";
+constexpr const char* kSpectrumExpansionBusID = "fes.expansion.spectrum-bus";
+constexpr const char* kSpectrumExpansionMapID = "fes.spectrum-bus.sockets/1";
 
 struct OpenedCorePackage {
 	CoreDescriptor descriptor;

@@ -43,31 +43,46 @@ func slotCompositionShell(inspection Inspection, payload []byte) (expansion.Shel
 	if d.ABI.ID != "fes.computer" || d.ABI.Major != 1 || d.ABI.Minor != 0 {
 		return expansion.Shell{}, errors.New("slot composition requires the fes.computer 1.0 ABI")
 	}
-	found := false
+	var found string
 	for _, i := range d.Interfaces {
 		switch i.ID {
-		case expansion.Apple2Slot:
-			if found || i.Required || i.Major != 1 || i.Minor != 0 {
-				return expansion.Shell{}, errors.New("slot composition requires one optional fes.expansion.apple2-bus 1.0")
+		case expansion.Apple2Slot, expansion.SpectrumSlot:
+			if found != "" || i.Required || i.Major != 1 || i.Minor != 0 {
+				return expansion.Shell{}, errors.New("slot composition requires one optional multi-socket bus 1.0")
 			}
-			found = true
+			found = i.ID
 		case expansion.Slot, expansion.ColecoSlot:
 			return expansion.Shell{}, errors.New("slot composition shell must not declare a single-socket bus")
 		}
 	}
-	if !found {
-		return expansion.Shell{}, errors.New("slot composition requires one optional fes.expansion.apple2-bus 1.0")
+	if found == "" {
+		return expansion.Shell{}, errors.New("slot composition requires one optional multi-socket bus 1.0")
 	}
-	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: expansion.Apple2Slot, SlotMajor: 1}, nil
+	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: found, SlotMajor: 1}, nil
+}
+
+// SlotLayout reports the bus, map and physical sockets of a multi-socket shell.
+// Packages without that bus report ok false.
+func SlotLayout(d Descriptor) (bus, mapping string, sockets []int, ok bool) {
+	shell, err := slotCompositionShell(Inspection{Descriptor: d}, nil)
+	if err != nil {
+		return "", "", nil, false
+	}
+	mapping, ok = expansion.SlotMap(shell.Slot, shell.SlotMajor)
+	if !ok {
+		return "", "", nil, false
+	}
+	return shell.Slot, mapping, expansion.SlotSockets(shell.Slot, mapping), true
 }
 
 // SlotSockets lists the physical sockets of a descriptor's multi-socket bus in
 // ascending order, or nil when the package has none.
 func SlotSockets(d Descriptor) []int {
-	if _, err := slotCompositionShell(Inspection{Descriptor: d}, nil); err != nil {
+	_, _, sockets, ok := SlotLayout(d)
+	if !ok {
 		return nil
 	}
-	return expansion.SlotSockets(expansion.Apple2Slot, expansion.Apple2Map)
+	return sockets
 }
 
 func sortedSlotAssets(assets []expansion.Asset) []expansion.Asset {

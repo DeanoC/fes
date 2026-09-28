@@ -125,7 +125,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	if role == "" && id == "" {
 		return nil, nil
 	}
-	if (role != "blob" && role != protocol.DiskRole) || protocol.ValidateDigest(id) != nil {
+	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole) || protocol.ValidateDigest(id) != nil {
 		return nil, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	var capability *protocol.CoreMediaCapability

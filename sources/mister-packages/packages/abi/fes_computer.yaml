@@ -176,6 +176,14 @@ constants:
     value: 0
   - name: FesComputerApple2FloppyBytes
     value: 143360
+  # fes.media.spectrum-tape 1.0: unit 0, one .tap image. A shell declares
+  # this or the Apple II floppy, not both; they are different machines.
+  - name: FesComputerSpectrumTapeUnit
+    value: 0
+  - name: FesComputerSpectrumTapeMinBytes
+    value: 1
+  - name: FesComputerSpectrumTapeMaxBytes
+    value: 65536
 interfaces:
   - id: fes.video.fixed-720p60
     major: 1
@@ -197,3 +205,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 4
+  - id: fes.media.spectrum-tape
+    major: 1
+    minor: 0
+    capability_bit: 5
