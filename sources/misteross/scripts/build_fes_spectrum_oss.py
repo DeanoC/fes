@@ -293,12 +293,13 @@ def validate_synth_evidence(output: Path) -> dict:
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
-    # The sixteen firmware lanes are explicit M10Ks. RAM and the tape store are
-    # inferred TDP blocks; their exact count is checked by the ROM-map lane
-    # authentication and by forbidding MLAB, not by a guessed total.
-    if counts.get("MISTRAL_M10K", 0) < 16:
-        raise BuildError("synthesis must keep the 16 firmware M10K lanes, "
-                         f"got {counts.get('MISTRAL_M10K', 0)}")
+    # Sixteen firmware lanes are explicit M10Ks. The 64 KiB CPU/video RAM and
+    # the 64 KiB tape image are 1024x8 TDP blocks: 64 + 64.
+    if counts.get("MISTRAL_M10K", 0) != 16 or counts.get("MISTRAL_M10K_TDP", 0) != 128:
+        raise BuildError(
+            "synthesis must keep 16 firmware M10K lanes and 128 RAM/tape TDP blocks, "
+            f"got M10K={counts.get('MISTRAL_M10K', 0)} "
+            f"TDP={counts.get('MISTRAL_M10K_TDP', 0)}")
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
             raise BuildError(f"forbidden synthesis cell {name} is in use")

@@ -34,17 +34,24 @@ module spectrum_tape (
     localparam [1:0] P_SYNC2 = 2'd2;
     localparam [1:0] P_BIT = 2'd3;
 
+    // Two M10K ports, same shape as the Apple II disk store. A mailbox
+    // write borrows port A for that clock. The player is reset until the
+    // unit is ready, and the mailbox leaves READY before the first data word.
     (* ram_style = "m10k_tdp" *) reg [7:0] image [0:BYTES-1];
     reg [7:0] read_data = 8'h00;
     reg [15:0] read_addr = 16'h0000;
+    wire [15:0] address_a = write_enable[0] ? write_addr : read_addr;
+    wire [15:0] address_b = write_addr + 16'd1;
 
     always @(posedge clk) begin
         if (write_enable[0])
-            image[write_addr] <= write_data[7:0];
-        if (write_enable[1] && write_addr != 16'hffff)
-            image[write_addr + 16'd1] <= write_data[15:8];
-        read_data <= image[read_addr];
+            image[address_a] <= write_data[7:0];
+        read_data <= image[address_a];
     end
+
+    always @(posedge clk)
+        if (write_enable[1] && write_addr != 16'hffff)
+            image[address_b] <= write_data[15:8];
 
 `ifdef VERILATOR
     integer init_i;
