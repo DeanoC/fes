@@ -226,6 +226,7 @@ test ! -e "$target/usr/bin/dbus-daemon"
 test ! -e "$target/usr/sbin/mister-disable-menu-blanking"
 test -x "$target/usr/sbin/fogcast-kit"
 test -x "$target/etc/init.d/S60fogcast-kit"
+test -x "$target/etc/init.d/S15fes-ethaddr"
 test "$(stat -c %a "$target/usr/share/mister-runtime/idle.rbf")" = 644
 test "$(find "$target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 4
 test "$(stat -c %a "$target/usr/share/mister-runtime/core-packages/$(printf '%064d' 0 | tr 0 a)")" = 555

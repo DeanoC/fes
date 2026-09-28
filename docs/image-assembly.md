@@ -103,6 +103,7 @@ published cutover, reproducible image completion or hardware acceptance.
 
 `native-dev` is the only image variant. Conventional `prod`, `dev`, and
 `--fast-dev` entrypoints have been retired. The native overlay directly owns
+per-card Ethernet MAC ([bootable media](bootable-media.md#per-card-ethernet-mac)),
 network, SSH, supervisor, mount-smoke, agent and runtime services. The kernel
 build uses the retained native image compiler under `work-2-native-dev/host`.
 Kernel/U-Boot inputs and splash seals are unchanged; changed packaging still
