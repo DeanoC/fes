@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 )
 
@@ -38,8 +39,33 @@ func loadLauncherConfig(path string) (launcherListenerConfig, error) {
 	}
 	host, port, err := net.SplitHostPort(config.Listen)
 	number, portErr := strconv.Atoi(port)
-	if err != nil || net.ParseIP(host) == nil || portErr != nil || number < 1 || number > 65535 || config.LauncherConfig.Validate() != nil {
+	if err != nil || net.ParseIP(host) == nil || portErr != nil || number < 1 || number > 65535 {
+		return config, errors.New("invalid launcher configuration")
+	}
+	if err := config.LauncherConfig.Validate(); err != nil {
+		if errors.Is(err, hostapi.ErrLauncherSharedToken) {
+			return config, err
+		}
 		return config, errors.New("invalid launcher configuration")
 	}
 	return config, nil
+}
+
+// reusesAgentToken reports whether any launcher bearer equals the
+// host-to-agent token of any configured target, enabled or not, or the
+// selected target's compatibility token. Every candidate is compared in
+// constant time and the loop does not stop at the first match.
+func (c launcherListenerConfig) reusesAgentToken(config fogcast.Config) bool {
+	candidates := make([]string, 0, len(config.Targets)+1)
+	candidates = append(candidates, config.Token)
+	for _, target := range config.Targets {
+		candidates = append(candidates, target.Agent)
+	}
+	reused := false
+	for _, candidate := range candidates {
+		if c.UsesToken(candidate) {
+			reused = true
+		}
+	}
+	return reused
 }

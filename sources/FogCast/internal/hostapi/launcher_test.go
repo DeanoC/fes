@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -653,17 +654,19 @@ func TestLauncherRejectsUnpairedAndDisabledKit(t *testing.T) {
 	}
 }
 
-func TestLauncherSharedTokenServesBothKits(t *testing.T) {
+// A bearer identifies exactly one kit. Stop, status and input are
+// owner-scoped, so one token paired with two target ids is refused.
+func TestLauncherRejectsASharedBearer(t *testing.T) {
 	for _, config := range []hostapi.LauncherConfig{
 		{Token: launcherToken, TargetID: launcherID, Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherIDB}}},
 		{Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherID}, {Token: launcherToken, TargetID: launcherIDB}}},
 	} {
-		handler := kitHandler(t, newKitService("kit-a"), config)
-		if w := kitCall(handler, http.MethodGet, "/api/v1/games", launcherToken, launcherID, ""); w.Code != http.StatusOK {
-			t.Fatalf("shared A: %d %s", w.Code, w.Body.String())
+		err := config.Validate()
+		if !errors.Is(err, hostapi.ErrLauncherSharedToken) || !strings.Contains(err.Error(), "per-kit bearer") || strings.Contains(err.Error(), launcherToken) {
+			t.Fatalf("shared bearer: %v", err)
 		}
-		if w := kitCall(handler, http.MethodGet, "/api/v1/session", launcherToken, launcherIDB, ""); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"target_id":"`+launcherIDB+`"`) {
-			t.Fatalf("shared B session: %d %s", w.Code, w.Body.String())
+		if handler, err := hostapi.NewLauncherHandler(hostapi.New(newKitService("kit-a")), config); err == nil || handler != nil {
+			t.Fatal("shared bearer built a launcher handler")
 		}
 	}
 }
@@ -711,14 +714,18 @@ func TestLauncherConfigValidate(t *testing.T) {
 	}
 	mixed := hostapi.LauncherConfig{
 		Token: launcherToken, TargetID: launcherID,
-		Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherIDB}},
+		Pairings: []hostapi.LauncherPairing{{Token: launcherTokenB, TargetID: launcherIDB}},
 	}
 	if err := mixed.Validate(); err != nil {
 		t.Fatalf("mixed: %v", err)
 	}
+	mixed.Pairings[0].Token = launcherToken
+	if err := mixed.Validate(); !errors.Is(err, hostapi.ErrLauncherSharedToken) {
+		t.Fatalf("mixed shared: %v", err)
+	}
 	tooMany := make([]hostapi.LauncherPairing, 33)
 	for i := range tooMany {
-		tooMany[i] = hostapi.LauncherPairing{Token: validToken, TargetID: id(i + 1)}
+		tooMany[i] = hostapi.LauncherPairing{Token: validToken + fmt.Sprintf("%02d", i), TargetID: id(i + 1)}
 	}
 	if err := (hostapi.LauncherConfig{Pairings: tooMany}).Validate(); err == nil || err.Error() != "invalid launcher configuration" {
 		t.Fatalf("over 32: %v", err)

@@ -20,7 +20,8 @@ import (
 )
 
 // LauncherPairing is one kit authorized on the launcher listener.
-// Several kits may share a token. A target id appears once.
+// A bearer identifies exactly one kit: a token appears once and a target
+// id appears once.
 type LauncherPairing struct {
 	Token    string `json:"token"`
 	TargetID string `json:"target_id"`
@@ -35,6 +36,12 @@ type LauncherConfig struct {
 	TargetID string            `json:"target_id,omitempty"`
 	Pairings []LauncherPairing `json:"pairings,omitempty"`
 }
+
+// ErrLauncherSharedToken rejects a launcher configuration in which one
+// bearer is paired with more than one target_id. Session stop, status and
+// input are owner-scoped per kit, so a shared bearer would let one kit act
+// as another. The message names the fix and never includes the token.
+var ErrLauncherSharedToken = errors.New("launcher pairing token is shared by more than one target_id; mint a separate per-kit bearer for each paired kit")
 
 type launcherTokenGroup struct {
 	token   string
@@ -79,10 +86,22 @@ func (c LauncherConfig) Validate() error {
 		}
 		seen[pairing.TargetID] = struct{}{}
 	}
+	// Every pair is compared in constant time; the loop does not stop at
+	// the first match.
+	shared := 0
+	for i := range pairings {
+		for j := i + 1; j < len(pairings); j++ {
+			shared |= subtle.ConstantTimeCompare([]byte(pairings[i].Token), []byte(pairings[j].Token))
+		}
+	}
+	if shared == 1 {
+		return ErrLauncherSharedToken
+	}
 	return nil
 }
 
-// tokenGroups buckets effective pairings by distinct token.
+// tokenGroups buckets effective pairings by distinct token. Validate
+// admits one target id per token, so each group names one kit.
 func (c LauncherConfig) tokenGroups() ([]launcherTokenGroup, error) {
 	pairings, err := c.effectivePairings()
 	if err != nil {
@@ -104,7 +123,11 @@ func (c LauncherConfig) tokenGroups() ([]launcherTokenGroup, error) {
 
 // UsesToken reports whether token equals any configured pairing token.
 // Comparison does not stop at the first hit and does not echo the token.
+// An empty token is never a pairing token.
 func (c LauncherConfig) UsesToken(token string) bool {
+	if token == "" {
+		return false
+	}
 	matched := subtle.ConstantTimeCompare([]byte(c.Token), []byte(token))
 	for i := range c.Pairings {
 		matched |= subtle.ConstantTimeCompare([]byte(c.Pairings[i].Token), []byte(token))

@@ -136,7 +136,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
   A kit-only host is `fogcast-api --headless --launcher-config`: catalog and
   session stay up without local capture or an SDL window, and `fogcast-kit`
-  reconnects to the launcher listener.
+  reconnects to the launcher listener. That listener can pair several kits
+  (`pairings` in `launcher-host.json`), each with its own bearer; a bearer
+  shared by two kits, or equal to any target's agent token, is refused at
+  startup. Every paired kit browses the catalogue and launches on itself; the
+  host keeps one foreground session, so another kit's launch returns 409
+  `SESSION_BUSY_OTHER_KIT`, and stop, status, and input stay with the owning kit.
   USB keyboard is first-class browse/nav (arrows/Enter/Esc/Tab; no gamepad
   required); USB mouse/pointer hover moves focus and primary click activates
   (select/launch/confirm) without a controller; on-screen hints and focus

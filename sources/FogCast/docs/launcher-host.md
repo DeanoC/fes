@@ -23,9 +23,13 @@ One paired kit:
 }
 ```
 
-Several paired kits. A target id appears once. Several kits may share one
-token. The single-kit fields above may also be combined with `pairings`;
-those two fields then count as one pairing, ahead of the list.
+Several paired kits. A target id appears once and a token appears once: a
+bearer identifies exactly one kit, because stop, status, and input are
+scoped to the kit that owns the session. Startup refuses one token paired
+with more than one `target_id` and names the fix: mint a separate per-kit
+bearer. The single-kit fields above may also be combined with `pairings`;
+those two fields then count as one pairing, ahead of the list, and their
+token may not be reused by a pairing.
 
 ```json
 {
@@ -43,8 +47,10 @@ those two fields then count as one pairing, ahead of the list.
 }
 ```
 
-The listen address uses a literal IP and explicit port. The token is distinct
-from the host-to-agent token; it is not written to public settings or logs.
+The listen address uses a literal IP and explicit port. Every launcher token
+is distinct from the host-to-agent token of every target in `config.toml`,
+enabled or not; startup refuses a reuse. Tokens are compared in constant time
+and are not written to public settings or logs.
 Configuration is opt-in, read at host startup, and enables remote input
 composition so successful FPGA launches attach the existing input bridge.
 Generated media provisioning supplies the corresponding API URL, token, and
@@ -53,7 +59,7 @@ identity to the kit; the launcher does not obtain a kit lease credential.
 Each request sends `Authorization: Bearer <token>` and
 `X-FogCast-Target-ID: <target_id>`. The bearer must match a configured pairing
 token. For everything except the two mesh content GETs, that target id must be
-one of the matched token's kits. Catalogue, platform, health, attract, cache,
+the matched token's kit. Catalogue, platform, health, attract, cache,
 and presentation reads are served to every enabled paired kit, whether or not
 it is the host's selected target. `GET /api/v1/session` returns the foreground
 session only to the session owner; every other enabled paired kit receives its
