@@ -1,0 +1,15 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "7d83d89e29089564e715d2f9adc97a46bb65d4c5",
+    "file": "sources/libmister-runtime/src/native/generated/fes_simple_computer.hpp",
+    "note": "Audio interface values from the in-tree runtime consumer header; software contract evidence, not hardware acceptance."
+  },
+  "interface": {
+    "id": "fes.audio.pcm-s16-stereo-48k",
+    "major": 1,
+    "minor": 0,
+    "capability_bit": 4,
+    "capability_mask": 16
+  }
+}

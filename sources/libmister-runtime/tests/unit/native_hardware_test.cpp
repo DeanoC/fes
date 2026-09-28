@@ -16,6 +16,7 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
 #include "native/menu_display.hpp"
+#include "native/menu_underflow.hpp"
 #include "native/linux/menu_memory.hpp"
 #include "native/core_data.hpp"
 #include "native/input.hpp"
@@ -1289,6 +1290,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		"fes.expansion.apple2-bus", "fes.gamepad.ports", "fes.keyboard.hid",
 		"fes.media.apple2-floppy", "fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
+	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
 	assert(capabilities.abis[3].id == "fes.simple-game");
 	assert(capabilities.media_units.empty());
 
@@ -1340,6 +1342,43 @@ void TestApplicationVideoOnlyLifecycleNeedsNoInput()
 	}
 	}
 	}
+}
+
+void TestSimpleComputerAudioIsEnabledOnlyAfterIdentity()
+{
+	std::vector<std::string> driver_events;
+	RecordingDriver driver(driver_events);
+	Fixture fixture(&driver);
+	auto load = [&](bool audio, std::uint64_t generation) {
+		TempDirectory package;
+		std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+		ReplaceAll(&manifest, "fes.simple-game", "fes.simple-computer");
+		ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard");
+		manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		if (audio)
+			manifest += "\n[[interfaces]]\nid = \"fes.audio.pcm-s16-stereo-48k\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		package.File("manifest.toml", manifest);
+		package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+		mister::native::OpenedCorePackage opened;
+		assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		assert(fixture.hardware.AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+		return fixture.hardware.LoadCore(std::move(admitted), generation);
+	};
+	auto has_phase = [&](const char* phase) {
+		for (const auto& entry : fixture.log.records())
+			if (entry.phase == phase && entry.error.ok()) return true;
+		return false;
+	};
+	assert(load(true, 1).error.ok());
+	assert(has_phase("audio_setup") && has_phase("audio_enable"));
+	fixture.log.Clear();
+	assert(load(false, 2).error.ok());
+	assert(!has_phase("audio_setup") && !has_phase("audio_enable"));
+	fixture.log.Clear();
+	driver.identify_result.error = {mister::ErrorCode::core_mismatch, "injected identity failure"};
+	assert(!load(true, 3).error.ok());
+	assert(!has_phase("audio_setup") && !has_phase("audio_enable"));
 }
 
 void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
@@ -1438,6 +1477,32 @@ public:
  void Close(int) override {}
  void VisibilityBarrier() override {++barriers;}
 };
+struct MenuGpScript {
+ mister_test::FakeMmio* mmio;
+ bool toggle=false;
+ void Reply(std::uint16_t value=0){toggle=!toggle;PushFesGpResponse(mmio,toggle,value);}
+ void Info(std::uint16_t state,std::uint32_t sequence,std::uint32_t underflows=0){
+  const std::uint16_t words[]={1280,720,5120,16384,56,0,64,1,2,state,
+   static_cast<std::uint16_t>(sequence),static_cast<std::uint16_t>(sequence>>16),
+   static_cast<std::uint16_t>(underflows),static_cast<std::uint16_t>(underflows>>16)};
+  for(auto word:words)Reply(word);
+ }
+ void Identity(){
+  using namespace mister::native::generated;
+  auto words=FesGpIdentityWords();
+  words[FesGpIdentityAbiTagIndex]=FesApplicationAbiTag;
+  words[FesGpIdentityCapabilitiesIndex]=770;
+  for(auto word:words)Reply(word);
+ }
+ void BringUp(){Identity();Info(8,0);Reply();Reply();Reply();Info(3,0);}
+ // Three quiesce exchanges, then BeginSession clears the GP toggle.
+ void QuiesceRunningMenu(){Reply(0);Reply(8);Reply(0);toggle=false;}
+ void Present(std::uint32_t sequence,std::uint32_t baseline,std::uint32_t final_underflows,bool pending_poll=false){
+  Info(3,sequence,baseline);Reply();Reply();Reply();
+  if(pending_poll)Info(7,sequence,baseline);
+  Info(3,sequence+1,final_underflows);
+ }
+};
 void TestNativeMenuActivationAndCompletion()
 {
  using namespace mister::native;using namespace mister::native::generated;
@@ -1464,31 +1529,119 @@ void TestNativeMenuActivationAndCompletion()
  bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
   if(interface.id==FesApplicationInterfaceVideoMenuDisplayID)advertised=true;
  assert(advertised);
- bool toggle=false;auto reply=[&](std::uint16_t value=0){toggle=!toggle;PushFesGpResponse(&mmio,toggle,value);};
- auto info=[&](std::uint16_t state,std::uint32_t sequence){for(std::uint16_t word : {std::uint16_t(1280),std::uint16_t(720),std::uint16_t(5120),std::uint16_t(16384),std::uint16_t(56),std::uint16_t(0),std::uint16_t(64),std::uint16_t(1),std::uint16_t(2),state,std::uint16_t(sequence),std::uint16_t(sequence>>16),std::uint16_t(0),std::uint16_t(0)})reply(word);};
- auto words=FesGpIdentityWords();words[FesGpIdentityAbiTagIndex]=FesApplicationAbiTag;words[FesGpIdentityCapabilitiesIndex]=770;
- for(auto word:words)reply(word);
- info(8,0);reply();reply();reply();info(3,0);
+ MenuGpScript gp_script{&mmio};
+ gp_script.BringUp();
  auto result=hardware.ConfigureMenuPackage(package.path,opened.package_id);
  if(!result.error.ok())fprintf(stderr,"menu activation: %s\n",result.error.message.c_str());
  assert(result.error.ok());assert(hardware.menu_display().available&&fpga.hps_ddr_calls==1&&operations.barriers==1);
+ assert(!memory.CopyCancelled());
  assert(operations.pixels[0]==0&&operations.pixels[3686400/4]==0xdeadbeef);
  std::unique_ptr<mister::MenuFrame> frame;assert(mister::MenuFrame::Create(&frame).ok());
  assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
- info(3,0);reply();reply();reply();info(7,0);info(3,1);
+ gp_script.Present(0,0,0,true);
  mister::MenuDisplayInfo displayed;assert(hardware.PresentMenuFrame(*frame,&displayed).ok());
- assert(displayed.displayed_sequence==1&&operations.barriers==2);
+ assert(displayed.displayed_sequence==1&&displayed.underflows==0&&operations.barriers==2);
  // Generic game launch must reject the menu before touching the running display.
  std::unique_ptr<mister::AdmittedCorePackage> admitted;assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
  const auto programs=fpga.calls;assert(!hardware.LoadCore(std::move(admitted),1).error.ok());assert(fpga.calls==programs&&hardware.menu_display().available);
- // An uncertain live state prevents copying and recovers by physical splash
- // programming; it must not silently retry the menu package.
- info(7,1);assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());assert(operations.barriers==2);
- const auto writes_before_fallback=mmio.writes.size();
- assert(hardware.LoadIdle().error.ok());assert(!hardware.menu_display().available);
- assert(mmio.writes.size()==writes_before_fallback);
- assert(fpga.programmed.back()=="idle.rbf");
+ // An uncertain live state does not copy. The package is kept so idle recovery
+ // reactivates the menu instead of dropping straight to splash.
+ gp_script.Info(7,1,0);
+ assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(operations.barriers==2);
+ gp_script.QuiesceRunningMenu();gp_script.BringUp();
+ assert(hardware.LoadIdle().error.ok());
+ assert(hardware.menu_display().available&&hardware.menu_display().error.ok());
+ assert(fpga.programmed.back()=="core.rbf");
+ assert(!memory.CopyCancelled());
 
+}
+
+void TestMenuUnderflowPolicyReactivatesThenSplashes()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuMemory memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ auto configured=hardware.ConfigureMenuPackage(package.path,opened.package_id);
+ if(!configured.error.ok())fprintf(stderr,"menu underflow setup: %s\n",configured.error.message.c_str());
+ assert(configured.error.ok());
+ std::unique_ptr<mister::MenuFrame> frame;assert(mister::MenuFrame::Create(&frame).ok());
+ assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ mister::MenuDisplayInfo displayed;
+ auto show=[&](std::uint32_t sequence,std::uint32_t baseline,std::uint32_t final_underflows){
+  script.Present(sequence,baseline,final_underflows);
+  return hardware.PresentMenuFrame(*frame,&displayed);
+ };
+ auto reactivate=[&]{
+  script.QuiesceRunningMenu();script.BringUp();
+  const auto idle_result=hardware.LoadIdle();
+  if(!idle_result.error.ok())fprintf(stderr,"menu reactivation: %s\n",idle_result.error.message.c_str());
+  assert(idle_result.error.ok());
+  assert(hardware.menu_display().available&&hardware.menu_display().error.ok());
+  assert(fpga.programmed.back()=="core.rbf");
+ };
+ assert(show(0,0,100).ok());
+ assert(displayed.underflows==100&&hardware.menu_display().underflows==100&&hardware.menu_display().available);
+ assert(show(1,5000,5000).ok());
+ assert(displayed.underflows==0);
+ assert(show(2,0,kMenuUnderflowPresentCap).ok());
+ assert(displayed.underflows==kMenuUnderflowPresentCap);
+ assert(show(3,kMenuUnderflowPresentCap,kMenuUnderflowPresentCap).ok());
+ assert(displayed.underflows==0);
+ std::uint32_t sequence=4,baseline=10;
+ for(unsigned i=0;i+1<kMenuUnderflowSustainPresents;++i,++sequence,++baseline){
+  assert(show(sequence,baseline,baseline+1).ok());
+  assert(displayed.underflows==1);
+ }
+ script.Present(sequence,baseline,baseline+1);
+ assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(!hardware.menu_display().available);
+ assert(hardware.menu_display().error.message=="menu underflow persisted across presents");
+ reactivate();
+ script.Present(0,0,kMenuUnderflowPresentCap+1);
+ assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
+ reactivate();
+ clock.now_+=kMenuReactivationWindowMs;
+ script.Present(0,0,kMenuUnderflowPresentCap+1);
+ assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ reactivate();
+ script.Present(0,0,kMenuUnderflowPresentCap+1);
+ assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ reactivate();
+ script.Present(0,0,kMenuUnderflowPresentCap+1);
+ assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(!hardware.menu_display().available);
+ assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
+ const auto programs=fpga.calls;
+ assert(hardware.LoadIdle().error.ok());
+ assert(!hardware.menu_display().available);
+ assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
+ assert(fpga.programmed.back()=="idle.rbf"&&fpga.calls==programs+1);
+ assert(memory.CopyCancelled());
+ operations.pixels[10]=0xabcdefu;
+ assert(!memory.CopyRgba(0,*frame).ok());
+ assert(operations.pixels[10]==0xabcdefu);
+ script.toggle=false;script.BringUp();
+ configured=hardware.ConfigureMenuPackage(package.path,opened.package_id);
+ if(!configured.error.ok())fprintf(stderr,"menu reconfigure: %s\n",configured.error.message.c_str());
+ assert(configured.error.ok()&&hardware.menu_display().available&&!memory.CopyCancelled());
+ script.Present(0,0,kMenuUnderflowPresentCap+1);
+ assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ reactivate();
 }
 
 void TestHpsDdrPortsReleaseAfterIdentityBeforeExecution()
@@ -2567,11 +2720,13 @@ void TestComputerSlotCompositionActivatesLinkedPayload()
 int main()
 {
  TestNativeMenuActivationAndCompletion();
+ TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestComputerSlotCompositionActivatesLinkedPayload();
 	TestFormat4TwoSourceAdmissionBeforeMutation();
 	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
+	TestSimpleComputerAudioIsEnabledOnlyAfterIdentity();
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
 	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();
 	TestHpsDdrReleaseFailureRecoversBeforeExecution();

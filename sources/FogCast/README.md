@@ -119,6 +119,14 @@ and content selection; the MiSTer is a small, directly controlled target.
   running agent can bind its identity through authenticated health at the
   configured address. The browser and tenfoot distinguish connection state
   from game state. See [target reconnection](docs/ARCHITECTURE.md#target-identity-and-reconnection).
+- Opt-in mesh placement (`[mesh] placement = true`) can claim another
+  configured FPGA kit with the existing kit lease and rebind the session to
+  it. Once that launch starts execution, the host releases the lease it held
+  on the kit it left with `POST /v1/kit/release` (bounded at 5 seconds before
+  the launch returns; never an idle Stop). A failed release is logged and does
+  not undo the rebind; the grant is kept for a later explicit Stop, or ends by
+  the kit's lease TTL when that kit is unreachable. See
+  [placement](docs/ARCHITECTURE.md#normal-fpga-game-launch) in the architecture.
 - Explicit contained development-RBF diagnostics. Recovery programs idle
   again (`recover_idle`) before any board reboot. `/sbin/reboot` runs when
   that idle program fails, and when an older runtime rejects `recover_idle`
@@ -136,7 +144,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
   A kit-only host is `fogcast-api --headless --launcher-config`: catalog and
   session stay up without local capture or an SDL window, and `fogcast-kit`
-  reconnects to the launcher listener.
+  reconnects to the launcher listener. That listener can pair several kits
+  (`pairings` in `launcher-host.json`), each with its own bearer; a bearer
+  shared by two kits, or equal to any target's agent token, is refused at
+  startup. Every paired kit browses the catalogue and launches on itself; the
+  host keeps one foreground session, so another kit's launch returns 409
+  `SESSION_BUSY_OTHER_KIT`, and stop, status, and input stay with the owning kit.
   USB keyboard is first-class browse/nav (arrows/Enter/Esc/Tab; no gamepad
   required); USB mouse/pointer hover moves focus and primary click activates
   (select/launch/confirm) without a controller; on-screen hints and focus
@@ -265,7 +278,8 @@ as opaque join fields, label vault results diagnostic, and continue to use the
 host events endpoint at `:8787` when available; launcher `:8789` is not a
 target-event join source. Tenfoot and the sofa browser stamp launch, stop,
 focus, and nav with client wall + monotonic clocks. Host session events repeat
-those client clocks next to host `ts_utc`/`mono_ms`; focus/nav also land on
+those client clocks next to host `ts_utc`/`mono_ms`; focus/nav, a rejected
+launcher action, and a home-room fallback also land on
 `GET /api/v1/debug/ui-events`. fog-flight builds a per-flight latency
 waterfall from client → host → target when both ends are present and leaves
 missing layers labelled missing.

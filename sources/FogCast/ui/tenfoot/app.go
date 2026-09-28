@@ -414,6 +414,7 @@ type App struct {
 	roomsIndex            *rooms.Index
 	roomsDir              string
 	homeRooms             bool
+	homeRoom              string
 	pinnedRooms           []string
 	reducedMotion         bool
 	homeRecents           []hostclient.Game
@@ -790,7 +791,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		if a.firmwarePickerOpen {
 			a.closeFirmwarePickerLocked()
 		}
-		a.toggleRoomPickerLocked()
+		if !a.openHomeRoomAsRootLocked() {
+			a.toggleRoomPickerLocked()
+		}
 		return
 	case CmdSettings:
 		if a.tapePickerOpen {
@@ -874,6 +877,11 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			a.startStopLocked()
 			return
 		case CmdSelect:
+			if a.room != nil {
+				if dest := a.roomDestinationLocked(); dest.Confirm() == rooms.ConfirmLauncherAction {
+					a.runLauncherActionLocked(dest.LauncherAction)
+				}
+			}
 			return
 		case CmdSearch, CmdDetails:
 			if a.sessionLiveMediaOfferedLocked() {

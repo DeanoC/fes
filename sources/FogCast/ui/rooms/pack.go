@@ -27,6 +27,11 @@ const (
 
 var roomIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
+// ValidRoomID reports whether id matches the room.toml id rule.
+func ValidRoomID(id string) bool {
+	return roomIDPattern.MatchString(id)
+}
+
 // Manifest is the decoded room.toml.
 type Manifest struct {
 	ID          string        `toml:"id"`

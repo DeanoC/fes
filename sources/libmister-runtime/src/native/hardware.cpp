@@ -16,6 +16,7 @@
 #include "native/generated/fes_computer.hpp"
 #include "native/input.hpp"
 #include "native/menu_display.hpp"
+#include "native/menu_underflow.hpp"
 #include "native/linux/menu_memory.hpp"
 #include <thread>
 #include <chrono>
@@ -344,6 +345,8 @@ void NativeHardware::ForgetActiveCore()
 HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 	const std::string& system, const std::string& core)
 {
+	// The in-flight frame copy stops between rows once quiesce or programming begins.
+	CancelMenuCopies();
 	const VideoQuiesceResult video = game_video_.Quiesce(
 		Deadline(clock_, timeouts_.video_ms));
 	log_.Write({operation, system, core, "hdmi_quiesce", video.error});
@@ -582,6 +585,9 @@ Capabilities NativeHardware::capabilities() const
 		computer.minor = generated::FesSimpleComputerABIMinor;
 		computer.interfaces = {
 			{"fes.expansion.zx81-bus", 1, 0},
+			{generated::FesSimpleComputerInterfaceAudioPcmS16Stereo48kID,
+				generated::FesSimpleComputerInterfaceAudioPcmS16Stereo48kMajor,
+				generated::FesSimpleComputerInterfaceAudioPcmS16Stereo48kMinor},
 			{generated::FesSimpleComputerInterfaceKeyboardID,
 				generated::FesSimpleComputerInterfaceKeyboardMajor,
 				generated::FesSimpleComputerInterfaceKeyboardMinor},
@@ -1014,6 +1020,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	}
  if(menu) {
   error=menu_memory_->InitializeBlack();
+  if(error.ok()){menu_memory_->AllowCopies();menu_underflow_streak_=0;}
   if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
  }
@@ -1032,8 +1039,11 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		const std::string& abi = admitted->opened_.descriptor.abi.id;
 		const char* const audio_id = abi == generated::FesComputerABIID ?
 			generated::FesComputerInterfaceAudioPcmS16Stereo48kID :
+			abi == generated::FesSimpleComputerABIID ?
+			generated::FesSimpleComputerInterfaceAudioPcmS16Stereo48kID :
 			generated::FesApplicationInterfaceAudioPcmS16Stereo48kID;
-		if (abi == generated::FesApplicationABIID || abi == generated::FesComputerABIID)
+		if (abi == generated::FesApplicationABIID || abi == generated::FesComputerABIID ||
+			abi == generated::FesSimpleComputerABIID)
 			for (const auto& interface : admitted->opened_.descriptor.interfaces)
 				if (interface.id == audio_id &&
 					interface.required && interface.major == 1 && interface.minor == 0)
@@ -1061,6 +1071,9 @@ HardwareResult NativeHardware::LoadCoreInternal(
   if(menu) {
    error=menu_display_->Enable(Deadline(clock_,timeouts_.core_io_ms));
    MenuDisplayInfo info;if(error.ok())error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
+   // Programming and port reset clear the underflow register (initial value 0;
+   // fes_menu_video.v also clears it on rst). There is no GP clear. A nonzero
+   // count here is a fault in this image, not history from the previous core.
    if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"menu initial state is not safe black","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
@@ -1095,7 +1108,10 @@ HardwareResult NativeHardware::ConfigureMenuPackage(const std::string& directory
  if(!error.ok())return {error,false,""};
  error=CheckMenu(package->info().descriptor);if(!error.ok())return {error,false,""};
  const auto result=LoadCoreInternal(std::move(package),0,true);
- if(result.error.ok()){menu_directory_=directory;menu_package_id_=id;}
+ if(result.error.ok()){
+  menu_directory_=directory;menu_package_id_=id;
+  menu_underflow_streak_=0;menu_reactivations_=0;menu_reactivation_window_start_=0;
+ }
  else if(result.mutation_attempted){menu_directory_.clear();menu_package_id_.clear();menu_status_.available=false;menu_status_.error=result.error;}
  return result;
 }
@@ -1115,6 +1131,7 @@ HardwareResult NativeHardware::LoadIdle()
 }
 HardwareResult NativeHardware::LoadSplashIdle()
 {
+	CancelMenuCopies();
 	// Startup/fault/failed-launch cleanup deliberately has no save side effect.
 	core_data_file_.reset();
 	core_snapshot_.clear();
@@ -1168,14 +1185,35 @@ HardwareResult NativeHardware::LoadSplashIdle()
 }
 
 
+void NativeHardware::CancelMenuCopies()
+{if(menu_memory_)menu_memory_->CancelCopies();}
+bool NativeHardware::MenuReactivationAllowed()
+{
+ const auto now=clock_.NowMs();
+ if(menu_reactivation_window_start_==0||now-menu_reactivation_window_start_>=kMenuReactivationWindowMs){
+  menu_reactivation_window_start_=now;menu_reactivations_=0;
+ }
+ return menu_reactivations_<kMenuReactivationLimit;
+}
+Error NativeHardware::FailMenuPresent(const Error& error)
+{
+ // The runtime's present failure path calls LoadIdle. Keeping the package
+ // selects menu reactivation; clearing it selects splash. The counter resets
+ // on that program, so the streak does not carry into the new image.
+ menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=error;
+ if(!menu_directory_.empty()&&MenuReactivationAllowed()){++menu_reactivations_;return error;}
+ menu_unsafe_=true;menu_directory_.clear();menu_package_id_.clear();return error;
+}
 Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* output)
 {
  if(!output||!menu_status_.available||menu_unsafe_||!menu_display_||!menu_memory_)
   return {ErrorCode::busy,"menu presentation unavailable","menu"};
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
  MenuDisplayInfo info;Error error=menu_display_->ReadInfo(deadline,&info);
+ // History accumulated before this present is not a reason to reject it.
+ const auto baseline=error.ok()?info.underflows:0;
  if(error.ok()&&(!info.enabled||!info.configured||info.pending||info.quiesced||info.faulted||
-  info.displayed_sequence!=menu_status_.displayed_sequence||info.underflows))
+  info.displayed_sequence!=menu_status_.displayed_sequence))
   error={ErrorCode::io_failed,"menu slot ownership or scanout state changed","menu"};
  if(error.ok()&&info.displayed_sequence==std::numeric_limits<std::uint32_t>::max())
   error={ErrorCode::io_failed,"menu sequence exhausted","menu"};
@@ -1185,15 +1223,21 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
  if(error.ok())error=menu_display_->Submit(slot,sequence,deadline);
  while(error.ok()) {
   error=menu_display_->ReadInfo(deadline,&info);if(!error.ok())break;
-  if(!info.enabled||!info.configured||info.quiesced||info.faulted||info.underflows||
+  if(!info.enabled||!info.configured||info.quiesced||info.faulted||
    (info.displayed_sequence!=menu_status_.displayed_sequence&&info.displayed_sequence!=sequence)) {
    error={ErrorCode::io_failed,"menu completion or scanout fault","menu"};break;
   }
-  if(info.displayed_sequence==sequence&&!info.pending){menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=info.underflows;*output=info;return {};}
+  if(info.displayed_sequence==sequence&&!info.pending){
+   const auto delta=info.underflows>=baseline?info.underflows-baseline:info.underflows;
+   if(delta>kMenuUnderflowPresentCap){error={ErrorCode::io_failed,"menu underflow exceeded the per-present cap","menu"};break;}
+   if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
+   else menu_underflow_streak_=0;
+   menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;*output=info;return {};
+  }
   if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu display completion timed out","menu"};break;}
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
  }
- menu_status_.available=false;menu_status_.error=error;menu_unsafe_=true;menu_directory_.clear();menu_package_id_.clear();return error;
+ return FailMenuPresent(error);
 }
 
 HardwareResult NativeHardware::LoadContainedDevelopmentRBF(const std::string& rbf,

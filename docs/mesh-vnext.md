@@ -222,11 +222,11 @@ call to it has succeeded.
 Kit B's footer came from its `launcher.json`: it points at
 `192.168.10.202:8789`, where no launcher listener ran with a matching
 launcher token. That is a second credential (`prepare_launcher.py`,
-separate from the agent token). *[tech fix]* The host listener today
-authorizes **one** paired kit (`LauncherConfig`: one token, one
-`target_id`) and refuses non-content operations unless that kit is the
+separate from the agent token). *[tech fix]* Before #287 the host
+listener authorized **one** paired kit (`LauncherConfig`: one token, one
+`target_id`) and refused non-content operations unless that kit was the
 host's selected target (`TARGET_MISMATCH`). So a second kit's menu
-cannot work even with a token.
+could not work even with a token. #287 (P4a, §4) lifts that.
 
 **Decision (Q10):** one pairing provisions both. The host mints a
 per-kit launcher token and sends it, with its launcher URL, inside the
@@ -377,7 +377,7 @@ true` does not turn `ensure` on. Both default off.
   no question (the Slice 5 no-prompt rule). *[tech fix]* This is an
   explicit target on the launch from that kit's launcher, which skips
   placement; it does not write the household `display_preference`.
-  It needs P4a (today only the single selected kit's menu can launch).
+  It needs P4a (#287; before it, only the single selected kit's menu could launch).
 - **From the computer (browser, rooms, CLI):** a "Plays on {name}"
   chip beside Play, only with two or more eligible machines. It shows
   the real placement answer, never a guess *[tech note: the games row
@@ -427,7 +427,7 @@ waits for Deano.
 | P1 | Kit identity and code (image + agent + `fogcast-kit`) | First-boot token under `/media/fat/fogcast/` with the mount check; CID witness; clone recovery incl. derived `ethaddr` (§2.6); unprovisioned kit shows the pairing code on its idle screen; local "Pair with a computer". | IMG-2/IMG-3 can land alongside. | Image test: never overwrite token or hand-set `ethaddr`; clone fixture regenerates and deletes `launcher.json`; token absent from logs. |
 | P2 | Pairing handshake (kit endpoint + host API) | Kit pairing endpoint live only in pairing mode; PAKE; TTL, tries, lockout/backoff per §2.4; host writes the row via the private settings path; duplicate id/MAC refused; staged rotation (§2.5). | P1. | Unit: wrong code, expiry, lockout doubling, duplicate refusal, crash-at-each-rotation-step recovers; no token in logs or GET. |
 | P3 | Settings UI hookup (Foggy/Luna) | Machines list, Add machine, code entry, name, status words, §2.7 copy. Hand-edited TOML stays developer-only. | P2. | UI tests per state; copy review by Foggy. |
-| P4a | Multi-kit launcher listener (**pulled forward, in progress**) | One bearer identifies exactly one kit (credentials below). *[#282 Codex P1, adopted; aligned with #287 as built]* The host still has ONE foreground session (`sources/FogCast/docs/ARCHITECTURE.md:70-75`). The launcher serves the game list, platforms, health, attract and cache reads to any enabled paired kit, whatever target is selected. A kit-menu launch explicitly targets the kit that asked and never goes through placement. `GET /api/v1/session` shows the real session only to the kit that owns it; every other kit sees its own idle view. Stop, status and input are OWNER-ONLY: a non-owner gets exactly `403 TARGET_MISMATCH` today (a distinct `NOT_SESSION_OWNER` code is a parked nit). A launch from kit X while another kit's session is active returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt; browser and API launches that name a target still preempt, as today. **Not in P4a:** per-kit concurrent sessions and per-kit Stop (#288). Launcher health, `rom_cached` and the library cache still describe the selected target (#289). Independent of the PAKE slices; interim credentials come from the operator step below (Q14 covers only agent tokens). Fixes kit B "Offline". | None (interim credentials below). | Two kits' menus both browse the host and each launches on its own TV. Stop and status are owner-only: a non-owner gets `403 TARGET_MISMATCH` and the owner's session is untouched. A kit launch while another kit's session is active gets 409 `SESSION_BUSY_OTHER_KIT` and the other session keeps running. A non-owner's `GET /api/v1/session` returns its own idle view. Config load rejects a bearer mapped to more than one `target_id`, a bearer reused across entries, and a bearer equal to any configured target's agent token. Wrong token 401; no token in logs. |
+| P4a | Multi-kit launcher listener (**pulled forward; landed in #287**) | Optional `pairings` list in `launcher-host.json`. One bearer per kit: a token shared across target ids, or equal to any target's agent token, is refused at startup (credentials below). *[#282 Codex P1, adopted; aligned with #287 as built]* The host still has ONE foreground session (`sources/FogCast/docs/ARCHITECTURE.md:70-75`). The launcher serves the game list, platforms, health, attract and cache reads to any enabled paired kit, whatever target is selected. A kit-menu launch explicitly targets the kit that asked and never goes through placement. `GET /api/v1/session` shows the real session only to the kit that owns it; every other kit sees its own idle view. Stop, status and input are OWNER-ONLY: a non-owner gets exactly `403 TARGET_MISMATCH` today (a distinct `NOT_SESSION_OWNER` code is a parked nit). A launch from kit X while another kit's session is active returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt; browser and API launches that name a target still preempt, as today. **Not in P4a:** per-kit concurrent sessions and per-kit Stop (#288). Launcher health, `rom_cached` and the library cache still describe the selected target (#289). Independent of the PAKE slices; interim credentials come from the operator step below (Q14 covers only agent tokens). Fixes kit B "Offline". | None (interim credentials below). | Two kits' menus both browse the host and each launches on its own TV. Stop and status are owner-only: a non-owner gets `403 TARGET_MISMATCH` and the owner's session is untouched. A kit launch while another kit's session is active gets 409 `SESSION_BUSY_OTHER_KIT` and the other session keeps running. A non-owner's `GET /api/v1/session` returns its own idle view. Single form unchanged; shared token refused; bearer equal to any target's agent token refused. Wrong token 401; no token in logs. |
 | P4b | Launcher provisioning via pairing | Host mints the per-kit launcher token in P2's channel; kit writes `launcher.json`. | P2, P4a. | Pairing alone makes the kit menu work. After clone recovery and re-pair, the old launcher bearer is rejected (401). HIL: P-pair (§5). |
 | R1 | #281 | Successful rebind releases the old kit's lease via the lease API (best-effort, logged); failed rebind keeps it. | None. | Unit, both paths. |
 | L1 | #259 (in progress) | ABIs from the reconciled endpoint; keep token and node-id checks. | None. | Stale address → eligible; wrong id ineligible. Optional HIL **C0-stale** (§5). |
@@ -437,7 +437,7 @@ waits for Deano.
 | L5 | #178 | Ensure dials the named `LaunchOn` target when the selected one is offline. | L2 if both touch activation. | Selected down, named up. |
 | L6 | #174 (optional) | Pass the `LaunchOn` ctx into `activateMeshExecutor`. | None. | Cancel doesn't outlive caller. |
 
-P4a is pulled forward and runs now, in parallel with P1–P2. Lane 1 can
+P4a was pulled forward and landed in #287, ahead of P1–P2. Lane 1 can
 also run in parallel where owners differ; the order above is the merge
 priority.
 
@@ -448,17 +448,17 @@ condition]* The kit's identity is the client-set
 either kit present the other's id and read, stop or send input to its
 session. So one bearer identifies exactly one kit: every
 `launcher-host.json` `pairings` entry maps one bearer to exactly one
-`target_id`. At config load the host rejects a bearer mapped to more
+`target_id`. At startup the host rejects a bearer mapped to more
 than one `target_id`, a bearer reused across entries, and a bearer
 equal to ANY configured target's agent token. All comparisons are
-constant-time. This is being added to #287, together with Codex's
+constant-time. This landed in #287, together with Codex's
 all-targets reuse P1.
 - The legacy single-kit config (one listener token for one target)
   keeps working.
 - Multi-kit REQUIRES per-kit bearers, minted by the interim operator
   provisioning below (#290) until P4b.
-- Migration: Deano's Powerboat has one token, for kit A. When #287
-  merges, Caster mints a new bearer for kit B with the interim flow
+- Migration: Deano's Powerboat has one token, for kit A. Now that
+  #287 has merged, Caster mints a new bearer for kit B with the interim flow
   and writes it to kit B's card `launcher.json`. Kit A keeps its
   token.
 
@@ -551,7 +551,7 @@ came online and launched on kit B; a kit-A launch then got 409 `SESSION_BUSY_OTH
 preempting, kit-A Stop and status got 403 while its session read was
 its own idle view, and kit B's own Stop released its lease. Evidence:
 Caster's `fogcast-MESH-HIL3-RESULT.txt`. HIL3 ran with one bearer
-paired to both kits, a form config load now rejects (§4), so its
+paired to both kits, a form startup now rejects (§4), so its
 owner-only results relied on each kit sending its own id; re-check on
 per-kit bearers after the migration. Same caveat as HIL2: only `.84` is
 designated, so this does not accept P4a on hardware.
@@ -648,7 +648,7 @@ and the first-boot script land before P-pair. #278 does not block HIL2.
 | --- | --- | --- |
 | Done | HIL2 GREEN (picture only, diagnostic until kit B is designated); #281 filed. | C1-pad; Slice 6 acceptance. |
 | Week 0–1 | L1 #259 (in progress) and R1 #281; Foggy review of this copy. | A default flip. |
-| Now | P4a multi-kit launcher listener (in progress). | Pairing. |
+| Done | P4a multi-kit launcher listener (#287); kit B bearer migration (§4) pending. | Pairing. |
 | Weeks 1–3 | P1 → P2 → P3/P4b (in parallel); IMG-2/IMG-3 alongside P1. | `placement` default on. |
 | Week 3–4 | P-pair HIL with Deano (incl. deferred C1-pad). | Ensure default. |
 | Then | L2–L6 in order; gates review; flip a default only in a follow-up showing every gate green, plus an ensure HIL. | A silent switch. |

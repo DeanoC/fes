@@ -65,7 +65,9 @@ type Capabilities struct {
 
 // ObservedNode is one directly bindable DNS-SD advertisement in the host
 // inventory. Silence and a missing ttl drop the row from a later collect.
-// That absence is not a kit-lease release.
+// That absence is not a kit-lease release. AddressConflict is true when
+// the browse window saw advertisements for this node id at more than one
+// address; Address is then empty, so no caller dials either contender.
 type ObservedNode struct {
 	NodeID               string
 	TargetID             string
@@ -75,6 +77,7 @@ type ObservedNode struct {
 	Address              string
 	TTLSeconds           *int
 	CapabilitiesUnusable bool
+	AddressConflict      bool
 }
 
 // SilenceReleasesLease reports whether dropping this row frees a kit lease.

@@ -314,6 +314,62 @@ func TestCollectInventoriesAdsAndTreatsSilenceAsAbsence(t *testing.T) {
 	}
 }
 
+func TestCollectMarksANodeClaimedAtTwoAddressesAmbiguous(t *testing.T) {
+	old := lookupType
+	t.Cleanup(func() { lookupType = old })
+	contested := "fedcba98-7654-3210-fedc-ba9876543210"
+	dualHomed := "01234567-89ab-cdef-0123-456789abcdef"
+	contestedText, err := EncodeKitTXT(contested)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dualText, err := EncodeKitTXT(dualHomed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	lookupType = func(ctx context.Context, _ string, add dnssd.AddFunc, _ dnssd.RmvFunc) error {
+		// Two advertisers claim one node id at different addresses.
+		add(dnssd.BrowseEntry{Name: "kit", Port: 8182, IPs: []net.IP{net.ParseIP("192.0.2.20")}, Text: txtMap(contestedText)})
+		add(dnssd.BrowseEntry{Name: "impostor", Port: 8182, IPs: []net.IP{net.ParseIP("192.0.2.21")}, Text: txtMap(contestedText)})
+		// One kit seen on two host interfaces at one address is one row.
+		add(dnssd.BrowseEntry{Name: "dual", IfaceName: "en0", Port: 8182, IPs: []net.IP{net.ParseIP("192.0.2.30")}, Text: txtMap(dualText)})
+		add(dnssd.BrowseEntry{Name: "dual", IfaceName: "en1", Port: 8182, IPs: []net.IP{net.ParseIP("192.0.2.30")}, Text: txtMap(dualText)})
+		cancel()
+		return ctx.Err()
+	}
+	got, err := Collect(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("inventory = %#v", got)
+	}
+	if got[0].NodeID != dualHomed || got[0].AddressConflict || got[0].Address != "http://192.0.2.30:8182" {
+		t.Fatalf("single-address row = %#v", got[0])
+	}
+	if got[1].NodeID != contested || !got[1].AddressConflict || got[1].Address != "" {
+		t.Fatalf("contested row = %#v", got[1])
+	}
+}
+
+func TestInventoryDetectsConflictsBeforeCollapsing(t *testing.T) {
+	id := "fedcba98-7654-3210-fedc-ba9876543210"
+	for _, order := range [][]string{
+		{"http://192.0.2.1:8182", "http://192.0.2.1:8182", "http://192.0.2.2:8182"},
+		{"http://192.0.2.2:8182", "http://192.0.2.1:8182", "http://192.0.2.1:8182"},
+	} {
+		var raw []ObservedNode
+		for _, address := range order {
+			raw = append(raw, ObservedNode{NodeID: id, TargetID: id, Address: address})
+		}
+		got := Inventory(raw)
+		if len(got) != 1 || !got[0].AddressConflict || got[0].Address != "" {
+			t.Fatalf("order %v inventory = %#v", order, got)
+		}
+	}
+}
+
 func TestEncodeRejectsInvalidABI(t *testing.T) {
 	id := "01234567-89ab-cdef-0123-456789abcdef"
 	if _, err := EncodeTXT(id, Capabilities{Execute: []Execute{{Kind: ExecuteFPGANative, ABIs: []ABI{{ID: "FES.Pong", Major: 1}}}}}); err == nil {

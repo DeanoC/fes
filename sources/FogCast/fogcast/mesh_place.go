@@ -325,12 +325,22 @@ func placementFromChoice(choice meshplace.Choice) MeshPlacement {
 // targetForPlacementNode is the enabled configured kit whose node id
 // is the selected Execute node. A missing or disabled kit is not claimed.
 func (s *Service) targetForPlacementNode(nodeID string) (TargetConfig, bool) {
+	cfg, _, ok := s.targetForPlacementRead(nodeID)
+	return cfg, ok
+}
+
+// targetForPlacementRead is targetForPlacementNode plus that kit's
+// reconciled endpoint. The endpoint is the *targetclient.Client origin
+// when one is installed for the kit, otherwise "". The client is not
+// adopted and s.targets is not changed. The targetMu read is not held
+// across a node-document read; do not call this while holding meshMu.
+func (s *Service) targetForPlacementRead(nodeID string) (TargetConfig, string, bool) {
 	if s == nil {
-		return TargetConfig{}, false
+		return TargetConfig{}, "", false
 	}
 	nodeID = strings.TrimSpace(nodeID)
 	if nodeID == "" {
-		return TargetConfig{}, false
+		return TargetConfig{}, "", false
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
@@ -338,11 +348,18 @@ func (s *Service) targetForPlacementNode(nodeID string) (TargetConfig, bool) {
 		if !cfg.Enabled || strings.TrimSpace(cfg.Name) == "" {
 			continue
 		}
-		if cfg.NodeID() == nodeID || cfg.TargetID == nodeID || cfg.Name == nodeID {
-			return cfg, true
+		if cfg.NodeID() != nodeID && cfg.TargetID != nodeID && cfg.Name != nodeID {
+			continue
 		}
+		endpoint := ""
+		if client, ok := s.targetClients[cfg.Name].(*targetclient.Client); ok && client != nil {
+			if u := client.EndpointURL(); u != nil {
+				endpoint = u.String()
+			}
+		}
+		return cfg, endpoint, true
 	}
-	return TargetConfig{}, false
+	return TargetConfig{}, "", false
 }
 
 // placementClient is the kit client the lease claim uses. Open creates

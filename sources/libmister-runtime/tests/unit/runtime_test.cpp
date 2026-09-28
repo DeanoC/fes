@@ -1339,8 +1339,159 @@ void TestMenuFrameWaitIsBounded()
  assert(f.runtime.Stop().ok());
 }
 
+void SealMenuFrame(mister::Runtime& runtime, std::uint64_t generation,
+	std::unique_ptr<mister::MenuFrame>* frame)
+{
+	assert(runtime.BeginMenuFrame(generation, frame).ok());
+	assert(fcntl((*frame)->fd(), F_ADD_SEALS,
+		F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL) == 0);
+}
+
+void TestMenuFrameYieldsToLifecycleOps()
+{
+	const std::string id(64, 'a');
+	enum class Op { stop, develop, recover, configure };
+	for (const Op op : {Op::stop, Op::develop, Op::recover, Op::configure}) {
+		Fixture f;
+		assert(f.runtime.Start().ok());
+		assert(f.runtime.ConfigureMenuPackage("/menu", id).ok());
+		const auto generation = f.runtime.status().menu_display.generation;
+		const auto idle_before = f.hardware.idle_calls;
+		std::unique_ptr<mister::MenuFrame> frame;
+		SealMenuFrame(f.runtime, generation, &frame);
+		std::mutex mutex;
+		std::condition_variable condition;
+		bool presenting = false, release = false, mutation_started = false;
+		bool mutation_finished = false, begin_rejected = false;
+		f.hardware.on_menu_present = [&] {
+			std::unique_lock<std::mutex> lock(mutex);
+			presenting = true;
+			condition.notify_all();
+			assert(condition.wait_for(lock, std::chrono::seconds(2), [&] { return mutation_started; }));
+			lock.unlock();
+			std::unique_ptr<mister::MenuFrame> rejected;
+			const bool rejected_begin = !f.runtime.BeginMenuFrame(generation, &rejected).ok();
+			lock.lock();
+			begin_rejected = rejected_begin;
+			if (op == Op::stop) assert(f.hardware.idle_calls == idle_before);
+			if (op == Op::develop) assert(f.hardware.development_calls == 0);
+			condition.notify_all();
+			condition.wait(lock, [&] { return release; });
+		};
+		mister::MenuDisplayInfo info;
+		std::thread frame_thread([&] {
+			assert(f.runtime.PresentMenuFrame(generation, *frame, &info).ok());
+		});
+		{
+			std::unique_lock<std::mutex> lock(mutex);
+			assert(condition.wait_for(lock, std::chrono::seconds(2), [&] { return presenting; }));
+		}
+		mister::Error mutation_error;
+		const auto started = std::chrono::steady_clock::now();
+		std::thread mutation_thread([&] {
+			{
+				std::lock_guard<std::mutex> lock(mutex);
+				mutation_started = true;
+			}
+			condition.notify_all();
+			if (op == Op::stop) mutation_error = f.runtime.Stop();
+			else if (op == Op::develop) mutation_error = f.runtime.LoadContainedDevelopmentRBF("/cores/dev.rbf");
+			else if (op == Op::recover) mutation_error = f.runtime.RecoverIdle();
+			else mutation_error = f.runtime.ConfigureMenuPackage("/menu", id);
+			{
+				std::lock_guard<std::mutex> lock(mutex);
+				mutation_finished = true;
+			}
+			condition.notify_all();
+		});
+		{
+			std::unique_lock<std::mutex> lock(mutex);
+			assert(condition.wait_for(lock, std::chrono::seconds(2), [&] { return begin_rejected; }));
+			assert(!mutation_finished);
+			release = true;
+		}
+		condition.notify_all();
+		frame_thread.join();
+		mutation_thread.join();
+		const auto elapsed = std::chrono::steady_clock::now() - started;
+		assert(mutation_error.ok());
+		assert(begin_rejected);
+		assert(elapsed < std::chrono::milliseconds(1900));
+		if (op == Op::stop) {
+			assert(f.runtime.status().menu_display.available);
+			assert(f.runtime.status().menu_display.generation > generation);
+			assert(f.hardware.idle_calls == idle_before + 1);
+		} else if (op == Op::develop) {
+			assert(f.runtime.status().state == State::running_development);
+			assert(!f.runtime.status().menu_display.available);
+			assert(f.hardware.development_calls == 1);
+			assert(f.runtime.Stop().ok());
+		} else if (op == Op::recover) {
+			assert(f.runtime.status().state == State::idle);
+			assert(f.runtime.status().menu_display.generation == generation);
+			assert(f.hardware.idle_calls == idle_before);
+		} else {
+			assert(f.runtime.status().menu_display.available);
+			assert(f.runtime.status().menu_display.generation > generation);
+		}
+	}
+}
+
+void TestMenuLifecycleWaitIsBounded()
+{
+	const std::string id(64, 'a');
+	for (int kind = 0; kind < 4; ++kind) {
+		Fixture f;
+		assert(f.runtime.Start().ok());
+		assert(f.runtime.ConfigureMenuPackage("/menu", id).ok());
+		const auto generation = f.runtime.status().menu_display.generation;
+		const auto idle_before = f.hardware.idle_calls;
+		std::unique_ptr<mister::MenuFrame> frame;
+		SealMenuFrame(f.runtime, generation, &frame);
+		f.hardware.on_menu_present = [&] {
+			const auto start = std::chrono::steady_clock::now();
+			mister::Error result;
+			if (kind == 0) result = f.runtime.Stop();
+			else if (kind == 1) result = f.runtime.LoadContainedDevelopmentRBF("/cores/dev.rbf");
+			else if (kind == 2) result = f.runtime.RecoverIdle();
+			else result = f.runtime.ConfigureMenuPackage("/menu", id);
+			const auto elapsed = std::chrono::steady_clock::now() - start;
+			assert(result.code == ErrorCode::busy);
+			assert(elapsed >= std::chrono::milliseconds(1900));
+			assert(elapsed < std::chrono::seconds(4));
+		};
+		mister::MenuDisplayInfo info;
+		assert(f.runtime.PresentMenuFrame(generation, *frame, &info).ok());
+		assert(f.runtime.status().state == State::idle);
+		assert(f.runtime.status().menu_display.generation == generation);
+		assert(f.hardware.idle_calls == idle_before);
+		assert(f.hardware.development_calls == 0);
+	}
+}
+
+void TestStaleMenuErrorIsNotPromotedOntoIdleStatus()
+{
+	Fixture f;
+	const std::string id(64, 'a');
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.ConfigureMenuPackage("/menu", id).ok());
+	assert(f.runtime.LoadCore("/game", id).ok());
+	f.hardware.menu_status.error = {ErrorCode::io_failed, "stale menu map", "menu_memory"};
+	f.hardware.menu_configured = true;
+	assert(f.runtime.Stop().ok());
+	assert(f.runtime.status().error.ok());
+	assert(f.runtime.status().state == State::idle);
+	assert(f.runtime.status().menu_display.available);
+	assert(f.runtime.status().menu_display.error.code == ErrorCode::io_failed);
+	assert(f.runtime.status().menu_display.error.phase == "menu_memory");
+	assert(f.runtime.status().menu_display.error.message == "stale menu map");
+}
+
 int main()
 {
+ TestMenuFrameYieldsToLifecycleOps();
+ TestMenuLifecycleWaitIsBounded();
+ TestStaleMenuErrorIsNotPromotedOntoIdleStatus();
  TestMenuFrameYieldsToCoreDataAndLaunch();
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();

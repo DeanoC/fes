@@ -78,7 +78,8 @@ void require(bool condition, const char *message) {
 }
 
 void tick(Vsg1000_machine &dut, const std::vector<uint8_t> &cartridge,
-          uint8_t &registered_media_data) {
+          uint8_t &registered_media_data, unsigned *psg_writes = nullptr,
+          unsigned *psg_ticks = nullptr) {
     const uint16_t requested_address = uint16_t(dut.media_addr);
 #ifdef FES_SG1000_OSS
     dut.media_data = registered_media_data;
@@ -88,6 +89,8 @@ void tick(Vsg1000_machine &dut, const std::vector<uint8_t> &cartridge,
     else
         dut.media_data = 0xff;
 #endif
+    if (psg_writes != nullptr && dut.psg_write_debug) ++*psg_writes;
+    if (psg_ticks != nullptr && dut.psg_ce_debug) ++*psg_ticks;
     dut.clk_sys = 1;
     dut.eval();
     dut.clk_sys = 0;
@@ -192,6 +195,60 @@ int main(int argc, char **argv) {
             "CPU IN (DC) mismatch");
     require(peek(dut, 0xc002, registered_media_data) == 0xff,
             "CPU IN (DD) mismatch");
+
+    // Five real Z80 OUTs exercise the low, middle and high PSG decode mirrors.
+    const std::vector<uint8_t> sound_prog{
+        0x3e, 0x84, 0xd3, 0x40,  // tone 0 low nibble
+        0x3e, 0x02, 0xd3, 0x5f,  // tone 0 high bits
+        0x3e, 0x90, 0xd3, 0x7f,  // unmute tone 0
+        0x3e, 0xe0, 0xd3, 0x7f,  // noise control
+        0x3e, 0xf0, 0xd3, 0x7f,  // unmute noise
+        0xd3, 0x3f,              // adjacent port is not the PSG
+        0xd3, 0x80,              // next decode range is not the PSG
+        0xdb, 0x40,              // PSG port read is not a write
+        0x32, 0x00, 0xc0,        // memory write is not a PSG write
+        0x76
+    };
+    load_blob(dut, sound_prog, registered_media_data);
+    require(int16_t(dut.psg_sample) == 0, "PSG must be silent on reset");
+    dut.reset = 0;
+    unsigned psg_writes = 0;
+    bool heard_sample = false;
+    cycles = 0;
+    for (; cycles < 100000 && dut.cpu_halt_n; ++cycles) {
+        tick(dut, sound_prog, registered_media_data, &psg_writes);
+        heard_sample |= int16_t(dut.psg_sample) != 0;
+    }
+    require(cycles < 100000, "sound program did not HALT");
+    require(psg_writes == 5, "PSG must accept each OUT exactly once");
+    require(heard_sample, "PSG tone/noise program produced no PCM");
+
+    // Isolate noise after reset: tone 0 cannot satisfy this sign-change test.
+    const std::vector<uint8_t> noise_prog{
+        0x3e, 0xe4, 0xd3, 0x40,  // white noise, fixed shift rate
+        0x3e, 0xf4, 0xd3, 0x40,  // unmute noise only
+        0x76
+    };
+    load_blob(dut, noise_prog, registered_media_data);
+    dut.reset = 0;
+    cycles = 0;
+    for (; cycles < 100000 && dut.cpu_halt_n; ++cycles)
+        tick(dut, noise_prog, registered_media_data);
+    require(cycles < 100000, "noise-only program did not HALT");
+    unsigned psg_ticks = 0;
+    bool noise_positive = false, noise_negative = false;
+    for (unsigned i = 0; i < 520000; ++i) {
+        tick(dut, noise_prog, registered_media_data, nullptr, &psg_ticks);
+        noise_positive |= int16_t(dut.psg_sample) > 0;
+        noise_negative |= int16_t(dut.psg_sample) < 0;
+    }
+    require(psg_ticks == 35641 || psg_ticks == 35642,
+            "PSG fractional clock rate is not 3.579545 MHz");
+    require(noise_positive && noise_negative, "noise-only PSG phase did not vary");
+    dut.reset = 1;
+    for (unsigned i = 0; i < 4; ++i)
+        tick(dut, noise_prog, registered_media_data);
+    require(int16_t(dut.psg_sample) == 0, "PSG reset did not mute PCM");
 
     if (argc > 1) {
         FILE *rom = std::fopen(argv[1], "rb");

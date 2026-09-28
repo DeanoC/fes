@@ -226,9 +226,9 @@ func browseEndpoint(entry dnssd.BrowseEntry) (string, Advertisement, bool) {
 }
 
 // Collect inventories directly bindable node advertisements seen during this
-// browse window. One row per node id. The returned set is observational:
-// a node that is silent, or that omits ttl, is absent from a later result
-// and that absence does not release a kit lease.
+// browse window. One row per node id (see Inventory). The returned set is
+// observational: a node that is silent, or that omits ttl, is absent from a
+// later result and that absence does not release a kit lease.
 func Collect(ctx context.Context) ([]ObservedNode, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -250,22 +250,50 @@ func Collect(ctx context.Context) ([]ObservedNode, error) {
 		mu.Unlock()
 	})
 	mu.Lock()
-	byID := make(map[string]ObservedNode, len(instances))
+	raw := make([]ObservedNode, 0, len(instances))
 	for _, node := range instances {
-		if _, exists := byID[node.NodeID]; !exists {
-			byID[node.NodeID] = node
-		}
-	}
-	result := make([]ObservedNode, 0, len(byID))
-	for _, node := range byID {
-		result = append(result, node)
+		raw = append(raw, node)
 	}
 	mu.Unlock()
-	sort.Slice(result, func(i, j int) bool { return result[i].NodeID < result[j].NodeID })
+	result := Inventory(raw)
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return result, nil
 	}
 	return result, err
+}
+
+// Inventory collapses the service instances of one browse window to one
+// row per node id, in node-id order. Instances of one node at a single
+// address (for example the same kit seen on two host interfaces) are one
+// row. When the instances of a node id name more than one address, the
+// claim is ambiguous: the row keeps AddressConflict and drops Address, so
+// no contender is dialed with a credential. Uniqueness is checked on every
+// instance before the rows are collapsed.
+func Inventory(instances []ObservedNode) []ObservedNode {
+	byID := make(map[string]ObservedNode, len(instances))
+	order := make([]string, 0, len(instances))
+	for _, node := range instances {
+		existing, exists := byID[node.NodeID]
+		if !exists {
+			if node.AddressConflict {
+				node.Address = ""
+			}
+			byID[node.NodeID] = node
+			order = append(order, node.NodeID)
+			continue
+		}
+		if existing.AddressConflict || node.AddressConflict || existing.Address != node.Address {
+			existing.AddressConflict = true
+			existing.Address = ""
+			byID[node.NodeID] = existing
+		}
+	}
+	sort.Strings(order)
+	result := make([]ObservedNode, 0, len(order))
+	for _, id := range order {
+		result = append(result, byID[id])
+	}
+	return result
 }
 
 func Advertise(ctx context.Context, id string, port int) error {

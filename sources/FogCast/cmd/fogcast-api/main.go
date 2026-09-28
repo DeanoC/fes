@@ -1006,6 +1006,10 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	if *launcherPath != "" {
 		parsed, err := loadLauncherConfig(*launcherPath)
 		if err != nil {
+			if errors.Is(err, hostapi.ErrLauncherSharedToken) {
+				fmt.Fprintln(stderr, "fogcast-api: launcher configuration load failed: "+err.Error())
+				return 2
+			}
 			fmt.Fprintln(stderr, "fogcast-api: launcher configuration load failed")
 			return 2
 		}
@@ -1034,8 +1038,8 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		return 1
 	}
 	if launcherConfig != nil {
-		if launcherConfig.Token == config.Token {
-			fmt.Fprintln(stderr, "fogcast-api: launcher requires a separate credential")
+		if launcherConfig.reusesAgentToken(config) {
+			fmt.Fprintln(stderr, "fogcast-api: launcher requires a separate credential: a launcher bearer equals a configured target's agent token")
 			return 2
 		}
 		config.RemoteInput.Enabled = true

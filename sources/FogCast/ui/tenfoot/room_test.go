@@ -82,6 +82,7 @@ type roomHost struct {
 	recents      []hostclient.Game
 	recentsGate  chan struct{}
 	prefs        map[string]hostclient.EditionPreference
+	uiPosts      []UIEvent
 }
 
 func newRoomHost(t *testing.T) *roomHost {
@@ -203,12 +204,51 @@ func newRoomHost(t *testing.T) *roomHost {
 			state := h.state
 			h.mu.Unlock()
 			_, _ = io.WriteString(w, `{"state":"`+state+`"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/debug/ui-events":
+			var ev UIEvent
+			_ = json.NewDecoder(r.Body).Decode(&ev)
+			h.mu.Lock()
+			h.uiPosts = append(h.uiPosts, ev)
+			h.mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `{}`)
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	t.Cleanup(h.server.Close)
 	return h
+}
+
+func (h *roomHost) uiPostsSnapshot() []UIEvent {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]UIEvent(nil), h.uiPosts...)
+}
+
+func countUIPosts(posts []UIEvent, kind string) int {
+	n := 0
+	for _, ev := range posts {
+		if ev.Kind == kind {
+			n++
+		}
+	}
+	return n
+}
+
+func waitForUIPost(t *testing.T, h *roomHost, kind string) UIEvent {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, ev := range h.uiPostsSnapshot() {
+			if ev.Kind == kind {
+				return ev
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s; posts %#v", kind, h.uiPostsSnapshot())
+	return UIEvent{}
 }
 
 func (h *roomHost) launchCount() int {

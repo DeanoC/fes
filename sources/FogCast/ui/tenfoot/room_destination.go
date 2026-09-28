@@ -2,6 +2,8 @@ package tenfoot
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -117,7 +119,9 @@ func (a *App) handleRoomLocked(cmd Command) {
 	}
 	if cmd == CmdHome {
 		a.closeRoomOverlaysLocked()
-		a.openRoomPickerLocked()
+		if !a.openHomeRoomAsRootLocked() {
+			a.openRoomPickerLocked()
+		}
 		return
 	}
 	if a.room.Err() != nil {
@@ -284,9 +288,42 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 	case rooms.ConfirmOpenLibraryBrowse:
 		a.openLibraryFromRoomLocked(rooms.Action{Kind: rooms.ActionOpenLibrary})
 		return true
+	case rooms.ConfirmLauncherAction:
+		a.runLauncherActionLocked(dest.LauncherAction)
+		return true
 	default:
 		return false
 	}
+}
+
+// runLauncherActionLocked runs one allowlisted launcher operation.
+// The id is checked again here so a destination that skipped the Lua
+// boundary still cannot name an arbitrary command.
+func (a *App) runLauncherActionLocked(id string) {
+	id = strings.TrimSpace(id)
+	if !rooms.LauncherActionAllowed(id) {
+		a.rejectLauncherActionLocked(id)
+		return
+	}
+	switch id {
+	case "settings":
+		if a.settingsBlockedLocked() {
+			a.status = "Settings are unavailable during play."
+			return
+		}
+		a.openSettingsLocked()
+	default:
+		a.rejectLauncherActionLocked(id)
+	}
+}
+
+func (a *App) rejectLauncherActionLocked(id string) {
+	fmt.Fprintf(os.Stderr, "tenfoot: unknown launcher action %q\n", id)
+	a.postUIEventLocked("ui.launcher_action", map[string]string{
+		"action": id,
+		"result": "rejected",
+	})
+	a.status = "That action is not available."
 }
 
 func (a *App) openRoomChoiceLocked(dest rooms.Destination) {
@@ -314,6 +351,10 @@ func (a *App) openRoomDetailsLocked() {
 		a.status = dest.Status
 		return
 	case rooms.ConfirmOpenLibraryBrowse:
+		a.status = dest.Status
+		return
+	case rooms.ConfirmLauncherAction:
+		// Details matches room and library entries: show the status, do not run it.
 		a.status = dest.Status
 		return
 	}

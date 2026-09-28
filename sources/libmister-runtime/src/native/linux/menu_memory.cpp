@@ -21,8 +21,37 @@ namespace {
 using namespace native::generated;
 constexpr std::size_t kFrameBytes=FesApplicationMenuFrameBytes;
 constexpr std::size_t kMappedBytes=2*FesApplicationMenuSlotBytes;
+// Four 1280-pixel rows. A cancel observed just after a check finishes the
+// current group and does not start the next one.
+constexpr std::size_t kMenuCopyCancelRows=4;
 Error Invalid(const char* text){return {ErrorCode::io_failed,text,"menu_memory"};}
 Error Io(const char* text){return {ErrorCode::io_failed,std::string(text)+": "+std::strerror(errno),"menu_memory"};}
+// Word stores only. The menu window is strongly ordered, so an unaligned or
+// byte store faults, and one STM must not cross a 4KB boundary. Eight words
+// are 32 bytes; both the 4MB slot and a 5120-byte row are multiples of 32,
+// and 4096 is too, so a burst that starts 32-byte aligned stays inside a page.
+void StoreMenuWords(void* destination,const std::uint32_t* source,std::size_t words)
+{
+#if defined(__arm__) && !defined(__thumb__)
+ auto* dst=static_cast<std::uint32_t*>(destination);
+ while(words>=8){
+  register const std::uint32_t* in asm("r0")=source;
+  register std::uint32_t* out asm("r1")=dst;
+  __asm__ __volatile__(
+   "ldmia r0!, {r2, r3, r4, r5, r6, r8, r9, r10}\n\t"
+   "stmia r1!, {r2, r3, r4, r5, r6, r8, r9, r10}"
+   : "+r"(in), "+r"(out)
+   :
+   : "r2","r3","r4","r5","r6","r8","r9","r10","memory");
+  source=in;dst=out;words-=8;
+ }
+ auto* tail=static_cast<volatile std::uint32_t*>(dst);
+ for(std::size_t i=0;i<words;++i)tail[i]=source[i];
+#else
+ auto* dst=static_cast<volatile std::uint32_t*>(destination);
+ for(std::size_t i=0;i<words;++i)dst[i]=source[i];
+#endif
+}
 }
 MenuFrame::~MenuFrame(){if(mapping_)munmap(mapping_,kFrameBytes);if(fd_>=0)close(fd_);}
 MenuFrame::MenuFrame(MenuFrame&& other) noexcept : fd_(other.fd_),mapping_(other.mapping_),preparation_(std::move(other.preparation_)),generation_(other.generation_){other.fd_=-1;other.mapping_=nullptr;}
@@ -68,6 +97,8 @@ Error MenuFrame::ReadOnlyData(const unsigned char** output) const
  *output=static_cast<const unsigned char*>(mapping_);return {};
 }
 namespace native {
+void MenuMemoryOperations::StoreAlignedWords(void* destination,const std::uint32_t* source,std::size_t words)
+{StoreMenuWords(destination,source,words);}
 namespace {
 class PosixMenuMemory final : public MenuMemoryOperations {
 public:
@@ -136,9 +167,11 @@ Error MenuMemory::EnsureMapped()
 Error MenuMemory::InitializeBlack()
 {
  Error error=EnsureMapped();if(!error.ok())return error;
+ alignas(8) std::uint32_t zeros[FesApplicationMenuWidth]={};
  for(unsigned slot=0;slot<FesApplicationMenuSlotCount;++slot){
-  auto pixels=reinterpret_cast<volatile std::uint32_t*>(static_cast<unsigned char*>(mapping_)+slot*FesApplicationMenuSlotBytes);
-  for(std::size_t i=0;i<kFrameBytes/4;++i)pixels[i]=0;
+  auto row=reinterpret_cast<std::uint32_t*>(static_cast<unsigned char*>(mapping_)+slot*FesApplicationMenuSlotBytes);
+  for(std::size_t y=0;y<FesApplicationMenuHeight;++y,row+=FesApplicationMenuWidth)
+   operations_->StoreAlignedWords(row,zeros,FesApplicationMenuWidth);
  }
  operations_->VisibilityBarrier();return {};
 }
@@ -147,8 +180,18 @@ Error MenuMemory::CopyRgba(std::uint8_t slot,const MenuFrame& frame)
  if(slot>=FesApplicationMenuSlotCount)return Invalid("invalid menu DDR slot");
  const unsigned char* bytes=nullptr;Error error=frame.ReadOnlyData(&bytes);if(!error.ok())return error;
  error=EnsureMapped();if(!error.ok())return error;
- auto pixels=reinterpret_cast<volatile std::uint32_t*>(static_cast<unsigned char*>(mapping_)+slot*FesApplicationMenuSlotBytes);
- for(std::size_t i=0;i<kFrameBytes/4;++i){const auto offset=i*4;pixels[i]=std::uint32_t(bytes[offset+2])|std::uint32_t(bytes[offset+1])<<8|std::uint32_t(bytes[offset])<<16;}
+ auto row=reinterpret_cast<std::uint32_t*>(static_cast<unsigned char*>(mapping_)+slot*FesApplicationMenuSlotBytes);
+ // Cached staging, then aligned bursts. Do not memcpy onto the mapping.
+ alignas(8) std::uint32_t staging[FesApplicationMenuWidth];
+ for(std::size_t y=0;y<FesApplicationMenuHeight;++y,row+=FesApplicationMenuWidth){
+  if(y%kMenuCopyCancelRows==0&&CopyCancelled())return Invalid("menu frame copy cancelled");
+  const unsigned char* source=bytes+y*FesApplicationMenuWidth*4;
+  for(std::size_t x=0;x<FesApplicationMenuWidth;++x){
+   const auto offset=x*4;
+   staging[x]=std::uint32_t(source[offset+2])|std::uint32_t(source[offset+1])<<8|std::uint32_t(source[offset])<<16;
+  }
+  operations_->StoreAlignedWords(row,staging,FesApplicationMenuWidth);
+ }
  operations_->VisibilityBarrier();return {};
 }
 } }

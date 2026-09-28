@@ -934,7 +934,9 @@ struct StreamFixture {
 	StreamFixture()
 	{
 		descriptor.abi = {FesSimpleComputerABIID, 1, 0};
-		descriptor.interfaces = {{FesSimpleComputerInterfaceMediaBlobID, 1, 0, true},
+		descriptor.interfaces = {{FesSimpleComputerInterfaceKeyboardID, 1, 0, true},
+			{FesSimpleComputerInterfaceVideoFixed720p60ID, 1, 0, true},
+			{FesSimpleComputerInterfaceMediaBlobID, 1, 0, true},
 			{FesSimpleComputerInterfaceMediaBlobStreamID, 1, 0, true}};
 		context.descriptor = &descriptor;
 	}
@@ -1001,8 +1003,8 @@ void TestStreamIdentityRequiresObservedCapacityAndDeclaration()
 	assert(!missing.Identify(1, 32768, 512, 7).ok());
 	StreamFixture undeclared;
 	undeclared.descriptor.interfaces.pop_back();
-	assert(undeclared.Identify().ok());
-	assert(undeclared.driver.observed_capabilities() == 15);
+	assert(undeclared.Identify(1, 32768, 512, 7).ok());
+	assert(undeclared.driver.observed_capabilities() == 7);
 	assert(undeclared.mmio.writes.size() == 32); // identity only; no Info commands
 	mister::native::MediaStreamInfo info;
 	assert(!undeclared.driver.StreamInfo(&info).ok());
@@ -1014,7 +1016,7 @@ void TestStreamIdentityRequiresObservedCapacityAndDeclaration()
 	StreamFixture unknown;
 	unknown.descriptor.interfaces.back().required = false;
 	unknown.descriptor.interfaces.back().major = 2;
-	assert(unknown.Identify().ok());
+	assert(unknown.Identify(1, 32768, 512, 7).ok());
 	assert(unknown.mmio.writes.size() == 32);
 	assert(!unknown.driver.StreamInfo(&info).ok());
 	StreamFixture valid;
@@ -1037,7 +1039,7 @@ void TestStreamStartKeepsResetAndLegacyStillReleases()
 			f.descriptor.interfaces.back().required = false;
 			f.descriptor.interfaces.back().major = 2;
 		}
-		assert(f.Identify(1, 32768, 512, mode == 1 || mode == 3 ? 7 : 15).ok());
+		assert(f.Identify(1, 32768, 512, mode == 0 ? 15 : 7).ok());
 		const auto before = f.mmio.writes.size();
 		for (unsigned i = 0; i < 9; ++i) f.Reply();
 		assert(f.driver.Start(f.context, 1000000).error.ok());
@@ -1140,6 +1142,22 @@ void TestApplicationAudioRequiresExactLiveCapability()
 			f.Reply(0);
 			assert(f.driver.Quiesce(f.context, 1000000).error.ok());
 		}
+	}
+}
+
+void TestSimpleComputerAudioRequiresExactLiveCapability()
+{
+	for (const bool declared : {false, true}) {
+	for (const bool live : {false, true}) {
+		StreamFixture f;
+		f.descriptor.interfaces.push_back(
+			{FesSimpleComputerInterfaceAudioPcmS16Stereo48kID, 1, 0, true});
+		if (!declared) f.descriptor.interfaces.pop_back();
+		const auto error = f.Identify(1, 32768, 512,
+			static_cast<std::uint16_t>(15 | (live ? FesSimpleComputerCapabilityAudioPcmS16Stereo48k : 0)));
+		assert(error.ok() == (declared == live));
+		if (!error.ok()) assert(error.code == mister::ErrorCode::core_mismatch);
+	}
 	}
 }
 
@@ -2413,6 +2431,7 @@ int main()
 	TestApplicationReplaysSharedWireFixturesThroughDriver();
 	TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces();
 	TestApplicationAudioRequiresExactLiveCapability();
+	TestSimpleComputerAudioRequiresExactLiveCapability();
 	TestApplicationHpsDdrRequiresExactLiveCapability();
 	TestApplicationMenuRequiresExactLiveCapability();
 	TestMenuQuiesceDrainsBeforeExecutionHold();

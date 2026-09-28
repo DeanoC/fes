@@ -117,12 +117,18 @@ public:
 private:
 	HardwareResult LoadCoreInternal(std::unique_ptr<AdmittedCorePackage>,std::uint64_t,bool);
  HardwareResult LoadSplashIdle();
+ void CancelMenuCopies();
+ bool MenuReactivationAllowed();
+ Error FailMenuPresent(const Error&);
  MenuDisplayDriver* menu_display_;
  MenuMemory* menu_memory_;
  MenuDisplayStatus menu_status_;
  std::string menu_directory_,menu_package_id_;
  std::uint8_t menu_slot_=0;
  bool menu_unsafe_=false;
+ unsigned menu_underflow_streak_=0;
+ unsigned menu_reactivations_=0;
+ std::uint64_t menu_reactivation_window_start_=0;
  Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);
 	Error StopInput(std::uint64_t absolute_deadline_ms);
 	HardwareResult QuiesceForReplacement(const char* operation,

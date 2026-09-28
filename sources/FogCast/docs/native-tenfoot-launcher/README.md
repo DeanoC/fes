@@ -106,7 +106,10 @@ an optional corner overlay with the current `flight_id`, kit lease generation
 and TTL, and last launch/stop error. It is off by default and uses the active
 theme's status/caption tokens. Launch, stop, focus, and nav actions send
 client wall + monotonic clocks on the existing host session path and to
-`POST /api/v1/debug/ui-events`.
+`POST /api/v1/debug/ui-events`. A rejected launcher action
+(`ui.launcher_action`) and a `home_room` picker fallback
+(`ui.home_room_fallback`) use that same debug ingest. The fallback
+carries the room id and reason for the host only; the TV does not.
 
 Look tokens (`ui/theme`) are shared with the kit grid. `-theme`
 selects a built-in or pack name (`default`/`classic`, `arcade`/`neon`,
@@ -492,9 +495,15 @@ make tenfoot-smoke
 Rooms are creator-defined, scripted menu screens (a Mario overworld, a
 console room, an AmigaOS desktop) that sit beside the library browser.
 Press **h**/Home or **hold B** for Home (hold B is a shortcut; GUIDE
-or `o` opens Settings, whose Home row Confirm goes Home now). Home lists
-pinned rooms, recently played games, installed rooms, and the full
-library; `-home rooms` (or Settings › Home Left/Right) starts there.
+or `o` opens Settings, whose Home row Confirm goes Home now).
+`-home rooms` (or Settings › Home Left/Right) starts on Home.
+`-home-room ID` (then `tenfoot.json` `home_room`, then
+`FOGCAST_HOME_ROOM`) opens that room as the root at start and for Home
+when `-home` is `rooms`. When it is not opened, Home lists pinned rooms,
+recently played games, installed rooms, and the full library.
+`home` `library` ignores `home_room`. There is no Settings row for the
+id. Back at that root room opens this picker. A missing or invalid id
+falls back to the picker without putting the id on screen.
 When several editions match, Confirm and Details force a choice unless a
 household preference is already saved (`libraryuser` via the edition-preferences
 host API). A firmware-required title with an empty household BIOS slot is

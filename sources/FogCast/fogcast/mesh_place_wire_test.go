@@ -3,8 +3,10 @@ package fogcast
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/internal/meshpref"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 const (
@@ -441,6 +444,308 @@ func TestPlacementOnlyViewWithoutAProjectedTitleReadsNoKit(t *testing.T) {
 	}
 	if den.readCount() != 0 {
 		t.Fatalf("a page with no projected title read the kit %d times", den.readCount())
+	}
+}
+
+func installReconciledClient(t *testing.T, s *Service, name, endpoint, token string) *targetclient.Client {
+	t.Helper()
+	base, err := url.Parse(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := targetclient.NewClient(base, token, nil)
+	s.targetMu.Lock()
+	if s.targetClients == nil {
+		s.targetClients = map[string]serviceClient{}
+	}
+	s.targetClients[name] = client
+	s.targetMu.Unlock()
+	return client
+}
+
+func TestPlacementNodeReadUsesTheReconciledEndpoint(t *testing.T) {
+	ctx := context.Background()
+	stale := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	live := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, stale)}, wireKitNode(wireKitA))
+	client := installReconciledClient(t, s, "den", live.server.URL, wireAgentToken)
+
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || abis[0] != wireSimpleGame {
+		t.Fatalf("reconciled abis %+v", abis)
+	}
+	if live.readCount() != 1 || stale.readCount() != 0 {
+		t.Fatalf("reads live %d stale %d", live.readCount(), stale.readCount())
+	}
+	if s.targets[0].Address != stale.server.URL {
+		t.Fatal("configured address changed")
+	}
+	if client.EndpointURL().String() != live.server.URL {
+		t.Fatal("reconciled client endpoint changed")
+	}
+
+	// A later reconciled origin must not reuse the cached read.
+	moved := newPlacementAgent(t, wireKitA)
+	installReconciledClient(t, s, "den", moved.server.URL, wireAgentToken)
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 0 || moved.readCount() != 1 || live.readCount() != 1 {
+		t.Fatalf("changed endpoint reused the previous read: abis %+v moved %d live %d", abis, moved.readCount(), live.readCount())
+	}
+	if s.targets[0].Address != stale.server.URL || stale.readCount() != 0 {
+		t.Fatal("configured address was read or rewritten")
+	}
+}
+
+func TestPlacementNodeReadUsesTheDiscoveredEndpoint(t *testing.T) {
+	ctx := context.Background()
+	stale := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	live := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	node := wireKitNode(wireKitA)
+	node.Address = live.server.URL + "/"
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, stale)}, node)
+
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || abis[0] != wireSimpleGame {
+		t.Fatalf("discovered abis %+v", abis)
+	}
+	if live.readCount() != 1 || stale.readCount() != 0 {
+		t.Fatalf("reads live %d stale %d", live.readCount(), stale.readCount())
+	}
+	if s.targets[0].Address != stale.server.URL {
+		t.Fatal("configured address changed")
+	}
+
+	// A client that was never adopted still names the configured address.
+	// The discovered origin is the read.
+	stale2 := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	live2 := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	node2 := wireKitNode(wireKitA)
+	node2.Address = live2.server.URL
+	s2 := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, stale2)}, node2)
+	installReconciledClient(t, s2, "den", stale2.server.URL, wireAgentToken)
+	if abis := s2.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || live2.readCount() != 1 || stale2.readCount() != 0 {
+		t.Fatalf("unadopted client hid discovery: abis %+v live %d stale %d", abis, live2.readCount(), stale2.readCount())
+	}
+	if s2.targets[0].Address != stale2.server.URL {
+		t.Fatal("configured address changed")
+	}
+}
+
+func TestPlacementNodeReadPrefersDiscoveryOverAnOlderReconciledEndpoint(t *testing.T) {
+	ctx := context.Background()
+	configured := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	left := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	now := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	node := wireKitNode(wireKitA)
+	node.Address = now.server.URL
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, configured)}, node)
+	// The client was adopted at an earlier claim; the kit has moved since.
+	installReconciledClient(t, s, "den", left.server.URL, wireAgentToken)
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || now.readCount() != 1 || left.readCount() != 0 || configured.readCount() != 0 {
+		t.Fatalf("abis %+v now %d left %d configured %d", abis, now.readCount(), left.readCount(), configured.readCount())
+	}
+
+	// Discovery naming the configured address also beats a stale client.
+	back := wireKitNode(wireKitA)
+	back.Address = configured.server.URL
+	s2 := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, configured)}, back)
+	installReconciledClient(t, s2, "den", left.server.URL, wireAgentToken)
+	if abis := s2.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || configured.readCount() != 1 || left.readCount() != 0 {
+		t.Fatalf("abis %+v configured %d left %d", abis, configured.readCount(), left.readCount())
+	}
+}
+
+func TestPlacementNodeReadUsesTheConfiguredAddress(t *testing.T) {
+	ctx := context.Background()
+	den := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, den)}, wireKitNode(wireKitA))
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || abis[0] != wireSimpleGame || den.readCount() != 1 {
+		t.Fatalf("configured abis %+v reads %d", abis, den.readCount())
+	}
+	if s.targets[0].Address != den.server.URL {
+		t.Fatal("configured address changed")
+	}
+}
+
+func TestPlacementNodeReadKeepsNodeIDAndToken(t *testing.T) {
+	ctx := context.Background()
+	stale := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	other := newPlacementAgent(t, wireKitB, wireSimpleGame)
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, stale)}, wireKitNode(wireKitA))
+	// The client token is not the configured target token. The agent
+	// accepts only the configured bearer, so a counted read is that token.
+	installReconciledClient(t, s, "den", other.server.URL, "reconciled-client-token")
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 0 || other.readCount() != 1 || stale.readCount() != 0 {
+		t.Fatalf("reconciled other-node abis %+v other %d stale %d", abis, other.readCount(), stale.readCount())
+	}
+
+	discovered := newPlacementAgent(t, wireKitB, wireSimpleGame)
+	node := wireKitNode(wireKitA)
+	node.Address = discovered.server.URL
+	s2 := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, stale)}, node)
+	if abis := s2.placementNodeABIs(ctx, wireKitA); len(abis) != 0 || discovered.readCount() != 1 || stale.readCount() != 0 {
+		t.Fatalf("discovered other-node abis %+v discovered %d stale %d", abis, discovered.readCount(), stale.readCount())
+	}
+}
+
+func TestPlacementNodeReadIgnoresAnAmbiguousInventory(t *testing.T) {
+	ctx := context.Background()
+	den := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	left := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	right := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	a := wireKitNode(wireKitA)
+	a.Address = left.server.URL
+	b := wireKitNode(wireKitA)
+	b.Address = right.server.URL
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, den)}, a, b)
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || den.readCount() != 1 || left.readCount() != 0 || right.readCount() != 0 {
+		t.Fatalf("ambiguous abis %+v den %d left %d right %d", abis, den.readCount(), left.readCount(), right.readCount())
+	}
+	if s.targets[0].Address != den.server.URL {
+		t.Fatal("configured address changed")
+	}
+
+	// Two rows that normalize to one origin are that discovered endpoint.
+	stale := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	live := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	same := wireKitNode(wireKitA)
+	same.Address = live.server.URL
+	slash := wireKitNode(wireKitA)
+	slash.Address = live.server.URL + "/"
+	s2 := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, stale)}, same, slash)
+	if abis := s2.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || live.readCount() != 1 || stale.readCount() != 0 {
+		t.Fatalf("same origin abis %+v live %d stale %d", abis, live.readCount(), stale.readCount())
+	}
+}
+
+// bearerRecorder is an advertised contender that records every request
+// and every Authorization header it receives.
+type bearerRecorder struct {
+	server   *httptest.Server
+	mu       sync.Mutex
+	requests int
+	bearers  []string
+}
+
+func newBearerRecorder(t *testing.T) *bearerRecorder {
+	t.Helper()
+	r := &bearerRecorder{}
+	r.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		r.mu.Lock()
+		r.requests++
+		if value := req.Header.Get("Authorization"); value != "" {
+			r.bearers = append(r.bearers, value)
+		}
+		r.mu.Unlock()
+		http.Error(w, "contender", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(r.server.Close)
+	return r
+}
+
+func (r *bearerRecorder) seen() (int, []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.requests, append([]string(nil), r.bearers...)
+}
+
+func TestPlacementNodeReadSendsNoBearerToConflictingAdverts(t *testing.T) {
+	ctx := context.Background()
+	den := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	left := newBearerRecorder(t)
+	right := newBearerRecorder(t)
+	advert := func(address string) discovery.ObservedNode {
+		return discovery.ObservedNode{NodeID: wireKitA, TargetID: wireKitA, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities(), Address: address}
+	}
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, den)})
+	// The browse window's raw instances go through the production
+	// per-node collapse, so the conflict must survive deduplication.
+	s.collectNodes = func(context.Context) ([]discovery.ObservedNode, error) {
+		return discovery.Inventory([]discovery.ObservedNode{advert(left.server.URL), advert(right.server.URL)}), nil
+	}
+	nodes, err := s.ObserveMesh(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 || !nodes[0].AddressConflict || nodes[0].Address != "" {
+		t.Fatalf("inventory %+v", nodes)
+	}
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || abis[0] != wireSimpleGame || den.readCount() != 1 {
+		t.Fatalf("configured fallback abis %+v den %d", abis, den.readCount())
+	}
+	for name, contender := range map[string]*bearerRecorder{"left": left, "right": right} {
+		if requests, bearers := contender.seen(); requests != 0 || len(bearers) != 0 {
+			t.Fatalf("%s contender got %d requests, bearers %d", name, requests, len(bearers))
+		}
+	}
+
+	// A reconciled client endpoint is the fallback when one is adopted.
+	s.placementNodes = nil
+	live := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	installReconciledClient(t, s, "den", live.server.URL, wireAgentToken)
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || live.readCount() != 1 {
+		t.Fatalf("reconciled fallback abis %+v live %d", abis, live.readCount())
+	}
+	for name, contender := range map[string]*bearerRecorder{"left": left, "right": right} {
+		if requests, _ := contender.seen(); requests != 0 {
+			t.Fatalf("%s contender got %d requests", name, requests)
+		}
+	}
+}
+
+func TestPlacementNodeReadPrefersTheReconciledEndpointOverRetainedDiscovery(t *testing.T) {
+	ctx := context.Background()
+	configured := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	left := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	live := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, configured)})
+	browse := func(address string) func(context.Context) ([]discovery.ObservedNode, error) {
+		return func(context.Context) ([]discovery.ObservedNode, error) {
+			return []discovery.ObservedNode{{NodeID: wireKitA, TargetID: wireKitA, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities(), Address: address}}, nil
+		}
+	}
+	s.collectNodes = browse(left.server.URL)
+	if _, err := s.ObserveMesh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// The kit moves; the next browse fails and keeps the old row, and the
+	// target client verifies and adopts the kit's new endpoint.
+	s.collectNodes = func(context.Context) ([]discovery.ObservedNode, error) {
+		return nil, errBrowseForTest
+	}
+	if nodes, err := s.ObserveMesh(ctx); err == nil || len(nodes) != 1 || nodes[0].Address != left.server.URL {
+		t.Fatalf("retained inventory %+v err %v", nodes, err)
+	}
+	installReconciledClient(t, s, "den", live.server.URL, wireAgentToken)
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || live.readCount() != 1 || left.readCount() != 0 || configured.readCount() != 0 {
+		t.Fatalf("abis %+v live %d left %d configured %d", abis, live.readCount(), left.readCount(), configured.readCount())
+	}
+
+	// A later successful browse is current evidence again.
+	now := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	s.collectNodes = browse(now.server.URL)
+	if _, err := s.ObserveMesh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || now.readCount() != 1 || live.readCount() != 1 || left.readCount() != 0 {
+		t.Fatalf("fresh abis %+v now %d live %d left %d", abis, now.readCount(), live.readCount(), left.readCount())
+	}
+}
+
+var errBrowseForTest = errors.New("browse failed")
+
+func TestPlacementNodeReadSkipsADisabledDiscoveredKit(t *testing.T) {
+	ctx := context.Background()
+	stale := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	live := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	cfg := wireTarget("den", wireKitA, stale)
+	cfg.Enabled = false
+	node := wireKitNode(wireKitA)
+	node.Address = live.server.URL
+	s := wiredPlacementService([]TargetConfig{cfg}, node)
+	installReconciledClient(t, s, "den", live.server.URL, wireAgentToken)
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 0 || live.readCount() != 0 || stale.readCount() != 0 {
+		t.Fatalf("disabled abis %+v live %d stale %d", abis, live.readCount(), stale.readCount())
+	}
+	if s.targets[0].Address != stale.server.URL || s.targets[0].Enabled {
+		t.Fatal("disabled target configuration changed")
 	}
 }
 

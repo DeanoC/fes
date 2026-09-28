@@ -14,7 +14,7 @@ TARGETS = {
         'sim-fes-coleco-sgm-' + name for name in
         ('socket', 'shell-ram', 'ay', 'module', 'audio', 'integrated', 'probe')),
     'sms': ('sim-fes-sms sim-fes-sms-oss',),
-    'sg1000': ('sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link',),
+    'sg1000': ('sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-gp-audio',),
     'apple2': ('sim-fes-apple2',),
     'menu': ('sim-fes-menu',),
 }
