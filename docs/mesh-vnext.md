@@ -427,7 +427,7 @@ waits for Deano.
 | P1 | Kit identity and code (image + agent + `fogcast-kit`) | First-boot token under `/media/fat/fogcast/` with the mount check; CID witness; clone recovery incl. derived `ethaddr` (§2.6); unprovisioned kit shows the pairing code on its idle screen; local "Pair with a computer". | IMG-2/IMG-3 can land alongside. | Image test: never overwrite token or hand-set `ethaddr`; clone fixture regenerates and deletes `launcher.json`; token absent from logs. |
 | P2 | Pairing handshake (kit endpoint + host API) | Kit pairing endpoint live only in pairing mode; PAKE; TTL, tries, lockout/backoff per §2.4; host writes the row via the private settings path; duplicate id/MAC refused; staged rotation (§2.5). | P1. | Unit: wrong code, expiry, lockout doubling, duplicate refusal, crash-at-each-rotation-step recovers; no token in logs or GET. |
 | P3 | Settings UI hookup (Foggy/Luna) | Machines list, Add machine, code entry, name, status words, §2.7 copy. Hand-edited TOML stays developer-only. | P2. | UI tests per state; copy review by Foggy. |
-| P4a | Multi-kit launcher listener (**pulled forward, in progress**) | Listener accepts a set of per-kit launcher credentials. *[#282 Codex P1, adopted]* The authenticated kit scopes every launcher operation: a kit-menu launch targets its own kit, not the selected target, and `GET /api/v1/session`, `/api/v1/session/input` and `POST /api/v1/session/stop` resolve to that kit's own session, not the foreground (last-launch) session (`sources/FogCast/docs/ARCHITECTURE.md:70-75`, `sources/FogCast/docs/launcher-host.md:71-73`). Independent of the PAKE slices; interim credentials come from the operator step below (Q14 covers only agent tokens). Fixes kit B "Offline". | None (interim credentials below). | Two kits' menus both browse and launch on their own TV. With both kits playing, kit A's session read, input and Stop never see or stop kit B's session, and the reverse; a kit with no live session reads idle, not the other kit's session. Wrong token 401; no token in logs. |
+| P4a | Multi-kit launcher listener (**pulled forward, in progress**) | Listener accepts both #287 credential forms (below). *[#282 Codex P1, adopted; aligned with #287 as built]* The host still has ONE foreground session (`sources/FogCast/docs/ARCHITECTURE.md:70-75`). The launcher serves the game list, platforms, health, attract and cache reads to any enabled paired kit, whatever target is selected. A kit-menu launch explicitly targets the kit that asked and never goes through placement. `GET /api/v1/session` shows the real session only to the kit that owns it; every other kit sees its own idle view. Stop, status and input are OWNER-ONLY: a non-owner gets 403 today (a distinct `NOT_SESSION_OWNER` code is a parked nit). A launch from kit X while another kit's session is active returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt; browser and API launches that name a target still preempt, as today. **Not in P4a:** per-kit concurrent sessions and per-kit Stop (#288). Launcher health, `rom_cached` and the library cache still describe the selected target (#289). Independent of the PAKE slices; interim credentials come from the operator step below (Q14 covers only agent tokens). Fixes kit B "Offline". | None (interim credentials below). | Two kits' menus both browse the host and each launches on its own TV. Stop and status are owner-only: a non-owner gets 403 and the owner's session is untouched. A kit launch while another kit's session is active gets 409 `SESSION_BUSY_OTHER_KIT` and the other session keeps running. A non-owner's `GET /api/v1/session` returns its own idle view. Wrong token 401; no token in logs. |
 | P4b | Launcher provisioning via pairing | Host mints the per-kit launcher token in P2's channel; kit writes `launcher.json`. | P2, P4a. | Pairing alone makes the kit menu work. After clone recovery and re-pair, the old launcher bearer is rejected (401). HIL: P-pair (§5). |
 | R1 | #281 | Successful rebind releases the old kit's lease via the lease API (best-effort, logged); failed rebind keeps it. | None. | Unit, both paths. |
 | L1 | #259 (in progress) | ABIs from the reconciled endpoint; keep token and node-id checks. | None. | Stale address → eligible; wrong id ineligible. Optional HIL **C0-stale** (§5). |
@@ -441,28 +441,51 @@ P4a is pulled forward and runs now, in parallel with P1–P2. Lane 1 can
 also run in parallel where owners differ; the order above is the merge
 priority.
 
-**P4a interim launcher credentials.** *[#282 Codex P1, adopted;
-interim — Caster/Bob to confirm]* Q14 only puts an agent bearer in a
-`[[targets]]` row; it cannot supply launcher bearers. Until P2/P4b
-ship, an operator runs a private provisioning step per kit (an
-extension of `scripts/prepare_launcher.py`):
-1. Mint a per-kit launcher bearer.
-2. Write it into the private `launcher-host.json` credential set, keyed
-   by the kit's `target_id`. That file stays an owner-only regular file,
-   as `sources/FogCast/docs/launcher-host.md` requires today.
-3. Write the matching `launcher.json` (API URL, bearer, identity) onto
-   that kit's card under `/media/fat/fogcast/`. The card is protected
-   by the FAT mount-wide policy and health check of §2.3 (#280), not a
-   per-file mode.
+**P4a credential forms (#287).** The listener accepts both forms:
+- One shared listener token mapped to a set of `target_id`s. Both kits
+  carry this today.
+- Per-kit bearers, each mapped to its own `target_id`. These arrive
+  through the interim step below (#290) and later P4b; none is
+  deployed yet.
 
-A bearer is never logged, shared across kits, or baked into an image.
-Re-running the step for a kit replaces its bearer and revokes the old
-one. P4b later replaces this path with pairing-provisioned bearers and
-migrates existing `launcher-host.json` entries: keep the kit's key and
-re-issue its bearer at first pairing. This interim path was chosen over
-making P4a depend on P4b because today's single-kit launcher setup
-already uses exactly these two files; the step only generalizes it to a
-set.
+**P4a interim launcher credentials.** *[#282 Codex P1, adopted;
+confirmed (Caster/Bob, 2026-09-28); replaced by P4b]* Q14 only puts an
+agent bearer in a `[[targets]]` row; it cannot supply launcher bearers.
+Until P2/P4b ship, an operator runs a private provisioning step per
+kit. It is operator-run only, and it is the implementation of #290
+(`scripts/prepare_launcher.py` currently rejects the `pairings` form):
+1. Mint a per-kit launcher bearer from the CSPRNG, at least 128 bits
+   (for example 32 random bytes in base64url).
+2. Write it into the owner-only `launcher-host.json` as a `pairings`
+   entry keyed by the kit's `target_id`. The tool refuses a duplicate
+   `target_id`, and refuses a bearer that equals the host token or
+   another kit's bearer. The file is written atomically with mode
+   `0600` and stays an owner-only regular file, as
+   `sources/FogCast/docs/launcher-host.md` requires today.
+3. Write the matching card `launcher.json` (API URL, bearer, identity)
+   to media or a staging output. The tool writes to a live card's
+   `/media/fat/fogcast/` only when the operator passes an explicit
+   flag. The card is protected by the FAT mount-wide policy and health
+   check of §2.3 (#280), not a per-file mode.
+
+Tokens are never printed or logged; output shows only a sha256 prefix.
+A per-kit bearer is never shared across kits or baked into an image.
+To rotate: re-mint, update both files, and restart the host. The old
+bearer stops working when the host restarts. Existing shared-token
+entries keep working, because #287 is backward compatible; moving a
+kit to its own bearer is optional until P4b. P4b later replaces this
+path with pairing-provisioned bearers and migrates existing
+`launcher-host.json` entries: keep the kit's key and re-issue its
+bearer at first pairing. This interim path was chosen over making P4a
+depend on P4b because today's single-kit launcher setup already uses
+exactly these two files; the step only generalizes it to a set.
+
+This does not conflict with Q15. It is operator tooling in the Q14
+interim window, not a way to add machines in the product.
+
+**Known issue (#294, kit-side; found in HIL3).** When the host goes
+away or returns errors, the kit menu keeps a stale "active" session,
+so HDMI stays black until `fogcast-kit` restarts.
 
 ---
 
@@ -507,6 +530,16 @@ Slice 6 acceptance.
 **C0-stale (optional, #259 acceptance):** a copy of the pref-b config
 with kit B at the stale `192.168.10.212`; the games read must show kit
 B eligible via the reconciled endpoint.
+
+**HIL3, P4a (#287): GREEN; HIL-observed diagnostic evidence, not
+hardware acceptance** (2026-09-28 19:25–19:31 Sofia, combined build
+`5342f4a1`). With the host's selected target on kit A and both kits
+on the shared listener token, kit B's menu came online and launched on
+kit B; a kit-A launch then got 409 `SESSION_BUSY_OTHER_KIT` without
+preempting, kit-A Stop and status got 403 while its session read was
+its own idle view, and kit B's own Stop released its lease. Evidence:
+Caster's `fogcast-MESH-HIL3-RESULT.txt`. Same caveat as HIL2: only
+`.84` is designated, so this does not accept P4a on hardware.
 
 **HIL hygiene (from HIL2):**
 - HIL hosts use an isolated data dir, never the operator's
