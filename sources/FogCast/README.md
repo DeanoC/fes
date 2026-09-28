@@ -265,7 +265,8 @@ as opaque join fields, label vault results diagnostic, and continue to use the
 host events endpoint at `:8787` when available; launcher `:8789` is not a
 target-event join source. Tenfoot and the sofa browser stamp launch, stop,
 focus, and nav with client wall + monotonic clocks. Host session events repeat
-those client clocks next to host `ts_utc`/`mono_ms`; focus/nav also land on
+those client clocks next to host `ts_utc`/`mono_ms`; focus/nav, a rejected
+launcher action, and a home-room fallback also land on
 `GET /api/v1/debug/ui-events`. fog-flight builds a per-flight latency
 waterfall from client → host → target when both ends are present and leaves
 missing layers labelled missing.
