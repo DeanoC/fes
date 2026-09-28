@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -125,6 +126,79 @@ func TestStatusAndSealedPresentation(t *testing.T) {
 	if err = <-done; err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestPresentUnderflowCap(t *testing.T) {
+	for _, tc := range []struct {
+		underflows uint64
+		ok         bool
+	}{
+		{10, true},
+		{TransientUnderflowCap, true},
+		{TransientUnderflowCap + 1, false},
+	} {
+		t.Run(u64(tc.underflows), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "runtime.sock")
+			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			done := make(chan error, 1)
+			go func() {
+				conn, err := listener.AcceptUnix()
+				if err != nil {
+					done <- err
+					return
+				}
+				defer conn.Close()
+				if _, fds, err := readLine(conn); err != nil || len(fds) != 0 {
+					done <- errUnexpected
+					return
+				}
+				fd, err := unix.MemfdCreate("test-menu", unix.MFD_ALLOW_SEALING)
+				if err != nil {
+					done <- err
+					return
+				}
+				file := os.NewFile(uintptr(fd), "test-menu")
+				defer file.Close()
+				if err = file.Truncate(FrameBytes); err != nil {
+					done <- err
+					return
+				}
+				staging := []byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"staging_format":"rgba8888","displayed_sequence":null,"underflows":0}}` + "\n")
+				if _, _, err = conn.WriteMsgUnix(staging, unix.UnixRights(fd), nil); err != nil {
+					done <- err
+					return
+				}
+				_, fds, err := readLine(conn)
+				if err != nil || len(fds) != 1 {
+					done <- errUnexpected
+					return
+				}
+				unix.Close(fds[0])
+				reply := []byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":4,"underflows":` + u64(tc.underflows) + `}}` + "\n")
+				_, _, err = conn.WriteMsgUnix(reply, nil, nil)
+				done <- err
+			}()
+			result, err := New(path).Present(context.Background(), 7, make([]byte, FrameBytes))
+			if tc.ok {
+				if err != nil || result.Underflows != tc.underflows || result.DisplayedSequence != 4 {
+					t.Fatalf("result=%+v err=%v", result, err)
+				}
+			} else if err == nil {
+				t.Fatal("underflow above the cap accepted")
+			}
+			if err = <-done; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func u64(value uint64) string {
+	return strconv.FormatUint(value, 10)
 }
 
 func TestPresentRejectsInvalidFrame(t *testing.T) {

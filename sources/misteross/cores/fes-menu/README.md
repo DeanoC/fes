@@ -2,8 +2,11 @@
 
 The `fes.menu` described package is runtime-presented on the designated kit:
 the runtime configures its shared-DDR scanout, accepts sealed RGBA frames and
-restores the menu after a game stops. This path has exact-artifact diagnostic
-evidence, but is not selected as the factory menu in a product image. The
+restores the menu after a game stops. That path copies each frame into one
+of the two DDR slots and submits it through menu-display GP. It is a
+diagnostic runtime path with host tests and exact-artifact kit evidence, not
+factory-image acceptance. The sealed splash remains the product idle
+fallback until a separate acceptance gate. The
 earlier framebuffer and DDR-free test-pattern wrappers remain separate
 diagnostics for the reader, FIFO, timing and HDMI board path. None is a game.
 

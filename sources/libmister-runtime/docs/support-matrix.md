@@ -6,7 +6,7 @@ Hardware-supported package paths: 0.
 | --- | --- | --- |
 | FES described package admission and GP activation | covered | pending for exact current artifacts |
 | Simple-game, simple-computer, application ABI | covered | pending |
-| Menu-display GP, immutable staging, idle lifecycle, reserved-memory presentation, selected startup and frame/mutation admission | covered by host tests and real local descriptor exchange | [menu presentation diagnostic](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md) and [kit 2 launch/Stop diagnostic](../../../docs/validation/2026-09-28-menu-frame-mutation-kit2.md); exact product image acceptance pending |
+| Menu-display GP, immutable staging, idle lifecycle, reserved-memory presentation, selected startup, frame/mutation admission, lifecycle wait during present, and bounded underflow reactivation | covered by host tests and real local descriptor exchange | [menu presentation diagnostic](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md) and [kit 2 launch/Stop diagnostic](../../../docs/validation/2026-09-28-menu-frame-mutation-kit2.md); exact product image acceptance pending |
 | Sealed splash and fixed ADV7513 video | covered | pending |
 | Gamepad and controller/keypad ports | covered | pending |
 | Blob/stream media and firmware | covered | pending |

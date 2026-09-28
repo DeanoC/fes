@@ -151,7 +151,7 @@ func (d *MenuDisplay) run() {
 				d.mu.Unlock()
 			}
 			if err == nil && status.Available {
-				if status.Underflows != 0 {
+				if status.Underflows > menudisplay.TransientUnderflowCap {
 					err = errors.New("menu scanout underflow")
 				} else if frame.known && frame.generation != status.Generation {
 					err = errors.New("menu generation changed before presentation")

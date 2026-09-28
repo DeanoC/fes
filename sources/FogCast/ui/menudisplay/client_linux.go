@@ -252,7 +252,7 @@ func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Re
 	if err != nil {
 		return Result{}, err
 	}
-	if len(extra) != 0 || completed.MenuFrame == nil || completed.MenuFrame.Generation != generation || completed.MenuFrame.DisplayedSequence == nil || completed.MenuFrame.Underflows != 0 {
+	if len(extra) != 0 || completed.MenuFrame == nil || completed.MenuFrame.Generation != generation || completed.MenuFrame.DisplayedSequence == nil || completed.MenuFrame.Underflows > TransientUnderflowCap {
 		return Result{}, errors.New("invalid menu frame completion")
 	}
 	return Result{Generation: generation, DisplayedSequence: *completed.MenuFrame.DisplayedSequence, Underflows: completed.MenuFrame.Underflows}, nil
