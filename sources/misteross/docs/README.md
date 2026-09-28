@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test expanded timeout placement regions](validation/2026-09-28-ramtest-timeout-regions.md) | Expanding only replacement-cell search regions recovers 112.51→116.33 MHz; best stack remains 116.44. Remaining critical path uses retained timeout/control logic. Host-only. |
 | [RAM-test timeout remap with retained placement](validation/2026-09-28-ramtest-placed-timeout.md) | Exact baseline placement/replica preserved; legal local rewrite reaches 112.51 MHz. DDR1 placement bounds expose the next local optimization target; best remains 116.44. Host-only. |
 | [RAM-test local timeout/enable remap](validation/2026-09-28-ramtest-timeout-partition.md) | Shallower local cones and earlier arrivals at all 110 selected ENA pins, but changed placement regresses whole-design memory to 106.92 MHz; baseline remains 116.44. Host-only. |
 | [RAM-test ABC9 area recovery](validation/2026-09-28-ramtest-abc-area-recovery.md) | Disabling recovery rounds shortens two control paths and passes full boundary equivalence, but regresses memory to 105.49 MHz; rejected. Host-only. |
