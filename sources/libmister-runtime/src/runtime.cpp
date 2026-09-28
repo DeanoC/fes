@@ -8,6 +8,7 @@
 #include "native/generated/fes_computer.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -230,14 +231,19 @@ public:
     return Invalid("menu preparation does not belong to this generation");
    error=frame.ValidateImmutable(frame.fd());if(!error.ok())return error;
    busy_=true;
+   menu_frame_busy_=true;
   }
   MenuDisplayInfo info;const Error error=hardware_.PresentMenuFrame(frame,&info);
   frame.preparation_.reset();
-  if(!error.ok())return FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"});
+  if(!error.ok()) {
+   const Error failure=FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"});
+   { std::lock_guard<std::mutex> lock(mutex_);menu_frame_busy_=false; }
+   condition_.notify_all();return failure;
+  }
   {
    std::lock_guard<std::mutex> lock(mutex_);
    status_.menu_display.displayed_sequence=info.displayed_sequence;
-   status_.menu_display.underflows=info.underflows;busy_=false;*output=info;
+   status_.menu_display.underflows=info.underflows;busy_=false;menu_frame_busy_=false;*output=info;
   }
   condition_.notify_all();return {};
  }
@@ -274,7 +280,8 @@ public:
 		bool replacing = false;
  Status previous_status;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
 			if (busy_ || !started_ || status_.state == State::starting ||
 				status_.state == State::reboot_required) {
 				rejection = {"load_core", "", "", "validate",
@@ -461,7 +468,8 @@ public:
 			(update && (speed > 2 || (revision != "absent" && !ValidPackageId(revision)))))
 			return Invalid("invalid core-data request");
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
 			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
 				status_.state == State::starting || status_.state == State::reboot_required)
 				return Busy("runtime core-data access is busy");
@@ -950,8 +958,17 @@ public:
 	}
 
 	private:
+ // Give a pending core-data operation or launch one bounded opportunity to
+ // claim the runtime after the current display transfer. New frames cannot
+ // enter while a mutation waits, so a 60 Hz menu cannot starve a launch.
+ void WaitForMenuFrame(std::unique_lock<std::mutex>& lock) {
+  if(!menu_frame_busy_)return;
+  ++menu_mutation_waiters_;
+  condition_.wait_for(lock,std::chrono::seconds(2),[this]{return !menu_frame_busy_;});
+  --menu_mutation_waiters_;
+ }
  Error AdmitMenuGeneration(std::uint64_t generation) const {
-  if(busy_||!started_||status_.state!=State::idle||!status_.menu_display.available)
+  if(busy_||menu_mutation_waiters_||!started_||status_.state!=State::idle||!status_.menu_display.available)
    return Busy("idle menu display is unavailable");
   if(!generation||generation!=status_.menu_display.generation)return Invalid("menu generation changed");
   return {};
@@ -1158,6 +1175,8 @@ public:
 	Status status_;
 	std::deque<HardwareFault> faults_;
 	bool busy_;
+	bool menu_frame_busy_=false;
+	unsigned menu_mutation_waiters_=0;
 	bool started_;
 	bool stopping_;
 	std::uint64_t next_generation_;

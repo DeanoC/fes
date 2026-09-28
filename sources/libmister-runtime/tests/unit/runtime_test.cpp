@@ -1248,8 +1248,101 @@ void TestMenuPresentationFailureUsesIdleRecovery()
  assert(!f.runtime.BeginMenuFrame(generation,&frame).ok());
 }
 
+void TestMenuFrameYieldsToCoreDataAndLaunch()
+{
+ for (const bool inspect_data : {true, false}) {
+  Fixture f; const std::string id(64, 'a');
+  assert(f.runtime.Start().ok());
+  assert(f.runtime.ConfigureMenuPackage("/menu", id).ok());
+  const auto generation = f.runtime.status().menu_display.generation;
+  std::unique_ptr<mister::MenuFrame> frame;
+  assert(f.runtime.BeginMenuFrame(generation, &frame).ok());
+  assert(fcntl(frame->fd(), F_ADD_SEALS,
+   F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL) == 0);
+  std::mutex mutex; std::condition_variable condition;
+  bool presenting = false; bool release = false;
+  bool mutation_started = false; bool mutation_finished = false;
+  f.hardware.on_menu_present = [&] {
+   std::unique_lock<std::mutex> lock(mutex);
+   presenting = true; condition.notify_all();
+   condition.wait(lock, [&] { return release; });
+  };
+  mister::MenuDisplayInfo info;
+  std::thread frame_thread([&] {
+   assert(f.runtime.PresentMenuFrame(generation, *frame, &info).ok());
+  });
+  {
+   std::unique_lock<std::mutex> lock(mutex);
+   assert(condition.wait_for(lock, std::chrono::seconds(2), [&] { return presenting; }));
+  }
+  mister::Error mutation_error;
+  std::thread mutation_thread([&] {
+   {
+    std::lock_guard<std::mutex> lock(mutex);
+    mutation_started = true;
+   }
+   condition.notify_all();
+   if (inspect_data) {
+    mister::CoreData data;
+    mutation_error = f.runtime.InspectCoreData("/game", id, "/data", &data);
+   } else {
+    mutation_error = f.runtime.LoadCore("/game", id);
+   }
+   {
+    std::lock_guard<std::mutex> lock(mutex);
+    mutation_finished = true;
+   }
+   condition.notify_all();
+  });
+  {
+   std::unique_lock<std::mutex> lock(mutex);
+   assert(condition.wait_for(lock, std::chrono::seconds(2), [&] { return mutation_started; }));
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  {
+   std::lock_guard<std::mutex> lock(mutex);
+   assert(!mutation_finished);
+   release = true;
+  }
+  condition.notify_all();
+  frame_thread.join(); mutation_thread.join();
+  if (inspect_data) assert(mutation_error.code == ErrorCode::unsupported_interface);
+  else assert(mutation_error.ok());
+  assert(f.runtime.status().state == (inspect_data ? State::idle : State::running_development));
+  assert(f.runtime.Stop().ok());
+  assert(f.runtime.status().menu_display.available);
+ }
+}
+
+void TestMenuFrameWaitIsBounded()
+{
+ Fixture f; const std::string id(64, 'a');
+ assert(f.runtime.Start().ok());
+ assert(f.runtime.ConfigureMenuPackage("/menu", id).ok());
+ const auto generation = f.runtime.status().menu_display.generation;
+ std::unique_ptr<mister::MenuFrame> frame;
+ assert(f.runtime.BeginMenuFrame(generation, &frame).ok());
+ assert(fcntl(frame->fd(), F_ADD_SEALS,
+  F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL) == 0);
+ f.hardware.on_menu_present = [&] {
+  const auto start = std::chrono::steady_clock::now();
+  const auto result = f.runtime.LoadCore("/game", id);
+  const auto elapsed = std::chrono::steady_clock::now() - start;
+  assert(result.code == ErrorCode::busy);
+  assert(elapsed >= std::chrono::milliseconds(1900));
+  assert(elapsed < std::chrono::seconds(4));
+ };
+ mister::MenuDisplayInfo info;
+ assert(f.runtime.PresentMenuFrame(generation, *frame, &info).ok());
+ assert(f.runtime.status().state == State::idle);
+ assert(f.runtime.LoadCore("/game", id).ok());
+ assert(f.runtime.Stop().ok());
+}
+
 int main()
 {
+ TestMenuFrameYieldsToCoreDataAndLaunch();
+ TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
  TestMenuPresentationFailureUsesIdleRecovery();
  TestMenuIdleStopAndPreMutationFailurePreserveFences();
@@ -1300,6 +1393,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 50 passed");
+	puts("runtime_test: 52 passed");
 	return 0;
 }
