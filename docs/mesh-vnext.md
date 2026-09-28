@@ -5,11 +5,15 @@ not a default flip for `[mesh] ensure` or `[mesh] placement`. Builds on
 #131 ([mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md))
 and [phase 3](mesh-phase3.md): Slices 1–6 (#212–#221) plus the
 Slice 7 tie-breaks and Slice 8 host wiring, all behind
-`[mesh] placement = false`. The Slice 6 two-kit HIL (HIL2) is open.
+`[mesh] placement = false`. The Slice 6 two-kit HIL (HIL2) is GREEN,
+picture only, as diagnostic evidence; it is not hardware acceptance
+until kit B is designated (§5). Follow-up edits (UX copy, §7 decisions, pairing
+slices, #280 Codex findings) are marked where they change a decision.
 
 **Owners:** Caster owns the technical design. Foggy owns UX and copy
-for setup and pairing. **UX: Foggy to fill/refine** is a placeholder,
-not copy. Bob coordinates and reviews. Deano approves and merges.
+for setup and pairing; §2.4, §2.7 and §3 carry Foggy's copy
+(2026-09-28); *[tech fix]* marks Caster's corrections to it. Bob
+coordinates and reviews. Deano approves and merges.
 Kit HIL needs Deano present. An unattended agent does not start it.
 Audience: FogCast host and agent, FES image, rooms UX. See
 [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md),
@@ -41,9 +45,9 @@ Both advertise hostname `mister` (IMG-3). A capture preview is not a DisplaySink
 | `target_id` identifies a provisioned target. The host mints it; `make media` copies it into `agent.toml`. | Identity is per card: random `target_id` minted on the kit when absent, CID-derived MAC (done, #274), distinct hostname (IMG-3, not done). |
 | The agent token is written on the host and baked into the card. | The kit generates the token at first boot. Images ship without a token. |
 | Discovery never enrolls an unknown kit. Operators hand-edit `[[targets]]`. | Discovery still does not auto-trust. Pairing enrolls. Address plus token stays the fallback. |
-| Placement is Decision 7, behind `[mesh] placement`, default off. Slice 6 HIL is open. | Two-kit placement is concrete: reconciled endpoint, lease before bind, HIL2 closes Slice 6. |
+| Placement is Decision 7, behind `[mesh] placement`, default off. Slice 6 HIL was open. | Two-kit placement is concrete: reconciled endpoint, lease before bind. HIL2 is diagnostic evidence; Slice 6 closes once kit B is designated (§5). |
 | Ensure stays default off until #177. Other nits are not a phase. | Lane 1 is one small PR per issue. Defaults stay off until the §3 gates. |
-| Acceptance is named in the phase briefs. | HIL2 (C0–C7) accepts placement and lease on already provisioned kits. P-pair is later. A green HIL2 does not claim pairing. |
+| Acceptance is named in the phase briefs. | HIL2 (C0–C7) observed placement and lease on already provisioned kits (diagnostic until kit B is designated, §5). P-pair is later. A green HIL2 does not claim pairing. |
 
 **Decision:** do not reopen Decision 7, the single kit lease, Phase 0
 as the floor, or "discovery carries no credential". Advertisement
@@ -136,51 +140,127 @@ live nodes with one id. v-next also refuses to pair or place (§2.6).
 ### 2.3 Per-card agent token
 
 **Decision:** on first boot, if no agent token exists, the kit draws
-one from the CSPRNG and stores it mode `0600` on the FAT. The image
-has no token. A later image does not replace an existing token file.
-Logs never print it.
+one from the CSPRNG and writes it under `/media/fat/fogcast/`, the
+only writable persistent store (the rootfs is a read-only loop image).
+The image has no token. A later image does not replace an existing
+token. Logs never print it.
 
-**Decision:** once pairing ships, kit images are unprovisioned.
-`FES_UNPROVISIONED=1` is that path today; making it the default is
-**Q7**. `CI=true` already skips host pickup. `AGENT_CONFIG` stays for
-a nonstandard kit. Until then the explicit-add fallback may still bake
-a card, and that card is still not cloned. The launcher token is not
-part of this decision (**Q10**).
+*[#280 Codex P1, adopted]* `/media/fat` is FAT/exFAT: no per-file
+owner or mode, so "mode `0600`" means nothing there. Protection is a
+mount-wide policy: root-owned with `fmask=0177,dmask=0077` (or
+tighter). The agent checks the effective mode at start and reports a
+boolean in authenticated health; a bad mount is a diagnostic, not a
+token print. Threat model unchanged from today's `agent.toml`: whoever
+holds the card holds the credential.
+
+**Decision:** once pairing ships, kit images are unprovisioned by
+default (Q7). `AGENT_CONFIG` stays for a nonstandard kit. Pairing
+also provisions the launcher token (Q10, §2.4b).
 
 ### 2.4 How the host learns a kit
 
-Discovery lists unpaired nodes: `target_id`, MAC, hostname, observed
-address. No credential. Listing is not trust.
+Discovery lists unpaired nodes: `target_id`, MAC tail, hostname,
+observed address. No credential. Listing is not trust.
 
-**Decision:** pairing is explicit. The idle kit, in pairing mode, shows
-a short code (strawman 6–8 characters; TTL and rate limit are **Q2**).
-"Add kit" lists unpaired kits; the operator confirms the code. The kit
-then hands over the token on an exchange bound to that code. Strawman:
-a PAKE, or an HMAC of the code (**Q1**). Do not send the token to any
-other discovered service, and do not log it. The host writes one
-`[[targets]]` row on the existing private path, mode `0600`: name,
-address, the kit's id, inline token, `enabled`. The host does not mint
-the id.
+**Decision:** pairing is explicit and code-only (Q3). An unpaired idle
+kit shows a code; a paired kit enters pairing only by a local action.
+The host proves knowledge of the code in a **PAKE** (Q1: CPace, or
+SPAKE2 if CPace fails the license/maintenance check); the kit's agent
+token and the host-minted launcher token travel only inside the
+PAKE-keyed AEAD channel. The transcript binds kit `target_id` and host
+id. Code: 6 characters shown 3+3 from a 31-symbol alphabet (`2-9`,
+`A-Z` minus `I L O`), case-insensitive, 5 min TTL, 3 wrong tries then
+a new code and a 30 s lockout that doubles on each consecutive lockout
+up to 10 min; counters are per kit, not per client address (Q2). The
+host writes one `[[targets]]` row on the existing private settings
+path (owner-only file): name, address, the kit's id, inline token,
+`enabled`. The host does not mint the id. **Locked (Q15):** no machine
+is ever added without its pairing code, including the first kit on a
+new computer. Explicit-add under Advanced (multicast-blocked networks)
+is address **plus the TV's code**, the same PAKE run at a typed
+address; raw token entry is not a product path once pairing ships.
+**Locked (Q16):** one computer per machine; a paired kit refuses
+pairing with a second host (Q8).
 
-**UX: Foggy to fill/refine.** "Add kit", the confirm step, and the kit
-screen while it waits. The sofa must not look enrolled early.
+**UX (Foggy).** The TV says "machine", never "kit", "node", "target"
+or "executor". The main line shows no UUIDs, IPs, tokens, owner strings
+or error codes (those go to host diagnostics). Each cause gets its own
+sentence; nothing collapses into "offline". A machine never looks
+ready or paired until the host has saved its row and an authenticated
+call to it has succeeded.
 
-Physical presence (a button or pad combo within a few seconds) is an
-alternative, not the choice. Code, presence, or both is **Q3**.
-Explicit-add (address plus token) stays the multicast-blocked
-fallback, not the default. A kit that already has a token and is not
-pairing is not listed. Another host's kit is **Q8**.
+*On the kit's TV*
+- An unpaired, idle kit shows its pairing code on its home screen by
+  itself. A paired kit enters pairing only through Settings → "Pair
+  with a computer"; that is also the revoke and re-pair path.
+- Waiting: "Pair with FogCast" / "On your computer, choose Add machine
+  and enter this code:", the big code (e.g. `K7M 4QX`), "New code in
+  {m} min."
+- After the host sends the code: "Pairing…" (not success).
+- Only after the row is saved and authenticated health succeeds:
+  "Paired with {host name}" for about 3 s, then the home screen.
+- Failure: "Pairing didn't finish" / "Nothing was saved. A new code
+  will appear in {n}s."
+
+*On the host (Settings → Machines)*
+1. "Add machine" opens the list of unpaired machines: label and
+   address. Label = hostname, or "MiSTer …9dacd6" (last three MAC
+   bytes) until IMG-3 lands. No UUIDs on the main line.
+2. "Enter the code shown on that machine's TV." Case-insensitive,
+   with or without the space.
+3. "What do you call this machine?" Prefilled "Machine 2", editable;
+   saved in the same write as the code confirmation.
+4. Success: "{name} is ready" / "Games can now play on {name}." Done.
+- Nothing listed: "No new machines found" / "Check it's switched on
+  and showing a pairing code. Still missing? Add it by address." The
+  link opens explicit-add under Advanced (address plus the TV's code),
+  never the default.
+- Rows with a duplicate id or MAC are shown but not selectable (§2.7).
+
+### 2.4b Launcher token and kit B's "Offline – local library"
+
+Kit B's footer came from its `launcher.json`: it points at
+`192.168.10.202:8789`, where no launcher listener ran with a matching
+launcher token. That is a second credential (`prepare_launcher.py`,
+separate from the agent token). *[tech fix]* Before #287 the host
+listener authorized **one** paired kit (`LauncherConfig`: one token, one
+`target_id`) and refused non-content operations unless that kit was the
+host's selected target (`TARGET_MISMATCH`). So a second kit's menu
+could not work even with a token. #287 (P4a, §4) lifts that.
+
+**Decision (Q10):** one pairing provisions both. The host mints a
+per-kit launcher token and sends it, with its launcher URL, inside the
+PAKE channel; the kit writes `launcher.json`. The listener accepts a
+set of per-kit launcher credentials, and a launch from a kit's own
+menu targets that kit (slices P4a/P4b, §4).
+
+**UX (Foggy), split the footer causes:**
+- Host unreachable or no listener: the kit can't tell these apart, so
+  it shows the #275 offline banner "Offline, showing your saved list".
+  The host's Machines list carries the cause: "Can't reach this
+  computer's game service".
+- Reachable but auth refused (401/403): "FogCast on {host name} didn't
+  accept this machine" / "Pair it again from your computer."
+- Never paired: the §2.4 pairing screen, not "Offline".
+- Host Machines list status words, one sentence each: Ready, In use
+  ("Someone else is playing on {name}."), Can't reach, Needs pairing
+  again, Needs an update, Setting up, Copied card.
 
 ### 2.5 Token storage, redaction, rotation
 
-The host token stays inline in the owner-only config. GET returns
-`agent_configured` only. Manifests store a digest, never the token.
+The host token stays inline in the owner-only config (Q6: no
+`agent_file` indirection). GET returns `agent_configured` only.
+Manifests store a digest, never the token.
 
-**Decision:** rotation is host-initiated on the authenticated channel.
-The kit replaces its file; the host replaces the inline token in the
-same private write. Revoke deletes the row and, by a local kit action,
-returns the kit to pairing and discards the token. Optional
-`agent_file` indirection is **Q6**, not this slice.
+**Decision:** *[#280 Codex P1, adopted]* rotation is staged, because
+two machines can't share one atomic write. (1) Host asks the kit to
+stage a new token (authenticated with the current one). The kit then
+accepts old and new. (2) Host writes the new token to its config.
+(3) Host authenticates with the new token and calls commit; the kit
+drops the old one. An uncommitted staged token expires after 10 min
+and the old one stays valid, so a crash at any step is recoverable.
+Revoke deletes the row and, by a local kit action, returns the kit to
+pairing and discards its tokens.
 
 ### 2.6 Clone detection
 
@@ -192,25 +272,44 @@ host does not pick one.
 A different CID means the file did not come from this card: delete id
 and token, mint new ones, return to pairing. Do not keep serving the
 cloned credential. A reflashed card with no identity file is a normal
-first boot (§2.3). Today's TXT has no MAC; where the host learns it
-is **Q9**. Adding MAC or hostname is not a byte freeze.
+first boot (§2.3).
+
+*[#282 Codex P1, adopted]* A cloned FAT also copies
+`/fogcast/launcher.json` and its per-kit launcher bearer. CID-mismatch
+recovery deletes `launcher.json` together with the id and agent token.
+The menu then shows the pairing screen, not "Offline", until pairing
+(P4b) or the P4a interim step (§4) issues a new launcher bearer. When
+the host drops or replaces the old row, it also revokes that row's
+launcher bearer, so a clone cannot reach the launcher listener as the
+original machine.
+
+*[#280 Codex P2, adopted]* A cloned FAT also copies
+`linux/u-boot.txt`, and `S15fes-ethaddr` keeps any existing `ethaddr`.
+So CID-mismatch recovery must also drop the `ethaddr` line **when it
+equals the MAC derived from the recorded CID**, then re-derive from
+this card's CID. A line that doesn't match the recorded CID's
+derivation is hand-set (kit A) and is kept; a clone of a hand-set card
+still collides on MAC and is refused by the host. `S15fes-ethaddr`
+therefore records the CID it derived from.
+
+**Decision (Q9):** the host learns the MAC both ways. TXT carries the
+non-secret MAC tail for the unpaired label (the MAC is on the LAN
+anyway); authenticated health carries the full MAC and the CID-witness
+state for clone checks. Adding TXT keys is not a byte freeze.
 
 ### 2.7 Failure modes
 
-| What happened | What the host does |
-| --- | --- |
-| Multicast blocked | No unpaired list. Explicit-add still works. Do not scan the subnet. |
-| Code expired or wrong | Pairing fails. No token stored. A new code waits out the rate limit. |
-| Reimage (FAT wiped), same card | New token and `target_id`; same MAC. Old row fails auth; host flags "same MAC, new id" and offers re-pair. |
-| Stale address (#259) | Read ABIs and health on the reconciled endpoint. Check token and node id. A games GET does not rewrite the address. |
-| Both hostnames `mister` | Do not key off hostname. Use `target_id` and MAC. Until IMG-3, show MAC or the short id. |
-| Config write fails | Fail closed. Kit stays unpaired. No half-written token. |
-| Paired to another host | **Q8.** Do not take its token. |
-| Duplicate id or MAC | Refuse pair and place (§2.6). |
-| CID witness mismatch | Kit regenerates and waits. The old row will 401. |
-
-**UX: Foggy to fill/refine.** One sentence per row. Do not collapse
-these into "offline".
+| What happened | What the host does | What the user sees (Foggy) |
+| --- | --- | --- |
+| Multicast blocked | No unpaired list. Explicit-add works. No subnet scan. | Host: "Can't see new machines on this network. You can still add one by address." |
+| Code expired or wrong | Pairing fails; nothing stored. Lockout per §2.4. | Host: "That code didn't match or has expired. Use the code on the TV now." After the limit, both screens: "Too many tries. New code in {n}s." |
+| Reimage (FAT wiped), same card | New token and id, same MAC. Old row 401s; host flags "same MAC, new id". | Host: "{name} was reset and needs pairing again." Action "Pair again" keeps the name and replaces the row. TV shows a code. |
+| Stale address (#259) | Read ABIs and health at the reconciled endpoint; check token and id. | Nothing when reconcile works. Else: "Can't reach {name} at its last address. Looking for it…" |
+| Both hostnames `mister` | Never key off hostname; use `target_id` and MAC. | No copy. Label is the user's name, or "MiSTer …{MAC tail}". |
+| Config write fails | Fail closed; kit stays unpaired; no half-written token. | Host: "Couldn't save {name}. Nothing was changed. Try again." TV: "Pairing didn't finish." |
+| Paired to another host | Refuse (Q8; one computer per machine, Q16). Never take its token. | Host, greyed row: "Already paired with another computer." |
+| Duplicate id or MAC | Refuse pair and place (§2.6). | Host: "Two machines are claiming to be the same one. This usually means an SD card was copied. Set one of them up fresh before playing." |
+| CID witness mismatch | Kit regenerates id, token, derived MAC and deletes `launcher.json` (§2.6); old row and its launcher bearer 401. | TV: "This card was copied from another machine, so it's being set up fresh." Then a code. Host's old row shows the reimage sentence. |
 
 ---
 
@@ -244,10 +343,9 @@ and still check token and node id. Leave `s.targets` until a settings
 write changes it. Today the read uses the stale address, the client
 adopts, `s.targets` does not, ABIs are empty, and the kit is
 `fail_closed`. Kit B at `.85` with `kit2` still set to
-`192.168.10.212` is that case. HIL2 v2 sidesteps it by writing `.85`
-into its temporary configs, so HIL2 can run without the fix, but it
-then does not exercise the reconcile path and Deano's everyday config
-stays broken for kit B (**Q13**). The fix does not turn placement on.
+`192.168.10.212` is that case. HIL2 ran GREEN with `.85` in its
+temporary configs, so it did not exercise reconcile; #259 (slice L1,
+in progress) adds optional C0-stale. The fix does not turn placement on.
 
 **Lease.** Claim the chosen kit before the bind moves. Fail closed on
 a foreign holder. Confirm does not steal.
@@ -265,21 +363,46 @@ empty body. Powerboat's owner string is `fogcast@powerboat`.
 `{"retain_lease":true}` keeps the grant. `{"release_idle":true}`
 releases the idle grant.
 
-**Known gap:** rebind does not release the kit it left. That release
-is a gate (§4), not a default flip. #270 P2-4: an idle Stop on a menu
+**Known gap (#281, slice R1):** rebind does not release the kit it
+left. That release is a gate, not a default flip. #270 P2-4: an idle Stop on a menu
 kit reprograms the FPGA (HDMI blip, generation revoke), so a release
-done as that Stop has a picture cost (**Q5**). A busy chosen kit is
-**Q4**. #270 P2-6: runtime and agent stay image-lockstep. `placement =
+done as that Stop has a picture cost; the release uses the lease
+API, not a Stop (Q5, #281). A busy chosen kit fails closed; the host
+never moves the game silently (Q4). #270 P2-6: runtime and agent stay image-lockstep. `placement =
 true` does not turn `ensure` on. Both default off.
+
+### UX: which machine a game plays on (Foggy)
+
+- **At a machine's own TV menu:** the game plays on that machine with
+  no question (the Slice 5 no-prompt rule). *[tech fix]* This is an
+  explicit target on the launch from that kit's launcher, which skips
+  placement; it does not write the household `display_preference`.
+  It needs P4a (#287; before it, only the single selected kit's menu could launch).
+- **From the computer (browser, rooms, CLI):** a "Plays on {name}"
+  chip beside Play, only with two or more eligible machines. It shows
+  the real placement answer, never a guess *[tech note: the games row
+  `placement` field, computed per request, is that answer]*, which
+  also covers the first-play-after-restart surprise. Tapping it offers
+  "Just this time" *[tech fix: an explicit `target` on that launch,
+  not `placement_override`, which is a host-wide config key]* or
+  "Always play here" (household-wide: the single `display_preference`,
+  locked Q17; needs a settings write route, cf. #211).
+- **Override miss:** "{title} can't play on {name}." If another
+  machine is eligible, offer "Play on {other}" explicitly. Never fall
+  through silently.
+- **Busy (Q4):** from the computer "{name} is in use. Play on {other}
+  instead?"; at the TV plain "In use" (#275).
+- **During play:** "Playing on {name}".
+- **Not eligible:** #275 §4 state copy. Version skew: "{name} needs an
+  update before it can play this."
 
 ### Gates before either default turns on
 
 Not in this draft's PRs.
 
-**Placement default-on** needs all of: HIL2 green (§5), replacing the
-2026-09-25 `ACCEPTED_PARTIAL`; #259 fixed; rebind releases the old
-lease, with the #270 P2-4 cost answered (**Q5**); #163 inside a
-budget (**Q11**); pairing shipped; clone detection shipped.
+**Placement default-on** needs all of: HIL2 green (§5: ran 2026-09-28, picture only, diagnostic
+until kit B is designated; C1-pad still owed); #259 fixed; rebind releases the old
+lease via the lease API (#281); #163 inside the Q11 budget; pairing shipped; clone detection shipped.
 
 **Ensure default-on** needs those, plus #177 (unreachable
 `launcher.json` host falls back to legacy launch, not
@@ -294,33 +417,112 @@ probe timeout is 5 seconds).
 
 ---
 
-## 4. Lane 1 hardening
+## 4. Implementation slices (ordered)
 
-One small PR each, in order. No PR flips a default or writes media.
+One small PR each. No PR flips a default or writes media. Kit HIL
+waits for Deano.
 
-| Slice | Issue | Scope | Depends on | Tests |
+| # | Slice | Scope | Depends on | Tests / acceptance |
 | --- | --- | --- | --- | --- |
-| 1 | #259 | ABIs from the reconciled endpoint; still check token and node id. | None. First, for HIL2/everyday two-kit. | Stale address, adopted node id, ABIs present. Wrong id stays ineligible. |
-| 2 | #177 | Missing content source falls back to legacy launch, not `ContentMissingError`. | #172 (issue open; pad work is on main per phase 3). | Host down: Phase 0. Source up, ensure on: unchanged. |
-| 3 | #163 R-PERF | Stop per-game, per-variant synchronous kit HTTP with no context or timeout on `GET /api/v1/games`. Cache or short TTL, context, client timeout, `ctx.Err()`. Prefer batched `/v1/mesh/content/slots`. | None for the cache. | Hung kit returns inside the timeout. Two kits stay bounded. |
-| 3b | #163 R2–R7 | Optional. R2 lost lease reported free. R3 lease view compares the selected target. R4 `meshReadyClient` must not fall back to that client. R5 `FillCopy` / `applyMeshFacts`. R6 document `next_action`. R7 hoist `meshMajorOK`. | The ready path. | One case per nit that changes behavior. |
-| 4 | #175 | `mesh_content = false` does not register the mesh store. | None. | Flag false: no mesh routes. Flag true: store serves. |
-| 5 | #178 | Ensure dials the named `LaunchOn` target when the selected target is offline. | #177 if both touch activate. | Selected down, named up. |
-| 6 | #174, optional | Pass the `LaunchOn` context into `activateMeshExecutor`. | None. | Cancel does not outlive the caller. |
-| 7 | To be filed | Rebind releases the previous lease. Not #270 P2-4's idle Stop unless **Q5** accepts the blip. | #259. | Old grant gone, new held. A failed claim keeps the old grant. |
-| P4a | This PR (in progress) | Launcher listener serves several paired kits: optional `pairings` list in `launcher-host.json`, catalogue reads for any enabled paired kit regardless of selection, kit-menu launch names its own kit. One bearer per kit: a token shared across target ids, or equal to any target's agent token, is refused at startup. Interim step toward P4. | None. | Single form unchanged; two kits; unselected kit browses; kit B launch targets kit B; 401 bad token; 403 wrong target; shared token refused. |
+| P1 | Kit identity and code (image + agent + `fogcast-kit`) | First-boot token under `/media/fat/fogcast/` with the mount check; CID witness; clone recovery incl. derived `ethaddr` (§2.6); unprovisioned kit shows the pairing code on its idle screen; local "Pair with a computer". | IMG-2/IMG-3 can land alongside. | Image test: never overwrite token or hand-set `ethaddr`; clone fixture regenerates and deletes `launcher.json`; token absent from logs. |
+| P2 | Pairing handshake (kit endpoint + host API) | Kit pairing endpoint live only in pairing mode; PAKE; TTL, tries, lockout/backoff per §2.4; host writes the row via the private settings path; duplicate id/MAC refused; staged rotation (§2.5). | P1. | Unit: wrong code, expiry, lockout doubling, duplicate refusal, crash-at-each-rotation-step recovers; no token in logs or GET. |
+| P3 | Settings UI hookup (Foggy/Luna) | Machines list, Add machine, code entry, name, status words, §2.7 copy. Hand-edited TOML stays developer-only. | P2. | UI tests per state; copy review by Foggy. |
+| P4a | Multi-kit launcher listener (**pulled forward; landed in #287**) | Optional `pairings` list in `launcher-host.json`. One bearer per kit: a token shared across target ids, or equal to any target's agent token, is refused at startup (credentials below). *[#282 Codex P1, adopted; aligned with #287 as built]* The host still has ONE foreground session (`sources/FogCast/docs/ARCHITECTURE.md:70-75`). The launcher serves the game list, platforms, health, attract and cache reads to any enabled paired kit, whatever target is selected. A kit-menu launch explicitly targets the kit that asked and never goes through placement. `GET /api/v1/session` shows the real session only to the kit that owns it; every other kit sees its own idle view. Stop, status and input are OWNER-ONLY: a non-owner gets exactly `403 TARGET_MISMATCH` today (a distinct `NOT_SESSION_OWNER` code is a parked nit). A launch from kit X while another kit's session is active returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt; browser and API launches that name a target still preempt, as today. **Not in P4a:** per-kit concurrent sessions and per-kit Stop (#288). Launcher health, `rom_cached` and the library cache still describe the selected target (#289). Independent of the PAKE slices; interim credentials come from the operator step below (Q14 covers only agent tokens). Fixes kit B "Offline". | None (interim credentials below). | Two kits' menus both browse the host and each launches on its own TV. Stop and status are owner-only: a non-owner gets `403 TARGET_MISMATCH` and the owner's session is untouched. A kit launch while another kit's session is active gets 409 `SESSION_BUSY_OTHER_KIT` and the other session keeps running. A non-owner's `GET /api/v1/session` returns its own idle view. Single form unchanged; shared token refused; bearer equal to any target's agent token refused. Wrong token 401; no token in logs. |
+| P4b | Launcher provisioning via pairing | Host mints the per-kit launcher token in P2's channel; kit writes `launcher.json`. | P2, P4a. | Pairing alone makes the kit menu work. After clone recovery and re-pair, the old launcher bearer is rejected (401). HIL: P-pair (§5). |
+| R1 | #281 | Successful rebind releases the old kit's lease via the lease API (best-effort, logged); failed rebind keeps it. | None. | Unit, both paths. |
+| L1 | #259 (in progress) | ABIs from the reconciled endpoint; keep token and node-id checks. | None. | Stale address → eligible; wrong id ineligible. Optional HIL **C0-stale** (§5). |
+| L2 | #177 | Missing content source → legacy launch, not `ContentMissingError`. | #172 (issue open; pad work on main per phase 3). | Source down: Phase 0 path. |
+| L3 | #163 R-PERF (+R2–R7 optional) | Snapshot/TTL, ctx, per-kit timeout, `ctx.Err()`; batch slots read preferred. R2 lost lease ≠ free; R3/R4 lease view and client use the bound node; R5–R7 as filed. | None. | Q11 budget with one hung kit. |
+| L4 | #175 | `mesh_content = false` does not open/register the mesh store. | None. | Flag false: no mesh routes. |
+| L5 | #178 | Ensure dials the named `LaunchOn` target when the selected one is offline. | L2 if both touch activation. | Selected down, named up. |
+| L6 | #174 (optional) | Pass the `LaunchOn` ctx into `activateMeshExecutor`. | None. | Cancel doesn't outlive caller. |
+
+P4a was pulled forward and landed in #287, ahead of P1–P2. Lane 1 can
+also run in parallel where owners differ; the order above is the merge
+priority.
+
+**P4a launcher credentials: one bearer per kit.** *[#282 Codex P1,
+adopted; Caster, 2026-09-28, supersedes the earlier shared-token
+condition]* The kit's identity is the client-set
+`X-FogCast-Target-ID` header, so a bearer shared by two kits would let
+either kit present the other's id and read, stop or send input to its
+session. So one bearer identifies exactly one kit: every
+`launcher-host.json` `pairings` entry maps one bearer to exactly one
+`target_id`. At startup the host rejects a bearer mapped to more
+than one `target_id`, a bearer reused across entries, and a bearer
+equal to ANY configured target's agent token. All comparisons are
+constant-time. This landed in #287, together with Codex's
+all-targets reuse P1.
+- The legacy single-kit config (one listener token for one target)
+  keeps working.
+- Multi-kit REQUIRES per-kit bearers, minted by the interim operator
+  provisioning below (#290) until P4b.
+- Migration: Deano's Powerboat has one token, for kit A. Now that
+  #287 has merged, Caster mints a new bearer for kit B with the interim flow
+  and writes it to kit B's card `launcher.json`. Kit A keeps its
+  token.
+
+**P4a interim launcher credentials.** *[#282 Codex P1, adopted;
+confirmed (Caster/Bob, 2026-09-28); replaced by P4b]* Q14 only puts an
+agent bearer in a `[[targets]]` row; it cannot supply launcher bearers.
+Until P2/P4b ship, an operator runs a private provisioning step per
+kit. It is operator-run only, and it is the implementation of #290
+(`scripts/prepare_launcher.py` currently rejects the `pairings` form):
+1. Mint a per-kit launcher bearer from the CSPRNG, at least 128 bits
+   (for example 32 random bytes in base64url).
+2. Write it into the owner-only `launcher-host.json` as a `pairings`
+   entry keyed by the kit's `target_id`. The tool refuses a duplicate
+   `target_id`, and refuses a bearer that equals any configured
+   target's agent token or another kit's bearer (the same checks the
+   host applies at load). The file is written atomically with mode
+   `0600` and stays an owner-only regular file, as
+   `sources/FogCast/docs/launcher-host.md` requires today.
+3. Write the matching card `launcher.json` (API URL, bearer, identity)
+   to media or a staging output. The tool writes to a live card's
+   `/media/fat/fogcast/` only when the operator passes an explicit
+   flag. The card is protected by the FAT mount-wide policy and health
+   check of §2.3 (#280), not a per-file mode.
+
+Tokens are never printed or logged; output shows only a sha256 prefix.
+A per-kit bearer is never shared across kits or baked into an image.
+To rotate: re-mint, update both files, and restart the host. The old
+bearer stops working when the host restarts. P4b later replaces this
+path with pairing-provisioned bearers and migrates existing
+`launcher-host.json` entries: keep the kit's key and re-issue its
+bearer at first pairing. This interim path was chosen over making P4a
+depend on P4b because today's single-kit launcher setup already uses
+exactly these two files; the step only generalizes it to a set.
+
+This does not conflict with Q15. It is operator tooling in the Q14
+interim window, not a way to add machines in the product.
+
+**Known issue (#294, kit-side; found in HIL3).** When the host goes
+away or returns errors, the kit menu keeps a stale "active" session,
+so HDMI stays black until `fogcast-kit` restarts.
 
 ---
 
 ## 5. Acceptance
 
-HIL2 is the 2026-09-28 plan, pinned to main `d7e13eaa`. One release:
-`pre0` on kit B, `pre1` on kit A, via `fes-update`. Configs stay in a
-mode `0600` run root, not the repo. `placement = true` is temporary.
-`ensure` is unset. Deano is present. This accepts placement and the
-lease on the hand-written `kit2` row. It does not accept pairing.
-Green replaces the 2026-09-25 `ACCEPTED_PARTIAL` as the Slice 6
-close-out and does not default placement on.
+**HIL2: GREEN, picture only; HIL-observed diagnostic evidence, not
+hardware acceptance** (2026-09-28 18:37–18:40 Sofia, main
+`d7e13eaa`, both kits on image `f449886f` via `fes-update`, `.85` in
+the temporary configs, `ensure` unset). All required steps green;
+C1-back and C3b green; **C1-pad deferred** to a session with Deano
+(kit B's pad must enumerate first). Evidence: Caster's
+`fogcast-MESH-P3-S6-HIL2-RESULT.txt` and the Powerboat run root.
+*[#282 Codex P1, adopted]* Kit B (`.85`) is not a designated fixture:
+the "Dedicated fixture" section of `sources/FogCast/docs/DEVELOPMENT.md`
+(:203-214) names only `192.168.10.84`. So this record shows placement
+and the lease working on the hand-written `kit2` row as diagnostic
+evidence. It does not replace the 2026-09-25 `ACCEPTED_PARTIAL` as the
+Slice 6 acceptance, does not accept pairing, and does not default
+placement on.
+
+**Pending: designate kit B.** Once `.85` is designated in that
+DEVELOPMENT.md section (a separate owner change, not made here), this
+record, or a re-run on the designated kits, can be promoted to the
+Slice 6 acceptance.
 
 | Step | What happens | Required? |
 | --- | --- | --- |
@@ -338,10 +540,31 @@ close-out and does not default placement on.
 | C6a | Ensure never ran. | Yes |
 | C7 | Restore: session idle, host stopped, both leases free, boot ids unchanged, Deano's config sha unchanged. | Yes |
 
-If #259 is merged before the run, add one cheap step (strawman
-**C0-stale**): a copy of the pref-b config with kit B at the stale
-`192.168.10.212`; C0's games read must show kit B eligible. Without
-#259, HIL2 runs as written on `.85` configs (**Q13**).
+**C0-stale (optional, #259 acceptance):** a copy of the pref-b config
+with kit B at the stale `192.168.10.212`; the games read must show kit
+B eligible via the reconciled endpoint.
+
+**HIL3, P4a (#287): GREEN; HIL-observed diagnostic evidence, not
+hardware acceptance** (2026-09-28 19:25–19:31 Sofia, combined build
+`5342f4a1`). With the host's selected target on kit A, kit B's menu
+came online and launched on kit B; a kit-A launch then got 409 `SESSION_BUSY_OTHER_KIT` without
+preempting, kit-A Stop and status got 403 while its session read was
+its own idle view, and kit B's own Stop released its lease. Evidence:
+Caster's `fogcast-MESH-HIL3-RESULT.txt`. HIL3 ran with one bearer
+paired to both kits, a form startup now rejects (§4), so its
+owner-only results relied on each kit sending its own id; re-check on
+per-kit bearers after the migration. Same caveat as HIL2: only `.84` is
+designated, so this does not accept P4a on hardware.
+
+**HIL hygiene (from HIL2):**
+- HIL hosts use an isolated data dir, never the operator's
+  `~/.local/share/fogcast`: HIL2 added five FES Pong plays to Deano's
+  recents and play counts because the host resolves data dirs from
+  `$HOME`.
+- Wait about 3 s after a launch reports active before grabbing frames
+  (at 1 s the Pong background shows before sprites).
+- Never compare brightness (YAVG) across capture cards: ASUS shows
+  Pong black as ~0, ShadowCast as ~16. Compare frames per card.
 
 ### P-pair, after pairing exists
 
@@ -353,6 +576,8 @@ Remove `kit2` only from that file. Do not print tokens.
 3. Mode stays `0600`. The token is absent from logs and from GET.
 4. A second scratch row that repeats B's `target_id` is refused.
 5. Re-run C1 on the paired row, not the hand-written token.
+6. Kit B's menu leaves "Offline" and browses the host (P4a, then P4b).
+7. Run the deferred C1-pad in the same session.
 
 HIL2 without P-pair does not close §2.
 
@@ -377,31 +602,42 @@ it. Failure leaves a diagnostic, not a shared default token.
 
 **#278.** `fes-update` does not prune. Kit A staging failed 422
 `UPDATE_INVALID` with 14 stale 64 MiB images. **Decision:** keep good,
-previous, and factory; say when the failure is space; never touch
-`u-boot.txt`. Loop-mounted images are **Q12**.
+previous, factory, pending/trial if set, the running image, and
+*[#282 Codex P1, adopted]* every image currently backing a loop device
+(isolated root-switch or watchdog diagnostics), all protected before any
+oldest-first deletion; say when the failure is space; never touch `u-boot.txt` (Q12). Test: an older image attached to a
+loop device but otherwise stale survives pruning.
 
-After pairing, new cards ship without agent credentials (**Q7**).
+After pairing, new cards ship without agent or launcher credentials (Q7).
 
 ---
 
 ## 7. Open questions and sequencing
 
-Strawmen live in this file. A **Q** item is not a lock.
+Triage 2026-09-28 (Caster, with Foggy/Bob views and Deano's Q14).
+DECIDED items change only by editing this file.
 
-- **Q1.** Pairing crypto: PAKE, HMAC-of-code, or another. Review first.
-- **Q2.** Code length, alphabet, TTL, rate limit. Strawman 6–8 characters. Numbers unset.
-- **Q3.** UX: on-screen code, physical presence, or both. Foggy. Explicit-add stays.
-- **Q4.** Busy lease: next eligible candidate, or fail closed on the current bind?
-- **Q5.** Rebind release: lease API only, or an idle Stop? #270 P2-4 reprograms on that Stop.
-- **Q6.** Is `agent_file` worth a slice, or does the inline token stay?
-- **Q7.** After pairing, does `make media` default to unprovisioned, with opt-in bake?
-- **Q8.** Kit paired elsewhere: refuse, or local re-pair that rotates the token?
-- **Q9.** Where the host learns MAC: discovery TXT, authenticated health, or both.
-- **Q10.** Does pairing stop baking `launcher.json`? That token is not the agent token.
-- **Q11.** R-PERF budget: `GET /api/v1/games` p95 under N ms, two kits, one hung, timeout-bounded. N unset.
-- **Q12.** #278 keep-set: good, previous, factory only, or also any loop-mounted image?
-- **Q13.** Run HIL2 now on `.85` configs (workaround), or land #259 first and add C0-stale?
-- **Q14.** Until pairing ships, is "copy the card's token into a hand-written host row" the blessed interim path for new kits (as done for `kit2`)?
+| Q | Status | Decision | Why |
+| --- | --- | --- | --- |
+| Q1 | DECIDED | PAKE (CPace; SPAKE2 fallback). Tokens only inside the PAKE-keyed AEAD. | A ~30-bit code under HMAC is brute-forced offline in seconds from a sniffed transcript; a PAKE allows one online guess per try. |
+| Q2 | DECIDED | 6 chars 3+3, 31-symbol alphabet (no `0 O 1 I L`), 5 min TTL, 3 tries → new code + 30 s lockout, doubling to 10 min, per kit. | ~29.7 bits; ≤3 guesses per code. Backoff (Caster's addition to Foggy's numbers) caps a LAN attacker near 430 guesses/day, ~5·10⁻⁷ per day. |
+| Q3 | DECIDED | Code only; explicit-add under Advanced. | A code on the TV already proves presence; pad combos are undiscoverable and clash with games. |
+| Q4 | DECIDED | Fail closed; offer the other machine as an explicit choice. | A silent move puts the picture on a TV nobody is watching. |
+| Q5 | DECIDED | Release via the lease API (#281), never an idle Stop. | Stop reprograms a menu kit (#270 P2-4): visible HDMI blip. |
+| Q6 | DECIDED | No `agent_file`; token stays inline in the owner-only config. | One secret file, one private writer; indirection adds a second file to protect. |
+| Q7 | DECIDED | Yes: `make media` defaults to unprovisioned once pairing ships; baking is opt-in. | Stops new cards inheriting a host token. |
+| Q8 | DECIDED | Refuse; move via local "Pair with a different computer" ("This disconnects it from {old host}. Continue?"), which rotates the token. | Ownership changes need someone at the machine. |
+| Q9 | DECIDED | Both: MAC tail in TXT for labels; full MAC and CID state in authenticated health. | Unpaired label needs it pre-auth; clone checks need trusted data. |
+| Q10 | DECIDED | One pairing provisions agent and per-kit launcher tokens (P4b; listener P4a). | Kit B's "Offline" came from the second token. |
+| Q11 | DECIDED | `GET /api/v1/games` p95 ≤ 300 ms warm with 2 kits; ≤ 1 s with one hung kit (per-kit read timeout 500 ms, snapshot TTL); cached list shown at once. | Foggy's sofa target: full list within about a second. |
+| Q12 | DECIDED | Keep good, previous, factory, pending/trial, the running image, and every loop-backed image; delete others oldest-first only as staging needs. | Never delete anything boot or rollback can reach. |
+| Q13 | DECIDED (moot) | HIL2 ran GREEN on `.85` configs; #259 stays slice L1 with optional C0-stale. | Done. |
+| Q14 | DECIDED (Deano) | Interim onboarding: a host `[[targets]]` row with the card's **own** token via the settings UI or PATCH, not hand-edited TOML. Never clone tokens across cards; never log them. | Uses the private write path and redaction until pairing lands. |
+| Q15 | LOCKED (Deano, 2026-09-28) | Never add a machine without its pairing code, including the first kit on a new computer; explicit-add is address plus code. | No silent trust on the LAN. |
+| Q16 | LOCKED (Deano, 2026-09-28) | One computer per machine; no multi-host pairing. | One owner per kit; moving is the Q8 local re-pair. |
+| Q17 | LOCKED (Deano, 2026-09-28) | "Always play here" is household-wide: the single host `display_preference`. | Matches today's config; no per-seat state. |
+
+No questions are open.
 
 ### Sequence
 
@@ -410,8 +646,9 @@ and the first-boot script land before P-pair. #278 does not block HIL2.
 
 | When | What | Does not include |
 | --- | --- | --- |
-| Week 0 | #259 PR in parallel with HIL2 prep; HIL2 per **Q13**. | Pairing. A default flip. |
-| Next week | Pairing review with Foggy (Q1–Q3, Q8, §2.7 copy). | Enrollment code. |
-| Following two weeks | Kit first-boot token, then host pairing. P-pair on a scratch config. | `placement` default on. |
-| Next | §4 in order, one PR each. File the rebind issue first. | Ensure default. |
-| After the gates | Review. Flip a default only in a follow-up that shows every gate green, plus an ensure HIL. | A silent switch. |
+| Done | HIL2 GREEN (picture only, diagnostic until kit B is designated); #281 filed. | C1-pad; Slice 6 acceptance. |
+| Week 0–1 | L1 #259 (in progress) and R1 #281; Foggy review of this copy. | A default flip. |
+| Done | P4a multi-kit launcher listener (#287); kit B bearer migration (§4) pending. | Pairing. |
+| Weeks 1–3 | P1 → P2 → P3/P4b (in parallel); IMG-2/IMG-3 alongside P1. | `placement` default on. |
+| Week 3–4 | P-pair HIL with Deano (incl. deferred C1-pad). | Ensure default. |
+| Then | L2–L6 in order; gates review; flip a default only in a follow-up showing every gate green, plus an ensure HIL. | A silent switch. |
