@@ -1401,6 +1401,10 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
 with a living-room platform wheel and a live catalog browse renderer.
+At startup the renderer reads the effective `eth0` MAC address and paints it
+at the right of the header on every menu view, including the offline shelf.
+This identifies the physical kit without relying on the host catalog or a
+name copied with the card image.
 `fogcast-kit` writes a last-good catalog snapshot and cover blobs under
 `/media/fat/fogcast/launcher-cache/` (beside `launcher.json`, separate from the
 ROM cache). Catalog publish stays atomic (`catalog.json` temp+rename); a host
