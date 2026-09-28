@@ -47,7 +47,7 @@ SHARED_RTL = {
     'fes_application_gp.v': ('demo', 'coleco', 'menu'),
     'fes_video_720p.v': ('demo', 'pong'),
     'fes_audio_i2s.v': ('demo', 'coleco', 'sg1000', 'apple2'),
-    'fes_audio_pll.v': ('demo', 'sg1000'),
+    'fes_audio_pll.v': ('demo',),
     'fes_audio_output.v': ('coleco', 'sg1000', 'apple2'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_computer_mailbox.v': ('apple2',),
