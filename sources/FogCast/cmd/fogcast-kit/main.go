@@ -200,6 +200,18 @@ func run() error {
 	defer cancel()
 	client := kitlauncher.NewClient(c)
 	client.SetMenuDisplay(activeMenuDisplay)
+	if activeMenuDisplay {
+		client.SetMenuDisplayHandoff(func(ctx context.Context) error {
+			if menu, ok := d.(*gfx.MenuDisplay); ok {
+				return menu.Pause(ctx)
+			}
+			return nil
+		}, func() {
+			if menu, ok := d.(*gfx.MenuDisplay); ok {
+				menu.Resume()
+			}
+		})
+	}
 	client.SetLocalInput(localInputConfig())
 	covers := shared.NewCoverCache()
 	stills := shared.NewStillCache()

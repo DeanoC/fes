@@ -118,6 +118,8 @@ func validLauncherToken(token string) bool {
 type Client struct {
 	config      Config
 	menuDisplay bool
+	menuPause   func(context.Context) error
+	menuResume  func()
 	HTTP        *http.Client
 	Library     *hostclient.Client
 	Cache       *DiskStore
@@ -131,6 +133,13 @@ type Client struct {
 	// localDial, when set, replaces net.DialTimeout for the local socket.
 	// Tests count failed dials. Production leaves it nil.
 	localDial func(network, address string, timeout time.Duration) (net.Conn, error)
+}
+
+// SetMenuDisplayHandoff coordinates asynchronous menu commits with session
+// mutations. The kit entrypoint supplies the local display's pause/resume pair.
+func (c *Client) SetMenuDisplayHandoff(pause func(context.Context) error, resume func()) {
+	c.menuPause = pause
+	c.menuResume = resume
 }
 
 // SetLocalInput installs the kit-local play path. socketPath is the agent

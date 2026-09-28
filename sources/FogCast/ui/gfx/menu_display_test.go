@@ -11,13 +11,14 @@ import (
 )
 
 type testMenuClient struct {
-	mu         sync.Mutex
-	generation uint64
-	pixels     []byte
-	calls      int
-	fail       bool
-	ready      chan struct{}
-	statusSeen chan uint64
+	mu           sync.Mutex
+	generation   uint64
+	pixels       []byte
+	calls        int
+	fail         bool
+	ready        chan struct{}
+	statusSeen   chan uint64
+	presentBlock <-chan struct{}
 }
 
 func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
@@ -42,10 +43,65 @@ func (c *testMenuClient) Present(_ context.Context, generation uint64, pixels []
 	case c.ready <- struct{}{}:
 	default:
 	}
+	if c.presentBlock != nil {
+		<-c.presentBlock
+	}
 	if fail {
 		return menudisplay.Result{}, errors.New("stale menu")
 	}
 	return menudisplay.Result{Generation: generation, DisplayedSequence: uint64(c.calls)}, nil
+}
+
+func TestMenuDisplayPauseDrainsInflightAndDropsQueuedFrames(t *testing.T) {
+	block := make(chan struct{})
+	client := &testMenuClient{generation: 3, ready: make(chan struct{}, 3), presentBlock: block}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.Present()
+	select {
+	case <-client.ready:
+	case <-time.After(time.Second):
+		t.Fatal("first frame did not begin")
+	}
+	d.Present() // A queued idle frame must not cross the launch boundary.
+	paused := make(chan error, 1)
+	go func() { paused <- d.Pause(context.Background()) }()
+	select {
+	case err := <-paused:
+		t.Fatalf("pause returned with a commit in flight: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(block)
+	select {
+	case err := <-paused:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("pause did not drain the commit")
+	}
+	d.Present() // Paused submissions are discarded as well.
+	select {
+	case <-client.ready:
+		t.Fatal("menu frame committed while paused")
+	case <-time.After(30 * time.Millisecond):
+	}
+	d.Resume()
+	d.Present()
+	select {
+	case <-client.ready:
+	case <-time.After(time.Second):
+		t.Fatal("menu did not resume")
+	}
+	client.mu.Lock()
+	calls := client.calls
+	client.mu.Unlock()
+	if calls != 2 {
+		t.Fatalf("commits=%d, want one before and one after pause", calls)
+	}
 }
 
 func TestMenuDisplayRendersAndRetriesAfterFailure(t *testing.T) {

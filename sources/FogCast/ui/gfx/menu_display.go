@@ -31,6 +31,8 @@ type MenuDisplay struct {
 	done       chan struct{}
 	mu         sync.Mutex
 	closed     bool
+	paused     bool
+	flight     chan struct{}
 	lastErr    error
 	generation uint64
 	known      bool
@@ -70,8 +72,12 @@ func (d *MenuDisplay) Present() {
 		d.mu.Unlock()
 		return
 	}
+	if d.paused {
+		d.mu.Unlock()
+		return
+	}
 	frame := queuedMenuFrame{pixels: append([]byte(nil), d.Software.Framebuffer().Pix...), generation: d.generation, known: d.known}
-	d.mu.Unlock()
+	defer d.mu.Unlock()
 	select {
 	case d.frames <- frame:
 		return
@@ -87,6 +93,41 @@ func (d *MenuDisplay) Present() {
 	}
 }
 
+// Pause prevents new submissions, discards queued frames and waits for the
+// current runtime transaction to finish before a game mutation begins.
+func (d *MenuDisplay) Pause(ctx context.Context) error {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	d.paused = true
+	select {
+	case <-d.frames:
+	default:
+	}
+	flight := d.flight
+	d.mu.Unlock()
+	if flight == nil {
+		return nil
+	}
+	select {
+	case <-flight:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Resume allows fresh idle frames after the mutation has completed.
+func (d *MenuDisplay) Resume() {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	d.paused = false
+	d.mu.Unlock()
+}
+
 func (d *MenuDisplay) run() {
 	defer close(d.done)
 	for {
@@ -94,6 +135,14 @@ func (d *MenuDisplay) run() {
 		case <-d.ctx.Done():
 			return
 		case frame := <-d.frames:
+			d.mu.Lock()
+			if d.paused {
+				d.mu.Unlock()
+				continue
+			}
+			flight := make(chan struct{})
+			d.flight = flight
+			d.mu.Unlock()
 			status, err := d.client.Status(d.ctx)
 			if err == nil {
 				d.mu.Lock()
@@ -112,6 +161,8 @@ func (d *MenuDisplay) run() {
 			}
 			d.mu.Lock()
 			d.lastErr = err
+			d.flight = nil
+			close(flight)
 			d.mu.Unlock()
 		}
 	}

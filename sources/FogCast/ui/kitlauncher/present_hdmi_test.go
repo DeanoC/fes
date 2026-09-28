@@ -72,7 +72,9 @@ func TestRunMenuDisplayPaintsIdleWithoutFramebuffer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	var paints atomic.Int64
-	err := Run(ctx, NewClient(Config{API: server.URL, MenuDisplay: true}), func(m Model) {
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.SetMenuDisplayHandoff(func(context.Context) error { return nil }, func() {})
+	err := Run(ctx, client, func(m Model) {
 		if m.Session.State == "idle" && !m.Session.HPSFramebuffer {
 			paints.Add(1)
 		}
