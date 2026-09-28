@@ -21,6 +21,8 @@ var lowerRevision = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 func packageCoreName(coreID string) (string, error) {
 	switch coreID {
+	case "fes.menu":
+		return "menu", nil
 	case "fes.pong":
 		return "pong", nil
 	case "fes.zx81":

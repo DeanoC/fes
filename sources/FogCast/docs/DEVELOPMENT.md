@@ -98,12 +98,15 @@ chips or persistent saves.
 ### FES format-2 image package set
 
 FES may select one or more sealed packages from the supported format-2 core IDs
-`fes.pong`, `fes.zx81`, and `fes.coleco`. The ordered, comma-separated package
+`fes.menu`, `fes.pong`, `fes.zx81`, and `fes.coleco`. `fes.menu` is idle display
+firmware, not a playable catalog entry. The ordered, comma-separated package
 set and each selected core's trusted absolute inputs are passed to image fetch,
 build, and verification:
 
 ```sh
-export FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco
+export FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco
+export FES_MENU_PACKAGE_DIR=/absolute/path/to/<menu-package-id>
+export FES_MENU_PACKAGE_SELECTION=/absolute/path/to/fes-menu.package-selection.toml
 export FES_PONG_PACKAGE_DIR=/absolute/path/to/<pong-package-id>
 export FES_PONG_PACKAGE_SELECTION=/absolute/path/to/fes-pong.package-selection.toml
 export FES_ZX81_PACKAGE_DIR=/absolute/path/to/<zx81-package-id>
@@ -126,6 +129,7 @@ The canonical per-core names and build-input prefixes are:
 
 | core ID | external selection | installed selection | input prefix |
 | --- | --- | --- | --- |
+| `fes.menu` | `fes-menu.package-selection.toml` | `fes-menu.package.toml` | `fes_menu` |
 | `fes.pong` | `fes-pong.package-selection.toml` | `fes-pong.package.toml` | `fes_pong` |
 | `fes.zx81` | `fes-zx81.package-selection.toml` | `fes-zx81.package.toml` | `fes_zx81` |
 | `fes.coleco` | `fes-coleco.package-selection.toml` | `fes-coleco.package.toml` | `fes_coleco` |
