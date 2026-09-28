@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test control-and-data locality](validation/2026-09-28-ramtest-ready-locality.md) | Quartus also clusters data generators and upstream state. Two legal, restored group translations worsen placement predictions through remaining feedback/control boundaries; neither routed or stacked. Host-only. |
 | [RAM-test existing enable-replica reuse](validation/2026-09-28-ramtest-ready-reuse.md) | One ENA reassignment gains 880 ps at the target; memory 117.87 MHz trades against pixel 74.69 MHz and control regressions. Kept separately, not stacked. Host-only. |
 | [RAM-test relaxed ready routing and Quartus locality](validation/2026-09-28-ramtest-ready-relaxed.md) | Occupancy-relaxed minimum remains 3602 ps. Quartus clusters both control banks near the HPS output; no gain adopted. Host-only. |
 | [RAM-test exact ready shortest path](validation/2026-09-28-ramtest-ready-shortest.md) | Certified fixed-occupancy minimum equals the retained 3602 ps ready1 route. No gain; corrected stack stays 116.92 MHz. Host-only. |
