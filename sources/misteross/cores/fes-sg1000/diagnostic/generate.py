@@ -15,7 +15,7 @@ import hashlib
 from pathlib import Path
 
 
-def cartridge(controllers: bool = False) -> bytes:
+def cartridge(controllers: bool = False, sound: bool = False) -> bytes:
     code = bytearray()
     tables: list[tuple[int, bytes]] = []
 
@@ -79,6 +79,11 @@ def cartridge(controllers: bool = False) -> bytes:
     emit(0x3E, 0xA5, 0x32, 0x00, 0xC0)  # LD A,A5; LD (C000),A
     if not dynamic:
         emit(0xDB, 0xDC, 0x32, 0x01, 0xC0)  # IN A,(DC); LD (C001),A
+        if sound:
+            # SN76489 tone 0: 3,579,545 / (32 * 256) ~= 437 Hz.
+            # Moderate volume makes this a steady, easy-to-identify test tone.
+            for value in (0x80, 0x10, 0x94):
+                out(0x40, value)
         emit(0x76, 0x18, 0xFD)  # HALT; JR back
     else:
         emit(0xAF, 0x32, 0x01, 0xC0, 0x32, 0x02, 0xC0)
@@ -151,8 +156,11 @@ def main() -> None:
     parser.add_argument("--preview", type=Path, help="optional expected 1280x720 PPM")
     parser.add_argument("--pad-to", type=int, help="pad with FF to this raw size, at most 16384")
     parser.add_argument("--hex-output", type=Path, help="optional Verilog byte memory file")
-    parser.add_argument("--controllers", action="store_true",
-                        help="poll and display raw SG-1000 DC/DD controller ports")
+    diagnostic = parser.add_mutually_exclusive_group()
+    diagnostic.add_argument("--controllers", action="store_true",
+                            help="poll and display raw SG-1000 DC/DD controller ports")
+    diagnostic.add_argument("--sound", action="store_true",
+                            help="emit a steady PSG tone with the Graphics I display")
     def matrix_value(value: str) -> int:
         try:
             return int(value, 0)
@@ -167,7 +175,7 @@ def main() -> None:
         parser.error("--matrix must fit 40 bits")
     if not args.controllers and args.matrix != 0xFFFFFFFFFF:
         parser.error("--matrix requires --controllers")
-    data = cartridge(args.controllers)
+    data = cartridge(args.controllers, args.sound)
     if args.pad_to is not None:
         if not len(data) <= args.pad_to <= 16384:
             parser.error(f"--pad-to must be {len(data)}..16384")

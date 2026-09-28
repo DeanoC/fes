@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import copy
 import tomllib
 import subprocess
 import sys
@@ -32,6 +33,8 @@ from scripts.build_fes_sg1000_oss import (
     _manifest as _oss_manifest,
 )
 from scripts.lockfile import load_lock
+from scripts import build_fes_sg1000_oss
+from scripts.fes_build_common import BuildError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,10 +183,51 @@ class BuildFesSg1000Tests(unittest.TestCase):
         }
         manifest = tomllib.loads(_oss_manifest(record, evidence, "https://example.invalid", "a" * 40, {"yosys": "test"}).decode())
         self.assertEqual(manifest["format"], 3)
-        self.assertEqual(manifest["core"]["version"], "1.1.0")
+        self.assertEqual(manifest["core"]["version"], "1.2.0")
         self.assertEqual(manifest["rom"]["source_size"], 16384)
         self.assertEqual({item["id"] for item in manifest["interfaces"]},
-                         {"fes.keyboard", "fes.video.fixed-720p60"})
+                         {"fes.keyboard", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"})
+
+    def test_both_sg1000_recipes_include_audio_sources_and_pins(self) -> None:
+        for source in ("fes_sn76489.sv", "fes_audio_pll.v", "fes_audio_output.v", "fes_audio_i2s.v"):
+            self.assertTrue(any(item.endswith(source) for item in OSS_RTL_SOURCES), source)
+            self.assertTrue(any(item.endswith(source) for item in (*VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES)), source)
+        for qsf in (build_fes_sg1000_oss.QSF, "cores/fes-sg1000/constraints.qsf"):
+            contents = (ROOT / qsf).read_text()
+            for port, pin in {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
+                              "HDMI_LRCLK": "PIN_T11", "HDMI_I2S": "PIN_T13"}.items():
+                self.assertIn(f"set_location_assignment {pin} -to {port}", contents)
+                self.assertIn(f'set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to {port}', contents)
+
+    def test_oss_audio_evidence_rejects_bad_pll_and_pads(self) -> None:
+        pins = {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
+                "HDMI_LRCLK": "PIN_T11", "HDMI_I2S": "PIN_T13"}
+        cells = {"audio_clock.pll": {"type": "altera_pll", "parameters": {
+            "output_clock_frequency0": "12.288 MHz", "reference_clock_frequency": "50.0 MHz"}}}
+        ports = {}
+        for index, (port, pin) in enumerate(pins.items()):
+            ports[port] = {"direction": "output", "bits": [index]}
+            cells[port] = {"type": "MISTRAL_OB", "connections": {"PAD": [index], "I": [index + 10]},
+                           "attributes": {"LOC": pin, "IO_STANDARD": "3.3-V LVTTL", "NEXTPNR_BEL": "MISTRAL_IO.1"}}
+        design = {"modules": {"top": {"ports": ports, "cells": cells}}}
+        build_fes_sg1000_oss._audio_evidence(design)
+        for mutate in (
+            lambda d: d["modules"]["top"]["cells"].pop("audio_clock.pll"),
+            lambda d: d["modules"]["top"]["cells"]["HDMI_I2S"]["connections"].update({"I": ["0"]}),
+            lambda d: d["modules"]["top"]["cells"]["HDMI_LRCLK"]["attributes"].update({"LOC": "PIN_BAD"}),
+            lambda d: d["modules"]["top"]["ports"].pop("HDMI_SCLK"),
+        ):
+            wrong = copy.deepcopy(design)
+            mutate(wrong)
+            with self.assertRaises(BuildError):
+                build_fes_sg1000_oss._audio_evidence(wrong)
+
+    def test_oss_audio_timing_rejects_missing_or_failing_domain(self) -> None:
+        good = {"audio_clock": {"constraint": 12.288, "achieved": 13.0}}
+        self.assertEqual(build_fes_sg1000_oss._audio_timing(good)[2], 13.0)
+        for fmax in ({}, {"audio_clock": {"constraint": 12.288, "achieved": 12.287}}):
+            with self.assertRaises(BuildError):
+                build_fes_sg1000_oss._audio_timing(fmax)
 
     def test_quartus_project_reuses_coleco_sibling_modules(self) -> None:
         qsf = project_qsf(ROOT, ROOT / QUARTUS_OUTPUT / "project", "00112233445566778899aabbccddeeff")
@@ -291,6 +335,21 @@ class BuildFesSg1000Tests(unittest.TestCase):
             self.assertEqual(hex_output.read_text().splitlines(), [f"{byte:02x}" for byte in padded.read_bytes()])
             self.assertTrue(preview.is_file())
             self.assertGreater(preview.stat().st_size, 1000)
+
+    def test_sound_diagnostic_writes_psg_and_is_exact_cartridge_size(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "sound-16k.rom"
+            result = subprocess.run(
+                [sys.executable, str(GENERATOR), "--sound", "--pad-to", "16384",
+                 "--output", str(output)], cwd=ROOT, text=True, capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            data = output.read_bytes()
+            self.assertEqual(len(data), 16384)
+            # Tone 0 divider = 0x100, volume = loudest. The two OUTs use the
+            # same PSG port and the program retains the RAM/video signature.
+            self.assertIn(bytes.fromhex("3e80d3403e10d3403e94d340"), data)
+            self.assertIn(b"\x32\x00\xc0", data)
 
 
 if __name__ == "__main__":

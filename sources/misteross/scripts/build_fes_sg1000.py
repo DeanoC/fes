@@ -41,6 +41,9 @@ SDC = "cores/fes-sg1000/clocks.sdc"
 VERILOG_SOURCES = (
     "cores/fes-common/rtl/sys_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
+    "cores/fes-common/rtl/fes_audio_pll.v",
+    "cores/fes-common/rtl/fes_audio_i2s.v",
+    "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_computer_gp.v",
     "cores/fes-common/rtl/coleco_dpram.v",
     "cores/fes-common/rtl/coleco_video_dpram.v",
@@ -55,6 +58,7 @@ VERILOG_SOURCES = (
 )
 SYSTEMVERILOG_SOURCES = (
     "cores/fes-sg1000/rtl/sg1000_machine.sv",
+    "cores/fes-common/rtl/fes_sn76489.sv",
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
@@ -298,7 +302,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "id": "fes.sg1000",
             "name": "FES SG-1000",
             "description": "Quartus bring-up SG-1000 computer for the FES simple-computer ABI",
-            "version": "1.0.0",
+            "version": "1.2.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -311,6 +315,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": build_identity(record),

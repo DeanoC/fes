@@ -741,10 +741,12 @@ I, Graphics II, Text and Multicolor on a fixed 256×192 logical raster. Text
 suppresses sprites, Multicolor keeps them active, and unsupported selectors
 render the backdrop. Its 256×262 logical raster shares Coleco's nominal 60 Hz
 fractional enable. It also reuses the dual-port RAM wrappers,
-the `fes.simple-computer` mailbox, both PLL wrappers and the 720p HDMI shell.
+the `fes.simple-computer` mailbox, system/video PLLs and the 720p HDMI shell.
 The SG-1000-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 1 KiB
-RAM at `0xc000`) and the 8255 joystick ports `0xdc`/`0xdd`. There is no BIOS
-shim.
+RAM at `0xc000`), the 8255 joystick ports `0xdc`/`0xdd`, and PSG write decode at
+`0x40–0x7f`. Coleco's SN76489-compatible PSG is driven by a fractional
+3,579,545 Hz enable. Its signed mono sample feeds both channels of the shared
+PCM-to-I2S output, with a separate 12.288 MHz audio PLL. There is no BIOS shim.
 
 `make sim-fes-sg1000` is the diagnostic Verilator machine check
 (`-DTV80_REFRESH=1` only). `make sim-fes-sg1000-oss` compiles the same
@@ -765,8 +767,13 @@ and timing evidence without sealing.
 Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`,
 `FES_SG1000_ROM_LINK=1`, and `FES_COLECO_OSS=1`. The product RBF contains a
 blank 16-lane M10K cartridge, and the format-3 package carries a validated
-`rom-map.json` and exact 16 KiB `cartridge-rom` requirement. Reset is not
-held for an application media upload.
+`rom-map.json`, exact 16 KiB `cartridge-rom` requirement and required
+`fes.audio.pcm-s16-stereo-48k` 1.0. The ROM-linked build reports GP mask
+`0x13` (keyboard, video, audio), with no media-blob bit. The producer checks
+three PLLs, four routed 3.3 V I2S outputs and passing system, pixel and audio
+timing domains before sealing version 1.2.0. Reset is not held for an
+application media upload. The open `sound-16k.rom` diagnostic emits a steady
+tone alongside the Graphics I display for a later leased kit check.
 `--synth-only` runs Yosys without a clean tree and does not seal. HIP
 `--router gpu` of that synth-only netlist (BUILD_ID all zeros, seed 4) met
 the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. A sealed

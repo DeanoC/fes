@@ -883,6 +883,8 @@ sg1000-diagnostic:
 		--preview build/diagnostics/fes-sg1000/controller.ppm
 	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --controllers --pad-to 16384 \
 		--output build/diagnostics/fes-sg1000/controller-16k.rom
+	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --sound --pad-to 16384 \
+		--output build/diagnostics/fes-sg1000/sound-16k.rom
 
 sim-fes-sg1000: sg1000-diagnostic
 	$(require_local_sim)
