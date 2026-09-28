@@ -60,7 +60,8 @@ Error MenuFrame::ReadOnlyData(const unsigned char** output) const
  if(!output)return Invalid("missing staging mapping output");
  Error error=ValidateImmutable(fd_);if(!error.ok())return error;
  if(!mapping_){
-  void* mapped=mmap(nullptr,kFrameBytes,PROT_READ,MAP_SHARED,fd_,0);
+  // F_SEAL_WRITE forbids even a read-only shared mapping on the kit kernel.
+  void* mapped=mmap(nullptr,kFrameBytes,PROT_READ,MAP_PRIVATE,fd_,0);
   if(mapped==MAP_FAILED)return Io("map immutable menu staging");
   mapping_=mapped;
  }

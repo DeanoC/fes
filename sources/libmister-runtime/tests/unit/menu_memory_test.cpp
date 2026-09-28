@@ -37,6 +37,9 @@ int main(){
  rgba[3686396]=0x44;rgba[3686397]=0x55;rgba[3686398]=0x66;rgba[3686399]=255;
  assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)<0);
  assert(munmap(rgba,3686400)==0);assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ const unsigned char* sealed_pixels=nullptr;
+ assert(frame->ReadOnlyData(&sealed_pixels).ok());
+ assert(sealed_pixels[0]==0x11&&sealed_pixels[3686399]==255);
  assert(frame->ValidateImmutable(frame->fd()).ok());std::unique_ptr<MenuFrame> other;assert(MenuFrame::Create(&other).ok());assert(!frame->ValidateImmutable(other->fd()).ok());
  Operations ops;
  { MenuMemory memory(ops);assert(memory.InitializeBlack().ok());assert(ops.maps==1&&ops.barrier);
