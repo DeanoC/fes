@@ -837,7 +837,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (descriptor.abi.minor > FesApplicationABIMinor || !descriptor.core.system.empty())
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"unsupported FES application ABI or system declaration");
-		bool video = false, blob = false, stream = false;
+		bool video = false, blob = false, stream = false, menu = false, ddr = false;
 		bool gamepad = false, ports = false, keypad = false;
 		for (const auto& interface : descriptor.interfaces) {
 			const bool firmware = interface.id == FesApplicationInterfaceFirmwareBlobID;
@@ -849,6 +849,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesApplicationInterfaceMediaBlobStreamID ||
 				interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID ||
 				interface.id == FesApplicationInterfaceMemoryHpsDdrID ||
+				interface.id == FesApplicationInterfaceVideoMenuDisplayID ||
 				firmware;
 			const bool supported = known && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)
@@ -860,12 +861,17 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 					"application operational interfaces must be required when declared");
 			if (interface.id == FesApplicationInterfaceVideoFixed720p60ID)
 				video = interface.required;
+			if (interface.id == FesApplicationInterfaceMemoryHpsDdrID) ddr = true;
+			if (interface.id == FesApplicationInterfaceVideoMenuDisplayID) menu = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobID) blob = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobStreamID) stream = true;
 			if (interface.id == FesApplicationInterfaceGamepadID) gamepad = true;
 			if (interface.id == FesApplicationInterfaceGamepadPortsID) ports = true;
 			if (interface.id == FesApplicationInterfaceKeypadPortsID) keypad = true;
 		}
+		if (menu && (!ddr || descriptor.interfaces.size() != 3))
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"menu display requires exactly fixed video, HPS DDR and menu display");
 		if ((gamepad && ports) || (keypad && !ports))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"controller ports exclude single gamepad and keypad requires ports");

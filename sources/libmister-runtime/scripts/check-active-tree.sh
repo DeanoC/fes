@@ -85,6 +85,8 @@ hardware.o
 i2c.o
 input.o
 linux_input.o
+menu_display.o
+menu_memory.o
 mmio.o
 production_hardware.o
 runtime.o

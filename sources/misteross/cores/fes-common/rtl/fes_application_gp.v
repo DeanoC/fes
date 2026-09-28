@@ -11,7 +11,8 @@ module fes_application_gp #(
     parameter bit ENABLE_AUDIO = 0,
     parameter bit ENABLE_FIRMWARE = 0,
     // The core drives the fes.memory.hps-ddr port layout (fes_hps_ddr).
-    parameter bit ENABLE_HPS_DDR = 0
+    parameter bit ENABLE_HPS_DDR = 0,
+    parameter bit ENABLE_MENU = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -32,7 +33,13 @@ module fes_application_gp #(
     output wire [12:0]  firmware_write_addr,
     output wire [15:0]  firmware_write_data,
     output wire [1:0]   firmware_write_enable,
-    output reg          firmware_ready
+    output reg          firmware_ready,
+    output reg          menu_request = 1'b0,
+    output reg [6:0]    menu_opcode = 7'd0,
+    output reg [7:0]    menu_index = 8'd0,
+    output reg [15:0]   menu_argument = 16'd0,
+    input wire          menu_response_valid, menu_response_error, menu_quiesced,
+    input wire [15:0]   menu_response_data
 );
     localparam integer MEDIA_AW = ENABLE_MEDIA_STREAM ? 15 : 14;
     localparam [31:0] CAPABILITIES =
@@ -44,7 +51,8 @@ module fes_application_gp #(
         (ENABLE_MEDIA_STREAM ? `FES_APPLICATION_INTERFACE_MEDIA_BLOB_STREAM_CAPABILITY_MASK : 32'd0) |
         (ENABLE_AUDIO ? `FES_APPLICATION_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'd0) |
         (ENABLE_FIRMWARE ? `FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_CAPABILITY_MASK : 32'd0) |
-        (ENABLE_HPS_DDR ? `FES_APPLICATION_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK : 32'd0);
+        (ENABLE_HPS_DDR ? `FES_APPLICATION_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_MENU ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_DISPLAY_CAPABILITY_MASK : 32'd0);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_APPLICATION_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_APPLICATION_IDENTITY_MAGIC1_INDEX;
     localparam [31:0] ID_TRANSPORT_MAJOR_INDEX = `FES_APPLICATION_IDENTITY_TRANSPORT_MAJOR_INDEX;
@@ -299,12 +307,34 @@ module fes_application_gp #(
         request_meta <= request_toggle;
         request_sync <= request_meta;
 
-        if (request_sync != acknowledged_toggle) begin
+        if (ENABLE_MENU && menu_request) begin
+            if (menu_response_valid) begin
+                acknowledged_toggle <= request_sync;
+                response_error <= menu_response_error;
+                response_data <= menu_response_data;
+                menu_request <= 1'b0;
+            end
+        end else if (request_sync != acknowledged_toggle) begin
             acknowledged_toggle <= request_sync;
             response_error <= 1'b0;
             response_data <= 16'h0000;
 
             case (command_opcode)
+                `FES_APPLICATION_OPCODE_MENU_INFO,
+                `FES_APPLICATION_OPCODE_MENU_CONFIGURE,
+                `FES_APPLICATION_OPCODE_MENU_CONTROL,
+                `FES_APPLICATION_OPCODE_MENU_SUBMIT: begin
+                    if (!ENABLE_MENU)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
+                    else begin
+                        // Keep the old ACK until the menu finishes this request.
+                        acknowledged_toggle <= acknowledged_toggle;
+                        menu_request <= 1'b1;
+                        menu_opcode <= command_opcode[6:0];
+                        menu_index <= command_index[7:0];
+                        menu_argument <= command_argument[15:0];
+                    end
+                end
                 `FES_APPLICATION_OPCODE_IDENTITY: begin
                     if (command_index >= `FES_APPLICATION_IDENTITY_WORD_COUNT)
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
@@ -317,7 +347,9 @@ module fes_application_gp #(
                     if (command_index != `FES_APPLICATION_CONTROL_INDEX)
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
                     else if (command_argument == `FES_APPLICATION_EXECUTION_HOLD_RESET) begin
-                        exec_reset <= 1'b1;
+                        if (ENABLE_MENU && !menu_quiesced)
+                            reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
+                        else exec_reset <= 1'b1;
                         // HOLD preserves staged media; BEGIN replaces it.
                         buttons <= 8'd0;
                         controller_buttons <= 16'd0;

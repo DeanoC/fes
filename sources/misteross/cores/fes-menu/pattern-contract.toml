@@ -1,0 +1,14 @@
+[diagnostic]
+mode = 'test-pattern'
+play_package = false
+ddr = false
+hps_gp = false
+pattern_slot_frames = 60
+
+[video]
+width = 1280
+height = 720
+pixel_clock_hz = 74250000
+pixel_format = 'XRGB8888'
+h_total = 1650
+v_total = 750

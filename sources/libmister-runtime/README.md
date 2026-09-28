@@ -17,7 +17,13 @@ ports stay in reset unless the package requires `fes.memory.hps-ddr` 1.0,
 the boot core latched the shared layout, and the package's verified identity
 and live SDR mirrors match that layout. The
 runtime contains no Main launcher, conventional game profiles, MiSTer SPI
-driver, or framebuffer.
+driver, or general framebuffer service.
+
+Menu-display GP, immutable staging and reserved-memory primitives have host
+test coverage. Explicit idle-menu activation and generation-bound presentation
+use the existing local socket with immutable descriptor transfer.
+Default startup remains splash. An explicitly configured menu returns after
+Stop with a fresh presentation generation.
 
 Package admission retains validated artifacts before mutation. Activation
 verifies live ABI/build identity before input or media controls. Initialized
@@ -34,6 +40,7 @@ records a retired path and does not validate the current package artifacts.
 
 Build and validate with `make all` and `make test`. See
 [architecture](ARCHITECTURE.md), [support matrix](docs/support-matrix.md),
+[menu presentation](docs/menu-display.md),
 [development](DEVELOPMENT.md), [application I/O](docs/application-io.md),
 [home-computer I/O](docs/computer-io.md), [stream media](docs/media-stream.md), and
 [core persistence](docs/core-persistence.md).

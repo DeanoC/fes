@@ -999,9 +999,30 @@ void TestComputerResponseFixtures()
 	assert(lines[6].find("\"media_units\"") == std::string::npos);
 }
 
+void TestMenuProtocolRequestsAndStatus()
+{
+ mister::daemon::json::Value deep;std::string message;
+ const std::string nested=R"({"a":{"b":{"c":{"d":{"e":1}}}}})";
+ assert(!mister::daemon::json::Parse(nested,&deep,&message));
+ assert(mister::daemon::json::ParseResponse(nested,&deep,&message));
+
+ mister::Status status;status.menu_display.available=true;status.menu_display.generation=2;status.menu_display.displayed_sequence=9;
+ mister::daemon::MenuFrameReply reply;reply.generation=1;reply.displayed_sequence=3;
+ const auto response=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
+ assert(response.find("\"menu_frame\":{\"generation\":1")!=std::string::npos);
+ assert(response.find("\"displayed_sequence\":3")!=std::string::npos);
+
+ Request request;
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":18446744073709551615,"byte_count":3686400})",&request).ok());
+ assert(request.expected_generation==UINT64_MAX);
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400})",&request).ok());
+ for(const auto& line:{R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":0,"byte_count":3686400})",R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686401})",R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,"address":805306368})"})assert(!Parse(line,&request).ok());
+}
+
 int main(int argc, char** argv)
 {
  TestRetiredProtocolRejected();
+ TestMenuProtocolRequestsAndStatus();
 	if (argc == 2 && std::string(argv[1]) == "--emit-application-fixtures") {
 		for (const auto& line : ApplicationResponseFixtures()) std::cout << line << '\n';
 		return 0;
@@ -1045,5 +1066,5 @@ int main(int argc, char** argv)
 	TestSyntaxAndShapeFailures();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 24 tests passed\n";
+	std::cout << "protocol_test: 25 tests passed\n";
 }

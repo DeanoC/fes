@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include <chrono>
+#include <fcntl.h>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -1187,8 +1188,71 @@ void TestComputerMediaUnitsStayLiveAndReportUnitState()
 	assert(game.hardware.insert_media_calls == 0);
 }
 
+void TestMenuGenerationAndPreparationFencing()
+{
+ Fixture f;const std::string id(64,'a');
+ assert(f.runtime.Start().ok());assert(!f.runtime.status().menu_display.available);
+ assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+ const auto menu=f.runtime.status().menu_display;
+ assert(menu.available&&menu.generation!=0&&f.runtime.status().generation==0);
+ std::unique_ptr<mister::MenuFrame> frame;
+ assert(!f.runtime.BeginMenuFrame(0,&frame).ok());
+ assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+ std::unique_ptr<mister::MenuFrame> second;
+ assert(f.runtime.BeginMenuFrame(menu.generation,&second).code==ErrorCode::busy);
+ mister::MenuDisplayInfo info;
+ assert(!f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==0);
+ assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ f.hardware.admission_result={ErrorCode::invalid_package,"bad package"};
+ assert(!f.runtime.LoadCore("/game",id).ok());assert(f.runtime.status().menu_display.generation==menu.generation);
+ assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==1);
+ frame.reset();assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+ f.hardware.admission_result={};assert(f.runtime.LoadCore("/game",id).ok());
+ assert(!f.runtime.status().menu_display.available);
+ assert(!f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==1);
+ assert(f.runtime.Stop().ok());const auto fresh=f.runtime.status().menu_display;
+ assert(fresh.available&&fresh.generation>menu.generation);
+ assert(!f.runtime.PresentMenuFrame(fresh.generation,*frame,&info).ok());
+ frame.reset();assert(f.runtime.BeginMenuFrame(fresh.generation,&frame).ok());
+ assert(f.runtime.ConfigureMenuPackage("relative",id).code==ErrorCode::invalid_request);
+}
+
+void TestMenuIdleStopAndPreMutationFailurePreserveFences()
+{
+ Fixture f;const std::string id(64,'a');assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+ const auto generation=f.runtime.status().menu_display.generation;
+ std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+ f.hardware.core_result={{ErrorCode::invalid_package,"recheck failed"},false,""};
+ assert(!f.runtime.LoadCore("/game",id).ok());assert(f.runtime.status().menu_display.generation==generation);
+ assert(f.runtime.Stop().ok());assert(f.runtime.status().menu_display.generation>generation);
+ assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ mister::MenuDisplayInfo info;assert(!f.runtime.PresentMenuFrame(generation,*frame,&info).ok());frame.reset();
+ const auto fresh=f.runtime.status().menu_display.generation;assert(f.runtime.BeginMenuFrame(fresh,&frame).ok());
+ assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ f.hardware.on_menu_present=[&]{assert(f.runtime.Stop().code==ErrorCode::busy);assert(f.runtime.ConfigureMenuPackage("/menu",id).code==ErrorCode::busy);};
+ assert(f.runtime.PresentMenuFrame(fresh,*frame,&info).ok());
+}
+
+void TestMenuPresentationFailureUsesIdleRecovery()
+{
+ Fixture f;const std::string id(64,'a');assert(f.runtime.Start().ok());
+ assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+ auto generation=f.runtime.status().menu_display.generation;
+ std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+ assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ f.hardware.menu_present_result={ErrorCode::io_failed,"display timeout"};
+ f.hardware.idle_result={{ErrorCode::io_failed,"containment failed"},true,""};
+ mister::MenuDisplayInfo info;assert(!f.runtime.PresentMenuFrame(generation,*frame,&info).ok());
+ assert(f.runtime.status().state==State::reboot_required);
+ assert(!f.runtime.status().menu_display.available);
+ assert(!f.runtime.BeginMenuFrame(generation,&frame).ok());
+}
+
 int main()
 {
+ TestMenuGenerationAndPreparationFencing();
+ TestMenuPresentationFailureUsesIdleRecovery();
+ TestMenuIdleStopAndPreMutationFailurePreserveFences();
 	TestComputerKeyboardBindingSerializationAndFaults();
 	TestComputerMediaUnitsStayLiveAndReportUnitState();
 	TestCompositionUsesExistingLifecycle();
@@ -1236,6 +1300,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 47 passed");
+	puts("runtime_test: 50 passed");
 	return 0;
 }

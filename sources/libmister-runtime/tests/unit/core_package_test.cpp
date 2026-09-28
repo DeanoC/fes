@@ -311,6 +311,17 @@ void TestApplicationCompatibilityComposesInterfaces()
 	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
 	{
+		auto menu = descriptor;
+		menu.interfaces.push_back({"fes.memory.hps-ddr",1,0,true});
+		menu.interfaces.push_back({"fes.video.menu-display",1,0,true});
+		assert(mister::native::CheckCoreCompatibility(menu).ok());
+		menu.interfaces.back().required=false;
+		assert(!mister::native::CheckCoreCompatibility(menu).ok());
+		menu.interfaces.back().required=true;
+		menu.interfaces.erase(menu.interfaces.begin()+1);
+		assert(!mister::native::CheckCoreCompatibility(menu).ok());
+	}
+	{
 		auto ports = descriptor;
 		ports.interfaces.push_back({"fes.keypad.ports", 1, 0, true});
 		assert(!mister::native::CheckCoreCompatibility(ports).ok());

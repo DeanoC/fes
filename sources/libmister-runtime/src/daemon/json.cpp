@@ -11,12 +11,11 @@ namespace json {
 namespace {
 
 const std::size_t kMaximumInputBytes = 65536;
-const int kMaximumObjectLevels = 4;
 
 class Parser {
 public:
-	Parser(const std::string& input, std::string* message)
-		: input_(input), position_(0), message_(message) {}
+	Parser(const std::string& input, std::string* message,int maximum_levels=4)
+		: input_(input), position_(0), message_(message),maximum_levels_(maximum_levels) {}
 
 	bool ParseDocument(Value* value)
 	{
@@ -80,8 +79,8 @@ private:
 
 	bool ParseObject(int object_level, Value* value)
 	{
-		if (object_level > kMaximumObjectLevels)
-			return Fail("object nesting exceeds four levels");
+		if (object_level > maximum_levels_)
+			return Fail(maximum_levels_==4?"object nesting exceeds four levels":"response nesting exceeds eight levels");
 		++position_;
 		value->type = Type::object;
 		value->object.clear();
@@ -110,7 +109,7 @@ private:
 
 	bool ParseArray(int level, Value* value)
 	{
-		if (level > kMaximumObjectLevels) return Fail("JSON nesting exceeds four levels");
+		if (level > maximum_levels_) return Fail(maximum_levels_==4?"JSON nesting exceeds four levels":"response nesting exceeds eight levels");
 		++position_;
 		value->type = Type::array;
 		value->array.clear();
@@ -293,6 +292,7 @@ private:
 	const std::string& input_;
 	std::size_t position_;
 	std::string* message_;
+ const int maximum_levels_;
 };
 
 } // namespace
@@ -304,6 +304,12 @@ bool Parse(const std::string& input, Value* value, std::string* message)
 		return false;
 	}
 	return Parser(input, message).ParseDocument(value);
+}
+
+bool ParseResponse(const std::string& input,Value* value,std::string* message)
+{
+ if(!value){if(message)*message="missing output value";return false;}
+ return Parser(input,message,8).ParseDocument(value);
 }
 
 } // namespace json

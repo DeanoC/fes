@@ -34,6 +34,8 @@ COPIED_TREES = (
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
 )
 COPIED_FILES = (
+    ('testdata/menu-display-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/menu-display-v1/exchanges.json'),
+    ('testdata/menu-display-v1/exchanges.json', 'misteross', 'cores/fes-common/generated/menu-exchanges.json'),
     ('testdata/fes-application-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-application-v1/exchanges.json'),
     ('testdata/fes-application-v1/exchanges.json', 'misteross', 'cores/fes-common/generated/exchanges.json'),
     ('testdata/fes-application-v1/controllers.json', 'misteross', 'cores/fes-common/generated/controller-exchanges.json'),

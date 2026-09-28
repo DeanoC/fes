@@ -16,6 +16,12 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
+    def test_menu_rtl_selects_the_menu_simulation(self):
+        self.change("sources/misteross/cores/fes-menu/rtl/fes_menu_video.v")
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], ["menu"])
+        self.assertTrue(any("sim-fes-menu" in c["argv"] for c in result["commands"]))
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

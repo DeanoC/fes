@@ -98,6 +98,57 @@ The production archive contains only the sources in the Makefile manifest.
 Archive regeneration removes obsolete members; archive and active-tree guards
 verify construction and reject old mutation authority.
 
+## Menu presentation primitives
+
+The required `fes.video.menu-display` 1.0 application capability (bit 9)
+is admitted only alongside fixed video and HPS DDR, with those three interfaces.
+Live identity must match the declared capabilities exactly. `MenuDisplayDriver`
+validates fixed geometry, reads coherent counters, stages ordered submissions,
+and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
+idle. Default startup remains splash. Menu activation reuses ordinary package
+programming, identity and DDR-port admission: zero both slots, configure,
+release execution, then enable. Menu display never creates a playable active
+package, gameplay generation or input worker. The existing local socket provides a bounded two-phase frame exchange; see
+[menu presentation](docs/menu-display.md).
+
+`MenuFrame` creates one exact-size sealable memfd per caller. Before mapping
+staging bytes, validation requires the same device/inode, 3,686,400-byte size
+and WRITE/GROW/SHRINK/SEAL seals. A client must remove writable mappings before
+sealing. The runtime reads sealed staging through a private, read-only mapping;
+the selected kit kernel rejects a shared mapping after `F_SEAL_WRITE`.
+`MenuMemory` converts RGBA to B,G,R,0 in either fixed 4 MiB slot;
+frame padding remains untouched. It owns an 8 MiB mapping at `0x30000000`,
+checks the entire shared 256 MiB window against effective `/proc/iomem`
+System RAM ranges, and rejects absent or redacted evidence.
+
+Production mapping currently requires ARM Linux kernel `5.15.1-MiSTer`,
+`/dev/mem` with `O_SYNC`, and an ARM `dsb sy` after writes. The selected
+[kernel's mapping implementation](https://raw.githubusercontent.com/MiSTer-devel/Linux-Kernel_MiSTer/d7adb20b4ca595838289406c083fff78f004a8c3/arch/arm/mm/mmu.c)
+uses noncached protection for PFNs outside Linux RAM. `O_SYNC` alone does not
+establish this: boot reservation and actual target mapping qualification
+remain prerequisites for physical acceptance. Host tests inject mapping
+operations and cannot establish DDR visibility on hardware.
+
+Menu status carries its own nonzero generation, geometry and completion
+counters. `BeginMenuFrame` permits one preparation without retaining the
+lifecycle lock while its caller fills the file. Both the generation and
+runtime-created preparation identity bind `PresentMenuFrame`; immutable
+validation precedes any copy. Presentation holds the existing busy fence
+through copy, submission and displayed-sequence polling. ACK alone never
+releases the previous slot. Stop reactivates an explicitly configured menu
+with a fresh generation, including Stop from menu idle; splash Stop stays
+idempotent. A rejected pre-mutation game admission preserves the menu and its
+preparation. Replacement and contained diagnostics revoke the old generation.
+
+Menu quiesce proves drained state before execution hold. A missing completion
+or uncertain drain disables the configured menu and uses the existing splash
+programming/bridge-containment path, without repeating an ambiguous GP
+command. Failed containment leaves reboot-required. Mapping remains owned by
+the production hardware adapter; new writes require successful menu
+reactivation after verified programming. Menu activation failures report
+unavailable with the error even when splash recovery succeeds. Host tests do
+not establish physical scanout acceptance.
+
 ## Composable application ABI
 
 `fes.application` 1.0 uses the existing `fes-gp-v1` lifecycle and GP transport,

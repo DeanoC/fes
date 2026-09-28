@@ -3,16 +3,20 @@
 
 #include "capture_diagnostic.hpp"
 #include "daemon/controller.hpp"
+#include "daemon/menu_frame_transport.hpp"
 #include "daemon/server.hpp"
 #include "fake_hardware.hpp"
 #include "linux/stderr_log.hpp"
 
 #include <assert.h>
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
+#include <spawn.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -26,6 +30,8 @@
 #include <thread>
 #include <utility>
 #include <vector>
+
+extern char** environ;
 
 namespace {
 
@@ -380,11 +386,11 @@ void TestSecondRequestOnAConnectionIsNeverProcessed()
 		const int descriptor = Connect(temporary.Entry("runtime.sock"));
 		SendAll(descriptor, std::string(kDevelopment) + "\n" + kStop + "\n");
 		assert(shutdown(descriptor, SHUT_WR) == 0);
-		const std::string response = ReadToEof(descriptor);
+		const std::string response = ReadRejectedFrameResponse(descriptor);
 		assert(close(descriptor) == 0);
 		assert(Count(response, '\n') == 1);
-		Contains(response, "\"state\":\"running_development\"");
-		assert(fixture.hardware.development_calls == 1);
+		Contains(response,"\"ok\":false");
+		assert(fixture.hardware.development_calls == 0);
 		assert(fixture.hardware.idle_calls == 1);
 	}
 }
@@ -1213,8 +1219,115 @@ void TestDevelopmentInventsNoIdentityAndStderrEscapesFields()
 
 } // namespace
 
+void TestMenuDescriptorRoundTripAndRevocation()
+{
+ using namespace mister::daemon;
+ TempDirectory temporary;Fixture fixture;fixture.Start();RunningServer server(fixture.runtime,temporary.Entry("runtime.sock"));
+ const auto configured=Exchange(temporary.Entry("runtime.sock"),std::string("{\"protocol\":2,\"operation\":\"configure_menu\",\"package_path\":\"/menu\",\"package_id\":\"")+kPackageId+"\"}");
+ Contains(configured,"\"ok\":true");Contains(configured,"\"menu_display\":{");
+ for(unsigned test=0;test<5;++test){
+  const auto generation=fixture.runtime.status().menu_display.generation;
+  const int socket=Connect(temporary.Entry("runtime.sock"));
+  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(7);
+  const auto begin=std::string("{\"protocol\":2,\"operation\":\"menu_frame_begin\",\"expected_generation\":")+std::to_string(generation)+",\"byte_count\":3686400}";
+  assert(SendFrame(socket,begin,-1,deadline).ok());ReceivedFrame response;assert(ReceiveFrame(socket,deadline,&response).ok());
+  Contains(response.line,"\"ok\":true");assert(response.fds.size()==1);const int frame=response.fds[0];
+  if(test==0){assert(shutdown(socket,SHUT_WR)==0);Contains(ReadToEof(socket),"\"ok\":false");assert(close(socket)==0);continue;}
+  if(test!=1)assert(fcntl(frame,F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+  if(test==2)Contains(Exchange(temporary.Entry("runtime.sock"),kLoad),"\"ok\":true");
+  int substitute=-1;if(test==3){std::unique_ptr<mister::MenuFrame> other;assert(mister::MenuFrame::Create(&other).ok());substitute=dup(other->fd());}
+  const auto commit=std::string("{\"protocol\":2,\"operation\":\"menu_frame_commit\",\"generation\":")+std::to_string(generation)+",\"byte_count\":3686400}";
+  if(test==4){SendAll(socket,commit.substr(0,10));assert(SendFrame(socket,commit.substr(10),frame,deadline).ok());}
+  else assert(SendFrame(socket,commit,test==3?substitute:frame,deadline).ok());
+  if(substitute>=0)close(substitute);
+  ReceivedFrame done;assert(ReceiveFrame(socket,deadline,&done).ok());Contains(done.line,test==4?"\"ok\":true":"\"ok\":false");assert(done.fds.empty());assert(ReadToEof(socket).empty());close(socket);
+  if(test==2)Contains(Exchange(temporary.Entry("runtime.sock"),kStop),"\"ok\":true");
+ }
+ assert(fixture.hardware.menu_present_calls==1);
+ // Descriptors on ordinary operations are rejected before their mutation.
+ const int socket=Connect(temporary.Entry("runtime.sock"));const int fd=open("/dev/null",O_RDONLY);assert(fd>=0);
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+ assert(SendFrame(socket,kLoad,fd,deadline).ok());close(fd);ReceivedFrame rejected;assert(ReceiveFrame(socket,deadline,&rejected).ok());
+ Contains(rejected.line,"\"ok\":false");close(socket);assert(fixture.hardware.core_calls==1);
+}
+
+void TestMenuPreparationDeadlineAndCommitDisconnect()
+{
+ using namespace mister::daemon;
+ TempDirectory temporary;Fixture fixture;fixture.Start();assert(fixture.runtime.ConfigureMenuPackage("/menu",kPackageId).ok());
+ RunningServer server(fixture.runtime,temporary.Entry("runtime.sock"));
+ auto begin=[&](int socket,ReceivedFrame* frame){
+  const auto request=std::string("{\"protocol\":2,\"operation\":\"menu_frame_begin\",\"expected_generation\":")+std::to_string(fixture.runtime.status().menu_display.generation)+",\"byte_count\":3686400}";
+  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(7);
+  assert(SendFrame(socket,request,-1,deadline).ok());assert(ReceiveFrame(socket,deadline,frame).ok());assert(frame->fds.size()==1);
+ };
+ {const int socket=Connect(temporary.Entry("runtime.sock"));ReceivedFrame frame;begin(socket,&frame);
+  const auto started=std::chrono::steady_clock::now();ReceivedFrame expired;
+  assert(ReceiveFrame(socket,started+std::chrono::seconds(7),&expired).ok());Contains(expired.line,"deadline exceeded");
+  assert(std::chrono::steady_clock::now()-started>=std::chrono::milliseconds(4900));
+  assert(ReadToEof(socket).empty());close(socket);assert(fixture.hardware.menu_present_calls==0);
+ }
+ {const int socket=Connect(temporary.Entry("runtime.sock"));ReceivedFrame frame;begin(socket,&frame);
+  const auto before=fixture.runtime.status().menu_display.displayed_sequence;
+  assert(fcntl(frame.fds[0],F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+  fixture.hardware.on_menu_present=[&]{assert(close(socket)==0);};
+  const auto commit=std::string("{\"protocol\":2,\"operation\":\"menu_frame_commit\",\"generation\":")+std::to_string(fixture.runtime.status().menu_display.generation)+",\"byte_count\":3686400}";
+  assert(SendFrame(socket,commit,frame.fds[0],std::chrono::steady_clock::now()+std::chrono::seconds(2)).ok());
+  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+  while(fixture.runtime.status().menu_display.displayed_sequence==before&&std::chrono::steady_clock::now()<deadline)std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  assert(fixture.runtime.status().menu_display.displayed_sequence==before+1);
+ }
+}
+
+void TestMenuPatternClientAgainstDaemon()
+{
+ TempDirectory temporary;Fixture fixture;fixture.Start();assert(fixture.runtime.ConfigureMenuPackage("/menu",kPackageId).ok());
+ const auto socket=temporary.Entry("runtime.sock");RunningServer server(fixture.runtime,socket);
+ const char* client=MISTER_MENU_PATTERN_CLIENT;
+ char* args[]={const_cast<char*>(client),const_cast<char*>("--socket"),const_cast<char*>(socket.c_str()),const_cast<char*>("--frames"),const_cast<char*>("3"),const_cast<char*>("--interval-ms"),const_cast<char*>("0"),nullptr};
+ pid_t process=0;assert(posix_spawn(&process,client,nullptr,nullptr,args,environ)==0);
+ int status=0;assert(waitpid(process,&status,0)==process);assert(WIFEXITED(status)&&WEXITSTATUS(status)==0);
+ assert(fixture.runtime.status().menu_display.displayed_sequence==3);
+ assert(fixture.hardware.menu_present_calls==3);
+}
+
+unsigned OpenDescriptors()
+{
+ auto directory=opendir("/proc/self/fd");assert(directory);unsigned count=0;
+ while(readdir(directory))++count;
+ closedir(directory);return count;
+}
+void TestMenuMultipleAndTruncatedDescriptorsClose()
+{
+ using namespace mister::daemon;
+ TempDirectory temporary;Fixture fixture;fixture.Start();assert(fixture.runtime.ConfigureMenuPackage("/menu",kPackageId).ok());
+ RunningServer server(fixture.runtime,temporary.Entry("runtime.sock"));
+ for(unsigned size:{2u,32u}){
+  const auto baseline=OpenDescriptors();const int socket=Connect(temporary.Entry("runtime.sock"));
+  const auto generation=fixture.runtime.status().menu_display.generation;
+  const auto begin=std::string("{\"protocol\":2,\"operation\":\"menu_frame_begin\",\"expected_generation\":")+std::to_string(generation)+",\"byte_count\":3686400}";
+  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+  assert(SendFrame(socket,begin,-1,deadline).ok());ReceivedFrame frame;assert(ReceiveFrame(socket,deadline,&frame).ok());assert(frame.fds.size()==1);
+  assert(fcntl(frame.fds[0],F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+  const auto commit=std::string("{\"protocol\":2,\"operation\":\"menu_frame_commit\",\"generation\":")+std::to_string(generation)+",\"byte_count\":3686400}\n";
+  std::vector<int> descriptors(size,frame.fds[0]);std::vector<unsigned char> control(CMSG_SPACE(size*sizeof(int)));
+  iovec data{const_cast<char*>(commit.data()),commit.size()};msghdr message{};
+  message.msg_iov=&data;message.msg_iovlen=1;message.msg_control=control.data();message.msg_controllen=control.size();
+  auto header=CMSG_FIRSTHDR(&message);header->cmsg_level=SOL_SOCKET;header->cmsg_type=SCM_RIGHTS;header->cmsg_len=CMSG_LEN(size*sizeof(int));
+  memcpy(CMSG_DATA(header),descriptors.data(),size*sizeof(int));assert(sendmsg(socket,&message,0)==static_cast<ssize_t>(commit.size()));
+  ReceivedFrame response;assert(ReceiveFrame(socket,deadline,&response).ok());Contains(response.line,"\"ok\":false");
+  assert(response.fds.empty());(void)ReadRejectedFrameResponse(socket);close(socket);frame=ReceivedFrame{};
+  assert(OpenDescriptors()==baseline);
+ }
+ assert(fixture.hardware.menu_present_calls==0);
+}
+
 int main()
 {
+ TestMenuPatternClientAgainstDaemon();
+ TestMenuMultipleAndTruncatedDescriptorsClose();
+ TestMenuDescriptorRoundTripAndRevocation();
+ TestMenuPreparationDeadlineAndCommitDisconnect();
 	TestIdleStopAcknowledgesSaveAdmissionFailure();
 	TestStartupStatusReturnsIdle();
 	TestOneRequestGetsOneNewlineResponseAndEof();
@@ -1247,6 +1360,6 @@ int main()
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
 	TestComputerOperationsDispatchThroughController();
-	puts("daemon_server_test: 32 passed");
+	puts("daemon_server_test: 36 passed");
 	return 0;
 }

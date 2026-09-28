@@ -1410,3 +1410,42 @@ new artifact identity and qualification.
 All normal command-line producers require identity 2 and the tracked FES module.
 Synthesis-only diagnostics remain unsealed; Quartus oracle records retain their
 separate evidence schema.
+
+## Native menu display
+
+`python3 scripts/sim_fes_menu.py` checks exact frame length, burst bounds,
+stalls, pixel ordering, cancellation drain, switching and underflow recovery.
+The shared DDR wrapper owns port wiring and holds; menu scanout adds no second
+bridge or memory reservation policy. Runtime presentation, a described menu
+package and appliance selection remain separate work.
+
+### Menu scanout diagnostics
+
+`cores/fes-menu/` has fixed 1280×720p60 scanout with a bounded read-only
+128-bit burst reader and a synchronous M10K FIFO. The DDR-free diagnostic
+feeds this reader with a local pattern responder; the DDR diagnostic adopts
+`fes_hps_ddr` port 0 at the pixel clock and uses the generated window base.
+Both are diagnostics, without a GP menu identity or a described launch package.
+
+`build-fes-menu-pattern` and `build-fes-menu-ddr` use the authenticated HIP
+producer with GPU 0, closed functional inputs and separate output directories.
+The DDR mode uses the qualified `toolchains/ramtest.lock`; its artifact gates
+check layout constants in both netlists, fixed pixel timing and inactive
+writes/unused ports. Neither producer programs hardware or changes image inputs.
+The runtime presenter and exact DDR scanout acceptance remain later work.
+
+### Described menu display producer
+
+`build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
+with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
+system identity and no default image selection. It selects `toolchains/ramtest.lock`
+and authenticates the congestion-fixed nextpnr pin. The producer uses shared
+board/electrical/provenance helpers; GP is required explicitly for this package
+while diagnostics retain their no-GP gate. DDR layout and inactive write/port
+checks remain mandatory in both netlists.
+
+The optional shared GP hook delegates menu requests to `fes_menu_control` in
+the same pixel-clock domain. Configuration selects fixed slots; sequence ACK
+means pending acceptance and completion is separately readable. Quiesce ACK
+waits for drain before execution hold. Runtime buffer transport/admission and
+exact-artifact menu acceptance are not established by source simulations.

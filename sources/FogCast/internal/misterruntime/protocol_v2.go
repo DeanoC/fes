@@ -37,6 +37,21 @@ type Protocol2Error struct {
 	Observed *string `json:"observed,omitempty"`
 }
 
+type Protocol2MenuDisplay struct {
+	Available         bool            `json:"available"`
+	PackageID         *string         `json:"package_id"`
+	Generation        uint64          `json:"generation"`
+	Width             uint64          `json:"width"`
+	Height            uint64          `json:"height"`
+	Stride            uint64          `json:"stride"`
+	ByteCount         uint64          `json:"byte_count"`
+	SlotBytes         uint64          `json:"slot_bytes"`
+	StagingFormat     string          `json:"staging_format"`
+	DisplayedSequence uint64          `json:"displayed_sequence"`
+	Underflows        uint64          `json:"underflows"`
+	Error             *Protocol2Error `json:"error"`
+}
+
 type Protocol2Response struct {
 	CoreData         *protocol.CoreData      `json:"core_data,omitempty"`
 	Protocol         int                     `json:"protocol"`
@@ -51,6 +66,7 @@ type Protocol2Response struct {
 	ActivePackage    *Protocol2ActivePackage `json:"active_package"`
 	Generation       *uint64                 `json:"generation"`
 	InspectedPackage *Protocol2Inspection    `json:"inspected_package"`
+	MenuDisplay      *Protocol2MenuDisplay   `json:"menu_display,omitempty"`
 }
 
 func (client *Client) SetKeyboard(ctx context.Context, matrix uint64) (Protocol2Response, error) {
@@ -392,7 +408,7 @@ func decodeProtocol2Response(line []byte) (Protocol2Response, error) {
 
 func validateProtocol2Shape(line []byte) error {
 	var root json.RawMessage = line
-	object, err := exactRawObject(root, []string{"protocol", "ok", "state", "execution", "system", "core", "error", "version", "capabilities", "active_package", "generation", "inspected_package"}, []string{"core_data"})
+	object, err := exactRawObject(root, []string{"protocol", "ok", "state", "execution", "system", "core", "error", "version", "capabilities", "active_package", "generation", "inspected_package"}, []string{"core_data", "menu_display"})
 	if err != nil {
 		return err
 	}
@@ -408,6 +424,11 @@ func validateProtocol2Shape(line []byte) error {
 	}
 	if data, ok := object["core_data"]; ok && !isNull(data) {
 		if err := validateCoreDataShape(data); err != nil {
+			return err
+		}
+	}
+	if menu, ok := object["menu_display"]; ok {
+		if err := validateMenuDisplayShape(menu); err != nil {
 			return err
 		}
 	}
@@ -580,6 +601,26 @@ func validateProtocol2Shape(line []byte) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+func validateMenuDisplayShape(raw json.RawMessage) error {
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "staging_format", "displayed_sequence", "underflows", "error"}, nil)
+	if err != nil {
+		return err
+	}
+	if err := requireRawKinds(menu, map[string]rawKind{
+		"available": rawBoolean, "package_id": rawNullableString,
+		"generation": rawUnsigned, "width": rawUnsigned, "height": rawUnsigned,
+		"stride": rawUnsigned, "byte_count": rawUnsigned, "slot_bytes": rawUnsigned,
+		"staging_format": rawString, "displayed_sequence": rawUnsigned,
+		"underflows": rawUnsigned, "error": rawNullableObject,
+	}); err != nil {
+		return err
+	}
+	if !isNull(menu["error"]) {
+		return validateErrorShape(menu["error"])
 	}
 	return nil
 }
@@ -1014,7 +1055,7 @@ func validProtocol2Error(remote Protocol2Error) bool {
 		return false
 	}
 	switch remote.Phase {
-	case "core_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle":
+	case "core_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle", "menu", "menu_memory":
 		return true
 	default:
 		return false

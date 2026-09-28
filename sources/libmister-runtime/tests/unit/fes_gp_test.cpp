@@ -1143,6 +1143,39 @@ void TestApplicationAudioRequiresExactLiveCapability()
 	}
 }
 
+void TestApplicationMenuRequiresExactLiveCapability()
+{
+ for(const bool declared : {false,true}) for(const bool live : {false,true}) {
+  StreamFixture f;
+  f.descriptor.abi={FesApplicationABIID,1,0};
+  f.descriptor.interfaces={{FesApplicationInterfaceVideoFixed720p60ID,1,0,true},{FesApplicationInterfaceMemoryHpsDdrID,1,0,true}};
+  if(declared)f.descriptor.interfaces.push_back({FesApplicationInterfaceVideoMenuDisplayID,1,0,true});
+  auto error=f.Identify(1,32768,512,258|(live?512:0));
+  assert(error.ok()==(declared==live));
+  if(!error.ok())assert(error.code==mister::ErrorCode::core_mismatch);
+ }
+}
+
+void TestMenuQuiesceDrainsBeforeExecutionHold()
+{
+ for(bool drained : {false,true}) {
+  StreamFixture f;
+  f.descriptor.abi={FesApplicationABIID,1,0};
+  f.descriptor.interfaces={{FesApplicationInterfaceVideoFixed720p60ID,1,0,true},{FesApplicationInterfaceMemoryHpsDdrID,1,0,true},{FesApplicationInterfaceVideoMenuDisplayID,1,0,true}};
+  assert(f.Identify(1,32768,512,770).ok());
+  const auto before=f.mmio.writes.size();
+  f.Reply();f.Reply(drained?9:7);if(drained)f.Reply();
+  const auto result=f.driver.Quiesce(f.context,1000000);
+  assert(result.error.ok()==drained);
+  const auto first=f.mmio.writes[before+1].value;
+  assert(((first>>24)&127)==20&&(first&65535)==0);
+  const auto second=f.mmio.writes[before+3].value;
+  assert(((second>>24)&127)==18&&((second>>16)&255)==9);
+  assert(f.mmio.writes.size()==before+(drained?6:4));
+  if(drained){const auto last=f.mmio.writes.back().value;assert(((last>>24)&127)==2&&(last&65535)==0);}
+ }
+}
+
 void TestApplicationHpsDdrRequiresExactLiveCapability()
 {
 	static_assert(FesApplicationCapabilityMemoryHpsDdr == 0x100u,
@@ -2381,6 +2414,8 @@ int main()
 	TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces();
 	TestApplicationAudioRequiresExactLiveCapability();
 	TestApplicationHpsDdrRequiresExactLiveCapability();
+	TestApplicationMenuRequiresExactLiveCapability();
+	TestMenuQuiesceDrainsBeforeExecutionHold();
 	TestSharedStreamWireFixtures();
 	TestStreamIdentityRequiresObservedCapacityAndDeclaration();
 	TestStreamTransferBoundariesAndCRC();

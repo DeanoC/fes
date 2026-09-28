@@ -421,7 +421,7 @@ void AppendError(BoundedOutput* output, const Error& error)
 }
 
 bool TryEncodeV2Response(bool ok, const Status& status, const std::string& version,
-	const CorePackageInspection* inspection, const CoreData* core_data, std::string* response)
+	const CorePackageInspection* inspection, const CoreData* core_data, const MenuFrameReply* menu_frame,std::string* response)
 {
 	BoundedOutput output(kMaximumResponsePayloadBytes);
 	output.Append("{\"protocol\":2,\"ok\":");
@@ -577,6 +577,27 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 		AppendIdentity(&output, status.active_package.observed.build_id);
 		output.Append("}}");
 	}
+ if(status.menu_display.available||!status.menu_display.package_id.empty()||!status.menu_display.error.ok()) {
+  const auto& menu=status.menu_display;const auto& geometry=menu.geometry;
+  output.Append(",\"menu_display\":{\"available\":");output.Append(menu.available?"true":"false");
+  output.Append(",\"package_id\":");AppendIdentity(&output,menu.package_id);
+  output.Append(",\"generation\":");output.Append(std::to_string(menu.generation));
+  output.Append(",\"width\":");output.Append(std::to_string(geometry.width));
+  output.Append(",\"height\":");output.Append(std::to_string(geometry.height));
+  output.Append(",\"stride\":");output.Append(std::to_string(geometry.stride));
+  output.Append(",\"byte_count\":");output.Append(std::to_string(geometry.frame_bytes));
+  output.Append(",\"slot_bytes\":");output.Append(std::to_string(geometry.slot_bytes));
+  output.Append(",\"staging_format\":\"rgba8888\",\"displayed_sequence\":");output.Append(std::to_string(menu.displayed_sequence));
+  output.Append(",\"underflows\":");output.Append(std::to_string(menu.underflows));
+  output.Append(",\"error\":");AppendError(&output,menu.error);output.Append("}");
+ }
+ if(menu_frame) {
+  output.Append(",\"menu_frame\":{\"generation\":");output.Append(std::to_string(menu_frame->generation));
+  output.Append(",\"byte_count\":");output.Append(std::to_string(native::generated::FesApplicationMenuFrameBytes));
+  output.Append(",\"staging_format\":\"rgba8888\",\"displayed_sequence\":");
+  if(menu_frame->prepared)output.Append("null");else output.Append(std::to_string(menu_frame->displayed_sequence));
+  output.Append(",\"underflows\":");output.Append(std::to_string(menu_frame->underflows));output.Append("}");
+ }
 	output.Append(",\"generation\":");
 	if (status.generation == 0) output.Append("null");
 	else output.Append(std::to_string(status.generation));
@@ -647,7 +668,24 @@ Error ParseRequest(const std::string& line, Request* request)
 	parsed.protocol = protocol->integer_value;
 	Error error;
 	if (parsed.protocol == 2) {
-		if (operation->string_value == "status" || operation->string_value == "stop" ||
+  if(operation->string_value=="configure_menu") {
+   const char* const fields[]={"protocol","operation","package_path","package_id"};
+   if(!HasOnly(root,fields,4,&error))return error;
+   const std::string *path=nullptr,*id=nullptr;
+   if(!StringMember(root,"package_path",&path,&error)||!StringMember(root,"package_id",&id,&error))return error;
+   if(!Path(*path)||!PackageID(*id))return Invalid("invalid menu package request");
+   parsed.operation=Operation::configure_menu;parsed.package_path=*path;parsed.package_id=*id;
+  } else if(operation->string_value=="menu_frame_begin"||operation->string_value=="menu_frame_commit") {
+   const bool begin=operation->string_value=="menu_frame_begin";
+   const char* const fields[]={"protocol","operation",begin?"expected_generation":"generation","byte_count"};
+   if(!HasOnly(root,fields,4,&error))return error;
+   const auto bytes=Find(root,"byte_count");
+   if(!Generation(Find(root,fields[2]),&parsed.expected_generation)||
+    !BoundedInteger(bytes,native::generated::FesApplicationMenuFrameBytes,native::generated::FesApplicationMenuFrameBytes))
+    return Invalid("menu frame needs a nonzero generation and exact byte count");
+   parsed.byte_count=native::generated::FesApplicationMenuFrameBytes;
+   parsed.operation=begin?Operation::menu_frame_begin:Operation::menu_frame_commit;
+  } else if (operation->string_value == "status" || operation->string_value == "stop" ||
 			operation->string_value == "recover_idle") {
 			const char* const fields[] = {"protocol", "operation"};
 			if (!HasOnly(root, fields, 2, &error)) return error;
@@ -1107,10 +1145,10 @@ Error ParseRequest(const std::string& line, Request* request)
 
 std::string EncodeResponse(std::int64_t, bool ok, const Status& status,
 	const std::string& version, const CorePackageInspection* inspected_package,
-	const CoreData* core_data)
+	const CoreData* core_data,const MenuFrameReply* menu_frame)
 {
 	std::string response;
-	if (TryEncodeV2Response(ok, status, version, inspected_package, core_data, &response))
+	if (TryEncodeV2Response(ok, status, version, inspected_package, core_data, menu_frame,&response))
 		return response;
 	Status fallback = status;
 	fallback.system.clear();
@@ -1120,7 +1158,7 @@ std::string EncodeResponse(std::int64_t, bool ok, const Status& status,
 	fallback.generation = 0;
 	fallback.error = {ErrorCode::io_failed,
 		"response exceeds 65536 bytes", "lifecycle"};
-	if (TryEncodeV2Response(false, fallback, "-", nullptr, nullptr, &response))
+	if (TryEncodeV2Response(false, fallback, "-", nullptr, nullptr, nullptr,&response))
 		return response;
 	return "{\"protocol\":2,\"ok\":false,\"state\":\"idle\","
 		"\"execution\":\"none\",\"system\":null,\"core\":null,"

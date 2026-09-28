@@ -20,6 +20,21 @@ public:
 	FakeHardware();
 	void SetFaultSink(mister::HardwareFaultSink*) override;
 	mister::HardwareResult LoadIdle() override;
+ mister::HardwareResult ConfigureMenuPackage(const std::string&,const std::string& id) override {
+  menu_configured=true;menu_status.available=true;menu_status.package_id=id;
+  menu_status.geometry={1280,720,5120,3686400,4194304};return {{},true,"fes.menu"};
+ }
+ mister::MenuDisplayStatus menu_display() const override {return menu_status;}
+ mister::Error PresentMenuFrame(const mister::MenuFrame&,mister::MenuDisplayInfo* info) override {
+  ++menu_present_calls;if(on_menu_present)on_menu_present();
+  if(!menu_present_result.ok())return menu_present_result;
+  info->geometry=menu_status.geometry;info->displayed_sequence=++menu_status.displayed_sequence;return {};
+ }
+ bool menu_configured=false;
+ mister::MenuDisplayStatus menu_status;
+ unsigned menu_present_calls=0;
+ mister::Error menu_present_result;
+ std::function<void()> on_menu_present;
 	mister::Error FlushSave() override { ++flush_calls; if (on_flush) on_flush(); return flush_result; }
 	mister::Error RestoreInput(std::uint64_t generation) override
 	{

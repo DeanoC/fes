@@ -1,0 +1,470 @@
+{
+  "description": "Synthetic wire oracle; not hardware acceptance.",
+  "build_id": "00112233445566778899aabbccddeeff",
+  "capabilities": 770,
+  "initial_request_toggle": false,
+  "exchanges": [
+    {
+      "name": "identity-00",
+      "gpo": [
+        16777216,
+        2164260864
+      ],
+      "gpi": 4118824262,
+      "data": 17734,
+      "error": false
+    },
+    {
+      "name": "identity-01",
+      "gpo": [
+        2164326400,
+        16842752
+      ],
+      "gpi": 4110430547,
+      "data": 12627,
+      "error": false
+    },
+    {
+      "name": "identity-02",
+      "gpo": [
+        16908288,
+        2164391936
+      ],
+      "gpi": 4118806529,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "identity-03",
+      "gpo": [
+        2164457472,
+        16973824
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "identity-04",
+      "gpo": [
+        17039360,
+        2164523008
+      ],
+      "gpi": 4118806531,
+      "data": 3,
+      "error": false
+    },
+    {
+      "name": "identity-05",
+      "gpo": [
+        2164588544,
+        17104896
+      ],
+      "gpi": 4110417921,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "identity-06",
+      "gpo": [
+        17170432,
+        2164654080
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "identity-07",
+      "gpo": [
+        2164719616,
+        17235968
+      ],
+      "gpi": 4110418690,
+      "data": 770,
+      "error": false
+    },
+    {
+      "name": "identity-08",
+      "gpo": [
+        17301504,
+        2164785152
+      ],
+      "gpi": 4118810880,
+      "data": 4352,
+      "error": false
+    },
+    {
+      "name": "identity-09",
+      "gpo": [
+        2164850688,
+        17367040
+      ],
+      "gpi": 4110431010,
+      "data": 13090,
+      "error": false
+    },
+    {
+      "name": "identity-10",
+      "gpo": [
+        17432576,
+        2164916224
+      ],
+      "gpi": 4118828356,
+      "data": 21828,
+      "error": false
+    },
+    {
+      "name": "identity-11",
+      "gpo": [
+        2164981760,
+        17498112
+      ],
+      "gpi": 4110448486,
+      "data": 30566,
+      "error": false
+    },
+    {
+      "name": "identity-12",
+      "gpo": [
+        17563648,
+        2165047296
+      ],
+      "gpi": 4118845832,
+      "data": 39304,
+      "error": false
+    },
+    {
+      "name": "identity-13",
+      "gpo": [
+        2165112832,
+        17629184
+      ],
+      "gpi": 4110465962,
+      "data": 48042,
+      "error": false
+    },
+    {
+      "name": "identity-14",
+      "gpo": [
+        17694720,
+        2165178368
+      ],
+      "gpi": 4118863308,
+      "data": 56780,
+      "error": false
+    },
+    {
+      "name": "identity-15",
+      "gpo": [
+        2165243904,
+        17760256
+      ],
+      "gpi": 4110483438,
+      "data": 65518,
+      "error": false
+    },
+    {
+      "name": "disabled-enable-rejected",
+      "gpo": [
+        335544321,
+        2483027969
+      ],
+      "gpi": 4123000836,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "bad-layout-rejected",
+      "gpo": [
+        2466250754,
+        318767106
+      ],
+      "gpi": 4114612227,
+      "data": 3,
+      "error": true
+    },
+    {
+      "name": "configure",
+      "gpo": [
+        318767105,
+        2466250753
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "info-0",
+      "gpo": [
+        2449473536,
+        301989888
+      ],
+      "gpi": 4110419200,
+      "data": 1280,
+      "error": false
+    },
+    {
+      "name": "info-1",
+      "gpo": [
+        302055424,
+        2449539072
+      ],
+      "gpi": 4118807248,
+      "data": 720,
+      "error": false
+    },
+    {
+      "name": "info-2",
+      "gpo": [
+        2449604608,
+        302120960
+      ],
+      "gpi": 4110423040,
+      "data": 5120,
+      "error": false
+    },
+    {
+      "name": "info-3",
+      "gpo": [
+        302186496,
+        2449670144
+      ],
+      "gpi": 4118822912,
+      "data": 16384,
+      "error": false
+    },
+    {
+      "name": "info-4",
+      "gpo": [
+        2449735680,
+        302252032
+      ],
+      "gpi": 4110417976,
+      "data": 56,
+      "error": false
+    },
+    {
+      "name": "info-5",
+      "gpo": [
+        302317568,
+        2449801216
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "info-6",
+      "gpo": [
+        2449866752,
+        302383104
+      ],
+      "gpi": 4110417984,
+      "data": 64,
+      "error": false
+    },
+    {
+      "name": "info-7",
+      "gpo": [
+        302448640,
+        2449932288
+      ],
+      "gpi": 4118806529,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "info-8",
+      "gpo": [
+        2449997824,
+        302514176
+      ],
+      "gpi": 4110417922,
+      "data": 2,
+      "error": false
+    },
+    {
+      "name": "info-9",
+      "gpo": [
+        302579712,
+        2450063360
+      ],
+      "gpi": 4118806537,
+      "data": 9,
+      "error": false
+    },
+    {
+      "name": "high-without-low-rejected",
+      "gpo": [
+        2450194432,
+        302710784
+      ],
+      "gpi": 4114612228,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "release",
+      "gpo": [
+        33554433,
+        2181038081
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "enable",
+      "gpo": [
+        2483027969,
+        335544321
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "configure-enabled-rejected",
+      "gpo": [
+        318767105,
+        2466250753
+      ],
+      "gpi": 4123000836,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "hold-before-drain-rejected",
+      "gpo": [
+        2181038080,
+        33554432
+      ],
+      "gpi": 4114612228,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "commit-without-fields-rejected",
+      "gpo": [
+        352452609,
+        2499936257
+      ],
+      "gpi": 4123000836,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "sequence-low",
+      "gpo": [
+        2499805185,
+        352321537
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "sequence-high",
+      "gpo": [
+        352387072,
+        2499870720
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "commit",
+      "gpo": [
+        2499936257,
+        352452609
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "not-displayed-yet",
+      "gpo": [
+        302645248,
+        2450128896
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "not-displayed-high",
+      "gpo": [
+        2450194432,
+        302710784
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "second-pending-rejected",
+      "gpo": [
+        352321538,
+        2499805186
+      ],
+      "gpi": 4123000836,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "displayed",
+      "gpo": [
+        2450128896,
+        302645248
+      ],
+      "gpi": 4110417921,
+      "data": 1,
+      "error": false,
+      "event_before": "frame-boundary"
+    },
+    {
+      "name": "displayed-high",
+      "gpo": [
+        302710784,
+        2450194432
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "quiesce",
+      "gpo": [
+        2483027968,
+        335544320
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false,
+      "wait_for": "drained"
+    },
+    {
+      "name": "held-after-drain",
+      "gpo": [
+        33554432,
+        2181038080
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "quiesced-state",
+      "gpo": [
+        2450063360,
+        302579712
+      ],
+      "gpi": 4110417929,
+      "data": 9,
+      "error": false
+    }
+  ]
+}

@@ -15,6 +15,8 @@
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
+#include "native/menu_display.hpp"
+#include "native/linux/menu_memory.hpp"
 #include "native/core_data.hpp"
 #include "native/input.hpp"
 #include "native/linux/fpga_manager.hpp"
@@ -1422,6 +1424,73 @@ void SetHpsDdrMirrors(mister_test::FakeMmio* mmio, bool matching)
 
 // Programming, the FES GP mailbox and the SDR registers share one bus, as in
 // production, so the fake records the complete activation write order.
+class MenuOperations final : public mister::native::MenuMemoryOperations {
+public:
+ std::vector<std::uint32_t> pixels=std::vector<std::uint32_t>(8388608/4,0xdeadbeef);
+ bool reserved=true;unsigned barriers=0;
+ mister::Error VerifyReservation(std::uint64_t base,std::uint64_t bytes) override {
+  assert(base==0x30000000&&bytes==0x10000000);
+  return reserved?mister::Error{}:mister::Error{mister::ErrorCode::io_failed,"no reservation"};
+ }
+ mister::Error Open(int* fd) override {*fd=7;return {};}
+ mister::Error Map(int,std::uint64_t,std::size_t bytes,void** out) override {assert(bytes==8388608);*out=pixels.data();return {};}
+ void Unmap(void*,std::size_t) override {}
+ void Close(int) override {}
+ void VisibilityBarrier() override {++barriers;}
+};
+void TestNativeMenuActivationAndCompletion()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuMemory memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ TempDirectory wrong;OpenedCorePackage nonmenu;PopulateHpsDdrApplication(&wrong,true,&nonmenu);
+ assert(hardware.ConfigureMenuPackage(wrong.path,nonmenu.package_id).error.code==mister::ErrorCode::invalid_package);
+ assert(hardware.ConfigureMenuPackage(package.path,std::string(64,'0')).error.code==mister::ErrorCode::invalid_package);
+ fpga.boot_hps_ddr_layout=false;
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.code==mister::ErrorCode::unsupported_interface);
+ assert(fpga.calls==0&&operations.barriers==0&&mmio.writes.empty());fpga.boot_hps_ddr_layout=true;
+ bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
+  if(interface.id==FesApplicationInterfaceVideoMenuDisplayID)advertised=true;
+ assert(advertised);
+ bool toggle=false;auto reply=[&](std::uint16_t value=0){toggle=!toggle;PushFesGpResponse(&mmio,toggle,value);};
+ auto info=[&](std::uint16_t state,std::uint32_t sequence){for(std::uint16_t word : {std::uint16_t(1280),std::uint16_t(720),std::uint16_t(5120),std::uint16_t(16384),std::uint16_t(56),std::uint16_t(0),std::uint16_t(64),std::uint16_t(1),std::uint16_t(2),state,std::uint16_t(sequence),std::uint16_t(sequence>>16),std::uint16_t(0),std::uint16_t(0)})reply(word);};
+ auto words=FesGpIdentityWords();words[FesGpIdentityAbiTagIndex]=FesApplicationAbiTag;words[FesGpIdentityCapabilitiesIndex]=770;
+ for(auto word:words)reply(word);
+ info(8,0);reply();reply();reply();info(3,0);
+ auto result=hardware.ConfigureMenuPackage(package.path,opened.package_id);
+ if(!result.error.ok())fprintf(stderr,"menu activation: %s\n",result.error.message.c_str());
+ assert(result.error.ok());assert(hardware.menu_display().available&&fpga.hps_ddr_calls==1&&operations.barriers==1);
+ assert(operations.pixels[0]==0&&operations.pixels[3686400/4]==0xdeadbeef);
+ std::unique_ptr<mister::MenuFrame> frame;assert(mister::MenuFrame::Create(&frame).ok());
+ assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ info(3,0);reply();reply();reply();info(7,0);info(3,1);
+ mister::MenuDisplayInfo displayed;assert(hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(displayed.displayed_sequence==1&&operations.barriers==2);
+ // Generic game launch must reject the menu before touching the running display.
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ const auto programs=fpga.calls;assert(!hardware.LoadCore(std::move(admitted),1).error.ok());assert(fpga.calls==programs&&hardware.menu_display().available);
+ // An uncertain live state prevents copying and recovers by physical splash
+ // programming; it must not silently retry the menu package.
+ info(7,1);assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());assert(operations.barriers==2);
+ const auto writes_before_fallback=mmio.writes.size();
+ assert(hardware.LoadIdle().error.ok());assert(!hardware.menu_display().available);
+ assert(mmio.writes.size()==writes_before_fallback);
+ assert(fpga.programmed.back()=="idle.rbf");
+
+}
+
 void TestHpsDdrPortsReleaseAfterIdentityBeforeExecution()
 {
 	using namespace mister::native;
@@ -2497,6 +2566,7 @@ void TestComputerSlotCompositionActivatesLinkedPayload()
 
 int main()
 {
+ TestNativeMenuActivationAndCompletion();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestComputerSlotCompositionActivatesLinkedPayload();
 	TestFormat4TwoSourceAdmissionBeforeMutation();
@@ -2529,6 +2599,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 29 passed");
+	puts("native_hardware_test: 30 passed");
 	return 0;
 }

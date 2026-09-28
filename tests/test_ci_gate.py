@@ -20,6 +20,11 @@ def results_for(selected=(), cores=()):
 
 
 class GateTests(unittest.TestCase):
+    def test_menu_has_a_required_simulation_job(self):
+        self.assertEqual(simulation_matrix(['menu']),
+                         {'include': [{'core': 'menu', 'target': 'sim-fes-menu'}]})
+        require_success(results_for(('parent', 'fpga'), ('menu',)))
+
     def test_documentation_producer_and_full_plans(self):
         for selected, cores in [((), ()), (('parent', 'fpga'), ()),
                                 (('host', 'parent'), ()), (LANES, CORES)]:

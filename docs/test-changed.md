@@ -122,3 +122,8 @@ python scripts/test_changed.py --base origin/main
 Preflight checks `jsonschema` and `rfc3986_validator` in the selected Python
 interpreter before any test command starts. It reports missing dependencies
 with the install command; it does not install packages automatically.
+
+The simulation-only `fes-menu` family is selected by its RTL or simulation
+script changes. Local affected checks and the required CI simulation matrix
+run `make sim-fes-menu`, covering reader and video regressions. This does not
+select a menu artifact for the appliance or qualify physical scanout.

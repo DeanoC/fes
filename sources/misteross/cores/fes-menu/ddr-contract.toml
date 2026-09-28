@@ -1,0 +1,26 @@
+[diagnostic]
+mode = "ddr"
+play_package = false
+hps_gp = false
+slot = 0
+port = 0
+port_clock_hz = 74250000
+enable_after_pll_lock = true
+unexpected_hold = "fail-closed-until-reprogram"
+
+[memory]
+interface = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+window_definition = "cores/fes-common/generated/fes_application.vh"
+readonly = true
+frame_bytes = 3686400
+slot_bytes = 4194304
+
+[video]
+width = 1280
+height = 720
+clock_hz = 74250000
+format = "XRGB8888"
+h_total = 1650
+v_total = 750

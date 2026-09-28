@@ -29,7 +29,10 @@ module coleco_application_gp #(
     fes_application_gp #(.ENABLE_CONTROLLER_PORTS(1), .ENABLE_KEYPAD_PORTS(1),
                           .ENABLE_MEDIA(ENABLE_MEDIA_ENDPOINT), .ENABLE_MEDIA_STREAM(ENABLE_MEDIA_ENDPOINT),
                           .ENABLE_AUDIO(1), .ENABLE_FIRMWARE(ENABLE_FIRMWARE)) endpoint (
-        .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi),
+        .clk(clk), .gpo(gpo), .build_id(build_id), .menu_request(), .menu_opcode(), .menu_index(), .menu_argument(),
+        .menu_response_valid(1'b0), .menu_response_error(1'b0),
+        .menu_response_data(16'd0), .menu_quiesced(1'b1),
+        .gpi(gpi),
         .exec_reset(exec_reset), .buttons(),
         .controller_buttons(controller_buttons), .controller_keypad(controller_keypad),
         .media_ready(media_ready), .media_size(media_size),

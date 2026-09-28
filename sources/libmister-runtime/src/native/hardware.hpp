@@ -23,6 +23,8 @@ class FixedVideoBringup;
 class InputSession;
 struct InputDeviceIdentity;
 class VideoBringup;
+class MenuDisplayDriver;
+class MenuMemory;
 
 class Clock {
 public:
@@ -67,10 +69,14 @@ public:
 		FixedVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver* fes_gp_driver,
 		std::vector<std::string> package_roots = {},
-		IdleRecipe idle_recipe = SplashIdle());
+		IdleRecipe idle_recipe = SplashIdle(),
+ MenuDisplayDriver* menu_display = nullptr,MenuMemory* menu_memory = nullptr);
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
+ HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;
+ MenuDisplayStatus menu_display() const override {return menu_status_;}
+ Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) override;
 	Error FlushSave() override;
 	Error RestoreInput(std::uint64_t generation) override;
 	Error AdmitCorePackage(const std::string&, const std::string&,
@@ -109,7 +115,15 @@ public:
 	Error EjectComputerMedia(std::uint8_t unit) override;
 
 private:
-	Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);
+	HardwareResult LoadCoreInternal(std::unique_ptr<AdmittedCorePackage>,std::uint64_t,bool);
+ HardwareResult LoadSplashIdle();
+ MenuDisplayDriver* menu_display_;
+ MenuMemory* menu_memory_;
+ MenuDisplayStatus menu_status_;
+ std::string menu_directory_,menu_package_id_;
+ std::uint8_t menu_slot_=0;
+ bool menu_unsafe_=false;
+ Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);
 	Error StopInput(std::uint64_t absolute_deadline_ms);
 	HardwareResult QuiesceForReplacement(const char* operation,
 		const std::string& system, const std::string& core);

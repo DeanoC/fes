@@ -405,3 +405,10 @@ read and resume, including invalid requests. It leaves the original volatile
 `fes-gp-v1` vectors unchanged. Regenerate with
 `python3 scripts/core_persistence_fixtures.py`, or use `--check` to compare.
 These fixtures establish byte contracts, not hardware acceptance.
+
+Application menu display `fes.video.menu-display` 1.0 uses capability bit 9
+and opcodes 18–21. It is an additive required-when-present interface; no
+manifest schema or ABI-major change is needed. Fixed geometry, bounded slot
+selection, coherent counters and drain/sequence semantics are defined in
+[application I/O](application-io.md#menu-display-10). The golden menu fixture
+is copied into RTL and runtime consumers by FES generation.

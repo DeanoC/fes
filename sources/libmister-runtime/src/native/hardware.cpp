@@ -15,6 +15,10 @@
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
 #include "native/input.hpp"
+#include "native/menu_display.hpp"
+#include "native/linux/menu_memory.hpp"
+#include <thread>
+#include <chrono>
 #include "native/video.hpp"
 
 #include <algorithm>
@@ -52,6 +56,18 @@ bool RequiresFesGamepad(const CoreDescriptor& descriptor)
 		if (interface.id == generated::FesGpInterfaceGamepadID && interface.required)
 			return true;
 	return false;
+}
+
+bool HasMenu(const CoreDescriptor& descriptor) {
+ for(const auto& interface:descriptor.interfaces)
+  if(interface.id==generated::FesApplicationInterfaceVideoMenuDisplayID)return true;
+ return false;
+}
+Error CheckMenu(const CoreDescriptor& descriptor) {
+ if(descriptor.format!=2||descriptor.core.id!="fes.menu"||!descriptor.core.system.empty()||
+  descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=3||!HasMenu(descriptor))
+  return {ErrorCode::invalid_package,"idle menu requires the described fes.menu video/DDR/menu package","admission"};
+ return CheckCoreCompatibility(descriptor);
 }
 
 // Admission accepts this interface only as a required application declaration.
@@ -180,8 +196,8 @@ NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
 	InputSession& input, const InputDeviceIdentity& input_identity, Clock& clock,
 	LogSink& log, std::string idle_rbf, NativeTimeouts timeouts,
 	CoreDriver* fes_gp_driver, std::vector<std::string> package_roots,
-	IdleRecipe idle_recipe)
-	: opener_(opener), fpga_(fpga), idle_video_(idle_video),
+	IdleRecipe idle_recipe,MenuDisplayDriver* menu_display,MenuMemory* menu_memory)
+	: menu_display_(menu_display),menu_memory_(menu_memory),opener_(opener), fpga_(fpga), idle_video_(idle_video),
 	  game_video_(game_video), input_(input), input_identity_(input_identity),
 	  clock_(clock), log_(log), idle_rbf_(std::move(idle_rbf)),
 	  idle_recipe_(std::move(idle_recipe)),
@@ -344,6 +360,7 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 		Deadline(clock_, timeouts_.core_io_ms));
 	log_.Write({operation, system, core, "driver_quiesce", driver.error});
 	ObserveHandoff(operation, driver.error);
+ if(!driver.error.ok()&&menu_status_.available){menu_unsafe_=true;menu_status_.available=false;menu_directory_.clear();menu_package_id_.clear();}
 	if (!driver.error.ok() && driver.mutation_attempted) ForgetActiveCore();
 	return {WithPhase(driver.error, "quiesce"),
 		video.mutation_attempted || driver.mutation_attempted,
@@ -598,6 +615,8 @@ Capabilities NativeHardware::capabilities() const
 		if (fpga_.BootHpsDdrLayout())
 			application.interfaces.push_back(
 				{generated::FesApplicationInterfaceMemoryHpsDdrID, 1, 0});
+		if(fpga_.BootHpsDdrLayout()&&menu_display_&&menu_memory_)
+   application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuDisplayID,1,0});
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(application));
@@ -878,13 +897,20 @@ Error NativeHardware::RecheckProgrammedBitstream(AdmittedCorePackage* package)
 	return {};
 }
 
-HardwareResult NativeHardware::LoadCore(
-	std::unique_ptr<AdmittedCorePackage> package, std::uint64_t generation)
+HardwareResult NativeHardware::LoadCore(std::unique_ptr<AdmittedCorePackage> package,std::uint64_t generation)
+{return LoadCoreInternal(std::move(package),generation,false);}
+
+HardwareResult NativeHardware::LoadCoreInternal(
+ std::unique_ptr<AdmittedCorePackage> package,std::uint64_t generation,bool allow_menu)
 {
 	NativeAdmittedCore* admitted = dynamic_cast<NativeAdmittedCore*>(package.get());
 	if (admitted == nullptr || admitted->driver_ == nullptr)
 		return {{ErrorCode::invalid_request,
 			"invalid admitted core package", "request"}, false, ""};
+ const bool menu=HasMenu(admitted->opened_.descriptor);
+ if(menu&&!allow_menu)return {{ErrorCode::unsupported_interface,"menu packages require idle configuration","admission"},false,""};
+ if(menu&&(!menu_display_||!menu_memory_))return {{ErrorCode::unsupported_interface,"menu presentation adapter unavailable","admission"},false,""};
+ if(menu){const auto checked=CheckMenu(admitted->opened_.descriptor);if(!checked.ok())return {checked,false,""};}
 	Error error = RecheckCorePackage(admitted->opened_);
 	if (error.ok() && admitted->composition_) error=RecheckCoreComposition(*admitted->composition_);
 	if (error.ok()) error = CheckCoreCompatibility(admitted->opened_.descriptor);
@@ -935,6 +961,7 @@ HardwareResult NativeHardware::LoadCore(
 		return {stopped.ok() ? quiesced.error : WithPhase(stopped, "input"),
 			quiesced.mutation_attempted, quiesced.observed_core};
 	}
+ menu_status_.available=false;
 	const Artifact* bitstream = &admitted->opened_.payload;
 	if (admitted->has_programmed_) bitstream = &admitted->programmed_;
 	else if (admitted->composition_) bitstream = &admitted->composition_->payload;
@@ -948,6 +975,7 @@ HardwareResult NativeHardware::LoadCore(
 			WithPhase(stopped, "input"),
 			quiesced.mutation_attempted || programmed.mutation_attempted, ""};
 	}
+ menu_unsafe_=false;
 	admitted->driver_->BeginSession();
 	admitted->context_.generation = generation;
 	active_driver_ = admitted->driver_;
@@ -984,6 +1012,11 @@ HardwareResult NativeHardware::LoadCore(
 				WithPhase(stopped, "input"), true, identified.observed_core};
 		}
 	}
+ if(menu) {
+  error=menu_memory_->InitializeBlack();
+  if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
+  if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
+ }
 	if (admitted->data_file_) {
 		error = admitted->driver_->RestoreData(admitted->context_,
 			{admitted->data_.paddle_speed, admitted->data_.best_rally},
@@ -1025,6 +1058,15 @@ HardwareResult NativeHardware::LoadCore(
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!started.error.ok()) return {WithPhase(std::move(started.error),
 			"transport"), true, identified.observed_core};
+  if(menu) {
+   error=menu_display_->Enable(Deadline(clock_,timeouts_.core_io_ms));
+   MenuDisplayInfo info;if(error.ok())error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
+   if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
+    error={ErrorCode::io_failed,"menu initial state is not safe black","menu"};
+   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
+   menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
+   menu_status_.geometry=info.geometry;menu_slot_=0;
+  }
 		if (fes_gamepad) {
 			error = input_.Start(generation,
 				[this](std::uint64_t reported_generation, Error fault) {
@@ -1047,7 +1089,31 @@ HardwareResult NativeHardware::LoadCore(
 	return {{}, true, identified.observed_core};
 }
 
+HardwareResult NativeHardware::ConfigureMenuPackage(const std::string& directory,const std::string& id)
+{
+ std::unique_ptr<AdmittedCorePackage> package;Error error=AdmitCorePackage(directory,id,&package);
+ if(!error.ok())return {error,false,""};
+ error=CheckMenu(package->info().descriptor);if(!error.ok())return {error,false,""};
+ const auto result=LoadCoreInternal(std::move(package),0,true);
+ if(result.error.ok()){menu_directory_=directory;menu_package_id_=id;}
+ else if(result.mutation_attempted){menu_directory_.clear();menu_package_id_.clear();menu_status_.available=false;menu_status_.error=result.error;}
+ return result;
+}
 HardwareResult NativeHardware::LoadIdle()
+{
+ if(!menu_directory_.empty()) {
+  std::unique_ptr<AdmittedCorePackage> package;Error error=AdmitCorePackage(menu_directory_,menu_package_id_,&package);
+  HardwareResult result;
+  if(error.ok())error=CheckMenu(package->info().descriptor);
+  if(error.ok())result=LoadCoreInternal(std::move(package),0,true);else result={error,false,""};
+  if(result.error.ok())return result;
+  menu_directory_.clear();menu_package_id_.clear();
+  const auto fallback=LoadSplashIdle();menu_status_.available=false;menu_status_.error=result.error;
+  return fallback;
+ }
+ return LoadSplashIdle();
+}
+HardwareResult NativeHardware::LoadSplashIdle()
 {
 	// Startup/fault/failed-launch cleanup deliberately has no save side effect.
 	core_data_file_.reset();
@@ -1066,14 +1132,15 @@ HardwareResult NativeHardware::LoadIdle()
 	if (!error.ok()) return {input_error.ok() ? error : input_error,
 		quiesced.mutation_attempted, ""};
 	bool quiesce_mutation = quiesced.mutation_attempted;
-	if (active_driver_ != nullptr) {
+	if (active_driver_ != nullptr && !menu_unsafe_) {
 		const CoreDriverResult driver = active_driver_->Quiesce(active_context_,
 			Deadline(clock_, timeouts_.core_io_ms));
 		quiesce_mutation = quiesce_mutation || driver.mutation_attempted;
 		log_.Write({"start", "", "", "driver_quiesce", driver.error});
-		if (!driver.error.ok())
-			return {input_error.ok() ? driver.error : input_error,
-				quiesce_mutation, driver.observed_core};
+  if(!driver.error.ok()) {
+   if(!menu_status_.available)return {input_error.ok()?driver.error:input_error,quiesce_mutation,driver.observed_core};
+   menu_unsafe_=true;menu_status_.error=driver.error;
+  }
 	}
 	const NativeResult programmed = fpga_.Program(artifact,
 		idle_recipe_.programming_profile,
@@ -1086,6 +1153,7 @@ HardwareResult NativeHardware::LoadIdle()
 		return {input_error.ok() ? error : input_error,
 			quiesce_mutation || programmed.mutation_attempted, ""};
 	}
+ menu_unsafe_=false;menu_status_.available=false;
 	const VideoResult video = idle_video_.BringUp(idle_recipe_,
 		Deadline(clock_, timeouts_.video_ms));
 	if (!video.error.ok())
@@ -1100,6 +1168,34 @@ HardwareResult NativeHardware::LoadIdle()
 }
 
 
+Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* output)
+{
+ if(!output||!menu_status_.available||menu_unsafe_||!menu_display_||!menu_memory_)
+  return {ErrorCode::busy,"menu presentation unavailable","menu"};
+ const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
+ MenuDisplayInfo info;Error error=menu_display_->ReadInfo(deadline,&info);
+ if(error.ok()&&(!info.enabled||!info.configured||info.pending||info.quiesced||info.faulted||
+  info.displayed_sequence!=menu_status_.displayed_sequence||info.underflows))
+  error={ErrorCode::io_failed,"menu slot ownership or scanout state changed","menu"};
+ if(error.ok()&&info.displayed_sequence==std::numeric_limits<std::uint32_t>::max())
+  error={ErrorCode::io_failed,"menu sequence exhausted","menu"};
+ const auto slot=std::uint8_t(menu_slot_^1);
+ const auto sequence=info.displayed_sequence+1;
+ if(error.ok())error=menu_memory_->CopyRgba(slot,frame);
+ if(error.ok())error=menu_display_->Submit(slot,sequence,deadline);
+ while(error.ok()) {
+  error=menu_display_->ReadInfo(deadline,&info);if(!error.ok())break;
+  if(!info.enabled||!info.configured||info.quiesced||info.faulted||info.underflows||
+   (info.displayed_sequence!=menu_status_.displayed_sequence&&info.displayed_sequence!=sequence)) {
+   error={ErrorCode::io_failed,"menu completion or scanout fault","menu"};break;
+  }
+  if(info.displayed_sequence==sequence&&!info.pending){menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=info.underflows;*output=info;return {};}
+  if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu display completion timed out","menu"};break;}
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+ }
+ menu_status_.available=false;menu_status_.error=error;menu_unsafe_=true;menu_directory_.clear();menu_package_id_.clear();return error;
+}
+
 HardwareResult NativeHardware::LoadContainedDevelopmentRBF(const std::string& rbf,
 	std::uint64_t generation)
 {
@@ -1112,6 +1208,7 @@ HardwareResult NativeHardware::LoadContainedDevelopmentRBF(const std::string& rb
 		"load_development_rbf", "", "");
 	error = quiesced.error;
 	if (!error.ok()) return {error, quiesced.mutation_attempted, ""};
+	menu_status_.available=false;
 	const NativeResult programmed = fpga_.Program(artifact,
 		profile,
 		Deadline(clock_, timeouts_.program_ms));

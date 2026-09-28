@@ -244,6 +244,37 @@ func TestProtocol2StatusRequiresASuccessfulReadOnlyReply(t *testing.T) {
 	fixture.wait(t)
 }
 
+func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
+	valid := fixtureLines(t, "protocol-v2.jsonl")[1]
+	menu := `,"menu_display":{"available":false,"package_id":"` + strings.Repeat("a", 64) + `","generation":0,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"staging_format":"rgba8888","displayed_sequence":0,"underflows":0,"error":{"code":"io_failed","message":"map immutable menu staging: Operation not permitted","phase":"menu_memory"}}`
+	withMenu := strings.Replace(valid, `"inspected_package":null`, `"inspected_package":null`+menu, 1)
+	fixture := newSequenceSocketFixture(t, []string{withMenu + "\n"})
+	status, err := NewClient(fixture.path).Protocol2Status(context.Background())
+	if err != nil || !validIdle(status) {
+		t.Fatalf("menu status rejected as idle: %#v, %v", status, err)
+	}
+	fixture.wait(t)
+	malformed := strings.Replace(withMenu, `"staging_format":"rgba8888"`, `"staging_format":"rgba8888","surprise":true`, 1)
+	if _, err := decodeProtocol2Response([]byte(malformed)); !errors.Is(err, errInvalidRuntimeResponse) {
+		t.Fatalf("unknown menu evidence accepted: %v", err)
+	}
+}
+
+func TestProtocol2StatusAcceptsPromotedMenuFailures(t *testing.T) {
+	valid := fixtureLines(t, "protocol-v2.jsonl")[1]
+	for _, phase := range []string{"menu", "menu_memory"} {
+		t.Run(phase, func(t *testing.T) {
+			withError := strings.Replace(valid, `"error":null`, `"error":{"code":"io_failed","message":"menu scanout failed","phase":"`+phase+`"}`, 1)
+			fixture := newSequenceSocketFixture(t, []string{withError + "\n"})
+			status, err := NewClient(fixture.path).Protocol2Status(context.Background())
+			if err != nil || !validIdle(status) {
+				t.Fatalf("promoted %s error rejected: %#v, %v", phase, status, err)
+			}
+			fixture.wait(t)
+		})
+	}
+}
+
 func TestProtocol2PackageOperationsBindSuccessfulRepliesToRequestedIdentityAndState(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	otherID := strings.Repeat("d", 64)
