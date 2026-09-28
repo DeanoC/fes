@@ -161,10 +161,30 @@ replaced client or a changed address or TargetID. When Ensure needs to
 dial a content executor, it uses the verified endpoint adopted by the
 claimed client. A lease this launch claimed is released when execution
 does not start and no other in-flight launch still holds it. A launch
-that starts execution keeps the grant and the new session bind. A launch
+that starts execution keeps the grant and the new session bind. It then
+releases the grant the session still held on the kit the rebind left:
+after the new bind has started execution and claim cleanup has run,
+`LaunchOn` posts `POST /v1/kit/release` with that grant on the left
+kit's client (`releaseLeftPlacementLease`), never an idle Stop, which
+would reprogram a menu kit. The release runs synchronously before
+`LaunchOn` returns, with no Service lock held and its own 5-second
+deadline, independent of the caller's context. It is skipped when the
+session is back on the left kit, when the left kit is the same client,
+grant, or kit (node id or TargetID) as the new bind, when the session
+does not hold a grant there, when that kit still has a live play, and
+when another launch holds or is releasing that grant; a skipped
+release leaves the grant as it was. A kit answer that the grant is
+already gone (404, 409, or `KIT_LEASE_REQUIRED`) counts as released
+and forgets the local grant. Any other failure is logged (target name
+and node id, never the token) and does not undo the rebind or change
+the launch result. The grant stays with the client, which resumes
+renewing it while the lease is open, and is kept in the stopped-lease
+list so a later explicit Stop retries the release. When the left kit
+is unreachable, renewal fails, the client drops the grant, and the
+kit's lease ends by its TTL (90 seconds in production). A launch
 that does not start execution restores the previous selected target,
 mesh bind, and origin hook, unless a later launch has already moved that
-field. A failed launch does not release a grant another launch adopted. A release
+field, and leaves the previous kit's lease untouched. A failed launch does not release a grant another launch adopted. A release
 that fails leaves the claim unsettled so it can be retried. A grant
 the session already held stays held. Ensure runs on that executor only when
 `[mesh] ensure` is already on. An unset key or `ensure = false`

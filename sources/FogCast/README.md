@@ -119,6 +119,14 @@ and content selection; the MiSTer is a small, directly controlled target.
   running agent can bind its identity through authenticated health at the
   configured address. The browser and tenfoot distinguish connection state
   from game state. See [target reconnection](docs/ARCHITECTURE.md#target-identity-and-reconnection).
+- Opt-in mesh placement (`[mesh] placement = true`) can claim another
+  configured FPGA kit with the existing kit lease and rebind the session to
+  it. Once that launch starts execution, the host releases the lease it held
+  on the kit it left with `POST /v1/kit/release` (bounded at 5 seconds before
+  the launch returns; never an idle Stop). A failed release is logged and does
+  not undo the rebind; the grant is kept for a later explicit Stop, or ends by
+  the kit's lease TTL when that kit is unreachable. See
+  [placement](docs/ARCHITECTURE.md#normal-fpga-game-launch) in the architecture.
 - Explicit contained development-RBF diagnostics. Recovery programs idle
   again (`recover_idle`) before any board reboot. `/sbin/reboot` runs when
   that idle program fails, and when an older runtime rejects `recover_idle`

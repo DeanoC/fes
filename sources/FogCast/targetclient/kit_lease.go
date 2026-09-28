@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/kitlease"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const KitLeaseHeader = "X-FogCast-Kit-Lease"
@@ -126,18 +127,25 @@ func (l *KitLease) renew(parent context.Context) {
 	l.localExpiry = requestStart.Add(time.Duration(next.Status.ExpiresInMS) * time.Millisecond)
 }
 func (l *KitLease) request(ctx context.Context, path, token string, result any) error {
+	_, err := l.requestStatus(ctx, path, token, result)
+	return err
+}
+
+// requestStatus posts a kit-lease mutation and returns the HTTP status.
+// The status is zero when the request is not sent.
+func (l *KitLease) requestStatus(ctx context.Context, path, token string, result any) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", l.client.endpoint(path, nil).String(), nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+l.client.token)
 	req.Header.Set(KitLeaseHeader, token)
 	resp, err := l.client.httpClient.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
-	return decodeResponse(resp, result)
+	return resp.StatusCode, decodeResponse(resp, result)
 }
 
 // Release relinquishes this application's grant only. A failed renewal never
@@ -150,6 +158,32 @@ func (l *KitLease) Release(ctx context.Context) error {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	_, err := l.releaseLocked(ctx, false)
+	return err
+}
+
+// ReleaseGrant relinquishes this application's grant the way Release does.
+// A kit that answers the grant is not held — HTTP 404, HTTP 409, or
+// KIT_LEASE_REQUIRED (missing, expired, or superseded) — forgets the local
+// grant: the token and request id are cleared, renewal is not restarted,
+// and lost is not set, so a later claim on this kit still works. notHeld is
+// then true. Any other failure keeps the grant and restarts renewal when
+// the lease is still open. No token held returns (false, nil) and sends
+// no request.
+func (l *KitLease) ReleaseGrant(ctx context.Context) (notHeld bool, err error) {
+	if l == nil {
+		return false, nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.releaseLocked(ctx, true)
+}
+
+// releaseLocked posts /v1/kit/release. Caller holds l.mu. forgetNotHeld
+// drops a grant the kit reports it does not have, without setting lost and
+// without restarting renewal. Release passes false, so that answer stays a
+// retryable failure and the local grant is kept.
+func (l *KitLease) releaseLocked(ctx context.Context, forgetNotHeld bool) (bool, error) {
 	if l.cancel != nil {
 		l.cancel()
 		l.cancel = nil
@@ -157,21 +191,37 @@ func (l *KitLease) Release(ctx context.Context) error {
 	token := l.grant.Token
 	if token == "" {
 		l.requestID = ""
-		return nil
+		return false, nil
 	}
 	var status kitLeaseStatus
-	err := l.request(ctx, "/v1/kit/release", token, &status)
+	code, err := l.requestStatus(ctx, "/v1/kit/release", token, &status)
 	if err != nil {
+		if forgetNotHeld && kitGrantNotHeld(code, err) {
+			l.grant = kitLeaseGrant{}
+			l.requestID = ""
+			return true, nil
+		}
 		if !l.closed && !l.lost && l.cancel == nil {
 			renewCtx, cancel := context.WithCancel(context.Background())
 			l.cancel = cancel
 			go l.renewLoop(renewCtx)
 		}
-		return err
+		return false, err
 	}
 	l.grant = kitLeaseGrant{}
 	l.requestID = ""
-	return nil
+	return false, nil
+}
+
+// kitGrantNotHeld reports a release the kit rejected because this grant is
+// already gone: unknown (404), conflict (409), or missing, expired, or
+// superseded (403 KIT_LEASE_REQUIRED).
+func kitGrantNotHeld(status int, err error) bool {
+	if status == http.StatusNotFound || status == http.StatusConflict {
+		return true
+	}
+	var api *protocol.APIError
+	return errors.As(err, &api) && api != nil && string(api.Code) == "KIT_LEASE_REQUIRED"
 }
 func (l *KitLease) Close(ctx context.Context) error {
 	if l == nil {
@@ -304,6 +354,16 @@ func (c *Client) ReleaseContentPullLease(ctx context.Context) error {
 		return ErrKitLeaseLost
 	}
 	return c.kitLease.Release(ctx)
+}
+
+// ReleaseKitGrant releases the session grant on this client.
+// A nil client or a client without a lease returns ErrKitLeaseLost.
+// notHeld is true when the kit reports that this grant is already gone.
+func (c *Client) ReleaseKitGrant(ctx context.Context) (notHeld bool, err error) {
+	if c == nil || c.kitLease == nil {
+		return false, ErrKitLeaseLost
+	}
+	return c.kitLease.ReleaseGrant(ctx)
 }
 
 func (l *KitLease) CurrentToken() string {
