@@ -200,6 +200,10 @@ func TestSchemaMigrationsKeepExistingSelections(t *testing.T) {
 	if err != nil || disk.MediaRole != "disk" {
 		t.Fatalf("disk role refused: %+v %v", disk, err)
 	}
+	cassette, err := store.SelectCoreEntryMedia(ctx, gameID, packageID, mediaID, "cassette", mediaID)
+	if err != nil || cassette.MediaRole != "cassette" {
+		t.Fatalf("cassette role refused: %+v %v", cassette, err)
+	}
 	if _, err := store.SelectCoreEntryMedia(ctx, gameID, packageID, mediaID, "tape", mediaID); err == nil {
 		t.Fatal("unknown media role accepted")
 	}

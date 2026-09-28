@@ -98,13 +98,15 @@ module spectrum_machine (
     wire [7:0] cpu_di;
     wire nmi = response1[`SP_BUS_NMI] | response2[`SP_BUS_NMI] |
                response3[`SP_BUS_NMI] | response4[`SP_BUS_NMI];
+    wire card_wait = response1[`SP_BUS_WAIT] | response2[`SP_BUS_WAIT] |
+                     response3[`SP_BUS_WAIT] | response4[`SP_BUS_WAIT];
 
     T80pa cpu (
         .RESET_n(~reset),
         .CLK(clk_sys),
         .CEN_p(cen_p),
         .CEN_n(cen_n),
-        .WAIT_n(1'b1),
+        .WAIT_n(~card_wait),
         .INT_n(int_n),
         .NMI_n(~nmi),
         .BUSRQ_n(1'b1),

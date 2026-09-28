@@ -64,7 +64,8 @@ module spectrum_tape (
 
     reg [2:0] state = S_IDLE;
     reg [1:0] phase = P_PILOT;
-    reg [15:0] ptr = 16'h0000;
+    // 17 bits so a block that ends on byte 65536 does not wrap to zero.
+    reg [16:0] ptr = 17'd0;
     reg [15:0] length = 16'h0000;
     reg [15:0] bytes_left = 16'h0000;
     reg [15:0] next_addr = 16'h0000;
@@ -80,27 +81,27 @@ module spectrum_tape (
         if (reset || !ready) begin
             state <= S_IDLE;
             ear <= 1'b0;
-            ptr <= 16'h0000;
+            ptr <= 17'd0;
             read_addr <= 16'h0000;
         end else if (cen) begin
             case (state)
                 S_IDLE: begin
                     ear <= 1'b0;
-                    ptr <= 16'h0000;
+                    ptr <= 17'd0;
                     read_addr <= 16'h0000;
                     state <= S_LEN_LO;
                 end
                 S_LEN_LO: begin
                     // read_data is the length low byte requested last cycle.
                     length[7:0] <= read_data;
-                    read_addr <= ptr + 16'd1;
+                    read_addr <= ptr[15:0] + 16'd1;
                     state <= S_LEN_HI;
                 end
                 S_LEN_HI: begin
                     length[15:8] <= read_data;
-                    read_addr <= ptr + 16'd2;
+                    read_addr <= ptr[15:0] + 16'd2;
                     if ({read_data, length[7:0]} == 16'd0 ||
-                        {16'd0, ptr} + 32'd2 + {16'd0, read_data, length[7:0]} > unit_size)
+                        {15'd0, ptr} + 32'd2 + {16'd0, read_data, length[7:0]} > unit_size)
                         state <= S_DONE;
                     else
                         state <= S_FLAG;
@@ -108,7 +109,7 @@ module spectrum_tape (
                 S_FLAG: begin
                     cur <= read_data;
                     bytes_left <= length - 16'd1;
-                    next_addr <= ptr + 16'd3;
+                    next_addr <= ptr[15:0] + 16'd3;
                     pilot_left <= read_data == 8'h00 ? 14'd8063 : 14'd3223;
                     ear <= 1'b1;
                     timer <= 22'd2168;
@@ -158,7 +159,7 @@ module spectrum_tape (
                                 end else begin
                                     ear <= 1'b0;
                                     timer <= 22'd3500000;
-                                    ptr <= ptr + 16'd2 + length;
+                                    ptr <= ptr + 17'd2 + {1'b0, length};
                                     state <= S_PAUSE;
                                 end
                             end
@@ -181,10 +182,10 @@ module spectrum_tape (
                 S_PAUSE: begin
                     ear <= 1'b0;
                     if (timer == 22'd1) begin
-                        if ({16'd0, ptr} + 32'd2 > unit_size)
+                        if ({15'd0, ptr} + 32'd2 > unit_size)
                             state <= S_DONE;
                         else begin
-                            read_addr <= ptr;
+                            read_addr <= ptr[15:0];
                             state <= S_LEN_LO;
                         end
                     end else begin

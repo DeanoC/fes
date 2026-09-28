@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 14
+const schemaVersion = 15
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -230,6 +230,26 @@ ALTER TABLE core_expansions ADD COLUMN description TEXT NOT NULL DEFAULT '';
 PRAGMA user_version = 14;
 `
 
+// Schema 15 admits the cassette role beside blob and disk. SQLite cannot
+// alter a CHECK constraint, so the table is rebuilt the same way as version 13.
+const schemaV15 = `
+CREATE TABLE core_entries_v15 (
+  game_id TEXT PRIMARY KEY REFERENCES games(game_id) ON DELETE CASCADE,
+  core_id TEXT NOT NULL,
+  package_id TEXT NOT NULL,
+  media_role TEXT NOT NULL DEFAULT '',
+  media_id TEXT NOT NULL DEFAULT '',
+  firmware_required INTEGER NOT NULL DEFAULT 0,
+  CHECK ((media_role = '' AND media_id = '') OR (media_role IN ('blob', 'disk', 'cassette') AND length(media_id) = 64))
+);
+INSERT INTO core_entries_v15(game_id, core_id, package_id, media_role, media_id, firmware_required)
+  SELECT game_id, core_id, package_id, media_role, media_id, firmware_required FROM core_entries;
+DROP TABLE core_entries;
+ALTER TABLE core_entries_v15 RENAME TO core_entries;
+CREATE INDEX core_entries_core_id ON core_entries(core_id);
+PRAGMA user_version = 15;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -261,7 +281,7 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if err := connection.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
 		return fmt.Errorf("read catalog schema version: %w", err)
 	}
-	if current < 13 {
+	if current < 15 {
 		if _, err := connection.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 			return fmt.Errorf("prepare catalog migration: %w", err)
 		}
@@ -377,6 +397,15 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 13 {
 		if _, err := connection.ExecContext(ctx, schemaV14); err != nil {
 			return fmt.Errorf("apply catalog schema version 14: %w", err)
+		}
+		version = 14
+	}
+	if version == 14 {
+		if _, err := connection.ExecContext(ctx, schemaV15); err != nil {
+			return fmt.Errorf("apply catalog schema version 15: %w", err)
+		}
+		if err := foreignKeyCheck(ctx, connection); err != nil {
+			return fmt.Errorf("apply catalog schema version 15: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
