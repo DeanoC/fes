@@ -34,6 +34,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [RAM-test local timeout/enable remap](validation/2026-09-28-ramtest-timeout-partition.md) | Shallower local cones and earlier arrivals at all 110 selected ENA pins, but changed placement regresses whole-design memory to 106.92 MHz; baseline remains 116.44. Host-only. |
 | [RAM-test ABC9 area recovery](validation/2026-09-28-ramtest-abc-area-recovery.md) | Disabling recovery rounds shortens two control paths and passes full boundary equivalence, but regresses memory to 105.49 MHz; rejected. Host-only. |
 | [RAM-test fitted Quartus control cones](validation/2026-09-28-ramtest-quartus-control-cones.md) | Passing 130 MHz fit uses broader ready-enable mapping, three-level timeout logic and different D/ENA choices; matched paths and decoded fitted functions. Host-only. |
 | [RAM-test fixed analytical HPS anchor](validation/2026-09-28-ramtest-hps-fixed-anchor.md) | Fixed-only and fixed-plus-pin-offset flows regress to 90.80/95.01 MHz despite better physical locality; exact disabled control. Host-only. |
