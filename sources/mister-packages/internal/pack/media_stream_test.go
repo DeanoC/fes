@@ -103,9 +103,41 @@ func TestMediaStreamConstantsAndLegacyOracle(t *testing.T) {
 	if got.ID != "fes.media.blob-stream" || got.Major != 1 || got.Minor != 0 || got.CapabilityBit != 3 {
 		t.Fatalf("stream interface: %+v", got)
 	}
-	audio := abi.Interfaces[4]
-	if audio.ID != "fes.audio.pcm-s16-stereo-48k" || audio.Major != 1 || audio.Minor != 0 || audio.CapabilityBit != 4 {
-		t.Fatalf("audio interface: %+v", audio)
+}
+
+func TestSimpleComputerAudioRuntimeOracle(t *testing.T) {
+	abi, err := LoadABI(filepath.Join(repoRoot(t), "packages/abi/fes_simple_computer.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oracle struct {
+		Source struct {
+			Repository string
+			Commit     string
+			File       string
+		}
+		Interface struct {
+			ID             string `json:"id"`
+			Major          uint16
+			Minor          uint16
+			CapabilityBit  uint8  `json:"capability_bit"`
+			CapabilityMask uint32 `json:"capability_mask"`
+		}
+	}
+	streamJSON(t, "testdata/oracles/fes-simple-computer-audio.json", &oracle)
+	if oracle.Source.Repository != "DeanoC/fes" ||
+		oracle.Source.Commit != "7d83d89e29089564e715d2f9adc97a46bb65d4c5" ||
+		oracle.Source.File != "sources/libmister-runtime/src/native/generated/fes_simple_computer.hpp" {
+		t.Fatalf("runtime consumer revision: %+v", oracle.Source)
+	}
+	if len(abi.Interfaces) != 5 {
+		t.Fatal("unexpected interfaces")
+	}
+	got := abi.Interfaces[4]
+	if got.ID != oracle.Interface.ID || got.Major != oracle.Interface.Major ||
+		got.Minor != oracle.Interface.Minor || got.CapabilityBit != oracle.Interface.CapabilityBit ||
+		uint32(1)<<got.CapabilityBit != oracle.Interface.CapabilityMask {
+		t.Fatalf("audio interface: %+v want %+v", got, oracle.Interface)
 	}
 }
 
