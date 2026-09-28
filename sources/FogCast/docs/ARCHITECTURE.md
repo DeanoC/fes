@@ -664,6 +664,33 @@ watcher cannot run back-to-back.
 The kit reconnects with the existing `launcher.json` API URL on that launcher
 listener. See [the host connection contract](launcher-host.md).
 
+The launcher listener serves one or more paired kits. `launcher-host.json`
+holds either the single-kit `token`/`target_id` pair or a `pairings` list of
+them (the single pair, when present, counts as the first pairing). Each
+request's bearer is matched in constant time against every pairing token,
+and `X-FogCast-Target-ID` must be that token's kit. A bearer identifies
+exactly one kit: startup refuses a configuration in which one token is
+paired with more than one `target_id` (the error names the fix, mint a
+per-kit bearer), so multi-kit use requires a separate bearer per kit. A
+launcher bearer must also differ from the host-to-agent token of every
+target in `config.toml`, enabled or not, not only the selected one. The
+single-kit form (one top-level token for one target) is unchanged.
+
+The host still has one foreground session. Catalogue, platform, health,
+attract, artwork, presentation, and cache reads are served to every enabled
+paired kit, whether or not it is the selected target. A kit-menu launch
+(`POST /api/v1/session/launch`) sets `target` to the requesting kit, so it
+launches on that kit and bypasses mesh placement. While another kit has a
+play, that launch returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt,
+stop, or rebind the other play; relaunching on the same kit is unchanged.
+`GET /api/v1/session` returns the foreground session only to the kit that
+owns it; every other enabled paired kit gets its own idle or active view,
+which does not touch the foreground session. Stop, `GET /api/v1/status`,
+session input, and launcher input are owner-only; another paired kit gets
+403 `TARGET_MISMATCH`. Per-kit concurrent sessions are follow-up #288.
+Health, `rom_cached`, and `/api/v1/library/cache` still describe the
+selected target (#289).
+
 ## Native 10-foot launcher
 
 The embedded **ZX81 workbench** (`example.hardware`) reads host-owned hardware
@@ -1313,9 +1340,12 @@ lists when the read fails. An empty ABI list
 is not eligibility. A nil content source advertises nothing. When the
 source is the launcher credential, the kit sends its own target id on
 `GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`.
-The host admits those two GETs for any enabled configured kit. They do
-not require that kit to be the listener's paired identity or the
-foreground selected target. Other launcher operations still require both.
+The host admits those two GETs for any enabled configured kit that
+presents a valid launcher bearer. They do not require that kit to be
+paired to the presented bearer or to be the foreground selected target.
+Other launcher operations require the requesting kit to be the bearer's
+paired kit; session ownership, not selection, then gates stop, status,
+and input (see the kit-only host description above).
 A pull still caps each write at `min(quota-used, free-reserve)`, re-reads free
 space while copying, and counts `partial/` bytes toward the 2 GiB
 quota. A failed dial leaves the host seam off, so Phase 0 and Phase 1
