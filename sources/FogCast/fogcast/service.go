@@ -187,7 +187,10 @@ type Service struct {
 	resolveTarget func(context.Context, string) ([]string, error)
 	meshMu        sync.Mutex
 	meshNodes     []MeshNode
-	meshExecute   MeshExecuteSession
+	// meshNodesRetained is true while meshNodes are the rows kept from an
+	// earlier window after a browse error. Guarded by meshMu.
+	meshNodesRetained bool
+	meshExecute       MeshExecuteSession
 	// meshPlacementAsk is the placement request Launch reads. Nil means
 	// the launch is not asking, and bind stays on the existing path.
 	meshPlacementAsk *MeshPlacementAsk

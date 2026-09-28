@@ -178,11 +178,13 @@ func (s *Service) placementNodeABIs(ctx context.Context, nodeID string) []meshco
 }
 
 // placementReadAddress is the one address a placement node read dials.
-// A unique discovered origin is the freshest evidence and wins, so a
-// target client adopted at an earlier claim cannot pin the read to an
-// endpoint the kit has since left. Otherwise the origin AdoptEndpoint
-// reconciled on the target client is used, otherwise the configured
-// address. The configured token and node-id check apply to every choice.
+// A unique discovered origin from the current browse window is the
+// freshest evidence and wins, so a target client adopted at an earlier
+// claim cannot pin the read to an endpoint the kit has since left.
+// Otherwise (no row, an ambiguous claim, or rows retained after a browse
+// error) the origin AdoptEndpoint reconciled on the target client is
+// used, otherwise the configured address. The configured token and
+// node-id check apply to every choice.
 func placementReadAddress(configured, discovered, reconciled string) string {
 	if origin, err := normalizeHTTPOrigin(discovered); err == nil {
 		return origin
@@ -211,19 +213,32 @@ func differingPlacementOrigin(candidate, configured string) (string, bool) {
 }
 
 // discoveredPlacementOrigin is the inventory origin for nodeID when the
-// rows for that node normalize to exactly one HTTP origin. Invalid
-// addresses are ignored, matching probeTarget. Zero or several origins
-// return "" so the caller keeps the configured address. MeshNodes copies
-// the inventory; this does not hold meshMu after it returns.
+// current browse window's advertisements for that node normalize to
+// exactly one HTTP origin. Invalid addresses are ignored, matching
+// probeTarget. It returns "" when there is no row, when discovery saw
+// that node id at several addresses (AddressConflict, or several rows),
+// and when the rows were retained after a browse error. The caller then
+// keeps the reconciled or configured address and sends the bearer to no
+// contender. meshMu is not held across a read.
 func (s *Service) discoveredPlacementOrigin(nodeID string) string {
 	if s == nil || nodeID == "" {
 		return ""
 	}
+	s.meshMu.Lock()
+	retained := s.meshNodesRetained
+	nodes := append([]MeshNode(nil), s.meshNodes...)
+	s.meshMu.Unlock()
+	if retained {
+		return ""
+	}
 	var origin string
 	found := false
-	for _, node := range s.MeshNodes() {
+	for _, node := range nodes {
 		if node.NodeID != nodeID {
 			continue
+		}
+		if node.AddressConflict {
+			return ""
 		}
 		next, err := normalizeHTTPOrigin(node.Address)
 		if err != nil {

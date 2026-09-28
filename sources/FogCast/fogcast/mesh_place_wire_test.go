@@ -3,6 +3,7 @@ package fogcast
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -613,6 +614,122 @@ func TestPlacementNodeReadIgnoresAnAmbiguousInventory(t *testing.T) {
 		t.Fatalf("same origin abis %+v live %d stale %d", abis, live.readCount(), stale.readCount())
 	}
 }
+
+// bearerRecorder is an advertised contender that records every request
+// and every Authorization header it receives.
+type bearerRecorder struct {
+	server   *httptest.Server
+	mu       sync.Mutex
+	requests int
+	bearers  []string
+}
+
+func newBearerRecorder(t *testing.T) *bearerRecorder {
+	t.Helper()
+	r := &bearerRecorder{}
+	r.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		r.mu.Lock()
+		r.requests++
+		if value := req.Header.Get("Authorization"); value != "" {
+			r.bearers = append(r.bearers, value)
+		}
+		r.mu.Unlock()
+		http.Error(w, "contender", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(r.server.Close)
+	return r
+}
+
+func (r *bearerRecorder) seen() (int, []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.requests, append([]string(nil), r.bearers...)
+}
+
+func TestPlacementNodeReadSendsNoBearerToConflictingAdverts(t *testing.T) {
+	ctx := context.Background()
+	den := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	left := newBearerRecorder(t)
+	right := newBearerRecorder(t)
+	advert := func(address string) discovery.ObservedNode {
+		return discovery.ObservedNode{NodeID: wireKitA, TargetID: wireKitA, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities(), Address: address}
+	}
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, den)})
+	// The browse window's raw instances go through the production
+	// per-node collapse, so the conflict must survive deduplication.
+	s.collectNodes = func(context.Context) ([]discovery.ObservedNode, error) {
+		return discovery.Inventory([]discovery.ObservedNode{advert(left.server.URL), advert(right.server.URL)}), nil
+	}
+	nodes, err := s.ObserveMesh(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 || !nodes[0].AddressConflict || nodes[0].Address != "" {
+		t.Fatalf("inventory %+v", nodes)
+	}
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || abis[0] != wireSimpleGame || den.readCount() != 1 {
+		t.Fatalf("configured fallback abis %+v den %d", abis, den.readCount())
+	}
+	for name, contender := range map[string]*bearerRecorder{"left": left, "right": right} {
+		if requests, bearers := contender.seen(); requests != 0 || len(bearers) != 0 {
+			t.Fatalf("%s contender got %d requests, bearers %d", name, requests, len(bearers))
+		}
+	}
+
+	// A reconciled client endpoint is the fallback when one is adopted.
+	s.placementNodes = nil
+	live := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	installReconciledClient(t, s, "den", live.server.URL, wireAgentToken)
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || live.readCount() != 1 {
+		t.Fatalf("reconciled fallback abis %+v live %d", abis, live.readCount())
+	}
+	for name, contender := range map[string]*bearerRecorder{"left": left, "right": right} {
+		if requests, _ := contender.seen(); requests != 0 {
+			t.Fatalf("%s contender got %d requests", name, requests)
+		}
+	}
+}
+
+func TestPlacementNodeReadPrefersTheReconciledEndpointOverRetainedDiscovery(t *testing.T) {
+	ctx := context.Background()
+	configured := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	left := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	live := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	s := wiredPlacementService([]TargetConfig{wireTarget("den", wireKitA, configured)})
+	browse := func(address string) func(context.Context) ([]discovery.ObservedNode, error) {
+		return func(context.Context) ([]discovery.ObservedNode, error) {
+			return []discovery.ObservedNode{{NodeID: wireKitA, TargetID: wireKitA, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities(), Address: address}}, nil
+		}
+	}
+	s.collectNodes = browse(left.server.URL)
+	if _, err := s.ObserveMesh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// The kit moves; the next browse fails and keeps the old row, and the
+	// target client verifies and adopts the kit's new endpoint.
+	s.collectNodes = func(context.Context) ([]discovery.ObservedNode, error) {
+		return nil, errBrowseForTest
+	}
+	if nodes, err := s.ObserveMesh(ctx); err == nil || len(nodes) != 1 || nodes[0].Address != left.server.URL {
+		t.Fatalf("retained inventory %+v err %v", nodes, err)
+	}
+	installReconciledClient(t, s, "den", live.server.URL, wireAgentToken)
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || live.readCount() != 1 || left.readCount() != 0 || configured.readCount() != 0 {
+		t.Fatalf("abis %+v live %d left %d configured %d", abis, live.readCount(), left.readCount(), configured.readCount())
+	}
+
+	// A later successful browse is current evidence again.
+	now := newPlacementAgent(t, wireKitA, wireSimpleGame)
+	s.collectNodes = browse(now.server.URL)
+	if _, err := s.ObserveMesh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if abis := s.placementNodeABIs(ctx, wireKitA); len(abis) != 1 || now.readCount() != 1 || live.readCount() != 1 || left.readCount() != 0 {
+		t.Fatalf("fresh abis %+v now %d live %d left %d", abis, now.readCount(), live.readCount(), left.readCount())
+	}
+}
+
+var errBrowseForTest = errors.New("browse failed")
 
 func TestPlacementNodeReadSkipsADisabledDiscoveredKit(t *testing.T) {
 	ctx := context.Background()
