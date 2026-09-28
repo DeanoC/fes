@@ -128,7 +128,9 @@ def execute(result):
     preflight(result)
     environment = dict(os.environ)
     # These are native software tests even when the shell was used to cross-build.
-    for key in ("GOOS", "GOARCH", "GOARM"):
+    # Each lane is a standalone test command; inherited parent make flags can
+    # add directory chatter to nested `make -n` output and break exact recipes.
+    for key in ("GOOS", "GOARCH", "GOARM", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS"):
         environment.pop(key, None)
     result["results"] = []
     for command in result["commands"]:
