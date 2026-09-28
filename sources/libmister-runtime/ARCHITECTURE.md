@@ -136,7 +136,12 @@ lifecycle lock while its caller fills the file. Both the generation and
 runtime-created preparation identity bind `PresentMenuFrame`; immutable
 validation precedes any copy. Presentation holds the existing busy fence
 through copy, submission and displayed-sequence polling. ACK alone never
-releases the previous slot. Stop reactivates an explicitly configured menu
+releases the previous slot. A core-data request or launch arriving during a
+presentation waits up to two seconds for that frame to finish. While it waits,
+new menu frames cannot enter; other busy lifecycle operations still reject
+immediately. The mutation then claims the same busy fence or returns busy if
+the frame did not finish, recovery intervened, or another mutation claimed it.
+Stop reactivates an explicitly configured menu
 with a fresh generation, including Stop from menu idle; splash Stop stays
 idempotent. A rejected pre-mutation game admission preserves the menu and its
 preparation. Replacement and contained diagnostics revoke the old generation.
