@@ -334,6 +334,13 @@ var apple2Sockets = map[int]socketPolicy{
 	7: {Apple2Slot, Apple2Map, 1769, 5162, 2806, 6882},
 }
 
+// c64Sockets is fes.c64-bus.sockets/1. The rectangles are the Apple II slot 2
+// and slot 4 placement rows, named as C64 sockets 1 and 2.
+var c64Sockets = map[int]socketPolicy{
+	1: {C64Slot, C64Map, 1769, 32, 2806, 1722},
+	2: {C64Slot, C64Map, 1769, 1722, 2806, 3442},
+}
+
 func policyFor(slot, mapping string) (socketPolicy, error) {
 	switch {
 	case slot == Slot && mapping == Map:
@@ -351,7 +358,8 @@ func supportedSocketVersion(slot, mapping string, major int) bool {
 	return (slot == Slot && mapping == Map && major == 1) ||
 		(slot == ColecoSlot && mapping == ColecoMap && major == 1) ||
 		(slot == ColecoSlot && mapping == ColecoMapV2 && major == 2) ||
-		(slot == Apple2Slot && mapping == Apple2Map && major == 1)
+		(slot == Apple2Slot && mapping == Apple2Map && major == 1) ||
+		(slot == C64Slot && mapping == C64Map && major == 1)
 }
 
 func (p socketPolicy) inside(x, y int) bool {

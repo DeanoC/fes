@@ -176,6 +176,12 @@ constants:
     value: 0
   - name: FesComputerApple2FloppyBytes
     value: 143360
+  # fes.media.c64-disk 1.0: unit 0, exactly one 35-track D64 image.
+  # A core declares this or the Apple II floppy, not both: both occupy unit 0.
+  - name: FesComputerC64DiskUnit
+    value: 0
+  - name: FesComputerC64DiskBytes
+    value: 174848
 interfaces:
   - id: fes.video.fixed-720p60
     major: 1
@@ -197,3 +203,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 4
+  - id: fes.media.c64-disk
+    major: 1
+    minor: 0
+    capability_bit: 5

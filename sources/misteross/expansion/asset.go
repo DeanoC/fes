@@ -32,6 +32,10 @@ const (
 const (
 	Apple2Slot = "fes.expansion.apple2-bus"
 	Apple2Map  = "fes.apple2-bus.slots/1"
+	// C64Slot is the cartridge-port bus. Socket 1 is the ROM window and
+	// socket 2 is the I/O window.
+	C64Slot = "fes.expansion.c64-bus"
+	C64Map  = "fes.c64-bus.sockets/1"
 )
 
 var hex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)

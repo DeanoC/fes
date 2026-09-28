@@ -28,6 +28,10 @@ const (
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
 	// Apple2FloppyUnit is the media unit fes.media.apple2-floppy occupies.
 	Apple2FloppyUnit uint8 = uint8(generated.FesComputerApple2FloppyUnit)
+	// C64DiskBytes is the exact 35-track D64 image size.
+	C64DiskBytes int64 = int64(generated.FesComputerC64DiskBytes)
+	// C64DiskUnit is the media unit fes.media.c64-disk occupies.
+	C64DiskUnit uint8 = uint8(generated.FesComputerC64DiskUnit)
 	// ComputerMediaTransport names the fes.computer media-unit delivery.
 	ComputerMediaTransport = "fes-computer-media-unit-v1"
 	// MediaUnitHeader carries the addressed unit on target media requests.
@@ -49,6 +53,11 @@ func KeyboardHIDInterface() RuntimeContract {
 // Apple2FloppyInterface is the unit-0 Apple II DOS-order floppy contract.
 func Apple2FloppyInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaApple2FloppyID, Major: generated.FesComputerInterfaceMediaApple2FloppyMajor, Minor: generated.FesComputerInterfaceMediaApple2FloppyMinor}
+}
+
+// C64DiskInterface is the unit-0 Commodore D64 contract.
+func C64DiskInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaC64DiskID, Major: generated.FesComputerInterfaceMediaC64DiskMajor, Minor: generated.FesComputerInterfaceMediaC64DiskMinor}
 }
 
 // ComputerABI reports the exact fes.computer 1.0 contract.
@@ -103,9 +112,13 @@ func (u MediaUnitStatus) Valid() bool {
 	default:
 		return false
 	}
-	if u.Interface.ID == Apple2FloppyInterface().ID {
+	switch u.Interface.ID {
+	case Apple2FloppyInterface().ID:
 		return u.Interface == Apple2FloppyInterface() && u.Unit == Apple2FloppyUnit &&
 			int64(u.MinBytes) == Apple2FloppyBytes && int64(u.MaxBytes) == Apple2FloppyBytes
+	case C64DiskInterface().ID:
+		return u.Interface == C64DiskInterface() && u.Unit == C64DiskUnit &&
+			int64(u.MinBytes) == C64DiskBytes && int64(u.MaxBytes) == C64DiskBytes
 	}
 	return true
 }
@@ -125,19 +138,26 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 }
 
 // declaredComputerMedia projects known media interfaces of an exact
-// fes.computer 1.0 descriptor. Only fes.media.apple2-floppy 1.0 is known.
+// fes.computer 1.0 descriptor.
 func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapability {
 	result := make([]CoreMediaCapability, 0)
 	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return result
 	}
 	floppy := Apple2FloppyInterface()
+	disk := C64DiskInterface()
 	for _, contract := range descriptor.Interfaces {
-		if contract.ID == floppy.ID && contract.Major == int64(floppy.Major) && contract.Minor == int64(floppy.Minor) {
+		switch {
+		case contract.ID == floppy.ID && contract.Major == int64(floppy.Major) && contract.Minor == int64(floppy.Minor):
 			unit := Apple2FloppyUnit
 			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "apple2-dos-order",
 				MinBytes: Apple2FloppyBytes, MaxBytes: Apple2FloppyBytes, Interface: floppy,
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".dsk", ".do"}})
+		case contract.ID == disk.ID && contract.Major == int64(disk.Major) && contract.Minor == int64(disk.Minor):
+			unit := C64DiskUnit
+			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "c64-d64",
+				MinBytes: C64DiskBytes, MaxBytes: C64DiskBytes, Interface: disk,
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".d64"}})
 		}
 	}
 	return result
@@ -162,10 +182,23 @@ func AdmitDiskMediaName(name string) bool {
 	}
 }
 
+// AdmitC64DiskName accepts a Commodore D64 basename.
+func AdmitC64DiskName(name string) bool {
+	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
+		return false
+	}
+	return strings.ToLower(filepath.Ext(name)) == ".d64"
+}
+
+// AdmitComputerDiskName accepts either home-computer disk image name.
+func AdmitComputerDiskName(name string) bool {
+	return AdmitDiskMediaName(name) || AdmitC64DiskName(name)
+}
+
 // AdmitLiveMediaName accepts the names of every live media form: ZX81 tapes
-// and Apple II floppies. The active package then chooses the exact contract.
+// and home-computer disks. The active package then chooses the exact contract.
 func AdmitLiveMediaName(name string) bool {
-	return AdmitTapeMediaName(name) || AdmitDiskMediaName(name)
+	return AdmitTapeMediaName(name) || AdmitComputerDiskName(name)
 }
 
 // MediaUnitBinding names one unit of the already active target package

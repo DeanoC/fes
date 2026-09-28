@@ -2179,10 +2179,12 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
 		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaApple2FloppyID});
 	// Registered live bits must equal the declared set; unregistered bits are ignored.
+	// Bit 5 is fes.media.c64-disk, which this package does not declare.
+	constexpr unsigned kRegistered = 63u;
 	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu}) {
 		ComputerFixture f(static_cast<std::uint16_t>(live), {{0, {143360, 143360}}}, full);
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
-		const bool expected = (live & 31u) == 31u;
+		const bool expected = (live & kRegistered) == 31u;
 		assert(result.error.ok() == expected);
 		if (!expected) {
 			assert(result.error.code == mister::ErrorCode::core_mismatch);
@@ -2193,6 +2195,21 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 				f.driver.media_units()[0].min_bytes == 143360 &&
 				f.driver.media_units()[0].max_bytes == 143360);
 		}
+	}
+	const auto c64 = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
+		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaC64DiskID});
+	{
+		ComputerFixture f(0x2fu, {{0, {FesComputerC64DiskBytes, FesComputerC64DiskBytes}}}, c64);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.media_units().size() == 1 &&
+			f.driver.media_units()[0].min_bytes == FesComputerC64DiskBytes &&
+			f.driver.media_units()[0].max_bytes == FesComputerC64DiskBytes);
+	}
+	{
+		ComputerFixture f(31u, {{0, {FesComputerC64DiskBytes, FesComputerC64DiskBytes}}}, c64);
+		const auto result = f.driver.Identify(f.context, kComputerDeadline);
+		assert(!result.error.ok() && result.error.code == mister::ErrorCode::core_mismatch);
 	}
 	// Another ABI tag is a different contract.
 	{

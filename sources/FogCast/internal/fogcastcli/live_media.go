@@ -334,7 +334,14 @@ func resolveDiskArgument(ctx context.Context, origin, arg string) (mediaID, name
 	}
 	before, err := os.Lstat(arg)
 	base := filepath.Base(arg)
-	if err != nil || !before.Mode().IsRegular() || !protocol.AdmitDiskMediaName(base) || before.Size() != protocol.Apple2FloppyBytes {
+	var limit int64
+	switch {
+	case protocol.AdmitDiskMediaName(base):
+		limit = protocol.Apple2FloppyBytes
+	case protocol.AdmitC64DiskName(base):
+		limit = protocol.C64DiskBytes
+	}
+	if err != nil || !before.Mode().IsRegular() || limit == 0 || before.Size() != limit {
 		return "", "", protocol.DiskMediaRequestError()
 	}
 	file, err := os.Open(arg)
@@ -346,8 +353,8 @@ func resolveDiskArgument(ctx context.Context, origin, arg string) (mediaID, name
 	if err != nil || !os.SameFile(before, opened) {
 		return "", "", protocol.DiskMediaRequestError()
 	}
-	data, err := io.ReadAll(io.LimitReader(file, protocol.Apple2FloppyBytes+1))
-	if err != nil || int64(len(data)) != protocol.Apple2FloppyBytes {
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil || int64(len(data)) != limit {
 		return "", "", protocol.DiskMediaRequestError()
 	}
 	mediaID, err = importCoreMediaBytes(ctx, origin, data)

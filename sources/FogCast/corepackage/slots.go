@@ -43,31 +43,47 @@ func slotCompositionShell(inspection Inspection, payload []byte) (expansion.Shel
 	if d.ABI.ID != "fes.computer" || d.ABI.Major != 1 || d.ABI.Minor != 0 {
 		return expansion.Shell{}, errors.New("slot composition requires the fes.computer 1.0 ABI")
 	}
-	found := false
+	var slot string
 	for _, i := range d.Interfaces {
 		switch i.ID {
-		case expansion.Apple2Slot:
-			if found || i.Required || i.Major != 1 || i.Minor != 0 {
-				return expansion.Shell{}, errors.New("slot composition requires one optional fes.expansion.apple2-bus 1.0")
+		case expansion.Apple2Slot, expansion.C64Slot:
+			if slot != "" || i.Required || i.Major != 1 || i.Minor != 0 {
+				return expansion.Shell{}, errors.New("slot composition requires one optional multi-slot bus 1.0")
 			}
-			found = true
+			slot = i.ID
 		case expansion.Slot, expansion.ColecoSlot:
 			return expansion.Shell{}, errors.New("slot composition shell must not declare a single-socket bus")
 		}
 	}
-	if !found {
-		return expansion.Shell{}, errors.New("slot composition requires one optional fes.expansion.apple2-bus 1.0")
+	if slot == "" {
+		return expansion.Shell{}, errors.New("slot composition requires one optional multi-slot bus 1.0")
 	}
-	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: expansion.Apple2Slot, SlotMajor: 1}, nil
+	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: slot, SlotMajor: 1}, nil
 }
 
 // SlotSockets lists the physical sockets of a descriptor's multi-socket bus in
 // ascending order, or nil when the package has none.
 func SlotSockets(d Descriptor) []int {
-	if _, err := slotCompositionShell(Inspection{Descriptor: d}, nil); err != nil {
+	shell, err := slotCompositionShell(Inspection{Descriptor: d}, nil)
+	if err != nil {
 		return nil
 	}
-	return expansion.SlotSockets(expansion.Apple2Slot, expansion.Apple2Map)
+	mapping, ok := slotMap(shell.Slot)
+	if !ok {
+		return nil
+	}
+	return expansion.SlotSockets(shell.Slot, mapping)
+}
+
+func slotMap(slot string) (string, bool) {
+	switch slot {
+	case expansion.Apple2Slot:
+		return expansion.Apple2Map, true
+	case expansion.C64Slot:
+		return expansion.C64Map, true
+	default:
+		return "", false
+	}
 }
 
 func sortedSlotAssets(assets []expansion.Asset) []expansion.Asset {

@@ -185,6 +185,11 @@ object under `active_package.composition`:
 "composition":{"composition_id":"<C>","package_id":"<P>","expansions":[{"slot":4,"expansion_id":"<E4>"},{"slot":6,"expansion_id":"<E6>"}],"shell_sha256":"<S>","payload_sha256":"<L>","payload_size":1816338}
 ```
 
+`fes.expansion.c64-bus` 1.0 uses the same composition operations. Its map
+`fes.c64-bus.sockets/1` admits only socket 1 (ROM window) and socket 2 (I/O
+window), at most two cards. `fes.media.c64-disk` 1.0 is media unit 0, an
+exact 174,848-byte read-only D64.
+
 Single-socket ZX81 and Coleco requests, manifests, identities and status are
 unchanged, and neither shape composes the other bus.
 

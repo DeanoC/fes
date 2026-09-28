@@ -12,20 +12,20 @@ The locked idle core is the in-tree misteross seal
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2` and `fes.catch` HIP/nextpnr
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64` and `fes.catch` HIP/nextpnr
 producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81` and `fes.coleco` package set, while focused
-profiles may select a smaller package set. `fes.sms`, `fes.sg1000` and
-`fes.apple2` are registered for package-only
+profiles may select a smaller package set. `fes.sms`, `fes.sg1000`,
+`fes.apple2` and `fes.c64` are registered for package-only
 host-library acceptance. Their selection filenames are
-`fes-sms.package-selection.toml`, `fes-sg1000.package-selection.toml` and
-`fes-apple2.package-selection.toml`. They are not in the
+`fes-sms.package-selection.toml`, `fes-sg1000.package-selection.toml`,
+`fes-apple2.package-selection.toml` and `fes-c64.package-selection.toml`. They are not in the
 factory image closed set. The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Its repository-default
 compiler lock serves factory Pong; the standard ZX81 socket uses
 `toolchains/zx81-expansion.lock`; Coleco v2 uses `toolchains/coleco-sgm.lock`,
 SG-1000 uses `toolchains/registered-memory.lock`, SMS uses `toolchains/fes-sms.lock`,
-and Apple II uses `toolchains/apple2.lock`. Inspect `config/core-recipes.toml` for each
+Apple II uses `toolchains/apple2.lock`, and Commodore 64 uses `toolchains/c64.lock` (the same tool commits as Apple II). Inspect `config/core-recipes.toml` for each
 registered producer's current lock and HIP settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
 An older sealed SMS package does not accept a bitstream built from a later
@@ -62,7 +62,7 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The production ZX81 and package-only SMS, SG-1000 and Apple II producers export format 3.
+The production ZX81 and package-only SMS, SG-1000, Apple II and Commodore 64 producers export format 3.
 Other core producers retain format 2 and their current media/firmware paths
 until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
 SG-1000 requires an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
@@ -70,6 +70,10 @@ cartridge with `0xff` before import. Apple II requires an exact 16 KiB
 `apple2-firmware` image covering `$C000–$FFFF`; its slot cards and floppy
 media are separate inputs (see the
 [Apple II pathfinder design](superpowers/specs/2026-09-26-apple2-pathfinder-design.md)).
+Commodore 64 requires an exact 16 KiB `c64-firmware` image (8 KiB BASIC window,
+then 8 KiB KERNAL window). Its disk is `fes.media.c64-disk` 1.0, an exact
+174,848-byte `.d64` on media unit 0, read only. Its two cartridge sockets are
+the optional `fes.expansion.c64-bus` 1.0.
 Hardware evidence is tied to the exact tested package and software; rebuilding
 a package does not inherit earlier acceptance. Cartridge ROM packages must remove redundant reset-held application
 blob/stream and firmware mailboxes; firmware ROM packages may retain separate

@@ -87,6 +87,8 @@ const (
 	FesComputerMediaCRC32FinalXor                 uint32 = 0xffffffff
 	FesComputerApple2FloppyUnit                   uint32 = 0x0
 	FesComputerApple2FloppyBytes                  uint32 = 0x23000
+	FesComputerC64DiskUnit                        uint32 = 0x0
+	FesComputerC64DiskBytes                       uint32 = 0x2ab00
 	FesComputerInterfaceVideoFixed720p60ID               = "fes.video.fixed-720p60"
 	FesComputerInterfaceVideoFixed720p60Major     uint16 = 1
 	FesComputerInterfaceVideoFixed720p60Minor     uint16 = 0
@@ -107,4 +109,8 @@ const (
 	FesComputerInterfaceMediaApple2FloppyMajor    uint16 = 1
 	FesComputerInterfaceMediaApple2FloppyMinor    uint16 = 0
 	FesComputerCapabilityMediaApple2Floppy        uint32 = 0x10
+	FesComputerInterfaceMediaC64DiskID                   = "fes.media.c64-disk"
+	FesComputerInterfaceMediaC64DiskMajor         uint16 = 1
+	FesComputerInterfaceMediaC64DiskMinor         uint16 = 0
+	FesComputerCapabilityMediaC64Disk             uint32 = 0x20
 )

@@ -87,7 +87,9 @@ public:
 			return {0, 0};
 		}
 		const bool media_opcode = op >= FesComputerOpcodeMediaInfo && op <= FesComputerOpcodeMediaEject;
-		if (media_opcode && !(capabilities_ & FesComputerCapabilityMediaApple2Floppy))
+		const unsigned media_bits = FesComputerCapabilityMediaApple2Floppy |
+			FesComputerCapabilityMediaC64Disk;
+		if (media_opcode && !(capabilities_ & media_bits))
 			return {opcode_error, 0};
 		if (op == FesComputerOpcodeMediaInfo) {
 			const unsigned unit = index >> 3, field = index & 7;
