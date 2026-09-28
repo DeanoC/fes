@@ -1,0 +1,246 @@
+#!/bin/sh
+# Per-card Ethernet MAC (IMG-1).
+#
+# Runs before S20mister-network. If FAT linux/u-boot.txt has no ethaddr= line,
+# derive 02:46:43:xx:xx:xx from the SD card CID (or, without a usable CID, draw
+# three random bytes once) and append it, so U-Boot applies it on every later
+# boot. Random bytes come from /dev/random with a bounded wait (it blocks until
+# the kernel CRNG is initialised); if that times out, urandom output is hashed
+# together with per-boot/per-board state instead. On the boot that writes it, U-Boot has already set the default MAC, so
+# the new address is also set on eth0 before DHCP while eth0 is still down.
+# An existing ethaddr= line (any value) is never changed. Never blocks boot.
+#
+# Paths and commands are overridable for host tests only.
+set -u
+
+uboot_txt=${FES_ETHADDR_UBOOT_TXT:-/media/fat/linux/u-boot.txt}
+cid_path=${FES_ETHADDR_CID:-/sys/block/mmcblk0/device/cid}
+status_file=${FES_ETHADDR_STATUS:-/run/fes-ethaddr}
+net_dir=${FES_ETHADDR_NET_DIR:-/sys/class/net/eth0}
+random_dev=${FES_ETHADDR_RANDOM:-/dev/random}
+random_timeout=${FES_ETHADDR_RANDOM_TIMEOUT:-10}
+urandom=${FES_ETHADDR_URANDOM:-/dev/urandom}
+proc_dir=${FES_ETHADDR_PROC:-/proc}
+tmp_dir=${FES_ETHADDR_TMPDIR:-/run}
+mounts=${FES_ETHADDR_MOUNTS:-/proc/mounts}
+fat_mount=${FES_ETHADDR_FAT:-/media/fat}
+ip_cmd=${FES_ETHADDR_IP:-/sbin/ip}
+mount_cmd=${FES_ETHADDR_MOUNT:-/bin/mount}
+logger_cmd=${FES_ETHADDR_LOGGER:-/usr/bin/logger}
+eth_wait=${FES_ETHADDR_WAIT:-5}
+prefix=02:46:43
+
+log_line() {
+  printf 'fes-ethaddr: %s\n' "$1"
+  "$logger_cmd" -t fes-ethaddr "$1" 2>/dev/null || :
+}
+
+warn() {
+  printf 'fes-ethaddr: %s\n' "$1" >&2
+  "$logger_cmd" -t fes-ethaddr -p user.warning "$1" 2>/dev/null || :
+}
+
+# Print the value of the first ethaddr= line; succeed only if one exists.
+existing_ethaddr() {
+  [ -f "$uboot_txt" ] || return 1
+  grep -q '^[[:space:]]*ethaddr=' "$uboot_txt" || return 1
+  sed -n 's/^[[:space:]]*ethaddr=//p' "$uboot_txt" | sed -n '1{s/[[:space:]]*$//;p;}'
+}
+
+# Six lowercase hex digits -> 02:46:43:aa:bb:cc
+format_mac() {
+  low=$1
+  rest=${low#??}
+  printf '%s:%s:%s:%s\n' "$prefix" "${low%????}" "${rest%??}" "${low#????}"
+}
+
+cid_mac() {
+  [ -r "$cid_path" ] || return 1
+  cid=$(tr -d ' \t\r\n' < "$cid_path" 2>/dev/null) || return 1
+  case "$cid" in
+    ''|*[!0-9a-fA-F]*) return 1 ;;
+  esac
+  case "$cid" in
+    *[1-9a-fA-F]*) : ;;
+    *) return 1 ;;
+  esac
+  digest=$(printf '%s' "$cid" | sha256sum | cut -c1-6) || return 1
+  case "$digest" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) format_mac "$digest" ;;
+    *) return 1 ;;
+  esac
+}
+
+# Three bytes from the blocking random device, waiting at most
+# $random_timeout seconds. BusyBox has no timeout applet here, so poll a
+# background reader and kill it on expiry.
+random_dev_hex() {
+  case "$random_timeout" in
+    ''|*[!0-9]*) random_timeout=10 ;;
+  esac
+  [ -e "$random_dev" ] || return 1
+  mkdir -p "$tmp_dir" 2>/dev/null
+  out=$(mktemp "$tmp_dir/fes-ethaddr.XXXXXX" 2>/dev/null) || return 1
+  od -An -N3 -tx1 "$random_dev" > "$out" 2>/dev/null < /dev/null &
+  reader=$!
+  started=$(date +%s)
+  while kill -0 "$reader" 2>/dev/null; do
+    now=$(date +%s)
+    if [ $((now - started)) -ge "$random_timeout" ]; then
+      kill "$reader" 2>/dev/null
+      wait "$reader" 2>/dev/null
+      rm -f "$out"
+      return 1
+    fi
+    sleep 0.1 2>/dev/null || sleep 1
+  done
+  wait "$reader" 2>/dev/null
+  bytes=$(tr -d ' \t\n' < "$out")
+  rm -f "$out"
+  case "$bytes" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) printf '%s\n' "$bytes" ;;
+    *) return 1 ;;
+  esac
+}
+
+# urandom output may be predictable before the CRNG is seeded, so hash it with
+# state that differs between boots and boards: timing, interrupt and CPU
+# counters, boot_id, link state and the CID file even when it is unusable.
+mixed_hex() {
+  digest=$(
+    {
+      od -An -N32 -tx1 "$urandom"
+      cat "$proc_dir/uptime" "$proc_dir/sys/kernel/random/boot_id" \
+        "$proc_dir/interrupts" "$proc_dir/stat" "$proc_dir/loadavg"
+      cat "$net_dir/address" "$net_dir/carrier_changes" "$net_dir/statistics/rx_packets"
+      cat "$cid_path"
+    } 2>/dev/null | sha256sum | cut -c1-6
+  ) || return 1
+  case "$digest" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) printf '%s\n' "$digest" ;;
+    *) return 1 ;;
+  esac
+}
+
+fat_is_readonly() {
+  [ -r "$mounts" ] || return 1
+  options=$(awk -v path="$fat_mount" '$2 == path { opts = $4 } END { print opts }' "$mounts")
+  case ",$options," in
+    *,ro,*) return 0 ;;
+  esac
+  return 1
+}
+
+# Append ethaddr= to u-boot.txt via a temp file in the same directory, then
+# rename. Existing bytes are preserved; a missing final newline is added.
+write_ethaddr() {
+  dir=$(dirname "$uboot_txt")
+  mkdir -p "$dir" || return 1
+  tmp=$dir/.u-boot.txt.fes-ethaddr.$$
+  (
+    if [ -f "$uboot_txt" ]; then
+      cat "$uboot_txt" || exit 1
+      if [ -s "$uboot_txt" ] && [ -n "$(tail -c 1 "$uboot_txt")" ]; then
+        printf '\n'
+      fi
+    fi
+    printf 'ethaddr=%s\n' "$1"
+  ) > "$tmp" || { rm -f "$tmp"; return 1; }
+  sync
+  mv -f "$tmp" "$uboot_txt" || { rm -f "$tmp"; return 1; }
+  sync
+}
+
+persist_ethaddr() {
+  if fat_is_readonly; then
+    "$mount_cmd" -o remount,rw "$fat_mount" || return 1
+    write_ethaddr "$1"
+    persist_status=$?
+    "$mount_cmd" -o remount,ro "$fat_mount" || warn "could not remount $fat_mount read-only"
+    return "$persist_status"
+  fi
+  write_ethaddr "$1"
+}
+
+# Set the MAC on eth0 for this boot only while the link is still down, so the
+# first DHCP request from S20mister-network already uses it.
+apply_to_eth0() {
+  wanted=$1
+  wait_left=$eth_wait
+  while [ ! -e "$net_dir" ] && [ "$wait_left" -gt 0 ]; do
+    sleep 1
+    wait_left=$((wait_left - 1))
+  done
+  [ -e "$net_dir" ] || { printf '%s\n' 'eth0-missing'; return 0; }
+  current=$(tr 'A-F' 'a-f' < "$net_dir/address" 2>/dev/null) || current=
+  if [ "$current" = "$wanted" ]; then
+    printf '%s\n' 'eth0-already'
+    return 0
+  fi
+  flags=$(cat "$net_dir/flags" 2>/dev/null) || flags=
+  case "$flags" in
+    0x[0-9a-fA-F]*) : ;;
+    *) printf '%s\n' 'eth0-unknown-state'; return 0 ;;
+  esac
+  if [ $((flags & 1)) -ne 0 ]; then
+    printf '%s\n' 'eth0-up-next-boot'
+    return 0
+  fi
+  if "$ip_cmd" link set dev eth0 down &&
+    "$ip_cmd" link set dev eth0 address "$wanted" &&
+    "$ip_cmd" link set dev eth0 up; then
+    printf '%s\n' 'eth0-set'
+  else
+    printf '%s\n' 'eth0-set-failed'
+  fi
+}
+
+write_status() {
+  status_dir=$(dirname "$status_file")
+  mkdir -p "$status_dir" 2>/dev/null || return 0
+  printf '%s\n' "$1" > "$status_file" 2>/dev/null || :
+}
+
+start() {
+  if mac=$(existing_ethaddr); then
+    line="mac=$mac source=existing"
+    log_line "$line"
+    write_status "$line"
+    return 0
+  fi
+
+  if mac=$(cid_mac); then
+    source=cid
+  elif hex=$(random_dev_hex); then
+    mac=$(format_mac "$hex")
+    source=random-dev
+  elif hex=$(mixed_hex); then
+    mac=$(format_mac "$hex")
+    source=random-mixed
+  else
+    warn 'no CID and no random source; keeping the U-Boot default MAC'
+    write_status 'mac= source=none'
+    return 0
+  fi
+
+  if persist_ethaddr "$mac"; then
+    persisted=yes
+  else
+    persisted=no
+    warn "could not persist ethaddr to $uboot_txt; this boot only"
+  fi
+  eth0=$(apply_to_eth0 "$mac")
+  line="mac=$mac source=$source persisted=$persisted $eth0"
+  log_line "$line"
+  write_status "$line"
+}
+
+case "${1:-start}" in
+  start) start ;;
+  stop|restart|reload) : ;;
+  *)
+    printf 'usage: %s start|stop\n' "$0" >&2
+    exit 2
+    ;;
+esac
+exit 0

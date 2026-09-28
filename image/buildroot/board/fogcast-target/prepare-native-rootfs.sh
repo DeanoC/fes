@@ -46,7 +46,8 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
 /bin/rm -rf "$target/var/log"
 /bin/mkdir -p "$target/var/log"
 
-/bin/chmod 0755 "$target/etc/init.d"/S20mister-network \
+/bin/chmod 0755 "$target/etc/init.d"/S15fes-ethaddr \
+  "$target/etc/init.d"/S20mister-network \
   "$target/etc/init.d"/S30mister-dropbear \
   "$target/etc/init.d"/S49fogcast-target-smoke \
   "$target/etc/init.d"/S50mister-agent \

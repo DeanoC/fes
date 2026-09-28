@@ -192,6 +192,64 @@ configuration was changed after flashing. Never treat the post-flash card as
 byte-identical to an unprovisioned `fes.img`; bind acceptance to its base image
 SHA-256 and the recorded configuration digest.
 
+## Per-card Ethernet MAC
+
+Every card starts with the same U-Boot default Ethernet address, so two kits
+flashed from one image would collide on the LAN. The rootfs init script
+`/etc/init.d/S15fes-ethaddr` gives each card its own address on first boot. It
+runs after `S10mdev` and before `S20mister-network` starts DHCP; the FES
+bootstrap has already moved the writable FAT to `/media/fat`.
+
+- If FAT `linux/u-boot.txt` already has an `ethaddr=` line, with any value, the
+  script changes nothing. That is the manual override: write
+  `ethaddr=<mac>` there yourself and it wins forever.
+- Otherwise it reads the SD card CID from `/sys/block/mmcblk0/device/cid`. A
+  readable, non-empty, non-zero hex CID gives `02:46:43:xx:xx:xx`, with the low
+  three bytes being the first three bytes of SHA-256 of the trimmed CID string.
+  The `02` first octet is locally administered and unicast.
+- Without a usable CID it draws three random bytes once. It reads
+  `/dev/random` first, waiting at most 10 seconds: on the kit's 5.15 kernel
+  that read blocks only until the CRNG is initialised and actively gathers
+  jitter entropy meanwhile (kit .84 logs `crng init done` at about 9.8 s, and
+  S20 brings eth0 up at about 14.6 s). If it times out or
+  fails, it hashes `/dev/urandom` output together with per-boot and per-board
+  state (`/proc/uptime`, `/proc/interrupts`, `/proc/stat`, `boot_id`, eth0
+  counters and the CID file) and takes three bytes of that SHA-256. This keeps
+  identical, freshly flashed kits from drawing the same address from an
+  unseeded pool. There is no saved seed to add: `S20urandom` runs later and
+  the read-only image has no `/var/lib/random-seed`.
+- It appends `ethaddr=<mac>` to `u-boot.txt`, creating the file when it is
+  missing, preserving existing lines and adding a missing final newline. It
+  writes a temporary file beside it, renames it into place and syncs. The file
+  is the only persisted state, so a random address stays stable from then on.
+  If the FAT is mounted read-only, the script remounts it read-write for the
+  write and restores read-only afterwards.
+
+The address follows the SD card, not the board: one SD card per kit is the
+intended deployment. Moving a card moves its address. Because the CID is fixed
+in the card, a reflashed card derives the same address again. Reflashing
+replaces the FAT, which removes a manual `ethaddr=` line (and a random one), so
+re-add an override after reimaging when you need a specific address.
+
+On the first boot after flashing, U-Boot has already applied its default
+address. The script therefore also sets the new address on `eth0` while the
+link is still down (`ip link set dev eth0 down`, `address`, `up`), before
+`S20mister-network` runs `udhcpc`, so the first DHCP lease already uses it. If
+`eth0` is already up or missing, it is left alone and the persisted address
+takes effect from the next boot, when U-Boot applies it. Nothing blocks boot:
+a failed write keeps the address for this boot only and logs a warning.
+
+The script logs one line such as
+`fes-ethaddr: mac=02:46:43:a9:6a:37 source=cid persisted=yes eth0-set` to the
+console and syslog, and writes the same line to `/run/fes-ethaddr`. The
+`source` is `cid`, `random-dev` (`/dev/random`), `random-mixed` (hashed
+fallback) or `existing`. The host test
+`image/scripts/tests/ethaddr-init_test.sh` covers these cases through path
+overrides and a no-op `ip`.
+
+The same CID could later seed a per-card `target_id` or credential; that is
+not implemented here.
+
 ## What verification proves
 
 `make verify-media` reads the published artifact and checks the MBR, partition

@@ -285,6 +285,7 @@ verify_root() {
 /usr/share/mister-runtime/idle.rbf
 /usr/share/mister-runtime/core-packages
 /usr/share/mister-runtime/build-inputs
+/etc/init.d/S15fes-ethaddr
 /etc/init.d/S20mister-network
 /etc/init.d/S40mister-runtime
 /etc/init.d/S49fogcast-target-smoke
