@@ -54,6 +54,6 @@
 
 **Files:** Update `sources/FogCast/README.md`, `docs/ARCHITECTURE.md`, `docs/kit-launcher.md`; add a dated validation record when exact hardware is exercised.
 
-- [ ] Run FogCast `go test ./...`, ARMv7 kit build, FES `make check`, and affected software checks on this branch.
-- [ ] Record host-only versus any exact-artifact kit result. Do not infer product-image acceptance.
+- [x] Run FogCast `go test ./...`, ARMv7 kit build, FES `make check`, and affected software checks on this branch.
+- [x] Record host-only versus any exact-artifact kit result. Do not infer product-image acceptance.
 - [ ] Commit, push, and open a PR targeting `feat/native-menu-scanout`.
