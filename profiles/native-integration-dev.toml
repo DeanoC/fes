@@ -8,6 +8,9 @@ check_packages = true
 # Current component revisions are the parent gitlinks; this profile integrates
 # the ordered package set.
 [[fpga_packages]]
+core_id = "fes.menu"
+
+[[fpga_packages]]
 core_id = "fes.pong"
 
 [[fpga_packages]]

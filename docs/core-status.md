@@ -23,7 +23,8 @@ selection are [core packages](core-packages.md).
 | Reference | A producer exists for experiments and examples. No recipe row. |
 | Board firmware | A pinned RBF. Not a described play package and not a `fes.*` recipe. |
 
-The factory order is `fes.pong`, `fes.zx81`, `fes.coleco`. All of those, plus
+The image selects `fes.menu` for idle display, then `fes.pong`, `fes.zx81`,
+`fes.coleco` as playable packages. The menu is not a library core. All of those, plus
 `fes.sms`, `fes.sg1000`, `fes.apple2` and `fes.catch`, seal with HIP/nextpnr. Quartus is an oracle where
 the recipe says so. It is not the product path and not a fallback.
 

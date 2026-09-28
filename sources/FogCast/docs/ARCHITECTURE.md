@@ -930,7 +930,8 @@ FES produces:
 
 The only image variant is `native-dev`, which starts image-owned
 `mister-runtime` and `mister-agent`. It installs the locked splash/idle artifact
-and the selected closed FES package set (`fes.pong`, `fes.zx81`, `fes.coleco`).
+and the selected closed FES package set (`fes.menu`, `fes.pong`, `fes.zx81`,
+`fes.coleco`). The menu package is idle firmware, not a playable library entry.
 The image selector validates and copies the closed `manifest.toml` and
 `core.rbf` set, including `rom-map.json` for format 3, beneath exact package IDs. It
 retains the external producer/package selections beside the image,

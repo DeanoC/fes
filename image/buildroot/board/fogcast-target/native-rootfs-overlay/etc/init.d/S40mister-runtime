@@ -17,7 +17,23 @@ stop_service() {
 
 case "${1:-start}" in
   start)
-    /usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &
+    set --
+    menu_selection=/usr/share/mister-runtime/selections/fes-menu.package.toml
+    if [ -f "$menu_selection" ] && [ ! -L "$menu_selection" ]; then
+      menu_id=$(awk -F= '/^[[:space:]]*package_id[[:space:]]*=/ {
+        value=$2; gsub(/[[:space:]\047\042]/, "", value); print value; exit
+      }' "$menu_selection")
+      case "$menu_id" in
+        *[!0-9a-f]*|'') echo 'mister-runtime: invalid menu selection' >&2; exit 1 ;;
+      esac
+      [ "${#menu_id}" -eq 64 ] || { echo 'mister-runtime: invalid menu ID' >&2; exit 1; }
+      menu_package=/usr/share/mister-runtime/core-packages/$menu_id
+      [ -d "$menu_package" ] && [ ! -L "$menu_package" ] || {
+        echo 'mister-runtime: selected menu package is missing' >&2; exit 1;
+      }
+      set -- --menu-package "$menu_package" "$menu_id"
+    fi
+    /usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime "$@" &
     printf '%s\n' "$!" > /run/mister-runtime-supervisor.pid
     ;;
   stop)

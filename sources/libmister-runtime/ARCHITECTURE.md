@@ -105,7 +105,8 @@ is admitted only alongside fixed video and HPS DDR, with those three interfaces.
 Live identity must match the declared capabilities exactly. `MenuDisplayDriver`
 validates fixed geometry, reads coherent counters, stages ordered submissions,
 and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
-idle. Default startup remains splash. Menu activation reuses ordinary package
+idle. Image startup may pass a sealed menu package selection to the daemon;
+without one, startup remains splash. Menu activation reuses ordinary package
 programming, identity and DDR-port admission: zero both slots, configure,
 release execution, then enable. Menu display never creates a playable active
 package, gameplay generation or input worker. The existing local socket provides a bounded two-phase frame exchange; see

@@ -63,6 +63,7 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 
 | Package | Simulate | OSS seal | Quartus oracle | Parent recipe |
 | --- | --- | --- | --- | --- |
+| `fes.menu` | `python3 scripts/sim_fes_menu.py` | `make build-fes-menu-package` | none | image idle display, not a playable core |
 | `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | factory image |
 | `fes.zx81` | `make sim-fes-zx81` | `make build-fes-zx81` | `make build-fes-zx81-quartus` | factory image |
 | `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | factory image |

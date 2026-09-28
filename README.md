@@ -72,7 +72,8 @@ make verify
 
 The default `native-integration-dev` selects component revisions through the
 FES commit, retains the locked idle RBF, and installs the ordered,
-closed package set `fes.pong`, `fes.zx81`, `fes.coleco`. Each selected
+closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`.
+`fes.menu` is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
 missing, extra or misidentified packages. The FES image has no legacy bundle
@@ -150,7 +151,7 @@ artifacts they name.
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` package set |
+| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set |
 
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe

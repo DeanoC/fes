@@ -1416,8 +1416,8 @@ separate evidence schema.
 `python3 scripts/sim_fes_menu.py` checks exact frame length, burst bounds,
 stalls, pixel ordering, cancellation drain, switching and underflow recovery.
 The shared DDR wrapper owns port wiring and holds; menu scanout adds no second
-bridge or memory reservation policy. Runtime presentation, a described menu
-package and appliance selection remain separate work.
+bridge or memory reservation policy. The described menu package is selected
+by the FES native image; exact image and kit acceptance are tracked separately.
 
 ### Menu scanout diagnostics
 
@@ -1438,7 +1438,7 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
 with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
-system identity and no default image selection. It selects `toolchains/ramtest.lock`
+system identity. FES now selects it as the native image's idle display. It selects `toolchains/ramtest.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
 while diagnostics retain their no-GP gate. DDR layout and inactive write/port

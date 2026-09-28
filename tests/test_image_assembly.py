@@ -99,7 +99,7 @@ class ImageAssemblyTest(unittest.TestCase):
         self.assertEqual(profile['native_image_mode'], 'package-only')
         self.assertEqual(
             [entry['core_id'] for entry in profile['fpga_packages']],
-            ['fes.pong', 'fes.zx81', 'fes.coleco'])
+            ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco'])
 
         readme = (ROOT / 'README.md').read_text()
         packages = (ROOT / 'docs/core-packages.md').read_text()

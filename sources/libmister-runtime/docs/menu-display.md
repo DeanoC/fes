@@ -2,9 +2,9 @@
 
 This is an explicit diagnostic/library presentation path, with host software
 coverage and an [exact-artifact kit diagnostic pass](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md).
-Product-image acceptance remains pending. Startup remains the
-sealed splash unless a caller explicitly configures a described menu package;
-this does not install or select factory menu firmware.
+Product-image acceptance remains pending. The FES image now installs and selects
+a described menu package for daemon startup. The sealed splash remains the boot
+and failure fallback. A daemon started without a menu selection stays on splash.
 
 Only `fes.menu` format 2 with required fixed video, HPS DDR and menu-display
 1.0 interfaces can be configured. It is idle firmware, not a game. Normal

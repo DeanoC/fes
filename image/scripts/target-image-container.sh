@@ -43,6 +43,7 @@ esac
 
 
 if [ -n "${FES_PACKAGE_IDS:-}" ] ||
+  [ -n "${FES_MENU_PACKAGE_DIR:-}" ] || [ -n "${FES_MENU_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_PONG_PACKAGE_DIR:-}" ] || [ -n "${FES_PONG_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_ZX81_PACKAGE_DIR:-}" ] || [ -n "${FES_ZX81_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_COLECO_PACKAGE_DIR:-}" ] || [ -n "${FES_COLECO_PACKAGE_SELECTION:-}" ]; then
@@ -57,6 +58,7 @@ load_package_mount_order() {
       *) package_id=$remaining; remaining= ;;
     esac
     case "$package_id" in
+      fes.menu) package_core=menu ;;
       fes.pong) package_core=pong ;;
       fes.zx81) package_core=zx81 ;;
       fes.coleco) package_core=coleco ;;
@@ -109,6 +111,12 @@ docker_run() {
   set -- --env "FES_PACKAGE_IDS=${FES_PACKAGE_IDS:-}" "$@"
   for package_core in $package_ids_reverse; do
     case "$package_core" in
+      menu)
+        package_dir=$FES_MENU_PACKAGE_DIR
+        package_selection=$FES_MENU_PACKAGE_SELECTION
+        package_dir_env=FES_MENU_PACKAGE_DIR
+        package_selection_env=FES_MENU_PACKAGE_SELECTION
+        ;;
       pong)
         package_dir=$FES_PONG_PACKAGE_DIR
         package_selection=$FES_PONG_PACKAGE_SELECTION

@@ -70,6 +70,8 @@ func packageSelectionFixtureWithFormat(t *testing.T, coreID string, format int) 
 
 func corePackageSelectionRecordNameForTest(coreID string) string {
 	switch coreID {
+	case "fes.menu":
+		return "fes-menu.package-selection.toml"
 	case "fes.pong":
 		return "fes-pong.package-selection.toml"
 	case "fes.zx81":
@@ -82,7 +84,7 @@ func corePackageSelectionRecordNameForTest(coreID string) string {
 }
 
 func TestCorePackageSelectionSupportsSelectedFESPackageCores(t *testing.T) {
-	for _, coreID := range []string{"fes.pong", "fes.zx81", "fes.coleco"} {
+	for _, coreID := range []string{"fes.menu", "fes.pong", "fes.zx81", "fes.coleco"} {
 		t.Run(coreID, func(t *testing.T) {
 			directory, record, selection := packageSelectionFixtureForCore(t, coreID)
 			cache := t.TempDir()

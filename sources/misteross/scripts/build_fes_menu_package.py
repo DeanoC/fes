@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seal described menu firmware; no image selection or hardware programming."""
+"""Build and seal the described menu firmware for FES image selection."""
 from __future__ import annotations
 import argparse
 import json
@@ -17,6 +17,7 @@ from scripts.functional_execution import FunctionalInvocation, source_roots_for_
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = Path('build/oss/fes-menu-package')
 RECIPE = 'scripts/build_fes_menu_package.py'
+MENU_TOOLCHAIN_LOCK = 'toolchains/ramtest.lock'
 CONTRACT = 'cores/fes-common/generated/fes_application.vh'
 SOURCES = tuple(p for p in menu.SOURCES if not p.endswith('/top.v')) + menu.DDR_SOURCES + (
     'cores/fes-common/rtl/fes_application_gp.v', 'cores/fes-menu/rtl/fes_menu_control.v',
@@ -61,7 +62,17 @@ def create_manifest(root, repository, revision, record):
             'toolchain':'; '.join(f'{name} {identity}' for name,identity in sorted(fields['tools'].items()))}})
 
 
-def record(root, repository, revision, identities, execution, seed):
+def _require_clean_source(root, *, identity_version=2):
+    return board._require_clean_source(root, pinned_inputs=INPUTS, identity_version=identity_version)
+
+
+def _authenticate_tools(root, *, cache_root=None):
+    return menu.authenticate(root, cache_root, 'ddr')
+
+
+def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, seed=4):
+    if identity_version != 2:
+        raise board.BuildError('unsupported menu package identity version')
     with python_source_guard(root, source_roots_for_inputs(INPUTS)):
         fields = {'format':1,'repository':repository,'revision':revision,'recipe':RECIPE,
             'recipe_sha256':board._sha256(board._regular_input(root,RECIPE)),
@@ -75,20 +86,22 @@ def record(root, repository, revision, identities, execution, seed):
             source_roots_for_inputs(INPUTS),execution,pinned_inputs=INPUTS))
 
 
-def build(root=ROOT, *, cache_root=None, package_output=None, seed=4):
+def build(root=ROOT, *, cache_root=None, package_output=None, seed=4, identity_version=2):
     with python_source_guard(root, source_roots_for_inputs(INPUTS)):
-        return _build(Path(root).resolve(),cache_root=cache_root,package_output=package_output,seed=seed)
+        return _build(Path(root).resolve(),cache_root=cache_root,package_output=package_output,
+            seed=seed,identity_version=identity_version)
 
 
-def _build(root, *, cache_root, package_output, seed):
+def _build(root, *, cache_root, package_output, seed, identity_version):
     seed = menu.seed_for('ddr', seed)
-    repository, revision = board._require_clean_source(root,pinned_inputs=INPUTS)
-    authenticated = menu.authenticate(root, cache_root, 'ddr')
+    repository, revision = _require_clean_source(root,identity_version=identity_version)
+    authenticated = _authenticate_tools(root,cache_root=cache_root)
     identities = {name:tool.identity for name,tool in authenticated.items()}
     invocation = FunctionalInvocation(authenticated,0)
     output = board._prepare_output(root,relative=OUTPUT,build_outputs=OUTPUTS)
     try:
-        inputs = record(root,repository,revision,identities,invocation.inputs,seed)
+        inputs = create_build_record(root,repository,revision,identities,
+            identity_version=identity_version,execution=invocation.inputs,seed=seed)
         board._write_atomic(output/'build-inputs.json',inputs)
         commands = build_commands(build_identity(inputs),
             {name:authenticated[name].path for name in ('yosys','nextpnr-mistral')},seed=seed)
@@ -97,11 +110,12 @@ def _build(root, *, cache_root, package_output, seed):
                 env=invocation.env,audit_source_root=root)
         result = menu.validate_build_evidence(output,root,mode='ddr',menu_gp=True)
         invocation.verify()
-        if {name:tool.identity for name,tool in menu.authenticate(root,cache_root,'ddr').items()} != identities:
+        if {name:tool.identity for name,tool in _authenticate_tools(root,cache_root=cache_root).items()} != identities:
             raise board.BuildError('menu package tool identity changed')
-        if board._require_clean_source(root,pinned_inputs=INPUTS) != (repository,revision):
+        if _require_clean_source(root,identity_version=identity_version) != (repository,revision):
             raise board.BuildError('menu package source changed')
-        if record(root,repository,revision,identities,invocation.inputs,seed) != inputs:
+        if create_build_record(root,repository,revision,identities,
+                identity_version=identity_version,execution=invocation.inputs,seed=seed) != inputs:
             raise board.BuildError('menu package functional inputs changed')
         manifest = create_manifest(root,repository,revision,inputs)
         board._write_atomic(output/'manifest.toml',manifest)
@@ -125,8 +139,10 @@ def main():
     parser.add_argument('--cache-root',type=Path)
     parser.add_argument('--package-output',type=Path)
     parser.add_argument('--seed',type=int,choices=range(1,9),default=4)
+    parser.add_argument('--identity-version',type=int,choices=(2,),default=2)
     args = parser.parse_args()
-    try: print(build(args.root,cache_root=args.cache_root,package_output=args.package_output,seed=args.seed))
+    try: print(build(args.root,cache_root=args.cache_root,package_output=args.package_output,
+        seed=args.seed,identity_version=args.identity_version))
     except (board.BuildError,ValueError) as exc:
         print(f'FES menu package: {exc}',file=sys.stderr); return 1
     return 0
