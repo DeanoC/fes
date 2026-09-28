@@ -16,4 +16,4 @@ The shell declares the computer operational interfaces required, including the t
 
 ## Evidence
 
-`make sim-fes-spectrum` is the host simulation. `make build-fes-spectrum` is the HIP seal and has not been run. A kit session would need the exact package, firmware digest, card archives, composition id and tape digest on a leased kit. None of those exist yet.
+`make sim-fes-spectrum` is the host simulation. `make build-fes-spectrum` sealed the shell recorded in [the 2026-09-28 seal note](../../validation/2026-09-28-spectrum-pathfinder-seal.md). A kit session still needs that package, a firmware digest, card archives, a composition id and a tape digest on a leased kit.

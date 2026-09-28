@@ -68,5 +68,6 @@ an RBF, timing or kit result.
 ## Not implemented
 
 ULA contention, a floating bus, 128K paging, AY sound, Interface 1 / DivMMC,
-tape write-back, and a sealed HIP package. `make build-fes-spectrum` is the
-seal entry; it has not been run.
+and tape write-back. `make build-fes-spectrum` sealed the shell recorded in
+`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. Probe cards and a
+kit session are still open.

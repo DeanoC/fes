@@ -1285,8 +1285,9 @@ used by Coleco, SMS and SG-1000. No Sinclair ROM bytes are in the tree.
 seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
-Simulation is `make sim-fes-spectrum`. A sealed package and a kit session are
-separate results and are not claimed by the simulation.
+Simulation is `make sim-fes-spectrum`. The shell seal is recorded in
+`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. That record is not
+kit acceptance, and it does not seal a probe card.
 
 ## Shared native kit client
 
