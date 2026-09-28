@@ -538,6 +538,9 @@ class MediaTests(unittest.TestCase):
         coleco = self.packages['fes.coleco']
         shutil.rmtree(coleco['directory'])
         coleco['selection_path'].unlink()
+        menu = self.packages['fes.menu']
+        shutil.rmtree(menu['directory'])
+        menu['selection_path'].unlink()
         image_fingerprint, image_inputs = cold_build.image_fingerprint(
             'cold-fp', {'sources': {}}, (self.package, second_package))
         (self.output / 'inputs.json').write_text(json.dumps(image_inputs))
