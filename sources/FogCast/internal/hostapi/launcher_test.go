@@ -730,3 +730,79 @@ func TestLauncherConfigValidate(t *testing.T) {
 		t.Fatal("single form rejected")
 	}
 }
+
+// Kit A is playing and owns the foreground session. Kit B's launch must
+// not preempt it: 409, no launch, no stop, A's play untouched. A's own
+// relaunch still reaches LaunchOn. Once A stops (the service drops its
+// play), B's launch goes through on kit B.
+func TestLauncherRefusesCrossKitPreemption(t *testing.T) {
+	playA := fogcast.PlaySession{Target: "kit-a", TargetID: launcherID, Execution: "fpga_native", GameID: "pong", System: protocol.SystemPong}
+	service := newKitService("kit-a")
+	service.sessionTarget, service.sessionTargetID = "kit-a", launcherID
+	service.playSessions = []fogcast.PlaySession{playA}
+	service.stopHook = func(context.Context) (protocol.Status, error) {
+		service.playSessions = nil
+		service.sessionTarget, service.sessionTargetID = "", ""
+		return protocol.Status{State: protocol.StateIdle}, nil
+	}
+	handler := kitHandler(t, service, distinctKitConfig())
+
+	w := kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherTokenB, launcherIDB, `{"game_id":"pong"}`)
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "SESSION_BUSY_OTHER_KIT") {
+		t.Fatalf("cross-kit launch: %d %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), launcherToken) || strings.Contains(w.Body.String(), launcherTokenB) {
+		t.Fatalf("409 echoed a token: %s", w.Body.String())
+	}
+	if service.launchOnCalls != 0 || len(service.stopCtxErrs) != 0 || len(service.playSessions) != 1 || service.playSessions[0] != playA {
+		t.Fatalf("A disturbed: launches=%d stops=%d plays=%+v", service.launchOnCalls, len(service.stopCtxErrs), service.playSessions)
+	}
+	// Kit B's own view stays idle; the refusal did not bind it.
+	if w := kitCall(handler, http.MethodGet, "/api/v1/session", launcherTokenB, launcherIDB, ""); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"state":"idle"`) {
+		t.Fatalf("B view after refusal: %d %s", w.Code, w.Body.String())
+	}
+
+	w = kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherToken, launcherID, `{"game_id":"pong"}`)
+	if w.Code != http.StatusOK || service.launchOnCalls != 1 || service.launchOnTarget != "kit-a" {
+		t.Fatalf("A relaunch: %d calls=%d target=%q %s", w.Code, service.launchOnCalls, service.launchOnTarget, w.Body.String())
+	}
+
+	w = kitCall(handler, http.MethodPost, "/api/v1/session/stop", launcherToken, launcherID, "")
+	if w.Code != http.StatusOK || len(service.stopCtxErrs) != 1 {
+		t.Fatalf("A stop: %d stops=%d %s", w.Code, len(service.stopCtxErrs), w.Body.String())
+	}
+	w = kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherTokenB, launcherIDB, `{"game_id":"pong"}`)
+	if w.Code != http.StatusOK || service.launchOnCalls != 2 || service.launchOnTarget != "kit-b" {
+		t.Fatalf("B launch after A stopped: %d calls=%d target=%q %s", w.Code, service.launchOnCalls, service.launchOnTarget, w.Body.String())
+	}
+}
+
+// A background play on another kit also blocks, even when neither kit is
+// the reported session owner. A play with no id or name match fails closed.
+func TestLauncherRefusesLaunchWhileAnyOtherKitPlays(t *testing.T) {
+	for _, play := range []fogcast.PlaySession{
+		{Target: "kit-a", TargetID: launcherID, Execution: "fpga_native", GameID: "pong"},
+		{Target: "unnamed", Execution: "fpga_native", GameID: "pong"},
+	} {
+		service := newKitService("kit-a")
+		service.playSessions = []fogcast.PlaySession{play}
+		handler := kitHandler(t, service, distinctKitConfig())
+		w := kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherTokenB, launcherIDB, `{"game_id":"pong"}`)
+		if w.Code != http.StatusConflict || service.launchOnCalls != 0 {
+			t.Fatalf("play %+v: %d calls=%d %s", play, w.Code, service.launchOnCalls, w.Body.String())
+		}
+	}
+	// B's own play (matched by id, or by name when the play has no id) does not block B.
+	for _, play := range []fogcast.PlaySession{
+		{Target: "kit-b", TargetID: launcherIDB, Execution: "fpga_native", GameID: "pong"},
+		{Target: "kit-b", Execution: "fpga_native", GameID: "pong"},
+	} {
+		service := newKitService("kit-a")
+		service.playSessions = []fogcast.PlaySession{play}
+		handler := kitHandler(t, service, distinctKitConfig())
+		w := kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherTokenB, launcherIDB, `{"game_id":"pong"}`)
+		if w.Code != http.StatusOK || service.launchOnTarget != "kit-b" {
+			t.Fatalf("own play %+v: %d target=%q %s", play, w.Code, service.launchOnTarget, w.Body.String())
+		}
+	}
+}

@@ -227,6 +227,16 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		case "POST /api/v1/session/launch":
+			// The host has one foreground session. Launching on this kit
+			// while another kit has a play would move the foreground here:
+			// that kit's input bridge and media are torn down, its core keeps
+			// running under a held lease, and nothing can stop it until this
+			// kit's play ends. Fail closed instead of preempting it.
+			// TODO(#288): per-target foreground sessions and Stop.
+			if a.otherKitPlaying(name, headerID) {
+				writeError(w, http.StatusConflict, "SESSION_BUSY_OTHER_KIT", "another kit's session is active; stop it on that kit first")
+				return
+			}
 			// No library name preserves the old fakes: the selected target
 			// must be this kit, and the body is forwarded unchanged.
 			if name == "" {
@@ -330,6 +340,26 @@ func (a *applicationHandler) sessionOwnerID() string {
 		}
 	}
 	return a.selectedTargetID()
+}
+
+// otherKitPlaying reports whether a play belongs to a target other than
+// the requesting kit. A play matches the kit by target id, or by name when
+// the kit has one. A play with neither is treated as another kit's.
+func (a *applicationHandler) otherKitPlaying(name, id string) bool {
+	lister, ok := a.service.(interface{ PlaySessions() []fogcast.PlaySession })
+	if !ok {
+		return false
+	}
+	for _, play := range lister.PlaySessions() {
+		if play.TargetID != "" && play.TargetID == id {
+			continue
+		}
+		if play.TargetID == "" && name != "" && play.Target == name {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // writeKitSession reports one paired kit's own play. It does not read

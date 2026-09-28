@@ -67,11 +67,12 @@ or unpaired target id is rejected. Missing or invalid authentication returns
 401, identity mismatch returns 403, and unavailable routes return 404. Target
 settings updates and admitted launcher operations are serialized so an
 address/selection edit cannot redirect an in-flight launch.
-The host still has one foreground session. A kit that has its own play but
-is not the current session owner (another kit launched after it) sees that
-play in its session view, but its Stop returns 403 until it owns the session
-again; a per-target Stop is a follow-up. Health, `rom_cached`, and
-`/api/v1/library/cache` still describe the selected target.
+The host still has one foreground session. A kit launch while another kit
+has a play returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt,
+stop, or rebind that play; stop it on its own kit first. Relaunching on
+the same kit is unchanged. Two kits playing at once needs per-target
+sessions and Stop (#288). Health, `rom_cached`, and `/api/v1/library/cache`
+still describe the selected target (#289).
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
 `Offline - local library`. Local D-pad/A still browse that snapshot. Offline
@@ -106,7 +107,8 @@ Allowed operations are:
   receives that kit's own idle or active view.
 - `GET /api/v1/session/input` for the session owner only.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.
-  The listener sets `target` to the requesting kit.
+  The listener sets `target` to the requesting kit. 409
+  `SESSION_BUSY_OTHER_KIT` while another kit has a play.
 - `POST /api/v1/session/stop` with no body, for the session owner only.
 - `POST /api/v1/launcher/input?session_id=<session_id>` remains the host
   listener's controller stream. `fogcast-kit` does not call it for a gamepad
