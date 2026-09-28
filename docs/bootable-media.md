@@ -207,7 +207,17 @@ bootstrap has already moved the writable FAT to `/media/fat`.
   readable, non-empty, non-zero hex CID gives `02:46:43:xx:xx:xx`, with the low
   three bytes being the first three bytes of SHA-256 of the trimmed CID string.
   The `02` first octet is locally administered and unicast.
-- Without a usable CID it draws three random bytes from `/dev/urandom` once.
+- Without a usable CID it draws three random bytes once. It reads
+  `/dev/random` first, waiting at most 10 seconds: on the kit's 5.15 kernel
+  that read blocks only until the CRNG is initialised and actively gathers
+  jitter entropy meanwhile (kit .84 logs `crng init done` at about 9.8 s, and
+  S20 brings eth0 up at about 14.6 s). If it times out or
+  fails, it hashes `/dev/urandom` output together with per-boot and per-board
+  state (`/proc/uptime`, `/proc/interrupts`, `/proc/stat`, `boot_id`, eth0
+  counters and the CID file) and takes three bytes of that SHA-256. This keeps
+  identical, freshly flashed kits from drawing the same address from an
+  unseeded pool. There is no saved seed to add: `S20urandom` runs later and
+  the read-only image has no `/var/lib/random-seed`.
 - It appends `ethaddr=<mac>` to `u-boot.txt`, creating the file when it is
   missing, preserving existing lines and adding a missing final newline. It
   writes a temporary file beside it, renames it into place and syncs. The file
@@ -232,7 +242,8 @@ a failed write keeps the address for this boot only and logs a warning.
 The script logs one line such as
 `fes-ethaddr: mac=02:46:43:a9:6a:37 source=cid persisted=yes eth0-set` to the
 console and syslog, and writes the same line to `/run/fes-ethaddr`. The
-`source` is `cid`, `random` or `existing`. The host test
+`source` is `cid`, `random-dev` (`/dev/random`), `random-mixed` (hashed
+fallback) or `existing`. The host test
 `image/scripts/tests/ethaddr-init_test.sh` covers these cases through path
 overrides and a no-op `ip`.
 
