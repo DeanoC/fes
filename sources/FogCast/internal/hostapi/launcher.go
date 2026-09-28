@@ -19,23 +19,116 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
-// LauncherConfig authorizes one paired kit; this secret is separate from the
-// host-to-agent bearer. It is never returned through the application API.
-type LauncherConfig struct {
+// LauncherPairing is one kit authorized on the launcher listener.
+// Several kits may share a token. A target id appears once.
+type LauncherPairing struct {
 	Token    string `json:"token"`
 	TargetID string `json:"target_id"`
 }
 
-func (c LauncherConfig) Validate() error {
-	if len(c.Token) < 32 || len(c.Token) > 256 || strings.TrimSpace(c.Token) != c.Token || strings.ContainsAny(c.Token, "\r\n\t ") || !discovery.ValidID(c.TargetID) {
-		return errors.New("invalid launcher configuration")
+// LauncherConfig authorizes one or more paired kits. The secret is separate
+// from the host-to-agent bearer and is never returned through the application
+// API. When either top-level field is set, both are required and count as one
+// pairing, ahead of Pairings.
+type LauncherConfig struct {
+	Token    string            `json:"token,omitempty"`
+	TargetID string            `json:"target_id,omitempty"`
+	Pairings []LauncherPairing `json:"pairings,omitempty"`
+}
+
+type launcherTokenGroup struct {
+	token   string
+	targets map[string]struct{}
+}
+
+func (c LauncherConfig) effectivePairings() ([]LauncherPairing, error) {
+	var out []LauncherPairing
+	if c.Token != "" || c.TargetID != "" {
+		if c.Token == "" || c.TargetID == "" {
+			return nil, errors.New("invalid launcher configuration")
+		}
+		out = append(out, LauncherPairing{Token: c.Token, TargetID: c.TargetID})
 	}
-	for _, b := range []byte(c.Token) {
+	return append(out, c.Pairings...), nil
+}
+
+func validLauncherToken(token string) bool {
+	if len(token) < 32 || len(token) > 256 || strings.TrimSpace(token) != token || strings.ContainsAny(token, "\r\n\t ") {
+		return false
+	}
+	for _, b := range []byte(token) {
 		if b < 33 || b > 126 {
-			return errors.New("invalid launcher configuration")
+			return false
 		}
 	}
+	return true
+}
+
+func (c LauncherConfig) Validate() error {
+	pairings, err := c.effectivePairings()
+	if err != nil || len(pairings) == 0 || len(pairings) > 32 {
+		return errors.New("invalid launcher configuration")
+	}
+	seen := make(map[string]struct{}, len(pairings))
+	for _, pairing := range pairings {
+		if !validLauncherToken(pairing.Token) || !discovery.ValidID(pairing.TargetID) {
+			return errors.New("invalid launcher configuration")
+		}
+		if _, dup := seen[pairing.TargetID]; dup {
+			return errors.New("invalid launcher configuration")
+		}
+		seen[pairing.TargetID] = struct{}{}
+	}
 	return nil
+}
+
+// tokenGroups buckets effective pairings by distinct token.
+func (c LauncherConfig) tokenGroups() ([]launcherTokenGroup, error) {
+	pairings, err := c.effectivePairings()
+	if err != nil {
+		return nil, err
+	}
+	groups := make([]launcherTokenGroup, 0, len(pairings))
+	index := make(map[string]int, len(pairings))
+	for _, pairing := range pairings {
+		slot, ok := index[pairing.Token]
+		if !ok {
+			slot = len(groups)
+			index[pairing.Token] = slot
+			groups = append(groups, launcherTokenGroup{token: pairing.Token, targets: map[string]struct{}{}})
+		}
+		groups[slot].targets[pairing.TargetID] = struct{}{}
+	}
+	return groups, nil
+}
+
+// UsesToken reports whether token equals any configured pairing token.
+// Comparison does not stop at the first hit and does not echo the token.
+func (c LauncherConfig) UsesToken(token string) bool {
+	matched := subtle.ConstantTimeCompare([]byte(c.Token), []byte(token))
+	for i := range c.Pairings {
+		matched |= subtle.ConstantTimeCompare([]byte(c.Pairings[i].Token), []byte(token))
+	}
+	return matched == 1
+}
+
+// matchLauncherToken compares the Authorization header with every distinct
+// pairing token. It does not return on the first hit.
+func matchLauncherToken(groups []launcherTokenGroup, authorization string) (map[string]struct{}, bool) {
+	auth := []byte(authorization)
+	var targets map[string]struct{}
+	matched := 0
+	for i := range groups {
+		equal := subtle.ConstantTimeCompare(auth, []byte("Bearer "+groups[i].token))
+		if equal == 1 {
+			targets = groups[i].targets
+		}
+		matched |= equal
+	}
+	if matched != 1 {
+		return nil, false
+	}
+	return targets, true
 }
 
 type applicationHandler struct {
@@ -61,57 +154,99 @@ func (a *applicationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // while allowing only the explicitly enumerated launcher operations.
 func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, error) {
 	a, ok := api.(*applicationHandler)
-	if !ok || config.Validate() != nil {
+	groups, groupErr := config.tokenGroups()
+	if !ok || config.Validate() != nil || groupErr != nil || len(groups) == 0 {
 		return nil, errors.New("invalid launcher configuration")
 	}
 	return noStore(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+config.Token)) != 1 {
+		targets, authorized := matchLauncherToken(groups, r.Header.Get("Authorization"))
+		if !authorized {
 			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "launcher authentication required")
 			return
 		}
+		headerID := r.Header.Get("X-FogCast-Target-ID")
 		// Content GETs are how a kit reads BIOS, media, and expansion
-		// while another target stays selected. They keep the launcher
+		// while another target stays selected. They keep a launcher
 		// bearer and name an enabled configured kit. They do not require
-		// that kit to be this listener's paired identity or the
-		// foreground selection. Every other launcher operation still does.
+		// that kit to be paired to the presented token or to be the
+		// foreground selection. Every other launcher operation does.
 		contentRead := launcherMeshContentRead(r.Method, r.URL.Path)
-		if !contentRead && r.Header.Get("X-FogCast-Target-ID") != config.TargetID {
-			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
-			return
-		}
-		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/launcher/input" {
-			a.launcherInput(w, r, config.TargetID)
-			return
-		}
 		if contentRead {
 			// Ensure calls this listener while Launch holds targetMu. Content
 			// reads name an enabled kit, independent of foreground selection,
 			// so they must not wait for the foreground operation to finish.
-			if !a.launcherMeshContentTarget(r.Header.Get("X-FogCast-Target-ID"), config.TargetID) {
+			if !a.launcherMeshContentTarget(headerID, targets) {
 				writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 				return
 			}
 			a.routes.ServeHTTP(w, r)
 			return
 		}
-		// Catalogue reads do not operate the foreground session. Allow them
-		// during Launch; foreground observations and mutations retain the
-		// guard because they can reconcile session state or target settings.
+		if _, pairedToken := targets[headerID]; !pairedToken {
+			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
+			return
+		}
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/launcher/input" {
+			a.launcherInput(w, r, headerID)
+			return
+		}
+		// Catalogue read (GET /api/v1/games) does not take targetMu.
+		// Other operations keep the guard: they can reconcile session
+		// state or target settings, and Launch holds it while running.
 		catalogueRead := r.Method == http.MethodGet && r.URL.Path == "/api/v1/games"
 		if !catalogueRead {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
 		}
-		if a.selectedTargetID() != config.TargetID {
+		name, pairedKit := a.kitTarget(headerID)
+		if !pairedKit {
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 			return
 		}
-		allowed := launcherOperation(r.Method, r.URL.Path)
-		if !allowed {
+		if !launcherOperation(r.Method, r.URL.Path) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
 			return
 		}
-		a.routes.ServeHTTP(w, r)
+		if launcherPairedRead(r.Method, r.URL.Path) {
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/v1/session":
+			if headerID == a.sessionOwnerID() {
+				a.routes.ServeHTTP(w, r)
+				return
+			}
+			a.writeKitSession(w, name, headerID)
+			return
+		case "GET /api/v1/status", "GET /api/v1/session/input", "POST /api/v1/session/stop":
+			if headerID != a.sessionOwnerID() {
+				writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
+				return
+			}
+			a.routes.ServeHTTP(w, r)
+			return
+		case "POST /api/v1/session/launch":
+			// No library name preserves the old fakes: the selected target
+			// must be this kit, and the body is forwarded unchanged.
+			if name == "" {
+				if a.selectedTargetID() != headerID {
+					writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
+					return
+				}
+				a.routes.ServeHTTP(w, r)
+				return
+			}
+			// An explicit target also skips mesh placement. That is intended:
+			// the kit menu launches on the kit itself.
+			if !rewriteLauncherLaunch(w, r, name) {
+				return
+			}
+			a.routes.ServeHTTP(w, r)
+			return
+		default:
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
+		}
 	})), nil
 }
 
@@ -121,18 +256,21 @@ func launcherMeshContentRead(method, path string) bool {
 
 // launcherMeshContentTarget admits a content GET from an enabled
 // configured kit. The foreground selected target is not consulted.
-// A service that does not publish a target list keeps the paired identity.
-func (a *applicationHandler) launcherMeshContentTarget(headerID, configured string) bool {
+// A service that does not publish a target list admits only an id
+// paired to the matched token.
+func (a *applicationHandler) launcherMeshContentTarget(headerID string, paired map[string]struct{}) bool {
 	if headerID == "" {
 		return false
 	}
 	provider, ok := a.service.(interface{ LibrarySettings() fogcast.LibraryConfig })
 	if !ok {
-		return headerID == configured
+		_, ok := paired[headerID]
+		return ok
 	}
 	settings := provider.LibrarySettings()
 	if len(settings.Targets) == 0 {
-		return headerID == configured
+		_, ok := paired[headerID]
+		return ok
 	}
 	for _, target := range settings.Targets {
 		if target.Enabled && target.TargetID == headerID {
@@ -140,6 +278,123 @@ func (a *applicationHandler) launcherMeshContentTarget(headerID, configured stri
 		}
 	}
 	return false
+}
+
+// launcherPairedRead is a catalogue or presentation GET any enabled paired
+// kit may perform, whether or not that kit is the selected target.
+func launcherPairedRead(method, path string) bool {
+	if method != http.MethodGet {
+		return false
+	}
+	switch path {
+	case "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/library/attract", "/api/v1/library/cache":
+		return true
+	}
+	return launcherArtworkPath(path) || launcherPresentationGamePath(path)
+}
+
+// kitTarget resolves a paired target id to its configured name.
+// An enabled library target matches on id. An empty target list does not.
+// With no library settings, only the selected target id matches and the
+// name stays empty so launch keeps the historical body.
+func (a *applicationHandler) kitTarget(id string) (string, bool) {
+	if id == "" {
+		return "", false
+	}
+	provider, ok := a.service.(interface{ LibrarySettings() fogcast.LibraryConfig })
+	if !ok {
+		if id == a.selectedTargetID() {
+			return "", true
+		}
+		return "", false
+	}
+	settings := provider.LibrarySettings()
+	if len(settings.Targets) == 0 {
+		return "", false
+	}
+	for _, target := range settings.Targets {
+		if target.Enabled && target.TargetID == id {
+			return target.Name, true
+		}
+	}
+	return "", false
+}
+
+// sessionOwnerID is the foreground session target. A reported id wins.
+// Otherwise the selected target owns the session.
+func (a *applicationHandler) sessionOwnerID() string {
+	if provider, ok := a.service.(interface{ SessionTarget() (string, string) }); ok {
+		_, id := provider.SessionTarget()
+		if id != "" {
+			return id
+		}
+	}
+	return a.selectedTargetID()
+}
+
+// writeKitSession reports one paired kit's own play. It does not read
+// or mutate the foreground session.
+func (a *applicationHandler) writeKitSession(w http.ResponseWriter, name, id string) {
+	result := sessionResult{Target: name, TargetID: id, State: protocol.StateIdle}
+	if lister, ok := a.service.(interface{ PlaySessions() []fogcast.PlaySession }); ok {
+		for _, play := range lister.PlaySessions() {
+			if play.Target != name {
+				continue
+			}
+			result.State = protocol.StateActive
+			result.Execution = play.Execution
+			if play.GameID != "" {
+				gameID := play.GameID
+				result.GameID = &gameID
+			}
+			if play.System != "" {
+				system := play.System
+				result.System = &system
+			}
+			break
+		}
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// rewriteLauncherLaunch pins POST /api/v1/session/launch to this kit.
+// An explicit target also skips mesh placement. That is intended: the
+// kit menu launches on the kit itself.
+func rewriteLauncherLaunch(w http.ResponseWriter, r *http.Request, name string) bool {
+	limited := http.MaxBytesReader(w, r.Body, 16<<10)
+	decoder := json.NewDecoder(limited)
+	var fields map[string]json.RawMessage
+	if decoder.Decode(&fields) != nil || fields == nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain one valid JSON object")
+		return false
+	}
+	var extra any
+	if decoder.Decode(&extra) != io.EOF {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain one valid JSON object")
+		return false
+	}
+	if raw, present := fields["target"]; present {
+		var target string
+		if json.Unmarshal(raw, &target) != nil || target != name {
+			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
+			return false
+		}
+	}
+	encoded, err := json.Marshal(name)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain one valid JSON object")
+		return false
+	}
+	fields["target"] = encoded
+	body, err := json.Marshal(fields)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain one valid JSON object")
+		return false
+	}
+	_ = limited.Close()
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	r.ContentLength = int64(len(body))
+	return true
 }
 
 func launcherOperation(method, path string) bool {
@@ -196,7 +451,7 @@ func (a *applicationHandler) selectedTargetID() string {
 
 func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Request, targetID string) {
 	a.targetMu.Lock()
-	if a.selectedTargetID() != targetID {
+	if _, ok := a.kitTarget(targetID); !ok || a.sessionOwnerID() != targetID {
 		a.targetMu.Unlock()
 		writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 		return

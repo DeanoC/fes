@@ -12,13 +12,34 @@ session routes stay on this listener; `fogcast-kit` reconnects with the
 existing `launcher.json` API URL for those. Kit-local play input does not use
 this listener.
 
-The file is a regular file readable only by its owner, containing:
+The file is a regular file readable only by its owner. Either form is valid.
+One paired kit:
 
 ```json
 {
   "listen": "0.0.0.0:8789",
   "token": "a-separately-generated-random-secret-of-at-least-32-characters",
   "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}
+```
+
+Several paired kits. A target id appears once. Several kits may share one
+token. The single-kit fields above may also be combined with `pairings`;
+those two fields then count as one pairing, ahead of the list.
+
+```json
+{
+  "listen": "0.0.0.0:8789",
+  "pairings": [
+    {
+      "token": "placeholder-token-for-kit-a-at-least-32-characters",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+    },
+    {
+      "token": "placeholder-token-for-kit-b-at-least-32-characters",
+      "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+    }
+  ]
 }
 ```
 
@@ -30,14 +51,27 @@ Generated media provisioning supplies the corresponding API URL, token, and
 identity to the kit; the launcher does not obtain a kit lease credential.
 
 Each request sends `Authorization: Bearer <token>` and
-`X-FogCast-Target-ID: <target_id>`. The configured selected target must match the
-paired identity. `GET /api/v1/mesh/content/source` and
-`GET /api/v1/mesh/content/object` are the exception: an enabled configured kit
-may read them with its own target id while another target stays selected.
-Those two GETs still require the launcher bearer token. A disabled or unknown
-target id is rejected. Other launcher operations still require the paired
-identity and the foreground selection. Target settings updates and admitted launcher operations are
-serialized so an address/selection edit cannot redirect an in-flight launch.
+`X-FogCast-Target-ID: <target_id>`. The bearer must match a configured pairing
+token. For everything except the two mesh content GETs, that target id must be
+one of the matched token's kits. Catalogue, platform, health, attract, cache,
+and presentation reads are served to every enabled paired kit, whether or not
+it is the host's selected target. `GET /api/v1/session` returns the foreground
+session only to the session owner; every other enabled paired kit receives its
+own idle or active view and does not touch that session. `POST /api/v1/session/launch`
+from a kit names that kit explicitly, so the kit menu launches on the kit
+itself. Stop, launcher input, status, and session input are only for the
+session owner. `GET /api/v1/mesh/content/source` and
+`GET /api/v1/mesh/content/object` still accept any enabled configured kit, with
+the launcher bearer, while another target stays selected. A disabled, unknown,
+or unpaired target id is rejected. Missing or invalid authentication returns
+401, identity mismatch returns 403, and unavailable routes return 404. Target
+settings updates and admitted launcher operations are serialized so an
+address/selection edit cannot redirect an in-flight launch.
+The host still has one foreground session. A kit that has its own play but
+is not the current session owner (another kit launched after it) sees that
+play in its session view, but its Stop returns 403 until it owns the session
+again; a per-target Stop is a follow-up. Health, `rom_cached`, and
+`/api/v1/library/cache` still describe the selected target.
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
 `Offline - local library`. Local D-pad/A still browse that snapshot. Offline
@@ -47,8 +81,8 @@ launch path; all lifecycle mutations go through the persistent host session API.
 
 Allowed operations are:
 
-- `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`,
-  `/api/v1/library/cache`.
+- `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`,
+  `/api/v1/library/cache`. `GET /api/v1/status` is only for the session owner.
   Games may include `play_count` and `last_played_at` when user library state
   already has them (omitted when zero). When the selected target answers a
   lease-free cache inventory, games with remembered content also include
@@ -68,9 +102,12 @@ Allowed operations are:
 - `GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`
   for one `id` query. These reads are admitted for any enabled configured
   kit, not only the foreground selected target.
-- `GET /api/v1/session` and `/api/v1/session/input`.
+- `GET /api/v1/session` for the session owner. Any other enabled paired kit
+  receives that kit's own idle or active view.
+- `GET /api/v1/session/input` for the session owner only.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.
-- `POST /api/v1/session/stop` with no body.
+  The listener sets `target` to the requesting kit.
+- `POST /api/v1/session/stop` with no body, for the session owner only.
 - `POST /api/v1/launcher/input?session_id=<session_id>` remains the host
   listener's controller stream. `fogcast-kit` does not call it for a gamepad
   or USB keyboard plugged into the kit. Those devices write raw input frames

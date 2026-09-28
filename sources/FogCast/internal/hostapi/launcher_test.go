@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,13 +16,17 @@ import (
 
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 const launcherID = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+const launcherIDB = "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
 const launcherToken = "12345678901234567890123456789012"
+const launcherTokenB = "abcdefghijklmnopqrstuvwxyz012345"
 
 type launcherService struct{ fakeService }
 
@@ -161,6 +166,8 @@ func TestLauncherMeshContentAllowsUnselectedKit(t *testing.T) {
 	if w.Code != http.StatusOK || w.Body.String() != string(payload) {
 		t.Fatalf("sibling object: %d %s", w.Code, w.Body.String())
 	}
+	// Sibling is enabled but not paired to this token, so catalogue stays
+	// forbidden. Content reads still admit any enabled configured kit.
 	w = serve(paired, http.MethodGet, gamesPath, siblingID, launcherToken)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("sibling catalogue: %d %s", w.Code, w.Body.String())
@@ -183,27 +190,27 @@ func TestLauncherMeshContentAllowsUnselectedKit(t *testing.T) {
 		t.Fatalf("disabled sibling: %d %s", w.Code, w.Body.String())
 	}
 
-	// The listener is paired to B while A stays selected. The selected-target
-	// check rejects every other launcher operation. Content reads still admit B.
+	// The listener is paired to B while A stays selected. Catalogue reads are
+	// served to that paired kit; selection no longer rejects them.
 	moved := handlerFor("kit-a", siblingID, targets)
 	w = serve(moved, http.MethodGet, sourcePath, siblingID, launcherToken)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"advertises":true`) {
 		t.Fatalf("configured sibling while A selected: %d %s", w.Code, w.Body.String())
 	}
 	w = serve(moved, http.MethodGet, gamesPath, siblingID, launcherToken)
-	if w.Code != http.StatusForbidden {
+	if w.Code != http.StatusOK {
 		t.Fatalf("configured sibling catalogue: %d %s", w.Code, w.Body.String())
 	}
 
-	// Selection moved to B. A remains enabled, so A's content read is admitted
-	// and A's catalogue request is not.
+	// Selection moved to B. A stays paired and enabled, so A's content read
+	// and A's catalogue read are both admitted.
 	reselected := handlerFor("kit-b", launcherID, targets)
 	w = serve(reselected, http.MethodGet, objectPath, launcherID, launcherToken)
 	if w.Code != http.StatusOK || w.Body.String() != string(payload) {
 		t.Fatalf("paired content after selection moved: %d %s", w.Code, w.Body.String())
 	}
 	w = serve(reselected, http.MethodGet, gamesPath, launcherID, launcherToken)
-	if w.Code != http.StatusForbidden {
+	if w.Code != http.StatusOK {
 		t.Fatalf("paired catalogue after selection moved: %d %s", w.Code, w.Body.String())
 	}
 }
@@ -494,5 +501,232 @@ func TestLauncherServesReadsDuringLaunch(t *testing.T) {
 			close(release)
 			<-launchDone
 		})
+	}
+}
+
+// launcherKitService is a library-backed launcher fake. LaunchOn records the
+// explicit target. SessionTarget and PlaySessions come from the embedded fake.
+type launcherKitService struct {
+	settingsFake
+	launchOnTarget string
+	launchOnCalls  int
+}
+
+func (s *launcherKitService) LaunchOn(ctx context.Context, gameID, target string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	s.launchOnCalls++
+	s.launchOnTarget = target
+	return s.settingsFake.LaunchOn(ctx, gameID, target, progress)
+}
+
+func twoKitSettings(selected string, kits ...fogcast.TargetConfig) fogcast.LibraryConfig {
+	if len(kits) == 0 {
+		kits = []fogcast.TargetConfig{
+			{Name: "kit-a", Enabled: true, TargetID: launcherID},
+			{Name: "kit-b", Enabled: true, TargetID: launcherIDB},
+		}
+	}
+	return fogcast.LibraryConfig{SelectedTarget: selected, Targets: kits}
+}
+
+func newKitService(selected string, kits ...fogcast.TargetConfig) *launcherKitService {
+	return &launcherKitService{settingsFake: settingsFake{settings: twoKitSettings(selected, kits...)}}
+}
+
+func kitHandler(t *testing.T, service *launcherKitService, config hostapi.LauncherConfig) http.Handler {
+	t.Helper()
+	handler, err := hostapi.NewLauncherHandler(hostapi.New(service), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return handler
+}
+
+func kitCall(handler http.Handler, method, path, token, id, body string) *httptest.ResponseRecorder {
+	var reader io.Reader
+	if body != "" || method == http.MethodPost {
+		reader = strings.NewReader(body)
+	}
+	req := launcherRequest(method, "http://192.0.2.1:8789"+path, reader)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-FogCast-Target-ID", id)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	return w
+}
+
+func distinctKitConfig() hostapi.LauncherConfig {
+	return hostapi.LauncherConfig{Pairings: []hostapi.LauncherPairing{
+		{Token: launcherToken, TargetID: launcherID},
+		{Token: launcherTokenB, TargetID: launcherIDB},
+	}}
+}
+
+func TestLauncherDistinctTokens(t *testing.T) {
+	handler := kitHandler(t, newKitService("kit-a"), distinctKitConfig())
+	if w := kitCall(handler, http.MethodGet, "/api/v1/games", launcherToken, launcherID, ""); w.Code != http.StatusOK {
+		t.Fatalf("kit A games: %d %s", w.Code, w.Body.String())
+	}
+	if w := kitCall(handler, http.MethodGet, "/api/v1/games", launcherTokenB, launcherIDB, ""); w.Code != http.StatusOK {
+		t.Fatalf("kit B games: %d %s", w.Code, w.Body.String())
+	}
+	w := kitCall(handler, http.MethodGet, "/api/v1/games", launcherToken, launcherIDB, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") {
+		t.Fatalf("A token on B: %d %s", w.Code, w.Body.String())
+	}
+	w = kitCall(handler, http.MethodGet, "/api/v1/games", "not-a-launcher-token", launcherID, "")
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "UNAUTHORIZED") {
+		t.Fatalf("bad token: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestLauncherUnselectedKitReadsAndSession(t *testing.T) {
+	service := newKitService("kit-a")
+	handler := kitHandler(t, service, distinctKitConfig())
+	if w := kitCall(handler, http.MethodGet, "/api/v1/games", launcherTokenB, launcherIDB, ""); w.Code != http.StatusOK {
+		t.Fatalf("kit B games while A selected: %d %s", w.Code, w.Body.String())
+	}
+	w := kitCall(handler, http.MethodGet, "/api/v1/session", launcherTokenB, launcherIDB, "")
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("kit B session: %d %s", w.Code, w.Body.String())
+	}
+	decoded, err := hostclient.DecodeSession(w.Code, w.Body.Bytes())
+	if err != nil || decoded.ID != "" || decoded.Target != "kit-b" || decoded.TargetID != launcherIDB || decoded.State != "idle" || decoded.GameID != "" {
+		t.Fatalf("idle view %#v err=%v body=%s", decoded, err, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "game_id") {
+		t.Fatalf("idle view kept an empty game: %s", w.Body.String())
+	}
+	service.playSessions = []fogcast.PlaySession{{
+		Target: "kit-b", TargetID: launcherIDB, Execution: "fpga_native", GameID: "pong", System: protocol.SystemPong,
+	}}
+	w = kitCall(handler, http.MethodGet, "/api/v1/session", launcherTokenB, launcherIDB, "")
+	decoded, err = hostclient.DecodeSession(w.Code, w.Body.Bytes())
+	if err != nil || w.Code != http.StatusOK || decoded.State != "active" || decoded.TargetID != launcherIDB || decoded.GameID != "pong" || decoded.System != "pong" || decoded.Execution != "fpga_native" || decoded.ID != "" {
+		t.Fatalf("active view %#v err=%v body=%s", decoded, err, w.Body.String())
+	}
+	w = kitCall(handler, http.MethodGet, "/api/v1/status", launcherTokenB, launcherIDB, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") {
+		t.Fatalf("kit B status: %d %s", w.Code, w.Body.String())
+	}
+	w = kitCall(handler, http.MethodGet, "/api/v1/session/input", launcherTokenB, launcherIDB, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") {
+		t.Fatalf("kit B input: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestLauncherLaunchNamesRequestingKit(t *testing.T) {
+	service := newKitService("kit-a")
+	handler := kitHandler(t, service, distinctKitConfig())
+	w := kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherTokenB, launcherIDB, `{"game_id":"pong"}`)
+	if w.Code != http.StatusOK || service.launchOnCalls != 1 || service.launchOnTarget != "kit-b" {
+		t.Fatalf("launch status=%d calls=%d target=%q body=%s", w.Code, service.launchOnCalls, service.launchOnTarget, w.Body.String())
+	}
+	rejected := newKitService("kit-a")
+	handler = kitHandler(t, rejected, distinctKitConfig())
+	w = kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherTokenB, launcherIDB, `{"game_id":"pong","target":"kit-a"}`)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") || rejected.launchOnCalls != 0 {
+		t.Fatalf("foreign target status=%d calls=%d body=%s", w.Code, rejected.launchOnCalls, w.Body.String())
+	}
+	w = kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherTokenB, launcherIDB, `{"game_id":"pong"}{}`)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "request body must contain one valid JSON object") || rejected.launchOnCalls != 0 {
+		t.Fatalf("trailing body status=%d calls=%d body=%s", w.Code, rejected.launchOnCalls, w.Body.String())
+	}
+}
+
+func TestLauncherRejectsUnpairedAndDisabledKit(t *testing.T) {
+	disabled := newKitService("kit-a",
+		fogcast.TargetConfig{Name: "kit-a", Enabled: true, TargetID: launcherID},
+		fogcast.TargetConfig{Name: "kit-b", Enabled: false, TargetID: launcherIDB},
+	)
+	handler := kitHandler(t, disabled, distinctKitConfig())
+	w := kitCall(handler, http.MethodGet, "/api/v1/games", launcherTokenB, launcherIDB, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") {
+		t.Fatalf("disabled: %d %s", w.Code, w.Body.String())
+	}
+	w = kitCall(handler, http.MethodGet, "/api/v1/games", launcherToken, "11111111-1111-4111-8111-111111111111", "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") {
+		t.Fatalf("unpaired: %d %s", w.Code, w.Body.String())
+	}
+	w = kitCall(handler, http.MethodGet, "/api/v1/games", "00000000000000000000000000000000", launcherID, "")
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "UNAUTHORIZED") {
+		t.Fatalf("bad token: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestLauncherSharedTokenServesBothKits(t *testing.T) {
+	for _, config := range []hostapi.LauncherConfig{
+		{Token: launcherToken, TargetID: launcherID, Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherIDB}}},
+		{Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherID}, {Token: launcherToken, TargetID: launcherIDB}}},
+	} {
+		handler := kitHandler(t, newKitService("kit-a"), config)
+		if w := kitCall(handler, http.MethodGet, "/api/v1/games", launcherToken, launcherID, ""); w.Code != http.StatusOK {
+			t.Fatalf("shared A: %d %s", w.Code, w.Body.String())
+		}
+		if w := kitCall(handler, http.MethodGet, "/api/v1/session", launcherToken, launcherIDB, ""); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"target_id":"`+launcherIDB+`"`) {
+			t.Fatalf("shared B session: %d %s", w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestLauncherStopFollowsSessionOwner(t *testing.T) {
+	// SessionTarget names B while A stays selected. Only B may stop.
+	owner := newKitService("kit-a")
+	owner.sessionTarget = "kit-b"
+	owner.sessionTargetID = launcherIDB
+	handler := kitHandler(t, owner, distinctKitConfig())
+	w := kitCall(handler, http.MethodPost, "/api/v1/session/stop", launcherToken, launcherID, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") || len(owner.stopCtxErrs) != 0 {
+		t.Fatalf("non-owner stop status=%d stops=%d body=%s", w.Code, len(owner.stopCtxErrs), w.Body.String())
+	}
+	w = kitCall(handler, http.MethodPost, "/api/v1/session/stop", launcherTokenB, launcherIDB, "")
+	if w.Code == http.StatusForbidden || len(owner.stopCtxErrs) == 0 {
+		t.Fatalf("owner stop status=%d stops=%d body=%s", w.Code, len(owner.stopCtxErrs), w.Body.String())
+	}
+
+	// No reported session id: the selected target is the owner.
+	selected := newKitService("kit-a")
+	handler = kitHandler(t, selected, distinctKitConfig())
+	w = kitCall(handler, http.MethodPost, "/api/v1/session/stop", launcherTokenB, launcherIDB, "")
+	if w.Code != http.StatusForbidden || len(selected.stopCtxErrs) != 0 {
+		t.Fatalf("unselected stop status=%d stops=%d body=%s", w.Code, len(selected.stopCtxErrs), w.Body.String())
+	}
+	w = kitCall(handler, http.MethodPost, "/api/v1/session/stop", launcherToken, launcherID, "")
+	if w.Code == http.StatusForbidden || len(selected.stopCtxErrs) == 0 {
+		t.Fatalf("selected stop status=%d stops=%d body=%s", w.Code, len(selected.stopCtxErrs), w.Body.String())
+	}
+}
+
+func TestLauncherConfigValidate(t *testing.T) {
+	validToken := strings.Repeat("c", 32)
+	id := func(n int) string { return fmt.Sprintf("00000000-0000-4000-8000-%012x", n) }
+	if err := (hostapi.LauncherConfig{}).Validate(); err == nil || err.Error() != "invalid launcher configuration" {
+		t.Fatalf("empty: %v", err)
+	}
+	dup := hostapi.LauncherConfig{Pairings: []hostapi.LauncherPairing{
+		{Token: validToken, TargetID: launcherID},
+		{Token: launcherTokenB, TargetID: launcherID},
+	}}
+	if err := dup.Validate(); err == nil || err.Error() != "invalid launcher configuration" {
+		t.Fatalf("duplicate: %v", err)
+	}
+	mixed := hostapi.LauncherConfig{
+		Token: launcherToken, TargetID: launcherID,
+		Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherIDB}},
+	}
+	if err := mixed.Validate(); err != nil {
+		t.Fatalf("mixed: %v", err)
+	}
+	tooMany := make([]hostapi.LauncherPairing, 33)
+	for i := range tooMany {
+		tooMany[i] = hostapi.LauncherPairing{Token: validToken, TargetID: id(i + 1)}
+	}
+	if err := (hostapi.LauncherConfig{Pairings: tooMany}).Validate(); err == nil || err.Error() != "invalid launcher configuration" {
+		t.Fatalf("over 32: %v", err)
+	}
+	if err := (hostapi.LauncherConfig{Token: launcherToken}).Validate(); err == nil {
+		t.Fatal("half top-level accepted")
+	}
+	if (hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID}).Validate() != nil {
+		t.Fatal("single form rejected")
 	}
 }

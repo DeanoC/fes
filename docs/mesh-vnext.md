@@ -308,6 +308,7 @@ One small PR each, in order. No PR flips a default or writes media.
 | 5 | #178 | Ensure dials the named `LaunchOn` target when the selected target is offline. | #177 if both touch activate. | Selected down, named up. |
 | 6 | #174, optional | Pass the `LaunchOn` context into `activateMeshExecutor`. | None. | Cancel does not outlive the caller. |
 | 7 | To be filed | Rebind releases the previous lease. Not #270 P2-4's idle Stop unless **Q5** accepts the blip. | #259. | Old grant gone, new held. A failed claim keeps the old grant. |
+| P4a | This PR (in progress) | Launcher listener serves several paired kits: optional `pairings` list in `launcher-host.json`, catalogue reads for any enabled paired kit regardless of selection, kit-menu launch names its own kit. Interim step toward P4; per-kit tokens come with pairing. | None. | Single form unchanged; two kits; unselected kit browses; kit B launch targets kit B; 401 bad token; 403 wrong target; shared token. |
 
 ---
 

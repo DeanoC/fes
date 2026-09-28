@@ -24,10 +24,10 @@ func loadLauncherConfig(path string) (launcherListenerConfig, error) {
 	}
 	defer file.Close()
 	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() > 4096 {
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() > 16384 {
 		return config, errors.New("launcher configuration must be a private regular file")
 	}
-	decoder := json.NewDecoder(io.LimitReader(file, 4097))
+	decoder := json.NewDecoder(io.LimitReader(file, 16385))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&config) != nil {
 		return config, errors.New("invalid launcher configuration")

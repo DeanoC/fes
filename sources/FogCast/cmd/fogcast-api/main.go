@@ -1034,7 +1034,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		return 1
 	}
 	if launcherConfig != nil {
-		if launcherConfig.Token == config.Token {
+		if launcherConfig.UsesToken(config.Token) {
 			fmt.Fprintln(stderr, "fogcast-api: launcher requires a separate credential")
 			return 2
 		}
