@@ -201,6 +201,20 @@ func TestUIEventIngestAndPoll(t *testing.T) {
 	}
 }
 
+func TestUIEventAcceptsHomeRoomAndLauncherAction(t *testing.T) {
+	handler := hostapi.New(&fakeService{status: protocol.Status{State: protocol.StateIdle}})
+	for _, kind := range []string{"ui.home_room_fallback", "ui.launcher_action"} {
+		body := `{"ts_utc":"2026-09-09T12:00:00Z","kind":"` + kind + `","detail":{"room":"main-menu","reason":"missing","action":"shell","result":"rejected"}}`
+		post := httptest.NewRequest(http.MethodPost, "/api/v1/debug/ui-events", strings.NewReader(body))
+		post.Host = "127.0.0.1"
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, post)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s status = %d %s", kind, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestUIEventRejectsUnknownKind(t *testing.T) {
 	handler := hostapi.New(&fakeService{status: protocol.Status{State: protocol.StateIdle}})
 	post := httptest.NewRequest(http.MethodPost, "/api/v1/debug/ui-events", strings.NewReader(`{"ts_utc":"2026-09-09T12:00:00Z","kind":"ui.explode"}`))
