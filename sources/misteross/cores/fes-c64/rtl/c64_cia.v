@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Enough of a 6526 for the C64 pathfinder: ports, timer A, and the IRQ flag.
 // Time of day and the serial shift register read as zero. `we` is one system
-// clock. Timer A counts on `phi`.
+// clock. Timer A counts on `phi`. Reading ICR clears the flags on `read_sample`,
+// which is the same edge the CPU samples the bus, so the read still sees them.
 module c64_cia (
     input  wire       clk,
     input  wire       phi,
     input  wire       reset,
     input  wire       cs,
     input  wire       we,
+    input  wire       reading,
+    input  wire       read_sample,
     input  wire [3:0] rs,
     input  wire [7:0] din,
     output reg  [7:0] dout,
@@ -78,7 +81,7 @@ module c64_cia (
                     4'hF: crb <= din;
                     default: ;
                 endcase
-            end else if (rs == 4'hD && cs)
+            end else if (reading && read_sample && rs == 4'hD && cs)
                 icr_flags <= 8'h00;
             if (phi && cra[0]) begin
                 if (ta_count == 16'h0000) begin

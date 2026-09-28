@@ -196,7 +196,8 @@ module c64_machine #(
                          (~cia1_ddrb & {3'b000, joy1});
     c64_cia cia1 (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_cia1),
-        .we(bus_strobe && bus_we && sel_cia1), .rs(bus_addr[3:0]), .din(bus_wdata),
+        .we(bus_strobe && bus_we && sel_cia1), .reading(!bus_we), .read_sample(bus_sample),
+        .rs(bus_addr[3:0]), .din(bus_wdata),
         .dout(cia1_dout), .pa_pin(~pa1_low), .pb_pin(~pb1_low),
         .pa_reg(cia1_pa), .pb_reg(cia1_pb), .pa_ddr(cia1_ddra), .pb_ddr(cia1_ddrb),
         .irq(cia1_irq)
@@ -222,7 +223,8 @@ module c64_machine #(
                           (cia2_ddra[5:0] & cia2_pa[5:0]) | (~cia2_ddra[5:0] & 6'h3F)};
     c64_cia cia2 (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_cia2),
-        .we(bus_strobe && bus_we && sel_cia2), .rs(bus_addr[3:0]), .din(bus_wdata),
+        .we(bus_strobe && bus_we && sel_cia2), .reading(!bus_we), .read_sample(bus_sample),
+        .rs(bus_addr[3:0]), .din(bus_wdata),
         .dout(cia2_dout), .pa_pin(pa2_pin), .pb_pin(8'hFF),
         .pa_reg(cia2_pa), .pb_reg(cia2_pb), .pa_ddr(cia2_ddra), .pb_ddr(cia2_ddrb),
         .irq(cia2_irq)

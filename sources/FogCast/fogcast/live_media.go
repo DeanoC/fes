@@ -16,7 +16,7 @@ type liveMediaClient interface {
 
 // ReplaceLiveMedia arms a household core-media id into the active generation
 // via the mid-session live path. It does not inject LOAD "" keys.
-// A .dsk/.do name selects the fes.computer disk unit instead; see
+// A .dsk/.do or .d64 name selects the fes.computer disk unit instead; see
 // replaceLiveDisk.
 func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	if protocol.AdmitComputerDiskName(name) {

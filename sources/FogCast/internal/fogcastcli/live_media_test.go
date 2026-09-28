@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestChangeTapeAndEjectTapeCommands(t *testing.T) {
@@ -164,5 +166,55 @@ func testChangeAndEjectDisk(t *testing.T, execution string) {
 	// A tape command refuses a disk-only session before posting.
 	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"eject-tape"}); result.err == nil || len(posts) != 2 {
 		t.Fatalf("tape eject posted to a disk session: %v", result.err)
+	}
+}
+
+func TestChangeDiskDigestUsesTheActiveDisk(t *testing.T) {
+	for _, tc := range []struct {
+		iface, name string
+		size        int64
+	}{
+		{"fes.media.apple2-floppy", "disk.dsk", protocol.Apple2FloppyBytes},
+		{"fes.media.c64-disk", "disk.d64", protocol.C64DiskBytes},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mediaID := strings.Repeat("d", 64)
+			var got string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				session := map[string]any{
+					"id": "host-one", "target": "dev", "state": "active", "execution": "fpga_native",
+					"core_package": map[string]any{
+						"package_id": strings.Repeat("a", 64), "generation": 3,
+						"abi":               map[string]any{"id": "fes.computer", "major": 1, "minor": 0},
+						"active_interfaces": []map[string]any{{"id": tc.iface, "major": 1, "minor": 0}},
+						"media_units": []map[string]any{{"unit": 0, "interface": map[string]any{"id": tc.iface, "major": 1, "minor": 0},
+							"min_bytes": tc.size, "max_bytes": tc.size, "chunk_bytes": 512, "state": "empty"}},
+					},
+				}
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+					_ = json.NewEncoder(w).Encode(session)
+				case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media":
+					var body map[string]string
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Fatal(err)
+					}
+					got = body["name"]
+					if body["media_id"] != mediaID {
+						t.Fatalf("media_id %q", body["media_id"])
+					}
+					_ = json.NewEncoder(w).Encode(session)
+				default:
+					t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+				}
+			}))
+			defer server.Close()
+			if result := runLiveMediaCommand(context.Background(), server.URL, []string{"change-disk", mediaID}); result.err != nil {
+				t.Fatal(result.err)
+			}
+			if got != tc.name {
+				t.Fatalf("name %q", got)
+			}
+		})
 	}
 }
