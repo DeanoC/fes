@@ -45,6 +45,20 @@ class ZX81SocketProducerTests(unittest.TestCase):
         for name, cell in cells.items():
             self.assertEqual(cell, before["modules"]["top"]["cells"][expansion.SOCKET_PREFIX + name])
 
+    def test_pll_output_names_restore_system_and_audio_clock_aliases(self):
+        design = self.fixture()
+        top = design['modules']['top']
+        del top['netnames']['clk_sys']
+        top['cells']['system_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [2]}}
+        top['cells']['audio_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [3]}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'synth.json'
+            path.write_text(json.dumps(design))
+            expansion.prepare_shell_netlist(path)
+            nets = json.loads(path.read_text())['modules']['top']['netnames']
+        self.assertEqual(nets['clk_sys']['bits'], [2])
+        self.assertEqual(nets['audio_clk']['bits'], [3])
+
     def test_changed_geometry_clock_wiring_or_missing_plug_rejects_without_rewrite(self):
         original = self.fixture()
         for mode in ("geometry", "clock", "wiring", "missing", "collision"):
