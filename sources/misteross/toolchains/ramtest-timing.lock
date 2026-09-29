@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "acf441cc385277617e60059691b2f801c9e02660"
 order = 10
-rationale = "Experimental RAM-test timing diagnostic: DeanoC/yosys#17 preserves initialized FSM states through extraction and recoding. Descends from b27035fc with the complete fpga2sdram blackbox. Pair with nextpnr 5d10b610; this lock does not qualify a 130 MHz package."
+rationale = "Experimental RAM-test timing diagnostic: DeanoC/yosys#17 preserves initialized FSM states through extraction and recoding. Descends from b27035fc with the complete fpga2sdram blackbox. Pair with nextpnr d91c902b; this lock does not qualify a 130 MHz package."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
