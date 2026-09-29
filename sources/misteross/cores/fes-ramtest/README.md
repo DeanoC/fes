@@ -163,6 +163,13 @@ Pixel changes from 94.500 to 94.357 MHz; both exceed 74.25 MHz, but the conserva
 selector retains the baseline because pixel Fmax decreased. This is a measured
 tradeoff, not recovered 130 MHz closure or hardware acceptance.
 
+The [fixed-input controls](../../docs/validation/2026-09-29-ramtest-fixed-input.md)
+isolate the lower baseline to the changed embedded BUILD_ID: holding the synthesized
+design fixed reproduces the same timing with old and merged nextpnr. Compiler
+comparisons therefore need fixed synthesis inputs as well as a fixed seed. The
+DDR0 first-error enable exposed by remapping has a verified Boolean opportunity
+for a shallower reduction, but no further routed gain has been demonstrated.
+
 The Quartus 17.0.2 diagnostic compiles the same RTL:
 
 ```sh
