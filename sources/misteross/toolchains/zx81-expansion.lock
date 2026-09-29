@@ -12,9 +12,9 @@ rationale = "DeanoC fork master with the indexed-node routing API and the fixes 
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "a93fe013af841214ecb4f7be3af0de65f3de3a0f"
+commit = "69f8237b2a654942f88d1ef7ca1552d0711aa2c8"
 order = 30
-rationale = "DeanoC nextpnr main a93fe013, the merge of PR #86: Mistral placement prediction calibrated against routed delays (LAB exit cost, row change, dedicated carry and same-half LUT/FF paths). RAM130 closes 130 MHz on seed 2 and 30 of 32 seeds (DeanoC/fes#236); SMS and ZX81 improve, Coleco is neutral and SG-1000 passes fewer seeds at 16. Pair with Mistral 7ed06e21 (required). Previous pin 267710a3: Scoped FES #237 fix on f65075bb: preserve frozen routing mux selections outside the socket and their upstream paths through cartridge cleanup; reject missing, replaced or reassigned selections before RBF emission. Routed-design checks retain connected locked physical branches. Retained ZX81 replay passes both clocks, identical header and zero outside-slot CRAM changes with the fixed 1769,32,2806,7024 rectangle. Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Default and other core locks remain separately pinned; hardware acceptance is separate."
+rationale = "DeanoC nextpnr 69f8237b (PR #94, parent a93fe013): a flip-flop with no async clear no longer stays on a LAB clear another flop uses. The open half takes an unused ACLR slot and that slot selects the dedicated inactive clear; TCLR_SEL/BCLR_SEL are numeric. Reloading FES_LABSTATE_V1 runs the same park, because a locked LAB skips control-set assignment; a shell with both ACLR slots live is rejected. Repaired ZX81 seed 10 keeps its placement and gpo[24] route (FES #309). Previous pin 7eb7b277 parked open flops on a fresh route only. Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Previous pin a93fe013: merge of PR #86, placement prediction calibrated against routed delays (FES #236). Previous pin 267710a3 preserved frozen CRAM through cartridge cleanup (FES #237). Other core locks stay on their own pins."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
