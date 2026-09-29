@@ -167,7 +167,9 @@ branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 for `fes.sms` 1.4.0. It requires a clean committed tree, writes
 `build/fes-sms-quartus/build-inputs.json`, embeds that build id, and seals
 a format-2 package when timing passes. `--compile-only` produces the RBF and
-timing evidence without sealing. It does not program hardware.
+timing evidence without sealing. The TimeQuest report must include the
+52.224 MHz system, 74.25 MHz pixel and 12.288 MHz audio clocks. It does not
+program hardware.
 
 `make build-fes-sms` is the format-3 OSS recipe (`scripts/build_fes_sms_oss.py`).
 It authenticates the selected Mistral ROM database, verifies all 32 routed

@@ -10,12 +10,14 @@ from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInv
 from pathlib import Path
 
 from scripts.build_fes_sms import (
+    BuildError as QuartusBuildError,
     OUTPUT_RELATIVE as QUARTUS_OUTPUT,
     PINNED_INPUTS as QUARTUS_PINNED_INPUTS,
     SYSTEMVERILOG_SOURCES,
     VERILOG_SOURCES,
     _manifest,
     project_qsf,
+    require_clocks,
 )
 from scripts.build_fes_sms_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
@@ -42,6 +44,11 @@ GENERATOR = ROOT / "cores/fes-sms/diagnostic/generate.py"
 
 
 class BuildFesSmsTests(unittest.TestCase):
+    def test_quartus_timing_requires_audio_clock(self) -> None:
+        with self.assertRaisesRegex(QuartusBuildError, "12.288 MHz audio clock"):
+            require_clocks("52.224 MHz system clock\n74.25 MHz pixel clock")
+        require_clocks("52.224 MHz system clock\n74.25 MHz pixel clock\n12.288 MHz audio clock")
+
     def test_make_entrypoints_use_both_recipes(self) -> None:
         for target, recipe in (
             ("build-fes-sms", "scripts/build_fes_sms_oss.py"),
