@@ -113,6 +113,33 @@ func TestMenuDisplayConfigSurvivesThemeSave(t *testing.T) {
 	}
 }
 
+func TestKitUISurvivesThemeSave(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "launcher.json")
+	body := `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a","menu_display":true,"kit_ui":"tenfoot"}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(p)
+	if err != nil || c.KitUI != "tenfoot" || !c.MenuDisplay {
+		t.Fatalf("config=%+v err=%v", c, err)
+	}
+	c.Theme = "neon"
+	if err := SaveConfig(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadConfig(p)
+	if err != nil || got.KitUI != "tenfoot" || !got.MenuDisplay || got.Theme != "neon" {
+		t.Fatalf("saved config=%+v err=%v", got, err)
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"kit_ui": "tenfoot"`) {
+		t.Fatalf("launcher.json dropped kit_ui: %s", raw)
+	}
+}
+
 func TestTemporaryMenuDisplaySelectionDoesNotChangeSavedConfig(t *testing.T) {
 	c := NewClient(Config{MenuDisplay: false})
 	c.SetMenuDisplay(true)

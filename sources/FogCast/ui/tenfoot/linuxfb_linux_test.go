@@ -99,7 +99,7 @@ func TestFramebufferFullAppLoop(t *testing.T) {
 	defer dev.Close()
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 	defer cancel()
-	if err := framebufferLoop(ctx, opts, app, dev, func(*App, time.Time) (bool, error) { return false, nil }); err != nil {
+	if err := framebufferLoop(ctx, opts, app, dev, func(*App, time.Time) (bool, error) { return false, nil }, "linuxfb"); err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Equal(dst, make([]byte, len(dst))) {
@@ -324,7 +324,7 @@ func TestNativeInputLocalDiscovery(t *testing.T) {
 	if os.Getenv("FOGCAST_TEST_EVDEV") != "1" {
 		t.Skip("live evdev discovery is opt-in")
 	}
-	inputs, err := openNativeInputs("auto")
+	inputs, err := openNativeInputs("auto", "linuxfb")
 	if err != nil {
 		t.Skipf("no supported input devices currently attached: %v", err)
 	}
@@ -333,6 +333,17 @@ func TestNativeInputLocalDiscovery(t *testing.T) {
 	inputs.seed(a)
 	t.Logf("classified %d supported nodes; startup owner %s; no events read", len(inputs.devices), a.Affinity().Kind)
 }
+func TestNativeInputLabel(t *testing.T) {
+	_, err := openNativeInputs("/no/such/evdev", "menu-display")
+	if err == nil || !strings.HasPrefix(err.Error(), "menu-display input /no/such/evdev:") {
+		t.Fatalf("menu-display label: %v", err)
+	}
+	_, err = openNativeInputs("/no/such/evdev", "linuxfb")
+	if err == nil || !strings.HasPrefix(err.Error(), "linuxfb input /no/such/evdev:") {
+		t.Fatalf("linuxfb label: %v", err)
+	}
+}
+
 func TestExplicitInputDisconnectStaysStrict(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {

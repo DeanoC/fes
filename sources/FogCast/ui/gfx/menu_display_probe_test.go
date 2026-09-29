@@ -1,0 +1,327 @@
+package gfx
+
+import (
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/ui/menudisplay"
+)
+
+type menuClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func newMenuClock() *menuClock {
+	return &menuClock{t: time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC)}
+}
+
+func (c *menuClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *menuClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	c.t = c.t.Add(d)
+	c.mu.Unlock()
+}
+
+func (c *menuClock) Set(t time.Time) {
+	c.mu.Lock()
+	c.t = t
+	c.mu.Unlock()
+}
+
+func waitMenuStatus(t *testing.T, d *MenuDisplay, client *testMenuClient, n int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		d.mu.Lock()
+		idle := d.flight == nil && len(d.frames) == 0 && !d.probeQueued
+		d.mu.Unlock()
+		if idle && client.statusCount() >= n {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status calls %d, want >= %d", client.statusCount(), n)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestMenuDisplayProbeRedrawsNewGeneration(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	clock.Advance(menuProbeInterval - time.Nanosecond)
+	statusBefore := client.statusCount()
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	if client.statusCount() != statusBefore || d.FramePending() {
+		t.Fatal("probed before the interval")
+	}
+
+	client.mu.Lock()
+	client.generation = 9
+	client.mu.Unlock()
+	clock.Advance(time.Nanosecond)
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuIdle(t, d, client, 2)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 2 || gen != 9 || n != menudisplay.FrameBytes || prefix[0] != 1 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+}
+
+func TestMenuDisplayProbeSameGenerationPresentsNothing(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	statusBefore := client.statusCount()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	if client.statusCount() != statusBefore+1 {
+		t.Fatalf("status calls %d, want %d", client.statusCount(), statusBefore+1)
+	}
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatalf("same generation presented, calls=%d", calls)
+	}
+
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	if client.statusCount() != statusBefore+1 {
+		t.Fatal("probed again before the next interval")
+	}
+}
+
+func TestMenuDisplayProbePresentsWhenNeverPresented(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(4, 5, 6))
+	pix := append([]byte(nil), d.Software.Framebuffer().Pix...)
+	d.mu.Lock()
+	d.submitted = &submittedMenuFrame{pixels: pix, generation: 0, seq: 1}
+	d.generation = 0
+	d.lastProbe = clock.Now().Add(-menuProbeInterval)
+	d.hasPresented = false
+	d.mu.Unlock()
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuIdle(t, d, client, 1)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 1 || gen != 3 || n != menudisplay.FrameBytes || prefix[0] != 4 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+}
+
+func TestMenuDisplayBackoffSuppressesQueue(t *testing.T) {
+	cases := []struct {
+		name     string
+		arm      func(*testMenuClient)
+		presents int
+	}{
+		{name: "status", arm: func(c *testMenuClient) { c.statusErr = errors.New("socket missing") }},
+		{name: "unavailable", arm: func(c *testMenuClient) { c.unavailable = true }},
+		{name: "present", arm: func(c *testMenuClient) { c.fail = true }, presents: 1},
+		{name: "underflow", arm: func(c *testMenuClient) { c.underflows = menudisplay.TransientUnderflowCap + 1 }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d, client := newChangeDrivenMenu(t, 7, true)
+			clock := newMenuClock()
+			d.now = clock.Now
+			tc.arm(client)
+			d.Clear(RGB(1, 2, 3))
+			d.Present()
+			waitMenuIdle(t, d, client, tc.presents)
+			if tc.name == "underflow" {
+				if err := d.LastError(); err == nil || err.Error() != "menu scanout underflow" {
+					t.Fatalf("last error %v", err)
+				}
+			}
+			beforeStatus := client.statusCount()
+			beforeCalls, _, _, _ := client.snapshot()
+			d.Clear(RGB(9, 8, 7))
+			d.Present()
+			if d.FramePending() || client.statusCount() != beforeStatus {
+				t.Fatalf("queued during backoff (status %d)", client.statusCount())
+			}
+			if calls, _, _, _ := client.snapshot(); calls != beforeCalls {
+				t.Fatalf("present calls %d, want %d", calls, beforeCalls)
+			}
+		})
+	}
+}
+
+func TestMenuDisplayBackoffDoublesToCap(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	want := menuBackoffInitial
+	for step := 0; step < 7; step++ {
+		d.Present()
+		waitMenuIdle(t, d, client, 0)
+		d.mu.Lock()
+		got := d.backoff
+		until := d.backoffUntil
+		d.mu.Unlock()
+		if got != want {
+			t.Fatalf("step %d backoff %s, want %s", step, got, want)
+		}
+		clock.Set(until.Add(-time.Millisecond))
+		before := client.statusCount()
+		d.Present()
+		if d.FramePending() || client.statusCount() != before {
+			t.Fatalf("step %d queued before backoff elapsed", step)
+		}
+		clock.Set(until)
+		next := want * 2
+		if next > menuBackoffCap {
+			next = menuBackoffCap
+		}
+		want = next
+	}
+	if want != menuBackoffCap {
+		t.Fatalf("cap walk ended at %s", want)
+	}
+}
+
+func TestMenuDisplayBackoffResetsOnSuccess(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	d.Present()
+	waitMenuIdle(t, d, client, 0)
+	d.mu.Lock()
+	until := d.backoffUntil
+	d.mu.Unlock()
+	clock.Set(until)
+	d.Present()
+	waitMenuIdle(t, d, client, 0)
+	d.mu.Lock()
+	if d.backoff != menuBackoffInitial*2 {
+		t.Fatalf("backoff %s, want doubled", d.backoff)
+	}
+	until = d.backoffUntil
+	d.mu.Unlock()
+
+	client.mu.Lock()
+	client.statusErr = nil
+	client.mu.Unlock()
+	clock.Set(until)
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	d.mu.Lock()
+	if d.backoff != 0 || !d.backoffUntil.IsZero() {
+		t.Fatalf("backoff %s until %s after success", d.backoff, d.backoffUntil)
+	}
+	d.mu.Unlock()
+
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	d.Clear(RGB(8, 8, 8))
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	d.mu.Lock()
+	got := d.backoff
+	d.mu.Unlock()
+	if got != menuBackoffInitial {
+		t.Fatalf("backoff %s, want reset to %s", got, menuBackoffInitial)
+	}
+}
+
+func TestMenuDisplayBackoffRecoveryRedraws(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	d.mu.Lock()
+	kept := d.submitted != nil && d.generation == d.submitted.generation
+	until := d.backoffUntil
+	d.mu.Unlock()
+	if !kept {
+		t.Fatal("failed probe forgot the frame or moved its generation")
+	}
+	client.mu.Lock()
+	client.statusErr = nil
+	client.mu.Unlock()
+	d.Present()
+	if d.FramePending() {
+		t.Fatal("unchanged frame queued during backoff")
+	}
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatalf("calls=%d during backoff", calls)
+	}
+	clock.Set(until)
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuIdle(t, d, client, 2)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 2 || gen != 3 || n != menudisplay.FrameBytes || prefix[0] != 1 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+}
+
+func TestMenuDisplayPauseResumeClearsBackoff(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	d.Present()
+	waitMenuIdle(t, d, client, 0)
+	if err := d.Pause(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	d.Resume()
+	before := client.statusCount()
+	d.Present()
+	waitMenuStatus(t, d, client, before+1)
+}
+
+func TestMenuDisplayChangeDrivenOffIgnoresBackoff(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, false)
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	d.Present()
+	waitMenuStatus(t, d, client, 1)
+	d.Present()
+	waitMenuStatus(t, d, client, 2)
+	if calls, _, _, _ := client.snapshot(); calls != 0 {
+		t.Fatalf("present calls %d", calls)
+	}
+}

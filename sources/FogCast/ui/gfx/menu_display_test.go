@@ -3,7 +3,6 @@ package gfx
 import (
 	"context"
 	"errors"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -22,6 +21,8 @@ type testMenuClient struct {
 	lastLen      int
 	fail         bool
 	unavailable  bool
+	statusErr    error
+	statusCalls  int
 	ready        chan struct{}
 	statusSeen   chan uint64
 	presentBlock <-chan struct{}
@@ -29,15 +30,20 @@ type testMenuClient struct {
 
 func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	c.mu.Lock()
+	c.statusCalls++
 	generation := c.generation
 	underflows := c.underflows
 	unavailable := c.unavailable
+	statusErr := c.statusErr
 	c.mu.Unlock()
 	if c.statusSeen != nil {
 		select {
 		case c.statusSeen <- generation:
 		default:
 		}
+	}
+	if statusErr != nil {
+		return menudisplay.Status{}, statusErr
 	}
 	return menudisplay.Status{Available: !unavailable, Generation: generation, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows}, nil
 }
@@ -276,10 +282,7 @@ func TestMenuDisplayChangeDrivenSkipsIdenticalFrame(t *testing.T) {
 	presentMenu(t, d, client)
 	waitMenuSubmitted(t, d, 3)
 	d.Present()
-	expectNoMenuPresent(t, client)
-	if calls, _, _, _ := client.snapshot(); calls != 1 {
-		t.Fatalf("calls=%d", calls)
-	}
+	waitMenuIdle(t, d, client, 1)
 }
 
 func TestMenuDisplayChangeDrivenSubmitsChangedFrame(t *testing.T) {
@@ -307,7 +310,7 @@ func TestMenuDisplayChangeDrivenResubmitsAfterGenerationChange(t *testing.T) {
 	client.generation = 4
 	client.mu.Unlock()
 	d.Present()
-	expectNoMenuPresent(t, client)
+	waitMenuIdle(t, d, client, 1)
 	select {
 	case gen := <-client.statusSeen:
 		t.Fatalf("unchanged frame polled status at generation %d", gen)
@@ -322,7 +325,7 @@ func TestMenuDisplayChangeDrivenResubmitsAfterGenerationChange(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("stale frame was not checked")
 	}
-	expectNoMenuPresent(t, client)
+	waitMenuIdle(t, d, client, 1)
 	waitMenuForgotten(t, d)
 	if err := d.LastError(); err == nil || !strings.Contains(err.Error(), "generation changed") {
 		t.Fatalf("last error %v", err)
@@ -342,6 +345,8 @@ func TestMenuDisplayChangeDrivenResubmitsAfterGenerationChange(t *testing.T) {
 
 func TestMenuDisplayChangeDrivenResubmitsAfterPresentError(t *testing.T) {
 	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
 	d.Clear(RGB(1, 2, 3))
 	presentMenu(t, d, client)
 	waitMenuSubmitted(t, d, 3)
@@ -352,9 +357,19 @@ func TestMenuDisplayChangeDrivenResubmitsAfterPresentError(t *testing.T) {
 	d.Present()
 	presentMenuWait(t, client)
 	waitMenuForgotten(t, d)
+	waitMenuIdle(t, d, client, 2)
 	client.mu.Lock()
 	client.fail = false
 	client.mu.Unlock()
+	// A present failure backs off. The same pixels are not retried until it expires.
+	d.Present()
+	if d.FramePending() {
+		t.Fatal("present queued during backoff")
+	}
+	if calls, _, _, _ := client.snapshot(); calls != 2 {
+		t.Fatalf("calls=%d during backoff", calls)
+	}
+	clock.Advance(menuBackoffInitial)
 	d.Present()
 	presentMenuWait(t, client)
 	calls, gen, n, prefix := client.snapshot()
@@ -382,6 +397,8 @@ func TestMenuDisplayChangeDrivenResubmitsAfterPause(t *testing.T) {
 
 func TestMenuDisplayChangeDrivenResubmitsAfterUnavailable(t *testing.T) {
 	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
 	d.Clear(RGB(1, 2, 3))
 	presentMenu(t, d, client)
 	waitMenuSubmitted(t, d, 3)
@@ -396,11 +413,18 @@ func TestMenuDisplayChangeDrivenResubmitsAfterUnavailable(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("unavailable status was not read")
 	}
-	expectNoMenuPresent(t, client)
+	waitMenuIdle(t, d, client, 1)
 	waitMenuForgotten(t, d)
 	client.mu.Lock()
 	client.unavailable = false
 	client.mu.Unlock()
+	// Unavailable arms backoff, so the retry waits out the first interval.
+	statusBefore := client.statusCount()
+	d.Present()
+	if d.FramePending() || client.statusCount() != statusBefore {
+		t.Fatal("present queued during backoff")
+	}
+	clock.Advance(menuBackoffInitial)
 	d.Present()
 	presentMenuWait(t, client)
 	calls, gen, n, prefix := client.snapshot()
@@ -429,6 +453,12 @@ func (c *testMenuClient) snapshot() (calls int, gen uint64, n int, prefix []byte
 	return c.calls, c.lastGen, c.lastLen, append([]byte(nil), c.pixels...)
 }
 
+func (c *testMenuClient) statusCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.statusCalls
+}
+
 func presentMenu(t *testing.T, d *MenuDisplay, client *testMenuClient) {
 	t.Helper()
 	d.Present()
@@ -444,12 +474,33 @@ func presentMenuWait(t *testing.T, client *testMenuClient) {
 	}
 }
 
-func expectNoMenuPresent(t *testing.T, client *testMenuClient) {
+// waitMenuIdle waits until the worker has finished every queued frame, then
+// checks the client Present count. flight == nil and an empty queue are not
+// enough on their own: Present bumps nextSeq before the send, and the worker
+// can dequeue that frame before it publishes flight. Status runs only after
+// flight is published, once per queued non-probe Present, so the status
+// count has to catch nextSeq before idle is accepted. A probe calls Status
+// without bumping nextSeq; probeQueued stays set until that check finishes,
+// so an in-flight probe is not idle.
+func waitMenuIdle(t *testing.T, d *MenuDisplay, client *testMenuClient, wantCalls int) {
 	t.Helper()
-	select {
-	case <-client.ready:
-		t.Fatal("frame was presented")
-	case <-time.After(50 * time.Millisecond):
+	deadline := time.Now().Add(time.Second)
+	for {
+		d.mu.Lock()
+		idle := d.flight == nil && len(d.frames) == 0 && !d.probeQueued
+		seq := d.nextSeq
+		d.mu.Unlock()
+		if idle && client.statusCount() >= int(seq) {
+			break
+		}
+		if time.Now().After(deadline) {
+			calls, _, _, _ := client.snapshot()
+			t.Fatalf("menu worker did not become idle (calls=%d, want %d)", calls, wantCalls)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if calls, _, _, _ := client.snapshot(); calls != wantCalls {
+		t.Fatalf("calls=%d, want %d", calls, wantCalls)
 	}
 }
 
@@ -477,7 +528,7 @@ func waitMenuSubmitted(t *testing.T, d *MenuDisplay, generation uint64) {
 		case <-deadline:
 			t.Fatalf("submitted generation never reached %d", generation)
 		default:
-			runtime.Gosched()
+			time.Sleep(time.Millisecond)
 		}
 	}
 }
@@ -496,7 +547,7 @@ func waitMenuForgotten(t *testing.T, d *MenuDisplay) {
 		case <-deadline:
 			t.Fatal("submitted frame was not forgotten")
 		default:
-			runtime.Gosched()
+			time.Sleep(time.Millisecond)
 		}
 	}
 }

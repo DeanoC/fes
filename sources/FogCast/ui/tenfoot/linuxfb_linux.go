@@ -34,12 +34,12 @@ func runFramebuffer(ctx context.Context, opts Options) error {
 	defer dev.Close()
 	original := append([]byte(nil), dev.Destination()...)
 	defer copy(dev.Destination(), original)
-	return runDirectDisplay(ctx, opts, dev)
+	return runDirectDisplay(ctx, opts, dev, "linuxfb")
 }
 
 // runDirectDisplay is the app, evdev, smoke, and present loop shared by
 // linuxfb and menu-display. linuxfb still restores the mapped bytes itself.
-func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay) error {
+func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, label string) error {
 	opts = sizedOptions(opts, dev)
 	app, err := configuredApp(opts)
 	if err != nil {
@@ -49,7 +49,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay) erro
 	if opts.Smoke {
 		inputSpec = "none"
 	}
-	inputs, err := openNativeInputs(inputSpec)
+	inputs, err := openNativeInputs(inputSpec, label)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay) erro
 	}
 	app.Start(ctx)
 	defer app.Stop()
-	return framebufferLoop(ctx, opts, app, dev, inputs.poll)
+	return framebufferLoop(ctx, opts, app, dev, inputs.poll, label)
 }
 
 type directDisplay interface {
@@ -72,7 +72,7 @@ type directDisplay interface {
 
 // framebufferLoop renders the shared App; it never programs an FPGA or
 // launches a title during smoke checks. Injected input/device keep it testable.
-func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device, poll func(*App, time.Time) (bool, error)) error {
+func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device, poll func(*App, time.Time) (bool, error), label string) error {
 	textures, labels := map[string]gpuTexture{}, map[string]gpuTexture{}
 	defer destroyTextures(dev, textures)
 	defer destroyTextures(dev, labels)
@@ -84,7 +84,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 		select {
 		case <-ctx.Done():
 			if opts.Smoke {
-				return fmt.Errorf("linuxfb smoke: %w", ctx.Err())
+				return fmt.Errorf("%s smoke: %w", label, ctx.Err())
 			}
 			return nil
 		case now := <-ticker.C:
@@ -101,7 +101,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			frames++
 			if opts.Smoke {
 				if snap.LoadErr != "" {
-					return fmt.Errorf("linuxfb smoke: %s", snap.LoadErr)
+					return fmt.Errorf("%s smoke: %s", label, snap.LoadErr)
 				}
 				if !snap.Loading && len(snap.Games) > 0 && frames >= 3 {
 					return nil
@@ -124,9 +124,10 @@ type nativeInputs struct {
 	devices   []*nativeInput
 	held      map[Command]bool
 	automatic bool
+	label     string
 }
 
-func openNativeInputs(spec string) (*nativeInputs, error) {
+func openNativeInputs(spec, label string) (*nativeInputs, error) {
 	var paths []string
 	spec = strings.TrimSpace(spec)
 	switch spec {
@@ -141,13 +142,13 @@ func openNativeInputs(spec string) (*nativeInputs, error) {
 	default:
 		paths = strings.Split(spec, ",")
 	}
-	result := &nativeInputs{automatic: spec == "" || spec == "auto"}
+	result := &nativeInputs{automatic: spec == "" || spec == "auto", label: label}
 	for _, path := range paths {
 		fd, err := unix.Open(strings.TrimSpace(path), unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 		if err != nil {
 			if spec != "" && spec != "auto" {
 				result.close()
-				return nil, fmt.Errorf("linuxfb input %s: %w", path, err)
+				return nil, fmt.Errorf("%s input %s: %w", label, path, err)
 			}
 			continue
 		}
@@ -159,7 +160,7 @@ func openNativeInputs(spec string) (*nativeInputs, error) {
 		result.devices = append(result.devices, &nativeInput{fd: fd, kind: kind})
 	}
 	if len(result.devices) == 0 {
-		return nil, fmt.Errorf("linuxfb: no readable supported keyboard/gamepad evdev inputs (use -input none for a display-only check)")
+		return nil, fmt.Errorf("%s: no readable supported keyboard/gamepad evdev inputs (use -input none for a display-only check)", label)
 	}
 	return result, nil
 }
@@ -183,14 +184,14 @@ devices:
 					ins.drop(app, in)
 					continue devices
 				}
-				return false, fmt.Errorf("linuxfb input: %w", err)
+				return false, fmt.Errorf("%s input: %w", ins.label, err)
 			}
 			if n == 0 {
 				if ins.automatic {
 					ins.drop(app, in)
 					continue devices
 				}
-				return false, fmt.Errorf("linuxfb input: device closed")
+				return false, fmt.Errorf("%s input: device closed", ins.label)
 			}
 			in.pending = append(in.pending, b[:n]...)
 			for len(in.pending) >= nativeEventSize {
@@ -201,7 +202,7 @@ devices:
 						ins.drop(app, in)
 						continue devices
 					}
-					return false, fmt.Errorf("linuxfb input: evdev dropped events; restart to resynchronise")
+					return false, fmt.Errorf("%s input: evdev dropped events; restart to resynchronise", ins.label)
 				}
 				if typ == 1 {
 					if code == 316 {

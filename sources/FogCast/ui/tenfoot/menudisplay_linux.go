@@ -2,18 +2,13 @@
 
 package tenfoot
 
-import (
-	"context"
-
-	"github.com/DeanoC/FogCast/ui/gfx"
-)
+import "context"
 
 func runMenuDisplay(ctx context.Context, opts Options) error {
-	dev, err := gfx.NewMenuDisplay(opts.MenuSocket)
+	dev, err := openChangeDrivenMenu(opts.MenuSocket)
 	if err != nil {
 		return err
 	}
-	dev.SetChangeDriven(true)
 	defer dev.Close()
-	return runDirectDisplay(ctx, opts, dev)
+	return runDirectDisplay(ctx, opts, dev, "menu-display")
 }

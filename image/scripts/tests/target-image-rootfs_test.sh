@@ -45,6 +45,8 @@ printf '%s\n' agent >"$fogcast/bin/mister-agent-linux-armv7"
 chmod 0755 "$fogcast/bin/mister-agent-linux-armv7"
 printf '%s\n' kit >"$fogcast/bin/fogcast-kit-linux-armv7"
 chmod 0755 "$fogcast/bin/fogcast-kit-linux-armv7"
+printf '%s\n' tenfoot >"$fogcast/bin/fogcast-tenfoot-linux-armv7"
+chmod 0755 "$fogcast/bin/fogcast-tenfoot-linux-armv7"
 export FOGCAST_DIR=$fogcast
 
 for library in \
@@ -231,7 +233,10 @@ test ! -e "$target/usr/libexec/bluetooth/bluetoothd"
 test ! -e "$target/usr/bin/dbus-daemon"
 test ! -e "$target/usr/sbin/mister-disable-menu-blanking"
 test -x "$target/usr/sbin/fogcast-kit"
+test -x "$target/usr/sbin/fogcast-tenfoot"
 test -x "$target/etc/init.d/S60fogcast-kit"
+grep -Fq "fogcast_tenfoot_sha256=$(sha256sum "$target/usr/sbin/fogcast-tenfoot" | awk '{print $1}')" \
+  "$target/usr/share/mister-runtime/build-inputs"
 test -x "$target/etc/init.d/S15fes-ethaddr"
 test "$(stat -c %a "$target/usr/share/mister-runtime/idle.rbf")" = 644
 test "$(find "$target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 5

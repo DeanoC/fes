@@ -242,9 +242,16 @@ bin/fogcast-tenfoot -gfx menu-display -menu-socket /run/mister-runtime.sock -inp
 ```
 
 The UI size is the menu geometry, 1280×720, ignoring `-width` and `-height`.
-Presents are change-driven: a frame byte-identical to the last submitted frame is skipped unless that frame failed or was dropped, or the known generation has changed since. The process holds no
-kit lease and does not call the agent. An unchanged frame is not resubmitted
-by itself when the runtime generation changes; redraw on a new generation,
-pause before launch, and bounded retry are follow-on. The kit image still
-starts `fogcast-kit` on this socket. Host tests cover the backend without a
-runtime: `go test ./ui/gfx/ ./ui/tenfoot/ ./cmd/fogcast-tenfoot/`.
+Presents are change-driven: an unchanged frame (byte-identical to the last
+submitted frame that has not failed or been dropped) is skipped. Once a second
+that skip still reads menu status. A new menu generation, or a frame that has
+not been presented, is submitted in full; the same generation presents nothing.
+Status errors, an unavailable menu, scanout underflow, and present failures
+wait 250ms, doubling up to 5s, and the next present after that wait is
+submitted. The menu-display backend takes no kit lease and only talks to the
+runtime menu socket; the tenfoot app keeps its existing host session client
+and existing status reads (for example the kit-lease status read). The kit
+image starts `fogcast-tenfoot` on this socket only when `launcher.json`
+`kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. Pause before launch
+and the plain status copy are follow-on. Host tests cover the backend without
+a runtime: `go test ./ui/gfx/ ./ui/tenfoot/ ./cmd/fogcast-tenfoot/`.
