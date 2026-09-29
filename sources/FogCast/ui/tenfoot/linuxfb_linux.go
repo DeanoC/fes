@@ -34,7 +34,13 @@ func runFramebuffer(ctx context.Context, opts Options) error {
 	defer dev.Close()
 	original := append([]byte(nil), dev.Destination()...)
 	defer copy(dev.Destination(), original)
-	opts.Width, opts.Height = dev.Config().Width, dev.Config().Height
+	return runDirectDisplay(ctx, opts, dev)
+}
+
+// runDirectDisplay is the app, evdev, smoke, and present loop shared by
+// linuxfb and menu-display. linuxfb still restores the mapped bytes itself.
+func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay) error {
+	opts = sizedOptions(opts, dev)
 	app, err := configuredApp(opts)
 	if err != nil {
 		return err
@@ -57,6 +63,11 @@ func runFramebuffer(ctx context.Context, opts Options) error {
 	app.Start(ctx)
 	defer app.Stop()
 	return framebufferLoop(ctx, opts, app, dev, inputs.poll)
+}
+
+type directDisplay interface {
+	gfx.Device
+	Config() gfx.FBConfig
 }
 
 // framebufferLoop renders the shared App; it never programs an FPGA or

@@ -230,3 +230,21 @@ An opt-in unit test uses a private HTTP fixture and checks display restoration:
 ```sh
 FOGCAST_TEST_FRAMEBUFFER=/dev/fb0 go test ./ui/tenfoot -run '^TestFramebufferLocalDisplay$' -v
 ```
+
+## Menu display without SDL
+
+`-gfx menu-display` runs the same app and evdev loop as `-gfx linuxfb`, and
+presents on the runtime menu socket instead of a framebuffer node:
+
+```sh
+CGO_ENABLED=0 go build -o bin/fogcast-tenfoot ./cmd/fogcast-tenfoot
+bin/fogcast-tenfoot -gfx menu-display -menu-socket /run/mister-runtime.sock -input auto -api http://127.0.0.1:8787
+```
+
+The UI size is the menu geometry, 1280×720, ignoring `-width` and `-height`.
+Presents are change-driven: a frame byte-identical to the last submitted frame is skipped unless that frame failed or was dropped, or the known generation has changed since. The process holds no
+kit lease and does not call the agent. An unchanged frame is not resubmitted
+by itself when the runtime generation changes; redraw on a new generation,
+pause before launch, and bounded retry are follow-on. The kit image still
+starts `fogcast-kit` on this socket. Host tests cover the backend without a
+runtime: `go test ./ui/gfx/ ./ui/tenfoot/ ./cmd/fogcast-tenfoot/`.

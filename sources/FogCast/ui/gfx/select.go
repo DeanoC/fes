@@ -8,11 +8,12 @@ import (
 // Canonical backend names. Empty input to ParseBackend means SDL, the
 // production default.
 const (
-	BackendSDL      = "sdl"
-	BackendSoftware = "software"
-	BackendFPGA     = "fpga"
-	BackendFPGAStub = "fpga-stub"
-	BackendLinuxFB  = "linuxfb"
+	BackendSDL         = "sdl"
+	BackendSoftware    = "software"
+	BackendFPGA        = "fpga"
+	BackendFPGAStub    = "fpga-stub"
+	BackendLinuxFB     = "linuxfb"
+	BackendMenuDisplay = "menu-display"
 )
 
 // ParseBackend maps a name or TENFOOT_GFX value to a canonical backend.
@@ -32,13 +33,15 @@ func ParseBackend(name string) (string, error) {
 		return BackendFPGAStub, nil
 	case "linuxfb", "fb", "fb0":
 		return BackendLinuxFB, nil
+	case "menu-display", "menudisplay", "menu":
+		return BackendMenuDisplay, nil
 	default:
-		return "", fmt.Errorf("unknown gfx backend %q (want sdl, software, fpga, fpga-stub, or linuxfb)", name)
+		return "", fmt.Errorf("unknown gfx backend %q (want sdl, software, fpga, fpga-stub, linuxfb, or menu-display)", name)
 	}
 }
 
 // OpenCPU constructs a CGO-free Device: software, fpga, or fpga-stub.
-// SDL and linuxfb need their own constructors.
+// SDL, linuxfb, and menu-display need their own constructors.
 func OpenCPU(name string, logicalW, logicalH int) (Device, error) {
 	backend, err := ParseBackend(name)
 	if err != nil {

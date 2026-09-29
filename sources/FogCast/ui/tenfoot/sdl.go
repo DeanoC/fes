@@ -266,8 +266,8 @@ func runWindow(ctx context.Context, opts Options) error {
 	// go through gfx.Device. Default is SDL3 WrapSDLRenderer. TENFOOT_GFX /
 	// Options.GFX may select software, fpga, or fpga-stub; those still use
 	// this SDL window shell. fpga records FC2D and rasters with Software
-	// (IsStub true; no programmed 2D core). linuxfb is the kit framebuffer
-	// Device and is rejected here.
+	// (IsStub true; no programmed 2D core). linuxfb and menu-display are
+	// native shells and are rejected here.
 	defer C.SDL_DestroyWindow(window)
 	defer C.SDL_DestroyRenderer(renderer)
 	dev, err := openGFXDevice(opts, unsafe.Pointer(renderer))
@@ -385,6 +385,8 @@ func openGFXDevice(opts Options, renderer unsafe.Pointer) (gfx.Device, error) {
 		return gfx.NewFPGAStub(opts.Width, opts.Height)
 	case gfx.BackendLinuxFB:
 		return nil, fmt.Errorf("linuxfb uses the native framebuffer shell; select -gfx linuxfb through tenfoot.Run")
+	case gfx.BackendMenuDisplay:
+		return nil, fmt.Errorf("menu-display uses the native menu shell; select -gfx menu-display through tenfoot.Run")
 	default:
 		return gfx.WrapSDLRenderer(renderer, opts.Width, opts.Height)
 	}

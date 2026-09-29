@@ -3,6 +3,8 @@ package gfx
 import (
 	"context"
 	"errors"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,7 +18,10 @@ type testMenuClient struct {
 	underflows   uint64
 	pixels       []byte
 	calls        int
+	lastGen      uint64
+	lastLen      int
 	fail         bool
+	unavailable  bool
 	ready        chan struct{}
 	statusSeen   chan uint64
 	presentBlock <-chan struct{}
@@ -26,6 +31,7 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	c.mu.Lock()
 	generation := c.generation
 	underflows := c.underflows
+	unavailable := c.unavailable
 	c.mu.Unlock()
 	if c.statusSeen != nil {
 		select {
@@ -33,12 +39,15 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 		default:
 		}
 	}
-	return menudisplay.Status{Available: true, Generation: generation, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows}, nil
+	return menudisplay.Status{Available: !unavailable, Generation: generation, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows}, nil
 }
 func (c *testMenuClient) Present(_ context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
 	c.mu.Lock()
 	c.calls++
-	c.pixels = append([]byte(nil), pixels[:4]...)
+	c.lastGen = generation
+	c.lastLen = len(pixels)
+	n := min(4, len(pixels))
+	c.pixels = append([]byte(nil), pixels[:n]...)
 	fail := c.fail
 	c.mu.Unlock()
 	select {
@@ -230,5 +239,264 @@ func TestMenuDisplayDropsQueuedFrameAfterGenerationChange(t *testing.T) {
 	case <-client.ready:
 	case <-time.After(time.Second):
 		t.Fatal("fresh frame not sent")
+	}
+}
+
+func TestMenuDisplayReportsMenuGeometry(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, false)
+	cfg := d.Config()
+	if d.BackendName() != BackendMenuDisplay || cfg.Width != 1280 || cfg.Height != 720 || cfg.Stride != 5120 || cfg.BPP != 32 {
+		t.Fatalf("backend %q config %+v", d.BackendName(), cfg)
+	}
+	if cfg.Width != menudisplay.Width || cfg.Height != menudisplay.Height || cfg.Stride != menudisplay.Stride {
+		t.Fatalf("config %+v", cfg)
+	}
+	d.Clear(RGB(12, 34, 56))
+	presentMenu(t, d, client)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 1 || gen != 3 || n != menudisplay.FrameBytes || len(prefix) != 4 || prefix[0] != 12 || prefix[1] != 34 || prefix[2] != 56 || prefix[3] != 255 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+}
+
+func TestMenuDisplayChangeDrivenOffSubmitsIdenticalFrames(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, false)
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	presentMenu(t, d, client)
+	calls, _, n, _ := client.snapshot()
+	if calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("calls=%d bytes=%d", calls, n)
+	}
+}
+
+func TestMenuDisplayChangeDrivenSkipsIdenticalFrame(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuSubmitted(t, d, 3)
+	d.Present()
+	expectNoMenuPresent(t, client)
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatalf("calls=%d", calls)
+	}
+}
+
+func TestMenuDisplayChangeDrivenSubmitsChangedFrame(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuSubmitted(t, d, 3)
+	d.Clear(RGB(4, 5, 6))
+	presentMenu(t, d, client)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 2 || gen != 3 || n != menudisplay.FrameBytes || prefix[0] != 4 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+}
+
+func TestMenuDisplayChangeDrivenResubmitsAfterGenerationChange(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuSubmitted(t, d, 3)
+	drainMenuStatus(client)
+
+	// An unchanged frame does not poll, so it cannot observe the new generation.
+	client.mu.Lock()
+	client.generation = 4
+	client.mu.Unlock()
+	d.Present()
+	expectNoMenuPresent(t, client)
+	select {
+	case gen := <-client.statusSeen:
+		t.Fatalf("unchanged frame polled status at generation %d", gen)
+	default:
+	}
+
+	// A different frame is submitted, rejected as stale, and forgotten.
+	d.Clear(RGB(4, 5, 6))
+	d.Present()
+	select {
+	case <-client.statusSeen:
+	case <-time.After(time.Second):
+		t.Fatal("stale frame was not checked")
+	}
+	expectNoMenuPresent(t, client)
+	waitMenuForgotten(t, d)
+	if err := d.LastError(); err == nil || !strings.Contains(err.Error(), "generation changed") {
+		t.Fatalf("last error %v", err)
+	}
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatalf("stale frame reached the client, calls=%d", calls)
+	}
+
+	// The same pixels are submitted again and presented at the new generation.
+	d.Present()
+	presentMenuWait(t, client)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 2 || gen != 4 || n != menudisplay.FrameBytes || prefix[0] != 4 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+}
+
+func TestMenuDisplayChangeDrivenResubmitsAfterPresentError(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuSubmitted(t, d, 3)
+	client.mu.Lock()
+	client.fail = true
+	client.mu.Unlock()
+	d.Clear(RGB(8, 9, 10))
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuForgotten(t, d)
+	client.mu.Lock()
+	client.fail = false
+	client.mu.Unlock()
+	d.Present()
+	presentMenuWait(t, client)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 3 || gen != 3 || n != menudisplay.FrameBytes || prefix[0] != 8 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+}
+
+func TestMenuDisplayChangeDrivenResubmitsAfterPause(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuSubmitted(t, d, 3)
+	if err := d.Pause(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	d.Resume()
+	d.Present()
+	presentMenuWait(t, client)
+	calls, _, n, _ := client.snapshot()
+	if calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("calls=%d bytes=%d", calls, n)
+	}
+}
+
+func TestMenuDisplayChangeDrivenResubmitsAfterUnavailable(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuSubmitted(t, d, 3)
+	drainMenuStatus(client)
+	client.mu.Lock()
+	client.unavailable = true
+	client.mu.Unlock()
+	d.Clear(RGB(7, 8, 9))
+	d.Present()
+	select {
+	case <-client.statusSeen:
+	case <-time.After(time.Second):
+		t.Fatal("unavailable status was not read")
+	}
+	expectNoMenuPresent(t, client)
+	waitMenuForgotten(t, d)
+	client.mu.Lock()
+	client.unavailable = false
+	client.mu.Unlock()
+	d.Present()
+	presentMenuWait(t, client)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 2 || gen != 3 || n != menudisplay.FrameBytes || prefix[0] != 7 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+}
+
+func newChangeDrivenMenu(t *testing.T, generation uint64, changeDriven bool) (*MenuDisplay, *testMenuClient) {
+	t.Helper()
+	client := &testMenuClient{generation: generation, ready: make(chan struct{}, 4), statusSeen: make(chan uint64, 4)}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	if changeDriven {
+		d.SetChangeDriven(true)
+	}
+	return d, client
+}
+
+func (c *testMenuClient) snapshot() (calls int, gen uint64, n int, prefix []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls, c.lastGen, c.lastLen, append([]byte(nil), c.pixels...)
+}
+
+func presentMenu(t *testing.T, d *MenuDisplay, client *testMenuClient) {
+	t.Helper()
+	d.Present()
+	presentMenuWait(t, client)
+}
+
+func presentMenuWait(t *testing.T, client *testMenuClient) {
+	t.Helper()
+	select {
+	case <-client.ready:
+	case <-time.After(time.Second):
+		t.Fatal("frame not presented")
+	}
+}
+
+func expectNoMenuPresent(t *testing.T, client *testMenuClient) {
+	t.Helper()
+	select {
+	case <-client.ready:
+		t.Fatal("frame was presented")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func drainMenuStatus(client *testMenuClient) {
+	for {
+		select {
+		case <-client.statusSeen:
+		default:
+			return
+		}
+	}
+}
+
+func waitMenuSubmitted(t *testing.T, d *MenuDisplay, generation uint64) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	for {
+		d.mu.Lock()
+		ok := d.submitted != nil && d.submitted.generation == generation
+		d.mu.Unlock()
+		if ok {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("submitted generation never reached %d", generation)
+		default:
+			runtime.Gosched()
+		}
+	}
+}
+
+func waitMenuForgotten(t *testing.T, d *MenuDisplay) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	for {
+		d.mu.Lock()
+		cleared := d.submitted == nil
+		d.mu.Unlock()
+		if cleared {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("submitted frame was not forgotten")
+		default:
+			runtime.Gosched()
+		}
 	}
 }
