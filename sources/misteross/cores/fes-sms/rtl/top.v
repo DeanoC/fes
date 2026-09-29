@@ -5,7 +5,7 @@
 `endif
 
 // DE10-Nano shell for the reduced Master System machine. The mailbox and
-// machine remain in the 52 MHz system domain; the six-bit logical frame buffer
+// machine remain in the 52.224 MHz system domain; the six-bit logical frame buffer
 // crosses to the independent 74.25 MHz HDMI pixel domain in the SMS 720p shell.
 // Package id is fes.sms.
 module top #(
@@ -41,6 +41,7 @@ module top #(
     wire [5:0] logical_color;
     wire logical_blank;
     wire signed [15:0] psg_sample;
+    wire audio_clk, audio_locked;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
         .gp_in(fpga_to_hps),
@@ -78,10 +79,10 @@ module top #(
     );
 `endif
 
-    sys_pll system_clock (
+    coleco_system_pll system_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(clk_sys)
+        .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
 
     pixel_pll video_clock (
@@ -90,11 +91,14 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
+    fes_computer_gp #(
 `ifdef FES_SMS_ROM_LINK
-    fes_computer_gp #(.ENABLE_MEDIA_BLOB(0)) gp_mailbox (
+        .ENABLE_MEDIA_BLOB(0),
 `else
-    fes_computer_gp #(.ENABLE_MEDIA_STREAM(1)) gp_mailbox (
+        .ENABLE_MEDIA_STREAM(1),
 `endif
+        .ENABLE_AUDIO(1)
+    ) gp_mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
@@ -176,14 +180,12 @@ module top #(
         .frame_tick()
     );
 
-    sms_hdmi_i2s hdmi_audio (
-        .pixel_clk(pixel_clk),
-        .sample(psg_sample),
-        .mclk(HDMI_MCLK),
-        .sclk(HDMI_SCLK),
-        .lrclk(HDMI_LRCLK),
-        .i2s(HDMI_I2S0)
+    fes_audio_output audio (
+        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked),
+        .hold(exec_reset), .left_sample(psg_sample), .right_sample(psg_sample),
+        .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S0)
     );
+    assign HDMI_MCLK = audio_clk;
 
     assign HDMI_TX_CLK = pixel_clk;
 endmodule

@@ -109,8 +109,8 @@ module sms_psg (
         channel_sample(tone_out1, atten1) +
         channel_sample(tone_out2, atten2) +
         channel_sample(lfsr[0], atten3);
-    // Register the mix in the system domain so HDMI I2S sees a flop, not a
-    // combinational path into the pixel-clock CDC.
+    // Register the mix in the system domain for the coherent shared PCM
+    // crossing into the audio clock.
     reg signed [15:0] sample_q;
     assign sample = sample_q;
 

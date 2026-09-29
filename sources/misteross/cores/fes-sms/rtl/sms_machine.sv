@@ -83,7 +83,7 @@ module sms_machine (
     wire ce_raster;
 
     tms9918_raster_ce #(
-        .SYSTEM_CLOCK_HZ(52_000_000)
+        .SYSTEM_CLOCK_HZ(52_224_000)
     ) raster_timing (
         .clk(clk_sys),
         .reset(machine_reset),

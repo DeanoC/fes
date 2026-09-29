@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import copy
 import subprocess
 import sys
 import tempfile
@@ -9,12 +10,14 @@ from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInv
 from pathlib import Path
 
 from scripts.build_fes_sms import (
+    BuildError as QuartusBuildError,
     OUTPUT_RELATIVE as QUARTUS_OUTPUT,
     PINNED_INPUTS as QUARTUS_PINNED_INPUTS,
     SYSTEMVERILOG_SOURCES,
     VERILOG_SOURCES,
     _manifest,
     project_qsf,
+    require_clocks,
 )
 from scripts.build_fes_sms_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
@@ -32,6 +35,7 @@ from scripts.build_fes_sms_oss import (
     build_commands,
     create_build_record,
 )
+from scripts import build_fes_sms_oss as sms_oss
 from scripts.lockfile import load_lock
 
 
@@ -40,6 +44,11 @@ GENERATOR = ROOT / "cores/fes-sms/diagnostic/generate.py"
 
 
 class BuildFesSmsTests(unittest.TestCase):
+    def test_quartus_timing_requires_audio_clock(self) -> None:
+        with self.assertRaisesRegex(QuartusBuildError, "12.288 MHz audio clock"):
+            require_clocks("52.224 MHz system clock\n74.25 MHz pixel clock")
+        require_clocks("52.224 MHz system clock\n74.25 MHz pixel clock\n12.288 MHz audio clock")
+
     def test_make_entrypoints_use_both_recipes(self) -> None:
         for target, recipe in (
             ("build-fes-sms", "scripts/build_fes_sms_oss.py"),
@@ -72,11 +81,12 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("sms_machine", result.stdout)
         self.assertIn("sms_vdp", result.stdout)
         self.assertIn("sms_psg", result.stdout)
-        self.assertIn("sms_hdmi_i2s", result.stdout)
+        self.assertIn("fes_audio_output", result.stdout)
+        self.assertNotIn("sms_hdmi_i2s", result.stdout)
         self.assertIn("fes-sms-machine", result.stdout)
         self.assertIn("fes-sms-vdp", result.stdout)
         self.assertIn("fes-sms-psg", result.stdout)
-        self.assertIn("fes-sms-i2s", result.stdout)
+        self.assertIn("fes-audio-output", result.stdout)
         self.assertIn("fes-sms-gp", result.stdout)
         self.assertIn("stream-exchanges.json", result.stdout)
         self.assertIn("ENABLE_MEDIA_STREAM=1", result.stdout)
@@ -129,7 +139,10 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("sms_machine.sv", program)
         self.assertIn("sms_vdp.sv", program)
         self.assertIn("sms_psg.sv", program)
-        self.assertIn("sms_hdmi_i2s.v", program)
+        self.assertIn("fes_audio_output.v", program)
+        self.assertIn("fes_audio_i2s.v", program)
+        self.assertIn("coleco_system_pll.v", program)
+        self.assertNotIn("sms_hdmi_i2s.v", program)
         self.assertIn("sms_video_720p.v", program)
         self.assertIn("cores/fes-sms/rtl/top.v", program)
         self.assertIn("tv80_core.v", program)
@@ -212,7 +225,9 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("cores/fes-sms/rtl/sms_machine.sv", qsf)
         self.assertIn("cores/fes-sms/rtl/sms_vdp.sv", qsf)
         self.assertIn("cores/fes-sms/rtl/sms_psg.sv", qsf)
-        self.assertIn("cores/fes-sms/rtl/sms_hdmi_i2s.v", qsf)
+        self.assertIn("cores/fes-common/rtl/fes_audio_output.v", qsf)
+        self.assertIn("cores/fes-coleco/rtl/coleco_system_pll.v", qsf)
+        self.assertNotIn("cores/fes-sms/rtl/sms_hdmi_i2s.v", qsf)
         self.assertIn("cores/fes-sms/rtl/sms_video_720p.v", qsf)
         self.assertIn("cores/fes-sms/rtl/top.v", qsf)
         self.assertIn("cores/fes-common/rtl/tv80/tv80_core.v", qsf)
@@ -231,11 +246,16 @@ class BuildFesSmsTests(unittest.TestCase):
         machine = (ROOT / "cores/fes-sms/rtl/sms_machine.sv").read_text(encoding="utf-8")
         vdp = (ROOT / "cores/fes-sms/rtl/sms_vdp.sv").read_text(encoding="utf-8")
         self.assertIn("sms_vdp", machine)
+        self.assertIn(".SYSTEM_CLOCK_HZ(52_224_000)", machine)
         self.assertIn("sms_psg", machine)
         self.assertIn("8'h7e", (ROOT / "cores/fes-sms/rtl/sms_psg.sv").read_text(encoding="utf-8"))
         self.assertIn("8'h7f", (ROOT / "cores/fes-sms/rtl/sms_psg.sv").read_text(encoding="utf-8"))
         top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
-        self.assertIn("sms_hdmi_i2s", top)
+        self.assertIn("fes_audio_output", top)
+        self.assertIn("coleco_system_pll", top)
+        self.assertIn(".hold(exec_reset)", top)
+        self.assertIn(".ENABLE_AUDIO(1)", top)
+        self.assertNotIn("sms_hdmi_i2s", top)
         self.assertIn("HDMI_I2S0", top)
         self.assertIn("sms_mode4_vdp", vdp)
         self.assertIn("coleco_vdp", vdp)
@@ -258,7 +278,8 @@ class BuildFesSmsTests(unittest.TestCase):
     def test_rom_link_top_selects_mailbox_without_blob_media(self) -> None:
         top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
         rom_link_mailbox = top.split("`ifdef FES_SMS_ROM_LINK", 1)[1].split("`else", 1)[0]
-        self.assertIn("fes_computer_gp #(.ENABLE_MEDIA_BLOB(0)) gp_mailbox", rom_link_mailbox)
+        self.assertIn(".ENABLE_MEDIA_BLOB(0)", rom_link_mailbox)
+        self.assertIn(".ENABLE_AUDIO(1)", top)
         self.assertIn("ENABLE_MEDIA_STREAM(1)", top)
 
     def test_manifest_carries_sms_identity(self) -> None:
@@ -279,7 +300,8 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         self.assertIn(b'id = "fes.sms"', manifest)
         self.assertIn(b"FES Master System", manifest)
-        self.assertIn(b'version = "1.2.0"', manifest)
+        self.assertIn(b'version = "1.4.0"', manifest)
+        self.assertIn(b'id = "fes.audio.pcm-s16-stereo-48k"', manifest)
         self.assertIn(b"fes.simple-computer", manifest)
         self.assertIn(b'id = "fes.media.blob-stream"', manifest)
         self.assertIn(b"fes.media.blob", manifest)
@@ -442,9 +464,46 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         self.assertIn(b'format = 3', oss)
         self.assertIn(b'id = "cartridge-rom"', oss)
+        self.assertIn(b'version = "1.4.0"', oss)
+        self.assertIn(b'id = "fes.audio.pcm-s16-stereo-48k"', oss)
         self.assertNotIn(b'fes.media.blob-stream', oss)
         self.assertNotIn(b'fes.media.blob', oss)
         self.assertIn(b"required = true", oss)
+
+    def test_oss_audio_evidence_requires_shared_pll_and_routed_pads(self) -> None:
+        self.assertIsNotNone(getattr(sms_oss, "_audio_evidence", None))
+        pins = {"HDMI_I2S0": "PIN_T13", "HDMI_MCLK": "PIN_U11",
+                "HDMI_LRCLK": "PIN_T11", "HDMI_SCLK": "PIN_T12"}
+        cells = {"system_clock.pll": {"type": "altera_pll", "parameters": {
+            "reference_clock_frequency": "50.0 MHz",
+            "output_clock_frequency0": "52.224 MHz",
+            "output_clock_frequency1": "12.288 MHz"}}}
+        ports = {}
+        for index, (port, pin) in enumerate(pins.items()):
+            ports[port] = {"direction": "output", "bits": [index]}
+            cells[port] = {"type": "MISTRAL_OB", "connections": {"PAD": [index], "I": [index + 10]},
+                           "attributes": {"LOC": pin, "IO_STANDARD": "3.3-V LVTTL", "NEXTPNR_BEL": "MISTRAL_IO.1"}}
+        design = {"modules": {"top": {"ports": ports, "cells": cells}}}
+        sms_oss._audio_evidence(design)
+        for mutate in (
+            lambda d: d["modules"]["top"]["cells"].pop("system_clock.pll"),
+            lambda d: d["modules"]["top"]["cells"]["system_clock.pll"]["parameters"].update({"output_clock_frequency1": "13 MHz"}),
+            lambda d: d["modules"]["top"]["cells"]["HDMI_I2S0"]["connections"].update({"I": ["0"]}),
+            lambda d: d["modules"]["top"]["cells"]["HDMI_LRCLK"]["attributes"].update({"LOC": "PIN_BAD"}),
+            lambda d: d["modules"]["top"]["ports"].pop("HDMI_SCLK"),
+        ):
+            wrong = copy.deepcopy(design)
+            mutate(wrong)
+            with self.assertRaises(sms_oss.BuildError):
+                sms_oss._audio_evidence(wrong)
+
+    def test_oss_audio_timing_requires_passing_12_mhz_domain(self) -> None:
+        self.assertIsNotNone(getattr(sms_oss, "_audio_timing", None))
+        good = {"system_clock.clocks[1]": {"constraint": 12.288, "achieved": 13.0}}
+        self.assertEqual(sms_oss._audio_timing(good)[2], 13.0)
+        for fmax in ({}, {"system_clock.clocks[1]": {"constraint": 12.288, "achieved": 12.287}}):
+            with self.assertRaises(sms_oss.BuildError):
+                sms_oss._audio_timing(fmax)
 
 
 if __name__ == "__main__":

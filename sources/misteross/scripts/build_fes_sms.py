@@ -38,16 +38,17 @@ ABI_DEFINITION = "cores/fes-sms/generated/fes_simple_computer.vh"
 QSF_PINS = "cores/fes-sms/constraints.qsf"
 SDC = "cores/fes-sms/clocks.sdc"
 # Shared Coleco sibling modules. SMS owns Mode 4, six-bit video, SN76489 and
-# HDMI I2S while retaining the Coleco legacy VDP, TV80, GP, RAM and PLL modules.
+# shared PCM/I2S while retaining the Coleco legacy VDP, TV80, GP and RAM modules.
 VERILOG_SOURCES = (
-    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-coleco/rtl/coleco_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_computer_gp.v",
+    "cores/fes-common/rtl/fes_audio_i2s.v",
+    "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/coleco_dpram.v",
     "cores/fes-common/rtl/coleco_video_dpram.v",
     "cores/fes-common/rtl/coleco_vdp.sv",
     "cores/fes-sms/rtl/sms_video_720p.v",
-    "cores/fes-sms/rtl/sms_hdmi_i2s.v",
     "cores/fes-common/rtl/t80pa.v",
     "cores/fes-common/rtl/tv80/tv80_core.v",
     "cores/fes-common/rtl/tv80/tv80_alu.v",
@@ -163,7 +164,7 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "reference_clock_hz": 50_000_000,
             "seed": 1,
-            "sys_clock_hz": 52_000_000,
+            "sys_clock_hz": 52_224_000,
             "top": TOP,
         },
     }
@@ -247,8 +248,10 @@ def _prepare_output(root: Path) -> Path:
 
 
 def require_clocks(sta_text: str) -> None:
-    if "52.0" not in sta_text and "52.00" not in sta_text:
-        raise BuildError("timing report does not mention the 52 MHz system clock")
+    if "52.224" not in sta_text:
+        raise BuildError("timing report does not mention the 52.224 MHz system clock")
+    if "12.288" not in sta_text:
+        raise BuildError("timing report does not mention the 12.288 MHz audio clock")
     if "74.25" not in sta_text and "74.27" not in sta_text:
         raise BuildError("timing report does not mention the 74.25 MHz pixel clock")
 
@@ -302,7 +305,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "id": "fes.sms",
             "name": "FES Master System",
             "description": "Quartus bring-up Master System computer for the FES simple-computer ABI",
-            "version": "1.2.0",
+            "version": "1.4.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -316,6 +319,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob-stream", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": build_identity(record),

@@ -392,20 +392,27 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 	@build/sim/$@/Vcoleco_machine build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom
 
-# Each board case is a separate CI shard. The shared build prerequisite runs
-.PHONY: sim-fes-coleco-audio
-sim-fes-coleco-audio:
+# The coherent output check is consumed by Coleco, SG-1000 and SMS.
+.PHONY: sim-fes-audio-output
+sim-fes-audio-output:
 	$(require_local_sim)
-	@mkdir -p build/sim/fes-psg build/sim/fes-audio-output
-	$(VERILATOR) --cc --exe --build --top-module fes_sn76489 -Wall \
-		--Mdir "$(CURDIR)/build/sim/fes-psg" cores/fes-common/rtl/fes_sn76489.sv \
-		"$(CURDIR)/cores/fes-coleco/sim/psg_tb.cpp"
-	@build/sim/fes-psg/Vfes_sn76489
+	@mkdir -p build/sim/fes-audio-output
 	$(VERILATOR) --cc --exe --build --top-module fes_audio_output -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-audio-output" \
 		cores/fes-common/rtl/fes_audio_output.v cores/fes-common/rtl/fes_audio_i2s.v \
 		"$(CURDIR)/cores/fes-coleco/sim/audio_output_tb.cpp"
 	@build/sim/fes-audio-output/Vfes_audio_output
+
+# Each board case is a separate CI shard. The shared output prerequisite runs
+# before the Coleco PSG check.
+.PHONY: sim-fes-coleco-audio
+sim-fes-coleco-audio: sim-fes-audio-output
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-psg
+	$(VERILATOR) --cc --exe --build --top-module fes_sn76489 -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-psg" cores/fes-common/rtl/fes_sn76489.sv \
+		"$(CURDIR)/cores/fes-coleco/sim/psg_tb.cpp"
+	@build/sim/fes-psg/Vfes_sn76489
 
 # Each board case is a separate CI shard. The shared build prerequisite runs
 # once per lane in a Make invocation; diagnostics finish before their readers.
@@ -1084,13 +1091,13 @@ sms-diagnostic:
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive --pad-to 32768 \
 		--output build/diagnostics/fes-sms/mode4-hil-32k.rom
 
-sim-fes-sms: sms-diagnostic
+sim-fes-sms: sms-diagnostic sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
 		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
-		-GENABLE_MEDIA_STREAM=1 \
+		-GENABLE_MEDIA_STREAM=1 -GENABLE_AUDIO=1 \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-gp" \
 		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
@@ -1116,14 +1123,6 @@ sim-fes-sms: sms-diagnostic
 		cores/fes-sms/rtl/sms_psg.sv \
 		"$(CURDIR)/cores/fes-sms/sim/psg_tb.cpp"
 	@build/sim/fes-sms-psg/Vsms_psg
-	@mkdir -p build/sim/fes-sms-i2s
-	$(VERILATOR) --cc --exe --build --top-module sms_hdmi_i2s -Wall \
-		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC \
-		-Wno-WIDTHEXPAND -Wno-BLKSEQ \
-		--Mdir "$(CURDIR)/build/sim/fes-sms-i2s" \
-		cores/fes-sms/rtl/sms_hdmi_i2s.v \
-		"$(CURDIR)/cores/fes-sms/sim/i2s_tb.cpp"
-	@build/sim/fes-sms-i2s/Vsms_hdmi_i2s
 	@mkdir -p build/sim/fes-sms-machine
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 \
@@ -1151,21 +1150,21 @@ sim-fes-sms-rom-link-mailbox:
 		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
 		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
-		-GENABLE_MEDIA_BLOB=0 \
+		-GENABLE_MEDIA_BLOB=0 -GENABLE_AUDIO=1 \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-gp-rom-link" \
 		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		"$(CURDIR)/cores/fes-sms/sim/no_media_tb.cpp"
 	@build/sim/fes-sms-gp-rom-link/Vfes_computer_gp
 
-sim-fes-sms-oss: sms-diagnostic sim-fes-sms-rom-link-mailbox
+sim-fes-sms-oss: sms-diagnostic sim-fes-sms-rom-link-mailbox sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
 		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
 		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
-		-GENABLE_MEDIA_STREAM=1 \
+		-GENABLE_MEDIA_STREAM=1 -GENABLE_AUDIO=1 \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-gp-oss" \
 		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \

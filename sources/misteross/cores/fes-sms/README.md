@@ -13,8 +13,8 @@ SMS). Do not use `fes.mastersystem`.
 Master System is a Coleco / SG-1000 sibling, not a second console stack.
 TV80, the legacy TMS9918-style VDP, dual-port RAM wrappers, the GP mailbox and
 both PLL wrappers remain Coleco modules. This tree supplies the SMS memory map,
-Mode 4 VDP and six-bit video shell, the SN76489 on ports `0x7E`/`0x7F`, HDMI
-I2S into the ADV7513, the 8255 joystick ports, VDP-to-INT wiring, the board
+Mode 4 VDP and six-bit video shell, the SN76489 on ports `0x7E`/`0x7F`, shared
+PCM-to-I2S into the ADV7513, the 8255 joystick ports, VDP-to-INT wiring, the board
 top, Quartus pins and the oracle recipe.
 
 This package does not copy the MiSTer framework and does not claim retail-game
@@ -25,7 +25,7 @@ is registered for package-only parent builds and is not in the factory image.
 
 ## Implemented slice
 
-- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
+- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
   domain (Coleco `t80pa` / `tv80`).
 - The OSS package seals a blank 32 KiB ROM map at `0x0000–0x7fff`.
   Library launch selects `cartridge-rom` as an exact 32 KiB binary; the target
@@ -54,11 +54,12 @@ is registered for package-only parent builds and is not in the factory image.
   the SMS two-bit-per-channel CRAM expanded to 24-bit HDMI RGB.
 - SN76489-compatible PSG on I/O `0x7E`/`0x7F` (write-only; both ports). Tone,
   noise and 2 dB attenuation follow the Sega PSG latch/data protocol. The mix
-  is a signed 16-bit sample in the 52 MHz domain.
-- FPGA→ADV7513 I2S0 on the Terasic HDMI pins (`HDMI_I2S0`, `HDMI_SCLK`,
-  `HDMI_LRCLK`, `HDMI_MCLK`). The native runtime already programs the
-  transmitter for 16-bit I2S at 48 kHz (N=6144, CTS=74250). There is no host
-  `fes.audio` mailbox.
+  is a signed 16-bit sample in the 52.224 MHz domain.
+- The shared coherent PCM crossing and 12.288 MHz audio PLL drive FPGA→ADV7513
+  I2S0 on the Terasic HDMI pins (`HDMI_I2S0`, `HDMI_SCLK`, `HDMI_LRCLK`,
+  `HDMI_MCLK`). The required `fes.audio.pcm-s16-stereo-48k` 1.0 interface makes
+  the runtime configure 16-bit 48 kHz HDMI audio after identity. Hold and PLL
+  loss mute the output. There is no host audio-stream mailbox.
 
 Sega mappers, banked/48 KiB cartridges, expansion hardware, 224/240-line
 modes, PAL timing and cycle-perfect raster effects remain outside this slice.
@@ -80,7 +81,7 @@ here. An older parent pin or launch/Stop record does not accept it.
 | I/O `0xdc`/`0xde` | joystick port A (P1 plus P2 left half) |
 | I/O `0xdd`/`0xdf` | joystick port B (P2 right/fire; unused bits 1) |
 
-The production package declares keyboard and fixed video through
+The production package declares keyboard, fixed video and required PCM audio through
 `fes.simple-computer` 1.0. Its `cartridge-rom` is required at library launch,
 and the target patches the sealed ROM lanes before programming. Its ROM-link
 mailbox omits the legacy blob capability and rejects blob begin, eject, data,
@@ -149,7 +150,7 @@ claim. Kit HDMI-audio HIL remains later.
 consumes `cores/fes-sms/generated/stream-exchanges.json`; the focused VDP unit
 checks legacy Text/Multicolor colors, Mode 4 VRAM buffering, CRAM color, tile
 priority/palette, sprite collision, line IRQ and VBlank IRQ; the PSG unit checks register writes on
-`0x7E`/`0x7F` and the tone-0 square wave; HDMI I2S checks 16-bit 48 kHz frames;
+`0x7E`/`0x7F` and the tone-0 square wave; shared HDMI I2S checks 16-bit 48 kHz frames and Hold/clock-loss mute;
 then the machine checks 32 KiB fixed-map copy, 8 KiB RAM mirror, joystick
 ports, long-then-short `0xff` tails and the diagnostic ROM (including the
 programmed tone). It is host simulation, not hardware acceptance.
@@ -163,10 +164,12 @@ shared `coleco_dpram` / `coleco_vdp` mappers key off `FES_COLECO_OSS`, not
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
-for `fes.sms` 1.2.0. It requires a clean committed tree, writes
+for `fes.sms` 1.4.0. It requires a clean committed tree, writes
 `build/fes-sms-quartus/build-inputs.json`, embeds that build id, and seals
 a format-2 package when timing passes. `--compile-only` produces the RBF and
-timing evidence without sealing. It does not program hardware.
+timing evidence without sealing. The TimeQuest report must include the
+52.224 MHz system, 74.25 MHz pixel and 12.288 MHz audio clocks. It does not
+program hardware.
 
 `make build-fes-sms` is the format-3 OSS recipe (`scripts/build_fes_sms_oss.py`).
 It authenticates the selected Mistral ROM database, verifies all 32 routed
@@ -180,7 +183,8 @@ It copies Coleco `clocks-oss.sdc`, selects
 Yosys on a dirty tree and does not seal. The producer uses `--router gpu` and
 a first-pass HIP seed/weight search (starts at seed 3 / HeAP 1000, then
 the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
-`pixel_clk` rows must meet 52 MHz and 74.25 MHz. `fes.sms` is registered for
+`pixel_clk` and audio rows must meet 52.224, 74.25 and 12.288 MHz. The routed
+I2S pads and shared system/audio PLL must also match. `fes.sms` is registered for
 package-only parent builds and is not in the factory image. Kit HDMI-audio
 acceptance of this bitstream is not recorded here. The dated gap inventory is
 `docs/validation/2026-09-17-sms-oss-gap-ladder.md`. It is not the current

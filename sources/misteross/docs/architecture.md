@@ -310,7 +310,8 @@ old 52 MHz profile; the CPU remains /16 (3.264 MHz), not cycle-accurate NTSC.
 The TMS9918 logical raster now uses its independent fractional 60 Hz enable.
 HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
 The producer checks all three timing domains and each audio output pad before
-packaging. SG-1000/SMS keep their existing shared 52 MHz system PLL.
+packaging. SG-1000 and SMS use the same shared 52.224/12.288 MHz
+system/audio PLL and coherent PCM-to-I2S crossing.
 
 `make sim-fes-coleco-audio` checks tone periods, attenuation, noise, coherent
 asynchronous stereo transfer, serial padding, hold and lock loss. The existing
@@ -803,7 +804,7 @@ joystick ports `0xdc`/`0xdd`, VDP IRQ on Z80 INT rather than NMI, the SN76489
 on ports `0x7E`/`0x7F`, FPGA→ADV7513 I2S, and the
 `fes.simple-computer` mailbox. The TMS fallback uses the shared nominal 60 Hz,
 262-line fractional raster enable. SMS Mode 4 retains its prior `/16` enable
-(about 48.5 frames/s), because its serial scanline builder exceeds the 60 Hz
+(about 49 frames/s), because its serial scanline builder exceeds the 60 Hz
 line budget; optimizing that renderer is separate work. This timing model
 covers logical frame pacing only, not composite sync, half-lines, PAL timing or
 cycle-perfect raster effects. The OSS package uses 32 fixed blank M10K
@@ -814,8 +815,10 @@ simulation remain format-2 media-transport diagnostics. There is no BIOS shim. M
 16 KiB VRAM, 32-entry six-bit CRAM, tile attributes and scrolling, 8×8/8×16
 zoomable sprites with collision/eight-sprite overflow, line interrupts and
 VBlank interrupts on the fixed 256×192 logical raster. The PSG mix is a signed
-16-bit sample; HDMI I2S0 is 16-bit 48 kHz against the existing runtime ADV7513
-program (N=6144, CTS=74250). There is no host `fes.audio` mailbox. Mappers,
+16-bit sample. The shared coherent crossing produces 48 kHz stereo I2S0;
+Hold and PLL loss mute it. The required `fes.audio.pcm-s16-stereo-48k` 1.0
+interface makes the runtime program ADV7513 (N=6144, CTS=74250) after live
+identity. There is no host audio-stream mailbox. Mappers,
 banked/48 KiB retail images, 224/240-line modes and PAL timing remain outside
 this slice.
 
@@ -828,14 +831,15 @@ the mailbox consumes `cores/fes-sms/generated/stream-exchanges.json`, the VDP
 unit covers legacy Text/Multicolor colors, Mode 4 VRAM buffering, CRAM color,
 tile priority/palette, sprite collision,
 line IRQ and VBlank IRQ, the PSG unit covers ports `0x7E`/`0x7F` and the tone-0
-square wave, HDMI I2S covers 16-bit 48 kHz frames, and the machine covers the
+square wave, shared HDMI I2S covers 16-bit 48 kHz frames and Hold/clock-loss
+mute, and the machine covers the
 32 KiB map, long-then-short `0xff` tails, and CPU execution of that diagnostic
 (not reset-only peeks).
 `make sim-fes-sms-oss` is the linked-ROM OSS-conditional check
 (`-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1`). Both are host
 simulation, not hardware acceptance. The OSS format-3 ROM-link mailbox omits
 the legacy blob capability and rejects blob commands. Its package declares
-only keyboard and fixed-video interfaces alongside its required ROM.
+keyboard, fixed-video and required PCM audio alongside its required ROM.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe.
 It requires a clean committed tree to seal a format-2 package and never
@@ -850,7 +854,8 @@ video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`
 and a first-pass HIP seed/weight search (starts at seed 3 / HeAP 1000,
 then the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
-`pixel_clk` rows must meet 52 MHz and 74.25 MHz. `fes.sms` is registered for
+`pixel_clk` and audio rows must meet 52.224, 74.25 and 12.288 MHz; four routed
+I2S pads and the shared system/audio PLL must match. `fes.sms` is registered for
 package-only parent builds and is not in the factory image. Historical parent
 pins and launch/Stop records do not accept HDMI audio on a later bitstream.
 Dated notes, not current instructions:

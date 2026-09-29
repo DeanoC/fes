@@ -40,7 +40,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-# Seed 3 / HeAP 1000 meets both clocks on the linked-ROM diagnostic netlist.
+# Seed 3 / HeAP 1000 met the earlier two-clock linked-ROM netlist. The new
+# shared audio PLL adds a third clock; retain the bounded search below.
 # A sealed BUILD_ID changes placement, so retain the bounded fallbacks.
 PLACER_SEEDS = (3, 10, 12, 2, 4, 5, 7, 1)
 SEED = PLACER_SEEDS[0]
@@ -49,7 +50,8 @@ PLACER_TIMING_WEIGHTS = (1000, 300)
 PLACER_CRITICALITY_EXPONENT = 5
 # first-pass walks every seed at each weight; size the budget for that product.
 PLACER_QOR_BUDGET = len(PLACER_SEEDS) * len(PLACER_TIMING_WEIGHTS)
-PLACER_QOR_CLOCKS = (("clk_sys", 52.0), (None, 74.25))
+PLACER_QOR_CLOCKS = (("system_clock.clocks[0]", 52.224), (None, 74.25),
+                     ("system_clock.clocks[1]", 12.288))
 SMS_GPU_BACKEND = "hip"
 SMS_GPU_ROUTER = "HIP"
 SMS_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -74,16 +76,17 @@ ABI_DEFINITION = "cores/fes-sms/generated/fes_simple_computer.vh"
 QSF = "cores/fes-sms/constraints-oss.qsf"
 SDC = "cores/fes-sms/clocks-oss.sdc"
 RTL_SOURCES = (
-    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-coleco/rtl/coleco_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_computer_gp.v",
+    "cores/fes-common/rtl/fes_audio_i2s.v",
+    "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/coleco_dpram.v",
     "cores/fes-common/rtl/coleco_video_dpram.v",
     "cores/fes-common/rtl/coleco_vdp.sv",
     "cores/fes-sms/rtl/sms_vdp.sv",
     "cores/fes-sms/rtl/sms_psg.sv",
     "cores/fes-sms/rtl/sms_video_720p.v",
-    "cores/fes-sms/rtl/sms_hdmi_i2s.v",
     "cores/fes-sms/rtl/sms_machine.sv",
     "cores/fes-sms/rtl/sms_rom_link.v",
     "cores/fes-common/rtl/t80pa.v",
@@ -142,6 +145,8 @@ FORBIDDEN_RESOURCES = frozenset(
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
+AUDIO_PINS = {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
+              "HDMI_LRCLK": "PIN_T11", "HDMI_I2S0": "PIN_T13"}
 
 
 def _authenticate_sms_tools(root: Path, cache_root: Path | None = None):
@@ -199,7 +204,7 @@ def create_build_record(
             "gpu_architectures": SMS_GPU_ARCHITECTURES,
             "gpu_backend": SMS_GPU_BACKEND,
             "pixel_clock_hz": 74_250_000,
-            "sys_clock_hz": 52_000_000,
+            "sys_clock_hz": 52_224_000,
             "reference_clock_hz": 50_000_000,
             "seed": PLACER_SEEDS[0],
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
@@ -325,6 +330,36 @@ def _frequency_row(
     return name, constraint, achieved
 
 
+def _audio_evidence(design: dict) -> None:
+    """Require the shared system/audio PLL and four routed 3.3 V I2S pads."""
+    module = design["modules"][TOP]
+    cells = module.get("cells", {})
+    clocks = [cell for cell in cells.values()
+              if cell.get("type") == "altera_pll"
+              and cell.get("parameters", {}).get("output_clock_frequency0") == "52.224 MHz"
+              and cell.get("parameters", {}).get("output_clock_frequency1") == "12.288 MHz"
+              and cell.get("parameters", {}).get("reference_clock_frequency") == "50.0 MHz"]
+    if len(clocks) != 1:
+        raise BuildError("audio requires one shared 52.224/12.288 MHz PLL")
+    for port, pin in AUDIO_PINS.items():
+        entry = module.get("ports", {}).get(port, {})
+        pads = [cell for cell in cells.values() if cell.get("type") == "MISTRAL_OB"
+                and cell.get("connections", {}).get("PAD") == entry.get("bits")]
+        if entry.get("direction") != "output" or len(pads) != 1:
+            raise BuildError(f"audio output {port} must have one output pad")
+        cell = pads[0]
+        attributes = cell.get("attributes", {})
+        source = cell.get("connections", {}).get("I", [])
+        if (attributes.get("LOC") != pin or attributes.get("IO_STANDARD") != "3.3-V LVTTL"
+                or not attributes.get("NEXTPNR_BEL", "").startswith("MISTRAL_IO.")
+                or len(source) != 1 or type(source[0]) is not int):
+            raise BuildError(f"audio output {port} has incorrect routing or electrical constraints")
+
+
+def _audio_timing(fmax: object) -> tuple[str, float, float]:
+    return _frequency_row(fmax, 12.288, "audio clock", "system_clock.clocks[1]")
+
+
 def validate_synth_evidence(output: Path) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     _i2c_evidence(synthesis, "synthesized")
@@ -351,6 +386,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth_evidence = validate_synth_evidence(output)
+    _audio_evidence(routed)
     counts = synth_evidence["synthesis_cells"]
     _i2c_evidence(routed, "routed")
     route_log = output / "nextpnr.log"
@@ -360,11 +396,12 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text)
-    if "50 MHz -> 52 MHz" not in route_text:
-        raise BuildError("route log does not contain the 50-to-52 MHz system PLL")
+    if "50 MHz -> 52.224 MHz" not in route_text:
+        raise BuildError("route log does not contain the shared 50-to-52.224 MHz system/audio PLL")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 52.0, "system clock", "clk_sys")
+    system = _frequency_row(timing.get("fmax"), 52.224, "system clock", "system_clock.clocks[0]")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
+    audio = _audio_timing(timing.get("fmax"))
     utilization = timing.get("utilization")
     known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
     resources = validate_timing_resources(utilization, known)
@@ -378,7 +415,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
             "system": {
                 "clock": system[0],
                 "constraint_mhz": system[1],
-                "requested_mhz": 52.0,
+                "requested_mhz": 52.224,
                 "achieved_mhz": system[2],
                 "status": "pass",
             },
@@ -389,6 +426,9 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
                 "achieved_mhz": pixel[2],
                 "status": "pass",
             },
+            "audio": {"clock": audio[0], "constraint_mhz": audio[1],
+                      "requested_mhz": 12.288, "achieved_mhz": audio[2],
+                      "status": "pass"},
             "status": "pass",
         },
         "resources": resources,
@@ -413,7 +453,7 @@ def _manifest(
             "id": "fes.sms",
             "name": "FES Master System",
             "description": "Fixed-map Master System with a linked 32 KiB cartridge ROM",
-            "version": "1.3.0",
+            "version": "1.4.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -425,6 +465,7 @@ def _manifest(
         "interfaces": [
             {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": evidence["build_id"],
