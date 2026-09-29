@@ -101,6 +101,7 @@ def run(*, gpu_device: int = 0, cache_root: Path | None = None) -> Path:
         board._write_atomic(output / "ranking.json", (json.dumps(document, indent=2, sort_keys=True) + "\n").encode())
         if not document["valid_clock_set"]:
             raise board.BuildError(f"diagnostic route did not produce the three expected clock rows; see {search_dir}")
+        board._require_gpu_backend(Path(ranked[0].log).read_text())
         if board._require_clean_source(root, pinned_inputs=PINNED_INPUTS) != (repository, revision):
             raise board.BuildError("source identity changed during timing diagnostic")
         invocation.verify()

@@ -120,7 +120,8 @@ The diagnostic pins Yosys [#17](https://github.com/DeanoC/yosys/pull/17)
 and nextpnr [#93](https://github.com/DeanoC/nextpnr/pull/93), requests up to
 four generic local enable copies, then writes
 `build/fes-ramtest-timing-130/ranking.json` plus synthesis, route and timing
-outputs. A completed route is reported even below 130 MHz; `passing` records
+outputs. The route log must prove a live HIP backend; CPU fallback is rejected.
+A completed HIP route is reported even below 130 MHz; `passing` records
 whether all three clock-frequency constraints were met. It does not check the
 full package evidence or hold timing. The diagnostic RBF is not a sealed
 package or hardware acceptance. The normal 100 and 130 MHz package builds
