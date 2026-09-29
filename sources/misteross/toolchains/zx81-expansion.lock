@@ -12,9 +12,9 @@ rationale = "DeanoC fork master with the indexed-node routing API and the fixes 
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "7eb7b2778b62074a93835fe682ee7a8208bf5b3b"
+commit = "69f8237b2a654942f88d1ef7ca1552d0711aa2c8"
 order = 30
-rationale = "DeanoC nextpnr 7eb7b277 (PR #94, parent a93fe013): a flip-flop with no async clear no longer stays on a LAB clear another flop uses. The open half takes an unused ACLR slot and that slot selects the dedicated inactive clear; TCLR_SEL/BCLR_SEL are numeric. Repaired ZX81 seed 10 keeps its placement and gpo[24] route (FES #309). Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Previous pin a93fe013: merge of PR #86, placement prediction calibrated against routed delays (FES #236). Previous pin 267710a3 preserved frozen CRAM through cartridge cleanup (FES #237). Other core locks stay on their own pins."
+rationale = "DeanoC nextpnr 69f8237b (PR #94, parent a93fe013): a flip-flop with no async clear no longer stays on a LAB clear another flop uses. The open half takes an unused ACLR slot and that slot selects the dedicated inactive clear; TCLR_SEL/BCLR_SEL are numeric. Reloading FES_LABSTATE_V1 runs the same park, because a locked LAB skips control-set assignment; a shell with both ACLR slots live is rejected. Repaired ZX81 seed 10 keeps its placement and gpo[24] route (FES #309). Previous pin 7eb7b277 parked open flops on a fresh route only. Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Previous pin a93fe013: merge of PR #86, placement prediction calibrated against routed delays (FES #236). Previous pin 267710a3 preserved frozen CRAM through cartridge cleanup (FES #237). Other core locks stay on their own pins."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
