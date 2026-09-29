@@ -1044,7 +1044,10 @@ not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The validation
 cart is the first consumer on that edge; Zon X and QS Character Board RTL share
 the plugs but are not library assets yet. Zon X channel A is a digital square
 on `peek_d` (R0/R1 period, R7 enable, R8 level); the shell mixes that sample
-into HDMI I2S0 when `RAM_PRESENT` is 0. Channel A period uses nested 4-bit
+into the shared coherent PCM/I2S output when `RAM_PRESENT` is 0. An independent
+12.288 MHz audio PLL supplies MCLK; execution Hold and loss of PLL lock mute
+the output. The ZX81-local GP mailbox reports audio capability bit 4 while
+retaining the busy-tape guard. Channel A period uses nested 4-bit
 LUT counters so the cart does not place `ALUT_ARITH` carry in the slot.
 Diagnostic 904–907 remains an HPS bench and does not seal
 `fes.zx81`. The cart route also receives the fixed `fes.zx81-bus.socket/1` CRAM rectangle

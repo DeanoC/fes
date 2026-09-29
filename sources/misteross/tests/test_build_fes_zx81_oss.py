@@ -28,6 +28,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesZx81OssTests(unittest.TestCase):
+    def test_shared_audio_sources_replace_local_serializer(self):
+        self.assertIn('cores/fes-common/rtl/fes_audio_pll.v', RTL_SOURCES)
+        self.assertIn('cores/fes-common/rtl/fes_audio_output.v', RTL_SOURCES)
+        self.assertIn('cores/fes-common/rtl/fes_audio_i2s.v', RTL_SOURCES)
+        self.assertNotIn('cores/fes-zx81/rtl/zx81_hdmi_i2s.v', RTL_SOURCES)
+
     def test_signoff_rejects_failed_arc_even_with_normal_footer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

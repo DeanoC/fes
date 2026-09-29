@@ -290,6 +290,14 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion
 		cores/fes-zx81/rtl/fes_computer_gp.v cores/fes-zx81/rtl/zx81_dpram.v \
 		"$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
 	@build/sim/fes-zx81-gp/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
+	@mkdir -p build/sim/fes-zx81-gp-audio
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+		-GENABLE_AUDIO=1 -CFLAGS -DZX81_AUDIO_TEST -Wno-PINCONNECTEMPTY \
+		-Icores/fes-zx81/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-gp-audio" \
+		cores/fes-zx81/rtl/fes_computer_gp.v cores/fes-zx81/rtl/zx81_dpram.v \
+		"$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
+	@build/sim/fes-zx81-gp-audio/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
 	@mkdir -p build/sim/fes-zx81-machine
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
 		-DTV80_REFRESH=1 \

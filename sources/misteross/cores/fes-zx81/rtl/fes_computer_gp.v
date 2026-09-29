@@ -8,7 +8,9 @@
 // acceptance, or two clocks for a media pair (low byte, then high byte).
 // Port B is the CPU read and uses only media_addr. The pointer compare and
 // the command decoder never enter that read.
-module fes_computer_gp (
+module fes_computer_gp #(
+    parameter ENABLE_AUDIO = 0
+) (
     input  wire         clk,
     input  wire [31:0]  gpo,
     input  wire [127:0] build_id,
@@ -29,7 +31,8 @@ module fes_computer_gp (
     localparam [31:0] CAPABILITIES =
         `FES_SIMPLE_COMPUTER_INTERFACE_KEYBOARD_CAPABILITY_MASK |
         `FES_SIMPLE_COMPUTER_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK |
-        `FES_SIMPLE_COMPUTER_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK;
+        `FES_SIMPLE_COMPUTER_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK |
+        ((ENABLE_AUDIO != 0) ? `FES_SIMPLE_COMPUTER_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'h00000000);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_SIMPLE_COMPUTER_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_SIMPLE_COMPUTER_IDENTITY_MAGIC1_INDEX;
     localparam [31:0] ID_TRANSPORT_MAJOR_INDEX = `FES_SIMPLE_COMPUTER_IDENTITY_TRANSPORT_MAJOR_INDEX;
