@@ -126,23 +126,33 @@ the first seed that meets every clock at analogue signoff.
 records the winning seed.
 
 For the opt-in 130 MHz compiler timing diagnostic, provision its separate
-lock and run one seed-2 route:
+lock and run the paired seed-2 routes:
 
 ```sh
 make toolchain-fes-ramtest-timing
 make diagnose-fes-ramtest-timing GPU_DEVICE=1
 ```
 
-The diagnostic pins Yosys [#17](https://github.com/DeanoC/yosys/pull/17)
-and nextpnr [#93](https://github.com/DeanoC/nextpnr/pull/93), requests up to
-four generic local enable copies, then writes
-`build/fes-ramtest-timing-130/ranking.json` plus synthesis, route and timing
-outputs. The route log must prove a live HIP backend; CPU fallback is rejected.
-A completed HIP route is reported even below 130 MHz; `passing` records
-whether all three clock-frequency constraints were met. It does not check the
-full package evidence or hold timing. The diagnostic RBF is not a sealed
-package or hardware acceptance. The normal 100 and 130 MHz package builds
-keep their existing lock and signoff gate. The historical 116.918 MHz route
+The diagnostic pins merged Yosys [#17](https://github.com/DeanoC/yosys/pull/17)
+and nextpnr [#93](https://github.com/DeanoC/nextpnr/pull/93),
+[#95](https://github.com/DeanoC/nextpnr/pull/95) and the asynchronous-clear
+correctness fix [#94](https://github.com/DeanoC/nextpnr/pull/94). It first routes
+with up to four generic local enable copies. It then uses that timing report
+to try local LUT remap candidate 0 with up to eight LAB groups, routing the
+same synthesis and BUILD_ID again. Both attempts retain their own outputs in
+`build/fes-ramtest-timing-130/{qor-search,remap-search}/`; `ranking.json`
+records which result was selected and why the remap was selected, rejected,
+or had no qualifying candidate.
+
+Both completed routes must prove a live HIP backend, final signoff and all
+three clock rows; CPU fallback or incomplete routing fails the diagnostic.
+The remap wins only with improved memory Fmax, no regression in the other
+clock maxima and no final reported hold violations. A completed HIP route is
+reported even below 130 MHz; `passing` records whether all three frequency
+constraints were met. The hold screen covers final nextpnr warnings, not the
+full package evidence or hardware acceptance. The diagnostic RBF is not a
+sealed package. The normal 100 and 130 MHz package builds keep their existing
+lock and signoff gate. The historical 116.918 MHz route
 also used two opt-in,
 cell-name-specific probes. Those probes no longer match the current RTL and
 remain disabled here; 116.918 MHz is not a result for the current source.
