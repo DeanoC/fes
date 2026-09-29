@@ -206,11 +206,20 @@ def _audio_evidence(design: dict) -> None:
                and cell.get('connections', {}).get('Q') == audio_nets['HDMI_MCLK']
                for cell in cells.values()):
         raise BuildError('audio clock is disconnected from its clock buffer')
-    if not any(name.startswith('audio.') and cell.get('type') == 'MISTRAL_FF'
-               and cell.get('connections', {}).get('CLK') == audio_nets['HDMI_MCLK']
-               and cell.get('connections', {}).get('ACLR') == lock
-               for name, cell in cells.items()):
-        raise BuildError('audio serializer lacks the buffered clock or PLL lock')
+    lock_sync = netnames.get('audio.lock_sync', {}).get('bits')
+    if (not isinstance(lock_sync, list) or len(lock_sync) != 1
+            or not any(name.startswith('audio.lock_sync_') and cell.get('type') == 'MISTRAL_FF'
+                       and cell.get('connections', {}).get('Q') == lock_sync
+                       and cell.get('connections', {}).get('CLK') == audio_nets['HDMI_MCLK']
+                       and cell.get('connections', {}).get('ACLR') == lock
+                       for name, cell in cells.items())):
+        raise BuildError('audio lock synchronizer is disconnected from the PLL lock')
+    serializer_ffs = [cell for name, cell in cells.items()
+                      if name.startswith('audio.serializer.') and cell.get('type') == 'MISTRAL_FF']
+    if not serializer_ffs or any(cell.get('connections', {}).get('CLK') != audio_nets['HDMI_MCLK']
+                                 or cell.get('connections', {}).get('ACLR') != lock_sync
+                                 for cell in serializer_ffs):
+        raise BuildError('audio serializer lacks the buffered clock or synchronized PLL lock')
     for port, pin in AUDIO_PINS.items():
         entry = module.get('ports', {}).get(port, {})
         pads = [cell for cell in cells.values()

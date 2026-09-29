@@ -51,14 +51,16 @@ class BuildFesZx81OssTests(unittest.TestCase):
         ports = {}
         netnames = {'audio_clk': {'bits': [201]}, 'audio.locked': {'bits': [202]},
                     'audio.sclk': {'bits': [203]}, 'audio.lrclk': {'bits': [204]},
-                    'audio.sdata': {'bits': [205]}}
+                    'audio.sdata': {'bits': [205]}, 'audio.lock_sync': {'bits': [206]}}
         cells = {'system_clock.pll': {'type': 'altera_pll', 'parameters': {
             'reference_clock_frequency': '50.0 MHz',
             'output_clock_frequency0': '52.224 MHz',
             'output_clock_frequency1': '12.288 MHz',
         }, 'connections': {'locked': [202]}},
             'audio_clock_buffer': {'type': 'MISTRAL_CLKBUF', 'connections': {'Q': [201]}},
-            'audio.serializer': {'type': 'MISTRAL_FF', 'connections': {'CLK': [201], 'ACLR': [202]}},
+            'audio.lock_sync_MISTRAL_FF_Q': {'type': 'MISTRAL_FF',
+                                              'connections': {'Q': [206], 'CLK': [201], 'ACLR': [202]}},
+            'audio.serializer.sample_tick': {'type': 'MISTRAL_FF', 'connections': {'CLK': [201], 'ACLR': [206]}},
         }
         sources = {'HDMI_MCLK': 201, 'HDMI_SCLK': 203,
                    'HDMI_LRCLK': 204, 'HDMI_I2S0': 205}
@@ -80,6 +82,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, 'lock'):
             build_fes_zx81_oss._audio_evidence(routed)
         cells['system_clock.pll']['connections']['locked'] = [202]
+        cells['audio.serializer.sample_tick']['connections']['ACLR'] = ['1']
+        with self.assertRaisesRegex(BuildError, 'serializer'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        cells['audio.serializer.sample_tick']['connections']['ACLR'] = [206]
         cells['HDMI_I2S0']['attributes']['LOC'] = 'PIN_BAD'
         with self.assertRaisesRegex(BuildError, 'HDMI_I2S0'):
             build_fes_zx81_oss._audio_evidence(routed)
