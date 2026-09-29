@@ -51,9 +51,17 @@ def prepare_shell_netlist(path: Path) -> None:
         output = pll.get("connections", {}).get("outclk")
         if not isinstance(output, list) or len(output) != 1 or type(output[0]) is not int:
             raise ValueError(f"ZX81 {name} PLL output is malformed")
-        if name in nets and nets[name].get("bits") != output:
+        buffers = [cell.get("connections", {}).get("Q") for cell in cells.values()
+                   if cell.get("type") == "MISTRAL_CLKBUF"
+                   and cell.get("connections", {}).get("A") == output]
+        if len(buffers) > 1 or (buffers and
+                (not isinstance(buffers[0], list) or len(buffers[0]) != 1
+                 or type(buffers[0][0]) is not int)):
+            raise ValueError(f"ZX81 {name} clock buffer is malformed")
+        clock_output = buffers[0] if buffers else output
+        if name in nets and nets[name].get("bits") != clock_output:
             raise ValueError(f"ZX81 {name} alias does not match its PLL output")
-        nets.setdefault(name, {"hide_name": 0, "bits": output, "attributes": {}})
+        nets.setdefault(name, {"hide_name": 0, "bits": clock_output, "attributes": {}})
     if SOCKET_CLOCK not in nets:
         raise ValueError("ZX81 socket system clock is missing")
     clock = nets[SOCKET_CLOCK]["bits"]

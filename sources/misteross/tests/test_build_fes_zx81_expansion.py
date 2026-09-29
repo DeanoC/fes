@@ -59,6 +59,22 @@ class ZX81SocketProducerTests(unittest.TestCase):
         self.assertEqual(nets['clk_sys']['bits'], [2])
         self.assertEqual(nets['audio_clk']['bits'], [3])
 
+    def test_clock_aliases_follow_synthesized_clock_buffers(self):
+        design = self.fixture()
+        top = design['modules']['top']
+        del top['netnames']['clk_sys']
+        top['cells']['system_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [4]}}
+        top['cells']['audio_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [5]}}
+        top['cells']['system_buf'] = {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [4], 'Q': [2]}}
+        top['cells']['audio_buf'] = {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [5], 'Q': [3]}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'synth.json'
+            path.write_text(json.dumps(design))
+            expansion.prepare_shell_netlist(path)
+            nets = json.loads(path.read_text())['modules']['top']['netnames']
+        self.assertEqual(nets['clk_sys']['bits'], [2])
+        self.assertEqual(nets['audio_clk']['bits'], [3])
+
     def test_changed_geometry_clock_wiring_or_missing_plug_rejects_without_rewrite(self):
         original = self.fixture()
         for mode in ("geometry", "clock", "wiring", "missing", "collision"):
