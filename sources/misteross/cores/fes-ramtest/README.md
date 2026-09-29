@@ -125,28 +125,6 @@ the first seed that meets every clock at analogue signoff.
 `qor-ranking.json` lists the seeds it tried, and `build-summary.json`
 records the winning seed.
 
-For the opt-in 130 MHz compiler timing diagnostic, provision its separate
-lock and run one seed-2 route:
-
-```sh
-make toolchain-fes-ramtest-timing
-make diagnose-fes-ramtest-timing GPU_DEVICE=1
-```
-
-The diagnostic pins Yosys [#17](https://github.com/DeanoC/yosys/pull/17)
-and nextpnr [#93](https://github.com/DeanoC/nextpnr/pull/93), requests up to
-four generic local enable copies, then writes
-`build/fes-ramtest-timing-130/ranking.json` plus synthesis, route and timing
-outputs. The route log must prove a live HIP backend; CPU fallback is rejected.
-A completed HIP route is reported even below 130 MHz; `passing` records
-whether all three clock-frequency constraints were met. It does not check the
-full package evidence or hold timing. The diagnostic RBF is not a sealed
-package or hardware acceptance. The normal 100 and 130 MHz package builds
-keep their existing lock and signoff gate. The historical 116.918 MHz route
-also used two opt-in,
-cell-name-specific probes. Those probes no longer match the current RTL and
-remain disabled here; 116.918 MHz is not a result for the current source.
-
 The Quartus 17.0.2 diagnostic compiles the same RTL:
 
 ```sh
