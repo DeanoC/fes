@@ -151,12 +151,13 @@ def create_build_record(root, repository, revision, identities, *, memory_mhz, i
         execution, pinned_inputs=inputs_for(memory_mhz)))
 
 
-def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_mhz: int):
+def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_mhz: int,
+                   output_relative: Path | None = None):
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise board.BuildError("build commands require authenticated tool paths")
-    output = output_for(memory_mhz).as_posix()
+    output = (output_for(memory_mhz) if output_relative is None else output_relative).as_posix()
     program = (
         "read_verilog -sv "
         + f"-D RAM_RATE_SWEEP=1 -D RAM_{memory_mhz}_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 "

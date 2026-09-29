@@ -195,6 +195,8 @@ compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
 a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
 maps to one, stops the scans. The ABI has no memory opcode. Hardware results
 are recorded in the [core README](../cores/fes-ramtest/README.md).
+`make diagnose-fes-ramtest-timing` selects a separate, opt-in compiler lock and
+records a single 130 MHz timing route without sealing or exporting its RBF.
 
 `cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port
 module: the fpga2sdram cell in the generated layout (a 128-bit port and two
