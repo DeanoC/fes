@@ -7,9 +7,9 @@ colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
 package carries the vacant bus; carts are independent bus consumers.
 
 The FES factory recipe selects this package for a future native image. The
-1.3.0 audio candidate has not passed kit silent-path acceptance and has not
-been installed in the current factory image. See the
-[kit diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md).
+1.3.0 package has passed the exact-package kit 1 silent-path diagnostic with
+the repaired OSS compiler, but has not been installed in the current factory
+image. See the [kit diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md).
 The host library path is `core-install` / `core-entry` /
 `POST /api/v1/session/launch` with the returned `game_id`, as for other
 described FPGA cores. Select the 8192-byte `machine-rom` binary explicitly;
@@ -72,5 +72,8 @@ slice.
 Component tests and Verilator live in the misteross worktree. Hardware
 diagnostics on the designated kit used a sealed OSS package and a derived
 keyboard-agent rootfs. Those are not exact-artifact acceptance of an
-assembled FES image. The [1.3.0 shared-audio diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md)
-failed vacant-socket silence and did not qualify the new package.
+assembled FES image. The [1.3.0 shared-audio diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md)
+passed vacant-socket silence, GP/package identity, ROM linking and Stop with
+the repaired compiler. Its matching RAM cart passed timing and changed zero
+CRAM bits outside the reserved socket. Audible Zon X output and factory-image
+acceptance remain separate work.

@@ -1,0 +1,9 @@
+"nextpnr-mistral" -- Next Generation Place and Route (Version nextpnr-0.11.1-273-gc2bb4363)
+source c2bb4363f4628cfbc5f304f3635e1f6eb88a47a7
+plug_rdata_ff_10 site MISTRAL_FF.7.11.10 strength 6
+plug_rdata_ff_10$ROUTETHRU site MISTRAL_COMB.7.11.7 strength 2
+seal_pcm_bits_678 site MISTRAL_COMB.7.11.1 strength 6 mask 0xfff0fff0
+const0 LUT 0 route-through mask 0xf0f0f0f0
+PASS: bottom LUT reads D and E1; locked FF data is the route-through of constant 0
+PASS: scaffold route reload keeps the pinmap, LUT mask, DATAIN net, and route-through
+PASS: scaffold route leaves a restored pinmap that reassignment would replace

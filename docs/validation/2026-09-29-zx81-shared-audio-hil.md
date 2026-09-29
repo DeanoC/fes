@@ -1,5 +1,9 @@
 # ZX81 shared-audio kit diagnostic: acceptance blocked
 
+This historical failure was superseded by the
+[2026-09-30 exact-package diagnostic](2026-09-30-zx81-shared-audio-hil.md)
+after the compiler repairs. The artifacts below remain failed candidates.
+
 On 2026-09-29, designated kit 1 launched the sealed `fes.zx81` 1.3.0
 development package through an isolated FogCast library with an exact 8 KiB
 machine ROM and a vacant expansion socket. The normal ROM link, GP identity,
