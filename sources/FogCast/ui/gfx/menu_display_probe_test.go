@@ -3,6 +3,7 @@ package gfx
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -310,6 +311,170 @@ func TestMenuDisplayPauseResumeClearsBackoff(t *testing.T) {
 	before := client.statusCount()
 	d.Present()
 	waitMenuStatus(t, d, client, before+1)
+}
+
+func TestMenuDisplayStopRedrawsWithinProbeInterval(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	client.mu.Lock()
+	client.unavailable = true
+	client.mu.Unlock()
+	clock.Advance(menuProbeInterval)
+	before := client.statusCount()
+	d.Present()
+	waitMenuStatus(t, d, client, before+1)
+
+	want := menuBackoffInitial
+	for step := 0; step < 6; step++ {
+		d.mu.Lock()
+		got := d.backoff
+		until := d.backoffUntil
+		d.mu.Unlock()
+		if got != want {
+			t.Fatalf("step %d unavailable backoff %s, want %s", step, got, want)
+		}
+		if got > menuProbeInterval {
+			t.Fatalf("step %d unavailable backoff %s exceeds the probe interval", step, got)
+		}
+		clock.Set(until.Add(-time.Millisecond))
+		before = client.statusCount()
+		d.Present()
+		if d.FramePending() || client.statusCount() != before {
+			t.Fatalf("step %d queued during unavailable backoff", step)
+		}
+		clock.Set(until)
+		next := want * 2
+		if next > menuProbeInterval {
+			next = menuProbeInterval
+		}
+		want = next
+		before = client.statusCount()
+		d.Present()
+		waitMenuStatus(t, d, client, before+1)
+	}
+
+	client.mu.Lock()
+	client.unavailable = false
+	client.generation = 11
+	client.mu.Unlock()
+	d.mu.Lock()
+	until := d.backoffUntil
+	d.mu.Unlock()
+	clock.Set(until.Add(-time.Millisecond))
+	beforeStatus := client.statusCount()
+	d.Present()
+	if d.FramePending() || client.statusCount() != beforeStatus {
+		t.Fatal("stop redraw queued before the probe interval")
+	}
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatal("stop redraw presented before the probe interval")
+	}
+	// One attempt can be rejected because Stop moved the generation.
+	// That does not arm a new wait. The following Present submits.
+	clock.Set(until)
+	beforeStatus = client.statusCount()
+	d.Present()
+	waitMenuStatus(t, d, client, beforeStatus+1)
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatal("generation mismatch presented")
+	}
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuIdle(t, d, client, 2)
+	calls, gen, n, prefix := client.snapshot()
+	if calls != 2 || gen != 11 || n != menudisplay.FrameBytes || prefix[0] != 1 {
+		t.Fatalf("calls=%d gen=%d bytes=%d prefix=%v", calls, gen, n, prefix)
+	}
+
+	// Socket loss still doubles past the probe interval.
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	d.Clear(RGB(4, 5, 6))
+	socketWant := menuBackoffInitial
+	for step := 0; step < 4; step++ {
+		beforeStatus = client.statusCount()
+		d.Present()
+		waitMenuStatus(t, d, client, beforeStatus+1)
+		d.mu.Lock()
+		got := d.backoff
+		until := d.backoffUntil
+		d.mu.Unlock()
+		if got != socketWant {
+			t.Fatalf("socket step %d backoff %s, want %s", step, got, socketWant)
+		}
+		clock.Set(until)
+		next := socketWant * 2
+		if next > menuBackoffCap {
+			next = menuBackoffCap
+		}
+		socketWant = next
+	}
+	if socketWant <= menuProbeInterval {
+		t.Fatalf("socket-missing backoff %s did not pass the probe interval", socketWant)
+	}
+}
+
+func TestMenuDisplayDiscardKeepsInFlightProbe(t *testing.T) {
+	gate := make(chan struct{})
+	var block atomic.Bool
+	client := &testMenuClient{
+		generation: 4,
+		ready:      make(chan struct{}, 4),
+		statusSeen: make(chan uint64, 8),
+	}
+	client.holdStatus = func() {
+		if block.Load() {
+			<-gate
+		}
+	}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := false
+	t.Cleanup(func() {
+		block.Store(false)
+		if !closed {
+			close(gate)
+		}
+		d.Close()
+	})
+	d.SetChangeDriven(true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	block.Store(true)
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	deadline := time.Now().Add(time.Second)
+	for client.statusCount() < 2 {
+		if time.Now().After(deadline) {
+			t.Fatal("probe did not reach status")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	d.Clear(RGB(8, 8, 8))
+	d.Present()
+	d.Clear(RGB(9, 9, 9))
+	d.Present()
+	d.mu.Lock()
+	kept := d.probeQueued
+	d.mu.Unlock()
+	if !kept {
+		t.Fatal("discarded non-probe frame cleared probeQueued")
+	}
+	closed = true
+	close(gate)
+	block.Store(false)
 }
 
 func TestMenuDisplayChangeDrivenOffIgnoresBackoff(t *testing.T) {

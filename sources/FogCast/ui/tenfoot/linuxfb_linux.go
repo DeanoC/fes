@@ -113,6 +113,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 
 type nativeInput struct {
 	fd       int
+	path     string
 	kind     InputKind
 	pending  []byte
 	shifts   map[uint16]bool
@@ -125,44 +126,125 @@ type nativeInputs struct {
 	held      map[Command]bool
 	automatic bool
 	label     string
+	dir       string
+	lastScan  time.Time
+	scanEvery time.Duration
+	// kindOf and openFile are nil in production. Tests substitute them
+	// because a fixture node cannot answer EVIOCGBIT.
+	kindOf   func(fd int) InputKind
+	openFile func(path string) (int, error)
 }
 
 func openNativeInputs(spec, label string) (*nativeInputs, error) {
+	return openNativeInputsDir(spec, label, "/dev/input")
+}
+
+func openNativeInputsDir(spec, label, dir string) (*nativeInputs, error) {
 	var paths []string
 	spec = strings.TrimSpace(spec)
+	automatic := spec == "" || spec == "auto"
 	switch spec {
 	case "none":
 		return &nativeInputs{}, nil
 	case "", "auto":
 		var err error
-		paths, err = filepath.Glob("/dev/input/event*")
+		paths, err = filepath.Glob(filepath.Join(dir, "event*"))
 		if err != nil {
 			return nil, err
 		}
 	default:
 		paths = strings.Split(spec, ",")
 	}
-	result := &nativeInputs{automatic: spec == "" || spec == "auto", label: label}
-	for _, path := range paths {
-		fd, err := unix.Open(strings.TrimSpace(path), unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
-		if err != nil {
-			if spec != "" && spec != "auto" {
-				result.close()
-				return nil, fmt.Errorf("%s input %s: %w", label, path, err)
-			}
-			continue
-		}
-		kind := nativeDeviceKind(fd)
-		if result.automatic && kind == InputNone {
-			unix.Close(fd)
-			continue
-		}
-		result.devices = append(result.devices, &nativeInput{fd: fd, kind: kind})
+	result := &nativeInputs{
+		automatic: automatic,
+		label:     label,
+		dir:       dir,
+		scanEvery: time.Second,
+		lastScan:  time.Now(),
 	}
-	if len(result.devices) == 0 {
+	for _, path := range paths {
+		if err := result.openPath(nil, strings.TrimSpace(path)); err != nil {
+			result.close()
+			return nil, err
+		}
+	}
+	// Automatic mode paints with whatever is plugged in, including nothing.
+	// Explicit nodes are still required to open.
+	if !automatic && len(result.devices) == 0 {
 		return nil, fmt.Errorf("%s: no readable supported keyboard/gamepad evdev inputs (use -input none for a display-only check)", label)
 	}
 	return result, nil
+}
+
+func (ins *nativeInputs) openPath(app *App, path string) error {
+	if ins.hasPath(path) {
+		return nil
+	}
+	var (
+		fd  int
+		err error
+	)
+	if ins.openFile != nil {
+		fd, err = ins.openFile(path)
+	} else {
+		fd, err = unix.Open(path, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+	}
+	if err != nil {
+		if ins.automatic {
+			return nil
+		}
+		return fmt.Errorf("%s input %s: %w", ins.label, path, err)
+	}
+	kind := ins.deviceKind(fd)
+	if ins.automatic && kind == InputNone {
+		unix.Close(fd)
+		return nil
+	}
+	ins.devices = append(ins.devices, &nativeInput{fd: fd, path: path, kind: kind})
+	if app != nil {
+		app.AttachInput(kind, fd)
+	}
+	return nil
+}
+
+func (ins *nativeInputs) deviceKind(fd int) InputKind {
+	if ins != nil && ins.kindOf != nil {
+		return ins.kindOf(fd)
+	}
+	return nativeDeviceKind(fd)
+}
+
+func (ins *nativeInputs) hasPath(path string) bool {
+	for _, in := range ins.devices {
+		if in.path == path {
+			return true
+		}
+	}
+	return false
+}
+
+// maybeRescan opens event nodes that appeared after startup. Automatic mode
+// only: the supervisor is not the retry loop. Already-open paths are not
+// opened again. The cadence is one second, same classifier as startup.
+func (ins *nativeInputs) maybeRescan(app *App, now time.Time) {
+	if ins == nil || !ins.automatic || ins.dir == "" {
+		return
+	}
+	every := ins.scanEvery
+	if every <= 0 {
+		every = time.Second
+	}
+	if !ins.lastScan.IsZero() && now.Sub(ins.lastScan) < every {
+		return
+	}
+	ins.lastScan = now
+	paths, err := filepath.Glob(filepath.Join(ins.dir, "event*"))
+	if err != nil {
+		return
+	}
+	for _, path := range paths {
+		_ = ins.openPath(app, path)
+	}
 }
 func (ins *nativeInputs) close() {
 	for _, in := range ins.devices {
@@ -170,6 +252,7 @@ func (ins *nativeInputs) close() {
 	}
 }
 func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
+	ins.maybeRescan(app, now)
 devices:
 	for _, in := range append([]*nativeInput(nil), ins.devices...) {
 		// Bound draining so a noisy device cannot starve rendering or cancellation.

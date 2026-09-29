@@ -105,11 +105,14 @@ func (d *MenuDisplay) BackendName() string { return BackendMenuDisplay }
 // is off: every Present is submitted. fogcast-kit depends on that default.
 //
 // While it is on, an unchanged frame still queues a status probe once a
-// second. A new menu generation, or a frame that was never presented, is
-// submitted; the same generation presents nothing. Status errors, an
-// unavailable menu, underflow rejection, and present failures back off from
-// 250ms, doubling to 5s. Pause and Resume clear that backoff. Present calls
-// do not reprogram the menu.
+// second after a successful present. A new menu generation is submitted; the
+// same generation presents nothing. The first frame is submitted because
+// nothing has been queued yet, not because a probe saw that nothing had been
+// presented. Status errors, scanout underflow, and present failures back off
+// from 250ms, doubling to 5s. An unavailable menu uses that schedule but never
+// waits longer than the one-second probe, so a game Stop redraws within about
+// a second. A generation mismatch does not start a new wait. Pause and Resume
+// clear the backoff. Present calls do not reprogram the menu.
 func (d *MenuDisplay) SetChangeDriven(on bool) {
 	if d == nil {
 		return
@@ -340,7 +343,7 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 		d.noteGenerationLocked(frame.seq, status.Generation)
 		return
 	}
-	d.armBackoffLocked(d.clock())
+	d.armBackoffLocked(d.clock(), menuWaitCap(err, status))
 }
 
 // forgetLocked drops the remembered frame when seq is still that frame.
@@ -367,21 +370,33 @@ func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err er
 		return
 	}
 	if genChanged {
+		// The next Present submits at the new generation. Do not arm a wait.
 		return
 	}
 	if err != nil || !status.Available {
-		d.armBackoffLocked(d.clock())
+		d.armBackoffLocked(d.clock(), menuWaitCap(err, status))
 	}
 }
 
-func (d *MenuDisplay) armBackoffLocked(now time.Time) {
+// menuWaitCap is the longest pause for this failure. An unavailable menu is
+// the generation-wait while a game owns the display: Stop publishes a new
+// generation, and the redraw has to land within about one probe interval.
+// Socket loss, underflow, and present failures keep the longer cap.
+func menuWaitCap(err error, status menudisplay.Status) time.Duration {
+	if err == nil && !status.Available {
+		return menuProbeInterval
+	}
+	return menuBackoffCap
+}
+
+func (d *MenuDisplay) armBackoffLocked(now time.Time, cap time.Duration) {
 	if d.backoff <= 0 {
 		d.backoff = menuBackoffInitial
 	} else {
 		d.backoff *= 2
 	}
-	if d.backoff > menuBackoffCap {
-		d.backoff = menuBackoffCap
+	if d.backoff > cap {
+		d.backoff = cap
 	}
 	d.backoffUntil = now.Add(d.backoff)
 }
@@ -396,6 +411,12 @@ func (d *MenuDisplay) clearPaceLocked() {
 	d.probeQueued = false
 }
 
+// probeDueLocked is true one probe interval after the last successful present.
+// lastProbe stays zero until that present, which also sets hasPresented, so a
+// zero clock is not due. Production submits the first frame because nothing
+// has been queued yet; Present does not consult this function in that case.
+// runProbe can still submit when hasPresented is false, but only a caller
+// that plants lastProbe reaches that branch.
 func (d *MenuDisplay) probeDueLocked(now time.Time) bool {
 	if d.lastProbe.IsZero() {
 		return false
@@ -425,8 +446,10 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 	default:
 	}
 	select {
-	case <-d.frames:
-		d.probeQueued = false
+	case dropped := <-d.frames:
+		if dropped.probe {
+			d.probeQueued = false
+		}
 	default:
 	}
 	select {

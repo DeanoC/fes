@@ -23,6 +23,7 @@ type testMenuClient struct {
 	unavailable  bool
 	statusErr    error
 	statusCalls  int
+	holdStatus   func()
 	ready        chan struct{}
 	statusSeen   chan uint64
 	presentBlock <-chan struct{}
@@ -35,7 +36,11 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	underflows := c.underflows
 	unavailable := c.unavailable
 	statusErr := c.statusErr
+	hold := c.holdStatus
 	c.mu.Unlock()
+	if hold != nil {
+		hold()
+	}
 	if c.statusSeen != nil {
 		select {
 		case c.statusSeen <- generation:

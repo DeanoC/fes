@@ -182,11 +182,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   the runtime menu socket (`-menu-socket`, default `/run/mister-runtime.sock`).
   Presents are change-driven: an unchanged frame (byte-identical to the last
   submitted frame that has not failed or been dropped) is skipped. Once a
-  second that skip still reads menu status. A new menu generation, or a frame
-  that has not been presented, is submitted in full; the same generation
-  presents nothing. Status errors, an unavailable menu, scanout underflow, and
-  present failures wait 250ms, doubling up to 5s, and the next present after
-  that wait is submitted. The menu-display backend takes no kit lease and only
+  second after a successful present, that skip still reads menu status. A new
+  menu generation is submitted in full; the same generation presents nothing.
+  The first frame is submitted because nothing has been queued yet. Status
+  errors, scanout underflow, and present failures wait 250ms, doubling up to
+  5s. An unavailable menu uses that schedule but never waits longer than the
+  1s probe, so a Stop redraws within about a second. A generation mismatch
+  does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only
   talks to the runtime menu socket; the tenfoot app keeps its existing host
   session client and existing status reads (for example the kit-lease status
   read). Host tests cover the backend. The kit image starts this renderer only
