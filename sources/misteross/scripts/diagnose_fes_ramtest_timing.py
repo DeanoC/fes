@@ -29,7 +29,7 @@ TOOLCHAIN_ROOT = Path("build/toolchain-ramtest-timing")
 TOOL_COMMITS = {
     **board.EXPECTED_TOOL_COMMITS,
     "yosys": "acf441cc385277617e60059691b2f801c9e02660",
-    "nextpnr": "5d10b6104778b32f3d463ba21839b2e3453d0fc0",
+    "nextpnr": "d91c902b056fd69a5e897eb8d78a67b568798852",
 }
 SEED = 2
 REPLICATION_BUDGET = 4
