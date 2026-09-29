@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -99,7 +101,7 @@ func TestFramebufferFullAppLoop(t *testing.T) {
 	defer dev.Close()
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 	defer cancel()
-	if err := framebufferLoop(ctx, opts, app, dev, func(*App, time.Time) (bool, error) { return false, nil }); err != nil {
+	if err := framebufferLoop(ctx, opts, app, dev, func(*App, time.Time) (bool, error) { return false, nil }, "linuxfb"); err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Equal(dst, make([]byte, len(dst))) {
@@ -324,15 +326,26 @@ func TestNativeInputLocalDiscovery(t *testing.T) {
 	if os.Getenv("FOGCAST_TEST_EVDEV") != "1" {
 		t.Skip("live evdev discovery is opt-in")
 	}
-	inputs, err := openNativeInputs("auto")
+	inputs, err := openNativeInputs("auto", "linuxfb")
 	if err != nil {
-		t.Skipf("no supported input devices currently attached: %v", err)
+		t.Fatal(err)
 	}
 	defer inputs.close()
 	a := NewApp(nil, 1280, 720, 10)
 	inputs.seed(a)
 	t.Logf("classified %d supported nodes; startup owner %s; no events read", len(inputs.devices), a.Affinity().Kind)
 }
+func TestNativeInputLabel(t *testing.T) {
+	_, err := openNativeInputs("/no/such/evdev", "menu-display")
+	if err == nil || !strings.HasPrefix(err.Error(), "menu-display input /no/such/evdev:") {
+		t.Fatalf("menu-display label: %v", err)
+	}
+	_, err = openNativeInputs("/no/such/evdev", "linuxfb")
+	if err == nil || !strings.HasPrefix(err.Error(), "linuxfb input /no/such/evdev:") {
+		t.Fatalf("linuxfb label: %v", err)
+	}
+}
+
 func TestExplicitInputDisconnectStaysStrict(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {
@@ -387,4 +400,154 @@ func TestAutoDroppedEventsKeepOtherDeviceHeld(t *testing.T) {
 	if a.OSKOpen() || inputs.held[CmdSearch] {
 		t.Fatal("dropped events emitted or retained search")
 	}
+}
+
+func TestAutoInputNoNodesStaysLive(t *testing.T) {
+	dir := t.TempDir()
+	// A node the real classifier rejects must not be fatal and must not leak.
+	rejected := filepath.Join(dir, "event0")
+	if err := os.WriteFile(rejected, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inputs, err := openNativeInputsDir("auto", "menu-display", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer inputs.close()
+	if inputs == nil || !inputs.automatic || len(inputs.devices) != 0 {
+		t.Fatalf("inputs automatic=%v devices=%d", inputs != nil && inputs.automatic, len(inputs.devices))
+	}
+	app := NewApp(nil, 1280, 720, 10)
+	if quit, err := inputs.poll(app, inputs.lastScan); err != nil || quit {
+		t.Fatalf("poll = %v %v", quit, err)
+	}
+	if n := fdsFor(rejected); n != 0 {
+		t.Fatalf("rejected node leaked %d fds", n)
+	}
+}
+
+func TestAutoInputHotplugRescanIsBounded(t *testing.T) {
+	dir := t.TempDir()
+	inputs, err := openNativeInputsDir("auto", "menu-display", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer inputs.close()
+	app := NewApp(nil, 1280, 720, 10)
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+	gamepad := filepath.Join(dir, "event0")
+	if err := os.Symlink(fdPath(int(reader.Fd())), gamepad); err != nil {
+		t.Fatal(err)
+	}
+	rejected := filepath.Join(dir, "event1")
+	if err := os.WriteFile(rejected, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var gamepadOpens, otherOpens int
+	inputs.kindOf = func(fd int) InputKind {
+		// Stand-in for EVIOCGBIT: a pipe is the hotplugged pad, anything else is not.
+		link, err := os.Readlink(fdPath(fd))
+		if err == nil && strings.HasPrefix(link, "pipe:") {
+			return InputGamepad
+		}
+		return InputNone
+	}
+	inputs.openFile = func(path string) (int, error) {
+		if filepath.Base(path) == "event0" {
+			gamepadOpens++
+		} else {
+			otherOpens++
+		}
+		return unix.Open(path, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+	}
+
+	base := inputs.lastScan
+	if quit, err := inputs.poll(app, base.Add(time.Second-time.Millisecond)); err != nil || quit {
+		t.Fatalf("early poll = %v %v", quit, err)
+	}
+	if gamepadOpens != 0 || otherOpens != 0 || len(inputs.devices) != 0 {
+		t.Fatalf("rescanned before the interval: pad=%d other=%d devices=%d", gamepadOpens, otherOpens, len(inputs.devices))
+	}
+
+	if quit, err := inputs.poll(app, base.Add(time.Second)); err != nil || quit {
+		t.Fatalf("hotplug poll = %v %v", quit, err)
+	}
+	if gamepadOpens != 1 || otherOpens != 1 || len(inputs.devices) != 1 {
+		t.Fatalf("after hotplug pad=%d other=%d devices=%d", gamepadOpens, otherOpens, len(inputs.devices))
+	}
+	opened := inputs.devices[0]
+	if opened.path != gamepad || opened.kind != InputGamepad {
+		t.Fatalf("opened %#v", opened)
+	}
+	if got := app.Affinity(); got.Kind != InputGamepad || got.ID != opened.fd {
+		t.Fatalf("hotplug affinity = %#v", got)
+	}
+	if n := fdsFor(rejected); n != 0 {
+		t.Fatalf("rejected node leaked %d fds on first scan", n)
+	}
+	if err := unix.SetNonblock(opened.fd, true); err != nil {
+		t.Fatal(err)
+	}
+	var buf [8]byte
+	if _, err := unix.Read(opened.fd, buf[:]); err != unix.EAGAIN && err != unix.EWOULDBLOCK {
+		t.Fatalf("open gamepad read: %v", err)
+	}
+
+	// Later scans must not open the pad again, and must close every rejected node.
+	now := base.Add(time.Second)
+	for step := 0; step < 5; step++ {
+		now = now.Add(time.Second)
+		if quit, err := inputs.poll(app, now); err != nil || quit {
+			t.Fatalf("rescan %d = %v %v", step, quit, err)
+		}
+	}
+	if gamepadOpens != 1 || otherOpens != 6 || len(inputs.devices) != 1 || inputs.devices[0] != opened {
+		t.Fatalf("unbounded rescan pad=%d other=%d devices=%d same=%v", gamepadOpens, otherOpens, len(inputs.devices), len(inputs.devices) == 1 && inputs.devices[0] == opened)
+	}
+	if n := fdsFor(rejected); n != 0 {
+		t.Fatalf("rejected node leaked %d fds", n)
+	}
+
+	// Same timestamp does not scan again.
+	if quit, err := inputs.poll(app, now); err != nil || quit {
+		t.Fatalf("repeat poll = %v %v", quit, err)
+	}
+	if gamepadOpens != 1 || otherOpens != 6 {
+		t.Fatalf("repeat scan pad=%d other=%d", gamepadOpens, otherOpens)
+	}
+
+	// Hot-unplug drops the pad and leaves the loop alive.
+	writer.Close()
+	if quit, err := inputs.poll(app, now.Add(time.Millisecond)); err != nil || quit {
+		t.Fatalf("unplug poll = %v %v", quit, err)
+	}
+	if len(inputs.devices) != 0 {
+		t.Fatalf("unplugged devices = %d", len(inputs.devices))
+	}
+}
+
+func fdPath(fd int) string {
+	return "/proc/self/fd/" + strconv.Itoa(fd)
+}
+
+func fdsFor(path string) int {
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return -1
+	}
+	n := 0
+	for _, entry := range entries {
+		target, err := os.Readlink("/proc/self/fd/" + entry.Name())
+		if err == nil && target == path {
+			n++
+		}
+	}
+	return n
 }

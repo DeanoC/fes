@@ -24,6 +24,51 @@ import (
 	"github.com/DeanoC/FogCast/ui/theme"
 )
 
+func TestPrintKitUI(t *testing.T) {
+	const body = `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a"`
+	dir := t.TempDir()
+	write := func(name, json string) string {
+		t.Helper()
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(json), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	cases := []struct {
+		name string
+		path string
+		json string
+		mode string
+		note string
+	}{
+		{name: "missing", path: filepath.Join(dir, "missing.json"), mode: "grid"},
+		{name: "invalid", path: write("bad.json", "{"), mode: "grid"},
+		{name: "empty", path: write("empty.json", body+"}"), mode: "grid"},
+		{name: "grid", path: write("grid.json", body+`,"kit_ui":"grid"}`), mode: "grid"},
+		{name: "tenfoot", path: write("tenfoot.json", body+`,"kit_ui":"tenfoot"}`), mode: "tenfoot"},
+		{name: "unknown", path: write("unknown.json", body+`,"kit_ui":"sofa"}`), mode: "grid", note: `unknown kit_ui "sofa"; using grid`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			writeKitUI(&stdout, &stderr, tc.path)
+			if stdout.String() != tc.mode+"\n" {
+				t.Fatalf("stdout %q", stdout.String())
+			}
+			if tc.note == "" {
+				if stderr.Len() != 0 {
+					t.Fatalf("stderr %q", stderr.String())
+				}
+				return
+			}
+			if !strings.Contains(stderr.String(), tc.note) {
+				t.Fatalf("stderr %q, want %q", stderr.String(), tc.note)
+			}
+		})
+	}
+}
+
 func TestKitSelectsNativeMenuDisplayWithoutHPSFramebuffer(t *testing.T) {
 	m := kitlauncher.Model{Session: kitlauncher.Session{State: "idle"}}
 	fbOpened := false

@@ -21,6 +21,16 @@ display acknowledgment does not block pad input. When menu firmware is
 unavailable, the current FPGA picture is left alone. The FES native integration
 image selects the sealed `fes.menu` package and starts this display path at boot.
 The boot splash remains the fallback when menu activation fails.
+`kit_ui` in that same file selects which program the image init script
+starts. Empty or `grid` (the default) keeps `fogcast-kit`. `tenfoot` starts
+`/usr/sbin/fogcast-tenfoot -gfx menu-display` only when the `fes.menu`
+selection exists and that binary is executable; otherwise the script keeps
+today's `fogcast-kit` command, including `--menu-display` when the selection
+exists. Any other value is grid and `fogcast-kit --print-kit-ui` writes a
+stderr note. The helper prints exactly `tenfoot` or `grid` and exits 0,
+including when the file is missing or invalid, so boot can always fall back.
+Saving a theme rewrites `launcher.json` and keeps `kit_ui`. The supervise
+name stays `fogcast-kit`, so stop still uses `/run/fogcast-kit.pid`.
 The kit shell shows the effective `eth0` MAC at the right of its top bar on
 wheel, browse, detail and attract screens. This label remains visible when
 the host is offline and follows the SD card's first-boot address assignment

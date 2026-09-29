@@ -41,8 +41,11 @@ type Options struct {
 	GFX string
 	// Framebuffer is the Linux framebuffer node for -gfx linuxfb.
 	// MenuSocket is the runtime menu socket for -gfx menu-display; empty
-	// becomes /run/mister-runtime.sock. That path holds no kit lease and
-	// does not talk to the agent. Input is auto, none, or comma-separated evdev nodes.
+	// becomes /run/mister-runtime.sock. The menu-display backend takes no
+	// kit lease and only talks to that socket; the tenfoot app keeps its
+	// existing host session client and existing status reads (for example
+	// the kit-lease status read). Input is auto, none, or comma-separated
+	// evdev nodes.
 	Framebuffer string
 	MenuSocket  string
 	Input       string

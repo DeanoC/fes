@@ -195,25 +195,29 @@ CGO_ENABLED=0 go build -o bin/fogcast-tenfoot ./cmd/fogcast-tenfoot
 bin/fogcast-tenfoot -gfx linuxfb -fb /dev/fb0 -input auto -api http://127.0.0.1:8787
 ```
 
-The framebuffer's geometry determines the UI size. This path needs readable
-`/dev/input/event*` nodes and a writable 32bpp BGRX framebuffer; it does not
-need SDL or DRM master. It draws directly into the current framebuffer, so use
+The framebuffer's geometry determines the UI size. This path needs a writable
+32bpp BGRX framebuffer; it does not need SDL, DRM master, or an input device
+plugged in at startup. It draws directly into the current framebuffer, so use
 a console reserved for the UI. It does not acquire a VT or grab input away
 from other applications. Original framebuffer bytes are restored on normal
 exit or handled interrupt; abrupt process termination cannot restore them.
 
-`-input auto` opens readable evdev nodes at startup only when their key
-capabilities identify a keyboard or supported gamepad. Select a keyboard and
+`-input auto` opens readable evdev nodes whose key capabilities identify a
+keyboard or supported gamepad. No supported node at startup is not an error:
+the UI paints immediately, and automatic mode rescans `/dev/input/event*`
+about once a second with that same classifier. A hotplugged keyboard or
+gamepad is opened without restarting the process. Select a keyboard and
 controller explicitly with `-input /dev/input/event3,/dev/input/event5`.
 Keyboard navigation uses the usual tenfoot shortcuts (`o` for Settings,
 `q` to quit); alphanumeric entry uses a US key layout, including Shift.
 Gamepad face/shoulder/Start/Back/Guide buttons and digital hat or button D-pads
 use the shared remapper, merged held state, and short/long press behavior.
-Guide opens Settings. Analog sticks, pointer input, keyboard layout discovery,
-and device hotplug are deferred; restart after changing input devices.
+Guide opens Settings. Analog sticks, pointer input, and keyboard layout
+discovery are not read.
 In automatic mode, a disconnected device or lost evdev events drop that
-device and cancel its held actions while the UI continues. Explicit input
-paths remain strict: device loss ends the UI. Startup hints prefer a detected
+device and cancel its held actions while the UI continues, including when it
+was the last device. Explicit input paths remain strict: a missing node at
+startup, or a later disconnect, ends the UI. Startup hints prefer a detected
 gamepad, otherwise a keyboard.
 
 The full App includes library browsing, rooms, Settings → Systems, guided core
@@ -242,9 +246,18 @@ bin/fogcast-tenfoot -gfx menu-display -menu-socket /run/mister-runtime.sock -inp
 ```
 
 The UI size is the menu geometry, 1280×720, ignoring `-width` and `-height`.
-Presents are change-driven: a frame byte-identical to the last submitted frame is skipped unless that frame failed or was dropped, or the known generation has changed since. The process holds no
-kit lease and does not call the agent. An unchanged frame is not resubmitted
-by itself when the runtime generation changes; redraw on a new generation,
-pause before launch, and bounded retry are follow-on. The kit image still
-starts `fogcast-kit` on this socket. Host tests cover the backend without a
-runtime: `go test ./ui/gfx/ ./ui/tenfoot/ ./cmd/fogcast-tenfoot/`.
+Presents are change-driven: an unchanged frame (byte-identical to the last
+submitted frame that has not failed or been dropped) is skipped. Once a second
+after a successful present, that skip still reads menu status. A new menu
+generation is submitted in full; the same generation presents nothing. The
+first frame is submitted because nothing has been queued yet. Status errors,
+scanout underflow, and present failures wait 250ms, doubling up to 5s. An
+unavailable menu uses that schedule but never waits longer than the 1s probe,
+so a Stop redraws within about a second. A generation mismatch does not start
+a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the
+runtime menu socket; the tenfoot app keeps its existing host session client
+and existing status reads (for example the kit-lease status read). The kit
+image starts `fogcast-tenfoot` on this socket only when `launcher.json`
+`kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. Pause before launch
+and the plain status copy are follow-on. Host tests cover the backend without
+a runtime: `go test ./ui/gfx/ ./ui/tenfoot/ ./cmd/fogcast-tenfoot/`.

@@ -35,9 +35,20 @@ case "${1:-start}" in
     fi
     # Config, networking and the host may appear later. The shared supervisor
     # retries an unsuccessful process without holding up the boot sequence.
+    # The supervise name stays fogcast-kit so the child pid file is
+    # /run/fogcast-kit.pid for both shells. stop kills that pid.
     if [ -f /usr/share/mister-runtime/selections/fes-menu.package.toml ]; then
-      /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
-        --config /media/fat/fogcast/launcher.json --menu-display &
+      kit_ui=grid
+      if [ -x /usr/sbin/fogcast-kit ]; then
+        kit_ui=$(/usr/sbin/fogcast-kit --config /media/fat/fogcast/launcher.json --print-kit-ui) || kit_ui=grid
+      fi
+      if [ "$kit_ui" = tenfoot ] && [ -x /usr/sbin/fogcast-tenfoot ]; then
+        /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-tenfoot \
+          -gfx menu-display -menu-socket /run/mister-runtime.sock -input auto -home rooms &
+      else
+        /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
+          --config /media/fat/fogcast/launcher.json --menu-display &
+      fi
     else
       /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
         --config /media/fat/fogcast/launcher.json &
