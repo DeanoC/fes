@@ -69,3 +69,40 @@ func TestLaunchMapRejectsInvalidAndPartNames(t *testing.T) {
 		t.Fatalf("invalid remember wrote file: %v", err)
 	}
 }
+
+// launch-map.json.tmp aliases launch-map.json on the kit's /media/fat exFAT
+// (#317), so writes must use a dot-prefixed temporary instead.
+func TestLaunchMapWriteNeverUsesTargetPrefixedTemp(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, targetcache.LaunchMapName)
+	if err := os.Mkdir(path+".tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	m, err := targetcache.OpenLaunchMap(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := protocol.ContentIdentity{
+		SHA256:    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		Size:      4,
+		Extension: "md",
+	}
+	if err := m.Remember("megadrive-sonic-aaaaaa", protocol.SystemMegaDrive, content); err != nil {
+		t.Fatalf("launch map write used a launch-map.json-prefixed temp: %v", err)
+	}
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range ents {
+		names = append(names, e.Name())
+	}
+	if len(names) != 2 || names[0] != targetcache.LaunchMapName || names[1] != targetcache.LaunchMapName+".tmp" {
+		t.Fatalf("unexpected directory contents %v", names)
+	}
+	if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("launch map mode: %v %v", fi, err)
+	}
+}

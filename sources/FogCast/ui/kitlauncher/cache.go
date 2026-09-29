@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/atomicwrite"
 	"io"
 	"os"
 	"path/filepath"
@@ -404,16 +405,11 @@ func snapshotKey(snap CatalogSnapshot) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// writeAtomic replaces a launcher-cache file on FAT. The temporary is a
+// dot-prefixed O_EXCL sibling, never path+".tmp", which aliases path on the
+// kit's exFAT driver (#317).
 func writeAtomic(path string, data []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return atomicwrite.WriteFile(path, data, 0600)
 }
 
 func applyLocalSnapshot(m *Model, c *Client) bool {
