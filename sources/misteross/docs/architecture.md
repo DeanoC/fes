@@ -1085,7 +1085,7 @@ This is a host/target validation benchmark, not FPGA hardware acceptance; it
 does not extend request deadlines or bypass target recomposition.
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
-10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34. For each seed it tries heap
+10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34. A flip-flop with no async clear must not stay on a LAB clear another flop uses; nextpnr `7eb7b277` assigns the unused ACLR slot and the dedicated inactive clear. For each seed it tries heap
 timing weights 1000 and 300, then sweeps the same seeds at weights 2000, 100
 and 10 if needed (at most 70 attempts, stopping at the first passing route).
 The build record seals
