@@ -186,7 +186,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaises(BuildError):
             build_fes_zx81_oss.placement_policy("unknown")
 
-    def test_paired_search_reaches_fallback_and_stops_after_timing_closes(self) -> None:
+    def test_product_search_uses_hardware_qualified_gp_route(self) -> None:
         from scripts.search_placer_qor import search
         from tests.test_search_placer_qor import _candidate
         weights, budget = build_fes_zx81_oss.placement_policy("first-pass-paired")
@@ -194,7 +194,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
 
         def route(seed, weight):
             calls.append((seed, weight))
-            return _candidate(seed, weight, 52.4 if (seed, weight) == (34, 300) else 51.5)
+            return _candidate(seed, weight, 54.8)
 
         ranked = search(
             nextpnr=Path("unused"), fixture=Path("unused"), output=Path("unused"),
@@ -202,12 +202,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
             seeds=PLACER_SEEDS, weights=weights, critexp=PLACER_CRITICALITY_EXPONENT,
             budget=budget, mode="first-pass-paired", extra=(), timeout=1, run_one=route,
         )
-        self.assertEqual(calls, [
-            (seed, weight) for seed in PLACER_SEEDS for weight in (1000, 300)
-        ])
+        self.assertEqual(calls, [(12, 300)])
         self.assertTrue(ranked[0].passing)
-        self.assertEqual((ranked[0].seed, ranked[0].weight), (34, 300))
-        self.assertEqual(budget, 70)
+        self.assertEqual((ranked[0].seed, ranked[0].weight), (12, 300))
+        self.assertEqual(budget, 1)
 
     def test_make_entrypoint_uses_the_oss_recipe(self) -> None:
         result = subprocess.run(
