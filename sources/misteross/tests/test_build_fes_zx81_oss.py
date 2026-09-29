@@ -186,7 +186,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaises(BuildError):
             build_fes_zx81_oss.placement_policy("unknown")
 
-    def test_product_search_uses_hardware_qualified_gp_route(self) -> None:
+    def test_product_search_excludes_known_bad_gp_route(self) -> None:
         from scripts.search_placer_qor import search
         from tests.test_search_placer_qor import _candidate
         weights, budget = build_fes_zx81_oss.placement_policy("first-pass-paired")
@@ -203,9 +203,12 @@ class BuildFesZx81OssTests(unittest.TestCase):
             budget=budget, mode="first-pass-paired", extra=(), timeout=1, run_one=route,
         )
         self.assertEqual(calls, [(12, 300)])
+        self.assertNotIn(10, PLACER_SEEDS)
+        self.assertGreater(len(PLACER_SEEDS), 1)
+        self.assertGreater(len(weights), 1)
         self.assertTrue(ranked[0].passing)
         self.assertEqual((ranked[0].seed, ranked[0].weight), (12, 300))
-        self.assertEqual(budget, 1)
+        self.assertEqual(budget, len(PLACER_SEEDS) * len(weights))
 
     def test_make_entrypoint_uses_the_oss_recipe(self) -> None:
         result = subprocess.run(

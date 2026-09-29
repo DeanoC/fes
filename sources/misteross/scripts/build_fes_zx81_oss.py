@@ -36,13 +36,13 @@ ABI_DEFINITION = 'cores/fes-zx81/generated/fes_simple_computer.vh'
 QSF = 'cores/fes-zx81/constraints-oss.qsf'
 SDC = 'cores/fes-zx81/clocks-oss.sdc'
 # Route timing alone missed a seed-10 GP opcode input fault on kit 1 (#309).
-# Keep the standard product recipe on the hardware-qualified seed/weight pair
-# until the OSS routing defect is repaired and revalidated.
-PLACER_SEEDS = (12,)
+# Try the two working kit routes first; exclude seed 10 until the OSS defect
+# is repaired. Qualify the exact sealed winner on hardware after every build.
+PLACER_SEEDS = (12, 5, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34, 2)
 PLACER_TIMING_WEIGHT = 300
 PLACER_CRITICALITY_EXPONENT = 5
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
-PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT,)
+PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 1000, 2000, 100, 10)
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = (('clk_sys', 52.224), (None, 74.25), (None, 12.288))
 RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-zx81/rtl/fes_computer_gp.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-zx81/rtl/t80pa.v', 'cores/fes-zx81/rtl/tv80/tv80_core.v', 'cores/fes-zx81/rtl/tv80/tv80_alu.v', 'cores/fes-zx81/rtl/tv80/tv80_mcode.v', 'cores/fes-zx81/rtl/tv80/tv80_reg.v', 'cores/fes-zx81/rtl/top.v')
