@@ -28,6 +28,7 @@ test:
 	sh scripts/tests/target-image-rootfs_test.sh
 	sh scripts/tests/rootfs-package-cleanup_test.sh
 	sh scripts/tests/verify-target-image-cleanup_test.sh
+	sh scripts/tests/scan-target-image-secrets_test.sh
 	sh scripts/tests/target-image_test.sh
 	sh scripts/tests/target-kernel_test.sh
 
