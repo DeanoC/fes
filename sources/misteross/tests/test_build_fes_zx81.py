@@ -83,7 +83,7 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertEqual(len(identity), 32)
         text = record.decode("utf-8")
         self.assertIn('"compiler":"quartus-17.0.2"', text)
-        self.assertIn('"sys_clock_hz":52000000', text)
+        self.assertIn('"sys_clock_hz":52224000', text)
         self.assertIn('"pixel_clock_hz":74250000', text)
         self.assertIn('"audio_clock_hz":12288000', text)
         self.assertIn("scripts/build_fes_zx81.py", text)
@@ -116,14 +116,14 @@ class BuildFesZx81Tests(unittest.TestCase):
                 require_clean_source(module)
 
     def test_clocks_must_appear_in_timing_text(self) -> None:
-        require_clocks("Fmax 52.00 MHz and 74.25 MHz and 12.288 MHz")
-        require_clocks("52.0 MHz and 74.27 MHz and 12.288 MHz")
+        require_clocks("Fmax 52.224 MHz and 74.25 MHz and 12.288 MHz")
+        require_clocks("52.224 MHz and 74.27 MHz and 12.288 MHz")
         with self.assertRaises(BuildError):
-            require_clocks("Fmax 52.00 MHz and 74.25 MHz only")
+            require_clocks("Fmax 52.224 MHz and 74.25 MHz only")
         with self.assertRaises(BuildError):
             require_clocks("Fmax 74.25 MHz only")
         with self.assertRaises(BuildError):
-            require_clocks("Fmax 52.00 MHz only")
+            require_clocks("Fmax 52.224 MHz only")
 
     def test_multicorner_slack_must_be_nonnegative(self) -> None:
         report = (

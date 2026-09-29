@@ -1024,7 +1024,7 @@ reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
 The independent ZX81 cart producer reloads an already routed shell with
 `--no-pack`, so it writes a separate generated SDC that explicitly constrains
-`clk_sys` to 52 MHz, `pixel_clk` to 74.25 MHz and `audio_clk` to 12.288 MHz.
+`clk_sys` to 52.224 MHz, `pixel_clk` to 74.25 MHz and `audio_clk` to 12.288 MHz.
 Its recipe records those requirements and the SDC digest. Publication requires all three clocks to meet
 their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
@@ -1034,7 +1034,7 @@ response). Vacant response FFs hold 0, so ROMCS/WAIT/DSEL/RAM_PRESENT are
 active-high from the cart. CPU writes on that edge use TDP `A1WE` like the
 validation cart; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`.
 Cart M10K keep a distinct top clock port (`FPGA_CLK1_50`) so
-`--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52 MHz
+`--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52.224 MHz
 net; naming that port `clk_sys` leaves M10K on the pad output. During `/RFSH` the shell presents the ULA character-ROM address as the QS
 `8400–87FF` window so the same 1 KiB cell supplies glyphs. QS power-up
 loads Sinclair glyphs 0–63 (ROM `1E00–1FFF`) into that cell so boot text
@@ -1045,7 +1045,7 @@ cart is the first consumer on that edge; Zon X and QS Character Board RTL share
 the plugs but are not library assets yet. Zon X channel A is a digital square
 on `peek_d` (R0/R1 period, R7 enable, R8 level); the shell mixes that sample
 into the shared coherent PCM/I2S output when `RAM_PRESENT` is 0. The combined
-52/12.288 MHz system/audio PLL supplies MCLK; execution Hold and loss of PLL lock mute
+52.224/12.288 MHz system/audio PLL supplies MCLK; execution Hold and loss of PLL lock mute
 the output. The ZX81-local GP mailbox reports audio capability bit 4 while
 retaining the busy-tape guard. Channel A period uses nested 4-bit
 LUT counters so the cart does not place `ALUT_ARITH` carry in the slot.

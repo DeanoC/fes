@@ -4,7 +4,7 @@
 `define FES_ZX81_BUILD_ID 128'h00000000000000000000000000000000
 `endif
 
-// Quartus DE10-Nano shell: 52 MHz ZX81 + 74.25 MHz HDMI, FES GP mailbox.
+// Quartus DE10-Nano shell: 52.224 MHz ZX81, 12.288 MHz audio, 74.25 MHz HDMI.
 // BUILD_ID is overridden from the canonical build-input record.
 module top #(
     parameter [127:0] BUILD_ID = `FES_ZX81_BUILD_ID,

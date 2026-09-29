@@ -14,7 +14,7 @@ module sys_pll (
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"),
         .number_of_clocks(2),
-        .output_clock_frequency0("52.0 MHz"),
+        .output_clock_frequency0("52.224 MHz"),
         .output_clock_frequency1("12.288 MHz"),
         .phase_shift0("0 ps"),
         .phase_shift1("0 ps"),

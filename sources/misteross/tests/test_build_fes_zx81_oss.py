@@ -40,6 +40,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             ROOT, 'https://github.com/DeanoC/misteross.git', 'a' * 40,
             {'yosys': 'x'}, execution=EXECUTION)
         self.assertEqual(json.loads(record)['parameters']['audio_clock_hz'], 12_288_000)
+        self.assertEqual(json.loads(record)['parameters']['sys_clock_hz'], 52_224_000)
 
     def test_audio_clock_and_pad_evidence_rejects_unrouted_output(self):
         fmax = {'audio_clk': {'constraint': 12.288, 'achieved': 12.9}}
@@ -50,7 +51,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         ports = {}
         cells = {'system_clock.pll': {'type': 'altera_pll', 'parameters': {
             'reference_clock_frequency': '50.0 MHz',
-            'output_clock_frequency0': '52.0 MHz',
+            'output_clock_frequency0': '52.224 MHz',
             'output_clock_frequency1': '12.288 MHz',
         }}}
         for index, (port, pin) in enumerate({
@@ -312,7 +313,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn('ramstyle = "M10K"', dpram)
         self.assertIn("assign q_a = ram[address_a]", dpram)
         sys_pll = (ROOT / "cores/fes-zx81/rtl/sys_pll.v").read_text(encoding="utf-8")
-        self.assertIn('.output_clock_frequency0("52.0 MHz")', sys_pll)
+        self.assertIn('.output_clock_frequency0("52.224 MHz")', sys_pll)
         self.assertNotIn('.output_clock_frequency0("50.0 MHz")', sys_pll)
 
     def test_oss_rejects_wrong_output_directory(self) -> None:

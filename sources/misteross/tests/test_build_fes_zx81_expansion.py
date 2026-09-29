@@ -214,7 +214,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.stack.enter_context(patch.object(cart_producer, name, return_value=value))
         self.stack.enter_context(patch.object(cart_producer.subprocess, "run", side_effect=self.run_tool))
         self.mode = "valid"
-        self.timing = {"fmax": {"clk_sys": {"achieved": 60, "constraint": 52.002082824707031},
+        self.timing = {"fmax": {"clk_sys": {"achieved": 60, "constraint": 52.224},
                                 "pixel_clk": {"achieved": 100, "constraint": 74.250068664550781},
                                 "audio_clk": {"achieved": 20, "constraint": 12.288}}}
         self.calls = []
@@ -237,7 +237,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.assertEqual(command[command.index("--fes-cram-region") + 1], "1769,32,2806,7024")
             sdc = Path(command[command.index("--sdc") + 1])
             self.assertEqual(sdc, self.output / "clocks.sdc")
-            self.assertIn("-period 19.230769230769 [get_nets {clk_sys}]", sdc.read_text())
+            self.assertIn("-period 19.148284313725 [get_nets {clk_sys}]", sdc.read_text())
             self.assertIn("-period 13.468013468013 [get_nets {pixel_clk}]", sdc.read_text())
             self.assertIn("-period 81.380208333333 [get_nets {audio_clk}]", sdc.read_text())
             (self.output / "cart.rbf").write_bytes(b"fresh cart")
@@ -262,7 +262,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.assertEqual((self.output / "linked.rbf").read_bytes(), b"linked")
         self.assertEqual(json.loads((self.output / "build-summary.json").read_text())["expansion_id"], result.stem)
         recipe = json.loads((self.output / "build-summary.json").read_text())["recipe"]
-        self.assertEqual(recipe["required_clocks_mhz"], {"clk_sys": 52.0, "pixel_clk": 74.25,
+        self.assertEqual(recipe["required_clocks_mhz"], {"clk_sys": 52.224, "pixel_clk": 74.25,
                                                           "audio_clk": 12.288})
         self.assertEqual(recipe["cram_region"], [1769, 32, 2806, 7024])
         self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
@@ -304,7 +304,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
 
     def test_actual_audio_clock_report_publishes(self):
         self.timing = {"fmax": {
-            "clk_sys": {"achieved": 52.803886, "constraint": 52.00208},
+            "clk_sys": {"achieved": 52.803886, "constraint": 52.224},
             "pixel_clk": {"achieved": 122.865, "constraint": 74.25},
             "audio_clk": {"achieved": 20, "constraint": 12.288},
         }}

@@ -41,7 +41,7 @@ PLACER_CRITICALITY_EXPONENT = 5
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 300, 2000, 100, 10)
 PLACER_QOR_BUDGET = 24
-PLACER_QOR_CLOCKS = (('clk_sys', 52.0), (None, 74.25), (None, 12.288))
+PLACER_QOR_CLOCKS = (('clk_sys', 52.224), (None, 74.25), (None, 12.288))
 RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-zx81/rtl/fes_computer_gp.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-zx81/rtl/t80pa.v', 'cores/fes-zx81/rtl/tv80/tv80_core.v', 'cores/fes-zx81/rtl/tv80/tv80_alu.v', 'cores/fes-zx81/rtl/tv80/tv80_mcode.v', 'cores/fes-zx81/rtl/tv80/tv80_reg.v', 'cores/fes-zx81/rtl/top.v')
 PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'toolchain.lock', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
@@ -86,7 +86,7 @@ def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
 @guard_functional_source
 def create_build_record(root: Path, repository: str, revision: str, tool_identities: Mapping[str, str], *, qor_mode: str='first-pass-paired', identity_version: int=2, execution: dict | None=None) -> bytes:
     weights, budget = placement_policy(qor_mode)
-    fields = {'format': 1, 'repository': repository, 'revision': revision, 'recipe': RECIPE, 'recipe_sha256': _sha256(_regular_input(root, RECIPE)), 'abi_definition': ABI_DEFINITION, 'abi_definition_sha256': _sha256(_regular_input(root, ABI_DEFINITION)), 'dependencies': {}, 'tools': dict(tool_identities), 'parameters': {'device': TARGET, 'gpu_architectures': FES_GPU_ARCHITECTURES, 'gpu_backend': FES_GPU_BACKEND, 'pixel_clock_hz': 74250000, 'sys_clock_hz': 52000000, 'audio_clock_hz': 12288000, 'reference_clock_hz': 50000000, 'router': 'gpu', 'seed': PLACER_SEEDS[0], 'seed_order': ','.join((str(seed) for seed in PLACER_SEEDS)), 'placer_heap_timingweight': PLACER_TIMING_WEIGHT, 'placer_heap_timingweights': ','.join((str(weight) for weight in weights)), 'placer_heap_critexp': PLACER_CRITICALITY_EXPONENT, 'placer_qor_mode': qor_mode, 'placer_qor_budget': budget, 'top': TOP}}
+    fields = {'format': 1, 'repository': repository, 'revision': revision, 'recipe': RECIPE, 'recipe_sha256': _sha256(_regular_input(root, RECIPE)), 'abi_definition': ABI_DEFINITION, 'abi_definition_sha256': _sha256(_regular_input(root, ABI_DEFINITION)), 'dependencies': {}, 'tools': dict(tool_identities), 'parameters': {'device': TARGET, 'gpu_architectures': FES_GPU_ARCHITECTURES, 'gpu_backend': FES_GPU_BACKEND, 'pixel_clock_hz': 74250000, 'sys_clock_hz': 52224000, 'audio_clock_hz': 12288000, 'reference_clock_hz': 50000000, 'router': 'gpu', 'seed': PLACER_SEEDS[0], 'seed_order': ','.join((str(seed) for seed in PLACER_SEEDS)), 'placer_heap_timingweight': PLACER_TIMING_WEIGHT, 'placer_heap_timingweights': ','.join((str(weight) for weight in weights)), 'placer_heap_critexp': PLACER_CRITICALITY_EXPONENT, 'placer_qor_mode': qor_mode, 'placer_qor_budget': budget, 'top': TOP}}
     fields['parameters']['expansion_socket'] = 'zx81-bus-v1'
     fields['parameters'].update(package_format=3, rom_id='machine-rom', rom_role='firmware',
                                 rom_source_size=8192, rom_encoding='m10k-1024x10-v1',
@@ -164,7 +164,7 @@ def _audio_evidence(design: dict) -> None:
     clocks = [cell for name, cell in cells.items()
               if name == 'system_clock.pll' and cell.get('type') == 'altera_pll'
               and cell.get('parameters', {}).get('reference_clock_frequency') == '50.0 MHz'
-              and cell.get('parameters', {}).get('output_clock_frequency0') == '52.0 MHz'
+              and cell.get('parameters', {}).get('output_clock_frequency0') == '52.224 MHz'
               and cell.get('parameters', {}).get('output_clock_frequency1') == '12.288 MHz']
     if len(clocks) != 1:
         raise BuildError('audio requires one shared 52/12.288 MHz PLL')
@@ -209,12 +209,12 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     if has_failed_route_arc(route_text):
         raise BuildError('route log contains a failed arc')
     gpu_backend = _require_gpu_backend(route_text)
-    if '50 MHz -> 52 MHz' not in route_text:
-        raise BuildError('route log does not contain the 50-to-52 MHz system PLL')
+    if '50 MHz -> 52.224 MHz' not in route_text:
+        raise BuildError('route log does not contain the 50-to-52.224 MHz system PLL')
     if '12.288 MHz' not in route_text:
         raise BuildError('route log does not contain the 12.288 MHz audio PLL output')
     timing = _read_json(output / 'timing.json', 'timing report')
-    system = _frequency_row(timing.get('fmax'), 52.0, 'system clock', 'clk_sys')
+    system = _frequency_row(timing.get('fmax'), 52.224, 'system clock', 'clk_sys')
     pixel = _frequency_row(timing.get('fmax'), 74.25, 'pixel clock')
     audio = _audio_timing(timing.get('fmax'))
     utilization = timing.get('utilization')
@@ -223,7 +223,7 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     rbf = output / 'core.rbf'
     if rbf.is_symlink() or not rbf.is_file() or (not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE):
         raise BuildError(f'RBF must be a nonempty bounded regular file: {rbf}')
-    return {'status': 'pass', 'route': {'status': 'pass', 'unrouted': False, 'gpu_backend': gpu_backend}, 'timing': {'system': {'clock': system[0], 'constraint_mhz': system[1], 'requested_mhz': 52.0, 'achieved_mhz': system[2], 'status': 'pass'}, 'pixel': {'clock': pixel[0], 'constraint_mhz': pixel[1], 'requested_mhz': 74.25, 'achieved_mhz': pixel[2], 'status': 'pass'}, 'audio': {'clock': audio[0], 'constraint_mhz': audio[1], 'requested_mhz': 12.288, 'achieved_mhz': audio[2], 'status': 'pass'}, 'status': 'pass'}, 'resources': resources, 'synthesis_cells': {name: counts[name] for name in sorted(counts)}, 'rbf': {'sha256': _sha256(rbf), 'size': rbf.stat().st_size}}
+    return {'status': 'pass', 'route': {'status': 'pass', 'unrouted': False, 'gpu_backend': gpu_backend}, 'timing': {'system': {'clock': system[0], 'constraint_mhz': system[1], 'requested_mhz': 52.224, 'achieved_mhz': system[2], 'status': 'pass'}, 'pixel': {'clock': pixel[0], 'constraint_mhz': pixel[1], 'requested_mhz': 74.25, 'achieved_mhz': pixel[2], 'status': 'pass'}, 'audio': {'clock': audio[0], 'constraint_mhz': audio[1], 'requested_mhz': 12.288, 'achieved_mhz': audio[2], 'status': 'pass'}, 'status': 'pass'}, 'resources': resources, 'synthesis_cells': {name: counts[name] for name in sorted(counts)}, 'rbf': {'sha256': _sha256(rbf), 'size': rbf.stat().st_size}}
 
 def _manifest(record: bytes, evidence: dict, repository: str, revision: str, tools: Mapping[str, str]) -> bytes:
     rbf = evidence['rbf']

@@ -32,7 +32,7 @@ INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_b
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
-REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.0, "pixel_clk": 74.25, "audio_clk": 12.288}
+REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.224, "pixel_clk": 74.25, "audio_clk": 12.288}
 CRAM_REGION = (1769, 32, 2806, 7024)  # fes.zx81-bus.socket/1, half-open
 
 def digest(data: bytes) -> str:
