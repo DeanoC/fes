@@ -1007,7 +1007,7 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.2.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
+`fes.zx81` 1.3.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
@@ -1024,8 +1024,8 @@ reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
 The independent ZX81 cart producer reloads an already routed shell with
 `--no-pack`, so it writes a separate generated SDC that explicitly constrains
-`clk_sys` to 52 MHz and `pixel_clk` to 74.25 MHz. Its recipe records those
-requirements and the SDC digest. Publication requires both clocks to meet
+`clk_sys` to 52 MHz, `pixel_clk` to 74.25 MHz and `audio_clk` to 12.288 MHz.
+Its recipe records those requirements and the SDC digest. Publication requires all three clocks to meet
 their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
 not change the sealed base shell or infer requirements from achieved Fmax.

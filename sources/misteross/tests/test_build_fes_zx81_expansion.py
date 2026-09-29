@@ -187,7 +187,8 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.stack.enter_context(patch.object(cart_producer.subprocess, "run", side_effect=self.run_tool))
         self.mode = "valid"
         self.timing = {"fmax": {"clk_sys": {"achieved": 60, "constraint": 52.002082824707031},
-                                "pixel_clk": {"achieved": 100, "constraint": 74.250068664550781}}}
+                                "pixel_clk": {"achieved": 100, "constraint": 74.250068664550781},
+                                "audio_clk": {"achieved": 20, "constraint": 12.288}}}
         self.calls = []
         self.output = None
 
@@ -210,6 +211,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.assertEqual(sdc, self.output / "clocks.sdc")
             self.assertIn("-period 19.230769230769 [get_nets {clk_sys}]", sdc.read_text())
             self.assertIn("-period 13.468013468013 [get_nets {pixel_clk}]", sdc.read_text())
+            self.assertIn("-period 81.380208333333 [get_nets {audio_clk}]", sdc.read_text())
             (self.output / "cart.rbf").write_bytes(b"fresh cart")
             (self.output / "cart-routed.json").write_text("{}")
             (self.output / "timing.json").write_text(json.dumps(self.timing))
@@ -232,7 +234,8 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.assertEqual((self.output / "linked.rbf").read_bytes(), b"linked")
         self.assertEqual(json.loads((self.output / "build-summary.json").read_text())["expansion_id"], result.stem)
         recipe = json.loads((self.output / "build-summary.json").read_text())["recipe"]
-        self.assertEqual(recipe["required_clocks_mhz"], {"clk_sys": 52.0, "pixel_clk": 74.25})
+        self.assertEqual(recipe["required_clocks_mhz"], {"clk_sys": 52.0, "pixel_clk": 74.25,
+                                                          "audio_clk": 12.288})
         self.assertEqual(recipe["cram_region"], [1769, 32, 2806, 7024])
         self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
 
@@ -271,10 +274,11 @@ class ZX81CartPublicationTests(unittest.TestCase):
                 self.build()
         self.assertFalse(list(self.output.glob("*.tar")))
 
-    def test_actual_hierarchical_pixel_clock_report_publishes(self):
+    def test_actual_audio_clock_report_publishes(self):
         self.timing = {"fmax": {
             "clk_sys": {"achieved": 52.803886, "constraint": 52.00208},
-            "hdmi_i2s.pixel_clk": {"achieved": 122.865, "constraint": 74.25},
+            "pixel_clk": {"achieved": 122.865, "constraint": 74.25},
+            "audio_clk": {"achieved": 20, "constraint": 12.288},
         }}
         self.assertTrue(self.build().is_file())
 
@@ -313,6 +317,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
         good = copy.deepcopy(self.timing)
         cases = []
         missing = copy.deepcopy(good); del missing["fmax"]["pixel_clk"]; cases.append(missing)
+        missing_audio = copy.deepcopy(good); del missing_audio["fmax"]["audio_clk"]; cases.append(missing_audio)
         wrong = copy.deepcopy(good); wrong["fmax"]["clk_sys"]["constraint"] = 74.25; cases.append(wrong)
         slow = copy.deepcopy(good); slow["fmax"]["pixel_clk"]["achieved"] = 74.0; cases.append(slow)
         nonfinite = copy.deepcopy(good); nonfinite["fmax"]["clk_sys"]["achieved"] = float("nan"); cases.append(nonfinite)
@@ -324,10 +329,9 @@ class ZX81CartPublicationTests(unittest.TestCase):
         unexpected_alias = copy.deepcopy(good)
         unexpected_alias["fmax"]["unexpected.pixel_clk"] = unexpected_alias["fmax"].pop("pixel_clk")
         cases.append(unexpected_alias)
-        hierarchical_slow = copy.deepcopy(good)
-        hierarchical_slow["fmax"]["hdmi_i2s.pixel_clk"] = {"achieved": 74.0, "constraint": 74.25}
-        del hierarchical_slow["fmax"]["pixel_clk"]
-        cases.append(hierarchical_slow)
+        slow_audio = copy.deepcopy(good)
+        slow_audio["fmax"]["audio_clk"]["achieved"] = 12.0
+        cases.append(slow_audio)
         for timing in cases:
             with self.subTest(timing=timing):
                 self.timing = copy.deepcopy(good)

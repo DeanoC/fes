@@ -1,7 +1,7 @@
 # FES ZX81
 
 The standard core is a `fes.simple-computer` 1.0 package (`fes.zx81`
-1.2.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
+1.3.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
 fixed 720p60 HDMI and a registered Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
 package carries the vacant bus; carts are independent bus consumers.
@@ -21,7 +21,7 @@ the target links it through the package's sealed ROM map at download time. See
 | Core ID | `fes.zx81` |
 | ABI | `fes.simple-computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60` (required); `fes.expansion.zx81-bus` (optional) |
+| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k` (required); `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
 | Input | 40-bit active-low matrix via runtime `set_keyboard`; no `fes.gamepad` |
 | Stop | existing package Select+Start |
@@ -44,14 +44,16 @@ reaches uinput.
 ## Producers
 
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
-1.0 bring-up/oracle lane; it does not produce the standard socketed package.
+1.1 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.2 socketed format-3 package. The package seals `rom-map.json` alongside
+1.3 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52 MHz system PLL, registered M10K and
 the scoped `toolchains/zx81-expansion.lock`; it does not inherit Quartus
-acceptance.
+acceptance. Its independent 12.288 MHz PLL and shared PCM/I2S output mute
+on Hold or lost audio lock. A vacant socket supplies zero PCM; Zon X is not
+a publishable library cart yet, so audible ZX81 hardware acceptance is pending.
 
 ## Menu / sofa UI
 

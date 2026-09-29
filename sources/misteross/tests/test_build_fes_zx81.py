@@ -45,6 +45,9 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("zx81_machine.sv", qsf)
         self.assertIn("sys_pll.v", qsf)
         self.assertIn("pixel_pll.v", qsf)
+        self.assertIn("fes_audio_pll.v", qsf)
+        self.assertIn("fes_audio_output.v", qsf)
+        self.assertIn("fes_audio_i2s.v", qsf)
         self.assertIn("fes_computer_gp.v", qsf)
         self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
         self.assertIn(build_fes_zx81.ROM_MIF, build_fes_zx81.PINNED_INPUTS)
@@ -82,6 +85,7 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn('"compiler":"quartus-17.0.2"', text)
         self.assertIn('"sys_clock_hz":52000000', text)
         self.assertIn('"pixel_clock_hz":74250000', text)
+        self.assertIn('"audio_clock_hz":12288000', text)
         self.assertIn("scripts/build_fes_zx81.py", text)
         self.assertIn("fes_simple_computer.vh", text)
 
@@ -112,8 +116,10 @@ class BuildFesZx81Tests(unittest.TestCase):
                 require_clean_source(module)
 
     def test_clocks_must_appear_in_timing_text(self) -> None:
-        require_clocks("Fmax 52.00 MHz and 74.25 MHz")
-        require_clocks("52.0 MHz and 74.27 MHz")
+        require_clocks("Fmax 52.00 MHz and 74.25 MHz and 12.288 MHz")
+        require_clocks("52.0 MHz and 74.27 MHz and 12.288 MHz")
+        with self.assertRaises(BuildError):
+            require_clocks("Fmax 52.00 MHz and 74.25 MHz only")
         with self.assertRaises(BuildError):
             require_clocks("Fmax 74.25 MHz only")
         with self.assertRaises(BuildError):

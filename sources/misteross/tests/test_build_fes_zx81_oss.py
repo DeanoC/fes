@@ -34,6 +34,37 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn('cores/fes-common/rtl/fes_audio_i2s.v', RTL_SOURCES)
         self.assertNotIn('cores/fes-zx81/rtl/zx81_hdmi_i2s.v', RTL_SOURCES)
 
+    def test_build_record_declares_audio_clock(self):
+        record = build_fes_zx81_oss.create_build_record(
+            ROOT, 'https://github.com/DeanoC/misteross.git', 'a' * 40,
+            {'yosys': 'x'}, execution=EXECUTION)
+        self.assertEqual(json.loads(record)['parameters']['audio_clock_hz'], 12_288_000)
+
+    def test_audio_clock_and_pad_evidence_rejects_unrouted_output(self):
+        fmax = {'audio_clk': {'constraint': 12.288, 'achieved': 12.9}}
+        self.assertEqual(build_fes_zx81_oss._audio_timing(fmax)[2], 12.9)
+        fmax['audio_clk']['achieved'] = 12.0
+        with self.assertRaisesRegex(BuildError, 'audio clock timing achieved'):
+            build_fes_zx81_oss._audio_timing(fmax)
+        ports = {}
+        cells = {'audio_clock.pll': {'type': 'altera_pll', 'parameters': {
+            'reference_clock_frequency': '50.0 MHz',
+            'output_clock_frequency0': '12.288 MHz',
+        }}}
+        for index, (port, pin) in enumerate({
+            'HDMI_MCLK': 'PIN_U11', 'HDMI_SCLK': 'PIN_T12',
+            'HDMI_LRCLK': 'PIN_T11', 'HDMI_I2S0': 'PIN_T13',
+        }.items(), 1):
+            ports[port] = {'direction': 'output', 'bits': [index]}
+            cells[port] = {'type': 'MISTRAL_OB', 'connections': {'PAD': [index], 'I': [index + 100]},
+                           'attributes': {'LOC': pin, 'IO_STANDARD': '3.3-V LVTTL',
+                                          'NEXTPNR_BEL': f'MISTRAL_IO.1.1.{index}'}}
+        routed = {'modules': {'top': {'ports': ports, 'cells': cells}}}
+        build_fes_zx81_oss._audio_evidence(routed)
+        cells['HDMI_I2S0']['attributes']['LOC'] = 'PIN_BAD'
+        with self.assertRaisesRegex(BuildError, 'HDMI_I2S0'):
+            build_fes_zx81_oss._audio_evidence(routed)
+
     def test_signoff_rejects_failed_arc_even_with_normal_footer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
@@ -46,6 +77,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 "Info: Program finished normally.\n"
             )
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
+                build_fes_zx81_oss, '_audio_evidence'), patch.object(
                 build_fes_zx81_oss, '_cell_counts', return_value={
                     **build_fes_zx81_oss.REQUIRED_RESOURCES,
                     'MISTRAL_M10K': 1,
@@ -335,12 +367,15 @@ class BuildFesZx81OssTests(unittest.TestCase):
             {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
         )
         fields = tomllib.loads(manifest.decode())
-        self.assertEqual(fields["core"]["version"], "1.2.0")
+        self.assertEqual(fields["core"]["version"], "1.3.0")
         self.assertEqual(fields["format"], 3)
         self.assertEqual(fields["rom"]["id"], "machine-rom")
         self.assertEqual(fields["rom"]["source_size"], 8192)
         interfaces = {item["id"] for item in fields["interfaces"]}
         self.assertIn("fes.expansion.zx81-bus", interfaces)
+        self.assertIn("fes.audio.pcm-s16-stereo-48k", interfaces)
+        self.assertTrue(next(item['required'] for item in fields['interfaces']
+                             if item['id'] == 'fes.audio.pcm-s16-stereo-48k'))
         self.assertNotIn("fes.expansion.zx81-ram", interfaces)
 
 

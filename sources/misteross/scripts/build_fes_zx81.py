@@ -42,6 +42,9 @@ ROM_MIF = "cores/fes-zx81/rtl/zx8x.mif"
 VERILOG_SOURCES = (
     "cores/fes-zx81/rtl/sys_pll.v",
     "cores/fes-zx81/rtl/pixel_pll.v",
+    "cores/fes-common/rtl/fes_audio_pll.v",
+    "cores/fes-common/rtl/fes_audio_i2s.v",
+    "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-zx81/rtl/fes_computer_gp.v",
     "cores/fes-zx81/rtl/zx81_dpram.v",
     "cores/fes-zx81/rtl/zx81_video_720p.v",
@@ -160,6 +163,7 @@ def create_build_record(
         "parameters": {
             "compiler": "quartus-17.0.2",
             "device": TARGET,
+            "audio_clock_hz": 12_288_000,
             "pixel_clock_hz": 74_250_000,
             "reference_clock_hz": 50_000_000,
             "seed": 1,
@@ -257,6 +261,8 @@ def require_clocks(sta_text: str) -> None:
         raise BuildError("timing report does not mention the 52 MHz system clock")
     if "74.25" not in sta_text and "74.27" not in sta_text:
         raise BuildError("timing report does not mention the 74.25 MHz pixel clock")
+    if "12.288" not in sta_text:
+        raise BuildError("timing report does not mention the 12.288 MHz audio clock")
 
 
 def validate_timing_report(sta_text: str) -> list[dict[str, object]]:
@@ -308,7 +314,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "id": "fes.zx81",
             "name": "FES ZX81",
             "description": "Quartus bring-up ZX81 computer for the FES simple-computer ABI",
-            "version": "1.0.0",
+            "version": "1.1.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -321,6 +327,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": build_identity(record),

@@ -41,12 +41,14 @@ PLACER_CRITICALITY_EXPONENT = 5
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 300, 2000, 100, 10)
 PLACER_QOR_BUDGET = 24
-PLACER_QOR_CLOCKS = (('clk_sys', 52.0), (None, 74.25))
+PLACER_QOR_CLOCKS = (('clk_sys', 52.0), (None, 74.25), (None, 12.288))
 RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-zx81/rtl/fes_computer_gp.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-zx81/rtl/t80pa.v', 'cores/fes-zx81/rtl/tv80/tv80_core.v', 'cores/fes-zx81/rtl/tv80/tv80_alu.v', 'cores/fes-zx81/rtl/tv80/tv80_mcode.v', 'cores/fes-zx81/rtl/tv80/tv80_reg.v', 'cores/fes-zx81/rtl/top.v')
 PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'toolchain.lock', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
 ORDINARY_RESOURCES = frozenset({'MISTRAL_BUF', 'MISTRAL_CLKENA', 'MISTRAL_COMB', 'MISTRAL_FF', 'MISTRAL_IO', 'MISTRAL_M10K', 'MISTRAL_M10K_TDP'})
-REQUIRED_RESOURCES = {'altera_pll': 2, 'cyclonev_hps_interface_mpu_general_purpose': 1, 'cyclonev_hps_interface_peripheral_i2c': 1}
+REQUIRED_RESOURCES = {'altera_pll': 3, 'cyclonev_hps_interface_mpu_general_purpose': 1, 'cyclonev_hps_interface_peripheral_i2c': 1}
+AUDIO_PINS = {'HDMI_MCLK': 'PIN_U11', 'HDMI_SCLK': 'PIN_T12',
+              'HDMI_LRCLK': 'PIN_T11', 'HDMI_I2S0': 'PIN_T13'}
 FORBIDDEN_RESOURCES = frozenset({'MISTRAL_MLAB', 'MISTRAL_MUL9X9', 'MISTRAL_MUL18X18', 'MISTRAL_MUL18X19', 'MISTRAL_MUL18X19_COMBINED', 'MISTRAL_MUL27X27'})
 REQUIRED_ZERO_RESOURCES = frozenset({'cyclonev_oscillator'})
 HEX32_RE = re.compile('[0-9a-f]{32}\\Z')
@@ -84,7 +86,7 @@ def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
 @guard_functional_source
 def create_build_record(root: Path, repository: str, revision: str, tool_identities: Mapping[str, str], *, qor_mode: str='first-pass-paired', identity_version: int=2, execution: dict | None=None) -> bytes:
     weights, budget = placement_policy(qor_mode)
-    fields = {'format': 1, 'repository': repository, 'revision': revision, 'recipe': RECIPE, 'recipe_sha256': _sha256(_regular_input(root, RECIPE)), 'abi_definition': ABI_DEFINITION, 'abi_definition_sha256': _sha256(_regular_input(root, ABI_DEFINITION)), 'dependencies': {}, 'tools': dict(tool_identities), 'parameters': {'device': TARGET, 'gpu_architectures': FES_GPU_ARCHITECTURES, 'gpu_backend': FES_GPU_BACKEND, 'pixel_clock_hz': 74250000, 'sys_clock_hz': 52000000, 'reference_clock_hz': 50000000, 'router': 'gpu', 'seed': PLACER_SEEDS[0], 'seed_order': ','.join((str(seed) for seed in PLACER_SEEDS)), 'placer_heap_timingweight': PLACER_TIMING_WEIGHT, 'placer_heap_timingweights': ','.join((str(weight) for weight in weights)), 'placer_heap_critexp': PLACER_CRITICALITY_EXPONENT, 'placer_qor_mode': qor_mode, 'placer_qor_budget': budget, 'top': TOP}}
+    fields = {'format': 1, 'repository': repository, 'revision': revision, 'recipe': RECIPE, 'recipe_sha256': _sha256(_regular_input(root, RECIPE)), 'abi_definition': ABI_DEFINITION, 'abi_definition_sha256': _sha256(_regular_input(root, ABI_DEFINITION)), 'dependencies': {}, 'tools': dict(tool_identities), 'parameters': {'device': TARGET, 'gpu_architectures': FES_GPU_ARCHITECTURES, 'gpu_backend': FES_GPU_BACKEND, 'pixel_clock_hz': 74250000, 'sys_clock_hz': 52000000, 'audio_clock_hz': 12288000, 'reference_clock_hz': 50000000, 'router': 'gpu', 'seed': PLACER_SEEDS[0], 'seed_order': ','.join((str(seed) for seed in PLACER_SEEDS)), 'placer_heap_timingweight': PLACER_TIMING_WEIGHT, 'placer_heap_timingweights': ','.join((str(weight) for weight in weights)), 'placer_heap_critexp': PLACER_CRITICALITY_EXPONENT, 'placer_qor_mode': qor_mode, 'placer_qor_budget': budget, 'top': TOP}}
     fields['parameters']['expansion_socket'] = 'zx81-bus-v1'
     fields['parameters'].update(package_format=3, rom_id='machine-rom', rom_role='firmware',
                                 rom_source_size=8192, rom_encoding='m10k-1024x10-v1',
@@ -153,6 +155,33 @@ def _frequency_row(fmax: object, expected: float, label: str, name_contains: str
         raise BuildError(f'{label} timing achieved {achieved:g} MHz, below reported constraint {constraint!r} MHz')
     return (name, constraint, achieved)
 
+def _audio_timing(fmax: object) -> tuple[str, float, float]:
+    return _frequency_row(fmax, 12.288, 'audio clock')
+
+def _audio_evidence(design: dict) -> None:
+    module = design['modules'][TOP]
+    cells = module.get('cells', {})
+    clocks = [cell for cell in cells.values()
+              if cell.get('type') == 'altera_pll'
+              and cell.get('parameters', {}).get('reference_clock_frequency') == '50.0 MHz'
+              and cell.get('parameters', {}).get('output_clock_frequency0') == '12.288 MHz']
+    if len(clocks) != 1:
+        raise BuildError('audio requires one 50-to-12.288 MHz PLL')
+    for port, pin in AUDIO_PINS.items():
+        entry = module.get('ports', {}).get(port, {})
+        pads = [cell for cell in cells.values()
+                if cell.get('type') == 'MISTRAL_OB'
+                and cell.get('connections', {}).get('PAD') == entry.get('bits')]
+        if entry.get('direction') != 'output' or len(pads) != 1:
+            raise BuildError(f'audio output {port} must have one output pad')
+        cell = pads[0]
+        attributes = cell.get('attributes', {})
+        source = cell.get('connections', {}).get('I', [])
+        if (attributes.get('LOC') != pin or attributes.get('IO_STANDARD') != '3.3-V LVTTL'
+                or not attributes.get('NEXTPNR_BEL', '').startswith('MISTRAL_IO.')
+                or len(source) != 1 or type(source[0]) is not int):
+            raise BuildError(f'audio output {port} has incorrect routing or electrical constraints')
+
 def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     synthesis = _read_json(output / 'synth.json', 'synthesis evidence')
     routed = _read_json(output / 'routed.json', 'routed design')
@@ -160,6 +189,7 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
         raise BuildError('routed design does not contain the top module')
     _i2c_evidence(synthesis, 'synthesized')
     _i2c_evidence(routed, 'routed')
+    _audio_evidence(routed)
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
@@ -180,16 +210,19 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     gpu_backend = _require_gpu_backend(route_text)
     if '50 MHz -> 52 MHz' not in route_text:
         raise BuildError('route log does not contain the 50-to-52 MHz system PLL')
+    if '50 MHz -> 12.288 MHz' not in route_text:
+        raise BuildError('route log does not contain the 50-to-12.288 MHz audio PLL')
     timing = _read_json(output / 'timing.json', 'timing report')
     system = _frequency_row(timing.get('fmax'), 52.0, 'system clock', 'clk_sys')
     pixel = _frequency_row(timing.get('fmax'), 74.25, 'pixel clock')
+    audio = _audio_timing(timing.get('fmax'))
     utilization = timing.get('utilization')
     known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
     resources = validate_timing_resources(utilization, known)
     rbf = output / 'core.rbf'
     if rbf.is_symlink() or not rbf.is_file() or (not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE):
         raise BuildError(f'RBF must be a nonempty bounded regular file: {rbf}')
-    return {'status': 'pass', 'route': {'status': 'pass', 'unrouted': False, 'gpu_backend': gpu_backend}, 'timing': {'system': {'clock': system[0], 'constraint_mhz': system[1], 'requested_mhz': 52.0, 'achieved_mhz': system[2], 'status': 'pass'}, 'pixel': {'clock': pixel[0], 'constraint_mhz': pixel[1], 'requested_mhz': 74.25, 'achieved_mhz': pixel[2], 'status': 'pass'}, 'status': 'pass'}, 'resources': resources, 'synthesis_cells': {name: counts[name] for name in sorted(counts)}, 'rbf': {'sha256': _sha256(rbf), 'size': rbf.stat().st_size}}
+    return {'status': 'pass', 'route': {'status': 'pass', 'unrouted': False, 'gpu_backend': gpu_backend}, 'timing': {'system': {'clock': system[0], 'constraint_mhz': system[1], 'requested_mhz': 52.0, 'achieved_mhz': system[2], 'status': 'pass'}, 'pixel': {'clock': pixel[0], 'constraint_mhz': pixel[1], 'requested_mhz': 74.25, 'achieved_mhz': pixel[2], 'status': 'pass'}, 'audio': {'clock': audio[0], 'constraint_mhz': audio[1], 'requested_mhz': 12.288, 'achieved_mhz': audio[2], 'status': 'pass'}, 'status': 'pass'}, 'resources': resources, 'synthesis_cells': {name: counts[name] for name in sorted(counts)}, 'rbf': {'sha256': _sha256(rbf), 'size': rbf.stat().st_size}}
 
 def _manifest(record: bytes, evidence: dict, repository: str, revision: str, tools: Mapping[str, str]) -> bytes:
     rbf = evidence['rbf']
@@ -197,9 +230,10 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
     toolchain = '; '.join((f'{name} {tools[name]}' for name in sorted(tools)))
     fields = {'format': 2, 'core': {'id': 'fes.zx81', 'name': 'FES ZX81', 'description': 'Standalone fixed-720p ZX81 for the FES simple-computer ABI (OSS)', 'version': '1.0.0'}, 'target': {'platform': 'de10_nano', 'device': TARGET, 'programming_profile': 'fes-gp-v1'}, 'payload': {'file': 'core.rbf', 'size': rbf['size'], 'sha256': rbf['sha256']}, 'abi': {'id': 'fes.simple-computer', 'major': 1, 'minor': 0}, 'interfaces': [{'id': 'fes.keyboard', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.blob', 'major': 1, 'minor': 0, 'required': True}], 'build': {'id': evidence['build_id'], 'repository': repository, 'revision': revision, 'recipe_sha256': record_fields['recipe_sha256'], 'toolchain': toolchain}}
     if record_fields['parameters'].get('expansion_socket') == 'zx81-bus-v1':
-        fields['core']['version'] = '1.2.0'
+        fields['core']['version'] = '1.3.0'
         fields['core']['description'] = 'ZX81 with a registered Z80-like expansion bus'
         fields['interfaces'].append({'id': 'fes.expansion.zx81-bus', 'major': 1, 'minor': 0, 'required': False})
+        fields['interfaces'].append({'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True})
     fields['format'] = 3
     fields['rom'] = evidence['rom']
     return encode_manifest(fields)

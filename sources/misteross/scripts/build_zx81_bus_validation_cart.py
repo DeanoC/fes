@@ -32,7 +32,7 @@ INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_b
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
-REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.0, "pixel_clk": 74.25}
+REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.0, "pixel_clk": 74.25, "audio_clk": 12.288}
 CRAM_REGION = (1769, 32, 2806, 7024)  # fes.zx81-bus.socket/1, half-open
 
 def digest(data: bytes) -> str:
@@ -48,10 +48,8 @@ def cart_clock_constraints(root: Path) -> bytes:
 
 def validate_cart_timing(timing: dict) -> None:
     fmax = timing.get("fmax")
-    # nextpnr retains this hierarchy when the pixel net is owned by HDMI I2S.
-    accepted_clocks = ({"clk_sys", "pixel_clk"}, {"clk_sys", "hdmi_i2s.pixel_clk"})
-    if not isinstance(fmax, dict) or set(fmax) not in accepted_clocks:
-        raise ValueError("cart timing must report exactly the system and pixel clocks")
+    if not isinstance(fmax, dict) or set(fmax) != set(REQUIRED_CLOCKS_MHZ):
+        raise ValueError("cart timing must report exactly the system, pixel and audio clocks")
     for name, expected in REQUIRED_CLOCKS_MHZ.items():
         # Shared validation accounts for nextpnr's picosecond quantization,
         # rejects non-finite fields and requires achieved >= reported constraint.
