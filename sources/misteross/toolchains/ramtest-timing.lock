@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "acf441cc385277617e60059691b2f801c9e02660"
+order = 10
+rationale = "Experimental RAM-test timing diagnostic: DeanoC/yosys#17 preserves initialized FSM states through extraction and recoding. Descends from b27035fc with the complete fpga2sdram blackbox. Pair with nextpnr 5d10b610; this lock does not qualify a 130 MHz package."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
+order = 20
+rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corrected timing target-position mask and hashed node lookups (PRs #9-10). Same pin as ramtest.lock; pair with nextpnr 5d10b610."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "5d10b6104778b32f3d463ba21839b2e3453d0fc0"
+order = 30
+rationale = "Experimental RAM-test timing diagnostic: DeanoC/nextpnr#93 carries GPU convergence, corrected HeAP options, enable replication and default-off placed-timeout/retained-enable hooks with completed analogue observations. Descends from current main and retains the fpga2sdram timing model. Pair with Yosys acf441cc and Mistral 7ed06e21; fixture-specific hooks require explicit invocation."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."
