@@ -2,6 +2,7 @@ package kitlease
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -37,6 +38,10 @@ func TestForeignHIDFailClosed(t *testing.T) {
 	if ForeignHID(Status{State: "held"}) {
 		t.Fatal("held without owner is not observed foreign")
 	}
+	local := Status{State: "held", Owner: HostlessOwner, Purpose: LocalCorePurpose}
+	if !ForeignHID(local) {
+		t.Fatal("kit-local core grant must stay foreign to the host")
+	}
 }
 
 func TestHostlessAndForeignSession(t *testing.T) {
@@ -56,6 +61,23 @@ func TestHostlessAndForeignSession(t *testing.T) {
 	free := Status{State: "free"}
 	if HostlessSession(free) || ForeignSession(free) {
 		t.Fatalf("free %+v", free)
+	}
+	local := Status{State: "held", Owner: HostlessOwner, Purpose: LocalCorePurpose}
+	if HostlessSession(local) || !LocalCoreSession(local) || !ForeignSession(local) {
+		t.Fatalf("kit-local %+v", local)
+	}
+	launch := "/v1/local/cores/" + strings.Repeat("ab", 32) + "/launch"
+	if !HostlessAllows(local, "/v1/local/cores") || !HostlessAllows(local, "/v1/local/stop") || !HostlessAllows(local, launch) {
+		t.Fatal("kit-local purpose must allow only the local-control routes")
+	}
+	if HostlessAllows(local, "/v1/stop") || HostlessAllows(local, "/v1/input/attach") || HostlessAllows(local, "/v1/cast/start") || HostlessAllows(local, "/v1/local/cores/zz/launch") {
+		t.Fatal("kit-local purpose permitted a host route")
+	}
+	if !HostlessAllows(hostless, "/v1/stop") || !HostlessAllows(hostless, "/v1/input/stream") || HostlessAllows(hostless, "/v1/local/stop") {
+		t.Fatal("offline cache-hit allowlist changed")
+	}
+	if HostlessAllows(free, "/v1/local/stop") || HostlessAllows(wrongPurpose, "/v1/local/stop") {
+		t.Fatal("inactive hostless grant was allowed")
 	}
 }
 

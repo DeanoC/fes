@@ -30,6 +30,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/localcores"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
@@ -43,6 +44,7 @@ const (
 	meshContentRoot         = "/media/fat/fogcast/mesh-content"
 	launcherConfigPath      = "/media/fat/fogcast/launcher.json"
 	installedPackageRoot    = "/usr/share/mister-runtime/core-packages"
+	installedSelectionRoot  = "/usr/share/mister-runtime/selections"
 	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
 	developmentCoreRoot     = "/tmp/fogcast-development/core-packages"
 	targetIDFile            = "/media/fat/fogcast/target-id"
@@ -73,13 +75,17 @@ type runDependencies struct {
 	// described packages. Nil uses the installed and development roots.
 	packageRoots []string
 	newUpdate    func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
+	// localControlSocket is the root-only kit-local HTTP socket.
+	// Empty leaves it off. Tests stay empty; production main passes the flag.
+	localControlSocket string
 }
 
-func run(ctx context.Context, configPath string, logger *slog.Logger) error {
+func run(ctx context.Context, configPath string, logger *slog.Logger, localControlSocket string) error {
 	dependencies, err := productionRunDependencies()
 	if err != nil {
 		return err
 	}
+	dependencies.localControlSocket = localControlSocket
 	return runWithDependencies(ctx, configPath, logger, dependencies)
 }
 
@@ -440,6 +446,22 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	}, kitlease.WithEventSink(diagnostics))
 	defer leases.Close()
 	options = append(options, httpapi.WithKitLease(leases), httpapi.WithDiagnostics(diagnostics))
+	if dependencies.localControlSocket != "" {
+		native, ok := runtime.(*misterruntime.Runtime)
+		if !ok {
+			return errors.New("kit-local control requires the native runtime")
+		}
+		cores := localcores.New(leases, nativeLocalRuntime{runtime: native}, localcores.Roots{
+			Selections: installedSelectionRoot,
+			Packages:   installedPackageRoot,
+		})
+		go func() {
+			err := localcores.Serve(ctx, dependencies.localControlSocket, localcores.Handler(cores))
+			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("kit-local control socket stopped", "error", err)
+			}
+		}()
+	}
 	handler := httpapi.New(coordinator, cfg.Token, version.Version, logger, options...)
 	server := &http.Server{
 		Addr:              cfg.ListenAddress,
@@ -500,15 +522,16 @@ func discoveryListener(address string) (int, bool) {
 
 func main() {
 	configPath := flag.String("config", "/media/fat/fogcast/agent.toml", "target configuration path")
+	localControl := flag.String("local-control", localcores.DefaultSocket, "root-only kit-local control socket; empty disables")
 	flag.Parse()
 	if flag.NArg() != 0 {
-		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path]")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path] [--local-control path]")
 		os.Exit(2)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, *configPath, logger); err != nil {
+	if err := run(ctx, *configPath, logger, *localControl); err != nil {
 		message := "startup failed"
 		if migration, ok := agentconfig.RetiredSettingsMessage(err); ok {
 			message = migration

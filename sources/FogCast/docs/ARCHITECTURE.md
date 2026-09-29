@@ -1906,6 +1906,11 @@ The runtime validates the complete request and owns the physical GP writes.
 The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 0600),
 not another network endpoint, and there is no additional virtual-device discovery rule.
 Other cores retain the single virtual gamepad and keyboard sink.
+Installed-core control is a separate root-only HTTP socket at
+`/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
+packages and, when the kit lease is free, launches one that needs no cartridge
+or firmware under owner `kit-hostless` purpose `kit-local-core`. A held, busy,
+blocked, or recovery lease returns 409 and does not call the runtime.
 
 A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
 frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent

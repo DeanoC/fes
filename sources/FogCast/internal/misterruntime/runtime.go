@@ -1068,6 +1068,22 @@ func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.API
 	return "", nil
 }
 
+// LoadCore programs an installed package directory. It does not stage an
+// upload. The caller must already hold the kit lease.
+func (r *Runtime) LoadCore(ctx context.Context, path, packageID string) (Protocol2Response, error) {
+	if r == nil || r.control == nil {
+		return Protocol2Response{}, errors.New("runtime is closed")
+	}
+	control, ok := r.control.(protocol2CoreControl)
+	if !ok {
+		return Protocol2Response{}, unsupportedOperationError()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return control.LoadCore(ctx, path, packageID)
+}
+
 func (r *Runtime) Stop(ctx context.Context) (string, *protocol.APIError) {
 	return r.stop(ctx, ctx, false)
 }
