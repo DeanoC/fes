@@ -23,7 +23,7 @@ TOP = 'top'
 OUTPUT_RELATIVE = Path('build/fes-zx81-oss')
 SOCKET_OUTPUT_RELATIVE = OUTPUT_RELATIVE
 SOCKET_TOOLCHAIN_LOCK = 'toolchains/zx81-expansion.lock'
-SOCKET_TOOL_COMMITS = {'yosys': 'ec34fcf38986217af9b5558936044b7197d968a7', 'mistral': '7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039', 'nextpnr': '69f8237b2a654942f88d1ef7ca1552d0711aa2c8'}
+SOCKET_TOOL_COMMITS = {'yosys': 'ec34fcf38986217af9b5558936044b7197d968a7', 'mistral': '7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039', 'nextpnr': '7b21239296eeab9c24ef12f072e961010ccfa9cf'}
 # SHA256 of Git blobs at SOCKET_TOOL_COMMITS['mistral']; source checkouts are
 # mutable and are not part of FunctionalInvocation's installed support closure.
 ROM_DATABASE_SHA256 = {
@@ -35,8 +35,9 @@ RECIPE = 'scripts/build_fes_zx81_oss.py'
 ABI_DEFINITION = 'cores/fes-zx81/generated/fes_simple_computer.vh'
 QSF = 'cores/fes-zx81/constraints-oss.qsf'
 SDC = 'cores/fes-zx81/clocks-oss.sdc'
-# nextpnr 69f8237b parks an open flip-flop on an unused LAB clear, including a
-# reloaded FES_LABSTATE_V1 shell, so seed 10 is searched first again.
+# nextpnr 7b212392 parks an open flip-flop on an unused LAB clear, including a
+# --no-route reload of FES_LABSTATE_V1, and reassigns LUT pins and inserts
+# data route-through for a BEL-locked socket flip-flop. Seed 10 stays first.
 # Qualify the exact sealed winner on hardware after every build.
 PLACER_SEEDS = (10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34)
 PLACER_TIMING_WEIGHT = 300

@@ -12,9 +12,9 @@ rationale = "DeanoC fork master with the indexed-node routing API and the fixes 
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "69f8237b2a654942f88d1ef7ca1552d0711aa2c8"
+commit = "7b21239296eeab9c24ef12f072e961010ccfa9cf"
 order = 30
-rationale = "DeanoC nextpnr 69f8237b (PR #94, parent a93fe013): a flip-flop with no async clear no longer stays on a LAB clear another flop uses. The open half takes an unused ACLR slot and that slot selects the dedicated inactive clear; TCLR_SEL/BCLR_SEL are numeric. Reloading FES_LABSTATE_V1 runs the same park, because a locked LAB skips control-set assignment; a shell with both ACLR slots live is rejected. Repaired ZX81 seed 10 keeps its placement and gpo[24] route (FES #309). Previous pin 7eb7b277 parked open flops on a fresh route only. Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Previous pin a93fe013: merge of PR #86, placement prediction calibrated against routed delays (FES #236). Previous pin 267710a3 preserved frozen CRAM through cartridge cleanup (FES #237). Other core locks stay on their own pins."
+rationale = "DeanoC nextpnr 7b212392 (PR #96, parent 69f8237b): a BEL lock fixes the site. lab_pre_route still reassigns LUT pins and inserts flip-flop data route-through when that LAB holds a user-locked socket flip-flop. Reloading FES_LABSTATE_V1 with --no-route still parks a stale ACLR index in lock_fes_scaffold, because --fes-scaffold does not run lab_pre_route; a shell with both ACLR slots live is rejected. Previous pin 69f8237b (PR #94, parent a93fe013) parked an open flip-flop on an unused LAB clear and the dedicated inactive clear; TCLR_SEL/BCLR_SEL are numeric. Repaired ZX81 seed 10 keeps its placement and gpo[24] route (FES #309). Previous pin 7eb7b277 parked open flops on a fresh route only. Pair with unchanged Mistral 7ed06e21 and Yosys ec34fcf3. Previous pin a93fe013: merge of PR #86, placement prediction calibrated against routed delays (FES #236). Previous pin 267710a3 preserved frozen CRAM through cartridge cleanup (FES #237). Other core locks stay on their own pins."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
