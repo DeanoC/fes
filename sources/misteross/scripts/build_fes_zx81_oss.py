@@ -42,11 +42,11 @@ PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 300, 2000, 100, 10)
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = (('clk_sys', 52.0), (None, 74.25), (None, 12.288))
-RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-zx81/rtl/fes_computer_gp.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-zx81/rtl/t80pa.v', 'cores/fes-zx81/rtl/tv80/tv80_core.v', 'cores/fes-zx81/rtl/tv80/tv80_alu.v', 'cores/fes-zx81/rtl/tv80/tv80_mcode.v', 'cores/fes-zx81/rtl/tv80/tv80_reg.v', 'cores/fes-zx81/rtl/top.v')
+RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-zx81/rtl/fes_computer_gp.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-zx81/rtl/t80pa.v', 'cores/fes-zx81/rtl/tv80/tv80_core.v', 'cores/fes-zx81/rtl/tv80/tv80_alu.v', 'cores/fes-zx81/rtl/tv80/tv80_mcode.v', 'cores/fes-zx81/rtl/tv80/tv80_reg.v', 'cores/fes-zx81/rtl/top.v')
 PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'toolchain.lock', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
 ORDINARY_RESOURCES = frozenset({'MISTRAL_BUF', 'MISTRAL_CLKENA', 'MISTRAL_COMB', 'MISTRAL_FF', 'MISTRAL_IO', 'MISTRAL_M10K', 'MISTRAL_M10K_TDP'})
-REQUIRED_RESOURCES = {'altera_pll': 3, 'cyclonev_hps_interface_mpu_general_purpose': 1, 'cyclonev_hps_interface_peripheral_i2c': 1}
+REQUIRED_RESOURCES = {'altera_pll': 2, 'cyclonev_hps_interface_mpu_general_purpose': 1, 'cyclonev_hps_interface_peripheral_i2c': 1}
 AUDIO_PINS = {'HDMI_MCLK': 'PIN_U11', 'HDMI_SCLK': 'PIN_T12',
               'HDMI_LRCLK': 'PIN_T11', 'HDMI_I2S0': 'PIN_T13'}
 FORBIDDEN_RESOURCES = frozenset({'MISTRAL_MLAB', 'MISTRAL_MUL9X9', 'MISTRAL_MUL18X18', 'MISTRAL_MUL18X19', 'MISTRAL_MUL18X19_COMBINED', 'MISTRAL_MUL27X27'})
@@ -161,12 +161,13 @@ def _audio_timing(fmax: object) -> tuple[str, float, float]:
 def _audio_evidence(design: dict) -> None:
     module = design['modules'][TOP]
     cells = module.get('cells', {})
-    clocks = [cell for cell in cells.values()
-              if cell.get('type') == 'altera_pll'
+    clocks = [cell for name, cell in cells.items()
+              if name == 'system_clock.pll' and cell.get('type') == 'altera_pll'
               and cell.get('parameters', {}).get('reference_clock_frequency') == '50.0 MHz'
-              and cell.get('parameters', {}).get('output_clock_frequency0') == '12.288 MHz']
+              and cell.get('parameters', {}).get('output_clock_frequency0') == '52.0 MHz'
+              and cell.get('parameters', {}).get('output_clock_frequency1') == '12.288 MHz']
     if len(clocks) != 1:
-        raise BuildError('audio requires one 50-to-12.288 MHz PLL')
+        raise BuildError('audio requires one shared 52/12.288 MHz PLL')
     for port, pin in AUDIO_PINS.items():
         entry = module.get('ports', {}).get(port, {})
         pads = [cell for cell in cells.values()
@@ -210,8 +211,8 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     gpu_backend = _require_gpu_backend(route_text)
     if '50 MHz -> 52 MHz' not in route_text:
         raise BuildError('route log does not contain the 50-to-52 MHz system PLL')
-    if '50 MHz -> 12.288 MHz' not in route_text:
-        raise BuildError('route log does not contain the 50-to-12.288 MHz audio PLL')
+    if '12.288 MHz' not in route_text:
+        raise BuildError('route log does not contain the 12.288 MHz audio PLL output')
     timing = _read_json(output / 'timing.json', 'timing report')
     system = _frequency_row(timing.get('fmax'), 52.0, 'system clock', 'clk_sys')
     pixel = _frequency_row(timing.get('fmax'), 74.25, 'pixel clock')

@@ -45,7 +45,7 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("zx81_machine.sv", qsf)
         self.assertIn("sys_pll.v", qsf)
         self.assertIn("pixel_pll.v", qsf)
-        self.assertIn("fes_audio_pll.v", qsf)
+        self.assertNotIn("fes_audio_pll.v", qsf)
         self.assertIn("fes_audio_output.v", qsf)
         self.assertIn("fes_audio_i2s.v", qsf)
         self.assertIn("fes_computer_gp.v", qsf)

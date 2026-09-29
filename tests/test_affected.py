@@ -40,7 +40,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu'},
             'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong'},
             'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum'},
-            'cores/fes-common/rtl/fes_audio_pll.v': {'demo', 'zx81'},
+            'cores/fes-common/rtl/fes_audio_pll.v': {'demo'},
             'cores/fes-common/rtl/fes_audio_output.v': {'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum'},
             'cores/fes-common/rtl/fes_sn76489.sv': {'coleco', 'sg1000'},
             'cores/fes-pong/sim/board_models.v': {'demo', 'pong'},

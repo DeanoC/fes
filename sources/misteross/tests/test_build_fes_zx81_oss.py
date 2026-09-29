@@ -29,10 +29,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class BuildFesZx81OssTests(unittest.TestCase):
     def test_shared_audio_sources_replace_local_serializer(self):
-        self.assertIn('cores/fes-common/rtl/fes_audio_pll.v', RTL_SOURCES)
+        self.assertNotIn('cores/fes-common/rtl/fes_audio_pll.v', RTL_SOURCES)
         self.assertIn('cores/fes-common/rtl/fes_audio_output.v', RTL_SOURCES)
         self.assertIn('cores/fes-common/rtl/fes_audio_i2s.v', RTL_SOURCES)
         self.assertNotIn('cores/fes-zx81/rtl/zx81_hdmi_i2s.v', RTL_SOURCES)
+        self.assertEqual(build_fes_zx81_oss.REQUIRED_RESOURCES['altera_pll'], 2)
 
     def test_build_record_declares_audio_clock(self):
         record = build_fes_zx81_oss.create_build_record(
@@ -47,9 +48,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, 'audio clock timing achieved'):
             build_fes_zx81_oss._audio_timing(fmax)
         ports = {}
-        cells = {'audio_clock.pll': {'type': 'altera_pll', 'parameters': {
+        cells = {'system_clock.pll': {'type': 'altera_pll', 'parameters': {
             'reference_clock_frequency': '50.0 MHz',
-            'output_clock_frequency0': '12.288 MHz',
+            'output_clock_frequency0': '52.0 MHz',
+            'output_clock_frequency1': '12.288 MHz',
         }}}
         for index, (port, pin) in enumerate({
             'HDMI_MCLK': 'PIN_U11', 'HDMI_SCLK': 'PIN_T12',

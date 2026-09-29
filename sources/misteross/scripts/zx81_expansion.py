@@ -41,16 +41,16 @@ def prepare_shell_netlist(path: Path) -> None:
     top = design["modules"]["top"]
     cells = top["cells"]
     nets = top["netnames"]
-    for name, pll_name in ((SOCKET_CLOCK, "system_clock.pll"),
-                           ("audio_clk", "audio_clock.pll")):
-        pll = cells.get(pll_name)
+    for name, clock_index in ((SOCKET_CLOCK, 0), ("audio_clk", 1)):
+        pll = cells.get("system_clock.pll")
         if pll is None:
             continue  # Older fixture has a named system clock but no PLL cell.
         if pll.get("type") != "altera_pll":
             raise ValueError(f"ZX81 {name} producer is not a PLL")
-        output = pll.get("connections", {}).get("outclk")
-        if not isinstance(output, list) or len(output) != 1 or type(output[0]) is not int:
+        outputs = pll.get("connections", {}).get("outclk")
+        if not isinstance(outputs, list) or len(outputs) != 2 or any(type(bit) is not int for bit in outputs):
             raise ValueError(f"ZX81 {name} PLL output is malformed")
+        output = [outputs[clock_index]]
         buffers = [cell.get("connections", {}).get("Q") for cell in cells.values()
                    if cell.get("type") == "MISTRAL_CLKBUF"
                    and cell.get("connections", {}).get("A") == output]

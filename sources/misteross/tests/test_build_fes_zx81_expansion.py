@@ -49,8 +49,7 @@ class ZX81SocketProducerTests(unittest.TestCase):
         design = self.fixture()
         top = design['modules']['top']
         del top['netnames']['clk_sys']
-        top['cells']['system_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [2]}}
-        top['cells']['audio_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [3]}}
+        top['cells']['system_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [2, 3]}}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'synth.json'
             path.write_text(json.dumps(design))
@@ -63,8 +62,7 @@ class ZX81SocketProducerTests(unittest.TestCase):
         design = self.fixture()
         top = design['modules']['top']
         del top['netnames']['clk_sys']
-        top['cells']['system_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [4]}}
-        top['cells']['audio_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [5]}}
+        top['cells']['system_clock.pll'] = {'type': 'altera_pll', 'connections': {'outclk': [4, 5]}}
         top['cells']['system_buf'] = {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [4], 'Q': [2]}}
         top['cells']['audio_buf'] = {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [5], 'Q': [3]}}
         with tempfile.TemporaryDirectory() as directory:

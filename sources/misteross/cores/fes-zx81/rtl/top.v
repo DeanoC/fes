@@ -82,17 +82,13 @@ module top #(
     sys_pll system_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(clk_sys)
+        .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
 
     pixel_pll video_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
         .outclk_0(pixel_clk)
-    );
-
-    fes_audio_pll audio_clock (
-        .refclk(FPGA_CLK1_50), .clk(audio_clk), .locked(audio_locked)
     );
 
     fes_computer_gp #(.ENABLE_AUDIO(1)) gp_mailbox (

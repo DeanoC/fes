@@ -1,25 +1,31 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// 50 MHz DE10-Nano reference to the ZX81 52 MHz system clock.
+// 50 MHz DE10-Nano reference to ZX81 system and HDMI audio clocks.
 
 module sys_pll (
     input  wire refclk,
     input  wire rst,
-    output wire outclk_0
+    output wire outclk_0,
+    output wire audio_clk,
+    output wire locked
 );
-    wire locked;
-
+    wire [1:0] clocks;
+    assign outclk_0 = clocks[0];
+    assign audio_clk = clocks[1];
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"),
-        .number_of_clocks(1),
+        .number_of_clocks(2),
         .output_clock_frequency0("52.0 MHz"),
+        .output_clock_frequency1("12.288 MHz"),
         .phase_shift0("0 ps"),
+        .phase_shift1("0 ps"),
         .duty_cycle0(50),
+        .duty_cycle1(50),
         .operation_mode("direct"),
-        .fractional_vco_multiplier("false")
+        .fractional_vco_multiplier("true")
     ) pll (
         .refclk(refclk),
         .rst(rst),
-        .outclk(outclk_0),
+        .outclk(clocks),
         .locked(locked)
     );
 endmodule
