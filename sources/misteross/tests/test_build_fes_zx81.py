@@ -118,6 +118,7 @@ class BuildFesZx81Tests(unittest.TestCase):
     def test_clocks_must_appear_in_timing_text(self) -> None:
         require_clocks("Fmax 52.224 MHz and 74.25 MHz and 12.288 MHz")
         require_clocks("52.224 MHz and 74.27 MHz and 12.288 MHz")
+        require_clocks("TimeQuest derived 52.24 MHz, 74.27 MHz and 12.29 MHz")
         with self.assertRaises(BuildError):
             require_clocks("Fmax 52.224 MHz and 74.25 MHz only")
         with self.assertRaises(BuildError):

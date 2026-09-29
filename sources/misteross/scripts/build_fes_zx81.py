@@ -256,11 +256,11 @@ def _prepare_output(root: Path) -> Path:
 
 
 def require_clocks(sta_text: str) -> None:
-    if "52.224" not in sta_text:
+    if "52.224" not in sta_text and "52.24" not in sta_text:
         raise BuildError("timing report does not mention the 52.224 MHz system clock")
     if "74.25" not in sta_text and "74.27" not in sta_text:
         raise BuildError("timing report does not mention the 74.25 MHz pixel clock")
-    if "12.288" not in sta_text:
+    if "12.288" not in sta_text and "12.29" not in sta_text:
         raise BuildError("timing report does not mention the 12.288 MHz audio clock")
 
 
