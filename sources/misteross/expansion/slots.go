@@ -28,18 +28,26 @@ type SlotComposition struct {
 }
 
 func slotPolicies(slot, mapping string) map[int]socketPolicy {
-	if slot == Apple2Slot && mapping == Apple2Map {
+	switch {
+	case slot == Apple2Slot && mapping == Apple2Map:
 		return apple2Sockets
+	case slot == C64Slot && mapping == C64Map:
+		return c64Sockets
+	default:
+		return nil
 	}
-	return nil
 }
 
 // slotMap returns the multi-socket layout a shell's expansion interface uses.
 func slotMap(slot string, major int) (string, bool) {
-	if slot == Apple2Slot && major == 1 {
+	switch {
+	case slot == Apple2Slot && major == 1:
 		return Apple2Map, true
+	case slot == C64Slot && major == 1:
+		return C64Map, true
+	default:
+		return "", false
 	}
-	return "", false
 }
 
 // SlotSockets lists the physical socket indices of a multi-socket layout in

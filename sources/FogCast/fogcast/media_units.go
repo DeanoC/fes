@@ -137,13 +137,29 @@ func (s *Service) retainMediaUnitSessionIdentity(status protocol.Status, b proto
 
 // diskUnitBinding binds a live disk request to the declared floppy unit of the
 // session's active package generation.
-func diskUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitBinding {
-	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: protocol.Apple2FloppyUnit, Target: b.Target, TargetID: b.TargetID}
+func diskUnitBinding(name string, b protocol.DevelopmentMediaBinding) protocol.MediaUnitBinding {
+	unit := protocol.Apple2FloppyUnit
+	if protocol.AdmitC64DiskName(name) {
+		unit = protocol.C64DiskUnit
+	}
+	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: unit, Target: b.Target, TargetID: b.TargetID}
+}
+
+func diskImageBytes(name string) (int64, bool) {
+	switch {
+	case protocol.AdmitDiskMediaName(name):
+		return protocol.Apple2FloppyBytes, true
+	case protocol.AdmitC64DiskName(name):
+		return protocol.C64DiskBytes, true
+	default:
+		return 0, false
+	}
 }
 
 // replaceLiveDisk inserts a household disk image into the running machine.
 func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitDiskMediaName(name) {
+	size, named := diskImageBytes(name)
+	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !named {
 		return protocol.Status{}, protocol.DiskMediaRequestError()
 	}
 	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, 150*time.Second))
@@ -161,7 +177,7 @@ func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, 
 	if err != nil {
 		return protocol.Status{}, mapCoreMediaError(err)
 	}
-	if info.Size != protocol.Apple2FloppyBytes {
+	if info.Size != size {
 		return protocol.Status{}, protocol.DiskMediaRequestError()
 	}
 	opened, reader, err := store.OpenCoreMedia(ctx, mediaID)
@@ -172,7 +188,7 @@ func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, 
 	if opened != info {
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
-	unit := diskUnitBinding(b)
+	unit := diskUnitBinding(name, b)
 	status, err := s.insertMediaUnitLocked(ctx, info.Size, reader, unit)
 	if err != nil {
 		return status, err

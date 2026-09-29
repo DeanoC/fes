@@ -4,8 +4,9 @@
 [The YAML](../packages/abi/fes_computer.yaml) owns constants, emitted as
 `FesComputer*` and `FES_COMPUTER_*` Verilog macros. It is a separate ABI from
 `fes.simple-computer` (tag 2) and `fes.application` (tag 3); both remain
-unchanged. The first consumer is the FES Apple II. These definitions and the
-synthetic fixtures do not establish consumer or hardware acceptance.
+unchanged. Consumers are the FES Apple II and the FES Commodore 64. These
+definitions and the synthetic fixtures do not establish consumer or hardware
+acceptance.
 
 A home computer differs from the existing ABIs in three ways: it has a full
 keyboard, it keeps running while media is changed, and it may have several
@@ -22,6 +23,7 @@ removable media by unit.
 | fes.gamepad.ports | 2 | Two eight-button controller ports, as in `fes.application` |
 | fes.audio.pcm-s16-stereo-48k | 3 | Fixed 48 kHz stereo PCM over I2S, as in `fes.application` |
 | fes.media.apple2-floppy | 4 | Media unit 0: one Apple II 5.25-inch DOS 3.3 order disk image |
+| fes.media.c64-disk | 5 | Media unit 0: one Commodore 1541 D64 disk image |
 
 Admission requires video. Every other interface is independently composable.
 Each recognized operational interface a core implements must be declared
@@ -181,6 +183,16 @@ logical interleave, volume 254 and 6-and-2 data encoding. Version 1.0 is read
 only: the drive reports write protect and writes are not returned to the host.
 ProDOS order (`.po`) and nibble (`.nib`) images are different formats; a host
 may convert `.po` to DOS order before transfer, but must not send it as is.
+
+### fes.media.c64-disk 1.0
+
+Unit 0, the same unit number as the Apple II floppy. A core declares one of
+the two, because both occupy unit 0. The unit accepts exactly 174,848 bytes
+(Info minimum = maximum = 174,848): a 35-track Commodore D64 image, 683
+sectors of 256 bytes with the standard track lengths (21, 19, 18, then 17
+sectors). Byte offset of track 1 sector 0 is 0. Version 1.0 is read only:
+the built-in 1541-compatible device serves LOAD and does not return writes
+to the host. G64, D71 and D81 images are different formats.
 
 ## Audio
 

@@ -18,12 +18,12 @@ import (
 func runLiveMediaCommand(ctx context.Context, origin string, args []string) commandResult {
 	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
 	if len(args) == 0 {
-		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-.dsk/.do-path> | eject-disk"))
+		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-disk-path> | eject-disk"))
 	}
 	switch args[0] {
 	case "change-disk":
 		if len(args) != 2 {
-			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do-path>"))
+			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do/.d64-path>"))
 		}
 		return changeDiskThroughHostAPI(ctx, origin, args[1])
 	case "eject-disk":
@@ -175,7 +175,7 @@ func hostJSONClient() *http.Client {
 }
 
 // hostMutationClient carries a non-replayable disk insert or eject. The host
-// allows the 143,360-byte transfer at least 150 s, so a short client timeout
+// allows the disk transfer at least 150 s, so a short client timeout
 // could abandon an insert that still completes; only the caller's context and
 // the host's own deadline bound it.
 func hostMutationClient() *http.Client {
@@ -267,22 +267,22 @@ func liveMediaCommand(name string) bool {
 }
 
 // diskCapable reports a session whose active fes.computer generation has the
-// observed Apple II floppy unit.
+// observed unit 0 disk. Apple II floppies and C64 D64s share that unit.
 func diskCapable(p *protocol.CorePackageStatus) bool {
 	_, ok := protocol.MediaUnit(p, protocol.Apple2FloppyUnit)
 	return ok
 }
 
 // changeDiskThroughHostAPI inserts a household disk into the running machine
-// through POST /api/v1/session/live-media. A .dsk/.do path is imported first.
+// through POST /api/v1/session/live-media. A disk path is imported first.
 func changeDiskThroughHostAPI(ctx context.Context, origin, arg string) commandResult {
 	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
-	mediaID, name, err := resolveDiskArgument(ctx, origin, arg)
+	client := hostJSONClient()
+	prior, err := fetchDiskSession(ctx, client, origin)
 	if err != nil {
 		return fail(err)
 	}
-	client := hostJSONClient()
-	prior, err := fetchDiskSession(ctx, client, origin)
+	mediaID, name, err := resolveDiskArgument(ctx, origin, arg, prior.CorePackage)
 	if err != nil {
 		return fail(err)
 	}
@@ -326,15 +326,27 @@ func diskResult(prior, after liveMediaSession, b protocol.DevelopmentMediaBindin
 	return commandResult{jsonValue: result, human: func(w io.Writer) error { return writeHumanStatusResult(w, result) }}
 }
 
-// resolveDiskArgument accepts a stored media ID or snapshots an exact
-// 143360-byte .dsk/.do file and imports it through POST /api/v1/core-media.
-func resolveDiskArgument(ctx context.Context, origin, arg string) (mediaID, name string, err error) {
+// resolveDiskArgument accepts a stored media ID or snapshots an exact disk
+// file and imports it through POST /api/v1/core-media. A stored ID takes its
+// name from the active unit so the host checks the C64 or Apple II size.
+func resolveDiskArgument(ctx context.Context, origin, arg string, active *protocol.CorePackageStatus) (mediaID, name string, err error) {
 	if protocol.ValidateDigest(arg) == nil {
-		return arg, "disk.dsk", nil
+		name, ok := syntheticDiskName(active)
+		if !ok {
+			return "", "", protocol.DiskMediaRequestError()
+		}
+		return arg, name, nil
 	}
 	before, err := os.Lstat(arg)
 	base := filepath.Base(arg)
-	if err != nil || !before.Mode().IsRegular() || !protocol.AdmitDiskMediaName(base) || before.Size() != protocol.Apple2FloppyBytes {
+	var limit int64
+	switch {
+	case protocol.AdmitDiskMediaName(base):
+		limit = protocol.Apple2FloppyBytes
+	case protocol.AdmitC64DiskName(base):
+		limit = protocol.C64DiskBytes
+	}
+	if err != nil || !before.Mode().IsRegular() || limit == 0 || before.Size() != limit {
 		return "", "", protocol.DiskMediaRequestError()
 	}
 	file, err := os.Open(arg)
@@ -346,10 +358,27 @@ func resolveDiskArgument(ctx context.Context, origin, arg string) (mediaID, name
 	if err != nil || !os.SameFile(before, opened) {
 		return "", "", protocol.DiskMediaRequestError()
 	}
-	data, err := io.ReadAll(io.LimitReader(file, protocol.Apple2FloppyBytes+1))
-	if err != nil || int64(len(data)) != protocol.Apple2FloppyBytes {
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil || int64(len(data)) != limit {
 		return "", "", protocol.DiskMediaRequestError()
 	}
 	mediaID, err = importCoreMediaBytes(ctx, origin, data)
 	return mediaID, base, err
+}
+
+// syntheticDiskName names a stored object after the disk the running
+// generation accepts. Both home-computer disks occupy unit 0.
+func syntheticDiskName(active *protocol.CorePackageStatus) (string, bool) {
+	unit, ok := protocol.MediaUnit(active, protocol.Apple2FloppyUnit)
+	if !ok {
+		return "", false
+	}
+	switch unit.Interface.ID {
+	case protocol.C64DiskInterface().ID:
+		return "disk.d64", true
+	case protocol.Apple2FloppyInterface().ID:
+		return "disk.dsk", true
+	default:
+		return "", false
+	}
 }

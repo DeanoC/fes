@@ -892,13 +892,17 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"FES computer packages may link only a firmware ROM");
 		bool video = false;
+		int disks = 0;
+		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
-			const bool bus = interface.id == kApple2ExpansionBusID;
+			const bool bus = interface.id == kApple2ExpansionBusID ||
+				interface.id == kC64ExpansionBusID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
 				interface.id == FesComputerInterfaceKeyboardHidID ||
 				interface.id == FesComputerInterfaceGamepadPortsID ||
 				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
-				interface.id == FesComputerInterfaceMediaApple2FloppyID;
+				interface.id == FesComputerInterfaceMediaApple2FloppyID ||
+				interface.id == FesComputerInterfaceMediaC64DiskID;
 			const bool supported = (known || bus) && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
@@ -907,12 +911,20 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (bus && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"computer expansion bus must be optional");
-			if (bus) continue;
+			if (bus) {
+				buses++;
+				continue;
+			}
 			if (!interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"computer operational interfaces must be required when declared");
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
+			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
+				interface.id == FesComputerInterfaceMediaC64DiskID) disks++;
 		}
+		if (disks > 1 || buses > 1)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"computer declares more than one unit-0 disk or expansion bus");
 		if (!video)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer requires fixed video");

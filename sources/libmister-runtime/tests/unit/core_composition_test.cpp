@@ -180,11 +180,14 @@ struct SlotFixture {
 	CoreCompositionRequest request;
 	std::vector<unsigned> slots;
 	std::vector<std::string> manifests,carts;
-	explicit SlotFixture(std::vector<unsigned> selected={4,6}) : slots(std::move(selected)) {
+	bool c64=false;
+	explicit SlotFixture(std::vector<unsigned> selected={4,6}, bool commodore=false)
+		: slots(std::move(selected)), c64(commodore) {
 		char path[]="/tmp/fes-slot-composition.XXXXXX";root=mkdtemp(path);
 		assert(mkdir((root+"/composition").c_str(),0700)==0);
 		base.package_id=std::string(64,'a');base.descriptor.abi={"fes.computer",1,0};
-		base.descriptor.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.expansion.apple2-bus",1,0,false}};
+		base.descriptor.interfaces={{"fes.video.fixed-720p60",1,0,true},
+			{c64 ? "fes.expansion.c64-bus" : "fes.expansion.apple2-bus",1,0,false}};
 		base.descriptor.target.device="5CSEBA6U23I7";
 		base.descriptor.build.id=std::string(32,'b');base.descriptor.payload.sha256=Hash("base");
 		for (unsigned slot : slots) {
@@ -202,10 +205,12 @@ struct SlotFixture {
 		Seal();
 	}
 	std::string Manifest(unsigned slot,const std::string& cart) const {
+		const char* map=c64 ? "fes.c64-bus.sockets/1" : "fes.apple2-bus.slots/1";
+		const char* bus=c64 ? "fes.expansion.c64-bus" : "fes.expansion.apple2-bus";
 		return "{\"cart_sha256\":\""+Hash(cart)+"\",\"cart_size\":40408,\"device\":\"5CSEBA6U23I7\",\"format\":1,"
-			"\"map\":\"fes.apple2-bus.slots/1\",\"recipe_sha256\":\""+std::string(64,'c')+"\",\"revision\":\""+std::string(40,'d')+
+			"\"map\":\""+std::string(map)+"\",\"recipe_sha256\":\""+std::string(64,'c')+"\",\"revision\":\""+std::string(40,'d')+
 			"\",\"shell_build_id\":\""+base.descriptor.build.id+"\",\"shell_package_id\":\""+base.package_id+
-			"\",\"shell_sha256\":\""+base.descriptor.payload.sha256+"\",\"slot\":\"fes.expansion.apple2-bus\",\"slot_index\":"+
+			"\",\"shell_sha256\":\""+base.descriptor.payload.sha256+"\",\"slot\":\""+std::string(bus)+"\",\"slot_index\":"+
 			std::to_string(slot)+",\"slot_major\":1,\"slot_minor\":0}";
 	}
 	void Seal() {
@@ -248,6 +253,10 @@ void SlotCompositionAdmission() {
 	}
 	SlotFixture all({1,2,3,4,5,6,7});OpenedCoreComposition out;assert(all.Open(&out).ok());
 	assert(out.expansions.size()==7);
+	SlotFixture c64({1,2}, true);assert(c64.Open(&out).ok());
+	assert(out.expansions.size()==2 && out.expansions[0].slot==1 && out.expansions[1].slot==2);
+	SlotFixture io_only({2}, true);assert(io_only.Open(&out).ok());
+	SlotFixture missing({3}, true);assert(!missing.Open(&out).ok());
 }
 void RejectSlotCompositionVariants() {
 	for (unsigned test=0;test<24;++test) {

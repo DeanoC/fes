@@ -16,6 +16,7 @@ TARGETS = {
     'sms': ('sim-fes-sms sim-fes-sms-oss',),
     'sg1000': ('sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-gp-audio',),
     'apple2': ('sim-fes-apple2',),
+    'c64': ('sim-fes-c64',),
     'menu': ('sim-fes-menu',),
 }
 

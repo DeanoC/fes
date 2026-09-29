@@ -1,0 +1,75 @@
+# FES Commodore 64
+
+`fes.c64` 0.1.0 is a package-only Commodore 64 pathfinder on `fes.computer`
+1.0. It follows the Apple II pattern: late-bound firmware, a live removable
+disk, and linkable expansion cards. It is not in the factory image. No
+Commodore ROM is in this tree. HIP seal and kit acceptance are still open.
+
+The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
+[home-computer I/O](../../../mister-packages/docs/computer-io.md).
+
+## Machine
+
+- 6510 is the shared NMOS 6502 plus the processor port at `$00`/`$01`. Phi2 is
+  a fractional 1.022727 MHz enable of the 52.224 MHz system clock.
+- 64 KiB RAM. Standard banking, plus 8 KiB, 16 KiB and Ultimax cartridge maps
+  from `/EXROM` and `/GAME`.
+- 16 KiB linked firmware. Bytes 0..8191 are the BASIC window `$A000–$BFFF`.
+  Bytes 8192..16383 are the KERNAL window `$E000–$FFFF`. The OSS package leaves
+  sixteen 1024×10 M10K lanes (column 5, rows 32–47) blank. The character
+  generator is in the core, not in the firmware image.
+- VIC-II text: 40×25, color RAM, and the registers the diagnostic writes.
+  Raster timing is not locked to HDMI. No sprites, bitmap or badlines.
+- Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
+  and volume. No filter.
+- CIA1: keyboard matrix, joystick and timer A. CIA2: IEC and the VIC bank.
+  Port 2 (CIA1 port A) is controller port 0.
+- HDMI 720p60. The 320×200 text picture is scaled 4× horizontally and 3×
+  vertically. Audio is the shared 48 kHz I2S serializer.
+
+## Disk
+
+`fes.media.c64-disk` 1.0 is media unit 0 (the same unit number an Apple II
+floppy uses; a core declares one of them). The image is an exact 174,848-byte
+35-track D64. The built-in device 8 speaks CLK/DATA, LSB first, with EOI on
+the last byte, well enough for LISTEN, OPEN, a filename, UNLISTEN, TALK and
+SECOND. Writes are ignored. `$` returns a four-byte synthetic program.
+
+## Cartridge sockets
+
+One shared cartridge port is exposed as two physical sockets so multi-slot
+composition is exercised. Socket 1 is the ROM window (`ROML`/`ROMH`, `/EXROM`,
+`/GAME`). Socket 2 is the I/O window (`IO1` `$DE00`, `IO2` `$DF00`). The
+layout is `fes.c64-bus.sockets/1`. The rectangles reuse the Apple II slot 2
+and slot 4 rows. `scripts/c64_slots.py` generates
+`rtl/c64_slot_sockets.v`.
+
+`expansions/probe.v` is the open card. Mode 0 answers `FES1` at `$8000`. Mode
+1 is scratch at `$DE00` and id `$C6` at `$DE01`. The machine simulation links
+both. A sealed shell leaves the sockets vacant; `scripts/build_c64_slot_card.py`
+builds one card into one socket of a frozen shell.
+
+## Diagnostic
+
+`diagnostic/firmware.py` assembles the open 16 KiB image. Success stores `$FF`
+at `$C000`. A failure stores a stage at `$C000` and `1` at `$C001`:
+
+| Stage | Check |
+| --- | --- |
+| 1 | RAM |
+| 2 | BASIC signature |
+| 3 | VIC border |
+| 4 | character generator |
+| 5 | cartridge ROM |
+| 6 | cartridge I/O |
+| 7 | joystick |
+| 8 | keyboard |
+| 9 | D64 `BOOT` bytes `01 08 11 22 33 44` at `$0800` |
+
+```sh
+make -C sources/misteross sim-fes-c64
+make -C sources/misteross build-fes-c64   # HIP seal; not part of the sim gate
+```
+
+`build-fes-c64` authenticates `toolchains/c64.lock` (the Apple II tool
+commits: Yosys `e2d425de`, Mistral `7ed06e21`, nextpnr `0259c6dc`).

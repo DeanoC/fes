@@ -490,6 +490,12 @@ every other outside change. This patch does not enlarge the socket rectangle.
 Changed Coleco frames regenerate their checksums; the existing ZX81 `Link`
 behavior and output remain unchanged.
 
+The Commodore 64 cartridge bus `fes.expansion.c64-bus` 1.0 uses
+`fes.c64-bus.sockets/1`: socket 1 is the ROM window and socket 2 is the I/O
+window, reusing the Apple II slot 2 and slot 4 placement rows and CRAM
+rectangles `(1769,32,2806,1722)` and `(1769,1722,2806,3442)`. The runtime
+admits only those two sockets.
+
 The Apple II slot bus `fes.expansion.apple2-bus` 1.0 uses the multi-socket
 layout `fes.apple2-bus.slots/1`: physical sockets for slots 2, 4, 5 and 7,
 stacked in placement columns 24–28 at rows 1–18, 21–38, 41–58 and 61–78, with
@@ -1277,6 +1283,22 @@ nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
 change outside the socket, then publishes a two-member archive whose
 manifest carries `slot_index`. `expansion/cmd/fes-slot-link` composes any set
 of such archives, optionally with the firmware ROM map, onto the shell.
+
+## FES Commodore 64
+
+`cores/fes-c64` is `fes.c64` 0.1.0, a package-only Commodore 64 pathfinder on
+the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
+[its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
+diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
+joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+
+`make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
+`make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
+pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
+`c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
+`scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
+frozen shell. No Commodore ROM is in the tree, and the core is not in the
+factory image.
 
 ## Shared native kit client
 

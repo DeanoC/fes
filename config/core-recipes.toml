@@ -112,3 +112,17 @@ selection_filename = "fes-apple2.package-selection.toml"
 package_dir_env = "FES_APPLE2_PACKAGE_DIR"
 package_selection_env = "FES_APPLE2_PACKAGE_SELECTION"
 quartus_role = "no oracle required"
+
+[[recipes]]
+core_id = "fes.c64"
+identity_version = 2
+producer_script = "scripts/build_fes_c64_oss.py"
+producer_module = "scripts.build_fes_c64_oss"
+authenticate = "_authenticate_c64_tools"
+lock_path = "toolchains/c64.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-c64.package-selection.toml"
+package_dir_env = "FES_C64_PACKAGE_DIR"
+package_selection_env = "FES_C64_PACKAGE_SELECTION"
+quartus_role = "no oracle required"

@@ -153,30 +153,39 @@ Error OpenLinkedPayload(const std::vector<std::string>& roots, const std::string
 // fes.apple2-bus.slots/1 socket set. The shell's physical sockets are not
 // final, so every Apple II slot 1..7 is admitted until that table is sealed.
 bool Apple2SlotSocket(std::uint64_t slot) {return slot>=1 && slot<=7;}
+// fes.c64-bus.sockets/1 is socket 1 (ROM window) and socket 2 (I/O window).
+bool C64SlotSocket(std::uint64_t slot) {return slot==1 || slot==2;}
 // The target agent links cards into their own reserved socket rectangles with
 // the shared misteross implementation; this admission verifies its result.
 Error OpenSlotComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage& base, const CoreCompositionRequest& request, OpenedCoreComposition* output) {
 	const auto& descriptor=base.descriptor;
-	bool bus=false;
+	const char* bus_id=nullptr;
+	const char* bus_map=nullptr;
+	bool (*socket_ok)(std::uint64_t)=nullptr;
+	std::size_t max_slots=0;
 	for (const auto& interface : descriptor.interfaces) {
-		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus" &&
-			interface.id!=kApple2ExpansionBusID) continue;
-		if (bus || interface.id!=kApple2ExpansionBusID || interface.major!=1 || interface.minor!=0 || interface.required)
+		const bool multi=interface.id==kApple2ExpansionBusID || interface.id==kC64ExpansionBusID;
+		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus" && !multi)
+			continue;
+		if (bus_id || !multi || interface.major!=1 || interface.minor!=0 || interface.required)
 			return Invalid("base package has an unsupported or ambiguous expansion bus");
-		bus=true;
+		bus_id=interface.id==kC64ExpansionBusID ? kC64ExpansionBusID : kApple2ExpansionBusID;
+		bus_map=interface.id==kC64ExpansionBusID ? kC64ExpansionMapID : kApple2ExpansionMapID;
+		socket_ok=interface.id==kC64ExpansionBusID ? C64SlotSocket : Apple2SlotSocket;
+		max_slots=interface.id==kC64ExpansionBusID ? 2 : 7;
 	}
-	if (!bus || descriptor.abi.id!="fes.computer" || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
-		return Invalid("base package does not declare the optional Apple II slot bus");
+	if (!bus_id || descriptor.abi.id!="fes.computer" || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
+		return Invalid("base package does not declare an optional multi-slot bus");
 	const auto& info=request.composition;
 	if (!request.expansion_path.empty() || !info.expansion_id.empty() ||
 		!Hex(info.id,64) || !Hex(info.package_id,64) || !Hex(info.shell_sha256,64) || !Hex(info.payload_sha256,64) ||
 		info.package_id!=base.package_id || info.shell_sha256!=descriptor.payload.sha256 ||
 		info.payload_size<40408 || info.payload_size>MaximumPayload)
 		return Invalid("invalid composition identity or base binding");
-	if (request.expansions.empty() || request.expansions.size()>7 ||
+	if (request.expansions.empty() || request.expansions.size()>max_slots ||
 		request.expansions.size()!=info.expansions.size())
-		return Invalid("multi-slot composition requires one to seven bound slots");
+		return Invalid("multi-slot composition slot count is outside this shell");
 	// Domain, NUL, package, NUL, then "<slot>:<expansion>" NUL per ascending
 	// slot, then the linked payload digest (misteross SlotCompositionID).
 	std::string canonical("fes-composition-v2\0",19);
@@ -184,7 +193,7 @@ Error OpenSlotComposition(const std::vector<std::string>& roots,
 	unsigned previous=0;
 	for (std::size_t i=0;i<info.expansions.size();++i) {
 		const auto& slot=info.expansions[i];
-		if (slot.slot<=previous || !Apple2SlotSocket(slot.slot) || request.expansions[i].slot!=slot.slot ||
+		if (slot.slot<=previous || !socket_ok(slot.slot) || request.expansions[i].slot!=slot.slot ||
 			!Hex(slot.expansion_id,64))
 			return Invalid("composition slots must ascend, be unique sockets and match the request");
 		previous=slot.slot;
@@ -211,8 +220,8 @@ Error OpenSlotComposition(const std::vector<std::string>& roots,
 			return Invalid("expansion manifest must use canonical JSON");
 		if (!Hex(cart_hash,64) || !Hex(recipe,64) || !Hex(revision,40) || !Hex(build,32) ||
 			format!=1 || device!="5CSEBA6U23I7" || descriptor.target.device!=device ||
-			slot!=kApple2ExpansionBusID || map!=kApple2ExpansionMapID || major!=1 || minor!=0 ||
-			index!=expansion.slot || !Apple2SlotSocket(index) ||
+			slot!=bus_id || map!=bus_map || major!=1 || minor!=0 ||
+			index!=expansion.slot || !socket_ok(index) ||
 			size<40408 || size!=expansion.cart.size() || package!=base.package_id ||
 			build!=descriptor.build.id || shell!=descriptor.payload.sha256)
 			return Invalid("expansion manifest does not match its slot and frozen shell");

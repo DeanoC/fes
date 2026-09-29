@@ -632,6 +632,7 @@ Capabilities NativeHardware::capabilities() const
 		computer_io.minor = generated::FesComputerABIMinor;
 		computer_io.interfaces = {
 			{kApple2ExpansionBusID, 1, 0},
+			{kC64ExpansionBusID, 1, 0},
 			{generated::FesComputerInterfaceAudioPcmS16Stereo48kID,
 				generated::FesComputerInterfaceAudioPcmS16Stereo48kMajor,
 				generated::FesComputerInterfaceAudioPcmS16Stereo48kMinor},
@@ -644,6 +645,9 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceMediaApple2FloppyID,
 				generated::FesComputerInterfaceMediaApple2FloppyMajor,
 				generated::FesComputerInterfaceMediaApple2FloppyMinor},
+			{generated::FesComputerInterfaceMediaC64DiskID,
+				generated::FesComputerInterfaceMediaC64DiskMajor,
+				generated::FesComputerInterfaceMediaC64DiskMinor},
 			{generated::FesComputerInterfaceVideoFixed720p60ID,
 				generated::FesComputerInterfaceVideoFixed720p60Major,
 				generated::FesComputerInterfaceVideoFixed720p60Minor}};
