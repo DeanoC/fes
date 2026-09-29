@@ -97,6 +97,12 @@ records the GPU convergence fix and the remaining timeout/control-path limit.
 The [placement-option follow-up](../../docs/validation/2026-09-27-ramtest-placer-options.md)
 corrects the earlier effective exponent, verifies preserved defaults, and measures
 the combined FSM/placement improvement; the 130 MHz target remains unresolved.
+The [corrected routed comparison](../../docs/validation/2026-09-28-ramtest-observation-validity.md)
+retains 116.918 MHz memory and 76.959 MHz pixel as the strongest retained
+experimental stack. The later [fixed-placement state-copy trial](../../docs/validation/2026-09-28-ramtest-feedback-local-copy.md)
+does not improve it. These are host-only compiler probes; neither selects a
+production toolchain or qualifies a 130 MHz RBF. The [validation index](../../docs/README.md#dated-records)
+lists the full investigation.
 
 ```sh
 make toolchain-fes-ramtest
