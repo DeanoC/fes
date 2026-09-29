@@ -14,6 +14,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 : > "$scan_dir/matches"
+# modernc.org/sqlite embeds these tokenizer formats; they are not assignments.
+printf '%s\n' 'unrecognized token: "%s"' 'unrecognized token: "%T"' > "$scan_dir/sqlite-token-literals"
 
 if ! find "$root" -type f -exec sh -c '
   scan_dir=$1
@@ -25,7 +27,8 @@ if ! find "$root" -type f -exec sh -c '
       printf "scan-target-image-secrets: strings failed: %s\n" "$candidate" >&2
       exit 1
     fi
-    if grep -Eiq '\''(^|[[:space:]])(token|secret|bearer|api[_-]?key)[[:space:]]*(=|:)'\'' "$strings_output"; then
+    if grep -vxF -f "$scan_dir/sqlite-token-literals" "$strings_output" |
+      grep -Eiq '\''(^|[[:space:]])(token|secret|bearer|api[_-]?key)[[:space:]]*(=|:)'\''; then
       printf "%s\n" "$candidate" >> "$scan_dir/matches"
     fi
   done
