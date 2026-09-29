@@ -628,8 +628,9 @@ library-slot Stop/recovery. The same session accepts later swaps:
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, or Spectrum tape). `.p` names
 keep the ZX81 tape path. A `.tap` name inserts the Spectrum cassette on unit 0.
-The CLI equivalents are
-`fogcast change-disk MEDIA_ID_OR_DISK_PATH` and `fogcast eject-disk`. A stored
+The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
+`fogcast eject-disk` for a disk, and `fogcast change-cassette` and
+`fogcast eject-cassette` for a Spectrum `.tap`. A stored
 media ID is named `disk.dsk` or `disk.d64` from the active unit, so the host
 checks 143,360 or 174,848 bytes against that generation. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.

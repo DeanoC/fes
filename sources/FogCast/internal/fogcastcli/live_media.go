@@ -18,7 +18,7 @@ import (
 func runLiveMediaCommand(ctx context.Context, origin string, args []string) commandResult {
 	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
 	if len(args) == 0 {
-		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-disk-path> | eject-disk"))
+		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-disk-path> | eject-disk | change-cassette <media-id-or-.tap-path> | eject-cassette"))
 	}
 	switch args[0] {
 	case "change-disk":

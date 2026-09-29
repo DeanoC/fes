@@ -512,7 +512,8 @@ accepted. `fes.c64` uses the same firmware binding for `c64-firmware` (16 KiB)
 and role `disk` for `fes.media.c64-disk` 1.0: exactly 174,848 bytes, `.d64`,
 media unit 0, read only. `fes.spectrum` uses firmware id `spectrum-firmware`
 (16 KiB) and role `cassette` for `fes.media.spectrum-tape` 1.0: 1..65,536
-bytes, `.tap`, media unit 0.
+bytes, `.tap`, media unit 0. Swap or eject that cassette with
+`fogcast change-cassette` and `fogcast eject-cassette`.
 
 ## Apple II slot cards
 
