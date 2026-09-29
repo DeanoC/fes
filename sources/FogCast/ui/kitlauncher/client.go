@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/atomicwrite"
 )
 
 type Config struct {
@@ -98,12 +99,9 @@ func SaveConfig(c Config) error {
 	if err != nil {
 		return errors.New("invalid launcher configuration")
 	}
-	tmp := c.path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
-		return errors.New("launcher configuration unavailable")
-	}
-	if err := os.Rename(tmp, c.path); err != nil {
-		_ = os.Remove(tmp)
+	// Never path+".tmp": on the kit's /media/fat exFAT that name opens
+	// launcher.json itself (#317). atomicwrite uses a dot-prefixed O_EXCL temp.
+	if err := atomicwrite.WriteFile(c.path, append(data, '\n'), 0o600); err != nil {
 		return errors.New("launcher configuration unavailable")
 	}
 	return nil

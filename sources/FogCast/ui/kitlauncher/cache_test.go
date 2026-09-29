@@ -281,3 +281,40 @@ func mustOpenStore(t *testing.T) *DiskStore {
 	}
 	return store
 }
+
+// Catalog and cover replaces must not use catalog.json.tmp / <handle>.tmp,
+// which alias the live file on the kit's /media/fat exFAT (#317).
+func TestDiskStoreWritesNeverUseTargetPrefixedTemp(t *testing.T) {
+	t.Parallel()
+	store := mustOpenStore(t)
+	catalog := filepath.Join(store.root, catalogFileName)
+	if err := os.Mkdir(catalog+".tmp", 0700); err != nil {
+		t.Fatal(err)
+	}
+	snap := CatalogSnapshot{Games: []hostclient.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}}}
+	if err := store.SaveCatalog(snap); err != nil {
+		t.Fatalf("SaveCatalog used a catalog.json-prefixed temp: %v", err)
+	}
+	handle := strings.Repeat("ab", 32)
+	cover := filepath.Join(store.root, coversDirName, handle)
+	if err := os.Mkdir(cover+".tmp", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveArtwork(handle, []byte("png")); err != nil {
+		t.Fatalf("SaveArtwork used a handle-prefixed temp: %v", err)
+	}
+	if got, ok := store.LoadArtwork(handle); !ok || string(got) != "png" {
+		t.Fatalf("artwork = %q ok=%v", got, ok)
+	}
+	for _, dir := range []string{store.root, filepath.Join(store.root, coversDirName)} {
+		ents, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range ents {
+			if strings.HasPrefix(e.Name(), ".") {
+				t.Fatalf("temporary left behind: %s/%s", dir, e.Name())
+			}
+		}
+	}
+}
