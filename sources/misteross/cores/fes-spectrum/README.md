@@ -29,7 +29,8 @@ contract is the
 `spectrum_video.v` scans the bitmap and attributes from RAM port B in the
 74.25 MHz HDMI domain. The 256×192 picture is scaled 4× by 3× to 1024×576 and
 centred in 1280×720p60; the rest of the active raster is the border. The
-beeper is mixed into the shared 48 kHz I2S path.
+beeper is mixed with the saturated sum of every socket's PCM into the shared
+48 kHz I2S path. A card can play without asserting DRIVE.
 
 ## Edge sockets
 

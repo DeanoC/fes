@@ -4,8 +4,10 @@
 // Every physical socket sees the same registered request word. Controls are
 // active-high. STROBE is a one-clock pulse when RD or WR falls, with the
 // address and write data already stable. A vacant response word is zero, so
-// DRIVE, ROMCS, NMI and WAIT are active-high as well. The motherboard samples
-// the registered response well before the Z80 reads data.
+// DRIVE, ROMCS, NMI and WAIT are active-high as well. AUDIO is signed 16-bit
+// PCM. The shell sums it from every socket, including a socket that is not
+// driving the CPU bus. The motherboard samples the registered response well
+// before the Z80 reads data.
 `define SP_BUS_REQ          32
 `define SP_BUS_A            15:0
 `define SP_BUS_D            23:16

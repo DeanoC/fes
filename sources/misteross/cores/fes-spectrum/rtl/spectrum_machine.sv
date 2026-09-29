@@ -148,7 +148,24 @@ module spectrum_machine (
         response4[`SP_BUS_DRIVE] ? response4 : 28'd0;
     wire romcs = response1[`SP_BUS_ROMCS] | response2[`SP_BUS_ROMCS] |
                  response3[`SP_BUS_ROMCS] | response4[`SP_BUS_ROMCS];
-    assign slot_audio = chosen[`SP_BUS_DRIVE] ? chosen[`SP_BUS_AUDIO] : 16'sd0;
+
+    // Card PCM is summed from every socket, including a card that is not
+    // driving the CPU bus, then saturated to 16 bits. Two registered stages
+    // cover four sockets; the extra latency does not matter.
+    function signed [18:0] socket_pcm;
+        input [`SP_BUS_RSP-1:0] response;
+        socket_pcm = {{3{response[27]}}, response[`SP_BUS_AUDIO]};
+    endfunction
+    reg signed [18:0] audio_pair0 = 19'sd0;
+    reg signed [18:0] audio_pair1 = 19'sd0;
+    reg signed [18:0] audio_sum = 19'sd0;
+    always @(posedge clk_sys) begin
+        audio_pair0 <= socket_pcm(response1) + socket_pcm(response2);
+        audio_pair1 <= socket_pcm(response3) + socket_pcm(response4);
+        audio_sum <= audio_pair0 + audio_pair1;
+    end
+    assign slot_audio = audio_sum > 19'sd32767 ? 16'sh7fff :
+                        audio_sum < -19'sd32768 ? -16'sh8000 : audio_sum[15:0];
 
     wire [7:0] rom_data;
     spectrum_rom rom (
