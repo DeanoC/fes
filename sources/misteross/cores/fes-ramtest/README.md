@@ -157,6 +157,12 @@ also used two opt-in,
 cell-name-specific probes. Those probes no longer match the current RTL and
 remain disabled here; 116.918 MHz is not a result for the current source.
 
+The [merged-compiler measurement](../../docs/validation/2026-09-29-ramtest-merged-compilers.md)
+reaches 109.951 MHz memory with generic remapping, from a 106.157 MHz baseline.
+Pixel changes from 94.500 to 94.357 MHz; both exceed 74.25 MHz, but the conservative
+selector retains the baseline because pixel Fmax decreased. This is a measured
+tradeoff, not recovered 130 MHz closure or hardware acceptance.
+
 The Quartus 17.0.2 diagnostic compiles the same RTL:
 
 ```sh
