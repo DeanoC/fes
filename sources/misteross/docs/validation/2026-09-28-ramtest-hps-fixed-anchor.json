@@ -1,0 +1,956 @@
+{
+  "anchor-checker-tests": {
+    "negative_cases_rejected": [
+      "moving",
+      "solved",
+      "unlocked",
+      "membership",
+      "strength",
+      "unknown_row",
+      "missing_phase",
+      "phase_order",
+      "physical_bel",
+      "missing_cell",
+      "duplicate_bel",
+      "post_refinement_mismatch",
+      "packed_strength",
+      "missing_repeated_spread"
+    ],
+    "positive_phase_transition": true
+  },
+  "artifact_root": "out/ramtest-hps-fixed-anchor",
+  "artifacts_sha256": {
+    "anchor-checker-tests.json": "2031b9b69566870f933f56849829b5d66684bd412a92f7b8abb57560ed27e828",
+    "check_anchor.py": "9a48dcfd627cdbf16741376dd66925ee61b066dbd96df3bad4e2fbd3959969a7",
+    "check_disabled.py": "d9f60ce04fbf530686ecf806d48fac5ab425e7c0ed08ca4d5f780ba15d50405b",
+    "check_geometry.py": "f14581cffd11d1309c1c234126448a22051e7782775c1c905fabd0ff32f12bd2",
+    "check_placement.py": "a23ff11863c59853d54e234bb002c78f194df8c77f3fdacb31570daa3393be16",
+    "checker-tests.json": "b35ca82c040e182f6df22e0d86aa6764dac2378e43f313f244179ff314d61273",
+    "compare_geometry.py": "8a6cb6c8b2a58619892cdb8df131d35d4ba94641a2a253918409e96344991337",
+    "compiler-build.json": "02d3832fe6eb9650ff8b4452b13f2c210ade82d8031e77b630c6de9b6560edfb",
+    "compiler.patch": "2da07e13bce80f4c3cd89a9f1f5917844004217286aa2c6ab7c6e009a1eec42e",
+    "control-c2-place/invocation.json": "8d59c6b2e6a18bc628f306964d454f4ce7fc178339e6bfef942f656728ec4d96",
+    "control-c2-place/replication.after.json": "187d3bb7cc3c0d2828e42880932166df0177917d221c12f980bb6fd55f4192c0",
+    "control-c2-place/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "control-c2-place/replication.before.json": "4072b7a79994963164517ee3b36a22d403b94e4940cf24da55342ceccd69390e",
+    "control-c2-place/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "control-c2-place/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "control-c2-place/result.json": "af7af3bc2692eb753676eddfc451a3f7e25d138eeff9ec3bf8d29c283d2eda66",
+    "control-c2-place/routed.json": "c0bb181d4ee96c868cb1b5209cf9ea0ae0d006fc3870204fa44b1aae4bd170e8",
+    "control-c2-place/run.log": "b8f5234b15915421fc86f3d72a76cf0c2fa353c315ba92a4cd69609599551908",
+    "ctest-backend.log": "0d0445c73f4b5fc45a63dfaf48b8e264655f4aa5ed5c012c712c704a5d43bb6b",
+    "ctest.log": "7bc37e37170de43d769382756e6a06777ab038831dd1ace94ba58cf6bf0fb922",
+    "default.json": "057ed41fea65486058685c2afe0b408986bd19a4f20e7719e02c00104b1be3b2",
+    "default.log": "fa1755f4465122e558505d9b2280a6be1db3fd518cff8a75237d87a1c7d52b2b",
+    "disabled-proof.json": "0fd58e6bcb0ef62096e25cd70297321037de368572c0c56a2653b85fe932d212",
+    "empty.json": "057ed41fea65486058685c2afe0b408986bd19a4f20e7719e02c00104b1be3b2",
+    "empty.log": "def034b073db3808f7864d3aac23f90c5f654a44b3cb53ec08a738aa1c74630e",
+    "fixed-c2/anchor-proof.json": "e77be1b6a7556d139768a54c0c8a6d33e813b07b6719abaa502cd85636641932",
+    "fixed-c2/arcs.tsv": "b983eff87fcbd58e1359783223f11157daeaf7df1dc39bb2f055881f66212fd4",
+    "fixed-c2/core.rbf": "09325c16c969a4962817b2db076bf2f59fe14c96d1e353b39e2191371ce6694d",
+    "fixed-c2/hps-anchor.after_refine.bels.tsv": "8e2b467bfdaf5a1e1a094fb28d19514951e77a9e8fb810b43f5c46f4ad01d276",
+    "fixed-c2/hps-anchor.before_refine.bels.tsv": "ec727b3eb47e112463aa3d6765d924f493340f3145352f50becd2b75eff57eb9",
+    "fixed-c2/hps-anchor.phases.tsv": "a4beef9fd4aa97beb5e6daf6ab611235e36c84fbf4e8776a09ece8b3469763e0",
+    "fixed-c2/hps-anchor.scope.json": "71bc7651fc7901fb89af6decc6c3bf2d20ee33bc625c65e5d7398e9d187b0206",
+    "fixed-c2/invocation.json": "b05e73874d7f3f56d382b260b9ecde5d2d3d6b448da07519c49c6082252f7a71",
+    "fixed-c2/placement-proof.json": "56a27dd328e93b5815d4def9adc5b7709b527b253cbe6c05cdfeed2dd6a26722",
+    "fixed-c2/replication.after.json": "799d5da28f58e984f146db2bcf753a1d38ebeac244f4e43aa5164695488cec2a",
+    "fixed-c2/replication.after.json.pins.tsv": "005daccef8de45be4106fd199e9d629d56dd1575238310fe6b2b627a4467802b",
+    "fixed-c2/replication.before.json": "dc2065749a92f7c691064a30d82ae6897c573e315092fc583ce5c9f9c54e3066",
+    "fixed-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "fixed-c2/replication.replicas.tsv": "b9b468844c73b811afe58f70aa3a5fb820f830e9eb94fc9ba50fb1edb7b309f1",
+    "fixed-c2/result.json": "5b33f1c15bff438cf806318cf798dc16db4c2ef0d180dee3175779f37348bec4",
+    "fixed-c2/routed.json": "e23db7102bebd2432c5fdcd13d83e4f2fc40bc863799f62f33ae01b1b5359c0f",
+    "fixed-c2/run.log": "26cebf0d47cac5c23ef052d3875a4bb194d96eed69aeb77be85be155093d280b",
+    "fixed-c2/snapshot-proof.json": "9848118b6376645130d927d5c6c40fd2670cb45b4e9264b487233169cd875646",
+    "fixed-c2/timing.json": "b9c45534b98d16ad067a13e207fb9d7b9232ca0167410e99601e97c8975f2015",
+    "fixed-pins-c2/anchor-proof.json": "7370a65c8e9340801e3b83558ee06ae73bbd9706b1b8ea3e15a4808911d4f80e",
+    "fixed-pins-c2/arcs.tsv": "ebc5247fb489eb7b326848c993d217ee2a544752bcaa80033d4978f65777315a",
+    "fixed-pins-c2/core.rbf": "4c948f4659244b64f91df3a32df4e19a81c4778bc3e7b5547196e116221e9ae9",
+    "fixed-pins-c2/geometry-proof.json": "3940ab2a6090d3fe8aeaa1b7a768c62058c921eef2953bcc9a32c080e2cdd907",
+    "fixed-pins-c2/hps-anchor.after_refine.bels.tsv": "e7c32e2a542b9787bee07682c4d0728335ac1c75d94421b257473935f7f71cb2",
+    "fixed-pins-c2/hps-anchor.before_refine.bels.tsv": "6eb5d974c2eeea080764650b871a63a744ab7b6fcdb19bef1a465978b6dba312",
+    "fixed-pins-c2/hps-anchor.phases.tsv": "61d39fd99f64c9e86dd621c31fc7cd515034c29c79d1d560b6a391d2a6ac714b",
+    "fixed-pins-c2/hps-anchor.scope.json": "71bc7651fc7901fb89af6decc6c3bf2d20ee33bc625c65e5d7398e9d187b0206",
+    "fixed-pins-c2/hps-geometry.pins.tsv": "751778ebb1cc016fdce10b597bc337d49247c33b6d7f36153c79786380ae6e23",
+    "fixed-pins-c2/hps-geometry.scope.json": "90eee4b0eb7f66cf3d39714d46bb03a98e655d0bd492951c8b304412ca8a86fb",
+    "fixed-pins-c2/invocation.json": "d7a46fe3e7a55e12134778f55bb6da04fca5317fe5066677eabd1880b7e02488",
+    "fixed-pins-c2/placement-proof.json": "11df70008f088caceb6810aabab72cf7695d95628a409f694d9f28382793b99c",
+    "fixed-pins-c2/replication.after.json": "722e66dbeb1db06e1db744c8b34907bd39dfa38c6caff62729c3dded836704c9",
+    "fixed-pins-c2/replication.after.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "fixed-pins-c2/replication.before.json": "722e66dbeb1db06e1db744c8b34907bd39dfa38c6caff62729c3dded836704c9",
+    "fixed-pins-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "fixed-pins-c2/replication.replicas.tsv": "ee3cf260f5dd5249cc4b57ab3116eb498a9e55c8e856f7fa80daf442712e4377",
+    "fixed-pins-c2/result.json": "1b4f4c9b9a81749170960a29aaf252eeec2108db2d51eb875e087dfb130a5945",
+    "fixed-pins-c2/routed.json": "4d54a5e97425dca6ae031a9d5ab441d5e8bda7fc8ad44c5ceb99ece2867a022b",
+    "fixed-pins-c2/run.log": "2deb527b9dd93e410810c097c08aadc4aee7e272e4fdf4161ec1d33e51d30d06",
+    "fixed-pins-c2/snapshot-proof.json": "8f3a4d9930b4e39cbbbc441bc9e65a085dc964dedcd2b1b72e6a33fd5a93d085",
+    "fixed-pins-c2/timing.json": "9548b17677f9f7c52016e4c493ccbb19b4f3e940393b9a417f2f66346a55c191",
+    "geometry-comparison.json": "0440e7890ce15c7ec4eec8c0348f89477e1bbf1382cedd4725c221f7addfcaff",
+    "green-build-final.log": "4e541cc4e1c52ec63d5525bf16fcb60d30083f439693c027bf05c63e3690ecb0",
+    "green-build.log": "88708ecf20d39bd76a1179797429078a03499fcbd6bfb3b0f802dd3671459042",
+    "green.log": "5074283b9af24cd122d3b6baf9a0c3b9a439e2bc8fd2cd0e164e2a8bb6ca1199",
+    "mistral-hps-anchor-pins.after_refine.bels.tsv": "dd379e14cf1f92c5212ffed774e04c45b206a9015363053d5be0102d47649d28",
+    "mistral-hps-anchor-pins.before_refine.bels.tsv": "f3cc24f29f28911ec91a2af334f281ee699a7f6a7b90c778f5e396008eb0b4ef",
+    "mistral-hps-anchor-pins.phases.tsv": "179e8f4ccb3e73dab43b0cf72bed6f0b564dbb06ee632837f456a4407d2ff5d5",
+    "mistral-hps-anchor-pins.pins.tsv": "a75bea711e07e56017f4ada5d863f6bae695cb9845628addc9826957fe1140e1",
+    "mistral-hps-anchor-pins.scope.json": "71bc7651fc7901fb89af6decc6c3bf2d20ee33bc625c65e5d7398e9d187b0206",
+    "mistral-hps-anchor-plain.after_refine.bels.tsv": "dd379e14cf1f92c5212ffed774e04c45b206a9015363053d5be0102d47649d28",
+    "mistral-hps-anchor-plain.before_refine.bels.tsv": "f3cc24f29f28911ec91a2af334f281ee699a7f6a7b90c778f5e396008eb0b4ef",
+    "mistral-hps-anchor-plain.phases.tsv": "179e8f4ccb3e73dab43b0cf72bed6f0b564dbb06ee632837f456a4407d2ff5d5",
+    "mistral-hps-anchor-plain.scope.json": "71bc7651fc7901fb89af6decc6c3bf2d20ee33bc625c65e5d7398e9d187b0206",
+    "next-lead.json": "a6efd9bb2d955634e48e40ca0e01d1625fa0fe5ca1cff46ca06c604aefb6c570",
+    "next-lead.md": "ff1f19764401135d52fbfe1455dc63f9162e0b5d5deaa3f90d4dc278d29caf80",
+    "next_lead.py": "8787ca2b522ae100c9b0e9194565b118ac4414d6da9c116f999fea0c3fb19150",
+    "red.log": "afa7df3fc69ca890bed6bd7d100f0ed26d13bcd68598bd98ad09994558f403d3",
+    "run_route.py": "26c7c9cce31f2c6faab969808a7eae08f0760adafdce0632ea13948d63d4a8f9",
+    "scope.json": "b177a8c334e95cea7237dfedc5f4c8899d3ae4a54d1a2032e4ebf44027880a8b",
+    "source-review.md": "e064d36da7ec0777a6176f8af76aa0ae8d14ab2ffb54847c7b5b5868d799cab8",
+    "summarize.py": "302d60ba1745160131dc3b769625b8d9dbc765e98d296092a55448e1548ba4fa",
+    "test-build.log": "e4b58b8129fc44f0b03e4672ba13efd3d749acc99d037941a3d2fc6676a969a4",
+    "test-results.json": "68eebe8f6bf15ded4a6e8c4a3a61139fa43ff0b91bb1cb663886c81b677a262e",
+    "test_anchor_checker.py": "9c34ea1996cfe2fbb09cf3b48b5a30219e6d6e3f2f4bae20354316a8b452e9b0",
+    "test_checker.py": "f3c28275dbeccb77b9268a382a69a77cfae98f9e8e973b1b6a755a420eebd74e",
+    "tools/nextpnr-hps-fixed-anchor": "cb9ebf7dca81c0f7ceec330f76475ecf58b05013fe7be9c4f0a60a817438f4ba",
+    "verify_evidence.py": "bca4de003b786b70145d5282753691fb60d48ea4454c57c1189182d41a14ec39"
+  },
+  "checker-tests": {
+    "identity_and_moved_positive": true,
+    "negative_cases_rejected": [
+      "mask",
+      "connection",
+      "initialization",
+      "cell_removed",
+      "pin_state",
+      "settings"
+    ]
+  },
+  "classification": "host-only paired fixed HPS analytical-anchor diagnostic; unchanged RTL, producer lock and shared contracts; no hardware acceptance",
+  "disabled-proof": {
+    "before_cells": 14890,
+    "classification": "full disabled placement only; final baseline timing retained from previously measured route",
+    "full_before_and_after_modules_exact": true,
+    "full_before_and_after_pin_states_exact": true,
+    "replica_manifest_exact": true
+  },
+  "external_inputs_sha256": {
+    "out/ramtest-control-mapping/all_fsm-c2/routed.json": "bf823e0ffae08a305d33546f30f6a6311fa0456129d123ada67b1115e14cea66",
+    "out/ramtest-control-mapping/all_fsm-c2/timing.json": "a057178c4398c814ab50e09da10dfc67fcb42f83aff2593739377586def53b0e",
+    "out/ramtest-control-mapping/placer-options-green/default.json": "458a93404b3b0abe9875b6752445657deaccebb1ca56a715b9122412c281f49a",
+    "out/ramtest-enable-replication/budget4-c2/replication.after.json": "5efbdc0b263f257aec1a57405aa8d7201092bba39799b90125413df9ee35cbbb",
+    "out/ramtest-enable-replication/budget4-c2/replication.before.json": "3b63896e7d50055f6bfa7a8f70f0c73ada71a40bc7a5ab26224c2fef4597d32a",
+    "out/ramtest-enable-replication/budget4-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "out/ramtest-enable-replication/budget4-c2/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "out/ramtest-enable-replication/budget4-c2/run.log": "29267ca24edb3186b548d3f79f368c1c278117572f1c1a60fb0f6e4a13a4b293",
+    "out/ramtest-enable-replication/check_snapshots.py": "672e78a293c487a570fcbd0f14b5553a80593390beb4b2c7a702fec89e2460a5",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "out/ramtest-fsm-isolation/mistral/data/sx120f-p2r.txt": "d627a7cd77ce80b4a18ab8f9b1443f1cd8e38b59e811895e039e4d9833dada18",
+    "out/ramtest-fsm-isolation/nextpnr/mistral/delay.cc": "9ca4a16d07d79273ba27d436ff86e5fce0788d3ac587bdae38e3aad2e23a9d0a",
+    "out/ramtest-fsm-isolation/nextpnr/mistral/enable_replication.cc": "7c82be3fa090376b937de0408b06ffeaf0b291f5958915fa8fc61209d0aa55ce",
+    "out/ramtest-fsm-isolation/nextpnr/mistral/enable_replication_policy.h": "0315f3f7e535401823da606085a6973fdd999a9e5a5cdd251f843863e8675087",
+    "out/ramtest-hps-pin-geometry/physical-pins.json": "83c9a5bb864d24b807d99d422258530512d51cb8f797300814dab379d406e364",
+    "out/ramtest-hps-pin-geometry/physical_pins.py": "e603dfb55f80ee7df497b49730aeeb0264fc441c44f523c9680ae58cd3f5fe80",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-enable-replication.json": "5da12e8af32821a2c565364e133a7477a9d378e5a42007f951a4b1f2411c372d",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-hps-pin-geometry.json": "a403ca3d6818a7b7af7596cc4ad6b06fce66719742239c625e8787682fc83890"
+  },
+  "fes_base": "d58283c00bc6c9b4dec617a00906a6faf3dc0840",
+  "geometry-comparison": {
+    "baseline": {
+      "arc_count": 673,
+      "ready_arcs": [
+        {
+          "dx": 22,
+          "dy": 29,
+          "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            29,
+            35
+          ],
+          "hps_pin": "cmd_ready_0",
+          "x_plus_2y": 80
+        },
+        {
+          "dx": 21,
+          "dy": 38,
+          "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            30,
+            26
+          ],
+          "hps_pin": "cmd_ready_1",
+          "x_plus_2y": 97
+        },
+        {
+          "dx": 20,
+          "dy": 36,
+          "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+          "fabric_port": "A",
+          "fabric_xy": [
+            31,
+            28
+          ],
+          "hps_pin": "cmd_ready_2",
+          "x_plus_2y": 92
+        }
+      ],
+      "sum_x_plus_2y": 53763
+    },
+    "metric": "sum abs(dx)+2*abs(dy) over673eligibleHPS/fabric arcs; tile units, no timing-criticality weights; not delay or fullHeAPobjective",
+    "runs": {
+      "fixed": {
+        "after_refine": {
+          "arc_count": 673,
+          "ready_arcs": [
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_0",
+              "x_plus_2y": 25
+            },
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_1",
+              "x_plus_2y": 25
+            },
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_2",
+              "x_plus_2y": 25
+            }
+          ],
+          "sum_x_plus_2y": 28763
+        },
+        "before-replication": {
+          "arc_count": 673,
+          "ready_arcs": [
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_0",
+              "x_plus_2y": 25
+            },
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_1",
+              "x_plus_2y": 25
+            },
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_2",
+              "x_plus_2y": 25
+            }
+          ],
+          "sum_x_plus_2y": 28763
+        },
+        "before_refine": {
+          "arc_count": 673,
+          "ready_arcs": [
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_0",
+              "x_plus_2y": 25
+            },
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_1",
+              "x_plus_2y": 25
+            },
+            {
+              "dx": 1,
+              "dy": 12,
+              "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                52
+              ],
+              "hps_pin": "cmd_ready_2",
+              "x_plus_2y": 25
+            }
+          ],
+          "sum_x_plus_2y": 30283
+        }
+      },
+      "fixed-pins": {
+        "after_refine": {
+          "arc_count": 673,
+          "ready_arcs": [
+            {
+              "dx": 3,
+              "dy": 10,
+              "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                48,
+                54
+              ],
+              "hps_pin": "cmd_ready_0",
+              "x_plus_2y": 23
+            },
+            {
+              "dx": 1,
+              "dy": 13,
+              "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                51
+              ],
+              "hps_pin": "cmd_ready_1",
+              "x_plus_2y": 27
+            },
+            {
+              "dx": 1,
+              "dy": 11,
+              "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                53
+              ],
+              "hps_pin": "cmd_ready_2",
+              "x_plus_2y": 23
+            }
+          ],
+          "sum_x_plus_2y": 19614
+        },
+        "before-replication": {
+          "arc_count": 673,
+          "ready_arcs": [
+            {
+              "dx": 3,
+              "dy": 10,
+              "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                48,
+                54
+              ],
+              "hps_pin": "cmd_ready_0",
+              "x_plus_2y": 23
+            },
+            {
+              "dx": 1,
+              "dy": 13,
+              "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                51
+              ],
+              "hps_pin": "cmd_ready_1",
+              "x_plus_2y": 27
+            },
+            {
+              "dx": 1,
+              "dy": 11,
+              "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                53
+              ],
+              "hps_pin": "cmd_ready_2",
+              "x_plus_2y": 23
+            }
+          ],
+          "sum_x_plus_2y": 19614
+        },
+        "before_refine": {
+          "arc_count": 673,
+          "ready_arcs": [
+            {
+              "dx": 1,
+              "dy": 5,
+              "fabric_cell": "hps_ddr.port0.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                59
+              ],
+              "hps_pin": "cmd_ready_0",
+              "x_plus_2y": 11
+            },
+            {
+              "dx": 1,
+              "dy": 7,
+              "fabric_cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                57
+              ],
+              "hps_pin": "cmd_ready_1",
+              "x_plus_2y": 15
+            },
+            {
+              "dx": 1,
+              "dy": 9,
+              "fabric_cell": "hps_ddr.port2.slot_free_MISTRAL_ALUT2_Q",
+              "fabric_port": "A",
+              "fabric_xy": [
+                50,
+                55
+              ],
+              "hps_pin": "cmd_ready_2",
+              "x_plus_2y": 19
+            }
+          ],
+          "sum_x_plus_2y": 18137
+        }
+      }
+    }
+  },
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "next-lead": {
+    "baseline": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-replication/budget4-c2/replication.after.json",
+    "baseline_sha256": "5efbdc0b263f257aec1a57405aa8d7201092bba39799b90125413df9ee35cbbb",
+    "critical_sink": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_27",
+    "driver": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+    "enumeration_center": [
+      39,
+      27
+    ],
+    "enumeration_radius": 61,
+    "feasible_integer_sites": 339,
+    "inputs": [
+      {
+        "driver": "hps_ddr.port1.enter_read_MISTRAL_ALUT5_Q",
+        "limit_ps": 2125,
+        "pin": "A",
+        "xy": [
+          39,
+          27
+        ]
+      },
+      {
+        "driver": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+        "limit_ps": 1710,
+        "pin": "B",
+        "xy": [
+          30,
+          26
+        ]
+      },
+      {
+        "driver": "hps_ddr.port1.enter_write_MISTRAL_ALUT2_Q",
+        "limit_ps": 1855,
+        "pin": "C",
+        "xy": [
+          37,
+          25
+        ]
+      }
+    ],
+    "limitations": [
+      "Coordinate predictor only; excludes BEL availability and packing legality.",
+      "No electrical loading, routing, hold, or Fmax conclusion."
+    ],
+    "maximizing_sites": [
+      [
+        27,
+        19
+      ]
+    ],
+    "maximum_gain_ps": 205,
+    "original_output_prediction_ps": 1605,
+    "original_xy": [
+      24,
+      20
+    ],
+    "predictor_source": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-isolation/nextpnr/mistral/delay.cc",
+    "predictor_source_sha256": "9ca4a16d07d79273ba27d436ff86e5fce0788d3ac587bdae38e3aad2e23a9d0a",
+    "remaining_ena_users": 107,
+    "required_gain_ps": 250,
+    "sink_xy": [
+      27,
+      14
+    ],
+    "whole_lab_ena_users": [
+      "hps_ddr.port1.skid_address_MISTRAL_FF_Q_17",
+      "hps_ddr.port1.skid_address_MISTRAL_FF_Q_21",
+      "hps_ddr.port1.skid_address_MISTRAL_FF_Q_23",
+      "hps_ddr.port1.skid_address_MISTRAL_FF_Q_27"
+    ]
+  },
+  "nextpnr_base": "979039a95910f388cb0b7d69d7e9f16980e29df3",
+  "nextpnr_branch": "probe/ramtest-hps-fixed-anchor",
+  "nextpnr_commit": "623070998f3e23e2ad7acd5eb3311e4827fbbd17",
+  "nextpnr_status": "",
+  "runs": {
+    "fixed-c2": {
+      "anchor-proof": {
+        "after_refinement_matches_packed": true,
+        "all_analytical_phases_fixed_and_unsolved": true,
+        "cells_moved_by_refinement": 13745,
+        "phase_counts": {
+          "after_refine": 1,
+          "before_refine": 1,
+          "initial_solve": 4,
+          "legalise": 56,
+          "refine_ready": 1,
+          "rows": 60,
+          "seed": 1,
+          "solve": 56,
+          "spread": 56
+        },
+        "phase_placements": 14890,
+        "trace_rows": 236,
+        "weak_before_and_after_refinement": true
+      },
+      "binary_sha256": "cb9ebf7dca81c0f7ceec330f76475ecf58b05013fe7be9c4f0a60a817438f4ba",
+      "classification": "host-only paired fixed-anchor diagnostic; unchanged RTL and final timing model",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/tools/nextpnr-hps-fixed-anchor",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": -0.0729999989271164,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.6040000319480896,
+            "routing": 8.946999967098236,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 11.013000011444092,
+          "from": {
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_22",
+            "loc": [
+              46,
+              14
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "ddr2_test.idle[23]"
+          ],
+          "logic_arcs": 8,
+          "to": {
+            "cell": "ddr2_address_MISTRAL_FF_Q_25",
+            "loc": [
+              40,
+              44
+            ],
+            "port": "ENA"
+          },
+          "to_signals": [
+            "ddr2_address[25]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": -0.061000000685453415,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.195000022649765,
+            "routing": 10.422000050544739,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.091000083833933,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_3",
+            "loc": [
+              24,
+              25
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[3]"
+          ],
+          "logic_arcs": 9,
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_5",
+            "loc": [
+              28,
+              27
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.ddr_ch_t[4]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 323.51351006003097,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-c2/replication",
+        "NEXTPNR_MISTRAL_HPS_FIXED_ANCHOR": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-c2/hps-anchor"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 76.38835906982422,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 90.8017807006836,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 333.6889343261719,
+          "constraint": 130.0052032470703
+        }
+      },
+      "mode": "fixed",
+      "placement-proof": {
+        "full_move_list": "fixed-c2/placement-proof.json",
+        "moved_cell_count": 14812,
+        "original_cells": 14890,
+        "original_pin_states_exact": 103057,
+        "packed_module_exact_except_bels": true
+      },
+      "replication_log": [
+        "Info: Enable replication considering 'ddr0_test.burst_end_MISTRAL_ALUT3_A': 2 LAB groups, 3 signal inputs.",
+        "Info: Enable replication considering 'ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B': 4 LAB groups, 3 signal inputs.",
+        "Info: Enable replication considering 'ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B': 7 LAB groups, 3 signal inputs.",
+        "Info: Enable replica source=ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B clone=ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B$enable_replica bel=MISTRAL_MCOMB.47.35.0 sinks=3 gain=1340ps slack=-3631ps criticality=0.939",
+        "Info: Enable replication: 1 replicas, budget 4; examined at most 32 of 4 ranked candidates."
+      ],
+      "returncode": 0,
+      "snapshot-proof": {
+        "original_pin_states_unchanged": 103057,
+        "original_placements_unchanged": 14890,
+        "replicas": [
+          {
+            "clone": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B$enable_replica",
+            "clone_bel": "MISTRAL_MCOMB.47.35.0",
+            "labs": [
+              [
+                47,
+                35
+              ]
+            ],
+            "moved_sinks": [
+              "ddr0_address_MISTRAL_FF_Q_16",
+              "ddr0_address_MISTRAL_FF_Q_17",
+              "ddr0_address_MISTRAL_FF_Q_18"
+            ],
+            "original": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+            "source_bel": "MISTRAL_COMB.43.41.0",
+            "truth_table_identical": {
+              "LUT": "11010000"
+            }
+          }
+        ]
+      },
+      "synth_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+    },
+    "fixed-pins-c2": {
+      "anchor-proof": {
+        "after_refinement_matches_packed": true,
+        "all_analytical_phases_fixed_and_unsolved": true,
+        "cells_moved_by_refinement": 13774,
+        "phase_counts": {
+          "after_refine": 1,
+          "before_refine": 1,
+          "initial_solve": 4,
+          "legalise": 52,
+          "refine_ready": 1,
+          "rows": 56,
+          "seed": 1,
+          "solve": 52,
+          "spread": 52
+        },
+        "phase_placements": 14890,
+        "trace_rows": 220,
+        "weak_before_and_after_refinement": true
+      },
+      "binary_sha256": "cb9ebf7dca81c0f7ceec330f76475ecf58b05013fe7be9c4f0a60a817438f4ba",
+      "classification": "host-only paired fixed-anchor diagnostic; unchanged RTL and final timing model",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/tools/nextpnr-hps-fixed-anchor",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-pins-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-pins-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-pins-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.03200000151991844,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.3970000445842743,
+            "routing": 8.560999996960163,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 10.525000054389238,
+          "from": {
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_16",
+            "loc": [
+              43,
+              16
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "ddr1_test.idle[14]"
+          ],
+          "logic_arcs": 7,
+          "to": {
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_6",
+            "loc": [
+              46,
+              28
+            ],
+            "port": "ENA"
+          },
+          "to_signals": [
+            "ddr1_test.beats_left[2]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-skew": -0.061000000685453415,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 3.25600004196167,
+            "routing": 9.656000018119812,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.386000070720911,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q_5",
+            "loc": [
+              25,
+              35
+            ],
+            "port": "Q"
+          },
+          "from_signals": [
+            "display.col_s[5]"
+          ],
+          "logic_arcs": 8,
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_1",
+            "loc": [
+              27,
+              41
+            ],
+            "port": "DATAIN"
+          },
+          "to_signals": [
+            "display.ddr_ch_t[2]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 280.8135583300609,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-pins-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-pins-c2/replication",
+        "NEXTPNR_MISTRAL_HPS_FIXED_ANCHOR": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-pins-c2/hps-anchor",
+        "NEXTPNR_MISTRAL_HPS_PIN_GEOMETRY": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-hps-fixed-anchor/fixed-pins-c2/hps-geometry"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 74.70491790771484,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 95.01187896728516,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 356.1786193847656,
+          "constraint": 130.0052032470703
+        }
+      },
+      "geometry-proof": {
+        "applied": 673,
+        "considered": 1178,
+        "excluded_reasons": {
+          "clock": 11,
+          "constant_net": 430,
+          "unused_output": 64
+        },
+        "independent_database_and_connectivity_match": true,
+        "ready1_offset": [
+          -1,
+          11
+        ]
+      },
+      "mode": "fixed-pins",
+      "placement-proof": {
+        "full_move_list": "fixed-pins-c2/placement-proof.json",
+        "moved_cell_count": 14812,
+        "original_cells": 14890,
+        "original_pin_states_exact": 103057,
+        "packed_module_exact_except_bels": true
+      },
+      "replication_log": [
+        "Info: Enable replication considering 'ddr1_test.burst_end_MISTRAL_ALUT3_A': 2 LAB groups, 3 signal inputs.",
+        "Info: Enable replication: 0 replicas, budget 4; examined at most 32 of 2 ranked candidates."
+      ],
+      "returncode": 0,
+      "snapshot-proof": {
+        "original_pin_states_unchanged": 103057,
+        "original_placements_unchanged": 14890,
+        "replicas": []
+      },
+      "synth_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+    }
+  },
+  "scope": {
+    "classification": "host-only opt-in diagnostic; no producer lock or hardware changes",
+    "fes_base": "d58283c00bc6c9b4dec617a00906a6faf3dc0840",
+    "modes": {
+      "fixed": "unique-site FPGA2SDRAM held in HeAP; restore WEAK before SA",
+      "fixed-pins": "same anchor plus previous673physical pin offsets"
+    },
+    "nextpnr_base": "979039a95910f388cb0b7d69d7e9f16980e29df3",
+    "question": "Does keeping the unique-site FPGA2SDRAM block fixed during analytical placement improve timing, alone or with physical-pin offsets?",
+    "unchanged": [
+      "RTL/synthesis",
+      "constraints",
+      "SA algorithm and initial HPS WEAK strength",
+      "predictDelay and final timing",
+      "enable replication policy/budget4",
+      "GPU1/seed2/exponent2/weight10"
+    ]
+  },
+  "test-results": {
+    "ctest": {
+      "backend_log": "ctest-backend.log",
+      "elapsed_seconds": 102.92,
+      "failed": 0,
+      "log": "ctest.log",
+      "passed": 27
+    },
+    "default_module_exact_match": 197,
+    "empty_env_module_exact_match": 197,
+    "focused_green": {
+      "elapsed_seconds": 19.534,
+      "failed": 0,
+      "log": "green.log",
+      "passed": 5
+    },
+    "red": {
+      "failed": 3,
+      "failure": "no-op anchor leaves HPS in solved rows and accepts constrained primitive",
+      "log": "red.log",
+      "passed": 2
+    }
+  }
+}
