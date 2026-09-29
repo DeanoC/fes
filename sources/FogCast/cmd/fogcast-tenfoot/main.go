@@ -61,9 +61,10 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	noAttract := fs.Bool("no-attract", envNoAttract, "disable attract mode")
 	inputProfile := fs.String("input-profile", envOr("FOGCAST_INPUT_PROFILE", ""), "identity, swap-ab, or JSON profile path (default identity)")
 	themeSpec := fs.String("theme", "", "classic/default, neon/arcade, sofa-dim/night, or JSON/TOML path (default classic)")
-	gfxName := fs.String("gfx", envOr("TENFOOT_GFX", ""), "sdl (default), software, fpga, fpga-stub, or linuxfb")
+	gfxName := fs.String("gfx", envOr("TENFOOT_GFX", ""), "sdl (default), software, fpga, fpga-stub, linuxfb, or menu-display")
 	fb := fs.String("fb", "/dev/fb0", "framebuffer node for -gfx linuxfb")
-	input := fs.String("input", "auto", "linuxfb inputs: auto, none, or comma-separated evdev nodes")
+	input := fs.String("input", "auto", "linuxfb and menu-display inputs: auto, none, or comma-separated evdev nodes")
+	menuSocket := fs.String("menu-socket", "", "runtime menu socket for -gfx menu-display")
 	debugHUD := fs.Bool("debug-hud", envTruthy("FOGCAST_DEBUG_HUD"), "paint the optional corner overlay (flight, lease gen/ttl, last error)")
 	roomsDir := fs.String("rooms", envOr("FOGCAST_ROOMS", ""), "room pack directory (default <config>/FogCast/rooms; embedded examples are always available)")
 	home := fs.String("home", "", "screen shown at start: library or rooms (default tenfoot.json home, else library)")
@@ -112,6 +113,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		Theme:        *themeSpec,
 		GFX:          *gfxName,
 		Framebuffer:  *fb,
+		MenuSocket:   *menuSocket,
 		Input:        *input,
 		DebugHUD:     *debugHUD,
 		DebugHUDSet:  debugHUDSet,

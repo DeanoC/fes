@@ -60,13 +60,16 @@ in `ui/tenfoot/sdl.go` until a later slice.
 | FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. Attract still/crossfade and sprite helpers: `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Thin Software wrapper without a command stream (`fpga-stub`). `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `ui/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits; `-theme` selects the shared look tokens. |
+| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. No kit lease and no agent client. Host-testable. The kit still runs `fogcast-kit`. On-kit entry and redraw on a new generation are follow-on. |
 
 `gfx.Recorder` is a call-order test double and does not draw pixels. Optional
 `TENFOOT_GFX=software|sdl|fpga|fpga-stub` (or `Options.GFX` / `-gfx`) selects a
 Device inside the SDL window shell; unset keeps WrapSDLRenderer. `fpga` is
-software-replay of the FC2D stream, not a programmed 2D core. `linuxfb` is not
-opened from that shell; run `cmd/tenfoot-linuxfb-spike` or
-`cmd/tenfoot-linuxfb-grid` on the kit.
+software-replay of the FC2D stream, not a programmed 2D core. `linuxfb` and
+`menu-display` are not opened from that shell. `tenfoot.Run` dispatches
+`-gfx menu-display` to `gfx.MenuDisplay` (change-driven presents,
+`-menu-socket`). `linuxfb` on the kit can still use `cmd/tenfoot-linuxfb-spike`
+or `cmd/tenfoot-linuxfb-grid`.
 
 ## Run
 

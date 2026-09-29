@@ -33,13 +33,18 @@ type Options struct {
 	NoAttractSet bool
 	PrefsPath    string
 	APIHost      string
-	// GFX selects sdl (default), software, fpga, fpga-stub, or linuxfb.
-	// Empty falls back to TENFOOT_GFX, then sdl. linuxfb runs the shared
-	// App directly on a Linux framebuffer without SDL. Other alternatives
-	// use the SDL window shell. fpga records FC2D, not HDMI FPGA UI.
+	// GFX selects sdl (default), software, fpga, fpga-stub, linuxfb, or
+	// menu-display. Empty falls back to TENFOOT_GFX, then sdl. linuxfb and
+	// menu-display run the shared App directly without SDL. menu-display
+	// submits frames to the runtime menu socket. Other alternatives use the
+	// SDL window shell. fpga records FC2D, not HDMI FPGA UI.
 	GFX string
-	// Framebuffer is the Linux framebuffer node; Input is auto, none, or comma-separated evdev nodes.
+	// Framebuffer is the Linux framebuffer node for -gfx linuxfb.
+	// MenuSocket is the runtime menu socket for -gfx menu-display; empty
+	// becomes /run/mister-runtime.sock. That path holds no kit lease and
+	// does not talk to the agent. Input is auto, none, or comma-separated evdev nodes.
 	Framebuffer string
+	MenuSocket  string
 	Input       string
 	// InputProfile is a built-in name (identity, swap-ab) or a JSON file
 	// path. Empty is identity.
@@ -142,6 +147,9 @@ func (o Options) normalized() Options {
 	if strings.TrimSpace(o.GFX) == "" {
 		o.GFX = strings.TrimSpace(os.Getenv("TENFOOT_GFX"))
 	}
+	if strings.TrimSpace(o.MenuSocket) == "" {
+		o.MenuSocket = defaultMenuSocket
+	}
 	if strings.TrimSpace(o.Theme) == "" && prefsErr == nil {
 		o.Theme = strings.TrimSpace(prefs.Theme)
 	}
@@ -224,10 +232,24 @@ func Run(ctx context.Context, opts Options) error {
 	if err != nil {
 		return err
 	}
-	if backend == gfx.BackendLinuxFB {
+	switch backend {
+	case gfx.BackendLinuxFB:
 		return runFramebuffer(ctx, opts)
+	case gfx.BackendMenuDisplay:
+		return runMenuDisplay(ctx, opts)
+	default:
+		return runWindow(ctx, opts)
 	}
-	return runWindow(ctx, opts)
+}
+
+const defaultMenuSocket = "/run/mister-runtime.sock"
+
+// sizedOptions forces the UI to the device's pixel geometry. linuxfb uses the
+// framebuffer mode; menu-display is fixed at the runtime's 1280×720 panel.
+func sizedOptions(opts Options, dev interface{ Config() gfx.FBConfig }) Options {
+	cfg := dev.Config()
+	opts.Width, opts.Height = cfg.Width, cfg.Height
+	return opts
 }
 
 // configuredApp keeps application setup identical across native display backends.

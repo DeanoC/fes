@@ -178,6 +178,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   with native evdev keyboard and digital gamepad input. Build using
   `CGO_ENABLED=0 go build ./cmd/fogcast-tenfoot`; see the
   [Linux framebuffer guide](docs/native-tenfoot-launcher/LINUX.md#framebuffer-without-sdl).
+  `fogcast-tenfoot -gfx menu-display` runs that same app and evdev input through
+  the runtime menu socket (`-menu-socket`, default `/run/mister-runtime.sock`).
+  Presents are change-driven: a frame byte-identical to the last submitted frame is skipped unless that frame failed or was dropped, or the known generation has changed since.
+  The process holds no kit lease and does not call the agent. Host tests cover
+  the backend. The kit still runs `fogcast-kit` until the on-kit entry point.
+  Redraw on a new generation, pause before launch, and bounded retry are follow-on.
   The CGO-free on-kit `fogcast-kit` shell can explicitly select the described
   HDMI menu path with `menu_display: true` in `launcher.json` or
   `-menu-display`. It keeps the host-backed library, cached offline browsing,

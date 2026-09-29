@@ -853,7 +853,11 @@ USB keyboards join the play-session input stream with gamepads; `fes.keyboard`
 packages are eligible without `fes.gamepad`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
 Explicit `-gfx linuxfb` dispatches to `ui/tenfoot/linuxfb_linux.go` before
-SDL initialization, including in CGO-free builds. Both shells use
+SDL initialization, including in CGO-free builds. Explicit `-gfx menu-display`
+dispatches to `ui/tenfoot/menudisplay_linux.go` the same way: it reuses that
+app, evdev input, and smoke loop, forces 1280×720, and submits through the
+runtime menu socket with change-driven presents. It holds no kit lease and
+does not call the agent. The SDL, linuxfb and menu-display shells all use
 `configuredApp` and the shared App, rendering, catalog and session API paths.
 The framebuffer shell reads native-width evdev records for US keyboard text
 and digital gamepad buttons/hat axes, merges held commands across devices,
@@ -872,6 +876,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` submits every `Present`. `fogcast-tenfoot -gfx menu-display` calls `SetChangeDriven(true)`: a frame byte-identical to the last submitted frame is skipped unless that frame failed or was dropped, or the known generation has changed since. No kit lease and no agent client. The kit still runs `fogcast-kit`. On-kit entry, redraw on a new generation, pause before launch, and bounded retry are follow-on. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -885,6 +890,11 @@ local `ui/menudisplay` client reads the runtime's menu generation and fixed
 displayed-sequence completion through protocol 2. The UI receives no DDR
 address or FPGA register access; stale generations and unavailable menu
 firmware reject frames at the runtime. Submission runs off the pad loop.
+`fogcast-tenfoot -gfx menu-display` is a second client of that socket and
+opts into change-driven presents. An unchanged frame is not resubmitted by
+itself after a new menu generation. The kit image still starts `fogcast-kit`;
+switching that entry point, redraw on a new generation, pause before launch,
+and bounded retry are follow-on.
 The configured FogCast service still supplies library/setup operations and
 the host session path still launches games. Cached offline titles remain
 browse-only. This option does not install or select menu firmware in an image.
