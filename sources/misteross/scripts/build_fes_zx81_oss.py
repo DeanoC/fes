@@ -161,9 +161,38 @@ def _frequency_row(fmax: object, expected: float, label: str, name_contains: str
 def _audio_timing(fmax: object) -> tuple[str, float, float]:
     return _frequency_row(fmax, 12.288, 'audio clock')
 
+def _audio_synthesis_evidence(design: dict) -> None:
+    module = design['modules'][TOP]
+    cells = module.get('cells', {})
+    names = module.get('netnames', {})
+    pll = cells.get('system_clock.pll', {})
+    outputs = pll.get('connections', {}).get('outclk', [])
+    clock = names.get('audio_clk', {}).get('bits', [])
+    locked = names.get('audio.locked', {}).get('bits', [])
+    if (pll.get('type') != 'altera_pll' or len(outputs) != 2
+            or len(clock) != 1 or len(locked) != 1
+            or pll.get('connections', {}).get('locked') != locked
+            or not any(cell.get('type') == 'MISTRAL_CLKBUF'
+                       and cell.get('connections', {}).get('A') == [outputs[1]]
+                       and cell.get('connections', {}).get('Q') == clock
+                       for cell in cells.values())):
+        raise BuildError('audio clock must come from the second PLL output and share its lock')
+
 def _audio_evidence(design: dict) -> None:
     module = design['modules'][TOP]
     cells = module.get('cells', {})
+    netnames = module.get('netnames', {})
+    expected_nets = {'HDMI_MCLK': 'audio_clk', 'HDMI_SCLK': 'audio.sclk',
+                     'HDMI_LRCLK': 'audio.lrclk', 'HDMI_I2S0': 'audio.sdata'}
+    audio_nets: dict[str, list[int]] = {}
+    for port, name in expected_nets.items():
+        bits = netnames.get(name, {}).get('bits')
+        if not isinstance(bits, list) or len(bits) != 1 or type(bits[0]) is not int:
+            raise BuildError(f'audio output {port} has no routed {name} signal')
+        audio_nets[port] = bits
+    lock = netnames.get('audio.locked', {}).get('bits')
+    if not isinstance(lock, list) or len(lock) != 1 or type(lock[0]) is not int:
+        raise BuildError('audio lock has no routed signal')
     clocks = [cell for name, cell in cells.items()
               if name == 'system_clock.pll' and cell.get('type') == 'altera_pll'
               and cell.get('parameters', {}).get('reference_clock_frequency') == '50.0 MHz'
@@ -171,6 +200,17 @@ def _audio_evidence(design: dict) -> None:
               and cell.get('parameters', {}).get('output_clock_frequency1') == '12.288 MHz']
     if len(clocks) != 1:
         raise BuildError('audio requires one shared 52/12.288 MHz PLL')
+    if clocks[0].get('connections', {}).get('locked') != lock:
+        raise BuildError('audio lock is disconnected from the PLL')
+    if not any(cell.get('type') == 'MISTRAL_CLKBUF'
+               and cell.get('connections', {}).get('Q') == audio_nets['HDMI_MCLK']
+               for cell in cells.values()):
+        raise BuildError('audio clock is disconnected from its clock buffer')
+    if not any(name.startswith('audio.') and cell.get('type') == 'MISTRAL_FF'
+               and cell.get('connections', {}).get('CLK') == audio_nets['HDMI_MCLK']
+               and cell.get('connections', {}).get('ACLR') == lock
+               for name, cell in cells.items()):
+        raise BuildError('audio serializer lacks the buffered clock or PLL lock')
     for port, pin in AUDIO_PINS.items():
         entry = module.get('ports', {}).get(port, {})
         pads = [cell for cell in cells.values()
@@ -183,7 +223,7 @@ def _audio_evidence(design: dict) -> None:
         source = cell.get('connections', {}).get('I', [])
         if (attributes.get('LOC') != pin or attributes.get('IO_STANDARD') != '3.3-V LVTTL'
                 or not attributes.get('NEXTPNR_BEL', '').startswith('MISTRAL_IO.')
-                or len(source) != 1 or type(source[0]) is not int):
+                or source != audio_nets[port]):
             raise BuildError(f'audio output {port} has incorrect routing or electrical constraints')
 
 def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
@@ -193,6 +233,7 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
         raise BuildError('routed design does not contain the top module')
     _i2c_evidence(synthesis, 'synthesized')
     _i2c_evidence(routed, 'routed')
+    _audio_synthesis_evidence(synthesis)
     _audio_evidence(routed)
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():

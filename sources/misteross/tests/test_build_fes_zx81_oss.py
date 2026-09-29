@@ -49,24 +49,51 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, 'audio clock timing achieved'):
             build_fes_zx81_oss._audio_timing(fmax)
         ports = {}
+        netnames = {'audio_clk': {'bits': [201]}, 'audio.locked': {'bits': [202]},
+                    'audio.sclk': {'bits': [203]}, 'audio.lrclk': {'bits': [204]},
+                    'audio.sdata': {'bits': [205]}}
         cells = {'system_clock.pll': {'type': 'altera_pll', 'parameters': {
             'reference_clock_frequency': '50.0 MHz',
             'output_clock_frequency0': '52.224 MHz',
             'output_clock_frequency1': '12.288 MHz',
-        }}}
+        }, 'connections': {'locked': [202]}},
+            'audio_clock_buffer': {'type': 'MISTRAL_CLKBUF', 'connections': {'Q': [201]}},
+            'audio.serializer': {'type': 'MISTRAL_FF', 'connections': {'CLK': [201], 'ACLR': [202]}},
+        }
+        sources = {'HDMI_MCLK': 201, 'HDMI_SCLK': 203,
+                   'HDMI_LRCLK': 204, 'HDMI_I2S0': 205}
         for index, (port, pin) in enumerate({
             'HDMI_MCLK': 'PIN_U11', 'HDMI_SCLK': 'PIN_T12',
             'HDMI_LRCLK': 'PIN_T11', 'HDMI_I2S0': 'PIN_T13',
         }.items(), 1):
             ports[port] = {'direction': 'output', 'bits': [index]}
-            cells[port] = {'type': 'MISTRAL_OB', 'connections': {'PAD': [index], 'I': [index + 100]},
+            cells[port] = {'type': 'MISTRAL_OB', 'connections': {'PAD': [index], 'I': [sources[port]]},
                            'attributes': {'LOC': pin, 'IO_STANDARD': '3.3-V LVTTL',
                                           'NEXTPNR_BEL': f'MISTRAL_IO.1.1.{index}'}}
-        routed = {'modules': {'top': {'ports': ports, 'cells': cells}}}
+        routed = {'modules': {'top': {'ports': ports, 'cells': cells, 'netnames': netnames}}}
         build_fes_zx81_oss._audio_evidence(routed)
+        cells['HDMI_I2S0']['connections']['I'] = [999]
+        with self.assertRaisesRegex(BuildError, 'HDMI_I2S0'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        cells['HDMI_I2S0']['connections']['I'] = [205]
+        cells['system_clock.pll']['connections']['locked'] = [999]
+        with self.assertRaisesRegex(BuildError, 'lock'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        cells['system_clock.pll']['connections']['locked'] = [202]
         cells['HDMI_I2S0']['attributes']['LOC'] = 'PIN_BAD'
         with self.assertRaisesRegex(BuildError, 'HDMI_I2S0'):
             build_fes_zx81_oss._audio_evidence(routed)
+
+    def test_synthesized_audio_clock_comes_from_second_pll_output(self):
+        pll = {'type': 'altera_pll', 'connections': {'outclk': [10, 11], 'locked': [12]}}
+        buffer = {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [11], 'Q': [13]}}
+        top = {'cells': {'system_clock.pll': pll, 'audio_buffer': buffer},
+               'netnames': {'audio_clk': {'bits': [13]}, 'audio.locked': {'bits': [12]}}}
+        design = {'modules': {'top': top}}
+        build_fes_zx81_oss._audio_synthesis_evidence(design)
+        buffer['connections']['A'] = [99]
+        with self.assertRaisesRegex(BuildError, 'second PLL output'):
+            build_fes_zx81_oss._audio_synthesis_evidence(design)
 
     def test_signoff_rejects_failed_arc_even_with_normal_footer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -80,6 +107,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 "Info: Program finished normally.\n"
             )
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
+                build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_evidence'), patch.object(
                 build_fes_zx81_oss, '_cell_counts', return_value={
                     **build_fes_zx81_oss.REQUIRED_RESOURCES,

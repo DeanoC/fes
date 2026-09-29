@@ -6,7 +6,10 @@ fixed 720p60 HDMI and a registered Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
 package carries the vacant bus; carts are independent bus consumers.
 
-FES installs this package as part of the ordered native package-only image set.
+The FES factory recipe selects this package for a future native image. The
+1.3.0 audio candidate has not passed kit silent-path acceptance and has not
+been installed in the current factory image. See the
+[kit diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md).
 The host library path is `core-install` / `core-entry` /
 `POST /api/v1/session/launch` with the returned `game_id`, as for other
 described FPGA cores. Select the 8192-byte `machine-rom` binary explicitly;
@@ -52,8 +55,9 @@ the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52.224 MHz system clock, registered M10K and
 the scoped `toolchains/zx81-expansion.lock`; it does not inherit Quartus
 acceptance. Its combined 52.224/12.288 MHz system/audio PLL and shared PCM/I2S output mute
-on Hold or lost audio lock. A vacant socket supplies zero PCM; Zon X is not
-a publishable library cart yet, so audible ZX81 hardware acceptance is pending.
+on Hold or lost audio lock. A vacant socket is intended to supply zero PCM,
+but the current OSS candidate emitted nonzero HDMI samples on kit 1. This
+blocks hardware acceptance; Zon X is not a publishable library cart yet.
 This system clock is 0.43% faster than the former 52 MHz package; keyboard,
 tape and expansion contracts are unchanged.
 
@@ -68,4 +72,5 @@ slice.
 Component tests and Verilator live in the misteross worktree. Hardware
 diagnostics on the designated kit used a sealed OSS package and a derived
 keyboard-agent rootfs. Those are not exact-artifact acceptance of an
-assembled FES image.
+assembled FES image. The [1.3.0 shared-audio diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md)
+failed vacant-socket silence and did not qualify the new package.
