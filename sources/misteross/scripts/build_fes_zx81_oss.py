@@ -215,8 +215,13 @@ def _audio_evidence(design: dict) -> None:
                        and cell.get('connections', {}).get('ACLR') == lock
                        for name, cell in cells.items())):
         raise BuildError('audio lock synchronizer is disconnected from the PLL lock')
-    serializer_ffs = [cell for name, cell in cells.items()
-                      if name.startswith('audio.serializer.') and cell.get('type') == 'MISTRAL_FF']
+    # ABC names cells after connected nets: an unreset CDC register can inherit
+    # audio.serializer.sample_tick even though it belongs to fes_audio_output.
+    # Use retained RTL provenance to identify the serializer's resettable FFs.
+    serializer_ffs = [cell for cell in cells.values()
+                      if cell.get('type') == 'MISTRAL_FF'
+                      and any(source.startswith('cores/fes-common/rtl/fes_audio_i2s.v:')
+                              for source in cell.get('attributes', {}).get('src', '').split('|'))]
     if not serializer_ffs or any(cell.get('connections', {}).get('CLK') != audio_nets['HDMI_MCLK']
                                  or cell.get('connections', {}).get('ACLR') != lock_sync
                                  for cell in serializer_ffs):

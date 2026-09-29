@@ -60,7 +60,9 @@ class BuildFesZx81OssTests(unittest.TestCase):
             'audio_clock_buffer': {'type': 'MISTRAL_CLKBUF', 'connections': {'Q': [201]}},
             'audio.lock_sync_MISTRAL_FF_Q': {'type': 'MISTRAL_FF',
                                               'connections': {'Q': [206], 'CLK': [201], 'ACLR': [202]}},
-            'audio.serializer.sample_tick': {'type': 'MISTRAL_FF', 'connections': {'CLK': [201], 'ACLR': [206]}},
+            'audio.serializer.sample_tick': {'type': 'MISTRAL_FF',
+                'attributes': {'src': 'cores/fes-common/rtl/fes_audio_i2s.v:23.5-41.8|dff_map.v:6.16-6.121'},
+                'connections': {'CLK': [201], 'ACLR': [206]}},
         }
         sources = {'HDMI_MCLK': 201, 'HDMI_SCLK': 203,
                    'HDMI_LRCLK': 204, 'HDMI_I2S0': 205}
@@ -74,6 +76,14 @@ class BuildFesZx81OssTests(unittest.TestCase):
                                           'NEXTPNR_BEL': f'MISTRAL_IO.1.1.{index}'}}
         routed = {'modules': {'top': {'ports': ports, 'cells': cells, 'netnames': netnames}}}
         build_fes_zx81_oss._audio_evidence(routed)
+        # ABC can name the unreset CDC synchronizer after sample_tick. Its
+        # inactive ACLR must not be mistaken for a missing serializer reset.
+        cells['audio.serializer.sample_tick_MISTRAL_FF_Q_DATAIN_MISTRAL_FF_Q'] = {
+            'type': 'MISTRAL_FF',
+            'attributes': {'src': 'cores/fes-common/rtl/fes_audio_output.v:31.5-40.8'},
+            'connections': {'CLK': [201], 'ACLR': []},
+        }
+        build_fes_zx81_oss._audio_evidence(routed)
         cells['HDMI_I2S0']['connections']['I'] = [999]
         with self.assertRaisesRegex(BuildError, 'HDMI_I2S0'):
             build_fes_zx81_oss._audio_evidence(routed)
@@ -86,6 +96,17 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, 'serializer'):
             build_fes_zx81_oss._audio_evidence(routed)
         cells['audio.serializer.sample_tick']['connections']['ACLR'] = [206]
+        serializer = cells.pop('audio.serializer.sample_tick')
+        cells['renamed_serializer_ff'] = serializer
+        serializer['connections']['CLK'] = [999]
+        with self.assertRaisesRegex(BuildError, 'serializer'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        serializer['connections']['CLK'] = [201]
+        build_fes_zx81_oss._audio_evidence(routed)
+        del cells['renamed_serializer_ff']
+        with self.assertRaisesRegex(BuildError, 'serializer'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        cells['renamed_serializer_ff'] = serializer
         cells['HDMI_I2S0']['attributes']['LOC'] = 'PIN_BAD'
         with self.assertRaisesRegex(BuildError, 'HDMI_I2S0'):
             build_fes_zx81_oss._audio_evidence(routed)
