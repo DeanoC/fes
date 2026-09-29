@@ -17,6 +17,26 @@ from scripts import zx81_expansion as expansion
 ROOT = Path(__file__).resolve().parents[1]
 
 class ZX81SocketProducerTests(unittest.TestCase):
+    def test_cart_scaffold_restores_second_pll_output(self):
+        pins = {'locked': [0, 'locked'], 'outclk': [0, 'outclk'],
+                'outclk[0]': [0, 'outclk[0]'], 'outclk[1]': [0, 'outclk[1]'],
+                'refclk': [0, 'refclk'], 'rst': [0, 'rst']}
+        design = {'modules': {'top': {'cells': {
+            'system_clock.pll': {'type': 'altera_pll',
+                'connections': {'outclk': [10], 'locked': [11], 'refclk': [12]},
+                'port_directions': {'outclk': 'output', 'locked': 'output', 'refclk': 'input'},
+                'attributes': {'FES_PINMAP_V1': json.dumps({'count': 6, 'pins': pins}).encode().hex()}},
+            'audio_buffer': {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [13], 'Q': [14]}},
+        }, 'netnames': {'system_clock.pll_outclk_1': {'bits': [13]},
+                        'audio_clk': {'bits': [14]}}}}}
+        scaffold = json.loads(cart_producer.prepare_scaffold(json.dumps(design).encode()))
+        pll = scaffold['modules']['top']['cells']['system_clock.pll']
+        self.assertEqual(pll['connections']['outclk[1]'], [13])
+        self.assertEqual(pll['port_directions']['outclk[1]'], 'output')
+        mapped = json.loads(bytes.fromhex(pll['attributes']['FES_PINMAP_V1']))
+        self.assertEqual(mapped['count'], 5)
+        self.assertNotIn('outclk[0]', mapped['pins'])
+
     def fixture(self):
         cells = {}
         requests = list(range(10, 54))
@@ -212,6 +232,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
                             ("classify_cram_diff", {"bits_outside_slot": 0}),
                             ("overlay_cram", object()), ("rbf_save", b"linked")):
             self.stack.enter_context(patch.object(cart_producer, name, return_value=value))
+        self.stack.enter_context(patch.object(cart_producer, 'prepare_scaffold', return_value=b'scaffold'))
         self.stack.enter_context(patch.object(cart_producer.subprocess, "run", side_effect=self.run_tool))
         self.mode = "valid"
         self.timing = {"fmax": {"clk_sys": {"achieved": 60, "constraint": 52.224},
@@ -237,12 +258,16 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.assertEqual(command[command.index("--fes-cram-region") + 1], "1769,32,2806,7024")
             sdc = Path(command[command.index("--sdc") + 1])
             self.assertEqual(sdc, self.output / "clocks.sdc")
+            self.assertEqual(Path(command[command.index('--json') + 1]), self.output / 'scaffold.json')
+            self.assertEqual((self.output / 'scaffold.json').read_bytes(), b'scaffold')
             self.assertIn("-period 19.148284313725 [get_nets {clk_sys}]", sdc.read_text())
             self.assertIn("-period 13.468013468013 [get_nets {pixel_clk}]", sdc.read_text())
             self.assertIn("-period 81.380208333333 [get_nets {audio_clk}]", sdc.read_text())
             (self.output / "cart.rbf").write_bytes(b"fresh cart")
             (self.output / "cart-routed.json").write_text("{}")
             (self.output / "timing.json").write_text(json.dumps(self.timing))
+            if self.mode == 'scaffold_mutation':
+                (self.output / 'scaffold.json').write_bytes(b'changed')
         log = kwargs["stdout"]
         if self.mode == name + "_error":
             log.write("ERROR: physical route is invalid\nInfo: Program finished normally.\n")
@@ -266,6 +291,12 @@ class ZX81CartPublicationTests(unittest.TestCase):
                                                           "audio_clk": 12.288})
         self.assertEqual(recipe["cram_region"], [1769, 32, 2806, 7024])
         self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
+
+    def test_changed_scaffold_cannot_publish(self):
+        self.mode = 'scaffold_mutation'
+        with self.assertRaisesRegex(ValueError, 'frozen scaffold changed'):
+            self.build()
+        self.assertFalse(list(self.output.glob('*.tar')))
 
     def test_shared_cache_authenticates_before_and_after_compilation(self):
         cache = self.root / "shared-cache"

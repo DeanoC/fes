@@ -1029,6 +1029,10 @@ Its recipe records those requirements and the SDC digest. Publication requires a
 their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
 not change the sealed base shell or infer requirements from achieved Fmax.
+For frozen replay, the cart producer makes an authenticated copy of the routed
+shell and restores the system PLL's second physical output to its audio clock
+net, dropping the obsolete scalar `outclk[0]` pin-map alias. The sealed routed
+shell bytes remain unchanged.
 Socketed shells export a registered Z80-like edge (44-bit request, 20-bit
 response). Vacant response FFs hold 0, so ROMCS/WAIT/DSEL/RAM_PRESENT are
 active-high from the cart. CPU writes on that edge use TDP `A1WE` like the

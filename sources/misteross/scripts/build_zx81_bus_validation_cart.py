@@ -29,7 +29,7 @@ from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
 INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
-BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
+BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "scaffold.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
 REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.224, "pixel_clk": 74.25, "audio_clk": 12.288}
@@ -57,6 +57,37 @@ def validate_cart_timing(timing: dict) -> None:
         if achieved < expected:
             raise ValueError(f"cart {name} timing is below required {expected:g} MHz")
 
+def prepare_scaffold(source: bytes) -> bytes:
+    """Restore the second physical PLL output omitted from routed JSON.
+
+    The frozen pin map contains the old scalar outclk[0] alias, but nextpnr's
+    no-pack replay expects the actual outclk[1] audio branch as a connection.
+    This is the same bounded replay repair used by Apple II and Coleco carts.
+    """
+    design = json.loads(source)
+    top = design['modules']['top']
+    cells = top['cells']
+    pll = cells['system_clock.pll']
+    if pll.get('type') != 'altera_pll' or set(pll.get('connections', {})) != {'outclk', 'locked', 'refclk'}:
+        raise ValueError('ZX81 frozen system/audio PLL connection contract changed')
+    mapping = json.loads(bytes.fromhex(pll['attributes']['FES_PINMAP_V1']))
+    aliases = {f'outclk[{bit}]': [0, f'outclk[{bit}]'] for bit in range(2)}
+    if mapping.get('count') != 6 or any(mapping['pins'].get(name) != value for name, value in aliases.items()):
+        raise ValueError('ZX81 frozen system/audio PLL pin map changed')
+    output1 = top['netnames'].get('system_clock.pll_outclk_1', {}).get('bits')
+    audio_clock = top['netnames'].get('audio_clk', {}).get('bits')
+    buffers = [cell for cell in cells.values() if cell.get('type') == 'MISTRAL_CLKBUF'
+               and cell.get('connections', {}).get('Q') == audio_clock]
+    if (not isinstance(output1, list) or len(output1) != 1 or type(output1[0]) is not int
+            or len(buffers) != 1 or buffers[0]['connections'].get('A') != output1):
+        raise ValueError('ZX81 frozen audio PLL net changed')
+    pll['connections']['outclk[1]'] = output1
+    pll['port_directions']['outclk[1]'] = 'output'
+    del mapping['pins']['outclk[0]']
+    mapping['count'] = len(mapping['pins'])
+    pll['attributes']['FES_PINMAP_V1'] = json.dumps(mapping, sort_keys=True).encode().hex()
+    return (json.dumps(design, sort_keys=True, separators=(',', ':')) + '\n').encode()
+
 def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: Path | None = None) -> Path:
     root, shell = root.resolve(), shell.resolve()
     _, revision = _require_clean_source(root, pinned_inputs=INPUTS, identity_version=2)
@@ -80,10 +111,12 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     closure = {path: digest((root / path).read_bytes()) for path in INPUTS}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
     clock_constraints = cart_clock_constraints(root)
+    scaffold = prepare_scaffold((shell / 'routed.json').read_bytes())
     recipe = {"inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-bus.socket/1",
               "placer_seed": PLACER_SEED, "required_clocks_mhz": REQUIRED_CLOCKS_MHZ,
               "cram_region": CRAM_REGION,
-              "clock_constraints_sha256": digest(clock_constraints)}
+              "clock_constraints_sha256": digest(clock_constraints),
+              "scaffold_sha256": digest(scaffold)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/zx81-bus-validation-cart" / recipe_sha
     # A recipe directory can be retried. Remove both intermediate evidence and
@@ -92,11 +125,12 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     _prepare_output(root, relative=output.relative_to(root),
                     build_outputs=BUILD_OUTPUTS + publications)
     (output / "clocks.sdc").write_bytes(clock_constraints)
+    (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv -I cores/fes-zx81/rtl {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
-        [str(tools["nextpnr-mistral"].path), "--json", str(shell / "routed.json"), "--device", "5CSEBA6U23I7",
-         "--qsf", str(shell / "socket.qsf"), "--sdc", str(output / "clocks.sdc"), "--freq", "52",
+        [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",
+         "--qsf", str(shell / "socket.qsf"), "--sdc", str(output / "clocks.sdc"), "--freq", "52.224",
          "--fes-scaffold", "--fes-cart", str(output / "cart.json"), "--fes-slot-clock", "clk_sys",
          "--fes-cram-region", ",".join(str(value) for value in CRAM_REGION),
          "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu", "--rbf", str(output / "cart.rbf"), "--compress-rbf",
@@ -119,6 +153,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     validate_cart_timing(timing)
     if (output / "clocks.sdc").read_bytes() != clock_constraints:
         raise ValueError("cart clock constraints changed during build")
+    if (output / "scaffold.json").read_bytes() != scaffold:
+        raise ValueError("frozen scaffold changed during cart build")
     cart = (output / "cart.rbf").read_bytes()
     base, placed = rbf_load(package.payload_bytes), rbf_load(cart)
     rect = CramRect(*CRAM_REGION)
