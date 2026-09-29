@@ -392,20 +392,27 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 	@build/sim/$@/Vcoleco_machine build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom
 
-# Each board case is a separate CI shard. The shared build prerequisite runs
-.PHONY: sim-fes-coleco-audio
-sim-fes-coleco-audio:
+# The coherent output check is consumed by Coleco, SG-1000 and SMS.
+.PHONY: sim-fes-audio-output
+sim-fes-audio-output:
 	$(require_local_sim)
-	@mkdir -p build/sim/fes-psg build/sim/fes-audio-output
-	$(VERILATOR) --cc --exe --build --top-module fes_sn76489 -Wall \
-		--Mdir "$(CURDIR)/build/sim/fes-psg" cores/fes-common/rtl/fes_sn76489.sv \
-		"$(CURDIR)/cores/fes-coleco/sim/psg_tb.cpp"
-	@build/sim/fes-psg/Vfes_sn76489
+	@mkdir -p build/sim/fes-audio-output
 	$(VERILATOR) --cc --exe --build --top-module fes_audio_output -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-audio-output" \
 		cores/fes-common/rtl/fes_audio_output.v cores/fes-common/rtl/fes_audio_i2s.v \
 		"$(CURDIR)/cores/fes-coleco/sim/audio_output_tb.cpp"
 	@build/sim/fes-audio-output/Vfes_audio_output
+
+# Each board case is a separate CI shard. The shared output prerequisite runs
+# before the Coleco PSG check.
+.PHONY: sim-fes-coleco-audio
+sim-fes-coleco-audio: sim-fes-audio-output
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-psg
+	$(VERILATOR) --cc --exe --build --top-module fes_sn76489 -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-psg" cores/fes-common/rtl/fes_sn76489.sv \
+		"$(CURDIR)/cores/fes-coleco/sim/psg_tb.cpp"
+	@build/sim/fes-psg/Vfes_sn76489
 
 # Each board case is a separate CI shard. The shared build prerequisite runs
 # once per lane in a Make invocation; diagnostics finish before their readers.
@@ -1084,7 +1091,7 @@ sms-diagnostic:
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive --pad-to 32768 \
 		--output build/diagnostics/fes-sms/mode4-hil-32k.rom
 
-sim-fes-sms: sms-diagnostic sim-fes-coleco-audio
+sim-fes-sms: sms-diagnostic sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
@@ -1150,7 +1157,7 @@ sim-fes-sms-rom-link-mailbox:
 		"$(CURDIR)/cores/fes-sms/sim/no_media_tb.cpp"
 	@build/sim/fes-sms-gp-rom-link/Vfes_computer_gp
 
-sim-fes-sms-oss: sms-diagnostic sim-fes-sms-rom-link-mailbox sim-fes-coleco-audio
+sim-fes-sms-oss: sms-diagnostic sim-fes-sms-rom-link-mailbox sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
