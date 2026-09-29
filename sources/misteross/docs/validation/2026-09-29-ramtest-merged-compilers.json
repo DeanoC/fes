@@ -1,0 +1,958 @@
+{
+  "build_id": "7168b508ab424b70f1c0f87b2035d821",
+  "date": "2026-09-29",
+  "dependency_pins": {
+    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+    "nextpnr": "24f9a1db0737559977a13abb2d05cceafa5e6142",
+    "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
+    "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
+    "yosys": "22bf145df1438aa46eb912beab5b5c19e491906a"
+  },
+  "fes_base": "111293dcd7333e557182219819e22efefa624be6",
+  "gpu_device": 1,
+  "historical_comparison": {
+    "changed_source_inputs": [
+      "scripts/diagnose_fes_ramtest_timing.py",
+      "toolchains/ramtest-timing.lock"
+    ],
+    "common_routed_cell_names": 14618,
+    "common_routed_cells_moved": 14540,
+    "limit": "Same RTL but new recipe, merged tool revisions and BUILD_ID; not an isolated compiler performance comparison.",
+    "matched_rtl_count": 13,
+    "old_build_id": "52991ce22369904849b68bdd900f9ae1",
+    "old_result": {
+      "failed_route_arc": false,
+      "final_reported_hold_violations": false,
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 81.30742645263672,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 109.05125427246094,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 464.9685363769531,
+          "constraint": 130.0052032470703
+        }
+      },
+      "has_final_signoff": true,
+      "hip_ready": [
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.35s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)"
+      ],
+      "memory_critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.21799999475479126,
+            "clk-to-q": 1.1770000457763672,
+            "logic": 0.800000011920929,
+            "routing": 7.171000123023987,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 9.170000180602074,
+          "path": [
+            {
+              "delay": 0.21799999475479126,
+              "from": {
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_port_clk_1"
+              },
+              "to": {
+                "cell": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_21",
+                "loc": [
+                  17,
+                  10
+                ],
+                "port": "CLK"
+              },
+              "type": "clk-skew"
+            },
+            {
+              "delay": 1.1770000457763672,
+              "from": {
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "to": {
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "type": "clk-to-q"
+            },
+            {
+              "delay": 4.188000202178955,
+              "from": {
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "net": "hps_ddr.cmd_ready_1",
+              "sources": [
+                "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  27,
+                  21
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  27,
+                  21
+                ],
+                "port": "A"
+              },
+              "to": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  27,
+                  21
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.0679999589920044,
+              "from": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  27,
+                  21
+                ],
+                "port": "Q"
+              },
+              "net": "hps_ddr.port1.slot_free",
+              "sources": [
+                "cores/fes-common/rtl/fes_hps_ddr_guard.v:86.10-86.19"
+              ],
+              "to": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+                "loc": [
+                  17,
+                  21
+                ],
+                "port": "B"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+                "loc": [
+                  17,
+                  21
+                ],
+                "port": "B"
+              },
+              "to": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+                "loc": [
+                  17,
+                  21
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.9149999618530273,
+              "from": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+                "loc": [
+                  17,
+                  21
+                ],
+                "port": "Q"
+              },
+              "net": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B_Q",
+              "sources": [],
+              "to": {
+                "cell": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_21",
+                "loc": [
+                  17,
+                  10
+                ],
+                "port": "ENA"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": -0.19599999487400055,
+              "from": {
+                "cell": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_21",
+                "loc": [
+                  17,
+                  10
+                ],
+                "port": "ENA"
+              },
+              "to": {
+                "cell": "hps_ddr.port1.skid_address_MISTRAL_FF_Q_21",
+                "loc": [
+                  17,
+                  10
+                ],
+                "port": "ENA"
+              },
+              "type": "setup"
+            }
+          ],
+          "relationship_ns": 7.691999912261963
+        }
+      ],
+      "normal_finish": true,
+      "rbf_size": 2184249,
+      "remap_messages": []
+    }
+  },
+  "inputs_sha256": {
+    "boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "cores/fes-common/generated/fes_application.vh": "3c62b421fe14b23599a7ee3f91ab1107cdce7a05bfc34dc7890da64289447d9f",
+    "cores/fes-common/rtl/fes_application_gp.v": "93c98cd236b19b1e745d7d2c257d76aaf2c3ed6a0eb3d2ce120d94293f9af920",
+    "cores/fes-common/rtl/fes_hps_ddr.v": "5f5252e03d55f4e85a1d3622df6b887dddf20fce487040731e9c93be69dee90c",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+    "cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+    "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+    "cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+    "cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+    "cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+    "cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+    "cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+    "cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+    "cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+    "cores/fes-ramtest/rtl/top.v": "127949e04f85e4e683b10288240fae53206fc890011b5116a504e2a3046051dd",
+    "scripts/build_fes_ramtest.py": "7eddb3f5c08cc9258a2e4c0c9427658d7fec9362b125bb166b54413fb8fe1115",
+    "scripts/compiler_read_audit.py": "276254d178ee3371d056e0278251648196ab566329eeb70ad810d7562147d437",
+    "scripts/diagnose_fes_ramtest_timing.py": "149373858163b823644114412a521ae416a459928299ed2c513f1ace0b5928a1",
+    "scripts/fes_build_common.py": "6c8f73431c84949a5c8486145a2f5f64067a38534460539b4bb6435ce3425f9a",
+    "scripts/fes_de10nano_evidence.py": "1437ee3c632d68fb58da871dab207cc3006eabfe3a01bf157d1385009bff2b58",
+    "scripts/functional_execution.py": "095843d0ba243056489e058f40b768b30f7613bd7087797c210549da4013ae50",
+    "scripts/source_repository.py": "29ab5ad573767ebe32c171a391e675852b968a4c570365ad3a2ec9637c0ca003",
+    "toolchains/ramtest-timing.lock": "ad43b85d9cd1c4a99bb38852da957c6a5a99ffded7d18c693da87baa14fdcd14",
+    "toolchains/ramtest.lock": "6b46a88394b00a44c424c78c248c15246e93d20fb131d01c54ec95bff81dd339"
+  },
+  "issue": "https://github.com/DeanoC/fes/issues/264",
+  "measured_revision": "9be676760d83c58e9ae655b864748f5704c5d507",
+  "paired_placement_comparison": {
+    "added_cells": {
+      "hps_ddr.port1.slot_free_MISTRAL_ALUT4_C$local_remap": {
+        "bel": "MISTRAL_MCOMB.28.5.6",
+        "parameters": {
+          "LUT": "10111011101110111011101110110000"
+        },
+        "type": "MISTRAL_ALUT5"
+      }
+    },
+    "changed_common_bels": {},
+    "common_routed_cell_names": 19863,
+    "removed_cells": []
+  },
+  "ranking": {
+    "baseline_log": "sources/misteross/build/fes-ramtest-timing-130/qor-search/s2-w10-c2/route.log",
+    "budget": 2,
+    "build_id": "7168b508ab424b70f1c0f87b2035d821",
+    "critexp": 2,
+    "diagnostic_only": true,
+    "final_reported_hold_violation": {
+      "baseline": false,
+      "remap": false
+    },
+    "mode": "first-pass",
+    "ranking": [
+      {
+        "critexp": 2,
+        "fmax": {
+          "display.pixel_clk": {
+            "achieved": 94.5000991821289,
+            "constraint": 74.25006866455078
+          },
+          "ram_clock.clocks[0]": {
+            "achieved": 106.15711212158203,
+            "constraint": 130.0052032470703
+          },
+          "ram_clock.clocks[1]": {
+            "achieved": 347.7934875488281,
+            "constraint": 130.0052032470703
+          }
+        },
+        "log": "sources/misteross/build/fes-ramtest-timing-130/qor-search/s2-w10-c2/route.log",
+        "passing": false,
+        "run_dir": "sources/misteross/build/fes-ramtest-timing-130/qor-search/s2-w10-c2",
+        "seed": 2,
+        "sum_ratio": 4.764515362566027,
+        "weight": 10,
+        "worst_ratio": 0.8165604873509115
+      },
+      {
+        "critexp": 2,
+        "fmax": {
+          "display.pixel_clk": {
+            "achieved": 94.35742950439453,
+            "constraint": 74.25006866455078
+          },
+          "ram_clock.clocks[0]": {
+            "achieved": 109.95051574707031,
+            "constraint": 130.0052032470703
+          },
+          "ram_clock.clocks[1]": {
+            "achieved": 347.7934875488281,
+            "constraint": 130.0052032470703
+          }
+        },
+        "log": "sources/misteross/build/fes-ramtest-timing-130/remap-search/s2-w10-c2/route.log",
+        "passing": false,
+        "run_dir": "sources/misteross/build/fes-ramtest-timing-130/remap-search/s2-w10-c2",
+        "seed": 2,
+        "sum_ratio": 4.791772747206913,
+        "weight": 10,
+        "worst_ratio": 0.8457393473560687
+      }
+    ],
+    "remap": {
+      "candidate": 0,
+      "groups": 8
+    },
+    "remap_log": "sources/misteross/build/fes-ramtest-timing-130/remap-search/s2-w10-c2/route.log",
+    "remap_status": "rejected",
+    "seeds": [
+      2
+    ],
+    "valid_clock_set": true,
+    "weights": [
+      10
+    ],
+    "winner": {
+      "critexp": 2,
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 94.5000991821289,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 106.15711212158203,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 347.7934875488281,
+          "constraint": 130.0052032470703
+        }
+      },
+      "log": "sources/misteross/build/fes-ramtest-timing-130/qor-search/s2-w10-c2/route.log",
+      "passing": false,
+      "run_dir": "sources/misteross/build/fes-ramtest-timing-130/qor-search/s2-w10-c2",
+      "seed": 2,
+      "sum_ratio": 4.764515362566027,
+      "weight": 10,
+      "worst_ratio": 0.8165604873509115
+    }
+  },
+  "recipe_command": "make diagnose-fes-ramtest-timing GPU_DEVICE=1",
+  "results": {
+    "baseline": {
+      "failed_route_arc": false,
+      "final_reported_hold_violations": false,
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 94.5000991821289,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 106.15711212158203,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 347.7934875488281,
+          "constraint": 130.0052032470703
+        }
+      },
+      "has_final_signoff": true,
+      "hip_ready": [
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.28s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)"
+      ],
+      "memory_critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.21699999272823334,
+            "clk-to-q": 1.1770000457763672,
+            "logic": 0.800000011920929,
+            "routing": 7.421999752521515,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 9.419999808073044,
+          "path": [
+            {
+              "delay": 0.21699999272823334,
+              "from": {
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_port_clk_1"
+              },
+              "to": {
+                "cell": "hps_ddr.m1_burstcount_MISTRAL_FF_Q_7",
+                "loc": [
+                  28,
+                  5
+                ],
+                "port": "CLK"
+              },
+              "type": "clk-skew"
+            },
+            {
+              "delay": 1.1770000457763672,
+              "from": {
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "to": {
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "type": "clk-to-q"
+            },
+            {
+              "delay": 4.482999801635742,
+              "from": {
+                "cell": "hps_ddr.f2sdram",
+                "loc": [
+                  52,
+                  53
+                ],
+                "port": "cmd_ready_1"
+              },
+              "net": "hps_ddr.cmd_ready_1",
+              "sources": [
+                "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  31,
+                  16
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  31,
+                  16
+                ],
+                "port": "A"
+              },
+              "to": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  31,
+                  16
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0.8299999833106995,
+              "from": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "loc": [
+                  31,
+                  16
+                ],
+                "port": "Q"
+              },
+              "net": "hps_ddr.port1.slot_free",
+              "sources": [
+                "cores/fes-common/rtl/fes_hps_ddr_guard.v:86.10-86.19"
+              ],
+              "to": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT4_C",
+                "loc": [
+                  24,
+                  16
+                ],
+                "port": "C"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT4_C",
+                "loc": [
+                  24,
+                  16
+                ],
+                "port": "C"
+              },
+              "to": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT4_C",
+                "loc": [
+                  24,
+                  16
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 2.1089999675750732,
+              "from": {
+                "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT4_C",
+                "loc": [
+                  24,
+                  16
+                ],
+                "port": "Q"
+              },
+              "net": "hps_ddr.port1.slot_free_MISTRAL_ALUT4_C_Q",
+              "sources": [],
+              "to": {
+                "cell": "hps_ddr.m1_burstcount_MISTRAL_FF_Q_7",
+                "loc": [
+                  28,
+                  5
+                ],
+                "port": "ENA"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": -0.19599999487400055,
+              "from": {
+                "cell": "hps_ddr.m1_burstcount_MISTRAL_FF_Q_7",
+                "loc": [
+                  28,
+                  5
+                ],
+                "port": "ENA"
+              },
+              "to": {
+                "cell": "hps_ddr.m1_burstcount_MISTRAL_FF_Q_7",
+                "loc": [
+                  28,
+                  5
+                ],
+                "port": "ENA"
+              },
+              "type": "setup"
+            }
+          ],
+          "relationship_ns": 7.691999912261963
+        }
+      ],
+      "normal_finish": true,
+      "rbf_size": 2171480,
+      "remap_messages": []
+    },
+    "remap": {
+      "failed_route_arc": false,
+      "final_reported_hold_violations": false,
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 94.35742950439453,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 109.95051574707031,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 347.7934875488281,
+          "constraint": 130.0052032470703
+        }
+      },
+      "has_final_signoff": true,
+      "hip_ready": [
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.12s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+        "Info:     backend hip:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)"
+      ],
+      "memory_critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.04699999839067459,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.4070000052452087,
+            "routing": 7.105999760329723,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 9.09499977529049,
+          "path": [
+            {
+              "delay": 0.04699999839067459,
+              "from": {
+                "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+                "loc": [
+                  9,
+                  32
+                ],
+                "port": "CLK"
+              },
+              "to": {
+                "cell": "ddr0_status_MISTRAL_FF_Q_92",
+                "loc": [
+                  34,
+                  22
+                ],
+                "port": "CLK"
+              },
+              "type": "clk-skew"
+            },
+            {
+              "delay": 0.7310000061988831,
+              "from": {
+                "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+                "loc": [
+                  9,
+                  32
+                ],
+                "port": "Q"
+              },
+              "to": {
+                "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+                "loc": [
+                  9,
+                  32
+                ],
+                "port": "Q"
+              },
+              "type": "clk-to-q"
+            },
+            {
+              "delay": 1.0449999570846558,
+              "from": {
+                "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+                "loc": [
+                  9,
+                  32
+                ],
+                "port": "Q"
+              },
+              "net": "ddr0_errors[15]",
+              "sources": [
+                "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+                "loc": [
+                  13,
+                  28
+                ],
+                "port": "A"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.5099999904632568,
+              "from": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+                "loc": [
+                  13,
+                  28
+                ],
+                "port": "A"
+              },
+              "to": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+                "loc": [
+                  13,
+                  28
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 1.7799999713897705,
+              "from": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+                "loc": [
+                  13,
+                  28
+                ],
+                "port": "Q"
+              },
+              "net": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F[4]",
+              "sources": [
+                "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+                "loc": [
+                  6,
+                  10
+                ],
+                "port": "E"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+                "loc": [
+                  6,
+                  10
+                ],
+                "port": "E"
+              },
+              "to": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+                "loc": [
+                  6,
+                  10
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 0.10100000351667404,
+              "from": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+                "loc": [
+                  6,
+                  10
+                ],
+                "port": "Q"
+              },
+              "net": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E[4]",
+              "sources": [
+                "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  6,
+                  10
+                ],
+                "port": "E"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.09700000286102295,
+              "from": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  6,
+                  10
+                ],
+                "port": "E"
+              },
+              "to": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  6,
+                  10
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 2.115999937057495,
+              "from": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+                "loc": [
+                  6,
+                  10
+                ],
+                "port": "Q"
+              },
+              "net": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E[4]",
+              "sources": [
+                "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+              ],
+              "to": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+                "loc": [
+                  18,
+                  26
+                ],
+                "port": "E"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": 0.4000000059604645,
+              "from": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+                "loc": [
+                  18,
+                  26
+                ],
+                "port": "E"
+              },
+              "to": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+                "loc": [
+                  18,
+                  26
+                ],
+                "port": "Q"
+              },
+              "type": "logic"
+            },
+            {
+              "delay": 2.063999891281128,
+              "from": {
+                "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+                "loc": [
+                  18,
+                  26
+                ],
+                "port": "Q"
+              },
+              "net": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q",
+              "sources": [],
+              "to": {
+                "cell": "ddr0_status_MISTRAL_FF_Q_92",
+                "loc": [
+                  34,
+                  22
+                ],
+                "port": "ENA"
+              },
+              "type": "routing"
+            },
+            {
+              "delay": -0.19599999487400055,
+              "from": {
+                "cell": "ddr0_status_MISTRAL_FF_Q_92",
+                "loc": [
+                  34,
+                  22
+                ],
+                "port": "ENA"
+              },
+              "to": {
+                "cell": "ddr0_status_MISTRAL_FF_Q_92",
+                "loc": [
+                  34,
+                  22
+                ],
+                "port": "ENA"
+              },
+              "type": "setup"
+            }
+          ],
+          "relationship_ns": 7.691999912261963
+        }
+      ],
+      "normal_finish": true,
+      "rbf_size": 2171731,
+      "remap_messages": [
+        "Info: Local remap trial inner=hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q outer=hps_ddr.port1.slot_free_MISTRAL_ALUT4_C lab=28,5 bel=MISTRAL_MCOMB.28.5.6 shift=0,0 gain=1747ps clocks=1 hold=1 boundaries=1 groups=3 sinks=9",
+        "Info: Local remap candidate 0: hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q + hps_ddr.port1.slot_free_MISTRAL_ALUT4_C -> MISTRAL_MCOMB.28.5.6, 9 ENA users, predicted gain 1747ps.",
+        "Info: Local remap applied candidate 0; full routing and signoff still required."
+      ]
+    }
+  },
+  "schema_version": 1,
+  "scope": {
+    "diagnostic_lock_changed": true,
+    "hardware": "none",
+    "production_recipe_changed": false,
+    "rtl_changed": false,
+    "shared_contracts_changed": false
+  },
+  "sha256": {
+    "out/ramtest-merged-remap/build_record.py": "63eeb60d93e442b78c652dc5f1622d1b91bed93700930dec146cd38b6eb0f7f1",
+    "out/ramtest-merged-remap/diagnostic.log": "43d1dfbe632442be82f8339528eb3268fd1bbdcfdced8de0b28486f2cd514461",
+    "out/ramtest-merged-remap/measured-diagnostic/qor-search/s2-w10-c2/core.rbf": "d5f0948a5ec81efd8a676a95e865a3057729592b546e072cb64f6ec9252b1ece",
+    "out/ramtest-merged-remap/measured-diagnostic/qor-search/s2-w10-c2/route.log": "05a81acd99a5575ede8ecb83880f80d120adecb1627eb267b12d7551a9af127d",
+    "out/ramtest-merged-remap/measured-diagnostic/qor-search/s2-w10-c2/routed.json": "ccfc5b09d513f579b496c9e709382ee8db350ea7e54d3f0eab800da1183e67b5",
+    "out/ramtest-merged-remap/measured-diagnostic/qor-search/s2-w10-c2/timing.json": "247581ec5444903eb185a22c378bcbd38c19dd4ba4f8a20d0bd9b2d287194096",
+    "out/ramtest-merged-remap/measured-diagnostic/ranking.json": "7bc753e2c7ae3840b1fa0411416fd062f1ac7e2d9cd00edb06ed0f4d825e0c63",
+    "out/ramtest-merged-remap/measured-diagnostic/remap-search/s2-w10-c2/core.rbf": "352078dc1342ae93c5152ae2f907114b063f937a08f2a3401acbf2d7150fdd42",
+    "out/ramtest-merged-remap/measured-diagnostic/remap-search/s2-w10-c2/route.log": "57eead56a32e6c983c317ab7e59e3d92ed73bee309b7d4d638c9c5355006657c",
+    "out/ramtest-merged-remap/measured-diagnostic/remap-search/s2-w10-c2/routed.json": "01856b587b51634e3883579421cfbee29ebda85c493ddbc8b1340fd3bbc73534",
+    "out/ramtest-merged-remap/measured-diagnostic/remap-search/s2-w10-c2/timing.json": "71e1c580a960c669e70d9c0c2ed3b1146dceb30f005bb73c223cc371a098d48e",
+    "out/ramtest-merged-remap/measured-diagnostic/run-inputs.json": "1d5ec9f5e18bfffb6083860af8257bbfb5daf093014f20621a3b3bd623b189a8",
+    "out/ramtest-merged-remap/measured-diagnostic/synth.json": "61ee68c657e49364425dd4ba4880a679e0759992f2750e284e256d1e4139de28",
+    "out/ramtest-merged-remap/measured-diagnostic/yosys.log": "f935a25710639e064283bb18a1be7385bddd2a7996cb83349bd242cf13ab612b",
+    "out/ramtest-merged-remap/parent-check.log": "db3ec556a77c6584657182c90b2e0e3f954e3132a3794276858534d185860ca4",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/qor-search/s2-w10-c2/route.log": "5470f33783f0dea675e066e1b0c3673f3f0b8deb2ae1e15454e5219031149433",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/qor-search/s2-w10-c2/routed.json": "87e542f1e68962082c9ca39ce0e2ab6f612b64ddf789659236da8367bffd0dbe",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/qor-search/s2-w10-c2/timing.json": "9a7b61fc3782d38a4be611e48fbb81c2b2d2d3643d61b2c6ded83dee3bbe7d58",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/run-inputs.json": "f2cd5048a89cc7e24b2e5ebe4b227aa19f8d8f9baa4f3310493f621440e6a608",
+    "out/ramtest-merged-remap/tests-green.log": "1b3e6e0f52e708d958bb4a16dbe0e8c1eecbdcdbf32a9ce5f5659c2d0c01a72b",
+    "out/ramtest-merged-remap/tests-red.log": "8ade1c538de2397d896b4cec11c645fe04c8184e208a82216486a6c6e613ad67",
+    "out/ramtest-merged-remap/toolchain-build.log": "87b5484d694102575fdbb1f5f2957b1fcd54d5f348e3ea39cf6fda9f7c172c1f"
+  },
+  "tool_identities": {
+    "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=9c97b1e95f6e6004817ffaa764f0cb7bb3fc547a847065f55ee972fa0ba15cc8",
+    "nextpnr-mistral": "commit=24f9a1db0737559977a13abb2d05cceafa5e6142; sha256=4295b0ca6304e377a0a208018015cf14fed6ad146395bb20c3e7a4eec1aa0b6d; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=22bf145df1438aa46eb912beab5b5c19e491906a; sha256=44f1418b2558b8f86832633876fd952b96f9850c4665217b62c50f293d3910c3"
+  }
+}
