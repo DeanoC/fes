@@ -48,3 +48,9 @@ core_id = "fes.c64"
 label = "Commodore 64"
 system = "c64"
 standing = "experimental"
+
+[[cores]]
+core_id = "fes.spectrum"
+label = "ZX Spectrum"
+system = "spectrum"
+standing = "experimental"

@@ -58,6 +58,25 @@ func TestDiskMediaNames(t *testing.T) {
 	if !AdmitLiveMediaName("tape.P") || AdmitTapeMediaName("disk.dsk") {
 		t.Fatal("tape and disk names confused")
 	}
+	if !AdmitSpectrumTapeName("game.tap") || !AdmitLiveMediaName("game.TAP") || AdmitSpectrumTapeName("game.tzx") {
+		t.Fatal("spectrum tape names")
+	}
+}
+
+func TestSpectrumTapeProjection(t *testing.T) {
+	got := DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true}))
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `[{"role":"cassette","format":"spectrum-tap","min_bytes":1,"max_bytes":65536,"interface":{"id":"fes.media.spectrum-tape","major":1,"minor":0},"transport":"fes-computer-media-unit-v1","unit":0,"extensions":[".tap"]}]`
+	if string(encoded) != want {
+		t.Fatalf("projection %s", encoded)
+	}
+	if DeclaresDiskMedia(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true})) ||
+		!DeclaresSpectrumTape(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true})) {
+		t.Fatal("tape projected as a disk")
+	}
 }
 
 func computerStatus(units ...MediaUnitStatus) Status {

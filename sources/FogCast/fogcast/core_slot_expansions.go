@@ -29,15 +29,6 @@ type CoreEntrySlotExpansions struct {
 	Ready      bool                           `json:"ready"`
 }
 
-func declaresSlot(d corepackage.Descriptor, id string) bool {
-	for _, iface := range d.Interfaces {
-		if iface.ID == id {
-			return true
-		}
-	}
-	return false
-}
-
 func slotExpansionUnavailable() error {
 	return &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: "selected slot card is unavailable or incompatible with the exact core package and slot"}
 }
@@ -68,14 +59,8 @@ func (s *Service) CoreEntrySlotExpansions(ctx context.Context, gameID string) (C
 
 func (s *Service) slotExpansionView(ctx context.Context, store coreSlotExpansionCatalog, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) (CoreEntrySlotExpansions, error) {
 	view := CoreEntrySlotExpansions{GameID: entry.GameID, PackageID: entry.PackageID, Sockets: []int{}, Expansions: []protocol.SlotExpansionStatus{}}
-	if sockets := corepackage.SlotSockets(inspection.Descriptor); sockets != nil {
-		view.Sockets = sockets
-		switch {
-		case declaresSlot(inspection.Descriptor, expansion.C64Slot):
-			view.Bus, view.Map = expansion.C64Slot, expansion.C64Map
-		default:
-			view.Bus, view.Map = expansion.Apple2Slot, expansion.Apple2Map
-		}
+	if bus, mapping, sockets, ok := corepackage.SlotLayout(inspection.Descriptor); ok {
+		view.Bus, view.Map, view.Sockets = bus, mapping, sockets
 	}
 	_, statuses, err := s.readSlotCards(ctx, store, entry, inspection, base)
 	if err != nil && statuses == nil {

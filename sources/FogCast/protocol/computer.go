@@ -28,6 +28,14 @@ const (
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
 	// Apple2FloppyUnit is the media unit fes.media.apple2-floppy occupies.
 	Apple2FloppyUnit uint8 = uint8(generated.FesComputerApple2FloppyUnit)
+	// CassetteRole is the library media role of a ZX Spectrum .tap image.
+	CassetteRole = "cassette"
+	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape image.
+	SpectrumTapeMinBytes int64 = int64(generated.FesComputerSpectrumTapeMinBytes)
+	// SpectrumTapeMaxBytes is the largest fes.media.spectrum-tape image.
+	SpectrumTapeMaxBytes int64 = int64(generated.FesComputerSpectrumTapeMaxBytes)
+	// SpectrumTapeUnit is the media unit fes.media.spectrum-tape occupies.
+	SpectrumTapeUnit uint8 = uint8(generated.FesComputerSpectrumTapeUnit)
 	// C64DiskBytes is the exact 35-track D64 image size.
 	C64DiskBytes int64 = int64(generated.FesComputerC64DiskBytes)
 	// C64DiskUnit is the media unit fes.media.c64-disk occupies.
@@ -53,6 +61,11 @@ func KeyboardHIDInterface() RuntimeContract {
 // Apple2FloppyInterface is the unit-0 Apple II DOS-order floppy contract.
 func Apple2FloppyInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaApple2FloppyID, Major: generated.FesComputerInterfaceMediaApple2FloppyMajor, Minor: generated.FesComputerInterfaceMediaApple2FloppyMinor}
+}
+
+// SpectrumTapeInterface is the unit-0 ZX Spectrum .tap contract.
+func SpectrumTapeInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaSpectrumTapeID, Major: generated.FesComputerInterfaceMediaSpectrumTapeMajor, Minor: generated.FesComputerInterfaceMediaSpectrumTapeMinor}
 }
 
 // C64DiskInterface is the unit-0 Commodore D64 contract.
@@ -120,6 +133,10 @@ func (u MediaUnitStatus) Valid() bool {
 		return u.Interface == C64DiskInterface() && u.Unit == C64DiskUnit &&
 			int64(u.MinBytes) == C64DiskBytes && int64(u.MaxBytes) == C64DiskBytes
 	}
+	if u.Interface.ID == SpectrumTapeInterface().ID {
+		return u.Interface == SpectrumTapeInterface() && u.Unit == SpectrumTapeUnit &&
+			int64(u.MinBytes) == SpectrumTapeMinBytes && int64(u.MaxBytes) == SpectrumTapeMaxBytes
+	}
 	return true
 }
 
@@ -145,6 +162,7 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 		return result
 	}
 	floppy := Apple2FloppyInterface()
+	tape := SpectrumTapeInterface()
 	disk := C64DiskInterface()
 	for _, contract := range descriptor.Interfaces {
 		switch {
@@ -159,13 +177,35 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 				MinBytes: C64DiskBytes, MaxBytes: C64DiskBytes, Interface: disk,
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".d64"}})
 		}
+		if contract.ID == tape.ID && contract.Major == int64(tape.Major) && contract.Minor == int64(tape.Minor) {
+			unit := SpectrumTapeUnit
+			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "spectrum-tap",
+				MinBytes: SpectrumTapeMinBytes, MaxBytes: SpectrumTapeMaxBytes, Interface: tape,
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".tap"}})
+		}
 	}
 	return result
 }
 
-// DeclaresDiskMedia reports whether the descriptor has the Apple II floppy unit.
+// DeclaresDiskMedia reports whether the descriptor has a unit-0 disk
+// (Apple II floppy or C64 D64).
 func DeclaresDiskMedia(descriptor corepackage.Descriptor) bool {
-	return len(declaredComputerMedia(descriptor)) != 0
+	for _, capability := range declaredComputerMedia(descriptor) {
+		if capability.Role == DiskRole {
+			return true
+		}
+	}
+	return false
+}
+
+// DeclaresSpectrumTape reports whether the descriptor has the Spectrum cassette unit.
+func DeclaresSpectrumTape(descriptor corepackage.Descriptor) bool {
+	for _, capability := range declaredComputerMedia(descriptor) {
+		if capability.Role == CassetteRole {
+			return true
+		}
+	}
+	return false
 }
 
 // AdmitDiskMediaName accepts only DOS-order .dsk/.do basenames. ProDOS-order
@@ -182,6 +222,19 @@ func AdmitDiskMediaName(name string) bool {
 	}
 }
 
+// AdmitSpectrumTapeName accepts a ZX Spectrum .tap basename.
+func AdmitSpectrumTapeName(name string) bool {
+	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
+		return false
+	}
+	return strings.ToLower(filepath.Ext(name)) == ".tap"
+}
+
+// AdmitSpectrumTapeSize reports whether a .tap image fits the unit.
+func AdmitSpectrumTapeSize(size int64) bool {
+	return size >= SpectrumTapeMinBytes && size <= SpectrumTapeMaxBytes
+}
+
 // AdmitC64DiskName accepts a Commodore D64 basename.
 func AdmitC64DiskName(name string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
@@ -195,10 +248,11 @@ func AdmitComputerDiskName(name string) bool {
 	return AdmitDiskMediaName(name) || AdmitC64DiskName(name)
 }
 
-// AdmitLiveMediaName accepts the names of every live media form: ZX81 tapes
-// and home-computer disks. The active package then chooses the exact contract.
+// AdmitLiveMediaName accepts the names of every live media form: ZX81 tapes,
+// home-computer disks and Spectrum cassettes. The active package then chooses
+// the exact contract.
 func AdmitLiveMediaName(name string) bool {
-	return AdmitTapeMediaName(name) || AdmitComputerDiskName(name)
+	return AdmitTapeMediaName(name) || AdmitComputerDiskName(name) || AdmitSpectrumTapeName(name)
 }
 
 // MediaUnitBinding names one unit of the already active target package
@@ -263,4 +317,9 @@ func MediaUnitIdentityError() *APIError {
 // DiskMediaRequestError is the live-media refusal for Apple II floppies.
 func DiskMediaRequestError() *APIError {
 	return &APIError{Code: CodeBadRequest, Message: "live disk media requires a .dsk/.do DOS-order image of exactly 143360 bytes", Phase: "request"}
+}
+
+// CassetteMediaRequestError is the live-media refusal for Spectrum .tap images.
+func CassetteMediaRequestError() *APIError {
+	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tap image of 1..65536 bytes", Phase: "request"}
 }

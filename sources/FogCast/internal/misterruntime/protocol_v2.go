@@ -1117,7 +1117,7 @@ func validMediaUnits(response Protocol2Response) bool {
 }
 
 // validSlotComposition binds a v2 tuple to an exact fes.computer 1.0 shell
-// declaring the optional Apple II slot bus; every slot is a physical socket.
+// declaring one optional multi-socket bus; every slot is a physical socket.
 func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePackage) bool {
 	id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
 	if err != nil || id != c.ID || c.PackageID != active.PackageID || !protocol2Hex64.MatchString(c.ShellSHA256) ||
@@ -1125,20 +1125,24 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 		active.PersistenceMode == "persistent" || !protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
-	bus := false
+	var bus string
 	for _, i := range active.Descriptor.Interfaces {
 		switch i.ID {
-		case expansion.Apple2Slot:
-			bus = i.Major == 1 && i.Minor == 0 && !i.Required
+		case expansion.Apple2Slot, expansion.C64Slot, expansion.SpectrumSlot:
+			if bus != "" || i.Major != 1 || i.Minor != 0 || i.Required {
+				return false
+			}
+			bus = i.ID
 		case expansion.Slot, expansion.ColecoSlot:
 			return false
 		}
 	}
-	if !bus {
+	mapping, ok := expansion.SlotMap(bus, 1)
+	if !ok {
 		return false
 	}
 	sockets := map[int]bool{}
-	for _, socket := range expansion.SlotSockets(expansion.Apple2Slot, expansion.Apple2Map) {
+	for _, socket := range expansion.SlotSockets(bus, mapping) {
 		sockets[socket] = true
 	}
 	for _, e := range c.Expansions {

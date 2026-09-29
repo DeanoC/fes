@@ -2179,12 +2179,16 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
 		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaApple2FloppyID});
 	// Registered live bits must equal the declared set; unregistered bits are ignored.
-	// Bit 5 is fes.media.c64-disk, which this package does not declare.
-	constexpr unsigned kRegistered = 63u;
-	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu}) {
+	// Bit 5 is the Spectrum tape and bit 6 is the C64 disk. This Apple II shell
+	// declares neither, so a live word with either bit set does not match.
+	const unsigned registered = FesComputerCapabilityVideoFixed720p60 |
+		FesComputerCapabilityKeyboardHid | FesComputerCapabilityGamepadPorts |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMediaApple2Floppy |
+		FesComputerCapabilityMediaSpectrumTape | FesComputerCapabilityMediaC64Disk;
+	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu, 31u | 64u}) {
 		ComputerFixture f(static_cast<std::uint16_t>(live), {{0, {143360, 143360}}}, full);
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
-		const bool expected = (live & kRegistered) == 31u;
+		const bool expected = (live & registered) == 31u;
 		assert(result.error.ok() == expected);
 		if (!expected) {
 			assert(result.error.code == mister::ErrorCode::core_mismatch);
@@ -2200,7 +2204,11 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
 		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaC64DiskID});
 	{
-		ComputerFixture f(0x2fu, {{0, {FesComputerC64DiskBytes, FesComputerC64DiskBytes}}}, c64);
+		const auto c64_live = static_cast<std::uint16_t>(
+			FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+			FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
+			FesComputerCapabilityMediaC64Disk);
+		ComputerFixture f(c64_live, {{0, {FesComputerC64DiskBytes, FesComputerC64DiskBytes}}}, c64);
 		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
 		assert(f.driver.media_units().size() == 1 &&
 			f.driver.media_units()[0].min_bytes == FesComputerC64DiskBytes &&

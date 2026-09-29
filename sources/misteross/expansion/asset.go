@@ -32,6 +32,10 @@ const (
 const (
 	Apple2Slot = "fes.expansion.apple2-bus"
 	Apple2Map  = "fes.apple2-bus.slots/1"
+	// SpectrumSlot is the ZX Spectrum edge connector. Its map names the four
+	// physical sockets of the shell; each card manifest carries its socket index.
+	SpectrumSlot = "fes.expansion.spectrum-bus"
+	SpectrumMap  = "fes.spectrum-bus.sockets/1"
 	// C64Slot is the cartridge-port bus. Socket 1 is the ROM window and
 	// socket 2 is the I/O window.
 	C64Slot = "fes.expansion.c64-bus"

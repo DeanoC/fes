@@ -9,7 +9,7 @@ import subprocess
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'menu')
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu')
 EXPANSION_ROOT = 'sources/misteross/expansion'
 
 
@@ -36,26 +36,27 @@ CORE_DIRECTORIES = {
     'fes-demo': ('demo',), 'fes-pong': ('demo', 'pong'), 'pong': ('pong',),
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
-    'fes-c64': ('c64',),
+    'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',),
 }
 SHARED_RTL = {
     'coleco_vdp.sv': COLECO_CONSUMERS,
     'coleco_dpram.v': COLECO_CONSUMERS,
     'coleco_video_dpram.v': COLECO_CONSUMERS,
     'coleco_video_720p.v': COLECO_CONSUMERS,
-    't80pa.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu'),
     'fes_video_720p.v': ('demo', 'pong'),
-    'fes_audio_i2s.v': ('demo', 'coleco', 'sg1000', 'apple2', 'c64'),
+    'fes_audio_i2s.v': ('demo', 'coleco', 'sg1000', 'apple2', 'c64', 'spectrum'),
     'fes_audio_pll.v': ('demo',),
-    'fes_audio_output.v': ('coleco', 'sg1000', 'apple2', 'c64'),
+    'fes_audio_output.v': ('coleco', 'sg1000', 'apple2', 'c64', 'spectrum'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
-    'fes_computer_mailbox.v': ('apple2', 'c64'),
+    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum'),
+    't80pa.v': ('coleco', 'sg1000', 'sms', 'spectrum'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
 C64_SCRIPTS = frozenset({'c64_slots.py', 'build_c64_slot_card.py'})
+SPECTRUM_SCRIPTS = frozenset({'spectrum_slots.py'})
 
 
 def fpga_cores(path):
@@ -75,7 +76,7 @@ def fpga_cores(path):
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
             if len(parts) >= 5 and parts[3] == 'tv80':
-                return COLECO_CONSUMERS, 'shared TV80 consumers'
+                return COLECO_CONSUMERS + ('spectrum',), 'shared TV80 consumers'
             if len(parts) >= 5 and parts[3] == 'cpu6502':
                 return ('apple2', 'c64'), 'shared 6502 consumers'
             if len(parts) == 4 and parts[3] in SHARED_RTL:
@@ -92,6 +93,8 @@ def fpga_cores(path):
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:
             return ('c64',), 'Commodore 64 socket/card recipe'
+        if parts[1] in SPECTRUM_SCRIPTS:
+            return ('spectrum',), 'Spectrum socket recipe'
     if len(parts) == 2 and parts[0] == 'tests' and any(
             fnmatchcase(parts[1], pattern) for pattern in FPGA_SOFTWARE_TESTS):
         return (), 'FPGA producer/package software tests; RTL unchanged'

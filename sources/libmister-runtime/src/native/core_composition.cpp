@@ -153,6 +153,7 @@ Error OpenLinkedPayload(const std::vector<std::string>& roots, const std::string
 // fes.apple2-bus.slots/1 socket set. The shell's physical sockets are not
 // final, so every Apple II slot 1..7 is admitted until that table is sealed.
 bool Apple2SlotSocket(std::uint64_t slot) {return slot>=1 && slot<=7;}
+bool SpectrumSlotSocket(std::uint64_t slot) {return slot>=1 && slot<=4;}
 // fes.c64-bus.sockets/1 is socket 1 (ROM window) and socket 2 (I/O window).
 bool C64SlotSocket(std::uint64_t slot) {return slot==1 || slot==2;}
 // The target agent links cards into their own reserved socket rectangles with
@@ -165,15 +166,28 @@ Error OpenSlotComposition(const std::vector<std::string>& roots,
 	bool (*socket_ok)(std::uint64_t)=nullptr;
 	std::size_t max_slots=0;
 	for (const auto& interface : descriptor.interfaces) {
-		const bool multi=interface.id==kApple2ExpansionBusID || interface.id==kC64ExpansionBusID;
+		const bool multi=interface.id==kApple2ExpansionBusID ||
+			interface.id==kC64ExpansionBusID || interface.id==kSpectrumExpansionBusID;
 		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus" && !multi)
 			continue;
 		if (bus_id || !multi || interface.major!=1 || interface.minor!=0 || interface.required)
 			return Invalid("base package has an unsupported or ambiguous expansion bus");
-		bus_id=interface.id==kC64ExpansionBusID ? kC64ExpansionBusID : kApple2ExpansionBusID;
-		bus_map=interface.id==kC64ExpansionBusID ? kC64ExpansionMapID : kApple2ExpansionMapID;
-		socket_ok=interface.id==kC64ExpansionBusID ? C64SlotSocket : Apple2SlotSocket;
-		max_slots=interface.id==kC64ExpansionBusID ? 2 : 7;
+		if (interface.id==kC64ExpansionBusID) {
+			bus_id=kC64ExpansionBusID;
+			bus_map=kC64ExpansionMapID;
+			socket_ok=C64SlotSocket;
+			max_slots=2;
+		} else if (interface.id==kSpectrumExpansionBusID) {
+			bus_id=kSpectrumExpansionBusID;
+			bus_map=kSpectrumExpansionMapID;
+			socket_ok=SpectrumSlotSocket;
+			max_slots=4;
+		} else {
+			bus_id=kApple2ExpansionBusID;
+			bus_map=kApple2ExpansionMapID;
+			socket_ok=Apple2SlotSocket;
+			max_slots=7;
+		}
 	}
 	if (!bus_id || descriptor.abi.id!="fes.computer" || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
 		return Invalid("base package does not declare an optional multi-slot bus");

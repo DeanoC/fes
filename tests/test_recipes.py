@@ -31,7 +31,7 @@ class RecipeRegistryTest(unittest.TestCase):
 
     def assert_existing_descriptors(self):
         self.assertTrue(
-            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64"}
+            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum"}
             <= recipes.FORMAT2_RECIPES.keys())
         expected = {
             "fes.pong": {
@@ -97,6 +97,15 @@ class RecipeRegistryTest(unittest.TestCase):
                 "package_dir_env": "FES_C64_PACKAGE_DIR",
                 "package_selection_env": "FES_C64_PACKAGE_SELECTION",
             },
+            "fes.spectrum": {
+                "producer_script": "scripts/build_fes_spectrum_oss.py",
+                "producer_module": "scripts.build_fes_spectrum_oss",
+                "lock_path": "toolchains/spectrum.lock",
+                "selection_filename": "fes-spectrum.package-selection.toml",
+                "authenticate": "_authenticate_spectrum_tools",
+                "package_dir_env": "FES_SPECTRUM_PACKAGE_DIR",
+                "package_selection_env": "FES_SPECTRUM_PACKAGE_SELECTION",
+            },
         }
         for core_id, fields in expected.items():
             recipe = recipes.recipe_for(core_id)
@@ -114,7 +123,8 @@ class RecipeRegistryTest(unittest.TestCase):
             self.assertEqual(recipe.quartus_role, {
                 "fes.pong": "check only when a twin exists",
                 "fes.apple2": "no oracle required",
-                "fes.c64": "no oracle required"}.get(core_id, "bring-up/check oracle"))
+                "fes.c64": "no oracle required",
+                "fes.spectrum": "no oracle required"}.get(core_id, "bring-up/check oracle"))
         pong = recipes.recipe_for("fes.pong")
         zx81 = recipes.recipe_for("fes.zx81")
         coleco = recipes.recipe_for("fes.coleco")

@@ -510,7 +510,16 @@ launch as well as a development load. The mutation is not bounded by the CLI's
 ProDOS-order `.po` and nibble `.nib` images are different formats and are not
 accepted. `fes.c64` uses the same firmware binding for `c64-firmware` (16 KiB)
 and role `disk` for `fes.media.c64-disk` 1.0: exactly 174,848 bytes, `.d64`,
-media unit 0, read only.
+media unit 0, read only. `fes.spectrum` uses firmware id `spectrum-firmware`
+(16 KiB) and role `cassette` for `fes.media.spectrum-tape` 1.0: 1..65,536
+bytes, `.tap`, media unit 0. Persist that selection with role `cassette`:
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID none MEDIA_ID cassette
+```
+
+Swap or eject the running cassette with `fogcast change-cassette` and
+`fogcast eject-cassette`.
 
 ## Apple II slot cards
 

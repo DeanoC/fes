@@ -128,7 +128,8 @@ static_assert(FesComputerSignature == FesGpSignature &&
 constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
 	FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
-	FesComputerCapabilityMediaApple2Floppy | FesComputerCapabilityMediaC64Disk);
+	FesComputerCapabilityMediaApple2Floppy | FesComputerCapabilityMediaSpectrumTape |
+	FesComputerCapabilityMediaC64Disk);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -417,6 +418,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityAudioPcmS16Stereo48k;
 			else if (interface.id == FesComputerInterfaceMediaApple2FloppyID)
 				capabilities |= FesComputerCapabilityMediaApple2Floppy;
+			else if (interface.id == FesComputerInterfaceMediaSpectrumTapeID)
+				capabilities |= FesComputerCapabilityMediaSpectrumTape;
 			else if (interface.id == FesComputerInterfaceMediaC64DiskID)
 				capabilities |= FesComputerCapabilityMediaC64Disk;
 			continue;
@@ -625,9 +628,12 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceKeyboardHidID) keyboard_hid_ = true;
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
+				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID) {
 				MediaUnitCapability unit;
 				unit.unit = static_cast<std::uint8_t>(
+					interface.id == FesComputerInterfaceMediaSpectrumTapeID ?
+					FesComputerSpectrumTapeUnit :
 					interface.id == FesComputerInterfaceMediaC64DiskID ?
 					FesComputerC64DiskUnit : FesComputerApple2FloppyUnit);
 				unit.interface = {interface.id, interface.major, interface.minor};
@@ -638,7 +644,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			[](const MediaUnitCapability& a, const MediaUnitCapability& b) { return a.unit < b.unit; });
 		if (media_units_.size() > 1 && media_units_[0].unit == media_units_[1].unit)
 			error = Mismatch("a core declares one media unit 0",
-				"fes.media.apple2-floppy or fes.media.c64-disk",
+				"one of fes.media.apple2-floppy, fes.media.c64-disk, fes.media.spectrum-tape",
 				"both");
 		// Discovery reads each declared unit's live limits. A freshly programmed
 		// endpoint leaves every implemented unit empty; limits come from Info.

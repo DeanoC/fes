@@ -100,7 +100,9 @@ help:
 		"  sim-fes-apple2-mailbox  Replay the fes.computer golden exchanges against the shared endpoint" \
 		"  sim-fes-apple2-machine  Boot the open diagnostic and synthetic disk; compare every frame" \
 		"  sim-fes-apple2-board  Drive top.v through the mailbox: HID keys, live disk insert/eject, reset" \
+		"  sim-fes-spectrum  Test the Spectrum machine, tape pilot, probe sockets and board mailbox" \
 		"  build-fes-apple2  Seal FES Apple II (format 3 firmware map, four slot sockets) with HIP (CACHE_ROOT=)" \
+		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
 		"  build-fes-c64  Seal FES Commodore 64 (format 3 firmware map, two cartridge sockets) with HIP (CACHE_ROOT=)" \
@@ -145,13 +147,13 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-spectrum sim-fes-spectrum-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss     export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -873,6 +875,49 @@ sim-fes-apple2-board: apple2-diagnostic
 		"$(CURDIR)/cores/fes-apple2/sim/board_tb.cpp"
 	@build/sim/fes-apple2-board/Vtop $(APPLE2_DIAGNOSTIC)/disk.dsk build/sim/fes-apple2-board
 
+SPECTRUM_DIAGNOSTIC := build/diagnostics/fes-spectrum
+SPECTRUM_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
+	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
+	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET -Wno-UNOPTFLAT \
+	-Wno-BLKSEQ \
+	-Icores/fes-spectrum/rtl -Icores/fes-common/generated -Icores/fes-common/rtl
+SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rtl/spectrum_ram.v \
+	cores/fes-spectrum/rtl/spectrum_rom.v cores/fes-spectrum/rtl/spectrum_video.v \
+	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_keyboard.v \
+	cores/fes-spectrum/rtl/spectrum_audio.v cores/fes-spectrum/rtl/spectrum_slot_sockets.v \
+	cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+	cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+	cores/fes-common/rtl/tv80/tv80_reg.v
+
+.PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board
+spectrum-diagnostic:
+	@mkdir -p $(SPECTRUM_DIAGNOSTIC)
+	$(PYTHON) cores/fes-spectrum/diagnostic/firmware.py --output-dir $(SPECTRUM_DIAGNOSTIC)
+
+sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board
+
+sim-fes-spectrum-machine: spectrum-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-spectrum-machine
+	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_sim_top $(SPECTRUM_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-spectrum-machine" \
+		-Icores/fes-spectrum/expansions \
+		cores/fes-spectrum/sim/spectrum_sim_top.sv $(SPECTRUM_RTL) \
+		cores/fes-spectrum/expansions/probe.v \
+		"$(CURDIR)/cores/fes-spectrum/sim/machine_tb.cpp"
+	@build/sim/fes-spectrum-machine/Vspectrum_sim_top
+
+sim-fes-spectrum-board: spectrum-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-spectrum-board
+	$(VERILATOR) --cc --exe --build -O2 --top-module top $(SPECTRUM_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-spectrum-board" \
+		cores/fes-spectrum/sim/board_models.v cores/fes-spectrum/rtl/top.v $(SPECTRUM_RTL) \
+		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
+		cores/fes-common/rtl/fes_audio_i2s.v \
+		"$(CURDIR)/cores/fes-spectrum/sim/board_tb.cpp"
+	@build/sim/fes-spectrum-board/Vtop
+
 C64_DIAGNOSTIC := build/diagnostics/fes-c64
 C64_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
@@ -1019,6 +1064,10 @@ build-fes-apple2:
 .PHONY: build-fes-c64
 build-fes-c64:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_c64_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+.PHONY: build-fes-spectrum
+build-fes-spectrum:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sms-diagnostic
 sms-diagnostic:
@@ -1212,6 +1261,11 @@ toolchain-fes-apple2:
 
 toolchain-fes-c64:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/c64.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-c64") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+toolchain-fes-spectrum:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/spectrum.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-spectrum") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 

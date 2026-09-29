@@ -334,6 +334,15 @@ var apple2Sockets = map[int]socketPolicy{
 	7: {Apple2Slot, Apple2Map, 1769, 5162, 2806, 6882},
 }
 
+// spectrumSockets is fes.spectrum-bus.sockets/1. The four rectangles are the
+// same column-24 bands as the Apple II sockets, indexed 1..4.
+var spectrumSockets = map[int]socketPolicy{
+	1: {SpectrumSlot, SpectrumMap, 1769, 32, 2806, 1722},
+	2: {SpectrumSlot, SpectrumMap, 1769, 1722, 2806, 3442},
+	3: {SpectrumSlot, SpectrumMap, 1769, 3442, 2806, 5162},
+	4: {SpectrumSlot, SpectrumMap, 1769, 5162, 2806, 6882},
+}
+
 // c64Sockets is fes.c64-bus.sockets/1. The rectangles are the Apple II slot 2
 // and slot 4 placement rows, named as C64 sockets 1 and 2.
 var c64Sockets = map[int]socketPolicy{
@@ -359,6 +368,7 @@ func supportedSocketVersion(slot, mapping string, major int) bool {
 		(slot == ColecoSlot && mapping == ColecoMap && major == 1) ||
 		(slot == ColecoSlot && mapping == ColecoMapV2 && major == 2) ||
 		(slot == Apple2Slot && mapping == Apple2Map && major == 1) ||
+		(slot == SpectrumSlot && mapping == SpectrumMap && major == 1) ||
 		(slot == C64Slot && mapping == C64Map && major == 1)
 }
 

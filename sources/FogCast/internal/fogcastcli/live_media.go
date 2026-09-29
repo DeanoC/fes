@@ -18,7 +18,7 @@ import (
 func runLiveMediaCommand(ctx context.Context, origin string, args []string) commandResult {
 	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
 	if len(args) == 0 {
-		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-disk-path> | eject-disk"))
+		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-disk-path> | eject-disk | change-cassette <media-id-or-.tap-path> | eject-cassette"))
 	}
 	switch args[0] {
 	case "change-disk":
@@ -31,6 +31,16 @@ func runLiveMediaCommand(ctx context.Context, origin string, args []string) comm
 			return fail(errors.New("usage: fogcast eject-disk"))
 		}
 		return ejectDiskThroughHostAPI(ctx, origin)
+	case "change-cassette":
+		if len(args) != 2 {
+			return fail(errors.New("usage: fogcast change-cassette <media-id-or-.tap-path>"))
+		}
+		return changeCassetteThroughHostAPI(ctx, origin, args[1])
+	case "eject-cassette":
+		if len(args) != 1 {
+			return fail(errors.New("usage: fogcast eject-cassette"))
+		}
+		return ejectCassetteThroughHostAPI(ctx, origin)
 	case "change-tape":
 		if len(args) != 2 {
 			return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path>"))
@@ -204,7 +214,8 @@ type sessionMediaForm struct {
 var (
 	tapeMedia = sessionMediaForm{capable: protocol.LiveMediaCapable}
 	// A recognized fes.computer library launch runs as native play.
-	diskMedia = sessionMediaForm{capable: diskCapable, native: true}
+	diskMedia     = sessionMediaForm{capable: diskCapable, native: true}
+	cassetteMedia = sessionMediaForm{capable: cassetteCapable, native: true}
 )
 
 // postSessionMedia performs one session read or live-media mutation and
@@ -263,14 +274,24 @@ func postSessionMedia(ctx context.Context, client *http.Client, origin, path str
 }
 
 func liveMediaCommand(name string) bool {
-	return name == "change-tape" || name == "eject-tape" || name == "change-disk" || name == "eject-disk"
+	return name == "change-tape" || name == "eject-tape" || name == "change-disk" || name == "eject-disk" ||
+		name == "change-cassette" || name == "eject-cassette"
 }
 
 // diskCapable reports a session whose active fes.computer generation has the
-// observed unit 0 disk. Apple II floppies and C64 D64s share that unit.
+// Apple II floppy or the C64 disk on unit 0. Spectrum tapes use cassetteCapable.
 func diskCapable(p *protocol.CorePackageStatus) bool {
-	_, ok := protocol.MediaUnit(p, protocol.Apple2FloppyUnit)
-	return ok
+	unit, ok := protocol.MediaUnit(p, protocol.Apple2FloppyUnit)
+	if !ok {
+		return false
+	}
+	return unit.Interface == protocol.Apple2FloppyInterface() ||
+		unit.Interface == protocol.C64DiskInterface()
+}
+
+func cassetteCapable(p *protocol.CorePackageStatus) bool {
+	unit, ok := protocol.MediaUnit(p, protocol.SpectrumTapeUnit)
+	return ok && unit.Interface == protocol.SpectrumTapeInterface()
 }
 
 // changeDiskThroughHostAPI inserts a household disk into the running machine
@@ -308,6 +329,75 @@ func ejectDiskThroughHostAPI(ctx context.Context, origin string) commandResult {
 		return fail(err)
 	}
 	return diskResult(prior, after, b)
+}
+
+func changeCassetteThroughHostAPI(ctx context.Context, origin, arg string) commandResult {
+	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
+	mediaID, name, err := resolveCassetteArgument(ctx, origin, arg)
+	if err != nil {
+		return fail(err)
+	}
+	client := hostJSONClient()
+	prior, err := fetchCassetteSession(ctx, client, origin)
+	if err != nil {
+		return fail(err)
+	}
+	b := protocol.DevelopmentMediaBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Target: prior.Target, TargetID: prior.TargetID}
+	payload, _ := json.Marshal(protocol.LiveMediaRequest{MediaID: mediaID, Name: name})
+	after, err := postSessionMedia(ctx, hostMutationClient(), origin, "/api/v1/session/live-media", payload, &b, prior.ID, cassetteMedia)
+	if err != nil {
+		return fail(err)
+	}
+	return diskResult(prior, after, b)
+}
+
+func ejectCassetteThroughHostAPI(ctx context.Context, origin string) commandResult {
+	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
+	client := hostJSONClient()
+	prior, err := fetchCassetteSession(ctx, client, origin)
+	if err != nil {
+		return fail(err)
+	}
+	b := protocol.DevelopmentMediaBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Target: prior.Target, TargetID: prior.TargetID}
+	after, err := postSessionMedia(ctx, hostMutationClient(), origin, "/api/v1/session/live-media/clear", nil, &b, prior.ID, cassetteMedia)
+	if err != nil {
+		return fail(err)
+	}
+	return diskResult(prior, after, b)
+}
+
+func fetchCassetteSession(ctx context.Context, client *http.Client, origin string) (liveMediaSession, error) {
+	session, err := postSessionMedia(ctx, client, origin, "/api/v1/session", nil, nil, "", cassetteMedia)
+	if err == nil && !(protocol.DevelopmentMediaBinding{PackageID: session.CorePackage.PackageID, Generation: session.CorePackage.Generation}).Valid() {
+		err = protocol.MediaUnitIdentityError()
+	}
+	return session, err
+}
+
+func resolveCassetteArgument(ctx context.Context, origin, arg string) (mediaID, name string, err error) {
+	if protocol.ValidateDigest(arg) == nil {
+		return arg, "program.tap", nil
+	}
+	before, err := os.Lstat(arg)
+	base := filepath.Base(arg)
+	if err != nil || !before.Mode().IsRegular() || !protocol.AdmitSpectrumTapeName(base) || !protocol.AdmitSpectrumTapeSize(before.Size()) {
+		return "", "", protocol.CassetteMediaRequestError()
+	}
+	file, err := os.Open(arg)
+	if err != nil {
+		return "", "", protocol.CassetteMediaRequestError()
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(before, opened) {
+		return "", "", protocol.CassetteMediaRequestError()
+	}
+	data, err := io.ReadAll(io.LimitReader(file, protocol.SpectrumTapeMaxBytes+1))
+	if err != nil || !protocol.AdmitSpectrumTapeSize(int64(len(data))) || int64(len(data)) != before.Size() {
+		return "", "", protocol.CassetteMediaRequestError()
+	}
+	mediaID, err = importCoreMediaBytes(ctx, origin, data)
+	return mediaID, base, err
 }
 
 func fetchDiskSession(ctx context.Context, client *http.Client, origin string) (liveMediaSession, error) {

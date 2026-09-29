@@ -18,21 +18,25 @@ and content selection; the MiSTer is a small, directly controlled target.
   unavailable; setup requires an online catalog. See
   [guided core setup](docs/core-package-library.md#tenfoot-guided-core-setup).
 
-- Library `fes.computer` 1.0 packages (`fes.apple2` and `fes.c64`) launch as
-  ordinary `fpga_native` sessions. A format-3 package links its selected
-  `firmware` ROM at download. An Apple II shell with optional
-  `fes.expansion.apple2-bus` selects one card per physical slot; a Commodore
-  64 shell with optional `fes.expansion.c64-bus` selects socket 1 (ROM) and
-  socket 2 (I/O). Selection is
+- Library `fes.computer` 1.0 packages (`fes.apple2`, `fes.c64` and
+  `fes.spectrum`) launch as ordinary `fpga_native` sessions. A format-3
+  package links its selected `firmware` ROM at download. An Apple II shell
+  with optional `fes.expansion.apple2-bus` selects one card per physical slot;
+  a Commodore 64 shell with optional `fes.expansion.c64-bus` selects socket 1
+  (ROM) and socket 2 (I/O); a ZX Spectrum shell with optional
+  `fes.expansion.spectrum-bus` selects one card per edge socket. Selection is
   `GET`/`PUT /api/v1/library/core-entries/{game_id}/expansions[/{slot}]`;
   launch links the ROM and cards on the host, the target relinks them
   independently and calls the runtime's multi-slot load. See
   [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
-  The entry's selected `disk` is inserted into media unit 0 after Start:
-  Apple II is an exact 143,360-byte `.dsk`/`.do` image, and Commodore 64 is
-  an exact 174,848-byte `.d64`. `POST /api/v1/session/live-media`
-  (`fogcast change-disk` / `eject-disk`) swaps or ejects it while the machine
-  runs. A stored media ID follows the active unit's size. See
+  The entry's selected medium is inserted into media unit 0 after Start:
+  Apple II is an exact 143,360-byte `.dsk`/`.do` image, Commodore 64 is an
+  exact 174,848-byte `.d64`, and ZX Spectrum is a 1..65,536-byte `.tap`.
+  `POST /api/v1/session/live-media` swaps or ejects that unit while the
+  machine runs. Apple II and Commodore 64 use `fogcast change-disk` and
+  `fogcast eject-disk`. ZX Spectrum uses `fogcast change-cassette` and
+  `fogcast eject-cassette`. A stored media ID follows the active unit's
+  size. See
   [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
   Its keyboard is `fes.keyboard.hid`: the browser (**Capture keyboard**),
   tenfoot and the kit forward physical keys as USB HID usages through

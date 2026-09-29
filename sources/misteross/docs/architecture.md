@@ -1284,6 +1284,26 @@ change outside the socket, then publishes a two-member archive whose
 manifest carries `slot_index`. `expansion/cmd/fes-slot-link` composes any set
 of such archives, optionally with the firmware ROM map, onto the shell.
 
+## FES ZX Spectrum
+
+`cores/fes-spectrum` is `fes.spectrum` 0.1.0, a 48K ZX Spectrum on the same
+`fes.computer` 1.0 mailbox as the Apple II. The machine, ULA port `$FE`,
+built-in Kempston port, `.tap` player and four edge sockets are described in
+[its README](../cores/fes-spectrum/README.md). It reuses
+`rtl/fes_computer_mailbox.v` with `ENABLE_SPECTRUM_TAPE` and the TV80 already
+used by Coleco, SMS and SG-1000. No Sinclair ROM bytes are in the tree.
+
+`make build-fes-spectrum` (`scripts/build_fes_spectrum_oss.py`,
+`toolchains/spectrum.lock`, `make toolchain-fes-spectrum`) is the format-3
+seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
+lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
+from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
+Simulation is `make sim-fes-spectrum`. The shell seal is recorded in
+`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. A kit link of the
+48K BASIC ROM is recorded in
+`docs/validation/2026-09-28-spectrum-basic-kit.md`. Probe cards, keyboard
+checks, and tape checks remain open.
+
 ## FES Commodore 64
 
 `cores/fes-c64` is `fes.c64` 0.1.0, a package-only Commodore 64 pathfinder on

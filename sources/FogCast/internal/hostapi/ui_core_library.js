@@ -53,9 +53,9 @@
     const selectedPackage = () => state.packages.find(p => p.package_id === state.packageId);
     const selectedEntry = () => state.entries.find(e => e.game_id === state.entryId);
     function fail(error) { state.message = String(error.message || error); return emit(); }
-    const MEDIA_ROLES = ['blob', 'disk'];
-    // The declared role (startup blob or removable disk) whose limits admit
-    // the imported media, or '' when none does.
+    const MEDIA_ROLES = ['blob', 'disk', 'cassette'];
+    // The declared role (startup blob, removable disk, or cassette) whose
+    // limits admit the imported media, or '' when none does.
     function mediaRole() {
       const caps = state.capabilities;
       const match = state.media && caps && caps.package_id === state.packageId &&

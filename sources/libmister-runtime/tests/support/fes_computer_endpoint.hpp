@@ -88,7 +88,7 @@ public:
 		}
 		const bool media_opcode = op >= FesComputerOpcodeMediaInfo && op <= FesComputerOpcodeMediaEject;
 		const unsigned media_bits = FesComputerCapabilityMediaApple2Floppy |
-			FesComputerCapabilityMediaC64Disk;
+			FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaSpectrumTape;
 		if (media_opcode && !(capabilities_ & media_bits))
 			return {opcode_error, 0};
 		if (op == FesComputerOpcodeMediaInfo) {

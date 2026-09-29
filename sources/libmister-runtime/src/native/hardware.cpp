@@ -648,6 +648,10 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceMediaC64DiskID,
 				generated::FesComputerInterfaceMediaC64DiskMajor,
 				generated::FesComputerInterfaceMediaC64DiskMinor},
+			{generated::FesComputerInterfaceMediaSpectrumTapeID,
+				generated::FesComputerInterfaceMediaSpectrumTapeMajor,
+				generated::FesComputerInterfaceMediaSpectrumTapeMinor},
+			{kSpectrumExpansionBusID, 1, 0},
 			{generated::FesComputerInterfaceVideoFixed720p60ID,
 				generated::FesComputerInterfaceVideoFixed720p60Major,
 				generated::FesComputerInterfaceVideoFixed720p60Minor}};

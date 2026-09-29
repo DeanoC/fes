@@ -31,6 +31,8 @@ func slotPolicies(slot, mapping string) map[int]socketPolicy {
 	switch {
 	case slot == Apple2Slot && mapping == Apple2Map:
 		return apple2Sockets
+	case slot == SpectrumSlot && mapping == SpectrumMap:
+		return spectrumSockets
 	case slot == C64Slot && mapping == C64Map:
 		return c64Sockets
 	default:
@@ -38,11 +40,18 @@ func slotPolicies(slot, mapping string) map[int]socketPolicy {
 	}
 }
 
+// SlotMap returns the multi-socket layout a shell's expansion interface uses.
+func SlotMap(slot string, major int) (string, bool) {
+	return slotMap(slot, major)
+}
+
 // slotMap returns the multi-socket layout a shell's expansion interface uses.
 func slotMap(slot string, major int) (string, bool) {
 	switch {
 	case slot == Apple2Slot && major == 1:
 		return Apple2Map, true
+	case slot == SpectrumSlot && major == 1:
+		return SpectrumMap, true
 	case slot == C64Slot && major == 1:
 		return C64Map, true
 	default:

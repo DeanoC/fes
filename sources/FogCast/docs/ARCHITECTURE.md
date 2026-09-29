@@ -616,16 +616,21 @@ A `fes.computer` package projects media role `disk`
 `fes-computer-media-unit-v1`, unit 0. `fes.media.apple2-floppy` 1.0 is format
 `apple2-dos-order`, exactly 143,360 bytes, names `.dsk`/`.do`.
 `fes.media.c64-disk` 1.0 is format `c64-d64`, exactly 174,848 bytes, name
-`.d64`. A package declares one of those two interfaces. Library selection
+`.d64`. `fes.media.spectrum-tape` 1.0 is role `cassette`, format
+`spectrum-tap`, 1..65,536 bytes, name `.tap`, on the same unit 0. A shell
+declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
 13) validates the exact size offline. A home computer starts with its drive
 empty: launch programs the package first and then inserts the selected disk
 into unit 0; a failed insert is a failed launch and follows the existing
 library-slot Stop/recovery. The same session accepts later swaps:
 `POST /api/v1/session/live-media` with a `.dsk`/`.do` or `.d64` name inserts a
-household disk, and `…/live-media/clear` ejects it when the active generation
-has that unit; `.p` names keep the ZX81 tape path. The CLI equivalents are
-`fogcast change-disk MEDIA_ID_OR_DISK_PATH` and `fogcast eject-disk`. A stored
+household disk, and `…/live-media/clear` ejects the unit-0 medium the active
+generation declares (Apple II floppy, C64 disk, or Spectrum tape). `.p` names
+keep the ZX81 tape path. A `.tap` name inserts the Spectrum cassette on unit 0.
+The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
+`fogcast eject-disk` for a disk, and `fogcast change-cassette` and
+`fogcast eject-cassette` for a Spectrum `.tap`. A stored
 media ID is named `disk.dsk` or `disk.d64` from the active unit, so the host
 checks 143,360 or 174,848 bytes against that generation. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.
