@@ -1,0 +1,125 @@
+"""FES Commodore 64 OSS producer contract checks (no compiler run)."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import tomllib
+import unittest
+from pathlib import Path
+
+from scripts import c64_slots
+from scripts import build_fes_c64_oss as producer
+from scripts.fes_build_common import BuildError
+from scripts.lockfile import load_lock
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class BuildFesC64Tests(unittest.TestCase):
+    def test_make_entrypoint(self) -> None:
+        result = subprocess.run(["make", "-n", "build-fes-c64"], cwd=ROOT, text=True,
+                                capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), f'python3 scripts/build_fes_c64_oss.py --root "{ROOT}"')
+
+    def test_lock_pins_the_expected_tools(self) -> None:
+        lock = load_lock(ROOT / producer.C64_TOOLCHAIN_LOCK)
+        commits = {name: pin.commit for name, pin in lock.items()}
+        for name, commit in producer.C64_TOOL_COMMITS.items():
+            self.assertEqual(commits[name], commit)
+
+    def test_pinned_inputs_cover_every_rtl_file_and_exist(self) -> None:
+        for relative in producer.PINNED_INPUTS:
+            self.assertTrue((ROOT / relative).is_file(), relative)
+        rtl = {path.relative_to(ROOT).as_posix()
+               for path in (ROOT / "cores/fes-c64/rtl").iterdir()}
+        self.assertTrue(rtl <= set(producer.PINNED_INPUTS), rtl - set(producer.PINNED_INPUTS))
+
+    def test_commands_read_every_source_and_route_in_the_socket_qsf(self) -> None:
+        yosys, route = producer.build_commands(
+            ROOT, ROOT / producer.OUTPUT_RELATIVE, "0" * 32,
+            {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")}, seed=4)
+        program = yosys[2]
+        for source in producer.RTL_SOURCES:
+            self.assertIn(source, program)
+        self.assertIn("chparam -set BUILD_ID 128'h" + "0" * 32 + " top", program)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
+        self.assertEqual(route[route.index("--qsf") + 1], "build/fes-c64-oss/socket.qsf")
+        self.assertEqual(route[route.index("--seed") + 1], "4")
+        self.assertEqual(route[route.index("--router") + 1], "gpu")
+        with self.assertRaises(BuildError):
+            producer.build_commands(ROOT, ROOT / "elsewhere", "0" * 32,
+                                    {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")})
+
+    def test_socket_qsf_names_every_region_once(self) -> None:
+        base = (ROOT / producer.QSF).read_text()
+        qsf = producer.socket_qsf(base)
+        self.assertEqual(qsf.count("FES_RESERVED_RECT"), len(c64_slots.SOCKETS))
+        for socket in c64_slots.SOCKETS:
+            self.assertIn(f'FES_RESERVED_RECT "{socket.placement}"', qsf)
+        with self.assertRaises(BuildError):
+            producer.socket_qsf(qsf)
+
+    def _routed(self, extra: dict | None = None) -> dict:
+        cells = {}
+        for socket in c64_slots.SOCKETS:
+            for name, bel in c64_slots.boundary_bels(socket).items():
+                cells[socket.instance + name] = {"type": "MISTRAL_FF",
+                                                 "attributes": {"NEXTPNR_BEL": bel}}
+        cells["machine.cpu.state"] = {"type": "MISTRAL_FF",
+                                      "attributes": {"NEXTPNR_BEL": "MISTRAL_FF.10.10.2"}}
+        cells.update(extra or {})
+        return {"modules": {"top": {"cells": cells}}}
+
+    def test_routed_shell_keeps_sockets_vacant(self) -> None:
+        evidence = producer.validate_routed_shell(self._routed())
+        self.assertEqual(evidence["sockets"], [1, 2])
+        self.assertEqual(evidence["pinned_boundary_cells"],
+                         sum(len(c64_slots.boundary_bels(socket)) for socket in c64_slots.SOCKETS))
+        intruder = {"machine.alu": {"type": "MISTRAL_COMB",
+                                    "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.26.10.0"}}}
+        with self.assertRaises(BuildError):
+            producer.validate_routed_shell(self._routed(intruder))
+        moved = self._routed()
+        moved["modules"]["top"]["cells"]["slot2.plug_request_ff_0"]["attributes"]["NEXTPNR_BEL"] = \
+            "MISTRAL_FF.24.42.2"
+        with self.assertRaises(BuildError):
+            producer.validate_routed_shell(moved)
+
+    def test_firmware_lanes_must_stay_out_of_sockets(self) -> None:
+        inside = {"blocks": [{"bel": "M10K.026.030", "word_bits": [[500 * 7605 + 2000]]}]}
+        with self.assertRaises(BuildError):
+            producer.check_firmware_outside_sockets(inside)
+        outside = {"blocks": [{"bel": "M10K.005.032", "word_bits": [[3000 * 7605 + 300]]}]}
+        producer.check_firmware_outside_sockets(outside)
+
+    def test_manifest_declares_the_home_computer_contract(self) -> None:
+        record = json.dumps({"recipe_sha256": "a" * 64}).encode()
+        evidence = {"rbf": {"size": 2_000_000, "sha256": "b" * 64}, "build_id": "c" * 32,
+                    "rom": {"id": "c64-firmware", "role": "firmware", "source_size": 16384,
+                            "file": "rom-map.json", "size": 100, "sha256": "d" * 64}}
+        manifest = tomllib.loads(producer._manifest(
+            record, evidence, "https://github.com/DeanoC/fes.git", "e" * 40,
+            {"yosys": "y", "nextpnr": "n", "mistral": "m"}).decode())
+        self.assertEqual(manifest["format"], 3)
+        self.assertEqual(manifest["core"]["id"], "fes.c64")
+        self.assertEqual(manifest["abi"], {"id": "fes.computer", "major": 1, "minor": 0})
+        interfaces = {i["id"]: i["required"] for i in manifest["interfaces"]}
+        self.assertEqual(interfaces, {
+            "fes.video.fixed-720p60": True, "fes.keyboard.hid": True, "fes.gamepad.ports": True,
+            "fes.audio.pcm-s16-stereo-48k": True, "fes.media.c64-disk": True,
+            "fes.expansion.c64-bus": False,
+        })
+        self.assertEqual(manifest["rom"]["role"], "firmware")
+        self.assertEqual(manifest["rom"]["source_size"], 16384)
+
+    def test_firmware_lanes_match_the_rtl(self) -> None:
+        rtl = (ROOT / "cores/fes-c64/rtl/c64_rom.v").read_text()
+        for index, row in enumerate(producer.FIRMWARE_LANE_ROWS):
+            self.assertIn(f'(* keep, BEL = "MISTRAL_M10K.5.{row}.0" *)', rtl)
+            self.assertIn(f") lane{index} (", rtl)
+
+
+if __name__ == "__main__":
+    unittest.main()

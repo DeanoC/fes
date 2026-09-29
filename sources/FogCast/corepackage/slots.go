@@ -46,7 +46,7 @@ func slotCompositionShell(inspection Inspection, payload []byte) (expansion.Shel
 	var found string
 	for _, i := range d.Interfaces {
 		switch i.ID {
-		case expansion.Apple2Slot, expansion.SpectrumSlot:
+		case expansion.Apple2Slot, expansion.C64Slot, expansion.SpectrumSlot:
 			if found != "" || i.Required || i.Major != 1 || i.Minor != 0 {
 				return expansion.Shell{}, errors.New("slot composition requires one optional multi-socket bus 1.0")
 			}

@@ -75,6 +75,10 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
         rows = {row['core_id']: row for row in value['entries']}
         self.assertEqual(set(rows), set(core_catalog.recipes.load_recipes()) - {'fes.menu'})
         self.assertEqual(rows['fes.apple2']['standing'], 'experimental')
+        self.assertEqual(rows['fes.c64']['standing'], 'experimental')
+        self.assertEqual(rows['fes.c64']['system'], 'c64')
+        self.assertEqual(rows['fes.spectrum']['standing'], 'experimental')
+        self.assertEqual(rows['fes.spectrum']['system'], 'spectrum')
         self.assertEqual(rows['fes.catch']['standing'], 'demo')
         self.assertIn('fes.sms', rows)
         self.assertIn('fes.sg1000', rows)

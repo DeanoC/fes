@@ -1117,7 +1117,7 @@ func validMediaUnits(response Protocol2Response) bool {
 }
 
 // validSlotComposition binds a v2 tuple to an exact fes.computer 1.0 shell
-// declaring the optional Apple II slot bus; every slot is a physical socket.
+// declaring one optional multi-socket bus; every slot is a physical socket.
 func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePackage) bool {
 	id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
 	if err != nil || id != c.ID || c.PackageID != active.PackageID || !protocol2Hex64.MatchString(c.ShellSHA256) ||
@@ -1128,7 +1128,7 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 	var bus string
 	for _, i := range active.Descriptor.Interfaces {
 		switch i.ID {
-		case expansion.Apple2Slot, expansion.SpectrumSlot:
+		case expansion.Apple2Slot, expansion.C64Slot, expansion.SpectrumSlot:
 			if bus != "" || i.Major != 1 || i.Minor != 0 || i.Required {
 				return false
 			}

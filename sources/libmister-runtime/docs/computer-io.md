@@ -5,9 +5,10 @@ programming profile and GP transport. The authoritative wire contract is
 mister-packages [home-computer I/O](../../mister-packages/docs/computer-io.md);
 the constants are generated from `packages/abi/fes_computer.yaml` into
 `src/native/generated/fes_computer.hpp`. The consumers are the FES Apple II
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md))
-and the FES ZX Spectrum
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)).
+([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md)),
+the FES ZX Spectrum
+([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md))
+and the FES Commodore 64.
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 
@@ -17,12 +18,13 @@ A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions
 above 0 and any `core.system` value are rejected. `fes.video.fixed-720p60` 1.0
 is required. The recognized operational set is `fes.video.fixed-720p60`,
 `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.audio.pcm-s16-stereo-48k`,
-`fes.media.apple2-floppy` and `fes.media.spectrum-tape`, each 1.0; each must
-be declared required when present. A shell declares at most one of the two
-unit-0 media interfaces. `fes.expansion.apple2-bus` 1.0 and
-`fes.expansion.spectrum-bus` 1.0 are manifest-only multi-socket buses and must
-be optional. Unknown or unsupported-version optional declarations are ignored
-and grant nothing; unknown or unsupported required declarations fail admission.
+`fes.media.apple2-floppy`, `fes.media.spectrum-tape` and `fes.media.c64-disk`,
+each 1.0; each must be declared required when present. A shell declares at
+most one unit-0 medium. `fes.expansion.apple2-bus` 1.0,
+`fes.expansion.spectrum-bus` 1.0 and `fes.expansion.c64-bus` 1.0 are
+manifest-only multi-socket buses and must be optional. Unknown or
+unsupported-version optional declarations are ignored and grant nothing;
+unknown or unsupported required declarations fail admission.
 
 Format 2 and format 3 with a `firmware` ROM are admitted. Format 3 with a
 `cartridge` ROM and format 4 are rejected: this ABI releases execution right
@@ -35,20 +37,22 @@ record volatile core data.
 Native capabilities advertise the ABI with every recognized interface:
 
 ```json
-{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
+{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
 ```
 
 ## Lifecycle
 
 Identity must equal the manifest: tag 4, ABI 1.0, build ID, and live
-capability bits 0 through 5 equal to the declared required recognized set.
-Unregistered live bits above 4 are ignored, as for applications. Discovery
-then reads MediaInfo fields 0 through 5 for every declared media unit
-(`fes.media.apple2-floppy` is unit 0). The unit must be present and empty, with
-512-byte chunks and 1 <= minimum <= maximum <= `FesComputerMediaMaxBytes`
-(32 MiB); otherwise activation fails as an identity mismatch. The runtime does
-not substitute interface sizes for live Info: an Apple II core reports
-143,360 for both limits.
+capability bits in the registered mask equal to the declared required
+recognized set. Bits outside that mask are ignored, as for applications. Discovery
+then reads MediaInfo fields 0 through 5 for every declared media unit.
+`fes.media.apple2-floppy`, `fes.media.spectrum-tape` and `fes.media.c64-disk`
+are each unit 0, and a shell declares one of them. The unit must be present
+and empty, with 512-byte chunks and 1 <= minimum <= maximum <=
+`FesComputerMediaMaxBytes` (32 MiB); otherwise activation fails as an identity
+mismatch. The runtime does not substitute interface sizes for live Info: an
+Apple II core reports 143,360 for both limits, a Spectrum core reports 1 and
+65,536, and a Commodore 64 core reports 174,848 for both limits.
 
 After verified identity the ADV7513 audio packets follow the audio
 declaration exactly as for applications. Execution is released immediately:
@@ -188,6 +192,13 @@ object under `active_package.composition`:
 ```json
 "composition":{"composition_id":"<C>","package_id":"<P>","expansions":[{"slot":4,"expansion_id":"<E4>"},{"slot":6,"expansion_id":"<E6>"}],"shell_sha256":"<S>","payload_sha256":"<L>","payload_size":1816338}
 ```
+
+`fes.expansion.c64-bus` 1.0 uses the same composition operations. Its map
+`fes.c64-bus.sockets/1` admits only socket 1 (ROM window) and socket 2 (I/O
+window), at most two cards. `fes.media.c64-disk` 1.0 is media unit 0, an
+exact 174,848-byte read-only D64. `fes.expansion.spectrum-bus` 1.0 uses the
+same operations. Its map `fes.spectrum-bus.sockets/1` admits sockets 1–4.
+`fes.media.spectrum-tape` 1.0 is media unit 0, a 1..65,536-byte `.tap`.
 
 Single-socket ZX81 and Coleco requests, manifests, identities and status are
 unchanged, and neither shape composes the other bus.

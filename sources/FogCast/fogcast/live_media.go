@@ -16,10 +16,10 @@ type liveMediaClient interface {
 
 // ReplaceLiveMedia arms a household core-media id into the active generation
 // via the mid-session live path. It does not inject LOAD "" keys.
-// A .dsk/.do name selects the fes.computer disk unit instead; see
+// A .dsk/.do or .d64 name selects the fes.computer disk unit instead; see
 // replaceLiveDisk.
 func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if protocol.AdmitDiskMediaName(name) {
+	if protocol.AdmitComputerDiskName(name) {
 		return s.replaceLiveDisk(parent, mediaID, name, b)
 	}
 	if protocol.AdmitSpectrumTapeName(name) {
@@ -149,7 +149,11 @@ func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.Developme
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, diskUnitBinding(b), protocol.Apple2FloppyInterface()); handled || err != nil {
+	unit := diskUnitBinding("", b)
+	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, unit, protocol.Apple2FloppyInterface()); handled || err != nil {
+		return status, err
+	}
+	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, unit, protocol.C64DiskInterface()); handled || err != nil {
 		return status, err
 	}
 	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, cassetteUnitBinding(b), protocol.SpectrumTapeInterface()); handled || err != nil {

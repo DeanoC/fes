@@ -896,8 +896,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
 			const bool bus = interface.id == kApple2ExpansionBusID ||
+				interface.id == kC64ExpansionBusID ||
 				interface.id == kSpectrumExpansionBusID;
 			const bool media = interface.id == FesComputerInterfaceMediaApple2FloppyID ||
+				interface.id == FesComputerInterfaceMediaC64DiskID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
 				interface.id == FesComputerInterfaceKeyboardHidID ||
@@ -922,12 +924,9 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
 			if (media) media_units++;
 		}
-		if (media_units > 1)
+		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
-				"computer unit 0 accepts one media interface");
-		if (buses > 1)
-			return CompatibilityError(ErrorCode::unsupported_interface,
-				"computer shell declares more than one expansion bus");
+				"computer declares more than one unit-0 medium or expansion bus");
 		if (!video)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer requires fixed video");

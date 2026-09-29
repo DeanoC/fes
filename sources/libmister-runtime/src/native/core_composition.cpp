@@ -154,6 +154,8 @@ Error OpenLinkedPayload(const std::vector<std::string>& roots, const std::string
 // final, so every Apple II slot 1..7 is admitted until that table is sealed.
 bool Apple2SlotSocket(std::uint64_t slot) {return slot>=1 && slot<=7;}
 bool SpectrumSlotSocket(std::uint64_t slot) {return slot>=1 && slot<=4;}
+// fes.c64-bus.sockets/1 is socket 1 (ROM window) and socket 2 (I/O window).
+bool C64SlotSocket(std::uint64_t slot) {return slot==1 || slot==2;}
 // The target agent links cards into their own reserved socket rectangles with
 // the shared misteross implementation; this admission verifies its result.
 Error OpenSlotComposition(const std::vector<std::string>& roots,
@@ -162,27 +164,42 @@ Error OpenSlotComposition(const std::vector<std::string>& roots,
 	const char* bus_id=nullptr;
 	const char* bus_map=nullptr;
 	bool (*socket_ok)(std::uint64_t)=nullptr;
+	std::size_t max_slots=0;
 	for (const auto& interface : descriptor.interfaces) {
-		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus" &&
-			interface.id!=kApple2ExpansionBusID && interface.id!=kSpectrumExpansionBusID) continue;
-		const bool multi=interface.id==kApple2ExpansionBusID || interface.id==kSpectrumExpansionBusID;
+		const bool multi=interface.id==kApple2ExpansionBusID ||
+			interface.id==kC64ExpansionBusID || interface.id==kSpectrumExpansionBusID;
+		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus" && !multi)
+			continue;
 		if (bus_id || !multi || interface.major!=1 || interface.minor!=0 || interface.required)
 			return Invalid("base package has an unsupported or ambiguous expansion bus");
-		bus_id=interface.id==kApple2ExpansionBusID ? kApple2ExpansionBusID : kSpectrumExpansionBusID;
-		bus_map=interface.id==kApple2ExpansionBusID ? kApple2ExpansionMapID : kSpectrumExpansionMapID;
-		socket_ok=interface.id==kApple2ExpansionBusID ? Apple2SlotSocket : SpectrumSlotSocket;
+		if (interface.id==kC64ExpansionBusID) {
+			bus_id=kC64ExpansionBusID;
+			bus_map=kC64ExpansionMapID;
+			socket_ok=C64SlotSocket;
+			max_slots=2;
+		} else if (interface.id==kSpectrumExpansionBusID) {
+			bus_id=kSpectrumExpansionBusID;
+			bus_map=kSpectrumExpansionMapID;
+			socket_ok=SpectrumSlotSocket;
+			max_slots=4;
+		} else {
+			bus_id=kApple2ExpansionBusID;
+			bus_map=kApple2ExpansionMapID;
+			socket_ok=Apple2SlotSocket;
+			max_slots=7;
+		}
 	}
 	if (!bus_id || descriptor.abi.id!="fes.computer" || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
-		return Invalid("base package does not declare an optional multi-socket expansion bus");
+		return Invalid("base package does not declare an optional multi-slot bus");
 	const auto& info=request.composition;
 	if (!request.expansion_path.empty() || !info.expansion_id.empty() ||
 		!Hex(info.id,64) || !Hex(info.package_id,64) || !Hex(info.shell_sha256,64) || !Hex(info.payload_sha256,64) ||
 		info.package_id!=base.package_id || info.shell_sha256!=descriptor.payload.sha256 ||
 		info.payload_size<40408 || info.payload_size>MaximumPayload)
 		return Invalid("invalid composition identity or base binding");
-	if (request.expansions.empty() || request.expansions.size()>7 ||
+	if (request.expansions.empty() || request.expansions.size()>max_slots ||
 		request.expansions.size()!=info.expansions.size())
-		return Invalid("multi-slot composition requires one to seven bound slots");
+		return Invalid("multi-slot composition slot count is outside this shell");
 	// Domain, NUL, package, NUL, then "<slot>:<expansion>" NUL per ascending
 	// slot, then the linked payload digest (misteross SlotCompositionID).
 	std::string canonical("fes-composition-v2\0",19);

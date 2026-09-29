@@ -33,6 +33,8 @@ func slotPolicies(slot, mapping string) map[int]socketPolicy {
 		return apple2Sockets
 	case slot == SpectrumSlot && mapping == SpectrumMap:
 		return spectrumSockets
+	case slot == C64Slot && mapping == C64Map:
+		return c64Sockets
 	default:
 		return nil
 	}
@@ -50,6 +52,8 @@ func slotMap(slot string, major int) (string, bool) {
 		return Apple2Map, true
 	case slot == SpectrumSlot && major == 1:
 		return SpectrumMap, true
+	case slot == C64Slot && major == 1:
+		return C64Map, true
 	default:
 		return "", false
 	}
