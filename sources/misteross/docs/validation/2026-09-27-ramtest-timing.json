@@ -1,0 +1,241 @@
+{
+  "artifact_root": "out/ramtest-timing-264",
+  "artifacts_sha256": {
+    "baseline/fes-ramtest-130/build-inputs.json": "afe5c258eded7ae5d7d321adb2c914930c7c4e7b277086191004b9cfb9d3c9b9",
+    "baseline/fes-ramtest-130/qor-search/s2-w10-c2/routed.json": "cde0e6a3058445f23be9336ea09c7040f89951371532f653fad59e408ad793a7",
+    "baseline/fes-ramtest-130/qor-search/s2-w10-c2/timing.json": "67101e3340e0d26cacb73d440fd0d9a63989bef3bac0911b396fd4a22312fc7c",
+    "baseline/fes-ramtest-130/synth.json": "348727c29250a6f0ae27c2e90e0ae27d87441f4e7e431682a41d4689ebf75ba5",
+    "cpu-s2-w10/routed.json": "f51f6f269dc042256634c316f1bae6b95db2d5625c1e1db33aa18312a51f8f08",
+    "cpu-s2-w10/run.log": "040fe280667393540f4d2f864e862674f28470927fdbc58df2bbdf1f8e4c269d",
+    "cpu-s2-w10/timing.json": "90ea47ee75d6375078be3c6a7794d7c7197c001bbedc83ad0d640608a2807a70",
+    "gpu-s2-w1000/run.log": "507f5c2c905182cc1164c6c9abdd93b7bf598ff89aa9c3e5a557d3582f1212cb",
+    "quartus-binary/compile.log": "a4bcba8a87aa855a152dab534aa4d1e184cc643bf3d807a19f46be3e88592dc0",
+    "quartus-binary/project/output_files/top.fit.rpt": "52c4d22550feca67c691ae80dbe3bb4f9160d9e10cc29aa3a48876ab701454f8",
+    "quartus-binary/project/output_files/top.map.rpt": "cd5901ca1e04b19f851487a8bbc2e693d9ea7d3d9aa5fbab7b5a5b097ecd8314",
+    "quartus-binary/project/output_files/top.sta.rpt": "c154679fd7ba65de5747f3f54f377878e1dcd8cd334c40aad4847bb3a76f9b1e",
+    "quartus-binary/project/top.qsf": "6ef65f9fe2dd48b66c05c1e6866adcbf965d00d3e47d93e3ebfdd983bb9d2dff",
+    "quartus-binary/reports/memory-exact.rpt": "c13d218f7b02a283c7a3875974b9ec2e8936b4d6a1163f16ce71a219d7627ee9",
+    "quartus-binary/reports/pixel-exact.rpt": "095f6af43bf0ed127fd0fe844e0ec5116bd91ca4da57f3c315d676a106f7e5f4",
+    "quartus-current/compile.log": "9e1bc1b066a588288fe70cb037b4628b7215f5ec2e1d5b34c8c0dfbda366b855",
+    "quartus-current/project/output_files/top.fit.rpt": "175727fb47ef06cbf3507bb240859663d4e457c1d9e3f3f3e721e1e199b7e681",
+    "quartus-current/project/output_files/top.map.rpt": "8042f8fb698c9ec3ccb1223637785b71f64fe2297419960425c2f94eb251204c",
+    "quartus-current/project/output_files/top.sta.rpt": "b817ead0623022821bdc6c6ce4a55c475e36282c0524467ff58cf2477ebeadda",
+    "quartus-current/project/top.qsf": "7dac9740dacdf217062ad3bf84b6b3c9080b19bb12ca148dc0e2fb68371e0f43",
+    "quartus-current/reports/memory-exact.rpt": "f86e26f38921ae93e9ce9fd792eb9f7e79a190f1c3b821fc01daefc502fbb5bd",
+    "quartus-current/reports/pixel-exact.rpt": "23c5f8aa557d2c76f21259176f6cc601fac96f6cd8107209cbe2d2f9898c7ff5"
+  },
+  "classification": "host-only compiler research; no hardware acceptance",
+  "format": "fes-ramtest-timing-research-v1",
+  "gpu_weight1000": {
+    "last_recorded_iteration": 55,
+    "last_recorded_overused_wires": 126,
+    "result": "operator-stopped after approximately 13 minutes; route not legal; no final timing result"
+  },
+  "issue": "https://github.com/DeanoC/fes/issues/264",
+  "oss_cpu": {
+    "fmax": {
+      "display.pixel_clk": {
+        "achieved": 65.63833618164062,
+        "constraint": 74.25006866455078
+      },
+      "ram_clock.clocks[0]": {
+        "achieved": 71.9735107421875,
+        "constraint": 130.0052032470703
+      },
+      "ram_clock.clocks[1]": {
+        "achieved": 316.1605224609375,
+        "constraint": 130.0052032470703
+      }
+    },
+    "identical_cell_placements": 19983,
+    "router": "router2",
+    "seed": 2
+  },
+  "oss_gpu": {
+    "fmax": {
+      "display.pixel_clk": {
+        "achieved": 69.67669677734375,
+        "constraint": 74.25006866455078
+      },
+      "ram_clock.clocks[0]": {
+        "achieved": 101.93679809570312,
+        "constraint": 130.0052032470703
+      },
+      "ram_clock.clocks[1]": {
+        "achieved": 380.80023193359375,
+        "constraint": 130.0052032470703
+      }
+    },
+    "heap_critexp": 2,
+    "heap_timingweight": 10,
+    "paths": [
+      {
+        "clock": "posedge ram_clock.clocks[0]",
+        "delays_ns": {
+          "clk-skew": -0.0989999994635582,
+          "clk-to-q": 0.7310000061988831,
+          "logic": 1.1880000233650208,
+          "routing": 8.186000145971775,
+          "setup": -0.19599999487400055
+        },
+        "effective_setup_ns": 9.81000018119812,
+        "from": {
+          "cell": "hps_ddr.port2.skid_MISTRAL_FF_Q",
+          "loc": [
+            19,
+            29
+          ],
+          "port": "Q"
+        },
+        "from_signals": [
+          "hps_ddr.port2.draining_MISTRAL_ALUT2_A_Q[2]"
+        ],
+        "logic_arcs": 6,
+        "relationship_ns": 7.691999912261963,
+        "slack_ns": -2.1180002689361572,
+        "to": {
+          "cell": "ddr2_address_MISTRAL_FF_Q_22",
+          "loc": [
+            15,
+            9
+          ],
+          "port": "ENA"
+        },
+        "to_signals": [
+          "ddr2_address[23]"
+        ]
+      },
+      {
+        "clock": "posedge display.pixel_clk",
+        "delays_ns": {
+          "clk-skew": -0.032999999821186066,
+          "clk-to-q": 0.7310000061988831,
+          "logic": 2.56400004401803,
+          "routing": 11.285999916493893,
+          "setup": -0.19599999487400055
+        },
+        "effective_setup_ns": 14.35199997201562,
+        "from": {
+          "cell": "display.col_s_MISTRAL_FF_Q_1",
+          "loc": [
+            16,
+            4
+          ],
+          "port": "Q"
+        },
+        "from_signals": [
+          "display.col_s[0]"
+        ],
+        "logic_arcs": 11,
+        "relationship_ns": 13.468000411987305,
+        "slack_ns": -0.8839995600283146,
+        "to": {
+          "cell": "display.ddr_ch_t_MISTRAL_FF_Q",
+          "loc": [
+            17,
+            3
+          ],
+          "port": "DATAIN"
+        },
+        "to_signals": [
+          "display.ddr_ch_t[2]"
+        ]
+      }
+    ],
+    "seed": 2
+  },
+  "quartus": {
+    "quartus-binary": {
+      "fmax_mhz": {
+        "memory": 122.28,
+        "pixel": 98.08
+      },
+      "paths": {
+        "memory-exact": [
+          {
+            "data_delay_ns": 4.941,
+            "effective_setup_ns": 5.594,
+            "from": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port2|skid",
+            "logic_levels": 3,
+            "relationship_ns": 7.692,
+            "slack_ns": 2.098,
+            "to": "ddr_channel:ddr2_test|address[23]"
+          }
+        ],
+        "pixel-exact": [
+          {
+            "data_delay_ns": 9.052,
+            "effective_setup_ns": 9.404,
+            "from": "ram_display:display|col_s[0]",
+            "logic_levels": 9,
+            "relationship_ns": 13.464,
+            "slack_ns": 4.06,
+            "to": "ram_display:display|ddr_ch_t[2]"
+          }
+        ]
+      }
+    },
+    "quartus-current": {
+      "fmax_mhz": {
+        "memory": 139.3,
+        "pixel": 99.54
+      },
+      "paths": {
+        "memory-exact": [
+          {
+            "data_delay_ns": 4.149,
+            "effective_setup_ns": 4.392,
+            "from": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port2|skid",
+            "logic_levels": 2,
+            "relationship_ns": 7.692,
+            "slack_ns": 3.3,
+            "to": "ddr_channel:ddr2_test|address[23]"
+          }
+        ],
+        "pixel-exact": [
+          {
+            "data_delay_ns": 9.112,
+            "effective_setup_ns": 9.458,
+            "from": "ram_display:display|col_s[0]",
+            "logic_levels": 8,
+            "relationship_ns": 13.464,
+            "slack_ns": 4.006,
+            "to": "ram_display:display|ddr_ch_t[2]"
+          }
+        ]
+      }
+    }
+  },
+  "quartus_corner": "slow 1100mV 100C",
+  "quartus_seed": 1,
+  "quartus_version": "17.0.2 Build 602 07/19/2017 SJ Lite Edition",
+  "source": {
+    "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+    "oss_revision": "5c15931aae47494a89b2a5a3cf673bc9f2f09a4a",
+    "rtl_sha256": {
+      "cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+      "cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+      "cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+      "cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+      "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+      "cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+      "cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+      "cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+      "cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+      "cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+      "cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+      "cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+      "cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb"
+    }
+  },
+  "tools": {
+    "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=13a7b07ad7e0cfdc5300eae1f0c92b152217a217152f0f5b07e56ac494cea432",
+    "nextpnr-mistral": "commit=f95cef3d90074c2e3c79c16fc5df73cdb5824817; sha256=f7c1d3a62575f408292e91c9dee7fc6725833abadd7908afcec7115c09a18601; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=54ea7109ff08f7ecf8ca7b5ced58e8ba62d7f4b8; sha256=779c4aa57aa04762d9b45ef5810894cd888755b112b43c22c01ef9cbbb71e94b"
+  },
+  "verified_generated_headers_sha256": {
+    "cores/fes-common/generated/fes_application.vh": "a248fcb9f641a63ca59aec74aa7c0df61183e0c2ad836001690561730990c57a",
+    "cores/fes-common/generated/fes_computer.vh": "00bb0fee2d0b6d3b69c4370967fcc930812f52f10634e97f206307c28148a9a9",
+    "cores/fes-pong/generated/fes_gp.vh": "77732b2231c26d75e0bb5a4b085f3520d1744bb2594d34f9f31dab8567746bd8"
+  }
+}

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/atomicwrite"
 )
 
 type Config struct {
@@ -28,6 +29,10 @@ type Config struct {
 	Shelf        string `json:"shelf,omitempty"`
 	AudioChrome  bool   `json:"audio_chrome,omitempty"`
 	MenuDisplay  bool   `json:"menu_display,omitempty"`
+	// KitUI selects the boot shell. Empty and "grid" keep fogcast-kit.
+	// "tenfoot" asks the init script to start the native menu renderer.
+	// Any other value is treated as grid.
+	KitUI string `json:"kit_ui,omitempty"`
 	// HPSFramebuffer is the kit-local idle contract until a session
 	// observation overrides it. False matches SplashIdle: no SPI 0x002f,
 	// so the kit must not paint linuxfb over FPGA splash pixels.
@@ -75,6 +80,7 @@ func SaveConfig(c Config) error {
 		Shelf          string `json:"shelf,omitempty"`
 		AudioChrome    bool   `json:"audio_chrome,omitempty"`
 		MenuDisplay    bool   `json:"menu_display,omitempty"`
+		KitUI          string `json:"kit_ui,omitempty"`
 		HPSFramebuffer bool   `json:"hps_framebuffer,omitempty"`
 	}{
 		API:            c.API,
@@ -86,18 +92,16 @@ func SaveConfig(c Config) error {
 		Shelf:          normalizeShelf(c.Shelf),
 		AudioChrome:    c.AudioChrome,
 		MenuDisplay:    c.MenuDisplay,
+		KitUI:          c.KitUI,
 		HPSFramebuffer: c.HPSFramebuffer,
 	}
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		return errors.New("invalid launcher configuration")
 	}
-	tmp := c.path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
-		return errors.New("launcher configuration unavailable")
-	}
-	if err := os.Rename(tmp, c.path); err != nil {
-		_ = os.Remove(tmp)
+	// Never path+".tmp": on the kit's /media/fat exFAT that name opens
+	// launcher.json itself (#317). atomicwrite uses a dot-prefixed O_EXCL temp.
+	if err := atomicwrite.WriteFile(c.path, append(data, '\n'), 0o600); err != nil {
 		return errors.New("launcher configuration unavailable")
 	}
 	return nil

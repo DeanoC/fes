@@ -1,0 +1,1561 @@
+{
+  "comparisons": {
+    "new_input": {
+      "common_cell_names": 19863,
+      "different_top_level_keys": [
+        "creator"
+      ],
+      "moved_common_bels": 0,
+      "same_cells": true,
+      "same_modules": true,
+      "same_rbf_bytes": true,
+      "same_timing_json_bytes": true
+    },
+    "old_input": {
+      "common_cell_names": 20011,
+      "different_top_level_keys": [
+        "creator"
+      ],
+      "moved_common_bels": 0,
+      "same_cells": true,
+      "same_modules": true,
+      "same_rbf_bytes": true,
+      "same_timing_json_bytes": true
+    }
+  },
+  "date": "2026-09-29",
+  "ddr0_path": {
+    "arcs": [
+      {
+        "delay": 0.04699999839067459,
+        "from": {
+          "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+          "loc": [
+            9,
+            32
+          ],
+          "port": "CLK"
+        },
+        "to": {
+          "cell": "ddr0_status_MISTRAL_FF_Q_92",
+          "loc": [
+            34,
+            22
+          ],
+          "port": "CLK"
+        },
+        "type": "clk-skew"
+      },
+      {
+        "delay": 0.7310000061988831,
+        "from": {
+          "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+          "loc": [
+            9,
+            32
+          ],
+          "port": "Q"
+        },
+        "to": {
+          "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+          "loc": [
+            9,
+            32
+          ],
+          "port": "Q"
+        },
+        "type": "clk-to-q"
+      },
+      {
+        "delay": 1.0449999570846558,
+        "from": {
+          "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+          "loc": [
+            9,
+            32
+          ],
+          "port": "Q"
+        },
+        "net": "ddr0_errors[15]",
+        "sources": [
+          "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+        ],
+        "to": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+          "loc": [
+            13,
+            28
+          ],
+          "port": "A"
+        },
+        "type": "routing"
+      },
+      {
+        "delay": 0.5099999904632568,
+        "from": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+          "loc": [
+            13,
+            28
+          ],
+          "port": "A"
+        },
+        "to": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+          "loc": [
+            13,
+            28
+          ],
+          "port": "Q"
+        },
+        "type": "logic"
+      },
+      {
+        "delay": 1.7799999713897705,
+        "from": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+          "loc": [
+            13,
+            28
+          ],
+          "port": "Q"
+        },
+        "net": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F[4]",
+        "sources": [
+          "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+        ],
+        "to": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+          "loc": [
+            6,
+            10
+          ],
+          "port": "E"
+        },
+        "type": "routing"
+      },
+      {
+        "delay": 0.4000000059604645,
+        "from": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+          "loc": [
+            6,
+            10
+          ],
+          "port": "E"
+        },
+        "to": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+          "loc": [
+            6,
+            10
+          ],
+          "port": "Q"
+        },
+        "type": "logic"
+      },
+      {
+        "delay": 0.10100000351667404,
+        "from": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+          "loc": [
+            6,
+            10
+          ],
+          "port": "Q"
+        },
+        "net": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E[4]",
+        "sources": [
+          "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+        ],
+        "to": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+          "loc": [
+            6,
+            10
+          ],
+          "port": "E"
+        },
+        "type": "routing"
+      },
+      {
+        "delay": 0.09700000286102295,
+        "from": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+          "loc": [
+            6,
+            10
+          ],
+          "port": "E"
+        },
+        "to": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+          "loc": [
+            6,
+            10
+          ],
+          "port": "Q"
+        },
+        "type": "logic"
+      },
+      {
+        "delay": 2.115999937057495,
+        "from": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+          "loc": [
+            6,
+            10
+          ],
+          "port": "Q"
+        },
+        "net": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E[4]",
+        "sources": [
+          "sources/misteross/build/toolchain-ramtest-timing/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+        ],
+        "to": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+          "loc": [
+            18,
+            26
+          ],
+          "port": "E"
+        },
+        "type": "routing"
+      },
+      {
+        "delay": 0.4000000059604645,
+        "from": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+          "loc": [
+            18,
+            26
+          ],
+          "port": "E"
+        },
+        "to": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+          "loc": [
+            18,
+            26
+          ],
+          "port": "Q"
+        },
+        "type": "logic"
+      },
+      {
+        "delay": 2.063999891281128,
+        "from": {
+          "cell": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+          "loc": [
+            18,
+            26
+          ],
+          "port": "Q"
+        },
+        "net": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q",
+        "sources": [],
+        "to": {
+          "cell": "ddr0_status_MISTRAL_FF_Q_92",
+          "loc": [
+            34,
+            22
+          ],
+          "port": "ENA"
+        },
+        "type": "routing"
+      },
+      {
+        "delay": -0.19599999487400055,
+        "from": {
+          "cell": "ddr0_status_MISTRAL_FF_Q_92",
+          "loc": [
+            34,
+            22
+          ],
+          "port": "ENA"
+        },
+        "to": {
+          "cell": "ddr0_status_MISTRAL_FF_Q_92",
+          "loc": [
+            34,
+            22
+          ],
+          "port": "ENA"
+        },
+        "type": "setup"
+      }
+    ],
+    "input_sha256": {
+      "out/ramtest-merged-remap/measured-diagnostic/remap-search/s2-w10-c2/routed.json": "01856b587b51634e3883579421cfbee29ebda85c493ddbc8b1340fd3bbc73534",
+      "out/ramtest-merged-remap/measured-diagnostic/remap-search/s2-w10-c2/timing.json": "71e1c580a960c669e70d9c0c2ed3b1146dceb30f005bb73c223cc371a098d48e",
+      "sources/misteross/cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+      "sources/misteross/cores/fes-ramtest/rtl/top.v": "127949e04f85e4e683b10288240fae53206fc890011b5116a504e2a3046051dd"
+    },
+    "logical_destination": "ddr0_test.fault_addr[4]",
+    "rtl_binding": ".fault_addr(ddr0_status[229:198])",
+    "summary": {
+      "clock": "posedge ram_clock.clocks[0]",
+      "delays_ns": {
+        "clk-skew": 0.04699999839067459,
+        "clk-to-q": 0.7310000061988831,
+        "logic": 1.4070000052452087,
+        "routing": 7.105999760329723,
+        "setup": -0.19599999487400055
+      },
+      "effective_setup_ns": 9.09499977529049,
+      "from": {
+        "cell": "ddr0_errors_MISTRAL_FF_Q_15",
+        "loc": [
+          9,
+          32
+        ],
+        "port": "Q"
+      },
+      "from_signals": [
+        "ddr0_errors[15]"
+      ],
+      "logic_arcs": 4,
+      "relationship_ns": 7.691999912261963,
+      "slack_ns": -1.4029998630285263,
+      "to": {
+        "cell": "ddr0_status_MISTRAL_FF_Q_92",
+        "loc": [
+          34,
+          22
+        ],
+        "port": "ENA"
+      },
+      "to_signals": [
+        "ddr0_status[202]"
+      ]
+    }
+  },
+  "fes_base": "7785210bfd416dcd5ec8fd4ae43fcc3b03464bac",
+  "input_aclr_histograms": {
+    "new": {
+      "[\"1\"]": 8221
+    },
+    "old": {
+      "[\"1\"]": 8221
+    }
+  },
+  "input_mapping_change": {
+    "changed_prefix_counts": {
+      "ddr0_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q": 1,
+      "ddr0_read_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q": 1,
+      "ddr0_rvalid_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT3_Q": 1,
+      "ddr0_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT5_Q": 1,
+      "ddr0_test": 28,
+      "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q": 1,
+      "ddr1_read_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q": 1,
+      "ddr1_test": 90,
+      "ddr2_read_MISTRAL_FF_Q_ENA_MISTRAL_ALUT5_Q": 1,
+      "ddr2_stopped_MISTRAL_ALUT5_D": 1,
+      "ddr2_test": 90,
+      "ddr_speed": 65,
+      "display": 46,
+      "hps_ddr": 208,
+      "pat_seen_MISTRAL_FF_Q_ENA_MISTRAL_ALUT4_Q": 1,
+      "sdram": 17,
+      "sdram_test": 13,
+      "video": 4
+    },
+    "common_cell_names": 11056,
+    "common_cells_changed_type_or_parameters": 570,
+    "new_cell_count": 14944,
+    "new_type_counts": {
+      "MISTRAL_ALUT2": 1045,
+      "MISTRAL_ALUT3": 1188,
+      "MISTRAL_ALUT4": 950,
+      "MISTRAL_ALUT5": 1564,
+      "MISTRAL_ALUT6": 421,
+      "MISTRAL_ALUT_ARITH": 1341,
+      "MISTRAL_CLKBUF": 4,
+      "MISTRAL_FF": 8221,
+      "MISTRAL_IB": 1,
+      "MISTRAL_IO": 18,
+      "MISTRAL_NOT": 118,
+      "MISTRAL_OB": 51,
+      "altddio_out": 1,
+      "altera_pll": 2,
+      "altiobuf_bidir": 16,
+      "cyclonev_hps_interface_fpga2sdram": 1,
+      "cyclonev_hps_interface_mpu_general_purpose": 1,
+      "cyclonev_hps_interface_peripheral_i2c": 1
+    },
+    "old_cell_count": 14912,
+    "old_type_counts": {
+      "MISTRAL_ALUT2": 1071,
+      "MISTRAL_ALUT3": 1134,
+      "MISTRAL_ALUT4": 946,
+      "MISTRAL_ALUT5": 1531,
+      "MISTRAL_ALUT6": 455,
+      "MISTRAL_ALUT_ARITH": 1340,
+      "MISTRAL_CLKBUF": 4,
+      "MISTRAL_FF": 8221,
+      "MISTRAL_IB": 1,
+      "MISTRAL_IO": 18,
+      "MISTRAL_NOT": 118,
+      "MISTRAL_OB": 51,
+      "altddio_out": 1,
+      "altera_pll": 2,
+      "altiobuf_bidir": 16,
+      "cyclonev_hps_interface_fpga2sdram": 1,
+      "cyclonev_hps_interface_mpu_general_purpose": 1,
+      "cyclonev_hps_interface_peripheral_i2c": 1
+    }
+  },
+  "issue": "https://github.com/DeanoC/fes/issues/264",
+  "matrix": {
+    "merged_compiler_new_input": {
+      "build_id": "7168b508ab424b70f1c0f87b2035d821",
+      "compiler_identity": "commit=24f9a1db0737559977a13abb2d05cceafa5e6142; sha256=4295b0ca6304e377a0a208018015cf14fed6ad146395bb20c3e7a4eec1aa0b6d; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "final_reported_hold_violations": false,
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 94.5000991821289,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 106.15711212158203,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 347.7934875488281,
+          "constraint": 130.0052032470703
+        }
+      }
+    },
+    "merged_compiler_old_input": {
+      "build_id": "52991ce22369904849b68bdd900f9ae1",
+      "compiler_identity": "commit=24f9a1db0737559977a13abb2d05cceafa5e6142; sha256=4295b0ca6304e377a0a208018015cf14fed6ad146395bb20c3e7a4eec1aa0b6d; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "final_reported_hold_violations": false,
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 81.30742645263672,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 109.05125427246094,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 464.9685363769531,
+          "constraint": 130.0052032470703
+        }
+      },
+      "run": {
+        "build_id": "52991ce22369904849b68bdd900f9ae1",
+        "command": [
+          "sources/misteross/build/toolchain-ramtest-timing/install/bin/nextpnr-mistral",
+          "--json",
+          "out/ramtest-merged-remap/pre-merged-diagnostic/synth.json",
+          "--device",
+          "5CSEBA6U23I7",
+          "--qsf",
+          "sources/misteross/cores/fes-ramtest/constraints.qsf",
+          "--sdc",
+          "sources/misteross/boards/de10nano/clocks.sdc",
+          "--freq",
+          "74.25",
+          "--seed",
+          "2",
+          "--placer-heap-timingweight",
+          "10",
+          "--placer-heap-critexp",
+          "2",
+          "--router",
+          "gpu",
+          "--replicate-enables",
+          "4",
+          "--timing-allow-fail",
+          "--detailed-timing-report",
+          "--write",
+          "out/ramtest-fixed-input-264/merged-compiler-old-input/routed.json",
+          "--report",
+          "out/ramtest-fixed-input-264/merged-compiler-old-input/timing.json",
+          "--rbf",
+          "out/ramtest-fixed-input-264/merged-compiler-old-input/core.rbf",
+          "--compress-rbf",
+          "--gpu-device",
+          "1"
+        ],
+        "compiler": "merged",
+        "completed": true,
+        "cwd": "sources/misteross",
+        "elapsed_seconds": 672.7788323778659,
+        "execution_file_count": 600,
+        "execution_sha256": "1dd05ae1dd21cefeb01fcba52d10cd945cf16e08710f9b7172887709747cf27d",
+        "execution_summary": {
+          "environment": {
+            "HOME": "<private-build-home>",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "PATH": "sources/misteross/build/toolchain-ramtest-timing/install/bin:/usr/bin:/bin",
+            "TZ": "UTC"
+          },
+          "gpu_device": 1,
+          "kernel": "6.12.101-p2pdma-p2pdma",
+          "machine": "x86_64",
+          "system": "Linux",
+          "version": 1
+        },
+        "exit_code": 0,
+        "fes_revision": "7785210bfd416dcd5ec8fd4ae43fcc3b03464bac",
+        "final_reported_hold_violations": false,
+        "fixture": "old",
+        "fmax": {
+          "display.pixel_clk": {
+            "achieved": 81.30742645263672,
+            "constraint": 74.25006866455078
+          },
+          "ram_clock.clocks[0]": {
+            "achieved": 109.05125427246094,
+            "constraint": 130.0052032470703
+          },
+          "ram_clock.clocks[1]": {
+            "achieved": 464.9685363769531,
+            "constraint": 130.0052032470703
+          }
+        },
+        "input_sha256": {
+          "out/ramtest-merged-remap/pre-merged-diagnostic/synth.json": "26f9c6f23f17e75a483c6c46587411747274e93140a3db311352d47932335b37",
+          "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+          "sources/misteross/build/toolchain-ramtest-timing/install/bin/nextpnr-mistral": "4295b0ca6304e377a0a208018015cf14fed6ad146395bb20c3e7a4eec1aa0b6d",
+          "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4"
+        },
+        "tool_identity": "commit=24f9a1db0737559977a13abb2d05cceafa5e6142; sha256=4295b0ca6304e377a0a208018015cf14fed6ad146395bb20c3e7a4eec1aa0b6d; gpu-router=HIP; hip-architectures=gfx1100;gfx1201"
+      }
+    },
+    "old_compiler_new_input": {
+      "build_id": "7168b508ab424b70f1c0f87b2035d821",
+      "compiler_identity": "commit=d91c902b056fd69a5e897eb8d78a67b568798852; sha256=b969d0ffba191a8d67fd67c46bb0a14c7c7a6827a721f115be0c5139950e80f5; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "final_reported_hold_violations": false,
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 94.5000991821289,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 106.15711212158203,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 347.7934875488281,
+          "constraint": 130.0052032470703
+        }
+      },
+      "run": {
+        "build_id": "7168b508ab424b70f1c0f87b2035d821",
+        "command": [
+          "out/ramtest-merged-remap/pre-merged-install/bin/nextpnr-mistral",
+          "--json",
+          "out/ramtest-merged-remap/measured-diagnostic/synth.json",
+          "--device",
+          "5CSEBA6U23I7",
+          "--qsf",
+          "sources/misteross/cores/fes-ramtest/constraints.qsf",
+          "--sdc",
+          "sources/misteross/boards/de10nano/clocks.sdc",
+          "--freq",
+          "74.25",
+          "--seed",
+          "2",
+          "--placer-heap-timingweight",
+          "10",
+          "--placer-heap-critexp",
+          "2",
+          "--router",
+          "gpu",
+          "--replicate-enables",
+          "4",
+          "--timing-allow-fail",
+          "--detailed-timing-report",
+          "--write",
+          "out/ramtest-fixed-input-264/old-compiler-new-input/routed.json",
+          "--report",
+          "out/ramtest-fixed-input-264/old-compiler-new-input/timing.json",
+          "--rbf",
+          "out/ramtest-fixed-input-264/old-compiler-new-input/core.rbf",
+          "--compress-rbf",
+          "--gpu-device",
+          "1"
+        ],
+        "compiler": "old",
+        "completed": true,
+        "cwd": "sources/misteross",
+        "elapsed_seconds": 1135.7004047860391,
+        "execution_file_count": 600,
+        "execution_sha256": "f175c4c0b45474e5c69a11a353102f86d617b7f012ec84dc7011fc09b3e2cd3e",
+        "execution_summary": {
+          "environment": {
+            "HOME": "<private-build-home>",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "PATH": "out/ramtest-merged-remap/pre-merged-install/bin:/usr/bin:/bin",
+            "TZ": "UTC"
+          },
+          "gpu_device": 1,
+          "kernel": "6.12.101-p2pdma-p2pdma",
+          "machine": "x86_64",
+          "system": "Linux",
+          "version": 1
+        },
+        "exit_code": 0,
+        "fes_revision": "7785210bfd416dcd5ec8fd4ae43fcc3b03464bac",
+        "final_reported_hold_violations": false,
+        "fixture": "new",
+        "fmax": {
+          "display.pixel_clk": {
+            "achieved": 94.5000991821289,
+            "constraint": 74.25006866455078
+          },
+          "ram_clock.clocks[0]": {
+            "achieved": 106.15711212158203,
+            "constraint": 130.0052032470703
+          },
+          "ram_clock.clocks[1]": {
+            "achieved": 347.7934875488281,
+            "constraint": 130.0052032470703
+          }
+        },
+        "input_sha256": {
+          "out/ramtest-merged-remap/measured-diagnostic/synth.json": "61ee68c657e49364425dd4ba4880a679e0759992f2750e284e256d1e4139de28",
+          "out/ramtest-merged-remap/pre-merged-install/bin/nextpnr-mistral": "b969d0ffba191a8d67fd67c46bb0a14c7c7a6827a721f115be0c5139950e80f5",
+          "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+          "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4"
+        },
+        "tool_identity": "commit=d91c902b056fd69a5e897eb8d78a67b568798852; sha256=b969d0ffba191a8d67fd67c46bb0a14c7c7a6827a721f115be0c5139950e80f5; gpu-router=HIP; hip-architectures=gfx1100;gfx1201"
+      }
+    },
+    "old_compiler_old_input": {
+      "build_id": "52991ce22369904849b68bdd900f9ae1",
+      "compiler_identity": "commit=d91c902b056fd69a5e897eb8d78a67b568798852; sha256=b969d0ffba191a8d67fd67c46bb0a14c7c7a6827a721f115be0c5139950e80f5; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "final_reported_hold_violations": false,
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 81.30742645263672,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 109.05125427246094,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 464.9685363769531,
+          "constraint": 130.0052032470703
+        }
+      }
+    }
+  },
+  "quartus": {
+    "build_id": "52991ce22369904849b68bdd900f9ae1",
+    "copied_fit_changed_files": [
+      "db/top.cyclonev_io_sim_cache.ii_100c_slow.hsd",
+      "db/top.taw.rdb"
+    ],
+    "error15-to-fault4.rpt": [
+      {
+        "data_delay_ns": 4.025,
+        "effective_setup_ns": 4.26,
+        "from": "ddr_channel:ddr0_test|errors[15]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.432,
+        "to": "ddr_channel:ddr0_test|fault_addr[4]"
+      }
+    ],
+    "error_register_names": [
+      "ddr_channel:ddr0_test|errors[1]",
+      "ddr_channel:ddr0_test|errors[18]",
+      "ddr_channel:ddr0_test|errors[17]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[16]",
+      "ddr_channel:ddr0_test|errors[15]",
+      "ddr_channel:ddr0_test|errors[14]",
+      "ddr_channel:ddr0_test|errors[13]",
+      "ddr_channel:ddr0_test|errors[12]",
+      "ddr_channel:ddr0_test|errors[11]",
+      "ddr_channel:ddr0_test|errors[10]",
+      "ddr_channel:ddr0_test|errors[9]",
+      "ddr_channel:ddr0_test|errors[8]",
+      "ddr_channel:ddr0_test|errors[7]",
+      "ddr_channel:ddr0_test|errors[6]",
+      "ddr_channel:ddr0_test|errors[5]",
+      "ddr_channel:ddr0_test|errors[4]",
+      "ddr_channel:ddr0_test|errors[3]",
+      "ddr_channel:ddr0_test|errors[2]",
+      "ddr_channel:ddr0_test|errors[1]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[0]",
+      "ddr_channel:ddr0_test|errors[19]",
+      "ddr_channel:ddr0_test|errors[19]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[23]",
+      "ddr_channel:ddr0_test|errors[23]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[22]",
+      "ddr_channel:ddr0_test|errors[21]",
+      "ddr_channel:ddr0_test|errors[20]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[22]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[24]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[27]",
+      "ddr_channel:ddr0_test|errors[26]",
+      "ddr_channel:ddr0_test|errors[25]",
+      "ddr_channel:ddr0_test|errors[28]",
+      "ddr_channel:ddr0_test|errors[29]",
+      "ddr_channel:ddr0_test|errors[15]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[16]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[31]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[30]",
+      "ddr_channel:ddr0_test|errors[9]~DUPLICATE",
+      "ddr_channel:ddr0_test|errors[17]",
+      "ddr_channel:ddr0_test|errors[31]",
+      "ddr_channel:ddr0_test|errors[24]",
+      "ddr_channel:ddr0_test|errors[20]"
+    ],
+    "errors-to-fault-address.rpt": [
+      {
+        "data_delay_ns": 5.041,
+        "effective_setup_ns": 5.661,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.031,
+        "to": "ddr_channel:ddr0_test|fault_addr[26]"
+      },
+      {
+        "data_delay_ns": 5.047,
+        "effective_setup_ns": 5.661,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.031,
+        "to": "ddr_channel:ddr0_test|fault_addr[27]"
+      },
+      {
+        "data_delay_ns": 5.043,
+        "effective_setup_ns": 5.661,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.031,
+        "to": "ddr_channel:ddr0_test|fault_addr[31]"
+      },
+      {
+        "data_delay_ns": 5.041,
+        "effective_setup_ns": 5.661,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.031,
+        "to": "ddr_channel:ddr0_test|fault_addr[7]"
+      },
+      {
+        "data_delay_ns": 4.509,
+        "effective_setup_ns": 4.739000000000001,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.953,
+        "to": "ddr_channel:ddr0_test|fault_addr[16]"
+      },
+      {
+        "data_delay_ns": 4.509,
+        "effective_setup_ns": 4.739000000000001,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.953,
+        "to": "ddr_channel:ddr0_test|fault_addr[8]"
+      },
+      {
+        "data_delay_ns": 4.509,
+        "effective_setup_ns": 4.739000000000001,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.953,
+        "to": "ddr_channel:ddr0_test|fault_addr[6]"
+      },
+      {
+        "data_delay_ns": 4.509,
+        "effective_setup_ns": 4.739000000000001,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.953,
+        "to": "ddr_channel:ddr0_test|fault_addr[14]"
+      },
+      {
+        "data_delay_ns": 4.509,
+        "effective_setup_ns": 4.739000000000001,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.953,
+        "to": "ddr_channel:ddr0_test|fault_addr[23]"
+      },
+      {
+        "data_delay_ns": 4.509,
+        "effective_setup_ns": 4.739000000000001,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.953,
+        "to": "ddr_channel:ddr0_test|fault_addr[19]"
+      },
+      {
+        "data_delay_ns": 4.51,
+        "effective_setup_ns": 4.7379999999999995,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.954,
+        "to": "ddr_channel:ddr0_test|fault_addr[12]"
+      },
+      {
+        "data_delay_ns": 4.51,
+        "effective_setup_ns": 4.7379999999999995,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.954,
+        "to": "ddr_channel:ddr0_test|fault_addr[18]"
+      },
+      {
+        "data_delay_ns": 4.51,
+        "effective_setup_ns": 4.7379999999999995,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.954,
+        "to": "ddr_channel:ddr0_test|fault_addr[11]"
+      },
+      {
+        "data_delay_ns": 4.502,
+        "effective_setup_ns": 4.737,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.955,
+        "to": "ddr_channel:ddr0_test|fault_addr[5]"
+      },
+      {
+        "data_delay_ns": 4.502,
+        "effective_setup_ns": 4.737,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.955,
+        "to": "ddr_channel:ddr0_test|fault_addr[9]"
+      },
+      {
+        "data_delay_ns": 4.502,
+        "effective_setup_ns": 4.737,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.955,
+        "to": "ddr_channel:ddr0_test|fault_addr[24]"
+      },
+      {
+        "data_delay_ns": 4.502,
+        "effective_setup_ns": 4.737,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.955,
+        "to": "ddr_channel:ddr0_test|fault_addr[4]"
+      },
+      {
+        "data_delay_ns": 4.502,
+        "effective_setup_ns": 4.737,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.955,
+        "to": "ddr_channel:ddr0_test|fault_addr[20]"
+      },
+      {
+        "data_delay_ns": 4.502,
+        "effective_setup_ns": 4.737,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.955,
+        "to": "ddr_channel:ddr0_test|fault_addr[10]"
+      },
+      {
+        "data_delay_ns": 4.502,
+        "effective_setup_ns": 4.737,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 2.955,
+        "to": "ddr_channel:ddr0_test|fault_addr[30]"
+      },
+      {
+        "data_delay_ns": 4.354,
+        "effective_setup_ns": 4.559,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.133,
+        "to": "ddr_channel:ddr0_test|fault_addr[25]"
+      },
+      {
+        "data_delay_ns": 4.354,
+        "effective_setup_ns": 4.559,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.133,
+        "to": "ddr_channel:ddr0_test|fault_addr[21]"
+      },
+      {
+        "data_delay_ns": 4.348,
+        "effective_setup_ns": 4.559,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.133,
+        "to": "ddr_channel:ddr0_test|fault_addr[17]"
+      },
+      {
+        "data_delay_ns": 4.354,
+        "effective_setup_ns": 4.559,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.133,
+        "to": "ddr_channel:ddr0_test|fault_addr[13]"
+      },
+      {
+        "data_delay_ns": 4.348,
+        "effective_setup_ns": 4.559,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.133,
+        "to": "ddr_channel:ddr0_test|fault_addr[29]"
+      },
+      {
+        "data_delay_ns": 4.354,
+        "effective_setup_ns": 4.559,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.133,
+        "to": "ddr_channel:ddr0_test|fault_addr[28]"
+      },
+      {
+        "data_delay_ns": 4.348,
+        "effective_setup_ns": 4.559,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.133,
+        "to": "ddr_channel:ddr0_test|fault_addr[22]"
+      },
+      {
+        "data_delay_ns": 4.348,
+        "effective_setup_ns": 4.559,
+        "from": "ddr_channel:ddr0_test|errors[13]~DUPLICATE",
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.133,
+        "to": "ddr_channel:ddr0_test|fault_addr[15]"
+      }
+    ],
+    "limit": "Existing fitted database has matched source files and DDR0 logic but old BUILD_ID; Quartus omits RAM_OSS_HIGH_SPEED, changing SDRAM elaboration, and uses native PLL/SDC and timing models. No identical-physical-route calibration or whole-design elaboration equivalence.",
+    "original_fit_directory": "out/ramtest-compiler-gains/quartus-current-matched/project",
+    "original_fit_sha256": {
+      "analysis.tcl": "1425b6675903567c0606489afaa27648b76153579ac724cac3bbe01185d7cd11",
+      "c5_pin_model_dump.txt": "9b6f1e091b9d616bda7ed5193c332822d56fdb360ff7d04d24db9e1ac0a3151e",
+      "clocks.sdc": "6a935cf530d933bbe319a6fdc025298e613a0e455e255e22fb972b2e53ff4b43",
+      "db/.cmp.kpt": "0c221f66862fa14bb4d23f29e77190acf506c97a387c279dd04ea539700b8b96",
+      "db/ddio_in_q9f.tdf": "34b329227a8879990105a74921e0716de40779d333acd602b1373dad30c7c2c9",
+      "db/ddio_out_b2j.tdf": "b6e8e4aaca7d7526f32a1b6b69089a76285bc0590a92b02ecec7f4992727cc72",
+      "db/iobuf_bidir_usd.tdf": "e4440993576701039763551cf0cb98395250da71f1ac2bc920b264893a6d88f5",
+      "db/top.(0).cnf.cdb": "849e16861b4c983d1172c2b9ab4e1f08f15f76761b7a98b3f3b60b41b29d280c",
+      "db/top.(0).cnf.hdb": "9214895099749a8d671ebb9119e530086a8833b63741fca9aba640c892dcfc68",
+      "db/top.(1).cnf.cdb": "ca9602920ff02759611617d99750d58459263ab7543fce858fac93bd86ba5caf",
+      "db/top.(1).cnf.hdb": "511a068ee7d533f16b415dbd3d5b0d135040f03da203593602cc35cb2758e3f7",
+      "db/top.(10).cnf.cdb": "ee39f245935f8a267d5891d5b3dfa75f543ca707bab8c659ece21e59c6840286",
+      "db/top.(10).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(11).cnf.cdb": "eebd7bc4d1072df90cad5d163252d0c744b5c6a679c4ac43b6a3851d2b290da9",
+      "db/top.(11).cnf.hdb": "fb70df7bda4585e360fd5f8d97fd1b31df8e7f39134506792b3313916c3355dc",
+      "db/top.(12).cnf.cdb": "0aaf1938d21411ec01b86770e5bcd47d28a44e23a2e8561d5db9710cf1ed6e06",
+      "db/top.(12).cnf.hdb": "3ff3e183d10c8872ef35527eb4defbe79e5780a3bf034ed4338d77c021354c5e",
+      "db/top.(13).cnf.cdb": "96b90d4060749bfb2a6ebd7553f2359c1eb121e41c7f5fdf83f38aef7418d7b8",
+      "db/top.(13).cnf.hdb": "3b6852490ac960c700d615cc5b6fa19ba4b1fae3205585676024fe8a5407d3de",
+      "db/top.(14).cnf.cdb": "4b30906cb34ea70c8f88589fde6a0bfd8867b619ca000c1e7298ba81cfa08a4d",
+      "db/top.(14).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(15).cnf.cdb": "42726d02e4204a2be1754fdaac406f6ea03efd8027dd21634e01b76f6cdad163",
+      "db/top.(15).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(16).cnf.cdb": "20dd57b0a3c93369972bb0a165f9fe9aae55d4ac49e45cf62a1dd2a9affa006a",
+      "db/top.(16).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(17).cnf.cdb": "a2468922a25a55bdb7313d742d63a6192a90ad44e9c929c36b98f363dee189fe",
+      "db/top.(17).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(18).cnf.cdb": "653dd031618689f408d15634639da84bf03856d8d2a121f7c3200be69ecba20d",
+      "db/top.(18).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(19).cnf.cdb": "828f9a2594c328356ca80bb1dde327193d3f84b28d409c2e7fb892fed5727653",
+      "db/top.(19).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(2).cnf.cdb": "a085b0dea3f35e80c56f1e361e97daab98a43d00cff5338f588c64622c0d114d",
+      "db/top.(2).cnf.hdb": "9f873559d65c55ee490f9ccdfaceb23d74fbf6486535d0bd32a04a2795af5e5f",
+      "db/top.(20).cnf.cdb": "a46e0cb3dd17fc702e3e7388e29d9dc22f17eada0cc499fbb567f6904a7ac39e",
+      "db/top.(20).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(21).cnf.cdb": "1a57055b308a146d4c09691fbdb0b593c736852939684f15158349d152a3e10c",
+      "db/top.(21).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(22).cnf.cdb": "407ad8f18be8fa71170dc27e321cac97061a56d250ab2d3a8a98a4125c5b2133",
+      "db/top.(22).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(23).cnf.cdb": "dca7336b5536c39b60f027a860fba33c6fe009de57621708df9f7322e2388e61",
+      "db/top.(23).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(24).cnf.cdb": "40e55bc1f8f8f0a60cb7211ebf5d744e41bb750faa42df32d1c0c59d3c6a0c28",
+      "db/top.(24).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(25).cnf.cdb": "005d3c821a129c5f750ced9d881e654bdbd8e5733e08694d1fc9eb1cd5cfde4f",
+      "db/top.(25).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(26).cnf.cdb": "4f52821eddafd2ea3d6867b52aa1e74bfa18a56f560817dc8d90200d5bdbba86",
+      "db/top.(26).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(27).cnf.cdb": "442f03be23c2012e1b63bd27566dcd9950b2d8e00537ccbf96abe619a4d7c3cd",
+      "db/top.(27).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(28).cnf.cdb": "03b48b5ef053390fae6c8db7e05046a437aedb32bff3999b5c9127f74e94621c",
+      "db/top.(28).cnf.hdb": "116f725f90fe23fac6d36abf12de79181023ff20fd6e63416c1b228a8d3600ef",
+      "db/top.(29).cnf.cdb": "b87b16f51cba9b8fc71d57f3e5809bdb6fb0ca5dbcdb4376e14524e533488e21",
+      "db/top.(29).cnf.hdb": "ffdef423e4bd57b881dc1efd84230295fd73c553607ca6a8923d834394526d98",
+      "db/top.(3).cnf.cdb": "178059163e726f5c50c0bb2e143758c7c500bd21e78d6d0bb4031c1a1f9e89d7",
+      "db/top.(3).cnf.hdb": "8cf59e379f9390614c3fac388220301f7a88a84e0f161c43cbd423662b181e97",
+      "db/top.(30).cnf.cdb": "da8312cd6480939b29d292f22edd74bc6e9e5d0d4e24d6d88229686eaf5da403",
+      "db/top.(30).cnf.hdb": "6924f79e17667a269893f2c59b183e97081bf8f72dfc9a970d3cbdfd11b00882",
+      "db/top.(31).cnf.cdb": "6c1c26fce39a071513aa5f365e947ce8a31fa8ac2fcf02a4a58c97e03c9eb154",
+      "db/top.(31).cnf.hdb": "163d3150404f415c2ff64658f20900f56236252e8ce7a8dc6206fae6c1b3bab2",
+      "db/top.(32).cnf.cdb": "83caedc0a53e80722b6296b1170ae60ed8a494eb296c935842e3f5feef65ec10",
+      "db/top.(32).cnf.hdb": "a5af1256fc997bb377acf73ecdae52e233596b5f915a82c366fa3bd26e547c10",
+      "db/top.(33).cnf.cdb": "286ebed45964c611c539e7de38e913ab4f0d0c69ac66858e63ba1dd9aee67d56",
+      "db/top.(33).cnf.hdb": "e58db9307b8ea44f53081714e6a217982e4b95899ee61f48041a8bb7bfd661f4",
+      "db/top.(34).cnf.cdb": "c6352c07cdc92573120d71c016d718f5ecc140d6bd3f540c86aa39e7cb0fbf2f",
+      "db/top.(34).cnf.hdb": "fe46e996a65ea0a09046534cdfea21c8591b28e77fd600a8bc9c0a7dd831fb37",
+      "db/top.(35).cnf.cdb": "ecad8521e7c4abb0f5a28b56a86980082f08ec230fef3d486eab1685c70b56ea",
+      "db/top.(35).cnf.hdb": "121fce85555822c79b188891a09c1fa10ea3925b86e28ada130a04b22a9aaa74",
+      "db/top.(36).cnf.cdb": "a2831b8033232b158122dad08300d5fdc34f665c26db7188593c6b441e8453e9",
+      "db/top.(36).cnf.hdb": "72f93e0d3e960297ab9dc077fab032e25f3c5a1495430c7eb8ef64b813053269",
+      "db/top.(37).cnf.cdb": "d74f435a9315af44e2f18af57a579d94dd4d0dd2cfae8e4b6f086b4cedf9f8a9",
+      "db/top.(37).cnf.hdb": "8735fe1b656d0dc053a30a7ac87e49cfa4a2ae138c3df18804e4888fda9b60b1",
+      "db/top.(38).cnf.cdb": "043340a6c500d4b82b598eb9f8717d40473e6b44296bfbf3866c793ba4097672",
+      "db/top.(38).cnf.hdb": "2cff132f250d8c0c13c065a196719dc8607f817dacba7b557777fc446f1406c3",
+      "db/top.(4).cnf.cdb": "e76358d655c9c59dd0df617f3254f867a600c4622a55eb5954d9d92f46af52a9",
+      "db/top.(4).cnf.hdb": "05dd78951ed474c99eedaeee950c91e2127b235cb68c6b4177db083c5f9591b2",
+      "db/top.(5).cnf.cdb": "c4a184c5d70932ab1990f787168246eabd82338bfc7fb548f20079b4f22178dc",
+      "db/top.(5).cnf.hdb": "842a29398fd029716a5bad919ed6d2e6382b29b4867ecf3e8f0c32ee891f65e7",
+      "db/top.(6).cnf.cdb": "f407ba9c83573f6d0bd38fa1327035d4f7d84b274c55747cfa5ca671ead563d5",
+      "db/top.(6).cnf.hdb": "1d5a6db60ae24cdad291aafefb969f39f3ff87931a05f3843b6612692776e8ce",
+      "db/top.(7).cnf.cdb": "f882700246d691c00ff9c8c83f0f03a67ad750a76470dcf16284d0c3b3eaf764",
+      "db/top.(7).cnf.hdb": "fa71cacba35f25ef2c33871739edb239e4b33f7f4daef876c2e87ac2bd51b5c8",
+      "db/top.(8).cnf.cdb": "a3a28e05ecade008c516bf1b4b97dbd2a26de631e1c6eaa02b531b02c81dc0d2",
+      "db/top.(8).cnf.hdb": "dc398ac3e737facf0cc1c160f832c67c16f2a9a98c6c4e9520712761cad8c6dc",
+      "db/top.(9).cnf.cdb": "6ca35e340f02ead35b734a02af12c94e82201237abac455d585a1723439f1808",
+      "db/top.(9).cnf.hdb": "50c6fd70964c62de6b9d7ca79ce8b84dfefba638b1c8e976b4f77aeda2785262",
+      "db/top.asm.qmsg": "3b26829b71cc38742414084d7927816749061e2d780ffb1abd131efa257ad32a",
+      "db/top.asm.rdb": "216ced681d3c369e0e27a41d1b76a715ae97a4dfb6556f1ff9e49975f11d53f7",
+      "db/top.cmp.bpm": "201c9b27d6d237428b8df8d08743b09b35f7d00cadef3b54209bf0277363fc88",
+      "db/top.cmp.cdb": "a983ed2b827271feeef87a960f91da770dac8c680f2fb92c5f0946b7e8e0a623",
+      "db/top.cmp.hdb": "5caefc988a7b1e3d5587848f64546d685697ec5b07fd73688347f338f7215f1b",
+      "db/top.cmp.idb": "121f3df01c20fb6103f34c1e0fa5229db7ed53ff9df76e817f4016cd037500fa",
+      "db/top.cmp.logdb": "0c91ddc1e149528ed32eaf579cdb29aef5dec939b3e5b4623767d96c88489f5d",
+      "db/top.cmp.rdb": "1ed1e7438e1dd48a0e7a30297b0dfb3bb0e24a6e989ab59c14a97693e92bfa38",
+      "db/top.cmp_merge.kpt": "bcdfd7387d41ffa2e6b20fb718066538b1226c9f3dc5728938a4c4b10619013c",
+      "db/top.cyclonev_io_sim_cache.ff_100c_fast.hsd": "e7f8cec5159a9a51756b57b34c12508e34dcb0fce275b2d2ba15961e773e070e",
+      "db/top.cyclonev_io_sim_cache.ff_n40c_fast.hsd": "fa6a6b3825c83d82006ac7765df0d739d78364155bd1d1e23aadb5a5216c5f95",
+      "db/top.cyclonev_io_sim_cache.ii_100c_slow.hsd": "a110fb1a186328d562825b61084bdfd07f1e407be0149953f6b3b32ebb7d630d",
+      "db/top.cyclonev_io_sim_cache.ii_85c_slow.hsd": "e14be1c4f405e763e57871f4b2047f5dd1f42ab4942b2f3e71ae703e6b5a6ca0",
+      "db/top.cyclonev_io_sim_cache.ii_n40c_slow.hsd": "a2664b5cc5b2a0c692c2e9e17a97891f01ded88612d35565fef1d7f826ecf8b7",
+      "db/top.db_info": "552836c1326c5d182113b0563625c32d68af0501a2257d68649d984bd8fbe481",
+      "db/top.fit.qmsg": "ad0185540526d760e22c38677488a326a319be6ea09b7bd9584dda7d822be15b",
+      "db/top.hier_info": "fc2c8474e52aaf18cbf262c4db382fc04cb8d5d29dfb98270eb26ebf97094856",
+      "db/top.hif": "ba42a015656640e6ecc787155724c3bdb888cde3c44300e23f84cfcc83aad9e4",
+      "db/top.lpc.html": "2462174197b504342d0c9dec642863785b37c4316c671439e2238d181b1f21ce",
+      "db/top.lpc.rdb": "431a7de255a94d823b0e3d6039e0eef9028f8a034cd1e2787c47f1cbc0430c90",
+      "db/top.lpc.txt": "c59b6af645600ecdd6216c134a0c927b67d70ea59ca9a9a68a314bc8568c52ad",
+      "db/top.map.ammdb": "3f83b1aa0dbb3969e587d1cd7ccb4a13f0e10a009925d92694cb86174353b539",
+      "db/top.map.bpm": "2e262a19cb8c6d25ed8e8088501f4f3e3a67b5c0dcc403265e2cc208d329d3e0",
+      "db/top.map.cdb": "0e2d49cbc65d421f21db3318ab7aed0f912f33bf12c0a483949f476003f410e7",
+      "db/top.map.hdb": "811ef90de563eff5f2620f28353a8e2ba9ad76b606400bf9a9d54a274795083b",
+      "db/top.map.kpt": "abf5edef627bf71c3a19857e82968e8760d77570423295fd23cf16e4c3ecd691",
+      "db/top.map.qmsg": "2cd6466f4f511eb1c48f13f388b5003e8389e943bbd8dd61626ed25c24b66597",
+      "db/top.map.rdb": "1aa44d2f528e6cc33358f0fc700708827bd40de62e7f367948e90c946ea08719",
+      "db/top.map_bb.cdb": "2ad5dab3c458f65a33d585c3353a906c31815ca9b1d508e3d16465a070abe018",
+      "db/top.map_bb.hdb": "eb19b0ac2f6cd1fa9d2a6a53a31ae93ef9c1251cafb060c3405f891a5fc74d9d",
+      "db/top.pre_map.hdb": "501a029120b58714b5e5ef84387eade26b59d31c8861d5603a3c50141d153b80",
+      "db/top.root_partition.map.reg_db.cdb": "4aa4ee65c4871f1522de136197b82f1bf02cb2de44c748cf3ce7d59e8cd53b58",
+      "db/top.routing.rdb": "644d9967e5485091dfd761b8ea23dab9b8abb04258caa8ce5030f1294126ee86",
+      "db/top.rtlv.hdb": "33dd72b9969a931d48347de77788f0c429ec0461ba8b188a720d9444cf235bd6",
+      "db/top.rtlv_sg.cdb": "f0ea76bfd936458d0aefd61d709e2581fc0d6b6a5b9318acbf9f7dc208ed7d0c",
+      "db/top.rtlv_sg_swap.cdb": "27d1a8e06bf79617e159dfaf962fdb2c45f74d8987d8082ef218084106ad1fc6",
+      "db/top.sld_design_entry_dsc.sci": "11fd5570b437785ff79ef86517ef4c34a59fee5b6e7db6ffb5e0697f80fb3e1e",
+      "db/top.smart_action.txt": "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+      "db/top.smp_dump.txt": "c778402e3ffc0c15c7b623a3d1cd9e0b66b454a9fba222dfb5012de308468121",
+      "db/top.sta.qmsg": "022654e189af39b99bb3ca7bf21de35feb85c5c2903ebdfdfd2e00b18b4a8701",
+      "db/top.sta.rdb": "dcb27830c0d7076ec4cf1de7a4ff051b14267db45c3cfa7a5f77f34a86ce4793",
+      "db/top.sta_cmp.7_slow_1100mv_100c.tdb": "ee4df431c9def99500519fe94236438761a4840575b69faf83a64fddb0abf64d",
+      "db/top.taw.rdb": "f9ce3dee3954e9e9b381e4c461cc3e7a20cda3767be81909018c171b5d2be397",
+      "db/top.tis_db_list.ddb": "3fbddcfa99ed7dcbb1c7494339caebfde2091f3bfb7c07d35f28e7fb7a45ab12",
+      "db/top.tiscmp.fast_1100mv_100c.ddb": "f0d08a53dc37c616af18870029d42ac7fffdde6a02947da705baee855877286f",
+      "db/top.tiscmp.fast_1100mv_n40c.ddb": "ebeafe59f49ad550b7171cfec7118e53aa57385278ade6d72131af0dd509922c",
+      "db/top.tiscmp.fastest_slow_1100mv_85c.ddb": "367f13a228bee281f05684708158c33e7514ab9fc2af775e7d7d7898c6e144cb",
+      "db/top.tiscmp.fastest_slow_1100mv_n40c.ddb": "d79fc67c18dfd1b5d811b5f0f8ed9b030ef646a5e8d4b2ad5c655054c5d308e2",
+      "db/top.tiscmp.slow_1100mv_100c.ddb": "4162298d0b2ca27956a750936374d7558e7ddb46dec07118392394dd67d431f2",
+      "db/top.tiscmp.slow_1100mv_n40c.ddb": "b48dbb66a4e834cbbb9fd31b1f4226a401235a3e2a435752b1143b0c650a477e",
+      "db/top.vpr.ammdb": "4504f6a9766204bc693ca57c12dbf629a98b481bbedd84ee28541df339e7ac3a",
+      "db/top_partition_pins.json": "5d347a40a1e666d085ffb3ddc94b7b09c367269e4f71be6d2e18283e65320200",
+      "incremental_db/README": "215a0c447a484a16f07b14ae4763fff52f86e33b228f1c2764c9b8d75b2976c5",
+      "incremental_db/compiled_partitions/top.db_info": "4eaa86ab1e937a5ecf4c712826d97fc0ac9848332aba491b02df1a99971fc9f9",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.ammdb": "46d5ab16879b25d79e343b6a2a732c735ae15e39486eded95b3422ed4f31aa72",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.cdb": "5e5aabc14dd234c83cb765f05e6319d6bd719526ce6402c2731076a64dcd4dbc",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.dfp": "a6ae55c17174b65af6de0b1e51c4edc823941aae2a58b293fa6f28b016738c04",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.hbdb.cdb": "72048c43234377884f58899229768e925a6e6423f9a5e16e865d2a6f66d0daad",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.hbdb.hdb": "f109523c26263697557ae1c134be2bb489d99164a386194b6e810d72dbd8934a",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.hbdb.sig": "f1f3204b69d32d989c7977ddcfb734fa6b52d2c07ec71edd2d71730929ac9b55",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.hdb": "108744fddd2cea2e3dc78d6d95e8644f2af7604e856e91fba9d964a16c5aec06",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.logdb": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+      "incremental_db/compiled_partitions/top.root_partition.cmp.rcfdb": "e5d192d0d5e742e86b416924e1a18bb69bbb475455c201d06918e2a3cf65c4ed",
+      "incremental_db/compiled_partitions/top.root_partition.map.cdb": "aef1f32728b70e6cd9ea6d92b6645ae8948fd2ab46caa5012bfbb0382576a3b9",
+      "incremental_db/compiled_partitions/top.root_partition.map.dpi": "f1c5e7287f630bb625affd784c6b97f82c64e4c1b32d18e9f71b13d319739bf7",
+      "incremental_db/compiled_partitions/top.root_partition.map.hbdb.cdb": "f0ce10b7cabc222efcb098792d1842d34e9eda8ecf270f9a61dffa892eacb7cf",
+      "incremental_db/compiled_partitions/top.root_partition.map.hbdb.hb_info": "76e017bd048c9d1e71ff592c6eb155f032b93ce67815bf05e9f94069727cf20e",
+      "incremental_db/compiled_partitions/top.root_partition.map.hbdb.hdb": "ff7688806e43b9a7d66596d294e66ef0cf56f07596f915e5c39c2a4e9e9a4fc0",
+      "incremental_db/compiled_partitions/top.root_partition.map.hbdb.sig": "f1f3204b69d32d989c7977ddcfb734fa6b52d2c07ec71edd2d71730929ac9b55",
+      "incremental_db/compiled_partitions/top.root_partition.map.hdb": "803e85d9faf337de6297d91a1257f0c0394ac9407d28903391c64afbbe96d932",
+      "incremental_db/compiled_partitions/top.root_partition.map.kpt": "b37db4d05ac62a00996fc1b76d07eaeabb1835b5f72190b38e9dd01e542fc253",
+      "incremental_db/compiled_partitions/top.rrp.hdb": "307c3232cad7c052a7502819fcb46c47224117a67b13c13cfbc795ad64dc6e06",
+      "incremental_db/compiled_partitions/top.rrs.cdb": "fce69bf34f75b98968f0ba3542436fd2e165104f47b0a3619f18cc7664faa52a",
+      "output_files/top.asm.rpt": "de9981b7eeb807212fa9b22dc73386100358e13ef9492fee076bf1cbf4b9706b",
+      "output_files/top.done": "b26d69c7409558ee8ca63c792351a66aebf14de398b704a10865260ddb1e9bb9",
+      "output_files/top.fit.rpt": "8db149dbb9e2d5afeca75cc81f29abe2ed0e113dcced4e16f58a8ccea4f4d75b",
+      "output_files/top.fit.smsg": "ead667318b0f946b12fc79e84b7151e81dd737cbf73ceb84063153e59eb16bc8",
+      "output_files/top.fit.summary": "e6e404185885edd3c5f848f0065b663988a312702d56090bbdf7bb83989ffb00",
+      "output_files/top.flow.rpt": "2a53ea4166905555be177432290eb3d5dcb969ffe714f29e63873cc3fc3dc54f",
+      "output_files/top.jdi": "3a726530714d319194242a267dd13eccca63cb7aad77ec366efc61ab15391ee4",
+      "output_files/top.map.rpt": "50d4825785611f27e9e6bca52f695a02ef3e6d0832d04a783188dc89ef5d13d7",
+      "output_files/top.map.smsg": "3fa18315187d0bf7975853d5f4529b8f70317ff642cc7abbeadb7858a3f985d3",
+      "output_files/top.map.summary": "a9d200b8f8fe583a83260f4852038f9ccf4ea285e6b71c281dc78e7b3ded8ce5",
+      "output_files/top.pin": "c9158c15542f2bdf46b78c8b56674837d6844608578db57c74ac2bd3ee2e78f4",
+      "output_files/top.rbf": "a5dfbbeac74b09d73ad564e8b0e3041ee4da75b3aaacde49c5b551ec46ed15e1",
+      "output_files/top.sld": "687c052db68798ec100c58d83854eed157aa6bf8cd223e16861e2de99990a390",
+      "output_files/top.sof": "6d2be9b54b058e0ab7e4e9434b1420f6f220c079068a9d30f43880b419665288",
+      "output_files/top.sta.rpt": "c61310a7da0b9fde63fcd011816673ce0612b088416c9367537605771ebd85e2",
+      "output_files/top.sta.summary": "77e1ec99f3f5c795dd90df8d3ac615c79283ec3dda5f4cf9b02f3dfe34a8b77f",
+      "top.qpf": "e49cd5a00884b68d245f29634af799e6bd9471f2292957a80ecb418db6c046c6",
+      "top.qsf": "db71b993984823bbfc4a9bfcc530a037280ea36a1ded8c9d7bc4acab7caff46d"
+    },
+    "rtl_sha256": {
+      "cores/fes-common/rtl/fes_application_gp.v": "93c98cd236b19b1e745d7d2c257d76aaf2c3ed6a0eb3d2ce120d94293f9af920",
+      "cores/fes-common/rtl/fes_hps_ddr.v": "5f5252e03d55f4e85a1d3622df6b887dddf20fce487040731e9c93be69dee90c",
+      "cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+      "cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+      "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+      "cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+      "cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+      "cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+      "cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+      "cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+      "cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+      "cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+      "cores/fes-ramtest/rtl/top.v": "127949e04f85e4e683b10288240fae53206fc890011b5116a504e2a3046051dd"
+    }
+  },
+  "reduction_probe": {
+    "balanced_cell_count": 4,
+    "balanced_group_sizes": [
+      6,
+      6,
+      4
+    ],
+    "balanced_logic_depth": 2,
+    "input_sha256": {
+      "out/ramtest-fixed-input-264/probe_reduction.py": "5c707b9d88673dadde54dc8cf967e4687d1c5dfa508136b7100fc1ccc4d17109",
+      "out/ramtest-merged-remap/measured-diagnostic/remap-search/s2-w10-c2/routed.json": "01856b587b51634e3883579421cfbee29ebda85c493ddbc8b1340fd3bbc73534",
+      "out/ramtest-merged-remap/measured-diagnostic/remap-search/s2-w10-c2/timing.json": "71e1c580a960c669e70d9c0c2ed3b1146dceb30f005bb73c223cc371a098d48e"
+    },
+    "kind": "abstract Boolean probe; no physical mutation or timing claim",
+    "leaf_count": 16,
+    "leaves": [
+      {
+        "aliases": [
+          "ddr0_errors[0]"
+        ],
+        "bit": 4302,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.15.6.14",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[1]"
+        ],
+        "bit": 4313,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_1",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.10.5.34",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[10]"
+        ],
+        "bit": 4324,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_10",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.1.4.50",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[11]"
+        ],
+        "bit": 4336,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_11",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.17.8.34",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[12]"
+        ],
+        "bit": 4348,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_12",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.21.32.22",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[13]"
+        ],
+        "bit": 4359,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_13",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.21.28.58",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[14]"
+        ],
+        "bit": 4370,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_14",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.15.24.28",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[15]"
+        ],
+        "bit": 4381,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_15",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.9.32.26",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[2]"
+        ],
+        "bit": 4433,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_2",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.1.4.46",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[3]"
+        ],
+        "bit": 4551,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_3",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.34.15.46",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[4]"
+        ],
+        "bit": 4586,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_4",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.7.32.46",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[5]"
+        ],
+        "bit": 4596,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_5",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.15.6.46",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[6]"
+        ],
+        "bit": 4606,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_6",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.27.31.50",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[7]"
+        ],
+        "bit": 4616,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_7",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.15.6.34",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[8]"
+        ],
+        "bit": 4626,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_8",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.4.32.8",
+        "required_value": 0
+      },
+      {
+        "aliases": [
+          "ddr0_errors[9]"
+        ],
+        "bit": 4637,
+        "driver": [
+          "ddr0_errors_MISTRAL_FF_Q_9",
+          "Q"
+        ],
+        "driver_bel": "MISTRAL_FF.37.16.22",
+        "required_value": 0
+      }
+    ],
+    "limits": [
+      "No legal BEL search, setup/hold/boundary check or full route performed.",
+      "Shared root consumers must be preserved; neither first-error latency nor reset semantics may change.",
+      "Existing local-remap pass only composes two LUTs into <=6 distinct inputs; this is a wider cut."
+    ],
+    "old_cell_count": 4,
+    "old_cells": [
+      {
+        "bel": "MISTRAL_MCOMB.6.10.13",
+        "name": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+        "type": "MISTRAL_ALUT5",
+        "users": [
+          [
+            "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F$enable_replica",
+            "E"
+          ],
+          [
+            "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+            "E"
+          ]
+        ]
+      },
+      {
+        "bel": "MISTRAL_MCOMB.6.10.25",
+        "name": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+        "type": "MISTRAL_ALUT6",
+        "users": [
+          [
+            "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+            "E"
+          ]
+        ]
+      },
+      {
+        "bel": "MISTRAL_COMB.13.28.30",
+        "name": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q",
+        "type": "MISTRAL_ALUT4",
+        "users": [
+          [
+            "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+            "E"
+          ]
+        ]
+      },
+      {
+        "bel": "MISTRAL_MCOMB.6.10.1",
+        "name": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1",
+        "type": "MISTRAL_ALUT4",
+        "users": [
+          [
+            "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT6_Q",
+            "F"
+          ]
+        ]
+      }
+    ],
+    "old_logic_depth": 3,
+    "root": "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q_1",
+    "root_consumers": [
+      [
+        "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F$enable_replica",
+        "E"
+      ],
+      [
+        "ddr0_test.group_valid_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F",
+        "E"
+      ]
+    ],
+    "truth_rows_checked": 65536
+  },
+  "schema_version": 1,
+  "scope": {
+    "compiler_changed": false,
+    "hardware": false,
+    "host_only": true,
+    "recipe_changed": false,
+    "rtl_changed": false
+  },
+  "sha256": {
+    "out/ramtest-fixed-input-264/build_record.py": "031a4df03df8a8c372744d915351f72ddb68a61ae1c4173477e51ff0c9e99518",
+    "out/ramtest-fixed-input-264/merged-compiler-old-input/core.rbf": "bf6df21a932c55d70f0b234dc4655f4ff92fd5a3db263e18ab05d7e769962aa3",
+    "out/ramtest-fixed-input-264/merged-compiler-old-input/route.log": "c9ece5383e033b6e4a7829730ae38070dd39ff75978eac405c37015c22c45b7f",
+    "out/ramtest-fixed-input-264/merged-compiler-old-input/routed.json": "25fa91507cdbea47c9fcc99dc90324a5d0e0b56e2cdc00eb4fa5fd837b2797a3",
+    "out/ramtest-fixed-input-264/merged-compiler-old-input/run.json": "99bac9ff403e7b1a8b0fae5f041ac47e001f6fbcf7522189d524a70cc5921507",
+    "out/ramtest-fixed-input-264/merged-compiler-old-input/timing.json": "9a7b61fc3782d38a4be611e48fbb81c2b2d2d3643d61b2c6ded83dee3bbe7d58",
+    "out/ramtest-fixed-input-264/old-compiler-new-input/core.rbf": "d5f0948a5ec81efd8a676a95e865a3057729592b546e072cb64f6ec9252b1ece",
+    "out/ramtest-fixed-input-264/old-compiler-new-input/route.log": "5e472e14ededabf55fd358a5b79fdf434e9cd1b05ae4abcfbe2d5dcbdb793f8a",
+    "out/ramtest-fixed-input-264/old-compiler-new-input/routed.json": "805a322712481c7615236b5a7652447f0983e72873fb751e77880775c64215ef",
+    "out/ramtest-fixed-input-264/old-compiler-new-input/run.json": "d464db4eca73c454edafcc1303c50c0abdb754e852c189ee04ff38bab759ecdf",
+    "out/ramtest-fixed-input-264/old-compiler-new-input/timing.json": "247581ec5444903eb185a22c378bcbd38c19dd4ba4f8a20d0bd9b2d287194096",
+    "out/ramtest-fixed-input-264/probe_reduction.py": "5c707b9d88673dadde54dc8cf967e4687d1c5dfa508136b7100fc1ccc4d17109",
+    "out/ramtest-fixed-input-264/quartus-error-cone/error-registers.txt": "2972991fbb8c89053c6a2741cd548e6a74ed2abba5c823e5c5c04dee07ec064e",
+    "out/ramtest-fixed-input-264/quartus-error-cone/error15-to-fault4.rpt": "02e439a64b6eb04a8f80f52cf513e0552d123ccd29349046387062f8283c3d52",
+    "out/ramtest-fixed-input-264/quartus-error-cone/errors-to-fault-address.rpt": "5a74138fe35ca5aacc5387fe51f8fd687dbc923a139a6fc1aea0cfe798199bf4",
+    "out/ramtest-fixed-input-264/quartus-error-cone/query-errors-initial.log": "7e04a767d4f67acf8b028cf9e291b7a4939269fa3cfc6fbfee4a3346542c3161",
+    "out/ramtest-fixed-input-264/quartus-error-cone/query-errors-initial.tcl": "0a563d8489a94d43ba319ef79e04bfd75ec8478d52c93bb3d601ea4e12a0da94",
+    "out/ramtest-fixed-input-264/quartus-error-cone/query-errors.log": "f5b0cde24d175f204bc6722f421be01c08401d0504ab7c0cd6d9f1b995fdac12",
+    "out/ramtest-fixed-input-264/quartus-error-cone/query-errors.tcl": "eb50f13f673b4d79ee90318afc2ecbd9329dc7332283c86de0d77f95858bc842",
+    "out/ramtest-fixed-input-264/reduction-probe.json": "91a6d2480b0d18d4e0c3dc6a697c3f53634f08f164c28b47467ceebc015c7aef",
+    "out/ramtest-fixed-input-264/run_matrix.py": "38426c003bdd8548bd13ddc513bc0fad87b1d7095f748d3e96bee8a2e02e4a43",
+    "out/ramtest-fixed-input-264/synth-control.log": "6390ff00df0ae268907902e9a58b172e4c0a3f3fac82c9cbdd935e1544107d9a",
+    "out/ramtest-fixed-input-264/synth-new-control.log": "76aefce4c9d2ddce5ea58343de9d058a6b9dece9e398af023341c66381d3bbda",
+    "out/ramtest-fixed-input-264/synth-new-yosys-new-id/run.json": "0530e8d7a46662d5981f4aacb050d352ce83e39553025cdf340a53fc7a3df50d",
+    "out/ramtest-fixed-input-264/synth-new-yosys-new-id/synth.json": "61ee68c657e49364425dd4ba4880a679e0759992f2750e284e256d1e4139de28",
+    "out/ramtest-fixed-input-264/synth-new-yosys-new-id/yosys.log": "5b8df12cb841c47c406805f84ec620f619c50461ab347a37ea2faa7859de6c09",
+    "out/ramtest-fixed-input-264/synth-new-yosys-old-id/run.json": "bf14997c8040e38c2a042c394f211be4ad2186a65d894fedd2deece622a81fa8",
+    "out/ramtest-fixed-input-264/synth-new-yosys-old-id/synth.json": "bd50afaa07d21e4c7ca6375becc7c3ce5716254552505cf8e116e06d5416500b",
+    "out/ramtest-fixed-input-264/synth-new-yosys-old-id/yosys.log": "e89c488c108adbb8fab746e434cf158ca22725ba707a5f82575555810886bff4",
+    "out/ramtest-fixed-input-264/synth_control.py": "58f7485061bdd53858fec893ee1da5f3bcfa82a58dcf55761e17c604efbf64b3",
+    "out/ramtest-merged-remap/measured-diagnostic/qor-search/s2-w10-c2/core.rbf": "d5f0948a5ec81efd8a676a95e865a3057729592b546e072cb64f6ec9252b1ece",
+    "out/ramtest-merged-remap/measured-diagnostic/qor-search/s2-w10-c2/route.log": "05a81acd99a5575ede8ecb83880f80d120adecb1627eb267b12d7551a9af127d",
+    "out/ramtest-merged-remap/measured-diagnostic/qor-search/s2-w10-c2/routed.json": "ccfc5b09d513f579b496c9e709382ee8db350ea7e54d3f0eab800da1183e67b5",
+    "out/ramtest-merged-remap/measured-diagnostic/qor-search/s2-w10-c2/timing.json": "247581ec5444903eb185a22c378bcbd38c19dd4ba4f8a20d0bd9b2d287194096",
+    "out/ramtest-merged-remap/measured-diagnostic/run-inputs.json": "1d5ec9f5e18bfffb6083860af8257bbfb5daf093014f20621a3b3bd623b189a8",
+    "out/ramtest-merged-remap/measured-diagnostic/synth.json": "61ee68c657e49364425dd4ba4880a679e0759992f2750e284e256d1e4139de28",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/qor-search/s2-w10-c2/core.rbf": "bf6df21a932c55d70f0b234dc4655f4ff92fd5a3db263e18ab05d7e769962aa3",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/qor-search/s2-w10-c2/route.log": "5470f33783f0dea675e066e1b0c3673f3f0b8deb2ae1e15454e5219031149433",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/qor-search/s2-w10-c2/routed.json": "87e542f1e68962082c9ca39ce0e2ab6f612b64ddf789659236da8367bffd0dbe",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/qor-search/s2-w10-c2/timing.json": "9a7b61fc3782d38a4be611e48fbb81c2b2d2d3643d61b2c6ded83dee3bbe7d58",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/run-inputs.json": "f2cd5048a89cc7e24b2e5ebe4b227aa19f8d8f9baa4f3310493f621440e6a608",
+    "out/ramtest-merged-remap/pre-merged-diagnostic/synth.json": "26f9c6f23f17e75a483c6c46587411747274e93140a3db311352d47932335b37"
+  },
+  "synthesis_controls": {
+    "new": {
+      "build_id": "7168b508ab424b70f1c0f87b2035d821",
+      "command": [
+        "sources/misteross/build/toolchain-ramtest-timing/install/bin/yosys",
+        "-p",
+        "read_verilog -sv -D RAM_RATE_SWEEP=1 -D RAM_130_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 -I cores/fes-common/generated cores/fes-pong/rtl/pixel_pll.v cores/fes-common/rtl/fes_application_gp.v cores/fes-common/rtl/fes_video_720p.v cores/fes-common/rtl/fes_hps_ddr.v cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-ramtest/rtl/mem_channel.v cores/fes-ramtest/rtl/ram_font.v cores/fes-ramtest/rtl/ram_display.v cores/fes-ramtest/rtl/sdram_addon_port.v cores/fes-ramtest/rtl/ddr_rates.v cores/fes-ramtest/rtl/ddr_channel.v cores/fes-ramtest/rtl/top.v cores/fes-ramtest/rtl/ram_pll.v; chparam -set BUILD_ID 128'h7168b508ab424b70f1c0f87b2035d821 top; synth_intel_alm -nobram -nolutram -nodsp -top top; stat; write_json ../../out/ramtest-fixed-input-264/synth-new-yosys-new-id/synth.json"
+      ],
+      "complete_modules_equal": true,
+      "cwd": "sources/misteross",
+      "execution_file_count": 586,
+      "execution_sha256": "2cc4eac0e1712daa62e14bd619d374d567e1b1c52ab08c002dba6a7ddc4bf349",
+      "execution_summary": {
+        "environment": {
+          "HOME": "<private-build-home>",
+          "LANG": "C",
+          "LC_ALL": "C",
+          "PATH": "sources/misteross/build/toolchain-ramtest-timing/install/bin:/usr/bin:/bin",
+          "TZ": "UTC"
+        },
+        "gpu_device": 1,
+        "kernel": "6.12.101-p2pdma-p2pdma",
+        "machine": "x86_64",
+        "system": "Linux",
+        "version": 1
+      },
+      "exit_code": 0,
+      "new_creator": "Yosys 0.69+ (git sha1 22bf145df, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]",
+      "new_sha256": "61ee68c657e49364425dd4ba4880a679e0759992f2750e284e256d1e4139de28",
+      "old_creator": "Yosys 0.69+ (git sha1 22bf145df, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]",
+      "old_sha256": "61ee68c657e49364425dd4ba4880a679e0759992f2750e284e256d1e4139de28",
+      "tool_identity": "commit=22bf145df1438aa46eb912beab5b5c19e491906a; sha256=44f1418b2558b8f86832633876fd952b96f9850c4665217b62c50f293d3910c3"
+    },
+    "old": {
+      "build_id": "52991ce22369904849b68bdd900f9ae1",
+      "command": [
+        "sources/misteross/build/toolchain-ramtest-timing/install/bin/yosys",
+        "-p",
+        "read_verilog -sv -D RAM_RATE_SWEEP=1 -D RAM_130_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 -I cores/fes-common/generated cores/fes-pong/rtl/pixel_pll.v cores/fes-common/rtl/fes_application_gp.v cores/fes-common/rtl/fes_video_720p.v cores/fes-common/rtl/fes_hps_ddr.v cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-ramtest/rtl/mem_channel.v cores/fes-ramtest/rtl/ram_font.v cores/fes-ramtest/rtl/ram_display.v cores/fes-ramtest/rtl/sdram_addon_port.v cores/fes-ramtest/rtl/ddr_rates.v cores/fes-ramtest/rtl/ddr_channel.v cores/fes-ramtest/rtl/top.v cores/fes-ramtest/rtl/ram_pll.v; chparam -set BUILD_ID 128'h52991ce22369904849b68bdd900f9ae1 top; synth_intel_alm -nobram -nolutram -nodsp -top top; stat; write_json ../../out/ramtest-fixed-input-264/synth-new-yosys-old-id/synth.json"
+      ],
+      "complete_modules_equal": true,
+      "cwd": "sources/misteross",
+      "execution_file_count": 586,
+      "execution_sha256": "2cc4eac0e1712daa62e14bd619d374d567e1b1c52ab08c002dba6a7ddc4bf349",
+      "execution_summary": {
+        "environment": {
+          "HOME": "<private-build-home>",
+          "LANG": "C",
+          "LC_ALL": "C",
+          "PATH": "sources/misteross/build/toolchain-ramtest-timing/install/bin:/usr/bin:/bin",
+          "TZ": "UTC"
+        },
+        "gpu_device": 1,
+        "kernel": "6.12.101-p2pdma-p2pdma",
+        "machine": "x86_64",
+        "system": "Linux",
+        "version": 1
+      },
+      "exit_code": 0,
+      "new_creator": "Yosys 0.69+ (git sha1 22bf145df, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]",
+      "new_sha256": "bd50afaa07d21e4c7ca6375becc7c3ce5716254552505cf8e116e06d5416500b",
+      "old_creator": "Yosys 0.69+ (git sha1 acf441cc3, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]",
+      "old_sha256": "26f9c6f23f17e75a483c6c46587411747274e93140a3db311352d47932335b37",
+      "tool_identity": "commit=22bf145df1438aa46eb912beab5b5c19e491906a; sha256=44f1418b2558b8f86832633876fd952b96f9850c4665217b62c50f293d3910c3"
+    }
+  }
+}

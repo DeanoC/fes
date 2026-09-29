@@ -1,0 +1,1494 @@
+{
+  "artifacts_sha256": {
+    "atom-help.log": "7d3ec1eecae6ea4f45d5e4605abeba9319dc70f2bc7cb3a10a4d067f90bdf1ae",
+    "atom-help.tcl": "0d1bdc412720876fe96dcb2f11154f9dc31da2536878e0e70025429bc3af4bc1",
+    "atoms.log": "6caaeebab059a274390df5c9ebeb23de133a77e6664fb636a8337add2165a437",
+    "atoms.tcl": "0467e9293807ea418c082e8e0be7574d4f75cc93e4ab61442c219614c59081c1",
+    "atoms.txt": "5cb1b3d62ea90d0c9d1b30e9e98ea32f6e57e0c5d05c1d9cf9f96b1ab40db68b",
+    "compare_paths.py": "85366373a13e0d4be6e2c74a621bbe6a92def13c5e1c5400a606b1c9fcb61095",
+    "cones.log": "5b7736aeea1ae0fd7760e412d005834248952f09848e4522742f9a448b494675",
+    "cones.tcl": "3c6811a94e260516f18b21f629ad487141e18fc82b43bf0846032604de414b13",
+    "copy-verification.json": "e41184a8f500c9847bf8a0b201adaac96bf132c3367fac5b1d0fdad008844b75",
+    "database-copy-proof.json": "9555227cd83579c608e60654821176840ebf766ccd2d2cf8aa1f8e434883323f",
+    "evidence.py": "734eb0eee050cc434d34fc8b86dea6d89ba9c18711f35cb8aebfde9bc14eb20e",
+    "findings.md": "2ee3427d97f03ec791756afc79e627eced9eeeba5f28c2277acc88552e7a151e",
+    "inputs.tsv": "be83316202b87e0d6345c7a03cd02af16666c7c68bb394766cfb452ba50a06ab",
+    "keys.log": "e83360fed908ac90d0c9222ac587f1e8b9babe131bc27975e13ba33b3141807e",
+    "keys.tcl": "b94345c709a44554f2c9478f0b9216bc6a755283b01bd738cae3d09390d0ffa5",
+    "nodes.tsv": "c26bc777db47bdad9b6f0920cec4318ba83514da3291a179e9f5d0662031d655",
+    "oss-cones.json": "6f55af8c60b1e09449d49fd90b5076355601d5c86e72c809198ff6b7f0407048",
+    "oss_cones.py": "a88667d4a97f46ae4a6831ebc21d0d79681171034a8de46e8d5f1a9c0b4d9032",
+    "outputs.tsv": "2147fea902b78f065cd4bbb65860896c61df743e27abc6b6034bbaad43b3ae22",
+    "paths.log": "e459a423251e138cf96ab202d6bb2a337dc2306ab7dc210b7bd812d0d07d2a7b",
+    "paths.tcl": "461c5d5e21babcda2ca675559628f3628021042a1cc54fcd59abf730138aa45a",
+    "provenance.json": "a4ab4fb22251a3ee6088f934bd83656568acffcdcec823b95ab15a7e32df3bb7",
+    "quartus-paths.json": "6e2849e85dcddd99d44af0a2e9d5d176fd75434b856493b8acbbdd1e59acc43a",
+    "reports/control-pins.txt": "b22b0ae550bfb89986b25443f2be5da6e2a419304b7e475f5f2f3782d62ec6ce",
+    "reports/idle14-beats2.rpt": "1a88350154e2f8846cff7de81abcc7ef84d34f78156bbed53b44c0df4d6855e9",
+    "reports/idle23-address25.rpt": "1e83022bc9f2d363735065778b05a3dc63bae1a661a2a60e36f4e748d0e8ae92",
+    "reports/ready1-address27.rpt": "bb745e91e543bf72ddd14c0e7bc924ef2783c1cad70fcf3fa81471b6cff788b7",
+    "review.md": "10770dc873f16a3b3ae0f0143c57fac792b03b7bd8339098e53f4110df9eb593",
+    "selection.txt": "8d9cdd74807917724b5dce97fd595698e63337413fc957f4e9f2dac005668ff5",
+    "summarize.py": "6733c2a76319dfc76c5c4274c6407bf020f05b1099b0f3786180ffc3e62db68e",
+    "summary.json": "6b451b31a00ab649df6fbfb13ecc048ad38f4786b33f30653e999ec95e127c13"
+  },
+  "classification": "host-only saved fitted Quartus/OSS comparison; no new synthesis, fitter, routing, RTL or compiler change",
+  "copy_routing_database_identical": true,
+  "external_inputs_sha256": {
+    "out/ramtest-timing-264/quartus-current/source-verification.json": "2ac2dbfb8f1ca0b4b442105eb9f355d466f1d6fb22e2b8178e436208f2214416",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-enable-replication.json": "5da12e8af32821a2c565364e133a7477a9d378e5a42007f951a4b1f2411c372d",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-timing.json": "81eca2eb2a42425348beca1474b29fcb2770052e237530d60eba1874f39f0aca",
+    "sources/misteross/docs/validation/2026-09-28-ramtest-hps-fixed-anchor.json": "3a9014c97d42fd3dcf4bcd91027d323ab618d0675751d289067a694599a8fc58"
+  },
+  "fes_base": "a3b51baef4bcb347208b8c80d8315418497bbaff",
+  "oss": {
+    "best": {
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 77.9058837890625,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 116.44154357910156,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "input_hashes": {
+        "out/ramtest-enable-replication/budget4-c2/routed.json": "6be0d18c132a4aae3c6cb1bbb87fcf29aa3bd0307f5418a49de896cd87b852a3",
+        "out/ramtest-enable-replication/budget4-c2/timing.json": "269e184586ee02d6a4fca0f1d3bc713e99f08abfdefd0e14b45e55d0346ee468"
+      },
+      "limit": "actual critical paths from different placements; no cross-tool Boolean equivalence claimed; LUT masks require folded pin polarity from sidecars",
+      "mapped_logic": [
+        {
+          "bel": "MISTRAL_COMB.30.26.48",
+          "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+          "input_driver_cells": {
+            "A": [
+              [
+                "hps_ddr.f2sdram",
+                "cmd_ready_1"
+              ]
+            ],
+            "B": [
+              [
+                "hps_ddr.f2sdram_cmd_valid_1_MISTRAL_ALUT2_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.4000000059604645,
+          "parameters": {
+            "LUT": "1011"
+          },
+          "path_input": "A",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "bel": "MISTRAL_COMB.24.20.36",
+          "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+          "input_driver_cells": {
+            "A": [
+              [
+                "hps_ddr.port1.enter_read_MISTRAL_ALUT5_Q",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "hps_ddr.port1.enter_write_MISTRAL_ALUT2_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.4000000059604645,
+          "parameters": {
+            "LUT": "00110010"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT3"
+        }
+      ],
+      "source": "out/ramtest-enable-replication/budget4-c2"
+    },
+    "fixed": {
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 76.38835906982422,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 90.8017807006836,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 333.6889343261719,
+          "constraint": 130.0052032470703
+        }
+      },
+      "input_hashes": {
+        "out/ramtest-hps-fixed-anchor/fixed-c2/routed.json": "e23db7102bebd2432c5fdcd13d83e4f2fc40bc863799f62f33ae01b1b5359c0f",
+        "out/ramtest-hps-fixed-anchor/fixed-c2/timing.json": "b9c45534b98d16ad067a13e207fb9d7b9232ca0167410e99601e97c8975f2015"
+      },
+      "limit": "actual critical paths from different placements; no cross-tool Boolean equivalence claimed; LUT masks require folded pin polarity from sidecars",
+      "mapped_logic": [
+        {
+          "bel": "MISTRAL_COMB.46.14.37",
+          "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr2_test.idle_MISTRAL_FF_Q_22",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_test.idle_MISTRAL_FF_Q_21",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_test.idle_MISTRAL_FF_Q_20",
+                "Q"
+              ]
+            ],
+            "D": [
+              [
+                "ddr2_test.idle_MISTRAL_FF_Q_19",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.5099999904632568,
+          "parameters": {
+            "LUT": "0000000000000001"
+          },
+          "path_input": "A",
+          "type": "MISTRAL_ALUT4"
+        },
+        {
+          "bel": "MISTRAL_COMB.46.14.18",
+          "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr2_test.idle_MISTRAL_FF_Q_18",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_test.idle_MISTRAL_FF_Q_17",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_test.idle_MISTRAL_FF_Q_16",
+                "Q"
+              ]
+            ],
+            "D": [
+              [
+                "ddr2_test.idle_MISTRAL_FF_Q_15",
+                "Q"
+              ]
+            ],
+            "E": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "10000000000000000000000000000000"
+          },
+          "path_input": "E",
+          "type": "MISTRAL_ALUT5"
+        },
+        {
+          "bel": "MISTRAL_COMB.45.15.7",
+          "cell": "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_2",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.5120000243186951,
+          "parameters": {
+            "LUT": "10000000"
+          },
+          "path_input": "A",
+          "type": "MISTRAL_ALUT3"
+        },
+        {
+          "bel": "MISTRAL_COMB.40.26.18",
+          "cell": "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr2_test.state_MISTRAL_FF_Q_2",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_read_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q_D_MISTRAL_ALUT3_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "1000"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "bel": "MISTRAL_COMB.40.26.12",
+          "cell": "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_FF_DATAIN",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "0010"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "bel": "MISTRAL_COMB.40.26.6",
+          "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT2_Q",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_stopped_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT2_B",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "1011"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "bel": "MISTRAL_MCOMB.34.37.31",
+          "cell": "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr2_test.state_MISTRAL_FF_Q_1",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_test.state_MISTRAL_FF_Q_2",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_test.reading_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_Q_C_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT2_Q_1",
+                "Q"
+              ]
+            ],
+            "D": [
+              [
+                "hps_ddr.port2.enter_read_MISTRAL_ALUT5_Q",
+                "Q"
+              ]
+            ],
+            "E": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F_E_MISTRAL_ALUT5_Q",
+                "Q"
+              ]
+            ],
+            "F": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "0000000000000000000000000000000000000000000000001111111001010100"
+          },
+          "path_input": "F",
+          "type": "MISTRAL_ALUT6"
+        },
+        {
+          "bel": "MISTRAL_MCOMB.34.44.43",
+          "cell": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr2_test.state_MISTRAL_FF_Q_1",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr2_test.cmd_end_MISTRAL_ALUT2_B",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr2_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT6_F",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "11010000"
+          },
+          "path_input": "C",
+          "type": "MISTRAL_ALUT3"
+        }
+      ],
+      "source": "out/ramtest-hps-fixed-anchor/fixed-c2"
+    },
+    "fixed-pins": {
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 74.70491790771484,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 95.01187896728516,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 356.1786193847656,
+          "constraint": 130.0052032470703
+        }
+      },
+      "input_hashes": {
+        "out/ramtest-hps-fixed-anchor/fixed-pins-c2/routed.json": "4d54a5e97425dca6ae031a9d5ab441d5e8bda7fc8ad44c5ceb99ece2867a022b",
+        "out/ramtest-hps-fixed-anchor/fixed-pins-c2/timing.json": "9548b17677f9f7c52016e4c493ccbb19b4f3e940393b9a417f2f66346a55c191"
+      },
+      "limit": "actual critical paths from different placements; no cross-tool Boolean equivalence claimed; LUT masks require folded pin polarity from sidecars",
+      "mapped_logic": [
+        {
+          "bel": "MISTRAL_COMB.43.16.25",
+          "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr1_test.idle_MISTRAL_FF_Q_20",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr1_test.idle_MISTRAL_FF_Q_16",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr1_test.idle_MISTRAL_FF_Q_5",
+                "Q"
+              ]
+            ],
+            "D": [
+              [
+                "ddr1_test.idle_MISTRAL_FF_Q_8",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.5120000243186951,
+          "parameters": {
+            "LUT": "0000000000000100"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT4"
+        },
+        {
+          "bel": "MISTRAL_COMB.43.17.24",
+          "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr1_test.idle_MISTRAL_FF_Q_9",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr1_test.idle_MISTRAL_FF_Q_1",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr1_test.idle_MISTRAL_FF_Q_19",
+                "Q"
+              ]
+            ],
+            "D": [
+              [
+                "ddr1_test.idle_MISTRAL_FF_Q_10",
+                "Q"
+              ]
+            ],
+            "E": [
+              [
+                "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "00000000000100000000000000000000"
+          },
+          "path_input": "E",
+          "type": "MISTRAL_ALUT5"
+        },
+        {
+          "bel": "MISTRAL_COMB.43.17.6",
+          "cell": "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_2",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q_1",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT5_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.4000000059604645,
+          "parameters": {
+            "LUT": "10000000"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT3"
+        },
+        {
+          "bel": "MISTRAL_COMB.43.28.36",
+          "cell": "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_Q",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr1_test.state_MISTRAL_FF_Q_4",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr1_test.write_MISTRAL_ALUT4_A_Q_MISTRAL_ALUT3_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "1000"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "bel": "MISTRAL_COMB.43.28.49",
+          "cell": "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_1_Q_MISTRAL_FF_DATAIN",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_Q",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "0010"
+          },
+          "path_input": "B",
+          "type": "MISTRAL_ALUT2"
+        },
+        {
+          "bel": "MISTRAL_COMB.45.45.12",
+          "cell": "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr1_test.state_MISTRAL_FF_Q_4",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr1_test.state_MISTRAL_FF_Q_1",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr1_test.write_MISTRAL_ALUT5_C",
+                "Q"
+              ]
+            ],
+            "D": [
+              [
+                "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "1110010000000000"
+          },
+          "path_input": "D",
+          "type": "MISTRAL_ALUT4"
+        },
+        {
+          "bel": "MISTRAL_COMB.43.29.1",
+          "cell": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+          "input_driver_cells": {
+            "A": [
+              [
+                "ddr1_test.burst_end_MISTRAL_FF_Q",
+                "Q"
+              ]
+            ],
+            "B": [
+              [
+                "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT3_Q",
+                "Q"
+              ]
+            ],
+            "C": [
+              [
+                "ddr1_nack_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q_A_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT4_D",
+                "Q"
+              ]
+            ]
+          },
+          "logic_delay_ns": 0.09700000286102295,
+          "parameters": {
+            "LUT": "01110000"
+          },
+          "path_input": "C",
+          "type": "MISTRAL_ALUT3"
+        }
+      ],
+      "source": "out/ramtest-hps-fixed-anchor/fixed-pins-c2"
+    }
+  },
+  "provenance": {
+    "fmax_memory_mhz": 139.3,
+    "fmax_pixel_mhz": 99.54,
+    "original_database_sha256": {
+      "db/.cmp.kpt": "944418886dbceeefe41b5aea2396bd499880c623d1c384095efeeea335bc2a60",
+      "db/ddio_in_q9f.tdf": "34b329227a8879990105a74921e0716de40779d333acd602b1373dad30c7c2c9",
+      "db/ddio_out_b2j.tdf": "b6e8e4aaca7d7526f32a1b6b69089a76285bc0590a92b02ecec7f4992727cc72",
+      "db/iobuf_bidir_usd.tdf": "e4440993576701039763551cf0cb98395250da71f1ac2bc920b264893a6d88f5",
+      "db/top.(0).cnf.cdb": "f07239fb460571679d8c5a27d188321b4acd79508a12f1c0641f58a25cefd6e9",
+      "db/top.(0).cnf.hdb": "5406450763f6b50a5ac0bf7cbe5cd3b9574a17cf802ea644fa577514a28c2220",
+      "db/top.(1).cnf.cdb": "77b000ce09ca05ee11476df454912adab53d8940ffdf66af602e83b86ae9ed7e",
+      "db/top.(1).cnf.hdb": "909c01ac1da989999c05efcca8528121e3b6e6ab1084ffb9f0bcec36665cc2ae",
+      "db/top.(10).cnf.cdb": "1cdb2a81a1017ffcdf9165a1a288fdc5b93b04bad49b6d38cb40f0d9020bec8b",
+      "db/top.(10).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(11).cnf.cdb": "0675a53ed4b3c2b646832283d3ccb10436636f9765f26b97c30bf06f1e02f2ca",
+      "db/top.(11).cnf.hdb": "967695e4f679baa6b293983ed33b8745c8274f9b50f25178ef00724141c68931",
+      "db/top.(12).cnf.cdb": "34ecf9aae4ee5a9396d949c0a37ebb3201a5758b357d5941f2c91d2f147fd8e5",
+      "db/top.(12).cnf.hdb": "dad4644b8e5a6ece50c76cc716204e91913fcb770786aeef20d42b644b924789",
+      "db/top.(13).cnf.cdb": "99a2336e43bf84a8bea62d68a6c2e8bb86d42ba5ce40e1f0bd80cf97fd5a80c7",
+      "db/top.(13).cnf.hdb": "3b6852490ac960c700d615cc5b6fa19ba4b1fae3205585676024fe8a5407d3de",
+      "db/top.(14).cnf.cdb": "baba1aa3140a75d42ac1ed7eb430b55eea6f2e532a7224b466d2f95728715281",
+      "db/top.(14).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(15).cnf.cdb": "6edb6775b1ab75de663a790d85bdd119dabf97057aba797e6ab7fd0765b8a13e",
+      "db/top.(15).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(16).cnf.cdb": "2d148a3fb6ca5aff80dcb0a8205db6921517bd7a3cda469b90eb24df08f27650",
+      "db/top.(16).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(17).cnf.cdb": "e4eba8a00a0c7fcceb84f0ba3f7836100348cb4ad882c4326346b1e4cc617f0b",
+      "db/top.(17).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(18).cnf.cdb": "2eee5e8a94dbd020272413306452ac790f4e65e52e31227d632c887a16492bd8",
+      "db/top.(18).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(19).cnf.cdb": "78cb1e7073d743da6e2abade19692a0779341fe0c81ffa2c6538154520b93171",
+      "db/top.(19).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(2).cnf.cdb": "dfe2b5bf928bb4a23b8e9503d7a2f18fca244427d703c19197d8504e5a7e337a",
+      "db/top.(2).cnf.hdb": "4289a04732baa5ca5e1ec44b8c47ba273b29be39cb24f7ce133e57020cd0fcb2",
+      "db/top.(20).cnf.cdb": "367d32bb72add117d2a3a5e83dc7105bc7feb453e422b64e271ef26c569686d6",
+      "db/top.(20).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(21).cnf.cdb": "304367a5969e16026c45614a261bed9ef10f38c5b2c2e1c77a1d2520267382af",
+      "db/top.(21).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(22).cnf.cdb": "6e7701ecb8828a4281aa0225ed16e848b0a89f5de7d8733b9161896fb400dd31",
+      "db/top.(22).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(23).cnf.cdb": "bae44c1acb569a6689094b15d03f32821a95970b188c6c11ff5441d6c6aa718d",
+      "db/top.(23).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(24).cnf.cdb": "0291a0138e64e52546bb3ad1852ea6dff1aa261c0000e5ae84eb6d3654572da7",
+      "db/top.(24).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(25).cnf.cdb": "281c3abce7d317b60285a6524100a17ee965b41391394cb1d0c5859c081e078f",
+      "db/top.(25).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(26).cnf.cdb": "99436b754271fb994773d9c87aed2a1215a1d1360a5639a11821db1168d88a5c",
+      "db/top.(26).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(27).cnf.cdb": "2107753b54417aff23980698ee3eabfbcc408be20c6582e2f76714da3bab7cdd",
+      "db/top.(27).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(28).cnf.cdb": "ce275d5580e6a924547ae1afd82f7e7f5858e93d09e190056d4c03c119c51beb",
+      "db/top.(28).cnf.hdb": "af6011abb685124aebafa449145767e3f15226281958585cd527ae39f173d758",
+      "db/top.(29).cnf.cdb": "92f893332b2407dbd83ffa769aab53c3b476511c58c782962d79c33232c7698b",
+      "db/top.(29).cnf.hdb": "08bca657847ba349c05139849af4154eb41aa5f92114ef8b5a502be766e6160b",
+      "db/top.(3).cnf.cdb": "3c0b5cab02e3684ba1d7030144186cdfe6e82db80638c0066080f645f6e6eba8",
+      "db/top.(3).cnf.hdb": "92956813c343a595c9c1145e6c4ed38d887ae439b137e6a910c3f03ae3ef6594",
+      "db/top.(30).cnf.cdb": "b67ff28a4268d3788076d49fcbcc3fc70a4f485a21595ed160c43ffb04860aa4",
+      "db/top.(30).cnf.hdb": "78a24cf14602c1184ca819b18cdb942ccb336af4c6fa5dcef77534d78ea14aad",
+      "db/top.(31).cnf.cdb": "4a4fe67e35d72260d416e4709c6d05482d25850f59d5dae03e07c5f78c3f849b",
+      "db/top.(31).cnf.hdb": "543971b41e2717832391d766613b9aafb4f8f5c42116be5ff569a7bf6000bcd5",
+      "db/top.(32).cnf.cdb": "a0b34f063032b15cf204d85aa724b3621684c43aa398d5f7babb470e1d6d3370",
+      "db/top.(32).cnf.hdb": "655088add4dcd3517ccdbf994887f9687c7a0ef353532a89e92752c4ee567350",
+      "db/top.(33).cnf.cdb": "e6cb89a69ff646ec214a6143fa458a292eef1fd077b9d0f600b8da56a32821b1",
+      "db/top.(33).cnf.hdb": "8fd7ed2cac254241a405e8bf3196f9012c7163add5765f160ec85f5b06dc1288",
+      "db/top.(34).cnf.cdb": "b2080ab70fdfba43325977ca5f89c154d61df9ea62c34d30d4d745222e106dda",
+      "db/top.(34).cnf.hdb": "8bc7c1eb8dcb5362841d6c21a696c2125dcb49898ab52ef0192897c8f62ac648",
+      "db/top.(35).cnf.cdb": "9d1765dc74a8b03eb5743e502e315e44b2b4c363be3385c21b9811cda1bfd722",
+      "db/top.(35).cnf.hdb": "8b0d04f35dbe528a81744181525215f3f3ebc0259415850e9ac6cbfbb9d08530",
+      "db/top.(36).cnf.cdb": "450bdb214dded952b3ceb5cc3ccdb968a7ac133fcfecaa3f29f05d159de3a6f8",
+      "db/top.(36).cnf.hdb": "ee0ab9dc63036c93c52b7f9b88187019849ea20cc30610b87c00190e5156959c",
+      "db/top.(37).cnf.cdb": "f8a24d990b0776342e545bad8c8aa78a7066224702b22f8749ce34395c6a99a8",
+      "db/top.(37).cnf.hdb": "254bda45b31d869345c405ec8868a6af2ac9b5e77e443bd1d79aa6f355057df2",
+      "db/top.(38).cnf.cdb": "d71caa3d540fbebbc93f94b5a48859f3003265b7624d6becc6ebea05f92fa356",
+      "db/top.(38).cnf.hdb": "adf475f6977cfb3424fcfefe882089215f8cdf7dd48b2a7be5166f0bd4ebd6b1",
+      "db/top.(4).cnf.cdb": "0d8b07c0a7985fc0de3156dcfe0079df29f1dc1750e533c5981a509f3ea098f2",
+      "db/top.(4).cnf.hdb": "dfa19c78929204f8a0007819d0f55028c977e1da1f40d1ea1cf78ab5124d789e",
+      "db/top.(5).cnf.cdb": "36cf73dc4f9ceaa1d48ce76fef5beff712de54328044757d7e04020229381d04",
+      "db/top.(5).cnf.hdb": "cd64d42985dfb832ae742c7fffcc30712b61b7f43f3131a3fbfc68fff1205e46",
+      "db/top.(6).cnf.cdb": "083fc37700008b5fee993fbd524ba7e5baf0d1007b224fd0e4f04243da55a173",
+      "db/top.(6).cnf.hdb": "c5e2fecd7c9dccadf6a5918c95ead0cb260250253e853a5f2b4fc4c935284e56",
+      "db/top.(7).cnf.cdb": "ce1d6dbf1e2856cc509dd6326ff52e37b525d68f646da0731b1d8f3b2a9e9a18",
+      "db/top.(7).cnf.hdb": "fc8548d21e42e5c3f5a3b1ae8a6fabba4e6be0f5d31b03dbd31696a93b61135d",
+      "db/top.(8).cnf.cdb": "095a8d311f2d8e10d2798465334dc3a3f627f29c07bedd0bc75582f969307cb8",
+      "db/top.(8).cnf.hdb": "49710f15e736e3cd1ea14ecfb647bc07c741ffa7840d9dd9c2d362fd8498f021",
+      "db/top.(9).cnf.cdb": "6cc009fe27aefc67a2a8b82cfe4bffa3413b7e19e8593fa608d542364abd9d41",
+      "db/top.(9).cnf.hdb": "b7c18af194eeffee9512203cad72094296957ffa7235e033b81c6d13522f43df",
+      "db/top.asm.qmsg": "0ff8e565f74f871be14d72914e4f0b417f1479a864fc9582337c44aeac7cf5cf",
+      "db/top.asm.rdb": "88a1f3771ff0e6d8977368a6c8062da5be02e64b2b53ba821c5ffa3e818889aa",
+      "db/top.cmp.bpm": "8ac6960cbc7c0120db89ce778611e654894a0d2250a96ca1ac588cc6d17c1018",
+      "db/top.cmp.cdb": "cc4200bae7ce6316566a1ff62df6312b46afcf02719e4fca3041be3ed6672181",
+      "db/top.cmp.hdb": "7b221e0ccfd0834285ba75f54c451344ad06a959aedcd90a650981f551b6964f",
+      "db/top.cmp.idb": "b562a5ec7b882ad4bb5b2b62b4823b45c34daff912bbb941ce614f7f7c5ff8e1",
+      "db/top.cmp.logdb": "a6d03eb7a03e3eb1d9ed062d30075527c26f04d335e6e3f13b15d7cf17316564",
+      "db/top.cmp.rdb": "476f47467f9fd5a1a1bc6055d41776890582ca4fe69ca0f5f9364cb7c99cd3b9",
+      "db/top.cmp_merge.kpt": "bcdfd7387d41ffa2e6b20fb718066538b1226c9f3dc5728938a4c4b10619013c",
+      "db/top.cyclonev_io_sim_cache.ff_100c_fast.hsd": "e7f8cec5159a9a51756b57b34c12508e34dcb0fce275b2d2ba15961e773e070e",
+      "db/top.cyclonev_io_sim_cache.ff_n40c_fast.hsd": "fa6a6b3825c83d82006ac7765df0d739d78364155bd1d1e23aadb5a5216c5f95",
+      "db/top.cyclonev_io_sim_cache.ii_100c_slow.hsd": "a110fb1a186328d562825b61084bdfd07f1e407be0149953f6b3b32ebb7d630d",
+      "db/top.cyclonev_io_sim_cache.ii_85c_slow.hsd": "e14be1c4f405e763e57871f4b2047f5dd1f42ab4942b2f3e71ae703e6b5a6ca0",
+      "db/top.cyclonev_io_sim_cache.ii_n40c_slow.hsd": "a2664b5cc5b2a0c692c2e9e17a97891f01ded88612d35565fef1d7f826ecf8b7",
+      "db/top.db_info": "d98aedfc0f5a1fa2c6ea86009669de1303790adc15b30ec4cf8339252afb1aae",
+      "db/top.fit.qmsg": "5af02f5fe5768d13bfb9fcc633dfb708ac0fcaa2f01aa78a9cd93fadf1eebd0d",
+      "db/top.hier_info": "abdf8d5cc61dd46abf6ac3ad01d59ab3f997b2798d175d88787118505e6be637",
+      "db/top.hif": "4116282b5702adff4f79eb433030638981cf3cee32c56da816c98637a1181416",
+      "db/top.lpc.html": "ab27104d25dae40615a9e2a5da422a243bc2c335550be1342e7b88b59438093d",
+      "db/top.lpc.rdb": "aecc16103823922ff97ffddfcc92f87b21d8a9d3b3aeb5a0b74bccc39d86dac5",
+      "db/top.lpc.txt": "ad3d9c64dd437d756251b8f36dc4e655b462793eee54da25f5af85b8de4f34c5",
+      "db/top.map.ammdb": "3f83b1aa0dbb3969e587d1cd7ccb4a13f0e10a009925d92694cb86174353b539",
+      "db/top.map.bpm": "ee3866d07b6bea3a35a06b497c42cbaa6725c9d7f290fe8eb1baa7b9b35cdcc2",
+      "db/top.map.cdb": "887c221b7e824b521077fa825b0926a2ff68d69ae680a7fce66716fefb498e6b",
+      "db/top.map.hdb": "dc9b35a74c81a6bbaf081843186c70851516efe95a5e2ec1e600b76792155d7d",
+      "db/top.map.kpt": "b19b10aaf32976f150a762a67b70d1ad47f8c989c285559a817bb0583b315c39",
+      "db/top.map.qmsg": "7bbeee920c145dd98935e364369eb13e769423e366de30b4c621293fe150f853",
+      "db/top.map.rdb": "0b76775540ffc887bae5f4d326f3eecdb91d70e7152d9430cdef8325e0ee1186",
+      "db/top.map_bb.cdb": "f143339a13f0e05f75344a0fd89443bbc29328700bacfb84e09211ea7962c778",
+      "db/top.map_bb.hdb": "a24325e69c5e6243526b10a6524b8603ceaca2cd31fe290b5db9798f7243a296",
+      "db/top.pre_map.hdb": "5f574ccaf7f736814bbc365bc4a63273f4c5bf536339814a1b4769941884da99",
+      "db/top.root_partition.map.reg_db.cdb": "2404780fd8512aab96396234b8695f7f4894a617b4f3a1a50bb66d97068c8e2d",
+      "db/top.routing.rdb": "d5739568062d12e21a1dbcf1c254d722c09c6b2f6422ffd7320e76b5036df3ea",
+      "db/top.rtlv.hdb": "810881f6f98dd3d648ea6eb9a8a20373f1abbad7a79a762ecc061e0aca7cd329",
+      "db/top.rtlv_sg.cdb": "60bf462fe03ce8c95095492735a6c675ee95f0c055d96ee0d19002087b1102ef",
+      "db/top.rtlv_sg_swap.cdb": "08d9548e39d8a3c2ecbc44a29915e97052692f21ee45ac8381d33dd36a743807",
+      "db/top.sld_design_entry_dsc.sci": "11fd5570b437785ff79ef86517ef4c34a59fee5b6e7db6ffb5e0697f80fb3e1e",
+      "db/top.smart_action.txt": "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+      "db/top.smp_dump.txt": "c778402e3ffc0c15c7b623a3d1cd9e0b66b454a9fba222dfb5012de308468121",
+      "db/top.sta.qmsg": "ddb256e55a6a6fa30437da4091b77af128923d231a3badb7e22b34cfcf0e0fdf",
+      "db/top.sta.rdb": "34cc5210fc3f8b53b3a000a754a55da0f6c868316de7a22913c055bcf8684590",
+      "db/top.sta_cmp.7_slow_1100mv_100c.tdb": "5818d4a332a886f4a1d45dea03ad630094131c930fb29e7b4f169a900c02b407",
+      "db/top.taw.rdb": "62301ac86c0c1577fcb05e06c03888874409e522b17d7c40fd6ae50bd9039523",
+      "db/top.tis_db_list.ddb": "3fbddcfa99ed7dcbb1c7494339caebfde2091f3bfb7c07d35f28e7fb7a45ab12",
+      "db/top.tiscmp.fast_1100mv_100c.ddb": "baa51f1a70c360fda56327e056fb121a4566c3867f780433324dfdda97cc2619",
+      "db/top.tiscmp.fast_1100mv_n40c.ddb": "b9129534d1a1243a14117f5131502c92e712c7db9ab8aef09bb97c7f6022d036",
+      "db/top.tiscmp.fastest_slow_1100mv_85c.ddb": "ad3ff83814a6d13c94175617a4935e15025dc1fbd1b28b3cdaa8d0e53b69daba",
+      "db/top.tiscmp.fastest_slow_1100mv_n40c.ddb": "3d17e9d5d6b3b2392d6552c0c9fcb5a13bc0dffb4dac0f64e71e772987db4e11",
+      "db/top.tiscmp.slow_1100mv_100c.ddb": "8727a299b3bc4ba5c8ccb843323906707b773d0519b7d0fe5d2a242195d67913",
+      "db/top.tiscmp.slow_1100mv_n40c.ddb": "3f8c8f36fdb0dd755a1bdc9316334939167411cf0bbcece861d09e4a8b486652",
+      "db/top.vpr.ammdb": "346872e6ddaf491ab4ccf0c5de162702b8e9c330d87c1f72f4dc0d2d5d10943d",
+      "db/top_partition_pins.json": "c887694a865d66c7835c14e8820f158320ef00e05ffd0274df2b2bcc217ba38d"
+    },
+    "original_project": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timing-264/quartus-current/project",
+    "original_reports_sha256": {
+      "top.fit.rpt": "175727fb47ef06cbf3507bb240859663d4e457c1d9e3f3f3e721e1e199b7e681",
+      "top.map.rpt": "8042f8fb698c9ec3ccb1223637785b71f64fe2297419960425c2f94eb251204c",
+      "top.sta.rpt": "b817ead0623022821bdc6c6ce4a55c475e36282c0524467ff58cf2477ebeadda"
+    },
+    "project_qsf_sha256": "7dac9740dacdf217062ad3bf84b6b3c9080b19bb12ca148dc0e2fb68371e0f43",
+    "quartus": "17.0.2 Build 602 Lite",
+    "recompiled": false,
+    "source_verification": {
+      "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+      "oss_revision": "5c15931aae47494a89b2a5a3cf673bc9f2f09a4a",
+      "rtl_sha256": {
+        "cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+        "cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+        "cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+        "cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+        "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+        "cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+        "cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+        "cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+        "cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+        "cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+        "cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+        "cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+        "cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb"
+      }
+    }
+  },
+  "quartus": {
+    "cones": {
+      "address_enable": {
+        "equation": "address~0 & burstcount[0]~0 & (~state.ST_READ | (Selector225~0 & Selector192~4))",
+        "exhaustive_truth_rows_checked": 64,
+        "inputs": [
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5368",
+            "port": "0",
+            "source_name": "ddr_channel:ddr2_test|state.ST_READ",
+            "source_node": "5130",
+            "source_port": "0",
+            "type": "DATAA",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5368",
+            "port": "1",
+            "source_name": "ddr_channel:ddr2_test|Selector225~0",
+            "source_node": "5145",
+            "source_port": "0",
+            "type": "DATAB",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5368",
+            "port": "2",
+            "source_name": "ddr_channel:ddr2_test|Selector192~4",
+            "source_node": "5362",
+            "source_port": "0",
+            "type": "DATAC",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5368",
+            "port": "3",
+            "source_name": "ddr_channel:ddr2_test|address~0",
+            "source_node": "5366",
+            "source_port": "0",
+            "type": "DATAD",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5368",
+            "port": "5",
+            "source_name": "ddr_channel:ddr2_test|burstcount[0]~0",
+            "source_node": "5367",
+            "source_port": "0",
+            "type": "DATAF",
+            "vcc": "0"
+          }
+        ],
+        "mask_convention": "MSB-first text is ascending truth-row order; DATAA is index bit0",
+        "node": {
+          "id": "5368",
+          "location": "MLABCELL_X39_Y56_N12",
+          "name": "ddr_channel:ddr2_test|address[0]~1",
+          "type": "LCELL_COMB"
+        },
+        "output": {
+          "fanout": "{4307 7} {4312 7} {4315 7} {4318 7} {4321 7} {4324 7} {4327 7} {4330 7} {4333 7} {4336 7} {4339 7} {4342 7} {4345 7} {4348 7} {4351 7} {4354 7} {4357 7} {4360 7} {4363 7} {4366 7} {4369 7} {4372 7} {4375 7} {4378 7} {4381 7} {4384 7} {4387 7} {4390 7} {4393 7}",
+          "fanout_count": "29",
+          "lutmask": "AB00AB",
+          "name": "ddr_channel:ddr2_test|address[0]~1",
+          "node": "5368",
+          "port": "0",
+          "type": "COMBOUT"
+        }
+      },
+      "ready_enable": {
+        "equation": "(m_read | m_write) & ~cmd_ready_1 & (filler | from_core)",
+        "exhaustive_truth_rows_checked": 64,
+        "inputs": [
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5096",
+            "port": "0",
+            "source_name": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port1|m_read",
+            "source_node": "3998",
+            "source_port": "0",
+            "type": "DATAA",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5096",
+            "port": "2",
+            "source_name": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port1|filler",
+            "source_node": "4077",
+            "source_port": "0",
+            "type": "DATAC",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5096",
+            "port": "3",
+            "source_name": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port1|m_write",
+            "source_node": "3997",
+            "source_port": "0",
+            "type": "DATAD",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5096",
+            "port": "4",
+            "source_name": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port1|from_core~0",
+            "source_node": "4203",
+            "source_port": "0",
+            "type": "DATAE",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5096",
+            "port": "5",
+            "source_name": "fes_hps_ddr:hps_ddr|cmd_ready_1",
+            "source_node": "0",
+            "source_port": "1",
+            "type": "DATAF",
+            "vcc": "0"
+          }
+        ],
+        "mask_convention": "MSB-first text is ascending truth-row order; DATAA is index bit0",
+        "node": {
+          "id": "5096",
+          "location": "LABCELL_X35_Y62_N9",
+          "name": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port1|skid_write~0",
+          "type": "LCELL_COMB"
+        },
+        "output": {
+          "fanout": "{4079 7} {4083 7} {4680 7} {4682 7} {4684 7} {4686 7} {4688 7} {4689 7} {4690 7} {4691 7} {4692 7} {4693 7} {4694 7} {4695 7} {4696 7} {4697 7} {4698 7} {4699 7} {4700 7} {4701 7} {4702 7} {4703 7} {4704 7} {4705 7} {4706 7} {4707 7} {4708 7} {4709 7} {4710 7} {4711 7} {4712 7} {4713 7} {4714 7} {4715 7} {4716 7} {4718 7} {4719 7} {4721 7} {4723 7} {4724 7} {4725 7} {4726 7} {4727 7} {4728 7} {4729 7} {4730 7} {4731 7} {4732 7} {4733 7} {4734 7} {4735 7} {4736 7} {4737 7} {4738 7} {4739 7} {4740 7} {4741 7} {4742 7} {4743 7} {4744 7} {4745 7} {4746 7} {4747 7} {4748 7} {4749 7} {4750 7} {4200 7} {4205 7} {4208 7} {4211 7} {4214 7} {4217 7} {4220 7} {4223 7} {4226 7} {4229 7} {4232 7} {4235 7} {4238 7} {4241 7} {4244 7} {4247 7} {4250 7} {4253 7} {4256 7} {4259 7} {4262 7} {4265 7} {4268 7} {4271 7} {4274 7} {4277 7} {4280 7} {4283 7} {4286 7} {4289 7} {4292 7} {4294 7} {4297 7} {4300 7} {4303 7} {4751 7} {4754 7} {4757 7} {4760 7} {4763 7} {4766 7} {4769 7} {4772 7}",
+          "fanout_count": "109",
+          "lutmask": "50F55FF00000000",
+          "name": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port1|skid_write~0",
+          "node": "5096",
+          "port": "0",
+          "type": "COMBOUT"
+        }
+      },
+      "timeout_partition": {
+        "equation": "~idle[21] & ~idle[23] & idle[19] & ~idle[20] & ~idle[22] & ~idle[4]",
+        "exhaustive_truth_rows_checked": 64,
+        "inputs": [
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5123",
+            "port": "0",
+            "source_name": "ddr_channel:ddr2_test|idle[21]",
+            "source_node": "749",
+            "source_port": "0",
+            "type": "DATAA",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5123",
+            "port": "1",
+            "source_name": "ddr_channel:ddr2_test|idle[23]",
+            "source_node": "750",
+            "source_port": "0",
+            "type": "DATAB",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5123",
+            "port": "2",
+            "source_name": "ddr_channel:ddr2_test|idle[19]",
+            "source_node": "746",
+            "source_port": "0",
+            "type": "DATAC",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5123",
+            "port": "3",
+            "source_name": "ddr_channel:ddr2_test|idle[20]",
+            "source_node": "748",
+            "source_port": "0",
+            "type": "DATAD",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5123",
+            "port": "4",
+            "source_name": "ddr_channel:ddr2_test|idle[22]",
+            "source_node": "751",
+            "source_port": "0",
+            "type": "DATAE",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5123",
+            "port": "5",
+            "source_name": "ddr_channel:ddr2_test|idle[4]",
+            "source_node": "747",
+            "source_port": "0",
+            "type": "DATAF",
+            "vcc": "0"
+          }
+        ],
+        "mask_convention": "MSB-first text is ascending truth-row order; DATAA is index bit0",
+        "node": {
+          "id": "5123",
+          "location": "LABCELL_X40_Y55_N54",
+          "name": "ddr_channel:ddr2_test|Equal13~2",
+          "type": "LCELL_COMB"
+        },
+        "output": {
+          "fanout": "{5126 5} {5145 5} {5148 1} {5680 0} {6459 5} {11094 1}",
+          "fanout_count": "6",
+          "lutmask": "800000000000000",
+          "name": "ddr_channel:ddr2_test|Equal13~2",
+          "node": "5123",
+          "port": "0",
+          "type": "COMBOUT"
+        }
+      },
+      "timeout_stop": {
+        "equation": "~stop_sync[1] & ~(Equal13~1 & Equal13~0 & Equal13~3 & Equal13~2)",
+        "exhaustive_truth_rows_checked": 64,
+        "inputs": [
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5145",
+            "port": "0",
+            "source_name": "ddr_channel:ddr2_test|Equal13~1",
+            "source_node": "5122",
+            "source_port": "0",
+            "type": "DATAA",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5145",
+            "port": "1",
+            "source_name": "ddr_channel:ddr2_test|Equal13~0",
+            "source_node": "5121",
+            "source_port": "0",
+            "type": "DATAB",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5145",
+            "port": "2",
+            "source_name": "stop_sync[1]",
+            "source_node": "5043",
+            "source_port": "0",
+            "type": "DATAC",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5145",
+            "port": "3",
+            "source_name": "ddr_channel:ddr2_test|Equal13~3",
+            "source_node": "5124",
+            "source_port": "0",
+            "type": "DATAD",
+            "vcc": "0"
+          },
+          {
+            "gnd": "0",
+            "inverted": "0",
+            "literal_index": "",
+            "node": "5145",
+            "port": "5",
+            "source_name": "ddr_channel:ddr2_test|Equal13~2",
+            "source_node": "5123",
+            "source_port": "0",
+            "type": "DATAF",
+            "vcc": "0"
+          }
+        ],
+        "mask_convention": "MSB-first text is ascending truth-row order; DATAA is index bit0",
+        "node": {
+          "id": "5145",
+          "location": "MLABCELL_X39_Y56_N30",
+          "name": "ddr_channel:ddr2_test|Selector225~0",
+          "type": "LCELL_COMB"
+        },
+        "output": {
+          "fanout": "{5147 4} {5367 5} {5368 1} {5458 5} {6240 4} {6247 1} {6248 4} {6291 1} {6301 3} {6303 1} {11095 3} {13240 1}",
+          "fanout_count": "12",
+          "lutmask": "F0F0F0F0F0E0F0E0",
+          "name": "ddr_channel:ddr2_test|Selector225~0",
+          "node": "5145",
+          "port": "0",
+          "type": "COMBOUT"
+        }
+      }
+    },
+    "ddr_state_registers": [
+      {
+        "id": "5087",
+        "location": "FF_X31_Y59_N50",
+        "name": "ddr_channel:ddr1_test|state.ST_WRITE",
+        "type": "FF"
+      },
+      {
+        "id": "5089",
+        "location": "FF_X31_Y59_N56",
+        "name": "ddr_channel:ddr1_test|state.ST_DRAIN",
+        "type": "FF"
+      },
+      {
+        "id": "5090",
+        "location": "FF_X31_Y59_N29",
+        "name": "ddr_channel:ddr1_test|state.ST_READ_START",
+        "type": "FF"
+      },
+      {
+        "id": "5091",
+        "location": "FF_X34_Y59_N55",
+        "name": "ddr_channel:ddr1_test|state.ST_WRITE_START",
+        "type": "FF"
+      },
+      {
+        "id": "5092",
+        "location": "FF_X31_Y59_N20",
+        "name": "ddr_channel:ddr1_test|state.ST_READ",
+        "type": "FF"
+      },
+      {
+        "id": "5125",
+        "location": "FF_X37_Y55_N17",
+        "name": "ddr_channel:ddr2_test|state.ST_WRITE",
+        "type": "FF"
+      },
+      {
+        "id": "5127",
+        "location": "FF_X39_Y55_N20",
+        "name": "ddr_channel:ddr2_test|state.ST_DRAIN",
+        "type": "FF"
+      },
+      {
+        "id": "5128",
+        "location": "FF_X39_Y52_N17",
+        "name": "ddr_channel:ddr2_test|state.ST_READ_START",
+        "type": "FF"
+      },
+      {
+        "id": "5129",
+        "location": "FF_X37_Y55_N20",
+        "name": "ddr_channel:ddr2_test|state.ST_WRITE_START",
+        "type": "FF"
+      },
+      {
+        "id": "5130",
+        "location": "FF_X39_Y55_N5",
+        "name": "ddr_channel:ddr2_test|state.ST_READ",
+        "type": "FF"
+      },
+      {
+        "id": "5259",
+        "location": "FF_X34_Y59_N4",
+        "name": "ddr_channel:ddr1_test|state.ST_NACK",
+        "type": "FF"
+      },
+      {
+        "id": "5260",
+        "location": "FF_X34_Y59_N32",
+        "name": "ddr_channel:ddr1_test|state.ST_DONE",
+        "type": "FF"
+      },
+      {
+        "id": "5261",
+        "location": "FF_X34_Y59_N26",
+        "name": "ddr_channel:ddr1_test|state.ST_STOP",
+        "type": "FF"
+      },
+      {
+        "id": "5363",
+        "location": "FF_X39_Y55_N32",
+        "name": "ddr_channel:ddr2_test|state.ST_NACK",
+        "type": "FF"
+      },
+      {
+        "id": "5364",
+        "location": "FF_X37_Y55_N2",
+        "name": "ddr_channel:ddr2_test|state.ST_DONE",
+        "type": "FF"
+      },
+      {
+        "id": "5365",
+        "location": "FF_X37_Y55_N44",
+        "name": "ddr_channel:ddr2_test|state.ST_STOP",
+        "type": "FF"
+      },
+      {
+        "id": "16334",
+        "location": "FF_X31_Y59_N55",
+        "name": "ddr_channel:ddr1_test|state.ST_DRAIN~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16335",
+        "location": "FF_X31_Y59_N19",
+        "name": "ddr_channel:ddr1_test|state.ST_READ~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16338",
+        "location": "FF_X39_Y55_N19",
+        "name": "ddr_channel:ddr2_test|state.ST_DRAIN~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16339",
+        "location": "FF_X37_Y55_N19",
+        "name": "ddr_channel:ddr2_test|state.ST_WRITE_START~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16340",
+        "location": "FF_X39_Y55_N4",
+        "name": "ddr_channel:ddr2_test|state.ST_READ~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16387",
+        "location": "FF_X39_Y55_N31",
+        "name": "ddr_channel:ddr2_test|state.ST_NACK~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16388",
+        "location": "FF_X37_Y55_N1",
+        "name": "ddr_channel:ddr2_test|state.ST_DONE~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16389",
+        "location": "FF_X37_Y55_N43",
+        "name": "ddr_channel:ddr2_test|state.ST_STOP~DUPLICATE",
+        "type": "FF"
+      }
+    ],
+    "limitations": [
+      "Saved fitted implementation, no new compile or hardware test.",
+      "Quartus and nextpnr path delays use different physical routes and models; this is not calibration.",
+      "Third timeout path reaches D in Quartus and ENA in nextpnr; compare architectural implementation, not identical pin timing.",
+      "Raw atom masks are not ordinary LSB-first integer truth tables; equations above explicitly check the returned ordering."
+    ],
+    "state_duplicates": [
+      {
+        "id": "16334",
+        "location": "FF_X31_Y59_N55",
+        "name": "ddr_channel:ddr1_test|state.ST_DRAIN~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16335",
+        "location": "FF_X31_Y59_N19",
+        "name": "ddr_channel:ddr1_test|state.ST_READ~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16338",
+        "location": "FF_X39_Y55_N19",
+        "name": "ddr_channel:ddr2_test|state.ST_DRAIN~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16339",
+        "location": "FF_X37_Y55_N19",
+        "name": "ddr_channel:ddr2_test|state.ST_WRITE_START~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16340",
+        "location": "FF_X39_Y55_N4",
+        "name": "ddr_channel:ddr2_test|state.ST_READ~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16387",
+        "location": "FF_X39_Y55_N31",
+        "name": "ddr_channel:ddr2_test|state.ST_NACK~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16388",
+        "location": "FF_X37_Y55_N1",
+        "name": "ddr_channel:ddr2_test|state.ST_DONE~DUPLICATE",
+        "type": "FF"
+      },
+      {
+        "id": "16389",
+        "location": "FF_X37_Y55_N43",
+        "name": "ddr_channel:ddr2_test|state.ST_STOP~DUPLICATE",
+        "type": "FF"
+      }
+    ],
+    "timing_paths": {
+      "idle14-beats2": {
+        "clock_skew_ns": -0.13,
+        "corner": "Slow 1100mV 100C",
+        "data_delay_ns": 4.048,
+        "definition": "effective setup = setup relationship minus slack; includes clock effects and uncertainty, not data delay alone",
+        "effective_setup_ns": 4.278,
+        "endpoint": {
+          "location": "FF_X30_Y60_N26",
+          "pin": "ddr1_test|beats_left[2]|d"
+        },
+        "logic": [
+          {
+            "cell": "ddr1_test|Equal13~2|combout",
+            "delay_ns": 0.582,
+            "fanout": 7,
+            "location": "LABCELL_X33_Y59_N42"
+          },
+          {
+            "cell": "ddr1_test|beats_left[5]~1|combout",
+            "delay_ns": 0.494,
+            "fanout": 3,
+            "location": "MLABCELL_X34_Y62_N6"
+          },
+          {
+            "cell": "ddr1_test|Selector51~0|combout",
+            "delay_ns": 0.569,
+            "fanout": 1,
+            "location": "LABCELL_X30_Y60_N24"
+          }
+        ],
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.414
+      },
+      "idle23-address25": {
+        "clock_skew_ns": -0.13,
+        "corner": "Slow 1100mV 100C",
+        "data_delay_ns": 4.287,
+        "definition": "effective setup = setup relationship minus slack; includes clock effects and uncertainty, not data delay alone",
+        "effective_setup_ns": 4.517,
+        "endpoint": {
+          "location": "FF_X40_Y52_N10",
+          "pin": "ddr2_test|address[25]|ena"
+        },
+        "logic": [
+          {
+            "cell": "ddr2_test|Equal13~2|combout",
+            "delay_ns": 0.579,
+            "fanout": 6,
+            "location": "LABCELL_X40_Y55_N54"
+          },
+          {
+            "cell": "ddr2_test|Selector225~0|combout",
+            "delay_ns": 0.094,
+            "fanout": 12,
+            "location": "MLABCELL_X39_Y56_N30"
+          },
+          {
+            "cell": "ddr2_test|address[0]~1|combout",
+            "delay_ns": 0.554,
+            "fanout": 29,
+            "location": "MLABCELL_X39_Y56_N12"
+          }
+        ],
+        "logic_levels": 3,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.175
+      },
+      "ready1-address27": {
+        "clock_skew_ns": -0.78,
+        "corner": "Slow 1100mV 100C",
+        "data_delay_ns": 3.427,
+        "definition": "effective setup = setup relationship minus slack; includes clock effects and uncertainty, not data delay alone",
+        "effective_setup_ns": 4.307,
+        "endpoint": {
+          "location": "FF_X37_Y62_N25",
+          "pin": "hps_ddr|port1|skid_address[27]|ena"
+        },
+        "logic": [
+          {
+            "cell": "hps_ddr|port1|skid_write~0|combout",
+            "delay_ns": 0.095,
+            "fanout": 109,
+            "location": "LABCELL_X35_Y62_N9"
+          }
+        ],
+        "logic_levels": 1,
+        "relationship_ns": 7.692,
+        "slack_ns": 3.385
+      }
+    }
+  },
+  "queried_copy_identity": {
+    "db/top.cmp.cdb": {
+      "copy_sha256": "cc4200bae7ce6316566a1ff62df6312b46afcf02719e4fca3041be3ed6672181",
+      "sha256": "cc4200bae7ce6316566a1ff62df6312b46afcf02719e4fca3041be3ed6672181"
+    },
+    "db/top.cmp.hdb": {
+      "copy_sha256": "7b221e0ccfd0834285ba75f54c451344ad06a959aedcd90a650981f551b6964f",
+      "sha256": "7b221e0ccfd0834285ba75f54c451344ad06a959aedcd90a650981f551b6964f"
+    },
+    "db/top.cmp.idb": {
+      "copy_sha256": "b562a5ec7b882ad4bb5b2b62b4823b45c34daff912bbb941ce614f7f7c5ff8e1",
+      "sha256": "b562a5ec7b882ad4bb5b2b62b4823b45c34daff912bbb941ce614f7f7c5ff8e1"
+    },
+    "db/top.cmp.rdb": {
+      "copy_sha256": "476f47467f9fd5a1a1bc6055d41776890582ca4fe69ca0f5f9364cb7c99cd3b9",
+      "sha256": "476f47467f9fd5a1a1bc6055d41776890582ca4fe69ca0f5f9364cb7c99cd3b9"
+    },
+    "output_files/top.fit.rpt": {
+      "copy_sha256": "175727fb47ef06cbf3507bb240859663d4e457c1d9e3f3f3e721e1e199b7e681",
+      "sha256": "175727fb47ef06cbf3507bb240859663d4e457c1d9e3f3f3e721e1e199b7e681"
+    },
+    "output_files/top.map.rpt": {
+      "copy_sha256": "8042f8fb698c9ec3ccb1223637785b71f64fe2297419960425c2f94eb251204c",
+      "sha256": "8042f8fb698c9ec3ccb1223637785b71f64fe2297419960425c2f94eb251204c"
+    },
+    "output_files/top.sta.rpt": {
+      "copy_sha256": "b817ead0623022821bdc6c6ce4a55c475e36282c0524467ff58cf2477ebeadda",
+      "sha256": "b817ead0623022821bdc6c6ce4a55c475e36282c0524467ff58cf2477ebeadda"
+    },
+    "top.qsf": {
+      "copy_sha256": "7dac9740dacdf217062ad3bf84b6b3c9080b19bb12ca148dc0e2fb68371e0f43",
+      "sha256": "7dac9740dacdf217062ad3bf84b6b3c9080b19bb12ca148dc0e2fb68371e0f43"
+    }
+  }
+}

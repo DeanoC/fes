@@ -34,7 +34,13 @@ func runFramebuffer(ctx context.Context, opts Options) error {
 	defer dev.Close()
 	original := append([]byte(nil), dev.Destination()...)
 	defer copy(dev.Destination(), original)
-	opts.Width, opts.Height = dev.Config().Width, dev.Config().Height
+	return runDirectDisplay(ctx, opts, dev, "linuxfb")
+}
+
+// runDirectDisplay is the app, evdev, smoke, and present loop shared by
+// linuxfb and menu-display. linuxfb still restores the mapped bytes itself.
+func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, label string) error {
+	opts = sizedOptions(opts, dev)
 	app, err := configuredApp(opts)
 	if err != nil {
 		return err
@@ -43,7 +49,7 @@ func runFramebuffer(ctx context.Context, opts Options) error {
 	if opts.Smoke {
 		inputSpec = "none"
 	}
-	inputs, err := openNativeInputs(inputSpec)
+	inputs, err := openNativeInputs(inputSpec, label)
 	if err != nil {
 		return err
 	}
@@ -56,12 +62,17 @@ func runFramebuffer(ctx context.Context, opts Options) error {
 	}
 	app.Start(ctx)
 	defer app.Stop()
-	return framebufferLoop(ctx, opts, app, dev, inputs.poll)
+	return framebufferLoop(ctx, opts, app, dev, inputs.poll, label)
+}
+
+type directDisplay interface {
+	gfx.Device
+	Config() gfx.FBConfig
 }
 
 // framebufferLoop renders the shared App; it never programs an FPGA or
 // launches a title during smoke checks. Injected input/device keep it testable.
-func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device, poll func(*App, time.Time) (bool, error)) error {
+func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device, poll func(*App, time.Time) (bool, error), label string) error {
 	textures, labels := map[string]gpuTexture{}, map[string]gpuTexture{}
 	defer destroyTextures(dev, textures)
 	defer destroyTextures(dev, labels)
@@ -73,7 +84,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 		select {
 		case <-ctx.Done():
 			if opts.Smoke {
-				return fmt.Errorf("linuxfb smoke: %w", ctx.Err())
+				return fmt.Errorf("%s smoke: %w", label, ctx.Err())
 			}
 			return nil
 		case now := <-ticker.C:
@@ -90,7 +101,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			frames++
 			if opts.Smoke {
 				if snap.LoadErr != "" {
-					return fmt.Errorf("linuxfb smoke: %s", snap.LoadErr)
+					return fmt.Errorf("%s smoke: %s", label, snap.LoadErr)
 				}
 				if !snap.Loading && len(snap.Games) > 0 && frames >= 3 {
 					return nil
@@ -102,6 +113,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 
 type nativeInput struct {
 	fd       int
+	path     string
 	kind     InputKind
 	pending  []byte
 	shifts   map[uint16]bool
@@ -113,44 +125,126 @@ type nativeInputs struct {
 	devices   []*nativeInput
 	held      map[Command]bool
 	automatic bool
+	label     string
+	dir       string
+	lastScan  time.Time
+	scanEvery time.Duration
+	// kindOf and openFile are nil in production. Tests substitute them
+	// because a fixture node cannot answer EVIOCGBIT.
+	kindOf   func(fd int) InputKind
+	openFile func(path string) (int, error)
 }
 
-func openNativeInputs(spec string) (*nativeInputs, error) {
+func openNativeInputs(spec, label string) (*nativeInputs, error) {
+	return openNativeInputsDir(spec, label, "/dev/input")
+}
+
+func openNativeInputsDir(spec, label, dir string) (*nativeInputs, error) {
 	var paths []string
 	spec = strings.TrimSpace(spec)
+	automatic := spec == "" || spec == "auto"
 	switch spec {
 	case "none":
 		return &nativeInputs{}, nil
 	case "", "auto":
 		var err error
-		paths, err = filepath.Glob("/dev/input/event*")
+		paths, err = filepath.Glob(filepath.Join(dir, "event*"))
 		if err != nil {
 			return nil, err
 		}
 	default:
 		paths = strings.Split(spec, ",")
 	}
-	result := &nativeInputs{automatic: spec == "" || spec == "auto"}
-	for _, path := range paths {
-		fd, err := unix.Open(strings.TrimSpace(path), unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
-		if err != nil {
-			if spec != "" && spec != "auto" {
-				result.close()
-				return nil, fmt.Errorf("linuxfb input %s: %w", path, err)
-			}
-			continue
-		}
-		kind := nativeDeviceKind(fd)
-		if result.automatic && kind == InputNone {
-			unix.Close(fd)
-			continue
-		}
-		result.devices = append(result.devices, &nativeInput{fd: fd, kind: kind})
+	result := &nativeInputs{
+		automatic: automatic,
+		label:     label,
+		dir:       dir,
+		scanEvery: time.Second,
+		lastScan:  time.Now(),
 	}
-	if len(result.devices) == 0 {
-		return nil, fmt.Errorf("linuxfb: no readable supported keyboard/gamepad evdev inputs (use -input none for a display-only check)")
+	for _, path := range paths {
+		if err := result.openPath(nil, strings.TrimSpace(path)); err != nil {
+			result.close()
+			return nil, err
+		}
+	}
+	// Automatic mode paints with whatever is plugged in, including nothing.
+	// Explicit nodes are still required to open.
+	if !automatic && len(result.devices) == 0 {
+		return nil, fmt.Errorf("%s: no readable supported keyboard/gamepad evdev inputs (use -input none for a display-only check)", label)
 	}
 	return result, nil
+}
+
+func (ins *nativeInputs) openPath(app *App, path string) error {
+	if ins.hasPath(path) {
+		return nil
+	}
+	var (
+		fd  int
+		err error
+	)
+	if ins.openFile != nil {
+		fd, err = ins.openFile(path)
+	} else {
+		fd, err = unix.Open(path, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+	}
+	if err != nil {
+		if ins.automatic {
+			return nil
+		}
+		return fmt.Errorf("%s input %s: %w", ins.label, path, err)
+	}
+	kind := ins.deviceKind(fd)
+	if ins.automatic && kind == InputNone {
+		unix.Close(fd)
+		return nil
+	}
+	ins.devices = append(ins.devices, &nativeInput{fd: fd, path: path, kind: kind})
+	if app != nil {
+		app.AttachInput(kind, fd)
+	}
+	return nil
+}
+
+func (ins *nativeInputs) deviceKind(fd int) InputKind {
+	if ins != nil && ins.kindOf != nil {
+		return ins.kindOf(fd)
+	}
+	return nativeDeviceKind(fd)
+}
+
+func (ins *nativeInputs) hasPath(path string) bool {
+	for _, in := range ins.devices {
+		if in.path == path {
+			return true
+		}
+	}
+	return false
+}
+
+// maybeRescan opens event nodes that appeared after startup. Automatic mode
+// only: the supervisor is not the retry loop. Already-open paths are not
+// opened again. The cadence is one second, same classifier as startup.
+func (ins *nativeInputs) maybeRescan(app *App, now time.Time) {
+	if ins == nil || !ins.automatic || ins.dir == "" {
+		return
+	}
+	every := ins.scanEvery
+	if every <= 0 {
+		every = time.Second
+	}
+	if !ins.lastScan.IsZero() && now.Sub(ins.lastScan) < every {
+		return
+	}
+	ins.lastScan = now
+	paths, err := filepath.Glob(filepath.Join(ins.dir, "event*"))
+	if err != nil {
+		return
+	}
+	for _, path := range paths {
+		_ = ins.openPath(app, path)
+	}
 }
 func (ins *nativeInputs) close() {
 	for _, in := range ins.devices {
@@ -158,6 +252,7 @@ func (ins *nativeInputs) close() {
 	}
 }
 func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
+	ins.maybeRescan(app, now)
 devices:
 	for _, in := range append([]*nativeInput(nil), ins.devices...) {
 		// Bound draining so a noisy device cannot starve rendering or cancellation.
@@ -172,14 +267,14 @@ devices:
 					ins.drop(app, in)
 					continue devices
 				}
-				return false, fmt.Errorf("linuxfb input: %w", err)
+				return false, fmt.Errorf("%s input: %w", ins.label, err)
 			}
 			if n == 0 {
 				if ins.automatic {
 					ins.drop(app, in)
 					continue devices
 				}
-				return false, fmt.Errorf("linuxfb input: device closed")
+				return false, fmt.Errorf("%s input: device closed", ins.label)
 			}
 			in.pending = append(in.pending, b[:n]...)
 			for len(in.pending) >= nativeEventSize {
@@ -190,7 +285,7 @@ devices:
 						ins.drop(app, in)
 						continue devices
 					}
-					return false, fmt.Errorf("linuxfb input: evdev dropped events; restart to resynchronise")
+					return false, fmt.Errorf("%s input: evdev dropped events; restart to resynchronise", ins.label)
 				}
 				if typ == 1 {
 					if code == 316 {

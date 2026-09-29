@@ -13,6 +13,7 @@ case "$native_mode" in
     ;;
 esac
 launcher=$fogcast/bin/fogcast-kit-linux-armv7
+tenfoot=$fogcast/bin/fogcast-tenfoot-linux-armv7
 lock=${NATIVE_RUNTIME_INPUT_LOCK:-$fogcast/build/native-runtime.inputs.lock.toml}
 idle_input=${NATIVE_RUNTIME_IDLE_FILE:-/work/build/cache/target-image/native/idle.rbf}
 extra_cores=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)/scripts/native-extra-cores.sh
@@ -62,6 +63,11 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
   exit 1
 }
 /usr/bin/install -m 0755 "$launcher" "$target/usr/sbin/fogcast-kit"
+[ -f "$tenfoot" ] && [ ! -L "$tenfoot" ] && [ -x "$tenfoot" ] || {
+  printf '%s\n' 'native-post-build: run make build-fogcast-tenfoot-kit before image assembly' >&2
+  exit 1
+}
+/usr/bin/install -m 0755 "$tenfoot" "$target/usr/sbin/fogcast-tenfoot"
 
 runtime_commit=$(read_lock_value mister_runtime commit)
 splash_fat_destination=$(read_lock_value splash_rbf fat_destination)
@@ -133,6 +139,7 @@ if [ "$native_mode" = package-only ]; then
     printf 'mister_runtime_commit=%s\n' "$runtime_commit"
     printf 'mister_agent_sha256=%s\n' "$mister_agent_sha"
     printf 'fogcast_kit_sha256=%s\n' "$(/usr/bin/sha256sum "$target/usr/sbin/fogcast-kit" | /usr/bin/awk '{print $1}')"
+    printf 'fogcast_tenfoot_sha256=%s\n' "$(/usr/bin/sha256sum "$target/usr/sbin/fogcast-tenfoot" | /usr/bin/awk '{print $1}')"
     printf 'idle_repository=%s\n' "$idle_repository"
     printf 'idle_commit=%s\n' "$idle_commit"
     printf 'idle_path=%s\n' "$idle_path"

@@ -1,0 +1,5485 @@
+{
+  "arrivals": {
+    "groups": [
+      {
+        "baseline_worst_arrival_ns": 9.968999862670898,
+        "candidate_worst_arrival_ns": 9.541000366210938,
+        "channel": 0,
+        "improved": 28,
+        "regressed": 0,
+        "root_bit": 202,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_10",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 9.267000198364258,
+              "min_arrival_ns": 4.822000026702881
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_11",
+            "max_arrival_change_ns": -0.03699970245361328,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_12",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_13",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_14",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_15",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.621000289916992,
+              "min_arrival_ns": 5.140999794006348
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 9.541000366210938,
+              "min_arrival_ns": 5.0960001945495605
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_16",
+            "max_arrival_change_ns": -0.07999992370605469,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.621000289916992,
+              "min_arrival_ns": 5.140999794006348
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 9.541000366210938,
+              "min_arrival_ns": 5.0960001945495605
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_17",
+            "max_arrival_change_ns": -0.07999992370605469,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_18",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.621000289916992,
+              "min_arrival_ns": 5.140999794006348
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 9.541000366210938,
+              "min_arrival_ns": 5.0960001945495605
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_19",
+            "max_arrival_change_ns": -0.07999992370605469,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_20",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.968999862670898,
+              "min_arrival_ns": 5.488999843597412
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.96399974822998,
+              "min_arrival_ns": 4.519000053405762
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_21",
+            "max_arrival_change_ns": -1.005000114440918,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 9.267000198364258,
+              "min_arrival_ns": 4.822000026702881
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_22",
+            "max_arrival_change_ns": -0.03699970245361328,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_23",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_24",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_25",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.968999862670898,
+              "min_arrival_ns": 5.488999843597412
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.96399974822998,
+              "min_arrival_ns": 4.519000053405762
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_26",
+            "max_arrival_change_ns": -1.005000114440918,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_27",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 9.267000198364258,
+              "min_arrival_ns": 4.822000026702881
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -0.03699970245361328,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 9.267000198364258,
+              "min_arrival_ns": 4.822000026702881
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -0.03699970245361328,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.303999900817871,
+              "min_arrival_ns": 4.823999881744385
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 9.267000198364258,
+              "min_arrival_ns": 4.822000026702881
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_8",
+            "max_arrival_change_ns": -0.03699970245361328,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.015000343322754,
+              "min_arrival_ns": 4.534999847412109
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control1",
+              "max_arrival_ns": 8.88700008392334,
+              "min_arrival_ns": 4.441999912261963
+            },
+            "cell": "ddr0_address_MISTRAL_FF_Q_9",
+            "max_arrival_change_ns": -0.12800025939941406,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 28,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 9.293000221252441,
+        "candidate_worst_arrival_ns": 8.361000061035156,
+        "channel": 0,
+        "improved": 8,
+        "regressed": 0,
+        "root_bit": 1614,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 8.361000061035156,
+              "min_arrival_ns": 4.480999946594238
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -0.9320001602172852,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 8.361000061035156,
+              "min_arrival_ns": 4.480999946594238
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -0.9320001602172852,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 8.361000061035156,
+              "min_arrival_ns": 4.480999946594238
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -0.9320001602172852,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 8.361000061035156,
+              "min_arrival_ns": 4.480999946594238
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -0.9320001602172852,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 8.361000061035156,
+              "min_arrival_ns": 4.480999946594238
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -0.9320001602172852,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 8.361000061035156,
+              "min_arrival_ns": 4.480999946594238
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -0.9320001602172852,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 8.361000061035156,
+              "min_arrival_ns": 4.480999946594238
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -0.9320001602172852,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.293000221252441,
+              "min_arrival_ns": 3.74399995803833
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch0_control0",
+              "max_arrival_ns": 8.361000061035156,
+              "min_arrival_ns": 4.480999946594238
+            },
+            "cell": "ddr0_test.beats_left_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -0.9320001602172852,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 8,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 10.041999816894531,
+        "candidate_worst_arrival_ns": 10.366999626159668,
+        "channel": 1,
+        "improved": 3,
+        "regressed": 26,
+        "root_bit": 3255,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.67199993133545,
+              "min_arrival_ns": 4.269999980926514
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 10.072999954223633,
+              "min_arrival_ns": 5.5229997634887695
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": 0.4010000228881836,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.937999725341797,
+              "min_arrival_ns": 5.388000011444092
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_10",
+            "max_arrival_change_ns": 0.7329998016357422,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.937999725341797,
+              "min_arrival_ns": 5.388000011444092
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_11",
+            "max_arrival_change_ns": 0.7329998016357422,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_12",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.937999725341797,
+              "min_arrival_ns": 5.388000011444092
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_13",
+            "max_arrival_change_ns": 0.7329998016357422,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_14",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_15",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.140999794006348,
+              "min_arrival_ns": 3.739000082015991
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 10.206999778747559,
+              "min_arrival_ns": 5.6570000648498535
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_16",
+            "max_arrival_change_ns": 1.065999984741211,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_17",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.920000076293945,
+              "min_arrival_ns": 4.51800012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.822999954223633,
+              "min_arrival_ns": 5.2729997634887695
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_18",
+            "max_arrival_change_ns": -0.0970001220703125,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_19",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.937999725341797,
+              "min_arrival_ns": 5.388000011444092
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_20",
+            "max_arrival_change_ns": 0.7329998016357422,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.307999610900879,
+              "min_arrival_ns": 3.9059998989105225
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 10.366999626159668,
+              "min_arrival_ns": 5.816999912261963
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_21",
+            "max_arrival_change_ns": 1.059000015258789,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.79699993133545,
+              "min_arrival_ns": 4.394999980926514
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.135000228881836,
+              "min_arrival_ns": 4.585000038146973
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_22",
+            "max_arrival_change_ns": -0.6619997024536133,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.937999725341797,
+              "min_arrival_ns": 5.388000011444092
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_23",
+            "max_arrival_change_ns": 0.7329998016357422,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_24",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_25",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.140999794006348,
+              "min_arrival_ns": 3.739000082015991
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 10.206999778747559,
+              "min_arrival_ns": 5.6570000648498535
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_26",
+            "max_arrival_change_ns": 1.065999984741211,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.937999725341797,
+              "min_arrival_ns": 5.388000011444092
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_27",
+            "max_arrival_change_ns": 0.7329998016357422,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.204999923706055,
+              "min_arrival_ns": 3.802999973297119
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.937999725341797,
+              "min_arrival_ns": 5.388000011444092
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_28",
+            "max_arrival_change_ns": 0.7329998016357422,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.281000137329102,
+              "min_arrival_ns": 3.878999948501587
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 10.307999610900879,
+              "min_arrival_ns": 5.757999897003174
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": 1.0269994735717773,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 9.140999794006348,
+              "min_arrival_ns": 3.739000082015991
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 10.206999778747559,
+              "min_arrival_ns": 5.6570000648498535
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": 1.065999984741211,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 10.041999816894531,
+              "min_arrival_ns": 4.639999866485596
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.291999816894531,
+              "min_arrival_ns": 4.742000102996826
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -0.75,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_8",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+              "max_arrival_ns": 8.817000389099121,
+              "min_arrival_ns": 3.4149999618530273
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control0",
+              "max_arrival_ns": 9.986000061035156,
+              "min_arrival_ns": 5.435999870300293
+            },
+            "cell": "ddr1_address_MISTRAL_FF_Q_9",
+            "max_arrival_change_ns": 1.1689996719360352,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 29,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 9.932999610900879,
+        "candidate_worst_arrival_ns": 8.77299976348877,
+        "channel": 1,
+        "improved": 8,
+        "regressed": 0,
+        "root_bit": 4207,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 8.77299976348877,
+              "min_arrival_ns": 5.236999988555908
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -1.1599998474121094,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 8.77299976348877,
+              "min_arrival_ns": 5.236999988555908
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -1.1599998474121094,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 8.77299976348877,
+              "min_arrival_ns": 5.236999988555908
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -1.1599998474121094,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 8.77299976348877,
+              "min_arrival_ns": 5.236999988555908
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -1.1599998474121094,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 8.77299976348877,
+              "min_arrival_ns": 5.236999988555908
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -1.1599998474121094,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 8.77299976348877,
+              "min_arrival_ns": 5.236999988555908
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -1.1599998474121094,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 8.77299976348877,
+              "min_arrival_ns": 5.236999988555908
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -1.1599998474121094,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+              "max_arrival_ns": 9.932999610900879,
+              "min_arrival_ns": 3.752000093460083
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch1_control1",
+              "max_arrival_ns": 8.77299976348877,
+              "min_arrival_ns": 5.236999988555908
+            },
+            "cell": "ddr1_test.beats_left_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -1.1599998474121094,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 8,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 10.055000305175781,
+        "candidate_worst_arrival_ns": 9.041000366210938,
+        "channel": 2,
+        "improved": 29,
+        "regressed": 0,
+        "root_bit": 5528,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_10",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_11",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_12",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_13",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_14",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_15",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_16",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_17",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_18",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_19",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_20",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_21",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_22",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_23",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_24",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_25",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_26",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_27",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 10.055000305175781,
+              "min_arrival_ns": 4.89300012588501
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 9.041000366210938,
+              "min_arrival_ns": 5.36299991607666
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_28",
+            "max_arrival_change_ns": -1.0139999389648438,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_8",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+              "max_arrival_ns": 9.661999702453613,
+              "min_arrival_ns": 4.5
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control0",
+              "max_arrival_ns": 8.934000015258789,
+              "min_arrival_ns": 5.25600004196167
+            },
+            "cell": "ddr2_address_MISTRAL_FF_Q_9",
+            "max_arrival_change_ns": -0.7279996871948242,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 29,
+        "unchanged": 0
+      },
+      {
+        "baseline_worst_arrival_ns": 10.118000030517578,
+        "candidate_worst_arrival_ns": 8.152000427246094,
+        "channel": 2,
+        "improved": 8,
+        "regressed": 0,
+        "root_bit": 6450,
+        "rows": [
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 8.152000427246094,
+              "min_arrival_ns": 4.010000228881836
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q",
+            "max_arrival_change_ns": -1.9659996032714844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 8.152000427246094,
+              "min_arrival_ns": 4.010000228881836
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_1",
+            "max_arrival_change_ns": -1.9659996032714844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 8.152000427246094,
+              "min_arrival_ns": 4.010000228881836
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_2",
+            "max_arrival_change_ns": -1.9659996032714844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 8.152000427246094,
+              "min_arrival_ns": 4.010000228881836
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_3",
+            "max_arrival_change_ns": -1.9659996032714844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 8.152000427246094,
+              "min_arrival_ns": 4.010000228881836
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_4",
+            "max_arrival_change_ns": -1.9659996032714844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 8.152000427246094,
+              "min_arrival_ns": 4.010000228881836
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_5",
+            "max_arrival_change_ns": -1.9659996032714844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 8.152000427246094,
+              "min_arrival_ns": 4.010000228881836
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_6",
+            "max_arrival_change_ns": -1.9659996032714844,
+            "port": "ENA"
+          },
+          {
+            "baseline": {
+              "driver": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+              "max_arrival_ns": 10.118000030517578,
+              "min_arrival_ns": 3.431999921798706
+            },
+            "candidate": {
+              "driver": "timeout_partition_ch2_control1",
+              "max_arrival_ns": 8.152000427246094,
+              "min_arrival_ns": 4.010000228881836
+            },
+            "cell": "ddr2_test.beats_left_MISTRAL_FF_Q_7",
+            "max_arrival_change_ns": -1.9659996032714844,
+            "port": "ENA"
+          }
+        ],
+        "sinks": 8,
+        "unchanged": 0
+      }
+    ],
+    "scope": "Matched FF ENA max arrival from any posedge memory launch. No capture-clock/setup adjustment; NOT setup slack, NOT matched-launch timeout path delay. Surviving placements fixed; new replacement cells and all routes may differ.",
+    "source_sha256": {
+      "out/ramtest-enable-replication/budget4-c2/timing.json": "269e184586ee02d6a4fca0f1d3bc713e99f08abfdefd0e14b45e55d0346ee468",
+      "out/ramtest-placed-timeout/patched-c2/timing.json": "35ba176966f2b2ed91ff5e831e24942302983b13842ecf5a69b8411388d2fd0a"
+    }
+  },
+  "artifact_root": "out/ramtest-placed-timeout",
+  "artifacts_sha256": {
+    "analyze_path.py": "398f363335b2549b3b7f3a40a5ea33b035abe655f12e39d6cdcf14010c95c145",
+    "arrivals.json": "59a2a4dd5fb73cc5eaf945369bd45ecbaa6f12d70bb61a3511521d586e5fb081",
+    "backend-formatted-green.log": "1383552527f1baf7a4ea55e8f3881109c15bc8d489f396827f69554519384a2d",
+    "backend-green.log": "6cf708ee63e76318fbe00cb3264ca817223ff596a6ebcbdd0f99c8eb5db65493",
+    "backend-red.log": "29a1025701ef0c75a6b3ef529fcb19204dad8d0d3e3788ab174cda46a75516d1",
+    "baseline-cut-inputs.json": "9f99f5f005fa1017fbed9ed2fdfdf7448dcc187c3789ee06ab6d48d0ca1cc33f",
+    "baseline-roots.json": "1e9dc09fc5955aad8bfa70bcbbfca29e7fd2df1bbc055cbbd507955ac64db883",
+    "build-formatted.log": "92532055a908ee8fb9d6bbae9be8c934544b64600fd08567e4a9e2264f75b39c",
+    "build-green.log": "98800fb1e007074a24c0794d1c16eebf44caf09a3cd96c3d7d45344e2948f8bb",
+    "check_baseline.py": "f6ae68e59994fd0c48a3eb15a47f4052a152bf18e2ab16f8175dc859b7ba2433",
+    "check_snapshots.py": "515f43f793b93f7eabe5b6fa162b5a67c774c9d9c2103672e107aec2eaa1ce29",
+    "checker-green.log": "c214a2b55121e713e5aeb65324e4a476b0a6ba736119ea8be4d68989c90c1076",
+    "checker-red.log": "141fd9afc34f2627dbb65833106ea42429090535dc3955c82bd7d06ecf68e29a",
+    "checker-routing-red.log": "89b64359ba50adad2135ff9816776a4a9c7b9f90c64b9f08dfd25f4968b81c80",
+    "compare_arrivals.py": "b501f02294b312dd0295bb36c2503f4dd76b76776f186596c7f18a5090f5dc80",
+    "compiler-build.json": "8975fbe4a82dc8a513dc555e56b3d7d36295232c1f8dbcc4a52224e23a3f3a52",
+    "critical-memory-path.json": "52e4d0f5fb4c873236b12269a544a2cf910ea3e965376049a54dc5ef2efc9fa0",
+    "critical-placements.json": "cb1e084b24e0acacdef4eb3f5e928b92e15f218774360bee5e12d70a0372f6fa",
+    "ctest-detail.log": "4f8a3c07381c664c621ea8c78edd3bb04456bf729fee7bc77d25e0bcdca1401f",
+    "ctest.log": "900b62f466b88cca0da95932b4580eaf399200bb45aa9ae19079a08646f89ef3",
+    "default-checks/absent.json": "35025d595a70e039f154511a1ef260d0038fa181794efaabb3387c351676a042",
+    "default-checks/absent.log": "9ec114a9839b6561c70abb73e6df3b4df6f6debfe2d1dbd62288b8d0374e04ed",
+    "default-checks/empty.json": "35025d595a70e039f154511a1ef260d0038fa181794efaabb3387c351676a042",
+    "default-checks/empty.log": "203fc5183127efc8118a4543807120fc855801ae95e75b276b502822fe9af92d",
+    "default-checks/proof.json": "bf1aec572f142b5bfa05d4f89b30d1abd2c67163a749e0d889e8cd93acd109c0",
+    "focused-tests.log": "c214a2b55121e713e5aeb65324e4a476b0a6ba736119ea8be4d68989c90c1076",
+    "format-install.log": "01cc8836962d7d07db2d2e3108a9935028e4d06a043f6507812afedd93af1012",
+    "generate_payload.py": "ad7194aa6515e8800b878ab16c2cc47984dcb693252182ccefffa15a2efb5c2d",
+    "patched-c2/arcs.tsv": "608533dee422570106be5a619a8372a71cb3fbef96be8cb63e16982655f37068",
+    "patched-c2/baseline-proof.json": "1a80f4371b323d86c206d7a13e3d930664496d97f959b84753200afbd72c0a3c",
+    "patched-c2/core.rbf": "912bcf323d1f1e3876253e37912682c99d54704833b8653096542490b40bbf79",
+    "patched-c2/invocation.json": "bc56e34490e3e7f3b02131019497d5c9138b9a2ab607c8d43000cab3844e46f8",
+    "patched-c2/proofs.log": "66224bbff40b40b62dc4db51e2e9796fba91ffe376034c68151192c01632bf88",
+    "patched-c2/replication.after.json": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+    "patched-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "patched-c2/replication.before.json": "73c87a91e50ba630b40f8959dcea7a796c384a646b76ff2d45db286a74f001cc",
+    "patched-c2/replication.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "patched-c2/replication.replicas.tsv": "2ab7392382fb43de93e98a1d744626835d0e3d44c5b54977c9bc5b66bfabe0b1",
+    "patched-c2/result.json": "44d823b448f0f247bdfd677db917971e68791b4d5888124cbeb2107da25d8f66",
+    "patched-c2/routed.json": "470905aedc4b94e3428a319e0c0347225898bbdb84df1dff4b0b6587642dc390",
+    "patched-c2/run.log": "a57b4184c0930f97a7e158b065387aec016744555803b93a957e983b85cc17de",
+    "patched-c2/snapshot-proof.json": "982327a0679cf8503e0113f30f1c1d31c61dc2880d9bebc3f337bb8072e8cce3",
+    "patched-c2/timeout.after.json": "7e2bc7cc1a4b96b2bb5f97d15bf5c40a2319af787681b223d2da79be7b278ee6",
+    "patched-c2/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "patched-c2/timeout.before.json": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+    "patched-c2/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "patched-c2/timeout.manifest.json": "107ecef78f81dd76a57223e7d97060b2968edfc113eca4f941670bc78b103903",
+    "patched-c2/timeout.sites.tsv": "b335e029f6ecd919d3d21591af65695bf1c38fc40abbbb583f4cf8dff9481823",
+    "patched-c2/timing.json": "35ba176966f2b2ed91ff5e831e24942302983b13842ecf5a69b8411388d2fd0a",
+    "payload-green.log": "38740b9dbd5da651694cb6260643faacbc4c0512c8f77619c0b41f86eef2d896",
+    "payload-red.log": "e89ad43b1381f1967973edf453e3b5faa0c2ca742b8424fd97e59444a1ec0d08",
+    "payload.json": "74b9712ebcf19a5a51bd1f48210732054a2d29d7d5c406622e9d195893985713",
+    "placed_timeout_payload.inc": "5242b68a6faa72fb52bfb9be20147578a118723113e226f5a46df811a8897bf8",
+    "preflight-proof.json": "13612f36f4185bcde91ff43bbb299fc9e2dedcc63c961a010803878779f100da",
+    "preflight.after.json": "e1dcda889d65294a645c7d29f4033098f84881e35a63e7b275267d95092b5e51",
+    "preflight.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+    "preflight.before.json": "ad51a538632a8cea23afc4d6ac58abc8ccdc3e539bf4669cd3ad3844bc973630",
+    "preflight.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "preflight.manifest.json": "107ecef78f81dd76a57223e7d97060b2968edfc113eca4f941670bc78b103903",
+    "preflight.sites.tsv": "14c7f25fe66a5cf415fd2fd3bb5f8fbd0d9597c15dcd6d6f647aa44a8dda8710",
+    "routed-placement-proof.json": "7d0687b81714876f91dc88297d21af29812045266eef3e1ab86ab25ba3ee3cd0",
+    "run_route.py": "be6ff4a79087c6c33d6bfef0a2b9778d5ce248ac0af486e3d8a1d2dcf6c3b4c1",
+    "scope.json": "d6b14b571cb09db24e85a3aff91842713454be73fb13fa8e6cb5e1ccc4a3007b",
+    "search-coverage.json": "f64cea50ca708532ecc5cb206d9cc5d96ea71abe5483e3ab08004ce7b5de76c0",
+    "summarize.py": "7d8a033f45b9a6d1f42abb875a5948443831614c48a38cd78f142f06bb7fa1af",
+    "test_check_snapshots.py": "31fa7b70297ea97d823498fbe5d3656db6a7947ab0579d926c936018745a63b3",
+    "test_payload.py": "7e6823cb8bed6713afcd9f966f025ff33a8a12a256efeb34df648f097c217a49",
+    "tests.json": "14a8acb1ea50788cbd238262806fa83d1c4b769517220de17eff4c5efe8912ad",
+    "tools/nextpnr-placed-timeout": "708294903b7ceb1cda4578b6bb14c2736dee29b809fbce7162d920db8220b899",
+    "validation.json": "32ed7862c22669037fe1ce40faa4a8bb80ff1a43d36bc985b2cfdfdf89812b2c",
+    "verify_evidence.py": "bd3b60da4892ab64dbee7552d5ad31e9f631f3e7527ae4c3757a619bbde09092"
+  },
+  "baseline-cut-inputs": [
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_16",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2212
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_12",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2204
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_6",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2236
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_18",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2216
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_8",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2240
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2195
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_15",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2210
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_13",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2206
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_23",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2228
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_19",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2218
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_2",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2220
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_14",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2208
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_7",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2238
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_17",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2214
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_11",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2202
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_20",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2222
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_21",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2224
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_4",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2232
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_1",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2198
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_5",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2234
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_3",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2230
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_9",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2242
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_22",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2226
+    },
+    {
+      "cell": "ddr0_test.idle_MISTRAL_FF_Q_10",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 2200
+    },
+    {
+      "cell": "ddr0_test.state_MISTRAL_FF_Q_4",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 295
+    },
+    {
+      "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_2_Q_MISTRAL_FF_DATAIN",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 297
+    },
+    {
+      "cell": "ddr0_test.state_MISTRAL_FF_Q_2",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 299
+    },
+    {
+      "cell": "ddr0_read_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 927
+    },
+    {
+      "cell": "ddr0_test.state_MISTRAL_FF_Q_3",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 928
+    },
+    {
+      "cell": "ddr0_test.state_MISTRAL_FF_Q_1",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 933
+    },
+    {
+      "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 994
+    },
+    {
+      "cell": "hps_ddr.port0.draining_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 1001
+    },
+    {
+      "cell": "ddr0_test.pass_end_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 1598
+    },
+    {
+      "cell": "ddr0_test.burst_end_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 1604
+    },
+    {
+      "cell": "ddr0_test.cmd_end_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 1721
+    },
+    {
+      "cell": "ddr0_test.write_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3082
+    },
+    {
+      "cell": "hps_ddr.port0.skid_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3087
+    },
+    {
+      "cell": "hps_ddr.port0.finishing_MISTRAL_FF_Q",
+      "channel": 0,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3088
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_21",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4659
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_4",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4667
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_3",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4665
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_17",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4649
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_14",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4643
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_6",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4671
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_15",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4645
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_18",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4651
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_10",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4635
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_19",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4653
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_1",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4633
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_9",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4677
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_8",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4675
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_5",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4669
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_16",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4647
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_20",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4657
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_13",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4641
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_23",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4663
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_22",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4661
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_2",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4655
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_11",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4637
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4630
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_7",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4673
+    },
+    {
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_12",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 4639
+    },
+    {
+      "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 994
+    },
+    {
+      "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_1_Q_MISTRAL_FF_DATAIN",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3345
+    },
+    {
+      "cell": "ddr1_test.state_MISTRAL_FF_Q_4",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3455
+    },
+    {
+      "cell": "ddr1_test.state_MISTRAL_FF_Q_1",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3456
+    },
+    {
+      "cell": "ddr1_test.pass_end_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3458
+    },
+    {
+      "cell": "ddr1_test.state_MISTRAL_FF_Q_3",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3472
+    },
+    {
+      "cell": "ddr1_read_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3732
+    },
+    {
+      "cell": "ddr1_test.state_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3734
+    },
+    {
+      "cell": "hps_ddr.port1.draining_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 3800
+    },
+    {
+      "cell": "ddr1_test.burst_end_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 4240
+    },
+    {
+      "cell": "ddr1_test.cmd_end_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 4309
+    },
+    {
+      "cell": "ddr1_test.write_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5414
+    },
+    {
+      "cell": "hps_ddr.port1.skid_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5424
+    },
+    {
+      "cell": "hps_ddr.port1.finishing_MISTRAL_FF_Q",
+      "channel": 1,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5425
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_1",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6021
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6020
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_23",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6019
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_2",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6018
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_3",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6026
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_4",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6025
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_5",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6024
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_6",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6023
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_7",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6007
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_8",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6006
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_9",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6005
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_10",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6004
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_11",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6030
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_12",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6029
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_13",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6028
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_14",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6027
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_15",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6012
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_16",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6011
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_17",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6010
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_18",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6009
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_19",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6017
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_20",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6016
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_21",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6015
+    },
+    {
+      "cell": "ddr2_test.idle_MISTRAL_FF_Q_22",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "idle_bits",
+      "synth_bit": 6014
+    },
+    {
+      "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 994
+    },
+    {
+      "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_FF_DATAIN",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5616
+    },
+    {
+      "cell": "ddr2_test.state_MISTRAL_FF_Q_1",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5726
+    },
+    {
+      "cell": "ddr2_test.state_MISTRAL_FF_Q_2",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5727
+    },
+    {
+      "cell": "ddr2_test.pass_end_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5732
+    },
+    {
+      "cell": "ddr2_test.burst_end_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5733
+    },
+    {
+      "cell": "ddr2_read_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5993
+    },
+    {
+      "cell": "ddr2_test.state_MISTRAL_FF_Q_3",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 5994
+    },
+    {
+      "cell": "ddr2_test.state_MISTRAL_FF_Q_4",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 6032
+    },
+    {
+      "cell": "hps_ddr.port2.draining_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 6039
+    },
+    {
+      "cell": "ddr2_test.cmd_end_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 6569
+    },
+    {
+      "cell": "ddr2_test.write_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 7697
+    },
+    {
+      "cell": "hps_ddr.port2.finishing_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 7702
+    },
+    {
+      "cell": "hps_ddr.port2.skid_MISTRAL_FF_Q",
+      "channel": 2,
+      "pin_state": 0,
+      "port": "Q",
+      "role": "other_input_bits",
+      "synth_bit": 7703
+    }
+  ],
+  "compiler-build": {
+    "binary": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/tools/nextpnr-placed-timeout",
+    "binary_sha256": "708294903b7ceb1cda4578b6bb14c2736dee29b809fbce7162d920db8220b899",
+    "build_note": "Built before final commit; committed production bytes exactly match qualified formatted build.",
+    "payload_sha256": "74b9712ebcf19a5a51bd1f48210732054a2d29d7d5c406622e9d195893985713",
+    "production_digest": "1f895f8ad24a675d482663971b2be0f05c739baaed3985119a6e7c7d40440c68",
+    "production_files": {
+      "mistral/CMakeLists.txt": "9af6987851be126e393d78336c1eff2d8553706cb20f726342c0edc2fe94297a",
+      "mistral/arch.cc": "5eab1bf27dd3ec5f8ef064f8780bf714bfb0b0bc850b9d4bb0d3c2e157ca5ac6",
+      "mistral/placed_timeout.cc": "52683af8896da1abd89d0c91e1353179ccd74d543f66152f3ed2fb3edc1810d9",
+      "mistral/placed_timeout_payload.inc": "5242b68a6faa72fb52bfb9be20147578a118723113e226f5a46df811a8897bf8"
+    },
+    "review_proof": "13612f36f4185bcde91ff43bbb299fc9e2dedcc63c961a010803878779f100da",
+    "source_base": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+    "source_branch": "probe/ramtest-placed-timeout",
+    "source_commit": "5dd493476bfcb15cb7671c1ea4b72a8e04c3daf1",
+    "tests": {
+      "ctest_passed": 18,
+      "ctest_skipped": 1,
+      "default_control": "Exact full197-cell top-module equality for absent and empty environment prefix.",
+      "files": {
+        "backend-formatted-green.log": "1383552527f1baf7a4ea55e8f3881109c15bc8d489f396827f69554519384a2d",
+        "backend-red.log": "29a1025701ef0c75a6b3ef529fcb19204dad8d0d3e3788ab174cda46a75516d1",
+        "ctest-detail.log": "4f8a3c07381c664c621ea8c78edd3bb04456bf729fee7bc77d25e0bcdca1401f",
+        "ctest.log": "900b62f466b88cca0da95932b4580eaf399200bb45aa9ae19079a08646f89ef3",
+        "default-checks/proof.json": "bf1aec572f142b5bfa05d4f89b30d1abd2c67163a749e0d889e8cd93acd109c0",
+        "generate_payload.py": "ad7194aa6515e8800b878ab16c2cc47984dcb693252182ccefffa15a2efb5c2d",
+        "payload-green.log": "38740b9dbd5da651694cb6260643faacbc4c0512c8f77619c0b41f86eef2d896",
+        "payload-red.log": "e89ad43b1381f1967973edf453e3b5faa0c2ca742b8424fd97e59444a1ec0d08",
+        "payload.json": "74b9712ebcf19a5a51bd1f48210732054a2d29d7d5c406622e9d195893985713",
+        "placed_timeout_payload.inc": "5242b68a6faa72fb52bfb9be20147578a118723113e226f5a46df811a8897bf8",
+        "test_payload.py": "7e6823cb8bed6713afcd9f966f025ff33a8a12a256efeb34df648f097c217a49"
+      },
+      "focused_backend_tests": 2,
+      "generator_tests": 3,
+      "skipped_note": "ActualSnapshotPreflight separately executed and passed with baseline snapshot."
+    }
+  },
+  "critical-memory-path": [
+    {
+      "delay": 0.035999998450279236,
+      "from": {
+        "bel": "MISTRAL_FF.42.17.52",
+        "cell": "ddr1_test.idle_MISTRAL_FF_Q_11",
+        "loc": [
+          42,
+          17
+        ],
+        "port": "CLK"
+      },
+      "to": {
+        "bel": "MISTRAL_FF.23.16.20",
+        "cell": "ddr1_address_MISTRAL_FF_Q_21",
+        "loc": [
+          23,
+          16
+        ],
+        "port": "CLK"
+      },
+      "type": "clk-skew"
+    },
+    {
+      "delay": 0.7310000061988831,
+      "from": {
+        "bel": "MISTRAL_FF.42.17.52",
+        "cell": "ddr1_test.idle_MISTRAL_FF_Q_11",
+        "loc": [
+          42,
+          17
+        ],
+        "port": "Q"
+      },
+      "to": {
+        "bel": "MISTRAL_FF.42.17.52",
+        "cell": "ddr1_test.idle_MISTRAL_FF_Q_11",
+        "loc": [
+          42,
+          17
+        ],
+        "port": "Q"
+      },
+      "type": "clk-to-q"
+    },
+    {
+      "delay": 1.2330000400543213,
+      "from": {
+        "bel": "MISTRAL_FF.42.17.52",
+        "cell": "ddr1_test.idle_MISTRAL_FF_Q_11",
+        "loc": [
+          42,
+          17
+        ],
+        "port": "Q"
+      },
+      "net": "ddr1_test.idle[20]",
+      "sources": [
+        "cores/fes-ramtest/rtl/ddr_channel.v:148.16-148.20"
+      ],
+      "to": {
+        "bel": "MISTRAL_COMB.35.17.1",
+        "cell": "timeout_partition_ch1_part3",
+        "loc": [
+          35,
+          17
+        ],
+        "port": "C"
+      },
+      "type": "routing"
+    },
+    {
+      "delay": 0.5099999904632568,
+      "from": {
+        "bel": "MISTRAL_COMB.35.17.1",
+        "cell": "timeout_partition_ch1_part3",
+        "loc": [
+          35,
+          17
+        ],
+        "port": "C"
+      },
+      "to": {
+        "bel": "MISTRAL_COMB.35.17.1",
+        "cell": "timeout_partition_ch1_part3",
+        "loc": [
+          35,
+          17
+        ],
+        "port": "Q"
+      },
+      "type": "logic"
+    },
+    {
+      "delay": 0.5979999899864197,
+      "from": {
+        "bel": "MISTRAL_COMB.35.17.1",
+        "cell": "timeout_partition_ch1_part3",
+        "loc": [
+          35,
+          17
+        ],
+        "port": "Q"
+      },
+      "net": "timeout_partition_ch1_part3$placed_timeout_q",
+      "sources": [],
+      "to": {
+        "bel": "MISTRAL_MCOMB.34.18.18",
+        "cell": "timeout_partition_ch1_reduce",
+        "loc": [
+          34,
+          18
+        ],
+        "port": "D"
+      },
+      "type": "routing"
+    },
+    {
+      "delay": 0.09700000286102295,
+      "from": {
+        "bel": "MISTRAL_MCOMB.34.18.18",
+        "cell": "timeout_partition_ch1_reduce",
+        "loc": [
+          34,
+          18
+        ],
+        "port": "D"
+      },
+      "to": {
+        "bel": "MISTRAL_MCOMB.34.18.18",
+        "cell": "timeout_partition_ch1_reduce",
+        "loc": [
+          34,
+          18
+        ],
+        "port": "Q"
+      },
+      "type": "logic"
+    },
+    {
+      "delay": 0.6790000200271606,
+      "from": {
+        "bel": "MISTRAL_MCOMB.34.18.18",
+        "cell": "timeout_partition_ch1_reduce",
+        "loc": [
+          34,
+          18
+        ],
+        "port": "Q"
+      },
+      "net": "timeout_partition_ch1_reduce$placed_timeout_q",
+      "sources": [],
+      "to": {
+        "bel": "MISTRAL_COMB.37.20.0",
+        "cell": "timeout_partition_ch1_control3",
+        "loc": [
+          37,
+          20
+        ],
+        "port": "B"
+      },
+      "type": "routing"
+    },
+    {
+      "delay": 0.09700000286102295,
+      "from": {
+        "bel": "MISTRAL_COMB.37.20.0",
+        "cell": "timeout_partition_ch1_control3",
+        "loc": [
+          37,
+          20
+        ],
+        "port": "B"
+      },
+      "to": {
+        "bel": "MISTRAL_COMB.37.20.0",
+        "cell": "timeout_partition_ch1_control3",
+        "loc": [
+          37,
+          20
+        ],
+        "port": "Q"
+      },
+      "type": "logic"
+    },
+    {
+      "delay": 1.5,
+      "from": {
+        "bel": "MISTRAL_COMB.37.20.0",
+        "cell": "timeout_partition_ch1_control3",
+        "loc": [
+          37,
+          20
+        ],
+        "port": "Q"
+      },
+      "net": "timeout_partition_ch1_control3$placed_timeout_q",
+      "sources": [],
+      "to": {
+        "bel": "MISTRAL_COMB.33.27.0",
+        "cell": "timeout_partition_ch1_control9",
+        "loc": [
+          33,
+          27
+        ],
+        "port": "F"
+      },
+      "type": "routing"
+    },
+    {
+      "delay": 0.09700000286102295,
+      "from": {
+        "bel": "MISTRAL_COMB.33.27.0",
+        "cell": "timeout_partition_ch1_control9",
+        "loc": [
+          33,
+          27
+        ],
+        "port": "F"
+      },
+      "to": {
+        "bel": "MISTRAL_COMB.33.27.0",
+        "cell": "timeout_partition_ch1_control9",
+        "loc": [
+          33,
+          27
+        ],
+        "port": "Q"
+      },
+      "type": "logic"
+    },
+    {
+      "delay": 1.0950000286102295,
+      "from": {
+        "bel": "MISTRAL_COMB.33.27.0",
+        "cell": "timeout_partition_ch1_control9",
+        "loc": [
+          33,
+          27
+        ],
+        "port": "Q"
+      },
+      "net": "timeout_partition_ch1_control9$placed_timeout_q",
+      "sources": [],
+      "to": {
+        "bel": "MISTRAL_COMB.33.21.0",
+        "cell": "timeout_partition_ch1_control0",
+        "loc": [
+          33,
+          21
+        ],
+        "port": "E"
+      },
+      "type": "routing"
+    },
+    {
+      "delay": 0.4000000059604645,
+      "from": {
+        "bel": "MISTRAL_COMB.33.21.0",
+        "cell": "timeout_partition_ch1_control0",
+        "loc": [
+          33,
+          21
+        ],
+        "port": "E"
+      },
+      "to": {
+        "bel": "MISTRAL_COMB.33.21.0",
+        "cell": "timeout_partition_ch1_control0",
+        "loc": [
+          33,
+          21
+        ],
+        "port": "Q"
+      },
+      "type": "logic"
+    },
+    {
+      "delay": 2.010999917984009,
+      "from": {
+        "bel": "MISTRAL_COMB.33.21.0",
+        "cell": "timeout_partition_ch1_control0",
+        "loc": [
+          33,
+          21
+        ],
+        "port": "Q"
+      },
+      "net": "ddr1_test.cmd_end_MISTRAL_ALUT4_C_Q",
+      "sources": [],
+      "to": {
+        "bel": "MISTRAL_FF.23.16.20",
+        "cell": "ddr1_address_MISTRAL_FF_Q_21",
+        "loc": [
+          23,
+          16
+        ],
+        "port": "ENA"
+      },
+      "type": "routing"
+    },
+    {
+      "delay": -0.19599999487400055,
+      "from": {
+        "bel": "MISTRAL_FF.23.16.20",
+        "cell": "ddr1_address_MISTRAL_FF_Q_21",
+        "loc": [
+          23,
+          16
+        ],
+        "port": "ENA"
+      },
+      "to": {
+        "bel": "MISTRAL_FF.23.16.20",
+        "cell": "ddr1_address_MISTRAL_FF_Q_21",
+        "loc": [
+          23,
+          16
+        ],
+        "port": "ENA"
+      },
+      "type": "setup"
+    }
+  ],
+  "critical-placements": [
+    {
+      "baseline": "MISTRAL_FF.42.17.52",
+      "candidate": "MISTRAL_FF.42.17.52",
+      "cell": "ddr1_test.idle_MISTRAL_FF_Q_11"
+    },
+    {
+      "baseline": null,
+      "candidate": "MISTRAL_COMB.35.17.1",
+      "cell": "timeout_partition_ch1_part3"
+    },
+    {
+      "baseline": null,
+      "candidate": "MISTRAL_MCOMB.34.18.18",
+      "cell": "timeout_partition_ch1_reduce"
+    },
+    {
+      "baseline": null,
+      "candidate": "MISTRAL_COMB.37.20.0",
+      "cell": "timeout_partition_ch1_control3"
+    },
+    {
+      "baseline": null,
+      "candidate": "MISTRAL_COMB.33.27.0",
+      "cell": "timeout_partition_ch1_control9"
+    },
+    {
+      "baseline": null,
+      "candidate": "MISTRAL_COMB.33.21.0",
+      "cell": "timeout_partition_ch1_control0"
+    },
+    {
+      "baseline": "MISTRAL_FF.23.16.20",
+      "candidate": "MISTRAL_FF.23.16.20",
+      "cell": "ddr1_address_MISTRAL_FF_Q_21"
+    }
+  ],
+  "external_inputs_sha256": {
+    "out/ramtest-control-factoring/equivalence/prove.py": "0e748994e859d92df33d28dda382ceab3cbb5839ff77fbac80410631bb1e02cc",
+    "out/ramtest-enable-replication/budget4-c2/invocation.json": "da2edb631d1db76d7ed7af7fafddceceb6ef654ad2cca173fd004fd2dbcdaf36",
+    "out/ramtest-enable-replication/budget4-c2/replication.after.json": "5efbdc0b263f257aec1a57405aa8d7201092bba39799b90125413df9ee35cbbb",
+    "out/ramtest-enable-replication/budget4-c2/replication.after.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a",
+    "out/ramtest-enable-replication/budget4-c2/timing.json": "269e184586ee02d6a4fca0f1d3bc713e99f08abfdefd0e14b45e55d0346ee468",
+    "out/ramtest-enable-replication/tools/nextpnr-enable-replication": "eb56265fea455e2adcf1c06edb3293792437866bc00bb59cbc82998c9d7a38fe",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "out/ramtest-fsm-init/synth.ys": "7e3332e0957b7c6cd09741cc7374f1bb15d398f0e882d11807d4130c8be0f86e",
+    "out/ramtest-timeout-partition/check.json": "f8cd984054966be5ad7e522ab6eeb56503e7243847680bd5f081ba6142c6bfd6",
+    "out/ramtest-timeout-partition/check_rewrite.py": "31df04d73376e05918973af83f4525c07917905f9d163d58a75b5aa018db7b67",
+    "out/ramtest-timeout-partition/equivalence/result.json": "7ad4f926035b25b4cee7ee19fa985269a878299280427c1fca262bcf4028a8d4",
+    "out/ramtest-timeout-partition/rewrite.json": "27cccaacb3e1785c5301d034614277f9002da8193ac728cc8e49f4147db448cd",
+    "out/ramtest-timeout-partition/root-users.json": "f7a548974fb347b706bf4dbdc55509a94e046c57a2db5a0cbea33b46c9eb63bd",
+    "out/ramtest-timeout-partition/synth.json": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-common/generated/fes_application.vh": "a248fcb9f641a63ca59aec74aa7c0df61183e0c2ad836001690561730990c57a",
+    "sources/misteross/cores/fes-common/generated/fes_computer.vh": "00bb0fee2d0b6d3b69c4370967fcc930812f52f10634e97f206307c28148a9a9",
+    "sources/misteross/cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+    "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+    "sources/misteross/cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+    "sources/misteross/cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+    "sources/misteross/cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+    "sources/misteross/cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+    "sources/misteross/cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+    "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+    "sources/misteross/cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb"
+  },
+  "fes_base": "c2dd0b8705523936cc58987e9fc22d5fc671634d",
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_base": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+  "payload": {
+    "candidate_sha256": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+    "cells": [
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 2212,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_16",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2204,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_12",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2236,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_6",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2216,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_18",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2240,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_8",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2195,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 1,
+        "name": "timeout_partition_ch0_part0",
+        "output_bit": 16950,
+        "physical_mask": 1,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 2210,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_15",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2206,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_13",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2228,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_23",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2218,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_19",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2220,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2208,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_14",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 512,
+        "name": "timeout_partition_ch0_part1",
+        "output_bit": 16951,
+        "physical_mask": 512,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 2238,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_7",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2214,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_17",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2202,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_11",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2222,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_20",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2224,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_21",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2232,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 4503599627370496,
+        "name": "timeout_partition_ch0_part2",
+        "output_bit": 16952,
+        "physical_mask": 4503599627370496,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 2198,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2234,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_5",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2230,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_3",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2242,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_9",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2226,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_22",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 2200,
+            "cell": "ddr0_test.idle_MISTRAL_FF_Q_10",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 8,
+        "name": "timeout_partition_ch0_part3",
+        "output_bit": 16953,
+        "physical_mask": 8,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 16950,
+            "cell": "timeout_partition_ch0_part0",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16951,
+            "cell": "timeout_partition_ch0_part1",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16952,
+            "cell": "timeout_partition_ch0_part2",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16953,
+            "cell": "timeout_partition_ch0_part3",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 32768,
+        "name": "timeout_partition_ch0_reduce",
+        "output_bit": 16954,
+        "physical_mask": 32768,
+        "root_index": -1,
+        "width": 4
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 299,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 297,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_2_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 295,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16954,
+            "cell": "timeout_partition_ch0_reduce",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 2248,
+        "name": "timeout_partition_ch0_control2",
+        "output_bit": 16955,
+        "physical_mask": 2248,
+        "root_index": -1,
+        "width": 4
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 3088,
+            "cell": "hps_ddr.port0.finishing_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3087,
+            "cell": "hps_ddr.port0.skid_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3082,
+            "cell": "ddr0_test.write_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 1001,
+            "cell": "hps_ddr.port0.draining_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 297,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_2_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 1048576,
+        "name": "timeout_partition_ch0_control3",
+        "output_bit": 16956,
+        "physical_mask": 1048576,
+        "root_index": -1,
+        "width": 5
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 1604,
+            "cell": "ddr0_test.burst_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 1598,
+            "cell": "ddr0_test.pass_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 295,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16955,
+            "cell": "timeout_partition_ch0_control2",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16956,
+            "cell": "timeout_partition_ch0_control3",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 6340786800377659392,
+        "name": "timeout_partition_ch0_control0",
+        "output_bit": 1614,
+        "physical_mask": 6340786800377659392,
+        "root_index": 1,
+        "width": 6
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 3088,
+            "cell": "hps_ddr.port0.finishing_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3087,
+            "cell": "hps_ddr.port0.skid_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 1001,
+            "cell": "hps_ddr.port0.draining_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 927,
+            "cell": "ddr0_read_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 297,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_2_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16954,
+            "cell": "timeout_partition_ch0_reduce",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 16777216,
+        "name": "timeout_partition_ch0_control4",
+        "output_bit": 16957,
+        "physical_mask": 16777216,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 1721,
+            "cell": "ddr0_test.cmd_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 933,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 928,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_3",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 299,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 295,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 2242545357980376848,
+        "name": "timeout_partition_ch0_control6",
+        "output_bit": 16959,
+        "physical_mask": 2242545357980376848,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 1598,
+            "cell": "ddr0_test.pass_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 297,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_2_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 295,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16954,
+            "cell": "timeout_partition_ch0_reduce",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16959,
+            "cell": "timeout_partition_ch0_control6",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 67572617388752896,
+        "name": "timeout_partition_ch0_control5",
+        "output_bit": 16958,
+        "physical_mask": 67572617388752896,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 0,
+        "inputs": [
+          {
+            "candidate_bit": 1604,
+            "cell": "ddr0_test.burst_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 933,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 295,
+            "cell": "ddr0_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16956,
+            "cell": "timeout_partition_ch0_control3",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16957,
+            "cell": "timeout_partition_ch0_control4",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16958,
+            "cell": "timeout_partition_ch0_control5",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 12614339577079922688,
+        "name": "timeout_partition_ch0_control1",
+        "output_bit": 202,
+        "physical_mask": 12614339577079922688,
+        "root_index": 0,
+        "width": 6
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 4309,
+            "cell": "ddr1_test.cmd_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 1,
+        "name": "timeout_partition_ch1_control5",
+        "output_bit": 16965,
+        "physical_mask": 1,
+        "root_index": -1,
+        "width": 2
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 4659,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_21",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4667,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4665,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_3",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4649,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_17",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4643,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_14",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4671,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_6",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 1,
+        "name": "timeout_partition_ch1_part0",
+        "output_bit": 16960,
+        "physical_mask": 1,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 4645,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_15",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4651,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_18",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4635,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_10",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4653,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_19",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4633,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4677,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_9",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 512,
+        "name": "timeout_partition_ch1_part1",
+        "output_bit": 16961,
+        "physical_mask": 512,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 4675,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_8",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4669,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_5",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4647,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_16",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4657,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_20",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4641,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_13",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4663,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_23",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 4503599627370496,
+        "name": "timeout_partition_ch1_part2",
+        "output_bit": 16962,
+        "physical_mask": 4503599627370496,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 4661,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_22",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4655,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4637,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_11",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4630,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4673,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_7",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 4639,
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_12",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 8,
+        "name": "timeout_partition_ch1_part3",
+        "output_bit": 16963,
+        "physical_mask": 8,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 16960,
+            "cell": "timeout_partition_ch1_part0",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16961,
+            "cell": "timeout_partition_ch1_part1",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16962,
+            "cell": "timeout_partition_ch1_part2",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16963,
+            "cell": "timeout_partition_ch1_part3",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 32768,
+        "name": "timeout_partition_ch1_reduce",
+        "output_bit": 16964,
+        "physical_mask": 32768,
+        "root_index": -1,
+        "width": 4
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 3455,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3345,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_1_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16964,
+            "cell": "timeout_partition_ch1_reduce",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 76,
+        "name": "timeout_partition_ch1_control4",
+        "output_bit": 16966,
+        "physical_mask": 76,
+        "root_index": -1,
+        "width": 3
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 3734,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3456,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3455,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 1,
+        "name": "timeout_partition_ch1_control6",
+        "output_bit": 16967,
+        "physical_mask": 1,
+        "root_index": -1,
+        "width": 3
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 3472,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q_3",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16964,
+            "cell": "timeout_partition_ch1_reduce",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 2,
+        "name": "timeout_partition_ch1_control3",
+        "output_bit": 16972,
+        "physical_mask": 2,
+        "root_index": -1,
+        "width": 2
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 5425,
+            "cell": "hps_ddr.port1.finishing_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5424,
+            "cell": "hps_ddr.port1.skid_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3800,
+            "cell": "hps_ddr.port1.draining_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3732,
+            "cell": "ddr1_read_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3345,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_1_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16972,
+            "cell": "timeout_partition_ch1_control3",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 72057594037927936,
+        "name": "timeout_partition_ch1_control9",
+        "output_bit": 16968,
+        "physical_mask": 72057594037927936,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 5425,
+            "cell": "hps_ddr.port1.finishing_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5424,
+            "cell": "hps_ddr.port1.skid_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5414,
+            "cell": "ddr1_test.write_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3800,
+            "cell": "hps_ddr.port1.draining_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3345,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_1_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 1048576,
+        "name": "timeout_partition_ch1_control8",
+        "output_bit": 16971,
+        "physical_mask": 1048576,
+        "root_index": -1,
+        "width": 5
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 4240,
+            "cell": "ddr1_test.burst_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3458,
+            "cell": "ddr1_test.pass_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3455,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16971,
+            "cell": "timeout_partition_ch1_control8",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 4040225008,
+        "name": "timeout_partition_ch1_control7",
+        "output_bit": 16969,
+        "physical_mask": 4040225008,
+        "root_index": -1,
+        "width": 5
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 3472,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q_3",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16965,
+            "cell": "timeout_partition_ch1_control5",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16966,
+            "cell": "timeout_partition_ch1_control4",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16967,
+            "cell": "timeout_partition_ch1_control6",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16968,
+            "cell": "timeout_partition_ch1_control9",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16969,
+            "cell": "timeout_partition_ch1_control7",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 3503292496,
+        "name": "timeout_partition_ch1_control0",
+        "output_bit": 3255,
+        "physical_mask": 3503292496,
+        "root_index": 2,
+        "width": 6
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 4240,
+            "cell": "ddr1_test.burst_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3458,
+            "cell": "ddr1_test.pass_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16971,
+            "cell": "timeout_partition_ch1_control8",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 22272,
+        "name": "timeout_partition_ch1_control2",
+        "output_bit": 16970,
+        "physical_mask": 22272,
+        "root_index": -1,
+        "width": 4
+      },
+      {
+        "channel": 1,
+        "inputs": [
+          {
+            "candidate_bit": 3456,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 3455,
+            "cell": "ddr1_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16966,
+            "cell": "timeout_partition_ch1_control4",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16970,
+            "cell": "timeout_partition_ch1_control2",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 57376,
+        "name": "timeout_partition_ch1_control1",
+        "output_bit": 4207,
+        "physical_mask": 57376,
+        "root_index": 3,
+        "width": 4
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 6021,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6020,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6019,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_23",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6018,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6026,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_3",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6025,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 1,
+        "name": "timeout_partition_ch2_part0",
+        "output_bit": 16973,
+        "physical_mask": 1,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 6024,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_5",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6023,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_6",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6007,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_7",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6006,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_8",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6005,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_9",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6004,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_10",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 512,
+        "name": "timeout_partition_ch2_part1",
+        "output_bit": 16974,
+        "physical_mask": 512,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 6030,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_11",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6029,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_12",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6028,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_13",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6027,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_14",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6012,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_15",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6011,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_16",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 4503599627370496,
+        "name": "timeout_partition_ch2_part2",
+        "output_bit": 16975,
+        "physical_mask": 4503599627370496,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 6010,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_17",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6009,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_18",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6017,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_19",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6016,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_20",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6015,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_21",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6014,
+            "cell": "ddr2_test.idle_MISTRAL_FF_Q_22",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 8,
+        "name": "timeout_partition_ch2_part3",
+        "output_bit": 16976,
+        "physical_mask": 8,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 16973,
+            "cell": "timeout_partition_ch2_part0",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16974,
+            "cell": "timeout_partition_ch2_part1",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16975,
+            "cell": "timeout_partition_ch2_part2",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16976,
+            "cell": "timeout_partition_ch2_part3",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 32768,
+        "name": "timeout_partition_ch2_reduce",
+        "output_bit": 16977,
+        "physical_mask": 32768,
+        "root_index": -1,
+        "width": 4
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 5727,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5616,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16977,
+            "cell": "timeout_partition_ch2_reduce",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 76,
+        "name": "timeout_partition_ch2_control4",
+        "output_bit": 16978,
+        "physical_mask": 76,
+        "root_index": -1,
+        "width": 3
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 6569,
+            "cell": "ddr2_test.cmd_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6032,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5994,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_3",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5727,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5726,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 281459228540924,
+        "name": "timeout_partition_ch2_control6",
+        "output_bit": 16979,
+        "physical_mask": 281459228540924,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 7703,
+            "cell": "hps_ddr.port2.skid_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 7702,
+            "cell": "hps_ddr.port2.finishing_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6039,
+            "cell": "hps_ddr.port2.draining_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5993,
+            "cell": "ddr2_read_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5616,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16977,
+            "cell": "timeout_partition_ch2_reduce",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 16777216,
+        "name": "timeout_partition_ch2_control7",
+        "output_bit": 16980,
+        "physical_mask": 16777216,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 5733,
+            "cell": "ddr2_test.burst_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5732,
+            "cell": "ddr2_test.pass_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 2,
+        "name": "timeout_partition_ch2_control8",
+        "output_bit": 16984,
+        "physical_mask": 2,
+        "root_index": -1,
+        "width": 3
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 7703,
+            "cell": "hps_ddr.port2.skid_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 7702,
+            "cell": "hps_ddr.port2.finishing_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 7697,
+            "cell": "ddr2_test.write_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6039,
+            "cell": "hps_ddr.port2.draining_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5616,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16984,
+            "cell": "timeout_partition_ch2_control8",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 4503599627370496,
+        "name": "timeout_partition_ch2_control5",
+        "output_bit": 16981,
+        "physical_mask": 4503599627370496,
+        "root_index": -1,
+        "width": 6
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 5727,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5726,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_1",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16978,
+            "cell": "timeout_partition_ch2_control4",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16979,
+            "cell": "timeout_partition_ch2_control6",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16980,
+            "cell": "timeout_partition_ch2_control7",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16981,
+            "cell": "timeout_partition_ch2_control5",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 17293875347003019264,
+        "name": "timeout_partition_ch2_control0",
+        "output_bit": 5528,
+        "physical_mask": 17293875347003019264,
+        "root_index": 4,
+        "width": 6
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 5733,
+            "cell": "ddr2_test.burst_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5732,
+            "cell": "ddr2_test.pass_end_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 994,
+            "cell": "ddr0_test.stop_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 168,
+        "name": "timeout_partition_ch2_control2",
+        "output_bit": 16982,
+        "physical_mask": 168,
+        "root_index": -1,
+        "width": 3
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 7703,
+            "cell": "hps_ddr.port2.skid_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 7702,
+            "cell": "hps_ddr.port2.finishing_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 7697,
+            "cell": "ddr2_test.write_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 6039,
+            "cell": "hps_ddr.port2.draining_MISTRAL_FF_Q",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5616,
+            "cell": "ram_clock.locked_MISTRAL_ALUT2_B_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_FF_DATAIN",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          }
+        ],
+        "mask": 1048576,
+        "name": "timeout_partition_ch2_control3",
+        "output_bit": 16983,
+        "physical_mask": 1048576,
+        "root_index": -1,
+        "width": 5
+      },
+      {
+        "channel": 2,
+        "inputs": [
+          {
+            "candidate_bit": 6032,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_4",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 5727,
+            "cell": "ddr2_test.state_MISTRAL_FF_Q_2",
+            "invert": false,
+            "kind": "existing",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16982,
+            "cell": "timeout_partition_ch2_control2",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16978,
+            "cell": "timeout_partition_ch2_control4",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          },
+          {
+            "candidate_bit": 16983,
+            "cell": "timeout_partition_ch2_control3",
+            "invert": false,
+            "kind": "new",
+            "port": "Q"
+          }
+        ],
+        "mask": 771760640,
+        "name": "timeout_partition_ch2_control1",
+        "output_bit": 6450,
+        "physical_mask": 771760640,
+        "root_index": 5,
+        "width": 5
+      }
+    ],
+    "gold_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "roots": [
+      {
+        "bit": 202,
+        "channel": 0,
+        "mask": 208,
+        "name": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+        "width": 3
+      },
+      {
+        "bit": 1614,
+        "channel": 0,
+        "mask": 112,
+        "name": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+        "width": 3
+      },
+      {
+        "bit": 3255,
+        "channel": 1,
+        "mask": 22272,
+        "name": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+        "width": 4
+      },
+      {
+        "bit": 4207,
+        "channel": 1,
+        "mask": 112,
+        "name": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+        "width": 3
+      },
+      {
+        "bit": 5528,
+        "channel": 2,
+        "mask": 208,
+        "name": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+        "width": 3
+      },
+      {
+        "bit": 6450,
+        "channel": 2,
+        "mask": 1476329472,
+        "name": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+        "width": 5
+      }
+    ],
+    "strategy": "Topological order; legal free BEL search within Manhattan radius6 of old channel root midpoint; minimize worst predicted placed-input plus placed-output delay, then distance and BEL name. Unplaced new endpoints excluded from predictor. No displacement."
+  },
+  "preflight-proof": {
+    "baseline_cone_luts_proven": 63,
+    "input_sha256": {
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/check_snapshots.py": "515f43f793b93f7eabe5b6fa162b5a67c774c9d9c2103672e107aec2eaa1ce29",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/equivalence/result.json": "7ad4f926035b25b4cee7ee19fa985269a878299280427c1fca262bcf4028a8d4",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/rewrite.json": "27cccaacb3e1785c5301d034614277f9002da8193ac728cc8e49f4147db448cd",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/synth.json": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+      "out/ramtest-placed-timeout/preflight.after.json": "e1dcda889d65294a645c7d29f4033098f84881e35a63e7b275267d95092b5e51",
+      "out/ramtest-placed-timeout/preflight.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+      "out/ramtest-placed-timeout/preflight.before.json": "ad51a538632a8cea23afc4d6ac58abc8ccdc3e539bf4669cd3ad3844bc973630",
+      "out/ramtest-placed-timeout/preflight.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a"
+    },
+    "new_effective_input_polarity_and_lut_truth_proven": true,
+    "new_luts_proven": 41,
+    "passed": true,
+    "removed_root_cells": 6,
+    "retained_cells_exact": 14885,
+    "retained_pin_states_exact": 103034,
+    "root_nets_and_retained_sink_polarities_exact": true,
+    "scope": "Exact surviving packed cells/pins and root nets; local truth equivalence to prior SAT-proven graph, including folded NOT/constants."
+  },
+  "routed-placement-proof": {
+    "passed": true,
+    "postpatch_placements_preserved": 14926,
+    "removed_cells": 0,
+    "routing_added_buffers": 5092
+  },
+  "runs": {
+    "patched-c2": {
+      "baseline-proof": {
+        "replication.after": {
+          "actual_sha256": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+          "baseline_sha256": "5efbdc0b263f257aec1a57405aa8d7201092bba39799b90125413df9ee35cbbb",
+          "cells": 14891,
+          "indexed_pin_states_identical": true,
+          "module_identical": true,
+          "pins": 103061
+        },
+        "replication.before": {
+          "actual_sha256": "73c87a91e50ba630b40f8959dcea7a796c384a646b76ff2d45db286a74f001cc",
+          "baseline_sha256": "3b63896e7d50055f6bfa7a8f70f0c73ada71a40bc7a5ab26224c2fef4597d32a",
+          "cells": 14890,
+          "indexed_pin_states_identical": true,
+          "module_identical": true,
+          "pins": 103057
+        },
+        "timeout.before": {
+          "actual_sha256": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+          "baseline_sha256": "5efbdc0b263f257aec1a57405aa8d7201092bba39799b90125413df9ee35cbbb",
+          "cells": 14891,
+          "indexed_pin_states_identical": true,
+          "module_identical": true,
+          "pins": 103061
+        }
+      },
+      "binary_sha256": "708294903b7ceb1cda4578b6bb14c2736dee29b809fbce7162d920db8220b899",
+      "classification": "host-only fresh baseline placement and replication, then optional timeout patch and fresh routing; unchanged RTL",
+      "command": [
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/tools/nextpnr-placed-timeout",
+        "--json",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "1",
+        "--timing-allow-fail",
+        "--rbf",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/patched-c2/core.rbf",
+        "--write",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/patched-c2/routed.json",
+        "--report",
+        "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/patched-c2/timing.json",
+        "--detailed-timing-report",
+        "--replicate-enables",
+        "4"
+      ],
+      "completed_normally": true,
+      "critical_paths": [
+        {
+          "clock": "posedge ram_clock.clocks[0]",
+          "delays_ns": {
+            "clk-skew": 0.035999998450279236,
+            "clk-to-q": 0.7310000061988831,
+            "logic": 1.2010000050067902,
+            "routing": 7.11599999666214,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 8.888000011444092,
+          "from": {
+            "cell": "ddr1_test.idle_MISTRAL_FF_Q_11",
+            "loc": [
+              42,
+              17
+            ],
+            "port": "Q"
+          },
+          "from_rtl_signals": [
+            "ddr1_test.idle[20]"
+          ],
+          "from_signals": [
+            "ddr1_test.idle[20]"
+          ],
+          "logic_arcs": 5,
+          "logic_types": {
+            "MISTRAL_ALUT2": 1,
+            "MISTRAL_ALUT4": 1,
+            "MISTRAL_ALUT6": 3
+          },
+          "to": {
+            "cell": "ddr1_address_MISTRAL_FF_Q_21",
+            "loc": [
+              23,
+              16
+            ],
+            "port": "ENA"
+          },
+          "to_rtl_signals": [
+            "ddr1_address[13]"
+          ],
+          "to_signals": [
+            "ddr1_address[13]"
+          ]
+        },
+        {
+          "clock": "posedge display.pixel_clk",
+          "delays_ns": {
+            "clk-to-q": 0.7310000061988831,
+            "logic": 2.3220000565052032,
+            "routing": 10.402999997138977,
+            "setup": -0.19599999487400055
+          },
+          "effective_setup_ns": 13.260000064969063,
+          "from": {
+            "cell": "display.col_s_MISTRAL_FF_Q",
+            "loc": [
+              13,
+              6
+            ],
+            "port": "Q"
+          },
+          "from_rtl_signals": [
+            "display.col_s[2]"
+          ],
+          "from_signals": [
+            "display.col_s[2]"
+          ],
+          "logic_arcs": 8,
+          "logic_types": {
+            "MISTRAL_ALUT4": 1,
+            "MISTRAL_ALUT6": 6,
+            "MISTRAL_BUF": 1
+          },
+          "to": {
+            "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4",
+            "loc": [
+              13,
+              6
+            ],
+            "port": "DATAIN"
+          },
+          "to_rtl_signals": [
+            "display.ddr_ch_t[1]"
+          ],
+          "to_signals": [
+            "display.ddr_ch_t[1]"
+          ]
+        }
+      ],
+      "elapsed_seconds": 568.3605205840431,
+      "environment": {
+        "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/patched-c2/arcs.tsv",
+        "NEXTPNR_MISTRAL_ENABLE_REPLICATION_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/patched-c2/replication",
+        "NEXTPNR_MISTRAL_PLACED_TIMEOUT": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/patched-c2/timeout"
+      },
+      "errors": [],
+      "final_reported_hold_violation_counts": [],
+      "fmax": {
+        "display.pixel_clk": {
+          "achieved": 75.41477966308594,
+          "constraint": 74.25006866455078
+        },
+        "ram_clock.clocks[0]": {
+          "achieved": 112.5112533569336,
+          "constraint": 130.0052032470703
+        },
+        "ram_clock.clocks[1]": {
+          "achieved": 332.4941101074219,
+          "constraint": 130.0052032470703
+        }
+      },
+      "rbf_bytes": 7007204,
+      "replication_log": [
+        "Info: Enable replication considering 'ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B': 2 LAB groups, 3 signal inputs.",
+        "Info: Enable replication considering 'hps_ddr.port1.slot_free_MISTRAL_ALUT3_B': 22 LAB groups, 3 signal inputs.",
+        "Info: Enable replica source=hps_ddr.port1.slot_free_MISTRAL_ALUT3_B clone=hps_ddr.port1.slot_free_MISTRAL_ALUT3_B$enable_replica bel=MISTRAL_COMB.37.25.0 sinks=4 gain=995ps slack=-1954ps criticality=0.939",
+        "Info: Enable replication: 1 replicas, budget 4; examined at most 32 of 4 ranked candidates."
+      ],
+      "returncode": 0,
+      "snapshot-proof": {
+        "baseline_cone_luts_proven": 63,
+        "input_sha256": {
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-placed-timeout/check_snapshots.py": "515f43f793b93f7eabe5b6fa162b5a67c774c9d9c2103672e107aec2eaa1ce29",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/equivalence/result.json": "7ad4f926035b25b4cee7ee19fa985269a878299280427c1fca262bcf4028a8d4",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/rewrite.json": "27cccaacb3e1785c5301d034614277f9002da8193ac728cc8e49f4147db448cd",
+          "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-timeout-partition/synth.json": "d2122f80bce6ab472d8b3663841047939f79670348c867e045f9db59bd080117",
+          "out/ramtest-placed-timeout/patched-c2/timeout.after.json": "7e2bc7cc1a4b96b2bb5f97d15bf5c40a2319af787681b223d2da79be7b278ee6",
+          "out/ramtest-placed-timeout/patched-c2/timeout.after.json.pins.tsv": "a88b349e0025454a07b1c8ac7cd608f224adad59cfc64361cf23ad542db6e16a",
+          "out/ramtest-placed-timeout/patched-c2/timeout.before.json": "6e2cd92ed53c205a5cc6df5e1c5eea92da2dc01a0de1419add1cfac2e63f1c57",
+          "out/ramtest-placed-timeout/patched-c2/timeout.before.json.pins.tsv": "25f5951693a7408d76b6b646c8b7eef80bc1502d71596a592acd850fbf12862a"
+        },
+        "new_effective_input_polarity_and_lut_truth_proven": true,
+        "new_luts_proven": 41,
+        "passed": true,
+        "removed_root_cells": 6,
+        "retained_cells_exact": 14885,
+        "retained_pin_states_exact": 103034,
+        "root_nets_and_retained_sink_polarities_exact": true,
+        "scope": "Exact surviving packed cells/pins and root nets; local truth equivalence to prior SAT-proven graph, including folded NOT/constants."
+      },
+      "synth_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+    }
+  },
+  "scope": {
+    "classification": "Host-only fixture-specific postplacement diagnostic, not a production pass",
+    "compiler_base": "71c513e1539c5adc1e16c92882dc731fe24ebf9b",
+    "fes_base": "c2dd0b8705523936cc58987e9fc22d5fc671634d",
+    "gates": [
+      "default-off preservation",
+      "prepatch baseline equality",
+      "packed-polarity semantic bridge to proven synthesis candidate",
+      "all occupied BELs legal",
+      "independent snapshot preservation checker with negative cases",
+      "fresh full route and final analogue timing"
+    ],
+    "hypothesis": "Combine the proven shallower timeout/ENA cut with the best placement and accepted enable replica by legally placing only replacement logic before fresh routing",
+    "preserve": [
+      "unchanged RTL and BUILD_ID",
+      "every surviving original cell and BEL",
+      "every surviving original indexed pin state",
+      "all existing root consumers",
+      "all FF/hardblock initialization and parameters",
+      "baseline enable replica",
+      "timing model and route options"
+    ]
+  },
+  "search-coverage": [
+    {
+      "channel": 0,
+      "old_bel": "MISTRAL_COMB.30.35.31",
+      "old_site_distance": 5,
+      "old_site_within_radius6": true,
+      "root_cell": "ddr0_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+      "search_center": [
+        32,
+        38
+      ]
+    },
+    {
+      "channel": 0,
+      "old_bel": "MISTRAL_COMB.35.41.36",
+      "old_site_distance": 6,
+      "old_site_within_radius6": true,
+      "root_cell": "ddr0_test.burst_end_MISTRAL_ALUT3_A",
+      "search_center": [
+        32,
+        38
+      ]
+    },
+    {
+      "channel": 1,
+      "old_bel": "MISTRAL_COMB.27.16.48",
+      "old_site_distance": 11,
+      "old_site_within_radius6": false,
+      "root_cell": "ddr1_test.cmd_end_MISTRAL_ALUT4_C",
+      "search_center": [
+        33,
+        21
+      ]
+    },
+    {
+      "channel": 1,
+      "old_bel": "MISTRAL_MCOMB.39.26.54",
+      "old_site_distance": 11,
+      "old_site_within_radius6": false,
+      "root_cell": "ddr1_test.burst_end_MISTRAL_ALUT3_A",
+      "search_center": [
+        33,
+        21
+      ]
+    },
+    {
+      "channel": 2,
+      "old_bel": "MISTRAL_MCOMB.34.21.49",
+      "old_site_distance": 6,
+      "old_site_within_radius6": true,
+      "root_cell": "ddr2_test.cmd_end_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT3_B",
+      "search_center": [
+        35,
+        26
+      ]
+    },
+    {
+      "channel": 2,
+      "old_bel": "MISTRAL_COMB.36.31.30",
+      "old_site_distance": 6,
+      "old_site_within_radius6": true,
+      "root_cell": "ddr2_test.pass_end_MISTRAL_ALUT5_C",
+      "search_center": [
+        35,
+        26
+      ]
+    }
+  ],
+  "source_verification": {
+    "build_id": "cd3e4c315005fde83065dff7483ae0d7",
+    "oss_revision": "5c15931aae47494a89b2a5a3cf673bc9f2f09a4a",
+    "rtl_sha256": {
+      "cores/fes-common/rtl/fes_application_gp.v": "12af317503efcff98ad22aed1d61a4ed93d24dcbc660125195b2cbccaebbb9d2",
+      "cores/fes-common/rtl/fes_hps_ddr.v": "98bff97fcdc00b78dcaa534bdb113cf239340faea9442d1ae322394e10f74186",
+      "cores/fes-common/rtl/fes_hps_ddr_guard.v": "578475d036efd8ed604d4b1f663a46b4feeb7c781a9114636b0529ee16028143",
+      "cores/fes-common/rtl/fes_video_720p.v": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+      "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+      "cores/fes-ramtest/rtl/ddr_channel.v": "f0f6286143a292af490efa9d5ae5875d53690e9cc557127bf657050742710843",
+      "cores/fes-ramtest/rtl/ddr_rates.v": "ce70cc0af1387e438974ce8f407c371831e76ebb13905cb8526dabc2c9404cfc",
+      "cores/fes-ramtest/rtl/mem_channel.v": "2639e3604b85941cc46e46dea5c59d6b3ca0ad1e333162f9af8303da3f9db5ff",
+      "cores/fes-ramtest/rtl/ram_display.v": "9125d4530481c9ac0cad440b77eb74cec47941de5b99a98be1d5b3bc884865ea",
+      "cores/fes-ramtest/rtl/ram_font.v": "870fb68597c26f0fd88b75524171588dfe01d6ffeafb2be6e23c7a4d75fc3b64",
+      "cores/fes-ramtest/rtl/ram_pll.v": "c48d3c58bbbc7b70d7639220787aa1ca93fcae8ba818a0d25abcaf20de1c1e28",
+      "cores/fes-ramtest/rtl/sdram_addon_port.v": "fee60171b015aefd377450f71c4204506f808ebf1c5bb6b1232b0e1f7f1d3c67",
+      "cores/fes-ramtest/rtl/top.v": "230bce8a84ea901aec652167a61db24d9fbcf832a087e9fb0fb07ab77b843adb"
+    }
+  },
+  "tests": {
+    "ctest_passed": 18,
+    "ctest_skipped": 1,
+    "default_control": "Exact full197-cell top-module equality for absent and empty environment prefix.",
+    "files": {
+      "backend-formatted-green.log": "1383552527f1baf7a4ea55e8f3881109c15bc8d489f396827f69554519384a2d",
+      "backend-red.log": "29a1025701ef0c75a6b3ef529fcb19204dad8d0d3e3788ab174cda46a75516d1",
+      "ctest-detail.log": "4f8a3c07381c664c621ea8c78edd3bb04456bf729fee7bc77d25e0bcdca1401f",
+      "ctest.log": "900b62f466b88cca0da95932b4580eaf399200bb45aa9ae19079a08646f89ef3",
+      "default-checks/proof.json": "bf1aec572f142b5bfa05d4f89b30d1abd2c67163a749e0d889e8cd93acd109c0",
+      "generate_payload.py": "ad7194aa6515e8800b878ab16c2cc47984dcb693252182ccefffa15a2efb5c2d",
+      "payload-green.log": "38740b9dbd5da651694cb6260643faacbc4c0512c8f77619c0b41f86eef2d896",
+      "payload-red.log": "e89ad43b1381f1967973edf453e3b5faa0c2ca742b8424fd97e59444a1ec0d08",
+      "payload.json": "74b9712ebcf19a5a51bd1f48210732054a2d29d7d5c406622e9d195893985713",
+      "placed_timeout_payload.inc": "5242b68a6faa72fb52bfb9be20147578a118723113e226f5a46df811a8897bf8",
+      "test_payload.py": "7e6823cb8bed6713afcd9f966f025ff33a8a12a256efeb34df648f097c217a49"
+    },
+    "focused_backend_tests": 2,
+    "generator_tests": 3,
+    "skipped_note": "ActualSnapshotPreflight separately executed and passed with baseline snapshot."
+  },
+  "validation": {
+    "classification": "host-only; no hardware acceptance",
+    "compiled_payload_matches_regeneration": true,
+    "compiler_source_clean_and_matches_frozen_build": true,
+    "deterministic_regeneration": [
+      "payload.json",
+      "placed_timeout_payload.inc",
+      "arrivals.json",
+      "critical-placements.json",
+      "critical-memory-path.json",
+      "routed-placement-proof.json"
+    ],
+    "full_route_returncode": 0,
+    "preflight_and_actual_proof_input_hashes_verified": true,
+    "tests_manifest_hashes_verified": true
+  }
+}

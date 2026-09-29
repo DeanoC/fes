@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/DeanoC/FogCast/internal/atomicwrite"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -125,13 +126,7 @@ func (m *LaunchMap) writeLocked() error {
 	if len(data) > maxLaunchMapBytes {
 		return errors.New("launch map exceeds size limit")
 	}
-	tmp := m.path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), privateFileMode); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, m.path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	// Not m.path+".tmp": that name aliases launch-map.json on the kit's
+	// /media/fat exFAT (#317).
+	return atomicwrite.WriteFile(m.path, append(data, '\n'), privateFileMode)
 }

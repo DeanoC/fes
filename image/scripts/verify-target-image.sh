@@ -250,6 +250,7 @@ verify_package_only_native() {
     printf 'mister_runtime_commit=%s\n' "$(read_native_lock_value mister_runtime commit)"
     printf 'mister_agent_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/mister-agent" | awk '{print $1}')"
     printf 'fogcast_kit_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/fogcast-kit" | awk '{print $1}')"
+    printf 'fogcast_tenfoot_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/fogcast-tenfoot" | awk '{print $1}')"
     printf 'idle_repository=%s\n' "$(read_native_lock_value idle_rbf repository)"
     printf 'idle_commit=%s\n' "$(read_native_lock_value idle_rbf commit)"
     printf 'idle_path=%s\n' "$(read_native_lock_value idle_rbf path)"
@@ -281,6 +282,7 @@ verify_root() {
 /usr/bin/readlink
 /usr/sbin/mister-runtime
 /usr/sbin/fogcast-kit
+/usr/sbin/fogcast-tenfoot
 /usr/sbin/mister-agent
 /usr/share/mister-runtime/idle.rbf
 /usr/share/mister-runtime/core-packages
@@ -345,8 +347,8 @@ EOF
       printf '%s\n' 'verify-target-image: native image contains the legacy Menu configuration helper' >&2
       exit 1
     }
-    [ -x "$root/usr/sbin/fogcast-kit" ] && [ -x "$root/etc/init.d/S60fogcast-kit" ] || {
-      printf '%s\n' 'verify-target-image: launcher binary and init must be executable' >&2
+    [ -x "$root/usr/sbin/fogcast-kit" ] && [ -x "$root/usr/sbin/fogcast-tenfoot" ] && [ -x "$root/etc/init.d/S60fogcast-kit" ] || {
+      printf '%s\n' 'verify-target-image: launcher binaries and init must be executable' >&2
       exit 1
     }
     cmp "$root/etc/init.d/S60fogcast-kit" \

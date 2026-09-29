@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "22bf145df1438aa46eb912beab5b5c19e491906a"
+order = 10
+rationale = "Merged initialized-FSM support and signed simulation sentinel from Yosys #17. Pair with nextpnr 24f9a1db for the opt-in two-route timing diagnostic; no 130 MHz package qualification."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
+order = 20
+rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corrected timing target-position mask and hashed node lookups (PRs #9-10). Same pin as ramtest.lock; pair with nextpnr 24f9a1db."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "24f9a1db0737559977a13abb2d05cceafa5e6142"
+order = 30
+rationale = "Merged RAM-test compiler stack (#93), generic report-guided local remapping and mode guards (#95), plus open-flop ACLR correctness (#94). Pair with Yosys 22bf145d; diagnostic compares baseline and remapped final routes without fixture hooks."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."

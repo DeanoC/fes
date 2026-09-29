@@ -1,0 +1,320 @@
+{
+  "artifact_root": "out/ramtest-enable-locality",
+  "artifacts_sha256": {
+    "README-probe.md": "e37ded3aec89680e61d287c09552fd45dfe6abfb18dc6bdb10e13ebcc7614826",
+    "build-polarity.log": "3797f9fa4e9c002876da68823d3e5a053009bd3998cce30ab544936dec7e8a88",
+    "build.log": "3797f9fa4e9c002876da68823d3e5a053009bd3998cce30ab544936dec7e8a88",
+    "check_control.py": "edb4c1237458c2d895bb380c34475f7c75ac4c9007839b5d7c0590da89117e71",
+    "check_snapshots.py": "b5df0d7374aba41187b32179176a744e43ac34958f1b3f6e7ab663fd5112fb01",
+    "checker-tests.json": "b1e1d914431b2e0e33b22953eeabbd7a7284284cb04cd70acd99437d85f07ce1",
+    "compiler-probe.patch": "ee124a5a994ba083030e22a7abce19c8877b3446c24458ce266ac799794b2ed3",
+    "control-placement-proof.json": "461be2140c0a924b294a422ac98b073cb9844286f7d9f5bba944cb9d53267d98",
+    "disabled-placement-polarity.json": "458a93404b3b0abe9875b6752445657deaccebb1ca56a715b9122412c281f49a",
+    "disabled-placement-polarity.log": "8908b097efc3c143ce1f3476c046da69a5387bce5c08edc1937cd42f327bd624",
+    "disabled-placement.json": "458a93404b3b0abe9875b6752445657deaccebb1ca56a715b9122412c281f49a",
+    "disabled-placement.log": "997dc3044540ae5c713ea4e4254cac9c332bbf7e060466d7350f37182c12feaf",
+    "disabled-proof.json": "cac35245d12288a2150985ecc64e1108be13031291a77bc7a4d0c9fa706f1f8c",
+    "geometry.json": "496bd43eadae886ad07f70543a72f8c9d835033664bbfc6338077f0e725d7ffb",
+    "interrupted-before-polarity-evidence/invocation.json": "a046dec1225249d422adf8d5dbddb5c488103f9aa1bcdf7fc4125c894de94141",
+    "interrupted-before-polarity-evidence/result.json": "f4017cb41248282773ba7229c48a1f15dc56f9d03cc6bd6b5357a168e42eab7f",
+    "interrupted-before-polarity-evidence/run.log": "a741252a9db4537aaed1ad41d5b2c72db688837bff629f54a5f5d03716e66060",
+    "matched-endpoint-arrival.json": "6dda53f866c934def11695088e565e4ce5413e2b392d6bdd12f391618c5194ec",
+    "quartus-enable.tcl": "e52d7d0a4f4e00db182e6686df8d01068cfadb77c460c61c225b1d75dec1c25c",
+    "quartus-matched-summary.json": "f5131828790384b96e87e4a75173bf663ffb66d7f2f561645b20905c7b5a7124",
+    "quartus-nodes.log": "85b597f51de78958d3c07a905c334d2237aee2668476b65db6a471d6a222e9a3",
+    "quartus-nodes.tcl": "5eb2af1e2ed0e901de4a86009ec3561d2d3a632b7d2bb310d6656583c53dc380",
+    "quartus-paths.log": "611c0e5705dafb7ec818eedfecc87ac3aeaadba61eadb034af67a20e66e2099d",
+    "quartus-paths/hps-exact.rpt": "39f51368eb1c1a715bd568c7375c9629db7bd1142ebd4eb0926fe5a43b919471",
+    "quartus-paths/ready-exact.rpt": "f53e559dd6ca43d305046d60b9e8f3656265a5c2cdaa207570820679df963fb4",
+    "quartus-paths/ready.rpt": "c4fd53f5dedda6a6f43cef3000acad8cf2b48d1d6f1d0a90ac35b0689d54fdd0",
+    "quartus-paths/skid-ena.rpt": "f49df7eda43686244bccbdb0e4994b3b80811bf4457de048273d7fd879e69430",
+    "replica-c2/arcs.tsv": "af735111f821c08b8d8f48583f7eb2034b55adbe43e4cbb49446d2b3a9e2e700",
+    "replica-c2/core.rbf": "82aa9ed069f37b7a341eac243dcf028dcf8b71b132359481819856573d4c06c7",
+    "replica-c2/invocation.json": "bf5927d4b73b76e7fb15b53ea64f8debd4f8ab097c9a0b2c3d81f355d6a9d7ea",
+    "replica-c2/probe.after.json": "3e33f6f1eebe6312f6bf26caa601ae4969351163d2fde60f8b0f7c89e4609bb4",
+    "replica-c2/probe.after.json.pins.tsv": "b7cfca6b605442942f32846ddd3c19ea3a31c778378e70f113f5097574759ba2",
+    "replica-c2/probe.before.json": "abc3fa9374cf7d510c22f269fa0f894215b66a79c6a48add7b6270eedee11d7c",
+    "replica-c2/probe.before.json.pins.tsv": "708d164d95ead1dad97490da2386189c3976ffa4152f6c997ee70dc78feeee19",
+    "replica-c2/result.json": "190e97ac17c5517669c9f978ddb30ec03483e065013f33b24aaffc2619b4e6fa",
+    "replica-c2/routed.json": "40db775a8ac61aa0f6936fc309f8ca7f84a31bc1fa773eabdbc3e1209dce6337",
+    "replica-c2/run.log": "7f915df5e536c5863b7623462ea39899778e556361a92ce79d6243ff19f6c1ee",
+    "replica-c2/snapshot-proof.json": "3dfdf8beb52ace689480d0545d4041f140163bc60c1dfe08d91b148de5875e8b",
+    "replica-c2/timing.json": "d93bca3c7ecef9f3a81b1299f7cc0fb2042f185095436cb04ddf898ecc3e6336",
+    "run_route.py": "3c88b0429714d0e6e62a879b1ce8c5244f68cbe072e0ab453864fa9aa3e6ddc7",
+    "summarize.py": "4f149be6e1b6affe9afec29cba46d318873514609c94e21942f57c6bc8181cbc",
+    "test_checker.py": "eb380e6fa7994e603658145963fb2b468a0a9791a3720aa8d3211311596376ca",
+    "tools/nextpnr-enable-locality": "6b97afa7be62ccd51c557aa757c20a11fd81220c93b0027d91114fa6a421c0c5",
+    "tools/nextpnr-enable-locality-without-pin-sidecars": "d21066836f9d3d9dd2145578bc60d232f2dc77011745b76ea558685671dd6c74",
+    "verify_evidence.py": "f6ff91b6dfb20b27c55e789c1e220c499973a5da61804263cf59ed1b2b5363ba"
+  },
+  "checker_tests": {
+    "negative_cases_rejected": [
+      "unchanged",
+      "LUT",
+      "input",
+      "enable",
+      "placement",
+      "clone_polarity",
+      "FF_ENA_polarity",
+      "missing_bus_pin"
+    ],
+    "valid_snapshot_passed": true
+  },
+  "classification": "host-only diagnostic; unchanged RTL, producer lock and shared contracts; no hardware acceptance",
+  "control_placement": {
+    "all_original_bels_match_control": true,
+    "extra_control_route_cells": 5091,
+    "original_cells": 14890
+  },
+  "disabled_mode": {
+    "cells": 197,
+    "entire_placed_module_identical": true
+  },
+  "endpoint_arrival": {
+    "control": [
+      {
+        "cell": "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_7",
+        "delay": [
+          6.576000213623047,
+          10.470999717712402
+        ],
+        "driver": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+        "event": "posedge ram_clock.clocks[0]",
+        "launch_event": "posedge ram_clock.clocks[0]",
+        "port": "ENA"
+      }
+    ],
+    "replica": [
+      {
+        "cell": "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_7",
+        "delay": [
+          4.675000190734863,
+          8.854000091552734
+        ],
+        "driver": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B$LOCALITY_PROBE",
+        "event": "posedge ram_clock.clocks[0]",
+        "launch_event": "posedge ram_clock.clocks[0]",
+        "port": "ENA"
+      }
+    ]
+  },
+  "external_inputs_sha256": {
+    "out/ramtest-control-mapping/all_fsm-c2/routed.json": "bf823e0ffae08a305d33546f30f6a6311fa0456129d123ada67b1115e14cea66",
+    "out/ramtest-control-mapping/all_fsm-c2/timing.json": "a057178c4398c814ab50e09da10dfc67fcb42f83aff2593739377586def53b0e",
+    "out/ramtest-control-mapping/placer-options-green/default.json": "458a93404b3b0abe9875b6752445657deaccebb1ca56a715b9122412c281f49a",
+    "out/ramtest-fsm-init/synth.json": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c",
+    "sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4",
+    "sources/misteross/docs/validation/2026-09-27-ramtest-placer-options.json": "ae592951e0376f2e5c999ba7698340f7a685533b5543edf6303a925ab08c7ada"
+  },
+  "fes_base": "0f1d00f6a18ef2756a070ff6d3b6918ca1ebb1ff",
+  "geometry": {
+    "driver": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+    "inputs": {
+      "A": {
+        "cell": "hps_ddr.port1.enter_read_MISTRAL_ALUT5_Q",
+        "location": [
+          39,
+          27
+        ],
+        "port": "Q"
+      },
+      "B": {
+        "cell": "hps_ddr.port1.slot_free_MISTRAL_ALUT2_Q",
+        "location": [
+          30,
+          26
+        ],
+        "port": "Q"
+      },
+      "C": {
+        "cell": "hps_ddr.port1.enter_write_MISTRAL_ALUT2_Q",
+        "location": [
+          37,
+          25
+        ],
+        "port": "Q"
+      }
+    },
+    "lab_count": 22,
+    "location": [
+      24,
+      20
+    ],
+    "logical_sinks": 111,
+    "routed_sha256": "bf823e0ffae08a305d33546f30f6a6311fa0456129d123ada67b1115e14cea66",
+    "selected_labs": [
+      [
+        34,
+        22
+      ],
+      [
+        34,
+        25
+      ],
+      [
+        35,
+        25
+      ]
+    ]
+  },
+  "mistral_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "nextpnr_base": "19a5fe4a179cc5873dbd7641eca6b49d6f2284ad",
+  "nextpnr_probe_commit": "369d6e4ba480dd8d622baf5e1ad690e544943846",
+  "quartus_matched": [
+    {
+      "data_delay_ns": 3.624,
+      "effective_setup_ns": 4.496,
+      "from": "fes_hps_ddr:hps_ddr|f2sdram~FF_3778",
+      "logic_levels": 1,
+      "relationship_ns": 7.692,
+      "slack_ns": 3.196,
+      "to": "fes_hps_ddr:hps_ddr|fes_hps_ddr_guard:port1|skid_burstcount[7]"
+    }
+  ],
+  "run": {
+    "binary_sha256": "6b97afa7be62ccd51c557aa757c20a11fd81220c93b0027d91114fa6a421c0c5",
+    "classification": "throwaway post-placement locality probe; no RTL or production optimization change",
+    "command": [
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-locality/tools/nextpnr-enable-locality",
+      "--json",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-fsm-init/synth.json",
+      "--device",
+      "5CSEBA6U23I7",
+      "--qsf",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/cores/fes-ramtest/constraints.qsf",
+      "--sdc",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/sources/misteross/boards/de10nano/clocks.sdc",
+      "--freq",
+      "74.25",
+      "--seed",
+      "2",
+      "--placer-heap-timingweight",
+      "10",
+      "--placer-heap-critexp",
+      "2",
+      "--router",
+      "gpu",
+      "--gpu-device",
+      "1",
+      "--timing-allow-fail",
+      "--rbf",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-locality/replica-c2/core.rbf",
+      "--write",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-locality/replica-c2/routed.json",
+      "--report",
+      "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-locality/replica-c2/timing.json",
+      "--detailed-timing-report"
+    ],
+    "completed_normally": true,
+    "critical_paths": [
+      {
+        "clock": "posedge ram_clock.clocks[0]",
+        "delays_ns": {
+          "clk-skew": 0.03799999877810478,
+          "clk-to-q": 0.7310000061988831,
+          "logic": 1.3820000290870667,
+          "routing": 6.773999936878681,
+          "setup": -0.19599999487400055
+        },
+        "effective_setup_ns": 8.728999976068735,
+        "from": {
+          "cell": "ddr2_test.idle_MISTRAL_FF_Q_12",
+          "loc": [
+            39,
+            19
+          ],
+          "port": "Q"
+        },
+        "from_signals": [
+          "ddr2_test.idle[13]"
+        ],
+        "logic_arcs": 8,
+        "to": {
+          "cell": "ddr2_address_MISTRAL_FF_Q_28",
+          "loc": [
+            31,
+            21
+          ],
+          "port": "ENA"
+        },
+        "to_signals": [
+          "ddr2_address[28]"
+        ]
+      },
+      {
+        "clock": "posedge display.pixel_clk",
+        "delays_ns": {
+          "clk-to-q": 0.7310000061988831,
+          "logic": 2.486000031232834,
+          "routing": 9.656999945640564,
+          "setup": -0.19599999487400055
+        },
+        "effective_setup_ns": 12.67799998819828,
+        "from": {
+          "cell": "display.col_s_MISTRAL_FF_Q_5",
+          "loc": [
+            13,
+            6
+          ],
+          "port": "Q"
+        },
+        "from_signals": [
+          "display.col_s[5]"
+        ],
+        "logic_arcs": 8,
+        "to": {
+          "cell": "display.ddr_ch_t_MISTRAL_FF_Q_4",
+          "loc": [
+            13,
+            6
+          ],
+          "port": "DATAIN"
+        },
+        "to_signals": [
+          "display.ddr_ch_t[1]"
+        ]
+      }
+    ],
+    "elapsed_seconds": 754.716249038931,
+    "environment": {
+      "NEXTPNR_MISTRAL_ARC_DUMP": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-locality/replica-c2/arcs.tsv",
+      "NEXTPNR_MISTRAL_ENABLE_LOCALITY": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d/out/ramtest-enable-locality/replica-c2/probe"
+    },
+    "errors": [],
+    "fmax": {
+      "display.pixel_clk": {
+        "achieved": 78.87679290771484,
+        "constraint": 74.25006866455078
+      },
+      "ram_clock.clocks[0]": {
+        "achieved": 114.56066131591797,
+        "constraint": 130.0052032470703
+      },
+      "ram_clock.clocks[1]": {
+        "achieved": 332.4941101074219,
+        "constraint": 130.0052032470703
+      }
+    },
+    "returncode": 0,
+    "synth_sha256": "5cf5205362505abbd3a35791462c66853b37dde02b85f060bb25998d47c2f76c"
+  },
+  "snapshot_proof": {
+    "clone": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B$LOCALITY_PROBE",
+    "clone_bel": "MISTRAL_COMB.37.26.0",
+    "moved_sinks": [
+      "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_1",
+      "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_4",
+      "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_5",
+      "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_6",
+      "hps_ddr.port1.skid_burstcount_MISTRAL_FF_Q_7"
+    ],
+    "original_bel": "MISTRAL_COMB.24.20.36",
+    "original_driver": "hps_ddr.port1.slot_free_MISTRAL_ALUT3_B",
+    "original_pin_states_unchanged": 103057,
+    "original_placements_unchanged": 14890,
+    "truth_table_identical": {
+      "LUT": "00110010"
+    }
+  }
+}

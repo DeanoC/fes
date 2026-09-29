@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -36,6 +37,31 @@ func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "fogcast-kit:", err)
 		os.Exit(1)
+	}
+}
+
+// writeKitUI prints exactly "tenfoot" or "grid". Missing and invalid
+// configuration print grid so boot can keep the existing shell.
+func writeKitUI(stdout, stderr io.Writer, path string) {
+	mode, note := selectKitUI(path)
+	if note != "" {
+		fmt.Fprintf(stderr, "fogcast-kit: %s\n", note)
+	}
+	fmt.Fprintln(stdout, mode)
+}
+
+func selectKitUI(path string) (string, string) {
+	c, err := kitlauncher.LoadConfig(path)
+	if err != nil {
+		return "grid", ""
+	}
+	switch c.KitUI {
+	case "", "grid":
+		return "grid", ""
+	case "tenfoot":
+		return "tenfoot", ""
+	default:
+		return "grid", fmt.Sprintf("unknown kit_ui %q; using grid", c.KitUI)
 	}
 }
 func run() error {
@@ -70,7 +96,12 @@ func run() error {
 	audioChrome := flag.Bool("audio-chrome", false, "paint attract edge chrome from a measured level file, or a labeled idle pulse when none exists")
 	audioLevelFile := flag.String("audio-level-file", "", "optional 0..1 level file used as a measured injector")
 	menuDisplay := flag.Bool("menu-display", false, "present the kit shell through the local described HDMI menu")
+	printKitUI := flag.Bool("print-kit-ui", false, "print tenfoot or grid and exit")
 	flag.Parse()
+	if *printKitUI {
+		writeKitUI(os.Stdout, os.Stderr, *configPath)
+		return nil
+	}
 	if !*noTransition {
 		switch strings.ToLower(strings.TrimSpace(os.Getenv("FOGCAST_NO_TRANSITION"))) {
 		case "1", "true", "yes":

@@ -87,6 +87,23 @@ busybox devmem 0x3FFFFFFC 32   # 0xC0000007
 
 ## Builds
 
+The [2026-09-27 timing investigation](../../docs/validation/2026-09-27-ramtest-timing.md)
+compares Quartus and OSS on matched source inputs, including FSM encoding and
+routing controls. It explains the observed gap without changing this core's RTL.
+The [initialized-FSM follow-up](../../docs/validation/2026-09-27-ramtest-fsm-init.md)
+records the Yosys candidate, equivalence checks and unchanged-source experiment.
+The [FSM isolation and routing follow-up](../../docs/validation/2026-09-27-ramtest-fsm-routing.md)
+records the GPU convergence fix and the remaining timeout/control-path limit.
+The [placement-option follow-up](../../docs/validation/2026-09-27-ramtest-placer-options.md)
+corrects the earlier effective exponent, verifies preserved defaults, and measures
+the combined FSM/placement improvement; the 130 MHz target remains unresolved.
+The [corrected routed comparison](../../docs/validation/2026-09-28-ramtest-observation-validity.md)
+retains 116.918 MHz memory and 76.959 MHz pixel as the strongest retained
+experimental stack. The later [fixed-placement state-copy trial](../../docs/validation/2026-09-28-ramtest-feedback-local-copy.md)
+does not improve it. These are host-only compiler probes; neither selects a
+production toolchain or qualifies a 130 MHz RBF. The [validation index](../../docs/README.md#dated-records)
+lists the full investigation.
+
 ```sh
 make toolchain-fes-ramtest
 make build-fes-ramtest-100
@@ -107,6 +124,51 @@ different netlist. The seal therefore routes `PLACER_SEEDS` in turn and keeps
 the first seed that meets every clock at analogue signoff.
 `qor-ranking.json` lists the seeds it tried, and `build-summary.json`
 records the winning seed.
+
+For the opt-in 130 MHz compiler timing diagnostic, provision its separate
+lock and run the paired seed-2 routes:
+
+```sh
+make toolchain-fes-ramtest-timing
+make diagnose-fes-ramtest-timing GPU_DEVICE=1
+```
+
+The diagnostic pins merged Yosys [#17](https://github.com/DeanoC/yosys/pull/17)
+and nextpnr [#93](https://github.com/DeanoC/nextpnr/pull/93),
+[#95](https://github.com/DeanoC/nextpnr/pull/95) and the asynchronous-clear
+correctness fix [#94](https://github.com/DeanoC/nextpnr/pull/94). It first routes
+with up to four generic local enable copies. It then uses that timing report
+to try local LUT remap candidate 0 with up to eight LAB groups, routing the
+same synthesis and BUILD_ID again. Both attempts retain their own outputs in
+`build/fes-ramtest-timing-130/{qor-search,remap-search}/`; `ranking.json`
+records which result was selected and why the remap was selected, rejected,
+or had no qualifying candidate.
+
+Both completed routes must prove a live HIP backend, final signoff and all
+three clock rows; CPU fallback or incomplete routing fails the diagnostic.
+The remap wins only with improved memory Fmax, no regression in the other
+clock maxima and no final reported hold violations. A completed HIP route is
+reported even below 130 MHz; `passing` records whether all three frequency
+constraints were met. The hold screen covers final nextpnr warnings, not the
+full package evidence or hardware acceptance. The diagnostic RBF is not a
+sealed package. The normal 100 and 130 MHz package builds keep their existing
+lock and signoff gate. The historical 116.918 MHz route
+also used two opt-in,
+cell-name-specific probes. Those probes no longer match the current RTL and
+remain disabled here; 116.918 MHz is not a result for the current source.
+
+The [merged-compiler measurement](../../docs/validation/2026-09-29-ramtest-merged-compilers.md)
+reaches 109.951 MHz memory with generic remapping, from a 106.157 MHz baseline.
+Pixel changes from 94.500 to 94.357 MHz; both exceed 74.25 MHz, but the conservative
+selector retains the baseline because pixel Fmax decreased. This is a measured
+tradeoff, not recovered 130 MHz closure or hardware acceptance.
+
+The [fixed-input controls](../../docs/validation/2026-09-29-ramtest-fixed-input.md)
+isolate the lower baseline to the changed embedded BUILD_ID: holding the synthesized
+design fixed reproduces the same timing with old and merged nextpnr. Compiler
+comparisons therefore need fixed synthesis inputs as well as a fixed seed. The
+DDR0 first-error enable exposed by remapping has a verified Boolean opportunity
+for a shallower reduction, but no further routed gain has been demonstrated.
 
 The Quartus 17.0.2 diagnostic compiles the same RTL:
 

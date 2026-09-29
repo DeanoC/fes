@@ -113,6 +113,33 @@ func TestMenuDisplayConfigSurvivesThemeSave(t *testing.T) {
 	}
 }
 
+func TestKitUISurvivesThemeSave(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "launcher.json")
+	body := `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a","menu_display":true,"kit_ui":"tenfoot"}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(p)
+	if err != nil || c.KitUI != "tenfoot" || !c.MenuDisplay {
+		t.Fatalf("config=%+v err=%v", c, err)
+	}
+	c.Theme = "neon"
+	if err := SaveConfig(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadConfig(p)
+	if err != nil || got.KitUI != "tenfoot" || !got.MenuDisplay || got.Theme != "neon" {
+		t.Fatalf("saved config=%+v err=%v", got, err)
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"kit_ui": "tenfoot"`) {
+		t.Fatalf("launcher.json dropped kit_ui: %s", raw)
+	}
+}
+
 func TestTemporaryMenuDisplaySelectionDoesNotChangeSavedConfig(t *testing.T) {
 	c := NewClient(Config{MenuDisplay: false})
 	c.SetMenuDisplay(true)
@@ -227,5 +254,54 @@ func TestLaunchAllowsHardwareOperationLongerThanPollTimeout(t *testing.T) {
 	result, err := c.Library.Launch(context.Background(), "pong")
 	if err != nil || result.State != "active" {
 		t.Fatalf("legitimate hardware launch interrupted: %+v %v", result, err)
+	}
+}
+
+// On the kit's /media/fat exFAT, launcher.json.tmp / launcher.json.bak open
+// launcher.json itself (#317). SaveConfig must not write any name that has
+// launcher.json as a prefix; a directory squatting on the old path+".tmp"
+// name proves it, and the directory must end up exactly as before plus the
+// updated file.
+func TestSaveConfigNeverWritesTargetPrefixedTemp(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "launcher.json")
+	body := `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a"}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(p+".tmp", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p+".bak", []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Theme = "neon"
+	if err := SaveConfig(c); err != nil {
+		t.Fatalf("SaveConfig used a launcher.json-prefixed temp: %v", err)
+	}
+	got, err := LoadConfig(p)
+	if err != nil || got.Theme != "neon" {
+		t.Fatalf("saved config=%+v err=%v", got, err)
+	}
+	if fi, err := os.Stat(p); err != nil || fi.Mode().Perm() != 0600 {
+		t.Fatalf("launcher.json mode: %v %v", fi, err)
+	}
+	if b, _ := os.ReadFile(p + ".bak"); string(b) != "keep" {
+		t.Fatalf("launcher.json.bak touched: %q", b)
+	}
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range ents {
+		names = append(names, e.Name())
+	}
+	if strings.Join(names, ",") != "launcher.json,launcher.json.bak,launcher.json.tmp" {
+		t.Fatalf("unexpected directory contents %v", names)
 	}
 }

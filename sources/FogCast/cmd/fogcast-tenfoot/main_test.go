@@ -143,6 +143,24 @@ func TestParseArgsRejectsUnknownFlag(t *testing.T) {
 	}
 }
 
+func TestParseArgsMenuDisplay(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-gfx", "menu-display", "-menu-socket", "/tmp/runtime.sock"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.GFX != "menu-display" || opts.MenuSocket != "/tmp/runtime.sock" {
+		t.Fatalf("opts = %#v", opts)
+	}
+	opts, err = parseArgs([]string{"-gfx", "menu-display"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.GFX != "menu-display" || opts.MenuSocket != "" {
+		t.Fatalf("default socket opts = %#v", opts)
+	}
+}
+
 func TestParseArgsFramebuffer(t *testing.T) {
 	opts, err := parseArgs([]string{"-gfx", "linuxfb", "-fb", "/dev/fb0", "-input", "/dev/input/event3,/dev/input/event5"})
 	if err != nil {
