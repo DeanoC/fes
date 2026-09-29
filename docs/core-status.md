@@ -50,6 +50,11 @@ different interface and admits 1–32768 bytes on the cores that require it.
 Host storage can hold larger files. Storage size is not cartridge capacity.
 See [media capacity](core-media-evolution.md).
 
+The named `fes.sg1000` 1.2.0 package, open sound ROM and installed image have
+[exact-artifact kit 1 audio diagnostic acceptance](validation/2026-09-29-sg1000-shared-audio-hil.md):
+captured tone/noise, checkerboard, Stop mute and silent Pong transition. This
+does not qualify a later artifact or commercial cartridge.
+
 The Coleco v2 shell and independently linked SGM expansion have
 [exact-artifact kit diagnostic acceptance](validation/2026-09-25-coleco-sgm-v2-hil.md)
 for the named artifacts in that record. The factory image built from FES
