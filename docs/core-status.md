@@ -56,6 +56,11 @@ The named `fes.sg1000` 1.2.0 package, open sound ROM and installed image have
 captured tone/noise, checkerboard, Stop mute and silent Pong transition. This
 does not qualify a later artifact or commercial cartridge.
 
+The named `fes.sms` 1.4.0 package, open Mode 4 ROM and installed image have
+[exact-artifact kit 1 audio diagnostic acceptance](validation/2026-09-29-sms-shared-audio-hil.md):
+captured checkerboard, approximately 399 Hz tone and Stop mute. This does not
+qualify a later artifact or commercial cartridge.
+
 The Coleco v2 shell and independently linked SGM expansion have
 [exact-artifact kit diagnostic acceptance](validation/2026-09-25-coleco-sgm-v2-hil.md)
 for the named artifacts in that record. The factory image built from FES
