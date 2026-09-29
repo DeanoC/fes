@@ -87,8 +87,8 @@ int main(int argc, char **argv) {
     require(!mailbox.dut.media_ready && mailbox.dut.media_size == 0,
             "media starts empty");
 
-    exchange(mailbox, toggle, 1, 7, 0, false, 0x0003,
-             "capabilities omit blob and stream");
+    exchange(mailbox, toggle, 1, 7, 0, false, 0x0013,
+             "capabilities include audio but omit blob and stream");
     exchange(mailbox, toggle, 4, 0, 3, true, 1, "media begin rejected");
     exchange(mailbox, toggle, 4, 1, 0, true, 1, "media eject rejected");
     exchange(mailbox, toggle, 5, 0, 0x0201, true, 1, "media data rejected");
