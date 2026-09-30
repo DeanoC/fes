@@ -26,7 +26,4 @@ core_id = "fes.sms"
 core_id = "fes.sg1000"
 
 [[fpga_packages]]
-core_id = "fes.c64"
-
-[[fpga_packages]]
 core_id = "fes.spectrum"

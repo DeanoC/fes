@@ -139,10 +139,10 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(
             [entry['core_id'] for entry in repository_profile['fpga_packages']],
             ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco',
-             'fes.sms', 'fes.sg1000', 'fes.c64', 'fes.spectrum'])
+             'fes.sms', 'fes.sg1000', 'fes.spectrum'])
         self.assertEqual(build.selected_packages(repository_profile, 'native-integration-dev'),
                          ('fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco',
-             'fes.sms', 'fes.sg1000', 'fes.c64', 'fes.spectrum'))
+             'fes.sms', 'fes.sg1000', 'fes.spectrum'))
 
     def test_selection_overrides_do_not_leak_from_shell(self):
         with patch.dict('os.environ', {'NATIVE_RUNTIME_SYSTEMS': 'pong',

@@ -79,8 +79,8 @@ esac
 SELECTOR
 chmod +x "$selector"
 
-package_ids='fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum'
-package_words='fes.menu fes.pong fes.zx81 fes.coleco fes.sms fes.sg1000 fes.c64 fes.spectrum'
+package_ids=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo")
+package_words=$(printf '%s' "$package_ids" | tr ',' ' ')
 package_id_for() {
   case "$1" in
     fes.menu) package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
@@ -182,8 +182,7 @@ test "$(awk -F= 'NR == 3 { print $1 }' "$build_inputs")" = fes.zx81_package_id
 test "$(awk -F= 'NR == 4 { print $1 }' "$build_inputs")" = fes.coleco_package_id
 test "$(awk -F= 'NR == 5 { print $1 }' "$build_inputs")" = fes.sms_package_id
 test "$(awk -F= 'NR == 6 { print $1 }' "$build_inputs")" = fes.sg1000_package_id
-test "$(awk -F= 'NR == 7 { print $1 }' "$build_inputs")" = fes.c64_package_id
-test "$(awk -F= 'NR == 8 { print $1 }' "$build_inputs")" = fes.spectrum_package_id
+test "$(awk -F= 'NR == 7 { print $1 }' "$build_inputs")" = fes.spectrum_package_id
 expected_build_inputs=$fixture/build-inputs.expected
 cat >"$expected_build_inputs" <<EOF
 fes.menu_package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
@@ -192,14 +191,13 @@ fes.zx81_package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 fes.coleco_package_id=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 fes.sms_package_id=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 fes.sg1000_package_id=1111111111111111111111111111111111111111111111111111111111111111
-fes.c64_package_id=2222222222222222222222222222222222222222222222222222222222222222
 fes.spectrum_package_id=3333333333333333333333333333333333333333333333333333333333333333
 EOF
 cmp "$expected_build_inputs" "$build_inputs"
 
 records=$fixture/records
 "$repo/scripts/native-extra-cores.sh" copy-records "$cache" "$records"
-for core in menu pong zx81 coleco sms sg1000 c64 spectrum; do
+for core in menu pong zx81 coleco sms sg1000 spectrum; do
   test "$(stat -c %a "$records/fes-$core.package-selection.toml")" = 444
 done
 
@@ -289,7 +287,7 @@ chmod +x "$container"
 export CONTAINER_LOG=$fixture/container.log
 TARGET_IMAGE_CONTAINER_RUNTIME="$container" \
   sh "$repo/scripts/target-image-container.sh" fetch /work/test-fetch
-grep -Fqx -- 'FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum' "$CONTAINER_LOG"
+grep -Fqx -- "FES_PACKAGE_IDS=$package_ids" "$CONTAINER_LOG"
 previous_line=0
 for core in menu pong zx81 coleco sms sg1000 c64 spectrum; do
   grep -Fqx -- "$fixture/$core-package:/fes-$core-package:ro" "$CONTAINER_LOG"

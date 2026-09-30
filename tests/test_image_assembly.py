@@ -100,7 +100,7 @@ class ImageAssemblyTest(unittest.TestCase):
         self.assertEqual(
             [entry['core_id'] for entry in profile['fpga_packages']],
             ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
-             'fes.sg1000', 'fes.c64', 'fes.spectrum'])
+             'fes.sg1000', 'fes.spectrum'])
 
     def test_build_and_verify_core_mappings_cover_default_profile(self):
         profile = tomllib.loads((ROOT / 'profiles/native-integration-dev.toml').read_text())

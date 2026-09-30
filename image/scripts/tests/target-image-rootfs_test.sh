@@ -224,16 +224,15 @@ package_fixture zx81 b
 package_fixture coleco c
 package_fixture sms e
 package_fixture sg1000 f
-package_fixture c64 1
 package_fixture spectrum 2
-export FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum
+FES_PACKAGE_IDS=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo")
+export FES_PACKAGE_IDS
 export FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION
 export FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION
 export FES_ZX81_PACKAGE_DIR FES_ZX81_PACKAGE_SELECTION
 export FES_COLECO_PACKAGE_DIR FES_COLECO_PACKAGE_SELECTION
 export FES_SMS_PACKAGE_DIR FES_SMS_PACKAGE_SELECTION
 export FES_SG1000_PACKAGE_DIR FES_SG1000_PACKAGE_SELECTION
-export FES_C64_PACKAGE_DIR FES_C64_PACKAGE_SELECTION
 export FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION
 
 cache=$fixture/cache
@@ -263,7 +262,8 @@ grep -Fq "fogcast_tenfoot_sha256=$(sha256sum "$target/usr/sbin/fogcast-tenfoot" 
   "$target/usr/share/mister-runtime/build-inputs"
 test -x "$target/etc/init.d/S15fes-ethaddr"
 test "$(stat -c %a "$target/usr/share/mister-runtime/idle.rbf")" = 644
-test "$(find "$target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 9
+package_count=$(printf '%s' "$FES_PACKAGE_IDS" | awk -F, '{print NF}')
+test "$(find "$target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq "$((package_count + 1))"
 test "$(stat -c %a "$target/usr/share/mister-runtime/core-packages/$(printf '%064d' 0 | tr 0 a)")" = 555
 test "$(stat -c %a "$target/usr/share/mister-runtime/core-packages/$(printf '%064d' 0 | tr 0 a)/core.rbf")" = 444
 test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-pong.package.toml")" = 444
@@ -280,7 +280,6 @@ grep -Fq 'fes.coleco_package_id=' \
   "$target/usr/share/mister-runtime/build-inputs"
 grep -Fq 'fes.sms_package_id=' "$target/usr/share/mister-runtime/build-inputs"
 grep -Fq 'fes.sg1000_package_id=' "$target/usr/share/mister-runtime/build-inputs"
-grep -Fq 'fes.c64_package_id=' "$target/usr/share/mister-runtime/build-inputs"
 grep -Fq 'fes.spectrum_package_id=' "$target/usr/share/mister-runtime/build-inputs"
 
 NATIVE_RUNTIME_MODE=package-only \
