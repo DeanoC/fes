@@ -7,10 +7,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
+	"time"
 )
 
 const (
@@ -173,4 +176,118 @@ func TestClientEmptyListIsNotNil(t *testing.T) {
 	if err != nil || string(raw) != "[]" {
 		t.Fatalf("marshal %s %v", raw, err)
 	}
+}
+
+func TestClientMissingAndRefusedSocketsAreUnavailable(t *testing.T) {
+	missing := NewClient(shortSock(t))
+	if _, err := missing.List(context.Background()); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("missing list %v", err)
+	}
+	if err := missing.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("missing launch %v", err)
+	}
+	if err := missing.Stop(context.Background()); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("missing stop %v", err)
+	}
+
+	refused := NewClient(refuseSock(t))
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := refused.List(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("refused list %v", err)
+	}
+}
+
+func refuseSock(t *testing.T) string {
+	t.Helper()
+	path := shortSock(t)
+	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Close(fd) })
+	if err := syscall.Bind(fd, &syscall.SockaddrUnix{Name: path}); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestLaunchTimeoutThenRunningIsNotASecondLaunch(t *testing.T) {
+	path := shortSock(t)
+	var posts atomic.Int32
+	running := atomic.Bool{}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/local/status":
+			phase := phaseLaunching
+			up := running.Load()
+			if up {
+				phase = phaseRunning
+			}
+			writeJSON(w, http.StatusOK, RunStatus{Phase: phase, PackageID: clientPongID, Running: up})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/launch"):
+			if posts.Add(1) != 1 {
+				t.Errorf("launch posted %d times", posts.Load())
+			}
+			running.Store(true)
+			<-r.Context().Done()
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		}
+	})
+	serveUnix(t, path, handler)
+	client := NewClient(path)
+	client.launchPost = 150 * time.Millisecond
+	client.reconcileFor = time.Second
+	client.reconcileEvery = 20 * time.Millisecond
+	if err := client.Launch(context.Background(), clientPongID); err != nil {
+		t.Fatal(err)
+	}
+	if posts.Load() != 1 {
+		t.Fatalf("posts %d", posts.Load())
+	}
+}
+
+func TestLaunchTimeoutThenIdleStaysFailed(t *testing.T) {
+	path := shortSock(t)
+	var posts atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/local/status":
+			writeJSON(w, http.StatusOK, RunStatus{Phase: phaseIdle, Running: false})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/launch"):
+			posts.Add(1)
+			<-r.Context().Done()
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		}
+	})
+	serveUnix(t, path, handler)
+	client := NewClient(path)
+	client.launchPost = 80 * time.Millisecond
+	client.reconcileFor = time.Second
+	if err := client.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("idle after timeout %v", err)
+	}
+	if posts.Load() != 1 {
+		t.Fatalf("posts %d", posts.Load())
+	}
+}
+
+func serveUnix(t *testing.T, path string, handler http.Handler) {
+	t.Helper()
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(handler)
+	if err := srv.Listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv.Listener = ln
+	srv.Start()
+	t.Cleanup(srv.Close)
 }

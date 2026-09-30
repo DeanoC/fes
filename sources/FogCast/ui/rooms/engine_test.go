@@ -756,6 +756,10 @@ func (f *fakeLocalCores) Launch(_ context.Context, packageID string) error {
 
 func (f *fakeLocalCores) Stop(context.Context) error { return nil }
 
+func (f *fakeLocalCores) Status(context.Context) (localcores.RunStatus, error) {
+	return localcores.RunStatus{}, nil
+}
+
 func (f *fakeLocalCores) launchedIDs() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()

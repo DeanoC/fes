@@ -218,10 +218,13 @@ func selectionCoreID(name string) (string, bool) {
 }
 
 func packageID(id string) bool {
-	return sha256Hex(id)
+	return SHA256Hex(id)
 }
 
-func sha256Hex(value string) bool {
+// SHA256Hex reports whether value is a lowercase SHA-256 hex digest.
+// Package ids and payload digests share this rule. rooms.ValidPackageID
+// calls it so the socket and the room API cannot drift.
+func SHA256Hex(value string) bool {
 	if len(value) != 64 {
 		return false
 	}
@@ -232,6 +235,10 @@ func sha256Hex(value string) bool {
 		}
 	}
 	return true
+}
+
+func sha256Hex(value string) bool {
+	return SHA256Hex(value)
 }
 
 func realDir(path string) bool {

@@ -291,6 +291,9 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 	case rooms.ConfirmLauncherAction:
 		a.runLauncherActionLocked(dest.LauncherAction)
 		return true
+	case rooms.ConfirmLaunchCore:
+		a.startLocalCoreLocked(dest)
+		return true
 	default:
 		return false
 	}

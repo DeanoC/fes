@@ -16,7 +16,11 @@ end
 local function publish()
   local core = selected()
   if not core then
-    destination.set{ kind = "unresolved", label = "Installed cores" }
+    if unavailable then
+      destination.set{ kind = "unresolved", label = "Installed cores", status = status }
+    else
+      destination.set{ kind = "unresolved", label = "Installed cores" }
+    end
     return
   end
   destination.set{

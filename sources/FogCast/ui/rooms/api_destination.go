@@ -149,6 +149,15 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 	}
 	d.FillCopy()
 	d.FillHistory()
+	// An unresolved row with no availability may carry the room's own
+	// sentence. FillCopy would otherwise replace it with the generic
+	// "Choose a title" line, so the compact strip and the room body diverge.
+	if d.Kind == KindUnresolved && d.Availability == "" {
+		if status := optString(opts, "status"); status != "" {
+			d.Status = status
+			d.Action = status
+		}
+	}
 	r.dest = d
 	return 0
 }

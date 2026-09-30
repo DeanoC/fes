@@ -14,7 +14,20 @@ import (
 const (
 	loadTimeout = 60 * time.Second
 	stopTimeout = 30 * time.Second
+
+	phaseIdle      = "idle"
+	phaseLaunching = "launching"
+	phaseRunning   = "running"
+	phaseStopping  = "stopping"
 )
+
+// RunStatus is GET /v1/local/status. Running is true only after load has
+// published the kit-local lease. Phase is idle, launching, running, or stopping.
+type RunStatus struct {
+	Phase     string `json:"phase"`
+	PackageID string `json:"package_id"`
+	Running   bool   `json:"running"`
+}
 
 var (
 	errNotFound    = errors.New("not_found")
@@ -55,9 +68,30 @@ type Service struct {
 
 	mu          sync.Mutex
 	token       string
+	phase       string
+	runPackage  string
 	closed      bool
 	renewCancel context.CancelFunc
 	renewDone   chan struct{}
+}
+
+// RunStatus reports the in-flight or running kit-local core. A nil service
+// is idle. The list payload is unchanged; this is a separate read.
+func (s *Service) RunStatus() RunStatus {
+	if s == nil {
+		return RunStatus{Phase: phaseIdle}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	phase := s.phase
+	if phase == "" {
+		phase = phaseIdle
+	}
+	return RunStatus{
+		Phase:     phase,
+		PackageID: s.runPackage,
+		Running:   phase == phaseRunning && s.token != "",
+	}
 }
 
 func New(leases LeaseGate, runtime Runtime, roots Roots) *Service {
@@ -76,6 +110,8 @@ func (s *Service) List() []Core {
 // makes no runtime call. A package that still needs media or firmware is
 // blocked and makes no runtime call. Renewal starts at the claim, before
 // load. A failed load releases the lease; revocation stops the runtime.
+// A failed renew, or cancellation of that lease context, clears the
+// session so RunStatus is not running.
 func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 	if s == nil || s.leases == nil || s.runtime == nil {
 		return Core{}, errUnavailable
@@ -123,17 +159,41 @@ func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 		return Core{}, errInUse
 	}
 	// Renew during programming. The service token stays empty until load
-	// succeeds, so Stop cannot interrupt the in-flight program.
-	s.startRenew(grant.Token, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
+	// succeeds, so Stop cannot interrupt the in-flight program. Phase is
+	// published first so a revoke during startRenew cannot miss the session.
+	s.mu.Lock()
+	s.phase = phaseLaunching
+	s.runPackage = core.PackageID
+	s.mu.Unlock()
+	s.startRenew(grant.Token, leaseCtx, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
 	loadErr := s.load(ctx, leaseCtx, core)
 	done()
 	if loadErr != nil {
 		_, _ = s.leases.Release(grant.Token)
+		s.mu.Lock()
+		if s.token == "" || s.token == grant.Token {
+			s.token = ""
+			s.phase = phaseIdle
+			s.runPackage = ""
+		}
+		s.mu.Unlock()
 		s.stopRenew()
 		return Core{}, errUnavailable
 	}
 	s.mu.Lock()
+	// The renew loop may already have dropped a revoked session.
+	if s.phase != phaseLaunching || leaseCtx.Err() != nil {
+		s.token = ""
+		s.phase = phaseIdle
+		s.runPackage = ""
+		s.mu.Unlock()
+		_, _ = s.leases.Release(grant.Token)
+		s.stopRenew()
+		return Core{}, errUnavailable
+	}
 	s.token = grant.Token
+	s.phase = phaseRunning
+	s.runPackage = core.PackageID
 	s.mu.Unlock()
 	return core, nil
 }
@@ -147,8 +207,20 @@ func (s *Service) Stop(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	token := s.token
+	markedStopping := false
+	if token != "" && s.phase == phaseRunning {
+		s.phase = phaseStopping
+		markedStopping = true
+	}
 	s.mu.Unlock()
 	if token == "" || !contract.LocalCoreSession(s.leases.Status()) {
+		if markedStopping {
+			s.mu.Lock()
+			if s.phase == phaseStopping {
+				s.phase = phaseRunning
+			}
+			s.mu.Unlock()
+		}
 		return errInUse
 	}
 	leaseCtx, done, err := s.leases.Begin(token)
@@ -158,6 +230,11 @@ func (s *Service) Stop(ctx context.Context) error {
 	stopErr := s.stop(ctx, leaseCtx)
 	done()
 	if stopErr != nil {
+		s.mu.Lock()
+		if s.token == token && s.phase == phaseStopping {
+			s.phase = phaseRunning
+		}
+		s.mu.Unlock()
 		return errUnavailable
 	}
 	if _, err := s.leases.Release(token); err != nil {
@@ -167,6 +244,8 @@ func (s *Service) Stop(ctx context.Context) error {
 	if s.token == token {
 		s.token = ""
 	}
+	s.phase = phaseIdle
+	s.runPackage = ""
 	s.mu.Unlock()
 	s.stopRenew()
 	return nil
@@ -194,7 +273,7 @@ func renewInterval(remaining time.Duration) time.Duration {
 	return interval
 }
 
-func (s *Service) startRenew(token string, remaining time.Duration) {
+func (s *Service) startRenew(token string, leaseCtx context.Context, remaining time.Duration) {
 	s.stopRenew()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -207,7 +286,13 @@ func (s *Service) startRenew(token string, remaining time.Duration) {
 	}
 	s.renewCancel = cancel
 	s.renewDone = done
+	var leaseDone <-chan struct{}
+	if leaseCtx != nil {
+		leaseDone = leaseCtx.Done()
+	}
 	// Publish the loop before unlocking so Close cannot miss it.
+	// leaseDone is the context revokeLocked cancels. Waiting for the next
+	// renew tick would leave RunStatus running after takeover or expiry.
 	go func() {
 		defer close(done)
 		timer := time.NewTimer(interval)
@@ -215,13 +300,25 @@ func (s *Service) startRenew(token string, remaining time.Duration) {
 		for {
 			select {
 			case <-ctx.Done():
+				if leaseLost(leaseCtx) {
+					s.clearLostSession(token)
+				}
+				return
+			case <-leaseDone:
+				s.clearLostSession(token)
 				return
 			case <-timer.C:
-				if ctx.Err() != nil {
+				if ctx.Err() != nil && !leaseLost(leaseCtx) {
 					return
 				}
 				grant, err := s.leases.Renew(token)
-				if err != nil {
+				// Close and Stop cancel ctx without a revoked lease. A revoke
+				// cancels leaseCtx even when this loop is also stopping.
+				if ctx.Err() != nil && !leaseLost(leaseCtx) {
+					return
+				}
+				if err != nil || leaseLost(leaseCtx) || !contract.LocalCoreSession(grant.Status) || !contract.LocalCoreSession(s.leases.Status()) {
+					s.clearLostSession(token)
 					return
 				}
 				s.mu.Lock()
@@ -238,6 +335,30 @@ func (s *Service) startRenew(token string, remaining time.Duration) {
 		}
 	}()
 	s.mu.Unlock()
+}
+
+func leaseLost(leaseCtx context.Context) bool {
+	return leaseCtx != nil && leaseCtx.Err() != nil
+}
+
+// clearLostSession forgets a session after renewal fails or the lease
+// context is revoked. It does not release the grant or stop the runtime.
+func (s *Service) clearLostSession(token string) {
+	if token == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.token != "" && s.token != token {
+		return
+	}
+	// An empty token is the in-flight launch. Anything else already moved on.
+	if s.token == "" && s.phase != phaseLaunching {
+		return
+	}
+	s.token = ""
+	s.phase = phaseIdle
+	s.runPackage = ""
 }
 
 func (s *Service) stopRenew() {

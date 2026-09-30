@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/libraryuser"
 )
 
@@ -33,16 +34,7 @@ const (
 // ValidPackageID reports whether id is a lowercase SHA-256 hex package id,
 // the same rule the local-control socket accepts.
 func ValidPackageID(id string) bool {
-	if len(id) != 64 {
-		return false
-	}
-	for i := 0; i < len(id); i++ {
-		c := id[i]
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return false
-		}
-	}
-	return true
+	return localcores.SHA256Hex(id)
 }
 
 // validCoreID reports a safe manifest core id. Callers allow an empty id;

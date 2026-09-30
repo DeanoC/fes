@@ -892,7 +892,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` submits every `Present`. `fogcast-tenfoot -gfx menu-display` calls `SetChangeDriven(true)`: an unchanged frame (byte-identical to the last submitted frame that has not failed or been dropped) is skipped. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. Pause before launch and the plain status copy are follow-on. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` submits every `Present`. `fogcast-tenfoot -gfx menu-display` calls `SetChangeDriven(true)`: an unchanged frame (byte-identical to the last submitted frame that has not failed or been dropped) is skipped. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -914,8 +914,9 @@ menu backs off on that schedule but no longer than one second, so a Stop
 redraws within about a second. A generation mismatch does not start a new
 wait. The kit image starts that client only when `launcher.json` `kit_ui`
 is `tenfoot` and the menu selection and `fogcast-tenfoot` binary are both
-present. Otherwise boot still runs `fogcast-kit`. Pause before launch and
-the plain status copy are follow-on.
+present. Otherwise boot still runs `fogcast-kit`. On this backend tenfoot opens
+the kit-local control socket, shows "Starting {title}…", pauses presents so the
+core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running.
 The configured FogCast service still supplies library/setup operations and
 the host session path still launches games. Cached offline titles remain
 browse-only. This option does not install or select menu firmware in an image.
@@ -1911,14 +1912,35 @@ Installed-core control is a separate root-only HTTP socket at
 packages and, when the kit lease is free, launches one that needs no cartridge
 or firmware under owner `kit-hostless` purpose `kit-local-core`. The rooms
 engine can list and launch through that socket when a `localcores` client is
-injected (`kit.cores`, destination kind `core`). Tenfoot does not connect it;
-a host session leaves `kit` unset. ZX81 stays
+injected (`kit.cores`, destination kind `core`). `fogcast-tenfoot -gfx menu-display`
+connects that socket and, while the core runs, writes pad frames through the
+shared `ui/localfeed` socket. A host session, and any other tenfoot gfx backend,
+leaves `kit` unset. Confirm shows "Starting {title}…", then pauses menu presents
+so the core owns HDMI. "In use. Someone else is playing on this machine. You can
+play when they're done." is the busy lease. A blocked tile keeps its block line
+("Needs a cartridge", "Needs firmware") and does not call the runtime. Anything
+else the socket cannot launch says "This core isn't available right now."
+Select+Start held for one second calls stop. A lone Select or Start is forwarded.
+When the second of that pair goes down, tenfoot releases whichever of the pair
+it already sent and suppresses both until one is released. Releasing either
+before the second elapses cancels the stop and does not replay the swallowed
+press, so the core sees at most a brief tap of the button that went down first.
+The one-second mark is the next pad event or the existing frame tick, not a new
+loop. The event that reaches that mark is not forwarded. Stop returns the runtime
+to fes.menu; tenfoot resumes presents and redraws on that new menu generation.
+While the phase is running, that same tick polls GET /v1/local/status at most
+about once a second, off the app lock and single-flight. If the agent reports
+idle or not running, tenfoot resumes the same way. Stop that returns in_use
+resumes too; only unavailable is retried, because the core may still be up.
+ZX81 stays
 in that firmware class: this socket has no ROM link, and it does not consult
 the rom map. A held, busy, blocked, or recovery lease returns 409 and does not
 call the runtime. The claim starts renewal immediately. The first renew waits
 a quarter of the time still remaining, so a slow launch renews before the
 grant expires, and renewal continues until stop, a failed renew, release, or
-process shutdown. Launch and stop keep the runtime operation on the lease
+process shutdown. A failed renew, and cancellation of the lease context on
+takeover or expiry, clears the service token, phase, and package immediately,
+so status no longer reports running. Launch and stop keep the runtime operation on the lease
 context; disconnecting the local client does not abort an in-flight program.
 Launch takes the input replacement barrier before `load_core`, so a kit-local
 pad frame cannot rebind a generation that barrier just cleared. Stop uses the

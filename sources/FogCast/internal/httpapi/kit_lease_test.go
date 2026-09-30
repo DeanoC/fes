@@ -157,21 +157,28 @@ func TestKitLocalCorePurposeCannotUseHostRoutes(t *testing.T) {
 		t.Fatalf("network list: %d", listedResponse.Code)
 	}
 	packageID := strings.Repeat("ab", 32)
-	for _, path := range []string{"/v1/local/stop", "/v1/local/cores/" + packageID + "/launch"} {
+	for _, check := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/v1/local/stop"},
+		{http.MethodPost, "/v1/local/cores/" + packageID + "/launch"},
+		{http.MethodGet, "/v1/local/status"},
+	} {
 		for _, headers := range []map[string]string{
 			{},
 			{"Authorization": "Bearer bearer"},
 			{"Authorization": "Bearer bearer", httpapi.KitLeaseHeader: grant.Token},
 			{httpapi.KitLeaseHeader: grant.Token},
 		} {
-			request := httptest.NewRequest(http.MethodPost, path, nil)
+			request := httptest.NewRequest(check.method, check.path, nil)
 			for key, value := range headers {
 				request.Header.Set(key, value)
 			}
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
 			if response.Code != http.StatusNotFound {
-				t.Fatalf("POST %s headers %v: %d", path, headers, response.Code)
+				t.Fatalf("%s %s headers %v: %d", check.method, check.path, headers, response.Code)
 			}
 		}
 	}
