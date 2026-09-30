@@ -1188,7 +1188,10 @@ currently `1.0`), and `cap` (a capability bag). The kit bag advertises Execute
 `fpga_native` and DisplaySink, plus InputSource for the kit's local pad path.
 ABI or package-family suffixes are included only when the advertiser knows
 them; the agent omits them because it does not inventory packages before
-announcing, and an empty list is not a claim that any RBF runs. DisplaySink
+announcing, and an empty list is not a claim that any RBF runs. Encode
+refuses a `cap` value longer than 251 octets, and parse marks that bag
+unusable, so `cap=` stays inside one DNS TXT character-string of 255 octets.
+DisplaySink
 means the node can present. It is not HDMI or ADV liveness, and a host preview
 is not this capability. Catalog, Content, Shell, and Coordinator are omitted.
 The advertisement carries no credentials, title list, or lease secret. A `ttl`

@@ -24,6 +24,10 @@ const (
 	capKey    = "cap"
 	ttlKey    = "ttl"
 
+	// A DNS-SD TXT character-string is at most 255 octets (RFC 6763).
+	// cap= takes four of those, so the value is at most 251.
+	capValueOctets = 255 - len(capKey) - 1
+
 	// ExecuteFPGANative is the kit's execute kind. It is not a claim that
 	// any RBF runs, and it does not name a display title or a file path.
 	ExecuteFPGANative = "fpga_native"
@@ -317,7 +321,11 @@ func encodeCapabilities(caps Capabilities) (string, error) {
 		tokens = append(tokens, token)
 	}
 	sort.Strings(tokens)
-	return strings.Join(tokens, ","), nil
+	bag := strings.Join(tokens, ",")
+	if len(bag) > capValueOctets {
+		return "", fmt.Errorf("capability bag exceeds %d octets", capValueOctets)
+	}
+	return bag, nil
 }
 
 func parseMeshVersion(raw string) (MeshVersion, bool) {
@@ -337,7 +345,7 @@ func parseMeshVersion(raw string) (MeshVersion, bool) {
 }
 
 func parseCapabilities(raw string) (Capabilities, bool) {
-	if raw == "" || len(raw) > 255 || strings.Contains(raw, " ") {
+	if raw == "" || len(raw) > capValueOctets || strings.Contains(raw, " ") {
 		return Capabilities{}, false
 	}
 	var caps Capabilities

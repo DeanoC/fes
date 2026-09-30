@@ -377,6 +377,67 @@ func TestEncodeRejectsInvalidABI(t *testing.T) {
 	}
 }
 
+func TestCapabilityBagStaysWithinTXTCharacterString(t *testing.T) {
+	id := "01234567-89ab-cdef-0123-456789abcdef"
+	prefix := "execute:" + ExecuteFPGANative + ":"
+	suffix := "/1"
+	fitID := strings.Repeat("a", capValueOctets-len(prefix)-len(suffix))
+	text, err := EncodeTXT(id, Capabilities{Execute: []Execute{{
+		Kind: ExecuteFPGANative,
+		ABIs: []ABI{{ID: fitID, Major: 1}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var capItem string
+	for _, item := range text {
+		if strings.HasPrefix(item, capKey+"=") {
+			capItem = item
+		}
+	}
+	if len(capItem) != 255 {
+		t.Fatalf("cap item is %d octets, want 255", len(capItem))
+	}
+	fit := ParseTXT(txtMap(text))
+	if fit.CapabilitiesUnusable || !fit.MeshSessionCompatible() || len(fit.Capabilities.Execute) != 1 || len(fit.Capabilities.Execute[0].ABIs) != 1 || fit.Capabilities.Execute[0].ABIs[0].ID != fitID {
+		t.Fatalf("boundary bag %#v", fit)
+	}
+
+	overID := fitID + "b"
+	if _, err := EncodeTXT(id, Capabilities{Execute: []Execute{{
+		Kind: ExecuteFPGANative,
+		ABIs: []ABI{{ID: overID, Major: 1}},
+	}}}); err == nil {
+		t.Fatal("oversized abi bag was encoded")
+	}
+	over := ParseTXT(map[string]string{
+		"protocol":  "1",
+		"target_id": id,
+		"node_id":   id,
+		"mesh":      "1.0",
+		"cap":       prefix + overID + suffix,
+	})
+	if !over.DirectBindable() || !over.CapabilitiesUnusable || over.MeshSessionCompatible() || len(over.Capabilities.Execute) != 0 {
+		t.Fatalf("oversized parse %#v", over)
+	}
+
+	var families []ABI
+	for n := 0; n < 64; n++ {
+		families = append(families, ABI{ID: "fes.f" + strings.Repeat("m", n), Major: 1})
+		_, err := EncodeTXT(id, Capabilities{Execute: []Execute{{
+			Kind: ExecuteFPGANative,
+			ABIs: append([]ABI(nil), families...),
+		}}})
+		if err != nil {
+			if n == 0 || !strings.Contains(err.Error(), "exceeds") {
+				t.Fatal(err)
+			}
+			return
+		}
+	}
+	t.Fatal("64 abi families still encoded")
+}
+
 func txtMap(text []string) map[string]string {
 	out := make(map[string]string, len(text))
 	for _, item := range text {
