@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch
 
@@ -104,11 +105,11 @@ class MediaTests(unittest.TestCase):
         (self.output / 'reproducibility.txt').write_text(f'run_1_sha256={sha}\nrun_2_sha256={sha}\n')
         (self.output / 'verification.json').write_text(json.dumps(cold_build.verification_record(self.output, sha, False)))
         self.packages = {}
-        for index, (core_id, selection_name, package_id) in enumerate((
-                ('fes.menu', 'fes-menu.package-selection.toml', 'd' * 64),
-                ('fes.pong', 'fes-pong.package-selection.toml', 'a' * 64),
-                ('fes.zx81', 'fes-zx81.package-selection.toml', 'b' * 64),
-                ('fes.coleco', 'fes-coleco.package-selection.toml', 'c' * 64))):
+        profile = tomllib.loads((self.root / 'profiles/native-integration-dev.toml').read_text())
+        self.package_ids = cold_build.selected_packages(profile, 'native-integration-dev')
+        for index, core_id in enumerate(self.package_ids):
+            selection_name = cold_build.recipe_for(core_id).selection_filename
+            package_id = hashlib.sha256(core_id.encode()).hexdigest()
             package = self.output / 'core-packages' / package_id
             package.mkdir(parents=True)
             (package / 'manifest.toml').write_bytes(f'package manifest {index}'.encode())
@@ -131,11 +132,10 @@ class MediaTests(unittest.TestCase):
                 'selection_path': selection,
                 'inputs': package_inputs,
             }
-        self.package_id = 'a' * 64
         self.package = self.packages['fes.pong']
+        self.package_id = self.package['inputs']['selection']['package_id']
         image_fingerprint, image_inputs = cold_build.image_fingerprint(
-            'cold-fp', {'sources': {}}, tuple(
-                self.packages[core_id] for core_id in ('fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco')))
+            'cold-fp', {'sources': {}}, tuple(self.packages[core_id] for core_id in self.package_ids))
         (self.output / 'inputs.json').write_text(json.dumps(image_inputs))
         cold_build.write_receipt(self.output, 'image', image_fingerprint,
                                  ['linux.img', 'manifest.tsv', 'inputs.json'])
@@ -535,12 +535,11 @@ class MediaTests(unittest.TestCase):
         second_package = self.packages['fes.zx81']
         second = second_package['directory']
         second_selection = second_package['selection_path']
-        coleco = self.packages['fes.coleco']
-        shutil.rmtree(coleco['directory'])
-        coleco['selection_path'].unlink()
-        menu = self.packages['fes.menu']
-        shutil.rmtree(menu['directory'])
-        menu['selection_path'].unlink()
+        for core_id, package in self.packages.items():
+            if core_id in ('fes.pong', 'fes.zx81'):
+                continue
+            shutil.rmtree(package['directory'])
+            package['selection_path'].unlink()
         image_fingerprint, image_inputs = cold_build.image_fingerprint(
             'cold-fp', {'sources': {}}, (self.package, second_package))
         (self.output / 'inputs.json').write_text(json.dumps(image_inputs))
@@ -551,6 +550,9 @@ class MediaTests(unittest.TestCase):
             'version = "0.1.0"\nnative_image_mode = "package-only"\ncheck_packages = true\n\n'
             '[[fpga_packages]]\ncore_id = "fes.pong"\n\n'
             '[[fpga_packages]]\ncore_id = "fes.zx81"\n')
+        self.package_ids = cold_build.selected_packages(
+            tomllib.loads((self.root / 'profiles/native-integration-dev.toml').read_text()),
+            'native-integration-dev')
         self.build()
         self.assertEqual(self.runner.asserted_env['FES_PACKAGE_IDS'], 'fes.pong,fes.zx81')
         self.assertEqual(self.runner.asserted_env['FES_ZX81_PACKAGE_DIR'], str(second))
