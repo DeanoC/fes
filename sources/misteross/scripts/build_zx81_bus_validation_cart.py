@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build the RAM validation cart against a sealed ZX81 expansion-bus shell.
+"""Build a RAM or Zon X tone validation cart against a sealed ZX81 bus shell.
 
 The shell is never placed or routed here. Launch-time composition uses the
 misteross Go linker and requires neither this script nor the compiler.
 
-This is a bus validation consumer, not the shell's public interface. Future
-ROM, RAM and peripheral carts use the same bus slot and map.
+These are bounded bus consumers, not the shell's public interface. Zon X
+implements channel A only; it is not a complete AY sound chip.
 """
 from __future__ import annotations
 import argparse
@@ -29,6 +29,7 @@ from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
 INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
+CART_SOURCES = {"ram16k": SOURCES, "zonx": ("cores/fes-zx81/expansions/zonx.v",)}
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "scaffold.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
@@ -88,9 +89,14 @@ def prepare_scaffold(source: bytes) -> bytes:
     pll['attributes']['FES_PINMAP_V1'] = json.dumps(mapping, sort_keys=True).encode().hex()
     return (json.dumps(design, sort_keys=True, separators=(',', ':')) + '\n').encode()
 
-def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: Path | None = None) -> Path:
+def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: Path | None = None,
+          cart_kind: str = "ram16k") -> Path:
+    if cart_kind not in CART_SOURCES:
+        raise ValueError(f"unknown ZX81 cart: {cart_kind}")
+    sources = CART_SOURCES[cart_kind]
+    inputs = sources + INPUTS[len(SOURCES):]
     root, shell = root.resolve(), shell.resolve()
-    _, revision = _require_clean_source(root, pinned_inputs=INPUTS, identity_version=2)
+    _, revision = _require_clean_source(root, pinned_inputs=inputs, identity_version=2)
     package = read_package(package_path)
     if (shell / "manifest.toml").read_bytes() != package.manifest_bytes or (shell / "core.rbf").read_bytes() != package.payload_bytes:
         raise ValueError("frozen producer output differs from sealed shell package")
@@ -108,17 +114,18 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
         expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
     identities = {name: tool.identity for name, tool in tools.items()}
-    closure = {path: digest((root / path).read_bytes()) for path in INPUTS}
+    closure = {path: digest((root / path).read_bytes()) for path in inputs}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
     clock_constraints = cart_clock_constraints(root)
     scaffold = prepare_scaffold((shell / 'routed.json').read_bytes())
-    recipe = {"inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-bus.socket/1",
+    recipe = {"cart_kind": cart_kind, "inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-bus.socket/1",
               "placer_seed": PLACER_SEED, "required_clocks_mhz": REQUIRED_CLOCKS_MHZ,
               "cram_region": CRAM_REGION,
               "clock_constraints_sha256": digest(clock_constraints),
               "scaffold_sha256": digest(scaffold)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
-    output = root / "build/zx81-bus-validation-cart" / recipe_sha
+    output_name = "zx81-bus-validation-cart" if cart_kind == "ram16k" else "zx81-zonx-cart"
+    output = root / "build" / output_name / recipe_sha
     # A recipe directory can be retried. Remove both intermediate evidence and
     # prior publications before invoking either compiler, never after failure.
     publications = tuple(path.name for path in output.glob("*.tar"))
@@ -128,7 +135,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
     commands = [
-        [str(tools["yosys"].path), "-p", f"read_verilog -sv -I cores/fes-zx81/rtl {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
+        [str(tools["yosys"].path), "-p", f"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",
          "--qsf", str(shell / "socket.qsf"), "--sdc", str(output / "clocks.sdc"), "--freq", "52.224",
          "--fes-scaffold", "--fes-cart", str(output / "cart.json"), "--fes-slot-clock", "clk_sys",
@@ -170,8 +177,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         "shell_sha256": digest(package.payload_bytes), "slot": "fes.expansion.zx81-bus", "slot_major": 1, "slot_minor": 0}
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     expansion_id = digest(b"fes-expansion-v1\0" + encoded)
-    _, final_revision = _require_clean_source(root, pinned_inputs=INPUTS, identity_version=2)
-    if final_revision != revision or any(digest((root / path).read_bytes()) != closure[path] for path in INPUTS):
+    _, final_revision = _require_clean_source(root, pinned_inputs=inputs, identity_version=2)
+    if final_revision != revision or any(digest((root / path).read_bytes()) != closure[path] for path in inputs):
         raise ValueError("source changed during cart build")
     for name in shell_members:
         if digest((shell / name).read_bytes()) != closure["shell/" + name]:
@@ -195,5 +202,7 @@ if __name__ == "__main__":
     parser.add_argument("--package", type=Path, required=True, help="exact sealed shell package")
     parser.add_argument("--cache-root", type=Path, help="shared authenticated compiler cache")
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--cart", choices=tuple(CART_SOURCES), default="ram16k",
+                        help="bounded bus consumer; zonx is a channel-A tone diagnostic")
     args = parser.parse_args()
-    print(build(args.root, args.shell, args.package, args.gpu, cache_root=args.cache_root))
+    print(build(args.root, args.shell, args.package, args.gpu, cache_root=args.cache_root, cart_kind=args.cart))
