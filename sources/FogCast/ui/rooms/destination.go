@@ -26,8 +26,30 @@ const (
 	KindRoom       Kind = "room"
 	KindLibrary    Kind = "library"
 	KindAction     Kind = "action"
+	KindCore       Kind = "core"
 	KindUnresolved Kind = "unresolved"
 )
+
+// ValidPackageID reports whether id is a lowercase SHA-256 hex package id,
+// the same rule the local-control socket accepts.
+func ValidPackageID(id string) bool {
+	if len(id) != 64 {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// validCoreID reports a safe manifest core id. Callers allow an empty id;
+// a present id must match the room-id token rule.
+func validCoreID(id string) bool {
+	return id != "" && roomIDPattern.MatchString(id)
+}
 
 // launcherActions is the fixed set of launcher-internal operations a room
 // may name. Ids are not commands: there is no shell, path, network, or
@@ -56,6 +78,7 @@ const (
 	ConfirmEnterRoom
 	ConfirmOpenLibraryBrowse
 	ConfirmLauncherAction
+	ConfirmLaunchCore
 )
 
 // Destination is the selected location a room publishes to the launcher.
@@ -68,6 +91,13 @@ type Destination struct {
 	// LauncherAction is the allowlisted operation id when Kind is KindAction.
 	// It is not the Action copy line.
 	LauncherAction string
+	// PackageID and CoreID identify an installed core when Kind is KindCore.
+	// CoreLaunchable is false when the socket would refuse the package.
+	// CoreBlock is that refusal, verbatim ("Needs a cartridge", "Needs firmware").
+	PackageID      string
+	CoreID         string
+	CoreLaunchable bool
+	CoreBlock      string
 	Availability   Availability
 	Status         string
 	Action         string
@@ -120,9 +150,11 @@ func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostc
 // session holds the kit lease. foreign is false for the shell that holds
 // the grant, including after Soft-stop. Confirm then explains and does not
 // launch or take the lease. A host-only title stays Ready so Play reaches
-// the host executor. An Execute advertisement is not an input.
+// the host executor. A core destination is left as published: the
+// local-control socket reports in_use itself. An Execute advertisement
+// is not an input.
 func ApplyForeignLease(d Destination, foreign bool) Destination {
-	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Availability != AvailReady {
+	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Kind == KindCore || d.Availability != AvailReady {
 		return d
 	}
 	if game, ok := d.Game(); ok && game.HostOnly() {
@@ -269,6 +301,19 @@ func (d *Destination) FillCopy() {
 			d.Action = "This action is not available."
 		}
 		return
+	case KindCore:
+		if d.CoreLaunchable {
+			d.Status = "Ready to play."
+			d.Action = "Play"
+			return
+		}
+		block := strings.TrimSpace(d.CoreBlock)
+		if block == "" {
+			block = "This core cannot launch."
+		}
+		d.Status = block
+		d.Action = block
+		return
 	case KindUnresolved:
 		if d.Availability == "" {
 			d.Status = "Choose a title from this location."
@@ -338,6 +383,11 @@ func (d Destination) Confirm() ConfirmIntent {
 		return ConfirmOpenLibraryBrowse
 	case KindAction:
 		return ConfirmLauncherAction
+	case KindCore:
+		if d.CoreLaunchable {
+			return ConfirmLaunchCore
+		}
+		return ConfirmExplain
 	}
 	switch d.Availability {
 	case AvailChecking:
@@ -416,5 +466,5 @@ func (d Destination) Game() (hostclient.Game, bool) {
 
 // Set reports whether the room has published a selected location.
 func (d Destination) Set() bool {
-	return d.Kind != "" || d.Availability != "" || strings.TrimSpace(d.Label) != "" || strings.TrimSpace(d.GameID) != "" || strings.TrimSpace(d.RoomID) != "" || strings.TrimSpace(d.LauncherAction) != ""
+	return d.Kind != "" || d.Availability != "" || strings.TrimSpace(d.Label) != "" || strings.TrimSpace(d.GameID) != "" || strings.TrimSpace(d.RoomID) != "" || strings.TrimSpace(d.LauncherAction) != "" || strings.TrimSpace(d.PackageID) != "" || strings.TrimSpace(d.CoreID) != ""
 }

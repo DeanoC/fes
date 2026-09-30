@@ -18,6 +18,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
@@ -720,6 +721,242 @@ func TestRoomsOpenValidatesAgainstIndex(t *testing.T) {
 	r.Input("left")
 	if r.Err() == nil || !strings.Contains(r.Err().Error(), "unknown room") {
 		t.Fatalf("expected unknown room error, got %v", r.Err())
+	}
+}
+
+const (
+	corePongID   = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	coreColecoID = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+	coreZXID     = "1111111111111111111111111111111111111111111111111111111111111111"
+)
+
+type fakeLocalCores struct {
+	mu        sync.Mutex
+	cores     []localcores.Core
+	listErr   error
+	launchErr error
+	launched  []string
+}
+
+func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return append([]localcores.Core(nil), f.cores...), nil
+}
+
+func (f *fakeLocalCores) Launch(_ context.Context, packageID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.launched = append(f.launched, packageID)
+	return f.launchErr
+}
+
+func (f *fakeLocalCores) Stop(context.Context) error { return nil }
+
+func (f *fakeLocalCores) launchedIDs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.launched...)
+}
+
+func TestKitCoresAbsentWithoutClient(t *testing.T) {
+	src := `
+function load()
+  has_kit = kit ~= nil
+  has_cores = kit ~= nil and kit.cores ~= nil
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "no-kit", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal(`has_kit == false and has_cores == false`); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestKitCoresRowsAndLaunch(t *testing.T) {
+	fake := &fakeLocalCores{cores: []localcores.Core{{
+		PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true,
+	}}}
+	src := `
+function load()
+  kit.cores(function(rows, err)
+    got_err = err
+    got = rows
+    local row = rows and rows[1]
+    if row then
+      destination.set{
+        kind = "core",
+        package_id = row.package_id,
+        core_id = row.core_id,
+        label = row.name,
+        launchable = row.launchable,
+        block = row.block or "",
+      }
+    end
+  end)
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "kit-cores", src, nil), Options{Local: fake})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return r.Destination().Kind == KindCore })
+	if err := r.CheckGlobal(`got_err == nil and got[1].package_id == "` + corePongID + `" and got[1].core_id == "fes.pong" and got[1].name == "FES Pong" and got[1].needs == "none" and got[1].launchable == true and (got[1].block == nil or got[1].block == "")`); err != nil {
+		t.Fatal(err)
+	}
+	d := r.Destination()
+	if d.PackageID != corePongID || d.CoreID != "fes.pong" || !d.CoreLaunchable || d.Confirm() != ConfirmLaunchCore {
+		t.Fatalf("dest %+v confirm %v", d, d.Confirm())
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.launchedIDs(); len(got) != 1 || got[0] != corePongID {
+		t.Fatalf("launched %v", got)
+	}
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+}
+
+func TestCoreActivationErrorsDoNotCrash(t *testing.T) {
+	src := `
+function load()
+  destination.set{
+    kind = "core",
+    package_id = "` + corePongID + `",
+    core_id = "fes.pong",
+    label = "FES Pong",
+    launchable = true,
+  }
+end
+function on_input(cmd)
+  if cmd == "right" then destination.set{ kind = "core", label = "Nope" }
+  elseif cmd == "left" then destination.set{ kind = "core", package_id = "../etc", core_id = "fes.pong", label = "Bad" }
+  elseif cmd == "up" then destination.set{ kind = "nope", package_id = "` + corePongID + `", label = "Unknown" }
+  end
+  return true
+end
+function draw() end`
+
+	bare := newRoom(t, memPack(t, "bare-core", src, nil), Options{})
+	if err := bare.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bare.Destination(); got.Kind != KindCore || got.PackageID != corePongID || !got.CoreLaunchable {
+		t.Fatalf("setup %+v", got)
+	}
+	if err := bare.ActivateDestination(context.Background()); !errors.Is(err, ErrNoLocalCores) {
+		t.Fatalf("missing client %v", err)
+	}
+	if bare.Err() != nil {
+		t.Fatal(bare.Err())
+	}
+
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "in_use", err: localcores.ErrInUse},
+		{name: "blocked", err: localcores.ErrBlocked},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLocalCores{launchErr: tc.err}
+			r := newRoom(t, memPack(t, "core-"+tc.name, src, nil), Options{Local: fake})
+			if err := r.Load(); err != nil {
+				t.Fatal(err)
+			}
+			err := r.ActivateDestination(context.Background())
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("activate %v", err)
+			}
+			if r.Err() != nil {
+				t.Fatal(r.Err())
+			}
+			if got := r.Destination(); got.Status != tc.err.Error() || got.Availability != AvailUnavailable {
+				t.Fatalf("status %+v", got)
+			}
+			if ids := fake.launchedIDs(); len(ids) != 1 || ids[0] != corePongID {
+				t.Fatalf("launched %v", ids)
+			}
+		})
+	}
+
+	reject := newRoom(t, memPack(t, "bad-core", src, nil), Options{})
+	if err := reject.Load(); err != nil {
+		t.Fatal(err)
+	}
+	reject.Input("right")
+	if reject.Err() == nil || !strings.Contains(reject.Err().Error(), "destination.set: package_id required") {
+		t.Fatalf("missing package id %v", reject.Err())
+	}
+	if got := reject.Destination(); got.PackageID != corePongID {
+		t.Fatalf("missing id stored %+v", got)
+	}
+
+	bad := newRoom(t, memPack(t, "bad-id", src, nil), Options{})
+	if err := bad.Load(); err != nil {
+		t.Fatal(err)
+	}
+	bad.Input("left")
+	if bad.Err() == nil || !strings.Contains(bad.Err().Error(), "is not a package id") {
+		t.Fatalf("bad package id %v", bad.Err())
+	}
+	if got := bad.Destination(); got.PackageID != corePongID || got.Kind != KindCore {
+		t.Fatalf("bad id stored %+v", got)
+	}
+
+	unknown := newRoom(t, memPack(t, "unknown-kind-core", src, nil), Options{})
+	if err := unknown.Load(); err != nil {
+		t.Fatal(err)
+	}
+	unknown.Input("up")
+	if unknown.Err() != nil {
+		t.Fatal(unknown.Err())
+	}
+	if got := unknown.Destination(); got.Kind != KindUnresolved || got.PackageID != "" {
+		t.Fatalf("unknown kind %+v", got)
+	}
+}
+
+func TestBlockedCoreDestinationDoesNotLaunch(t *testing.T) {
+	fake := &fakeLocalCores{}
+	src := `
+function load()
+  destination.set{
+    kind = "core",
+    package_id = "` + coreColecoID + `",
+    core_id = "fes.coleco",
+    label = "ColecoVision",
+    launchable = false,
+    block = "Needs a cartridge",
+  }
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "blocked-core", src, nil), Options{Local: fake})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	d := r.Destination()
+	if d.Kind != KindCore || d.CoreLaunchable || d.Status != "Needs a cartridge" || d.Confirm() != ConfirmExplain {
+		t.Fatalf("dest %+v confirm %v", d, d.Confirm())
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if ids := fake.launchedIDs(); len(ids) != 0 {
+		t.Fatalf("blocked launched %v", ids)
+	}
+	if r.Err() != nil {
+		t.Fatal(r.Err())
 	}
 }
 

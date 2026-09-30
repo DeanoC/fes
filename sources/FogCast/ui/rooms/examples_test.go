@@ -1,10 +1,13 @@
 package rooms
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 )
 
 // Every embedded example must load and draw its first frame against a fake
@@ -16,6 +19,9 @@ func TestEmbeddedExamplesLoadAndDraw(t *testing.T) {
 	}
 	if !examplePack(t, "example.coleco-arcade").Valid() {
 		t.Fatal("example.coleco-arcade missing")
+	}
+	if !examplePack(t, "example.fes-cores").Valid() {
+		t.Fatal("example.fes-cores missing")
 	}
 	svc := &fakeServices{}
 	index := NewIndex(packs)
@@ -39,6 +45,108 @@ func TestEmbeddedExamplesLoadAndDraw(t *testing.T) {
 			t.Fatalf("%s: %v", p.ID, r.Err())
 		}
 		r.Close()
+	}
+}
+
+func frameText(f Frame) string {
+	var b strings.Builder
+	for _, op := range f.Ops {
+		if op.Kind == OpText && op.Text != "" {
+			b.WriteString(op.Text)
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
+func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
+	pack := examplePack(t, "example.fes-cores")
+	fake := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+		{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Launchable: false, Block: "Needs a cartridge"},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware"},
+	}}
+	r := newRoom(t, pack, Options{Local: fake, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f := stepUntil(t, r, func(f Frame) bool {
+		text := frameText(f)
+		return strings.Contains(text, "FES Pong\n") && strings.Contains(text, "ColecoVision\n") && strings.Contains(text, "ZX81\n") && strings.Contains(text, "Needs a cartridge\n") && strings.Contains(text, "Needs firmware\n")
+	})
+	if strings.Contains(frameText(f), "FES.PONG") || strings.Contains(frameText(f), "fes.pong") {
+		t.Fatalf("tile renamed the manifest name:\n%s", frameText(f))
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.launchedIDs(); len(got) != 1 || got[0] != corePongID {
+		t.Fatalf("launch %v", got)
+	}
+	if !r.Input("right") {
+		t.Fatal("right")
+	}
+	if got := r.Destination(); got.Label != "ColecoVision" || got.PackageID != coreColecoID || got.CoreLaunchable || got.Status != "Needs a cartridge" || got.Confirm() != ConfirmExplain {
+		t.Fatalf("blocked dest %+v confirm %v", got, got.Confirm())
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Input("right") {
+		t.Fatal("right to firmware")
+	}
+	if got := r.Destination(); got.Label != "ZX81" || got.Status != "Needs firmware" {
+		t.Fatalf("firmware dest %+v", got)
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.launchedIDs(); len(got) != 1 || got[0] != corePongID {
+		t.Fatalf("blocked tiles launched %v", got)
+	}
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+
+	bare := newRoom(t, pack, Options{Width: 1280, Height: 720})
+	if err := bare.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, bare, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Installed cores are not available here.")
+	})
+	if got := bare.Destination(); got.Kind == KindCore {
+		t.Fatalf("unavailable published a core %+v", got)
+	}
+	if err := bare.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	empty := &fakeLocalCores{}
+	quiet := newRoom(t, pack, Options{Local: empty, Width: 1280, Height: 720})
+	if err := quiet.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, quiet, func(f Frame) bool {
+		return strings.Contains(frameText(f), "No installed cores.")
+	})
+	if err := quiet.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := empty.launchedIDs(); len(got) != 0 {
+		t.Fatalf("empty launched %v", got)
+	}
+
+	broken := &fakeLocalCores{listErr: localcores.ErrUnavailable}
+	failed := newRoom(t, pack, Options{Local: broken, Width: 1280, Height: 720})
+	if err := failed.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, failed, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Installed cores are not available here.")
+	})
+	if failed.Err() != nil {
+		t.Fatal(failed.Err())
 	}
 }
 

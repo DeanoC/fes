@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/hostclient"
@@ -142,6 +143,20 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 			confirm: ConfirmLauncherAction,
 		},
 		{
+			name:    "core ready",
+			dest:    Destination{Kind: KindCore, PackageID: strings.Repeat("ab", 32), CoreID: "fes.pong", Label: "FES Pong", CoreLaunchable: true, Availability: AvailReady},
+			status:  "Ready to play.",
+			action:  "Play",
+			confirm: ConfirmLaunchCore,
+		},
+		{
+			name:    "core needs cartridge",
+			dest:    Destination{Kind: KindCore, PackageID: strings.Repeat("cd", 32), CoreID: "fes.coleco", Label: "ColecoVision", CoreBlock: "Needs a cartridge", Availability: AvailUnavailable},
+			status:  "Needs a cartridge",
+			action:  "Needs a cartridge",
+			confirm: ConfirmExplain,
+		},
+		{
 			name:    "unresolved location",
 			dest:    Destination{Kind: KindUnresolved, Label: "ColecoVision"},
 			status:  "Choose a title from this location.",
@@ -176,6 +191,30 @@ func TestParseKindDropsUnknownAndAcceptsAction(t *testing.T) {
 	}
 	if parseKind("game") != KindGame || parseKind("room") != KindRoom {
 		t.Fatal("existing kinds changed")
+	}
+	if parseKind("core") != KindCore || parseKind(" CORE ") != KindCore {
+		t.Fatal("core kind must parse")
+	}
+}
+
+func TestValidPackageIDAndCoreID(t *testing.T) {
+	t.Parallel()
+	good := strings.Repeat("ab", 32)
+	if len(good) != 64 || !ValidPackageID(good) {
+		t.Fatalf("package id %q", good)
+	}
+	for _, bad := range []string{"", "abc", strings.Repeat("A", 64), strings.Repeat("g", 64), "../" + good[:60], good + " "} {
+		if ValidPackageID(bad) {
+			t.Fatalf("package id accepted %q", bad)
+		}
+	}
+	if !validCoreID("fes.pong") || !validCoreID("fes.sg1000") {
+		t.Fatal("core ids must match the safe token")
+	}
+	for _, bad := range []string{"", "FES.pong", "fes.pong/../x", "fes pong", "../fes.pong"} {
+		if validCoreID(bad) {
+			t.Fatalf("core id accepted %q", bad)
+		}
 	}
 }
 
@@ -343,5 +382,11 @@ func TestForeignLeaseIsUnavailableInUseAndOwnedLeaseStaysReady(t *testing.T) {
 	hostKept := ApplyForeignLease(hostReady, true)
 	if hostKept.Availability != AvailReady || hostKept.LeaseHeld || hostKept.Confirm() != ConfirmLaunch || hostKept.Status != "Ready to play." {
 		t.Fatalf("host-only foreign lease %+v confirm=%v", hostKept, hostKept.Confirm())
+	}
+	core := Destination{Kind: KindCore, CoreLaunchable: true, Availability: AvailReady, PackageID: strings.Repeat("ab", 32), CoreID: "fes.pong", Label: "FES Pong"}
+	core.FillCopy()
+	coreKept := ApplyForeignLease(core, true)
+	if coreKept.Availability != AvailReady || coreKept.LeaseHeld || coreKept.Confirm() != ConfirmLaunchCore || coreKept.Status != "Ready to play." {
+		t.Fatalf("core destination rewritten by foreign lease %+v confirm=%v", coreKept, coreKept.Confirm())
 	}
 }
