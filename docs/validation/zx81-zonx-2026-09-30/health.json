@@ -1,0 +1,29 @@
+{
+  "ready": true,
+  "host": {
+    "version": "0.1.0",
+    "revision": "59f22ec9336230eab147f4ea4477de699360390d",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "target": {
+    "connection": {
+      "state": "ready",
+      "address": "http://192.168.10.84:8182",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "boot_id": "f9e27b8f-f129-4ccf-b890-3a8fec0287f8"
+    },
+    "reachable": true,
+    "ready": true,
+    "artifacts": {
+      "record_sha256": "04bd37f3eae32b0b02c43fb81c5e57b8785d6e8395600c38559c6388376a1610",
+      "runtime_commit": "0ddb837cb8882f0f9bc4e517b5551196922f6850",
+      "agent_sha256": "20ee6133e8a665c4a73d10a7e88348a7a2191921b4532f3353214485e448525c",
+      "agent_revision": "0ddb837cb8882f0f9bc4e517b5551196922f6850",
+      "kit_sha256": "f70708ad6542eb8886cbc93f8a4577faec7624d844743b2609313bab05929e52",
+      "image_sha256": "bf23ccdedd63cb1a08384d2e50f1a949b2ba423d9113930df838021730203d4a",
+      "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+      "package_id": "272a1b53f3e29524a6f17a28fd2b2dd1a20747eb6271ffb6820cdd68e94e213e"
+    }
+  }
+}

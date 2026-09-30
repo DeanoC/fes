@@ -53,6 +53,17 @@ python3 scripts/build_zx81_bus_validation_cart.py --cart zonx \
   --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu 0
 ```
 
+Generate the open tone/mute firmware without a private BASIC ROM:
+
+```sh
+python3 scripts/make_zx81_zonx_tone_rom.py build/diagnostics/zonx-tone.rom
+```
+
+Bind that exact 8 KiB file as `machine-rom`. It alternates an approximately
+6.375 kHz square and mute every 2.1 seconds; it generates no display file,
+so the active HDMI picture is blank. A normal private BASIC ROM can still be
+bound independently; this diagnostic does not demonstrate music software.
+
 Its archive is published under `build/zx81-zonx-cart/<recipe-sha>/`. The recipe
 binds the chosen cart and its own RTL source closure. It uses the same fixed
 socket, all three clock signoff gates and outside-CRAM rejection as the RAM
@@ -118,6 +129,11 @@ Stop and ordinary loads clear composition status. ZX81 composition is volatile;
 no new settings/save-data policy is inferred from the asset or title name.
 
 ## Validation
+
+The [Zon X channel-A diagnostic](validation/2026-09-30-zx81-zonx-hil.md)
+records exact-shell cart containment, all three timing gates, CPU-controlled
+tone/mute and normal library Stop/relaunch on kit 1. It does not qualify a
+complete AY chip or music software.
 
 The [2026-09-21 exact-artifact record](validation/2026-09-21-zx81-ram-composition.md)
 records five normal-library launches, visible 1 KiB/16 KiB validation-cart sizing,
