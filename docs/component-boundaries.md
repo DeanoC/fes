@@ -104,7 +104,10 @@ FPGA product sources in one FES commit. Original repository URLs and imported
 histories are recorded in [config/source-imports.toml](../config/source-imports.toml).
 The current profile remains package-only and installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81` and `fes.coleco` set through the HIP/nextpnr
-route. `fes.menu` is idle display firmware, not a playable library entry.
+route, as selected by [the default profile](../profiles/native-integration-dev.toml).
+`fes.menu` is idle display firmware, not a playable library entry. The image
+selector also admits `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`;
+their package-only standing and seal evidence are in [core status](core-status.md).
 
 `make check` validates committed module selection and cleanliness, FES native
 artifact policy, package YAML, generated consumers and shared fixtures. It
@@ -116,8 +119,8 @@ FogCast consumes the negotiated runtime ABI registry rather than a second unused
 Go allowlist.
 
 `native-integration-dev` uses FES's package-only interface and publishes the
-ordered per-core selection records for `fes.menu`, `fes.pong`, `fes.zx81` and
-`fes.coleco` plus its sealed `core-packages/` directory. Systems whose nextpnr
+ordered per-core selection records for its selected packages plus its sealed
+`core-packages/` directory. Systems whose nextpnr
 route is not implemented yet are checked explicitly with Quartus; that check
 is not an image production route.
 

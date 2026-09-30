@@ -23,10 +23,18 @@ selection are [core packages](core-packages.md).
 | Reference | A producer exists for experiments and examples. No recipe row. |
 | Board firmware | A pinned RBF. Not a described play package and not a `fes.*` recipe. |
 
-The image selects `fes.menu` for idle display, then `fes.pong`, `fes.zx81`,
-`fes.coleco` as playable packages. The menu is not a library core. All of those, plus
-`fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.spectrum` and `fes.catch`, seal with HIP/nextpnr. The C64 producer is registered but has no current timing-passing HIP seal. Quartus is an oracle where
-the recipe says so. It is not the product path and not a fallback.
+The current [default profile](../profiles/native-integration-dev.toml) installs
+`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` in that order. The menu supplies
+idle display and is not a library core. Factory standing records image inclusion;
+playability and hardware acceptance depend on the exact-artifact kit evidence below.
+
+The image selector supports eight IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`. SMS, SG-1000
+and Spectrum remain sealed package-only recipes because adding them exceeds the
+64 MiB rootfs limit. C64 is registered but has no current timing-passing HIP seal.
+The factory packages, SMS, SG-1000, Apple II, Spectrum and Catch seal with
+HIP/nextpnr. Quartus is an oracle where the recipe says so. It is not the product
+path and not a fallback.
 
 ## Matrix
 
