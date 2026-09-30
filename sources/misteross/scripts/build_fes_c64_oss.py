@@ -142,6 +142,30 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None):
     )
 
 
+def clock_read_only_memories(path: Path) -> None:
+    """Give inferred read-only M10Ks a live, otherwise unused port-A clock."""
+    design = _read_json(path, "C64 synthesized design")
+    cells = design["modules"][TOP]["cells"]
+    expected = ("machine.iec.file_track_", "machine.vic.code_q_")
+    found = set()
+    for name, cell in cells.items():
+        if cell["type"] != "MISTRAL_M10K":
+            continue
+        pins = cell["connections"]
+        if pins.get("CLK1") != ["x"]:
+            continue
+        match = next((prefix for prefix in expected if name.startswith(prefix)), None)
+        if (match is None or match in found or pins.get("A1EN") != ["0"]
+                or pins.get("B1EN") != ["1"] or len(pins.get("CLK2", [])) != 1
+                or not isinstance(pins["CLK2"][0], int)):
+            raise BuildError(f"unexpected disconnected C64 M10K clock: {name}")
+        pins["CLK1"] = pins["CLK2"][:]
+        found.add(match)
+    if found != set(expected):
+        raise BuildError(f"C64 read-only M10K clock set changed: {sorted(found)}")
+    _write_atomic(path, (json.dumps(design, separators=(",", ":")) + "\n").encode())
+
+
 def _require_clean_source(root: Path, *, identity_version: int = 2) -> tuple[str, str]:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
@@ -412,6 +436,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                   audit_source_root=root, output_relative=OUTPUT_RELATIVE)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
+        clock_read_only_memories(output / "synth.json")
         try:
             winner = route_after_synth(
                 nextpnr=authenticated["nextpnr-mistral"].path,
