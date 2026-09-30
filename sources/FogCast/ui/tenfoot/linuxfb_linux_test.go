@@ -294,6 +294,99 @@ func TestFramebufferPollPreservesPartialRecordsAndQuickTaps(t *testing.T) {
 		t.Fatal("quick controller tap was lost")
 	}
 }
+
+func TestFramebufferPollPreservesQuickAxisTap(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	fd := int(r.Fd())
+	if err := unix.SetNonblock(fd, true); err != nil {
+		t.Fatal(err)
+	}
+	mapper := controller.NewMapper(0x081f, 0xe401, map[uint16]controller.Range{0: {Min: -1, Max: 1}})
+	in := &nativeInput{fd: fd, mapper: mapper}
+	inputs := &nativeInputs{devices: []*nativeInput{in}}
+	a := NewApp(nil, 1280, 720, 10)
+	a.mu.Lock()
+	a.games = []hostclient.Game{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}}
+	a.grid.Count, a.grid.Columns = 2, 1
+	a.mu.Unlock()
+	batch := append(nativeTestEvent(3, 0, 1), nativeTestEvent(3, 0, 0)...)
+	if _, err := w.Write(batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inputs.poll(a, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.Snapshot().Grid.Focus; got != 1 {
+		t.Fatalf("quick axis tap focus = %d, want 1 exactly once", got)
+	}
+}
+
+type localPadRecorder struct{ events []remoteinput.Event }
+
+func (f *localPadRecorder) Send(e remoteinput.Event, _ time.Time) error {
+	f.events = append(f.events, e)
+	return nil
+}
+func (f *localPadRecorder) Close() {}
+
+func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		send func(*nativeInput, *App, time.Time)
+	}{
+		{"hat", func(in *nativeInput, a *App, n time.Time) { in.hat(a, 17, 1, n) }},
+		{"axis", func(in *nativeInput, a *App, n time.Time) { in.axis(a, remoteinput.AxisLeftY, 1, n) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := NewApp(nil, 1280, 720, 10)
+			feed := &localPadRecorder{}
+			a.mu.Lock()
+			a.localPhase = localPhaseRunning
+			a.localFeed = feed
+			a.mu.Unlock()
+			in := &nativeInput{fd: 9}
+			now := time.Now()
+			tc.send(in, a, now)
+			if len(feed.events) != 1 || feed.events[0].Code != remoteinput.ButtonDPadDown || feed.events[0].Action != remoteinput.ActionPress {
+				t.Fatalf("local events: %#v", feed.events)
+			}
+			if tc.name == "hat" {
+				tc.send(in, a, now.Add(time.Millisecond))
+			} else {
+				in.axis(a, remoteinput.AxisLeftY, 0, now.Add(time.Millisecond))
+			}
+			if len(feed.events) != 2 || feed.events[1].Action != remoteinput.ActionRelease {
+				t.Fatalf("local release: %#v", feed.events)
+			}
+			a.mu.Lock()
+			a.localPhase = ""
+			a.mu.Unlock()
+			before := a.Snapshot().Selected
+			tc.send(in, a, now.Add(2*time.Millisecond))
+			inputs := &nativeInputs{devices: []*nativeInput{in}}
+			inputs.applyButtons(a, now.Add(2*time.Millisecond))
+			if a.Snapshot().Selected == before {
+				t.Fatal("menu did not receive d-pad")
+			}
+		})
+	}
+}
+
+func TestAutoInputRejectsUnknownIdentity(t *testing.T) {
+	keys := make([]byte, 96)
+	keys[304/8] |= 1 << uint(304%8)
+	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
+		t.Fatalf("unknown identity classified as %v", got)
+	}
+	if got := nativeKindWithIdentity(keys, 3, "physical pad", 1, 2); got != InputGamepad {
+		t.Fatalf("known physical pad classified as %v", got)
+	}
+}
 func TestFramebufferControllerLongHold(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
 	in := &nativeInput{}

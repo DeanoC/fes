@@ -175,7 +175,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   core exists — not HDMI FPGA UI); FPGA stub remains the thin Software
   wrapper without a stream (`fpga-stub`). `fogcast-tenfoot -gfx linuxfb`
   runs the full shared app without SDL on a 32bpp Linux framebuffer,
-  with native evdev keyboard and digital gamepad input. Build using
+  with native evdev keyboard and digital gamepad input. Button, hat and
+  mapped stick direction edges are applied as they arrive, including when a
+  press and return to centre share one poll; d-pad input reaches a running
+  local core while the menu is suppressed. Automatic discovery rejects nodes
+  whose evdev identity cannot be read. Build using
   `CGO_ENABLED=0 go build ./cmd/fogcast-tenfoot`; see the
   [Linux framebuffer guide](docs/native-tenfoot-launcher/LINUX.md#framebuffer-without-sdl).
   `fogcast-tenfoot -gfx menu-display` runs that same app and evdev input through

@@ -335,6 +335,11 @@ devices:
 					if in.mapper != nil {
 						if e, ok := in.mapper.Map(typ, code, value); ok && e.Kind == remoteinput.KindAxis {
 							in.axis(app, e.Code, e.Value, now)
+							if code == 0 || code == 1 {
+								if ins.applyButtons(app, now) {
+									return true, nil
+								}
+							}
 						}
 					} else if code == 16 || code == 17 {
 						in.hat(app, code, value, now)
@@ -506,6 +511,20 @@ func (in *nativeInput) localHat(app *App, code uint16, value int32, now time.Tim
 	app.NoteInput(InputGamepad, in.fd)
 }
 
+func (in *nativeInput) localAxis(app *App, code remoteinput.Code, value int32, now time.Time) {
+	axisCode := uint16(16)
+	if code == remoteinput.AxisLeftY {
+		axisCode = 17
+	}
+	direction := int32(0)
+	if value < 0 {
+		direction = -1
+	} else if value > 0 {
+		direction = 1
+	}
+	in.localHat(app, axisCode, direction, now)
+}
+
 func (in *nativeInput) hat(app *App, code uint16, value int32, now time.Time) {
 	if app.localCoreOwnsInput() {
 		in.localHat(app, code, value, now)
@@ -539,6 +558,10 @@ func (in *nativeInput) hat(app *App, code uint16, value int32, now time.Time) {
 	}
 }
 func (in *nativeInput) axis(app *App, code remoteinput.Code, value int32, now time.Time) {
+	if app.localCoreOwnsInput() {
+		in.localAxis(app, code, value, now)
+		return
+	}
 	if in.axes == nil {
 		in.axes = map[uint16]Command{}
 	}
@@ -676,19 +699,21 @@ func nativeDeviceKind(fd int) InputKind {
 	var id [8]byte
 	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
 	_, _, idErr := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
-	if idErr == 0 {
-		bus := binary.LittleEndian.Uint16(id[:2])
-		name := nativeDeviceName(fd)
-		fixture := binary.LittleEndian.Uint16(id[2:4]) == 0x081f && binary.LittleEndian.Uint16(id[4:6]) == 0xe401
-		buttons := nativeHasKey(keys[:], 304) || nativeHasKey(keys[:], 305) || (fixture && nativeHasKey(keys[:], 288))
-		if controller.Eligible(bus, name, buttons) {
-			return InputGamepad
-		}
-		if bus == 6 || name == "FogCast Virtual Gamepad" {
-			return InputNone
-		}
+	if idErr != 0 {
+		return InputNone
 	}
-	return nativeKindFromKeys(keys[:])
+	return nativeKindWithIdentity(keys[:], binary.LittleEndian.Uint16(id[:2]), nativeDeviceName(fd), binary.LittleEndian.Uint16(id[2:4]), binary.LittleEndian.Uint16(id[4:6]))
+}
+func nativeKindWithIdentity(keys []byte, bus uint16, name string, vendor, product uint16) InputKind {
+	fixture := vendor == 0x081f && product == 0xe401
+	buttons := nativeHasKey(keys, 304) || nativeHasKey(keys, 305) || (fixture && nativeHasKey(keys, 288))
+	if controller.Eligible(bus, name, buttons) {
+		return InputGamepad
+	}
+	if bus == 6 || name == "FogCast Virtual Gamepad" {
+		return InputNone
+	}
+	return nativeKindFromKeys(keys)
 }
 func nativeHasKey(keys []byte, code int) bool {
 	return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0
