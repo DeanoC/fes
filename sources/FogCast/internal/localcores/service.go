@@ -14,7 +14,20 @@ import (
 const (
 	loadTimeout = 60 * time.Second
 	stopTimeout = 30 * time.Second
+
+	phaseIdle      = "idle"
+	phaseLaunching = "launching"
+	phaseRunning   = "running"
+	phaseStopping  = "stopping"
 )
+
+// RunStatus is GET /v1/local/status. Running is true only after load has
+// published the kit-local lease. Phase is idle, launching, running, or stopping.
+type RunStatus struct {
+	Phase     string `json:"phase"`
+	PackageID string `json:"package_id"`
+	Running   bool   `json:"running"`
+}
 
 var (
 	errNotFound    = errors.New("not_found")
@@ -55,9 +68,30 @@ type Service struct {
 
 	mu          sync.Mutex
 	token       string
+	phase       string
+	runPackage  string
 	closed      bool
 	renewCancel context.CancelFunc
 	renewDone   chan struct{}
+}
+
+// RunStatus reports the in-flight or running kit-local core. A nil service
+// is idle. The list payload is unchanged; this is a separate read.
+func (s *Service) RunStatus() RunStatus {
+	if s == nil {
+		return RunStatus{Phase: phaseIdle}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	phase := s.phase
+	if phase == "" {
+		phase = phaseIdle
+	}
+	return RunStatus{
+		Phase:     phase,
+		PackageID: s.runPackage,
+		Running:   phase == phaseRunning && s.token != "",
+	}
 }
 
 func New(leases LeaseGate, runtime Runtime, roots Roots) *Service {
@@ -125,15 +159,25 @@ func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 	// Renew during programming. The service token stays empty until load
 	// succeeds, so Stop cannot interrupt the in-flight program.
 	s.startRenew(grant.Token, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
+	s.mu.Lock()
+	s.phase = phaseLaunching
+	s.runPackage = core.PackageID
+	s.mu.Unlock()
 	loadErr := s.load(ctx, leaseCtx, core)
 	done()
 	if loadErr != nil {
 		_, _ = s.leases.Release(grant.Token)
+		s.mu.Lock()
+		s.phase = phaseIdle
+		s.runPackage = ""
+		s.mu.Unlock()
 		s.stopRenew()
 		return Core{}, errUnavailable
 	}
 	s.mu.Lock()
 	s.token = grant.Token
+	s.phase = phaseRunning
+	s.runPackage = core.PackageID
 	s.mu.Unlock()
 	return core, nil
 }
@@ -147,8 +191,20 @@ func (s *Service) Stop(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	token := s.token
+	markedStopping := false
+	if token != "" && s.phase == phaseRunning {
+		s.phase = phaseStopping
+		markedStopping = true
+	}
 	s.mu.Unlock()
 	if token == "" || !contract.LocalCoreSession(s.leases.Status()) {
+		if markedStopping {
+			s.mu.Lock()
+			if s.phase == phaseStopping {
+				s.phase = phaseRunning
+			}
+			s.mu.Unlock()
+		}
 		return errInUse
 	}
 	leaseCtx, done, err := s.leases.Begin(token)
@@ -158,6 +214,11 @@ func (s *Service) Stop(ctx context.Context) error {
 	stopErr := s.stop(ctx, leaseCtx)
 	done()
 	if stopErr != nil {
+		s.mu.Lock()
+		if s.token == token && s.phase == phaseStopping {
+			s.phase = phaseRunning
+		}
+		s.mu.Unlock()
 		return errUnavailable
 	}
 	if _, err := s.leases.Release(token); err != nil {
@@ -167,6 +228,8 @@ func (s *Service) Stop(ctx context.Context) error {
 	if s.token == token {
 		s.token = ""
 	}
+	s.phase = phaseIdle
+	s.runPackage = ""
 	s.mu.Unlock()
 	s.stopRenew()
 	return nil

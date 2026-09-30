@@ -115,8 +115,8 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	stepUntil(t, bare, func(f Frame) bool {
 		return strings.Contains(frameText(f), "Installed cores are not available here.")
 	})
-	if got := bare.Destination(); got.Kind == KindCore {
-		t.Fatalf("unavailable published a core %+v", got)
+	if got := bare.Destination(); got.Kind == KindCore || got.Status != "Installed cores are not available here." || got.Action != got.Status {
+		t.Fatalf("unavailable strip %+v", got)
 	}
 	if err := bare.ActivateDestination(context.Background()); err != nil {
 		t.Fatal(err)
@@ -136,6 +136,9 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	if got := empty.launchedIDs(); len(got) != 0 {
 		t.Fatalf("empty launched %v", got)
 	}
+	if got := quiet.Destination(); got.Status == "No installed cores." {
+		t.Fatalf("empty catalog changed the strip: %+v", got)
+	}
 
 	broken := &fakeLocalCores{listErr: localcores.ErrUnavailable}
 	failed := newRoom(t, pack, Options{Local: broken, Width: 1280, Height: 720})
@@ -147,6 +150,9 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	})
 	if failed.Err() != nil {
 		t.Fatal(failed.Err())
+	}
+	if got := failed.Destination(); got.Status != "Installed cores are not available here." || got.Action != got.Status {
+		t.Fatalf("refused socket strip %+v", got)
 	}
 }
 

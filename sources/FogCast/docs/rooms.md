@@ -256,7 +256,7 @@ line is the status ("Needs a cartridge", "Needs firmware"). Activating a
 launchable core calls the injected local-control client's Launch. With no
 client that activation returns an error and does not panic. `in_use` and
 `blocked` from the socket are returned the same way and do not fail the
-room. Tenfoot does not connect the socket yet.
+room. Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. The compact strip uses the same "Installed cores are not available here." line as the room body when no client is present.
 
 `destination.classify(games, {q=})` returns that result without changing
 focus. `destination.play_history(game_or_facts)`
@@ -382,7 +382,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.fes-cores` | one tile per installed core, manifest name verbatim; a blocked tile shows "Needs a cartridge" or "Needs firmware" and does not launch. Listed from the lobby like every other room. With no kit socket the room says cores are not available here |
+| `example.fes-cores` | one tile per installed core, manifest name verbatim; a blocked tile shows "Needs a cartridge" or "Needs firmware" and does not launch. Listed from the lobby like every other room. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a tile through the local-control socket |
 
 Run them against a host:
 

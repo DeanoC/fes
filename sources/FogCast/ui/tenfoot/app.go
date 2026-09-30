@@ -205,57 +205,60 @@ func layoutDetailMeta(d shared.FocusDetail, x, maxWidth, sizePx int) (facts stri
 
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games           []hostclient.Game
-	Grid            Grid
-	Status          string
-	LoadErr         string
-	Loading         bool
-	Covers          map[string]*image.RGBA
-	Launch          LaunchSnapshot
-	Gamepads        int
-	Keyboards       int
-	Mice            int
-	Affinity        InputKind
-	AffinityID      int
-	CoverHits       int
-	Platforms       []hostclient.Platform
-	PlatformID      string
-	Sort            string
-	Query           string
-	SearchOpen      bool
-	FocusDetail     shared.FocusDetail
-	Collection      string
-	ViewLabel       string
-	ViewPicker      bool
-	ViewPickerIndex int
-	Views           []LibraryView
-	PickerRows      []LibraryView
-	CollectionMenu  CollectionMenuSnapshot
-	Session         SessionSnapshot
-	GPUParked       bool
-	Attract         AttractSnapshot
-	SafeAreaPct     float64
-	Settings        SettingsSnapshot
-	Filters         FilterSnapshot
-	Genre           string
-	Year            string
-	Region          string
-	HidePrerelease  bool
-	HideHacks       bool
-	OSK             shared.OSKSnapshot
-	Health          HealthSnapshot
-	KitLease        KitLeaseSnapshot
-	Detail          DetailSnapshot
-	Screenshots     map[string]*image.RGBA
-	Preview         PreviewSnapshot
-	Theme           theme.Theme
-	DebugHUD        DebugHUDSnapshot
-	Room            RoomSnapshot
-	RoomPicker      RoomPickerSnapshot
-	CoreLibrary     FirmwarePickerSnapshot
-	FirmwarePicker  FirmwarePickerSnapshot
-	TapePicker      TapePickerSnapshot
-	ReducedMotion   bool
+	Games                   []hostclient.Game
+	Grid                    Grid
+	Status                  string
+	LoadErr                 string
+	Loading                 bool
+	Covers                  map[string]*image.RGBA
+	Launch                  LaunchSnapshot
+	Gamepads                int
+	Keyboards               int
+	Mice                    int
+	Affinity                InputKind
+	AffinityID              int
+	CoverHits               int
+	Platforms               []hostclient.Platform
+	PlatformID              string
+	Sort                    string
+	Query                   string
+	SearchOpen              bool
+	FocusDetail             shared.FocusDetail
+	Collection              string
+	ViewLabel               string
+	ViewPicker              bool
+	ViewPickerIndex         int
+	Views                   []LibraryView
+	PickerRows              []LibraryView
+	CollectionMenu          CollectionMenuSnapshot
+	Session                 SessionSnapshot
+	GPUParked               bool
+	Attract                 AttractSnapshot
+	SafeAreaPct             float64
+	Settings                SettingsSnapshot
+	Filters                 FilterSnapshot
+	Genre                   string
+	Year                    string
+	Region                  string
+	HidePrerelease          bool
+	HideHacks               bool
+	OSK                     shared.OSKSnapshot
+	Health                  HealthSnapshot
+	KitLease                KitLeaseSnapshot
+	Detail                  DetailSnapshot
+	Screenshots             map[string]*image.RGBA
+	Preview                 PreviewSnapshot
+	Theme                   theme.Theme
+	DebugHUD                DebugHUDSnapshot
+	Room                    RoomSnapshot
+	RoomPicker              RoomPickerSnapshot
+	CoreLibrary             FirmwarePickerSnapshot
+	FirmwarePicker          FirmwarePickerSnapshot
+	TapePicker              TapePickerSnapshot
+	ReducedMotion           bool
+	LocalCorePhase          string
+	LocalCorePresentsPaused bool
+	LocalCoreRedraw         uint64
 }
 
 // DebugHUDSnapshot is the optional corner overlay (off by default).
@@ -500,6 +503,20 @@ type App struct {
 	previewSeq         int
 	previewFails       int
 	previewNext        time.Time
+
+	localCores          rooms.LocalCores
+	localFeed           localPadSender
+	localPhase          string
+	localTitle          string
+	localStatus         string
+	localGen            uint64
+	localPresentsPaused bool
+	localRedraw         uint64
+	localSelectDown     bool
+	localStartDown      bool
+	localChordSince     time.Time
+	localChordFired     bool
+	localSent           map[remoteinput.Code]bool
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.
@@ -617,8 +634,13 @@ func (a *App) Stop() {
 	a.cancelPlayHIDLocked()
 	a.closeAllRoomsLocked()
 	a.attractClosed = true
+	feed := a.localFeed
+	a.localFeed = nil
 	cancel := a.cancel
 	a.mu.Unlock()
+	if feed != nil {
+		feed.Close()
+	}
 	if cancel != nil {
 		cancel()
 	}
@@ -727,6 +749,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
+	if a.localCoreBusyLocked() {
+		return
+	}
+	a.localStatus = ""
 	if a.coreLibrary.Open {
 		if a.settingsOSKOpenLocked() {
 			a.handleSettingsOSKLocked(cmd)
@@ -1387,6 +1413,7 @@ func (a *App) Tick(now time.Time) Command {
 	a.flushSearchLocked(now)
 	a.tickAttractLocked(now)
 	a.syncPreviewLocked()
+	a.tickLocalCoreLocked(now)
 	if !a.attractActive {
 		a.tickRoomLocked(now)
 	}
@@ -1424,7 +1451,9 @@ func (a *App) Snapshot() Snapshot {
 		}
 	}
 	status := a.status
-	if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
+	if strings.TrimSpace(a.localStatus) != "" {
+		status = a.localStatus
+	} else if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
 		status = a.tapePickerStatus
 	} else if line := a.stopStatusLocked(); line != "" {
 		status = line
@@ -1466,57 +1495,60 @@ func (a *App) Snapshot() Snapshot {
 		status = health.Line
 	}
 	return Snapshot{
-		Games:           games,
-		Grid:            a.grid,
-		Status:          status,
-		LoadErr:         a.loadErr,
-		Loading:         a.loading,
-		Covers:          covers,
-		Launch:          a.launch,
-		Gamepads:        a.gamepads,
-		Keyboards:       a.keyboards,
-		Mice:            a.mice,
-		Affinity:        a.affinity.current.Kind,
-		AffinityID:      a.affinity.current.ID,
-		CoverHits:       hits,
-		Platforms:       a.platforms,
-		PlatformID:      a.platformID,
-		Sort:            a.sort,
-		Query:           a.searchField.Buffer,
-		SearchOpen:      a.searchOpen,
-		FocusDetail:     a.focusDetailLocked(),
-		Collection:      a.collectionID,
-		ViewLabel:       a.viewLabelLocked(),
-		ViewPicker:      a.viewPickerOpen,
-		ViewPickerIndex: a.viewPickerIndex,
-		Views:           a.viewChoicesLocked(),
-		PickerRows:      a.pickerRowsLocked(),
-		CollectionMenu:  a.collectionMenuSnapshotLocked(),
-		Session:         a.sessionSnapshotLocked(),
-		GPUParked:       a.gpuParked,
-		Attract:         a.attractSnapshotLocked(),
-		SafeAreaPct:     a.safeAreaPct,
-		Settings:        a.settingsSnapshotLocked(),
-		Filters:         a.filtersSnapshotLocked(),
-		Genre:           a.filterGenre,
-		Year:            a.filterYear,
-		Region:          a.filterRegion,
-		HidePrerelease:  a.hidePrerelease,
-		HideHacks:       a.hideHacks,
-		OSK:             a.oskSnapshotLocked(),
-		Health:          health,
-		KitLease:        a.kitLeaseSnapshotLocked(),
-		Detail:          a.detailSnapshotLocked(),
-		Screenshots:     a.screenshotImagesLocked(),
-		Preview:         a.previewSnapshotLocked(),
-		Theme:           a.theme.Complete(),
-		DebugHUD:        a.debugHUDSnapshotLocked(),
-		Room:            a.roomSnapshotLocked(true),
-		RoomPicker:      a.roomPickerSnapshotLocked(),
-		CoreLibrary:     a.coreLibrarySnapshotLocked(),
-		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
-		TapePicker:      a.tapePickerSnapshotLocked(),
-		ReducedMotion:   a.reducedMotion,
+		Games:                   games,
+		Grid:                    a.grid,
+		Status:                  status,
+		LoadErr:                 a.loadErr,
+		Loading:                 a.loading,
+		Covers:                  covers,
+		Launch:                  a.launch,
+		Gamepads:                a.gamepads,
+		Keyboards:               a.keyboards,
+		Mice:                    a.mice,
+		Affinity:                a.affinity.current.Kind,
+		AffinityID:              a.affinity.current.ID,
+		CoverHits:               hits,
+		Platforms:               a.platforms,
+		PlatformID:              a.platformID,
+		Sort:                    a.sort,
+		Query:                   a.searchField.Buffer,
+		SearchOpen:              a.searchOpen,
+		FocusDetail:             a.focusDetailLocked(),
+		Collection:              a.collectionID,
+		ViewLabel:               a.viewLabelLocked(),
+		ViewPicker:              a.viewPickerOpen,
+		ViewPickerIndex:         a.viewPickerIndex,
+		Views:                   a.viewChoicesLocked(),
+		PickerRows:              a.pickerRowsLocked(),
+		CollectionMenu:          a.collectionMenuSnapshotLocked(),
+		Session:                 a.sessionSnapshotLocked(),
+		GPUParked:               a.gpuParked,
+		Attract:                 a.attractSnapshotLocked(),
+		SafeAreaPct:             a.safeAreaPct,
+		Settings:                a.settingsSnapshotLocked(),
+		Filters:                 a.filtersSnapshotLocked(),
+		Genre:                   a.filterGenre,
+		Year:                    a.filterYear,
+		Region:                  a.filterRegion,
+		HidePrerelease:          a.hidePrerelease,
+		HideHacks:               a.hideHacks,
+		OSK:                     a.oskSnapshotLocked(),
+		Health:                  health,
+		KitLease:                a.kitLeaseSnapshotLocked(),
+		Detail:                  a.detailSnapshotLocked(),
+		Screenshots:             a.screenshotImagesLocked(),
+		Preview:                 a.previewSnapshotLocked(),
+		Theme:                   a.theme.Complete(),
+		DebugHUD:                a.debugHUDSnapshotLocked(),
+		Room:                    a.roomSnapshotLocked(true),
+		RoomPicker:              a.roomPickerSnapshotLocked(),
+		CoreLibrary:             a.coreLibrarySnapshotLocked(),
+		FirmwarePicker:          a.firmwarePickerSnapshotLocked(),
+		TapePicker:              a.tapePickerSnapshotLocked(),
+		ReducedMotion:           a.reducedMotion,
+		LocalCorePhase:          a.localPhase,
+		LocalCorePresentsPaused: a.localPresentsPaused,
+		LocalCoreRedraw:         a.localRedraw,
 	}
 }
 

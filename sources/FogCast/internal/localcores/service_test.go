@@ -772,3 +772,53 @@ func TestClaimWithoutLocalSessionReleases(t *testing.T) {
 		t.Fatalf("runtime calls loads=%v stops=%d", loads, stops)
 	}
 }
+
+func TestRunStatusLaunchingThenRunningThenIdle(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	runtime := &fakeRuntime{onLoad: func() {
+		close(started)
+		<-release
+	}}
+	service, _, _, _ := testService(t, runtime)
+	var pong Core
+	for _, core := range service.List() {
+		if core.CoreID == "fes.pong" && core.Launchable {
+			pong = core
+		}
+	}
+	if pong.PackageID == "" {
+		t.Fatal("launchable pong missing")
+	}
+	errc := make(chan error, 1)
+	go func() {
+		_, err := service.Launch(context.Background(), pong.PackageID)
+		errc <- err
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("load did not start")
+	}
+	if st := service.RunStatus(); st.Phase != phaseLaunching || st.Running || st.PackageID != pong.PackageID {
+		t.Fatalf("launching %+v", st)
+	}
+	close(release)
+	if err := <-errc; err != nil {
+		t.Fatal(err)
+	}
+	if st := service.RunStatus(); st.Phase != phaseRunning || !st.Running || st.PackageID != pong.PackageID {
+		t.Fatalf("running %+v", st)
+	}
+	response := httptest.NewRecorder()
+	Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/status", nil))
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"running":true`) {
+		t.Fatalf("status %d %s", response.Code, response.Body.String())
+	}
+	if err := service.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if st := service.RunStatus(); st.Phase != phaseIdle || st.Running {
+		t.Fatalf("idle %+v", st)
+	}
+}

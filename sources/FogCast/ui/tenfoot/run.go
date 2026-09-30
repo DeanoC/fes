@@ -288,6 +288,11 @@ func configuredApp(opts Options) (*App, error) {
 	app.SetSafeAreaPct(opts.SafeAreaPct)
 	app.SetReducedMotion(opts.ReducedMotion)
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
+	// menu-display is the kit_ui=tenfoot entry. Host SDL, software, and
+	// linuxfb leave the local-control client unset.
+	if backend, err := gfx.ParseBackend(opts.GFX); err == nil && backend == gfx.BackendMenuDisplay {
+		app.EnableKitLocal()
+	}
 
 	return app, nil
 }

@@ -224,6 +224,7 @@ func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 		Theme:         a.theme,
 		ReducedMotion: a.reducedMotion,
 		StorePath:     a.roomStorePathLocked(pack.ID),
+		Local:         a.localCores,
 	})
 	if err != nil {
 		a.roomErr = err.Error()
@@ -534,7 +535,7 @@ func (a *App) tickRoomLocked(now time.Time) {
 		return
 	}
 	a.room.SetSessionState(a.session.State)
-	if a.gpuParked {
+	if a.gpuParked || a.localPresentsPaused {
 		a.roomWasParked = true
 		return
 	}

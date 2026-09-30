@@ -9,8 +9,8 @@ import (
 )
 
 // LocalCores is the kit-local control socket. A nil value leaves the kit
-// table unset. Tenfoot does not inject one; a later slice can pass
-// *localcores.Client, which implements this.
+// table unset. Tenfoot passes *localcores.Client only for -gfx menu-display.
+// A host session leaves it nil.
 type LocalCores interface {
 	List(ctx context.Context) ([]localcores.Core, error)
 	Launch(ctx context.Context, packageID string) error

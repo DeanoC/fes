@@ -9,6 +9,9 @@ import (
 // Handler is the no-bearer local-control API.
 func Handler(service *Service) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/local/status", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, service.RunStatus())
+	})
 	mux.HandleFunc("GET /v1/local/cores", func(w http.ResponseWriter, r *http.Request) {
 		cores := service.List()
 		if cores == nil {

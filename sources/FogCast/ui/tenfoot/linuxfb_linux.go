@@ -80,6 +80,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 	defer ticker.Stop()
 	parked := false
 	frames := 0
+	var hold presentHold
 	for {
 		select {
 		case <-ctx.Done():
@@ -97,7 +98,9 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			}
 			app.Tick(now)
 			snap := app.Snapshot()
-			parked = presentFrame(dev, snap, textures, labels, parked)
+			if !hold.skip(ctx, dev, snap) {
+				parked = presentFrame(dev, snap, textures, labels, parked)
+			}
 			frames++
 			if opts.Smoke {
 				if snap.LoadErr != "" {
@@ -120,6 +123,7 @@ type nativeInput struct {
 	commands map[uint16]Command
 	axes     map[uint16]Command
 	controls map[uint16]Command
+	hatHeld  map[uint16]Button
 }
 type nativeInputs struct {
 	devices   []*nativeInput
@@ -129,6 +133,9 @@ type nativeInputs struct {
 	dir       string
 	lastScan  time.Time
 	scanEvery time.Duration
+	// menuSuppressed drops held menu edges once while a local core owns
+	// the pad, and once more when that core returns the menu.
+	menuSuppressed bool
 	// kindOf and openFile are nil in production. Tests substitute them
 	// because a fixture node cannot answer EVIOCGBIT.
 	kindOf   func(fd int) InputKind
@@ -289,7 +296,11 @@ devices:
 				}
 				if typ == 1 {
 					if code == 316 {
-						if value == 1 {
+						if app.localCoreOwnsInput() {
+							if value != 0 {
+								app.NoteInput(InputGamepad, in.fd)
+							}
+						} else if value == 1 {
 							app.NoteInput(InputGamepad, in.fd)
 							in.setButton(316, CmdSettings, true)
 						} else if value == 0 {
@@ -314,7 +325,35 @@ devices:
 			}
 		}
 	}
+	if app.localCoreOwnsInput() {
+		if !ins.menuSuppressed {
+			ins.dropMenuEdges(app)
+			ins.menuSuppressed = true
+		}
+		return false, nil
+	}
+	if ins.menuSuppressed {
+		ins.dropMenuEdges(app)
+		ins.menuSuppressed = false
+	}
 	return ins.applyButtons(app, now), nil
+}
+
+func (ins *nativeInputs) dropMenuEdges(app *App) {
+	if ins == nil {
+		return
+	}
+	for _, in := range ins.devices {
+		if in == nil {
+			continue
+		}
+		in.controls = nil
+		in.axes = nil
+	}
+	for cmd := range ins.held {
+		app.Release(cmd)
+		delete(ins.held, cmd)
+	}
 }
 func nativeButton(code uint16) Button {
 	switch code {
@@ -375,16 +414,79 @@ func nativeButtonCommand(app *App, button Button) Command {
 	return CommandFromLogical(e)
 }
 func (in *nativeInput) button(app *App, button Button, value int32, now time.Time) {
-	if value == 2 {
+	if value == 2 || button == ButtonNone {
 		return
 	}
-	in.setButton(uint16(button), nativeButtonCommand(app, button), value != 0)
+	e := remoteinput.Event{
+		Device: remoteinput.DeviceGamepad,
+		Kind:   remoteinput.KindButton,
+		Code:   LogicalFromButton(button),
+		Action: remoteinput.ActionRelease,
+	}
+	if value != 0 {
+		e.Action = remoteinput.ActionPress
+	}
+	if remap := app.remapper(); remap != nil {
+		e = remap.Apply(e)
+	}
+	if app.HandleLocalPad(e, now) {
+		if value != 0 {
+			app.NoteInput(InputGamepad, in.fd)
+		}
+		return
+	}
+	in.setButton(uint16(button), CommandFromLogical(e), value != 0)
 	if value != 0 {
 		app.NoteInput(InputGamepad, in.fd)
 	}
-	return
 }
+func (in *nativeInput) localHat(app *App, code uint16, value int32, now time.Time) {
+	button := ButtonNone
+	if code == 16 {
+		if value < 0 {
+			button = ButtonDPadLeft
+		} else if value > 0 {
+			button = ButtonDPadRight
+		}
+	} else if value < 0 {
+		button = ButtonDPadUp
+	} else if value > 0 {
+		button = ButtonDPadDown
+	}
+	if in.hatHeld == nil {
+		in.hatHeld = map[uint16]Button{}
+	}
+	prev := in.hatHeld[code]
+	if prev == button {
+		return
+	}
+	if prev != ButtonNone {
+		app.HandleLocalPad(remoteinput.Event{
+			Device: remoteinput.DeviceGamepad,
+			Kind:   remoteinput.KindButton,
+			Action: remoteinput.ActionRelease,
+			Code:   LogicalFromButton(prev),
+		}, now)
+	}
+	if button == ButtonNone {
+		delete(in.hatHeld, code)
+		return
+	}
+	in.hatHeld[code] = button
+	app.HandleLocalPad(remoteinput.Event{
+		Device: remoteinput.DeviceGamepad,
+		Kind:   remoteinput.KindButton,
+		Action: remoteinput.ActionPress,
+		Code:   LogicalFromButton(button),
+	}, now)
+	app.NoteInput(InputGamepad, in.fd)
+}
+
 func (in *nativeInput) hat(app *App, code uint16, value int32, now time.Time) {
+	if app.localCoreOwnsInput() {
+		in.localHat(app, code, value, now)
+		return
+	}
 	if in.axes == nil {
 		in.axes = map[uint16]Command{}
 	}

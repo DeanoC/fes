@@ -59,12 +59,14 @@ until the configured host API reconnects; the launcher does not claim a lease
 for those titles while offline. Installed cores that need no cartridge or
 firmware are listed and launched on the kit through mister-agent's root-only
 `/run/fogcast/local-control.sock` (`GET /v1/local/cores`,
-`POST /v1/local/cores/{package_id}/launch`, `POST /v1/local/stop`). That path
+`POST /v1/local/cores/{package_id}/launch`, `POST /v1/local/stop`,
+`GET /v1/local/status`). That path
 claims owner `kit-hostless` with purpose `kit-local-core` and fails closed,
 without taking over, when the lease is already held (fes#172). See [the host connection
 contract](launcher-host.md) for listener configuration and the session HTTP
 schema. Play input from a pad on the kit uses the local socket described below.
 `fogcast-kit` supplies the socket path and the runtime core-bound probe.
+`fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. The grid launcher is unchanged.
 Host endpoint configuration is explicit; target discovery is separate.
 
 ## Physical controls
