@@ -482,7 +482,7 @@ class Runner:
             (self.capture_dir / "acceptance.json").write_text(
                 json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
-        print("target acceptance passed: Pong, ZX81, Coleco")
+        print("target acceptance passed: Pong, ZX81, Coleco, SMS, SG-1000, C64, Spectrum")
 
 
 def parser() -> argparse.ArgumentParser:
