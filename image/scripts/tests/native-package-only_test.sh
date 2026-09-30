@@ -280,7 +280,8 @@ TARGET_IMAGE_CONTAINER_RUNTIME="$container" \
   sh "$repo/scripts/target-image-container.sh" fetch /work/test-fetch
 grep -Fqx -- "FES_PACKAGE_IDS=$package_ids" "$CONTAINER_LOG"
 previous_line=0
-for core in menu pong zx81 coleco sms sg1000 spectrum; do
+for core_id in $package_words; do
+  core=${core_id#fes.}
   grep -Fqx -- "$fixture/$core-package:/fes-$core-package:ro" "$CONTAINER_LOG"
   grep -Fqx -- "$fixture/$core.package-selection.toml:/fes-$core-package-selection.toml:ro" "$CONTAINER_LOG"
   grep -Fqx -- "FES_$(printf '%s' "$core" | tr '[:lower:]' '[:upper:]')_PACKAGE_DIR=/fes-$core-package" "$CONTAINER_LOG"
