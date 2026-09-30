@@ -7,12 +7,13 @@ carts are launch-time composition (linked before programming). Mid-session
 
 A separately synthesized RAM cart is retained only as a validation consumer
 for this bus; the shell interface is the bus itself. The socketed `fes.zx81`
-1.2 package has 1 KiB of mirrored RAM when the edge is
+1.3 package has 1 KiB of mirrored RAM when the edge is
 vacant, and a registered Z80-like expansion bus (A, D, /MREQ /IORQ /RD /WR
 /M1 /RFSH in; D, ROMCS, WAIT, RAM_PRESENT, DSEL out). The validation cart decodes the physical `4000–7FFF` window on that bus. Zon X-81 and QS Character
-Board RTL uses the same plugs; they are not library assets yet. Cart cells
+Board RTL uses the same plugs. Zon X can be sealed as a channel-A tone
+diagnostic; QS remains diagnostic RTL. Cart cells
 keep a distinct `FPGA_CLK1_50` clock port so `--fes-slot-clock clk_sys` can
-splice the inferred IB onto the shell 52 MHz net. Zon X returns a digital channel-A square on `peek_d`
+splice the inferred IB onto the shell 52.224 MHz net. Zon X returns a digital channel-A square on `peek_d`
 and the shell mixes it into HDMI I2S0 when the validation cart is absent. During ULA
 `/RFSH` the shell presents `{6'h21, char[6:0], row[2:0]}` on the edge so QS
 `8400–87FF` can supply glyphs. That window power-up copies Sinclair glyphs
@@ -44,6 +45,31 @@ Build the RAM validation cart with:
 python3 scripts/build_zx81_bus_validation_cart.py \
   --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu N
 ```
+
+Build the Zon X channel-A tone diagnostic with the same shell and checks:
+
+```sh
+python3 scripts/build_zx81_bus_validation_cart.py --cart zonx \
+  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu 0
+```
+
+Generate the open tone/mute firmware without a private BASIC ROM:
+
+```sh
+python3 scripts/make_zx81_zonx_tone_rom.py build/diagnostics/zonx-tone.rom
+```
+
+Bind that exact 8 KiB file as `machine-rom`. It alternates an approximately
+6.375 kHz square and mute every 2.1 seconds; it generates no display file,
+so the active HDMI picture is blank. A normal private BASIC ROM can still be
+bound independently; this diagnostic does not demonstrate music software.
+
+Its archive is published under `build/zx81-zonx-cart/<recipe-sha>/`. The recipe
+binds the chosen cart and its own RTL source closure. It uses the same fixed
+socket, all three clock signoff gates and outside-CRAM rejection as the RAM
+cart; it never widens the socket. This implementation has channel A, a partial
+period counter and linear volume only; it does not implement AY channels B/C,
+noise or envelopes, and is not general Zon X software compatibility.
 
 The result is a two-member validation archive: canonical `manifest.json` and `cart.rbf`.
 The manifest binds the exact shell package, base BUILD_ID and RBF hash, cart
@@ -103,6 +129,11 @@ Stop and ordinary loads clear composition status. ZX81 composition is volatile;
 no new settings/save-data policy is inferred from the asset or title name.
 
 ## Validation
+
+The [Zon X channel-A diagnostic](validation/2026-09-30-zx81-zonx-hil.md)
+records exact-shell cart containment, all three timing gates, CPU-controlled
+tone/mute and normal library Stop/relaunch on kit 1. It does not qualify a
+complete AY chip or music software.
 
 The [2026-09-21 exact-artifact record](validation/2026-09-21-zx81-ram-composition.md)
 records five normal-library launches, visible 1 KiB/16 KiB validation-cart sizing,

@@ -60,7 +60,9 @@ vacant-socket silence on kit 1. Earlier packages emitted nonzero HDMI samples;
 the [failed diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md) is
 historical and was superseded by the
 [passing diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md).
-Zon X is not a publishable library cart yet.
+Zon X has a separately sealed channel-A tone diagnostic with
+[exact-artifact kit acceptance](validation/2026-09-30-zx81-zonx-hil.md);
+it is not a complete AY implementation.
 This system clock is 0.43% faster than the former 52 MHz package; keyboard,
 tape and expansion contracts are unchanged.
 
@@ -78,5 +80,6 @@ keyboard-agent rootfs. Those are not exact-artifact acceptance of an
 assembled FES image. The [1.3.0 shared-audio diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md)
 passed vacant-socket silence, GP/package identity, ROM linking and Stop with
 the repaired compiler. Its matching RAM cart passed timing and changed zero
-CRAM bits outside the reserved socket. Audible Zon X output and factory-image
-acceptance remain separate work.
+CRAM bits outside the reserved socket. The bounded Zon X tone cart has its own
+[kit diagnostic](validation/2026-09-30-zx81-zonx-hil.md). Full AY behavior and
+factory-image acceptance remain separate work.

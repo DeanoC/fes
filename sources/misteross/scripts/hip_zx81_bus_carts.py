@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diagnostic HIP of Zon X and QS carts onto the already-routed ZX81 bus shell.
+"""Diagnostic HIP of the QS cart onto the already-routed ZX81 bus shell.
 
 Reuses build/fes-zx81-socket-bus. Does not reseal fes.zx81. GPU 0 only.
 A two-bit leak outside the library CRAM rect uses the same diagnostic x1=3356
@@ -29,10 +29,6 @@ LIBRARY_CRAM = CramRect(*cart.CRAM_REGION)
 WIDE_CRAM = CramRect(cart.CRAM_REGION[0], cart.CRAM_REGION[1], 3356, cart.CRAM_REGION[3])
 
 CARTS = {
-    "zonx": {
-        "out": ROOT / "build/zx81-zonx-bus",
-        "sources": ("cores/fes-zx81/expansions/zonx.v",),
-    },
     "qs": {
         "out": ROOT / "build/zx81-qs-bus",
         "sources": (

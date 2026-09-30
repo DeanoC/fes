@@ -1,0 +1,65 @@
+{
+  "id": "c4d57fea-ac18-4256-8252-dd223f4f3595",
+  "target": "dev",
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "state": "active",
+  "game_id": "fpga-zon-x-tone-diagnostic-581b2cfd4e03",
+  "system": "fpga",
+  "execution": "fpga_native",
+  "core_package": {
+    "rom_link": {
+      "rom_id": "machine-rom",
+      "map_sha256": "cb83a07ee980e058dbffbc67c0738c0a727ed31c7871831e3d0e543571f17f3d",
+      "source_sha256": "dd0b538843d1f6b92caeed8db7b27c2dc5f02f35bd7da3ab4f69436fd901a322",
+      "source_size": 8192,
+      "programmed_sha256": "e58606160d9e15ce36831040b2457926f0fca8d68edc3193617db6ced76fbceb",
+      "programmed_size": 2531315
+    },
+    "composition": {
+      "composition_id": "e6425f425f567534c40298b309cd270783229fdf4121919606d44a1bc8659fbe",
+      "package_id": "2c7fdeeae1317848a8ff75a11419e0e83ad48bab0e51d3e60853e36c179eeb9d",
+      "expansion_id": "0feb4de2a22f18ad5831208f29196aa1ba6ab63b2a47d30bcb476a4e29228250",
+      "shell_sha256": "ab2dc5c7af73c3b959b8bcf59fdb81e9dba620e9eae362895b0ef02b1d017546",
+      "payload_sha256": "75a13ba723ee19ef9711941d58caef4896ff77d0a33ff1431f1ada6d6ed87cbe",
+      "payload_size": 2547276
+    },
+    "persistence_mode": "volatile",
+    "package_id": "2c7fdeeae1317848a8ff75a11419e0e83ad48bab0e51d3e60853e36c179eeb9d",
+    "generation": 3,
+    "abi": {
+      "id": "fes.simple-computer",
+      "major": 1,
+      "minor": 0
+    },
+    "build_id": "02a81d71d3c8bd964a8213e24ce218ab",
+    "active_interfaces": [
+      {
+        "id": "fes.audio.pcm-s16-stereo-48k",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.expansion.zx81-bus",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.keyboard",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.media.blob",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.video.fixed-720p60",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "gamepad": false
+  },
+  "flight_id": "ba9391aa-032a-4591-b025-62fb18ca32ff"
+}

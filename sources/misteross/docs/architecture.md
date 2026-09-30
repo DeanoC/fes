@@ -1051,7 +1051,9 @@ is readable; CPU writes still replace rows. The shifter loads a
 registered `rfsh_chr` hold that keeps the first ROMCS byte; `/RFSH` is
 not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The validation
 cart is the first consumer on that edge; Zon X and QS Character Board RTL share
-the plugs but are not library assets yet. Zon X channel A is a digital square
+the plugs. The cart producer accepts `--cart zonx` to seal the bounded channel-A
+tone diagnostic under `build/zx81-zonx-cart/<recipe-sha>/`; QS is not a library
+asset yet. Zon X channel A is a digital square
 on `peek_d` (R0/R1 period, R7 enable, R8 level); the shell mixes that sample
 into the shared coherent PCM/I2S output when `RAM_PRESENT` is 0. The combined
 52.224/12.288 MHz system/audio PLL supplies MCLK; execution Hold and loss of PLL lock mute

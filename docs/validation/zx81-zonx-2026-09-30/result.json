@@ -1,0 +1,829 @@
+{
+  "producer_source": "17f641c7b76fbf7a9abda003c28c7faa49923881",
+  "archive_sha256": "148fbae9eb5506d0bf2445289aa3d392a6dd31d822590449f3a9768b9a129363",
+  "manifest": {
+    "cart_sha256": "75a13ba723ee19ef9711941d58caef4896ff77d0a33ff1431f1ada6d6ed87cbe",
+    "cart_size": 2547276,
+    "device": "5CSEBA6U23I7",
+    "format": 1,
+    "map": "fes.zx81-bus.socket/1",
+    "recipe_sha256": "f17ca5ce1370490df96cd4d804b52cb6911296ac5b11b590c9a5b85d71fb617a",
+    "revision": "17f641c7b76fbf7a9abda003c28c7faa49923881",
+    "shell_build_id": "02a81d71d3c8bd964a8213e24ce218ab",
+    "shell_package_id": "2c7fdeeae1317848a8ff75a11419e0e83ad48bab0e51d3e60853e36c179eeb9d",
+    "shell_sha256": "ab2dc5c7af73c3b959b8bcf59fdb81e9dba620e9eae362895b0ef02b1d017546",
+    "slot": "fes.expansion.zx81-bus",
+    "slot_major": 1,
+    "slot_minor": 0
+  },
+  "expansion_id": "0feb4de2a22f18ad5831208f29196aa1ba6ab63b2a47d30bcb476a4e29228250",
+  "recipe_sha256": "f17ca5ce1370490df96cd4d804b52cb6911296ac5b11b590c9a5b85d71fb617a",
+  "cram_diff": {
+    "bits_inside_slot": 24119,
+    "bits_outside_slot": 0,
+    "column_bits": {
+      "21": 6,
+      "22": 12,
+      "23": 40,
+      "24": 361,
+      "25": 1320,
+      "26": 20997,
+      "27": 1274,
+      "28": 67,
+      "29": 30,
+      "30": 12
+    },
+    "diff": {
+      "bits": 24119,
+      "x0": 1819,
+      "x1": 2634,
+      "y0": 88,
+      "y1": 1550
+    },
+    "identical": false,
+    "inside_slot_column": true
+  },
+  "timing": {
+    "audio_clk": {
+      "achieved": 223.4636993408203,
+      "constraint": 12.288031578063965
+    },
+    "clk_sys": {
+      "achieved": 55.975372314453125,
+      "constraint": 52.22477340698242
+    },
+    "pixel_clk": {
+      "achieved": 138.811767578125,
+      "constraint": 74.25006866455078
+    }
+  },
+  "capture": {
+    "active": {
+      "frames": 288110,
+      "channels": [
+        {
+          "nonzero": 57419,
+          "peak": 30720,
+          "windows": [
+            {
+              "start_seconds": 0.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.5,
+              "nonzero": 5481,
+              "tone_hz": 6376.6423357664235
+            },
+            {
+              "start_seconds": 1.75,
+              "nonzero": 5998,
+              "tone_hz": 6374.65610671113
+            },
+            {
+              "start_seconds": 2.0,
+              "nonzero": 6001,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 2.25,
+              "nonzero": 6002,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 2.5,
+              "nonzero": 5999,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 2.75,
+              "nonzero": 5998,
+              "tone_hz": 6374.65610671113
+            },
+            {
+              "start_seconds": 3.0,
+              "nonzero": 6001,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 3.25,
+              "nonzero": 6002,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 3.5,
+              "nonzero": 2634,
+              "tone_hz": 6375.071252137564
+            },
+            {
+              "start_seconds": 3.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.5,
+              "nonzero": 1249,
+              "tone_hz": 6375.601926163724
+            },
+            {
+              "start_seconds": 5.75,
+              "nonzero": 5998,
+              "tone_hz": 6374.65610671113
+            }
+          ]
+        },
+        {
+          "nonzero": 57419,
+          "peak": 30720,
+          "windows": [
+            {
+              "start_seconds": 0.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.5,
+              "nonzero": 5480,
+              "tone_hz": 6376.6423357664235
+            },
+            {
+              "start_seconds": 1.75,
+              "nonzero": 5998,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 2.0,
+              "nonzero": 6002,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 2.25,
+              "nonzero": 6002,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 2.5,
+              "nonzero": 5998,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 2.75,
+              "nonzero": 5998,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 3.0,
+              "nonzero": 6002,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 3.25,
+              "nonzero": 6002,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 3.5,
+              "nonzero": 2634,
+              "tone_hz": 6375.071252137564
+            },
+            {
+              "start_seconds": 3.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.5,
+              "nonzero": 1248,
+              "tone_hz": 6375.601926163724
+            },
+            {
+              "start_seconds": 5.75,
+              "nonzero": 5998,
+              "tone_hz": 6374.9061483273545
+            }
+          ]
+        }
+      ]
+    },
+    "idle": {
+      "frames": 287935,
+      "channels": [
+        {
+          "nonzero": 47,
+          "peak": 30720,
+          "windows": [
+            {
+              "start_seconds": 0.0,
+              "nonzero": 47,
+              "tone_hz": 6400.0
+            },
+            {
+              "start_seconds": 0.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 2.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 2.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 2.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 2.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 3.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 3.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 3.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 3.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            }
+          ]
+        },
+        {
+          "nonzero": 46,
+          "peak": 30720,
+          "windows": [
+            {
+              "start_seconds": 0.0,
+              "nonzero": 46,
+              "tone_hz": 6400.0
+            },
+            {
+              "start_seconds": 0.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 2.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 2.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 2.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 2.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 3.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 3.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 3.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 3.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            }
+          ]
+        }
+      ]
+    },
+    "relaunch": {
+      "frames": 288056,
+      "channels": [
+        {
+          "nonzero": 52105,
+          "peak": 30720,
+          "windows": [
+            {
+              "start_seconds": 0.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.5,
+              "nonzero": 191,
+              "tone_hz": 6425.1968503937005
+            },
+            {
+              "start_seconds": 1.75,
+              "nonzero": 5999,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 2.0,
+              "nonzero": 6002,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 2.25,
+              "nonzero": 6001,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 2.5,
+              "nonzero": 5998,
+              "tone_hz": 6374.65610671113
+            },
+            {
+              "start_seconds": 2.75,
+              "nonzero": 5999,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 3.0,
+              "nonzero": 6002,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 3.25,
+              "nonzero": 6001,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 3.5,
+              "nonzero": 5998,
+              "tone_hz": 6374.65610671113
+            },
+            {
+              "start_seconds": 3.75,
+              "nonzero": 1926,
+              "tone_hz": 6375.0
+            },
+            {
+              "start_seconds": 4.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.75,
+              "nonzero": 1957,
+              "tone_hz": 6374.616171954965
+            }
+          ]
+        },
+        {
+          "nonzero": 52104,
+          "peak": 30720,
+          "windows": [
+            {
+              "start_seconds": 0.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 0.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 1.5,
+              "nonzero": 190,
+              "tone_hz": 6425.1968503937005
+            },
+            {
+              "start_seconds": 1.75,
+              "nonzero": 6000,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 2.0,
+              "nonzero": 6002,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 2.25,
+              "nonzero": 6000,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 2.5,
+              "nonzero": 5998,
+              "tone_hz": 6374.65610671113
+            },
+            {
+              "start_seconds": 2.75,
+              "nonzero": 6000,
+              "tone_hz": 6374.9061483273545
+            },
+            {
+              "start_seconds": 3.0,
+              "nonzero": 6002,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 3.25,
+              "nonzero": 6000,
+              "tone_hz": 6375.187593796898
+            },
+            {
+              "start_seconds": 3.5,
+              "nonzero": 5998,
+              "tone_hz": 6374.65610671113
+            },
+            {
+              "start_seconds": 3.75,
+              "nonzero": 1927,
+              "tone_hz": 6375.0
+            },
+            {
+              "start_seconds": 4.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 4.75,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.0,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.25,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.5,
+              "nonzero": 0,
+              "tone_hz": 0
+            },
+            {
+              "start_seconds": 5.75,
+              "nonzero": 1957,
+              "tone_hz": 6374.616171954965
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "private_host": "stopped",
+    "credential": "removed",
+    "lease": "free",
+    "normal_host": "stopped and disabled"
+  }
+}

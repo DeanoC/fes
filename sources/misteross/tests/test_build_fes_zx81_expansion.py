@@ -213,7 +213,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         self.shell = self.root / "frozen-shell"
         self.shell.mkdir()
-        for relative in cart_producer.INPUTS:
+        for relative in cart_producer.INPUTS + cart_producer.CART_SOURCES['zonx']:
             path = self.root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("committed input")
@@ -291,6 +291,24 @@ class ZX81CartPublicationTests(unittest.TestCase):
                                                           "audio_clk": 12.288})
         self.assertEqual(recipe["cram_region"], [1769, 32, 2806, 7024])
         self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
+
+    def test_zonx_publication_binds_its_sources_and_same_socket_gates(self):
+        result = cart_producer.build(self.root, self.shell, self.root / 'package', 0, cart_kind='zonx')
+        self.assertEqual(result.parent.parent.name, 'zx81-zonx-cart')
+        recipe = json.loads((self.output / 'build-summary.json').read_text())['recipe']
+        self.assertEqual(recipe['cart_kind'], 'zonx')
+        self.assertIn('cores/fes-zx81/expansions/zonx.v', recipe['inputs'])
+        self.assertNotIn('cores/fes-zx81/expansions/ram16k.v', recipe['inputs'])
+        self.assertIn('-DSYNTHESIS=1', cart_producer.subprocess.run.call_args_list[0].args[0][-1])
+        cart_producer.classify_cram_diff.return_value = {'bits_outside_slot': 2}
+        with self.assertRaisesRegex(ValueError, 'outside reserved slot'):
+            cart_producer.build(self.root, self.shell, self.root / 'package', 0, cart_kind='zonx')
+        self.assertFalse(result.exists())
+
+    def test_unknown_cart_rejects_before_compilation(self):
+        with self.assertRaisesRegex(ValueError, 'unknown ZX81 cart'):
+            cart_producer.build(self.root, self.shell, self.root / 'package', 0, cart_kind='unknown')
+        self.assertEqual(self.calls, [])
 
     def test_changed_scaffold_cannot_publish(self):
         self.mode = 'scaffold_mutation'
