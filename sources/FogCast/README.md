@@ -180,8 +180,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   [Linux framebuffer guide](docs/native-tenfoot-launcher/LINUX.md#framebuffer-without-sdl).
   `fogcast-tenfoot -gfx menu-display` runs that same app and evdev input through
   the runtime menu socket (`-menu-socket`, default `/run/mister-runtime.sock`).
-  Presents are change-driven: an unchanged frame (byte-identical to the last
-  submitted frame that has not failed or been dropped) is skipped. Once a
+  The direct CPU shells cache complete draw commands and textures, skipping identical raster work while updates and input continue at 30 Hz. Opaque sprites use row copies and bounded cached resizing; menu submissions use rendered revisions and reusable immutable buffers. Profiling flags and benchmark recipes are in [CPU rendering](docs/native-tenfoot-launcher/CPU.md). Presents are change-driven: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a
   second after a successful present, that skip still reads menu status. A new
   menu generation is submitted in full; the same generation presents nothing.
   The first frame is submitted because nothing has been queued yet. Status
