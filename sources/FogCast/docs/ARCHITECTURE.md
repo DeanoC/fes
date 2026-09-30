@@ -1906,6 +1906,22 @@ The runtime validates the complete request and owns the physical GP writes.
 The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 0600),
 not another network endpoint, and there is no additional virtual-device discovery rule.
 Other cores retain the single virtual gamepad and keyboard sink.
+Installed-core control is a separate root-only HTTP socket at
+`/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
+packages and, when the kit lease is free, launches one that needs no cartridge
+or firmware under owner `kit-hostless` purpose `kit-local-core`. ZX81 stays
+in that firmware class: this socket has no ROM link, and it does not consult
+the rom map. A held, busy, blocked, or recovery lease returns 409 and does not
+call the runtime. The claim starts renewal immediately. The first renew waits
+a quarter of the time still remaining, so a slow launch renews before the
+grant expires, and renewal continues until stop, a failed renew, release, or
+process shutdown. Launch and stop keep the runtime operation on the lease
+context; disconnecting the local client does not abort an in-flight program.
+Launch takes the input replacement barrier before `load_core`, so a kit-local
+pad frame cannot rebind a generation that barrier just cleared. Stop uses the
+owned stop path. Kit-local loads do not enter the coordinator, so takeover,
+expiry, shutdown, and release after a failed load stop the runtime before the
+lease can be freed. Cleanup that does not reach idle leaves the lease blocked.
 
 A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
 frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent

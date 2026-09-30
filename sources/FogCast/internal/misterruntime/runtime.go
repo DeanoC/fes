@@ -1068,6 +1068,61 @@ func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.API
 	return "", nil
 }
 
+// LoadCore programs an installed package directory. It does not stage an
+// upload. The caller must already hold the kit lease. Kit-local launch uses
+// LoadInstalledCoreOwned so the admission and operation contexts stay split.
+func (r *Runtime) LoadCore(ctx context.Context, path, packageID string) (Protocol2Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return r.LoadInstalledCoreOwned(ctx, ctx, path, packageID)
+}
+
+// LoadInstalledCoreOwned programs an already-installed package directory.
+// It takes the input replacement barrier before load_core, matching
+// LoadCoreOwned, so a kit-local pad frame cannot rebind a generation
+// ReleaseAll just cleared. It does not stage an upload or link a ROM.
+func (r *Runtime) LoadInstalledCoreOwned(admission, operation context.Context, path, packageID string) (response Protocol2Response, err error) {
+	if r == nil || r.control == nil {
+		return Protocol2Response{}, errors.New("runtime is closed")
+	}
+	control, ok := r.control.(protocol2CoreControl)
+	if !ok {
+		return Protocol2Response{}, unsupportedOperationError()
+	}
+	if admission == nil || operation == nil || admission.Err() != nil || operation.Err() != nil {
+		return Protocol2Response{}, unavailableError()
+	}
+	if path == "" || packageID == "" {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	finishBarrier := func(context.Context, bool) error { return nil }
+	if r.coreBarrier != nil {
+		finish, barrierErr := r.coreBarrier.BeginCoreReplacement(operation)
+		if barrierErr != nil {
+			return Protocol2Response{}, replacementBarrierError()
+		}
+		finishBarrier = finish
+	}
+	preserveInput := false
+	defer func() {
+		if finishErr := finishBarrier(operation, preserveInput); finishErr != nil {
+			response = Protocol2Response{}
+			err = replacementBarrierError()
+		}
+	}()
+	response, err = control.LoadCore(operation, path, packageID)
+	r.noteDispatch("load_core", err == nil)
+	if err != nil {
+		preserveInput = !protocol2MutationAttempted(err)
+		return Protocol2Response{}, err
+	}
+	if !response.OK || response.Error != nil {
+		preserveInput = protocol2PreMutationFailure(response.Error)
+	}
+	return response, nil
+}
+
 func (r *Runtime) Stop(ctx context.Context) (string, *protocol.APIError) {
 	return r.stop(ctx, ctx, false)
 }

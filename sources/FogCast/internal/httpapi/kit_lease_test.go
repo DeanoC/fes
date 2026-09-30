@@ -116,6 +116,67 @@ func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
 	}
 }
 
+func TestKitLocalCorePurposeCannotUseHostRoutes(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	deadline := time.Now().Add(time.Second)
+	var grant kitlease.Grant
+	for {
+		var err error
+		grant, err = manager.Claim(kitlease.ClaimRequest{
+			RequestID: "cccccccccccccccccccccccccccccccc",
+			Owner:     kitlease.HostlessOwner,
+			Purpose:   kitlease.LocalCorePurpose,
+		})
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if grant.Status.Owner != kitlease.HostlessOwner || !kitlease.ForeignHID(grant.Status) {
+		t.Fatalf("host must see kit-local lease as foreign: %+v", grant.Status)
+	}
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager))
+	for _, path := range []string{"/v1/stop", "/v1/input/attach", "/v1/cast/start", "/v1/development/rbf"} {
+		request := httptest.NewRequest(http.MethodPost, path, nil)
+		request.Header.Set("Authorization", "Bearer bearer")
+		request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("%s: %d", path, response.Code)
+		}
+	}
+	listed := httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil)
+	listedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(listedResponse, listed)
+	if listedResponse.Code != http.StatusNotFound {
+		t.Fatalf("network list: %d", listedResponse.Code)
+	}
+	packageID := strings.Repeat("ab", 32)
+	for _, path := range []string{"/v1/local/stop", "/v1/local/cores/" + packageID + "/launch"} {
+		for _, headers := range []map[string]string{
+			{},
+			{"Authorization": "Bearer bearer"},
+			{"Authorization": "Bearer bearer", httpapi.KitLeaseHeader: grant.Token},
+			{httpapi.KitLeaseHeader: grant.Token},
+		} {
+			request := httptest.NewRequest(http.MethodPost, path, nil)
+			for key, value := range headers {
+				request.Header.Set(key, value)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("POST %s headers %v: %d", path, headers, response.Code)
+			}
+		}
+	}
+}
+
 type leaseStreamController struct{ backend net.Conn }
 
 func (*leaseStreamController) Attach(context.Context, input.Spec) error { return nil }

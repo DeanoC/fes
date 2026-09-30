@@ -54,9 +54,14 @@ probe of that inventory while the host is up — not a hostless launch grant.
 Boot paints the last-good shelf from
 disk before host games HTTP and decodes visible covers from disk first. An absent
 host shows `Offline - local library` rather than an endless reconnect. Local D-pad
-and A still browse that snapshot. Launch and Stop remain disabled or unavailable
-until the configured host API reconnects; the launcher never claims a target
-lease or sends a direct target launch while offline. See [the host connection
+and A still browse that snapshot. Host-catalog Launch and Stop stay unavailable
+until the configured host API reconnects; the launcher does not claim a lease
+for those titles while offline. Installed cores that need no cartridge or
+firmware are listed and launched on the kit through mister-agent's root-only
+`/run/fogcast/local-control.sock` (`GET /v1/local/cores`,
+`POST /v1/local/cores/{package_id}/launch`, `POST /v1/local/stop`). That path
+claims owner `kit-hostless` with purpose `kit-local-core` and fails closed,
+without taking over, when the lease is already held (fes#172). See [the host connection
 contract](launcher-host.md) for listener configuration and the session HTTP
 schema. Play input from a pad on the kit uses the local socket described below.
 `fogcast-kit` supplies the socket path and the runtime core-bound probe.

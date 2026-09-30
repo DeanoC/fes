@@ -14,6 +14,9 @@ const hostHIDOwnerPrefix = "fogcast@"
 const (
 	HostlessOwner   = "kit-hostless"
 	HostlessPurpose = "offline-cache-hit-launch"
+	// LocalCorePurpose is a kit-local installed-core session. The host
+	// still observes this grant as foreign. It is not a takeover.
+	LocalCorePurpose = "kit-local-core"
 )
 
 type Status struct {
@@ -64,6 +67,53 @@ func ForeignHID(s Status) bool {
 // HostlessSession reports whether the current grant is the offline cache-hit owner.
 func HostlessSession(s Status) bool {
 	return s.State == "held" && s.Owner == HostlessOwner && s.Purpose == HostlessPurpose
+}
+
+// LocalCoreSession reports whether the current grant is the kit-local
+// installed-core owner. A host session must treat it as in use.
+func LocalCoreSession(s Status) bool {
+	return s.State == "held" && s.Owner == HostlessOwner && s.Purpose == LocalCorePurpose
+}
+
+// HostlessAllows is the hostless mutation allowlist. The offline cache-hit
+// purpose may stop and deliver input. The kit-local core purpose may use
+// only the local-control routes. Any other purpose is denied.
+func HostlessAllows(s Status, path string) bool {
+	if s.Owner != HostlessOwner || s.State != "held" {
+		return false
+	}
+	switch s.Purpose {
+	case HostlessPurpose:
+		switch path {
+		case "/v1/stop", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream":
+			return true
+		}
+	case LocalCorePurpose:
+		switch path {
+		case "/v1/local/cores", "/v1/local/stop":
+			return true
+		}
+		return localCoreLaunchPath(path)
+	}
+	return false
+}
+
+func localCoreLaunchPath(path string) bool {
+	rest, ok := strings.CutPrefix(path, "/v1/local/cores/")
+	if !ok {
+		return false
+	}
+	id, ok := strings.CutSuffix(rest, "/launch")
+	if !ok || len(id) != 64 {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // ForeignSession reports a held grant that hostless launch must not displace.

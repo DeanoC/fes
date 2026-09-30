@@ -36,7 +36,7 @@ func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := run(context.Background(), path, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	err := run(context.Background(), path, slog.New(slog.NewJSONHandler(io.Discard, nil)), "")
 	if err == nil {
 		t.Fatal("malformed configuration was accepted")
 	}

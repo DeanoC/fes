@@ -80,15 +80,7 @@ func hostlessMutationDenied(status contractlease.Status, path string) bool {
 	if status.Owner != contractlease.HostlessOwner {
 		return false
 	}
-	if !contractlease.HostlessSession(status) {
-		return true
-	}
-	switch path {
-	case "/v1/stop", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream":
-		return false
-	default:
-		return true
-	}
+	return !contractlease.HostlessAllows(status, path)
 }
 
 func guardKitLease(next http.Handler, token string, manager *internallease.Manager) http.Handler {

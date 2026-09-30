@@ -476,6 +476,126 @@ func TestLocalFrameDuringCoreReplacementDoesNotRebindRetiredGeneration(t *testin
 	}
 }
 
+// blockingInstalledControl accepts load_core and holds it until release is
+// closed. It does not inspect a package directory.
+type blockingInstalledControl struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (c *blockingInstalledControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+func (c *blockingInstalledControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+func (c *blockingInstalledControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{}, errors.New("unexpected raw load")
+}
+func (c *blockingInstalledControl) LoadCore(context.Context, string, string) (misterruntime.Protocol2Response, error) {
+	c.once.Do(func() { close(c.entered) })
+	<-c.release
+	generation := uint64(9)
+	return misterruntime.Protocol2Response{
+		Protocol: 2, OK: true, State: "running_development", Execution: "development", Version: "test",
+		Generation: &generation,
+	}, nil
+}
+
+func TestLocalFrameDuringLocalLaunchDoesNotRebindRetiredGeneration(t *testing.T) {
+	var mu sync.Mutex
+	var writes []portWrite
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
+		mu.Lock()
+		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
+		mu.Unlock()
+		return nil
+	}}
+	generation := uint64(4)
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		return CoreObservation{Active: true, Binding: &ControllerBinding{PackageID: "coleco", Generation: generation, Keypad: true}}, nil
+	})
+	ctx := context.Background()
+	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if !sink.hasBinding() {
+		t.Fatal("local frame did not bind the active generation")
+	}
+	t.Cleanup(func() { _ = controller.Close() })
+
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseLoad := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseLoad)
+	control := &blockingInstalledControl{entered: make(chan struct{}), release: release}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+		misterruntime.WithCoreReplacementBarrier(controller))
+	loadDone := make(chan error, 1)
+	go func() {
+		response, err := runtime.LoadInstalledCoreOwned(ctx, ctx, "/tmp/fes-pong", "abababababababababababababababababababababababababababababababab")
+		if err == nil && !response.OK {
+			err = errors.New("installed load was not ok")
+		}
+		loadDone <- err
+	}()
+	select {
+	case <-control.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("local launch did not reach load_core")
+	}
+	// The replacement barrier still holds the lifecycle lock. ReleaseAll has
+	// cleared the old binding. A pad frame here must return without observing
+	// or writing, including after the runtime generation changes.
+	mu.Lock()
+	released := len(writes)
+	mu.Unlock()
+	if sink.hasBinding() {
+		t.Fatal("local launch left the old binding in place")
+	}
+	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	generation = 9
+	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonStart, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if sink.hasBinding() {
+		t.Fatal("local frame rebound a generation during local launch")
+	}
+	mu.Lock()
+	wrote := len(writes) != released
+	during := append([]portWrite(nil), writes[released:]...)
+	mu.Unlock()
+	if wrote {
+		t.Fatalf("local frame wrote during local launch: %+v", during)
+	}
+	releaseLoad()
+	select {
+	case err := <-loadDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("local launch did not finish")
+	}
+	if sink.hasBinding() {
+		t.Fatal("local launch left the old binding")
+	}
+	if err := controller.deliverLocal(ctx, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	last := writes[len(writes)-1]
+	mu.Unlock()
+	if last.generation != 9 || last.id != "coleco" || last.buttons&16 == 0 {
+		t.Fatalf("next local frame did not bind the new generation: %+v", last)
+	}
+}
+
 // hungStatusRuntime accepts Protocol2 status requests and never writes a
 // reply. ControllerStatus returns only when the caller's deadline closes
 // the socket.
