@@ -131,7 +131,7 @@ func TestReadInstalledCores(t *testing.T) {
 		launchable                             bool
 	}{
 		{"fes.pong", pong, "FES Pong", "fes.simple-game", "none", "", true},
-		{"fes.zx81", zx81, "ZX81  (sealed)", "fes.simple-computer", "none", "", true},
+		{"fes.zx81", zx81, "ZX81  (sealed)", "fes.simple-computer", "firmware", "Needs firmware", false},
 		{"fes.coleco", coleco, "FES Coleco", "fes.application", "media", "Needs a cartridge", false},
 		{"fes.sms", sms, "FES Master System", "fes.simple-computer", "media", "Needs a cartridge", false},
 		{"fes.sg1000", sg, "FES SG-1000", "fes.simple-computer", "media", "Needs a cartridge", false},

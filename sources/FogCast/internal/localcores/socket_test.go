@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -85,5 +86,29 @@ func TestLocalControlSocketMode(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("socket serve did not stop")
+	}
+}
+
+func TestListenRestoresUmask(t *testing.T) {
+	before := syscall.Umask(0)
+	syscall.Umask(before)
+	t.Cleanup(func() { syscall.Umask(before) })
+	path := shortSock(t)
+	listener, err := listen(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("socket mode = %o, want 600", info.Mode().Perm())
+	}
+	after := syscall.Umask(0)
+	syscall.Umask(after)
+	if after != before {
+		t.Fatalf("umask = %#o, want %#o", after, before)
 	}
 }

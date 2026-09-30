@@ -3,6 +3,7 @@ package localcores
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,9 +21,13 @@ type fakeRuntime struct {
 	loads   [][2]string
 	stops   int
 	loadErr error
+	onLoad  func()
 }
 
 func (f *fakeRuntime) LoadCore(_ context.Context, path, packageID string) error {
+	if f.onLoad != nil {
+		f.onLoad()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.loads = append(f.loads, [2]string{path, packageID})
@@ -79,7 +84,9 @@ func testService(t *testing.T, runtime *fakeRuntime) (*Service, *kitlease.Manage
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	t.Cleanup(manager.Close)
 	waitFree(t, manager)
-	return New(manager, runtime, Roots{Selections: selections, Packages: packages}), manager, selections, packages
+	service := New(manager, runtime, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	return service, manager, selections, packages
 }
 
 func post(handler http.Handler, path string) *httptest.ResponseRecorder {
@@ -236,4 +243,324 @@ func TestFailedLoadReleasesLease(t *testing.T) {
 		t.Fatalf("loads=%v stops=%d", loads, stops)
 	}
 	waitFree(t, manager)
+}
+
+func pongID(t *testing.T, service *Service) string {
+	t.Helper()
+	for _, core := range service.List() {
+		if core.CoreID == "fes.pong" {
+			return core.PackageID
+		}
+	}
+	t.Fatal("pong missing")
+	return ""
+}
+
+type countingLease struct {
+	*kitlease.Manager
+	mu     sync.Mutex
+	renews int
+}
+
+func (c *countingLease) Renew(token string) (kitlease.Grant, error) {
+	c.mu.Lock()
+	c.renews++
+	c.mu.Unlock()
+	return c.Manager.Renew(token)
+}
+
+func (c *countingLease) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.renews
+}
+
+func TestLaunchRenewsLeasePastTTLUntilStop(t *testing.T) {
+	const ttl = time.Second
+	runtime := &fakeRuntime{}
+	root := t.TempDir()
+	packages := filepath.Join(root, "pkgs")
+	selections := filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	manager := kitlease.New(ttl, func(context.Context) error { return nil })
+	t.Cleanup(manager.Close)
+	waitFree(t, manager)
+	gate := &countingLease{Manager: manager}
+	service := New(gate, runtime, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	id := pongID(t, service)
+	if _, err := service.Launch(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	launched := time.Now()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		status := manager.Status()
+		if status.State != "held" || status.Purpose != kitlease.LocalCorePurpose {
+			t.Fatalf("lease dropped before renewal: %+v", status)
+		}
+		if time.Since(launched) > ttl && gate.count() > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("lease was not renewed past the TTL")
+		}
+		time.Sleep(ttl / 10)
+	}
+	if err := service.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitFree(t, manager)
+	stopped := gate.count()
+	time.Sleep(ttl)
+	if gate.count() != stopped {
+		t.Fatalf("renew continued after stop: %d -> %d", stopped, gate.count())
+	}
+	if manager.Status().State != "free" {
+		t.Fatalf("lease %+v", manager.Status())
+	}
+}
+
+func TestShutdownStopsLeaseRenewal(t *testing.T) {
+	const ttl = time.Second
+	runtime := &fakeRuntime{}
+	root := t.TempDir()
+	packages := filepath.Join(root, "pkgs")
+	selections := filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	manager := kitlease.New(ttl, func(context.Context) error { return nil })
+	t.Cleanup(manager.Close)
+	waitFree(t, manager)
+	service := New(manager, runtime, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	if _, err := service.Launch(context.Background(), pongID(t, service)); err != nil {
+		t.Fatal(err)
+	}
+	service.Close()
+	waitFree(t, manager)
+}
+
+func TestSealedZX81LaunchIsBlocked(t *testing.T) {
+	runtime := &fakeRuntime{}
+	root := t.TempDir()
+	packages := filepath.Join(root, "pkgs")
+	selections := filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installCore(t, packages, selections, "fes.zx81", "ZX81  (sealed)", "fes.simple-computer", coreOpts{
+		rom: []byte("{\"format\":1}\n"),
+	})
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	t.Cleanup(manager.Close)
+	waitFree(t, manager)
+	service := New(manager, runtime, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	var id string
+	for _, core := range service.List() {
+		if core.CoreID != "fes.zx81" {
+			continue
+		}
+		id = core.PackageID
+		if core.Needs != "firmware" || core.Block != "Needs firmware" || core.Launchable {
+			t.Fatalf("classified %+v", core)
+		}
+	}
+	if id == "" {
+		t.Fatal("zx81 missing")
+	}
+	response := post(Handler(service), "/v1/local/cores/"+id+"/launch")
+	if response.Code != http.StatusConflict || errorCode(t, response) != "blocked" {
+		t.Fatalf("launch %d %s", response.Code, response.Body.String())
+	}
+	loads, stops := runtime.calls()
+	if len(loads) != 0 || stops != 0 {
+		t.Fatalf("runtime calls loads=%v stops=%d", loads, stops)
+	}
+	if manager.Status().State != "free" {
+		t.Fatalf("lease %s", manager.Status().State)
+	}
+}
+
+func TestHostClaimDuringLoadIsBusy(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	runtime := &fakeRuntime{onLoad: func() {
+		once.Do(func() { close(entered) })
+		<-release
+	}}
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+	service, manager, _, _ := testService(t, runtime)
+	id := pongID(t, service)
+	done := make(chan error, 1)
+	go func() {
+		_, err := service.Launch(context.Background(), id)
+		done <- err
+	}()
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("load did not start")
+	}
+	_, err := manager.Claim(kitlease.ClaimRequest{
+		RequestID: strings.Repeat("ab", 16),
+		Owner:     "fogcast@host",
+		Purpose:   "play",
+	})
+	if !errors.Is(err, kitlease.ErrBusy) {
+		t.Fatalf("host claim %v", err)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	loads, stops := runtime.calls()
+	if len(loads) != 1 || stops != 0 {
+		t.Fatalf("loads=%v stops=%d", loads, stops)
+	}
+	status := manager.Status()
+	if status.State != "held" || status.Owner != kitlease.HostlessOwner || status.Purpose != kitlease.LocalCorePurpose {
+		t.Fatalf("lease %+v", status)
+	}
+}
+
+func TestBlockedAndRevokingLeaseLaunchReturnsConflict(t *testing.T) {
+	t.Run("blocked", func(t *testing.T) {
+		runtime := &fakeRuntime{}
+		manager := kitlease.New(time.Minute, func(context.Context) error {
+			return errors.New("cleanup failed")
+		})
+		t.Cleanup(manager.Close)
+		deadline := time.Now().Add(2 * time.Second)
+		for manager.Status().State != "blocked" {
+			if time.Now().After(deadline) {
+				t.Fatalf("lease state %s", manager.Status().State)
+			}
+			time.Sleep(time.Millisecond)
+		}
+		service, id := pongService(t, manager, runtime)
+		response := post(Handler(service), "/v1/local/cores/"+id+"/launch")
+		if response.Code != http.StatusConflict || errorCode(t, response) != "in_use" {
+			t.Fatalf("launch %d %s", response.Code, response.Body.String())
+		}
+		loads, stops := runtime.calls()
+		if len(loads) != 0 || stops != 0 {
+			t.Fatalf("runtime calls loads=%v stops=%d", loads, stops)
+		}
+	})
+	t.Run("revoking", func(t *testing.T) {
+		runtime := &fakeRuntime{}
+		hold := make(chan struct{})
+		manager := kitlease.New(time.Minute, func(ctx context.Context) error {
+			select {
+			case <-hold:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+		t.Cleanup(manager.Close)
+		t.Cleanup(func() {
+			select {
+			case <-hold:
+			default:
+				close(hold)
+			}
+		})
+		if manager.Status().State != "revoking" {
+			t.Fatalf("lease state %s", manager.Status().State)
+		}
+		service, id := pongService(t, manager, runtime)
+		response := post(Handler(service), "/v1/local/cores/"+id+"/launch")
+		if response.Code != http.StatusConflict || errorCode(t, response) != "in_use" {
+			t.Fatalf("launch %d %s", response.Code, response.Body.String())
+		}
+		loads, stops := runtime.calls()
+		if len(loads) != 0 || stops != 0 {
+			t.Fatalf("runtime calls loads=%v stops=%d", loads, stops)
+		}
+	})
+}
+
+func pongService(t *testing.T, manager *kitlease.Manager, runtime Runtime) (*Service, string) {
+	t.Helper()
+	root := t.TempDir()
+	packages := filepath.Join(root, "pkgs")
+	selections := filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	service := New(manager, runtime, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	return service, pongID(t, service)
+}
+
+type foreignGrant struct {
+	releases int
+}
+
+func (g *foreignGrant) Status() kitlease.Status {
+	return kitlease.Status{State: "free"}
+}
+
+func (g *foreignGrant) Claim(kitlease.ClaimRequest) (kitlease.Grant, error) {
+	return kitlease.Grant{
+		Token:  "foreign-token",
+		Status: kitlease.Status{State: "held", Owner: "fogcast@host", Purpose: "play"},
+	}, nil
+}
+
+func (g *foreignGrant) Renew(string) (kitlease.Grant, error) {
+	return kitlease.Grant{}, errors.New("renew")
+}
+
+func (g *foreignGrant) Release(token string) (kitlease.Status, error) {
+	if token != "foreign-token" {
+		return kitlease.Status{}, errors.New("token")
+	}
+	g.releases++
+	return kitlease.Status{State: "free"}, nil
+}
+
+func (g *foreignGrant) Begin(string) (context.Context, func(), error) {
+	return nil, nil, errors.New("begin")
+}
+
+func TestClaimWithoutLocalSessionReleases(t *testing.T) {
+	runtime := &fakeRuntime{}
+	root := t.TempDir()
+	packages := filepath.Join(root, "pkgs")
+	selections := filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	gate := &foreignGrant{}
+	service := New(gate, runtime, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	_, err := service.Launch(context.Background(), pongID(t, service))
+	if !errors.Is(err, errInUse) {
+		t.Fatalf("launch %v", err)
+	}
+	if gate.releases != 1 {
+		t.Fatalf("releases %d", gate.releases)
+	}
+	loads, stops := runtime.calls()
+	if len(loads) != 0 || stops != 0 {
+		t.Fatalf("runtime calls loads=%v stops=%d", loads, stops)
+	}
 }

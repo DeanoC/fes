@@ -34,6 +34,7 @@ type Runtime interface {
 type LeaseGate interface {
 	Status() contract.Status
 	Claim(contract.ClaimRequest) (contract.Grant, error)
+	Renew(token string) (contract.Grant, error)
 	Release(token string) (contract.Status, error)
 	Begin(token string) (context.Context, func(), error)
 }
@@ -50,8 +51,11 @@ type Service struct {
 	runtime Runtime
 	roots   Roots
 
-	mu    sync.Mutex
-	token string
+	mu          sync.Mutex
+	token       string
+	closed      bool
+	renewCancel context.CancelFunc
+	renewDone   chan struct{}
 }
 
 func New(leases LeaseGate, runtime Runtime, roots Roots) *Service {
@@ -103,7 +107,11 @@ func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 		Owner:     contract.HostlessOwner,
 		Purpose:   contract.LocalCorePurpose,
 	})
-	if err != nil || grant.Token == "" || !contract.LocalCoreSession(grant.Status) {
+	if err != nil || grant.Token == "" {
+		return Core{}, errInUse
+	}
+	if !contract.LocalCoreSession(grant.Status) {
+		_, _ = s.leases.Release(grant.Token)
 		return Core{}, errInUse
 	}
 	leaseCtx, done, err := s.leases.Begin(grant.Token)
@@ -120,6 +128,7 @@ func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 	s.mu.Lock()
 	s.token = grant.Token
 	s.mu.Unlock()
+	s.startRenew(grant.Token, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
 	return core, nil
 }
 
@@ -153,7 +162,86 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.token = ""
 	}
 	s.mu.Unlock()
+	s.stopRenew()
 	return nil
+}
+
+// Close stops lease renewal. It does not release the grant. Process shutdown
+// calls this before closing the lease manager so the loop cannot outlive the process.
+func (s *Service) Close() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
+	s.stopRenew()
+}
+
+// renewInterval is one quarter of the grant. A 90s production lease renews
+// about every 20s, and a shorter grant still renews before it expires.
+func renewInterval(ttl time.Duration) time.Duration {
+	interval := ttl / 4
+	if interval < time.Millisecond {
+		interval = time.Millisecond
+	}
+	return interval
+}
+
+func (s *Service) startRenew(token string, ttl time.Duration) {
+	s.stopRenew()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	interval := renewInterval(ttl)
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		cancel()
+		return
+	}
+	s.renewCancel = cancel
+	s.renewDone = done
+	// Publish the loop before unlocking so Close cannot miss it.
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if ctx.Err() != nil {
+					return
+				}
+				if _, err := s.leases.Renew(token); err != nil {
+					return
+				}
+				s.mu.Lock()
+				current := s.token
+				s.mu.Unlock()
+				if current != token {
+					return
+				}
+			}
+		}
+	}()
+	s.mu.Unlock()
+}
+
+func (s *Service) stopRenew() {
+	s.mu.Lock()
+	cancel := s.renewCancel
+	done := s.renewDone
+	s.renewCancel = nil
+	s.renewDone = nil
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done != nil {
+		<-done
+	}
 }
 
 func (s *Service) load(request, lease context.Context, core Core) error {

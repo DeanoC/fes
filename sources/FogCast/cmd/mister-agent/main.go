@@ -455,6 +455,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			Selections: installedSelectionRoot,
 			Packages:   installedPackageRoot,
 		})
+		defer cores.Close()
 		go func() {
 			err := localcores.Serve(ctx, dependencies.localControlSocket, localcores.Handler(cores))
 			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {

@@ -79,10 +79,12 @@ type selectionFile struct {
 // ReadInstalledCores lists selections under selectionDir whose packages live
 // in packageRoot. fes.menu is excluded. A payload SHA that does not match
 // the installed core.rbf and the manifest is dropped. Needs comes from the
-// core id plus manifest metadata: Pong needs nothing; ZX81 needs nothing
-// only when rom-map.json matches the manifest; Coleco, SMS and SG-1000 need
-// a cartridge; C64 and Spectrum need firmware unless the manifest does not
-// declare any. Anything else is firmware and not launchable.
+// core id plus manifest metadata: Pong needs nothing; ZX81 needs firmware
+// in this slice even when rom-map.json matches, because that seal is an
+// integrity check and load_core cannot activate format 3 without a ROM link;
+// Coleco, SMS and SG-1000 need a cartridge; C64 and Spectrum need firmware
+// unless the manifest does not declare any. Anything else is firmware and
+// not launchable.
 func ReadInstalledCores(selectionDir, packageRoot string) []Core {
 	cores := []Core{}
 	if !realDir(selectionDir) || !realDir(packageRoot) {
@@ -169,9 +171,9 @@ func deriveNeeds(coreID string, romSealed, bootsWithoutFirmware bool) (needs, bl
 	case "fes.pong":
 		return "none", "", true
 	case "fes.zx81":
-		if romSealed {
-			return "none", "", true
-		}
+		// romSealed only proves the map bytes match the manifest. This slice
+		// has no kit-local ROM link, so a sealed ZX81 is still not launchable.
+		_ = romSealed
 		return "firmware", "Needs firmware", false
 	case "fes.coleco", "fes.sms", "fes.sg1000":
 		return "media", "Needs a cartridge", false

@@ -1909,8 +1909,14 @@ Other cores retain the single virtual gamepad and keyboard sink.
 Installed-core control is a separate root-only HTTP socket at
 `/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
 packages and, when the kit lease is free, launches one that needs no cartridge
-or firmware under owner `kit-hostless` purpose `kit-local-core`. A held, busy,
-blocked, or recovery lease returns 409 and does not call the runtime.
+or firmware under owner `kit-hostless` purpose `kit-local-core`. Sealed ZX81
+stays in that firmware class: the rom map is an integrity check, and this
+socket has no ROM link to activate it. A held, busy, blocked, or recovery
+lease returns 409 and does not call the runtime. After a successful launch the
+agent renews the grant until stop, a failed renew, release, or process
+shutdown. Launch takes the input replacement barrier before `load_core`, so a
+kit-local pad frame cannot rebind a generation that barrier just cleared.
+Stop uses the owned stop path.
 
 A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
 frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent

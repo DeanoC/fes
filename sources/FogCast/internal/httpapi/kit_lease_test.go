@@ -156,6 +156,25 @@ func TestKitLocalCorePurposeCannotUseHostRoutes(t *testing.T) {
 	if listedResponse.Code != http.StatusNotFound {
 		t.Fatalf("network list: %d", listedResponse.Code)
 	}
+	packageID := strings.Repeat("ab", 32)
+	for _, path := range []string{"/v1/local/stop", "/v1/local/cores/" + packageID + "/launch"} {
+		for _, headers := range []map[string]string{
+			{},
+			{"Authorization": "Bearer bearer"},
+			{"Authorization": "Bearer bearer", httpapi.KitLeaseHeader: grant.Token},
+			{httpapi.KitLeaseHeader: grant.Token},
+		} {
+			request := httptest.NewRequest(http.MethodPost, path, nil)
+			for key, value := range headers {
+				request.Header.Set(key, value)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("POST %s headers %v: %d", path, headers, response.Code)
+			}
+		}
+	}
 }
 
 type leaseStreamController struct{ backend net.Conn }
