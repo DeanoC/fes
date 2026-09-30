@@ -95,29 +95,46 @@ physical video, input and audio require acceptance of the exact assembled
 image. Basic SNES supports ordinary LoROM/HiROM cartridges, without enhancement
 chips or persistent saves.
 
-### FES format-2 image package set
+### FES format-2/3 image package set
 
-FES may select one or more sealed packages from the supported format-2 core IDs
-`fes.menu`, `fes.pong`, `fes.zx81`, and `fes.coleco`. `fes.menu` is idle display
-firmware, not a playable catalog entry. The ordered, comma-separated package
-set and each selected core's trusted absolute inputs are passed to image fetch,
-build, and verification:
+The image selector supports eight core IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, using sealed
+format-2 or format-3 packages. `fes.menu` is idle display firmware, not a playable
+catalog entry. The current [FES default profile](../../../profiles/native-integration-dev.toml)
+selects only menu, Pong, ZX81 and Coleco. SMS, SG-1000 and Spectrum remain
+package-only under the 64 MiB rootfs limit; C64 has no current timing-passing HIP
+seal. See [core status](../../../docs/core-status.md) for exact-artifact evidence.
+
+The following is the complete eight-ID input example for the selector interface;
+it requires sealed packages and sufficient image capacity before use. It does
+not describe the current default image. The ordered, comma-separated package
+set and each selected core's trusted absolute inputs reach image fetch, build
+and verification:
 
 ```sh
-export FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco
-export FES_MENU_PACKAGE_DIR=/absolute/path/to/<menu-package-id>
+export FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum
+export FES_MENU_PACKAGE_DIR='/absolute/path/to/<menu-package-id>'
 export FES_MENU_PACKAGE_SELECTION=/absolute/path/to/fes-menu.package-selection.toml
-export FES_PONG_PACKAGE_DIR=/absolute/path/to/<pong-package-id>
+export FES_PONG_PACKAGE_DIR='/absolute/path/to/<pong-package-id>'
 export FES_PONG_PACKAGE_SELECTION=/absolute/path/to/fes-pong.package-selection.toml
-export FES_ZX81_PACKAGE_DIR=/absolute/path/to/<zx81-package-id>
+export FES_ZX81_PACKAGE_DIR='/absolute/path/to/<zx81-package-id>'
 export FES_ZX81_PACKAGE_SELECTION=/absolute/path/to/fes-zx81.package-selection.toml
-export FES_COLECO_PACKAGE_DIR=/absolute/path/to/<coleco-package-id>
+export FES_COLECO_PACKAGE_DIR='/absolute/path/to/<coleco-package-id>'
 export FES_COLECO_PACKAGE_SELECTION=/absolute/path/to/fes-coleco.package-selection.toml
+export FES_SMS_PACKAGE_DIR='/absolute/path/to/<sms-package-id>'
+export FES_SMS_PACKAGE_SELECTION=/absolute/path/to/fes-sms.package-selection.toml
+export FES_SG1000_PACKAGE_DIR='/absolute/path/to/<sg1000-package-id>'
+export FES_SG1000_PACKAGE_SELECTION=/absolute/path/to/fes-sg1000.package-selection.toml
+export FES_C64_PACKAGE_DIR='/absolute/path/to/<c64-package-id>'
+export FES_C64_PACKAGE_SELECTION=/absolute/path/to/fes-c64.package-selection.toml
+export FES_SPECTRUM_PACKAGE_DIR='/absolute/path/to/<spectrum-package-id>'
+export FES_SPECTRUM_PACKAGE_SELECTION=/absolute/path/to/fes-spectrum.package-selection.toml
 ```
 
 Each selected core requires its pair; unselected cores must not supply package
-inputs. The package directory contains exactly `manifest.toml` and `core.rbf`;
-the closed selection records format/kind, core and package IDs, payload
+inputs. The package directory contains exactly `manifest.toml` and `core.rbf`,
+plus `rom-map.json` for format 3. The closed selection records format/kind, core
+and package IDs, payload
 SHA-256, the selected misteross and mister-packages revisions, and the derived
 install path. `target-image-lock select-package --core-id <core-id>` copies a
 validated pair into the native cache. `verify-package --core-id <core-id>`
@@ -133,6 +150,10 @@ The canonical per-core names and build-input prefixes are:
 | `fes.pong` | `fes-pong.package-selection.toml` | `fes-pong.package.toml` | `fes_pong` |
 | `fes.zx81` | `fes-zx81.package-selection.toml` | `fes-zx81.package.toml` | `fes_zx81` |
 | `fes.coleco` | `fes-coleco.package-selection.toml` | `fes-coleco.package.toml` | `fes_coleco` |
+| `fes.sms` | `fes-sms.package-selection.toml` | `fes-sms.package.toml` | `fes_sms` |
+| `fes.sg1000` | `fes-sg1000.package-selection.toml` | `fes-sg1000.package.toml` | `fes_sg1000` |
+| `fes.c64` | `fes-c64.package-selection.toml` | `fes-c64.package.toml` | `fes_c64` |
+| `fes.spectrum` | `fes-spectrum.package-selection.toml` | `fes-spectrum.package.toml` | `fes_spectrum` |
 
 For every selected core, `--print-inputs` emits
 `<input-prefix>_package_selection_sha256`, `<input-prefix>_package_id`,

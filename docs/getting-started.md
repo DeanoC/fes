@@ -202,8 +202,11 @@ separately authorized physical-card acceptance procedure.
 
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
 bootable SD-card image. The default contains the native runtime, locked idle
-RBF and the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set; use the
-media command above for the complete flashable layout. The image has no legacy
+RBF and the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set
+from [the default profile](../profiles/native-integration-dev.toml); use the
+media command above for the complete flashable layout. The selector also supports
+`fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`, which remain package-only;
+see [core status](core-status.md) for seal and capacity limits. The image has no legacy
 bundle lane.
 The `make build`, `make dev`, `make verify` and `make media` paths use the
 same closed package set.
