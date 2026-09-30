@@ -950,8 +950,9 @@ labels the result DIAGNOSTIC: HDMI and input may be down, and it is not a
 playable game session. Stop uses the ordinary session Stop-to-idle path.
 Household Coleco BIOS import is a separate overlay: rooms/library Confirm on
 a firmware-required title opens a local file picker and posts
-`POST /api/v1/core-media` plus `PUT /api/v1/library/firmware`. That is not a
-development RBF load. Mid-session ZX81 Load-tape is another overlay: while an
+`POST /api/v1/core-media` plus `PUT /api/v1/library/firmware`, including while
+the selected kit is busy. That is not a development RBF load and does not
+claim the kit. Mid-session ZX81 Load-tape is another overlay: while an
 active `fes.simple-computer` session advertises `fes.media.blob`, Y opens a
 `.p` picker that arms or ejects through the session live-media API without
 relaunch or hold-reset `load_media`.
@@ -1504,7 +1505,12 @@ and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
 Busy means another session holds the kit lease. Tenfoot rooms show a Ready
 FPGA title aimed at that kit as Unavailable, with the copy "This executor is
-in use." Confirm explains and does not launch. A host-only title stays Ready
+in use." Confirm explains and does not launch. Library and detail Confirm
+apply that gate only after catalog blocks: a title missing Coleco BIOS still
+opens the household firmware picker, and any other catalog block keeps its
+own copy. Firmware import posts host library endpoints and does not claim
+the kit. Rooms leave those destinations unchanged because a foreign lease
+applies only to a Ready FPGA title. A host-only title stays Ready
 and Play reaches the host executor. `POST /api/v1/session/launch` returns the
 existing lease denial, without claiming, when that launch would use the busy
 kit. A host-emulator title and a launch aimed at a different target still

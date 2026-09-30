@@ -143,6 +143,70 @@ func TestAppMissingFirmwareOpensPickerAndBecomesReady(t *testing.T) {
 	}
 }
 
+func TestBusyKitPreservesFirmwareImportAndCatalogBlocks(t *testing.T) {
+	h := newFirmwareHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "frogger catalog", func(s Snapshot) bool {
+		return len(s.Games) == 1 && !s.Loading
+	})
+	now := time.Now()
+	app.HandleCommand(CmdDetails, now)
+	if !app.Snapshot().Detail.Open {
+		t.Fatal("detail did not open")
+	}
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "other-shell"}
+	app.mu.Unlock()
+
+	app.HandleCommand(CmdSelect, now)
+	snap := app.Snapshot()
+	if !snap.FirmwarePicker.Open || snap.Detail.Open || snap.Launch.Phase == "error" || strings.Contains(snap.Launch.Message, "in use") || h.launchCount() != 0 {
+		t.Fatalf("detail confirm while busy: picker=%v detail=%v launch=%+v launches=%d", snap.FirmwarePicker.Open, snap.Detail.Open, snap.Launch, h.launchCount())
+	}
+	app.HandleCommand(CmdBack, now)
+	if app.Snapshot().FirmwarePicker.Open {
+		t.Fatal("picker stayed open after Back")
+	}
+
+	app.HandleCommand(CmdSelect, now)
+	snap = app.Snapshot()
+	if !snap.FirmwarePicker.Open || strings.Contains(snap.Launch.Message, "in use") || h.launchCount() != 0 {
+		t.Fatalf("library confirm while busy: picker=%v launch=%+v launches=%d", snap.FirmwarePicker.Open, snap.Launch, h.launchCount())
+	}
+	app.HandleCommand(CmdBack, now)
+
+	app.mu.Lock()
+	blocked := availableGame("snes-bad", "Bad", "snes")
+	blocked.State = "invalid"
+	app.games = []hostclient.Game{blocked}
+	app.grid.SetCount(1)
+	app.grid.Focus = 0
+	app.launch = LaunchSnapshot{}
+	app.startLaunchGameLocked(blocked)
+	phase, message := app.launch.Phase, app.launch.Message
+	picker := app.firmwarePickerOpen
+	app.mu.Unlock()
+	if picker || phase != "error" || message != "This ROM can't be read." || h.launchCount() != 0 {
+		t.Fatalf("catalog block while busy phase=%s message=%q picker=%v launches=%d", phase, message, picker, h.launchCount())
+	}
+
+	app.mu.Lock()
+	ready := availableGame("snes-mario", "Mario", "snes")
+	app.games = []hostclient.Game{ready}
+	app.grid.SetCount(1)
+	app.launch = LaunchSnapshot{}
+	app.startLaunchGameLocked(ready)
+	phase, message = app.launch.Phase, app.launch.Message
+	app.mu.Unlock()
+	if phase != "error" || message != "This executor is in use." || h.launchCount() != 0 {
+		t.Fatalf("ready FPGA while busy phase=%s message=%q launches=%d", phase, message, h.launchCount())
+	}
+}
+
 func TestRoomConfirmImportBIOSKeepsLocation(t *testing.T) {
 	dir := t.TempDir()
 	bios := filepath.Join(dir, "coleco.bios")

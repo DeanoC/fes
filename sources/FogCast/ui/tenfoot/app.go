@@ -1987,13 +1987,8 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
-	if a.foreignKitLeaseLocked() && !game.HostOnly() {
-		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: "This executor is in use."}
-		if a.room != nil {
-			a.closeRoomOverlaysLocked()
-		}
-		return
-	}
+	// Firmware import and other catalog blocks do not claim the kit.
+	// A foreign lease applies only when Confirm would launch.
 	a.clearStaleDevelopmentLoadLocked()
 	if missingFirmwareGame(game) {
 		a.openFirmwarePickerLocked(game)
@@ -2001,6 +1996,13 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	}
 	if reason := launchBlockReason(game); reason != "" {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
+		if a.room != nil {
+			a.closeRoomOverlaysLocked()
+		}
+		return
+	}
+	if a.foreignKitLeaseLocked() && !game.HostOnly() {
+		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: "This executor is in use."}
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
 		}
