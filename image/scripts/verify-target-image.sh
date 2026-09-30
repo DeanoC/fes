@@ -18,6 +18,23 @@ cleanup_inspect_name=
 cleanup_inspect_device=
 cleanup_inspect_inode=
 cleanup_native_inputs_tmp=
+verify_rootfs_headroom() {
+  image=$1
+  size=$(/usr/bin/stat -c %s "$image")
+  test "$size" -le 268435456 || {
+    printf 'verify-target-image: rootfs image exceeds configured 256 MiB: %s bytes\n' "$size" >&2
+    return 1
+  }
+  stats=$(/usr/sbin/dumpe2fs -h "$image" 2>/dev/null)
+  blocks=$(printf '%s\n' "$stats" | awk -F: '/^Block count:/ {gsub(/[[:space:]]/, "", $2); print $2}')
+  free=$(printf '%s\n' "$stats" | awk -F: '/^Free blocks:/ {gsub(/[[:space:]]/, "", $2); print $2}')
+  block_size=$(printf '%s\n' "$stats" | awk -F: '/^Block size:/ {gsub(/[[:space:]]/, "", $2); print $2}')
+  case "$blocks:$free:$block_size" in *[!0-9:]*|::*|*::*)
+    printf '%s\n' 'verify-target-image: could not read ext filesystem block usage' >&2
+    return 1 ;;
+  esac
+  "$repo/scripts/check-rootfs-headroom.sh" "$blocks" "$free" "$block_size" 268435456
+}
 canonical_native_input_lock=${NATIVE_RUNTIME_INPUT_LOCK:-${FOGCAST_DIR:+$FOGCAST_DIR/build/native-runtime.inputs.lock.toml}}
 canonical_native_input_lock=${canonical_native_input_lock:-$repo/../sources/FogCast/build/native-runtime.inputs.lock.toml}
 native_input_lock=$canonical_native_input_lock
@@ -566,11 +583,7 @@ case "${1:-}" in
     validate_variant "$variant"
     test -f "$image"
     image=$(readlink -f "$image")
-    size=$(/usr/bin/stat -c %s "$image")
-    test "$size" -le 67108864 || {
-      printf 'verify-target-image: image exceeds 64 MiB: %s\n' "$size" >&2
-      exit 1
-    }
+    verify_rootfs_headroom "$image"
     file "$image" | grep -Eq 'ext[234] filesystem data'
     inspect_root=/target-image-output/inspect-$variant.$$
     case "$inspect_root" in

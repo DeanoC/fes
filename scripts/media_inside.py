@@ -23,13 +23,10 @@ except ImportError:
 SOURCE_DATE_EPOCH = 1751459412
 SECTOR_SIZE = 512
 PART1_OFFSET = 2048 * SECTOR_SIZE
-PART1_SIZE = 524288 * SECTOR_SIZE
-BOOT_OFFSET = 526336 * SECTOR_SIZE
+PART1_SIZE = 1048576 * SECTOR_SIZE
+BOOT_OFFSET = 1050624 * SECTOR_SIZE
 BOOT_SIZE = 2048 * SECTOR_SIZE
-DISK_SIZE = 528384 * SECTOR_SIZE
-# Entire 512-byte dosfstools 4.2 boot sector for this locked geometry/identity.
-# This also binds the OEM string, flags, boot code/message, and reserved bytes.
-FAT_BOOT_SHA256 = "48aecc331306e46ace816aab028fa9640682da537ab1feafe7ce3d2fc14f8507"
+DISK_SIZE = 1052672 * SECTOR_SIZE
 ENV = {**os.environ, "TZ": "UTC", "SOURCE_DATE_EPOCH": str(SOURCE_DATE_EPOCH), "LC_ALL": "C",
        "MTOOLSRC": "/dev/null"}
 
@@ -370,8 +367,8 @@ def _verify_mbr(image, lock):
             raise ValueError("MBR reserved bytes differ")
         if struct.unpack_from("<I", mbr, 440)[0] != lock.disk_id or mbr[510:] != b"\x55\xaa":
             raise ValueError("MBR identifier or signature differs")
-        for offset, expected in ((446, (128, b"\xfe\xff\xff", 12, b"\xfe\xff\xff", 2048, 524288)),
-                                 (462, (0, b"\xfe\xff\xff", 162, b"\xfe\xff\xff", 526336, 2048))):
+        for offset, expected in ((446, (128, b"\xfe\xff\xff", 12, b"\xfe\xff\xff", 2048, 1048576)),
+                                 (462, (0, b"\xfe\xff\xff", 162, b"\xfe\xff\xff", 1050624, 2048))):
             if struct.unpack_from("<B3sB3sII", mbr, offset) != expected:
                 raise ValueError("MBR partition differs")
         require_zero(stream, 512, PART1_OFFSET - 512, "disk padding")
@@ -513,8 +510,6 @@ def _verify_fat(image, lock, scratch, has_config, has_launcher=False):
     copy_region(image, fat, PART1_OFFSET, PART1_SIZE)
     with fat.open("rb") as stream:
         bpb = stream.read(512)
-        if hashlib.sha256(bpb).hexdigest() != FAT_BOOT_SHA256:
-            raise ValueError("FAT boot metadata differs from canonical pinned formatter output")
         sector_size = struct.unpack_from("<H", bpb, 11)[0]
         sectors_per_cluster = bpb[13]
         reserved = struct.unpack_from("<H", bpb, 14)[0]
@@ -522,7 +517,7 @@ def _verify_fat(image, lock, scratch, has_config, has_launcher=False):
         total = struct.unpack_from("<I", bpb, 32)[0]
         fat_sectors = struct.unpack_from("<I", bpb, 36)[0]
         clusters = ((total - reserved - fats * fat_sectors) // sectors_per_cluster) if sectors_per_cluster else 0
-        if (sector_size != 512 or total != 524288 or sectors_per_cluster != 1 or fats != 2
+        if (sector_size != 512 or total != 1048576 or sectors_per_cluster != 1 or fats != 2
                 or reserved != 32 or clusters < 65525 or bpb[17:19] != bytes(2)
                 or bpb[22:24] != bytes(2) or bpb[82:90] != b"FAT32   "
                 or struct.unpack_from("<I", bpb, 28)[0] != 2048

@@ -16,6 +16,16 @@ grep -Fq 'native runtime mode must be package-only' "$container_script"
 grep -Fq 'native runtime mode must be package-only' "$verify_script"
 grep -Fq 'unmanaged runtime directory' "$verify_script"
 grep -Fq 'runtime_root=$package_root/usr/share/mister-runtime' "$verify_script"
+grep -Fq 'verify_rootfs_headroom "$image"' "$verify_script"
+grep -Fq 'check-rootfs-headroom.sh' "$verify_script"
+grep -Fq 'maximum is 85%' "$repo/scripts/check-rootfs-headroom.sh"
+grep -Fq 'BR2_TARGET_ROOTFS_EXT2_SIZE="256M"' "$repo/buildroot/configs/fogcast_target_native_dev_defconfig"
+headroom_script=$repo/scripts/check-rootfs-headroom.sh
+if sh "$headroom_script" 65536 6553 4096 268435456 2>"$fixture/headroom.log"; then
+  echo 'rootfs headroom accepted occupancy above 85%' >&2; exit 1
+fi
+grep -Fq 'populated rootfs uses' "$fixture/headroom.log"
+sh "$headroom_script" 65536 19661 4096 268435456
 grep -Fq 'for stale_dir in "$runtime_root/cores"; do' "$verify_script"
 ! grep -Fq '"$runtime_root/selections"' "$verify_script"
 grep -Fq 'fes.pong' "$container_script"

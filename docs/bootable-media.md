@@ -36,6 +36,10 @@ only the target root filesystem and cannot boot a blank card. The manifest is
 kept outside the disk so it can record the whole-image hash without making that
 hash self-referential.
 
+The disk has a 512 MiB FAT32 data partition and a 1 MiB U-Boot partition.
+The 256 MiB `linux.img` is stored on FAT alongside the kernel and boot files;
+the resulting disk image is about 514 MiB, within the SD cards used by the kits.
+
 Each successful output lives in an immutable evidence directory:
 `media/generations/<image-sha256>/<evidence-sha256>/`. The outer hash identifies
 exact disk bytes; the inner hash is the SHA-256 of `media.json`, which binds the

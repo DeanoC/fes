@@ -95,7 +95,7 @@ class RealImageTests(unittest.TestCase):
 
     def test_real_sparse_image_has_exact_mbr_fat32_and_payloads(self):
         self.assertNotEqual(os.getuid(), 0)
-        self.assertEqual(self.image.stat().st_size, 528384 * 512)
+        self.assertEqual(self.image.stat().st_size, 1052672 * 512)
         result = self.verify()
         self.assertEqual(result.partition_types, (0x0c, 0xa2))
         self.assertEqual(result.fat_type, "FAT32")
@@ -273,7 +273,7 @@ class RealImageTests(unittest.TestCase):
         return manifest
 
     def test_nonzero_free_fat_space_rejected_even_with_rehashed_manifest(self):
-        self.mutate(526336 * 512 - 1)
+        self.mutate(1050624 * 512 - 1)
         with self.assertRaisesRegex(ValueError, "unused FAT"):
             self.verify(self.rehash_manifest())
 
@@ -291,12 +291,12 @@ class RealImageTests(unittest.TestCase):
             self.verify(self.rehash_manifest())
 
     def test_nonzero_boot_tail_rejected(self):
-        self.mutate(526336 * 512 + self.uboot.stat().st_size + 1)
+        self.mutate(1050624 * 512 + self.uboot.stat().st_size + 1)
         with self.assertRaisesRegex(ValueError, "boot partition tail"):
             self.verify()
 
     def test_changed_boot_payload_rejected(self):
-        self.mutate(526336 * 512)
+        self.mutate(1050624 * 512)
         with self.assertRaisesRegex(ValueError, "boot payload"):
             self.verify()
 

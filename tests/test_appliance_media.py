@@ -35,7 +35,7 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(layout.kernel,original.kernel)
         self.assertEqual(layout.uboot,original.uboot)
         self.assertEqual(layout.environment,original.environment)
-        self.assertEqual(original.partition_1.sector_count,524288)
+        self.assertEqual(original.partition_1.sector_count,1048576)
         self.assertGreater(layout.partition_1.sector_count*512,4*(64<<20)+(32<<20)+(16<<20))
 
     def test_derivation_rejects_unexpected_source_layout(self):
