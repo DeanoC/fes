@@ -23,21 +23,21 @@ repository = "{IMAGE_CREATOR_REPOSITORY}"
 commit = "{IMAGE_CREATOR_COMMIT}"
 layout = "de10-nano-mister-v1"
 sector_size = 512
-total_sectors = 1052672
+total_sectors = 528384
 disk_id = 0x46455331
 fat_serial = 0xf35d0001
 fat_label = "FESDATA"
 
 [partition_1]
 start_sector = 2048
-sector_count = 1048576
+sector_count = 524288
 type = 0x0c
 active = true
 chs_start = "feffff"
 chs_end = "feffff"
 
 [partition_2]
-start_sector = 1050624
+start_sector = 526336
 sector_count = 2048
 type = 0xa2
 active = false
@@ -149,7 +149,7 @@ class MediaInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown boot-media lock field"):
             self.module.MediaLock.loads(LOCK_TEXT + "\nunknown = true\n")
         with self.assertRaisesRegex(ValueError, "sector geometry"):
-            self.module.MediaLock.loads(LOCK_TEXT.replace("total_sectors = 1052672", "total_sectors = 1"))
+            self.module.MediaLock.loads(LOCK_TEXT.replace("total_sectors = 528384", "total_sectors = 1"))
 
     def test_lock_rejects_noncanonical_scalar_types(self):
         cases = (

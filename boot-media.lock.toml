@@ -3,21 +3,21 @@ repository = "https://github.com/MiSTer-devel/Linux_Image_creator_MiSTer"
 commit = "8aba321b2162e54b56522aa30758b22d97eec8da"
 layout = "de10-nano-mister-v1"
 sector_size = 512
-total_sectors = 1052672
+total_sectors = 528384
 disk_id = 0x46455331
 fat_serial = 0xf35d0001
 fat_label = "FESDATA"
 
 [partition_1]
 start_sector = 2048
-sector_count = 1048576
+sector_count = 524288
 type = 0x0c
 active = true
 chs_start = "feffff"
 chs_end = "feffff"
 
 [partition_2]
-start_sector = 1050624
+start_sector = 526336
 sector_count = 2048
 type = 0xa2
 active = false

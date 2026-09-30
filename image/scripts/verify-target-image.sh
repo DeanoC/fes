@@ -21,8 +21,8 @@ cleanup_native_inputs_tmp=
 verify_rootfs_headroom() {
   image=$1
   size=$(/usr/bin/stat -c %s "$image")
-  test "$size" -le 268435456 || {
-    printf 'verify-target-image: rootfs image exceeds configured 256 MiB: %s bytes\n' "$size" >&2
+  test "$size" -le 134217728 || {
+    printf 'verify-target-image: rootfs image exceeds configured 128 MiB: %s bytes\n' "$size" >&2
     return 1
   }
   stats=$(/usr/sbin/dumpe2fs -h "$image" 2>/dev/null)
@@ -33,7 +33,7 @@ verify_rootfs_headroom() {
     printf '%s\n' 'verify-target-image: could not read ext filesystem block usage' >&2
     return 1 ;;
   esac
-  "$repo/scripts/check-rootfs-headroom.sh" "$blocks" "$free" "$block_size" 268435456
+  "$repo/scripts/check-rootfs-headroom.sh" "$blocks" "$free" "$block_size" 134217728
 }
 canonical_native_input_lock=${NATIVE_RUNTIME_INPUT_LOCK:-${FOGCAST_DIR:+$FOGCAST_DIR/build/native-runtime.inputs.lock.toml}}
 canonical_native_input_lock=${canonical_native_input_lock:-$repo/../sources/FogCast/build/native-runtime.inputs.lock.toml}

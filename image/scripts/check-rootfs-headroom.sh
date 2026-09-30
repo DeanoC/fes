@@ -21,6 +21,6 @@ fi
 used=$(( (blocks - free) * block_size ))
 maximum=$(( configured_bytes * 85 / 100 ))
 if [ "$used" -gt "$maximum" ]; then
-  printf 'verify-target-image: populated rootfs uses %s bytes; maximum is 85%% of configured 256 MiB (%s bytes)\n' "$used" "$maximum" >&2
+  printf 'verify-target-image: populated rootfs uses %s bytes; maximum is 85%% of configured 128 MiB (%s bytes)\n' "$used" "$maximum" >&2
   exit 1
 fi

@@ -31,7 +31,7 @@ playability and hardware acceptance depend on the exact-artifact kit evidence be
 The image selector supports eight IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`. SMS, SG-1000
 and Spectrum remain sealed package-only recipes because adding them exceeds the
-256 MiB rootfs limit. C64 is registered but has no current timing-passing HIP seal.
+128 MiB rootfs limit. C64 is registered but has no current timing-passing HIP seal.
 The factory packages, SMS, SG-1000, Apple II, Spectrum and Catch seal with
 HIP/nextpnr. Quartus is an oracle where the recipe says so. It is not the product
 path and not a fallback.

@@ -148,15 +148,15 @@ def _validate(lock):
     if type(lock.layout) is not str or lock.layout != EXPECTED_LAYOUT:
         raise ValueError("boot-media layout differs from policy")
     if (type(lock.sector_size) is not int or type(lock.total_sectors) is not int
-            or lock.sector_size != 512 or lock.total_sectors != 1052672):
+            or lock.sector_size != 512 or lock.total_sectors != 528384):
         raise ValueError("boot-media sector geometry differs from policy")
     if (type(lock.disk_id) is not int or type(lock.fat_serial) is not int
             or type(lock.fat_label) is not str or lock.disk_id != 0x46455331
             or lock.fat_serial != 0xf35d0001 or lock.fat_label != "FESDATA"):
         raise ValueError("boot-media disk identifiers differ from policy")
     expected = (
-        (lock.partition_1, 2048, 1048576, 0x0c, True),
-        (lock.partition_2, 1050624, 2048, 0xa2, False),
+        (lock.partition_1, 2048, 524288, 0x0c, True),
+        (lock.partition_2, 526336, 2048, 0xa2, False),
     )
     for partition, start, count, type_code, active in expected:
         if (partition.start_sector, partition.sector_count, partition.type, partition.active,

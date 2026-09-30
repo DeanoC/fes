@@ -113,7 +113,7 @@ misteross HIP/nextpnr tools before selecting the ordered
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set in
 [the default profile](../profiles/native-integration-dev.toml). The image selector
 also supports `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`. SMS, SG-1000
-and Spectrum remain package-only because the combined rootfs exceeds 256 MiB;
+and Spectrum remain package-only because the combined rootfs exceeds 128 MiB;
 C64 remains package-only while its HIP seal is unresolved. See [described FPGA core
 packages](core-packages.md) for first-checkout setup and the inspect/load/Stop
 workflow. Host-only builds do not require those tools.
