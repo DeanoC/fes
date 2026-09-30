@@ -54,10 +54,13 @@ the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52.224 MHz system clock, registered M10K and
 the scoped `toolchains/zx81-expansion.lock`; it does not inherit Quartus
-acceptance. Its combined 52.224/12.288 MHz system/audio PLL and shared PCM/I2S output mute
-on Hold or lost audio lock. A vacant socket is intended to supply zero PCM,
-but the current OSS candidate emitted nonzero HDMI samples on kit 1. This
-blocks hardware acceptance; Zon X is not a publishable library cart yet.
+acceptance. Its combined 52.224/12.288 MHz system/audio PLL and shared PCM/I2S
+output mute on Hold or lost audio lock. The repaired 1.3.0 package passed
+vacant-socket silence on kit 1. Earlier packages emitted nonzero HDMI samples;
+the [failed diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md) is
+historical and was superseded by the
+[passing diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md).
+Zon X is not a publishable library cart yet.
 This system clock is 0.43% faster than the former 52 MHz package; keyboard,
 tape and expansion contracts are unchanged.
 
