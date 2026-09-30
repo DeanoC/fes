@@ -33,6 +33,8 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 	opts := L.CheckTable(1)
 	kind := parseKind(optString(opts, "kind"))
 	launcherAction := ""
+	packageID := ""
+	coreID := ""
 	if kind == KindAction {
 		// Checked on every call. Room scripts are dynamic Lua, so this API
 		// boundary is the validation; nothing is stored until it passes.
@@ -42,6 +44,19 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		}
 		if !LauncherActionAllowed(launcherAction) {
 			L.RaiseError("destination.set: unknown launcher action %q", launcherAction)
+		}
+	}
+	if kind == KindCore {
+		packageID = optString(opts, "package_id")
+		if packageID == "" {
+			L.RaiseError("destination.set: package_id required")
+		}
+		if !ValidPackageID(packageID) {
+			L.RaiseError("destination.set: package_id %q is not a package id", packageID)
+		}
+		coreID = optString(opts, "core_id")
+		if coreID != "" && !validCoreID(coreID) {
+			L.RaiseError("destination.set: core_id %q is not a core id", coreID)
 		}
 	}
 	d := Destination{
@@ -68,6 +83,16 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 	switch {
 	case d.Kind == KindAction:
 		d.Availability = AvailReady
+	case d.Kind == KindCore:
+		d.PackageID = packageID
+		d.CoreID = coreID
+		d.CoreBlock = optString(opts, "block")
+		d.CoreLaunchable = coreLaunchable(opts, d.CoreBlock)
+		if d.CoreLaunchable {
+			d.Availability = AvailReady
+		} else {
+			d.Availability = AvailUnavailable
+		}
 	case optBool(opts, "resolving"):
 		d.Availability = AvailChecking
 		if d.Kind == "" {
@@ -167,6 +192,12 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 	t.RawSetString("game_id", lua.LString(d.GameID))
 	t.RawSetString("room_id", lua.LString(d.RoomID))
 	t.RawSetString("launcher_action", lua.LString(d.LauncherAction))
+	if d.Kind == KindCore {
+		t.RawSetString("package_id", lua.LString(d.PackageID))
+		t.RawSetString("core_id", lua.LString(d.CoreID))
+		t.RawSetString("block", lua.LString(d.CoreBlock))
+		t.RawSetString("launchable", lua.LBool(d.CoreLaunchable))
+	}
 	t.RawSetString("availability", lua.LString(d.Availability))
 	t.RawSetString("state", lua.LString(d.Availability))
 	t.RawSetString("status", lua.LString(d.Status))
@@ -295,11 +326,24 @@ func applyPlayFacts(g hostclient.Game, row *lua.LTable) hostclient.Game {
 
 func parseKind(s string) Kind {
 	switch Kind(strings.ToLower(strings.TrimSpace(s))) {
-	case KindGame, KindRoom, KindLibrary, KindUnresolved, KindAction:
+	case KindGame, KindRoom, KindLibrary, KindUnresolved, KindAction, KindCore:
 		return Kind(strings.ToLower(strings.TrimSpace(s)))
 	default:
 		return ""
 	}
+}
+
+// coreLaunchable is false when the row carries a block line or an explicit
+// launchable=false. A missing flag with no block is launchable: the socket
+// still refuses a package that needs media or firmware.
+func coreLaunchable(opts *lua.LTable, block string) bool {
+	if strings.TrimSpace(block) != "" {
+		return false
+	}
+	if opts == nil || opts.RawGetString("launchable") == lua.LNil {
+		return true
+	}
+	return optBool(opts, "launchable")
 }
 
 func parseAvailability(s string) Availability {

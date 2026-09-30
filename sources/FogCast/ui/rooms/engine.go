@@ -17,6 +17,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/ui/theme"
 )
 
@@ -89,9 +90,12 @@ type Options struct {
 	ReducedMotion bool
 	// StorePath is the per-room JSON persistence file; empty disables store.
 	StorePath string
-	Budget    Budget
-	Now       func() time.Time
-	Stderr    io.Writer
+	// Local is the kit-local control socket. Nil on a host launcher: kit
+	// is absent and activating a core destination returns ErrNoLocalCores.
+	Local  LocalCores
+	Budget Budget
+	Now    func() time.Time
+	Stderr io.Writer
 }
 
 // Instance is one running room. It is not safe for concurrent use: the
@@ -149,6 +153,7 @@ type asyncResult struct {
 	img          *image.RGBA
 	hardware     *hostclient.HardwareSnapshot
 	selection    *hostclient.CoreEntryExpansion
+	cores        []localcores.Core
 	hardwareRead bool
 	hardwareSave bool
 }
@@ -605,6 +610,8 @@ func (r *Instance) applyResult(res asyncResult) {
 	case res.game != nil:
 		r.games[res.game.ID] = *res.game
 		payload = r.gameTable(*res.game)
+	case res.cores != nil:
+		payload = r.coresTable(res.cores)
 	}
 	var errVal lua.LValue = lua.LNil
 	if res.err != nil {

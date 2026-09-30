@@ -1909,7 +1909,10 @@ Other cores retain the single virtual gamepad and keyboard sink.
 Installed-core control is a separate root-only HTTP socket at
 `/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
 packages and, when the kit lease is free, launches one that needs no cartridge
-or firmware under owner `kit-hostless` purpose `kit-local-core`. ZX81 stays
+or firmware under owner `kit-hostless` purpose `kit-local-core`. The rooms
+engine can list and launch through that socket when a `localcores` client is
+injected (`kit.cores`, destination kind `core`). Tenfoot does not connect it;
+a host session leaves `kit` unset. ZX81 stays
 in that firmware class: this socket has no ROM link, and it does not consult
 the rom map. A held, busy, blocked, or recovery lease returns 409 and does not
 call the runtime. The claim starts renewal immediately. The first renew waits

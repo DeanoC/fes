@@ -20,6 +20,11 @@ func (r *Instance) installAPI() {
 	L.SetGlobal("store", r.installStore())
 	L.SetGlobal("destination", r.installDestination())
 	L.SetGlobal("room", r.installRoom())
+	// kit exists only when a local-control client is injected. On the host
+	// the global stays nil, so scripts can tell a kit screen from a host one.
+	if r.opts.Local != nil {
+		L.SetGlobal("kit", r.installKit())
+	}
 }
 
 func (r *Instance) installRoom() *lua.LTable {

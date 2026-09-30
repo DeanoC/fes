@@ -1,0 +1,10 @@
+id = "fes-cores"
+title = "Installed cores"
+author = "FogCast"
+description = "Cores installed on this kit. Names are the manifest names."
+version = 1
+main = "main.lua"
+
+[theme]
+background = "#1c2430"
+accent = "#7ec8ff"

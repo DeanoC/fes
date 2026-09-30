@@ -203,9 +203,10 @@ the current node after a match lands, do not refocus. Lobby, Workbench, and
 TMS9918 Family publish too, so the strip is present in those rooms as well
 as Mushroom Kingdom.
 
-`destination.set{kind, label, system, game_id, room_id, action, query, platform,
-matches, resolving, missing, note, note_by}` publishes one location.
-`kind` is `game`, `room`, `library`, `action`, or `unresolved`. Omit availability to
+`destination.set{kind, label, system, game_id, room_id, action, package_id,
+core_id, launchable, block, query, platform, matches, resolving, missing,
+note, note_by}` publishes one location.
+`kind` is `game`, `room`, `library`, `action`, `core`, or `unresolved`. Omit availability to
 let the host classify `matches` into Checking / Missing / Needs a choice /
 Unavailable / Ready. `resolving=true` is Checking. Unresolved without a
 match probe is a non-game location (a platform row, an empty list): the
@@ -233,6 +234,29 @@ status instead of doing nothing. Confirm runs the action. Details
 and does not run it. `destination.get()` keeps `action` as the panel
 copy and reports the id as `launcher_action`. There is no `rooms.action`
 call.
+
+`kind = "core"` is an installed package on this kit, not a library row:
+
+```lua
+destination.set{
+  kind = "core",
+  package_id = row.package_id,
+  core_id = row.core_id,
+  label = row.name,
+  launchable = row.launchable,
+  block = row.block,
+}
+```
+
+`package_id` is required and must be a lowercase SHA-256 hex id. A missing
+or unsafe id raises a Lua error and is not stored. An unknown `kind` is
+still dropped. `core_id`, when set, must be a safe token (`fes.pong`).
+A non-empty `block`, or `launchable = false`, does not launch; the block
+line is the status ("Needs a cartridge", "Needs firmware"). Activating a
+launchable core calls the injected local-control client's Launch. With no
+client that activation returns an error and does not panic. `in_use` and
+`blocked` from the socket are returned the same way and do not fail the
+room. Tenfoot does not connect the socket yet.
 
 `destination.classify(games, {q=})` returns that result without changing
 focus. `destination.play_history(game_or_facts)`
@@ -262,6 +286,14 @@ the system menu. Esc/B closes Details and
 keeps the room. Played vs Completed copy on the compact panel and Details
 comes from `destination.play_history` / `ClassifyHistory`; returning from
 a launch is not Completed.
+
+### `kit` (only when a local-control client is injected)
+
+On a host launcher `kit` is nil. When the launcher injects a client,
+`kit.cores(function(rows, err) end)` lists installed cores on a later tick.
+Each row is `{package_id, core_id, name, needs, launchable, block}`. `name`
+is the manifest name. `needs` is `none`, `media`, or `firmware`. `block` is
+empty when `launchable` is true.
 
 ### `session`, `rooms`, `store`, `log`
 
@@ -350,6 +382,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
+| `example.fes-cores` | one tile per installed core, manifest name verbatim; a blocked tile shows "Needs a cartridge" or "Needs firmware" and does not launch. Listed from the lobby like every other room. With no kit socket the room says cores are not available here |
 
 Run them against a host:
 
