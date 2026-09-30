@@ -16,7 +16,7 @@ The recipe registry supports the described `fes.pong`, `fes.zx81`,
 producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set.
 SMS, SG-1000 and Spectrum passed timing at the selected identity but remain
-registered for package-only use because the combined rootfs exceeds 64 MiB. `fes.apple2`
+registered for package-only use because the combined rootfs exceeds 128 MiB. `fes.apple2`
 and `fes.catch` also remain package-only. `fes.c64` is registered, but has no
 current timing-passing HIP seal.
 Package IDs and payload digests are recorded in generated per-core selection
