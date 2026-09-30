@@ -8,7 +8,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
 	"golang.org/x/sys/unix"
 	"io"
 	"net/http"
@@ -30,6 +32,46 @@ func TestNativeEvdevBothABIs(t *testing.T) {
 		typ, code, value := decodeNativeEvent(b)
 		if typ != 1 || code != 103 || value != 1 {
 			t.Fatalf("size %d: %d %d %d", size, typ, code, value)
+		}
+	}
+}
+
+func TestTenfootFixturePadNormalizationAndVirtualFilter(t *testing.T) {
+	if controller.Eligible(6, "FogCast Virtual Gamepad", true) || controller.Eligible(3, "USB pad", false) {
+		t.Fatal("automatic selection admitted virtual/non-gamepad device")
+	}
+	if !controller.Eligible(3, "USB SNES Pad", true) {
+		t.Fatal("physical gamepad rejected")
+	}
+	mapper := controller.NewMapper(0x081f, 0xe401, map[uint16]controller.Range{
+		0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255},
+		16: {Min: -1, Max: 1}, 17: {Min: -1, Max: 1},
+	})
+	for _, tc := range []struct {
+		code  uint16
+		value int32
+		want  remoteinput.Code
+	}{
+		{288, 1, remoteinput.ButtonY}, {289, 1, remoteinput.ButtonB},
+		{290, 1, remoteinput.ButtonA}, {296, 1, remoteinput.ButtonSelect},
+		{297, 1, remoteinput.ButtonStart},
+	} {
+		e, ok := mapper.Map(1, tc.code, tc.value)
+		if !ok || e.Code != tc.want {
+			t.Fatalf("button %d mapped to %#v, %v", tc.code, e, ok)
+		}
+	}
+	for _, tc := range []struct {
+		code  uint16
+		value int32
+		want  remoteinput.Code
+	}{
+		{0, 0, remoteinput.AxisLeftX}, {0, 255, remoteinput.AxisLeftX},
+		{1, 0, remoteinput.AxisLeftY}, {16, -1, remoteinput.AxisLeftX},
+	} {
+		e, ok := mapper.Map(3, tc.code, tc.value)
+		if !ok || e.Code != tc.want {
+			t.Fatalf("axis %d=%d mapped to %#v, %v", tc.code, tc.value, e, ok)
 		}
 	}
 }

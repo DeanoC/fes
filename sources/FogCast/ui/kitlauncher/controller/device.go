@@ -11,6 +11,10 @@ func eligible(bus uint16, name string, buttons bool) bool {
 	return bus != 6 && name != "FogCast Virtual Gamepad" && buttons
 }
 
+// Eligible reports whether an evdev node is a physical gamepad candidate.
+// Keep bus/name filtering shared with the tenfoot automatic scanner.
+func Eligible(bus uint16, name string, buttons bool) bool { return eligible(bus, name, buttons) }
+
 // eligibleKeyboard admits a physical QWERTY for play-session HID. Gamepads
 // stay on the pad path even when they also expose keys.
 func eligibleKeyboard(bus uint16, name string, keys bool) bool {

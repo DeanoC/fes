@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
 	"golang.org/x/sys/unix"
 )
 
@@ -125,6 +126,7 @@ type nativeInput struct {
 	axes     map[uint16]Command
 	controls map[uint16]Command
 	hatHeld  map[uint16]Button
+	mapper   *controller.Mapper
 }
 type nativeInputs struct {
 	devices   []*nativeInput
@@ -208,7 +210,11 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		unix.Close(fd)
 		return nil
 	}
-	ins.devices = append(ins.devices, &nativeInput{fd: fd, path: path, kind: kind})
+	in := &nativeInput{fd: fd, path: path, kind: kind}
+	if ins.kindOf == nil && kind == InputGamepad {
+		in.mapper = nativeGamepadMapper(fd)
+	}
+	ins.devices = append(ins.devices, in)
 	if app != nil {
 		app.AttachInput(kind, fd)
 	}
@@ -296,6 +302,17 @@ devices:
 					return false, fmt.Errorf("%s input: evdev dropped events; restart to resynchronise", ins.label)
 				}
 				if typ == 1 {
+					if in.mapper != nil && code != 316 {
+						if e, ok := in.mapper.Map(typ, code, value); ok {
+							if e.Kind == remoteinput.KindButton {
+								in.button(app, ButtonFromLogical(e.Code), value, now)
+								if ins.applyButtons(app, now) {
+									return true, nil
+								}
+							}
+						}
+						continue
+					}
 					if code == 316 {
 						if app.localCoreOwnsInput() {
 							if value != 0 {
@@ -314,8 +331,14 @@ devices:
 							return true, nil
 						}
 					}
-				} else if typ == 3 && (code == 16 || code == 17) {
-					in.hat(app, code, value, now)
+				} else if typ == 3 && (code == 0 || code == 1 || code == 16 || code == 17) {
+					if in.mapper != nil {
+						if e, ok := in.mapper.Map(typ, code, value); ok && e.Kind == remoteinput.KindAxis {
+							in.axis(app, e.Code, e.Value, now)
+						}
+					} else if code == 16 || code == 17 {
+						in.hat(app, code, value, now)
+					}
 				}
 				// Preserve quick down/up pairs even when drained in one render frame.
 				if (typ == 1 && code >= 256) || (typ == 3 && (code == 16 || code == 17)) {
@@ -515,6 +538,26 @@ func (in *nativeInput) hat(app *App, code uint16, value int32, now time.Time) {
 		}
 	}
 }
+func (in *nativeInput) axis(app *App, code remoteinput.Code, value int32, now time.Time) {
+	if in.axes == nil {
+		in.axes = map[uint16]Command{}
+	}
+	axisX, axisY := int(value), 0
+	if code == remoteinput.AxisLeftY {
+		axisX, axisY = 0, int(value)
+	}
+	old := in.axes[uint16(code)]
+	cmd := CommandFromStickHeld(axisX, axisY, old)
+	if cmd != old {
+		in.setButton(uint16(2000+code), old, false)
+		in.axes[uint16(code)] = cmd
+		in.setButton(uint16(2000+code), cmd, cmd != CmdNone)
+		if cmd != CmdNone {
+			app.NoteInput(InputGamepad, in.fd)
+		}
+	}
+	_ = now
+}
 func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bool {
 	name := nativeKeyName(code)
 	modifier := code == 42 || code == 54
@@ -630,11 +673,55 @@ func nativeDeviceKind(fd int) InputKind {
 	if err != 0 {
 		return InputNone
 	}
+	var id [8]byte
+	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
+	_, _, idErr := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
+	if idErr == 0 {
+		bus := binary.LittleEndian.Uint16(id[:2])
+		name := nativeDeviceName(fd)
+		fixture := binary.LittleEndian.Uint16(id[2:4]) == 0x081f && binary.LittleEndian.Uint16(id[4:6]) == 0xe401
+		buttons := nativeHasKey(keys[:], 304) || nativeHasKey(keys[:], 305) || (fixture && nativeHasKey(keys[:], 288))
+		if controller.Eligible(bus, name, buttons) {
+			return InputGamepad
+		}
+		if bus == 6 || name == "FogCast Virtual Gamepad" {
+			return InputNone
+		}
+	}
 	return nativeKindFromKeys(keys[:])
+}
+func nativeHasKey(keys []byte, code int) bool {
+	return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0
+}
+func nativeDeviceName(fd int) string {
+	var name [256]byte
+	const request = uintptr(0x80000000 | (256 << 16) | ('E' << 8) | 0x06)
+	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), request, uintptr(unsafe.Pointer(&name[0])))
+	if err != 0 {
+		return ""
+	}
+	return strings.TrimRight(string(name[:]), "\x00")
+}
+func nativeGamepadMapper(fd int) *controller.Mapper {
+	var id [8]byte
+	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
+	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
+	if err != 0 {
+		return nil
+	}
+	axes := map[uint16]controller.Range{}
+	for _, code := range []uint16{0, 1, 16, 17} {
+		var info [24]byte
+		request := uintptr(0x80000000|(24<<16)|('E'<<8)) | uintptr(0x40+code)
+		if _, _, e := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), request, uintptr(unsafe.Pointer(&info[0]))); e == 0 {
+			axes[code] = controller.Range{Min: int32(binary.LittleEndian.Uint32(info[4:])), Max: int32(binary.LittleEndian.Uint32(info[8:]))}
+		}
+	}
+	return controller.NewMapper(binary.LittleEndian.Uint16(id[2:4]), binary.LittleEndian.Uint16(id[4:6]), axes)
 }
 func nativeKindFromKeys(keys []byte) InputKind {
 	has := func(code int) bool { return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0 }
-	if has(304) || has(305) {
+	if has(304) || has(305) || (has(288) && has(289)) {
 		return InputGamepad
 	}
 	if has(30) && has(44) && has(28) {
