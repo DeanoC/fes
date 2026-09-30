@@ -33,8 +33,8 @@ tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
 the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.c64` and `fes.spectrum` package set. The FES image route is
-package-only. Quartus is reserved for a documented bring-up or
+`fes.sg1000`, `fes.c64` and `fes.spectrum` package set.
+The FES image route is package-only. Quartus is reserved for a documented bring-up or
 oracle/check when a system is not yet supported by nextpnr; the package-only
 route does not invoke it.
 Each package can be installed on the host and given an explicit library entry;
