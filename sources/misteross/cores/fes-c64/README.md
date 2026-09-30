@@ -73,3 +73,7 @@ make -C sources/misteross build-fes-c64   # HIP seal; not part of the sim gate
 
 `build-fes-c64` authenticates `toolchains/c64.lock` (the Apple II tool
 commits: Yosys `e2d425de`, Mistral `7ed06e21`, nextpnr `0259c6dc`).
+Before routing, its producer connects the unused write clocks of the two
+inferred read-only M10Ks (VIC font and IEC track lookup) to their live read
+clocks. It checks their names and disabled write ports so a changed synthesis
+shape fails closed.
