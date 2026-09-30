@@ -78,13 +78,21 @@ func corePackageSelectionRecordNameForTest(coreID string) string {
 		return "fes-zx81.package-selection.toml"
 	case "fes.coleco":
 		return "fes-coleco.package-selection.toml"
+	case "fes.sms":
+		return "fes-sms.package-selection.toml"
+	case "fes.sg1000":
+		return "fes-sg1000.package-selection.toml"
+	case "fes.c64":
+		return "fes-c64.package-selection.toml"
+	case "fes.spectrum":
+		return "fes-spectrum.package-selection.toml"
 	default:
 		panic("unsupported test core ID")
 	}
 }
 
 func TestCorePackageSelectionSupportsSelectedFESPackageCores(t *testing.T) {
-	for _, coreID := range []string{"fes.menu", "fes.pong", "fes.zx81", "fes.coleco"} {
+	for _, coreID := range []string{"fes.menu", "fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.c64", "fes.spectrum"} {
 		t.Run(coreID, func(t *testing.T) {
 			directory, record, selection := packageSelectionFixtureForCore(t, coreID)
 			cache := t.TempDir()

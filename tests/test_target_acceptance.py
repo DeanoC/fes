@@ -151,7 +151,7 @@ class TargetAcceptanceTests(unittest.TestCase):
         runner.host = SimpleNamespace(get=lambda path: (
             {"entries": entries} if path.endswith("core-entries") else {"packages": packages}))
         self.assertEqual(runner.inventory(expected)["fes.coleco"], "fes.coleco-one")
-        entries.append(dict(entries[-1], game_id="coleco-two"))
+        entries.append(dict(next(item for item in entries if item["core_id"] == "fes.coleco"), game_id="coleco-two"))
         with self.assertRaisesRegex(target_acceptance.AcceptanceError, "specify --entry"):
             runner.inventory(expected)
         runner.entries = target_acceptance.parse_entries(["fes.coleco=coleco-two"])
@@ -166,7 +166,7 @@ class TargetAcceptanceTests(unittest.TestCase):
                     runner.inventory(expected)
 
     def test_entry_arguments_reject_invalid_and_duplicate_core(self):
-        for values in (["fes.sms=game"], ["fes.pong="], ["fes.pong= "], ["fes.pong"],
+        for values in (["fes.unknown=game"], ["fes.pong="], ["fes.pong= "], ["fes.pong"],
                        ["fes.pong=one", "fes.pong=two"]):
             with self.subTest(values=values):
                 with self.assertRaises(target_acceptance.AcceptanceError):
@@ -276,9 +276,8 @@ class TargetAcceptanceTests(unittest.TestCase):
 
     def test_main_reports_primary_and_cleanup_failure_and_nonzero(self):
         ids = {
-            "fes.pong": "a" * 64,
-            "fes.zx81": "b" * 64,
-            "fes.coleco": "c" * 64,
+            core: "abcdef01234567"[index] * 64
+            for index, core in enumerate(target_acceptance.CORE_ORDER)
         }
         state = {
             "active": False,
@@ -394,11 +393,10 @@ class TargetAcceptanceTests(unittest.TestCase):
             self.assertEqual(receipt["settle_seconds"], 3)
             self.assertIn(r"select=eq(n\,119)", run.call_args.args[0])
 
-    def test_runs_exact_three_package_launch_input_stop_lanes(self):
+    def test_runs_exact_seven_package_launch_input_stop_lanes(self):
         ids = {
-            "fes.pong": "a" * 64,
-            "fes.zx81": "b" * 64,
-            "fes.coleco": "c" * 64,
+            core: "abcdef01234567"[index] * 64
+            for index, core in enumerate(target_acceptance.CORE_ORDER)
         }
         state = {"active": False, "attached": False, "frames": 0, "session_failures": 0}
         state["packages"] = [
@@ -450,8 +448,8 @@ class TargetAcceptanceTests(unittest.TestCase):
                 )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("target acceptance passed", result.stdout)
-            self.assertEqual(server.stops, 3)
-            self.assertEqual(len(server.events), 12)
+            self.assertEqual(server.stops, len(target_acceptance.CORE_SPECS))
+            self.assertEqual(len(server.events), sum(len(spec.events) for spec in target_acceptance.CORE_SPECS))
             self.assertEqual(server.attach_bodies, [])
         finally:
             server.shutdown()

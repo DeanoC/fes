@@ -16,6 +16,10 @@ package_core_for() {
     fes.pong) package_core=pong ;;
     fes.zx81) package_core=zx81 ;;
     fes.coleco) package_core=coleco ;;
+    fes.sms) package_core=sms ;;
+    fes.sg1000) package_core=sg1000 ;;
+    fes.c64) package_core=c64 ;;
+    fes.spectrum) package_core=spectrum ;;
     *) return 1 ;;
   esac
 }
@@ -25,6 +29,10 @@ package_dir_for() {
     fes.pong) package_dir=${FES_PONG_PACKAGE_DIR:-} ;;
     fes.zx81) package_dir=${FES_ZX81_PACKAGE_DIR:-} ;;
     fes.coleco) package_dir=${FES_COLECO_PACKAGE_DIR:-} ;;
+    fes.sms) package_dir=${FES_SMS_PACKAGE_DIR:-} ;;
+    fes.sg1000) package_dir=${FES_SG1000_PACKAGE_DIR:-} ;;
+    fes.c64) package_dir=${FES_C64_PACKAGE_DIR:-} ;;
+    fes.spectrum) package_dir=${FES_SPECTRUM_PACKAGE_DIR:-} ;;
     *) return 1 ;;
   esac
 }
@@ -34,6 +42,10 @@ package_selection_for() {
     fes.pong) package_selection=${FES_PONG_PACKAGE_SELECTION:-} ;;
     fes.zx81) package_selection=${FES_ZX81_PACKAGE_SELECTION:-} ;;
     fes.coleco) package_selection=${FES_COLECO_PACKAGE_SELECTION:-} ;;
+    fes.sms) package_selection=${FES_SMS_PACKAGE_SELECTION:-} ;;
+    fes.sg1000) package_selection=${FES_SG1000_PACKAGE_SELECTION:-} ;;
+    fes.c64) package_selection=${FES_C64_PACKAGE_SELECTION:-} ;;
+    fes.spectrum) package_selection=${FES_SPECTRUM_PACKAGE_SELECTION:-} ;;
     *) return 1 ;;
   esac
 }
@@ -125,7 +137,7 @@ validate_package_set() {
     [ -n "$remaining" ] || break
   done
   selected_packages=${selected_packages# }
-  for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco; do
+  for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco fes.sms fes.sg1000 fes.c64 fes.spectrum; do
     case " $selected_packages " in
       *" $candidate_id "*) ;;
       *)
@@ -253,7 +265,7 @@ validate_cached_package_set() {
     echo 'native-extra-cores: cached package set is not closed' >&2
     exit 1
   }
-  for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco; do
+  for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco fes.sms fes.sg1000 fes.c64 fes.spectrum; do
     case " $selected_packages " in
       *" $candidate_id "*) ;;
       *)
@@ -337,7 +349,7 @@ validate_installed_package_set() {
     echo 'native-extra-cores: installed package set is not closed' >&2
     exit 1
   }
-  for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco; do
+  for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco fes.sms fes.sg1000 fes.c64 fes.spectrum; do
     package_installed_record_path_for "$candidate_id"
     case " $selected_packages " in
       *" $candidate_id "*) ;;
@@ -367,7 +379,7 @@ clean_package_cache() {
     chmod -R u+rwX "$package_cache"
     rm -rf "$package_cache"
   fi
-  for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco; do
+  for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco fes.sms fes.sg1000 fes.c64 fes.spectrum; do
     package_record_path_for "$candidate_id"
     for stale_record in "$package_record" "${package_record}.previous"; do
       if [ -e "$stale_record" ] || [ -L "$stale_record" ]; then
@@ -439,7 +451,7 @@ if [ "$native_mode" = package-only ]; then
         chmod -R u+rwX "$installed_root"
         rm -rf "$installed_root"
       fi
-      for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco; do
+      for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco fes.sms fes.sg1000 fes.c64 fes.spectrum; do
         package_installed_record_path_for "$candidate_id"
         if [ -e "$installed_record" ] || [ -L "$installed_record" ]; then
           [ -f "$installed_record" ] && [ ! -L "$installed_record" ] || {
@@ -484,7 +496,7 @@ if [ "$native_mode" = package-only ]; then
     copy-records)
       validate_package_records
       mkdir -p "$target"
-      for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco; do
+      for candidate_id in fes.menu fes.pong fes.zx81 fes.coleco fes.sms fes.sg1000 fes.c64 fes.spectrum; do
         package_core_for "$candidate_id"
         destination=$target/fes-$package_core.package-selection.toml
         case " $selected_packages " in

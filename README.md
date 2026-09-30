@@ -72,7 +72,8 @@ make verify
 
 The default `native-integration-dev` selects component revisions through the
 FES commit, retains the locked idle RBF, and installs the ordered,
-closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`.
+closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
+`fes.sg1000`, `fes.c64`, `fes.spectrum`.
 `fes.menu` is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
@@ -116,9 +117,10 @@ Run the host with an explicit local configuration:
 out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --listen 127.0.0.1:8787
 ```
 
-The native image supports the ordered FES Pong, ZX81 and Coleco package set
-through the package/library lifecycle. It does not promise generalized/custom
-RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
+The native image installs the ordered playable package set: Pong, ZX81, ColecoVision,
+SMS, SG-1000, C64 and Spectrum. The menu package supplies idle display and is not
+a playable library entry. These packages use the package/library lifecycle. The image
+does not promise generalized/custom RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. `linux.img` is the target root
 filesystem; run `make media` after a verified cold build to publish the
 flashable disk image. Build, media assembly and verification do not deploy or
@@ -151,7 +153,7 @@ artifacts they name.
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set |
+| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered eight-package FES set (menu, Pong, ZX81, Coleco, SMS, SG-1000, C64, Spectrum) |
 
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
