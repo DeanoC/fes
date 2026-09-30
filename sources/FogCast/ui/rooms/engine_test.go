@@ -349,6 +349,30 @@ func TestLiveSlowDrawsAreToleratedThenFail(t *testing.T) {
 	}
 }
 
+func TestLiveSlowInputsFailDespiteSuccessfulSteps(t *testing.T) {
+	r := newRoom(t, memPack(t, "live-slow-input", "function on_input(cmd) wait(); return false end\nfunction draw() end", nil), Options{
+		Budget: Budget{Load: time.Second, Frame: 8 * time.Millisecond, Input: 8 * time.Millisecond},
+	})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int { time.Sleep(12 * time.Millisecond); return 0 }))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < maxConsecutiveOverruns; i++ {
+		if r.Input("left") {
+			t.Fatalf("slow input %d lost its false result", i)
+		}
+		if i < maxConsecutiveOverruns-1 {
+			r.Step(time.Unix(int64(i+1), 0))
+			if r.Err() != nil {
+				t.Fatalf("successful step retired room after input %d: %v", i, r.Err())
+			}
+		}
+	}
+	if r.Err() == nil || !strings.Contains(r.Err().Error(), "overruns") {
+		t.Fatalf("repeated slow inputs did not fail room: %v", r.Err())
+	}
+}
+
 func TestSoftCallbacksRestoreLuaStack(t *testing.T) {
 	r := newRoom(t, memPack(t, "stack", "function on_input(cmd) if slow_input then wait() end; return true end\nfunction draw() if slow_draw then wait() end end\nfunction result_cb(v,e) if slow_result then wait() end end", nil), Options{
 		Budget: Budget{Load: time.Second, Frame: 8 * time.Millisecond, Input: 8 * time.Millisecond},
@@ -428,8 +452,8 @@ func TestSoftFrameOverrunKeepsRoomAlive(t *testing.T) {
 	if !got.HasClear || got.Clear != previous.Clear {
 		t.Fatalf("soft overrun did not return previous frame: %+v", got)
 	}
-	if !r.Input("left") {
-		t.Fatal("overrunning input callback should remain handled")
+	if r.Input("left") {
+		t.Fatal("overrunning input callback should preserve its false result")
 	}
 	if r.Err() != nil {
 		t.Fatalf("soft input overrun failed the room: %v", r.Err())
