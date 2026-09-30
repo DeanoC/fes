@@ -710,10 +710,19 @@ func nativeKindWithIdentity(keys []byte, bus uint16, name string, vendor, produc
 	if controller.Eligible(bus, name, buttons) {
 		return InputGamepad
 	}
+	if buttons {
+		return InputNone
+	}
 	if bus == 6 || name == "FogCast Virtual Gamepad" {
 		return InputNone
 	}
-	return nativeKindFromKeys(keys)
+	// Key capabilities can identify a keyboard without device metadata, but
+	// they cannot establish a physical gamepad identity.
+	if kind := nativeKindFromKeys(keys); kind == InputGamepad {
+		return InputNone
+	} else {
+		return kind
+	}
 }
 func nativeHasKey(keys []byte, code int) bool {
 	return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0

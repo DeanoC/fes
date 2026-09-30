@@ -178,8 +178,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   with native evdev keyboard and digital gamepad input. Button, hat and
   mapped stick direction edges are applied as they arrive, including when a
   press and return to centre share one poll; d-pad input reaches a running
-  local core while the menu is suppressed. Automatic discovery rejects nodes
-  whose evdev identity cannot be read. Build using
+  local core while the menu is suppressed. Automatic gamepad discovery requires
+  a readable physical bus and device name; it rejects unknown and virtual
+  gamepad identities. Build using
   `CGO_ENABLED=0 go build ./cmd/fogcast-tenfoot`; see the
   [Linux framebuffer guide](docs/native-tenfoot-launcher/LINUX.md#framebuffer-without-sdl).
   `fogcast-tenfoot -gfx menu-display` runs that same app and evdev input through

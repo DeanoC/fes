@@ -312,7 +312,7 @@ func TestFramebufferPollPreservesQuickAxisTap(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
 	a.mu.Lock()
 	a.games = []hostclient.Game{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}}
-	a.grid.Count, a.grid.Columns = 2, 1
+	a.grid.Count, a.grid.Columns = 2, 2
 	a.mu.Unlock()
 	batch := append(nativeTestEvent(3, 0, 1), nativeTestEvent(3, 0, 0)...)
 	if _, err := w.Write(batch); err != nil {
@@ -340,7 +340,7 @@ func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
 		send func(*nativeInput, *App, time.Time)
 	}{
 		{"hat", func(in *nativeInput, a *App, n time.Time) { in.hat(a, 17, 1, n) }},
-		{"axis", func(in *nativeInput, a *App, n time.Time) { in.axis(a, remoteinput.AxisLeftY, 1, n) }},
+		{"axis", func(in *nativeInput, a *App, n time.Time) { in.axis(a, remoteinput.AxisLeftY, 32767, n) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := NewApp(nil, 1280, 720, 10)
@@ -385,6 +385,14 @@ func TestAutoInputRejectsUnknownIdentity(t *testing.T) {
 	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
 		t.Fatalf("unknown identity classified as %v", got)
 	}
+	keys = make([]byte, 96)
+	keys[288/8] |= 1 << uint(288%8)
+	keys[289/8] |= 1 << uint(289%8)
+	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
+		t.Fatalf("unknown BTN_GAMEPAD identity classified as %v", got)
+	}
+	keys = make([]byte, 96)
+	keys[304/8] |= 1 << uint(304%8)
 	if got := nativeKindWithIdentity(keys, 3, "physical pad", 1, 2); got != InputGamepad {
 		t.Fatalf("known physical pad classified as %v", got)
 	}
