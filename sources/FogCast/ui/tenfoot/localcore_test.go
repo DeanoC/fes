@@ -187,6 +187,60 @@ func TestLocalStatusPollIsSingleFlight(t *testing.T) {
 	once.Do(func() { close(block) })
 }
 
+func TestStaleLocalStatusPollDoesNotResumeAfterFailedStop(t *testing.T) {
+	statusRelease := make(chan struct{})
+	fake := &fakeLocalCores{
+		stopErr:     localcores.ErrUnavailable,
+		blockStatus: statusRelease,
+		statusDone:  make(chan struct{}, 1),
+		status:      localcores.RunStatus{Phase: localPhaseStopping, Running: false},
+		statusSet:   true,
+	}
+	app := startCoreRoom(t, fake, &fakePadFeed{}, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool {
+		return s.Room.Destination.CoreLaunchable
+	})
+	app.HandleCommand(CmdSelect, time.Unix(20, 0))
+	waitFor(t, app, "running", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
+	})
+	app.Tick(time.Now().Add(2 * time.Second))
+	deadline := time.Now().Add(2 * time.Second)
+	for fake.statusCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if fake.statusCount() == 0 {
+		t.Fatal("status poll did not start")
+	}
+	t1 := time.Unix(300, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
+	app.Tick(t1.Add(10*time.Millisecond + time.Second))
+	waitFor(t, app, "failed stop returned to running", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused && fake.stopCount() == 1
+	})
+	close(statusRelease)
+	select {
+	case <-fake.statusDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("blocked status poll did not return")
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		app.mu.Lock()
+		busy := app.localStatusBusy
+		app.mu.Unlock()
+		if !busy || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	snap := app.Snapshot()
+	if snap.LocalCorePhase != localPhaseRunning || !snap.LocalCorePresentsPaused {
+		t.Fatalf("stale poll changed running core phase=%s paused=%v", snap.LocalCorePhase, snap.LocalCorePresentsPaused)
+	}
+}
+
 func TestLocalStopInUseResumes(t *testing.T) {
 	fake := &fakeLocalCores{stopErr: localcores.ErrInUse}
 	app := startCoreRoom(t, fake, &fakePadFeed{}, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
@@ -397,6 +451,7 @@ type fakeLocalCores struct {
 	statusSet   bool
 	statusErr   error
 	blockStatus chan struct{}
+	statusDone  chan struct{}
 }
 
 func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
@@ -433,6 +488,9 @@ func (f *fakeLocalCores) Status(context.Context) (localcores.RunStatus, error) {
 	f.mu.Unlock()
 	if block != nil {
 		<-block
+	}
+	if f.statusDone != nil {
+		defer func() { f.statusDone <- struct{}{} }()
 	}
 	if err != nil {
 		return localcores.RunStatus{}, err
