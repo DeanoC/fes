@@ -17,6 +17,24 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesC64Tests(unittest.TestCase):
+    def test_read_only_m10k_clocks_are_live(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "synth.json"
+            def cell(name: str, *, write: str = "0") -> tuple[str, dict]:
+                return name, {"type": "MISTRAL_M10K", "connections": {
+                    "CLK1": ["x"], "CLK2": [42], "A1EN": [write], "B1EN": ["1"]}}
+            cells = dict((cell("machine.iec.file_track_rom"),
+                          cell("machine.vic.code_q_rom")))
+            path.write_text(json.dumps({"modules": {"top": {"cells": cells}}}))
+            producer.clock_read_only_memories(path)
+            fixed = json.loads(path.read_text())["modules"]["top"]["cells"]
+            self.assertTrue(all(c["connections"]["CLK1"] == [42] for c in fixed.values()))
+            cells["machine.vic.code_q_rom"]["connections"]["A1EN"] = ["1"]
+            path.write_text(json.dumps({"modules": {"top": {"cells": cells}}}))
+            with self.assertRaises(BuildError):
+                producer.clock_read_only_memories(path)
+
     def test_make_entrypoint(self) -> None:
         result = subprocess.run(["make", "-n", "build-fes-c64"], cwd=ROOT, text=True,
                                 capture_output=True, check=False)
