@@ -36,6 +36,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
+	var cpuProfile *os.File
 	if opts.CPUProfile != "" {
 		file, err := os.Create(opts.CPUProfile)
 		if err != nil {
@@ -47,21 +48,28 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		defer func() { pprof.StopCPUProfile(); file.Close() }()
+		cpuProfile = file
 	}
-	if opts.HeapProfile != "" {
-		defer func() {
-			file, err := os.Create(opts.HeapProfile)
-			if err == nil {
-				runtime.GC()
-				err = pprof.WriteHeapProfile(file)
-				file.Close()
-			}
-			if err != nil {
-				fmt.Fprintf(stderr, "heap profile: %v\n", err)
-			}
-		}()
-	}
+	defer func() {
+		// Exclude forced heap GC and serialization from the CPU capture.
+		if cpuProfile != nil {
+			pprof.StopCPUProfile()
+			cpuProfile.Close()
+		}
+		if opts.HeapProfile == "" {
+			return
+		}
+		file, err := os.Create(opts.HeapProfile)
+		if err == nil {
+			runtime.GC()
+			err = pprof.WriteHeapProfile(file)
+			file.Close()
+		}
+		if err != nil {
+			fmt.Fprintf(stderr, "heap profile: %v\n", err)
+		}
+	}()
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := tenfoot.Run(ctx, opts); err != nil {

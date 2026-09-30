@@ -887,7 +887,8 @@ the synchronous draw. Menu submission buffers return to a bounded pool only when
 neither a queued/in-flight frame nor the remembered submission references them;
 status probes share immutable bytes. The runtime frame protocol is unchanged.
 `fogcast-tenfoot -cpu-profile PATH -heap-profile PATH` writes optional local
-profiles. Benchmark recipes and measurement limits are in
+profiles. On exit, CPU sampling stops before heap GC and serialization.
+Benchmark recipes and measurement limits are in
 [native CPU rendering](native-tenfoot-launcher/CPU.md).
 
 The framebuffer shell reads native-width evdev records for US keyboard text

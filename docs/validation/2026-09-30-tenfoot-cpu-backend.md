@@ -8,12 +8,16 @@ No runtime, FPGA, shared schema or wire-contract changes are included.
 
 ## Method
 
-Go 1.24.4, `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, designated MiSTer Pi
+Go 1.26.5 compiler, `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, designated MiSTer Pi
 `192.168.10.84`, dual Cortex-A9 ARMv7. The existing kit lease was held by
 `fes-318-cpu`. Only private test binaries under `/tmp` were executed. Installed
 services, FPGA and image stayed unchanged. The installed grid remained running,
 so these elapsed times include competing CPU load and should not be read as
-isolated microarchitecture measurements. The target clock is unset; profile
+isolated microarchitecture measurements. All five binaries listed below embed
+`go1.26.5`, verified with
+`go version -m <binary>`. The bootstrap Go command was 1.24.4; module toolchain
+selection used Go 1.26.5 as required by FogCast `go.mod`. The target clock is
+unset; profile
 wall-clock dates show 1970 and do not identify the capture date.
 
 Final scene fixtures use 48 generated opaque covers, real App Tick/Snapshot,

@@ -43,6 +43,9 @@ go tool pprof -top fogcast-tenfoot /tmp/tenfoot-cpu.pprof
 go tool pprof -alloc_space fogcast-tenfoot /tmp/tenfoot-heap.pprof
 ```
 
+CPU sampling stops and its file closes before the forced GC and heap capture,
+so shutdown heap collection is excluded from the CPU profile.
+
 Profiles are opt-in files, not HTTP endpoints. For comparable captures, record the
 scene, input activity, duration, selected binary hash, kit CPU/load and competing
 processes. Separate idle browse, navigation, overlays, room animation and video;
