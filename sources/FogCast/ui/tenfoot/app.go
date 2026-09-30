@@ -519,6 +519,7 @@ type App struct {
 	localSent           map[remoteinput.Code]bool
 	localStatusBusy     bool
 	localStatusNext     time.Time
+	localStatusEpoch    uint64
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.
