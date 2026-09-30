@@ -9,7 +9,7 @@
   "target": {
     "connection": {
       "state": "ready",
-      "address": "http://192.168.10.84:8182",
+      "address": "[redacted]",
       "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
       "boot_id": "f9e27b8f-f129-4ccf-b890-3a8fec0287f8"
     },
