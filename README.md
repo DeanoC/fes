@@ -72,10 +72,10 @@ make verify
 
 The default `native-integration-dev` selects component revisions through the
 FES commit, retains the locked idle RBF, and installs the ordered,
-closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`,
-`fes.sg1000`. SMS and Spectrum remain sealed, registered package-only recipes;
-C64 remains registered while its HIP seal is unresolved. The 64 MiB rootfs
-limit prevents including all three sealed additions in this image.
+closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`. SMS,
+SG-1000 and Spectrum remain sealed, registered package-only recipes. C64
+remains registered while its HIP seal is unresolved. The 64 MiB rootfs
+limit prevents including the three sealed additions in this image.
 `fes.menu` is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
@@ -119,8 +119,8 @@ Run the host with an explicit local configuration:
 out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --listen 127.0.0.1:8787
 ```
 
-The native image installs the ordered playable package set: Pong, ZX81, ColecoVision,
-SG-1000. The menu package supplies idle display and is not
+The native image installs the ordered playable package set: Pong, ZX81 and
+ColecoVision. The menu package supplies idle display and is not
 a playable library entry. These packages use the package/library lifecycle. The image
 does not promise generalized/custom RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. `linux.img` is the target root
@@ -155,7 +155,7 @@ artifacts they name.
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered five-package FES set (menu, Pong, ZX81, Coleco, SG-1000) |
+| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered four-package FES set (menu, Pong, ZX81, Coleco) |
 
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe

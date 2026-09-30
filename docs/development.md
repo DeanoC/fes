@@ -110,8 +110,7 @@ new layout fit.
 The default and only FES integration profile is `native-integration-dev`.
 Build and verify do not deploy. The profile authenticates the pinned open-source
 misteross HIP/nextpnr tools before selecting the ordered
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`,
-`fes.sg1000` package set. SMS and Spectrum remain package-only because the
+`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set. SMS, SG-1000 and Spectrum remain package-only because the
 combined rootfs exceeds 64 MiB; C64 remains package-only while its HIP seal
 is unresolved. See [described FPGA core
 packages](core-packages.md) for first-checkout setup and the inspect/load/Stop
