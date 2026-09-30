@@ -716,6 +716,12 @@ func nativeKindWithIdentity(keys []byte, bus uint16, name string, vendor, produc
 	if bus == 6 || name == "FogCast Virtual Gamepad" {
 		return InputNone
 	}
+	// Some physical pads expose the older BTN_TRIGGER/BTN_THUMB family but
+	// lack the BTN_SOUTH/EAST capabilities used by the known-device matcher.
+	// Their readable, non-virtual identity is enough to admit those game keys.
+	if bus != 0 && name != "" && nativeHasJoystickKeys(keys) {
+		return InputGamepad
+	}
 	// Key capabilities can identify a keyboard without device metadata, but
 	// they cannot establish a physical gamepad identity.
 	if kind := nativeKindFromKeys(keys); kind == InputGamepad {
@@ -723,6 +729,14 @@ func nativeKindWithIdentity(keys []byte, bus uint16, name string, vendor, produc
 	} else {
 		return kind
 	}
+}
+func nativeHasJoystickKeys(keys []byte) bool {
+	for code := 288; code <= 318; code++ {
+		if nativeHasKey(keys, code) {
+			return true
+		}
+	}
+	return false
 }
 func nativeHasKey(keys []byte, code int) bool {
 	return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0

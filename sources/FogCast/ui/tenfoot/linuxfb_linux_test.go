@@ -397,6 +397,29 @@ func TestAutoInputRejectsUnknownIdentity(t *testing.T) {
 		t.Fatalf("known physical pad classified as %v", got)
 	}
 }
+
+func TestAutoInputAcceptsGenericPhysicalTriggerPad(t *testing.T) {
+	keys := make([]byte, 96)
+	keys[288/8] |= 1 << uint(288%8)
+	keys[289/8] |= 1 << uint(289%8)
+	if got := nativeKindWithIdentity(keys, 3, "Generic USB Pad", 0x1234, 0x5678); got != InputGamepad {
+		t.Fatalf("generic physical trigger pad classified as %v", got)
+	}
+}
+
+func TestAutoInputRejectsVirtualGamepadIdentity(t *testing.T) {
+	keys := make([]byte, 96)
+	keys[288/8] |= 1 << uint(288%8)
+	keys[289/8] |= 1 << uint(289%8)
+	for _, tc := range []struct {
+		bus  uint16
+		name string
+	}{{6, "USB Pad"}, {3, "FogCast Virtual Gamepad"}} {
+		if got := nativeKindWithIdentity(keys, tc.bus, tc.name, 0x1234, 0x5678); got != InputNone {
+			t.Errorf("virtual identity (%d, %q) classified as %v", tc.bus, tc.name, got)
+		}
+	}
+}
 func TestFramebufferControllerLongHold(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
 	in := &nativeInput{}
