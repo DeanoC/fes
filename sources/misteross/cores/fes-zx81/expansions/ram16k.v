@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Sinclair 16K RAM pack on the freeze-scaffold Z80-like edge.
 // The cart clock port must stay a distinct IB name. `--fes-slot-clock clk_sys`
-// splices that pad onto the shell 52 MHz net; naming the port clk_sys leaves
+// splices that pad onto the shell 52.224 MHz net; naming the port clk_sys leaves
 // M10K on the inferred pad output.
 `include "zx81_bus_pack.vh"
 module cart (

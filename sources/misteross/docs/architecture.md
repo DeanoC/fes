@@ -1012,7 +1012,7 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.2.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
+`fes.zx81` 1.3.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
@@ -1029,17 +1029,21 @@ reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
 The independent ZX81 cart producer reloads an already routed shell with
 `--no-pack`, so it writes a separate generated SDC that explicitly constrains
-`clk_sys` to 52 MHz and `pixel_clk` to 74.25 MHz. Its recipe records those
-requirements and the SDC digest. Publication requires both clocks to meet
+`clk_sys` to 52.224 MHz, `pixel_clk` to 74.25 MHz and `audio_clk` to 12.288 MHz.
+Its recipe records those requirements and the SDC digest. Publication requires all three clocks to meet
 their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
 not change the sealed base shell or infer requirements from achieved Fmax.
+For frozen replay, the cart producer makes an authenticated copy of the routed
+shell and restores the system PLL's second physical output to its audio clock
+net, dropping the obsolete scalar `outclk[0]` pin-map alias. The sealed routed
+shell bytes remain unchanged.
 Socketed shells export a registered Z80-like edge (44-bit request, 20-bit
 response). Vacant response FFs hold 0, so ROMCS/WAIT/DSEL/RAM_PRESENT are
 active-high from the cart. CPU writes on that edge use TDP `A1WE` like the
 validation cart; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`.
 Cart M10K keep a distinct top clock port (`FPGA_CLK1_50`) so
-`--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52 MHz
+`--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52.224 MHz
 net; naming that port `clk_sys` leaves M10K on the pad output. During `/RFSH` the shell presents the ULA character-ROM address as the QS
 `8400–87FF` window so the same 1 KiB cell supplies glyphs. QS power-up
 loads Sinclair glyphs 0–63 (ROM `1E00–1FFF`) into that cell so boot text
@@ -1049,7 +1053,10 @@ not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The validation
 cart is the first consumer on that edge; Zon X and QS Character Board RTL share
 the plugs but are not library assets yet. Zon X channel A is a digital square
 on `peek_d` (R0/R1 period, R7 enable, R8 level); the shell mixes that sample
-into HDMI I2S0 when `RAM_PRESENT` is 0. Channel A period uses nested 4-bit
+into the shared coherent PCM/I2S output when `RAM_PRESENT` is 0. The combined
+52.224/12.288 MHz system/audio PLL supplies MCLK; execution Hold and loss of PLL lock mute
+the output. The ZX81-local GP mailbox reports audio capability bit 4 while
+retaining the busy-tape guard. Channel A period uses nested 4-bit
 LUT counters so the cart does not place `ALUT_ARITH` carry in the slot.
 Diagnostic 904–907 remains an HPS bench and does not seal
 `fes.zx81`. The cart route also receives the fixed `fes.zx81-bus.socket/1` CRAM rectangle
@@ -1081,10 +1088,15 @@ transposing implementation. Direct frame validation reduced those measurements
 to 7.9 and 7.4 seconds, with identical linked bytes and composition identity.
 This is a host/target validation benchmark, not FPGA hardware acceptance; it
 does not extend request deadlines or bypass target recomposition.
-nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
-profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
-10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34. For each seed it tries heap
-timing weights 1000 and 300, then sweeps the same seeds at weights 2000, 100
+The system/audio PLL derives 52.224 and 12.288 MHz from the 50 MHz reference.
+Place-and-route uses the deterministic seed order
+10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34. A flip-flop with no async
+clear must not stay on a LAB clear another flop uses; nextpnr `c2bb4363`
+assigns the unused ACLR slot and the dedicated inactive clear when a frozen
+LAB snapshot is reloaded. A user-BEL socket flip-flop on a fresh route gets
+LUT pin reassignment and a data route-through. A scaffold reload locks that
+LAB and leaves the restored pin map in place. For each seed it tries heap
+timing weights 300 then 1000, then sweeps the same seeds at weights 2000, 100
 and 10 if needed (at most 70 attempts, stopping at the first passing route).
 The build record seals
 the effective weight order and budget. This fallback handles placement-sensitive
@@ -1096,12 +1108,19 @@ produces the same routing a GPU would). `--timing-allow-fail` permits an early
 estimate to miss while the recipe checks final signoff and records the first
 passing seed. `make build-fes-zx81 BEST_FMAX=1 GPU_DEVICES=1` keeps that synthesis and
 searches weights 10/100/300/1000/2000 plus remaining seeds for the best
-Fmax; the selected seed and weight go into route evidence. This keeps native async-M10K address paths within the 52 MHz
-system constraint. The recipe requires two
-`altera_pll` cells (52 MHz system and 74.25 MHz pixel). Also required: the HPS GP
-mailbox, the I2C bridge,
-and at least one M10K. It seals the format-2 exporter only when both
-clocks meet their constraints. The command never programs hardware.
+Fmax; the selected seed and weight go into route evidence. This keeps native
+async-M10K address paths within the 52.224 MHz system constraint. The recipe
+requires two `altera_pll` cells (combined system/audio and 74.25 MHz pixel).
+Also required: the HPS GP mailbox, the I2C bridge, and at least one M10K.
+It seals the format-3 package with its ROM map only when system, pixel and
+audio clocks meet their constraints. The command never programs hardware.
+
+The repaired 1.3.0 package passed the
+[2026-09-30 exact-package kit 1 diagnostic](../../../docs/validation/2026-09-30-zx81-shared-audio-hil.md):
+ROM-backed library launch, GP/package identity, video, vacant-socket audio
+silence and Stop. Its matching RAM validation cart passed all three clock
+constraints and changed zero CRAM bits outside the socket. Factory-image
+acceptance and audible Zon X qualification remain separate work.
 
 A sealed OSS package has been used for a **hardware diagnostic** on the
 designated kit (BASIC, sofa keyboard, empty `LOAD ""` → `0/0`, committed
@@ -1111,7 +1130,7 @@ and the former registered-M10K workaround). A GPU-routed package of that
 same registered-M10K recipe base (nextpnr 9c751533, misteross 9ad19189)
 also booted to the ZX81 editor on the kit on 2026-09-12 and answered
 `PRINT` + NEWLINE with `0/0` through the host keyboard route. The current
-native async-M10K recipe has **not** booted on the kit: its sealed packages
+native async-M10K recipe initially failed to boot on the kit: its historical sealed packages
 `74ef917a` (`--router gpu`, seed 2) and `247e2af4` (unchanged `router1`
 control, seed 6, same toolchain) both load, pass signoff and show only a
 black 720p frame for 40 s, while the older package re-loaded afterwards

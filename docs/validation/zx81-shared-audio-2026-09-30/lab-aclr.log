@@ -1,0 +1,2 @@
+PASS: q_free_MISTRAL_FF_Q at MLAB.034.001 ALM 0 half 0 selects dedicated ACLR1
+PASS: stale FES_LABSTATE_V1 reloads onto that clear; both live slots are rejected

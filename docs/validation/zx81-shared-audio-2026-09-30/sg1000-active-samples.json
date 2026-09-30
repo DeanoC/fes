@@ -1,0 +1,16 @@
+{
+  "discard_initial_seconds": 1,
+  "frames": 239926,
+  "channels": [
+    {
+      "nonzero": 239922,
+      "peak": 3261,
+      "rms": 3260.9728165051574
+    },
+    {
+      "nonzero": 239922,
+      "peak": 3261,
+      "rms": 3260.9728165051574
+    }
+  ]
+}

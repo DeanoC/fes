@@ -4,7 +4,7 @@
 `define FES_ZX81_BUILD_ID 128'h00000000000000000000000000000000
 `endif
 
-// Quartus DE10-Nano shell: 52 MHz ZX81 + 74.25 MHz HDMI, FES GP mailbox.
+// Quartus DE10-Nano shell: 52.224 MHz ZX81, 12.288 MHz audio, 74.25 MHz HDMI.
 // BUILD_ID is overridden from the canonical build-input record.
 module top #(
     parameter [127:0] BUILD_ID = `FES_ZX81_BUILD_ID,
@@ -25,6 +25,8 @@ module top #(
 );
     wire clk_sys;
     wire pixel_clk;
+    wire audio_clk;
+    wire audio_locked;
     wire [31:0] fpga_to_hps;
     wire [31:0] hps_to_fpga;
     wire exec_reset;
@@ -80,7 +82,7 @@ module top #(
     sys_pll system_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(clk_sys)
+        .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
 
     pixel_pll video_clock (
@@ -89,7 +91,7 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
-    fes_computer_gp gp_mailbox (
+    fes_computer_gp #(.ENABLE_AUDIO(1)) gp_mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
@@ -182,14 +184,12 @@ module top #(
 
     wire signed [15:0] psg_sample = bus_ram_present ? 16'sd0
         : $signed({1'b0, bus_peek_data, 7'b0});
-    zx81_hdmi_i2s hdmi_i2s (
-        .pixel_clk(pixel_clk),
-        .sample(psg_sample),
-        .mclk(HDMI_MCLK),
-        .sclk(HDMI_SCLK),
-        .lrclk(HDMI_LRCLK),
-        .i2s(HDMI_I2S0)
+    fes_audio_output audio (
+        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked),
+        .hold(exec_reset), .left_sample(psg_sample), .right_sample(psg_sample),
+        .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S0)
     );
+    assign HDMI_MCLK = audio_clk;
 
     zx81_video_720p video (
         .clk_sys(clk_sys),

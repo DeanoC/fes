@@ -28,6 +28,100 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesZx81OssTests(unittest.TestCase):
+    def test_shared_audio_sources_replace_local_serializer(self):
+        self.assertNotIn('cores/fes-common/rtl/fes_audio_pll.v', RTL_SOURCES)
+        self.assertIn('cores/fes-common/rtl/fes_audio_output.v', RTL_SOURCES)
+        self.assertIn('cores/fes-common/rtl/fes_audio_i2s.v', RTL_SOURCES)
+        self.assertNotIn('cores/fes-zx81/rtl/zx81_hdmi_i2s.v', RTL_SOURCES)
+        self.assertEqual(build_fes_zx81_oss.REQUIRED_RESOURCES['altera_pll'], 2)
+
+    def test_build_record_declares_audio_clock(self):
+        record = build_fes_zx81_oss.create_build_record(
+            ROOT, 'https://github.com/DeanoC/misteross.git', 'a' * 40,
+            {'yosys': 'x'}, execution=EXECUTION)
+        self.assertEqual(json.loads(record)['parameters']['audio_clock_hz'], 12_288_000)
+        self.assertEqual(json.loads(record)['parameters']['sys_clock_hz'], 52_224_000)
+
+    def test_audio_clock_and_pad_evidence_rejects_unrouted_output(self):
+        fmax = {'audio_clk': {'constraint': 12.288, 'achieved': 12.9}}
+        self.assertEqual(build_fes_zx81_oss._audio_timing(fmax)[2], 12.9)
+        fmax['audio_clk']['achieved'] = 12.0
+        with self.assertRaisesRegex(BuildError, 'audio clock timing achieved'):
+            build_fes_zx81_oss._audio_timing(fmax)
+        ports = {}
+        netnames = {'audio_clk': {'bits': [201]}, 'audio.locked': {'bits': [202]},
+                    'audio.sclk': {'bits': [203]}, 'audio.lrclk': {'bits': [204]},
+                    'audio.sdata': {'bits': [205]}, 'audio.lock_sync': {'bits': [206]}}
+        cells = {'system_clock.pll': {'type': 'altera_pll', 'parameters': {
+            'reference_clock_frequency': '50.0 MHz',
+            'output_clock_frequency0': '52.224 MHz',
+            'output_clock_frequency1': '12.288 MHz',
+        }, 'connections': {'locked': [202]}},
+            'audio_clock_buffer': {'type': 'MISTRAL_CLKBUF', 'connections': {'Q': [201]}},
+            'audio.lock_sync_MISTRAL_FF_Q': {'type': 'MISTRAL_FF',
+                                              'connections': {'Q': [206], 'CLK': [201], 'ACLR': [202]}},
+            'audio.serializer.sample_tick': {'type': 'MISTRAL_FF',
+                'attributes': {'src': 'cores/fes-common/rtl/fes_audio_i2s.v:23.5-41.8|dff_map.v:6.16-6.121'},
+                'connections': {'CLK': [201], 'ACLR': [206]}},
+        }
+        sources = {'HDMI_MCLK': 201, 'HDMI_SCLK': 203,
+                   'HDMI_LRCLK': 204, 'HDMI_I2S0': 205}
+        for index, (port, pin) in enumerate({
+            'HDMI_MCLK': 'PIN_U11', 'HDMI_SCLK': 'PIN_T12',
+            'HDMI_LRCLK': 'PIN_T11', 'HDMI_I2S0': 'PIN_T13',
+        }.items(), 1):
+            ports[port] = {'direction': 'output', 'bits': [index]}
+            cells[port] = {'type': 'MISTRAL_OB', 'connections': {'PAD': [index], 'I': [sources[port]]},
+                           'attributes': {'LOC': pin, 'IO_STANDARD': '3.3-V LVTTL',
+                                          'NEXTPNR_BEL': f'MISTRAL_IO.1.1.{index}'}}
+        routed = {'modules': {'top': {'ports': ports, 'cells': cells, 'netnames': netnames}}}
+        build_fes_zx81_oss._audio_evidence(routed)
+        # ABC can name the unreset CDC synchronizer after sample_tick. Its
+        # inactive ACLR must not be mistaken for a missing serializer reset.
+        cells['audio.serializer.sample_tick_MISTRAL_FF_Q_DATAIN_MISTRAL_FF_Q'] = {
+            'type': 'MISTRAL_FF',
+            'attributes': {'src': 'cores/fes-common/rtl/fes_audio_output.v:31.5-40.8'},
+            'connections': {'CLK': [201], 'ACLR': []},
+        }
+        build_fes_zx81_oss._audio_evidence(routed)
+        cells['HDMI_I2S0']['connections']['I'] = [999]
+        with self.assertRaisesRegex(BuildError, 'HDMI_I2S0'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        cells['HDMI_I2S0']['connections']['I'] = [205]
+        cells['system_clock.pll']['connections']['locked'] = [999]
+        with self.assertRaisesRegex(BuildError, 'lock'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        cells['system_clock.pll']['connections']['locked'] = [202]
+        cells['audio.serializer.sample_tick']['connections']['ACLR'] = ['1']
+        with self.assertRaisesRegex(BuildError, 'serializer'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        cells['audio.serializer.sample_tick']['connections']['ACLR'] = [206]
+        serializer = cells.pop('audio.serializer.sample_tick')
+        cells['renamed_serializer_ff'] = serializer
+        serializer['connections']['CLK'] = [999]
+        with self.assertRaisesRegex(BuildError, 'serializer'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        serializer['connections']['CLK'] = [201]
+        build_fes_zx81_oss._audio_evidence(routed)
+        del cells['renamed_serializer_ff']
+        with self.assertRaisesRegex(BuildError, 'serializer'):
+            build_fes_zx81_oss._audio_evidence(routed)
+        cells['renamed_serializer_ff'] = serializer
+        cells['HDMI_I2S0']['attributes']['LOC'] = 'PIN_BAD'
+        with self.assertRaisesRegex(BuildError, 'HDMI_I2S0'):
+            build_fes_zx81_oss._audio_evidence(routed)
+
+    def test_synthesized_audio_clock_comes_from_second_pll_output(self):
+        pll = {'type': 'altera_pll', 'connections': {'outclk': [10, 11], 'locked': [12]}}
+        buffer = {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [11], 'Q': [13]}}
+        top = {'cells': {'system_clock.pll': pll, 'audio_buffer': buffer},
+               'netnames': {'audio_clk': {'bits': [13]}, 'audio.locked': {'bits': [12]}}}
+        design = {'modules': {'top': top}}
+        build_fes_zx81_oss._audio_synthesis_evidence(design)
+        buffer['connections']['A'] = [99]
+        with self.assertRaisesRegex(BuildError, 'second PLL output'):
+            build_fes_zx81_oss._audio_synthesis_evidence(design)
+
     def test_signoff_rejects_failed_arc_even_with_normal_footer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
@@ -40,6 +134,8 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 "Info: Program finished normally.\n"
             )
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
+                build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
+                build_fes_zx81_oss, '_audio_evidence'), patch.object(
                 build_fes_zx81_oss, '_cell_counts', return_value={
                     **build_fes_zx81_oss.REQUIRED_RESOURCES,
                     'MISTRAL_M10K': 1,
@@ -145,7 +241,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaises(BuildError):
             build_fes_zx81_oss.placement_policy("unknown")
 
-    def test_paired_search_reaches_fallback_and_stops_after_timing_closes(self) -> None:
+    def test_product_search_tries_repaired_seed_10_first(self) -> None:
         from scripts.search_placer_qor import search
         from tests.test_search_placer_qor import _candidate
         weights, budget = build_fes_zx81_oss.placement_policy("first-pass-paired")
@@ -153,7 +249,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
 
         def route(seed, weight):
             calls.append((seed, weight))
-            return _candidate(seed, weight, 52.4 if (seed, weight) == (34, 300) else 51.5)
+            return _candidate(seed, weight, 54.8)
 
         ranked = search(
             nextpnr=Path("unused"), fixture=Path("unused"), output=Path("unused"),
@@ -161,12 +257,13 @@ class BuildFesZx81OssTests(unittest.TestCase):
             seeds=PLACER_SEEDS, weights=weights, critexp=PLACER_CRITICALITY_EXPONENT,
             budget=budget, mode="first-pass-paired", extra=(), timeout=1, run_one=route,
         )
-        self.assertEqual(calls, [
-            (seed, weight) for seed in PLACER_SEEDS for weight in (1000, 300)
-        ])
+        self.assertEqual(calls, [(10, 300)])
+        self.assertEqual(PLACER_SEEDS[0], 10)
+        self.assertGreater(len(PLACER_SEEDS), 1)
+        self.assertGreater(len(weights), 1)
         self.assertTrue(ranked[0].passing)
-        self.assertEqual((ranked[0].seed, ranked[0].weight), (34, 300))
-        self.assertEqual(budget, 70)
+        self.assertEqual((ranked[0].seed, ranked[0].weight), (10, 300))
+        self.assertEqual(budget, len(PLACER_SEEDS) * len(weights))
 
     def test_make_entrypoint_uses_the_oss_recipe(self) -> None:
         result = subprocess.run(
@@ -272,7 +369,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn('ramstyle = "M10K"', dpram)
         self.assertIn("assign q_a = ram[address_a]", dpram)
         sys_pll = (ROOT / "cores/fes-zx81/rtl/sys_pll.v").read_text(encoding="utf-8")
-        self.assertIn('.output_clock_frequency0("52.0 MHz")', sys_pll)
+        self.assertIn('.output_clock_frequency0("52.224 MHz")', sys_pll)
         self.assertNotIn('.output_clock_frequency0("50.0 MHz")', sys_pll)
 
     def test_oss_rejects_wrong_output_directory(self) -> None:
@@ -329,12 +426,15 @@ class BuildFesZx81OssTests(unittest.TestCase):
             {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
         )
         fields = tomllib.loads(manifest.decode())
-        self.assertEqual(fields["core"]["version"], "1.2.0")
+        self.assertEqual(fields["core"]["version"], "1.3.0")
         self.assertEqual(fields["format"], 3)
         self.assertEqual(fields["rom"]["id"], "machine-rom")
         self.assertEqual(fields["rom"]["source_size"], 8192)
         interfaces = {item["id"] for item in fields["interfaces"]}
         self.assertIn("fes.expansion.zx81-bus", interfaces)
+        self.assertIn("fes.audio.pcm-s16-stereo-48k", interfaces)
+        self.assertTrue(next(item['required'] for item in fields['interfaces']
+                             if item['id'] == 'fes.audio.pcm-s16-stereo-48k'))
         self.assertNotIn("fes.expansion.zx81-ram", interfaces)
 
 

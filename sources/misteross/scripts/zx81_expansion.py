@@ -40,7 +40,31 @@ def prepare_shell_netlist(path: Path) -> None:
     design = json.loads(path.read_text())
     top = design["modules"]["top"]
     cells = top["cells"]
-    clock = top["netnames"][SOCKET_CLOCK]["bits"]
+    nets = top["netnames"]
+    for name, clock_index in ((SOCKET_CLOCK, 0), ("audio_clk", 1)):
+        pll = cells.get("system_clock.pll")
+        if pll is None:
+            continue  # Older fixture has a named system clock but no PLL cell.
+        if pll.get("type") != "altera_pll":
+            raise ValueError(f"ZX81 {name} producer is not a PLL")
+        outputs = pll.get("connections", {}).get("outclk")
+        if not isinstance(outputs, list) or len(outputs) != 2 or any(type(bit) is not int for bit in outputs):
+            raise ValueError(f"ZX81 {name} PLL output is malformed")
+        output = [outputs[clock_index]]
+        buffers = [cell.get("connections", {}).get("Q") for cell in cells.values()
+                   if cell.get("type") == "MISTRAL_CLKBUF"
+                   and cell.get("connections", {}).get("A") == output]
+        if len(buffers) > 1 or (buffers and
+                (not isinstance(buffers[0], list) or len(buffers[0]) != 1
+                 or type(buffers[0][0]) is not int)):
+            raise ValueError(f"ZX81 {name} clock buffer is malformed")
+        clock_output = buffers[0] if buffers else output
+        if name in nets and nets[name].get("bits") != clock_output:
+            raise ValueError(f"ZX81 {name} alias does not match its PLL output")
+        nets.setdefault(name, {"hide_name": 0, "bits": clock_output, "attributes": {}})
+    if SOCKET_CLOCK not in nets:
+        raise ValueError("ZX81 socket system clock is missing")
+    clock = nets[SOCKET_CLOCK]["bits"]
     requests = top["netnames"]["plug_addr"]["bits"]
     if len(clock) != 1 or len(requests) != REQUEST_BITS:
         raise ValueError("ZX81 socket clock or request bus is malformed")

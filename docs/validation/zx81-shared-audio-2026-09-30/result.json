@@ -1,0 +1,138 @@
+{
+  "source_revision": "8db8b494c158f1e6a1af9a4383d472429978c71c",
+  "shell": {
+    "status": "pass",
+    "build_id": "02a81d71d3c8bd964a8213e24ce218ab",
+    "route": {
+      "gpu_backend": "hip",
+      "placer_heap_timingweight": 300,
+      "placer_qor_mode": "first-pass-paired",
+      "placer_seed": 10,
+      "status": "pass",
+      "unrouted": false
+    },
+    "timing": {
+      "audio": {
+        "achieved_mhz": 223.4636993408203,
+        "clock": "audio_clk",
+        "constraint_mhz": 12.288031578063965,
+        "requested_mhz": 12.288,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 138.811767578125,
+        "clock": "pixel_clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 55.975372314453125,
+        "clock": "clk_sys",
+        "constraint_mhz": 52.22477340698242,
+        "requested_mhz": 52.224,
+        "status": "pass"
+      }
+    },
+    "rbf": {
+      "sha256": "ab2dc5c7af73c3b959b8bcf59fdb81e9dba620e9eae362895b0ef02b1d017546",
+      "size": 2535350
+    },
+    "rom": {
+      "file": "rom-map.json",
+      "id": "machine-rom",
+      "role": "firmware",
+      "sha256": "cb83a07ee980e058dbffbc67c0738c0a727ed31c7871831e3d0e543571f17f3d",
+      "size": 742014,
+      "source_size": 8192
+    },
+    "tools": {
+      "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=be1b81aa8c797459e4cc82c6ec7615fb778a554beb24192b7171db0452354d0f",
+      "nextpnr-mistral": "commit=c2bb4363f4628cfbc5f304f3635e1f6eb88a47a7; sha256=a3b04a898bdab518c54a5a2131572b7f9de9a7cbe3987106c2d019041a27cfa2; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=e73cc3c622209d9dc9b95c13c57c20698575a31377c9374c7ad0f7537edb439c"
+    }
+  },
+  "cart": {
+    "expansion_id": "9acefeb7f31fb07f18d382576d48ffd2288390b457ac5bc49f7be3f51d0ff3d6",
+    "manifest": {
+      "cart_sha256": "aff1c74bd3bed39605f0c84e3a2af1a86e9bf67d7d362ef7d6b0dcd7e9b9a121",
+      "cart_size": 2590737,
+      "device": "5CSEBA6U23I7",
+      "format": 1,
+      "map": "fes.zx81-bus.socket/1",
+      "recipe_sha256": "c022da22060e03ee47517d64fbcb19ac02f2143a4d26b4ff8585076611ad51d8",
+      "revision": "8db8b494c158f1e6a1af9a4383d472429978c71c",
+      "shell_build_id": "02a81d71d3c8bd964a8213e24ce218ab",
+      "shell_package_id": "2c7fdeeae1317848a8ff75a11419e0e83ad48bab0e51d3e60853e36c179eeb9d",
+      "shell_sha256": "ab2dc5c7af73c3b959b8bcf59fdb81e9dba620e9eae362895b0ef02b1d017546",
+      "slot": "fes.expansion.zx81-bus",
+      "slot_major": 1,
+      "slot_minor": 0
+    },
+    "cram_diff": {
+      "bits_inside_slot": 179979,
+      "bits_outside_slot": 0,
+      "column_bits": {
+        "21": 84,
+        "22": 91,
+        "23": 198,
+        "24": 1972,
+        "25": 5189,
+        "26": 168016,
+        "27": 3869,
+        "28": 294,
+        "29": 182,
+        "30": 70,
+        "31": 10,
+        "33": 4
+      },
+      "diff": {
+        "bits": 179979,
+        "x0": 1819,
+        "x1": 2779,
+        "y0": 88,
+        "y1": 1808
+      },
+      "identical": false,
+      "inside_slot_column": true
+    }
+  },
+  "cart_fmax": {
+    "audio_clk": {
+      "achieved": 223.4636993408203,
+      "constraint": 12.288031578063965
+    },
+    "clk_sys": {
+      "achieved": 55.975372314453125,
+      "constraint": 52.22477340698242
+    },
+    "pixel_clk": {
+      "achieved": 138.811767578125,
+      "constraint": 74.25006866455078
+    }
+  },
+  "capture": {
+    "video_device": "GENKI ShadowCast 3 KT044001",
+    "audio_device": "hw:S3,0",
+    "rate": 48000,
+    "channels": 2,
+    "active_frames": 287996,
+    "idle_frames": 288066,
+    "active_nonzero": [
+      0,
+      0
+    ],
+    "idle_nonzero": [
+      0,
+      0
+    ]
+  },
+  "cleanup": {
+    "kit_lease": "free",
+    "private_host": "stopped",
+    "private_credentials": "removed",
+    "normal_host_service": "stopped and disabled"
+  },
+  "hardware_classification": "kit 1 exact-package diagnostic; factory image unchanged; Zon X not qualified"
+}

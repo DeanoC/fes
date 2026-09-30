@@ -1,12 +1,15 @@
 # FES ZX81
 
 The standard core is a `fes.simple-computer` 1.0 package (`fes.zx81`
-1.2.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
+1.3.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
 fixed 720p60 HDMI and a registered Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
 package carries the vacant bus; carts are independent bus consumers.
 
-FES installs this package as part of the ordered native package-only image set.
+The FES factory recipe selects this package for a future native image. The
+1.3.0 package has passed the exact-package kit 1 silent-path diagnostic with
+the repaired OSS compiler, but has not been installed in the current factory
+image. See the [kit diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md).
 The host library path is `core-install` / `core-entry` /
 `POST /api/v1/session/launch` with the returned `game_id`, as for other
 described FPGA cores. Select the 8192-byte `machine-rom` binary explicitly;
@@ -21,7 +24,7 @@ the target links it through the package's sealed ROM map at download time. See
 | Core ID | `fes.zx81` |
 | ABI | `fes.simple-computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60` (required); `fes.expansion.zx81-bus` (optional) |
+| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k` (required); `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
 | Input | 40-bit active-low matrix via runtime `set_keyboard`; no `fes.gamepad` |
 | Stop | existing package Select+Start |
@@ -44,14 +47,22 @@ reaches uinput.
 ## Producers
 
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
-1.0 bring-up/oracle lane; it does not produce the standard socketed package.
+1.1 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.2 socketed format-3 package. The package seals `rom-map.json` alongside
+1.3 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
-Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52 MHz system PLL, registered M10K and
+Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52.224 MHz system clock, registered M10K and
 the scoped `toolchains/zx81-expansion.lock`; it does not inherit Quartus
-acceptance.
+acceptance. Its combined 52.224/12.288 MHz system/audio PLL and shared PCM/I2S
+output mute on Hold or lost audio lock. The repaired 1.3.0 package passed
+vacant-socket silence on kit 1. Earlier packages emitted nonzero HDMI samples;
+the [failed diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md) is
+historical and was superseded by the
+[passing diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md).
+Zon X is not a publishable library cart yet.
+This system clock is 0.43% faster than the former 52 MHz package; keyboard,
+tape and expansion contracts are unchanged.
 
 ## Menu / sofa UI
 
@@ -64,4 +75,8 @@ slice.
 Component tests and Verilator live in the misteross worktree. Hardware
 diagnostics on the designated kit used a sealed OSS package and a derived
 keyboard-agent rootfs. Those are not exact-artifact acceptance of an
-assembled FES image.
+assembled FES image. The [1.3.0 shared-audio diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md)
+passed vacant-socket silence, GP/package identity, ROM linking and Stop with
+the repaired compiler. Its matching RAM cart passed timing and changed zero
+CRAM bits outside the reserved socket. Audible Zon X output and factory-image
+acceptance remain separate work.

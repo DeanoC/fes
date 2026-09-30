@@ -1,0 +1,20 @@
+{
+  "active-samples.json": "f39f05a24db65002c82c16d75b76cc07a54e6291de149da64accccfe9e0cc110",
+  "active.flac": "0468bc8c2711dc20a2a1532b6ad42ffb1fb81ce14108ac4528d128a89c98631a",
+  "active.json": "3cec217f2c33d09fde612619fbcadfbee3f00e7fbcb2e9fbcdb10863e3bc32bb",
+  "active.png": "fa147af6f96a6794f11ffd95b7b09aecdd31aba9e7aaaa18bf0fc25eb75fbbf7",
+  "health-after.json": "55ff0ee59d0c0bfb2078548a277173b4b4df03f59818cd7017e309cd19cc198b",
+  "health.json": "55ff0ee59d0c0bfb2078548a277173b4b4df03f59818cd7017e309cd19cc198b",
+  "idle-samples.json": "465d96dc32ffd838313524309a6f24c76c94ac2bda240fc34ae8435b0cfe00cb",
+  "idle.flac": "5a64c3e42597a8309e083bd961f37b1198af04ea195ce6cc8d71b605c996abf5",
+  "idle.json": "3566408b2f823c5cd6f0456d1fb56b63f2103e96cb535ea1937a15810950d3ad",
+  "idle.png": "f62aff079de89befe0bf107dc3b086f44bbd579f42cd198f7dc9d2c0601f64e3",
+  "inputs.json": "266ae05e724bb75c9c850dbe90ff8113b7e9656d282f6de62cd45bb8392dc18d",
+  "lab-aclr.log": "a64586ef12808bb18476a1e95c730ebca8d56777df6f5c73a59b14acabd9c235",
+  "lab-legalise.log": "31105e617dea5f9a75ddf1961c9b9b22b3063530628fd87db6a6b95e08a587db",
+  "result.json": "61213173dfe36d56ea9036faf824d3b10bdc2f242192502b8f457e4a4eb6550a",
+  "sg1000-active-samples.json": "285d515c108301f5da7d7446141289a433035b459c28313cec14b69e3b04402a",
+  "sg1000-active.flac": "d11e6c75c9841ff81be01f5f7544c5c886c928824e7bf5a8e8918edb6cd8fd35",
+  "sg1000-active.png": "eca9db318488ba3803f15eeb6dc851a1bcf6bf1effa0860cfa49c25fa84f63da",
+  "sg1000-idle-samples.json": "504fe105d972830ff6b1fca68032b3be8157342aaa197d821bf32a2fe6ae6ee2"
+}

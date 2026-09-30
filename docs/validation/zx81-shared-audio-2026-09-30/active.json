@@ -1,0 +1,57 @@
+{
+  "id": "f4d23a73-9e73-4468-adb0-b9b881bec87a",
+  "target": "dev",
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "state": "active",
+  "game_id": "fpga-zx81-shared-audio-fixed-compiler-f9034b2f071f",
+  "system": "fpga",
+  "execution": "fpga_native",
+  "core_package": {
+    "rom_link": {
+      "rom_id": "machine-rom",
+      "map_sha256": "cb83a07ee980e058dbffbc67c0738c0a727ed31c7871831e3d0e543571f17f3d",
+      "source_sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa",
+      "source_size": 8192,
+      "programmed_sha256": "a647b6b5ad3e9cf4b8ba0f5c7bef57bc24561fc7fb0645d7857e5f6c70c33f20",
+      "programmed_size": 2530519
+    },
+    "persistence_mode": "volatile",
+    "package_id": "2c7fdeeae1317848a8ff75a11419e0e83ad48bab0e51d3e60853e36c179eeb9d",
+    "generation": 2,
+    "abi": {
+      "id": "fes.simple-computer",
+      "major": 1,
+      "minor": 0
+    },
+    "build_id": "02a81d71d3c8bd964a8213e24ce218ab",
+    "active_interfaces": [
+      {
+        "id": "fes.audio.pcm-s16-stereo-48k",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.expansion.zx81-bus",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.keyboard",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.media.blob",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.video.fixed-720p60",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "gamepad": false
+  },
+  "flight_id": "9950d0b1-7c16-4d0a-9a79-09c8dd683644"
+}
