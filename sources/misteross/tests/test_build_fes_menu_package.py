@@ -21,6 +21,8 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertIn("BUILD_ID 128'h0123456789abcdef0123456789abcdef",synth)
         self.assertIn('toolchains/ramtest.lock',p.INPUTS)
         self.assertIn('--gpu-device',commands[1]); self.assertEqual(commands[1][commands[1].index('--gpu-device')+1],'0')
+        default_route = p.build_commands('0'*32, {'yosys':Path('/yosys'),'nextpnr-mistral':Path('/nextpnr')})[1]
+        self.assertEqual(default_route[default_route.index('--seed')+1], '5')
         self.assertIn('cores/fes-common/generated/fes_application.vh',p.INPUTS)
         for invalid in (0,9,True):
             with self.assertRaises(ValueError): p.build_commands('0'*32,{'yosys':Path('/yosys'),'nextpnr-mistral':Path('/nextpnr')},seed=invalid)

@@ -28,7 +28,7 @@ INPUTS = tuple(dict.fromkeys(tuple(p for p in menu.inputs_for('ddr') if p not in
 OUTPUTS = (*menu.OUTPUTS, 'manifest.toml')
 
 
-def build_commands(build_id, tools, *, seed=4):
+def build_commands(build_id, tools, *, seed=5):
     seed = menu.seed_for('ddr', seed)
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError('invalid menu package build ID')
@@ -70,7 +70,7 @@ def _authenticate_tools(root, *, cache_root=None):
     return menu.authenticate(root, cache_root, 'ddr')
 
 
-def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, seed=4):
+def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, seed=5):
     if identity_version != 2:
         raise board.BuildError('unsupported menu package identity version')
     with python_source_guard(root, source_roots_for_inputs(INPUTS)):
@@ -86,7 +86,7 @@ def create_build_record(root, repository, revision, identities, *, identity_vers
             source_roots_for_inputs(INPUTS),execution,pinned_inputs=INPUTS))
 
 
-def build(root=ROOT, *, cache_root=None, package_output=None, seed=4, identity_version=2):
+def build(root=ROOT, *, cache_root=None, package_output=None, seed=5, identity_version=2):
     with python_source_guard(root, source_roots_for_inputs(INPUTS)):
         return _build(Path(root).resolve(),cache_root=cache_root,package_output=package_output,
             seed=seed,identity_version=identity_version)
@@ -138,7 +138,7 @@ def main():
     parser.add_argument('--root',type=Path,default=ROOT)
     parser.add_argument('--cache-root',type=Path)
     parser.add_argument('--package-output',type=Path)
-    parser.add_argument('--seed',type=int,choices=range(1,9),default=4)
+    parser.add_argument('--seed',type=int,choices=range(1,9),default=5)
     parser.add_argument('--identity-version',type=int,choices=(2,),default=2)
     args = parser.parse_args()
     try: print(build(args.root,cache_root=args.cache_root,package_output=args.package_output,

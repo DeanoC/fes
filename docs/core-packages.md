@@ -14,12 +14,16 @@ bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum` and `fes.catch` HIP/nextpnr
 producers. The default target-image selector installs the ordered closed
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.c64` and `fes.spectrum` package set. `fes.apple2` and `fes.catch` remain
-registered for package-only host-library acceptance. Selected package IDs and
-payload digests are recorded in generated per-core selection files, including
-`fes-sms.package-selection.toml`, `fes-sg1000.package-selection.toml`,
-`fes-c64.package-selection.toml` and `fes-spectrum.package-selection.toml`.
+`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set.
+SMS, SG-1000 and Spectrum passed timing at the selected identity but remain
+registered for package-only use because the combined rootfs exceeds 64 MiB. `fes.apple2`
+and `fes.catch` also remain package-only. `fes.c64` is registered, but has no
+current timing-passing HIP seal.
+Package IDs and payload digests are recorded in generated per-core selection
+files. Package-only preparations can produce `fes-sms.package-selection.toml`,
+`fes-sg1000.package-selection.toml` and `fes-spectrum.package-selection.toml`.
+A successful package-only C64 preparation would use
+`fes-c64.package-selection.toml`.
 The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Its repository-default
 compiler lock serves factory Pong; the standard ZX81 socket uses
@@ -32,8 +36,7 @@ An older sealed SMS package does not accept a bitstream built from a later
 tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
-the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.c64` and `fes.spectrum` package set.
+the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set.
 The FES image route is package-only. Quartus is reserved for a documented bring-up or
 oracle/check when a system is not yet supported by nextpnr; the package-only
 route does not invoke it.
@@ -63,7 +66,7 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The production ZX81 and package-only SMS, SG-1000, Apple II, Commodore 64 and ZX Spectrum producers export format 3.
+The ZX81, SMS, SG-1000, Apple II, Commodore 64 and ZX Spectrum producers export format 3 when sealed.
 Other core producers retain format 2 and their current media/firmware paths
 until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
 SG-1000 requires an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map

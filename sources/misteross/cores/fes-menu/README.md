@@ -125,6 +125,7 @@ firmware under `build/oss/fes-menu-package`, exporting the closed package to
 1.0. It has no playable system identity and does not change factory selection.
 The qualified RAM-test lock now includes the congestion fix from FES #266.
 GPU 0 and bounded explicit seeds retain the normal provenance/evidence gates.
+The described package defaults to seed 5; the DDR diagnostic above retains seed 4.
 
 `menu_top.v` uses the shared application GP mailbox with an optional menu
 hook; all existing consumers leave it disabled. `fes_menu_control` implements
