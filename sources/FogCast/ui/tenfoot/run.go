@@ -17,6 +17,9 @@ import (
 
 // Options configure the native launcher window.
 type Options struct {
+	// CPUProfile and HeapProfile write optional diagnostic pprof files.
+	CPUProfile   string
+	HeapProfile  string
 	APIBase      string
 	Width        int
 	Height       int

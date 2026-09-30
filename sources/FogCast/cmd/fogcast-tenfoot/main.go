@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"syscall"
 	"time"
@@ -35,6 +36,40 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
+	var cpuProfile *os.File
+	if opts.CPUProfile != "" {
+		file, err := os.Create(opts.CPUProfile)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		if err := pprof.StartCPUProfile(file); err != nil {
+			file.Close()
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		cpuProfile = file
+	}
+	defer func() {
+		// Exclude forced heap GC and serialization from the CPU capture.
+		if cpuProfile != nil {
+			pprof.StopCPUProfile()
+			cpuProfile.Close()
+		}
+		if opts.HeapProfile == "" {
+			return
+		}
+		file, err := os.Create(opts.HeapProfile)
+		if err == nil {
+			runtime.GC()
+			err = pprof.WriteHeapProfile(file)
+			file.Close()
+		}
+		if err != nil {
+			fmt.Fprintf(stderr, "heap profile: %v\n", err)
+		}
+	}()
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := tenfoot.Run(ctx, opts); err != nil {
@@ -47,6 +82,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 func parseArgs(args []string) (tenfoot.Options, error) {
 	fs := flag.NewFlagSet("fogcast-tenfoot", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
+	cpuProfile := fs.String("cpu-profile", "", "write CPU pprof to this file until exit")
+	heapProfile := fs.String("heap-profile", "", "write heap/allocation pprof to this file at exit")
 	api := fs.String("api", envOr("FOGCAST_API", hostclient.DefaultAPIBase), "FogCast host API base URL")
 	apiHost := fs.String("api-host", envOr("FOGCAST_API_HOST", ""), "optional HTTP Host header (loopback allowlist; -smoke defaults this when the API URL is not loopback)")
 	width := fs.Int("width", 1280, "window width")
@@ -95,6 +132,8 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		}
 	})
 	return tenfoot.Options{
+		CPUProfile:   *cpuProfile,
+		HeapProfile:  *heapProfile,
 		APIBase:      *api,
 		APIHost:      *apiHost,
 		Width:        *width,

@@ -856,9 +856,13 @@ Explicit `-gfx linuxfb` dispatches to `ui/tenfoot/linuxfb_linux.go` before
 SDL initialization, including in CGO-free builds. Explicit `-gfx menu-display`
 dispatches to `ui/tenfoot/menudisplay_linux.go` the same way: it reuses that
 app, evdev input, and smoke loop, forces 1280×720, and submits through the
-runtime menu socket with change-driven presents. An unchanged frame
-(byte-identical to the last submitted frame that has not failed or been
-dropped) is skipped. Once a second after a successful present, that skip
+runtime menu socket with change-driven presents. The direct CPU loop records
+complete scenes through `gfx.FrameCache`: identical draw commands and unchanged
+textures skip rasterization. Texture mutations preserve draw order and invalidate
+reuse. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
+Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
+callers retain byte-identical change detection. An unchanged submission that has
+not failed or been dropped is skipped. Once a second after a successful present, that skip
 still reads menu status. A new menu generation is submitted in full; the
 same generation presents nothing.
 The first frame is submitted because nothing has been queued yet. Status
@@ -872,6 +876,21 @@ app keeps its existing host session client and existing status reads (for
 example the kit-lease status read). The SDL, linuxfb and
 menu-display shells all use `configuredApp` and the shared App, rendering,
 catalog and session API paths.
+The software rasterizer classifies opacity at texture upload/update. Opaque
+unscaled sprites copy clipped rows; scaled sprites precompute exact float32 sample
+columns and cache repeated source/destination resizes within an 8 MiB/64-entry
+budget. Cached bitmaps cover only visible raster bounds, preserving fractional
+position and sampling. First-use and continuously updated textures use the
+general sampler to avoid creating a resize bitmap every video frame. Texture update/destroy invalidates those entries. Large constant-color
+alpha fills reuse exact channel lookup tables. Text blits borrow their bitmap for
+the synchronous draw. Menu submission buffers return to a bounded pool only when
+neither a queued/in-flight frame nor the remembered submission references them;
+status probes share immutable bytes. The runtime frame protocol is unchanged.
+`fogcast-tenfoot -cpu-profile PATH -heap-profile PATH` writes optional local
+profiles. On exit, CPU sampling stops before heap GC and serialization.
+Benchmark recipes and measurement limits are in
+[native CPU rendering](native-tenfoot-launcher/CPU.md).
+
 The framebuffer shell reads native-width evdev records for US keyboard text
 and digital gamepad buttons/hat axes, merges held commands across devices,
 and uses the shared remapper and hold gate. Automatic discovery filters by
@@ -892,7 +911,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` submits every `Present`. `fogcast-tenfoot -gfx menu-display` calls `SetChangeDriven(true)`: an unchanged frame (byte-identical to the last submitted frame that has not failed or been dropped) is skipped. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` submits every `Present`. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.

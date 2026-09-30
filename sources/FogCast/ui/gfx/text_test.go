@@ -313,3 +313,30 @@ func sameOpaquePixels(a, b *image.RGBA) bool {
 	}
 	return true
 }
+
+func TestBlitTextBorrowsSubImageWithoutMutation(t *testing.T) {
+	parent := image.NewRGBA(image.Rect(-5, -3, 25, 20))
+	for i := 0; i < len(parent.Pix); i += 4 {
+		parent.Pix[i], parent.Pix[i+1], parent.Pix[i+2], parent.Pix[i+3] = 100, 50, 200, uint8((i/4)%256)
+	}
+	before := append([]byte(nil), parent.Pix...)
+	img := parent.SubImage(image.Rect(-2, 0, 18, 12)).(*image.RGBA)
+	s, _ := NewSoftware(16, 14)
+	s.Clear(RGBA(30, 70, 150, 120))
+	want := s.Snapshot()
+	scalarTextureDraw(want, img, nil, Rect{X: -3, Y: 5, W: 20, H: 12})
+	blitText(s, -3, 5, img)
+	for i := range s.pix {
+		if s.pix[i] != want.Pix[i] {
+			t.Fatalf("blit differs at byte %d", i)
+		}
+	}
+	for i := range before {
+		if parent.Pix[i] != before[i] {
+			t.Fatalf("text image mutated at byte %d", i)
+		}
+	}
+	if got := testing.AllocsPerRun(10, func() { blitText(s, -3, 5, img) }); got != 0 {
+		t.Fatalf("blit allocated %v times", got)
+	}
+}

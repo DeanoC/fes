@@ -17,7 +17,13 @@ type MenuPresenter interface {
 	Present(context.Context, uint64, []byte) (menudisplay.Result, error)
 }
 
+type menuPixels struct {
+	pixels []byte
+	refs   int // queue/worker and remembered submission; guarded by MenuDisplay.mu
+}
+
 type queuedMenuFrame struct {
+	buffer     *menuPixels
 	pixels     []byte
 	generation uint64
 	known      bool
@@ -29,9 +35,12 @@ type queuedMenuFrame struct {
 // change-driven presents are on. pixels is immutable and may alias the
 // queued frame's buffer.
 type submittedMenuFrame struct {
-	pixels     []byte
-	generation uint64
-	seq        uint64
+	buffer        *menuPixels
+	revision      uint64
+	revisionKnown bool
+	pixels        []byte
+	generation    uint64
+	seq           uint64
 }
 
 const (
@@ -64,6 +73,7 @@ type MenuDisplay struct {
 	changeDriven bool
 	nextSeq      uint64
 	submitted    *submittedMenuFrame
+	freeBuffers  []*menuPixels
 	now          func() time.Time
 	probeQueued  bool
 	lastProbe    time.Time
@@ -120,7 +130,7 @@ func (d *MenuDisplay) SetChangeDriven(on bool) {
 	d.mu.Lock()
 	d.changeDriven = on
 	if !on {
-		d.submitted = nil
+		d.forgetSubmissionLocked()
 		d.clearPaceLocked()
 	}
 	d.mu.Unlock()
@@ -134,7 +144,15 @@ func (d *MenuDisplay) Config() FBConfig {
 // the physical frame boundary. Superseded queued frames are dropped. With
 // change-driven presents on, a byte-identical frame is not queued unless a
 // status probe is due or a backoff wait has expired.
-func (d *MenuDisplay) Present() {
+func (d *MenuDisplay) Present() { d.present(0, false) }
+
+// PresentRevision presents a complete rendered frame identified by revision.
+// The caller must change revision whenever the framebuffer changes, and must
+// use one revision namespace for this device. Identical revisions avoid a
+// full-frame comparison; retries and generation probes still run.
+func (d *MenuDisplay) PresentRevision(revision uint64) { d.present(revision, true) }
+
+func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 	if d == nil {
 		return
 	}
@@ -154,7 +172,14 @@ func (d *MenuDisplay) Present() {
 		if recover {
 			d.backoffUntil = time.Time{}
 		}
-		unchanged := d.submitted != nil && d.generation == d.submitted.generation && bytes.Equal(pix, d.submitted.pixels)
+		unchanged := false
+		if previous := d.submitted; previous != nil && d.generation == previous.generation {
+			if revisionKnown && previous.revisionKnown {
+				unchanged = revision == previous.revision
+			} else {
+				unchanged = bytes.Equal(pix, previous.pixels)
+			}
+		}
 		if unchanged && !recover {
 			if d.probeQueued || !d.probeDueLocked(now) {
 				return
@@ -172,9 +197,22 @@ func (d *MenuDisplay) Present() {
 		d.nextSeq++
 		seq = d.nextSeq
 	}
-	frame := queuedMenuFrame{pixels: append([]byte(nil), pix...), generation: d.generation, known: d.known, seq: seq, probe: probe}
+	var buffer *menuPixels
+	if probe {
+		buffer = d.submitted.buffer
+		if buffer == nil {
+			buffer = d.copyFrameLocked(d.submitted.pixels)
+		} else {
+			buffer.refs++
+		}
+	} else {
+		buffer = d.copyFrameLocked(pix)
+	}
+	frame := queuedMenuFrame{pixels: buffer.pixels, buffer: buffer, generation: d.generation, known: d.known, seq: seq, probe: probe}
 	if d.changeDriven && !probe {
-		d.submitted = &submittedMenuFrame{pixels: frame.pixels, generation: d.generation, seq: seq}
+		d.forgetSubmissionLocked()
+		buffer.refs++
+		d.submitted = &submittedMenuFrame{pixels: frame.pixels, buffer: buffer, generation: d.generation, seq: seq, revision: revision, revisionKnown: revisionKnown}
 	}
 	d.sendFrameLocked(frame)
 }
@@ -199,10 +237,11 @@ func (d *MenuDisplay) Pause(ctx context.Context) error {
 	}
 	d.mu.Lock()
 	d.paused = true
-	d.submitted = nil
+	d.forgetSubmissionLocked()
 	d.clearPaceLocked()
 	select {
-	case <-d.frames:
+	case frame := <-d.frames:
+		d.releaseBufferLocked(frame.buffer)
 	default:
 	}
 	flight := d.flight
@@ -226,7 +265,7 @@ func (d *MenuDisplay) Resume() {
 	}
 	d.mu.Lock()
 	d.paused = false
-	d.submitted = nil
+	d.forgetSubmissionLocked()
 	d.clearPaceLocked()
 	d.mu.Unlock()
 }
@@ -245,6 +284,7 @@ func (d *MenuDisplay) run() {
 				} else {
 					d.forgetLocked(frame.seq)
 				}
+				d.releaseBufferLocked(frame.buffer)
 				d.mu.Unlock()
 				continue
 			}
@@ -254,6 +294,7 @@ func (d *MenuDisplay) run() {
 			if frame.probe {
 				d.runProbe(frame)
 				d.mu.Lock()
+				d.releaseBufferLocked(frame.buffer)
 				d.flight = nil
 				close(flight)
 				d.mu.Unlock()
@@ -288,6 +329,7 @@ func (d *MenuDisplay) run() {
 			if d.changeDriven {
 				d.notePresentResultLocked(presented, genChanged, err, status)
 			}
+			d.releaseBufferLocked(frame.buffer)
 			d.flight = nil
 			close(flight)
 			d.mu.Unlock()
@@ -351,7 +393,7 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 // A probe reuses the seq it observed and must not call this on success.
 func (d *MenuDisplay) forgetLocked(seq uint64) {
 	if d.changeDriven && d.submitted != nil && d.submitted.seq == seq {
-		d.submitted = nil
+		d.forgetSubmissionLocked()
 	}
 }
 
@@ -437,6 +479,7 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 		case d.frames <- frame:
 		default:
 			d.probeQueued = false
+			d.releaseBufferLocked(frame.buffer)
 		}
 		return
 	}
@@ -447,6 +490,7 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 	}
 	select {
 	case dropped := <-d.frames:
+		d.releaseBufferLocked(dropped.buffer)
 		if dropped.probe {
 			d.probeQueued = false
 		}
@@ -455,6 +499,7 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 	select {
 	case d.frames <- frame:
 	case <-d.ctx.Done():
+		d.releaseBufferLocked(frame.buffer)
 	}
 }
 
@@ -480,7 +525,48 @@ func (d *MenuDisplay) Close() {
 	d.cancel()
 	d.mu.Unlock()
 	<-d.done
+	d.mu.Lock()
+	d.forgetSubmissionLocked()
+	select {
+	case frame := <-d.frames:
+		d.releaseBufferLocked(frame.buffer)
+	default:
+	}
+	d.freeBuffers = nil
+	d.mu.Unlock()
 	d.Software.Close()
 }
 
 var _ Device = (*MenuDisplay)(nil)
+
+// Buffers return to the bounded pool only after both the worker/queue and
+// remembered submission release them. A probe shares immutable submitted bytes.
+func (d *MenuDisplay) copyFrameLocked(pix []byte) *menuPixels {
+	var buffer *menuPixels
+	if n := len(d.freeBuffers); n > 0 {
+		buffer = d.freeBuffers[n-1]
+		d.freeBuffers = d.freeBuffers[:n-1]
+	} else {
+		buffer = &menuPixels{pixels: make([]byte, len(pix))}
+	}
+	copy(buffer.pixels, pix)
+	buffer.refs = 1
+	return buffer
+}
+
+func (d *MenuDisplay) releaseBufferLocked(buffer *menuPixels) {
+	if buffer == nil {
+		return
+	}
+	buffer.refs--
+	if buffer.refs == 0 && len(d.freeBuffers) < 3 {
+		d.freeBuffers = append(d.freeBuffers, buffer)
+	}
+}
+
+func (d *MenuDisplay) forgetSubmissionLocked() {
+	if d.submitted != nil {
+		d.releaseBufferLocked(d.submitted.buffer)
+		d.submitted = nil
+	}
+}

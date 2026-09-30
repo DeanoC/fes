@@ -375,10 +375,10 @@ func blitText(s *Software, x, y int, img *image.RGBA) {
 	if w < 1 || h < 1 {
 		return
 	}
-	bm, err := cloneBitmap(img)
-	if err != nil {
-		return
-	}
+	// This synchronous blit borrows the rasterized text; no texture retains
+	// it, so copying every label bitmap is unnecessary. Preserve sub-image
+	// stride and bounds as well as ordinary zero-origin rasterized labels.
+	bm := &swBitmap{w: w, h: h, stride: img.Stride, pix: img.Pix[img.PixOffset(b.Min.X, b.Min.Y):]}
 	dst := Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}
 	x0, y0, x1, y1, ok := clipRect(dst, s.w, s.h)
 	if !ok {

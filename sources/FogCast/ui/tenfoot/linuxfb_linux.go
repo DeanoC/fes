@@ -73,6 +73,7 @@ type directDisplay interface {
 // framebufferLoop renders the shared App; it never programs an FPGA or
 // launches a title during smoke checks. Injected input/device keep it testable.
 func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device, poll func(*App, time.Time) (bool, error), label string) error {
+	painter := gfx.NewFrameCache(dev)
 	textures, labels := map[string]gpuTexture{}, map[string]gpuTexture{}
 	defer destroyTextures(dev, textures)
 	defer destroyTextures(dev, labels)
@@ -99,7 +100,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			app.Tick(now)
 			snap := app.Snapshot()
 			if !hold.skip(ctx, dev, snap) {
-				parked = presentFrame(dev, snap, textures, labels, parked)
+				parked = presentFrame(painter, snap, textures, labels, parked)
 			}
 			frames++
 			if opts.Smoke {
