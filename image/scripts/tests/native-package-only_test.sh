@@ -79,7 +79,7 @@ esac
 SELECTOR
 chmod +x "$selector"
 
-package_ids=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo")
+package_ids=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo/..")
 package_words=$(printf '%s' "$package_ids" | tr ',' ' ')
 package_id_for() {
   case "$1" in
