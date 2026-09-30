@@ -46,14 +46,22 @@ type Budget struct {
 // DefaultBudget is tuned for a 60 Hz sofa loop.
 func DefaultBudget() Budget {
 	return Budget{
-		Load:           250 * time.Millisecond,
-		Frame:          6 * time.Millisecond,
-		Input:          4 * time.Millisecond,
+		Load: 250 * time.Millisecond,
+		// The DE10-Nano's Cortex-A9 has much less headroom than the desktop
+		// used to tune rooms. Keep frame work below a 60 Hz frame while
+		// allowing for normal GC/scheduler jitter on the kit.
+		Frame:          12 * time.Millisecond,
+		Input:          8 * time.Millisecond,
 		MaxOps:         4096,
 		MaxImagePixels: 16 << 20,
 		MaxQueryGames:  2000,
 	}
 }
+
+const (
+	callbackHardLimitFactor = 4
+	maxConsecutiveOverruns  = 3
+)
 
 func (b Budget) complete() Budget {
 	d := DefaultBudget()
@@ -130,16 +138,17 @@ type Instance struct {
 	store    *store
 	logs     []string
 
-	started         time.Time
-	last            time.Time
-	elapsed         float64
-	fatal           error
-	loaded          bool
-	sessionState    string
-	roomTable       *lua.LTable
-	dest            Destination
-	hardwareReading bool
-	hardwareSaving  bool
+	started             time.Time
+	last                time.Time
+	elapsed             float64
+	fatal               error
+	consecutiveOverruns int
+	loaded              bool
+	sessionState        string
+	roomTable           *lua.LTable
+	dest                Destination
+	hardwareReading     bool
+	hardwareSaving      bool
 }
 
 type asyncResult struct {
@@ -301,21 +310,28 @@ func (r *Instance) Step(now time.Time) Frame {
 	if r.fatal != nil {
 		return Frame{}
 	}
-	if err := r.callGlobal("update", r.budget.Frame, lua.LNumber(dt)); err != nil {
+	if err := r.callGlobalSoft("update", r.budget.Frame, lua.LNumber(dt)); err != nil {
+		if errors.Is(err, errSoftOverrun) {
+			return r.overrunFrame(err)
+		}
 		r.fail(err)
 		return Frame{}
 	}
 	frame := Frame{Clear: r.opts.Theme.SofaBackground}
 	r.building = &frame
 	r.inDraw = true
-	err := r.callGlobal("draw", r.budget.Frame)
+	err := r.callGlobalSoft("draw", r.budget.Frame)
 	r.inDraw = false
 	r.building = nil
 	if err != nil {
+		if errors.Is(err, errSoftOverrun) {
+			return r.overrunFrame(err)
+		}
 		r.fail(err)
 		return Frame{}
 	}
 	r.frame = frame
+	r.consecutiveOverruns = 0
 	r.store.maybeFlush(now)
 	return frame
 }
@@ -344,12 +360,71 @@ func (r *Instance) Input(cmd string) bool {
 	if !ok {
 		return false
 	}
-	handled, err := r.callRet(fn, r.budget.Input, lua.LString(cmd))
+	handled, err := r.callRetSoft(fn, r.budget.Input, lua.LString(cmd))
 	if err != nil {
+		if errors.Is(err, errSoftOverrun) {
+			r.overrun(err)
+			return true
+		}
 		r.fail(err)
 		return true
 	}
+	r.consecutiveOverruns = 0
 	return lua.LVAsBool(handled)
+}
+
+var errSoftOverrun = errors.New("script exceeded soft callback budget")
+
+func (r *Instance) overrun(err error) {
+	r.consecutiveOverruns++
+	if r.consecutiveOverruns >= maxConsecutiveOverruns {
+		r.fail(fmt.Errorf("%w (after %d consecutive overruns)", err, r.consecutiveOverruns))
+	}
+}
+
+func (r *Instance) overrunFrame(err error) Frame {
+	r.overrun(err)
+	return r.frame
+}
+
+func (r *Instance) handleInputCallbackError(err error) {
+	if errors.Is(err, errSoftOverrun) {
+		r.overrun(err)
+		return
+	}
+	r.fail(err)
+}
+
+func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua.LValue) error {
+	fn, ok := r.L.GetGlobal(name).(*lua.LFunction)
+	if !ok {
+		return nil
+	}
+	return r.callSoft(fn, budget, 0, args...)
+}
+
+func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
+	if err := r.callSoft(fn, budget, 1, args...); err != nil {
+		return lua.LNil, err
+	}
+	v := r.L.Get(-1)
+	r.L.Pop(1)
+	return v, nil
+}
+
+func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
+	start := time.Now()
+	if err := r.call(fn, budget*callbackHardLimitFactor, nret, args...); err != nil {
+		return err
+	}
+	elapsed := time.Since(start)
+	if elapsed > budget*callbackHardLimitFactor {
+		return fmt.Errorf("script exceeded %s hard callback budget", budget*callbackHardLimitFactor)
+	}
+	if elapsed > budget {
+		return errSoftOverrun
+	}
+	return nil
 }
 
 // Hover reports pointer hover over a registered hit region.
@@ -357,8 +432,10 @@ func (r *Instance) Hover(id string) {
 	if r.fatal != nil || !r.loaded {
 		return
 	}
-	if err := r.callGlobal("on_hover", r.budget.Input, lua.LString(id)); err != nil {
-		r.fail(err)
+	if err := r.callGlobalSoft("on_hover", r.budget.Input, lua.LString(id)); err != nil {
+		r.handleInputCallbackError(err)
+	} else {
+		r.consecutiveOverruns = 0
 	}
 }
 
@@ -367,8 +444,10 @@ func (r *Instance) Activate(id string) {
 	if r.fatal != nil || !r.loaded {
 		return
 	}
-	if err := r.callGlobal("on_activate", r.budget.Input, lua.LString(id)); err != nil {
-		r.fail(err)
+	if err := r.callGlobalSoft("on_activate", r.budget.Input, lua.LString(id)); err != nil {
+		r.handleInputCallbackError(err)
+	} else {
+		r.consecutiveOverruns = 0
 	}
 }
 
@@ -378,8 +457,10 @@ func (r *Instance) Resume() {
 	if r.fatal != nil || !r.loaded {
 		return
 	}
-	if err := r.callGlobal("on_resume", r.budget.Input); err != nil {
-		r.fail(err)
+	if err := r.callGlobalSoft("on_resume", r.budget.Input); err != nil {
+		r.handleInputCallbackError(err)
+	} else {
+		r.consecutiveOverruns = 0
 	}
 }
 
@@ -398,8 +479,10 @@ func (r *Instance) Resize(width, height int) {
 	if r.fatal != nil || !r.loaded {
 		return
 	}
-	if err := r.callGlobal("on_resize", r.budget.Input, lua.LNumber(width), lua.LNumber(height)); err != nil {
-		r.fail(err)
+	if err := r.callGlobalSoft("on_resize", r.budget.Input, lua.LNumber(width), lua.LNumber(height)); err != nil {
+		r.handleInputCallbackError(err)
+	} else {
+		r.consecutiveOverruns = 0
 	}
 }
 

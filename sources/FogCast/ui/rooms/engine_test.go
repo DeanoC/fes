@@ -273,21 +273,86 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 }
 
 func TestDeadlineStopsRunawayScript(t *testing.T) {
-	p := memPack(t, "loop", "function update(dt) while true do end end\nfunction draw() end", nil)
-	r := newRoom(t, p, Options{Budget: Budget{Load: time.Second, Frame: 30 * time.Millisecond, Input: 30 * time.Millisecond}})
+	for _, src := range []string{
+		"function update(dt) while true do end end\nfunction draw() end",
+		"function update(dt) end\nfunction draw() while true do end end",
+	} {
+		r := newRoom(t, memPack(t, "loop", src, nil), Options{Budget: Budget{Load: time.Second, Frame: 30 * time.Millisecond, Input: 30 * time.Millisecond}})
+		if err := r.Load(); err != nil {
+			t.Fatal(err)
+		}
+		start := time.Now()
+		f := r.Step(time.Unix(1, 0))
+		if time.Since(start) > 2*time.Second {
+			t.Fatalf("deadline not enforced: %v", time.Since(start))
+		}
+		if len(f.Ops) != 0 || r.Err() == nil || !strings.Contains(r.Err().Error(), "budget") {
+			t.Fatalf("frame %+v err %v", f, r.Err())
+		}
+		if got := r.Step(time.Unix(2, 0)); len(got.Ops) != 0 {
+			t.Error("failed room must not draw")
+		}
+	}
+}
+
+func TestTransientFrameOverrunsKeepPreviousFrame(t *testing.T) {
+	r := newRoom(t, memPack(t, "transient", "function draw() gfx.clear('#123456') end", nil), Options{})
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
-	start := time.Now()
-	f := r.Step(time.Unix(1, 0))
-	if time.Since(start) > 2*time.Second {
-		t.Fatalf("deadline not enforced: %v", time.Since(start))
+	previous := r.Step(time.Unix(1, 0))
+	if !previous.HasClear {
+		t.Fatal("initial frame was not completed")
 	}
-	if len(f.Ops) != 0 || r.Err() == nil || !strings.Contains(r.Err().Error(), "budget") {
-		t.Fatalf("frame %+v err %v", f, r.Err())
+	got := r.overrunFrame(errSoftOverrun)
+	if r.Err() != nil {
+		t.Fatalf("one transient overrun failed the room: %v", r.Err())
 	}
-	if got := r.Step(time.Unix(2, 0)); len(got.Ops) != 0 {
-		t.Error("failed room must not draw")
+	if len(got.Ops) != len(previous.Ops) || got.Clear != previous.Clear || !got.HasClear {
+		t.Fatalf("overrun did not retain previous frame: got %+v, want %+v", got, previous)
+	}
+	r.overrun(errSoftOverrun)
+	if r.Err() != nil {
+		t.Fatalf("second transient overrun failed the room: %v", r.Err())
+	}
+	r.overrun(errSoftOverrun)
+	if r.Err() == nil || !strings.Contains(r.Err().Error(), "overruns") {
+		t.Fatalf("sustained overruns should fail the room, got %v", r.Err())
+	}
+}
+
+func TestSoftFrameOverrunKeepsRoomAlive(t *testing.T) {
+	r := newRoom(t, memPack(t, "slow-frame", "function draw() if slow then wait() end; gfx.clear('#123456') end\nfunction on_input(cmd) if slow then wait() end; return false end", nil), Options{
+		Budget: Budget{Load: time.Second, Frame: 10 * time.Millisecond, Input: 10 * time.Millisecond},
+	})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int {
+		time.Sleep(15 * time.Millisecond)
+		return 0
+	}))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	previous := r.Step(time.Unix(1, 0))
+	r.L.SetGlobal("slow", lua.LBool(true))
+	got := r.Step(time.Unix(2, 0))
+	if r.Err() != nil {
+		t.Fatalf("soft frame overrun failed the room: %v", r.Err())
+	}
+	if !got.HasClear || got.Clear != previous.Clear {
+		t.Fatalf("soft overrun did not return previous frame: %+v", got)
+	}
+	if !r.Input("left") {
+		t.Fatal("overrunning input callback should remain handled")
+	}
+	if r.Err() != nil {
+		t.Fatalf("soft input overrun failed the room: %v", r.Err())
+	}
+}
+
+func TestDefaultRoomBudgets(t *testing.T) {
+	b := DefaultBudget()
+	if b.Frame != 12*time.Millisecond || b.Input != 8*time.Millisecond || b.Load != 250*time.Millisecond {
+		t.Fatalf("unexpected default budgets: %+v", b)
 	}
 }
 
