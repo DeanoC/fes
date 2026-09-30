@@ -177,28 +177,18 @@ done
 
 build_inputs=$fixture/build-inputs
 "$repo/scripts/native-extra-cores.sh" build-inputs "$cache" "$target" >"$build_inputs"
-test "$(awk -F= 'NR == 1 { print $1 }' "$build_inputs")" = fes.menu_package_id
-test "$(awk -F= 'NR == 2 { print $1 }' "$build_inputs")" = fes.pong_package_id
-test "$(awk -F= 'NR == 3 { print $1 }' "$build_inputs")" = fes.zx81_package_id
-test "$(awk -F= 'NR == 4 { print $1 }' "$build_inputs")" = fes.coleco_package_id
-test "$(awk -F= 'NR == 5 { print $1 }' "$build_inputs")" = fes.sms_package_id
-test "$(awk -F= 'NR == 6 { print $1 }' "$build_inputs")" = fes.sg1000_package_id
-test "$(awk -F= 'NR == 7 { print $1 }' "$build_inputs")" = fes.spectrum_package_id
 expected_build_inputs=$fixture/build-inputs.expected
-cat >"$expected_build_inputs" <<EOF
-fes.menu_package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-fes.pong_package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-fes.zx81_package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-fes.coleco_package_id=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-fes.sms_package_id=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-fes.sg1000_package_id=1111111111111111111111111111111111111111111111111111111111111111
-fes.spectrum_package_id=3333333333333333333333333333333333333333333333333333333333333333
-EOF
+: >"$expected_build_inputs"
+for core_id in $package_words; do
+  package_id_for "$core_id"
+  printf '%s_package_id=%s\n' "$core_id" "$package_id" >>"$expected_build_inputs"
+done
 cmp "$expected_build_inputs" "$build_inputs"
 
 records=$fixture/records
 "$repo/scripts/native-extra-cores.sh" copy-records "$cache" "$records"
-for core in menu pong zx81 coleco sms sg1000 spectrum; do
+for core_id in $package_words; do
+  core=${core_id#fes.}
   test "$(stat -c %a "$records/fes-$core.package-selection.toml")" = 444
 done
 

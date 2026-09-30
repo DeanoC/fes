@@ -74,7 +74,7 @@ unset TARGET_IMAGE_BUILD_ONCE TARGET_IMAGE_OUTPUT_ROOT FES_PACKAGE_IDS
 make_log=$fixture/make.log
 make -s -C "$repo" -n \
   NATIVE_RUNTIME_MODE=package-only \
-  FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.spectrum \
+  FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco,fes.sg1000 \
   FOGCAST_DIR="$repo/../sources/FogCast" \
   target-image-native-verify >"$make_log"
 if grep -Eq 'NATIVE_RUNTIME_SYSTEMS|MEGADRIVE_RBF_|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE|megadrive\.selection\.toml' "$make_log"; then
