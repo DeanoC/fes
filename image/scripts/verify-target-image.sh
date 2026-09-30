@@ -78,6 +78,10 @@ inspection_package_id() {
 				fes.pong) package_selection_path=${FES_PONG_PACKAGE_SELECTION:-} ;;
 				fes.zx81) package_selection_path=${FES_ZX81_PACKAGE_SELECTION:-} ;;
 				fes.coleco) package_selection_path=${FES_COLECO_PACKAGE_SELECTION:-} ;;
+				fes.sms) package_selection_path=${FES_SMS_PACKAGE_SELECTION:-} ;;
+				fes.sg1000) package_selection_path=${FES_SG1000_PACKAGE_SELECTION:-} ;;
+				fes.c64) package_selection_path=${FES_C64_PACKAGE_SELECTION:-} ;;
+				fes.spectrum) package_selection_path=${FES_SPECTRUM_PACKAGE_SELECTION:-} ;;
 				*) return 1 ;;
 			esac
 			[ -f "$package_selection_path" ] && [ ! -L "$package_selection_path" ] || return 1

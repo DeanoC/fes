@@ -27,11 +27,18 @@ from pathlib import Path
 from typing import Any
 
 
-CORE_ORDER = ("fes.pong", "fes.zx81", "fes.coleco")
+CORE_ORDER = (
+    "fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000",
+    "fes.c64", "fes.spectrum",
+)
 SELECTION_NAMES = {
     "fes.pong": "fes-pong.package-selection.toml",
     "fes.zx81": "fes-zx81.package-selection.toml",
     "fes.coleco": "fes-coleco.package-selection.toml",
+    "fes.sms": "fes-sms.package-selection.toml",
+    "fes.sg1000": "fes-sg1000.package-selection.toml",
+    "fes.c64": "fes-c64.package-selection.toml",
+    "fes.spectrum": "fes-spectrum.package-selection.toml",
 }
 PACKAGE_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 HTTP_ERROR_BODY_LIMIT = 16 * 1024
@@ -210,6 +217,10 @@ CORE_SPECS = (
             event(1, 1, 0, 100),
         ),
     ),
+    CoreSpec("fes.sms", (event(0, 0, 1, 275), event(0, 0, 0, 275))),
+    CoreSpec("fes.sg1000", (event(0, 0, 1, 275), event(0, 0, 0, 275))),
+    CoreSpec("fes.c64", (event(0, 0, 1, 275), event(0, 0, 0, 275))),
+    CoreSpec("fes.spectrum", (event(0, 0, 1, 275), event(0, 0, 0, 275))),
 )
 
 
@@ -471,7 +482,7 @@ class Runner:
             (self.capture_dir / "acceptance.json").write_text(
                 json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
-        print("target acceptance passed: Pong, ZX81, Coleco")
+        print("target acceptance passed: Pong, ZX81, Coleco, SMS, SG-1000, C64, Spectrum")
 
 
 def parser() -> argparse.ArgumentParser:

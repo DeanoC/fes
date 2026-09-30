@@ -7,7 +7,9 @@ def build_environment():
     for name in tuple(env):
         if (name.startswith(("TARGET_IMAGE_", "NATIVE_RUNTIME_",
                             "FES_MENU_PACKAGE_", "FES_PONG_PACKAGE_", "FES_ZX81_PACKAGE_",
-                            "FES_COLECO_PACKAGE_", "FES_SMS_PACKAGE_"))
+                            "FES_COLECO_PACKAGE_", "FES_SMS_PACKAGE_",
+                            "FES_SG1000_PACKAGE_", "FES_C64_PACKAGE_",
+                            "FES_SPECTRUM_PACKAGE_"))
                 or name in ("LIBMISTER_RUNTIME_DIR", "MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS",
                             "GOFLAGS", "GOEXPERIMENT", "GOOS", "GOARCH", "GOARM", "GOAMD64",
                             "GOWORK", "GOTOOLCHAIN", "GOENV", "GOFIPS140",

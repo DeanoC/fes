@@ -23,6 +23,10 @@ selected_package_cores() {
       fes.pong) printf '%s\n' pong ;;
       fes.zx81) printf '%s\n' zx81 ;;
       fes.coleco) printf '%s\n' coleco ;;
+      fes.sms) printf '%s\n' sms ;;
+      fes.sg1000) printf '%s\n' sg1000 ;;
+      fes.c64) printf '%s\n' c64 ;;
+      fes.spectrum) printf '%s\n' spectrum ;;
       *) exit 2 ;;
     esac
     [ -n "$remaining" ] || break

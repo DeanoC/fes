@@ -79,14 +79,18 @@ esac
 SELECTOR
 chmod +x "$selector"
 
-package_ids='fes.menu,fes.pong,fes.zx81,fes.coleco'
-package_words='fes.menu fes.pong fes.zx81 fes.coleco'
+package_ids='fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum'
+package_words='fes.menu fes.pong fes.zx81 fes.coleco fes.sms fes.sg1000 fes.c64 fes.spectrum'
 package_id_for() {
   case "$1" in
     fes.menu) package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
     fes.pong) package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
     fes.zx81) package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
     fes.coleco) package_id=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc ;;
+    fes.sms) package_id=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd ;;
+    fes.sg1000) package_id=1111111111111111111111111111111111111111111111111111111111111111 ;;
+    fes.c64) package_id=2222222222222222222222222222222222222222222222222222222222222222 ;;
+    fes.spectrum) package_id=3333333333333333333333333333333333333333333333333333333333333333 ;;
     *) return 1 ;;
   esac
 }
@@ -120,6 +124,14 @@ EOF
       export FES_ZX81_PACKAGE_DIR=$package FES_ZX81_PACKAGE_SELECTION=$selection ;;
     fes.coleco)
       export FES_COLECO_PACKAGE_DIR=$package FES_COLECO_PACKAGE_SELECTION=$selection ;;
+    fes.sms)
+      export FES_SMS_PACKAGE_DIR=$package FES_SMS_PACKAGE_SELECTION=$selection ;;
+    fes.sg1000)
+      export FES_SG1000_PACKAGE_DIR=$package FES_SG1000_PACKAGE_SELECTION=$selection ;;
+    fes.c64)
+      export FES_C64_PACKAGE_DIR=$package FES_C64_PACKAGE_SELECTION=$selection ;;
+    fes.spectrum)
+      export FES_SPECTRUM_PACKAGE_DIR=$package FES_SPECTRUM_PACKAGE_SELECTION=$selection ;;
   esac
 done
 cache=$fixture/cache
@@ -128,7 +140,7 @@ mkdir "$cache"
 export TARGET_IMAGE_LOCK_BIN=$selector SELECTOR_LOG=$fixture/selector.log
 export NATIVE_RUNTIME_MODE=package-only FES_PACKAGE_IDS=$package_ids
 
-test "$("$repo/scripts/native-extra-cores.sh" count)" = 5
+test "$("$repo/scripts/native-extra-cores.sh" count)" = 9
 "$repo/scripts/native-extra-cores.sh" fetch "$cache"
 for core_id in $package_words; do
   core=$(printf '%s' "$core_id" | sed 's/^fes\.//')
@@ -145,8 +157,8 @@ target=$fixture/target
 mkdir -p "$target/usr/share/mister-runtime/core-packages" \
   "$target/usr/share/mister-runtime/selections"
 "$repo/scripts/native-extra-cores.sh" install "$cache" "$target"
-test "$(find "$target/usr/share/mister-runtime/core-packages" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 4
-test "$(find "$target/usr/share/mister-runtime/selections" -maxdepth 1 -type f -name '*.package.toml' | wc -l | tr -d ' ')" = 4
+test "$(find "$target/usr/share/mister-runtime/core-packages" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 8
+test "$(find "$target/usr/share/mister-runtime/selections" -maxdepth 1 -type f -name '*.package.toml' | wc -l | tr -d ' ')" = 8
 for core_id in $package_words; do
   core=$(printf '%s' "$core_id" | sed 's/^fes\.//')
   package_id_for "$core_id"
@@ -168,18 +180,26 @@ test "$(awk -F= 'NR == 1 { print $1 }' "$build_inputs")" = fes.menu_package_id
 test "$(awk -F= 'NR == 2 { print $1 }' "$build_inputs")" = fes.pong_package_id
 test "$(awk -F= 'NR == 3 { print $1 }' "$build_inputs")" = fes.zx81_package_id
 test "$(awk -F= 'NR == 4 { print $1 }' "$build_inputs")" = fes.coleco_package_id
+test "$(awk -F= 'NR == 5 { print $1 }' "$build_inputs")" = fes.sms_package_id
+test "$(awk -F= 'NR == 6 { print $1 }' "$build_inputs")" = fes.sg1000_package_id
+test "$(awk -F= 'NR == 7 { print $1 }' "$build_inputs")" = fes.c64_package_id
+test "$(awk -F= 'NR == 8 { print $1 }' "$build_inputs")" = fes.spectrum_package_id
 expected_build_inputs=$fixture/build-inputs.expected
 cat >"$expected_build_inputs" <<EOF
 fes.menu_package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 fes.pong_package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 fes.zx81_package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 fes.coleco_package_id=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+fes.sms_package_id=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+fes.sg1000_package_id=1111111111111111111111111111111111111111111111111111111111111111
+fes.c64_package_id=2222222222222222222222222222222222222222222222222222222222222222
+fes.spectrum_package_id=3333333333333333333333333333333333333333333333333333333333333333
 EOF
 cmp "$expected_build_inputs" "$build_inputs"
 
 records=$fixture/records
 "$repo/scripts/native-extra-cores.sh" copy-records "$cache" "$records"
-for core in menu pong zx81 coleco; do
+for core in menu pong zx81 coleco sms sg1000 c64 spectrum; do
   test "$(stat -c %a "$records/fes-$core.package-selection.toml")" = 444
 done
 
@@ -269,9 +289,9 @@ chmod +x "$container"
 export CONTAINER_LOG=$fixture/container.log
 TARGET_IMAGE_CONTAINER_RUNTIME="$container" \
   sh "$repo/scripts/target-image-container.sh" fetch /work/test-fetch
-grep -Fqx -- 'FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco' "$CONTAINER_LOG"
+grep -Fqx -- 'FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum' "$CONTAINER_LOG"
 previous_line=0
-for core in menu pong zx81 coleco; do
+for core in menu pong zx81 coleco sms sg1000 c64 spectrum; do
   grep -Fqx -- "$fixture/$core-package:/fes-$core-package:ro" "$CONTAINER_LOG"
   grep -Fqx -- "$fixture/$core.package-selection.toml:/fes-$core-package-selection.toml:ro" "$CONTAINER_LOG"
   grep -Fqx -- "FES_$(printf '%s' "$core" | tr '[:lower:]' '[:upper:]')_PACKAGE_DIR=/fes-$core-package" "$CONTAINER_LOG"
@@ -285,7 +305,11 @@ grep -Fq 'FES_PACKAGE_IDS' "$repo/Makefile"
 for variable in FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION \
   FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION \
   FES_ZX81_PACKAGE_DIR FES_ZX81_PACKAGE_SELECTION \
-  FES_COLECO_PACKAGE_DIR FES_COLECO_PACKAGE_SELECTION; do
+  FES_COLECO_PACKAGE_DIR FES_COLECO_PACKAGE_SELECTION \
+  FES_SMS_PACKAGE_DIR FES_SMS_PACKAGE_SELECTION \
+  FES_SG1000_PACKAGE_DIR FES_SG1000_PACKAGE_SELECTION \
+  FES_C64_PACKAGE_DIR FES_C64_PACKAGE_SELECTION \
+  FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION; do
   grep -Fq "$variable" "$repo/Makefile"
 done
 make -s -C "$repo" -n NATIVE_RUNTIME_MODE=package-only \
@@ -299,6 +323,14 @@ make -s -C "$repo" -n NATIVE_RUNTIME_MODE=package-only \
   FES_ZX81_PACKAGE_SELECTION="$fixture/zx81.package-selection.toml" \
   FES_COLECO_PACKAGE_DIR="$fixture/coleco-package" \
   FES_COLECO_PACKAGE_SELECTION="$fixture/coleco.package-selection.toml" \
+  FES_SMS_PACKAGE_DIR="$fixture/sms-package" \
+  FES_SMS_PACKAGE_SELECTION="$fixture/sms.package-selection.toml" \
+  FES_SG1000_PACKAGE_DIR="$fixture/sg1000-package" \
+  FES_SG1000_PACKAGE_SELECTION="$fixture/sg1000.package-selection.toml" \
+  FES_C64_PACKAGE_DIR="$fixture/c64-package" \
+  FES_C64_PACKAGE_SELECTION="$fixture/c64.package-selection.toml" \
+  FES_SPECTRUM_PACKAGE_DIR="$fixture/spectrum-package" \
+  FES_SPECTRUM_PACKAGE_SELECTION="$fixture/spectrum.package-selection.toml" \
   FOGCAST_DIR="$fogcast_make" target-image-native-fetch >"$fixture/make.log"
 grep -Fq 'LIBMISTER_RUNTIME_DIR= ' "$fixture/make.log"
 grep -Fq "LIBMISTER_RUNTIME_DIR=\"$fixture/runtime\"" "$fixture/make.log"

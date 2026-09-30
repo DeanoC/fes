@@ -29,6 +29,14 @@ func packageCoreName(coreID string) (string, error) {
 		return "zx81", nil
 	case "fes.coleco":
 		return "coleco", nil
+	case "fes.sms":
+		return "sms", nil
+	case "fes.sg1000":
+		return "sg1000", nil
+	case "fes.c64":
+		return "c64", nil
+	case "fes.spectrum":
+		return "spectrum", nil
 	default:
 		return "", fmt.Errorf("unsupported package core %q", coreID)
 	}
