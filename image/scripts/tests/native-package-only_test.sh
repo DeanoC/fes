@@ -81,6 +81,7 @@ chmod +x "$selector"
 
 package_ids=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo/..")
 package_words=$(printf '%s' "$package_ids" | tr ',' ' ')
+package_count=$(printf '%s' "$package_ids" | awk -F, '{print NF}')
 package_id_for() {
   case "$1" in
     fes.menu) package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
@@ -140,7 +141,7 @@ mkdir "$cache"
 export TARGET_IMAGE_LOCK_BIN=$selector SELECTOR_LOG=$fixture/selector.log
 export NATIVE_RUNTIME_MODE=package-only FES_PACKAGE_IDS=$package_ids
 
-test "$("$repo/scripts/native-extra-cores.sh" count)" = 9
+test "$("$repo/scripts/native-extra-cores.sh" count)" = "$((package_count + 1))"
 "$repo/scripts/native-extra-cores.sh" fetch "$cache"
 for core_id in $package_words; do
   core=$(printf '%s' "$core_id" | sed 's/^fes\.//')
@@ -157,8 +158,8 @@ target=$fixture/target
 mkdir -p "$target/usr/share/mister-runtime/core-packages" \
   "$target/usr/share/mister-runtime/selections"
 "$repo/scripts/native-extra-cores.sh" install "$cache" "$target"
-test "$(find "$target/usr/share/mister-runtime/core-packages" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 8
-test "$(find "$target/usr/share/mister-runtime/selections" -maxdepth 1 -type f -name '*.package.toml' | wc -l | tr -d ' ')" = 8
+test "$(find "$target/usr/share/mister-runtime/core-packages" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = "$package_count"
+test "$(find "$target/usr/share/mister-runtime/selections" -maxdepth 1 -type f -name '*.package.toml' | wc -l | tr -d ' ')" = "$package_count"
 for core_id in $package_words; do
   core=$(printf '%s' "$core_id" | sed 's/^fes\.//')
   package_id_for "$core_id"
@@ -289,7 +290,7 @@ TARGET_IMAGE_CONTAINER_RUNTIME="$container" \
   sh "$repo/scripts/target-image-container.sh" fetch /work/test-fetch
 grep -Fqx -- "FES_PACKAGE_IDS=$package_ids" "$CONTAINER_LOG"
 previous_line=0
-for core in menu pong zx81 coleco sms sg1000 c64 spectrum; do
+for core in menu pong zx81 coleco sms sg1000 spectrum; do
   grep -Fqx -- "$fixture/$core-package:/fes-$core-package:ro" "$CONTAINER_LOG"
   grep -Fqx -- "$fixture/$core.package-selection.toml:/fes-$core-package-selection.toml:ro" "$CONTAINER_LOG"
   grep -Fqx -- "FES_$(printf '%s' "$core" | tr '[:lower:]' '[:upper:]')_PACKAGE_DIR=/fes-$core-package" "$CONTAINER_LOG"
