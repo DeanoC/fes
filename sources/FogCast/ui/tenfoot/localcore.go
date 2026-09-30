@@ -159,6 +159,7 @@ func (a *App) beginLocalStopLocked() {
 	if a.localPhase != localPhaseRunning {
 		return
 	}
+	a.localStatusEpoch++
 	a.localPhase = localPhaseStopping
 	title := a.localTitle
 	if title == "" {
@@ -186,6 +187,7 @@ func (a *App) beginLocalStopLocked() {
 		// Unavailable can mean the core is still up. in_use means the lease is
 		// gone (takeover or expiry); staying paused would wedge presents.
 		if errors.Is(err, localcores.ErrUnavailable) {
+			a.localStatusEpoch++
 			a.localPhase = localPhaseRunning
 			a.localStatus = localUnavailableCopy
 			a.status = a.localStatus
@@ -241,13 +243,14 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 	a.localStatusBusy = true
 	a.localStatusNext = now.Add(localStatusEvery)
 	gen := a.localGen
+	epoch := a.localStatusEpoch
 	client := a.localCores
 	go func() {
 		status, err := client.Status(context.Background())
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		a.localStatusBusy = false
-		if err != nil || a.localGen != gen || a.localPhase != localPhaseRunning {
+		if err != nil || a.localGen != gen || a.localPhase != localPhaseRunning || a.localStatusEpoch != epoch {
 			return
 		}
 		if status.Phase == "idle" || !status.Running {
