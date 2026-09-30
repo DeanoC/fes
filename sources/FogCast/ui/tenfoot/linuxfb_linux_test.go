@@ -346,6 +346,8 @@ func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
 			a := NewApp(nil, 1280, 720, 10)
 			feed := &localPadRecorder{}
 			a.mu.Lock()
+			a.games = []hostclient.Game{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}}
+			a.grid.Count, a.grid.Columns = 2, 1
 			a.localPhase = localPhaseRunning
 			a.localFeed = feed
 			a.mu.Unlock()
@@ -356,7 +358,7 @@ func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
 				t.Fatalf("local events: %#v", feed.events)
 			}
 			if tc.name == "hat" {
-				tc.send(in, a, now.Add(time.Millisecond))
+				in.hat(a, 17, 0, now.Add(time.Millisecond))
 			} else {
 				in.axis(a, remoteinput.AxisLeftY, 0, now.Add(time.Millisecond))
 			}
@@ -366,11 +368,11 @@ func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
 			a.mu.Lock()
 			a.localPhase = ""
 			a.mu.Unlock()
-			before := a.Snapshot().Selected
+			before := a.Snapshot().Grid.Focus
 			tc.send(in, a, now.Add(2*time.Millisecond))
 			inputs := &nativeInputs{devices: []*nativeInput{in}}
 			inputs.applyButtons(a, now.Add(2*time.Millisecond))
-			if a.Snapshot().Selected == before {
+			if a.Snapshot().Grid.Focus == before {
 				t.Fatal("menu did not receive d-pad")
 			}
 		})
