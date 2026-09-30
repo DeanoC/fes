@@ -3,7 +3,6 @@ package localcores
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -19,7 +18,6 @@ const (
 	maxSelectionBytes = 16 << 10
 	maxManifestBytes  = 64 << 10
 	maxPayloadBytes   = 32 << 20
-	maxROMMapBytes    = 32 << 20
 )
 
 // Core is one installed package the kit can show. Name is the manifest
@@ -80,8 +78,7 @@ type selectionFile struct {
 // in packageRoot. fes.menu is excluded. A payload SHA that does not match
 // the installed core.rbf and the manifest is dropped. Needs comes from the
 // core id plus manifest metadata: Pong needs nothing; ZX81 needs firmware
-// in this slice even when rom-map.json matches, because that seal is an
-// integrity check and load_core cannot activate format 3 without a ROM link;
+// because this socket has no ROM link and does not consult rom-map.json;
 // Coleco, SMS and SG-1000 need a cartridge; C64 and Spectrum need firmware
 // unless the manifest does not declare any. Anything else is firmware and
 // not launchable.
@@ -144,7 +141,7 @@ func ReadInstalledCores(selectionDir, packageRoot string) []Core {
 		if manifest.Payload.Size != 0 && manifest.Payload.Size != size {
 			continue
 		}
-		needs, block, launchable := deriveNeeds(coreID, romSealed(install, manifest), !firmwareDeclared(manifest))
+		needs, block, launchable := deriveNeeds(coreID, !firmwareDeclared(manifest))
 		seen[selection.PackageID] = struct{}{}
 		cores = append(cores, Core{
 			CoreID:      coreID,
@@ -166,14 +163,12 @@ func ReadInstalledCores(selectionDir, packageRoot string) []Core {
 	return cores
 }
 
-func deriveNeeds(coreID string, romSealed, bootsWithoutFirmware bool) (needs, block string, launchable bool) {
+func deriveNeeds(coreID string, bootsWithoutFirmware bool) (needs, block string, launchable bool) {
 	switch coreID {
 	case "fes.pong":
 		return "none", "", true
 	case "fes.zx81":
-		// romSealed only proves the map bytes match the manifest. This slice
-		// has no kit-local ROM link, so a sealed ZX81 is still not launchable.
-		_ = romSealed
+		// No kit-local ROM link, so ZX81 is not launchable.
 		return "firmware", "Needs firmware", false
 	case "fes.coleco", "fes.sms", "fes.sg1000":
 		return "media", "Needs a cartridge", false
@@ -202,33 +197,6 @@ func firmwareDeclared(m manifestFile) bool {
 		}
 	}
 	return false
-}
-
-func romSealed(dir string, m manifestFile) bool {
-	var wantHash string
-	var wantSize int64
-	switch {
-	case m.ROM != nil && m.ROM.File == "rom-map.json":
-		wantHash, wantSize = m.ROM.SHA256, m.ROM.Size
-	case m.ROMMap != nil && m.ROMMap.File == "rom-map.json":
-		wantHash, wantSize = m.ROMMap.SHA256, m.ROMMap.Size
-	default:
-		return false
-	}
-	if !sha256Hex(wantHash) || wantSize < 1 {
-		return false
-	}
-	sum, data, err := readRegular(filepath.Join(dir, "rom-map.json"), maxROMMapBytes)
-	if err != nil || sum != wantHash || int64(len(data)) != wantSize {
-		return false
-	}
-	var header struct {
-		Format int `json:"format"`
-	}
-	if json.Unmarshal(data, &header) != nil || header.Format != 1 {
-		return false
-	}
-	return true
 }
 
 func selectionCoreID(name string) (string, bool) {

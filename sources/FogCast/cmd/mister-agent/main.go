@@ -431,12 +431,16 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			options = append(options, httpapi.WithUpdate(updater))
 		}
 	}
+	localProgram := &kitLocalProgram{}
 	leases := kitlease.New(90*time.Second, func(cleanup context.Context) error {
 		var probe func(context.Context) bool
-		if native, ok := runtime.(*misterruntime.Runtime); ok {
+		native, _ := runtime.(*misterruntime.Runtime)
+		if native != nil {
 			probe = native.RuntimeSocketOpen
 		}
-		cleanupErr := kitLeaseCleanup(cleanup, probe, 2*time.Second, cleanupPeripherals, coordinator.Stop)
+		cleanupErr := kitLeaseCleanup(cleanup, probe, 2*time.Second, cleanupPeripherals, func(ctx context.Context) (protocol.Status, *protocol.APIError) {
+			return stopLeasedRuntime(ctx, coordinator.Stop, native, localProgram)
+		})
 		if errors.Is(cleanupErr, kitlease.ErrRuntimeUnreachable) {
 			slog.Warn("kit lease cleanup: runtime socket unavailable; releasing lease")
 		} else if cleanupErr != nil {
@@ -451,7 +455,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		if !ok {
 			return errors.New("kit-local control requires the native runtime")
 		}
-		cores := localcores.New(leases, nativeLocalRuntime{runtime: native}, localcores.Roots{
+		cores := localcores.New(leases, nativeLocalRuntime{runtime: native, program: localProgram}, localcores.Roots{
 			Selections: installedSelectionRoot,
 			Packages:   installedPackageRoot,
 		})

@@ -24,9 +24,11 @@ var (
 )
 
 // Runtime loads an installed directory and returns the kit to the menu.
+// admission is the caller, checked before dispatch. operation is the lease
+// context and is not canceled when the caller disconnects.
 type Runtime interface {
-	LoadCore(ctx context.Context, path, packageID string) error
-	Stop(ctx context.Context) error
+	LoadCore(admission, operation context.Context, path, packageID string) error
+	Stop(admission, operation context.Context) error
 }
 
 // LeaseGate is the kit lease operations local control may use.
@@ -72,7 +74,8 @@ func (s *Service) List() []Core {
 // Launch claims owner kit-hostless purpose kit-local-core only when the
 // lease is free. A held, busy, blocked or recovery lease is in_use and
 // makes no runtime call. A package that still needs media or firmware is
-// blocked and makes no runtime call. A failed load releases the lease.
+// blocked and makes no runtime call. Renewal starts at the claim, before
+// load. A failed load releases the lease; revocation stops the runtime.
 func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 	if s == nil || s.leases == nil || s.runtime == nil {
 		return Core{}, errUnavailable
@@ -119,16 +122,19 @@ func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 		_, _ = s.leases.Release(grant.Token)
 		return Core{}, errInUse
 	}
+	// Renew during programming. The service token stays empty until load
+	// succeeds, so Stop cannot interrupt the in-flight program.
+	s.startRenew(grant.Token, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
 	loadErr := s.load(ctx, leaseCtx, core)
 	done()
 	if loadErr != nil {
 		_, _ = s.leases.Release(grant.Token)
+		s.stopRenew()
 		return Core{}, errUnavailable
 	}
 	s.mu.Lock()
 	s.token = grant.Token
 	s.mu.Unlock()
-	s.startRenew(grant.Token, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
 	return core, nil
 }
 
@@ -178,21 +184,21 @@ func (s *Service) Close() {
 	s.stopRenew()
 }
 
-// renewInterval is one quarter of the grant. A 90s production lease renews
-// about every 20s, and a shorter grant still renews before it expires.
-func renewInterval(ttl time.Duration) time.Duration {
-	interval := ttl / 4
+// renewInterval is one quarter of the time still remaining. A 90s production
+// lease renews about every 20s, and a shorter remainder still renews before expiry.
+func renewInterval(remaining time.Duration) time.Duration {
+	interval := remaining / 4
 	if interval < time.Millisecond {
 		interval = time.Millisecond
 	}
 	return interval
 }
 
-func (s *Service) startRenew(token string, ttl time.Duration) {
+func (s *Service) startRenew(token string, remaining time.Duration) {
 	s.stopRenew()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	interval := renewInterval(ttl)
+	interval := renewInterval(remaining)
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -204,25 +210,30 @@ func (s *Service) startRenew(token string, ttl time.Duration) {
 	// Publish the loop before unlocking so Close cannot miss it.
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+		timer := time.NewTimer(interval)
+		defer timer.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-timer.C:
 				if ctx.Err() != nil {
 					return
 				}
-				if _, err := s.leases.Renew(token); err != nil {
+				grant, err := s.leases.Renew(token)
+				if err != nil {
 					return
 				}
 				s.mu.Lock()
 				current := s.token
 				s.mu.Unlock()
-				if current != token {
+				// Empty while load is still in flight. A different token means
+				// this loop's grant is no longer the one Stop or Launch published.
+				if current != "" && current != token {
 					return
 				}
+				next := renewInterval(time.Duration(grant.Status.ExpiresInMS) * time.Millisecond)
+				timer.Reset(next)
 			}
 		}
 	}()
@@ -245,23 +256,29 @@ func (s *Service) stopRenew() {
 }
 
 func (s *Service) load(request, lease context.Context, core Core) error {
-	ctx, cancel := context.WithTimeout(lease, loadTimeout)
-	defer cancel()
-	if request != nil {
-		stop := context.AfterFunc(request, cancel)
-		defer stop()
+	if request == nil {
+		request = context.Background()
 	}
-	return s.runtime.LoadCore(ctx, core.installPath, core.PackageID)
+	if lease == nil {
+		return errUnavailable
+	}
+	// The operation follows the lease, not the unix client. Disconnecting the
+	// client must not abort an in-flight program. Revocation still cancels it.
+	operation, cancel := context.WithTimeout(lease, loadTimeout)
+	defer cancel()
+	return s.runtime.LoadCore(request, operation, core.installPath, core.PackageID)
 }
 
 func (s *Service) stop(request, lease context.Context) error {
-	ctx, cancel := context.WithTimeout(lease, stopTimeout)
-	defer cancel()
-	if request != nil {
-		stop := context.AfterFunc(request, cancel)
-		defer stop()
+	if request == nil {
+		request = context.Background()
 	}
-	return s.runtime.Stop(ctx)
+	if lease == nil {
+		return errUnavailable
+	}
+	operation, cancel := context.WithTimeout(lease, stopTimeout)
+	defer cancel()
+	return s.runtime.Stop(request, operation)
 }
 
 func leaseFree(status contract.Status) bool {
