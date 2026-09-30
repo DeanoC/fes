@@ -260,5 +260,5 @@ and existing status reads (for example the kit-lease status read). The kit
 image starts `fogcast-tenfoot` on this socket only when `launcher.json`
 `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot
 opens the kit-local control socket, shows "Starting {title}…", pauses presents
-so the core owns HDMI, and resumes them after Select+Start stop. Host tests cover the backend without
+so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. Host tests cover the backend without
 a runtime: `go test ./ui/gfx/ ./ui/tenfoot/ ./cmd/fogcast-tenfoot/`.

@@ -112,6 +112,162 @@ func TestKitCoreLaunchChordStopAndResume(t *testing.T) {
 	}
 }
 
+func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
+	hold := make(chan struct{})
+	fake := &fakeLocalCores{hold: hold}
+	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Label == "FES Pong"
+	})
+	base := time.Now()
+	for i := 0; i < 4; i++ {
+		app.Tick(base.Add(time.Duration(i) * time.Second))
+	}
+	if fake.statusCount() != 0 {
+		t.Fatalf("polled while idle: %d", fake.statusCount())
+	}
+	app.HandleCommand(CmdSelect, base)
+	for i := 0; i < 4; i++ {
+		app.Tick(base.Add(time.Duration(i) * time.Second))
+	}
+	if fake.statusCount() != 0 {
+		t.Fatalf("polled while launching: %d", fake.statusCount())
+	}
+	close(hold)
+	waitFor(t, app, "running", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
+	})
+	fake.setStatus(localcores.RunStatus{Phase: "idle", Running: false})
+	snap := waitFor(t, app, "status resume", func(s Snapshot) bool {
+		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && s.LocalCoreRedraw >= 1 && roomTextHas(s, "resumed-1")
+	})
+	if snap.LocalCoreRedraw < 1 {
+		t.Fatalf("redraw %d", snap.LocalCoreRedraw)
+	}
+	if fake.statusCount() < 1 {
+		t.Fatal("running phase never polled status")
+	}
+	polled := fake.statusCount()
+	after := time.Now()
+	for i := 0; i < 4; i++ {
+		app.Tick(after.Add(time.Duration(i) * time.Second))
+	}
+	if fake.statusCount() != polled {
+		t.Fatalf("polled after idle %d -> %d", polled, fake.statusCount())
+	}
+}
+
+func TestLocalStatusPollIsSingleFlight(t *testing.T) {
+	block := make(chan struct{})
+	var once sync.Once
+	t.Cleanup(func() { once.Do(func() { close(block) }) })
+	fake := &fakeLocalCores{blockStatus: block}
+	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool {
+		return s.Room.Destination.CoreLaunchable && s.Room.Destination.Label == "FES Pong"
+	})
+	app.HandleCommand(CmdSelect, time.Unix(10, 0))
+	waitFor(t, app, "running", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning
+	})
+	deadline := time.Now().Add(2 * time.Second)
+	for fake.statusCount() < 1 {
+		app.Tick(time.Now())
+		if time.Now().After(deadline) {
+			t.Fatal("status poll did not start")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	for i := 0; i < 5; i++ {
+		app.Tick(time.Now().Add(time.Duration(i+1) * time.Second))
+	}
+	if got := fake.statusCount(); got != 1 {
+		t.Fatalf("status polls in flight %d", got)
+	}
+	once.Do(func() { close(block) })
+}
+
+func TestLocalStopInUseResumes(t *testing.T) {
+	fake := &fakeLocalCores{stopErr: localcores.ErrInUse}
+	app := startCoreRoom(t, fake, &fakePadFeed{}, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "FES Pong" && s.Room.Destination.CoreLaunchable
+	})
+	app.HandleCommand(CmdSelect, time.Unix(20, 0))
+	waitFor(t, app, "running", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
+	})
+	t1 := time.Unix(300, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
+	app.Tick(t1.Add(10*time.Millisecond + time.Second))
+	snap := waitFor(t, app, "in_use resume", func(s Snapshot) bool {
+		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && s.LocalCoreRedraw >= 1 && roomTextHas(s, "resumed-1")
+	})
+	if fake.stopCount() != 1 {
+		t.Fatalf("stops %d", fake.stopCount())
+	}
+	if snap.LocalCorePresentsPaused || snap.LocalCorePhase != "" {
+		t.Fatalf("phase=%s paused=%v", snap.LocalCorePhase, snap.LocalCorePresentsPaused)
+	}
+}
+
+func TestLocalStopUnavailableStaysRunning(t *testing.T) {
+	fake := &fakeLocalCores{stopErr: localcores.ErrUnavailable}
+	app := startCoreRoom(t, fake, &fakePadFeed{}, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool {
+		return s.Room.Destination.CoreLaunchable
+	})
+	app.HandleCommand(CmdSelect, time.Unix(20, 0))
+	waitFor(t, app, "running", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
+	})
+	t1 := time.Unix(300, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
+	app.Tick(t1.Add(10*time.Millisecond + time.Second))
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		snap := app.Snapshot()
+		if fake.stopCount() >= 1 && snap.LocalCorePhase == localPhaseRunning && snap.LocalCorePresentsPaused {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("unavailable resumed phase=%s paused=%v stops=%d", snap.LocalCorePhase, snap.LocalCorePresentsPaused, fake.stopCount())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestChordCompletingEventIsNotForwarded(t *testing.T) {
+	fake := &fakeLocalCores{}
+	feed := &fakePadFeed{}
+	app := startCoreRoom(t, fake, feed, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "FES Pong"
+	})
+	app.HandleCommand(CmdSelect, time.Unix(20, 0))
+	waitFor(t, app, "running", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning
+	})
+	t1 := time.Unix(400, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
+	app.HandleLocalPad(padButton(remoteinput.ButtonA, true), t1.Add(10*time.Millisecond+time.Second))
+	if feed.saw(remoteinput.ButtonA, remoteinput.ActionPress) {
+		t.Fatal("chord-completing press was forwarded")
+	}
+	waitFor(t, app, "stopped", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused
+	})
+	if feed.saw(remoteinput.ButtonA, remoteinput.ActionPress) {
+		t.Fatal("chord-completing press was forwarded after stop")
+	}
+	if fake.stopCount() != 1 {
+		t.Fatalf("stops %d", fake.stopCount())
+	}
+}
+
 func TestKitCoreInUseAndBlockedCopy(t *testing.T) {
 	blocked := &fakeLocalCores{}
 	app := startCoreRoom(t, blocked, nil, coreRoomScript(tenfootPongID, "ColecoVision", false, "Needs a cartridge"))
@@ -230,11 +386,17 @@ func padButton(code remoteinput.Code, down bool) remoteinput.Event {
 }
 
 type fakeLocalCores struct {
-	mu       sync.Mutex
-	launches []string
-	stops    int
-	err      error
-	hold     chan struct{}
+	mu          sync.Mutex
+	launches    []string
+	stops       int
+	err         error
+	stopErr     error
+	hold        chan struct{}
+	statuses    int
+	status      localcores.RunStatus
+	statusSet   bool
+	statusErr   error
+	blockStatus chan struct{}
 }
 
 func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
@@ -256,8 +418,42 @@ func (f *fakeLocalCores) Launch(_ context.Context, id string) error {
 func (f *fakeLocalCores) Stop(context.Context) error {
 	f.mu.Lock()
 	f.stops++
+	err := f.stopErr
 	f.mu.Unlock()
-	return nil
+	return err
+}
+
+func (f *fakeLocalCores) Status(context.Context) (localcores.RunStatus, error) {
+	f.mu.Lock()
+	f.statuses++
+	block := f.blockStatus
+	set := f.statusSet
+	status := f.status
+	err := f.statusErr
+	f.mu.Unlock()
+	if block != nil {
+		<-block
+	}
+	if err != nil {
+		return localcores.RunStatus{}, err
+	}
+	if !set {
+		return localcores.RunStatus{Phase: "running", Running: true, PackageID: tenfootPongID}, nil
+	}
+	return status, nil
+}
+
+func (f *fakeLocalCores) setStatus(status localcores.RunStatus) {
+	f.mu.Lock()
+	f.status = status
+	f.statusSet = true
+	f.mu.Unlock()
+}
+
+func (f *fakeLocalCores) statusCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.statuses
 }
 
 func (f *fakeLocalCores) launchCount() int {

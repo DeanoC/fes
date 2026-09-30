@@ -10,11 +10,12 @@ import (
 
 // LocalCores is the kit-local control socket. A nil value leaves the kit
 // table unset. Tenfoot passes *localcores.Client only for -gfx menu-display.
-// A host session leaves it nil.
+// A host session leaves it nil. Status is GET /v1/local/status.
 type LocalCores interface {
 	List(ctx context.Context) ([]localcores.Core, error)
 	Launch(ctx context.Context, packageID string) error
 	Stop(ctx context.Context) error
+	Status(ctx context.Context) (localcores.RunStatus, error)
 }
 
 // ErrNoLocalCores is returned when a core destination is activated and no

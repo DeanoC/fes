@@ -773,6 +773,132 @@ func TestClaimWithoutLocalSessionReleases(t *testing.T) {
 	}
 }
 
+func TestRevokeWhileRunningClearsRunStatus(t *testing.T) {
+	t.Run("takeover", func(t *testing.T) {
+		runtime := &fakeRuntime{}
+		service, manager, _, _ := testService(t, runtime)
+		if _, err := service.Launch(context.Background(), pongID(t, service)); err != nil {
+			t.Fatal(err)
+		}
+		if st := service.RunStatus(); !st.Running || st.Phase != phaseRunning {
+			t.Fatalf("before %+v", st)
+		}
+		status := manager.Status()
+		_, err := manager.Takeover(kitlease.TakeoverRequest{
+			ClaimRequest: kitlease.ClaimRequest{
+				RequestID: strings.Repeat("cd", 16),
+				Owner:     "fogcast@host",
+				Purpose:   "play",
+			},
+			ExpectedGeneration: status.Generation,
+			Reason:             "operator takeover",
+		})
+		if !errors.Is(err, kitlease.ErrBusy) {
+			t.Fatalf("takeover %v", err)
+		}
+		// Renew interval is a quarter of the minute TTL. Clearing has to
+		// follow the cancelled lease context, not that tick.
+		waitSessionCleared(t, service, time.Second)
+	})
+	t.Run("expiry", func(t *testing.T) {
+		const ttl = 2 * time.Second
+		runtime := &fakeRuntime{}
+		root := t.TempDir()
+		packages := filepath.Join(root, "pkgs")
+		selections := filepath.Join(root, "sel")
+		if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+			t.Fatal(err)
+		}
+		installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+		manager := kitlease.New(ttl, func(context.Context) error { return nil })
+		t.Cleanup(manager.Close)
+		waitFree(t, manager)
+		// Report a long remainder so the renew timer is not the signal.
+		gate := &remainingLease{Manager: manager, remaining: 120_000}
+		service := New(gate, runtime, Roots{Selections: selections, Packages: packages})
+		t.Cleanup(service.Close)
+		if _, err := service.Launch(context.Background(), pongID(t, service)); err != nil {
+			t.Fatal(err)
+		}
+		waitSessionCleared(t, service, 5*time.Second)
+		if gate.count() != 0 {
+			t.Fatalf("cleared by renew, not the lease context: %d", gate.count())
+		}
+	})
+	t.Run("renew failure", func(t *testing.T) {
+		runtime := &fakeRuntime{}
+		root := t.TempDir()
+		packages := filepath.Join(root, "pkgs")
+		selections := filepath.Join(root, "sel")
+		if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+			t.Fatal(err)
+		}
+		installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+		manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+		t.Cleanup(manager.Close)
+		waitFree(t, manager)
+		gate := &failingRenewLease{Manager: manager, remaining: 4_000}
+		service := New(gate, runtime, Roots{Selections: selections, Packages: packages})
+		t.Cleanup(service.Close)
+		if _, err := service.Launch(context.Background(), pongID(t, service)); err != nil {
+			t.Fatal(err)
+		}
+		waitSessionCleared(t, service, 4*time.Second)
+		if gate.count() < 1 {
+			t.Fatal("renew did not fail")
+		}
+	})
+}
+
+type failingRenewLease struct {
+	*kitlease.Manager
+	mu        sync.Mutex
+	renews    int
+	remaining int64
+}
+
+func (f *failingRenewLease) Claim(request kitlease.ClaimRequest) (kitlease.Grant, error) {
+	grant, err := f.Manager.Claim(request)
+	if err != nil {
+		return grant, err
+	}
+	grant.Status.ExpiresInMS = f.remaining
+	return grant, nil
+}
+
+func (f *failingRenewLease) Renew(string) (kitlease.Grant, error) {
+	f.mu.Lock()
+	f.renews++
+	f.mu.Unlock()
+	return kitlease.Grant{}, errors.New("renew")
+}
+
+func (f *failingRenewLease) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.renews
+}
+
+func waitSessionCleared(t *testing.T, service *Service, budget time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(budget)
+	for {
+		st := service.RunStatus()
+		service.mu.Lock()
+		token := service.token
+		phase := service.phase
+		pkg := service.runPackage
+		service.mu.Unlock()
+		if !st.Running && st.Phase != phaseRunning && token == "" && phase == phaseIdle && pkg == "" && st.PackageID == "" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("session still live status=%+v token=%q phase=%s package=%s", st, token, phase, pkg)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestRunStatusLaunchingThenRunningThenIdle(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})

@@ -21,6 +21,9 @@ const (
 	localUnavailableCopy = "This core isn't available right now."
 	localStopBudget      = 35 * time.Second
 	localChordHold       = time.Second
+	// localStatusEvery is the fastest the running-phase status poll runs.
+	// The client's own timeout is 3s, so the poll never runs under a.mu.
+	localStatusEvery = time.Second
 )
 
 // localPadSender is the kit-local input socket. *localfeed.Feed implements it.
@@ -180,7 +183,9 @@ func (a *App) beginLocalStopLocked() {
 		if a.localGen != gen || a.localPhase != localPhaseStopping {
 			return
 		}
-		if err != nil {
+		// Unavailable can mean the core is still up. in_use means the lease is
+		// gone (takeover or expiry); staying paused would wedge presents.
+		if errors.Is(err, localcores.ErrUnavailable) {
 			a.localPhase = localPhaseRunning
 			a.localStatus = localUnavailableCopy
 			a.status = a.localStatus
@@ -212,6 +217,7 @@ func (a *App) finishLocalCoreLocked() {
 }
 
 func (a *App) tickLocalCoreLocked(now time.Time) {
+	a.pollLocalStatusLocked(now)
 	if a.localPhase != localPhaseRunning || a.localChordFired || a.localChordSince.IsZero() {
 		return
 	}
@@ -220,6 +226,34 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 	}
 	a.localChordFired = true
 	a.beginLocalStopLocked()
+}
+
+// pollLocalStatusLocked reads GET /v1/local/status while a core is running.
+// At most one poll is in flight, and it is not called under a.mu: Status can
+// take the client's 3s timeout. Idle, or running false, resumes presents.
+func (a *App) pollLocalStatusLocked(now time.Time) {
+	if a.localPhase != localPhaseRunning || a.localStatusBusy || a.localCores == nil {
+		return
+	}
+	if !a.localStatusNext.IsZero() && now.Before(a.localStatusNext) {
+		return
+	}
+	a.localStatusBusy = true
+	a.localStatusNext = now.Add(localStatusEvery)
+	gen := a.localGen
+	client := a.localCores
+	go func() {
+		status, err := client.Status(context.Background())
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		a.localStatusBusy = false
+		if err != nil || a.localGen != gen || a.localPhase != localPhaseRunning {
+			return
+		}
+		if status.Phase == "idle" || !status.Running {
+			a.finishLocalCoreLocked()
+		}
+	}()
 }
 
 // HandleLocalPad feeds the running core and watches Select+Start.
@@ -233,6 +267,7 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 // Stop runs. The core therefore sees at most a brief press of whichever
 // button went down first, not a one-second hold. The one-second mark is
 // evaluated on pad events and on Tick; there is no extra timer.
+// The event that completes the chord is not forwarded.
 func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 	if a == nil {
 		return false
@@ -254,6 +289,9 @@ func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 	if !a.localChordFired && !a.localChordSince.IsZero() && now.Sub(a.localChordSince) >= localChordHold {
 		a.localChordFired = true
 		a.beginLocalStopLocked()
+		// This event crossed the one-second mark. Forwarding it can land on
+		// the menu generation Stop is about to install.
+		forward = nil
 	}
 	feed := a.localFeed
 	a.mu.Unlock()

@@ -517,6 +517,8 @@ type App struct {
 	localChordSince     time.Time
 	localChordFired     bool
 	localSent           map[remoteinput.Code]bool
+	localStatusBusy     bool
+	localStatusNext     time.Time
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.
