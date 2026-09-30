@@ -311,13 +311,100 @@ func TestTransientFrameOverrunsKeepPreviousFrame(t *testing.T) {
 	if len(got.Ops) != len(previous.Ops) || got.Clear != previous.Clear || !got.HasClear {
 		t.Fatalf("overrun did not retain previous frame: got %+v, want %+v", got, previous)
 	}
-	r.overrun(errSoftOverrun)
+	for i := 1; i < maxConsecutiveOverruns-1; i++ {
+		r.overrun(errSoftOverrun)
+	}
 	if r.Err() != nil {
-		t.Fatalf("second transient overrun failed the room: %v", r.Err())
+		t.Fatalf("soft overruns failed too early: %v", r.Err())
 	}
 	r.overrun(errSoftOverrun)
 	if r.Err() == nil || !strings.Contains(r.Err().Error(), "overruns") {
 		t.Fatalf("sustained overruns should fail the room, got %v", r.Err())
+	}
+}
+
+func TestLiveSlowDrawsAreToleratedThenFail(t *testing.T) {
+	r := newRoom(t, memPack(t, "live-slow", "function draw() if slow then wait() end end", nil), Options{
+		Budget: Budget{Load: time.Second, Frame: 8 * time.Millisecond, Input: 8 * time.Millisecond},
+	})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int { time.Sleep(12 * time.Millisecond); return 0 }))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.L.SetGlobal("slow", lua.LTrue)
+	for i := 0; i < maxConsecutiveOverruns-1; i++ {
+		r.Step(time.Unix(int64(i+1), 0))
+		if r.Err() != nil {
+			t.Fatalf("isolated soft overrun failed room at %d: %v", i, r.Err())
+		}
+	}
+	r.L.SetGlobal("slow", lua.LFalse)
+	r.Step(time.Unix(20, 0))
+	r.L.SetGlobal("slow", lua.LTrue)
+	for i := 0; i < maxConsecutiveOverruns; i++ {
+		r.Step(time.Unix(int64(21+i), 0))
+	}
+	if r.Err() == nil || !strings.Contains(r.Err().Error(), "overruns") {
+		t.Fatalf("sustained live slow draws did not fail room: %v", r.Err())
+	}
+}
+
+func TestSoftCallbacksRestoreLuaStack(t *testing.T) {
+	r := newRoom(t, memPack(t, "stack", "function on_input(cmd) if slow_input then wait() end; return true end\nfunction draw() if slow_draw then wait() end end\nfunction result_cb(v,e) if slow_result then wait() end end", nil), Options{
+		Budget: Budget{Load: time.Second, Frame: 8 * time.Millisecond, Input: 8 * time.Millisecond},
+	})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int { time.Sleep(12 * time.Millisecond); return 0 }))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	cb := r.L.GetGlobal("result_cb").(*lua.LFunction)
+	for i := 0; i < 2; i++ {
+		base := r.L.GetTop()
+		r.L.SetGlobal("slow_input", lua.LTrue)
+		r.Input("left")
+		r.L.SetGlobal("slow_input", lua.LFalse)
+		if got := r.L.GetTop(); got != base {
+			t.Fatalf("input stack top %d, want %d", got, base)
+		}
+		r.L.SetGlobal("slow_draw", lua.LTrue)
+		r.Step(time.Unix(int64(i+1), 0))
+		r.L.SetGlobal("slow_draw", lua.LFalse)
+		r.Input("reset")
+		if got := r.L.GetTop(); got != base {
+			t.Fatalf("draw stack top %d, want %d", got, base)
+		}
+		r.L.SetGlobal("slow_result", lua.LTrue)
+		r.deliver(asyncResult{cb: cb})
+		r.Step(time.Unix(int64(i+10), 0))
+		r.L.SetGlobal("slow_result", lua.LFalse)
+		r.Input("reset")
+		if got := r.L.GetTop(); got != base {
+			t.Fatalf("result stack top %d, want %d", got, base)
+		}
+	}
+	if r.Err() != nil {
+		t.Fatalf("soft callback overruns unexpectedly failed: %v", r.Err())
+	}
+}
+
+func TestCancelledPCallLeavesRoomUsable(t *testing.T) {
+	r := newRoom(t, memPack(t, "cancel-call", "function draw() gfx.clear('#123456') end", nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	base := r.L.GetTop()
+	canceled, cancel := context.WithCancel(r.ctx)
+	cancel()
+	r.ctx = canceled
+	if err := r.callGlobalSoft("draw", time.Second); err == nil {
+		t.Fatal("expected canceled PCall error")
+	}
+	r.ctx = context.Background()
+	if got := r.L.GetTop(); got != base {
+		t.Fatalf("stack top after cancellation %d, want %d", got, base)
+	}
+	if f := r.Step(time.Unix(1, 0)); !f.HasClear || r.Err() != nil {
+		t.Fatalf("room did not recover after canceled PCall: frame=%+v err=%v", f, r.Err())
 	}
 }
 

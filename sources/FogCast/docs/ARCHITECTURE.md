@@ -728,6 +728,13 @@ hit-tested on both room and parked now-playing screens. Stop, failures and
 return still use the ordinary session lifecycle. Per-room state preserves
 focus and selection, not hardware configuration or running RAM.
 
+Lua room callbacks run on the launcher thread under per-callback soft budgets;
+one slow update, draw, input, or asynchronous result keeps the previous frame
+and counts toward eight consecutive soft overruns before the room is retired.
+Each callback still has a 4x hard deadline for runaway scripts. PCall paths
+restore their Lua stack after errors and return-valued callbacks also restore
+it after success or soft overrun.
+
 `cmd/fogcast-tenfoot` is a host-side 10-foot launcher with SDL3 and explicit Linux framebuffer shells (cover grid, shelf,
 and list). It is another client of the public host API, not a second launch
 path:

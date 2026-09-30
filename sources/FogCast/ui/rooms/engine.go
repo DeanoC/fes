@@ -60,7 +60,7 @@ func DefaultBudget() Budget {
 
 const (
 	callbackHardLimitFactor = 4
-	maxConsecutiveOverruns  = 3
+	maxConsecutiveOverruns  = 8
 )
 
 func (b Budget) complete() Budget {
@@ -377,6 +377,9 @@ var errSoftOverrun = errors.New("script exceeded soft callback budget")
 
 func (r *Instance) overrun(err error) {
 	r.consecutiveOverruns++
+	// Cortex-A9 GC and scheduler pauses can produce occasional slow frames;
+	// tolerate several consecutive soft misses while the 4x deadline still
+	// terminates genuinely runaway callbacks.
 	if r.consecutiveOverruns >= maxConsecutiveOverruns {
 		r.fail(fmt.Errorf("%w (after %d consecutive overruns)", err, r.consecutiveOverruns))
 	}
@@ -404,6 +407,8 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 }
 
 func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
+	top := r.L.GetTop()
+	defer r.L.SetTop(top)
 	if err := r.callSoft(fn, budget, 1, args...); err != nil {
 		return lua.LNil, err
 	}
@@ -620,6 +625,8 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 }
 
 func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
+	top := r.L.GetTop()
+	defer r.L.SetTop(top)
 	if err := r.call(fn, budget, 1, args...); err != nil {
 		return lua.LNil, err
 	}
@@ -630,6 +637,7 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 
 func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
 	L := r.L
+	top := L.GetTop()
 	ctx, cancel := context.WithTimeout(r.ctx, budget)
 	defer cancel()
 	L.SetContext(ctx)
@@ -639,6 +647,7 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 		L.Push(a)
 	}
 	if err := L.PCall(len(args), nret, nil); err != nil {
+		L.SetTop(top)
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return fmt.Errorf("script exceeded %s budget", budget)
 		}
@@ -700,8 +709,14 @@ func (r *Instance) applyResult(res asyncResult) {
 	if res.err != nil {
 		errVal = lua.LString(res.err.Error())
 	}
-	if err := r.call(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
-		r.fail(err)
+	if err := r.callSoft(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
+		if errors.Is(err, errSoftOverrun) {
+			r.overrun(err)
+		} else {
+			r.fail(err)
+		}
+	} else {
+		r.consecutiveOverruns = 0
 	}
 }
 
