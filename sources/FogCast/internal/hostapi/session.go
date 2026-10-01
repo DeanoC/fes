@@ -705,7 +705,7 @@ func (s *sessionCoordinator) adoptPlacedPlay(ctx context.Context, dst *sessionCo
 		dst.rollbackPlacedIfCurrent(ctx, placed)
 		return sessionResult{}, err
 	}
-	if (current.State != protocol.StateActive && current.State != protocol.StateLaunching) || placed.GameID == nil || current.GameID == nil || *placed.GameID != *current.GameID {
+	if !samePlacedPlay(placed, current) {
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "placed play ended before session adoption", Phase: "admission"}
 	}
 	dst.mu.Lock()
@@ -752,12 +752,24 @@ func (s *sessionCoordinator) restoreAdoptionSnapshot(previous adoptionSnapshot) 
 	s.mu.Unlock()
 }
 
+func samePlacedPlay(placed, current protocol.Status) bool {
+	if (current.State != protocol.StateActive && current.State != protocol.StateLaunching) || placed.GameID == nil || current.GameID == nil || *placed.GameID != *current.GameID {
+		return false
+	}
+	// A described package's runtime generation distinguishes a relaunch of the
+	// same library game from the play that placement just started.
+	if placed.CorePackage != nil {
+		return current.CorePackage != nil && placed.CorePackage.PackageID == current.CorePackage.PackageID && placed.CorePackage.Generation == current.CorePackage.Generation
+	}
+	return true
+}
+
 func (s *sessionCoordinator) rollbackPlacedIfCurrent(_ context.Context, placed protocol.Status) {
 	check, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	check = s.scoped(check)
 	current, err := s.service.Status(check)
-	if err == nil && current.GameID != nil && placed.GameID != nil && *current.GameID == *placed.GameID && (current.State == protocol.StateActive || current.State == protocol.StateLaunching) {
+	if err == nil && samePlacedPlay(placed, current) {
 		s.stopPlacedPlay()
 	}
 }

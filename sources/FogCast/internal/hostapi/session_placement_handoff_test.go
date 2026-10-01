@@ -212,6 +212,36 @@ func TestPlacementAdoptionRechecksAfterConcurrentStop(t *testing.T) {
 	}
 }
 
+func TestPlacementAdoptionRejectsSameGameNewPackageGeneration(t *testing.T) {
+	packageStatus := func(generation uint64) protocol.Status {
+		return protocol.Status{State: protocol.StateActive, GameID: stringPointer("placed-game"), CorePackage: &protocol.CorePackageStatus{PackageID: "package-id", Generation: generation}}
+	}
+	service := &placementHandoffService{target: "kit-b", state: packageStatus(12)}
+	root := newSessionCoordinator(service, nil, nil)
+	b := root.forTarget("kit-b")
+	installed := false
+	_, err := root.adoptPlacedPlay(context.Background(), b, packageStatus(11), func() (sessionResult, error) {
+		installed = true
+		return sessionResult{}, nil
+	})
+	if err == nil || installed || service.stops != 0 {
+		t.Fatalf("newer same-game play adopted or stopped: err=%v installed=%v stops=%d", err, installed, service.stops)
+	}
+	if samePlacedPlay(packageStatus(11), packageStatus(12)) {
+		t.Fatal("different package generations identified as the same play")
+	}
+}
+
+func TestPlacementRollbackPreservesSameGameNewPackageGeneration(t *testing.T) {
+	placed := protocol.Status{State: protocol.StateActive, GameID: stringPointer("placed-game"), CorePackage: &protocol.CorePackageStatus{PackageID: "package-id", Generation: 11}}
+	service := &placementHandoffService{target: "kit-b", state: protocol.Status{State: protocol.StateActive, GameID: stringPointer("placed-game"), CorePackage: &protocol.CorePackageStatus{PackageID: "package-id", Generation: 12}}}
+	root := newSessionCoordinator(service, nil, nil)
+	root.forTarget("kit-b").rollbackPlacedIfCurrent(context.Background(), placed)
+	if service.stops != 0 || service.state.CorePackage.Generation != 12 {
+		t.Fatalf("rollback stopped newer play: stops=%d generation=%d", service.stops, service.state.CorePackage.Generation)
+	}
+}
+
 func TestStopWaitsForPlacementAdoptionAndCleansResources(t *testing.T) {
 	service := &placementHandoffService{target: "kit-b", state: protocol.Status{State: protocol.StateActive, GameID: stringPointer("placed-game"), System: systemPointer(protocol.SystemSNES)}}
 	root := newSessionCoordinator(service, nil, nil)

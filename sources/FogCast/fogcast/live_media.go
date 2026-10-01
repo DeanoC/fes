@@ -81,6 +81,7 @@ func (s *Service) readLiveTapeMedia(ctx context.Context, mediaID string) (*coreE
 }
 
 func (s *Service) replaceLiveMediaLocked(ctx context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	ctx = WithSessionTarget(ctx, b.Target)
 	if err := s.prepareLiveMediaClient(ctx, b); err != nil {
 		return protocol.Status{}, err
 	}
@@ -136,6 +137,7 @@ func (s *Service) ejectComputerUnit(ctx context.Context, client interface{}, pri
 }
 
 func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	ctx = WithSessionTarget(ctx, b.Target)
 	if err := s.prepareLiveMediaClient(ctx, b); err != nil {
 		return protocol.Status{}, err
 	}
