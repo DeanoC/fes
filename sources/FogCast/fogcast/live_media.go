@@ -220,7 +220,7 @@ func (s *Service) prepareLiveMediaClient(ctx context.Context, b protocol.Develop
 			return canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
-	if err := s.incompatibleTargetError(); err != nil {
+	if err := s.incompatibleSessionTargetError(ctx); err != nil {
 		return err
 	}
 	s.targetMu.RLock()

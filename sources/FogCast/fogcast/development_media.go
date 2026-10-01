@@ -47,7 +47,7 @@ func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
-	if err := s.incompatibleTargetError(); err != nil {
+	if err := s.incompatibleSessionTargetError(ctx); err != nil {
 		return protocol.Status{}, err
 	}
 	s.targetMu.RLock()
