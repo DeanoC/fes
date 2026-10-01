@@ -178,6 +178,8 @@ Dated notes under [validation/](validation/) describe the artifacts they name.
 
 A later LAN of capability-bearing nodes is drafted in
 [mesh LAN](mesh-lan.md) and [mesh node protocol](mesh-node-protocol.md).
-That draft is awaiting Deano lock. It keeps physical transitions in the
+The delivery direction agreed on 2026-10-01 is recorded there; individual
+wire/protocol strawmen still require the review described in those documents.
+It keeps physical transitions in the
 runtime, session coordination in the FogCast agent, the library in
 FogCast, definitions in mister-packages, and image assembly in FES.

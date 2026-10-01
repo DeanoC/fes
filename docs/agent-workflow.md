@@ -124,3 +124,100 @@ separate. Historical evidence applies to its recorded artifacts, not automatical
 to a new commit, imported layout or assembled image. The designated kit and its
 operating instructions remain in FogCast's
 [development guide](../sources/FogCast/docs/DEVELOPMENT.md).
+
+## GitHub delivery coordination
+
+Use the existing [FES project](https://github.com/users/DeanoC/projects/4) as the
+shared view, [M1](https://github.com/DeanoC/fes/milestone/1) as the delivery group,
+and [#357](https://github.com/DeanoC/fes/issues/357) as the accepted outcome.
+GitHub issues, native sub-issues and blocked-by links hold tasks and dependencies;
+PRs hold implementation and review. Architecture stays in the existing repo
+documents. Slack is for discussion and optional notifications. Copy decisions,
+assignments and evidence back to the issue; a chat message is not a durable
+assignment or proof that an agent received it.
+
+Every vendor uses the same issue brief: outcome; owner and file scope;
+dependencies; agent/team; exact host, absolute worktree, branch and base;
+required capabilities; checks/acceptance; PR, evidence and remaining work.
+The [agent task form](../.github/ISSUE_TEMPLATE/agent-task.yml) supplies this brief.
+A GitHub account may represent several agents, so an assignee alone is not a
+runner claim.
+
+### States and claims
+
+Use exactly one canonical state label on each managed issue. Project Status is
+a convenience projection: its existing Todo/In progress/Done automation must
+not substitute for these states or hardware evidence.
+
+| Label | Meaning |
+| --- | --- |
+| `task:ready` | Bounded, startable work; prerequisites satisfied |
+| `task:working` | A named runner has acknowledged and is doing the work |
+| `task:review` | Reviewable PR/diff and focused check results exist |
+| `task:validation` | Reviewed work awaits its stated integration/target checks |
+| `task:blocked` | A named dependency or explicit external blocker prevents progress |
+| `task:done` | This task's stated checks passed and evidence is linked |
+
+An integration lead assigns work and reconciles shared files/contracts. The
+runner acknowledges **before** changing Ready to Working, then re-reads the
+issue and dependencies at each start/resume. Check other acknowledgement
+comments first; claiming is a convention, not an atomic lock. Resolve competing
+claims with the lead before editing. A stale timestamp does not transfer
+ownership. Reassignment needs a visible handoff or an explicit takeover by the
+lead. Keep worker file ownership and the existing physical kit lease separate.
+
+Post acknowledgement as a comment with the following marker and JSON block.
+Use actual values rather than placeholders:
+
+```text
+FES-TASK-ACK
+```
+```json
+{"runner":"session or bot identity","vendor":"Codex / SuperGrok / Claude","host":"exact machine","worktree":"/absolute/path/to/fes","branch":"task branch","base":"full FES SHA"}
+```
+
+For progress, post `FES-TASK-UPDATE` followed by a JSON block containing
+`runner` (the acknowledged identity), `state`, `pr` (URL or empty string),
+`evidence` (links/results) and
+`remaining`. Replace the canonical state label as well. Post at state changes
+and before handing off or pausing. Working claims without a runner update for
+48 hours are flagged for human inspection, never automatically reassigned.
+State labels are the authority; comment state is a record, not an automatic
+transition. Do not put credentials in any brief or comment.
+
+A separate reviewer posts `FES-TASK-REVIEW` with a JSON block containing
+`reviewer` and `url` pointing to the actual review. A review request alone
+is not completed review. The integration lead verifies the review and checks.
+Code tasks may close after their own stated checks pass. The milestone outcome
+remains open until the dedicated acceptance task has reviewed exact-artifact
+evidence. Closing an issue or merging a PR does not establish that evidence.
+
+### Reconciliation and wakeups
+
+Run from any FES checkout with Python 3 and an authenticated GitHub CLI:
+
+```sh
+python3 -m scripts.coordination --repo DeanoC/fes --milestone 1 \
+  --output out/coordination/m1-report.md
+```
+
+This read-only report flags ready work without an acknowledgement, conflicting
+or missing state labels, unmet native dependencies, missing runner claims,
+48-hour stale runner updates, recorded reviews still missing, and acceptance
+issues still open. A recorded review is not independently certified by the
+report. Dependency closure likewise requires the lead to inspect its evidence.
+API failures fail the run; they never produce an all-clear report. Comments are
+parsed as data and are never executed. Reports do not assign workers, change
+labels, post messages or program hardware.
+
+The `FES coordination` workflow runs hourly and on manual dispatch **after it
+lands on the default branch**. Its report is retained as a workflow artifact and
+job summary. Until then, use the command above. The lead checks the report at
+planning/handoff and dispatches work through a runner's actually supported
+trigger. A GitHub issue, project edit or readable Slack connector does not
+guarantee an idle Codex, Grok or Claude session wakes up. Do not promise vendor
+event delivery without an observed acknowledgement.
+
+Keep scheduling initially limited to this report. Add Slack notification or
+vendor-specific event bridges only when their destination, authority and wakeup
+behavior are verified; GitHub remains the durable record.
