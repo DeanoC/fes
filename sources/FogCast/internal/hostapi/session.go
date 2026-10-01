@@ -42,6 +42,11 @@ type MediaHandle interface {
 	Stop(context.Context) error
 }
 
+type MediaBusyOtherKitError struct{}
+
+func (MediaBusyOtherKitError) Error() string                    { return "host media is already running on another kit" }
+func (err MediaBusyOtherKitError) PublicMediaStartError() error { return err }
+
 type sessionExecutionService interface {
 	SessionExecution(context.Context, string) (string, error)
 }
@@ -1119,6 +1124,7 @@ func (s *sessionCoordinator) startMedia(ctx context.Context, id, execution strin
 	if s.media == nil {
 		return nil
 	}
+	ctx = WithMediaExecution(ctx, execution)
 	handle, err := s.media.Start(ctx, id)
 	if err != nil {
 		media := "failed"
@@ -1159,6 +1165,23 @@ func (s *sessionCoordinator) startMedia(ctx context.Context, id, execution strin
 	s.watchMedia(handle, generation, execution)
 	s.record("session.media.start", sessionResult{State: protocol.StateActive, Execution: execution, Media: mediaState(handle)}, nil)
 	return nil
+}
+
+type mediaExecutionContextKey struct{}
+
+// MediaExecutionFromContext reports the execution type requesting host media.
+// It lets the configured physical capture pipeline distinguish host-only
+// playback from FPGA sessions.
+func MediaExecutionFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	value, _ := ctx.Value(mediaExecutionContextKey{}).(string)
+	return value
+}
+
+func WithMediaExecution(ctx context.Context, execution string) context.Context {
+	return context.WithValue(ctx, mediaExecutionContextKey{}, execution)
 }
 
 func (s *sessionCoordinator) stopMediaBounded(execution string) error {

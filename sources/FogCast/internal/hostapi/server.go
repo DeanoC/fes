@@ -1006,6 +1006,9 @@ func rejectBody(w http.ResponseWriter, r *http.Request) error {
 
 func writeSessionError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.As(err, new(MediaBusyOtherKitError)):
+		writeError(w, http.StatusConflict, "MEDIA_BUSY_OTHER_KIT", "host media is already running on another kit")
+		return
 	case errors.Is(err, fogcast.ErrSessionChanged):
 		writeError(w, http.StatusConflict, "SESSION_CHANGED", fogcast.ErrSessionChanged.Error())
 		return

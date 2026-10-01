@@ -1473,6 +1473,48 @@ func TestManagedSenderComponentRejectsMissingSourceFactory(t *testing.T) {
 	}
 }
 
+func TestManagedSenderComponentSerializesHostMediaByTarget(t *testing.T) {
+	ownership := &hostMediaOwnership{}
+	makeComponent := func() *managedSenderComponent {
+		return &managedSenderComponent{
+			media: fogcast.MediaConfig{Session: "session", Generation: 1, SSRC: 7, RTPDestination: "127.0.0.1:5004", ControlAddress: "127.0.0.1:5005", Bitrate: 1_000_000, GOP: 30, MTU: 1200},
+			token: "token", ownership: ownership,
+			newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+				return &compositionCapture{}, nil, nil
+			},
+			options: []remotemedia.ManagedSenderOption{remotemedia.WithManagedSenderFactory(func(_ remotemedia.SenderConfig, source remotemedia.CaptureSource) (remotemedia.ManagedSenderRunner, error) {
+				return &compositionRunner{done: make(chan struct{}), source: source}, nil
+			})},
+		}
+	}
+	ctxA := fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionHostOnly), "A")
+	handleA, err := makeComponent().Start(ctxA, "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctxB := fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionHostOnly), "B")
+	if _, err = makeComponent().Start(ctxB, "game"); err == nil || !errors.As(err, new(hostapi.MediaBusyOtherKitError)) {
+		t.Fatalf("B host media start error=%v, want MEDIA_BUSY_OTHER_KIT", err)
+	}
+	// FPGA-native play does not use the host capture pipeline and remains independent.
+	nativeCtx := fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionFPGANative), "B")
+	if native, err := makeComponent().Start(nativeCtx, "game"); err != nil {
+		t.Fatalf("native B media start=%v", err)
+	} else if err := native.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := handleA.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	handleB, err := makeComponent().Start(ctxB, "game")
+	if err != nil {
+		t.Fatalf("B host media after A stopped: %v", err)
+	}
+	if err := handleB.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCompositionPartialLocalHandleSurvivesSuccessfulTargetRollback(t *testing.T) {
 	local := &compositionDirectMediaHandle{done: make(chan struct{})}
 	target := &compositionTargetCast{}

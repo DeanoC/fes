@@ -102,7 +102,7 @@ func (s *Session) Start(ctx context.Context, gameID string) (Handle, error) {
 			started = append(started, handle)
 		}
 		if err != nil {
-			return failedStartHandle(s.cleanup(ctx, started), s.stopTimeout, role)
+			return failedStartHandle(s.cleanup(ctx, started), s.stopTimeout, role, err)
 		}
 		if handle == nil {
 			return failedStartHandle(s.cleanup(ctx, started), s.stopTimeout, role)
@@ -145,8 +145,13 @@ func (s *Session) cleanup(parent context.Context, components []ComponentHandle) 
 	return remaining
 }
 
-func failedStartHandle(remaining []ComponentHandle, timeout time.Duration, role string) (Handle, error) {
+func failedStartHandle(remaining []ComponentHandle, timeout time.Duration, role string, cause ...error) (Handle, error) {
 	err := fmt.Errorf("%w: %s", ErrComponentStart, role)
+	if len(cause) != 0 && cause[0] != nil {
+		if safe, ok := cause[0].(interface{ PublicMediaStartError() error }); ok {
+			err = fmt.Errorf("%w: %w", err, safe.PublicMediaStartError())
+		}
+	}
 	if handle := newSessionHandle(remaining, timeout); handle != nil {
 		return handle, err
 	}
