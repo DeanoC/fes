@@ -317,6 +317,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 				newSources:   makeMediaSourcesFactory(deps.newCapture, deps.newAudio),
 				options:      deps.senderOptions,
 				audioOptions: deps.audioOptions,
+				ownership:    &hostMediaOwnership{},
 			}
 			target := deps.targetCast
 			if target == nil {
@@ -498,14 +499,70 @@ type managedSenderComponent struct {
 	newSources   mediaSourcesFactory
 	options      []remotemedia.ManagedSenderOption
 	audioOptions []remotemedia.ManagedAudioSenderOption
+	ownership    *hostMediaOwnership
+}
+
+var errMediaBusyOtherKit error = hostapi.MediaBusyOtherKitError{}
+
+type hostMediaOwnership struct {
+	mu    sync.Mutex
+	owner string
+}
+
+func (o *hostMediaOwnership) claim(target string) (func(), error) {
+	if o == nil {
+		return func() {}, nil
+	}
+	o.mu.Lock()
+	if o.owner != "" && o.owner != target {
+		o.mu.Unlock()
+		return nil, errMediaBusyOtherKit
+	}
+	o.owner = target
+	o.mu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			o.mu.Lock()
+			if o.owner == target {
+				o.owner = ""
+			}
+			o.mu.Unlock()
+		})
+	}, nil
+}
+
+type ownedMediaHandle struct {
+	mediasession.ComponentHandle
+	release func()
+}
+
+func (h *ownedMediaHandle) Stop(ctx context.Context) error {
+	if err := h.ComponentHandle.Stop(ctx); err != nil {
+		return err
+	}
+	h.release()
+	return nil
 }
 
 func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (mediasession.ComponentHandle, error) {
-	if s == nil || s.newSources == nil {
+	if s == nil {
+		return nil, errors.New("media sources could not be started")
+	}
+	if hostapi.MediaExecutionFromContext(ctx) == fogcast.ExecutionFPGANative {
+		return noopMediaHandle{}, nil
+	}
+	release, err := s.ownership.claim(fogcast.SessionTargetFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	if s.newSources == nil {
+		release()
 		return nil, errors.New("media sources could not be started")
 	}
 	capture, audio, err := s.newSources(s.media)
 	if err != nil || capture == nil {
+		release()
 		if capture != nil || audio != nil {
 			return cleanupUnownedMediaSources(capture, audio, "media sources could not be started")
 		}
@@ -520,6 +577,7 @@ func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (medi
 		Bitrate: s.media.Bitrate, GOP: s.media.GOP, MTU: s.media.MTU,
 	}, capture, s.options...)
 	if err != nil {
+		release()
 		return cleanupUnownedMediaSources(capture, audio, "media sender could not be configured")
 	}
 	var managedAudio *remotemedia.ManagedAudioSender
@@ -532,11 +590,13 @@ func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (medi
 			FrameSamples: config.Source.FrameSamples, FormatCapabilityVersion: config.Transport.FormatCapabilityVersion,
 		}, audio, s.audioOptions...)
 		if err != nil {
+			release()
 			return cleanupUnownedMediaSources(capture, audio, "audio sender could not be configured")
 		}
 	}
 	sender, err := remotemedia.NewManagedMediaSender(video, managedAudio)
 	if err != nil {
+		release()
 		return cleanupUnownedMediaSources(capture, audio, "media sender could not be configured")
 	}
 	// Ownership transfers to the managed sender before Start. From this point
@@ -546,11 +606,12 @@ func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (medi
 	handle, err := sender.Start(ctx, gameID)
 	if err != nil || handle == nil {
 		if handle == nil {
+			release()
 			return nil, errors.New("media sender could not be started")
 		}
-		return handle, errors.New("media sender could not be started")
+		return &ownedMediaHandle{ComponentHandle: handle, release: release}, errors.New("media sender could not be started")
 	}
-	return handle, nil
+	return &ownedMediaHandle{ComponentHandle: handle, release: release}, nil
 }
 
 type mediaSourcesCleanupHandle struct {
@@ -734,6 +795,9 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 	session := s.session
 	generation := s.generation
 	mediaSet := s.mediaSet
+	if hostapi.MediaExecutionFromContext(ctx) == fogcast.ExecutionFPGANative {
+		mediaSet = nil
+	}
 	s.mu.Unlock()
 	if target != nil {
 		var status targetclient.CastStatus

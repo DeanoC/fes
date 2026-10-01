@@ -2374,3 +2374,12 @@ The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. Menu-display passes `IdleDisplayOnly` into rooms and
 disables the live room/tape routes because its MENU framebuffer requires idle
 hardware. The separate host renderer retains those routes.
+
+The configured host capture sender is one physical pipeline with one RTP
+destination and sender token. Host-only playback claims that pipeline for its
+target until its media handle stops. A host-only start on another target fails
+with `MEDIA_BUSY_OTHER_KIT` (HTTP 409), and the target cast started for that
+launch is rolled back. FPGA-native plays do not use the host capture sender and
+remain independent. Configuration does not bind the RTP destination to a named
+target address, so the host cannot validate destination-to-kit correspondence;
+operators must configure the destination for the intended kit.
