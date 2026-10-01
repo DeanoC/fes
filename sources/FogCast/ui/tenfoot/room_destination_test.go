@@ -615,9 +615,8 @@ func TestPairedKitLeaseIgnoresSelectedTargetBusyAndBlocksOwnForeignLease(t *test
 func TestPairedKitStatus404KeepsBrowsingAndRefusesLaunch(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "overworld", destRoomScript)})
-	app := newRoomApp(t, h, index, true)
+	app := newRoomApp(t, h, index, true, true)
 	waitFor(t, app, "room picker", func(s Snapshot) bool { return s.RoomPicker.Open })
-	app.client.paired = true
 	app.fetchHealth(t.Context()) // the scoped /launcher/kit-lease endpoint returns 404
 	snap := app.Snapshot()
 	if !snap.KitLease.Unreachable || snap.KitLease.Line != "kit status unavailable" {

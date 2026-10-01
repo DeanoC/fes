@@ -275,9 +275,13 @@ func waitForPrefs(t *testing.T, h *roomHost, n int) {
 	t.Fatalf("timed out waiting for %d edition preferences, have %d", n, h.preferenceCount())
 }
 
-func newRoomApp(t *testing.T, h *roomHost, index *rooms.Index, homeRooms bool) *App {
+func newRoomApp(t *testing.T, h *roomHost, index *rooms.Index, homeRooms bool, paired ...bool) *App {
 	t.Helper()
-	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	client := NewClient(h.server.URL, h.server.Client())
+	if len(paired) > 0 && paired[0] {
+		client.paired = true
+	}
+	app := NewApp(client, 1280, 720, 50)
 	app.SetPrefsPath(t.TempDir() + "/tenfoot.json")
 	app.SetRooms(index, "/tmp/rooms")
 	app.SetHomeRooms(homeRooms)
