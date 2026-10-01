@@ -45,7 +45,10 @@ generation and session ownership checks still apply separately.
 Tenfoot and the kit launcher consume that package for session
 polling; the browser keeps its own `parseSession` and shares the common
 success/rejection matrix in `hostclient/testdata/session-contract.json`.
-That fixture is not a claim of full decoder equivalence. Launch, stop,
+That fixture is not a claim of full decoder equivalence. In paired tenfoot
+mode, launch and kit mutations require a known, non-foreign scoped kit lease;
+an unavailable status is shown as `kit status unavailable` while room browsing
+continues. Launch, stop,
 and input attach/detach stay on their existing endpoints. The host resolves installed package entries and explicitly binds library
 persistence. The runtime validates the package and declared interfaces before
 programming. Bare legacy game records remain browseable but unlaunchable.
@@ -253,6 +256,13 @@ may consume host, target-client, and public protocol contracts, but do not own
 target handlers, runtime lifecycle, image assembly, or FPGA builds. The FES
 parent selects the FogCast revision and owns image integration and release
 evidence.
+
+Tenfoot applies the paired kit-lease state to installed-core destinations as
+well as FPGA titles. On a paired kit, a foreign lease displays the shared
+in-use copy and refuses Confirm; unavailable lease status fails closed. Core
+cartridge and firmware blocks retain priority, and the destination returns to
+Ready when the lease state becomes free. Unpaired host connection state does
+not mark installed-core tiles in use.
 
 The dependency direction is host/UI/`catalog`/`internal/hostapi` -> public
 contracts and `targetclient`; the target executable -> target implementation
@@ -700,6 +710,18 @@ session input, and launcher input are owner-only; another paired kit gets
 403 `TARGET_MISMATCH`. Per-kit concurrent sessions are follow-up #288.
 Health, `rom_cached`, and `/api/v1/library/cache` still describe the
 selected target (#289).
+
+The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
+IDs so uncached room selections can load their detail row. It does not expose
+full `/api/v1/library/settings`, which contains host filesystem roots. Tenfoot
+and `fogcast-kit` use `GET /api/v1/launcher/kit-lease` for an authenticated,
+target-ID-scoped status projection. It returns only that enabled kit's lease
+state, owner, purpose, generation, expiry, reachability, and readiness.
+Paired-kit lease and launch guards use this projection; selected-target host
+health remains available for host-mode clients. If the projection is
+unavailable, the paired kit's lease is unknown and input fails closed. The
+endpoint exposes no host paths. The settings overlay remains unavailable on
+the paired listener and reports its normal load error.
 
 ## Native 10-foot launcher
 
@@ -1190,6 +1212,11 @@ grant. A confirmed idle service gets an empty-body Stop. When a play still
 survives, the shell posts `release_idle` so idle grants drop without stopping
 that play. A failed release is retried before the shell exits.
 Application shutdown releases its grants after input/session cleanup.
+
+The `fogcast-kit` grid and tenfoot show foreign lease ownership from the
+paired host's `/api/v1/health` target connection (`busy` plus owner). Tenfoot
+uses this paired response with the launcher bearer; it does not query the
+target agent's `/v1/kit/lease`, which requires the separate agent token.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean
 idle after explicit Stop and never-owned idle skip the target Stop, while a

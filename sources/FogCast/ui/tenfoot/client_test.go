@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -31,6 +32,26 @@ func TestClientSessionPreservesKitFields(t *testing.T) {
 	if result.CorePackage == nil || result.CorePackage.Generation != ^uint64(0)-1 || !result.CorePackage.Gamepad || len(result.CorePackage.ActiveInterfaces) != 1 {
 		t.Fatalf("core package = %+v", result.CorePackage)
 	}
+}
+
+func TestLauncherAuthTransportAddsKitIdentity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer kit-token" || r.Header.Get("X-FogCast-Target-ID") != "kit-target" {
+			t.Errorf("launcher identity headers = %q/%q", r.Header.Get("Authorization"), r.Header.Get("X-FogCast-Target-ID"))
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, launcherHTTPClient("kit-token", "kit-target"))
+	req, err := client.NewRequest(context.Background(), http.MethodGet, "/api/v1/platforms", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.HTTPClient().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
 }
 
 func TestClientLaunchRejectsOversizeSessionResponse(t *testing.T) {
@@ -585,80 +606,50 @@ func TestClientSessionEventsPollsAfterCursor(t *testing.T) {
 	}
 }
 
-func TestClientKitLeaseStatusOnlyDecode(t *testing.T) {
-	t.Parallel()
+func TestPairedKitLeaseStatusKeepsLeaseFields(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/v1/kit/lease" {
-			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
-			http.NotFound(w, r)
-			return
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/launcher/kit-lease" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"state":         "held",
-			"owner":         "fogcast@powerboat",
-			"purpose":       "interactive game/development session",
-			"generation":    "abc123def456",
-			"expires_at":    "2026-09-06T12:00:00Z",
-			"expires_in_ms": 72000,
-		})
+		if r.Header.Get("Authorization") != "Bearer launcher-secret" || r.Header.Get("X-FogCast-Target-ID") != "kit-target" || r.Header.Get("X-FogCast-Kit-Lease") != "" {
+			t.Errorf("lease credentials: authorization=%q target=%q lease=%q", r.Header.Get("Authorization"), r.Header.Get("X-FogCast-Target-ID"), r.Header.Get("X-FogCast-Kit-Lease"))
+		}
+		_, _ = io.WriteString(w, `{"state":"held","owner":"fogcast@powerboat","purpose":"play","generation":"lease-42","expires_at":"2026-10-01T12:00:00Z","expires_in_ms":42000}`)
 	}))
-	t.Cleanup(server.Close)
-	got, err := NewClient(server.URL, server.Client()).KitLease(context.Background(), server.URL)
+	defer server.Close()
+	client := NewClient(server.URL, launcherHTTPClient("launcher-secret", "kit-target"))
+	got, err := client.PairedKitLease(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.State != "held" || got.Owner != "fogcast@powerboat" || got.Purpose == "" || got.Generation != "abc123def456" || got.ExpiresInMS != 72000 {
-		t.Fatalf("lease = %#v", got)
-	}
-	if got.Unavailable {
-		t.Fatal("held lease marked unavailable")
-	}
-
-	blocked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"state":      "blocked",
-			"reason":     "kit cleanup failed or agent shutting down; operator recovery required",
-			"generation": "deadbeef",
-		})
-	}))
-	t.Cleanup(blocked.Close)
-	got, err = NewClient(blocked.URL, blocked.Client()).KitLease(context.Background(), blocked.URL)
-	if err != nil || got.State != "blocked" || !strings.Contains(got.Reason, "cleanup failed") {
-		t.Fatalf("blocked = %#v, %v", got, err)
-	}
-
-	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	down.Close()
-	got, err = NewClient(down.URL, down.Client()).KitLease(context.Background(), down.URL)
-	if err != nil || !got.Unavailable {
-		t.Fatalf("down kit = %#v, %v", got, err)
-	}
-
-	empty, err := NewClient(server.URL, server.Client()).KitLease(context.Background(), "")
-	if err != nil || empty.State != "" || empty.Unavailable {
-		t.Fatalf("empty target = %#v, %v", empty, err)
-	}
-
-	unauth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = io.WriteString(w, `{"error":{"code":"UNAUTHORIZED","message":"missing or incorrect bearer token"}}`)
-	}))
-	t.Cleanup(unauth.Close)
-	got, err = NewClient(unauth.URL, unauth.Client()).KitLease(context.Background(), unauth.URL)
-	if err != nil || got.ErrorCode != "UNAUTHORIZED" || !strings.Contains(formatKitLeaseLine(got), "kit lease") {
-		t.Fatalf("unauthorized lease = %#v, %v", got, err)
+	if got.State != "held" || got.Owner != "fogcast@powerboat" || got.Purpose != "play" || got.Generation != "lease-42" || got.ExpiresInMS != 42000 || got.ExpiresAt != "2026-10-01T12:00:00Z" {
+		t.Fatalf("kit lease = %+v", got)
 	}
 }
 
-func TestDecodeKitLeaseBlockedError(t *testing.T) {
-	t.Parallel()
-	got := decodeKitLeaseBody(503, []byte(`{"error":{"code":"KIT_LEASE_BLOCKED","message":"cleanup failed"}}`))
-	if got.State != "blocked" || got.Unavailable || got.ErrorCode != "KIT_LEASE_BLOCKED" {
-		t.Fatalf("blocked error = %#v", got)
+func TestKitLeaseConnectionMapsGuardStates(t *testing.T) {
+	for _, tc := range []struct{ state, want string }{{"busy", "held"}, {"recovery-required", "blocked"}, {"ready", "ready"}} {
+		got := kitLeaseFromConnection(hostclient.TargetConnection{State: tc.state, Owner: "owner"})
+		if got.State != tc.want || got.Owner != "owner" {
+			t.Errorf("%s maps to %+v, want state %s and owner", tc.state, got, tc.want)
+		}
 	}
-	down := decodeKitLeaseBody(503, []byte(`{"error":{"code":"MISTER_UNAVAILABLE","message":"target down"}}`))
-	if !down.Unavailable || down.ErrorCode != "MISTER_UNAVAILABLE" {
-		t.Fatalf("mister unavailable = %#v", down)
+}
+
+func TestLauncherBearerDoesNotFollowRedirect(t *testing.T) {
+	var redirected atomic.Bool
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { redirected.Store(true) }))
+	defer target.Close()
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/stolen", http.StatusFound)
+	}))
+	defer source.Close()
+	_, err := NewClient(source.URL, launcherHTTPClient("launcher-secret", "kit-target")).Health(context.Background())
+	if err == nil {
+		t.Fatal("redirect response unexpectedly succeeded")
+	}
+	if redirected.Load() {
+		t.Fatal("launcher request followed redirect with bearer credentials")
 	}
 }
 

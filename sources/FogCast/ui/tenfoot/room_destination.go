@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -33,14 +34,68 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d = rooms.ApplyEditionPreference(d, id)
 		}
 	}
-	return rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
+	d = rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
+	if d.Kind == rooms.KindCore && d.CoreLaunchable && a.client != nil && a.client.paired {
+		switch {
+		case a.foreignKitLeaseLocked():
+			d.LeaseHeld = true
+			d.Availability = rooms.AvailUnavailable
+			d.Status = localInUseCopy
+			d.Action = localInUseCopy
+		case a.pairedKitStatusUnavailableLocked():
+			d.CoreLaunchable = false
+			d.CoreBlock = "kit status unavailable"
+			d.Availability = rooms.AvailUnavailable
+			d.Status = d.CoreBlock
+			d.Action = d.CoreBlock
+		}
+	}
+	return d
+}
+
+func (a *App) pairedKitStatusUnavailableLocked() bool {
+	if a == nil || a.client == nil || !a.client.paired {
+		return false
+	}
+	if !a.kitLeaseHave || a.kitLease.Unavailable {
+		return true
+	}
+	switch strings.TrimSpace(a.kitLease.State) {
+	case "free", "held", "revoking", "busy", "blocked", "recovery-required":
+		return false
+	default:
+		return true
+	}
+}
+
+// kitMutationBlockedLocked fails closed when a paired target's lease cannot be
+// established or belongs to another shell.
+func (a *App) kitMutationBlockedLocked() bool {
+	if a == nil || a.client == nil || !a.client.paired {
+		return false
+	}
+	if a.pairedKitStatusUnavailableLocked() {
+		a.status = "kit status unavailable"
+		return true
+	}
+	if a.foreignKitLeaseLocked() {
+		a.status = localInUseCopy
+		return true
+	}
+	return false
 }
 
 // foreignKitLeaseLocked reports a kit lease held by another session.
 // Connection state busy is that holder. The same shell's retained grant
 // stays ready or active and is not foreign.
 func (a *App) foreignKitLeaseLocked() bool {
-	return a != nil && a.healthHave && a.health.Connection.State == "busy"
+	if a == nil {
+		return false
+	}
+	if a.client != nil && a.client.paired {
+		return a.kitLeaseHave && kitlease.ForeignHID(kitlease.Status{State: a.kitLease.State, Owner: a.kitLease.Owner, Purpose: a.kitLease.Purpose})
+	}
+	return a.healthHave && a.health.Connection.State == "busy"
 }
 
 func (a *App) rememberRoomPickLocked(d rooms.Destination, game hostclient.Game) {

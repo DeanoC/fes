@@ -419,6 +419,10 @@ func (a *App) submitFirmwarePathOSKLocked() {
 }
 
 func (a *App) startFirmwareImportLocked(path string) {
+	if a.kitMutationBlockedLocked() {
+		a.firmwarePickerStatus = a.status
+		return
+	}
 	if a.firmwarePickerBusy {
 		return
 	}

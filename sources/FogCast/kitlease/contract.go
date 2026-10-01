@@ -20,13 +20,15 @@ const (
 )
 
 type Status struct {
-	ExpiresInMS int64     `json:"expires_in_ms"`
-	State       string    `json:"state"`
-	Generation  string    `json:"generation"`
-	Owner       string    `json:"owner,omitempty"`
-	Purpose     string    `json:"purpose,omitempty"`
-	ExpiresAt   time.Time `json:"expires_at,omitempty"`
-	Reason      string    `json:"reason,omitempty"`
+	TargetReachable bool      `json:"target_reachable,omitempty"`
+	TargetReady     bool      `json:"target_ready,omitempty"`
+	ExpiresInMS     int64     `json:"expires_in_ms"`
+	State           string    `json:"state"`
+	Generation      string    `json:"generation"`
+	Owner           string    `json:"owner,omitempty"`
+	Purpose         string    `json:"purpose,omitempty"`
+	ExpiresAt       time.Time `json:"expires_at,omitempty"`
+	Reason          string    `json:"reason,omitempty"`
 }
 
 type ClaimRequest struct {

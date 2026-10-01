@@ -83,6 +83,7 @@ type roomHost struct {
 	recentsGate  chan struct{}
 	prefs        map[string]hostclient.EditionPreference
 	uiPosts      []UIEvent
+	pairedLease  bool
 }
 
 func newRoomHost(t *testing.T) *roomHost {
@@ -92,6 +93,8 @@ func newRoomHost(t *testing.T) *roomHost {
 	pngBytes := mustPNG(t, 8, 12, color.RGBA{R: 200, G: 40, B: 40, A: 255})
 	h.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/launcher/kit-lease" && h.pairedLease:
+			_, _ = io.WriteString(w, `{"state":"free"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			if r.URL.Query().Get("collection") == "recents" {
 				h.mu.Lock()
@@ -275,9 +278,13 @@ func waitForPrefs(t *testing.T, h *roomHost, n int) {
 	t.Fatalf("timed out waiting for %d edition preferences, have %d", n, h.preferenceCount())
 }
 
-func newRoomApp(t *testing.T, h *roomHost, index *rooms.Index, homeRooms bool) *App {
+func newRoomApp(t *testing.T, h *roomHost, index *rooms.Index, homeRooms bool, paired ...bool) *App {
 	t.Helper()
-	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	client := NewClient(h.server.URL, h.server.Client())
+	if len(paired) > 0 && paired[0] {
+		client.paired = true
+	}
+	app := NewApp(client, 1280, 720, 50)
 	app.SetPrefsPath(t.TempDir() + "/tenfoot.json")
 	app.SetRooms(index, "/tmp/rooms")
 	app.SetHomeRooms(homeRooms)

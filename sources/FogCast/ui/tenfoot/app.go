@@ -1995,6 +1995,14 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.openFirmwarePickerLocked(game)
 		return
 	}
+	if a.client != nil && a.client.paired && a.kitMutationBlockedLocked() {
+		message := a.status
+		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: message}
+		if a.room != nil {
+			a.closeRoomOverlaysLocked()
+		}
+		return
+	}
 	if reason := launchBlockReason(game); reason != "" {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		if a.room != nil {
@@ -2330,10 +2338,13 @@ func loadTapeChromeKey(name string) bool {
 }
 
 func (a *App) playHIDFailClosedLocked() bool {
-	if a.healthHave && kitlease.ForeignHID(kitlease.Status{
+	if (a.client == nil || !a.client.paired) && a.healthHave && kitlease.ForeignHID(kitlease.Status{
 		State: a.health.Connection.State,
 		Owner: a.health.Connection.Owner,
 	}) {
+		return true
+	}
+	if a.client != nil && a.client.paired && (!a.kitLeaseHave || a.kitLease.Unavailable) {
 		return true
 	}
 	if !a.kitLeaseHave || a.kitLease.Unavailable {
@@ -2378,7 +2389,6 @@ func (a *App) pollSession(ctx context.Context) {
 	a.fetchSession(ctx)
 	a.fetchSessionEvents(ctx)
 	a.fetchHealth(ctx)
-	a.fetchKitLease(ctx)
 	ticker := time.NewTicker(sessionPollInterval)
 	defer ticker.Stop()
 	for {
@@ -2389,12 +2399,10 @@ func (a *App) pollSession(ctx context.Context) {
 			a.fetchSession(ctx)
 			a.fetchSessionEvents(ctx)
 			a.fetchHealth(ctx)
-			a.fetchKitLease(ctx)
 		case <-a.sessionKick:
 			a.fetchSession(ctx)
 			a.fetchSessionEvents(ctx)
 			a.fetchHealth(ctx)
-			a.fetchKitLease(ctx)
 		}
 	}
 }
@@ -2433,17 +2441,61 @@ func (a *App) kickSessionPollLocked() {
 }
 
 func (a *App) fetchHealth(ctx context.Context) {
+	var paired KitLeaseStatus
+	var pairedErr error
+	pairedHave := a.client != nil && a.client.paired
+	if pairedHave {
+		paired, pairedErr = a.client.PairedKitLease(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+	}
 	result, err := a.client.Health(ctx)
 	if ctx.Err() != nil {
 		return
 	}
 	if err == nil {
+		lease := kitLeaseFromConnection(result.Connection)
+		if pairedHave {
+			if pairedErr == nil {
+				lease = paired
+				result.TargetReachable = paired.TargetReachable
+				result.TargetReady = paired.TargetReady
+				result.Connection = hostclient.TargetConnection{}
+			} else {
+				lease = KitLeaseStatus{Unavailable: true, Reason: "paired kit lease status unavailable"}
+				result.TargetReachable = false
+				result.TargetReady = false
+			}
+		}
 		a.mu.Lock()
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
+		a.kitLeaseHave = true
+		a.kitLease = lease
 		a.mu.Unlock()
 		return
+	}
+	if pairedHave && pairedErr == nil {
+		// Paired target status remains useful when the host's selected target
+		// cannot be observed. The authenticated projection belongs to this kit.
+		a.mu.Lock()
+		a.hostUnreachable = false
+		a.healthHave = true
+		a.health = hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
+		a.kitLeaseHave = true
+		a.kitLease = paired
+		a.mu.Unlock()
+		return
+	}
+	if pairedHave && pairedErr != nil {
+		// Keep the scoped status failure visible even when the selected host's
+		// health endpoint is also unreachable.
+		a.mu.Lock()
+		a.kitLeaseHave = true
+		a.kitLease = KitLeaseStatus{Unavailable: true, Reason: "paired kit lease status unavailable"}
+		a.mu.Unlock()
 	}
 	if isHostTransportError(err) {
 		a.mu.Lock()
@@ -2800,17 +2852,6 @@ func (a *App) kitLeaseSnapshotLocked() KitLeaseSnapshot {
 	}
 }
 
-func (a *App) selectedTargetAddressLocked() string {
-	selected := strings.TrimSpace(a.hostSettings.SelectedTarget)
-	for _, target := range a.hostSettings.Targets {
-		if strings.TrimSpace(target.Name) != selected {
-			continue
-		}
-		return strings.TrimSpace(target.Address)
-	}
-	return ""
-}
-
 func (a *App) sessionLiveLocked() bool {
 	switch a.session.State {
 	case "active", "failed", "stopping", "launching":
@@ -2847,49 +2888,15 @@ func (a *App) fetchSessionEvents(ctx context.Context) {
 	a.syncGPUParkLocked()
 }
 
-func (a *App) refreshTargetAddress(ctx context.Context) string {
-	a.mu.Lock()
-	target := a.selectedTargetAddressLocked()
-	open := a.settingsOpen
-	writeGen := a.settingsWriteGen
-	a.mu.Unlock()
-	if target != "" || open {
-		return target
+func kitLeaseFromConnection(connection hostclient.TargetConnection) KitLeaseStatus {
+	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message}
+	switch connection.State {
+	case "busy":
+		status.State = "held"
+	case "recovery-required":
+		status.State = "blocked"
 	}
-	settings, err := a.client.LibrarySettings(ctx)
-	if err != nil || ctx.Err() != nil {
-		return ""
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.settingsOpen || a.settingsWriteGen != writeGen {
-		return a.selectedTargetAddressLocked()
-	}
-	a.hostSettings = settings
-	return a.selectedTargetAddressLocked()
-}
-
-func (a *App) fetchKitLease(ctx context.Context) {
-	target := a.refreshTargetAddress(ctx)
-	if target == "" || ctx.Err() != nil {
-		return
-	}
-	status, err := a.client.KitLease(ctx, target)
-	if ctx.Err() != nil {
-		return
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.kitLeaseHave = true
-	if err != nil {
-		if isHostTransportError(err) {
-			a.kitLease = KitLeaseStatus{Unavailable: true, ErrorMessage: "kit unreachable"}
-			return
-		}
-		a.kitLease = KitLeaseStatus{ErrorMessage: "kit lease unavailable"}
-		return
-	}
-	a.kitLease = status
+	return status
 }
 
 func (a *App) stopStatusLocked() string {

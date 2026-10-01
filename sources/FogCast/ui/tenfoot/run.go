@@ -21,6 +21,8 @@ type Options struct {
 	CPUProfile   string
 	HeapProfile  string
 	APIBase      string
+	APIToken     string
+	TargetID     string
 	Width        int
 	Height       int
 	Fullscreen   bool
@@ -260,7 +262,7 @@ func sizedOptions(opts Options, dev interface{ Config() gfx.FBConfig }) Options 
 
 // configuredApp keeps application setup identical across native display backends.
 func configuredApp(opts Options) (*App, error) {
-	app := NewApp(NewClient(opts.APIBase, nil).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
+	app := NewApp(NewClient(opts.APIBase, launcherHTTPClient(opts.APIToken, opts.TargetID)).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
 	if spec := strings.TrimSpace(opts.InputProfile); spec != "" {
 		profile, err := inputmap.Resolve(spec)
 		if err != nil {

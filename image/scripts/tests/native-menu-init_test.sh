@@ -87,7 +87,7 @@ test "$(tail -1 "$MENU_INIT_ARGS")" = "$id"
 
 grid_menu=$(printf '%s\n' fogcast-kit "$fixture/fogcast-kit" --config /media/fat/fogcast/launcher.json --menu-display)
 plain_grid=$(printf '%s\n' fogcast-kit "$fixture/fogcast-kit" --config /media/fat/fogcast/launcher.json)
-tenfoot_menu=$(printf '%s\n' fogcast-kit "$fixture/fogcast-tenfoot" -gfx menu-display -menu-socket "$fixture/run/mister-runtime.sock" -input auto -home rooms)
+tenfoot_menu=$(printf '%s\n' fogcast-kit "$fixture/fogcast-tenfoot" -config /media/fat/fogcast/launcher.json -gfx menu-display -menu-socket "$fixture/run/mister-runtime.sock" -input auto -home rooms)
 
 # Default grid with the menu selection: today's --menu-display command.
 rm -f "$MENU_INIT_ARGS"

@@ -75,7 +75,7 @@ while [ ! -s "$TENFOOT_ARGS_FILE" ] && [ "$i" -lt 50 ]; do
 done
 [ -s "$TENFOOT_ARGS_FILE" ]
 got=$(cat "$TENFOOT_ARGS_FILE")
-want=$(printf '%s\n' -gfx menu-display -menu-socket "$fixture/run/mister-runtime.sock" -input auto -home rooms)
+want=$(printf '%s\n' -config "$fixture/config" -gfx menu-display -menu-socket "$fixture/run/mister-runtime.sock" -input auto -home rooms)
 if [ "$got" != "$want" ]; then
   printf 'tenfoot args:\n%s\nwant:\n%s\n' "$got" "$want" >&2
   exit 1

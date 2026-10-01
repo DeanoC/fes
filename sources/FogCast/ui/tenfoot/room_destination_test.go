@@ -588,6 +588,50 @@ func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
 	}
 }
 
+func TestPairedKitLeaseIgnoresSelectedTargetBusyAndBlocksOwnForeignLease(t *testing.T) {
+	h := newRoomHost(t)
+	app := newRoomApp(t, h, rooms.NewIndex([]rooms.Pack{testRoomPack(t, "overworld", destRoomScript)}), true)
+	app.client.paired = true
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "foreign-on-target-b"}
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{State: "free"}
+	got := app.foreignKitLeaseLocked()
+	app.mu.Unlock()
+	if got {
+		t.Fatal("selected target B busy blocked paired target A")
+	}
+
+	app.mu.Lock()
+	app.kitLease = KitLeaseStatus{State: "busy", Owner: "other-shell"}
+	got = app.foreignKitLeaseLocked()
+	app.mu.Unlock()
+	if !got {
+		t.Fatal("paired target A foreign lease was not blocked")
+	}
+}
+
+func TestPairedKitStatus404KeepsBrowsingAndRefusesLaunch(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "overworld", destRoomScript)})
+	app := newRoomApp(t, h, index, true, true)
+	waitFor(t, app, "room picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.fetchHealth(t.Context()) // the scoped /launcher/kit-lease endpoint returns 404
+	snap := app.Snapshot()
+	if !snap.KitLease.Unreachable || snap.KitLease.Line != "kit status unavailable" {
+		t.Fatalf("404 status snapshot = %+v", snap.KitLease)
+	}
+	app.HandleCommand(CmdDown, time.Now())
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "room remains browsable", func(s Snapshot) bool { return s.Room.Open && len(s.Room.Frame.Hits) > 0 })
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = waitFor(t, app, "launch refusal", func(s Snapshot) bool { return s.Launch.Phase == "error" })
+	if snap.Launch.Message != "kit status unavailable" || h.launchCount() != 0 {
+		t.Fatalf("launch=%+v launches=%d", snap.Launch, h.launchCount())
+	}
+}
+
 func TestForeignLeaseHostOnlyStillLaunches(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{

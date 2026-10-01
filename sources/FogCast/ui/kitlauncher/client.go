@@ -17,7 +17,10 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/atomicwrite"
+	"github.com/DeanoC/FogCast/kitlease"
 )
+
+var errPairedKitLeaseUnsupported = errors.New("paired kit lease endpoint is unavailable")
 
 type Config struct {
 	API          string `json:"api"`
@@ -137,6 +140,28 @@ type Client struct {
 	// localDial, when set, replaces net.DialTimeout for the local socket.
 	// Tests count failed dials. Production leaves it nil.
 	localDial func(network, address string, timeout time.Duration) (net.Conn, error)
+}
+
+func (c *Client) PairedKitLease(ctx context.Context) (kitlease.Status, error) {
+	var status kitlease.Status
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.config.API, "/")+"/api/v1/launcher/kit-lease", http.NoBody)
+	if err != nil {
+		return status, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return status, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return status, errPairedKitLeaseUnsupported
+		}
+		return status, fmt.Errorf("kit lease status: HTTP %d", resp.StatusCode)
+	}
+	err = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&status)
+	return status, err
 }
 
 // SetMenuDisplayHandoff coordinates asynchronous menu commits with session

@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -35,6 +36,37 @@ func (*launcherService) TargetConnection() fogcast.TargetConnection {
 	return fogcast.TargetConnection{TargetID: launcherID, State: "ready"}
 }
 
+type pairedLeaseService struct {
+	launcherService
+	target string
+}
+
+func (s *pairedLeaseService) PairedTargetKitLeaseStatus(_ context.Context, target string) (kitlease.Status, error) {
+	s.target = target
+	return kitlease.Status{State: "held", Owner: "fogcast@kit", Purpose: "play", Generation: "gen-7", ExpiresInMS: 12000}, nil
+}
+
+func (s *pairedLeaseService) PairedTargetStatus(_ context.Context, target string) (kitlease.Status, bool, bool, error) {
+	s.target = target
+	return kitlease.Status{State: "held", Owner: "fogcast@kit", Generation: "gen-7", ExpiresInMS: 12000}, true, true, nil
+}
+
+func TestLauncherKitLeaseStatusIsScopedToAuthenticatedTarget(t *testing.T) {
+	service := &pairedLeaseService{}
+	handler, err := hostapi.NewLauncherHandler(hostapi.New(service), hostapi.LauncherConfig{Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherID}, {Token: launcherTokenB, TargetID: launcherIDB}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := launcherRequest("GET", "http://192.0.2.1:8789/api/v1/launcher/kit-lease", nil)
+	req.Header.Set("X-FogCast-Target-ID", launcherIDB)
+	req.Header.Set("Authorization", "Bearer "+launcherTokenB)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK || service.target != launcherIDB || !strings.Contains(w.Body.String(), `"generation":"gen-7"`) || !strings.Contains(w.Body.String(), `"target_reachable":true`) || !strings.Contains(w.Body.String(), `"target_ready":true`) || strings.Contains(w.Body.String(), "address") {
+		t.Fatalf("lease projection: target=%q status=%d body=%s", service.target, w.Code, w.Body.String())
+	}
+}
+
 func launcherHandler(t *testing.T, input host.RemoteInputController) http.Handler {
 	t.Helper()
 	api := hostapi.New(&launcherService{}, hostapi.WithRemoteInput(input))
@@ -44,6 +76,7 @@ func launcherHandler(t *testing.T, input host.RemoteInputController) http.Handle
 	}
 	return handler
 }
+
 func launcherRequest(method, path string, body io.Reader) *http.Request {
 	req, _ := http.NewRequest(method, path, body)
 	req.Header.Set("Authorization", "Bearer "+launcherToken)
@@ -59,6 +92,8 @@ func TestLauncherRestrictionAndAuthentication(t *testing.T) {
 		{"catalogue", "GET", "/api/v1/games", launcherToken, launcherID, 200},
 		{"attract", "GET", "/api/v1/library/attract", launcherToken, launcherID, 200},
 		{"library cache", "GET", "/api/v1/library/cache", launcherToken, launcherID, 200},
+		{"library collections", "GET", "/api/v1/library/collections", launcherToken, launcherID, 200},
+		{"library facets", "GET", "/api/v1/library/facets", launcherToken, launcherID, 200},
 		{"presentation", "GET", "/api/v1/presentation/games/snes-mario", launcherToken, launcherID, 200},
 		{"presentation junk", "GET", "/api/v1/presentation/games/Nope", launcherToken, launcherID, 404},
 		{"presentation traversal", "GET", "/api/v1/presentation/games/../secret", launcherToken, launcherID, 404},

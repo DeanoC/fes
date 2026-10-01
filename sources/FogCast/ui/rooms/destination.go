@@ -142,9 +142,9 @@ func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostc
 // session holds the kit lease. foreign is false for the shell that holds
 // the grant, including after Soft-stop. Confirm then explains and does not
 // launch or take the lease. A host-only title stays Ready so Play reaches
-// the host executor. A core destination is left as published: the
-// local-control socket reports in_use itself. An Execute advertisement
-// is not an input.
+// the host executor. A core destination is left to tenfoot, which applies
+// the local in-use copy and refuses Confirm. An Execute advertisement is
+// not an input.
 func ApplyForeignLease(d Destination, foreign bool) Destination {
 	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Kind == KindCore || d.Availability != AvailReady {
 		return d
@@ -376,6 +376,9 @@ func (d Destination) Confirm() ConfirmIntent {
 	case KindAction:
 		return ConfirmLauncherAction
 	case KindCore:
+		if d.LeaseHeld {
+			return ConfirmExplain
+		}
 		if d.CoreLaunchable {
 			return ConfirmLaunchCore
 		}

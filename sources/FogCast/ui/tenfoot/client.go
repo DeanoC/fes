@@ -21,6 +21,30 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
+type launcherAuthTransport struct {
+	base     http.RoundTripper
+	token    string
+	targetID string
+}
+
+func (t launcherAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	if t.token != "" {
+		clone.Header.Set("Authorization", "Bearer "+t.token)
+	}
+	if t.targetID != "" {
+		clone.Header.Set("X-FogCast-Target-ID", t.targetID)
+	}
+	return t.base.RoundTrip(clone)
+}
+
+func launcherHTTPClient(token, targetID string) *http.Client {
+	if token == "" && targetID == "" {
+		return nil
+	}
+	return &http.Client{Transport: launcherAuthTransport{base: http.DefaultTransport, token: token, targetID: targetID}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}
+
 const (
 	defaultPageLimit          = 200
 	defaultMaxGames           = 10000
@@ -29,30 +53,65 @@ const (
 	defaultAttractIdleSeconds = 60
 )
 
-// KitLeaseStatus is GET /v1/kit/lease on the selected target (status-only).
+// KitLeaseStatus is the status-only lease projection for a paired target.
 type KitLeaseStatus struct {
-	HTTPStatus   int
-	State        string
-	Owner        string
-	Purpose      string
-	Generation   string
-	ExpiresAt    string
-	ExpiresInMS  int64
-	Reason       string
-	ErrorCode    string
-	ErrorMessage string
-	Unavailable  bool
+	TargetReachable bool   `json:"target_reachable,omitempty"`
+	TargetReady     bool   `json:"target_ready,omitempty"`
+	HTTPStatus      int    `json:"-"`
+	State           string `json:"state"`
+	Owner           string `json:"owner"`
+	Purpose         string `json:"purpose"`
+	Generation      string `json:"generation"`
+	ExpiresAt       string `json:"expires_at"`
+	ExpiresInMS     int64  `json:"expires_in_ms"`
+	Reason          string `json:"reason"`
+	ErrorCode       string `json:"error_code,omitempty"`
+	ErrorMessage    string `json:"error_message,omitempty"`
+	Unavailable     bool   `json:"unavailable,omitempty"`
 }
 
 // Client calls the FogCast public host API.
 type Client struct {
 	*hostclient.Client
+	paired bool
 }
 
 // NewClient builds the sofa adapter around a host API client. baseURL defaults
 // to hostclient.DefaultAPIBase.
 func NewClient(baseURL string, httpClient *http.Client) *Client {
-	return &Client{Client: hostclient.NewClient(baseURL, httpClient)}
+	paired := false
+	if httpClient != nil {
+		if auth, ok := httpClient.Transport.(launcherAuthTransport); ok {
+			paired = auth.targetID != ""
+		}
+	}
+	return &Client{Client: hostclient.NewClient(baseURL, httpClient), paired: paired}
+}
+
+func (c *Client) PairedKitLease(ctx context.Context) (KitLeaseStatus, error) {
+	if c == nil || c.Client == nil {
+		return KitLeaseStatus{}, fmt.Errorf("tenfoot client is nil")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL()+"/api/v1/launcher/kit-lease", http.NoBody)
+	if err != nil {
+		return KitLeaseStatus{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return KitLeaseStatus{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return KitLeaseStatus{}, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return KitLeaseStatus{}, hostclient.APIStatusError(resp.StatusCode, body)
+	}
+	var status KitLeaseStatus
+	err = json.Unmarshal(body, &status)
+	return status, err
 }
 
 // withAPIHost returns a client that sends Host: host on every request.
@@ -256,121 +315,6 @@ func (c *Client) SessionEvents(ctx context.Context, after uint64) ([]hostclient.
 		out = append(out, ev)
 	}
 	return out, nil
-}
-
-// KitLease loads GET /v1/kit/lease on the selected target agent.
-// This is a status-only read of the target kit API, not a host proxy.
-func (c *Client) KitLease(ctx context.Context, targetBase string) (KitLeaseStatus, error) {
-	targetBase = strings.TrimRight(strings.TrimSpace(targetBase), "/")
-	if targetBase == "" {
-		return KitLeaseStatus{}, nil
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetBase+"/v1/kit/lease", http.NoBody)
-	if err != nil {
-		return KitLeaseStatus{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.HTTPClient().Do(req)
-	if err != nil {
-		if isHostTransportError(err) {
-			return KitLeaseStatus{Unavailable: true, ErrorMessage: "kit unreachable"}, nil
-		}
-		return KitLeaseStatus{}, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
-	if err != nil {
-		return KitLeaseStatus{}, err
-	}
-	result := decodeKitLeaseBody(resp.StatusCode, body)
-	if resp.StatusCode == http.StatusOK {
-		return result, nil
-	}
-	if result.Unavailable || result.ErrorCode != "" {
-		return result, nil
-	}
-	return result, hostclient.APIStatusError(resp.StatusCode, body)
-}
-
-func decodeKitLeaseBody(status int, body []byte) KitLeaseStatus {
-	result := KitLeaseStatus{HTTPStatus: status}
-	var wire struct {
-		State       string `json:"state"`
-		Owner       string `json:"owner"`
-		Purpose     string `json:"purpose"`
-		Generation  string `json:"generation"`
-		ExpiresAt   string `json:"expires_at"`
-		ExpiresInMS int64  `json:"expires_in_ms"`
-		Reason      string `json:"reason"`
-		Error       *struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-		Status *struct {
-			State       string `json:"state"`
-			Owner       string `json:"owner"`
-			Purpose     string `json:"purpose"`
-			Generation  string `json:"generation"`
-			ExpiresAt   string `json:"expires_at"`
-			ExpiresInMS int64  `json:"expires_in_ms"`
-			Reason      string `json:"reason"`
-		} `json:"status"`
-	}
-	_ = json.Unmarshal(body, &wire)
-	if wire.Status != nil {
-		if wire.State == "" {
-			wire.State = wire.Status.State
-		}
-		if wire.Owner == "" {
-			wire.Owner = wire.Status.Owner
-		}
-		if wire.Purpose == "" {
-			wire.Purpose = wire.Status.Purpose
-		}
-		if wire.Generation == "" {
-			wire.Generation = wire.Status.Generation
-		}
-		if wire.ExpiresAt == "" {
-			wire.ExpiresAt = wire.Status.ExpiresAt
-		}
-		if wire.ExpiresInMS == 0 {
-			wire.ExpiresInMS = wire.Status.ExpiresInMS
-		}
-		if wire.Reason == "" {
-			wire.Reason = wire.Status.Reason
-		}
-	}
-	result.State = strings.TrimSpace(wire.State)
-	result.Owner = strings.TrimSpace(wire.Owner)
-	result.Purpose = strings.TrimSpace(wire.Purpose)
-	result.Generation = strings.TrimSpace(wire.Generation)
-	result.ExpiresAt = strings.TrimSpace(wire.ExpiresAt)
-	result.ExpiresInMS = wire.ExpiresInMS
-	result.Reason = strings.TrimSpace(wire.Reason)
-	if wire.Error != nil {
-		result.ErrorCode = strings.TrimSpace(wire.Error.Code)
-		result.ErrorMessage = strings.TrimSpace(wire.Error.Message)
-	}
-	switch {
-	case status == http.StatusServiceUnavailable && (result.ErrorCode == "TARGET_UNAVAILABLE" || result.ErrorCode == "KIT_LEASE_BLOCKED" || result.ErrorCode == "MISTER_UNAVAILABLE"):
-		result.Unavailable = result.ErrorCode != "KIT_LEASE_BLOCKED"
-		if result.ErrorCode == "KIT_LEASE_BLOCKED" && result.State == "" {
-			result.State = "blocked"
-		}
-		if result.Reason == "" {
-			result.Reason = result.ErrorMessage
-		}
-	case status == 0 || status >= 500:
-		result.Unavailable = true
-	case status == http.StatusUnauthorized || status == http.StatusForbidden:
-		if result.ErrorCode == "" {
-			result.ErrorCode = "UNAUTHORIZED"
-		}
-		if result.ErrorMessage == "" {
-			result.ErrorMessage = "kit lease unavailable"
-		}
-	}
-	return result
 }
 
 // OpenSessionPreview starts GET /api/v1/session/preview and returns an MJPEG

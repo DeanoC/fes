@@ -3,18 +3,20 @@ package hostapi
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
-	"github.com/DeanoC/FogCast/fogcast"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/discovery"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -213,6 +215,34 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.launcherInput(w, r, headerID)
 			return
 		}
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/launcher/kit-lease" {
+			if provider, ok := a.service.(interface {
+				PairedTargetStatus(context.Context, string) (kitlease.Status, bool, bool, error)
+			}); ok {
+				status, reachable, ready, err := provider.PairedTargetStatus(r.Context(), headerID)
+				if err != nil {
+					writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "paired target status is unavailable")
+					return
+				}
+				status.TargetReachable, status.TargetReady = reachable, ready
+				writeJSON(w, http.StatusOK, status)
+				return
+			}
+			provider, ok := a.service.(interface {
+				PairedTargetKitLeaseStatus(context.Context, string) (kitlease.Status, error)
+			})
+			if !ok {
+				writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "paired target lease status is unavailable")
+				return
+			}
+			status, err := provider.PairedTargetKitLeaseStatus(r.Context(), headerID)
+			if err != nil {
+				writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "paired target lease status is unavailable")
+				return
+			}
+			writeJSON(w, http.StatusOK, status)
+			return
+		}
 		// Catalogue read (GET /api/v1/games) does not take targetMu.
 		// Other operations keep the guard: they can reconcile session
 		// state or target settings, and Launch holds it while running.
@@ -320,10 +350,15 @@ func launcherPairedRead(method, path string) bool {
 		return false
 	}
 	switch path {
-	case "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/library/attract", "/api/v1/library/cache":
+	case "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets":
 		return true
 	}
-	return launcherArtworkPath(path) || launcherPresentationGamePath(path)
+	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path)
+}
+
+func launcherGamePath(path string) bool {
+	const prefix = "/api/v1/games/"
+	return strings.HasPrefix(path, prefix) && protocol.ValidateGameID(path[len(prefix):]) == nil
 }
 
 // kitTarget resolves a paired target id to its configured name.
@@ -452,10 +487,10 @@ func rewriteLauncherLaunch(w http.ResponseWriter, r *http.Request, name string) 
 
 func launcherOperation(method, path string) bool {
 	switch method + " " + path {
-	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
+	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/facets", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
 		return true
 	}
-	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path))
+	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path))
 }
 
 func launcherArtworkPath(path string) bool {
