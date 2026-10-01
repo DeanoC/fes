@@ -1578,6 +1578,43 @@ func TestCompositionHandleStopsTheKitItStartedAfterRebind(t *testing.T) {
 	}
 }
 
+func TestCompositionMediaStartsOnEachSessionTarget(t *testing.T) {
+	media := compositionDirectMediaSession{handle: &compositionDirectMediaHandle{done: make(chan struct{})}}
+	a, b := &compositionTargetCast{}, &compositionTargetCast{}
+	session := newCompositionMediaSession(media, nil, "session", "token", 9)
+	session.SetCastTarget(fogcast.TargetConfig{Name: "a", Address: "http://192.0.2.10:8182", Agent: "token-a"}, nil)
+	session.SetCastTarget(fogcast.TargetConfig{Name: "b", Address: "http://192.0.2.11:8182", Agent: "token-b"}, nil)
+	// Substitute deterministic cast clients after exercising the production
+	// target registration path.
+	session.mu.Lock()
+	session.targets["a"], session.targets["b"] = a, b
+	session.mu.Unlock()
+
+	bHandle, err := session.Start(fogcast.WithSessionTarget(context.Background(), "b"), "game-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	aHandle, err := session.Start(fogcast.WithSessionTarget(context.Background(), "a"), "game-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if as, _ := a.counts(); as != 1 {
+		t.Fatalf("A cast starts = %d, want 1", as)
+	}
+	if bs, _ := b.counts(); bs != 1 {
+		t.Fatalf("B cast starts = %d, want 1", bs)
+	}
+	if _, stopped := b.counts(); stopped != 0 {
+		t.Fatalf("B cast stops after A starts = %d, want 0", stopped)
+	}
+	if err := aHandle.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := bHandle.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSetCastTargetKeepsTheClaimedKitLease(t *testing.T) {
 	var header string
 	live := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

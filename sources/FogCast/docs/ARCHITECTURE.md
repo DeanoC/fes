@@ -83,6 +83,11 @@ replace/eject and development-media delivery, to that target. Placement
 handoff admits the destination coordinator before recording a package play;
 failed admission or old-resource cleanup stops the newly placed play on that
 destination and preserves the coordinator's prior ownership state.
+Cast admission is also target scoped: the host media session keeps cast clients
+by configured target, selects one from the coordinator's session context for
+each Start, and pins that client on the returned handle for Stop and status
+monitoring. A foreground change therefore does not redirect an existing cast
+or the next cast for another target.
 
 The host keeps the household display preference and the last play
 DisplaySink in process memory (`internal/meshpref`). Both values are

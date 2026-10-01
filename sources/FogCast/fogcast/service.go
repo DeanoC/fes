@@ -1268,7 +1268,9 @@ func (s *Service) waitForCatalogScan() bool {
 }
 
 func (s *Service) CastStart(ctx context.Context, session, token string, generation uint64) (targetclient.CastStatus, error) {
-	target, available := s.selectedClientSnapshot()
+	s.targetMu.RLock()
+	target, available := s.clientForSessionContextLocked(ctx)
+	s.targetMu.RUnlock()
 	client, ok := target.(castClient)
 	if !available || !ok {
 		return targetclient.CastStatus{}, errors.New("target cast control is unavailable")
@@ -1277,7 +1279,9 @@ func (s *Service) CastStart(ctx context.Context, session, token string, generati
 }
 
 func (s *Service) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (targetclient.CastStatus, error) {
-	target, available := s.selectedClientSnapshot()
+	s.targetMu.RLock()
+	target, available := s.clientForSessionContextLocked(ctx)
+	s.targetMu.RUnlock()
 	client, ok := target.(mediaCastClient)
 	if !available || !ok {
 		return targetclient.CastStatus{}, errors.New("target cast control is unavailable")
@@ -1286,7 +1290,9 @@ func (s *Service) CastStartWithMedia(ctx context.Context, session, token string,
 }
 
 func (s *Service) CastStop(ctx context.Context, session string, generation uint64) (targetclient.CastStatus, error) {
-	target, available := s.selectedClientSnapshot()
+	s.targetMu.RLock()
+	target, available := s.clientForSessionContextLocked(ctx)
+	s.targetMu.RUnlock()
 	client, ok := target.(castClient)
 	if !available || !ok {
 		return targetclient.CastStatus{}, errors.New("target cast control is unavailable")
