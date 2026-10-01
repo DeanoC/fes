@@ -109,6 +109,48 @@ func TestMenuDisplayProbeSameGenerationPresentsNothing(t *testing.T) {
 	}
 }
 
+func TestMenuDisplayQueuedProbeClearsTransientPresentError(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	// A probe can already be queued when an in-flight frame is rejected by
+	// a concurrent runtime media operation. Its healthy status must clear
+	// that transient error without presenting the unchanged generation.
+	gate := make(chan struct{})
+	client.mu.Lock()
+	client.fail = true
+	client.presentBlock = gate
+	client.mu.Unlock()
+	d.Clear(RGB(4, 5, 6))
+	presentMenu(t, d, client)
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	d.mu.Lock()
+	queued := d.probeQueued
+	d.mu.Unlock()
+	close(gate)
+	if !queued {
+		t.Fatal("healthy probe was not queued behind the rejected frame")
+	}
+	waitMenuStatus(t, d, client, 3)
+	if err := d.LastError(); err != nil {
+		t.Fatalf("healthy probe retained presentation error: %v", err)
+	}
+	d.mu.Lock()
+	backoff, until := d.backoff, d.backoffUntil
+	d.mu.Unlock()
+	if backoff != 0 || !until.IsZero() {
+		t.Fatalf("healthy probe retained backoff %s until %s", backoff, until)
+	}
+	if calls, _, _, _ := client.snapshot(); calls != 2 {
+		t.Fatalf("healthy probe re-presented an unchanged generation: calls=%d", calls)
+	}
+}
+
 func TestMenuDisplayProbePresentsWhenNeverPresented(t *testing.T) {
 	d, client := newChangeDrivenMenu(t, 3, true)
 	clock := newMenuClock()

@@ -33,6 +33,8 @@ const (
 	shellLeaseReleaseAttempts = 3
 )
 
+const sessionDisplayUnavailableNotice = "HDMI controls unavailable. Back returns to play."
+
 var catalogSorts = []string{"title", "recently_added", "platform"}
 
 // recentsSorts are the orders queryRecents actually applies: last-played,
@@ -1452,8 +1454,9 @@ func (a *App) Tick(now time.Time) Command {
 	a.tickSessionPadLocked(now)
 	if a.sessionDisplayVisible && !a.sessionDisplayBusy && a.menuDisplay != nil {
 		if err := a.menuDisplay.LastError(); err != nil {
-			a.roomSessionNotice = "HDMI controls unavailable. Back returns to play."
-			a.status = a.roomSessionNotice
+			a.roomSessionNotice = sessionDisplayUnavailableNotice
+		} else if a.roomSessionNotice == sessionDisplayUnavailableNotice {
+			a.roomSessionNotice = ""
 		}
 	}
 	if !a.attractActive {

@@ -1,7 +1,9 @@
 package tenfoot
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +17,8 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/menudisplay"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -304,6 +308,14 @@ func TestKitSelectStartKeepsStopPriority(t *testing.T) {
 func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 	prior := kitDisplaySession()
 	starter := hostclient.HardwareTape{ID: "maze", Name: "Maze", Filename: "maze.p", SHA256: strings.Repeat("b", 64), License: "CC0", Controls: "Cursor keys"}
+	entered, gate := make(chan struct{}), make(chan struct{})
+	defer func() {
+		select {
+		case <-gate:
+		default:
+			close(gate)
+		}
+	}()
 	var imports, arms, selections atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -316,6 +328,8 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]any{"media_id": starter.SHA256, "size": 128})
 		case "/api/v1/session/live-media":
 			arms.Add(1)
+			close(entered)
+			<-gate
 			b, ok := protocol.DevelopmentMediaHeaders(r.Header)
 			var req protocol.LiveMediaRequest
 			json.NewDecoder(r.Body).Decode(&req)
@@ -332,6 +346,13 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app, _ := kitDisplayApp(t, server)
+	presenter := &transientSessionMenu{status: menudisplay.Status{Available: true, Generation: 3, Session: true, PackageID: prior.CorePackage.PackageID, CoreGeneration: prior.CorePackage.Generation}}
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
 	app.mu.Lock()
 	app.openTapePickerLocked()
 	app.mu.Unlock()
@@ -352,7 +373,37 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 		t.Fatal("starter picker omitted controls or attribution")
 	}
 	app.HandleCommand(CmdSelect, time.Now())
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("live tape arm did not begin")
+	}
+	presenter.fail.Store(true)
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	if display.LastError() == nil {
+		t.Fatal("simulated media/display overlap did not reject a frame")
+	}
+	app.Tick(time.Now())
+	if snap := app.Snapshot(); snap.Room.Notice != sessionDisplayUnavailableNotice || snap.Status != "Arming Maze…" {
+		t.Fatalf("presentation warning replaced live tape status: notice=%q status=%q", snap.Room.Notice, snap.Status)
+	}
+	close(gate)
 	waitFor(t, app, "starter armed live", func(s Snapshot) bool { return !s.TapePicker.Open && strings.Contains(s.Status, "Tape armed") })
+	presenter.fail.Store(false)
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	app.Tick(time.Now())
+	if snap := app.Snapshot(); display.LastError() != nil || snap.Room.Notice != "" || snap.Status != "Tape armed." {
+		t.Fatalf("healthy frame retained HDMI warning: err=%v notice=%q status=%q", display.LastError(), snap.Room.Notice, snap.Status)
+	}
+	app.mu.Lock()
+	app.roomSessionNotice = "The running machine changed. Review the refreshed setup."
+	app.mu.Unlock()
+	app.Tick(time.Now())
+	if snap := app.Snapshot(); snap.Room.Notice == "" {
+		t.Fatal("healthy presenter cleared an unrelated session notice")
+	}
 	if imports.Load() != 1 || arms.Load() != 1 || selections.Load() != 0 || !app.Snapshot().Room.DuringPlay {
 		t.Fatal("live starter selection changed Next start or left HDMI controls")
 	}
@@ -360,5 +411,32 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 	defer app.mu.Unlock()
 	if !samePlayHIDSession(app.session, prior) {
 		t.Fatal("starter arm replaced machine")
+	}
+}
+
+type transientSessionMenu struct {
+	status menudisplay.Status
+	fail   atomic.Bool
+}
+
+func (c *transientSessionMenu) Status(context.Context) (menudisplay.Status, error) {
+	return c.status, nil
+}
+
+func (c *transientSessionMenu) Present(_ context.Context, generation uint64, _ []byte) (menudisplay.Result, error) {
+	if c.fail.Load() {
+		return menudisplay.Result{}, errors.New("menu request rejected: busy menu display is unavailable")
+	}
+	return menudisplay.Result{Generation: generation}, nil
+}
+
+func waitSessionMenuFrame(t *testing.T, display *gfx.MenuDisplay) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for display.FramePending() {
+		if time.Now().After(deadline) {
+			t.Fatal("menu frame did not complete")
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

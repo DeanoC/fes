@@ -394,6 +394,17 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	}
 	d.mu.Lock()
 	err = d.acceptStatusLocked(frame, status)
+	if err == nil && status.Available && status.Underflows <= menudisplay.TransientUnderflowCap &&
+		d.hasPresented && status.Generation == d.presentedGen {
+		// Validate the binding and clear recovered state under one lock: an
+		// old probe must not clear an error after a new binding is installed.
+		d.probeQueued = false
+		d.lastProbe = d.clock()
+		d.lastErr = nil
+		d.resetBackoffLocked()
+		d.mu.Unlock()
+		return
+	}
 	d.mu.Unlock()
 	if err != nil {
 		d.finishProbeLocked(frame, status, err, false)
@@ -404,16 +415,6 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 			err = errors.New("menu scanout underflow")
 		}
 		d.finishProbeLocked(frame, status, err, false)
-		return
-	}
-	d.mu.Lock()
-	need := !d.hasPresented || status.Generation != d.presentedGen
-	d.mu.Unlock()
-	if !need {
-		d.mu.Lock()
-		d.probeQueued = false
-		d.lastProbe = d.clock()
-		d.mu.Unlock()
 		return
 	}
 	_, err = d.client.Present(d.ctx, status.Generation, frame.pixels)

@@ -2388,6 +2388,9 @@ audio and the expansion socket continue. Back/Return closes and drains the plane
 before input resumes. UI navigation is suppressed at both launcher and target;
 held keyboard controls require release and a fresh press. Failed close retains
 focus for an explicit retry. Display faults cannot invoke MENU reload or Stop.
+Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
+probe clears that presentation error and its retry delay; the room removes the
+temporary HDMI notice while retaining the cassette operation's status.
 Older packages keep prelaunch controls and the separate host renderer keeps its
 live routes. The shared wire layout is in
 [mister-packages session display](../../mister-packages/docs/session-display.md).
