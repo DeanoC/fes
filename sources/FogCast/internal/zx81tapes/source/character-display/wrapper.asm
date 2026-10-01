@@ -96,4 +96,3 @@ BASIC_VARS:
 	defb $80
 
 BASIC_END
-

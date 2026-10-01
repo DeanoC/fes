@@ -78,4 +78,3 @@ fill_colors:
     defb RED, YELLOW, BLUE, GREEN, MAGENTA
 fill_colors_end:
     defb 0  ; WPMEM
-

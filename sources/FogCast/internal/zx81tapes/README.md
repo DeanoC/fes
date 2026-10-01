@@ -71,6 +71,8 @@ its bytes independently of the download site's current version.
 commit `c0298a7d61f7e221d25cf9eed16f05b1487a7ac5`. The full upstream MIT licence
 is retained in `licenses/character-display-MIT.txt`. All six corresponding
 assembler source files are retained in `source/character-display/`.
+Extra blank lines at EOF in `fill.asm` and `wrapper.asm` were removed to satisfy
+the repository whitespace check; their assembler statements are unchanged.
 Upstream documents sjasmplus 1.20.2 as a known working assembler:
 
 ```sh
