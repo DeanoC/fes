@@ -708,8 +708,11 @@ owns it; every other enabled paired kit gets its own idle or active view,
 which does not touch the foreground session. Stop, `GET /api/v1/status`,
 session input, and launcher input are owner-only; another paired kit gets
 403 `TARGET_MISMATCH`. Per-kit concurrent sessions are follow-up #288.
-Health, `rom_cached`, and `/api/v1/library/cache` still describe the
-selected target (#289).
+On the paired listener, health, `rom_cached`, and `/api/v1/library/cache`
+describe the authenticated requesting kit. Paired health probes that kit
+without foreground lifecycle admission, so another kit's launch does not
+stall its menu poll. The host listener keeps selected-target health and cache
+semantics. Cache snapshots are isolated per target.
 
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
 IDs so uncached room selections can load their detail row. It does not expose

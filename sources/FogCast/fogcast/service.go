@@ -308,8 +308,8 @@ type Service struct {
 	catalogCloseErr             error
 	closeErr                    error
 
-	romCacheMu   sync.Mutex
-	romCacheSnap romCacheSnapshot
+	romCacheMu    sync.Mutex
+	romCacheSnaps map[string]romCacheSnapshot
 }
 
 const catalogCloseScanTimeout = 2 * time.Second
@@ -534,6 +534,27 @@ func (s *Service) selectedClientSnapshot() (serviceClient, bool) {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	return s.selectedClientLocked()
+}
+
+func (s *Service) pairedTargetClient(targetID string) (serviceClient, bool) {
+	s.targetMu.Lock()
+	defer s.targetMu.Unlock()
+	for _, cfg := range s.targets {
+		if !cfg.Enabled || cfg.TargetID != targetID {
+			continue
+		}
+		client := s.targetClients[cfg.Name]
+		if client == nil && s.targetClientFactory != nil {
+			var err error
+			client, err = s.targetClientFactory(cfg)
+			if err != nil || client == nil {
+				return nil, false
+			}
+			s.targetClients[cfg.Name] = client
+		}
+		return client, client != nil
+	}
+	return nil, false
 }
 
 func (s *Service) selectedClientLocked() (serviceClient, bool) {
@@ -1553,6 +1574,15 @@ func (s *Service) hostLaunchable(system protocol.System) bool {
 }
 
 func (s *Service) Health(parent context.Context) (protocol.Health, error) {
+	if targetID, _ := parent.Value(pairedTargetContextKey{}).(string); targetID != "" {
+		ctx, cancel := serviceTimeout(parent, s.requestTimeout)
+		defer cancel()
+		client, ok := s.pairedTargetClient(targetID)
+		if !ok {
+			return protocol.Health{}, errors.New("paired target unavailable")
+		}
+		return client.Health(ctx)
+	}
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
