@@ -15,9 +15,10 @@ import (
 
 type displayHostService struct {
 	fakeService
-	calls    int
-	settings fogcast.LibraryConfig
-	target   string
+	calls      int
+	mediaCalls int
+	settings   fogcast.LibraryConfig
+	target     string
 }
 
 func (s *displayHostService) LibrarySettings() fogcast.LibraryConfig { return s.settings }
@@ -43,6 +44,63 @@ func (s *displayHostService) SetSessionDisplay(ctx context.Context, visible bool
 		return s.status, protocol.SessionDisplayIdentityError()
 	}
 	return s.status, nil
+}
+
+func (s *displayHostService) ReplaceLiveMedia(_ context.Context, _, _ string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	s.mediaCalls++
+	s.target = b.Target
+	return s.status, nil
+}
+
+func (s *displayHostService) ClearLiveMedia(_ context.Context, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	s.mediaCalls++
+	s.target = b.Target
+	return s.status, nil
+}
+
+func TestPublicCapturedMutationRejectsAnotherTargetsSessionID(t *testing.T) {
+	id := strings.Repeat("a", 64)
+	s := &displayHostService{fakeService: fakeService{status: protocol.Status{State: protocol.StateActive, Development: true,
+		CorePackage: &protocol.CorePackageStatus{PackageID: id, Generation: 9, ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1},
+			ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}}}}},
+		settings: fogcast.LibraryConfig{Targets: []fogcast.TargetConfig{{Name: "kit-a", TargetID: launcherID, Enabled: true}, {Name: "kit-b", TargetID: launcherIDB, Enabled: true}}}}
+	api := hostapi.New(s)
+	sessions := map[string]string{}
+	for _, target := range []string{"kit-a", "kit-b"} {
+		var observed struct {
+			ID string `json:"id"`
+		}
+		response := serve(t, api, http.MethodGet, "/api/v1/session?target="+target)
+		if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &observed) != nil || observed.ID == "" {
+			t.Fatalf("observe %s: %s", target, response.Body)
+		}
+		sessions[target] = observed.ID
+	}
+	for _, tc := range []struct{ path, body string }{
+		{"/api/v1/session/display", `{"visible":true}`},
+		{"/api/v1/session/display", `{"visible":false}`},
+		{"/api/v1/session/live-media", `{"media_id":"` + strings.Repeat("b", 64) + `","name":"second.p"}`},
+		{"/api/v1/session/live-media/clear", ""},
+	} {
+		for _, target := range []string{"kit-a", "kit-b"} {
+			other, targetID := "kit-b", launcherID
+			if target == "kit-b" {
+				other, targetID = "kit-a", launcherIDB
+			}
+			r := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+			r.Host = "127.0.0.1"
+			if tc.body != "" {
+				r.Header.Set("Content-Type", "application/json")
+			}
+			r.Header.Set(protocol.HostSessionIDHeader, sessions[other])
+			protocol.DevelopmentMediaBinding{PackageID: id, Generation: 9, Target: target, TargetID: targetID}.SetHeaders(r.Header)
+			w := httptest.NewRecorder()
+			api.ServeHTTP(w, r)
+			if w.Code != 409 || s.calls != 0 || s.mediaCalls != 0 {
+				t.Fatalf("cross-target %s: status=%d display=%d media=%d body=%s", tc.path, w.Code, s.calls, s.mediaCalls, w.Body)
+			}
+		}
+	}
 }
 
 func TestPairedDisplayKeepsFullObservedBindingAndRejectsForeignSession(t *testing.T) {

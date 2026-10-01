@@ -39,15 +39,24 @@ func registerSessionDisplayRoute(mux *http.ServeMux, s *sessionCoordinator) {
 	})
 }
 
-// A launcher mutation must refer to that paired kit's captured session, even
-// when a different target becomes foreground while a picker is open.
-func (s *sessionCoordinator) matchesLauncherBinding(ctx context.Context, b protocol.DevelopmentMediaBinding) bool {
-	target := launcherTargetFromContext(ctx)
-	return target == "" || (s.target == target && b.Target == target)
+// Both public and paired requests must bind this coordinator's captured
+// target. A service must not reroute its session ID using another kit's headers.
+func (s *sessionCoordinator) matchesSessionTargetBinding(ctx context.Context, b protocol.DevelopmentMediaBinding) bool {
+	target := s.target
+	if target == "" {
+		if resolver, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
+			target, _ = resolver.SessionTarget()
+		}
+	}
+	if target == "" || b.Target != target {
+		return false
+	}
+	paired := launcherTargetFromContext(ctx)
+	return paired == "" || paired == target
 }
 
 func (s *sessionCoordinator) setSessionDisplay(ctx context.Context, id string, visible bool, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
-	if !s.matchesLauncherBinding(ctx, b) {
+	if !s.matchesSessionTargetBinding(ctx, b) {
 		return sessionResult{}, protocol.SessionDisplayIdentityError()
 	}
 	ctx = s.scoped(ctx)
