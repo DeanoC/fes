@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/mediasession"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
 	"github.com/DeanoC/FogCast/kitlease"
@@ -1422,6 +1423,7 @@ func TestCompositionPartialStartRetainsLocalAndTargetCleanupOwnership(t *testing
 }
 
 func TestManagedSenderComponentRetainsFailedCallerOwnedCaptureCleanup(t *testing.T) {
+	ownership := &hostMediaOwnership{}
 	capture := &compositionCapture{closeErrs: []error{errors.New("first close failed")}}
 	component := &managedSenderComponent{
 		media: fogcast.MediaConfig{
@@ -1429,12 +1431,13 @@ func TestManagedSenderComponentRetainsFailedCallerOwnedCaptureCleanup(t *testing
 			RTPDestination: "127.0.0.1:5001", ControlAddress: "127.0.0.1:5002",
 			Bitrate: 1_000_000, GOP: 30, MTU: 1200,
 		},
-		token: "token",
+		token:     "token",
+		ownership: ownership,
 		newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
 			return capture, nil, nil
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionHostOnly), "A"))
 	cancel()
 	handle, err := component.Start(ctx, "game")
 	if err == nil || handle == nil {
@@ -1443,12 +1446,87 @@ func TestManagedSenderComponentRetainsFailedCallerOwnedCaptureCleanup(t *testing
 	if got := capture.closeCount(); got != 1 {
 		t.Fatalf("initial close count = %d, want 1", got)
 	}
+	if _, err := ownership.claim("B"); !errors.As(err, new(hostapi.MediaBusyOtherKitError)) {
+		t.Fatalf("B claimed media after failed cleanup: %v", err)
+	}
 	if err := handle.Stop(context.Background()); err != nil {
 		t.Fatalf("retry cleanup = %v", err)
 	}
 	if got := capture.closeCount(); got != 2 {
 		t.Fatalf("retry close count = %d, want 2", got)
 	}
+	releaseB, err := ownership.claim("B")
+	if err != nil {
+		t.Fatalf("B claim after successful cleanup retry: %v", err)
+	}
+	releaseB()
+}
+
+func TestManagedSenderAudioConfigurationFailureRetainsClaimUntilCleanupRetry(t *testing.T) {
+	ownership := &hostMediaOwnership{}
+	capture := &compositionCapture{closeErrs: []error{errors.New("first close failed")}}
+	component := &managedSenderComponent{
+		media: fogcast.MediaConfig{
+			Session: "session", Generation: 9, SSRC: 7,
+			RTPDestination: "127.0.0.1:5001", ControlAddress: "127.0.0.1:5002",
+			Bitrate: 1_000_000, GOP: 30, MTU: 1200,
+		},
+		token: "token", ownership: ownership,
+		newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+			return capture, &compositionAudioSource{}, nil
+		},
+	}
+	ctx := fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionHostOnly), "A")
+	handle, err := component.Start(ctx, "game")
+	if err == nil || handle == nil {
+		t.Fatalf("Start = handle:%v err:%v, want retryable cleanup after audio configuration failure", handle != nil, err)
+	}
+	if _, err := ownership.claim("B"); !errors.As(err, new(hostapi.MediaBusyOtherKitError)) {
+		t.Fatalf("B claimed media during failed configuration cleanup: %v", err)
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("retry cleanup = %v", err)
+	}
+	releaseB, err := ownership.claim("B")
+	if err != nil {
+		t.Fatalf("B claim after successful cleanup: %v", err)
+	}
+	releaseB()
+}
+
+func TestOwnedMediaDoneForwardsAndReleasesOwnershipAfterSelfExit(t *testing.T) {
+	ownership := &hostMediaOwnership{}
+	releaseA, err := ownership.claim("A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	base := &compositionDirectMediaHandle{done: done}
+	component := &ownedMediaHandle{ComponentHandle: base, release: releaseA}
+	session, err := mediasession.New(ownedMediaTestComponent{handle: component}, noopMediaComponent{}).Start(context.Background(), "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(done) // The sender exits without an explicit Stop.
+	select {
+	case <-session.(interface{ Done() <-chan struct{} }).Done():
+	case <-time.After(time.Second):
+		t.Fatal("media session did not observe sender self-exit")
+	}
+	if err := session.Stop(context.Background()); err != nil {
+		t.Fatalf("normal Stop cleanup: %v", err)
+	}
+	releaseB, err := ownership.claim("B")
+	if err != nil {
+		t.Fatalf("B claim after self-exit cleanup: %v", err)
+	}
+	releaseB()
+}
+
+type ownedMediaTestComponent struct{ handle mediasession.ComponentHandle }
+
+func (c ownedMediaTestComponent) Start(context.Context, string) (mediasession.ComponentHandle, error) {
+	return c.handle, nil
 }
 
 func TestManagedSenderComponentPreservesCaptureAuthorizationError(t *testing.T) {

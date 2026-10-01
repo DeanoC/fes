@@ -545,6 +545,13 @@ func (h *ownedMediaHandle) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (h *ownedMediaHandle) Done() <-chan struct{} {
+	if terminal, ok := h.ComponentHandle.(interface{ Done() <-chan struct{} }); ok {
+		return terminal.Done()
+	}
+	return nil
+}
+
 func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (mediasession.ComponentHandle, error) {
 	if s == nil {
 		return nil, errors.New("media sources could not be started")
@@ -562,10 +569,10 @@ func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (medi
 	}
 	capture, audio, err := s.newSources(s.media)
 	if err != nil || capture == nil {
-		release()
 		if capture != nil || audio != nil {
-			return cleanupUnownedMediaSources(capture, audio, "media sources could not be started")
+			return cleanupClaimedMediaSources(capture, audio, release, "media sources could not be started")
 		}
+		release()
 		if err != nil {
 			return nil, fmt.Errorf("media sources could not be started: %w", err)
 		}
@@ -577,8 +584,7 @@ func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (medi
 		Bitrate: s.media.Bitrate, GOP: s.media.GOP, MTU: s.media.MTU,
 	}, capture, s.options...)
 	if err != nil {
-		release()
-		return cleanupUnownedMediaSources(capture, audio, "media sender could not be configured")
+		return cleanupClaimedMediaSources(capture, audio, release, "media sender could not be configured")
 	}
 	var managedAudio *remotemedia.ManagedAudioSender
 	if audio != nil {
@@ -590,14 +596,12 @@ func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (medi
 			FrameSamples: config.Source.FrameSamples, FormatCapabilityVersion: config.Transport.FormatCapabilityVersion,
 		}, audio, s.audioOptions...)
 		if err != nil {
-			release()
-			return cleanupUnownedMediaSources(capture, audio, "audio sender could not be configured")
+			return cleanupClaimedMediaSources(capture, audio, release, "audio sender could not be configured")
 		}
 	}
 	sender, err := remotemedia.NewManagedMediaSender(video, managedAudio)
 	if err != nil {
-		release()
-		return cleanupUnownedMediaSources(capture, audio, "media sender could not be configured")
+		return cleanupClaimedMediaSources(capture, audio, release, "media sender could not be configured")
 	}
 	// Ownership transfers to the managed sender before Start. From this point
 	// onward its startup rollback owns every source, including an unstarted
@@ -612,6 +616,15 @@ func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (medi
 		return &ownedMediaHandle{ComponentHandle: handle, release: release}, errors.New("media sender could not be started")
 	}
 	return &ownedMediaHandle{ComponentHandle: handle, release: release}, nil
+}
+
+func cleanupClaimedMediaSources(capture remotemedia.CaptureSource, audio remotemedia.AudioSource, release func(), message string) (mediasession.ComponentHandle, error) {
+	handle, err := cleanupUnownedMediaSources(capture, audio, message)
+	if handle == nil {
+		release()
+		return nil, err
+	}
+	return &ownedMediaHandle{ComponentHandle: handle, release: release}, err
 }
 
 type mediaSourcesCleanupHandle struct {
