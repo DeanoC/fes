@@ -104,8 +104,11 @@ feels, and the migration. The shells' contracts are
 
 ## What is true now
 
-Present tense, FES tip `97fadf24` (includes #130). Paths below exist in
-this tree. None of them is a mesh.
+Present tense, verified against the FES source at this worktree's tip.
+The existing host-to-kit launch path is still a direct bind; kit DNS-SD
+discovery now advertises the implemented mesh capability contract described
+below. The broader federated library and remote software-runner behavior are
+not implemented.
 
 One FogCast host owns the catalog, rooms, launch intent, and content
 selection. The target agent owns network session and transfer coordination
@@ -125,9 +128,13 @@ authority for that kit
 one shell to configured kits.
 
 Each named target may have a persistent `target_id`. The agent advertises
-it with local DNS-SD (`_fogcast._tcp`). TXT carries `target_id` and a
-discovery protocol version, not a capability bag, not a catalog, and not
-lease secrets. The host adopts a new address only after authenticated
+it with local DNS-SD (`_fogcast._tcp`). Current kit TXT carries
+`protocol=1`, `target_id`, matching `node_id`, `mesh=1.0`, and a capability
+bag containing `execute:fpga_native`, `display_sink`, and `input_source`.
+It does not carry ABI families, a catalog, credentials, or lease secrets.
+`EncodeKitTXT` does not emit a TXT `ttl`; the parser accepts an optional
+`ttl`, and DNS-SD browse expiry governs inventory presence independently of
+the kit lease. The host adopts a new address only after authenticated
 health confirms the expected id and API version. Discovery does not launch
 a game. Explicit address configuration remains the fallback. See
 [`sources/FogCast/docs/ARCHITECTURE.md`](../sources/FogCast/docs/ARCHITECTURE.md)
@@ -181,17 +188,22 @@ Standalone FES Pong is in-repository homebrew source with
 `GPL-2.0-or-later` SPDX headers in `sources/misteross/cores/fes-pong/`; its
 package/library path is documented in
 [`sources/FogCast/docs/core-package-library.md`](../sources/FogCast/docs/core-package-library.md).
-It is a legal candidate for kit acceptance. The repo also contains a
-MIT-licensed Coleco controls diagnostic (`sources/misteross/cores/fes-coleco/README.md`
-and `diagnostic/LICENSE`), but neither is evidenced as a RetroArch software
-title. No repository evidence establishes a legal title that runs on both
-current backends, so software-side and dual-backend title coverage is **GAP**,
-not an assumed Pong emulator.
+It is a legal kit-backend candidate. Software-title selection is a
+**BLOCKING open question for #360/#364**: repository evidence does not
+establish a named legal title plus compatible software-backend pair. Before
+software-runner acceptance, select bytes included in or explicitly referenced
+by the repo, verify their redistribution license, identify a software backend
+that supports the title's system and format, and record the exact backend,
+version, and launch path. A title's legal kit availability alone does not
+establish software-backend compatibility. Do not assume FES Pong has a
+RetroArch core. The repo also contains a MIT-licensed Coleco controls
+diagnostic (`sources/misteross/cores/fes-coleco/README.md` and
+`diagnostic/LICENSE`), but it is not evidenced as a RetroArch software title.
 
 | Acceptance claim | Current evidence | M1 standing |
 | --- | --- | --- |
 | Kit can execute FES Pong; target/runtime launch and Stop work | Existing target/runtime tests and dated Pong HIL records; `docs/mesh-vnext.md` §5 HIL2 is two-kit placement diagnostic, picture-only, not designated-kit acceptance. | Implemented for the kit path; exact M1 artifact acceptance pending #364. |
-| Software runner can execute a named legal title | RetroArch host execution adapter/tests (`sources/FogCast/internal/hostexec/retroarch.go`, `_test.go`) establish a local host-only path, not a remote mesh runner or legal cross-backend title. | GAP #360/#364; name a compatible legal title after runner/backend is selected. |
+| Software runner can execute a named legal title | RetroArch host execution adapter/tests (`sources/FogCast/internal/hostexec/retroarch.go`, `_test.go`) establish a local host-only path, not a remote mesh runner or legal title/backend pair. | **BLOCKED, #360/#364:** choose redistributable title bytes and a compatible software backend/version, then record exact-artifact acceptance. |
 | Same title on both backends (dual-backend) | No evidence that current FES Pong package is a RetroArch title or has a compatible software core. | GAP #361/#364; do not claim dual-backend coverage until a legal title and compatible backend are recorded. |
 | Two nodes browse and show truthful availability | `GET /api/v1/mesh/nodes` and placement tests cover advertised kits; HIL2/HIL3 records are diagnostic as scoped in `docs/mesh-vnext.md` §5. | Kit inventory evidence exists; coherent combined library/UI remains #361/#362. |
 | Independent play, scoped input/Stop, busy/version mismatch, reconnect | Existing kit lease and launcher ownership tests cover individual rules; no exact two-node software-runner acceptance record. | GAP #363, then exact-artifact HIL #364. |
