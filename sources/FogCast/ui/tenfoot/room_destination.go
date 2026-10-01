@@ -35,7 +35,7 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		}
 	}
 	d = rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
-	if d.Kind == rooms.KindCore && d.CoreLaunchable {
+	if d.Kind == rooms.KindCore && d.CoreLaunchable && a.client != nil && a.client.paired {
 		switch {
 		case a.foreignKitLeaseLocked():
 			d.LeaseHeld = true

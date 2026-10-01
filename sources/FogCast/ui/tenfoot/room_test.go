@@ -83,6 +83,7 @@ type roomHost struct {
 	recentsGate  chan struct{}
 	prefs        map[string]hostclient.EditionPreference
 	uiPosts      []UIEvent
+	pairedLease  bool
 }
 
 func newRoomHost(t *testing.T) *roomHost {
@@ -92,6 +93,8 @@ func newRoomHost(t *testing.T) *roomHost {
 	pngBytes := mustPNG(t, 8, 12, color.RGBA{R: 200, G: 40, B: 40, A: 255})
 	h.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/launcher/kit-lease" && h.pairedLease:
+			_, _ = io.WriteString(w, `{"state":"free"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			if r.URL.Query().Get("collection") == "recents" {
 				h.mu.Lock()

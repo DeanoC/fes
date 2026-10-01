@@ -114,13 +114,12 @@ func TestKitCoreLaunchChordStopAndResume(t *testing.T) {
 
 func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T) {
 	fake := &fakeLocalCores{}
-	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "Pong", true, ""))
+	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "Pong", true, ""), true)
 	waitFor(t, app, "ready Pong", func(s Snapshot) bool {
 		return s.Room.Open && s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Status == "Ready to play."
 	})
 
 	app.mu.Lock()
-	app.client.paired = true
 	app.kitLeaseHave = true
 	app.kitLease = KitLeaseStatus{State: "held", Owner: "hil-355", Purpose: "hil-355-in-use"}
 	app.mu.Unlock()
@@ -158,6 +157,19 @@ func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T)
 	app.HandleCommand(CmdSelect, time.Now())
 	if fake.launchCount() != 0 || app.Snapshot().Status != "kit status unavailable" {
 		t.Fatalf("unavailable lease A was not refused visibly: launches=%d status=%q", fake.launchCount(), app.Snapshot().Status)
+	}
+}
+
+func TestUnpairedHostBusyDoesNotMarkInstalledCoreInUse(t *testing.T) {
+	app := startCoreRoom(t, &fakeLocalCores{}, nil, coreRoomScript(tenfootPongID, "Pong", true, ""))
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection.State = "busy"
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	d := snap.Room.Destination
+	if d.Status != "Ready to play." || d.Action != "Play" || d.Confirm() != rooms.ConfirmLaunchCore {
+		t.Fatalf("unpaired host busy changed core tile: %+v", d)
 	}
 }
 
@@ -373,7 +385,7 @@ func TestChordCompletingEventIsNotForwarded(t *testing.T) {
 
 func TestKitCoreInUseAndBlockedCopy(t *testing.T) {
 	blocked := &fakeLocalCores{}
-	app := startCoreRoom(t, blocked, nil, coreRoomScript(tenfootPongID, "ColecoVision", false, "Needs a cartridge"))
+	app := startCoreRoom(t, blocked, nil, coreRoomScript(tenfootPongID, "ColecoVision", false, "Needs a cartridge"), true)
 	waitFor(t, app, "blocked tile", func(s Snapshot) bool {
 		return s.Room.Destination.Kind == rooms.KindCore && !s.Room.Destination.CoreLaunchable
 	})
@@ -384,6 +396,14 @@ func TestKitCoreInUseAndBlockedCopy(t *testing.T) {
 	}
 	if blocked.launchCount() != 0 || blocked.stopCount() != 0 {
 		t.Fatalf("blocked called the runtime launches=%d stops=%d", blocked.launchCount(), blocked.stopCount())
+	}
+	app.mu.Lock()
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{State: "held", Owner: "other", Purpose: "in-use"}
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	if snap.Room.Destination.Status != "Needs a cartridge" || snap.Room.Destination.Action != "Needs a cartridge" {
+		t.Fatalf("lease overrode blocked-core copy: %+v", snap.Room.Destination)
 	}
 
 	busy := &fakeLocalCores{err: localcores.ErrInUse}
@@ -429,11 +449,17 @@ func TestPresentHoldPausesAfterTheStartingFrame(t *testing.T) {
 	}
 }
 
-func startCoreRoom(t *testing.T, cores rooms.LocalCores, feed localPadSender, script string) *App {
+func startCoreRoom(t *testing.T, cores rooms.LocalCores, feed localPadSender, script string, paired ...bool) *App {
 	t.Helper()
 	h := newRoomHost(t)
+	if len(paired) > 0 && paired[0] {
+		h.pairedLease = true
+	}
 	pack := testRoomPack(t, "cores", script)
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	if len(paired) > 0 && paired[0] {
+		app.client.paired = true
+	}
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
 	app.SetHomeRooms(true)
