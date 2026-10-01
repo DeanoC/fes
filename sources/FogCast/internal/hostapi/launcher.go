@@ -243,11 +243,10 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			writeJSON(w, http.StatusOK, status)
 			return
 		}
-		// Catalogue read (GET /api/v1/games) does not take targetMu.
-		// Other operations keep the guard: they can reconcile session
-		// state or target settings, and Launch holds it while running.
-		catalogueRead := r.Method == http.MethodGet && r.URL.Path == "/api/v1/games"
-		if !catalogueRead {
+		// Paired reads do not take targetMu. Launch holds it while running,
+		// and health/cache reads for another kit must remain responsive.
+		pairedRead := launcherPairedRead(r.Method, r.URL.Path)
+		if !pairedRead {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
 		}
@@ -260,7 +259,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
 			return
 		}
-		if launcherPairedRead(r.Method, r.URL.Path) {
+		if pairedRead {
 			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/games" || r.URL.Path == "/api/v1/library/cache" {
 				r = r.WithContext(fogcast.WithPairedTarget(r.Context(), headerID))
 			}

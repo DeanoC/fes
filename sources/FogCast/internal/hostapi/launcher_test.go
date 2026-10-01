@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/hostclient"
@@ -65,6 +66,143 @@ func TestLauncherKitLeaseStatusIsScopedToAuthenticatedTarget(t *testing.T) {
 	if w.Code != http.StatusOK || service.target != launcherIDB || !strings.Contains(w.Body.String(), `"generation":"gen-7"`) || !strings.Contains(w.Body.String(), `"target_reachable":true`) || !strings.Contains(w.Body.String(), `"target_ready":true`) || strings.Contains(w.Body.String(), "address") {
 		t.Fatalf("lease projection: target=%q status=%d body=%s", service.target, w.Code, w.Body.String())
 	}
+}
+
+// pairedSnapshotService models the target-keyed views exposed by the real
+// FogCast service. The handlers must pass the authenticated paired target in
+// context for every health and cache read.
+type pairedSnapshotService struct {
+	settingsFake
+	healthByTarget   map[string]protocol.Health
+	cacheByTarget    map[string]fogcast.LibraryCache
+	presenceByTarget map[string]map[string]bool
+}
+
+func (s *pairedSnapshotService) Health(ctx context.Context) (protocol.Health, error) {
+	return s.healthByTarget[fogcast.PairedTargetFromContext(ctx)], nil
+}
+func (s *pairedSnapshotService) Games(context.Context) ([]catalog.Game, error) {
+	return []catalog.Game{{ID: "snes-mario", Title: "Mario", System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true, Content: &catalog.Content{SHA256: strings.Repeat("ab", 32), Size: 1, Extension: "sfc"}}}, nil
+}
+func (s *pairedSnapshotService) ROMCachePresence(ctx context.Context) (map[string]bool, bool) {
+	return s.presenceByTarget[fogcast.PairedTargetFromContext(ctx)], true
+}
+func (s *pairedSnapshotService) LibraryCache(ctx context.Context) (fogcast.LibraryCache, error) {
+	return s.cacheByTarget[fogcast.PairedTargetFromContext(ctx)], nil
+}
+
+func TestLauncherPairedHealthAndCacheAreTargetScoped(t *testing.T) {
+	key := string(protocol.SystemSNES) + "/" + strings.Repeat("ab", 32)
+	service := &pairedSnapshotService{
+		settingsFake:     settingsFake{settings: fogcast.LibraryConfig{SelectedTarget: "kit-a", Targets: []fogcast.TargetConfig{{Name: "kit-a", Enabled: true, TargetID: launcherID}, {Name: "kit-b", Enabled: true, TargetID: launcherIDB}}}},
+		healthByTarget:   map[string]protocol.Health{launcherID: {Ready: true}, launcherIDB: {Ready: false}},
+		cacheByTarget:    map[string]fogcast.LibraryCache{launcherID: {ROM: fogcast.ROMCacheStatus{UsedBytes: 11, MaxBytes: 100, FreeBytes: 89, Reachable: true}}, launcherIDB: {ROM: fogcast.ROMCacheStatus{UsedBytes: 22, MaxBytes: 200, FreeBytes: 178, Reachable: true}}},
+		presenceByTarget: map[string]map[string]bool{launcherID: {key: true}, launcherIDB: {key: false}},
+	}
+	h, err := hostapi.NewLauncherHandler(hostapi.New(service), hostapi.LauncherConfig{Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherID}, {Token: launcherTokenB, TargetID: launcherIDB}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		id, token string
+		ready     bool
+		used      int
+		cached    bool
+	}{{launcherID, launcherToken, true, 11, true}, {launcherIDB, launcherTokenB, false, 22, false}} {
+		for _, path := range []string{"/api/v1/health", "/api/v1/games", "/api/v1/library/cache"} {
+			req := launcherRequest("GET", "http://127.0.0.1:8789"+path, nil)
+			req.Header.Set("X-FogCast-Target-ID", tc.id)
+			req.Header.Set("Authorization", "Bearer "+tc.token)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("%s %s: %d %s", tc.id, path, w.Code, w.Body.String())
+			}
+			switch path {
+			case "/api/v1/health":
+				var result struct {
+					Target struct {
+						Ready bool `json:"ready"`
+					} `json:"target"`
+				}
+				if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+					t.Fatal(err)
+				}
+				if result.Target.Ready != tc.ready {
+					t.Errorf("%s health leaked: %s", tc.id, w.Body.String())
+				}
+			case "/api/v1/games":
+				want := `"rom_cached":false`
+				if tc.cached {
+					want = `"rom_cached":true`
+				}
+				if !strings.Contains(w.Body.String(), want) {
+					t.Errorf("%s games cache: %s", tc.id, w.Body.String())
+				}
+			case "/api/v1/library/cache":
+				if !strings.Contains(w.Body.String(), fmt.Sprintf(`"used_bytes":%d`, tc.used)) {
+					t.Errorf("%s library cache: %s", tc.id, w.Body.String())
+				}
+			}
+		}
+	}
+	req := launcherRequest("GET", "http://127.0.0.1:8789/api/v1/health", nil)
+	req.Header.Set("X-FogCast-Target-ID", launcherID)
+	req.Header.Set("Authorization", "Bearer "+launcherTokenB)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") {
+		t.Fatalf("cross-target identity: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestLauncherPairedHealthDoesNotWaitForOtherKitLaunch(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	finishLaunch := func() { releaseOnce.Do(func() { close(release) }) }
+	service := &pairedSnapshotService{settingsFake: settingsFake{settings: fogcast.LibraryConfig{SelectedTarget: "kit-a", Targets: []fogcast.TargetConfig{{Name: "kit-a", Enabled: true, TargetID: launcherID}, {Name: "kit-b", Enabled: true, TargetID: launcherIDB}}}}, healthByTarget: map[string]protocol.Health{launcherID: {Ready: true}, launcherIDB: {Ready: false}}, cacheByTarget: map[string]fogcast.LibraryCache{}, presenceByTarget: map[string]map[string]bool{}}
+	service.launchHook = func(context.Context) { close(started); <-release }
+	h, err := hostapi.NewLauncherHandler(hostapi.New(service), hostapi.LauncherConfig{Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherID}, {Token: launcherTokenB, TargetID: launcherIDB}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, launcherRequest("POST", "http://127.0.0.1:8789/api/v1/session/launch", strings.NewReader(`{"game_id":"snes-mario"}`)))
+		close(done)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		finishLaunch()
+		t.Fatal("launch did not start")
+	}
+	defer finishLaunch()
+	req := launcherRequest("GET", "http://127.0.0.1:8789/api/v1/health", nil)
+	req.Header.Set("X-FogCast-Target-ID", launcherIDB)
+	req.Header.Set("Authorization", "Bearer "+launcherTokenB)
+	w := httptest.NewRecorder()
+	finished := make(chan struct{})
+	go func() { h.ServeHTTP(w, req); close(finished) }()
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("B health blocked behind A launch")
+	}
+	var result struct {
+		Target struct {
+			Ready bool `json:"ready"`
+		} `json:"target"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if w.Code != http.StatusOK || result.Target.Ready {
+		t.Fatalf("B health: %d %s", w.Code, w.Body.String())
+	}
+	finishLaunch()
+	<-done
 }
 
 func launcherHandler(t *testing.T, input host.RemoteInputController) http.Handler {
