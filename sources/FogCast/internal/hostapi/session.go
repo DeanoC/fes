@@ -186,6 +186,13 @@ func (s *sessionCoordinator) forSessionID(id string) *sessionCoordinator {
 	return root
 }
 
+func (s *sessionCoordinator) scoped(ctx context.Context) context.Context {
+	if s != nil && s.target != "" {
+		return fogcast.WithSessionTarget(ctx, s.target)
+	}
+	return ctx
+}
+
 func (s *sessionCoordinator) beginFlight() {
 	id := uuid.NewString()
 	s.mu.Lock()
@@ -438,7 +445,7 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 		}
 		if !mediaOwnsSession(execution) {
 			mediaErr := s.stopMediaBounded(execution)
-			st, _ := s.service.Status(context.Background())
+			st, _ := s.service.Status(s.scoped(context.Background()))
 			result := s.publicSession(st, nil)
 			result.Execution = execution
 			result.Media = s.currentMediaState()
@@ -474,6 +481,7 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 }
 
 func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stamp clientStamp) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if target != "" {
 		ctx = fogcast.WithSessionTarget(ctx, s.target)
 	}
@@ -500,6 +508,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 	}
 	if packageLaunch {
 		response, err := s.launchGame(ctx, id, target, nil)
+		placed := err == nil && response.Status.State == protocol.StateActive
 		owner := s
 		if target == "" {
 			resolvedTarget := ""
@@ -513,7 +522,10 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 			}
 		}
 		if owner != s {
-			if !owner.begin() {
+			if !owner.beginWait(ctx, 500*time.Millisecond) {
+				if placed {
+					owner.stopPlacedPlay()
+				}
 				return sessionResult{}, busyError()
 			}
 			defer owner.end()
@@ -602,9 +614,15 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 		// FogCast has already replaced this kit's play. Retire any resources
 		// still associated with its prior host-side coordinator before rebinding.
 		if owner.remoteInput != nil {
-			_ = owner.detachInputBounded("session_replace")
+			if err := owner.detachInputBounded("session_replace"); err != nil {
+				owner.stopPlacedPlay()
+				return sessionResult{}, err
+			}
 		}
-		_ = owner.stopMediaBounded(owner.currentExecution())
+		if err := owner.stopMediaBounded(owner.currentExecution()); err != nil {
+			owner.stopPlacedPlay()
+			return sessionResult{}, err
+		}
 		s.handoffLaunchState(owner, previousExecution, previousNativeStoppedIdle, previousFlight, previousTerminal, previousPackageOwned)
 	}
 	result := owner.publicSession(resp.Status, &progress)
@@ -687,6 +705,7 @@ func (s *sessionCoordinator) handoffLaunchState(dst *sessionCoordinator, previou
 }
 
 func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64, content io.Reader, stamp clientStamp) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -772,6 +791,7 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 }
 
 func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64, content io.Reader, stamp clientStamp) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -914,6 +934,7 @@ func (s *sessionCoordinator) clearInputBinding() {
 func (s *sessionCoordinator) stopServiceForReplacement() (protocol.Status, error) {
 	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+	stopCtx = s.scoped(stopCtx)
 	return s.service.Stop(stopCtx)
 }
 
@@ -1147,6 +1168,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 		var failure *protocol.APIError
 		if errors.As(serviceErr, &failure) && failure.Code == protocol.CodeSaveFailed && inputErr == nil && s.remoteInput != nil && priorBinding.packageID != "" {
 			observation, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			observation = s.scoped(observation)
 			status, statusErr := s.service.Status(observation)
 			if statusErr == nil && resumedCoreDataStatus(status) && inputBindingForStatus(status) == priorBinding {
 				if attachErr := s.attachInputForStatus(observation, status); attachErr != nil {
@@ -1280,6 +1302,7 @@ func (s *sessionCoordinator) releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, r
 }
 
 func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error) {
+	ctx = s.scoped(ctx)
 	s.mu.Lock()
 	execution := s.execution
 	s.mu.Unlock()
@@ -1485,6 +1508,7 @@ func playHIDLeaseError() error {
 }
 
 func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if s.remoteInput == nil {
 		return sessionResult{}, remoteInputError()
 	}
@@ -1513,6 +1537,7 @@ func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, er
 }
 
 func (s *sessionCoordinator) detachInput(ctx context.Context) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if s.remoteInput == nil {
 		return sessionResult{}, remoteInputError()
 	}
@@ -1541,6 +1566,31 @@ func (s *sessionCoordinator) begin() bool {
 	}
 	s.busy = true
 	return true
+}
+
+func (s *sessionCoordinator) beginWait(ctx context.Context, max time.Duration) bool {
+	deadline := time.NewTimer(max)
+	defer deadline.Stop()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if s.begin() {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-deadline.C:
+			return false
+		case <-ticker.C:
+		}
+	}
+}
+
+// stopPlacedPlay rolls back a service launch that reached this coordinator's
+// target before host-side ownership admission or handoff completed.
+func (s *sessionCoordinator) stopPlacedPlay() {
+	_, _ = s.stopServiceBounded()
 }
 
 func (s *sessionCoordinator) end() {

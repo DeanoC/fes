@@ -78,6 +78,11 @@ and is what sofa and kit attach to for input. Stop of the foreground session
 leaves the other target playing. One primary host input remains on the
 foreground session; a second kit uses its local pad until surfaces attach by
 session id. The kit lease remains the target-side ownership authority.
+Each target coordinator scopes its service calls, including live-media
+replace/eject and development-media delivery, to that target. Placement
+handoff admits the destination coordinator before recording a package play;
+failed admission or old-resource cleanup stops the newly placed play on that
+destination and preserves the coordinator's prior ownership state.
 
 The host keeps the household display preference and the last play
 DisplaySink in process memory (`internal/meshpref`). Both values are

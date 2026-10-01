@@ -573,6 +573,15 @@ func (s *Service) selectedClientLocked() (serviceClient, bool) {
 	return client, client != nil
 }
 
+func (s *Service) clientForSessionContextLocked(ctx context.Context) (serviceClient, bool) {
+	name := SessionTargetFromContext(ctx)
+	if name == "" {
+		return s.selectedClientLocked()
+	}
+	client := s.targetClients[name]
+	return client, client != nil
+}
+
 // SessionTargetName reports the target used by an unscoped host session
 // operation. A live foreground target wins; otherwise the selected target.
 func (s *Service) SessionTargetName() string {

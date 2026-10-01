@@ -86,7 +86,7 @@ func (s *Service) replaceLiveMediaLocked(ctx context.Context, size int64, body i
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	client, ok := s.selectedClientLocked()
+	client, ok := s.clientForSessionContextLocked(ctx)
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -141,7 +141,7 @@ func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.Developme
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	client, ok := s.selectedClientLocked()
+	client, ok := s.clientForSessionContextLocked(ctx)
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -226,7 +226,10 @@ func (s *Service) prepareLiveMediaClient(ctx context.Context, b protocol.Develop
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
-	target := s.activeTarget
+	target := SessionTargetFromContext(ctx)
+	if target == "" {
+		target = s.activeTarget
+	}
 	s.executionMu.Unlock()
 	if target == "" {
 		target = s.selectedTarget

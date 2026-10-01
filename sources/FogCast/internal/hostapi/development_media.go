@@ -32,6 +32,7 @@ func registerDevelopmentMediaRoute(mux *http.ServeMux, s *sessionCoordinator) {
 	})
 }
 func (s *sessionCoordinator) loadDevelopmentMedia(ctx context.Context, id string, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
