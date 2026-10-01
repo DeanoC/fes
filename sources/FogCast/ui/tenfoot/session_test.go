@@ -851,6 +851,8 @@ func TestAppKitLeaseStripFromSelectedTarget(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/health":
+			_, _ = io.WriteString(w, `{"ready":true,"target_reachable":true,"target_ready":true,"target":{"connection":{"state":"busy","owner":"fogcast@powerboat"}}}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"attract_idle_seconds": 60,
@@ -861,14 +863,6 @@ func TestAppKitLeaseStripFromSelectedTarget(t *testing.T) {
 				},
 				"libraries": []map[string]any{{"id": "snes", "system": "snes", "root": "/library/snes"}},
 				"systems":   []map[string]any{{"id": "snes", "label": "SNES"}},
-			})
-		case r.Method == http.MethodGet && r.URL.Path == "/v1/kit/lease":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"state":         "held",
-				"owner":         "fogcast@powerboat",
-				"purpose":       "interactive game/development session",
-				"generation":    "cafef00ddeadbeef",
-				"expires_in_ms": 88000,
 			})
 		default:
 			http.NotFound(w, r)
@@ -882,7 +876,7 @@ func TestAppKitLeaseStripFromSelectedTarget(t *testing.T) {
 		return snap.KitLease.State == "held" && strings.Contains(snap.KitLease.Line, "fogcast@powerboat")
 	})
 	snap := app.Snapshot()
-	if snap.KitLease.Owner != "fogcast@powerboat" || snap.KitLease.Purpose == "" || snap.KitLease.Generation == "" || snap.KitLease.Expires == "" {
+	if snap.KitLease.Owner != "fogcast@powerboat" {
 		t.Fatalf("lease strip = %#v", snap.KitLease)
 	}
 	if !strings.Contains(snap.ChromeLine(), "lease held") {

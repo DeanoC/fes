@@ -15,6 +15,7 @@ func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 		{"GET", "/api/v1/games/../settings", false},
 		{"GET", "/api/v1/platforms", true},
 		{"GET", "/api/v1/health", true},
+		{"GET", "/v1/kit/lease", false},
 		{"GET", "/api/v1/status", true},
 		{"GET", "/api/v1/session", true},
 		{"GET", "/api/v1/session/input", true},

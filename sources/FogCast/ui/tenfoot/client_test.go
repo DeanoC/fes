@@ -605,80 +605,28 @@ func TestClientSessionEventsPollsAfterCursor(t *testing.T) {
 	}
 }
 
-func TestClientKitLeaseStatusOnlyDecode(t *testing.T) {
-	t.Parallel()
+func TestKitLeaseComesFromPairedHealthConnection(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/v1/kit/lease" {
-			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
-			http.NotFound(w, r)
-			return
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/health" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"state":         "held",
-			"owner":         "fogcast@powerboat",
-			"purpose":       "interactive game/development session",
-			"generation":    "abc123def456",
-			"expires_at":    "2026-09-06T12:00:00Z",
-			"expires_in_ms": 72000,
-		})
+		if r.Header.Get("Authorization") != "Bearer launcher-secret" || r.Header.Get("X-FogCast-Target-ID") != "kit-target" || r.Header.Get("X-FogCast-Kit-Lease") != "" {
+			t.Errorf("health credentials: authorization=%q target=%q lease=%q", r.Header.Get("Authorization"), r.Header.Get("X-FogCast-Target-ID"), r.Header.Get("X-FogCast-Kit-Lease"))
+		}
+		_, _ = io.WriteString(w, `{"ready":true,"target":{"reachable":true,"ready":true,"connection":{"state":"busy","owner":"fogcast@powerboat"}}}`)
 	}))
-	t.Cleanup(server.Close)
-	got, err := NewClient(server.URL, server.Client()).KitLease(context.Background(), server.URL)
+	defer server.Close()
+	health, err := NewClient(server.URL, launcherHTTPClient("launcher-secret", "kit-target")).Health(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.State != "held" || got.Owner != "fogcast@powerboat" || got.Purpose == "" || got.Generation != "abc123def456" || got.ExpiresInMS != 72000 {
-		t.Fatalf("lease = %#v", got)
+	got := kitLeaseFromConnection(health.Connection)
+	if got.State != "held" || got.Owner != "fogcast@powerboat" {
+		t.Fatalf("kit lease = %+v", got)
 	}
-	if got.Unavailable {
-		t.Fatal("held lease marked unavailable")
-	}
-
-	blocked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"state":      "blocked",
-			"reason":     "kit cleanup failed or agent shutting down; operator recovery required",
-			"generation": "deadbeef",
-		})
-	}))
-	t.Cleanup(blocked.Close)
-	got, err = NewClient(blocked.URL, blocked.Client()).KitLease(context.Background(), blocked.URL)
-	if err != nil || got.State != "blocked" || !strings.Contains(got.Reason, "cleanup failed") {
-		t.Fatalf("blocked = %#v, %v", got, err)
-	}
-
-	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	down.Close()
-	got, err = NewClient(down.URL, down.Client()).KitLease(context.Background(), down.URL)
-	if err != nil || !got.Unavailable {
-		t.Fatalf("down kit = %#v, %v", got, err)
-	}
-
-	empty, err := NewClient(server.URL, server.Client()).KitLease(context.Background(), "")
-	if err != nil || empty.State != "" || empty.Unavailable {
-		t.Fatalf("empty target = %#v, %v", empty, err)
-	}
-
-	unauth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = io.WriteString(w, `{"error":{"code":"UNAUTHORIZED","message":"missing or incorrect bearer token"}}`)
-	}))
-	t.Cleanup(unauth.Close)
-	got, err = NewClient(unauth.URL, unauth.Client()).KitLease(context.Background(), unauth.URL)
-	if err != nil || got.ErrorCode != "UNAUTHORIZED" || !strings.Contains(formatKitLeaseLine(got), "kit lease") {
-		t.Fatalf("unauthorized lease = %#v, %v", got, err)
-	}
-}
-
-func TestDecodeKitLeaseBlockedError(t *testing.T) {
-	t.Parallel()
-	got := decodeKitLeaseBody(503, []byte(`{"error":{"code":"KIT_LEASE_BLOCKED","message":"cleanup failed"}}`))
-	if got.State != "blocked" || got.Unavailable || got.ErrorCode != "KIT_LEASE_BLOCKED" {
-		t.Fatalf("blocked error = %#v", got)
-	}
-	down := decodeKitLeaseBody(503, []byte(`{"error":{"code":"MISTER_UNAVAILABLE","message":"target down"}}`))
-	if !down.Unavailable || down.ErrorCode != "MISTER_UNAVAILABLE" {
-		t.Fatalf("mister unavailable = %#v", down)
+	ready := kitLeaseFromConnection(hostclient.TargetConnection{State: "ready"})
+	if ready.State != "ready" || ready.Owner != "" {
+		t.Fatalf("ready connection = %+v", ready)
 	}
 }
 

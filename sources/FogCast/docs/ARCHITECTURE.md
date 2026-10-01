@@ -1198,6 +1198,11 @@ grant. A confirmed idle service gets an empty-body Stop. When a play still
 survives, the shell posts `release_idle` so idle grants drop without stopping
 that play. A failed release is retried before the shell exits.
 Application shutdown releases its grants after input/session cleanup.
+
+The `fogcast-kit` grid and tenfoot show foreign lease ownership from the
+paired host's `/api/v1/health` target connection (`busy` plus owner). Tenfoot
+uses this paired response with the launcher bearer; it does not query the
+target agent's `/v1/kit/lease`, which requires the separate agent token.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean
 idle after explicit Stop and never-owned idle skip the target Stop, while a

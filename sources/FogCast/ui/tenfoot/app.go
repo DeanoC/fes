@@ -2378,7 +2378,6 @@ func (a *App) pollSession(ctx context.Context) {
 	a.fetchSession(ctx)
 	a.fetchSessionEvents(ctx)
 	a.fetchHealth(ctx)
-	a.fetchKitLease(ctx)
 	ticker := time.NewTicker(sessionPollInterval)
 	defer ticker.Stop()
 	for {
@@ -2389,12 +2388,10 @@ func (a *App) pollSession(ctx context.Context) {
 			a.fetchSession(ctx)
 			a.fetchSessionEvents(ctx)
 			a.fetchHealth(ctx)
-			a.fetchKitLease(ctx)
 		case <-a.sessionKick:
 			a.fetchSession(ctx)
 			a.fetchSessionEvents(ctx)
 			a.fetchHealth(ctx)
-			a.fetchKitLease(ctx)
 		}
 	}
 }
@@ -2442,6 +2439,8 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
+		a.kitLeaseHave = true
+		a.kitLease = kitLeaseFromConnection(result.Connection)
 		a.mu.Unlock()
 		return
 	}
@@ -2800,17 +2799,6 @@ func (a *App) kitLeaseSnapshotLocked() KitLeaseSnapshot {
 	}
 }
 
-func (a *App) selectedTargetAddressLocked() string {
-	selected := strings.TrimSpace(a.hostSettings.SelectedTarget)
-	for _, target := range a.hostSettings.Targets {
-		if strings.TrimSpace(target.Name) != selected {
-			continue
-		}
-		return strings.TrimSpace(target.Address)
-	}
-	return ""
-}
-
 func (a *App) sessionLiveLocked() bool {
 	switch a.session.State {
 	case "active", "failed", "stopping", "launching":
@@ -2847,57 +2835,12 @@ func (a *App) fetchSessionEvents(ctx context.Context) {
 	a.syncGPUParkLocked()
 }
 
-func (a *App) refreshTargetAddress(ctx context.Context) string {
-	a.mu.Lock()
-	target := a.selectedTargetAddressLocked()
-	open := a.settingsOpen
-	writeGen := a.settingsWriteGen
-	a.mu.Unlock()
-	if target != "" || open {
-		return target
+func kitLeaseFromConnection(connection hostclient.TargetConnection) KitLeaseStatus {
+	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message}
+	if connection.State == "busy" {
+		status.State = "held"
 	}
-	// Paired kits use the narrow target projection; full library settings
-	// contains host filesystem roots and is not available on that listener.
-	if target, targetErr := a.client.LauncherTarget(ctx); targetErr == nil {
-		return strings.TrimSpace(target.Address)
-	}
-	if ctx.Err() != nil {
-		return ""
-	}
-	settings, err := a.client.LibrarySettings(ctx)
-	if err != nil || ctx.Err() != nil {
-		return ""
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.settingsOpen || a.settingsWriteGen != writeGen {
-		return a.selectedTargetAddressLocked()
-	}
-	a.hostSettings = settings
-	return a.selectedTargetAddressLocked()
-}
-
-func (a *App) fetchKitLease(ctx context.Context) {
-	target := a.refreshTargetAddress(ctx)
-	if target == "" || ctx.Err() != nil {
-		return
-	}
-	status, err := a.client.KitLease(ctx, target)
-	if ctx.Err() != nil {
-		return
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.kitLeaseHave = true
-	if err != nil {
-		if isHostTransportError(err) {
-			a.kitLease = KitLeaseStatus{Unavailable: true, ErrorMessage: "kit unreachable"}
-			return
-		}
-		a.kitLease = KitLeaseStatus{ErrorMessage: "kit lease unavailable"}
-		return
-	}
-	a.kitLease = status
+	return status
 }
 
 func (a *App) stopStatusLocked() string {
