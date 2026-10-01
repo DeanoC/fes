@@ -726,7 +726,9 @@ the paired listener and reports its normal load error.
 ## Native 10-foot launcher
 
 The embedded **ZX81 workbench** (`example.hardware`) reads host-owned hardware
-setups through `GET /api/v1/library/hardware`. The projection validates each
+setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
+2.0 are supported; expansion readiness uses the same exact-package/version
+admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
 status separately. Fit/remove use the existing compare-and-swap expansion
 selection API. Catalogue schema 14 adds optional household expansion labels
@@ -1860,6 +1862,11 @@ for an exact `fes.computer` 1.0 shell with the optional bus, every slot a
 physical socket, a recomputed `fes-composition-v2` identity and volatile
 persistence. With no card selected the load is the ordinary
 `load_rom_library_core`. Single-socket ZX81 and Coleco v1 tuples are unchanged.
+ZX81 single-socket composition admits optional `fes.expansion.zx81-bus`
+1.0 or 2.0, bound to `fes.zx81-bus.socket/1` or `/2` respectively. The
+v2 bus carries CPU clock and active-low reset within the same physical
+socket. Import, staging, adoption and runtime status checks retain exact
+shell and cart version binding; tuple identity domains are unchanged.
 
 `internal/misterruntime/computer.go` is the protocol-2 client for the other
 `fes.computer` operations. Each request is bound to the exact active package

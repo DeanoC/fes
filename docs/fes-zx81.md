@@ -1,7 +1,7 @@
 # FES ZX81
 
 The standard core is a `fes.simple-computer` 1.0 package (`fes.zx81`
-1.3.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
+1.4.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
 fixed 720p60 HDMI and a registered Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
 package carries the vacant bus; carts are independent bus consumers.
@@ -49,7 +49,7 @@ reaches uinput.
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
 1.1 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.3 socketed format-3 package. The package seals `rom-map.json` alongside
+1.4 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52.224 MHz system clock, registered M10K and
@@ -60,11 +60,16 @@ vacant-socket silence on kit 1. Earlier packages emitted nonzero HDMI samples;
 the [failed diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md) is
 historical and was superseded by the
 [passing diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md).
-Zon X has a separately sealed channel-A tone diagnostic with
-[exact-artifact kit acceptance](validation/2026-09-30-zx81-zonx-hil.md);
-it is not a complete AY implementation.
-This system clock is 0.43% faster than the former 52 MHz package; keyboard,
-tape and expansion contracts are unchanged.
+Zon X implements three-channel AY8912 sound on the bus 2.0 clock/reset edge;
+see [expansion details and fidelity limits](zx81-expansion-bus.md). The
+[historical channel-A diagnostic](validation/2026-09-30-zx81-zonx-hil.md) applies
+only to the earlier artifacts. The [1.4.0 build record](validation/2026-10-01-zx81-zonx-ay.md)
+passes all three clocks and unchanged socket containment. The
+[full-cart Kit 2 diagnostic](validation/2026-10-01-zx81-zonx-kit2-hil.md) passes
+identity, audio phases, Hold, Stop and relaunch with capture limits.
+The transport schedules exact average 6.5 MHz ULA / 3.25 MHz CPU rates, replacing
+the former 3.264 MHz CPU. The cart halves the edge clock to 1.625 MHz AY.
+Enable jitter stays below one transport cycle; HDMI/audio clocks are unchanged.
 
 ## Menu / sofa UI
 
@@ -81,5 +86,7 @@ assembled FES image. The [1.3.0 shared-audio diagnostic](validation/2026-09-30-z
 passed vacant-socket silence, GP/package identity, ROM linking and Stop with
 the repaired compiler. Its matching RAM cart passed timing and changed zero
 CRAM bits outside the reserved socket. The bounded Zon X tone cart has its own
-[kit diagnostic](validation/2026-09-30-zx81-zonx-hil.md). Full AY behavior and
-factory-image acceptance remain separate work.
+[kit diagnostic](validation/2026-09-30-zx81-zonx-hil.md). The three-channel AY implementation passes independent behavior and CPU-firmware
+simulation plus frozen-shell routing. The full-cart [Kit 2 diagnostic](validation/2026-10-01-zx81-zonx-kit2-hil.md)
+passes with temporary services and filtered audio capture; factory-image
+acceptance remains a separate gate.

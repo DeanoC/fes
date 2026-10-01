@@ -1,0 +1,5 @@
+{
+  "initial_gpo": "0x82000001",
+  "hold_ack": "0xf5000000",
+  "release_ack": "0xf5800000"
+}

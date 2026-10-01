@@ -8,6 +8,8 @@
 #include <string>
 
 static void tick(Vexpansion_bus_harness &dut) {
+    static unsigned cycles = 0;
+    dut.cpu_clock = ((cycles++ / 8) & 1);
     dut.clk = 1;
     dut.eval();
     dut.clk = 0;
@@ -117,47 +119,51 @@ static int test_ram16k(Vexpansion_bus_harness &dut) {
 }
 
 static int test_zonx(Vexpansion_bus_harness &dut) {
-    settle(dut, 8);
-    if (dut.bus_ram_present) return fail("Zon X asserted RAM_PRESENT");
-    for (unsigned n = 0; n < 16; ++n) {
-        const uint8_t value = uint8_t(n * 17);
-        io_write(dut, 0x00df, uint8_t(n));
-        io_write(dut, 0x000f, value);
-        const uint8_t got = io_read(dut, 0x000f, false);
-        if (!dut.bus_dsel) return fail("Zon X data read did not select the bus");
-        idle(dut);
-        settle(dut, 2);
-        if (got != value) {
-            std::cerr << "Zon X register " << n << " got " << unsigned(got)
-                      << " expected " << unsigned(value) << '\n';
-            return EXIT_FAILURE;
+    dut.cpu_reset_n = 0; settle(dut, 8);
+    dut.cpu_reset_n = 1; settle(dut, 8);
+    auto write = [&](unsigned reg, unsigned value) {
+        io_write(dut, 0x00cf, reg); io_write(dut, 0x000f, value);
+    };
+    write(7, 0x3f); write(8, 15); settle(dut, 4);
+    if (dut.bus_peek_data != 85) return fail("Zon X CPU write missed the AY latch");
+    io_read(dut, 0x000f, false);
+    if (dut.bus_dsel || dut.bus_romcs || dut.bus_wait || dut.bus_ram_present)
+        return fail("write-only Zon X drove CPU response controls");
+    idle(dut); settle(dut);
+    io_write(dut, 0x001f, 0); settle(dut);
+    if (dut.bus_peek_data != 85) return fail("Zon X incorrectly accepted A4-high data");
+    write(8, 0);
+    for (unsigned channel = 0; channel < 3; ++channel) {
+        write(channel * 2, 1); write(channel * 2 + 1, 1);
+        write(7, 0x3f & ~(1u << channel)); write(8 + channel, 15);
+        unsigned transitions = 0, elapsed = 0;
+        uint8_t old = dut.bus_peek_data;
+        for (unsigned n = 0; n < 257 * 256 * 4; ++n) {
+            tick(dut); ++elapsed;
+            const uint8_t current = dut.bus_peek_data;
+            if (current != old) {
+                if (current != 0 && current != 85) return fail("Zon X invalid amplitude");
+                if (transitions && elapsed != 257 * 256)
+                    return fail("Zon X tone does not follow CPU clock / 2 / 16 / period");
+                ++transitions; elapsed = 0; old = current;
+            }
         }
+        if (transitions < 3) return fail("Zon X full-width channel tone missing");
+        write(8 + channel, 0);
     }
-    io_write(dut, 0x00df, 3);
-    io_write(dut, 0x00cf, 3);
-    io_write(dut, 0x000f, 0x42);
-    io_write(dut, 0x00df, 3);
-    if (io_read(dut, 0x000f) != 0x42) return fail("Zon X xxCF select alias failed");
-    io_write(dut, 0x00df, 0);
-    io_write(dut, 0x000f, 8);
-    io_write(dut, 0x00df, 1);
-    io_write(dut, 0x000f, 0);
-    io_write(dut, 0x00df, 7);
-    io_write(dut, 0x000f, 0x3e);
-    io_write(dut, 0x00df, 8);
-    io_write(dut, 0x000f, 0x0f);
-    idle(dut);
-    bool saw_high = false;
-    bool saw_low = false;
-    for (int i = 0; i < 4096; ++i) {
-        tick(dut);
-        const uint8_t pcm = dut.bus_peek_data;
-        if (pcm == 0xf0) saw_high = true;
-        if (pcm == 0x00) saw_low = true;
-    }
-    if (!saw_high || !saw_low)
-        return fail("Zon X channel A square missed peek_d");
-    std::cout << "ZX81 Zon X two-cycle registers passed\n";
+    // /WR spans many transport cycles; an envelope write restarts once.
+    write(7, 0x3f); write(8, 16); write(11, 1); write(12, 0);
+    io_write(dut, 0x00cf, 13);
+    dut.cpu_addr = 0x000f; dut.cpu_wdata = 0;
+    dut.cpu_iorq_n = 0; dut.cpu_wr_n = 0;
+    settle(dut, 10000);
+    if (dut.bus_peek_data != 0) return fail("stretched R13 repeatedly restarted envelope");
+    idle(dut); settle(dut);
+    write(8, 15); write(7, 0x3f);
+    dut.cpu_reset_n = 0; settle(dut, 8);
+    if (dut.bus_peek_data != 0) return fail("edge reset did not silence AY");
+    dut.cpu_reset_n = 1; settle(dut, 8);
+    std::cout << "ZX81 Zon X decode, clock, reset and write transaction passed\n";
     return EXIT_SUCCESS;
 }
 
@@ -204,6 +210,8 @@ int main(int argc, char **argv) {
     dut.cpu_addr = 0;
     dut.cpu_wdata = 0;
     dut.peek_address = 0;
+    dut.cpu_clock = 0;
+    dut.cpu_reset_n = 1;
     idle(dut);
     dut.clk = 0;
     dut.eval();

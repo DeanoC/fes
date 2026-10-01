@@ -4,7 +4,8 @@
 // is linked for simulation.
 `include "zx81_bus_pack.vh"
 module expansion_machine #(
-    parameter CART_PRESENT = 0
+    parameter CART_PRESENT = 0,
+    parameter FIRMWARE_INIT = ""
 ) (
     input wire clk_sys, reset,
     input wire [39:0] keyboard,
@@ -16,15 +17,24 @@ module expansion_machine #(
     output wire ce_6m5, video_pixel, hblank, vblank, hsync_out, vsync_out, halt_n,
     output wire [15:0] cpu_addr,
     input wire [15:0] peek_addr,
-    output wire [7:0] peek_data
+    output wire [7:0] peek_data,
+    output wire io_write,
+    output wire [15:0] io_addr,
+    output wire [7:0] io_data,
+    output wire [7:0] audio_sample
 );
     wire [15:0] bus_addr;
     wire [7:0] bus_wdata, bus_rdata, bus_peek_data;
     wire bus_mreq_n, bus_iorq_n, bus_rd_n, bus_wr_n, bus_m1_n, bus_rfsh_n;
+    wire bus_cpu_clock;
     wire bus_dsel, bus_romcs, bus_wait, socket_ram_present;
     wire [`ZX81_BUS_REQ-1:0] plug_addr;
     wire [`ZX81_BUS_RSP-1:0] cart_rdata, plug_rdata;
-    zx81_machine #(.EXTERNAL_RAM(1)) machine (
+    assign audio_sample = bus_peek_data;
+    assign io_write = !bus_iorq_n && !bus_wr_n;
+    assign io_addr = bus_addr;
+    assign io_data = bus_wdata;
+    zx81_machine #(.EXTERNAL_RAM(1), .FIRMWARE_INIT(FIRMWARE_INIT)) machine (
         .clk_sys(clk_sys), .reset(reset), .keyboard(keyboard),
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),
         .tape_addr_out(tape_addr_out), .tape_busy(tape_busy),
@@ -37,12 +47,14 @@ module expansion_machine #(
         .bus_mreq_n(bus_mreq_n), .bus_iorq_n(bus_iorq_n),
         .bus_rd_n(bus_rd_n), .bus_wr_n(bus_wr_n),
         .bus_m1_n(bus_m1_n), .bus_rfsh_n(bus_rfsh_n),
+        .bus_cpu_clock(bus_cpu_clock),
         .bus_rdata(bus_rdata), .bus_peek_data(bus_peek_data),
         .bus_dsel(bus_dsel), .bus_romcs(bus_romcs),
         .bus_wait(bus_wait), .bus_ram_present(CART_PRESENT != 0 && socket_ram_present)
     );
     zx81_expansion_socket socket (
         .clock(clk_sys),
+        .cpu_clock(bus_cpu_clock), .cpu_reset_n(~reset),
         .cpu_addr(bus_addr),
         .cpu_wdata(bus_wdata),
         .cpu_mreq_n(bus_mreq_n),

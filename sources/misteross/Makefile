@@ -239,7 +239,7 @@ sim-fes-zx81-bus:
 		-Icores/fes-zx81/rtl -Icores/fes-zx81/expansions \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-bus-$$name" \
 		cores/fes-zx81/sim/expansion_bus_harness.v \
-		cores/fes-zx81/expansions/$$cart.v \
+		cores/fes-zx81/expansions/$$cart.v cores/fes-zx81/expansions/zonx_ay.v \
 		experiments/901_plugged_base/sim/mistral_ff_model.v \
 		cores/fes-zx81/rtl/zx81_expansion_socket.v cores/fes-zx81/rtl/zx81_dpram.v \
 		cores/fes-zx81/rtl/zx81_ram_pack.v \
@@ -262,7 +262,7 @@ sim-fes-zx81-expansion: sim-fes-zx81-bus
 		cores/fes-zx81/sim/expansion_machine.v \
 		cores/fes-zx81/expansions/ram16k.v \
 		experiments/901_plugged_base/sim/mistral_ff_model.v \
-		cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
 		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/zx81_expansion_socket.v \
 		cores/fes-zx81/rtl/zx81_ram_pack.v cores/fes-zx81/rtl/tv80/tv80_core.v \
 		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
@@ -312,7 +312,7 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
 		-Icores/fes-zx81/generated -Icores/fes-zx81/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
-		cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
 		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/tv80/tv80_core.v \
 		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
 		cores/fes-zx81/rtl/tv80/tv80_reg.v \
@@ -1368,3 +1368,14 @@ build-fes-menu-ddr:
 .PHONY: build-fes-menu-package
 build-fes-menu-package:
 	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu_package.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+.PHONY: sim-fes-zx81-clock sim-fes-zx81-ay
+sim-fes-zx81-clock:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-zx81-clock
+	@$(VERILATOR) --cc --exe --build --top-module zx81_machine_clock -Wall -Wno-UNUSEDSIGNAL \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-clock" \
+		cores/fes-zx81/rtl/zx81_machine_clock.v "$(CURDIR)/cores/fes-zx81/sim/clock_tb.cpp"
+	@build/sim/fes-zx81-clock/Vzx81_machine_clock
+sim-fes-zx81-ay:
+	@python3 -m unittest tests.test_zonx_ay tests.test_zonx_firmware -v

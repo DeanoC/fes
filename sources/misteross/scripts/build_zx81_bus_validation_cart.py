@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Build a RAM or Zon X tone validation cart against a sealed ZX81 bus shell.
+"""Build a RAM or Zon X AY validation cart against a sealed ZX81 bus shell.
 
 The shell is never placed or routed here. Launch-time composition uses the
 misteross Go linker and requires neither this script nor the compiler.
 
-These are bounded bus consumers, not the shell's public interface. Zon X
-implements channel A only; it is not a complete AY sound chip.
+These are bounded bus consumers, not the shell's public interface. Zon X implements the original write-only AY8912 board.
 """
 from __future__ import annotations
 import argparse
@@ -29,12 +28,12 @@ from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
 INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
-CART_SOURCES = {"ram16k": SOURCES, "zonx": ("cores/fes-zx81/expansions/zonx.v",)}
+CART_SOURCES = {"ram16k": SOURCES, "zonx": ("cores/fes-zx81/expansions/zonx.v", "cores/fes-zx81/expansions/zonx_ay.v")}
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "scaffold.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
 REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.224, "pixel_clk": 74.25, "audio_clk": 12.288}
-CRAM_REGION = (1769, 32, 2806, 7024)  # fes.zx81-bus.socket/1, half-open
+CRAM_REGION = (1769, 32, 2806, 7024)  # fes.zx81-bus.socket/2, half-open
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -106,8 +105,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
             raise ValueError("frozen producer ROM map differs from sealed shell package")
         shell_members += ("rom-map.json",)
     slot = [item for item in package.fields["interfaces"] if item["id"] == "fes.expansion.zx81-bus"]
-    if len(slot) != 1 or slot[0]["major"] != 1 or slot[0]["minor"] != 0 or slot[0]["required"]:
-        raise ValueError("shell must declare the optional ZX81 expansion bus 1.0")
+    if len(slot) != 1 or slot[0]["major"] != 2 or slot[0]["minor"] != 0 or slot[0]["required"]:
+        raise ValueError("shell must declare the optional ZX81 expansion bus 2.0")
     for name in ("routed.json", "socket.qsf"):
         if not (shell / name).is_file():
             raise ValueError(f"shell producer directory requires {name}")
@@ -118,7 +117,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
     clock_constraints = cart_clock_constraints(root)
     scaffold = prepare_scaffold((shell / 'routed.json').read_bytes())
-    recipe = {"cart_kind": cart_kind, "inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-bus.socket/1",
+    recipe = {"cart_kind": cart_kind, "inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-bus.socket/2",
               "placer_seed": PLACER_SEED, "required_clocks_mhz": REQUIRED_CLOCKS_MHZ,
               "cram_region": CRAM_REGION,
               "clock_constraints_sha256": digest(clock_constraints),
@@ -172,9 +171,9 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         raise ValueError(f"cart changes outside reserved slot: {changes}")
     (output / "linked.rbf").write_bytes(rbf_save(overlay_cram(base, placed, rect), compressed=True))
     manifest = {"cart_sha256": digest(cart), "cart_size": len(cart), "device": "5CSEBA6U23I7", "format": 1,
-        "map": "fes.zx81-bus.socket/1", "recipe_sha256": recipe_sha, "revision": revision,
+        "map": "fes.zx81-bus.socket/2", "recipe_sha256": recipe_sha, "revision": revision,
         "shell_build_id": package.fields["build"]["id"], "shell_package_id": package.package_id,
-        "shell_sha256": digest(package.payload_bytes), "slot": "fes.expansion.zx81-bus", "slot_major": 1, "slot_minor": 0}
+        "shell_sha256": digest(package.payload_bytes), "slot": "fes.expansion.zx81-bus", "slot_major": 2, "slot_minor": 0}
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     expansion_id = digest(b"fes-expansion-v1\0" + encoded)
     _, final_revision = _require_clean_source(root, pinned_inputs=inputs, identity_version=2)
@@ -203,6 +202,6 @@ if __name__ == "__main__":
     parser.add_argument("--cache-root", type=Path, help="shared authenticated compiler cache")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--cart", choices=tuple(CART_SOURCES), default="ram16k",
-                        help="bounded bus consumer; zonx is a channel-A tone diagnostic")
+                        help="bounded bus consumer; zonx is the write-only AY8912 sound board")
     args = parser.parse_args()
     print(build(args.root, args.shell, args.package, args.gpu, cache_root=args.cache_root, cart_kind=args.cart))

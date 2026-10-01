@@ -1190,7 +1190,7 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 				return false
 			}
 			if i.ID == socketID && i.Minor == 0 && !i.Required &&
-				(i.Major == 1 || (socketID == "fes.expansion.coleco-bus" && i.Major == 2)) {
+				(i.Major == 1 || i.Major == 2) {
 				socket = true
 			}
 		}

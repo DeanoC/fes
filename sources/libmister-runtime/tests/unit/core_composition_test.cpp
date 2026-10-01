@@ -23,7 +23,7 @@ struct Fixture {
 		assert(mkdir((root+"/composition").c_str(),0700)==0);
 		base.package_id=std::string(64,'a');base.descriptor.abi={coleco ? "fes.application" : "fes.simple-computer",1,0};
 		const std::string slot=coleco ? "fes.expansion.coleco-bus" : "fes.expansion.zx81-bus";
-		const std::string map=coleco ? (version==2 ? "fes.coleco-bus.socket/2" : "fes.coleco-bus.socket/1") : "fes.zx81-bus.socket/1";
+		const std::string map=coleco ? (version==2 ? "fes.coleco-bus.socket/2" : "fes.coleco-bus.socket/1") : (version==2 ? "fes.zx81-bus.socket/2" : "fes.zx81-bus.socket/1");
 		base.descriptor.interfaces={{slot,static_cast<std::uint16_t>(version),0,false}};
 		base.descriptor.target.device="5CSEBA6U23I7";
 		base.descriptor.build.id=std::string(32,'b');base.descriptor.payload.sha256=Hash("base");
@@ -80,6 +80,20 @@ void ColecoV2BusAdmission() {
 	f.base.descriptor.interfaces[0].major=2;
 	const auto at=f.manifest.find("socket/2");assert(at!=std::string::npos);
 	f.manifest.replace(at,8,"socket/1");f.Seal();assert(!f.Open(&out).ok());
+}
+void ZX81V2BusAdmission() {
+	Fixture f(false,2);OpenedCoreComposition out;assert(f.Open(&out).ok());
+	assert(RecheckCoreComposition(out).ok());
+	f.base.descriptor.interfaces[0].major=1;assert(!f.Open(&out).ok());
+	f.base.descriptor.interfaces[0].major=2;
+	const auto at=f.manifest.find("socket/2");assert(at!=std::string::npos);
+	f.manifest.replace(at,8,"socket/1");f.Seal();assert(!f.Open(&out).ok());
+	f.manifest.replace(at,8,"socket/2");f.Seal();
+	f.base.descriptor.interfaces[0].minor=1;assert(!f.Open(&out).ok());
+	f.base.descriptor.interfaces[0].minor=0;
+	f.base.descriptor.interfaces[0].required=true;assert(!f.Open(&out).ok());
+	f.base.descriptor.interfaces[0].required=false;
+	f.base.descriptor.abi.id="fes.application";assert(!f.Open(&out).ok());
 }
 void ColecoBoundaryPatchAdmission() {
 	const std::string patch="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":3332,\"y\":803},"
@@ -328,6 +342,6 @@ void RejectSlotCompositionVariants() {
 	assert(zx81.Open(&out).ok()); // single-socket ZX81 admission is unchanged
 }
 }
-int main() {SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
+int main() {SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
 	SlotIdentityVector();SlotCompositionAdmission();RejectSlotCompositionVariants();
 	puts("core_composition_test: single-socket and multi-slot admission passed");}

@@ -1,0 +1,17 @@
+{
+  "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+  "api_version": "v1",
+  "agent_version": "0.1.0",
+  "ready": true,
+  "boot_id": "da6bd708-6c4a-45ca-b600-d58a94d72b27",
+  "artifacts": {
+    "record_sha256": "a59c943df8e125f74d82016169d1ae1f608649d956d729eb4efb312457fa806b",
+    "runtime_commit": "d7e13eaa01c062f924a7a287c03261f6021b671e",
+    "agent_sha256": "2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699",
+    "agent_revision": "977cab8ea266dce3a4f66e6977f2f80614892912",
+    "kit_sha256": "7c62078ae6fd4a009e17f9481adf724add6a32428f9fc91891405b371a3cea65",
+    "image_sha256": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+    "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+    "package_id": "b7ca89754e4330f3a1ccc975ce36b466c8820564306e412bc234fd9bfef3b8a3"
+  }
+}

@@ -960,8 +960,8 @@ CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
 mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
 the pinned `rtl/zx8x.mif`. The Z80 is TV80 (`66a131c`) wrapped as `T80pa` with
 Sorgelig half-cycle `CEN_p`/`CEN_n` timing, WAIT via CEN gating, and
-`TV80_REFRESH`. NMI is sampled every clock, matching T80.vhd. `CEN_p` is
-3.25 MHz from the 52 MHz enable divider.
+`TV80_REFRESH`. NMI is sampled every clock, matching T80.vhd. `CEN_p` averages exactly
+3.25 MHz from the rational machine clock scheduler.
 
 `make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
 a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
@@ -1012,7 +1012,7 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.3.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
+`fes.zx81` 1.4.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
@@ -1038,8 +1038,10 @@ For frozen replay, the cart producer makes an authenticated copy of the routed
 shell and restores the system PLL's second physical output to its audio clock
 net, dropping the obsolete scalar `outclk[0]` pin-map alias. The sealed routed
 shell bytes remain unchanged.
-Socketed shells export a registered Z80-like edge (44-bit request, 20-bit
-response). Vacant response FFs hold 0, so ROMCS/WAIT/DSEL/RAM_PRESENT are
+Socketed shells export bus 2.0 (46-bit request, 20-bit response): CPU clock
+and /RESET append to the original packing. Map `fes.zx81-bus.socket/2` has
+unchanged CRAM bounds. Linker/host/runtime preserve matching historical v1
+assets and admit current v2 only against its exact compatible shell. Vacant response FFs hold 0, so ROMCS/WAIT/DSEL/RAM_PRESENT are
 active-high from the cart. CPU writes on that edge use TDP `A1WE` like the
 validation cart; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`.
 Cart M10K keep a distinct top clock port (`FPGA_CLK1_50`) so
@@ -1051,17 +1053,20 @@ is readable; CPU writes still replace rows. The shifter loads a
 registered `rfsh_chr` hold that keeps the first ROMCS byte; `/RFSH` is
 not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The validation
 cart is the first consumer on that edge; Zon X and QS Character Board RTL share
-the plugs. The cart producer accepts `--cart zonx` to seal the bounded channel-A
-tone diagnostic under `build/zx81-zonx-cart/<recipe-sha>/`; QS is not a library
-asset yet. Zon X channel A is a digital square
-on `peek_d` (R0/R1 period, R7 enable, R8 level); the shell mixes that sample
-into the shared coherent PCM/I2S output when `RAM_PRESENT` is 0. The combined
-52.224/12.288 MHz system/audio PLL supplies MCLK; execution Hold and loss of PLL lock mute
-the output. The ZX81-local GP mailbox reports audio capability bit 4 while
-retaining the busy-tape guard. Channel A period uses nested 4-bit
-LUT counters so the cart does not place `ALUT_ARITH` carry in the slot.
+the plugs. The cart producer accepts `--cart zonx` to seal the original write-only
+AY8912 board under `build/zx81-zonx-cart/<recipe-sha>/`; QS is not a library asset.
+`zonx.v` handles physical decode/clock/reset and one event per CPU write;
+`zonx_ay.v` supplies three full tones, noise, envelope shapes/restarts and
+masked registers. Its unsigned 8-bit summed sample on `peek_d` feeds shared
+PCM/I2S, duplicated into stereo when `RAM_PRESENT` is 0. The nominal 3 dB DAC
+is quantized to 85 units per channel. It does not model the analog card.
+`zx81_machine_clock.v` schedules exact average 6.5 MHz ULA / 3.25 MHz CPU
+rates from the existing 52.224 MHz transport with phase error below one cycle.
+The oscillator schedule continues during reset. The cart halves the edge CPU
+clock to 1.625 MHz. Hold/PLL loss mute shared output; edge reset clears the AY.
+Sources and fidelity limits are in FES [ZX81 expansion bus](../../../docs/zx81-expansion-bus.md).
 Diagnostic 904–907 remains an HPS bench and does not seal
-`fes.zx81`. The cart route also receives the fixed `fes.zx81-bus.socket/1` CRAM rectangle
+`fes.zx81`. The cart route also receives the fixed `fes.zx81-bus.socket/2` CRAM rectangle
 `1769,32,2806,7024` (exclusive upper bounds). The scoped compiler queries Mistral
 for each routing mux's physical configuration bits; nominal wire/tile locations
 do not determine those bits for long wires. Existing shell pip selections remain

@@ -4,7 +4,8 @@
 // Keyboard rows and .p tape come from the FES GP mailbox.
 
 module zx81_machine #(
-    parameter EXTERNAL_RAM = 0
+    parameter EXTERNAL_RAM = 0,
+    parameter FIRMWARE_INIT = ""
 ) (
     input  wire        clk_sys,
     input  wire        reset,
@@ -38,6 +39,7 @@ module zx81_machine #(
     output wire        bus_wr_n,
     output wire        bus_m1_n,
     output wire        bus_rfsh_n,
+    output wire        bus_cpu_clock,
     input  wire [7:0]  bus_rdata,
     input  wire [7:0]  bus_peek_data,
     input  wire        bus_dsel,
@@ -57,17 +59,13 @@ module zx81_machine #(
     assign cpu_addr = addr;
     assign halt_n = nHALT;
 
-    reg ce_cpu_p, ce_cpu_n, ce_3m25, ce_6m5_r;
-    reg [4:0] ce_counter = 0;
+    wire ce_cpu_p, ce_cpu_n, ce_6m5_r;
+    wire ce_3m25 = ce_cpu_p;
     assign ce_6m5 = ce_6m5_r;
-
-    always @(negedge clk_sys) begin
-        ce_counter <= ce_counter + 1'd1;
-        ce_cpu_p <= !ce_counter[3] & !ce_counter[2:0];
-        ce_cpu_n <= ce_counter[3] & !ce_counter[2:0];
-        ce_3m25  <= !ce_counter[3:0];
-        ce_6m5_r <= !ce_counter[2:0];
-    end
+    zx81_machine_clock machine_clock (
+        .clk_sys(clk_sys), .reset(1'b0), .ce_6m5(ce_6m5_r),
+        .ce_cpu_p(ce_cpu_p), .ce_cpu_n(ce_cpu_n), .cpu_clock(bus_cpu_clock)
+    );
 
     T80pa cpu (
         .RESET_n(~reset),
@@ -181,9 +179,9 @@ module zx81_machine #(
     );
 `else
 `ifdef QUARTUS
-    localparam ROM_INIT = "cores/fes-zx81/rtl/zx8x.mif";
+    localparam ROM_INIT = FIRMWARE_INIT == "" ? "cores/fes-zx81/rtl/zx8x.mif" : FIRMWARE_INIT;
 `else
-    localparam ROM_INIT = "cores/fes-zx81/rtl/zx8x.hex";
+    localparam ROM_INIT = FIRMWARE_INIT == "" ? "cores/fes-zx81/rtl/zx8x.hex" : FIRMWARE_INIT;
 `endif
     zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384), .MEM_INIT_FILE(ROM_INIT)) rom (
         .clock(clk_sys),

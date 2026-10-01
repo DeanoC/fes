@@ -1,0 +1,275 @@
+{
+  "carts": {
+    "ram16k": {
+      "archive_sha256": "c77d742f4b3c96e78679154c83b4d16ae552507401d974659290a17c58739389",
+      "cram_diff": {
+        "bits_inside_slot": 179872,
+        "bits_outside_slot": 0,
+        "column_bits": {
+          "21": 46,
+          "22": 84,
+          "23": 194,
+          "24": 1919,
+          "25": 5392,
+          "26": 167964,
+          "27": 3729,
+          "28": 302,
+          "29": 200,
+          "30": 36,
+          "31": 4,
+          "33": 2
+        },
+        "diff": {
+          "bits": 179872,
+          "x0": 1819,
+          "x1": 2779,
+          "y0": 88,
+          "y1": 1808
+        },
+        "identical": false,
+        "inside_slot_column": true
+      },
+      "expansion_id": "2eda48675a190e0a0633a4046bcc58e0cee5cf27217be675d42960eaccd14675",
+      "linked_sha256": "723cf272fa5c991990bfdc167a632f72f8c75c6ad606859c4c6f704e457681a9",
+      "linked_size": 2574195,
+      "manifest": {
+        "cart_sha256": "723cf272fa5c991990bfdc167a632f72f8c75c6ad606859c4c6f704e457681a9",
+        "cart_size": 2574195,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.zx81-bus.socket/2",
+        "recipe_sha256": "4debdeaa081fbca287d21dd57c0bfcbe33a03c13b4bf5f113d1a8acded42e499",
+        "revision": "977cab8ea266dce3a4f66e6977f2f80614892912",
+        "shell_build_id": "d308c4b4aa16922c99138770c0203ba6",
+        "shell_package_id": "39f3984defc0dff84c75c0dceb32f54ed6d74922e8974b9b4224a0389a3a2dca",
+        "shell_sha256": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89",
+        "slot": "fes.expansion.zx81-bus",
+        "slot_major": 2,
+        "slot_minor": 0
+      },
+      "recipe": {
+        "cart_kind": "ram16k",
+        "clock_constraints_sha256": "a0ee3dc217a7c45c411a3a96e68eb25129a45727ccee1d4ed0d245fbca1b72f5",
+        "cram_region": [
+          1769,
+          32,
+          2806,
+          7024
+        ],
+        "inputs": {
+          "cores/fes-zx81/clocks-oss.sdc": "38bb8779376406d4dfb1621f05c7eae1cbe3e652aa448becd43a5c63e2eaa7bb",
+          "cores/fes-zx81/expansions/ram16k.v": "506c70b9d3e2f277cf475abf4015a541af524c7db1d7e2fd2bbe42c25ba3b348",
+          "cores/fes-zx81/rtl/zx81_bus_pack.vh": "4e7a9114ef21632838b7e5ffdf48fbfcc53fca20f2f9a3b1dbec5fded8541fa5",
+          "cores/fes-zx81/rtl/zx81_dpram.v": "de7cf2c8b7bc39ffb5f635b2103fa73d6c2e7d17d0396a2edc012bb2ec0be670",
+          "cores/fes-zx81/rtl/zx81_ram_pack.v": "79bf7f6e43a485f2dae491e646fb9a54ff399abf78df636059aafd6c5f0670b7",
+          "scripts/build_fes_zx81_oss.py": "71413841fb42acdee31f1a3aa51089b6e93f3fea4acbcd4a252eab720c9231a9",
+          "scripts/build_zx81_bus_validation_cart.py": "34bb5aaa435a64e33c7d32294cd5f36b329176db66501ffc3fb2016947cb1c6c",
+          "scripts/core_package.py": "63afff6526b1be6895fd84f51802fdadf9048181d6e93dd37289b821eeb39e8b",
+          "scripts/cyclonev_rbf.py": "8740ade5234a91bfe4ed6497ca1d7c06765f76447e3e7cd647c42212d829ad9d",
+          "scripts/fes_build_common.py": "6c8f73431c84949a5c8486145a2f5f64067a38534460539b4bb6435ce3425f9a",
+          "scripts/rom_map.py": "5183cff198878cc47e37e0739fed4d4192e7b435ed82c6d8bf78535f430c22e7",
+          "shell/core.rbf": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89",
+          "shell/manifest.toml": "a479634ce26ebc56364d20ecca709d18ff536b4b11abdcf367a792f97e7c0cc4",
+          "shell/rom-map.json": "753c307fbb0b21ce6ea4e4841fe1382d827813abb55c4608a7a095d0d6a11856",
+          "shell/routed.json": "24ee6928860a870e15671cf0a8601b32b5132d2b1a311eed235394d8581b2220",
+          "shell/socket.qsf": "e3c9c4736ef5b8ae838827f5601875f19e482164c537135f10659ebebcb0ad66",
+          "toolchains/zx81-expansion.lock": "648587a897900836aaa0e1eade0abb62d7141fe93f7ea028c024baa09af2d3df"
+        },
+        "map": "fes.zx81-bus.socket/2",
+        "placer_seed": 2,
+        "required_clocks_mhz": {
+          "audio_clk": 12.288,
+          "clk_sys": 52.224,
+          "pixel_clk": 74.25
+        },
+        "scaffold_sha256": "bc587cab38d5deea57dafb2b4244274afd19b07a90963cdc9993d1894f9a8d59",
+        "slot_clock": "clk_sys",
+        "tools": {
+          "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=e148641d0e4b9893a08a7de95e82ad340f6bf7923b6dae509af13a7cfe87518d",
+          "nextpnr-mistral": "commit=c2bb4363f4628cfbc5f304f3635e1f6eb88a47a7; sha256=e76d91b158b2d9fc156894a1540b2e9613065c9b99dca8ea05703cdd06660087; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+          "yosys": "commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=bee3b59f5548fa586ee78f7ab950b3a48bd8cf0f2d3e9b9954610a158844777a"
+        }
+      },
+      "timing": {
+        "audio_clk": {
+          "achieved": 210.74815368652344,
+          "constraint": 12.288031578063965
+        },
+        "clk_sys": {
+          "achieved": 55.52162551879883,
+          "constraint": 52.22477340698242
+        },
+        "pixel_clk": {
+          "achieved": 128.13941955566406,
+          "constraint": 74.25006866455078
+        }
+      }
+    },
+    "zonx": {
+      "archive_sha256": "4db32cd94cd9b7e4982bb1d273a0ebe703bfd4876ea8d7e35005a0db40835c84",
+      "cram_diff": {
+        "bits_inside_slot": 24602,
+        "bits_outside_slot": 0,
+        "column_bits": {
+          "22": 62,
+          "23": 58,
+          "24": 2051,
+          "25": 9586,
+          "26": 2142,
+          "27": 10001,
+          "28": 254,
+          "29": 294,
+          "30": 106,
+          "31": 34,
+          "33": 14
+        },
+        "diff": {
+          "bits": 24602,
+          "x0": 1876,
+          "x1": 2781,
+          "y0": 88,
+          "y1": 2064
+        },
+        "identical": false,
+        "inside_slot_column": true
+      },
+      "expansion_id": "c760dc38646798e87d960fd72e856f504c3a0463e9240e8b818fbda0948f2703",
+      "linked_sha256": "bb6f1784aff9dd89f09180c4bdbfbcacf4de470589dbf95f1b9e4056de907aa9",
+      "linked_size": 2528045,
+      "manifest": {
+        "cart_sha256": "bb6f1784aff9dd89f09180c4bdbfbcacf4de470589dbf95f1b9e4056de907aa9",
+        "cart_size": 2528045,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.zx81-bus.socket/2",
+        "recipe_sha256": "00e62e190e5a0dc0222d9aaedce88704033dbd8f01322cdcf01e067e66423ea7",
+        "revision": "977cab8ea266dce3a4f66e6977f2f80614892912",
+        "shell_build_id": "d308c4b4aa16922c99138770c0203ba6",
+        "shell_package_id": "39f3984defc0dff84c75c0dceb32f54ed6d74922e8974b9b4224a0389a3a2dca",
+        "shell_sha256": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89",
+        "slot": "fes.expansion.zx81-bus",
+        "slot_major": 2,
+        "slot_minor": 0
+      },
+      "recipe": {
+        "cart_kind": "zonx",
+        "clock_constraints_sha256": "a0ee3dc217a7c45c411a3a96e68eb25129a45727ccee1d4ed0d245fbca1b72f5",
+        "cram_region": [
+          1769,
+          32,
+          2806,
+          7024
+        ],
+        "inputs": {
+          "cores/fes-zx81/clocks-oss.sdc": "38bb8779376406d4dfb1621f05c7eae1cbe3e652aa448becd43a5c63e2eaa7bb",
+          "cores/fes-zx81/expansions/zonx.v": "b3615d14d78e08b2c3effbcb4cb9f36072d158cf8f65eed84f03d47e79b397d8",
+          "cores/fes-zx81/expansions/zonx_ay.v": "c66c260610bc629835a283338f1fcb18c8278dc8fe3e52eed6c9ce5ea97b68d9",
+          "cores/fes-zx81/rtl/zx81_bus_pack.vh": "4e7a9114ef21632838b7e5ffdf48fbfcc53fca20f2f9a3b1dbec5fded8541fa5",
+          "scripts/build_fes_zx81_oss.py": "71413841fb42acdee31f1a3aa51089b6e93f3fea4acbcd4a252eab720c9231a9",
+          "scripts/build_zx81_bus_validation_cart.py": "34bb5aaa435a64e33c7d32294cd5f36b329176db66501ffc3fb2016947cb1c6c",
+          "scripts/core_package.py": "63afff6526b1be6895fd84f51802fdadf9048181d6e93dd37289b821eeb39e8b",
+          "scripts/cyclonev_rbf.py": "8740ade5234a91bfe4ed6497ca1d7c06765f76447e3e7cd647c42212d829ad9d",
+          "scripts/fes_build_common.py": "6c8f73431c84949a5c8486145a2f5f64067a38534460539b4bb6435ce3425f9a",
+          "scripts/rom_map.py": "5183cff198878cc47e37e0739fed4d4192e7b435ed82c6d8bf78535f430c22e7",
+          "shell/core.rbf": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89",
+          "shell/manifest.toml": "a479634ce26ebc56364d20ecca709d18ff536b4b11abdcf367a792f97e7c0cc4",
+          "shell/rom-map.json": "753c307fbb0b21ce6ea4e4841fe1382d827813abb55c4608a7a095d0d6a11856",
+          "shell/routed.json": "24ee6928860a870e15671cf0a8601b32b5132d2b1a311eed235394d8581b2220",
+          "shell/socket.qsf": "e3c9c4736ef5b8ae838827f5601875f19e482164c537135f10659ebebcb0ad66",
+          "toolchains/zx81-expansion.lock": "648587a897900836aaa0e1eade0abb62d7141fe93f7ea028c024baa09af2d3df"
+        },
+        "map": "fes.zx81-bus.socket/2",
+        "placer_seed": 2,
+        "required_clocks_mhz": {
+          "audio_clk": 12.288,
+          "clk_sys": 52.224,
+          "pixel_clk": 74.25
+        },
+        "scaffold_sha256": "bc587cab38d5deea57dafb2b4244274afd19b07a90963cdc9993d1894f9a8d59",
+        "slot_clock": "clk_sys",
+        "tools": {
+          "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=e148641d0e4b9893a08a7de95e82ad340f6bf7923b6dae509af13a7cfe87518d",
+          "nextpnr-mistral": "commit=c2bb4363f4628cfbc5f304f3635e1f6eb88a47a7; sha256=e76d91b158b2d9fc156894a1540b2e9613065c9b99dca8ea05703cdd06660087; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+          "yosys": "commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=bee3b59f5548fa586ee78f7ab950b3a48bd8cf0f2d3e9b9954610a158844777a"
+        }
+      },
+      "timing": {
+        "audio_clk": {
+          "achieved": 210.74815368652344,
+          "constraint": 12.288031578063965
+        },
+        "clk_sys": {
+          "achieved": 55.52162551879883,
+          "constraint": 52.22477340698242
+        },
+        "pixel_clk": {
+          "achieved": 128.13941955566406,
+          "constraint": 74.25006866455078
+        }
+      }
+    }
+  },
+  "classification": "host build and simulation; exact-artifact Kit2 diagnostic recorded separately",
+  "go_composition": {
+    "composition_id": "83f72896120826e165574f493e69f96133f0fac8c629b3cc923cd308ea09944c",
+    "expansion_id": "c760dc38646798e87d960fd72e856f504c3a0463e9240e8b818fbda0948f2703",
+    "package_id": "39f3984defc0dff84c75c0dceb32f54ed6d74922e8974b9b4224a0389a3a2dca",
+    "payload_sha256": "bb6f1784aff9dd89f09180c4bdbfbcacf4de470589dbf95f1b9e4056de907aa9",
+    "payload_size": 2528045,
+    "shell_sha256": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89"
+  },
+  "python_go_linked_bytes_equal": true,
+  "shell": {
+    "build_id": "d308c4b4aa16922c99138770c0203ba6",
+    "rbf": {
+      "sha256": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89",
+      "size": 2518849
+    },
+    "rom_map": {
+      "database_sha256": {
+        "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
+        "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
+        "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21"
+      },
+      "format": 1
+    },
+    "route": {
+      "gpu_backend": "hip",
+      "placer_heap_timingweight": 1000,
+      "placer_qor_mode": "first-pass-paired",
+      "placer_seed": 10,
+      "status": "pass",
+      "unrouted": false
+    },
+    "timing": {
+      "audio": {
+        "achieved_mhz": 210.74815368652344,
+        "clock": "audio_clk",
+        "constraint_mhz": 12.288031578063965,
+        "requested_mhz": 12.288,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 128.13941955566406,
+        "clock": "pixel_clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 55.52162551879883,
+        "clock": "clk_sys",
+        "constraint_mhz": 52.22477340698242,
+        "requested_mhz": 52.224,
+        "status": "pass"
+      }
+    },
+    "tools": {
+      "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=e148641d0e4b9893a08a7de95e82ad340f6bf7923b6dae509af13a7cfe87518d",
+      "nextpnr-mistral": "commit=c2bb4363f4628cfbc5f304f3635e1f6eb88a47a7; sha256=e76d91b158b2d9fc156894a1540b2e9613065c9b99dca8ea05703cdd06660087; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=bee3b59f5548fa586ee78f7ab950b3a48bd8cf0f2d3e9b9954610a158844777a"
+    }
+  },
+  "source_revision": "977cab8ea266dce3a4f66e6977f2f80614892912"
+}

@@ -115,12 +115,14 @@ module top #(
     wire [15:0] bus_addr;
     wire [7:0] bus_wdata, bus_rdata, bus_peek_data;
     wire bus_mreq_n, bus_iorq_n, bus_rd_n, bus_wr_n, bus_m1_n, bus_rfsh_n;
+    wire bus_cpu_clock;
     wire bus_dsel, bus_romcs, bus_wait, bus_ram_present;
-    (* keep *) wire [43:0] plug_addr;
+    (* keep *) wire [45:0] plug_addr;
     wire [19:0] plug_rdata;
     generate if (EXPANSION_SOCKET) begin : expansion
         zx81_expansion_socket socket (
             .clock(clk_sys),
+            .cpu_clock(bus_cpu_clock), .cpu_reset_n(~exec_reset),
             .cpu_addr(bus_addr),
             .cpu_wdata(bus_wdata),
             .cpu_mreq_n(bus_mreq_n),
@@ -147,7 +149,7 @@ module top #(
         assign bus_romcs = 1'b0;
         assign bus_wait = 1'b0;
         assign bus_ram_present = 1'b0;
-        assign plug_addr = 44'b0;
+        assign plug_addr = 46'b0;
         assign plug_rdata = 20'b0;
     end endgenerate
     zx81_machine #(.EXTERNAL_RAM(EXPANSION_SOCKET)) machine (
@@ -176,6 +178,7 @@ module top #(
         .bus_mreq_n(bus_mreq_n), .bus_iorq_n(bus_iorq_n),
         .bus_rd_n(bus_rd_n), .bus_wr_n(bus_wr_n),
         .bus_m1_n(bus_m1_n), .bus_rfsh_n(bus_rfsh_n),
+        .bus_cpu_clock(bus_cpu_clock),
         .bus_rdata(bus_rdata), .bus_peek_data(bus_peek_data),
         .bus_dsel(bus_dsel), .bus_romcs(bus_romcs),
         .bus_wait(bus_wait), .bus_ram_present(bus_ram_present)

@@ -3,6 +3,7 @@
 `include "zx81_bus_pack.vh"
 module expansion_bus_harness (
     input wire clk,
+    input wire cpu_clock, cpu_reset_n,
     input wire [15:0] cpu_addr,
     input wire [7:0] cpu_wdata,
     input wire cpu_mreq_n,
@@ -23,6 +24,7 @@ module expansion_bus_harness (
     wire [`ZX81_BUS_RSP-1:0] cart_rdata, plug_rdata;
     zx81_expansion_socket socket (
         .clock(clk),
+        .cpu_clock(cpu_clock), .cpu_reset_n(cpu_reset_n),
         .cpu_addr(cpu_addr),
         .cpu_wdata(cpu_wdata),
         .cpu_mreq_n(cpu_mreq_n),

@@ -309,6 +309,9 @@ type socketPolicy struct {
 }
 
 var zx81Socket = socketPolicy{Slot, Map, 1769, 32, 2806, cramHeight}
+
+// The v2 signal contract retains the v1 physical CRAM rectangle.
+var zx81SocketV2 = socketPolicy{Slot, MapV2, 1769, 32, 2806, cramHeight}
 var colecoSocket = socketPolicy{ColecoSlot, ColecoMap, 1769, 32, 2806, 1034}
 var colecoSocketV2 = socketPolicy{ColecoSlot, ColecoMapV2, 1769, 32, 2806, 1800}
 
@@ -354,6 +357,8 @@ func policyFor(slot, mapping string) (socketPolicy, error) {
 	switch {
 	case slot == Slot && mapping == Map:
 		return zx81Socket, nil
+	case slot == Slot && mapping == MapV2:
+		return zx81SocketV2, nil
 	case slot == ColecoSlot && mapping == ColecoMap:
 		return colecoSocket, nil
 	case slot == ColecoSlot && mapping == ColecoMapV2:
@@ -365,6 +370,7 @@ func policyFor(slot, mapping string) (socketPolicy, error) {
 
 func supportedSocketVersion(slot, mapping string, major int) bool {
 	return (slot == Slot && mapping == Map && major == 1) ||
+		(slot == Slot && mapping == MapV2 && major == 2) ||
 		(slot == ColecoSlot && mapping == ColecoMap && major == 1) ||
 		(slot == ColecoSlot && mapping == ColecoMapV2 && major == 2) ||
 		(slot == Apple2Slot && mapping == Apple2Map && major == 1) ||

@@ -1,9 +1,9 @@
 """Fixed ZX81 expansion-edge contract for the existing freeze-scaffold linker.
 
-Request 44 bits: A[15:0], Dwr[7:0], /MREQ /IORQ /RD /WR /M1 /RFSH, peek_a[13:0].
+Request 46 bits: A[15:0], Dwr[7:0], /MREQ /IORQ /RD /WR /M1 /RFSH, peek_a[13:0], CPU clock, /RESET.
 Response 20 bits: Drd[7:0], peek_d[7:0], DSEL, ROMCS, WAIT, RAM_PRESENT.
 Vacant response FFs hold 0, so cart-to-CPU controls are active-high.
-CRAM map `fes.zx81-bus.socket/1` is the reserved rectangle for any compatible
+CRAM map `fes.zx81-bus.socket/2` is the reserved rectangle for any compatible
 ZX81 bus cart. It is not the old pre-decoded 14-bit RAM window.
 """
 
@@ -16,7 +16,7 @@ from pathlib import Path
 SOCKET_CLOCK = "clk_sys"
 SOCKET_RECT = "25 1 27 32"
 SOCKET_PREFIX = "expansion.socket."
-REQUEST_BITS = 44
+REQUEST_BITS = 46
 RESPONSE_BITS = 20
 
 

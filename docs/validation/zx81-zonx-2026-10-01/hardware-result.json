@@ -1,0 +1,45 @@
+{
+  "agent_sha256": "19af131b46a3c4fc06c89b233a7de2b7aedd026c101a500bb5bff1abb4a23ebc",
+  "artifact_sha256": {
+    "active.flac": "fe1d8c3bae519c13a241f1444affbdc970c4fa911cb5a7ce8322d0d9419f7b5a",
+    "active.png": "4c6d2c8d8bbb3756757eacd65f2e662ac9a6f56594ea0e34760218bc21f02037",
+    "final-idle.flac": "da5184423b742d9407a554de726f5c0c52b999f58880d286f91ce3cea72e7a5a",
+    "hold.flac": "74714cfd1e934fc7cc5fe94384a09ed53261a3a885c305dd88c143b6a4c07e50",
+    "idle.flac": "193f60fe5d466f19daa95d6a6901d0966a6c289973f61d732722b4324b959e71",
+    "relaunch.flac": "728e85f3ea422c4c615b6c36cd6bb71a6d318da1ce8f48527c95bac3d86a8246",
+    "restored-idle-later.png": "9750f42cbae6433a5d0f47a3d2e1fd74452bcee6db627203c72fb7eeec5faa2b"
+  },
+  "boot_id": "da6bd708-6c4a-45ca-b600-d58a94d72b27",
+  "capture": "ASUS 4KPRO 802B003090700329; hw:CARD=D4KPRO,DEV=0",
+  "capture_limits": "Filtered/rescaled audio with DC offset; not bitexact PCM or DAC measurement",
+  "classification": "exact-artifact Kit2 audio diagnostic with temporary service overlays; not factory acceptance",
+  "composition": {
+    "composition_id": "83f72896120826e165574f493e69f96133f0fac8c629b3cc923cd308ea09944c",
+    "expansion_id": "c760dc38646798e87d960fd72e856f504c3a0463e9240e8b818fbda0948f2703",
+    "package_id": "39f3984defc0dff84c75c0dceb32f54ed6d74922e8974b9b4224a0389a3a2dca",
+    "payload_sha256": "bb6f1784aff9dd89f09180c4bdbfbcacf4de470589dbf95f1b9e4056de907aa9",
+    "payload_size": 2528045,
+    "shell_sha256": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89"
+  },
+  "diagnostic_source": "977cab8ea266dce3a4f66e6977f2f80614892912",
+  "generations": [
+    1,
+    2
+  ],
+  "host_sha256": "cdb2170afdc9ab9abf2332cfc55b76bdbaf6bd8b398cf55f0c69e21e9e95f8c3",
+  "image_sha256": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+  "installed_revision": "d7e13eaa01c062f924a7a287c03261f6021b671e",
+  "lease_released": true,
+  "original_health_restored_equal": true,
+  "rom_link": {
+    "map_sha256": "753c307fbb0b21ce6ea4e4841fe1382d827813abb55c4608a7a095d0d6a11856",
+    "programmed_sha256": "9d38a8c112c29aa388ccfc31f42decfbc0db930f388918a8e4d2942bce131b47",
+    "programmed_size": 2513468,
+    "rom_id": "machine-rom",
+    "source_sha256": "adcf1ea67ac7efae5ee63515e967448c02147ffc95e95af08222c5aff7f6ae6f",
+    "source_size": 8192
+  },
+  "runtime_sha256": "38be527f48bccd1e1cd0c9ca0ea53c77ac01623a9bc560eb88466c978a4d7f19",
+  "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+  "temporary_private_credential_removed": true
+}

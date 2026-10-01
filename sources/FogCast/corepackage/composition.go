@@ -327,7 +327,7 @@ func compositionShell(inspection Inspection, payload []byte) (expansion.Shell, e
 	for _, i := range d.Interfaces {
 		if i.ID == expansion.Slot || i.ID == expansion.ColecoSlot {
 			if i.Required || i.Minor != 0 ||
-				(i.Major != 1 && !(i.ID == expansion.ColecoSlot && i.Major == 2)) {
+				(i.Major != 1 && i.Major != 2) {
 				return expansion.Shell{}, errors.New("composition requires a supported optional expansion bus")
 			}
 			if slot != "" {

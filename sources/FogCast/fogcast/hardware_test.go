@@ -20,7 +20,7 @@ import (
 
 // The retained synthetic M10K fixture exercises the real archive/linker path;
 // neither this package nor its no-op expansion is a working ZX81 bitstream.
-func hardwareZX81Fixture(t *testing.T, rom bool) (archive, firmware []byte) {
+func hardwareZX81Fixture(t *testing.T, rom bool, majors ...int) (archive, firmware []byte) {
 	t.Helper()
 	payload := misterossROMFixture(t, "blank.rbf")
 	manifest, err := os.ReadFile("../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml")
@@ -32,6 +32,9 @@ func hardwareZX81Fixture(t *testing.T, rom bool) (archive, firmware []byte) {
 		"e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1", fmt.Sprintf("%x", sha256.Sum256(payload))).Replace(string(manifest))
 	text += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n"
 	text += "\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 1\nminor = 0\nrequired = false\n"
+	if len(majors) != 0 && majors[0] == 2 {
+		text = strings.Replace(text, `id = "fes.expansion.zx81-bus"`+"\nmajor = 1", `id = "fes.expansion.zx81-bus"`+"\nmajor = 2", 1)
+	}
 	members := [][2][]byte{{[]byte("manifest.toml"), nil}, {[]byte("core.rbf"), payload}}
 	if rom {
 		mapping := misterossROMFixture(t, "map.json")
@@ -50,6 +53,11 @@ func hardwareExpansion(t *testing.T, inspection corepackage.Inspection, changes 
 	manifest := expansion.Manifest{CartSHA256: fmt.Sprintf("%x", sha256.Sum256(cart)), CartSize: int64(len(cart)), Device: expansion.Device, Format: 1,
 		Map: expansion.Map, RecipeSHA256: strings.Repeat("b", 64), Revision: strings.Repeat("c", 40), ShellBuildID: inspection.Descriptor.Build.ID,
 		ShellPackageID: inspection.PackageID, ShellSHA256: inspection.Descriptor.Payload.SHA256, Slot: expansion.Slot, SlotMajor: 1}
+	for _, contract := range inspection.Descriptor.Interfaces {
+		if contract.ID == expansion.Slot && contract.Major == 2 {
+			manifest.SlotMajor, manifest.Map = 2, expansion.MapV2
+		}
+	}
 	for _, change := range changes {
 		change(&manifest)
 	}
@@ -65,8 +73,16 @@ func hardwareExpansion(t *testing.T, inspection corepackage.Inspection, changes 
 }
 
 func TestHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T) {
+	for _, major := range []int{1, 2} {
+		t.Run(fmt.Sprintf("bus%d", major), func(t *testing.T) {
+			testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t, major)
+		})
+	}
+}
+
+func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, major int) {
 	ctx := context.Background()
-	archive, firmware := hardwareZX81Fixture(t, true)
+	archive, firmware := hardwareZX81Fixture(t, true, major)
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, archive, "My ZX81", time.Minute)
 	asset, data := hardwareExpansion(t, inspection)
 	if _, err := s.ImportCoreExpansion(ctx, int64(len(data)), bytes.NewReader(data)); err != nil {

@@ -118,3 +118,65 @@ func TestAssetArchiveRejectsMalformedInput(t *testing.T) {
 		})
 	}
 }
+
+func TestZX81V2CompositionAndVersionBinding(t *testing.T) {
+	shell, v1 := assetFixture(t)
+	shell.SlotMajor = 2
+	manifest := v1.Manifest
+	manifest.Map, manifest.SlotMajor = MapV2, 2
+	v2, err := NewAsset(manifest, v1.Cart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archive bytes.Buffer
+	if err := v2.Write(&archive); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := ReadAsset(&archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, linked, err := Compose(shell, decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Bus v2 changes the signal contract, not the allowed physical region.
+	if hash(linked) != "8be0d02e30165a365e563e52c8d6adea541f68fd1941c8c98f88f480dedba5fd" {
+		t.Fatal("ZX81 v2 changed the physical socket overlay")
+	}
+	if Admit(shell, v1) == nil {
+		t.Fatal("v2 shell accepted v1 cart")
+	}
+	shell.SlotMajor = 1
+	if Admit(shell, v2) == nil {
+		t.Fatal("v1 shell accepted v2 cart")
+	}
+	for _, change := range []func(*Manifest){
+		func(m *Manifest) { m.Map = Map },
+		func(m *Manifest) { m.SlotMajor = 1 },
+		func(m *Manifest) { m.SlotMajor = 3 },
+		func(m *Manifest) { m.SlotMinor = 1 },
+		func(m *Manifest) { m.SlotIndex = 1 },
+	} {
+		m := manifest
+		change(&m)
+		if _, err := NewAsset(m, v1.Cart); err == nil {
+			t.Fatal("accepted mismatched socket contract")
+		}
+	}
+	cart, err := loadRBF(v1.Cart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setCramBit(cart.cram, 1768, 100, 1)
+	outside := saveRBF(cart)
+	manifest.CartSHA256, manifest.CartSize = hash(outside), int64(len(outside))
+	asset, err := NewAsset(manifest, outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell.SlotMajor = 2
+	if _, _, err := Compose(shell, asset); err == nil {
+		t.Fatal("v2 accepted changes outside unchanged socket")
+	}
+}

@@ -17,8 +17,10 @@ const (
 	// Slot and Map describe the physical expansion bus. They deliberately do
 	// not name a particular cart or memory size; RAM, ROM and peripherals are
 	// bus consumers, not alternate shell interfaces.
-	Slot             = "fes.expansion.zx81-bus"
-	Map              = "fes.zx81-bus.socket/1"
+	Slot = "fes.expansion.zx81-bus"
+	Map  = "fes.zx81-bus.socket/1"
+	// MapV2 adds the physical CPU clock and active-low reset to the bus.
+	MapV2            = "fes.zx81-bus.socket/2"
 	ColecoSlot       = "fes.expansion.coleco-bus"
 	ColecoMap        = "fes.coleco-bus.socket/1"
 	ColecoMapV2      = "fes.coleco-bus.socket/2"

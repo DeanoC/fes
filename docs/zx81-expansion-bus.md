@@ -6,15 +6,21 @@ carts are launch-time composition (linked before programming). Mid-session
 [ZX81 tape media](zx81-tape-media.md). Do not conflate bus carts with tape.
 
 A separately synthesized RAM cart is retained only as a validation consumer
-for this bus; the shell interface is the bus itself. The socketed `fes.zx81`
-1.3 package has 1 KiB of mirrored RAM when the edge is
-vacant, and a registered Z80-like expansion bus (A, D, /MREQ /IORQ /RD /WR
-/M1 /RFSH in; D, ROMCS, WAIT, RAM_PRESENT, DSEL out). The validation cart decodes the physical `4000–7FFF` window on that bus. Zon X-81 and QS Character
-Board RTL uses the same plugs. Zon X can be sealed as a channel-A tone
-diagnostic; QS remains diagnostic RTL. Cart cells
-keep a distinct `FPGA_CLK1_50` clock port so `--fes-slot-clock clk_sys` can
-splice the inferred IB onto the shell 52.224 MHz net. Zon X returns a digital channel-A square on `peek_d`
-and the shell mixes it into HDMI I2S0 when the validation cart is absent. During ULA
+for this bus; the shell interface is the bus itself. The socketed `fes.zx81` 1.4 package has 1 KiB of mirrored RAM when the edge is
+vacant and a registered Z80-like expansion bus. Bus 2.0 appends CPU clock and
+/RESET at request bits 44 and 45, retaining the original A/D/control/peek
+packing. The 52.224 MHz transport schedules exact average 6.5 MHz ULA enables
+and 3.25 MHz CPU cycles; intervals are eight or nine transport cycles and
+phase error stays below one transport cycle. The schedule continues during
+Hold. The cart's divider follows the real edge CPU clock to 1.625 MHz AY,
+correcting the former 3.264 MHz CPU cadence. /RESET resets the CPU and AY;
+Hold also mutes the shared audio output.
+
+The validation RAM cart decodes `4000–7FFF`. Zon X and QS share the plugs.
+Cart cells retain `FPGA_CLK1_50` so `--fes-slot-clock clk_sys` splices that
+inferred IB onto the transport clock. Zon X returns summed digital audio on
+`peek_d`; the shell converts it to mono on both HDMI I2S channels.
+During ULA
 `/RFSH` the shell presents `{6'h21, char[6:0], row[2:0]}` on the edge so QS
 `8400–87FF` can supply glyphs. That window power-up copies Sinclair glyphs
 0–63 from ROM `1E00–1FFF` so the board boots with readable text; `POKE`
@@ -23,10 +29,12 @@ byte in `rfsh_chr`. `/RFSH` is not muxed into `cpu_din`. The normal library laun
 it does no synthesis, placement or routing. An unset selection loads the original sealed
 shell.
 
-The CRAM map is `fes.zx81-bus.socket/1` (slot `fes.expansion.zx81-bus`
-1.0). This names the bus contract and does not constrain future cart types. The plug packing itself is
+The CRAM map is `fes.zx81-bus.socket/2` (slot `fes.expansion.zx81-bus`
+2.0). This names the bus contract and does not constrain future cart types. The plug packing itself is
 the Z80-like edge, not the earlier pre-decoded 14-bit RAM port. Old RAM-port
-carts cannot overlay a bus shell: shell hashes differ. The standard `fes.zx81`
+carts cannot overlay a bus shell: shell hashes differ. Software preserves historical bus 1.0/map `/1` admission. Cross-version
+shell/cart binding rejects. The physical CRAM rectangle is unchanged.
+The standard `fes.zx81`
 producer now builds this socketed shell with the scoped
 `sources/misteross/toolchains/zx81-expansion.lock`; `--legacy` is reserved for
 diagnostic builds of the pre-expansion shell.
@@ -46,30 +54,54 @@ python3 scripts/build_zx81_bus_validation_cart.py \
   --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu N
 ```
 
-Build the Zon X channel-A tone diagnostic with the same shell and checks:
+Build the Zon X AY cart with the same shell and checks:
 
 ```sh
 python3 scripts/build_zx81_bus_validation_cart.py --cart zonx \
   --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu 0
 ```
 
-Generate the open tone/mute firmware without a private BASIC ROM:
+Generate the open AY diagnostic firmware without a private BASIC ROM:
 
 ```sh
 python3 scripts/make_zx81_zonx_tone_rom.py build/diagnostics/zonx-tone.rom
 ```
 
-Bind that exact 8 KiB file as `machine-rom`. It alternates an approximately
-6.375 kHz square and mute every 2.1 seconds; it generates no display file,
-so the active HDMI picture is blank. A normal private BASIC ROM can still be
-bound independently; this diagnostic does not demonstrate music software.
+Bind that exact 8 KiB file as `machine-rom`. The firmware repeats mute,
+isolated A/B/C tones (approximately 400/600/800 Hz), mixed tones, noise,
+falling/rising/triangle/held envelopes, retrigger and final mute. The retrigger
+phase writes shape 0, waits for decay, and repeats the same R13 value. Ordinary
+phases last approximately one second; retrigger adds a half-second priming
+decay. No display file is generated. `--fast --hex`
+produces short phases and memory-init text for the real CPU simulation;
+those bytes are a different diagnostic.
 
-Its archive is published under `build/zx81-zonx-cart/<recipe-sha>/`. The recipe
-binds the chosen cart and its own RTL source closure. It uses the same fixed
-socket, all three clock signoff gates and outside-CRAM rejection as the RAM
-cart; it never widens the socket. This implementation has channel A, a partial
-period counter and linear volume only; it does not implement AY channels B/C,
-noise or envelopes, and is not general Zon X software compatibility.
+The archive lives under `build/zx81-zonx-cart/<recipe-sha>/`. Its recipe binds
+wrapper and AY RTL, the exact shell and authenticated tools. All three clock
+gates, header and complete-CRAM checks remain mandatory, with no wider-socket fallback.
+
+The original X-81 decode requires A0–A3 high and A4 low; A7 selects register/data.
+It is write-only and asserts no DSEL for IN. Later Spectrum-compatible decoding
+belongs to a different board. The AY8912 engine implements three 12-bit tones,
+shared 5-bit noise, 16-bit envelope period and all 16 shapes, register masks,
+invalid address selection and per-channel fixed/envelope volume. Each stretched
+CPU write is accepted once, including unchanged R13 writes that retrigger.
+Tone/noise zero periods behave as one; envelope zero advances twice as fast as
+one. Mixer gating is AND: both tone and noise disabled produce a fixed DAC level;
+set volume zero to mute rather than treating R7 alone as silence.
+
+The DAC approximates nominal logarithmic 3 dB steps, quantized to 85 units per
+channel so three full channels fit in the 8-bit transport. It does not model
+analog amplification, AC coupling, speaker or load-dependent DAC response.
+Noise feedback follows the chip-verified MAME reference; reset seed 1 follows
+its model, not a measured original-card power-on phase. Enable jitter and DAC
+quantization remain fidelity limits. R14 retains an unconnected GPIO latch;
+R15 has no port on the AY8912. Private music software compatibility is unqualified.
+
+Sources: [original Bi-Pak manual](https://k1.spdns.de/Vintage/Sinclair/80/Peripherals/Bi-Pak%20ZON%20X-81%20Sound%20Module/ZON%20X-81%20Manual%20%28text%29%20%5BIan%20Priddey%5D.pdf),
+[GI AY data manual](https://map.grauw.nl/resources/sound/generalinstrument_ay-3-8910.pdf),
+[reconstructed card schematic](https://revspace.nl/images/archive/6/6d/20160621210333!ZONX_sound_expansion_REV_2,0.pdf)
+(which labels unverified wiring), and [MAME AY reference](https://github.com/mamedev/mame/blob/master/src/devices/sound/ay8910.cpp).
 
 The result is a two-member validation archive: canonical `manifest.json` and `cart.rbf`.
 The manifest binds the exact shell package, base BUILD_ID and RBF hash, cart
@@ -130,10 +162,17 @@ no new settings/save-data policy is inferred from the asset or title name.
 
 ## Validation
 
-The [Zon X channel-A diagnostic](validation/2026-09-30-zx81-zonx-hil.md)
-records exact-shell cart containment, all three timing gates, CPU-controlled
-tone/mute and normal library Stop/relaunch on kit 1. It does not qualify a
-complete AY chip or music software.
+The [historical channel-A diagnostic](validation/2026-09-30-zx81-zonx-hil.md)
+qualifies only its bus 1.0 shell and partial cart. The completed bus 2.0 pair
+passes its [own seal and behavioral checks](validation/2026-10-01-zx81-zonx-ay.md);
+the exact-package [Kit 2 diagnostic](validation/2026-10-01-zx81-zonx-kit2-hil.md)
+passes with documented filtered-capture limits. Factory-image acceptance
+remains separate.
+
+`sim-fes-zx81-ay` checks independent frequency, volume, mixer, noise and envelope
+expectations plus actual CPU firmware phases/reset/restart. `sim-fes-zx81-clock`
+checks average rates and phase bounds. `sim-fes-zx81-bus` checks decode, no CPU
+readback, stretched writes, three-channel periods and reset, plus RAM/QS regressions.
 
 The [2026-09-21 exact-artifact record](validation/2026-09-21-zx81-ram-composition.md)
 records five normal-library launches, visible 1 KiB/16 KiB validation-cart sizing,
