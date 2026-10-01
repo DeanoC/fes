@@ -25,6 +25,7 @@ module top #(
 );
     wire clk_sys;
     wire pixel_clk;
+    wire pixel_locked;
     wire audio_clk;
     wire audio_locked;
     wire [31:0] fpga_to_hps;
@@ -43,6 +44,13 @@ module top #(
     wire [7:0] red;
     wire [7:0] green;
     wire [7:0] blue;
+    wire display_request, display_response_valid, display_response_error, display_quiesced;
+    wire [6:0] display_opcode;
+    wire [7:0] display_index;
+    wire [15:0] display_argument, display_response_data;
+    wire [10:0] raster_h;
+    wire [9:0] raster_v;
+    wire [23:0] selected_rgb;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
         .gp_in(fpga_to_hps),
@@ -88,10 +96,10 @@ module top #(
     pixel_pll video_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(pixel_clk)
+        .outclk_0(pixel_clk), .locked(pixel_locked)
     );
 
-    fes_computer_gp #(.ENABLE_AUDIO(1)) gp_mailbox (
+    fes_computer_gp #(.ENABLE_AUDIO(1), .ENABLE_SESSION_DISPLAY(1)) gp_mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
@@ -105,7 +113,11 @@ module top #(
         .media_byte2(),
         .media_addr(tape_addr),
         .media_q(tape_data),
-        .media_busy(tape_busy)
+        .media_busy(tape_busy),
+        .display_request(display_request), .display_opcode(display_opcode), .display_index(display_index),
+        .display_argument(display_argument), .display_response_valid(display_response_valid),
+        .display_response_error(display_response_error), .display_response_data(display_response_data),
+        .display_quiesced(display_quiesced)
     );
 
     /* verilator lint_off PINCONNECTEMPTY */
@@ -207,11 +219,19 @@ module top #(
         .de(HDMI_TX_DE),
         .hsync(HDMI_TX_HS),
         .vsync(HDMI_TX_VS),
-        .frame_tick(),
+        .frame_tick(), .raster_h(raster_h), .raster_v(raster_v),
         .src_x_max(),
         .src_y_max()
     );
 
-    assign HDMI_TX_D = {red, green, blue};
+    zx81_session_display display (
+        .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(!pixel_locked), .exec_reset(exec_reset),
+        .request(display_request), .opcode(display_opcode), .index(display_index), .argument(display_argument),
+        .response_valid(display_response_valid), .response_error(display_response_error),
+        .response_data(display_response_data), .quiesced_sys(display_quiesced),
+        .raster_h(raster_h), .raster_v(raster_v), .machine_rgb({red, green, blue}),
+        .rgb(selected_rgb), .ui_active(), .displayed_sequence(), .underflows(), .faulted()
+    );
+    assign HDMI_TX_D = selected_rgb;
     assign HDMI_TX_CLK = pixel_clk;
 endmodule

@@ -90,13 +90,15 @@ func TestMediaStreamConstantsAndLegacyOracle(t *testing.T) {
 			}
 		}
 	}
-	if len(abi.Constants) != len(oracle.Legacy)+len(oracle.Stream) {
+	var display struct{ Constants map[string]uint32 }
+	streamJSON(t, "testdata/oracles/fes-simple-computer-session-display.json", &display)
+	if len(abi.Constants) != len(oracle.Legacy)+len(oracle.Stream)+len(display.Constants) {
 		t.Fatal("unreviewed constant")
 	}
 	if abi.Major != 1 || abi.Minor != 0 || abi.Tag != 2 {
 		t.Fatal("base ABI changed")
 	}
-	if len(abi.Interfaces) != 5 {
+	if len(abi.Interfaces) != 7 {
 		t.Fatal("unexpected interfaces")
 	}
 	got := abi.Interfaces[3]
@@ -130,7 +132,7 @@ func TestSimpleComputerAudioRuntimeOracle(t *testing.T) {
 		oracle.Source.File != "sources/libmister-runtime/src/native/generated/fes_simple_computer.hpp" {
 		t.Fatalf("runtime consumer revision: %+v", oracle.Source)
 	}
-	if len(abi.Interfaces) != 5 {
+	if len(abi.Interfaces) != 7 {
 		t.Fatal("unexpected interfaces")
 	}
 	got := abi.Interfaces[4]

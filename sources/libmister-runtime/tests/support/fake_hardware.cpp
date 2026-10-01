@@ -104,8 +104,13 @@ mister::HardwareResult FakeHardware::LoadCore(
 	while (block_launch_ && !release_launch_) condition_.wait(lock);
 	events.push_back("load_core:" + package->info().package_id);
 	mister::HardwareResult result = core_result;
- if(result.error.ok()||result.mutation_attempted)menu_status.available=false;
+ if(result.error.ok()||result.mutation_attempted)menu_status={};
 	if (result.error.ok()) {
+  for(const auto& interface:package->info().descriptor.interfaces)
+   if(interface.id=="fes.video.session-display"&&interface.required) {
+    menu_status.session=true;menu_status.core_generation=generation;menu_status.package_id=package->info().package_id;
+    menu_status.geometry={1280,720,5120,3686400,4194304};
+   }
 		result.mutation_attempted = true;
 		if (result.observed_core.empty())
 			result.observed_core = package->info().declared_core;
@@ -123,7 +128,10 @@ mister::HardwareResult FakeHardware::LoadIdle()
 	condition_.notify_all();
 	while (block_idle_ && !release_idle_) condition_.wait(lock);
 	block_idle_ = false;
-	if (idle_result.error.ok()) {idle_result.mutation_attempted = true;menu_status.available=menu_configured;menu_status.displayed_sequence=0;}
+	if (idle_result.error.ok()) {
+  if(menu_status.session)menu_status={};
+  idle_result.mutation_attempted = true;menu_status.available=menu_configured;menu_status.displayed_sequence=0;
+ }
 	return idle_result;
 }
 

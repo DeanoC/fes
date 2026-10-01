@@ -98,6 +98,12 @@ BIOS, or an appliance image.
   [ZX81 tape media](zx81-tape-media.md). Launch-time ROM splice and
   expansion-cart selection are separate; the expansion bus guide is
   [ZX81 expansion bus](zx81-expansion-bus.md).
+- ZX81 source includes an in-session launcher plane with observed
+  `fes.video.session-display` and HPS DDR capabilities. Opening/closing it
+  preserves CPU, RAM and the active core generation; kit tenfoot enables live
+  tape routes only on that capable path. Software/RTL checks and a routed
+  diagnostic are separate from a clean sealed package and exact-artifact
+  hardware acceptance. See [the hardware room](hardware-rooms.md).
 - Idle rooms and attract are not the splash bitstream. The splash is board
   firmware. The rooms design is [idle MENU → rooms](idle-menu-rooms.md).
 - There is no NES, SNES, or Mega Drive package in the factory set. Old

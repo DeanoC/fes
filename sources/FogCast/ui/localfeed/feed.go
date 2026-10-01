@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
@@ -34,6 +35,7 @@ var ErrUnavailable = errors.New("local input socket is not listening")
 // Feed is one connection to mister-agent's kit-local input socket.
 // Closing it releases only that local source.
 type Feed struct {
+	mu       sync.Mutex
 	path     string
 	conn     net.Conn
 	seq      uint32
@@ -50,7 +52,16 @@ func New(path string, dial func(string, string, time.Duration) (net.Conn, error)
 
 // Close releases the current connection. A later Send dials again.
 func (f *Feed) Close() {
-	if f == nil || f.conn == nil {
+	if f == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closeLocked()
+}
+
+func (f *Feed) closeLocked() {
+	if f.conn == nil {
 		return
 	}
 	_ = f.conn.Close()
@@ -63,6 +74,8 @@ func (f *Feed) Send(e remoteinput.Event, now time.Time) error {
 	if f == nil || f.path == "" {
 		return ErrUnavailable
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if now.IsZero() {
 		now = time.Now()
 	}
@@ -87,7 +100,7 @@ func (f *Feed) Send(e remoteinput.Event, now time.Time) error {
 	}
 	_ = f.conn.SetWriteDeadline(time.Now().Add(Dial))
 	if _, err := f.conn.Write(wire); err != nil {
-		f.Close()
+		f.closeLocked()
 		f.seq--
 		f.nextDial = now.Add(Retry)
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)

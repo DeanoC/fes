@@ -12,6 +12,7 @@ Hardware-supported package paths: 0.
 | Gamepad and controller/keypad ports | covered | pending |
 | Blob/stream media and firmware | covered | pending |
 | Mid-session ZX81 tape blob (no hold-reset) | covered | pending |
+| Simple-computer session HDMI plane, bound show/return, focus neutralization, immutable frames and fault isolation without reprogramming | covered by host tests | combined ZX81 exact-artifact acceptance pending |
 | Described-core library persistence and retry | covered | pending |
 | Format-3 ROM-map inspection and receipt-bound activation | covered | none |
 | Format-4 two-ROM receipt-bound activation through production adapter | covered | [Coleco synthetic diagnostic](../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md); appliance acceptance pending |

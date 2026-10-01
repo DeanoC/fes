@@ -25,7 +25,7 @@ module does not put a package on that image.
 | --- | --- | --- | --- | --- | --- |
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchains/ramtest.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
-| `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
+| `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco` | yes; optional Coleco bus 2.0 socket |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/fes-sms.lock` | `make build-fes-sms` | no; package-only recipe |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | package-only |

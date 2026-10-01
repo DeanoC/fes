@@ -1161,6 +1161,35 @@ void TestSimpleComputerAudioRequiresExactLiveCapability()
 	}
 }
 
+void TestSimpleComputerDisplayRequiresExactLiveCapability()
+{
+ for(const auto& contract:std::vector<std::pair<const char*,std::uint16_t>>{
+  {FesSimpleComputerInterfaceMemoryHpsDdrID,FesSimpleComputerCapabilityMemoryHpsDdr},
+  {FesSimpleComputerInterfaceVideoSessionDisplayID,FesSimpleComputerCapabilityVideoSessionDisplay}})
+  for(bool declared:{false,true})for(bool live:{false,true}) {
+   StreamFixture f;
+   if(declared)f.descriptor.interfaces.push_back({contract.first,1,0,true});
+   const auto result=f.Identify(1,32768,512,15|(live?contract.second:0));
+   assert(result.ok()==(declared==live));
+   if(!result.ok())assert(result.code==mister::ErrorCode::core_mismatch);
+  }
+ for(bool drained:{false,true}) {
+  StreamFixture f;
+  f.descriptor.interfaces.pop_back(); // no stream discovery/release gate
+  f.descriptor.interfaces.push_back({FesSimpleComputerInterfaceMemoryHpsDdrID,1,0,true});
+  f.descriptor.interfaces.push_back({FesSimpleComputerInterfaceVideoSessionDisplayID,1,0,true});
+  assert(f.Identify(1,32768,512,775).ok());
+  const auto before=f.mmio.writes.size();
+  f.Reply();f.Reply(drained?25:7);if(drained)f.Reply();
+  const auto result=f.driver.Quiesce(f.context,1000000);
+  assert(result.error.ok()==drained);
+  assert(((f.mmio.writes[before+1].value>>24)&127)==FesSimpleComputerOpcodeMenuControl);
+  assert(((f.mmio.writes[before+3].value>>24)&127)==FesSimpleComputerOpcodeMenuInfo);
+  assert(f.mmio.writes.size()==before+(drained?6:4));
+  if(drained)assert((f.mmio.writes.back().value&~FesGpRequestMask)==0x02000000);
+ }
+}
+
 void TestApplicationMenuRequiresExactLiveCapability()
 {
  for(const bool declared : {false,true}) for(const bool live : {false,true}) {
@@ -2451,6 +2480,7 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 
 int main()
 {
+ TestSimpleComputerDisplayRequiresExactLiveCapability();
 	TestControllerPortsValidateAndNeutralize();
 	TestControllerPartialDeliveryNeverRetries();
 	TestApplicationReplaysSharedWireFixturesThroughDriver();

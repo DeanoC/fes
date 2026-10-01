@@ -9,7 +9,8 @@
 // Port B is the CPU read and uses only media_addr. The pointer compare and
 // the command decoder never enter that read.
 module fes_computer_gp #(
-    parameter ENABLE_AUDIO = 0
+    parameter ENABLE_AUDIO = 0,
+    parameter ENABLE_SESSION_DISPLAY = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -26,12 +27,25 @@ module fes_computer_gp #(
     output wire [7:0]   media_q,
     // High while zx81_machine is copying mailbox bytes into RAM. Mid-session
     // begin/eject must reject rather than abort an in-flight LOAD.
-    input  wire         media_busy
+    input  wire         media_busy,
+    // Held payload to the session display CDC endpoint. The response returns
+    // only after the pixel-clock operation (including drain) has completed.
+    output reg          display_request = 1'b0,
+    output reg  [6:0]    display_opcode = 7'd0,
+    output reg  [7:0]    display_index = 8'd0,
+    output reg  [15:0]   display_argument = 16'd0,
+    input  wire         display_response_valid,
+    input  wire         display_response_error,
+    input  wire [15:0]  display_response_data,
+    input  wire         display_quiesced
 );
     localparam [31:0] CAPABILITIES =
         `FES_SIMPLE_COMPUTER_INTERFACE_KEYBOARD_CAPABILITY_MASK |
         `FES_SIMPLE_COMPUTER_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK |
         `FES_SIMPLE_COMPUTER_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK |
+        ((ENABLE_SESSION_DISPLAY != 0) ?
+            (`FES_SIMPLE_COMPUTER_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK |
+             `FES_SIMPLE_COMPUTER_INTERFACE_VIDEO_SESSION_DISPLAY_CAPABILITY_MASK) : 32'd0) |
         ((ENABLE_AUDIO != 0) ? `FES_SIMPLE_COMPUTER_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'h00000000);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_SIMPLE_COMPUTER_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_SIMPLE_COMPUTER_IDENTITY_MAGIC1_INDEX;
@@ -71,7 +85,7 @@ module fes_computer_gp #(
     reg tail_room;
     reg ptr_match;
 
-    // phase 0 idle, 1 first commit beat, 2 pair high-byte beat.
+    // phase 0 idle, 1 first commit beat, 2 pair high-byte beat, 3 display wait.
     reg [1:0] phase;
     reg commit_error;
     reg [15:0] commit_data;
@@ -327,7 +341,15 @@ module fes_computer_gp #(
         tail_room <= ({1'b0, media_ptr} + 16'd1) <= {1'b0, media_expected};
         ptr_match <= (media_ptr == media_expected);
 
-        if (phase == 2'd2) begin
+        if (phase == 2'd3) begin
+            if (display_response_valid) begin
+                acknowledged_toggle <= commit_toggle;
+                response_error <= display_response_error;
+                response_data <= display_response_data;
+                display_request <= 1'b0;
+                phase <= 2'd0;
+            end
+        end else if (phase == 2'd2) begin
             publish_response;
         end else if (phase == 2'd1) begin
             if (cap_pair) begin
@@ -355,6 +377,9 @@ module fes_computer_gp #(
                 `FES_SIMPLE_COMPUTER_OPCODE_EXECUTION: begin
                     if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_INDEX));
+                    else if (command_argument == `FES_SIMPLE_COMPUTER_EXECUTION_HOLD_RESET &&
+                             ENABLE_SESSION_DISPLAY != 0 && !display_quiesced)
+                        reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_STATE));
                     else if (command_argument == `FES_SIMPLE_COMPUTER_EXECUTION_HOLD_RESET) begin
                         cap_wr_reset <= 1'b1;
                         cap_reset <= 1'b1;
@@ -457,6 +482,20 @@ module fes_computer_gp #(
                         cap_ready <= 1'b1;
                         cap_wr_size <= 1'b1;
                         cap_size <= media_expected;
+                    end
+                end
+                `FES_SIMPLE_COMPUTER_OPCODE_MENU_INFO,
+                `FES_SIMPLE_COMPUTER_OPCODE_MENU_CONFIGURE,
+                `FES_SIMPLE_COMPUTER_OPCODE_MENU_CONTROL,
+                `FES_SIMPLE_COMPUTER_OPCODE_MENU_SUBMIT: begin
+                    if (ENABLE_SESSION_DISPLAY == 0)
+                        reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_OPCODE));
+                    else begin
+                        display_request <= 1'b1;
+                        display_opcode <= command_opcode[6:0];
+                        display_index <= command_index[7:0];
+                        display_argument <= command_argument[15:0];
+                        phase <= 2'd3;
                     end
                 end
                 default: reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_OPCODE));

@@ -23,4 +23,6 @@ Run `make test` with Python `jsonschema` available and Go installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`
 to verify them. See [schema](docs/schema.md),
 [application I/O](docs/application-io.md), [home-computer I/O](docs/computer-io.md)
-and [stream media](docs/media-stream.md).
+and [stream media](docs/media-stream.md). The simple-computer
+[session display](docs/session-display.md) shares the fixed DDR framebuffer
+layout while preserving machine execution and existing ABI 1.0 packages.

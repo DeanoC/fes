@@ -17,6 +17,9 @@ module fes_hps_ddr_guard #(
 ) (
     input  wire                clk,
     input  wire                hold,
+    // Every locally owned command/write beat/read response has completed.
+    // This proof stays meaningful during hold, when responses are hidden.
+    output wire                drained,
     // Core side.
     input  wire [ADDR_W-1:0]   address,
     input  wire [7:0]          burstcount,
@@ -76,6 +79,14 @@ module fes_hps_ddr_guard #(
     wire from_core = (read | write) & ~waitrequest;
     wire filler = finishing & ~skid & ~owed_zero;
     wire enter = from_core | filler;
+    // A hold is containment, not completion. Count reads at core acceptance,
+    // including commands not yet taken by the controller. Wait for both return
+    // pipeline stages to empty after the last owed response. The persistent
+    // `draining` posture is intentionally excluded: hold keeps it asserted even
+    // after all old traffic has completed.
+    assign drained = !enter && !skid && !m_read && !m_write && owed_zero &&
+                     !finishing && reads_owed == 12'd0 && !returned &&
+                     !m_readdatavalid && !readdatavalid;
     wire enter_read = from_core & read;
     wire enter_write = (from_core & write) | filler;
     wire [ADDR_W-1:0] enter_address = filler ? m_address : address;

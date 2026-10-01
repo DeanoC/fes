@@ -271,6 +271,17 @@ void TestSimpleComputerCompatibilityRequiresKeyboardVideoAndMedia()
 	assert(!mister::native::CheckCoreCompatibility(audio).ok());
 	audio.interfaces.back() = {"fes.audio.pcm-s16-stereo-48k", 2, 0, true};
 	assert(!mister::native::CheckCoreCompatibility(audio).ok());
+ auto display=descriptor;
+ display.interfaces.push_back({"fes.video.session-display",1,0,true});
+ assert(!mister::native::CheckCoreCompatibility(display).ok());
+ display.interfaces.push_back({"fes.memory.hps-ddr",1,0,true});
+ assert(mister::native::CheckCoreCompatibility(display).ok());
+ for(unsigned i=3;i<5;++i) {
+  auto invalid=display;invalid.interfaces[i].required=false;
+  assert(!mister::native::CheckCoreCompatibility(invalid).ok());
+  invalid=display;invalid.interfaces[i].minor=1;
+  assert(!mister::native::CheckCoreCompatibility(invalid).ok());
+ }
 }
 
 void TestLinkedCartridgeRejectsResetHeldMediaContracts()

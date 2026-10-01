@@ -65,7 +65,7 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | --- | --- | --- | --- | --- |
 | `fes.menu` | `python3 scripts/sim_fes_menu.py` | `make build-fes-menu-package` | none | image idle display, not a playable core |
 | `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | factory image |
-| `fes.zx81` | `make sim-fes-zx81` | `make build-fes-zx81` | `make build-fes-zx81-quartus` | factory image |
+| `fes.zx81` | `make sim-fes-zx81` (includes live session display) | `make build-fes-zx81` | `make build-fes-zx81-quartus` | factory image |
 | `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | factory image |
 | `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | package-only, not in the factory image |
 | `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | package-only, not in the factory image |
@@ -97,6 +97,14 @@ sealed/fes-splash.rbf
 Quartus oracle RBFs, when a recipe has one, are
 `build/fes-<name>-quartus/core.rbf`. They are not a fallback when the OSS
 producer fails.
+
+The ZX81 1.5.0 source includes a runtime-owned DDR plane for in-session HDMI
+controls. Opening and returning preserve CPU, RAM, firmware, expansion, capture
+and audio. Simulation covers complete-frame presentation, asynchronous display
+control, live cassette operations and ordered drain/fault handling. A scoped
+zero-build-ID route demonstrates three-clock feasibility with the locked ZX81
+tools; it is not a sealed package or kit acceptance. A new clean-source seal and
+exact-artifact HDMI/machine-state check remain required before hardware acceptance.
 
 ## Toolchains
 

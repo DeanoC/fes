@@ -96,8 +96,9 @@ type Options struct {
 	// drifting art). The launcher owns the preference; scripts read
 	// room.reduced_motion.
 	ReducedMotion bool
-	// IdleDisplayOnly means this renderer cannot draw over an active core.
-	IdleDisplayOnly bool
+	// SessionDisplayRequired means this physical display needs an observed
+	// session-display contract before it can show controls during play.
+	SessionDisplayRequired bool
 	// StorePath is the per-room JSON persistence file; empty disables store.
 	StorePath string
 	// Local is the kit-local control socket. Nil on a host launcher: kit
@@ -519,6 +520,14 @@ func (r *Instance) Resize(width, height int) {
 
 // SetSessionState is the launcher's current play-session state string.
 func (r *Instance) SetSessionState(state string) { r.sessionState = state }
+
+// SetLiveControls projects the launcher's observed display capability into a
+// retained room when the active package changes.
+func (r *Instance) SetLiveControls(on bool) {
+	if r != nil && r.roomTable != nil {
+		r.roomTable.RawSetString("live_controls", lua.LBool(on))
+	}
+}
 
 // SetReducedMotion updates room.reduced_motion on a live instance (settings).
 func (r *Instance) SetReducedMotion(on bool) {

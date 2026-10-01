@@ -185,6 +185,33 @@ decode this nested status strictly and must ship in the same image.
 Capability-gated emission and tolerant decoding are not implemented. Host
 tests do not establish physical scanout acceptance.
 
+## In-session simple-computer presentation
+
+Simple-computer `fes.video.session-display` 1.0 reuses the menu driver and
+reserved DDR slots, with required `fes.memory.hps-ddr` 1.0. Its bit 9 and the
+DDR bit 8 are included in exact declared/live identity checks. Admission
+advertises this interface only when boot DDR layout and presentation adapters
+are available. Activation initializes black slots and configures the disabled
+plane once, then publishes active machine status with `session: true`, its
+package and `core_generation`, but `available: false`.
+
+`SetSessionDisplay` binds the active package/generation and serializes with the
+same busy fence and bounded frame wait. Open neutralizes the keyboard, enables
+the reader and grants a distinct display generation; FPGA scanout waits for a
+complete submitted frame before switching HDMI pixels. Close drains the plane
+without execution hold and revokes the display generation and preparation.
+Navigation key snapshots are suppressed while session display focus is held.
+Stop/replacement drain the display before their existing execution hold.
+
+A failed session frame never enters `FinishLaunchFailure` or calls `LoadIdle`.
+The native adapter disables the plane, re-identifying the same core after an
+ambiguous GP toggle when necessary. It retains the error and active package,
+CPU and media ownership; a disabled, drained session plane may retain a sticky
+reader fault. A close whose drain is uncertain keeps input suppressed until
+a successful close or ordinary lifecycle replacement. None of these paths
+spends the idle menu reactivation budget. These behaviors have host software
+coverage; the combined ZX81 display needs fresh exact-artifact kit acceptance.
+
 ## Composable application ABI
 
 `fes.application` 1.0 uses the existing `fes-gp-v1` lifecycle and GP transport,

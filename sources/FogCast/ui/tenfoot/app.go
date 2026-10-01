@@ -14,6 +14,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
@@ -414,55 +415,71 @@ type App struct {
 	devLoadPhase       string
 	devLoadMessage     string
 
-	roomsIndex            *rooms.Index
-	roomsDir              string
-	homeRooms             bool
-	homeRoom              string
-	pinnedRooms           []string
-	reducedMotion         bool
-	homeRecents           []hostclient.Game
-	homeRecentsErr        string
-	homeRecentsLoaded     bool
-	homeRecentsGen        int
-	room                  *rooms.Instance
-	roomStack             []*rooms.Instance
-	roomFrame             rooms.Frame
-	roomErr               string
-	roomWasParked         bool
-	roomDuringPlay        bool
-	roomSessionNotice     string
-	playHIDHeld           map[playHIDKey]remoteinput.Event
-	playHIDTail           chan struct{}
-	playHIDContext        context.Context
-	playHIDCancel         context.CancelFunc
-	playHIDEpoch          uint64
-	playHIDPending        int
-	roomPickerOpen        bool
-	roomPickerIndex       int
-	roomCoverSem          chan struct{}
-	roomDetail            hostclient.Game
-	roomChoiceOpen        bool
-	roomChoiceIndex       int
-	roomChoice            []hostclient.Game
-	roomPicks             map[string]string
-	firmwarePickerOpen    bool
-	firmwarePickerAtRoots bool
-	firmwarePickerBusy    bool
-	firmwarePickerIndex   int
-	firmwarePickerGen     int
-	firmwarePickerPath    string
-	firmwarePickerStatus  string
-	firmwarePickerRows    []FirmwarePickerRow
-	firmwarePickerGame    hostclient.Game
-	tapePickerOpen        bool
-	tapePickerAtRoots     bool
-	tapePickerBusy        bool
-	tapePickerIndex       int
-	tapePickerGen         int
-	tapePickerPath        string
-	tapePickerStatus      string
-	tapePickerRows        []TapePickerRow
-	tapePickerSession     hostclient.SessionResult
+	roomsIndex              *rooms.Index
+	roomsDir                string
+	homeRooms               bool
+	homeRoom                string
+	pinnedRooms             []string
+	reducedMotion           bool
+	homeRecents             []hostclient.Game
+	homeRecentsErr          string
+	homeRecentsLoaded       bool
+	homeRecentsGen          int
+	room                    *rooms.Instance
+	roomStack               []*rooms.Instance
+	roomFrame               rooms.Frame
+	roomErr                 string
+	roomWasParked           bool
+	roomDuringPlay          bool
+	roomSessionNotice       string
+	menuDisplay             *gfx.MenuDisplay
+	sessionDisplayBusy      bool
+	sessionDisplayVisible   bool
+	sessionDisplayUncertain bool
+	sessionDisplayEpoch     uint64
+	sessionDisplayBinding   hostclient.SessionResult
+	sessionDisplayWait      chan struct{}
+	playKeyHeld             map[string]bool
+	playKeySuppressed       map[string]bool
+	playPadHeld             map[remoteinput.Code]remoteinput.Event
+	playPadSuppressed       map[remoteinput.Code]bool
+	playPadSelectDown       bool
+	playPadStartDown        bool
+	playPadChordSince       time.Time
+	playPadChordFired       bool
+	playHIDHeld             map[playHIDKey]remoteinput.Event
+	playHIDTail             chan struct{}
+	playHIDContext          context.Context
+	playHIDCancel           context.CancelFunc
+	playHIDEpoch            uint64
+	playHIDPending          int
+	roomPickerOpen          bool
+	roomPickerIndex         int
+	roomCoverSem            chan struct{}
+	roomDetail              hostclient.Game
+	roomChoiceOpen          bool
+	roomChoiceIndex         int
+	roomChoice              []hostclient.Game
+	roomPicks               map[string]string
+	firmwarePickerOpen      bool
+	firmwarePickerAtRoots   bool
+	firmwarePickerBusy      bool
+	firmwarePickerIndex     int
+	firmwarePickerGen       int
+	firmwarePickerPath      string
+	firmwarePickerStatus    string
+	firmwarePickerRows      []FirmwarePickerRow
+	firmwarePickerGame      hostclient.Game
+	tapePickerOpen          bool
+	tapePickerAtRoots       bool
+	tapePickerBusy          bool
+	tapePickerIndex         int
+	tapePickerGen           int
+	tapePickerPath          string
+	tapePickerStatus        string
+	tapePickerRows          []TapePickerRow
+	tapePickerSession       hostclient.SessionResult
+	tapePickerStarters      []hostclient.HardwareTape
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -626,10 +643,15 @@ func (a *App) Stop() {
 	}
 	a.mu.Lock()
 	done := a.stopWait
+	displayDone := a.sessionDisplayWait
 	a.mu.Unlock()
 	if done != nil {
 		<-done
 	}
+	if displayDone != nil {
+		<-displayDone
+	}
+	a.returnSessionDisplayOnExit()
 	a.releaseOwnedIdleLease()
 	a.mu.Lock()
 	a.hideAttractLocked()
@@ -753,6 +775,16 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
 	if a.localCoreBusyLocked() {
+		return
+	}
+	if a.sessionDisplayBusy {
+		if cmd == CmdStop {
+			a.startStopLocked()
+		}
+		return
+	}
+	if cmd == CmdBack && a.sessionDisplayUncertain {
+		a.beginSessionDisplayLocked(false, false)
 		return
 	}
 	a.localStatus = ""
@@ -1417,6 +1449,13 @@ func (a *App) Tick(now time.Time) Command {
 	a.tickAttractLocked(now)
 	a.syncPreviewLocked()
 	a.tickLocalCoreLocked(now)
+	a.tickSessionPadLocked(now)
+	if a.sessionDisplayVisible && !a.sessionDisplayBusy && a.menuDisplay != nil {
+		if err := a.menuDisplay.LastError(); err != nil {
+			a.roomSessionNotice = "HDMI controls unavailable. Back returns to play."
+			a.status = a.roomSessionNotice
+		}
+	}
 	if !a.attractActive {
 		a.tickRoomLocked(now)
 	}
@@ -2116,6 +2155,7 @@ func (a *App) startStopLocked() {
 	}
 	a.roomDuringPlay = false
 	a.roomPickerOpen = false
+	a.invalidateSessionDisplayLocked()
 	a.cancelPlayHIDLocked()
 	a.stopPhase = "stopping"
 	a.stopMessage = "stopping session"
@@ -2240,6 +2280,9 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if a == nil {
 		return false
 	}
+	if a.consumeSuppressedPlayKey(name, down) {
+		return true
+	}
 	if a.handlePlayingRoomKey(name, down, now) {
 		return true
 	}
@@ -2247,7 +2290,7 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	hid := a.forwardsKeyboardHIDLocked()
 	a.mu.Unlock()
 	if !hid {
-		return a.HandlePlayHIDKey(name, down, now)
+		return a.handlePlayHIDKey(name, down, now)
 	}
 	if !a.ConsumePlayHID() {
 		return false
@@ -2265,7 +2308,7 @@ func (a *App) ForwardsPlayHID() bool {
 }
 
 func (a *App) forwardsPlayHIDLocked() bool {
-	if a.session.State != "active" || a.roomDuringPlay || a.tapePickerOpen || a.firmwarePickerOpen {
+	if a.session.State != "active" || a.roomDuringPlay || a.sessionDisplayBusy || a.sessionDisplayUncertain || a.tapePickerOpen || a.firmwarePickerOpen {
 		return false
 	}
 	if a.session.Input == nil {
@@ -2295,6 +2338,13 @@ func (a *App) ConsumePlayHID() bool {
 // active package can arm a mailbox. Other keys encode for the attached core.
 // Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
+	if a.consumeSuppressedPlayKey(name, down) {
+		return true
+	}
+	return a.handlePlayHIDKey(name, down, now)
+}
+
+func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
 	if a.handlePlayingRoomKey(name, down, now) {
 		return true
 	}
@@ -2420,7 +2470,7 @@ func (a *App) fetchSession(ctx context.Context) {
 	if gen != a.sessionGen {
 		return
 	}
-	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.developmentLoadingLocked() {
+	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.sessionDisplayBusy || a.developmentLoadingLocked() {
 		return
 	}
 	a.applySessionLocked(result)
@@ -2701,6 +2751,7 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	}
 	if !samePlayHIDSession(a.session, result) {
 		a.cancelPlayHIDLocked()
+		a.invalidateSessionDisplayLocked()
 	}
 	a.session = result
 	a.rememberFlightLocked(result.FlightID)

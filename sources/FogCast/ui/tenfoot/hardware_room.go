@@ -31,7 +31,7 @@ func (s roomServices) SelectCoreEntryExpansion(ctx context.Context, gameID, pack
 }
 
 func (a *App) playingHardwareRoomAvailableLocked() bool {
-	if a.localCores != nil || a.session.State != "active" || a.stopPhase == "stopping" || a.retryStopLock || a.roomsIndex == nil {
+	if !a.sessionDisplayOfferedLocked() || a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock || a.roomsIndex == nil {
 		return false
 	}
 	pack, ok := a.roomsIndex.Find(hardwareRoomID)
@@ -44,7 +44,12 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
 		return
 	}
+	if a.needsSessionDisplayLocked() && !a.sessionDisplayVisible {
+		a.beginSessionDisplayLocked(true, false)
+		return
+	}
 	a.releasePlayHIDLocked()
+	a.suppressHeldPlayKeysLocked()
 	a.repeat.Clear()
 	a.hold.Clear()
 	if a.room == nil {
@@ -70,6 +75,16 @@ func (a *App) resumeRoomSessionLocked() {
 	if !a.roomDuringPlay || a.tapePickerBusy {
 		return
 	}
+	if a.needsSessionDisplayLocked() && a.sessionDisplayVisible {
+		a.beginSessionDisplayLocked(false, false)
+		return
+	}
+	a.finishRoomSessionResumeLocked()
+}
+
+func (a *App) finishRoomSessionResumeLocked() {
+	a.suppressHeldPlayKeysLocked()
+	a.suppressHeldSessionPadLocked()
 	a.closeTapePickerLocked()
 	a.closeRoomOverlaysLocked()
 	a.roomPickerOpen = false
@@ -153,6 +168,10 @@ func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
 	a.playHIDTail = done
 	a.playHIDPending++
 	client := a.client
+	var feed localPadSender
+	if a.needsSessionDisplayLocked() {
+		feed = a.localFeed
+	}
 	go func() {
 		defer close(done)
 		defer func() {
@@ -172,7 +191,11 @@ func (a *App) queuePlayHIDLocked(events []remoteinput.Event) {
 		ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 		defer cancel()
 		for _, event := range events {
-			_ = client.SendCoreKey(ctx, event)
+			if feed != nil {
+				_ = feed.Send(event, time.Now())
+			} else {
+				_ = client.SendCoreKey(ctx, event)
+			}
 		}
 	}()
 }

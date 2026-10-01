@@ -11,7 +11,7 @@ namespace mister {
 namespace daemon {
 
 enum class Operation {
- configure_menu,menu_frame_begin,menu_frame_commit,
+ configure_menu,menu_frame_begin,menu_frame_commit,session_display,
 	status,
 	inspect_core,
 	load_core,
@@ -59,6 +59,7 @@ struct Request {
 	std::uint64_t expected_generation = 0;
 	std::uint32_t media_size = 0;
  std::uint32_t byte_count=0;
+ bool visible=false;
 	std::uint8_t media_unit = 0;
 	KeyboardHidRows keyboard_rows{};
 	CoreCompositionRequest composition_request;

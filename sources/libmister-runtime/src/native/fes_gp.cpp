@@ -468,6 +468,12 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				interface.minor == FesSimpleComputerInterfaceAudioPcmS16Stereo48kMinor)
 				capabilities = static_cast<std::uint16_t>(capabilities |
 					FesSimpleComputerCapabilityAudioPcmS16Stereo48k);
+			else if (interface.id == FesSimpleComputerInterfaceMemoryHpsDdrID &&
+				interface.required && interface.major == 1 && interface.minor == 0)
+				capabilities |= FesSimpleComputerCapabilityMemoryHpsDdr;
+			else if (interface.id == FesSimpleComputerInterfaceVideoSessionDisplayID &&
+				interface.required && interface.major == 1 && interface.minor == 0)
+				capabilities |= FesSimpleComputerCapabilityVideoSessionDisplay;
 			continue;
 		}
 		if (interface.id == FesGpInterfaceGamepadID)
@@ -499,7 +505,9 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				FesSimpleComputerCapabilityVideoFixed720p60 |
 				FesSimpleComputerCapabilityMediaBlob |
 				FesSimpleComputerCapabilityMediaBlobStream |
-				FesSimpleComputerCapabilityAudioPcmS16Stereo48k;
+				FesSimpleComputerCapabilityAudioPcmS16Stereo48k |
+				FesSimpleComputerCapabilityMemoryHpsDdr |
+				FesSimpleComputerCapabilityVideoSessionDisplay;
 			// Registered application and computer bits must equal the declared set.
 			if ((application && (observed[index] & application_mask) != expected[index]) ||
 				(home && (observed[index] & kComputerCapabilityMask) != expected[index]) ||
@@ -554,7 +562,13 @@ void FesGpCoreDriver::BeginSession()
 CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
-	if (application_ && (observed_capabilities_ & FesApplicationCapabilityVideoMenuDisplay)) {
+	if ((application_ && (observed_capabilities_ & FesApplicationCapabilityVideoMenuDisplay)) ||
+		(computer_ && (observed_capabilities_ & FesSimpleComputerCapabilityVideoSessionDisplay))) {
+		if (computer_ && gp_.Poisoned()) {
+			Error error = gp_.Realign(deadline);
+			if (error.ok() && have_identity_) error = gp_.Identify(identified_, deadline);
+			if (!error.ok()) return {WithPhase(std::move(error), "quiesce"), false, ""};
+		}
 		std::uint16_t state = 0;
 		Error error = gp_.Exchange(FesApplicationOpcodeMenuControl, 0,
 			FesApplicationMenuControlQuiesce, deadline, &state);
@@ -563,7 +577,7 @@ CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 		if (error.ok() && ((state & ~std::uint16_t(31)) ||
 			!(state & FesApplicationMenuStateQuiesced) ||
 			(state & (FesApplicationMenuStateEnabled | FesApplicationMenuStatePending |
-				FesApplicationMenuStateFaulted))))
+				(computer_ ? 0 : FesApplicationMenuStateFaulted)))))
 			error = {ErrorCode::io_failed, "menu did not prove drained quiescence", "quiesce"};
 		if (!error.ok()) return {WithPhase(std::move(error), "quiesce"), true, ""};
 	}

@@ -581,6 +581,9 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   const auto& menu=status.menu_display;const auto& geometry=menu.geometry;
   output.Append(",\"menu_display\":{\"available\":");output.Append(menu.available?"true":"false");
   output.Append(",\"package_id\":");AppendIdentity(&output,menu.package_id);
+  if(menu.session) {
+   output.Append(",\"session\":true,\"core_generation\":");output.Append(std::to_string(menu.core_generation));
+  }
   output.Append(",\"generation\":");output.Append(std::to_string(menu.generation));
   output.Append(",\"width\":");output.Append(std::to_string(geometry.width));
   output.Append(",\"height\":");output.Append(std::to_string(geometry.height));
@@ -675,6 +678,14 @@ Error ParseRequest(const std::string& line, Request* request)
    if(!StringMember(root,"package_path",&path,&error)||!StringMember(root,"package_id",&id,&error))return error;
    if(!Path(*path)||!PackageID(*id))return Invalid("invalid menu package request");
    parsed.operation=Operation::configure_menu;parsed.package_path=*path;parsed.package_id=*id;
+  } else if(operation->string_value=="session_display") {
+   const char* const fields[]={"protocol","operation","expected_package_id","expected_generation","visible"};
+   if(!HasOnly(root,fields,5,&error))return error;
+   const std::string* id=nullptr;const auto* visible=Find(root,"visible");
+   if(!StringMember(root,"expected_package_id",&id,&error))return error;
+   if(!PackageID(*id)||!Generation(Find(root,"expected_generation"),&parsed.expected_generation)||
+    !visible||visible->type!=json::Type::boolean)return Invalid("invalid session display binding or visibility");
+   parsed.operation=Operation::session_display;parsed.expected_package_id=*id;parsed.visible=visible->boolean_value;
   } else if(operation->string_value=="menu_frame_begin"||operation->string_value=="menu_frame_commit") {
    const bool begin=operation->string_value=="menu_frame_begin";
    const char* const fields[]={"protocol","operation",begin?"expected_generation":"generation","byte_count"};

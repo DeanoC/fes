@@ -76,6 +76,7 @@ public:
 	HardwareResult LoadIdle() override;
  HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;
  MenuDisplayStatus menu_display() const override {return menu_status_;}
+ Error SetSessionDisplay(bool visible) override;
  Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) override;
 	Error FlushSave() override;
 	Error RestoreInput(std::uint64_t generation) override;
@@ -126,6 +127,7 @@ private:
  std::string menu_directory_,menu_package_id_;
  std::uint8_t menu_slot_=0;
  bool menu_unsafe_=false;
+ bool session_display_focused_=false;
  unsigned menu_underflow_streak_=0;
  unsigned menu_reactivations_=0;
  std::uint64_t menu_reactivation_window_start_=0;

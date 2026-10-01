@@ -29,7 +29,18 @@ type queuedMenuFrame struct {
 	known      bool
 	seq        uint64
 	probe      bool
+	binding    menuSessionBinding
+	epoch      uint64
 }
+
+type menuSessionBinding struct {
+	packageID      string
+	coreGeneration uint64
+}
+
+// ErrSessionDisplayChanged means a queued frame no longer belongs to the
+// runtime's display. Session presenters never follow a replacement machine.
+var ErrSessionDisplayChanged = errors.New("session display changed before presentation")
 
 // submittedMenuFrame is the last frame queued for the runtime while
 // change-driven presents are on. pixels is immutable and may alias the
@@ -67,6 +78,7 @@ type MenuDisplay struct {
 	closed       bool
 	paused       bool
 	flight       chan struct{}
+	pending      int
 	lastErr      error
 	generation   uint64
 	known        bool
@@ -81,6 +93,8 @@ type MenuDisplay struct {
 	backoffUntil time.Time
 	hasPresented bool
 	presentedGen uint64
+	binding      menuSessionBinding
+	bindingEpoch uint64
 }
 
 func NewMenuDisplay(socketPath string) (*MenuDisplay, error) {
@@ -108,6 +122,39 @@ func newMenuDisplayWithClient(client MenuPresenter) (*MenuDisplay, error) {
 }
 
 func (d *MenuDisplay) BackendName() string { return BackendMenuDisplay }
+
+// BindSession pins subsequent frames to the captured package and core
+// generation. Call Pause and wait for it before opening or returning HDMI.
+func (d *MenuDisplay) BindSession(packageID string, coreGeneration uint64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.setBindingLocked(menuSessionBinding{packageID, coreGeneration})
+}
+
+// ClearSessionBinding returns to idle-menu presentation. An idle presenter
+// rejects a session display, including the interval before the first new frame.
+func (d *MenuDisplay) ClearSessionBinding() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.setBindingLocked(menuSessionBinding{})
+}
+
+func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
+	d.binding = binding
+	d.bindingEpoch++
+	d.known = false
+	d.generation = 0
+	d.hasPresented = false
+	d.lastErr = nil
+	d.forgetSubmissionLocked()
+	d.clearPaceLocked()
+	select {
+	case frame := <-d.frames:
+		d.pending--
+		d.releaseBufferLocked(frame.buffer)
+	default:
+	}
+}
 
 // SetChangeDriven opts into skipping Present when the pixels match the last
 // queued frame, that frame has not since failed or been dropped, and the
@@ -208,7 +255,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 	} else {
 		buffer = d.copyFrameLocked(pix)
 	}
-	frame := queuedMenuFrame{pixels: buffer.pixels, buffer: buffer, generation: d.generation, known: d.known, seq: seq, probe: probe}
+	frame := queuedMenuFrame{pixels: buffer.pixels, buffer: buffer, generation: d.generation, known: d.known, seq: seq, probe: probe, binding: d.binding, epoch: d.bindingEpoch}
 	if d.changeDriven && !probe {
 		d.forgetSubmissionLocked()
 		buffer.refs++
@@ -225,7 +272,7 @@ func (d *MenuDisplay) FramePending() bool {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.flight != nil || len(d.frames) > 0 || d.probeQueued
+	return d.pending > 0 || d.flight != nil || d.probeQueued
 }
 
 // Pause prevents new submissions, discards queued frames, forgets the last
@@ -241,6 +288,7 @@ func (d *MenuDisplay) Pause(ctx context.Context) error {
 	d.clearPaceLocked()
 	select {
 	case frame := <-d.frames:
+		d.pending--
 		d.releaseBufferLocked(frame.buffer)
 	default:
 	}
@@ -278,7 +326,8 @@ func (d *MenuDisplay) run() {
 			return
 		case frame := <-d.frames:
 			d.mu.Lock()
-			if d.paused {
+			if d.paused || frame.epoch != d.bindingEpoch {
+				d.pending--
 				if frame.probe {
 					d.probeQueued = false
 				} else {
@@ -295,6 +344,7 @@ func (d *MenuDisplay) run() {
 				d.runProbe(frame)
 				d.mu.Lock()
 				d.releaseBufferLocked(frame.buffer)
+				d.pending--
 				d.flight = nil
 				close(flight)
 				d.mu.Unlock()
@@ -303,9 +353,7 @@ func (d *MenuDisplay) run() {
 			status, err := d.client.Status(d.ctx)
 			if err == nil {
 				d.mu.Lock()
-				d.generation = status.Generation
-				d.known = true
-				d.noteGenerationLocked(frame.seq, status.Generation)
+				err = d.acceptStatusLocked(frame, status)
 				d.mu.Unlock()
 			}
 			presented := false
@@ -330,6 +378,7 @@ func (d *MenuDisplay) run() {
 				d.notePresentResultLocked(presented, genChanged, err, status)
 			}
 			d.releaseBufferLocked(frame.buffer)
+			d.pending--
 			d.flight = nil
 			close(flight)
 			d.mu.Unlock()
@@ -344,9 +393,12 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 		return
 	}
 	d.mu.Lock()
-	d.generation = status.Generation
-	d.known = true
+	err = d.acceptStatusLocked(frame, status)
 	d.mu.Unlock()
+	if err != nil {
+		d.finishProbeLocked(frame, status, err, false)
+		return
+	}
 	if !status.Available || status.Underflows > menudisplay.TransientUnderflowCap {
 		if status.Underflows > menudisplay.TransientUnderflowCap {
 			err = errors.New("menu scanout underflow")
@@ -366,6 +418,24 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	}
 	_, err = d.client.Present(d.ctx, status.Generation, frame.pixels)
 	d.finishProbeLocked(frame, status, err, err == nil)
+}
+
+func (d *MenuDisplay) acceptStatusLocked(frame queuedMenuFrame, status menudisplay.Status) error {
+	if frame.epoch != d.bindingEpoch {
+		return ErrSessionDisplayChanged
+	}
+	if frame.binding.packageID != "" {
+		if !status.Available || !status.Session || status.PackageID != frame.binding.packageID || status.CoreGeneration != frame.binding.coreGeneration ||
+			(d.known && status.Generation != d.generation) {
+			return ErrSessionDisplayChanged
+		}
+	} else if status.Session {
+		return ErrSessionDisplayChanged
+	}
+	d.generation = status.Generation
+	d.known = true
+	d.noteGenerationLocked(frame.seq, status.Generation)
+	return nil
 }
 
 func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudisplay.Status, err error, presented bool) {
@@ -477,6 +547,7 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 	if frame.probe {
 		select {
 		case d.frames <- frame:
+			d.pending++
 		default:
 			d.probeQueued = false
 			d.releaseBufferLocked(frame.buffer)
@@ -485,11 +556,13 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 	}
 	select {
 	case d.frames <- frame:
+		d.pending++
 		return
 	default:
 	}
 	select {
 	case dropped := <-d.frames:
+		d.pending--
 		d.releaseBufferLocked(dropped.buffer)
 		if dropped.probe {
 			d.probeQueued = false
@@ -498,6 +571,7 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 	}
 	select {
 	case d.frames <- frame:
+		d.pending++
 	case <-d.ctx.Done():
 		d.releaseBufferLocked(frame.buffer)
 	}
@@ -529,6 +603,7 @@ func (d *MenuDisplay) Close() {
 	d.forgetSubmissionLocked()
 	select {
 	case frame := <-d.frames:
+		d.pending--
 		d.releaseBufferLocked(frame.buffer)
 	default:
 	}

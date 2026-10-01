@@ -950,7 +950,12 @@ reads the other RAM port at `media_addr`, which keeps the pointer compare
 off that data path. The checked-in
 `cores/fes-zx81/generated/fes_simple_computer.vh`
 and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
-plays that fixture and checks keyboard/media side effects.
+plays that fixture and checks keyboard/media side effects. Its optional session
+hook admits display opcodes 18–21 only in the ZX81 board shell and declares
+HPS DDR plus `fes.video.session-display`. A held command/response crosses
+52.224/74.25 MHz with `zx81_display_cdc` toggle handshakes and stable payload
+registers. Execution hold rejects while the session plane is not quiesced;
+normal show/return does not use execution hold.
 
 ## FES ZX81 machine simulation
 
@@ -974,10 +979,21 @@ in the original cassette waiter with the display off. A 720p raster module
 `zx81_video_720p.v` integer-scales the 6.5 MHz capture into 1650×750 timing.
 This is simulation, not a Quartus RBF or kit result.
 
+`make sim-fes-zx81-session` combines the real Z80, machine RAM, capture,
+mailbox, shared DDR guards and scanout with unrelated system/pixel clocks.
+A diagnostic firmware retains a RAM marker and continuously updates another
+RAM cell while the test opens, replaces frames, closes and reopens the UI.
+The test verifies frame-completion ACK, shared HDMI timing, both slots, neutral
+keys, live cassette begin/commit/eject, busy rejection, stalled-response drain,
+hidden-underrun recovery and display-fault return without execution reset.
+Hard-fault close and execution hold remain blocked while controller responses
+or queued guard commands are stalled; both succeed only after physical drain.
+The existing BASIC and expansion simulations remain part of `make sim-fes-zx81`.
+
 ## FES ZX81 Quartus bring-up
 
 `make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 recipe for
-`fes.zx81` 1.0.0 legacy oracle package. It is not a Mistral/nextpnr payload
+`fes.zx81` 1.2.0 oracle package. It is not a Mistral/nextpnr payload
 and is not the standard socketed package. The board shell
 `cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
 reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
@@ -1012,7 +1028,7 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.4.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
+`fes.zx81` 1.5.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
@@ -1024,6 +1040,32 @@ asynchronous TDP M10K. The 720p capture buffer is a dual-clock M10K SDP. The
 Z80 is Verilog T80pa/TV80.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
+
+The session plane reuses `fes_menu_control`, `fes_menu_reader` and
+`fes_hps_ddr`. `fes_menu_video` selects its optional external-raster and
+complete-frame mode: ZX81 remains the only 1650×750 raster owner, and a
+submission completes only after every pixel of one frame arrived on time.
+`zx81_session_display` keeps the first launcher frame hidden, then selects
+its RGB at the next frame boundary. Closing waits for issued DDR responses to
+drain and returns machine RGB at a frame boundary before acknowledging. A
+visible underflow contains the display and restores machine pixels; it never
+reprograms the FPGA or resets CPU/RAM/ROM, expansion, capture or audio. Unexpected
+PLL holds contain the DDR guard and disable further presentation for that
+load. Faulted close requires synchronized guard hold plus a physical port-drain
+proof covering queued commands, unfinished writes, owed reads and response
+pipeline registers. The reader cannot restart after its responses were hidden.
+If the pixel clock stops permanently, this proof and the close handshake cannot
+advance; software cannot safely acknowledge or automatically reprogram that
+load. Existing idle-menu scanout retains its original defaults.
+
+The locked ZX81 Yosys library predates the FPGA-to-HPS DDR atom declaration.
+The producer reads `fes_hps_ddr_atom.v` with `read_verilog -lib`; this complete
+port declaration is a tracked, pinned functional input, with its upstream
+source recorded in the file. The original compiler/socket/ROM pins remain.
+Both synthesized and routed graphs must match the boot DDR layout, tie all
+writes and unused ports low, and retain synchronous M10K reads for the DDR
+FIFO. A new sealed shell and matching expansion archives require fresh
+three-clock timing and exact-artifact kit qualification.
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.

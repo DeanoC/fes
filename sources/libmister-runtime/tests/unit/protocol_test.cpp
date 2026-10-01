@@ -1019,8 +1019,29 @@ void TestMenuProtocolRequestsAndStatus()
  for(const auto& line:{R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":0,"byte_count":3686400})",R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686401})",R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,"address":805306368})"})assert(!Parse(line,&request).ok());
 }
 
+void TestSessionDisplayRequestAndBoundStatus()
+{
+ const std::string prefix="{\"protocol\":2,\"operation\":\"session_display\",\"expected_package_id\":\""+std::string(64,'a')+"\",\"expected_generation\":7,";
+ Request request;
+ assert(Parse(prefix+"\"visible\":true}",&request).ok());
+ assert(request.operation==Operation::session_display&&request.visible&&request.expected_generation==7);
+ assert(request.expected_package_id==std::string(64,'a'));
+ assert(Parse(prefix+"\"visible\":false}",&request).ok()&&!request.visible);
+ for(const auto& suffix:{"\"visible\":0}","\"visible\":\"true\"}","\"visible\":null}","\"visible\":true,\"extra\":1}","\"other\":true}"})
+  ExpectError(prefix+suffix,ErrorCode::invalid_request);
+ ExpectError(R"({"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":0,"visible":true})",ErrorCode::invalid_request);
+ Status status;status.menu_display.session=true;status.menu_display.core_generation=7;status.menu_display.package_id=std::string(64,'a');
+ const auto response=mister::daemon::EncodeResponse(2,true,status,"test");
+ assert(response.find("\"session\":true,\"core_generation\":7")!=std::string::npos);
+ assert(response.find("\"menu_display\":{\"available\":false")!=std::string::npos);
+ status.menu_display.session=false;status.menu_display.core_generation=0;status.menu_display.available=true;
+ const auto idle=mister::daemon::EncodeResponse(2,true,status,"test");
+ assert(idle.find("\"session\"")==std::string::npos&&idle.find("\"core_generation\"")==std::string::npos);
+}
+
 int main(int argc, char** argv)
 {
+ TestSessionDisplayRequestAndBoundStatus();
  TestRetiredProtocolRejected();
  TestMenuProtocolRequestsAndStatus();
 	if (argc == 2 && std::string(argv[1]) == "--emit-application-fixtures") {
@@ -1066,5 +1087,5 @@ int main(int argc, char** argv)
 	TestSyntaxAndShapeFailures();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 25 tests passed\n";
+	std::cout << "protocol_test: 26 tests passed\n";
 }

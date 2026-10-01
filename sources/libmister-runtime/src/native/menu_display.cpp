@@ -2,10 +2,22 @@
 #include "native/menu_display.hpp"
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 #include <array>
 namespace mister { namespace native {
 namespace {
 using namespace generated;
+static_assert(FesSimpleComputerOpcodeMenuInfo==FesApplicationOpcodeMenuInfo&&
+ FesSimpleComputerOpcodeMenuConfigure==FesApplicationOpcodeMenuConfigure&&
+ FesSimpleComputerOpcodeMenuControl==FesApplicationOpcodeMenuControl&&
+ FesSimpleComputerOpcodeMenuSubmit==FesApplicationOpcodeMenuSubmit&&
+ FesSimpleComputerMenuWidth==FesApplicationMenuWidth&&
+ FesSimpleComputerMenuHeight==FesApplicationMenuHeight&&
+ FesSimpleComputerMenuStride==FesApplicationMenuStride&&
+ FesSimpleComputerMenuFrameBytes==FesApplicationMenuFrameBytes&&
+ FesSimpleComputerMenuSlotBytes==FesApplicationMenuSlotBytes&&
+ FesSimpleComputerMenuLayout==FesApplicationMenuLayout,
+ "idle and session displays share one physical framebuffer layout and mailbox");
 Error Invalid(const char* text) {return {ErrorCode::io_failed,text,"menu"};}
 }
 MenuDisplayDriver::MenuDisplayDriver(FesGp& gp,Clock&) : gp_(gp) {}
@@ -56,13 +68,21 @@ Error MenuDisplayDriver::Submit(std::uint8_t slot,std::uint32_t sequence,std::ui
  if(error.ok())error=Command(FesApplicationOpcodeMenuSubmit,FesApplicationMenuSubmitCommitIndex,slot,deadline);
  return error;
 }
-Error MenuDisplayDriver::Quiesce(std::uint64_t deadline)
+Error MenuDisplayDriver::Quiesce(std::uint64_t deadline,const CoreDescriptor* identity,MenuDisplayInfo* output)
 {
+ // An ambiguous frame submission is never repeated. Sample the live ACK and
+ // re-identify the same core before the distinct command that disables it.
+ if(identity&&gp_.Poisoned()) {
+  Error recovered=gp_.Realign(deadline);
+  if(recovered.ok())recovered=gp_.Identify(*identity,deadline);
+  if(!recovered.ok())return recovered;
+ }
  Error error=Command(FesApplicationOpcodeMenuControl,0,FesApplicationMenuControlQuiesce,deadline);
  if(!error.ok())return error;
  MenuDisplayInfo info;error=ReadInfo(deadline,&info);
  if(!error.ok())return error;
- if(info.enabled||info.pending||!info.quiesced||info.faulted)return Invalid("menu did not prove drained quiescence");
+ if(info.enabled||info.pending||!info.quiesced||(!identity&&info.faulted))return Invalid("menu did not prove drained quiescence");
+ if(output)*output=info;
  return {};
 }
 } }

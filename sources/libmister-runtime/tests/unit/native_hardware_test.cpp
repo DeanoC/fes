@@ -1505,6 +1505,77 @@ struct MenuGpScript {
   Info(3,sequence+1,final_underflows);
  }
 };
+void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
+ for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuMemory memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ fpga.boot_hps_ddr_layout=false;
+ assert(!hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ fpga.boot_hps_ddr_layout=true;
+ bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
+  if(abi.id==FesSimpleComputerABIID&&interface.id==FesSimpleComputerInterfaceVideoSessionDisplayID)advertised=true;
+ assert(advertised);
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};auto words=FesGpIdentityWords();
+ words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
+ words[FesGpIdentityCapabilitiesIndex]=775;
+ for(auto word:words)script.Reply(word);
+ script.Info(8,0);script.Reply(); // configure
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ script.Reply(); // execution release
+ script.Info(9,0); // disabled, configured, drained
+ auto loaded=hardware.LoadCore(std::move(admitted),17);
+ if(!loaded.error.ok())fprintf(stderr,"session display activation: %s\n",loaded.error.message.c_str());
+ assert(loaded.error.ok()&&fpga.calls==1&&fpga.hps_ddr_calls==1);
+ assert(!hardware.menu_display().available&&hardware.menu_display().session&&hardware.menu_display().core_generation==17);
+ assert(hardware.menu_display().package_id==opened.package_id);
+ const auto begin=mmio.writes.size();
+ const auto open_plane=[&] {
+  for(unsigned row=0;row<8;++row){script.Reply();}
+  script.Reply();script.Info(3,hardware.menu_display().displayed_sequence);
+  assert(hardware.SetSessionDisplay(true).ok()&&hardware.menu_display().available);
+ };
+ open_plane();
+ const auto focused=mmio.writes.size();assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()==focused);
+ std::unique_ptr<mister::MenuFrame> frame;assert(mister::MenuFrame::Create(&frame).ok());
+ assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ script.Present(0,0,0);mister::MenuDisplayInfo info;assert(hardware.PresentMenuFrame(*frame,&info).ok());
+ script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false).ok());
+ assert(!hardware.menu_display().available&&fpga.calls==1);
+ open_plane();
+ // Completion with a bad underflow delta invokes only plane quiesce.
+ script.Present(1,0,kMenuUnderflowPresentCap+1);script.Reply();script.Info(25,2,kMenuUnderflowPresentCap+1);
+ assert(!hardware.PresentMenuFrame(*frame,&info).ok());
+ assert(!hardware.menu_display().available&&hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
+ assert(fpga.calls==1&&hardware.menu_display().core_generation==17&&memory.CopyCancelled());
+ for(std::size_t i=begin;i<mmio.writes.size();++i)
+  if(mmio.writes[i].offset==kSpiGpoAddress)assert(((mmio.writes[i].value>>24)&127)!=FesSimpleComputerOpcodeExecution);
+ // A session plane can prove drained while its sticky reader fault remains.
+ script.Reply();script.Info(25,2);assert(hardware.SetSessionDisplay(false).ok());
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ assert(hardware.SetComputerKeyboard(0).ok());
+ // Stop still drains first, then uses the ordinary lifecycle execution hold.
+ script.Reply();script.Reply(25);script.Reply();
+ assert(hardware.LoadIdle().error.ok()&&fpga.calls==2&&fpga.programmed.back()=="idle.rbf");
+ assert(!hardware.menu_display().session);
+}
+
 void TestNativeMenuActivationAndCompletion()
 {
  using namespace mister::native;using namespace mister::native::generated;
@@ -2721,6 +2792,7 @@ void TestComputerSlotCompositionActivatesLinkedPayload()
 
 int main()
 {
+ TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
  TestNativeMenuActivationAndCompletion();
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();

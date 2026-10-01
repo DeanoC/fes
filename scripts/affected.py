@@ -38,6 +38,12 @@ CORE_DIRECTORIES = {
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
     'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',),
 }
+# ZX81's in-session plane reuses these MENU scanout units and DDR model.
+# Other MENU implementation files remain owned solely by the idle core.
+MENU_SESSION_INPUTS = frozenset({
+    'rtl/fes_menu_reader.v', 'rtl/fes_menu_control.v', 'rtl/fes_menu_video.v',
+    'sim/ddr_model.v',
+})
 SHARED_RTL = {
     'coleco_vdp.sv': COLECO_CONSUMERS,
     'coleco_dpram.v': COLECO_CONSUMERS,
@@ -72,6 +78,8 @@ def fpga_cores(path):
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
     if len(parts) >= 3 and parts[0] == 'cores':
+        if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
+            return ('menu', 'zx81'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
@@ -89,6 +97,8 @@ def fpga_cores(path):
         if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py'):
             core = 'menu' if parts[1] == 'sim_fes_menu.py' else 'demo'
             return (core,), core + ' simulation recipe'
+        if parts[1] == 'sim_fes_zx81_session.py':
+            return ('zx81',), 'ZX81 session-display simulation recipe'
         if parts[1] in APPLE2_SCRIPTS:
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:

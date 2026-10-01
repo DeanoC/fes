@@ -217,15 +217,15 @@ func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 	a.searchOpen = false
 	w, h := a.roomContentSizeLocked(pack.ID)
 	inst, err := rooms.New(pack, rooms.Options{
-		Width:           w,
-		Height:          h,
-		Services:        roomServices{client: a.client},
-		Index:           a.roomsIndex,
-		Theme:           a.theme,
-		ReducedMotion:   a.reducedMotion,
-		IdleDisplayOnly: a.localCores != nil,
-		StorePath:       a.roomStorePathLocked(pack.ID),
-		Local:           a.localCores,
+		Width:                  w,
+		Height:                 h,
+		Services:               roomServices{client: a.client},
+		Index:                  a.roomsIndex,
+		Theme:                  a.theme,
+		ReducedMotion:          a.reducedMotion,
+		SessionDisplayRequired: a.needsSessionDisplayLocked(),
+		StorePath:              a.roomStorePathLocked(pack.ID),
+		Local:                  a.localCores,
 	})
 	if err != nil {
 		a.roomErr = err.Error()
@@ -236,6 +236,7 @@ func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 	a.roomErr = ""
 	a.roomWasParked = a.gpuParked
 	inst.SetSessionState(a.session.State)
+	inst.SetLiveControls(a.sessionDisplayOfferedLocked())
 	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room", "view": "room:" + pack.ID})
 	if err := inst.Load(); err != nil {
 		a.roomErr = err.Error()
@@ -542,6 +543,7 @@ func (a *App) tickRoomLocked(now time.Time) {
 		return
 	}
 	a.room.SetSessionState(a.session.State)
+	a.room.SetLiveControls(a.sessionDisplayOfferedLocked())
 	if a.gpuParked || a.localPresentsPaused {
 		a.roomWasParked = true
 		return

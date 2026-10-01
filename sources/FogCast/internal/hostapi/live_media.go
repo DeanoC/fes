@@ -65,6 +65,9 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 }
 
 func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, name string, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
+	if !s.matchesLauncherBinding(ctx, b) {
+		return sessionResult{}, protocol.LiveMediaIdentityError()
+	}
 	ctx = s.scoped(ctx)
 	if !s.begin() {
 		return sessionResult{}, busyError()
@@ -89,6 +92,9 @@ func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, 
 }
 
 func (s *sessionCoordinator) clearLiveMedia(ctx context.Context, id string, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
+	if !s.matchesLauncherBinding(ctx, b) {
+		return sessionResult{}, protocol.LiveMediaIdentityError()
+	}
 	ctx = s.scoped(ctx)
 	if !s.begin() {
 		return sessionResult{}, busyError()
