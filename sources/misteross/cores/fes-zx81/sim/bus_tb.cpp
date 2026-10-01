@@ -153,7 +153,7 @@ static int test_zonx(Vexpansion_bus_harness &dut) {
     }
     // /WR spans many transport cycles; an envelope write restarts once.
     write(7, 0x3f); write(8, 16); write(11, 1); write(12, 0);
-    io_write(dut, 0x00df, 13);
+    io_write(dut, 0x00cf, 13);
     dut.cpu_addr = 0x000f; dut.cpu_wdata = 0;
     dut.cpu_iorq_n = 0; dut.cpu_wr_n = 0;
     settle(dut, 10000);

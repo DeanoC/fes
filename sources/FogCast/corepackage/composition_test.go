@@ -68,13 +68,26 @@ func TestCompositionStageProducerArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor, err := decode(manifest, payload)
+	mapping, err := os.ReadFile(filepath.Join(source, "rom-map.json"))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	descriptor, err := decode(manifest, payload, mapping)
 	if err != nil {
 		t.Fatal(err)
 	}
-	archive := canonicalArchive(manifest, payload)
+	packageID := packageIdentity(manifest, payload, mapping)
+	shell, err := compositionShell(Inspection{PackageID: packageID, Descriptor: descriptor}, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapID := expansion.Map
+	if shell.SlotMajor == 2 {
+		mapID = expansion.MapV2
+	}
+	archive := canonicalArchiveWithROMMap(manifest, payload, mapping)
 	sha := fmt.Sprintf("%x", sha256.Sum256(payload))
-	asset, err := expansion.NewAsset(expansion.Manifest{CartSHA256: sha, CartSize: int64(len(payload)), Device: expansion.Device, Format: 1, Map: expansion.Map, RecipeSHA256: strings.Repeat("b", 64), Revision: strings.Repeat("c", 40), ShellBuildID: descriptor.Build.ID, ShellPackageID: packageIdentity(manifest, payload), ShellSHA256: sha, Slot: expansion.Slot, SlotMajor: 1}, payload)
+	asset, err := expansion.NewAsset(expansion.Manifest{CartSHA256: sha, CartSize: int64(len(payload)), Device: expansion.Device, Format: 1, Map: mapID, RecipeSHA256: strings.Repeat("b", 64), Revision: strings.Repeat("c", 40), ShellBuildID: descriptor.Build.ID, ShellPackageID: packageID, ShellSHA256: sha, Slot: shell.Slot, SlotMajor: shell.SlotMajor}, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,6 +130,17 @@ func TestCompositionStageProducerArtifact(t *testing.T) {
 	if changed.Write(&bytes.Buffer{}) == nil {
 		t.Fatal("accepted changed composed payload")
 	}
+}
+
+func canonicalArchiveWithROMMap(manifest, payload, mapping []byte) []byte {
+	archive := canonicalArchive(manifest, payload)
+	if mapping == nil {
+		return archive
+	}
+	archive = archive[:len(archive)-1024]
+	archive = append(archive, canonicalHeader("rom-map.json", int64(len(mapping)))...)
+	archive = append(archive, mapping...)
+	return append(archive, make([]byte, (512-len(mapping)%512)%512+1024)...)
 }
 
 func TestCompositionShellAdmissionMatchesRuntime(t *testing.T) {
