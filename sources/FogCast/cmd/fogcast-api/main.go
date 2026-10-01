@@ -667,6 +667,8 @@ type compositionMediaSession struct {
 	mu           sync.Mutex
 	media        hostapi.MediaSession
 	target       targetCast
+	targets      map[string]targetCast
+	tokens       map[string]string
 	session      string
 	token        string
 	generation   uint64
@@ -682,7 +684,7 @@ type compositionMediaSession struct {
 }
 
 func newCompositionMediaSession(media hostapi.MediaSession, target targetCast, session, token string, generation uint64) *compositionMediaSession {
-	return &compositionMediaSession{media: media, target: target, session: session, token: token, generation: generation}
+	return &compositionMediaSession{media: media, target: target, targets: make(map[string]targetCast), tokens: make(map[string]string), session: session, token: token, generation: generation}
 }
 
 func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig, lease *targetclient.KitLease) {
@@ -691,7 +693,7 @@ func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig, lea
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.target == nil || strings.TrimSpace(target.Agent) == "" {
+	if strings.TrimSpace(target.Name) == "" || strings.TrimSpace(target.Agent) == "" {
 		return
 	}
 	address := kitCastAddress(target, lease)
@@ -708,17 +710,27 @@ func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig, lea
 	if lease != nil {
 		client = client.WithKitLease(lease)
 	}
+	s.targets[target.Name] = client
+	s.tokens[target.Name] = target.Agent
+	// Keep the legacy unscoped path aligned with the most recently selected
+	// target; coordinator launches always select from targets by context.
 	s.target = client
 	s.token = target.Agent
 }
 
 func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
-	// Pin the cast client this handle starts. A later rebind replaces
-	// s.target for the next launch; this handle still stops the kit it
-	// started.
+	// Resolve the cast client from this coordinator's target context. The
+	// returned handle retains that client even if another launch rebinds.
 	s.mu.Lock()
-	target := s.target
+	targetName := fogcast.SessionTargetFromContext(ctx)
+	target := s.targets[targetName]
+	if target == nil && targetName == "" {
+		target = s.target
+	}
 	token := s.token
+	if targetName != "" && s.tokens[targetName] != "" {
+		token = s.tokens[targetName]
+	}
 	session := s.session
 	generation := s.generation
 	mediaSet := s.mediaSet
