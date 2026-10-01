@@ -2856,6 +2856,14 @@ func (a *App) refreshTargetAddress(ctx context.Context) string {
 	if target != "" || open {
 		return target
 	}
+	// Paired kits use the narrow target projection; full library settings
+	// contains host filesystem roots and is not available on that listener.
+	if target, targetErr := a.client.LauncherTarget(ctx); targetErr == nil {
+		return strings.TrimSpace(target.Address)
+	}
+	if ctx.Err() != nil {
+		return ""
+	}
 	settings, err := a.client.LibrarySettings(ctx)
 	if err != nil || ctx.Err() != nil {
 		return ""

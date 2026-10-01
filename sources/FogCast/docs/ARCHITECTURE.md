@@ -701,6 +701,14 @@ session input, and launcher input are owner-only; another paired kit gets
 Health, `rom_cached`, and `/api/v1/library/cache` still describe the
 selected target (#289).
 
+The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
+IDs so uncached room selections can load their detail row. It does not expose
+full `/api/v1/library/settings`, which contains host filesystem roots. Tenfoot
+uses `GET /api/v1/launcher/target` instead; that authenticated paired read
+returns only the requesting enabled kit's target ID and address for direct
+lease-status polling. The settings overlay remains unavailable on the paired
+listener and reports its normal load error.
+
 ## Native 10-foot launcher
 
 The embedded **ZX81 workbench** (`example.hardware`) reads host-owned hardware

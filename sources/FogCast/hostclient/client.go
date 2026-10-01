@@ -577,6 +577,14 @@ func (c *Client) LibrarySettings(ctx context.Context) (LibrarySettings, error) {
 	return normalizeLibrarySettings(result), nil
 }
 
+// LauncherTarget loads the limited target address exposed to an authenticated
+// paired tenfoot client for kit-local lease status.
+func (c *Client) LauncherTarget(ctx context.Context) (LauncherTarget, error) {
+	var result LauncherTarget
+	err := c.getJSON(ctx, "/api/v1/launcher/target", &result)
+	return result, err
+}
+
 // PatchLibrarySettings sends PATCH /api/v1/library/settings with only set fields.
 func (c *Client) PatchLibrarySettings(ctx context.Context, patch LibrarySettingsPatch) (LibrarySettings, error) {
 	payload, err := patch.payload()
