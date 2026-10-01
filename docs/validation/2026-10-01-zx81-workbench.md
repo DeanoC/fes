@@ -38,14 +38,18 @@ Focused catalog, hostclient, host API, service, room and tenfoot tests passed.
 Race checks passed for the affected Go packages. The migration fixture
 reconstructs schema 15 with saved records before opening it under schema 16.
 The parent regression suite passed 605 tests with 39 documented/environmental
-skips. `go vet`, producer unit tests, tape checksums, whitespace checks and
+skips. The complete affected-software runner passed, including FogCast/appliance
+race suites, browser checks and producer checks. `go vet`, producer unit tests, tape checksums, whitespace checks and
 committed-source `make check` passed. A read-only agent review found no blocking
 correctness defects in the setup, media, expansion or asynchronous overlay paths.
 
-`make host` built the committed implementation for linux/amd64 and emitted
+`make host` built candidate `a82773630d3bcd11f1500cf0a9ea83b011799520`
+for linux/amd64 and emitted
 `out/native-integration-dev/host.json`. Its API SHA-256 is
-`d23fbb72c0ba2bd5a3fd27d0d21be25937f7cd585064ac38e5014302a03f21b8`.
-The ARMv7 tenfoot launcher also compiled without SDL/CGo. Local logs and binaries
+`f0e41a74af2c6a2839d5f266233c073b86a5344add340ea0fec4aa11668fadde`.
+The ARMv7 tenfoot launcher also compiled without SDL/CGo; SHA-256
+`bd08a3bc5c39200f4e1793b7bd339ae615c2041f994c59ccad971e3efa18b12d`.
+Local logs and binaries
 are retained under ignored `out/zx81-room/`. These are software build results,
 not hardware acceptance.
 
