@@ -5,12 +5,27 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+type concurrentCacheIndexClient struct {
+	*fakeServiceClient
+	mu sync.Mutex
+}
+
+func (c *concurrentCacheIndexClient) CacheIndex(ctx context.Context) (protocol.CacheIndex, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cacheIndex == nil {
+		return protocol.CacheIndex{}, errors.New("unexpected cache index")
+	}
+	return c.cacheIndex(ctx)
+}
 
 func TestLibraryCacheReportsTargetInventoryWithoutLease(t *testing.T) {
 	digest := strings.Repeat("ab", 32)
@@ -38,12 +53,13 @@ func TestLibraryCacheReportsTargetInventoryWithoutLease(t *testing.T) {
 }
 
 func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.T) {
-	clientB := &fakeServiceClient{
+	clientB := &concurrentCacheIndexClient{fakeServiceClient: &fakeServiceClient{
 		healthResult: protocol.Health{Ready: true},
+		statusResult: protocol.Status{State: protocol.StateActive, GameID: stringPtr("kit-b-game")},
 		cacheIndex: func(context.Context) (protocol.CacheIndex, error) {
 			return protocol.CacheIndex{UsedBytes: 4, MaxBytes: 10, FreeBytes: 6}, nil
 		},
-	}
+	}}
 	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
 	service.targets = []TargetConfig{{Name: "kit-a", Enabled: true, TargetID: "a"}, {Name: "kit-b", Enabled: true, TargetID: "b"}}
 	service.pairedTargetConfigs = append([]TargetConfig(nil), service.targets...)
@@ -65,7 +81,14 @@ func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.
 		runtime.Gosched()
 	}
 	ctx := WithPairedTarget(context.Background(), "b")
-	results := make(chan error, 4)
+	results := make(chan error, 5)
+	go func() {
+		status, err := service.Status(ctx)
+		if err == nil && (status.State != protocol.StateActive || status.GameID == nil || *status.GameID != "kit-b-game") {
+			err = errors.New("kit B status read was not target-scoped")
+		}
+		results <- err
+	}()
 	go func() {
 		health, err := service.Health(ctx)
 		if err == nil && !health.Ready {
@@ -108,7 +131,7 @@ func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.
 	}()
 	deadline := time.NewTimer(time.Second)
 	defer deadline.Stop()
-	for range 4 {
+	for range 5 {
 		select {
 		case err := <-results:
 			if err != nil {

@@ -126,6 +126,8 @@ func (s *Service) romCacheSnapshot(parent context.Context) romCacheSnapshot {
 
 type pairedTargetContextKey struct{}
 
+type sessionTargetContextKey struct{}
+
 // WithPairedTarget scopes read-only launcher health and cache reads to one kit.
 func WithPairedTarget(ctx context.Context, targetID string) context.Context {
 	return context.WithValue(ctx, pairedTargetContextKey{}, targetID)
@@ -134,6 +136,16 @@ func WithPairedTarget(ctx context.Context, targetID string) context.Context {
 func PairedTargetFromContext(ctx context.Context) string {
 	targetID, _ := ctx.Value(pairedTargetContextKey{}).(string)
 	return targetID
+}
+
+// WithSessionTarget scopes status/stop operations to one configured target.
+func WithSessionTarget(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, sessionTargetContextKey{}, name)
+}
+
+func SessionTargetFromContext(ctx context.Context) string {
+	name, _ := ctx.Value(sessionTargetContextKey{}).(string)
+	return name
 }
 
 func (s *Service) storeROMCacheSnap(targetID string, snap romCacheSnapshot) {

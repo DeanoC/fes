@@ -839,6 +839,40 @@ func TestServiceStopTargetPreservesOtherTargetPlay(t *testing.T) {
 	if len(plays) != 1 || plays[0].Target != "a" || plays[0].GameID != "game-a" {
 		t.Fatalf("remaining plays = %+v", plays)
 	}
+	if s.activeTarget != "a" || s.activeGameID != "game-a" {
+		t.Fatalf("foreground after scoped stop = target %q game %q", s.activeTarget, s.activeGameID)
+	}
+}
+
+func TestServiceStatusTargetDoesNotMoveForeground(t *testing.T) {
+	aGame, aSystem := "game-a", protocol.SystemNES
+	bGame, bSystem := "game-b", protocol.SystemSNES
+	a := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, GameID: &aGame, System: &aSystem}}
+	b := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, GameID: &bGame, System: &bSystem}}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "a", TargetID: "target-a", Enabled: true}, {Name: "b", TargetID: "target-b", Enabled: true}},
+		selectedTarget: "a", targetClients: map[string]serviceClient{"a": a, "b": b},
+		plays: map[string]targetPlay{
+			"a": {execution: ExecutionFPGANative, gameID: aGame, system: aSystem},
+			"b": {execution: ExecutionFPGANative, gameID: bGame, system: bSystem},
+		}, activeTarget: "b", activeExecution: ExecutionFPGANative, activeGameID: bGame, activeSystem: bSystem,
+	}
+	status, err := s.StatusTarget(context.Background(), "a")
+	if err != nil || status.GameID == nil || *status.GameID != aGame || a.statusCalls != 1 || b.statusCalls != 0 {
+		t.Fatalf("target A status = %+v err=%v calls=%d/%d", status, err, a.statusCalls, b.statusCalls)
+	}
+	if s.activeTarget != "b" || s.activeGameID != bGame || len(s.PlaySessions()) != 2 {
+		t.Fatalf("A status changed foreground or plays: target=%q game=%q plays=%+v", s.activeTarget, s.activeGameID, s.PlaySessions())
+	}
+}
+
+func TestPackageReplacementIsTargetScoped(t *testing.T) {
+	if packageReplacementApplies("kit-b", "kit-a") {
+		t.Fatal("launch on kit B would replace kit A's package play")
+	}
+	if !packageReplacementApplies("kit-a", "kit-a") {
+		t.Fatal("same-kit launch must replace that kit's package play")
+	}
 }
 
 func TestServiceShutdownCleanupRequiredUsesLocalOwnership(t *testing.T) {

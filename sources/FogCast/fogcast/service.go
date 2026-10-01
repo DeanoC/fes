@@ -229,7 +229,8 @@ type Service struct {
 	// Invalidating one target removes only that client's grant. A release
 	// that fails stays here until a later attempt succeeds. A grant that
 	// still backs a remaining play stays here and is not released.
-	stoppedKitLeases []*targetclient.KitLease
+	stoppedKitLeases       []*targetclient.KitLease
+	stoppedKitLeaseTargets map[*targetclient.KitLease]string
 	// placementHolds counts in-flight launches that share one placement
 	// claim. The key is the target client. A failed launch releases the
 	// grant only when it is the last in-flight holder and the session did
@@ -572,6 +573,14 @@ func (s *Service) selectedClientLocked() (serviceClient, bool) {
 	return client, client != nil
 }
 
+// SessionTargetName reports the target used by an unscoped host session
+// operation. A live foreground target wins; otherwise the selected target.
+func (s *Service) SessionTargetName() string {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	return s.sessionTargetNameLocked()
+}
+
 // Caller holds targetMu. Admission and transport must resolve the same binding.
 // Host-only play does not own a kit, so a host marker is ignored. A launch
 // that has already bound a configured target still uses that name while the
@@ -617,6 +626,8 @@ type targetPlay struct {
 	packageID         string
 	packageGeneration uint64
 	packageRejection  *protocol.APIError
+	reconciled        bool
+	repairAllowed     bool
 }
 
 type PlaySession struct {
@@ -638,7 +649,8 @@ func (s *Service) retainSessionTargetLocked() {
 		s.plays = make(map[string]targetPlay)
 	}
 	play := targetPlay{execution: s.activeExecution, gameID: s.activeGameID, system: s.activeSystem,
-		packageID: s.activePackageID, packageGeneration: s.activePackageGeneration}
+		packageID: s.activePackageID, packageGeneration: s.activePackageGeneration,
+		reconciled: s.selectedTargetReconciled, repairAllowed: s.selectedTargetRepairAllowed}
 	play.packageRejection = s.packageRejection
 	s.plays[s.activeTarget] = play
 }
@@ -660,10 +672,12 @@ func (s *Service) bindPlayTargetLocked(name string) {
 	s.activeTarget = name
 	s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
 	s.activePackageID, s.activePackageGeneration, s.packageRejection = "", 0, nil
+	s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
 	if play, ok := s.plays[name]; ok {
 		s.activeExecution, s.activeGameID, s.activeSystem = play.execution, play.gameID, play.system
 		s.activePackageID, s.activePackageGeneration = play.packageID, play.packageGeneration
 		s.packageRejection = play.packageRejection
+		s.selectedTargetReconciled, s.selectedTargetRepairAllowed = play.reconciled, play.repairAllowed
 	}
 }
 
@@ -727,13 +741,33 @@ func (s *Service) clearForegroundPlayLocked() {
 	s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 	s.packageRejection = nil
 	s.activePackageID, s.activePackageGeneration = "", 0
-	for name, play := range s.plays {
-		s.activeTarget = name
-		s.activeExecution = play.execution
-		s.activeGameID = play.gameID
-		s.activeSystem = play.system
-		break
+	s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
+	s.promotePlayLocked(s.selectedTarget)
+}
+
+func (s *Service) promotePlayLocked(preferred string) {
+	name := ""
+	if _, ok := s.plays[preferred]; ok {
+		name = preferred
+	} else {
+		names := make([]string, 0, len(s.plays))
+		for candidate := range s.plays {
+			names = append(names, candidate)
+		}
+		sort.Strings(names)
+		if len(names) != 0 {
+			name = names[0]
+		}
 	}
+	if name == "" {
+		return
+	}
+	play := s.plays[name]
+	s.activeTarget = name
+	s.activeExecution, s.activeGameID, s.activeSystem = play.execution, play.gameID, play.system
+	s.activePackageID, s.activePackageGeneration = play.packageID, play.packageGeneration
+	s.packageRejection = play.packageRejection
+	s.selectedTargetReconciled, s.selectedTargetRepairAllowed = play.reconciled, play.repairAllowed
 }
 
 func (s *Service) PlaySessions() []PlaySession {
@@ -760,19 +794,16 @@ func (s *Service) clearUnstartedSessionTarget() {
 	defer s.executionMu.Unlock()
 	if s.activeExecution == "" {
 		s.activeTarget = ""
+		s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
+		s.promotePlayLocked(s.selectedTarget)
 		return
 	}
 	if _, ok := s.plays[s.activeTarget]; ok {
 		return
 	}
 	s.activeTarget = ""
-	for name, play := range s.plays {
-		s.activeTarget = name
-		s.activeExecution = play.execution
-		s.activeGameID = play.gameID
-		s.activeSystem = play.system
-		break
-	}
+	s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
+	s.promotePlayLocked(s.selectedTarget)
 }
 
 // launchPinnedTargetBoundHook observes the name bind stored. Tests move
@@ -1082,12 +1113,6 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 
-	s.executionMu.Lock()
-	packageOwnerTarget := ""
-	if s.activePackageID != "" {
-		packageOwnerTarget = s.activeTarget
-	}
-	s.executionMu.Unlock()
 	if err := s.revalidateLaunchSnapshot(snap); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
@@ -1101,7 +1126,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 
-	if err := s.stopPackageOwnedForCatalogLaunch(ctx, packageOwnerTarget); err != nil {
+	if err := s.stopPackageOwnedForCatalogLaunch(ctx, snap.name); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	s.targetMu.RLock()
@@ -2003,7 +2028,7 @@ func packageReplacementApplies(requestedTarget, packageOwnerTarget string) bool 
 }
 
 // Caller holds lifecycle admission and must not hold targetMu.
-func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, packageOwnerTarget string) error {
+func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, requestedTarget string) error {
 	s.executionMu.Lock()
 	development := s.activeExecution == ExecutionFPGADevelopment
 	packageOwned := s.activePackageID != ""
@@ -2012,7 +2037,7 @@ func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, packageO
 	if development {
 		return canonicalError(protocol.CodeBusy, nil)
 	}
-	if !packageOwned || !packageReplacementApplies(boundTarget, packageOwnerTarget) {
+	if !packageOwned || !packageReplacementApplies(requestedTarget, boundTarget) {
 		return nil
 	}
 	timeout := s.uploadTimeout
@@ -2098,7 +2123,56 @@ func (s *Service) adoptObservedForeground(status *protocol.Status) {
 }
 
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
+	if targetID := PairedTargetFromContext(parent); targetID != "" {
+		return s.statusPairedTarget(parent, targetID)
+	}
+	if name := SessionTargetFromContext(parent); name != "" {
+		return s.StatusTarget(parent, name)
+	}
 	return s.statusTarget(parent, "")
+}
+
+func (s *Service) statusPairedTarget(parent context.Context, targetID string) (protocol.Status, error) {
+	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
+	defer cancel()
+	name := s.pairedTargetName(targetID)
+	if name == "" {
+		return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	client, ok := s.pairedTargetClient(targetID)
+	if !ok {
+		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	status, err := client.Status(ctx)
+	if err != nil {
+		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+	}
+	s.executionMu.Lock()
+	play, hasPlay := s.plays[name]
+	if hasPlay && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
+		if status.GameID == nil && play.gameID != "" {
+			status.GameID = stringPtr(play.gameID)
+		}
+		if status.System == nil && play.system != "" {
+			status.System = systemPtr(play.system)
+		}
+		if status.LastError == nil {
+			status.LastError = play.packageRejection
+		}
+	}
+	s.executionMu.Unlock()
+	return status, nil
+}
+
+func (s *Service) pairedTargetName(targetID string) string {
+	s.pairedTargetMu.Lock()
+	defer s.pairedTargetMu.Unlock()
+	for _, target := range s.pairedTargetConfigs {
+		if target.Enabled && target.TargetID == targetID {
+			return target.Name
+		}
+	}
+	return ""
 }
 
 // StatusTarget observes one configured target without changing which target
@@ -2204,7 +2278,35 @@ func (s *Service) allowSelectedTargetRepair(parent context.Context) {
 }
 
 func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
+	if name := SessionTargetFromContext(parent); name != "" {
+		return s.StopTarget(parent, name)
+	}
+	if targetID := PairedTargetFromContext(parent); targetID != "" {
+		if name := s.targetNameForID(targetID); name != "" {
+			return s.StopTarget(parent, name)
+		}
+	}
 	return s.stopExpected(parent, nil, nil, "")
+}
+
+func (s *Service) targetNameForID(targetID string) string {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	for _, target := range s.targets {
+		if target.Enabled && target.TargetID == targetID {
+			return target.Name
+		}
+	}
+	return ""
+}
+
+// TargetNameForID resolves a configured paired target identity.
+func (s *Service) TargetNameForID(targetID string) string { return s.targetNameForID(targetID) }
+
+func (s *Service) TargetIDForName(name string) string {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	return targetByName(s.targets, name).TargetID
 }
 
 // StopTarget stops one configured target's play while preserving the default
@@ -2220,6 +2322,10 @@ func (s *Service) StopTarget(parent context.Context, target string) (protocol.St
 // stop a different foreground play from the one the caller observed.
 func (s *Service) StopExpected(parent context.Context, expected SessionStopBinding) (protocol.Status, error) {
 	return s.stopExpected(parent, &expected, nil, "")
+}
+
+func (s *Service) StopExpectedTargetWithPreparation(parent context.Context, expected SessionStopBinding, prepare func(context.Context), target string) (protocol.Status, error) {
+	return s.stopExpected(parent, &expected, prepare, target)
 }
 
 // StopExpectedWithPreparation admits the bound play before coordinator input
@@ -2305,7 +2411,14 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 	// explicit release uses.
 	s.executionMu.Lock()
 	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
-		s.stoppedKitLeases = retainStoppedKitLease(s.stoppedKitLeases, leased.KitLease())
+		lease := leased.KitLease()
+		s.stoppedKitLeases = retainStoppedKitLease(s.stoppedKitLeases, lease)
+		if lease != nil {
+			if s.stoppedKitLeaseTargets == nil {
+				s.stoppedKitLeaseTargets = make(map[*targetclient.KitLease]string)
+			}
+			s.stoppedKitLeaseTargets[lease] = s.activeTarget
+		}
 	}
 	s.executionMu.Unlock()
 	stage = "target_stop"
@@ -3023,16 +3136,27 @@ func (s *Service) KitLease() *targetclient.KitLease {
 // ShutdownCleanupRequired reports whether this process still has local
 // ownership that permits shutdown cleanup. It never contacts or mutates a
 // target: host-only execution is locally owned, while target execution needs
-// a currently held grant on the foreground target.
+// a currently held grant on any target with a retained play.
 func (s *Service) ShutdownCleanupRequired() bool {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
 	activeExecution := s.activeExecution
-	s.executionMu.Unlock()
 	if activeExecution == ExecutionHostOnly {
+		s.executionMu.Unlock()
 		return true
 	}
-	client, ok := s.selectedClientSnapshot()
-	if !ok {
+	for name := range s.plays {
+		client := s.targetClients[name]
+		owner, ok := client.(interface{ HasKitGrant() bool })
+		if ok && owner.HasKitGrant() {
+			s.executionMu.Unlock()
+			return true
+		}
+	}
+	s.executionMu.Unlock()
+	client := s.targetClients[s.sessionTargetNameLocked()]
+	if client == nil {
 		return false
 	}
 	owner, ok := client.(interface{ HasKitGrant() bool })
@@ -3054,11 +3178,27 @@ func (s *Service) ShutdownCleanupRequired() bool {
 // only a successful release drops the entry. Replacement Stop retains
 // ownership so the next launch uses the same grant.
 func (s *Service) ReleaseKitLease(ctx context.Context) error {
+	return s.releaseKitLease(ctx, "")
+}
+
+// ReleaseKitLeaseTarget releases retained grants belonging to one target.
+func (s *Service) ReleaseKitLeaseTarget(ctx context.Context, target string) error {
+	return s.releaseKitLease(ctx, target)
+}
+
+func (s *Service) releaseKitLease(ctx context.Context, target string) error {
 	s.executionMu.Lock()
 	pending := append([]*targetclient.KitLease(nil), s.stoppedKitLeases...)
+	targets := make(map[*targetclient.KitLease]string, len(s.stoppedKitLeaseTargets))
+	for lease, name := range s.stoppedKitLeaseTargets {
+		targets[lease] = name
+	}
 	s.executionMu.Unlock()
 	var first error
 	for _, lease := range pending {
+		if target != "" && targets[lease] != target {
+			continue
+		}
 		if s.kitLeaseBacksPlay(lease) {
 			continue
 		}
@@ -3070,6 +3210,7 @@ func (s *Service) ReleaseKitLease(ctx context.Context) error {
 		}
 		s.executionMu.Lock()
 		s.stoppedKitLeases = dropStoppedKitLease(s.stoppedKitLeases, lease)
+		delete(s.stoppedKitLeaseTargets, lease)
 		s.executionMu.Unlock()
 	}
 	return first

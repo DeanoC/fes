@@ -174,17 +174,24 @@ type apiError struct {
 }
 
 type serverOptions struct {
-	remoteInput   host.RemoteInputController
-	media         MediaSession
-	mediaPreview  http.Handler
-	metadata      metadata.Runtime
-	metadataState metadata.ConfigState
+	remoteInput        host.RemoteInputController
+	remoteInputFactory func(string) host.RemoteInputController
+	media              MediaSession
+	mediaPreview       http.Handler
+	metadata           metadata.Runtime
+	metadataState      metadata.ConfigState
 }
 
 type ServerOption func(*serverOptions)
 
 func WithRemoteInput(remoteInput host.RemoteInputController) ServerOption {
 	return func(options *serverOptions) { options.remoteInput = remoteInput }
+}
+
+// WithRemoteInputFactory provides an independent input bridge for each named
+// target session. The factory must be concurrency-safe.
+func WithRemoteInputFactory(factory func(string) host.RemoteInputController) ServerOption {
+	return func(options *serverOptions) { options.remoteInputFactory = factory }
 }
 
 func WithMediaSession(media MediaSession) ServerOption {
@@ -210,6 +217,25 @@ func WithMetadata(runtime metadata.Runtime, states ...metadata.ConfigState) Serv
 	}
 }
 
+func requestSessionCoordinator(root *sessionCoordinator, service Service, r *http.Request, target string) *sessionCoordinator {
+	if target == "" {
+		target = launcherTargetFromContext(r.Context())
+	}
+	if target == "" {
+		if pairedID := fogcast.PairedTargetFromContext(r.Context()); pairedID != "" {
+			if resolver, ok := service.(interface{ TargetNameForID(string) string }); ok {
+				target = resolver.TargetNameForID(pairedID)
+			}
+		}
+	}
+	if target == "" {
+		if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
+			target = resolver.SessionTargetName()
+		}
+	}
+	return root.forTarget(target)
+}
+
 func New(service Service, options ...ServerOption) http.Handler {
 	if service == nil {
 		panic("hostapi: nil service")
@@ -225,11 +251,13 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerCoreData(mux, service)
 	registerMeshHostContent(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
+	session.remoteInputFactory = config.remoteInputFactory
 	registerHardware(mux, service, session)
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
-		result, err := session.status(r.Context())
+		coordinator := requestSessionCoordinator(session, service, r, r.URL.Query().Get("target"))
+		result, err := coordinator.status(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
 			return
@@ -267,6 +295,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		mux.Handle("GET /api/v1/session/preview", config.mediaPreview)
 	}
 	mux.HandleFunc("GET /api/v1/session/events", func(w http.ResponseWriter, r *http.Request) {
+		coordinator := requestSessionCoordinator(session, service, r, "")
 		var after uint64
 		if raw := r.URL.Query().Get("after"); raw != "" {
 			if _, err := fmt.Sscanf(raw, "%d", &after); err != nil {
@@ -274,7 +303,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 				return
 			}
 		}
-		writeJSON(w, http.StatusOK, sessionEventsResult{Events: publicEvents(session.eventsAfter(after))})
+		writeJSON(w, http.StatusOK, sessionEventsResult{Events: publicEvents(coordinator.eventsAfter(after))})
 	})
 	mux.HandleFunc("POST /api/v1/session/launch", func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
@@ -292,7 +321,12 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		stamp := parseClientStamp(r, request.ClientTsUTC, request.ClientMonoMS, request.FlightID)
-		result, err := session.launch(r.Context(), request.GameID, request.Target, stamp)
+		target := request.Target
+		if target == "" {
+			target = launcherTargetFromContext(r.Context())
+		}
+		coordinator := requestSessionCoordinator(session, service, r, target)
+		result, err := coordinator.launch(r.Context(), request.GameID, request.Target, stamp)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -307,7 +341,8 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxDevelopmentRBFBytes)
-		result, err := session.loadDevelopmentRBF(r.Context(), r.ContentLength, r.Body, parseClientStamp(r, "", nil, ""))
+		coordinator := requestSessionCoordinator(session, service, r, "")
+		result, err := coordinator.loadDevelopmentRBF(r.Context(), r.ContentLength, r.Body, parseClientStamp(r, "", nil, ""))
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -322,7 +357,8 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, corepackage.MaxArchiveSize)
-		result, err := session.loadDevelopmentCore(r.Context(), r.ContentLength, r.Body, parseClientStamp(r, "", nil, ""))
+		coordinator := requestSessionCoordinator(session, service, r, "")
+		result, err := coordinator.loadDevelopmentCore(r.Context(), r.ContentLength, r.Body, parseClientStamp(r, "", nil, ""))
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -332,11 +368,17 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerDevelopmentMediaRoute(mux, session)
 	registerLiveMediaSessionRoutes(mux, session)
 	mux.HandleFunc("POST /api/v1/session/stop", func(w http.ResponseWriter, r *http.Request) {
-		stamp, retainLease, releaseIdle, expected, err := decodeOptionalStopRequest(w, r)
+		stamp, retainLease, releaseIdle, expected, explicitTarget, err := decodeOptionalStopRequest(w, r)
 		if err != nil {
 			return
 		}
-		result, err := session.stop(r.Context(), stamp, retainLease, releaseIdle, expected)
+		pairedTarget := launcherTargetFromContext(r.Context())
+		if pairedTarget != "" && explicitTarget != "" && explicitTarget != pairedTarget {
+			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the paired target")
+			return
+		}
+		coordinator := requestSessionCoordinator(session, service, r, explicitTarget)
+		result, err := coordinator.stop(r.Context(), stamp, retainLease, releaseIdle, expected)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -344,7 +386,8 @@ func New(service Service, options ...ServerOption) http.Handler {
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/session/input", func(w http.ResponseWriter, r *http.Request) {
-		status, ok := session.inputStatus()
+		coordinator := requestSessionCoordinator(session, service, r, "")
+		status, ok := coordinator.inputStatus()
 		if !ok {
 			writeError(w, http.StatusNotFound, "INPUT_UNAVAILABLE", "remote input is unavailable")
 			return
@@ -356,7 +399,8 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "attach request body must be empty")
 			return
 		}
-		result, err := session.attachInput(r.Context())
+		coordinator := requestSessionCoordinator(session, service, r, "")
+		result, err := coordinator.attachInput(r.Context())
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -368,7 +412,8 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "detach request body must be empty")
 			return
 		}
-		result, err := session.detachInput(r.Context())
+		coordinator := requestSessionCoordinator(session, service, r, "")
+		result, err := coordinator.detachInput(r.Context())
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -385,7 +430,8 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input event is invalid")
 			return
 		}
-		if err := session.sendCoreKey(r.Context(), *body.Event); err != nil {
+		coordinator := requestSessionCoordinator(session, service, r, "")
+		if err := coordinator.sendCoreKey(r.Context(), *body.Event); err != nil {
 			if errors.Is(err, host.ErrRemoteInputNoStream) {
 				writeError(w, http.StatusServiceUnavailable, "INPUT_UNAVAILABLE", "no live input stream")
 				return
@@ -419,12 +465,24 @@ func New(service Service, options ...ServerOption) http.Handler {
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {
-		status, err := service.Status(r.Context())
+		ctx := r.Context()
+		if target := r.URL.Query().Get("target"); target != "" {
+			ctx = fogcast.WithSessionTarget(ctx, target)
+		}
+		status, err := service.Status(ctx)
 		if err != nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
 			return
 		}
-		result := statusResult{State: status.State, GameID: status.GameID, System: status.System, Connection: targetConnection(service)}
+		connection := targetConnection(service)
+		if targetID := fogcast.PairedTargetFromContext(r.Context()); targetID != "" {
+			state := "connected"
+			if status.State == "" {
+				state = "disconnected"
+			}
+			connection = &fogcast.TargetConnection{TargetID: targetID, State: state}
+		}
+		result := statusResult{State: status.State, GameID: status.GameID, System: status.System, Connection: connection}
 		if status.ObservedCore != nil {
 			result.Core = status.ObservedCore
 		} else {
@@ -648,7 +706,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		defer opened.Reader.Close()
 		librarymediaServe(w, r, opened)
 	})
-	return &applicationHandler{browser: noStore(rejectUnexpectedHost(mux)), routes: mux, service: service, remoteInput: config.remoteInput}
+	return &applicationHandler{browser: noStore(rejectUnexpectedHost(mux)), routes: mux, service: service, remoteInput: config.remoteInput, session: session}
 }
 
 func rejectUnexpectedHost(next http.Handler) http.Handler {

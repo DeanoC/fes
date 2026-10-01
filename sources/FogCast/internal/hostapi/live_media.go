@@ -34,7 +34,8 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
 			return
 		}
-		result, err := s.replaceLiveMedia(r.Context(), ids[0], req.MediaID, req.Name, b)
+		coordinator := s.forSessionID(ids[0])
+		result, err := coordinator.replaceLiveMedia(r.Context(), ids[0], req.MediaID, req.Name, b)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -53,7 +54,8 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
 			return
 		}
-		result, err := s.clearLiveMedia(r.Context(), ids[0], b)
+		coordinator := s.forSessionID(ids[0])
+		result, err := coordinator.clearLiveMedia(r.Context(), ids[0], b)
 		if err != nil {
 			writeSessionError(w, err)
 			return
