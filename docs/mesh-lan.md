@@ -44,6 +44,37 @@ wire format, a second lease, or a Host/Kit identity enum.
 
 ## Why this exists
 
+### Delivery direction agreed 2026-10-01
+
+Deano's current priority is a coherent, reliable FES experience on real
+hardware. The visible library and resources are the sum of the mesh. A Linux
+FPGA kit can also provide host, shell, catalog and coordinator services within
+its measured hardware limits. Linux, Mac, PC and Raspberry Pi nodes may have no
+FPGA and provide software emulation, expanding the games available or improving
+their execution. A later simple non-Linux kit may provide fewer capabilities.
+These are deployments of capabilities, not permanent node roles.
+
+A title has execution alternatives; the title is not its FPGA or emulator
+backend. Execution, display and input can eventually live on different nodes.
+A second kit may play independently, act as a remote display, or resume progress
+in another room. For progress portability, first save on A and relaunch/restore
+on B; live-state migration is a later problem.
+
+Supported v1+ cores provide usable contracts and can gain features over their
+lifetime. Custom games and development cores should use the same system.
+Compiler selection should follow latest main automatically, retaining a
+last-working revision only for a demonstrated per-core regression and retesting
+that exception. Actual builds still record immutable compiler/source identities.
+This is a delivery policy target, not a claim that automation already exists.
+
+[M1: Heterogeneous two-node mesh](https://github.com/DeanoC/fes/milestone/1)
+and its [outcome issue](https://github.com/DeanoC/fes/issues/357) track the first
+accepted slice: one FPGA kit and one Linux or Mac software execution node,
+one visible library, truthful availability, independent session/input/Stop
+ownership, and exact-artifact real-node acceptance. Portable saves and remote
+display routing follow M1. The earlier phase records below retain their dated
+implementation evidence; they do not establish this new acceptance outcome.
+
 Product intent from Deano, 2026-09-23.
 
 The original host/kit split assumed a dumb Chromecast-like kit. The kit has

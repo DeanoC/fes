@@ -1,0 +1,49 @@
+name: Agent task
+description: A bounded FES task with a portable cross-vendor handoff
+title: "[Task] "
+labels: ["task:ready"]
+body:
+  - type: markdown
+    attributes:
+      value: "Read docs/agent-workflow.md. Add the appropriate milestone, parent and native blocked-by links. Replace task:ready with task:blocked if prerequisites are unmet."
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: Concrete behavior and completion criteria
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Owner and scope
+      description: Owning component, files and coordinated contracts
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Issue links and external prerequisites; also add native blocked-by links
+  - type: textarea
+    id: runner
+    attributes:
+      label: Agent and execution context
+      value: "Unclaimed. Runner must acknowledge exact host, absolute FES worktree, branch and base SHA before Working."
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: Required capabilities
+      description: Tools, credentials or named device access needed; never include secrets
+  - type: textarea
+    id: checks
+    attributes:
+      label: Checks and acceptance
+      description: Separate focused code checks, integration, diagnostics and exact-artifact target evidence
+    validations:
+      required: true
+  - type: textarea
+    id: handoff
+    attributes:
+      label: PR, evidence and remaining work
+      value: "No implementation or acceptance evidence yet."

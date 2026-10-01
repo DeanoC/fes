@@ -1,0 +1,39 @@
+name: FES coordination
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 * * * *"
+  pull_request:
+    paths:
+      - "scripts/coordination.py"
+      - "tests/test_coordination.py"
+      - "docs/agent-workflow.md"
+      - ".github/workflows/coordination.yml"
+permissions:
+  contents: read
+  issues: read
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Test coordination rules
+        run: python3 -m unittest discover -s tests -p test_coordination.py -v
+      - name: Observe current GitHub milestone
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -m scripts.coordination --repo "$GITHUB_REPOSITORY" --milestone 1 --output out/coordination/m1-report.md
+      - name: Publish read-only job summary
+        if: github.event_name != 'pull_request'
+        run: cat out/coordination/m1-report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: fes-m1-coordination
+          path: out/coordination/m1-report.md
+          retention-days: 7
+          if-no-files-found: error
