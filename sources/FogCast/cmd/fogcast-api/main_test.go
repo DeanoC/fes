@@ -23,6 +23,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
@@ -246,10 +247,14 @@ func (s *shutdownCompositionService) Stop(context.Context) (protocol.Status, err
 	defer s.mu.Unlock()
 	s.stops++
 	if len(s.stopErrs) == 0 {
+		s.shutdownCleanup = false
 		return protocol.Status{State: protocol.StateIdle}, nil
 	}
 	err := s.stopErrs[0]
 	s.stopErrs = s.stopErrs[1:]
+	if err == nil {
+		s.shutdownCleanup = false
+	}
 	return protocol.Status{State: protocol.StateIdle}, err
 }
 
@@ -279,6 +284,84 @@ func TestComposeAPIWiresRemoteInputController(t *testing.T) {
 	if err := closeRemote(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+type targetBridgeTestService struct {
+	compositionService
+	active  string
+	configs map[string]fogcast.TargetConfig
+	leases  map[string]*targetclient.KitLease
+	lookups []string
+}
+
+func (s *targetBridgeTestService) TargetConfigForName(name string) fogcast.TargetConfig {
+	return s.configs[name]
+}
+func (s *targetBridgeTestService) KitLeaseForTarget(name string) *targetclient.KitLease {
+	s.lookups = append(s.lookups, name)
+	return s.leases[name]
+}
+func (*targetBridgeTestService) Close() error { return nil }
+
+func TestPerTargetBridgeKeepsOriginAndLeaseAfterAnotherTargetLaunches(t *testing.T) {
+	var aAuth string
+	kitA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		aAuth = r.Header.Get("Authorization")
+		if r.URL.Path == "/v1/kit/claim" {
+			_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "grant-a", Status: kitlease.Status{State: "held", Generation: "generation-a", ExpiresInMS: 60000}})
+			return
+		}
+		if r.Header.Get(targetclient.KitLeaseHeader) != "grant-a" {
+			t.Errorf("A bridge lease header = %q", r.Header.Get(targetclient.KitLeaseHeader))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ready": true})
+	}))
+	defer kitA.Close()
+	kitB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("A bridge was redirected to kit B")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ready": true})
+	}))
+	defer kitB.Close()
+	aURL, _ := url.Parse(kitA.URL)
+	bURL, _ := url.Parse(kitB.URL)
+	service := &targetBridgeTestService{
+		active: "kit-a",
+		configs: map[string]fogcast.TargetConfig{
+			"kit-a": {Name: "kit-a", Address: kitA.URL, Agent: "agent-a"},
+			"kit-b": {Name: "kit-b", Address: kitB.URL, Agent: "agent-b"},
+		},
+		leases: map[string]*targetclient.KitLease{
+			"kit-a": targetclient.NewKitLease(aURL, "agent-a", nil, "host", "input"),
+			"kit-b": targetclient.NewKitLease(bURL, "agent-b", nil, "host", "input"),
+		},
+	}
+	factory := func(config fogcast.Config) (host.BridgeStarter, error) {
+		base, err := url.Parse(config.BaseURL)
+		if err != nil {
+			return nil, err
+		}
+		return host.NewHTTPBridgeStarter(host.HTTPBridgeStarterConfig{BaseURL: base, Token: config.Token})
+	}
+	starter, err := makeTargetBridgeStarter(fogcast.Config{}, "kit-a", service, factory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.active = "kit-b" // B launched after A's controller was created.
+	handle, err := starter.Start(context.Background(), host.BridgeSpec{Session: 9, Token: []byte("0123456789abcdef"), Core: "SNES"})
+	if err != nil {
+		t.Fatalf("A bridge attach after B launch: %v", err)
+	}
+	if aAuth != "Bearer agent-a" {
+		t.Fatalf("A bridge authorization = %q", aAuth)
+	}
+	if len(service.lookups) == 0 || service.lookups[len(service.lookups)-1] != "kit-a" {
+		t.Fatalf("bridge lease lookups after B launch = %v", service.lookups)
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("A bridge detach after B launch: %v", err)
+	}
+	service.leases["kit-a"].Close(context.Background())
+	service.leases["kit-b"].Close(context.Background())
 }
 
 type compositionCapture struct {

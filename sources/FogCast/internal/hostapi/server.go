@@ -229,7 +229,11 @@ func requestSessionCoordinator(root *sessionCoordinator, service Service, r *htt
 		}
 	}
 	if target == "" {
-		if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+		// Unscoped reads and mutations follow the foreground session, falling
+		// back to the selected target only when no kit is active.
+		if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
+			target = resolver.SessionTargetName()
+		} else if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
 			target = resolver.SelectedTargetConfig().Name
 		}
 	}
@@ -321,11 +325,19 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		stamp := parseClientStamp(r, request.ClientTsUTC, request.ClientMonoMS, request.FlightID)
+		// Launch routing is intentionally independent from the foreground
+		// session: preserve an omitted target so FogCast can apply placement.
 		target := request.Target
 		if target == "" {
 			target = launcherTargetFromContext(r.Context())
 		}
-		coordinator := requestSessionCoordinator(session, service, r, target)
+		coordinatorTarget := target
+		if coordinatorTarget == "" {
+			if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+				coordinatorTarget = resolver.SelectedTargetConfig().Name
+			}
+		}
+		coordinator := requestSessionCoordinator(session, service, r, coordinatorTarget)
 		result, err := coordinator.launch(r.Context(), request.GameID, request.Target, stamp)
 		if err != nil {
 			writeSessionError(w, err)

@@ -3098,6 +3098,13 @@ func (s *Service) SelectedTargetConfig() TargetConfig {
 	return targetByName(s.targets, s.selectedTarget)
 }
 
+// TargetConfigForName returns an immutable copy of one configured target.
+func (s *Service) TargetConfigForName(name string) TargetConfig {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	return targetByName(s.targets, name)
+}
+
 // PairedTargetKitLeaseStatus reads only the lease for an enabled target ID.
 // Callers on the paired listener must supply the ID authenticated by pairing.
 func (s *Service) PairedTargetKitLeaseStatus(ctx context.Context, targetID string) (kitlease.Status, error) {
@@ -3136,6 +3143,17 @@ func (s *Service) KitLease() *targetclient.KitLease {
 	if !ok {
 		return nil
 	}
+	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
+		return leased.KitLease()
+	}
+	return nil
+}
+
+// KitLeaseForTarget returns the application-owned lease for a named target.
+func (s *Service) KitLeaseForTarget(name string) *targetclient.KitLease {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	client := s.targetClients[name]
 	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
 		return leased.KitLease()
 	}
