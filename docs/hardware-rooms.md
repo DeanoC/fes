@@ -1,10 +1,12 @@
-# Hardware rooms: the ZX81 workbench
+# Hardware rooms: the Zx81 workbench
 
-The tenfoot Home screen includes **The ZX81 workbench** (`example.hardware`).
+The tenfoot Home screen includes **The Zx81 workbench** (`example.hardware`).
 It shows the household's existing ZX81 core entries, the rear expansion
 connector, installed expansions admitted for the exact selected package, and
-the ordinary live tape picker. Create the entry and bind its BASIC firmware
-through the existing FPGA library first. No hardware is fabricated when the
+prelaunch cassette selection. **Set up Zx81** creates a library entry from an
+installed sealed package and an explicitly selected household BASIC ROM. This
+uses the local library APIs even when the published-core catalogue is unavailable;
+published Systems remains an optional installation route. No hardware is fabricated when the
 library is empty. The Amiga-themed `example.workbench` remains a separate room.
 
 ## Use the workbench
@@ -15,8 +17,29 @@ core entry on the host, so another LAN client reads the same choice. **Next
 setup** cycles existing ZX81 entries. These are saved hardware selections for
 the next start, not snapshots of running memory.
 
-**Start machine** takes the ordinary library launch path, including firmware
-admission, target readiness, kit ownership and launch failures. During play,
+**Import expansion** offers RAM, Zon X and QS Character Board. All are supported
+choices; Zon X and QS carry **In progress** presentation marks. Import a producer
+archive matching the exact installed shell, then fit it separately from the
+shelf. This preserves the current one-card rear connector: combining multiple
+cards is outside this change. The selected family supplies household presentation
+text, while the immutable archive and host admission decide compatibility.
+
+**Choose cassette** saves a `.p` import, an embedded starter tape, or no tape for
+the next launch. Selection compares both the package and previous media ID;
+another client's change requires a refresh. Opening the shelf imports nothing.
+The three attributed starter tapes are Guess the Number (MIT, 1 KiB), Aritm
+(GPL-3.0-or-later, 16 KiB recommended), and Character Display (MIT, 16 KiB
+recommended). Their sources, licences, provenance and checksums are retained in
+[the cassette package](../sources/FogCast/internal/zx81tapes/README.md).
+
+**Start machine** takes the ordinary library launch path, including firmware,
+selected media, target readiness, kit ownership and launch failures. On the kit's
+single HDMI output, the menu core displays only while idle. Select the cassette
+before Start, then type `LOAD ""` and `RUN` in BASIC. Live tape swapping and a
+second display/overlay are deferred; this change does not program MENU over a
+running machine. Stop before choosing another cassette.
+
+On a separate host display, the existing live room remains available. During play,
 the **Hardware room** button, keyboard **Home**, or a single controller
 **Select/View** press opens the room without stopping the machine. The letter
 H remains a computer key. **Return to play** or Back restores the playing view.
@@ -61,7 +84,9 @@ Stale clients refresh instead of overwriting another client's setup. A failed
 or ambiguous save is not replayed by the room.
 
 Optional `GET`/`PUT /api/v1/core-expansions/{expansion_id}/presentation` stores
-`label` and `description` against an exact expansion ID (catalogue schema 14).
+`label`, `description` and `in_progress` against an exact expansion ID (catalogue
+schema 16). Migration defaults existing assets to false; older presentation
+edits that omit the flag preserve its value.
 For example, an operator can describe a verified memory expansion from its
 producer's documentation. Unlabelled assets show a readable fallback and
 explicitly lack a feature description. Presentation never affects admission.
@@ -80,7 +105,12 @@ path.
 
 The sandbox exposes `hardware.read(callback)` and
 `hardware.select_expansion(selection, callback)` through optional typed
-services. Lua has no network API. Normal launch/Stop/tape/navigation are
+services. `hardware.setup()`, `hardware.open_tapes(selection)` and
+`hardware.import_expansion(selection)` dispatch typed launcher actions. Lua has
+no network API. `GET /api/v1/library/zx81-tapes` lists starter metadata;
+`POST /api/v1/library/zx81-tapes/{tape_id}/import` imports only that exact embedded
+asset through the ordinary media store. Neither endpoint selects or launches it.
+Normal launch/Stop/tape/navigation are
 launcher actions. Per-room storage contains navigation only: selected entry,
 inspected card, shelf page and focus. Physical transitions remain in runtime;
 this slice changes no FPGA, runtime or shared wire definitions.

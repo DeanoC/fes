@@ -6,6 +6,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/zx81tapes"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -23,6 +24,8 @@ type HardwareMachine struct {
 	Ready             bool                `json:"ready"`
 	UnavailableReason string              `json:"unavailable_reason,omitempty"`
 	Socket            HardwareSocket      `json:"socket"`
+	MediaID           string              `json:"media_id,omitempty"`
+	MediaName         string              `json:"media_name,omitempty"`
 	DraftExpansionID  string              `json:"draft_expansion_id"`
 	Choices           []HardwareExpansion `json:"choices"`
 }
@@ -37,6 +40,7 @@ type HardwareExpansion struct {
 	ExpansionID       string `json:"expansion_id"`
 	Label             string `json:"label"`
 	Description       string `json:"description"`
+	InProgress        bool   `json:"in_progress,omitempty"`
 	Ready             bool   `json:"ready"`
 	UnavailableReason string `json:"unavailable_reason,omitempty"`
 }
@@ -71,6 +75,7 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 		}
 		machine := HardwareMachine{
 			GameID: entry.GameID, Title: entry.Title, CoreID: entry.CoreID, PackageID: entry.PackageID,
+			MediaID: entry.MediaID, MediaName: hardwareTapeName(entry.MediaID),
 			Socket: HardwareSocket{ID: "rear", Label: "Rear expansion socket"}, Choices: []HardwareExpansion{},
 		}
 		selection, err := store.CoreEntryExpansion(ctx, entry.GameID)
@@ -96,7 +101,7 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 			if row.Slot != 0 || row.PackageID != entry.PackageID {
 				continue
 			}
-			choice := HardwareExpansion{ExpansionID: row.ExpansionID, Label: row.Label, Description: row.Description}
+			choice := HardwareExpansion{ExpansionID: row.ExpansionID, Label: row.Label, Description: row.Description, InProgress: row.InProgress}
 			if choice.Label == "" {
 				shortID := row.ExpansionID
 				if len(shortID) > 8 {
@@ -186,4 +191,27 @@ func (s *Service) SetCoreExpansionPresentation(ctx context.Context, id, label, d
 	}
 	value, err := store.SetCoreExpansionPresentation(ctx, id, label, description)
 	return value, expansionError(err)
+}
+
+func (s *Service) SetCoreExpansionPresentationWithProgress(ctx context.Context, id, label, description string, inProgress bool) (catalog.CoreExpansionPresentation, error) {
+	store, ok := s.catalog.(interface {
+		SetCoreExpansionPresentationWithProgress(context.Context, string, string, string, bool) (catalog.CoreExpansionPresentation, error)
+	})
+	if !ok {
+		return catalog.CoreExpansionPresentation{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	value, err := store.SetCoreExpansionPresentationWithProgress(ctx, id, label, description, inProgress)
+	return value, expansionError(err)
+}
+
+func hardwareTapeName(id string) string {
+	if id == "" {
+		return "No cassette"
+	}
+	for _, entry := range zx81tapes.Entries() {
+		if entry.SHA256 == id {
+			return entry.Name
+		}
+	}
+	return "Imported cassette " + id[:8]
 }

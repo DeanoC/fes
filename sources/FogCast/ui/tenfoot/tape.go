@@ -249,6 +249,10 @@ func (a *App) sessionLiveMediaOfferedLocked() bool {
 }
 
 func (a *App) openTapePickerLocked() {
+	if a.localCores != nil {
+		a.status = "Choose a cassette before starting; HDMI controls return after Stop."
+		return
+	}
 	if !a.sessionLiveMediaOfferedLocked() {
 		a.status = "Live tape is unavailable for this running machine."
 		a.roomSessionNotice = a.status

@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 15
+const schemaVersion = 16
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -250,6 +250,12 @@ CREATE INDEX core_entries_core_id ON core_entries(core_id);
 PRAGMA user_version = 15;
 `
 
+// Schema 16 stores a presentation badge; it never grants hardware admission.
+const schemaV16 = `
+ALTER TABLE core_expansions ADD COLUMN in_progress INTEGER NOT NULL DEFAULT 0 CHECK (in_progress IN (0,1));
+PRAGMA user_version = 16;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -406,6 +412,11 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		}
 		if err := foreignKeyCheck(ctx, connection); err != nil {
 			return fmt.Errorf("apply catalog schema version 15: %w", err)
+		}
+	}
+	if version <= 15 {
+		if _, err := connection.ExecContext(ctx, schemaV16); err != nil {
+			return fmt.Errorf("apply catalog schema version 16: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

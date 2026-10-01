@@ -96,6 +96,8 @@ type Options struct {
 	// drifting art). The launcher owns the preference; scripts read
 	// room.reduced_motion.
 	ReducedMotion bool
+	// IdleDisplayOnly means this renderer cannot draw over an active core.
+	IdleDisplayOnly bool
 	// StorePath is the per-room JSON persistence file; empty disables store.
 	StorePath string
 	// Local is the kit-local control socket. Nil on a host launcher: kit

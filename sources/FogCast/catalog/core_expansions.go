@@ -22,6 +22,7 @@ type CoreExpansion struct {
 	PackageID   string `json:"package_id"`
 	Label       string `json:"label,omitempty"`
 	Description string `json:"description,omitempty"`
+	InProgress  bool   `json:"in_progress,omitempty"`
 	// Slot is the physical socket of a multi-socket card; zero is omitted for
 	// single-socket expansions.
 	Slot int `json:"slot,omitempty"`
@@ -33,6 +34,7 @@ type CoreExpansionPresentation struct {
 	ExpansionID string `json:"expansion_id"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
+	InProgress  bool   `json:"in_progress"`
 }
 
 type CoreEntryExpansion struct {
@@ -58,7 +60,7 @@ func (s *Store) ImportCoreExpansion(ctx context.Context, asset expansion.Asset) 
 }
 
 func (s *Store) CoreExpansions(ctx context.Context) ([]CoreExpansion, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT expansion_id,shell_package_id,slot_index,label,description FROM core_expansions ORDER BY expansion_id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT expansion_id,shell_package_id,slot_index,label,description,in_progress FROM core_expansions ORDER BY expansion_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +68,7 @@ func (s *Store) CoreExpansions(ctx context.Context) ([]CoreExpansion, error) {
 	result := []CoreExpansion{}
 	for rows.Next() {
 		var row CoreExpansion
-		if err = rows.Scan(&row.ExpansionID, &row.PackageID, &row.Slot, &row.Label, &row.Description); err != nil {
+		if err = rows.Scan(&row.ExpansionID, &row.PackageID, &row.Slot, &row.Label, &row.Description, &row.InProgress); err != nil {
 			return nil, err
 		}
 		result = append(result, row)
@@ -79,7 +81,7 @@ func (s *Store) CoreExpansionPresentation(ctx context.Context, id string) (CoreE
 		return CoreExpansionPresentation{}, ErrInvalidCoreExpansion
 	}
 	value := CoreExpansionPresentation{ExpansionID: id}
-	err := s.db.QueryRowContext(ctx, `SELECT label,description FROM core_expansions WHERE expansion_id=?`, id).Scan(&value.Label, &value.Description)
+	err := s.db.QueryRowContext(ctx, `SELECT label,description,in_progress FROM core_expansions WHERE expansion_id=?`, id).Scan(&value.Label, &value.Description, &value.InProgress)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CoreExpansionPresentation{}, ErrCoreExpansionNotFound
 	}
@@ -87,11 +89,19 @@ func (s *Store) CoreExpansionPresentation(ctx context.Context, id string) (CoreE
 }
 
 func (s *Store) SetCoreExpansionPresentation(ctx context.Context, id, label, description string) (CoreExpansionPresentation, error) {
+	return s.setCoreExpansionPresentation(ctx, id, label, description, nil)
+}
+
+func (s *Store) SetCoreExpansionPresentationWithProgress(ctx context.Context, id, label, description string, inProgress bool) (CoreExpansionPresentation, error) {
+	return s.setCoreExpansionPresentation(ctx, id, label, description, inProgress)
+}
+
+func (s *Store) setCoreExpansionPresentation(ctx context.Context, id, label, description string, progress any) (CoreExpansionPresentation, error) {
 	label, description = strings.TrimSpace(label), strings.TrimSpace(description)
 	if protocol.ValidateDigest(id) != nil || !validExpansionCopy(label, 120, false) || !validExpansionCopy(description, 2000, true) {
 		return CoreExpansionPresentation{}, ErrInvalidCoreExpansion
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE core_expansions SET label=?,description=? WHERE expansion_id=?`, label, description, id)
+	result, err := s.db.ExecContext(ctx, `UPDATE core_expansions SET label=?,description=?,in_progress=COALESCE(?,in_progress) WHERE expansion_id=?`, label, description, progress, id)
 	if err != nil {
 		return CoreExpansionPresentation{}, err
 	}
@@ -102,7 +112,7 @@ func (s *Store) SetCoreExpansionPresentation(ctx context.Context, id, label, des
 	if changed != 1 {
 		return CoreExpansionPresentation{}, ErrCoreExpansionNotFound
 	}
-	return CoreExpansionPresentation{ExpansionID: id, Label: label, Description: description}, nil
+	return s.CoreExpansionPresentation(ctx, id)
 }
 
 func validExpansionCopy(value string, limit int, multiline bool) bool {

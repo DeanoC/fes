@@ -217,14 +217,15 @@ func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 	a.searchOpen = false
 	w, h := a.roomContentSizeLocked(pack.ID)
 	inst, err := rooms.New(pack, rooms.Options{
-		Width:         w,
-		Height:        h,
-		Services:      roomServices{client: a.client},
-		Index:         a.roomsIndex,
-		Theme:         a.theme,
-		ReducedMotion: a.reducedMotion,
-		StorePath:     a.roomStorePathLocked(pack.ID),
-		Local:         a.localCores,
+		Width:           w,
+		Height:          h,
+		Services:        roomServices{client: a.client},
+		Index:           a.roomsIndex,
+		Theme:           a.theme,
+		ReducedMotion:   a.reducedMotion,
+		IdleDisplayOnly: a.localCores != nil,
+		StorePath:       a.roomStorePathLocked(pack.ID),
+		Local:           a.localCores,
 	})
 	if err != nil {
 		a.roomErr = err.Error()
@@ -417,6 +418,12 @@ func (a *App) applyRoomActionsLocked() {
 	}
 	for _, act := range a.room.TakeActions() {
 		switch act.Kind {
+		case rooms.ActionHardwareSetup:
+			if a.session.State != "active" {
+				a.openZX81SetupLocked()
+			}
+		case rooms.ActionHardwareTapes, rooms.ActionHardwareImportExpansion:
+			a.openHardwarePickerLocked(act)
 		case rooms.ActionLaunch:
 			a.launchFromRoomLocked(act.GameID)
 		case rooms.ActionStop:
