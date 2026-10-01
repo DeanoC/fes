@@ -86,9 +86,14 @@ func (s *Service) romCacheSnapshot(parent context.Context) romCacheSnapshot {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	snap := romCacheSnapshot{at: now, present: map[string]struct{}{}}
-	client, ok := s.selectedClientSnapshot()
+	// Paired reads must not touch targetMu: a queued writer would block new
+	// readers behind another kit's launch.
+	var client serviceClient
+	var ok bool
 	if targetID != "" {
 		client, ok = s.pairedTargetClient(targetID)
+	} else {
+		client, ok = s.selectedClientSnapshot()
 	}
 	if !ok {
 		s.storeROMCacheSnap(targetID, snap)

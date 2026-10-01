@@ -3,6 +3,7 @@ package fogcast
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -52,8 +53,19 @@ func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.
 	// section while paired reads for another kit exercise the real Service.
 	service.targetMu.RLock()
 	defer service.targetMu.RUnlock()
+	// A queued writer (for example a settings update) blocks new readers, so
+	// paired reads must not touch targetMu at all.
+	go func() { service.targetMu.Lock(); service.targetMu.Unlock() }()
+	queueDeadline := time.Now().Add(time.Second)
+	for service.targetMu.TryRLock() {
+		service.targetMu.RUnlock()
+		if time.Now().After(queueDeadline) {
+			t.Fatal("writer did not queue")
+		}
+		runtime.Gosched()
+	}
 	ctx := WithPairedTarget(context.Background(), "b")
-	results := make(chan error, 2)
+	results := make(chan error, 3)
 	go func() {
 		health, err := service.Health(ctx)
 		if err == nil && !health.Ready {
@@ -68,16 +80,25 @@ func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.
 		}
 		results <- err
 	}()
+	go func() {
+		_, known := service.ROMCachePresence(ctx)
+		if !known {
+			err := errors.New("kit B rom cache presence was unknown")
+			results <- err
+			return
+		}
+		results <- nil
+	}()
 	deadline := time.NewTimer(time.Second)
 	defer deadline.Stop()
-	for range 2 {
+	for range 3 {
 		select {
 		case err := <-results:
 			if err != nil {
 				t.Fatal(err)
 			}
 		case <-deadline.C:
-			t.Fatal("paired health or library cache waited for the foreground target lock")
+			t.Fatal("paired health or library cache waited behind the foreground target lock or a queued writer")
 		}
 	}
 }

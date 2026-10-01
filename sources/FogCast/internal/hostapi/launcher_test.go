@@ -134,13 +134,13 @@ func TestLauncherPairedHealthAndCacheAreTargetScoped(t *testing.T) {
 				if result.Target.Ready != tc.ready {
 					t.Errorf("%s health leaked: %s", tc.id, w.Body.String())
 				}
-			case "/api/v1/games":
+			case "/api/v1/games", "/api/v1/games/snes-mario":
 				want := `"rom_cached":false`
 				if tc.cached {
 					want = `"rom_cached":true`
 				}
 				if !strings.Contains(w.Body.String(), want) {
-					t.Errorf("%s games cache: %s", tc.id, w.Body.String())
+					t.Errorf("%s %s cache: %s", tc.id, path, w.Body.String())
 				}
 			case "/api/v1/library/cache":
 				if !strings.Contains(w.Body.String(), fmt.Sprintf(`"used_bytes":%d`, tc.used)) {
