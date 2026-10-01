@@ -160,8 +160,9 @@ function draw()
   controls={}
   gfx.clear(C.paper)
   text("HARDWARE ROOM",24,12,15,C.red,600,true)
-  text("The ZX81 workbench",24,34,34,C.ink,760,true)
+  text("The Zx81 workbench",24,34,34,C.ink,760,true)
   text(machine and ("Your setup: "..machine.title) or "A small machine. Room to experiment.",24,76,18,C.muted,760)
+  button("setup_library","Set up Zx81",710,74,176,28,not running(),function() hardware.setup() end)
   button("back","Back",884,25,90,44,true,function() rooms.back() end)
   button("home","Home",988,25,108,44,true,function() rooms.home() end)
 
@@ -189,8 +190,8 @@ function draw()
 
   rect(710,126,386,283,C.panel)
   local c=choice()
-  text(c and "ON THE SHELF" or "YOUR MACHINE",730,138,14,C.red,340,true)
-  text(c and c.label or "ZX81",730,160,25,C.ink,345,true)
+  text(c and ("ON THE SHELF"..(c.in_progress and " · In progress" or "")) or "YOUR MACHINE",730,138,14,C.red,340,true)
+  text(c and c.label or "Zx81",730,160,25,C.ink,345,true)
   lines(c and c.description or "Choose an expansion for the rear connector. The host checks that it fits this exact machine.",730,196,341,18,4,C.muted)
   local can_edit=machine and machine.socket.supported and not stale and not loading and not saving
   local fit=c and c.ready and c.expansion_id ~= machine.draft_expansion_id
@@ -210,7 +211,9 @@ function draw()
       rect(x+11,461,40,31,item.ready and C.green or C.muted)
       rect(x+16,489,30,6,"#b69252")
       text(item.label,x+63,458,17,C.ink,204,true)
-      text(item.expansion_id == (machine and machine.draft_expansion_id) and "Saved for next start" or (item.ready and "Fits this machine" or "Unavailable"),x+63,484,14,C.muted,204)
+      local card_status=item.expansion_id == (machine and machine.draft_expansion_id) and "Saved for next start" or (item.ready and "Fits this machine" or "Unavailable")
+      if item.in_progress then card_status="In progress · "..(item.expansion_id == machine.draft_expansion_id and "Saved" or (item.ready and "Fits" or "Unavailable")) end
+      text(card_status,x+63,484,14,C.muted,204)
       local id="card:"..n
       if focus == id then rect(x,513,278,3,C.red) end
       gfx.hit(id,ox+x*scale,oy+448*scale,278*scale,67*scale)
@@ -218,11 +221,12 @@ function draw()
     end
   end
   if #choices == 0 then
-    text(machine and "No expansions installed for this machine yet." or "Add a ZX81 setup in the FPGA library to begin.",24,452,21,C.muted,840)
-    text("The host supplies compatible choices and their descriptions.",24,485,17,C.muted,840)
+    text(machine and "RAM, Zon X and QS expansions supported." or "Add a ZX81 setup in the FPGA library to begin.",24,452,21,C.muted,840)
+    text("Import a card archive to add it to this shelf.",24,485,17,C.muted,840)
   end
-  button("refresh",loading and "Checking..." or "Refresh",912,449,184,30,not loading and not saving,function() read() end)
-  button("shelf_page","More cards",912,488,184,30,#choices > 3,function() page=page % math.ceil(#choices/3)+1 remember() end)
+  button("refresh",loading and "Checking..." or "Refresh",912,443,184,26,not loading and not saving,function() read() end)
+  button("import_card","Import expansion",912,477,184,26,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
+  button("shelf_page","More cards",912,511,184,20,#choices > 3,function() page=page % math.ceil(#choices/3)+1 remember() end)
 
   rect(24,532,1072,2,C.line)
   local status="No machine setup"
@@ -231,13 +235,17 @@ function draw()
     if current() then status=status.."  /  Running: "..(current_session().hardware_known and label(current_session().expansion_id) or "Hardware unavailable") end
   end
   if pending() then status=status.."  ·  Restart needed" end
-  text(status,24,543,17,C.ink,1060,true)
+  text(status,24,543,17,C.ink,674,true)
+  text("Cassette: "..(machine and machine.media_name ~= "" and machine.media_name or "No cassette"),710,543,17,C.ink,386,true)
   local can_control=not stale and not loading and data and data.session_error == ""
   local can_play=machine and machine.ready and not stale and not loading and not saving and data and data.session and data.session.state == "idle" and data.session_error == ""
   button("power",running() and (current() and "Stop machine" or "Machine in use") or "Start machine",24,574,194,42,(current() and can_control and current_session().hardware_known) or can_play,function()
     if running() then session.stop(current_session()) else session.launch(machine.game_id) end
   end,true)
-  button("tape","Choose / eject tape",232,574,232,42,current() and can_control and current_session().tape_available,function() session.open_tape(current_session()) end)
+  button("tape",running() and "Choose / eject tape" or "Choose cassette",232,574,232,42,(current() and can_control and current_session().tape_available) or (machine and machine.ready and data and data.session and data.session.state == "idle" and data.session_error == "" and not stale and not loading and not saving),function()
+    if running() then session.open_tape(current_session())
+    else hardware.open_tapes{game_id=machine.game_id,package_id=machine.package_id,expected_media_id=machine.media_id or ""} end
+  end)
   button("resume","Return to play",478,574,183,42,running(),function() session.resume() end)
   button("setup","Next setup",675,574,164,42,data and #data.machines > 1,function() next_machine() end)
   button("library","Library",853,574,117,42,not running(),function() rooms.open_library{platform="zx81"} end)
