@@ -2380,6 +2380,12 @@ that kit's captured session, hardware/starter reads, exact starter imports,
 bounded 1..16384-byte tape imports and live replace/clear/display operations.
 These do not change the library's next-start media selection.
 
+Paired session reads use the current foreground fields for that kit immediately
+after launch, or its retained target record while another kit is foreground.
+For described cores, enrichment requires the observed package and core generation
+to match the record. This keeps the captured game identity consistent between
+session reads and display replies.
+
 The runtime opens a separate display generation. The asynchronous presenter pins
 package, core and display generations instead of following a replacement;
 idle presenters cannot acquire an active session plane. ZX81 selects launcher
