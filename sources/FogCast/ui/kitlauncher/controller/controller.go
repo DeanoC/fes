@@ -81,7 +81,19 @@ func (m *Mapper) Map(typ, code uint16, value int32) (remoteinput.Event, bool) {
 	if v > int64(r.Max) {
 		v = int64(r.Max)
 	}
-	normalized := (v-int64(r.Min))*65535/(int64(r.Max)-int64(r.Min)) - 32768
+	// Center the stick at the midpoint of the kernel's reported range. This
+	// handles both signed ranges (for example -1..1) and unsigned ranges.
+	center := int64(r.Min) + (int64(r.Max)-int64(r.Min))/2
+	half := int64(r.Max) - center
+	if v >= center {
+		normalized := (v - center) * 32767 / half
+		v = normalized
+	} else {
+		half = center - int64(r.Min)
+		normalized := (v - center) * 32768 / half
+		v = normalized
+	}
+	normalized := v
 	if normalized > -8000 && normalized < 8000 {
 		normalized = 0
 	}

@@ -8,7 +8,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
 	"golang.org/x/sys/unix"
 	"io"
 	"net/http"
@@ -30,6 +32,46 @@ func TestNativeEvdevBothABIs(t *testing.T) {
 		typ, code, value := decodeNativeEvent(b)
 		if typ != 1 || code != 103 || value != 1 {
 			t.Fatalf("size %d: %d %d %d", size, typ, code, value)
+		}
+	}
+}
+
+func TestTenfootFixturePadNormalizationAndVirtualFilter(t *testing.T) {
+	if controller.Eligible(6, "FogCast Virtual Gamepad", true) || controller.Eligible(3, "USB pad", false) {
+		t.Fatal("automatic selection admitted virtual/non-gamepad device")
+	}
+	if !controller.Eligible(3, "USB SNES Pad", true) {
+		t.Fatal("physical gamepad rejected")
+	}
+	mapper := controller.NewMapper(0x081f, 0xe401, map[uint16]controller.Range{
+		0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255},
+		16: {Min: -1, Max: 1}, 17: {Min: -1, Max: 1},
+	})
+	for _, tc := range []struct {
+		code  uint16
+		value int32
+		want  remoteinput.Code
+	}{
+		{288, 1, remoteinput.ButtonY}, {289, 1, remoteinput.ButtonB},
+		{290, 1, remoteinput.ButtonA}, {296, 1, remoteinput.ButtonSelect},
+		{297, 1, remoteinput.ButtonStart},
+	} {
+		e, ok := mapper.Map(1, tc.code, tc.value)
+		if !ok || e.Code != tc.want {
+			t.Fatalf("button %d mapped to %#v, %v", tc.code, e, ok)
+		}
+	}
+	for _, tc := range []struct {
+		code  uint16
+		value int32
+		want  remoteinput.Code
+	}{
+		{0, 0, remoteinput.AxisLeftX}, {0, 255, remoteinput.AxisLeftX},
+		{1, 0, remoteinput.AxisLeftY}, {16, -1, remoteinput.AxisLeftX},
+	} {
+		e, ok := mapper.Map(3, tc.code, tc.value)
+		if !ok || e.Code != tc.want {
+			t.Fatalf("axis %d=%d mapped to %#v, %v", tc.code, tc.value, e, ok)
 		}
 	}
 }
@@ -250,6 +292,132 @@ func TestFramebufferPollPreservesPartialRecordsAndQuickTaps(t *testing.T) {
 	}
 	if a.Snapshot().Settings.Open {
 		t.Fatal("quick controller tap was lost")
+	}
+}
+
+func TestFramebufferPollPreservesQuickAxisTap(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	fd := int(r.Fd())
+	if err := unix.SetNonblock(fd, true); err != nil {
+		t.Fatal(err)
+	}
+	mapper := controller.NewMapper(0x081f, 0xe401, map[uint16]controller.Range{0: {Min: -1, Max: 1}})
+	in := &nativeInput{fd: fd, mapper: mapper}
+	inputs := &nativeInputs{devices: []*nativeInput{in}}
+	a := NewApp(nil, 1280, 720, 10)
+	a.mu.Lock()
+	a.games = []hostclient.Game{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}}
+	a.grid.Count, a.grid.Columns = 2, 2
+	a.mu.Unlock()
+	batch := append(nativeTestEvent(3, 0, 1), nativeTestEvent(3, 0, 0)...)
+	if _, err := w.Write(batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inputs.poll(a, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.Snapshot().Grid.Focus; got != 1 {
+		t.Fatalf("quick axis tap focus = %d, want 1 exactly once", got)
+	}
+}
+
+type localPadRecorder struct{ events []remoteinput.Event }
+
+func (f *localPadRecorder) Send(e remoteinput.Event, _ time.Time) error {
+	f.events = append(f.events, e)
+	return nil
+}
+func (f *localPadRecorder) Close() {}
+
+func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		send func(*nativeInput, *App, time.Time)
+	}{
+		{"hat", func(in *nativeInput, a *App, n time.Time) { in.hat(a, 17, 1, n) }},
+		{"axis", func(in *nativeInput, a *App, n time.Time) { in.axis(a, remoteinput.AxisLeftY, 32767, n) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := NewApp(nil, 1280, 720, 10)
+			feed := &localPadRecorder{}
+			a.mu.Lock()
+			a.games = []hostclient.Game{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}}
+			a.grid.Count, a.grid.Columns = 2, 1
+			a.localPhase = localPhaseRunning
+			a.localFeed = feed
+			a.mu.Unlock()
+			in := &nativeInput{fd: 9}
+			now := time.Now()
+			tc.send(in, a, now)
+			if len(feed.events) != 1 || feed.events[0].Code != remoteinput.ButtonDPadDown || feed.events[0].Action != remoteinput.ActionPress {
+				t.Fatalf("local events: %#v", feed.events)
+			}
+			if tc.name == "hat" {
+				in.hat(a, 17, 0, now.Add(time.Millisecond))
+			} else {
+				in.axis(a, remoteinput.AxisLeftY, 0, now.Add(time.Millisecond))
+			}
+			if len(feed.events) != 2 || feed.events[1].Action != remoteinput.ActionRelease {
+				t.Fatalf("local release: %#v", feed.events)
+			}
+			a.mu.Lock()
+			a.localPhase = ""
+			a.mu.Unlock()
+			before := a.Snapshot().Grid.Focus
+			tc.send(in, a, now.Add(2*time.Millisecond))
+			inputs := &nativeInputs{devices: []*nativeInput{in}}
+			inputs.applyButtons(a, now.Add(2*time.Millisecond))
+			if a.Snapshot().Grid.Focus == before {
+				t.Fatal("menu did not receive d-pad")
+			}
+		})
+	}
+}
+
+func TestAutoInputRejectsUnknownIdentity(t *testing.T) {
+	keys := make([]byte, 96)
+	keys[304/8] |= 1 << uint(304%8)
+	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
+		t.Fatalf("unknown identity classified as %v", got)
+	}
+	keys = make([]byte, 96)
+	keys[288/8] |= 1 << uint(288%8)
+	keys[289/8] |= 1 << uint(289%8)
+	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
+		t.Fatalf("unknown BTN_GAMEPAD identity classified as %v", got)
+	}
+	keys = make([]byte, 96)
+	keys[304/8] |= 1 << uint(304%8)
+	if got := nativeKindWithIdentity(keys, 3, "physical pad", 1, 2); got != InputGamepad {
+		t.Fatalf("known physical pad classified as %v", got)
+	}
+}
+
+func TestAutoInputAcceptsGenericPhysicalTriggerPad(t *testing.T) {
+	keys := make([]byte, 96)
+	keys[288/8] |= 1 << uint(288%8)
+	keys[289/8] |= 1 << uint(289%8)
+	if got := nativeKindWithIdentity(keys, 3, "Generic USB Pad", 0x1234, 0x5678); got != InputGamepad {
+		t.Fatalf("generic physical trigger pad classified as %v", got)
+	}
+}
+
+func TestAutoInputRejectsVirtualGamepadIdentity(t *testing.T) {
+	keys := make([]byte, 96)
+	keys[288/8] |= 1 << uint(288%8)
+	keys[289/8] |= 1 << uint(289%8)
+	for _, tc := range []struct {
+		bus  uint16
+		name string
+	}{{6, "USB Pad"}, {3, "FogCast Virtual Gamepad"}} {
+		if got := nativeKindWithIdentity(keys, tc.bus, tc.name, 0x1234, 0x5678); got != InputNone {
+			t.Errorf("virtual identity (%d, %q) classified as %v", tc.bus, tc.name, got)
+		}
 	}
 }
 func TestFramebufferControllerLongHold(t *testing.T) {

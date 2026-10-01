@@ -8,8 +8,15 @@ import (
 
 // eligible rejects the retained virtual pad (BUS_VIRTUAL) and non-gamepads.
 func eligible(bus uint16, name string, buttons bool) bool {
-	return bus != 6 && name != "FogCast Virtual Gamepad" && buttons
+	// A button bitmap alone is not an identity: keyboards and arbitrary
+	// evdev nodes can expose BTN_SOUTH too. Auto discovery needs a physical
+	// bus and a readable name before considering gamepad capabilities.
+	return bus != 0 && bus != 6 && name != "" && name != "FogCast Virtual Gamepad" && buttons
 }
+
+// Eligible reports whether an evdev node is a physical gamepad candidate.
+// Keep bus/name filtering shared with the tenfoot automatic scanner.
+func Eligible(bus uint16, name string, buttons bool) bool { return eligible(bus, name, buttons) }
 
 // eligibleKeyboard admits a physical QWERTY for play-session HID. Gamepads
 // stay on the pad path even when they also expose keys.

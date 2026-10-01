@@ -901,15 +901,16 @@ Benchmark recipes and measurement limits are in
 [native CPU rendering](native-tenfoot-launcher/CPU.md).
 
 The framebuffer shell reads native-width evdev records for US keyboard text
-and digital gamepad buttons/hat axes, merges held commands across devices,
-and uses the shared remapper and hold gate. Automatic discovery filters by
-key capabilities and seeds startup affinity. Zero supported devices is not
+and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
+and uses the shared remapper and hold gate. Automatic discovery filters keyboard
+capabilities and physical gamepad identity, excluding virtual-bus devices and
+the FogCast virtual gamepad, and seeds startup affinity. Zero supported devices is not
 fatal: the UI paints, and automatic mode rescans evdev about once a second
 with the same classifier so a hotplugged keyboard or gamepad is opened
 without a restart. Unplugging a device drops it without turning held buttons
 into release actions and leaves the UI running. Explicit input paths remain
-strict. It restores the mapped display bytes on normal exit. Analog sticks
-and pointer input are outside this development-testing slice. The framebuffer smoke
+strict. It restores the mapped display bytes on normal exit. Pointer input is
+outside this development-testing slice. The framebuffer smoke
 uses no physical input and only verifies library loading and rendering; it
 is separate from the broader SDL smoke.
 

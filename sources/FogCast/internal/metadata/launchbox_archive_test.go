@@ -123,7 +123,7 @@ func buildLaunchBoxDataDescriptorArchive(t *testing.T, target string, zip64, sig
 	records := make([]record, 0, len(entries))
 	archive := make([]byte, 0, 1024)
 	for _, entry := range entries {
-		if len(archive) > math.MaxUint32 {
+		if uint64(len(archive)) > math.MaxUint32 {
 			t.Fatal("descriptor fixture local offset exceeds ZIP32")
 		}
 		record := record{entry: entry, localOffset: uint32(len(archive)), crc: crc32.ChecksumIEEE(entry.body)}
