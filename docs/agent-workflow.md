@@ -158,8 +158,14 @@ not substitute for these states or hardware evidence.
 | `task:blocked` | A named dependency or explicit external blocker prevents progress |
 | `task:done` | This task's stated checks passed and evidence is linked |
 
-An integration lead assigns work and reconciles shared files/contracts. The
-runner acknowledges **before** changing Ready to Working, then re-reads the
+For M1, **Bob (Grokbot coordination) is the integration lead**, continuing the
+coordination role in [the mesh plan](mesh-lan.md). Deano owns product priorities
+and final acceptance. Bob assigns bounded work, arbitrates conflicting claims,
+reconciles shared files/contracts and checks handoffs. A successor must be named
+explicitly on [#357](https://github.com/DeanoC/fes/issues/357); neither a stale
+timestamp nor a report transfers this role.
+
+The runner acknowledges **before** changing Ready to Working, then re-reads the
 issue and dependencies at each start/resume. Check other acknowledgement
 comments first; claiming is a convention, not an atomic lock. Resolve competing
 claims with the lead before editing. A stale timestamp does not transfer
@@ -167,27 +173,45 @@ ownership. Reassignment needs a visible handoff or an explicit takeover by the
 lead. Keep worker file ownership and the existing physical kit lease separate.
 
 Post acknowledgement as a comment with the following marker and JSON block.
-Use actual values rather than placeholders:
+Copy the whole example below as one comment, including the plain marker line.
+Replace every example value with the actual execution context before posting.
+Keep the full context for repository work, including documentation: it makes
+parallel checkouts and reproducible handoffs unambiguous.
 
-```text
+````text
 FES-TASK-ACK
-```
 ```json
-{"runner":"session or bot identity","vendor":"Codex / SuperGrok / Claude","host":"exact machine","worktree":"/absolute/path/to/fes","branch":"task branch","base":"full FES SHA"}
+{"runner":"codex-mesh-session","vendor":"Codex","host":"deano-mac","worktree":"/Users/deano/Projects/fes/out/dev/mesh-task/fes","branch":"codex/mesh-task","base":"9f1d85ca3fd295f0210ff07cfcaad9d607a22f5d"}
 ```
+````
 
 For progress, post `FES-TASK-UPDATE` followed by a JSON block containing
 `runner` (the acknowledged identity), `state`, `pr` (URL or empty string),
 `evidence` (links/results) and
 `remaining`. Replace the canonical state label as well. Post at state changes
 and before handing off or pausing. Working claims without a runner update for
-48 hours are flagged for human inspection, never automatically reassigned.
+24 hours are flagged for human inspection, never automatically reassigned.
+The report's `--stale-hours` option can select a different inspection interval.
 State labels are the authority; comment state is a record, not an automatic
 transition. Do not put credentials in any brief or comment.
 
-A separate reviewer posts `FES-TASK-REVIEW` with a JSON block containing
-`reviewer` and `url` pointing to the actual review. A review request alone
-is not completed review. The integration lead verifies the review and checks.
+A separate reviewer posts `FES-TASK-REVIEW` as a plain marker line followed
+directly by a fenced JSON object containing `reviewer` and `url` pointing to the
+actual review. Bot teams can keep their existing PR verdict comments: the runner
+or integration lead links that comment on the task issue using the same record,
+with the actual independent reviewer identity. The report does not infer a
+verdict from arbitrary comment prose or a shared GitHub account. For example:
+
+````text
+FES-TASK-REVIEW
+```json
+{"reviewer":"independent reviewer session","url":"https://github.com/DeanoC/fes/pull/123#issuecomment-456"}
+```
+````
+
+Replace the example values with a completed approving review of the current PR.
+A review request alone is not completed review. The integration lead verifies
+the review and checks.
 Code tasks may close after their own stated checks pass. The milestone outcome
 remains open until the dedicated acceptance task has reviewed exact-artifact
 evidence. Closing an issue or merging a PR does not establish that evidence.
@@ -201,14 +225,17 @@ python3 -m scripts.coordination --repo DeanoC/fes --milestone 1 \
   --output out/coordination/m1-report.md
 ```
 
-This read-only report flags ready work without an acknowledgement, conflicting
-or missing state labels, unmet native dependencies, missing runner claims,
-48-hour stale runner updates, recorded reviews still missing, and acceptance
-issues still open. A recorded review is not independently certified by the
+This read-only report lists startable, unclaimed Ready work as informational
+dispatch candidates. It flags conflicting or missing state labels, unmet native
+dependencies, missing runner claims, 24-hour stale runner updates, unparseable
+records, recorded reviews still missing, and acceptance issues still open.
+A recorded review is not independently certified by the
 report. Dependency closure likewise requires the lead to inspect its evidence.
 API failures fail the run; they never produce an all-clear report. Comments are
-parsed as data and are never executed. Reports do not assign workers, change
-labels, post messages or program hardware.
+parsed as data and are never executed. An invalid JSON block, non-object JSON
+value or marker without its JSON fence produces a diagnostic identifying the
+comment; correct that comment rather than leaving a malformed historical record.
+Reports do not assign workers, change labels, post messages or program hardware.
 
 The `FES coordination` workflow runs hourly and on manual dispatch **after it
 lands on the default branch**. Its report is retained as a workflow artifact and

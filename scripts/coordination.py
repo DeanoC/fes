@@ -7,21 +7,34 @@ import re
 import subprocess
 
 STATES = {"ready", "working", "review", "validation", "blocked", "done"}
-MARKER = re.compile(r"^FES-TASK-(ACK|UPDATE|REVIEW)\s*\n\s*```json\s*\n(.*?)\n```", re.M | re.S)
+MARKER = re.compile(r"^FES-TASK-(ACK|UPDATE|REVIEW)[ \t]*\r?$", re.M)
+JSON_BLOCK = re.compile(r"\s*```json[ \t]*\r?\n(.*?)\r?\n```[ \t]*(?:\r?\n|$)", re.S)
 ACK_FIELDS = ("runner", "vendor", "host", "worktree", "branch", "base")
 
 
 def records(comments):
-    found = []
+    found, errors = [], []
     for comment in comments:
-        for match in MARKER.finditer(comment.get("body") or ""):
-            try:
-                value = json.loads(match[2])
-            except ValueError:
+        body = comment.get("body") or ""
+        markers = list(MARKER.finditer(body))
+        for index, match in enumerate(markers):
+            end = markers[index + 1].start() if index + 1 < len(markers) else len(body)
+            block = JSON_BLOCK.match(body[match.end():end])
+            where = comment.get("html_url") or comment["created_at"]
+            prefix = f"unparseable FES-TASK-{match[1]} record ({where})"
+            if not block:
+                errors.append(prefix + ": marker must be followed directly by a fenced JSON object; correct the comment")
                 continue
-            if isinstance(value, dict):
-                found.append((match[1], value, comment["created_at"]))
-    return sorted(found, key=lambda entry: entry[2])
+            try:
+                value = json.loads(block[1])
+            except ValueError:
+                errors.append(prefix + ": invalid JSON; correct the comment")
+                continue
+            if not isinstance(value, dict):
+                errors.append(prefix + ": JSON must be an object; correct the comment")
+                continue
+            found.append((match[1], value, comment["created_at"]))
+    return sorted(found, key=lambda entry: entry[2]), errors
 
 
 def complete_ack(value):
@@ -36,12 +49,11 @@ def findings(issue, comments, blockers, now, stale_hours):
     if len(state_labels) != 1 or not state_labels <= {"task:" + s for s in STATES}:
         problems.append("missing, unknown or conflicting task state")
     state = next(iter(state_labels), "").removeprefix("task:") if len(state_labels) == 1 else ""
-    entries = records(comments)
+    entries, record_errors = records(comments)
+    problems.extend(record_errors)
     claims = [entry for entry in entries if entry[0] == "ACK" and complete_ack(entry[1])]
     claim = claims[-1] if claims else None
     runner = claim[1]["runner"] if claim else ""
-    if state == "ready" and not claim and issue["state"] == "open":
-        problems.append("ready; no runner acknowledgement")
     if state in {"working", "review", "validation", "done"} and not claim:
         problems.append("missing complete runner acknowledgement")
     open_blockers = [item["number"] for item in blockers if item["state"] == "open"]
@@ -103,6 +115,7 @@ def report(repo, milestone, issues, now, stale_hours):
              "| Issue | Task state | Runner | Attention / dependencies |",
              "| --- | --- | --- | --- |"]
     count = 0
+    ready = []
     for issue in sorted(issues, key=lambda item: item["number"]):
         if "pull_request" in issue:
             continue
@@ -112,10 +125,13 @@ def report(repo, milestone, issues, now, stale_hours):
         blockers = gh_list(path + "/dependencies/blocked_by?per_page=100")
         state, runner, problems = findings(issue, comments, blockers, now, stale_hours)
         link = f"https://github.com/{repo}/issues/{issue['number']}"
+        if state == "ready" and runner == "unclaimed" and issue["state"] == "open" and not problems:
+            ready.append(f"[#{issue['number']}]({link})")
         lines.append(f"| [#{issue['number']}]({link}) {cell(issue['title'])} | {cell(state)} | {cell(runner)} | {cell('; '.join(problems) or 'No coordination flags; evidence still needs inspection')} |")
     if not count:
         raise ValueError("No issues found for the requested milestone; no report published")
-    lines += ["", f"{count} task/outcome issues observed.",
+    lines += ["", "Ready to claim (informational): " + (", ".join(ready) or "none") + ".",
+              "", f"{count} task/outcome issues observed.",
               "Working claims are flagged after the configured runner-update interval; a flag never transfers ownership.", ""]
     return "\n".join(lines)
 
@@ -124,7 +140,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default="DeanoC/fes")
     parser.add_argument("--milestone", type=int, default=1)
-    parser.add_argument("--stale-hours", type=float, default=48)
+    parser.add_argument("--stale-hours", type=float, default=24)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo) or args.milestone < 1 or args.stale_hours <= 0:

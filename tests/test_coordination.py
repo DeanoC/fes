@@ -1,9 +1,11 @@
 import json
 from datetime import datetime, timezone
+from pathlib import Path
+import re
 import subprocess
 import unittest
 from unittest.mock import patch
-from scripts.coordination import findings, gh_list, report
+from scripts.coordination import findings, gh_list, records, report
 
 NOW = datetime(2026, 10, 1, tzinfo=timezone.utc)
 ACK = dict(runner="codex-1", vendor="Codex", host="mac", worktree="/fes",
@@ -24,6 +26,62 @@ def comment(kind, data, at="2026-09-27T00:00:00Z"):
 
 
 class CoordinationTest(unittest.TestCase):
+    def test_exact_documented_ack_example_parses_as_a_complete_claim(self):
+        guide = (Path(__file__).resolve().parents[1] / "docs/agent-workflow.md").read_text()
+        example = re.search(r"````text\n(FES-TASK-ACK\n.*?)\n````", guide, re.S)
+        self.assertIsNotNone(example)
+        note = dict(body=example[1], created_at="2026-09-30T23:00:00Z")
+        state, runner, flags = findings(issue(), [note], [], NOW, 24)
+        self.assertEqual(state, "working")
+        self.assertNotEqual(runner, "unclaimed")
+        self.assertEqual(flags, [])
+
+    def test_malformed_records_are_diagnosed_and_valid_neighbors_survive(self):
+        for invalid, message in (("{broken", "invalid JSON"),
+                                 ("[]", "JSON must be an object"),
+                                 ("null", "JSON must be an object")):
+            with self.subTest(invalid=invalid):
+                note = dict(body="FES-TASK-UPDATE\n```json\n" + invalid + "\n```\n" +
+                            comment("ACK", ACK)["body"], created_at="2026-09-30T23:00:00Z",
+                            html_url="https://github.com/DeanoC/fes/issues/1#issuecomment-10")
+                _, runner, flags = findings(issue(), [note], [], NOW, 24)
+                self.assertEqual(runner, ACK["runner"])
+                self.assertTrue(any("unparseable FES-TASK-UPDATE" in flag and message in flag
+                                    and note["html_url"] in flag for flag in flags))
+
+    def test_documented_bot_verdict_link_records_a_review(self):
+        guide = (Path(__file__).resolve().parents[1] / "docs/agent-workflow.md").read_text()
+        example = re.search(r"````text\n(FES-TASK-REVIEW\n.*?)\n````", guide, re.S)
+        self.assertIsNotNone(example)
+        notes = [comment("ACK", ACK),
+                 comment("UPDATE", dict(runner=ACK["runner"], pr="https://github.com/DeanoC/fes/pull/123")),
+                 dict(body=example[1], created_at="2026-09-30T23:00:00Z")]
+        self.assertEqual(findings(issue("validation"), notes, [], NOW, 24)[2], [])
+
+    def test_missing_json_fence_and_old_documented_layout_get_a_diagnostic(self):
+        for body in ("FES-TASK-ACK\n{}", "```text\nFES-TASK-ACK\n```\n```json\n{}\n```"):
+            with self.subTest(body=body):
+                _, errors = records([dict(body=body, created_at="2026-09-30T23:00:00Z")])
+                self.assertTrue(any("unparseable FES-TASK-ACK" in error for error in errors))
+
+    def test_ready_without_ack_is_information_not_a_warning(self):
+        self.assertEqual(findings(issue("ready"), [], [], NOW, 24)[2], [])
+        with patch("scripts.coordination.gh_list", return_value=[]):
+            text = report("DeanoC/fes", 1, [issue("ready")], NOW, 24)
+        self.assertIn("Ready to claim (informational): [#1]", text)
+        self.assertNotIn("no runner acknowledgement", text)
+
+    def test_ready_with_unmet_dependency_is_not_a_dispatch_candidate(self):
+        with patch("scripts.coordination.gh_list", side_effect=[[], [dict(number=2, state="open")]]):
+            text = report("DeanoC/fes", 1, [issue("ready")], NOW, 24)
+        self.assertIn("Ready to claim (informational): none.", text)
+        self.assertIn("state conflicts with unmet dependencies", text)
+
+    def test_a_thirty_hour_claim_is_stale_at_twenty_four_hours(self):
+        notes = [comment("ACK", ACK, "2026-09-29T18:00:00Z")]
+        self.assertTrue(any("older than 24 hours" in flag for flag in findings(issue(), notes, [], NOW, 24)[2]))
+        self.assertFalse(any("older than" in flag for flag in findings(issue(), notes, [], NOW, 48)[2]))
+
     def test_another_runner_cannot_refresh_a_stale_claim(self):
         notes = [comment("ACK", ACK),
                  comment("UPDATE", dict(runner="other", state="working"), "2026-09-30T23:59:00Z")]
