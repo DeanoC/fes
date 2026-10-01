@@ -387,13 +387,40 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 		_ = closeComposition(cleanup)
 		return nil, nil, errors.New("fogcast-api: remote input configuration failed")
 	}
+	var targetInputsMu sync.Mutex
+	var targetInputs []*host.RemoteInput
+	targetInputFactory := func(string) host.RemoteInputController {
+		controller, createErr := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
+		if createErr != nil {
+			return nil
+		}
+		targetInputsMu.Lock()
+		targetInputs = append(targetInputs, controller)
+		targetInputsMu.Unlock()
+		return controller
+	}
 	if provider, ok := service.(interface{ SetTargetReset(func()) }); ok {
-		provider.SetTargetReset(remoteInput.Invalidate)
+		provider.SetTargetReset(func() {
+			remoteInput.Invalidate()
+			targetInputsMu.Lock()
+			defer targetInputsMu.Unlock()
+			for _, controller := range targetInputs {
+				controller.Invalidate()
+			}
+		})
 	}
 	bindSessionTargetOrigin(service, targetStarter, mediaOwner)
-	serverOptions = append(serverOptions, hostapi.WithRemoteInput(remoteInput))
+	serverOptions = append(serverOptions, hostapi.WithRemoteInput(remoteInput), hostapi.WithRemoteInputFactory(targetInputFactory))
 	return hostapi.New(service, serverOptions...), func() error {
-		return closeAPIComposition(remoteInput.Close, cleanup)
+		return closeAPIComposition(func() error {
+			targetInputsMu.Lock()
+			defer targetInputsMu.Unlock()
+			var closeErr error
+			for _, controller := range targetInputs {
+				closeErr = errors.Join(closeErr, controller.Close())
+			}
+			return errors.Join(closeErr, remoteInput.Close())
+		}, cleanup)
 	}, nil
 }
 
@@ -621,6 +648,7 @@ type compositionMediaSession struct {
 	// a kit that never started one.
 	liveCasts int
 	handle    hostapi.MediaHandle
+	handles   []hostapi.MediaHandle
 }
 
 func newCompositionMediaSession(media hostapi.MediaSession, target targetCast, session, token string, generation uint64) *compositionMediaSession {
@@ -695,6 +723,7 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 			}
 			s.mu.Lock()
 			s.handle = owned
+			s.handles = append(s.handles, owned)
 			s.mu.Unlock()
 			return owned, errors.New("target cast could not be started")
 		}
@@ -727,6 +756,7 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 			}
 			s.mu.Lock()
 			s.handle = owned
+			s.handles = append(s.handles, owned)
 			s.mu.Unlock()
 			return owned, err
 		}
@@ -739,6 +769,7 @@ func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hos
 	}
 	s.mu.Lock()
 	s.handle = owned
+	s.handles = append(s.handles, owned)
 	s.mu.Unlock()
 	go owned.monitor(monitorCtx)
 	return owned, nil
@@ -773,14 +804,19 @@ func (s *compositionMediaSession) noteCastStopped() {
 
 func (s *compositionMediaSession) Close() error {
 	s.mu.Lock()
-	handle := s.handle
+	handles := append([]hostapi.MediaHandle(nil), s.handles...)
+	if len(handles) == 0 && s.handle != nil {
+		handles = append(handles, s.handle)
+	}
 	targetActive := s.targetActive
 	s.mu.Unlock()
 	var first error
-	if handle != nil {
-		if err := handle.Stop(context.Background()); err != nil {
-			first = err
-			_ = handle.Stop(context.Background())
+	if len(handles) != 0 {
+		for _, handle := range handles {
+			if err := handle.Stop(context.Background()); err != nil {
+				first = errors.Join(first, err)
+				_ = handle.Stop(context.Background())
+			}
 		}
 	} else if targetActive && s.target != nil {
 		cleanupCtx, cancel := boundedTargetContext(context.Background())
@@ -967,19 +1003,29 @@ func stopServiceForShutdown(service service) error {
 	if !ok || !owner.ShutdownCleanupRequired() {
 		return nil
 	}
-	var first error
-	for attempt := 0; attempt < 2; attempt++ {
-		stopCtx, cancel := context.WithTimeout(context.Background(), targetCleanupTimeout)
-		_, err := service.Stop(stopCtx)
-		cancel()
-		if err == nil {
-			return first
+	for stopped := 0; stopped < 64 && owner.ShutdownCleanupRequired(); stopped++ {
+		var stopErr error
+		for attempt := 0; attempt < 2; attempt++ {
+			stopCtx, cancel := context.WithTimeout(context.Background(), targetCleanupTimeout)
+			_, stopErr = service.Stop(stopCtx)
+			if stopErr == nil {
+				if releaser, ok := service.(interface{ ReleaseKitLease(context.Context) error }); ok {
+					stopErr = releaser.ReleaseKitLease(stopCtx)
+				}
+			}
+			cancel()
+			if stopErr == nil {
+				break
+			}
 		}
-		if first == nil {
-			first = err
+		if stopErr != nil {
+			return stopErr
 		}
 	}
-	return first
+	if owner.ShutdownCleanupRequired() {
+		return errors.New("fogcast-api: shutdown cleanup did not settle all target sessions")
+	}
+	return nil
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer, open openService) int {

@@ -696,18 +696,10 @@ launcher bearer must also differ from the host-to-agent token of every
 target in `config.toml`, enabled or not, not only the selected one. The
 single-kit form (one top-level token for one target) is unchanged.
 
-The host still has one foreground session. Catalogue, platform, health,
-attract, artwork, presentation, and cache reads are served to every enabled
-paired kit, whether or not it is the selected target. A kit-menu launch
-(`POST /api/v1/session/launch`) sets `target` to the requesting kit, so it
-launches on that kit and bypasses mesh placement. While another kit has a
-play, that launch returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt,
-stop, or rebind the other play; relaunching on the same kit is unchanged.
-`GET /api/v1/session` returns the foreground session only to the kit that
-owns it; every other enabled paired kit gets its own idle or active view,
-which does not touch the foreground session. Stop, `GET /api/v1/status`,
-session input, and launcher input are owner-only; another paired kit gets
-403 `TARGET_MISMATCH`. Per-kit concurrent sessions are follow-up #288.
+Each enabled paired kit has its own foreground session, input binding, media
+handle, and scoped `POST /api/v1/session/stop`. Kit-menu launches replace only
+that kit's play; unscoped browser Stop continues to use the active target, then
+the selected target. Paired session and status reads are target-scoped.
 On the paired listener, health, `rom_cached`, and `/api/v1/library/cache`
 describe the authenticated requesting kit. Paired health probes that kit
 without foreground lifecycle admission, so another kit's launch does not

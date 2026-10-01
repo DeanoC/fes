@@ -73,12 +73,11 @@ or unpaired target id is rejected. Missing or invalid authentication returns
 401, identity mismatch returns 403, and unavailable routes return 404. Target
 settings updates and admitted launcher operations are serialized so an
 address/selection edit cannot redirect an in-flight launch.
-The host still has one foreground session. A kit launch while another kit
-has a play returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt,
-stop, or rebind that play; stop it on its own kit first. Relaunching on
-the same kit is unchanged. Two kits playing at once needs per-target
-sessions and Stop (#288). Health, `rom_cached`, and `/api/v1/library/cache`
-still describe the selected target (#289).
+Each paired kit has its own foreground session and input/media lifecycle.
+`POST /api/v1/session/stop` is scoped to the paired kit; an optional `target`
+in the stop body must name that same kit. Explicit browser/API launches replace
+only the requested target. Unscoped browser Stop keeps its active-then-selected
+behavior. Health, `rom_cached`, and `/api/v1/library/cache` stay target-scoped (#289).
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
 `Offline - local library`. Local D-pad/A still browse that snapshot. Offline
@@ -109,13 +108,13 @@ Allowed operations are:
 - `GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`
   for one `id` query. These reads are admitted for any enabled configured
   kit, not only the foreground selected target.
-- `GET /api/v1/session` for the session owner. Any other enabled paired kit
-  receives that kit's own idle or active view.
-- `GET /api/v1/session/input` for the session owner only.
+- `GET /api/v1/session` and `GET /api/v1/status` for the requesting paired
+  kit. An optional `target` query must name that same kit.
+- `GET /api/v1/session/input` for the requesting paired kit.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.
-  The listener sets `target` to the requesting kit. 409
-  `SESSION_BUSY_OTHER_KIT` while another kit has a play.
-- `POST /api/v1/session/stop` with no body, for the session owner only.
+  The listener sets `target` to the requesting kit; another kit's play is preserved.
+- `POST /api/v1/session/stop` with no body, scoped to the paired kit. An optional
+  `target` field must match the paired kit.
 - `POST /api/v1/launcher/input?session_id=<session_id>` remains the host
   listener's controller stream. `fogcast-kit` does not call it for a gamepad
   or USB keyboard plugged into the kit. Those devices write raw input frames

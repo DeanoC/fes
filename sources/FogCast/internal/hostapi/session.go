@@ -118,6 +118,13 @@ type sessionCoordinator struct {
 	flightID          string
 	started           time.Time
 	events            []sessionEvent
+	// root owns the target coordinator registry; child coordinators carry all
+	// session lifecycle resources for exactly one target.
+	root               *sessionCoordinator
+	target             string
+	targetSessions     map[string]*sessionCoordinator
+	targetSessionsMu   sync.Mutex
+	remoteInputFactory func(string) host.RemoteInputController
 }
 
 type sessionInputBinding struct {
@@ -132,7 +139,51 @@ type remoteInputCapabilityAttacher interface {
 }
 
 func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputController, media MediaSession) *sessionCoordinator {
-	return &sessionCoordinator{id: uuid.NewString(), service: service, remoteInput: remoteInput, media: media, started: time.Now()}
+	return &sessionCoordinator{id: uuid.NewString(), service: service, remoteInput: remoteInput, media: media, started: time.Now(), targetSessions: make(map[string]*sessionCoordinator)}
+}
+
+func (s *sessionCoordinator) forTarget(target string) *sessionCoordinator {
+	if s == nil || target == "" {
+		return s
+	}
+	root := s
+	if s.root != nil {
+		root = s.root
+	}
+	root.targetSessionsMu.Lock()
+	defer root.targetSessionsMu.Unlock()
+	if child := root.targetSessions[target]; child != nil {
+		return child
+	}
+	// A target child must never detach a different target's singleton bridge.
+	// Deployments that support multiple live kits supply a factory below.
+	var input host.RemoteInputController
+	if root.remoteInputFactory != nil {
+		input = root.remoteInputFactory(target)
+	}
+	child := newSessionCoordinator(root.service, input, root.media)
+	child.root = root
+	child.target = target
+	root.targetSessions[target] = child
+	return child
+}
+
+func (s *sessionCoordinator) forSessionID(id string) *sessionCoordinator {
+	root := s
+	if s != nil && s.root != nil {
+		root = s.root
+	}
+	if root == nil || root.id == id {
+		return root
+	}
+	root.targetSessionsMu.Lock()
+	defer root.targetSessionsMu.Unlock()
+	for _, child := range root.targetSessions {
+		if child.id == id {
+			return child
+		}
+	}
+	return root
 }
 
 func (s *sessionCoordinator) beginFlight() {
@@ -206,6 +257,9 @@ func (s *sessionCoordinator) eventsAfter(after uint64) []sessionEvent {
 }
 
 func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) {
+	if s.target != "" {
+		ctx = fogcast.WithSessionTarget(ctx, s.target)
+	}
 	// Serialize the service observation itself with launch, stop, and terminal
 	// media observation. Otherwise a status call can begin against one host
 	// generation, block while launch installs the next generation, then apply
@@ -420,6 +474,12 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 }
 
 func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stamp clientStamp) (sessionResult, error) {
+	if target == "" {
+		target = s.target
+	}
+	if s.target != "" {
+		ctx = fogcast.WithSessionTarget(ctx, s.target)
+	}
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -929,6 +989,9 @@ func (s *sessionCoordinator) stopMediaBounded(execution string) error {
 }
 
 func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease, releaseIdle bool, expected *sessionStopExpectation) (sessionResult, error) {
+	if s.target != "" {
+		ctx = fogcast.WithSessionTarget(ctx, s.target)
+	}
 	if releaseIdle {
 		return s.releaseIdleGrants(ctx, stamp)
 	}
@@ -990,7 +1053,17 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	}); expected != nil && ok {
 		// The service checks its foreground binding under lifecycle admission
 		// before any coordinator teardown, and holds it through physical Stop.
-		st, serviceErr = bound.StopExpectedWithPreparation(ctx, expected.SessionStopBinding, prepare)
+		if s.target != "" {
+			if scoped, ok := s.service.(interface {
+				StopExpectedTargetWithPreparation(context.Context, fogcast.SessionStopBinding, func(context.Context), string) (protocol.Status, error)
+			}); ok {
+				st, serviceErr = scoped.StopExpectedTargetWithPreparation(ctx, expected.SessionStopBinding, prepare, s.target)
+			} else {
+				st, serviceErr = bound.StopExpectedWithPreparation(ctx, expected.SessionStopBinding, prepare)
+			}
+		} else {
+			st, serviceErr = bound.StopExpectedWithPreparation(ctx, expected.SessionStopBinding, prepare)
+		}
 	} else {
 		prepare(ctx)
 		if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
@@ -1107,7 +1180,19 @@ func (s *sessionCoordinator) releaseKitLeaseNow() error {
 	}
 	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := owner.ReleaseKitLease(releaseCtx); err != nil {
+	var err error
+	if s.target != "" {
+		if scoped, ok := s.service.(interface {
+			ReleaseKitLeaseTarget(context.Context, string) error
+		}); ok {
+			err = scoped.ReleaseKitLeaseTarget(releaseCtx, s.target)
+		} else {
+			err = owner.ReleaseKitLease(releaseCtx)
+		}
+	} else {
+		err = owner.ReleaseKitLease(releaseCtx)
+	}
+	if err != nil {
 		return fogcast.WithStopStage(err, "lease_release")
 	}
 	return nil
@@ -1222,6 +1307,9 @@ func (s *sessionCoordinator) detachInputBounded(reason string) error {
 
 func (s *sessionCoordinator) stopServiceBounded() (protocol.Status, error) {
 	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if s.target != "" {
+		stopCtx = fogcast.WithSessionTarget(stopCtx, s.target)
+	}
 	status, err := s.service.Stop(stopCtx)
 	cancel()
 	if err == nil || !ambiguousBoundedStopError(err) {
@@ -1229,6 +1317,9 @@ func (s *sessionCoordinator) stopServiceBounded() (protocol.Status, error) {
 	}
 	reconcileCtx, reconcileCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer reconcileCancel()
+	if s.target != "" {
+		reconcileCtx = fogcast.WithSessionTarget(reconcileCtx, s.target)
+	}
 	for {
 		status, statusErr := s.service.Status(reconcileCtx)
 		if statusErr != nil {
@@ -1403,7 +1494,12 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	result.ID = s.id
 	result.FlightID = s.flightID
 	s.mu.Unlock()
-	if binder, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
+	if s.target != "" {
+		result.Target = s.target
+		if binder, ok := s.service.(interface{ TargetIDForName(string) string }); ok {
+			result.TargetID = binder.TargetIDForName(s.target)
+		}
+	} else if binder, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
 		result.Target, result.TargetID = binder.SessionTarget()
 	}
 	if s.remoteInput != nil {

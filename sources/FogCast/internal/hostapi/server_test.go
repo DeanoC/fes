@@ -531,6 +531,41 @@ func TestSessionLaunchAndStopUseOnlyGameIDAndExposeProgress(t *testing.T) {
 	}
 }
 
+func TestExplicitTargetLaunchKeepsOtherTargetsInputAndMedia(t *testing.T) {
+	gameID := "megadrive-sonic-test"
+	system := protocol.SystemMegaDrive
+	core := "megadrive"
+	service := &fakeService{execution: fogcast.ExecutionFPGANative,
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}}}
+	inputs := map[string]*fakeRemoteInput{}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service,
+		hostapi.WithRemoteInputFactory(func(target string) host.RemoteInputController {
+			input := &fakeRemoteInput{}
+			inputs[target] = input
+			return input
+		}),
+		hostapi.WithMediaSession(media))
+	for _, target := range []string{"kit-a", "kit-b"} {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"megadrive-sonic-test","target":"`+target+`"}`))
+		request.Host = "127.0.0.1"
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("launch %s: %d %s", target, response.Code, response.Body.String())
+		}
+	}
+	if inputs["kit-a"] == nil || len(inputs["kit-a"].attach) != 1 || len(inputs["kit-a"].detach) != 0 {
+		t.Fatalf("kit A input was disturbed: %+v", inputs["kit-a"])
+	}
+	if inputs["kit-b"] == nil || len(inputs["kit-b"].attach) != 1 {
+		t.Fatalf("kit B input was not attached: %+v", inputs["kit-b"])
+	}
+	if len(media.start) != 2 || len(media.stop) != 0 {
+		t.Fatalf("media starts=%v stops=%v", media.start, media.stop)
+	}
+}
+
 func TestSessionDevelopmentRBFStreamsWithoutMediaOrInput(t *testing.T) {
 	payload := []byte("development-rbf")
 	observed := "DEVCORE"
