@@ -22,6 +22,15 @@ func (r *Instance) installHardware() *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	L.SetFuncs(t, map[string]lua.LGFunction{
+		"setup": func(L *lua.LState) int { r.actions = append(r.actions, Action{Kind: ActionHardwareSetup}); return 0 },
+		"open_tapes": func(L *lua.LState) int {
+			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareTapes))
+			return 0
+		},
+		"import_expansion": func(L *lua.LState) int {
+			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareImportExpansion))
+			return 0
+		},
 		"read": func(L *lua.LState) int {
 			cb := L.CheckFunction(1)
 			s, ok := r.opts.Services.(HardwareServices)
@@ -79,7 +88,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	out, machines := L.NewTable(), L.NewTable()
 	for _, m := range v.Machines {
 		row := L.NewTable()
-		for k, s := range map[string]string{"game_id": m.GameID, "title": m.Title, "core_id": m.CoreID, "package_id": m.PackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID} {
+		for k, s := range map[string]string{"game_id": m.GameID, "title": m.Title, "core_id": m.CoreID, "package_id": m.PackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
 			row.RawSetString(k, lua.LString(s))
 		}
 		for k, b := range map[string]bool{"package_ready": m.PackageReady, "firmware_ready": m.FirmwareReady, "ready": m.Ready} {
@@ -97,6 +106,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 				choice.RawSetString(k, lua.LString(s))
 			}
 			choice.RawSetString("ready", lua.LBool(c.Ready))
+			choice.RawSetString("in_progress", lua.LBool(c.InProgress))
 			choices.Append(choice)
 		}
 		row.RawSetString("choices", choices)
@@ -107,7 +117,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	if s := v.Session; s != nil {
 		session := L.NewTable()
 		_, tapeErr := hostclient.LiveMediaBinding(*s)
-		session.RawSetString("tape_available", lua.LBool(tapeErr == nil))
+		session.RawSetString("tape_available", lua.LBool(tapeErr == nil && !r.opts.IdleDisplayOnly))
 		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID
 		session.RawSetString("hardware_known", lua.LBool(known))
 		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {
@@ -125,4 +135,18 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		out.RawSetString("session", session)
 	}
 	return out
+}
+
+func hardwareSetupAction(L *lua.LState, kind ActionKind) Action {
+	opts := L.CheckTable(1)
+	game, pkg := optString(opts, "game_id"), optString(opts, "package_id")
+	if game == "" || pkg == "" {
+		L.ArgError(1, "game_id and package_id are required")
+	}
+	if kind == ActionHardwareTapes {
+		if _, ok := opts.RawGetString("expected_media_id").(lua.LString); !ok {
+			L.ArgError(1, "expected_media_id is required")
+		}
+	}
+	return Action{Kind: kind, GameID: game, PackageID: pkg, ExpectedMediaID: optString(opts, "expected_media_id")}
 }

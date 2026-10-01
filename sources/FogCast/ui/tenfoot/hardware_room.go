@@ -31,7 +31,7 @@ func (s roomServices) SelectCoreEntryExpansion(ctx context.Context, gameID, pack
 }
 
 func (a *App) playingHardwareRoomAvailableLocked() bool {
-	if a.session.State != "active" || a.stopPhase == "stopping" || a.retryStopLock || a.roomsIndex == nil {
+	if a.localCores != nil || a.session.State != "active" || a.stopPhase == "stopping" || a.retryStopLock || a.roomsIndex == nil {
 		return false
 	}
 	pack, ok := a.roomsIndex.Find(hardwareRoomID)

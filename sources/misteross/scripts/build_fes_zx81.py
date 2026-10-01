@@ -312,7 +312,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
         "format": 2,
         "core": {
             "id": "fes.zx81",
-            "name": "FES ZX81",
+            "name": "Zx81",
             "description": "Quartus bring-up ZX81 computer for the FES simple-computer ABI",
             "version": "1.1.0",
         },

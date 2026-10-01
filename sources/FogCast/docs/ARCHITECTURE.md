@@ -2319,3 +2319,14 @@ selection remains a separate explicit host API action. Asynchronous operations
 lock overlay mutation and use bounded contexts; failed refresh retains cached
 rows with setup disabled. App/renderer snapshots copy row data and pointer hit
 routing gives the systems overlay priority over room/catalog widgets.
+
+The Zx81 room reuses that overlay for local installed-package/ROM setup,
+expansion import and prelaunch cassette selection. Installed setup uses existing
+package/library/ROM endpoints independently of publication. Media selection
+retains the captured package and previous media ID for compare-and-swap; expansion
+import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
+presentation, without changing immutable admission or shared wire definitions.
+The attributed `internal/zx81tapes` assets enter the existing media store only
+after explicit selection. Menu-display passes `IdleDisplayOnly` into rooms and
+disables the live room/tape routes because its MENU framebuffer requires idle
+hardware. The separate host renderer retains those routes.

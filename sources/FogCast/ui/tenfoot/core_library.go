@@ -3,14 +3,15 @@ package tenfoot
 import (
 	"context"
 	"fmt"
-	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/protocol"
-	"github.com/DeanoC/FogCast/ui/shared"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/ui/shared"
 )
 
 type coreLibraryState struct {
@@ -23,6 +24,12 @@ type coreLibraryState struct {
 	ROMs                                                   map[string]string
 	Label, Title, Status, Path, PickID, MediaID, MediaRole string
 	Files                                                  []FirmwarePickerRow
+	FilterCoreID, HardwareMode                             string
+	HardwareGameID, HardwarePackageID                      string
+	ExpectedMediaID                                        string
+	InstalledSetup                                         bool
+	ExpansionFamily                                        int
+	Tapes                                                  []hostclient.HardwareTape
 }
 
 func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
@@ -30,13 +37,22 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 	if s.PickID != "" {
 		return s.Files
 	}
+	if s.HardwareMode != "" {
+		return a.hardwarePickerRowsLocked()
+	}
 	rows := []FirmwarePickerRow{}
 	add := func(name, kind string) {
 		rows = append(rows, FirmwarePickerRow{Name: name, Kind: kind, Selectable: true})
 	}
 	if s.Ref == nil {
 		add("Refresh systems", "refresh")
+		if s.InstalledSetup {
+			add("Browse published systems", "published")
+		}
 		for _, r := range s.Cores {
+			if s.FilterCoreID != "" && r.CoreID != s.FilterCoreID {
+				continue
+			}
 			add(r.Label+" · "+r.Standing+" · "+r.ArtifactState, "system")
 			rows[len(rows)-1].Core = &r
 		}
@@ -57,6 +73,9 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 		}
 	}
 	for _, m := range s.Setup.Capabilities.Media {
+		if s.InstalledSetup {
+			continue
+		}
 		if m.Role == "blob" || m.Role == "disk" {
 			status := "choose file"
 			if s.MediaRole == m.Role && s.MediaID != "" {
@@ -78,6 +97,12 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 		return FirmwarePickerSnapshot{}
 	}
 	title := "Systems"
+	if s.HardwareMode == "tapes" {
+		title = "Cassette for next start"
+	}
+	if s.HardwareMode == "expansions" {
+		title = "Import expansion"
+	}
 	if s.Ref != nil {
 		title = "Set up " + s.Label
 	}
@@ -87,16 +112,29 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 	return FirmwarePickerSnapshot{Open: true, Title: title, Path: s.Path, Rows: a.coreLibraryRowsLocked(), Index: s.Index, Busy: s.Busy, Status: s.Status, Hint: selectWord(a.affinity.current.Kind) + " choose  " + backWord(a.affinity.current.Kind) + " back"}
 }
 func (a *App) openCoreLibraryLocked() {
+	a.resetCoreLibraryLocked()
+	a.refreshCoreLibraryLocked()
+}
+
+func (a *App) resetCoreLibraryLocked() {
+	if a.coreLibrary.Cancel != nil {
+		a.coreLibrary.Cancel()
+		a.coreLibrary.Cancel = nil
+	}
+	a.coreLibrary.Gen++
+	a.coreLibrary.Busy = false
 	a.closeSettingsLocked()
 	a.closeDetailLocked()
 	a.closeFirmwarePickerLocked()
 	a.closeTapePickerLocked()
+	a.coreLibrary.InstalledSetup = false
+	a.coreLibrary.HardwareMode = ""
+	a.coreLibrary.FilterCoreID = ""
 	a.coreLibrary.Open = true
 	a.coreLibrary.Index = 0
 	a.coreLibrary.Ref = nil
 	a.coreLibrary.Setup = nil
 	a.coreLibrary.PickID = ""
-	a.refreshCoreLibraryLocked()
 }
 func (a *App) coreLibraryAsyncLocked(work func(context.Context) error, done func()) {
 	s := &a.coreLibrary
@@ -144,6 +182,7 @@ func (a *App) refreshCoreLibraryLocked() {
 }
 func (a *App) loadCoreSetupLocked(install bool) {
 	ref := *a.coreLibrary.Ref
+	installedSetup := a.coreLibrary.InstalledSetup
 	var setup hostclient.CoreSetup
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		if install {
@@ -152,8 +191,12 @@ func (a *App) loadCoreSetupLocked(install bool) {
 			}
 		}
 		var err error
-		setup, err = a.client.CoreSetup(ctx, ref.SourceID, ref.CoreID, ref.PackageID)
-		if err == nil && (setup.LibrarySourceID != ref.LibrarySourceID || setup.PackageID != ref.PackageID || setup.SourceID != ref.SourceID || setup.CoreID != ref.CoreID) {
+		if installedSetup {
+			setup, err = a.client.InstalledZX81Setup(ctx, ref.PackageID)
+		} else {
+			setup, err = a.client.CoreSetup(ctx, ref.SourceID, ref.CoreID, ref.PackageID)
+		}
+		if err == nil && !installedSetup && (setup.LibrarySourceID != ref.LibrarySourceID || setup.PackageID != ref.PackageID || setup.SourceID != ref.SourceID || setup.CoreID != ref.CoreID) {
 			return fmt.Errorf("System changed; refresh and choose again")
 		}
 		return err
@@ -207,6 +250,9 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		}
 		s.Open = false
 		s.Gen++
+		if a.room != nil {
+			a.room.Resume()
+		}
 		return
 	}
 	rows := a.coreLibraryRowsLocked()
@@ -233,7 +279,20 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		a.coreLibraryFileLocked(row)
 		return
 	}
+	if s.HardwareMode != "" {
+		a.handleHardwarePickerLocked(row)
+		return
+	}
+	if row.Kind == "published" {
+		a.openCoreLibraryLocked()
+		a.coreLibrary.FilterCoreID = "fes.zx81"
+		return
+	}
 	if row.Kind == "refresh" {
+		if s.InstalledSetup {
+			a.refreshInstalledZX81Locked()
+			return
+		}
 		a.refreshCoreLibraryLocked()
 		return
 	}
@@ -344,6 +403,10 @@ func (a *App) submitCoreLibraryOSKLocked() {
 }
 func (a *App) importCoreLibraryFileLocked(path string) {
 	s := &a.coreLibrary
+	if s.HardwareMode != "" {
+		a.importHardwareFileLocked(path)
+		return
+	}
 	if !s.Online || s.Setup == nil {
 		s.Status = "Refresh and choose an installed system."
 		return
@@ -422,9 +485,23 @@ func (a *App) createCoreLibraryGameLocked() {
 		}
 		roms[r.ID] = id
 	}
+	installedSetup, setup := s.InstalledSetup, *s.Setup
 	req := hostclient.CoreSetupRequest{CoreReference: *s.Ref, Title: s.Title, ROMs: roms, MediaRole: s.MediaRole, MediaID: s.MediaID}
-	a.coreLibraryAsyncLocked(func(ctx context.Context) error { _, err := a.client.CreateCoreSetupEntry(ctx, req); return err }, func() {
+	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
+		if installedSetup {
+			_, err := a.client.CreateInstalledZX81Entry(ctx, setup, req.Title, roms)
+			return err
+		}
+		_, err := a.client.CreateCoreSetupEntry(ctx, req)
+		return err
+	}, func() {
 		s.Status = "Game added to the library. Launch checks readiness and executor compatibility."
+		if installedSetup {
+			s.Status = "Setup added. Back returns to the room; choose a cassette before starting."
+			if a.room != nil {
+				a.room.Resume()
+			}
+		}
 		a.reloadLocked()
 	})
 }

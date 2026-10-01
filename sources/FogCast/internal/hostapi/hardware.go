@@ -18,6 +18,7 @@ type coreExpansionPresentationService interface {
 }
 
 func registerHardware(mux *http.ServeMux, service Service, session *sessionCoordinator) {
+	registerZX81Tapes(mux, service)
 	mux.HandleFunc("GET /api/v1/library/hardware", func(w http.ResponseWriter, r *http.Request) {
 		if rejectCoreLibraryBody(w, r) {
 			return
@@ -77,6 +78,7 @@ func registerHardware(mux *http.ServeMux, service Service, session *sessionCoord
 		var request struct {
 			Label       *string `json:"label"`
 			Description *string `json:"description"`
+			InProgress  *bool   `json:"in_progress"`
 		}
 		if decodeSingleJSON(w, r, &request) != nil {
 			return
@@ -85,7 +87,20 @@ func registerHardware(mux *http.ServeMux, service Service, session *sessionCoord
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "label and description are required; use empty text to clear them")
 			return
 		}
-		value, err := s.SetCoreExpansionPresentation(r.Context(), r.PathValue("expansion_id"), *request.Label, *request.Description)
+		var value catalog.CoreExpansionPresentation
+		var err error
+		if request.InProgress != nil {
+			writer, ok := service.(interface {
+				SetCoreExpansionPresentationWithProgress(context.Context, string, string, string, bool) (catalog.CoreExpansionPresentation, error)
+			})
+			if !ok {
+				writeError(w, 501, "UNSUPPORTED_OPERATION", "expansion progress labels are unavailable")
+				return
+			}
+			value, err = writer.SetCoreExpansionPresentationWithProgress(r.Context(), r.PathValue("expansion_id"), *request.Label, *request.Description, *request.InProgress)
+		} else {
+			value, err = s.SetCoreExpansionPresentation(r.Context(), r.PathValue("expansion_id"), *request.Label, *request.Description)
+		}
 		if err != nil {
 			writeCoreLibraryError(w, err)
 			return

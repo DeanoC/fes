@@ -28,6 +28,8 @@ type HardwareMachine struct {
 	Ready             bool                `json:"ready"`
 	UnavailableReason string              `json:"unavailable_reason,omitempty"`
 	Socket            HardwareSocket      `json:"socket"`
+	MediaID           string              `json:"media_id,omitempty"`
+	MediaName         string              `json:"media_name,omitempty"`
 	DraftExpansionID  string              `json:"draft_expansion_id"`
 	Choices           []HardwareExpansion `json:"choices"`
 }
@@ -42,6 +44,7 @@ type HardwareExpansion struct {
 	ExpansionID       string `json:"expansion_id"`
 	Label             string `json:"label"`
 	Description       string `json:"description"`
+	InProgress        bool   `json:"in_progress,omitempty"`
 	Ready             bool   `json:"ready"`
 	UnavailableReason string `json:"unavailable_reason,omitempty"`
 }
