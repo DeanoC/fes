@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
@@ -430,10 +431,16 @@ func hardwareRoomStatus(snap Snapshot) string {
 	if snap.Room.Notice != "" {
 		return snap.Room.Notice
 	}
-	if snap.Health.Line != "" && (!snap.Health.Ready || !snap.Health.TargetReachable || !snap.Health.TargetReady) {
+	connection := strings.TrimSpace(snap.Health.Connection.State)
+	healthyConnection := connection == "" || connection == "active" || connection == "ready"
+	duringPlay := snap.Room.DuringPlay && snap.Session.State == "active"
+	// TargetReady admits a new launch. A healthy running machine can keep
+	// using its controls while idle launch admission is unavailable.
+	if snap.Health.Line != "" && (snap.Health.HostUnreachable || !snap.Health.Ready || !snap.Health.TargetReachable || !healthyConnection || (!snap.Health.TargetReady && !duringPlay)) {
 		return snap.Health.Line
 	}
-	if snap.KitLease.Line != "" && (snap.KitLease.Unreachable || snap.KitLease.State == "busy") {
+	lease := kitlease.Status{State: snap.KitLease.State, Owner: snap.KitLease.Owner, Purpose: snap.KitLease.Purpose}
+	if snap.KitLease.Line != "" && (snap.KitLease.Unreachable || kitlease.ForeignHID(lease)) {
 		return snap.KitLease.Line
 	}
 	status := strings.TrimSpace(snap.Status)
