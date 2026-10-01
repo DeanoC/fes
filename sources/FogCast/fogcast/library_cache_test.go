@@ -2,8 +2,10 @@ package fogcast
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/protocol"
@@ -31,6 +33,52 @@ func TestLibraryCacheReportsTargetInventoryWithoutLease(t *testing.T) {
 	}
 	if client.cacheIndexCalls != 1 {
 		t.Fatalf("memo not used calls=%d", client.cacheIndexCalls)
+	}
+}
+
+func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.T) {
+	clientB := &fakeServiceClient{
+		healthResult: protocol.Health{Ready: true},
+		cacheIndex: func(context.Context) (protocol.CacheIndex, error) {
+			return protocol.CacheIndex{UsedBytes: 4, MaxBytes: 10, FreeBytes: 6}, nil
+		},
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	service.targets = []TargetConfig{{Name: "kit-a", Enabled: true, TargetID: "a"}, {Name: "kit-b", Enabled: true, TargetID: "b"}}
+	service.pairedTargetConfigs = append([]TargetConfig(nil), service.targets...)
+	service.pairedTargetClients["kit-b"] = clientB
+
+	// Launch holds targetMu for the full target operation. Model that critical
+	// section while paired reads for another kit exercise the real Service.
+	service.targetMu.RLock()
+	defer service.targetMu.RUnlock()
+	ctx := WithPairedTarget(context.Background(), "b")
+	results := make(chan error, 2)
+	go func() {
+		health, err := service.Health(ctx)
+		if err == nil && !health.Ready {
+			err = errors.New("kit B health was not ready")
+		}
+		results <- err
+	}()
+	go func() {
+		cache, err := service.LibraryCache(ctx)
+		if err == nil && (!cache.ROM.Reachable || cache.ROM.UsedBytes != 4) {
+			err = errors.New("kit B cache response was incorrect")
+		}
+		results <- err
+	}()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	for range 2 {
+		select {
+		case err := <-results:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-deadline.C:
+			t.Fatal("paired health or library cache waited for the foreground target lock")
+		}
 	}
 }
 

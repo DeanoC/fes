@@ -260,7 +260,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			return
 		}
 		if pairedRead {
-			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/games" || r.URL.Path == "/api/v1/library/cache" {
+			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" {
 				r = r.WithContext(fogcast.WithPairedTarget(r.Context(), headerID))
 			}
 			a.routes.ServeHTTP(w, r)

@@ -84,6 +84,9 @@ func (s *pairedSnapshotService) Health(ctx context.Context) (protocol.Health, er
 func (s *pairedSnapshotService) Games(context.Context) ([]catalog.Game, error) {
 	return []catalog.Game{{ID: "snes-mario", Title: "Mario", System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true, Content: &catalog.Content{SHA256: strings.Repeat("ab", 32), Size: 1, Extension: "sfc"}}}, nil
 }
+func (s *pairedSnapshotService) Game(context.Context, string) (catalog.Game, error) {
+	return catalog.Game{ID: "snes-mario", Title: "Mario", System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true, Content: &catalog.Content{SHA256: strings.Repeat("ab", 32), Size: 1, Extension: "sfc"}}, nil
+}
 func (s *pairedSnapshotService) ROMCachePresence(ctx context.Context) (map[string]bool, bool) {
 	return s.presenceByTarget[fogcast.PairedTargetFromContext(ctx)], true
 }
@@ -109,7 +112,7 @@ func TestLauncherPairedHealthAndCacheAreTargetScoped(t *testing.T) {
 		used      int
 		cached    bool
 	}{{launcherID, launcherToken, true, 11, true}, {launcherIDB, launcherTokenB, false, 22, false}} {
-		for _, path := range []string{"/api/v1/health", "/api/v1/games", "/api/v1/library/cache"} {
+		for _, path := range []string{"/api/v1/health", "/api/v1/games", "/api/v1/games/snes-mario", "/api/v1/library/cache"} {
 			req := launcherRequest("GET", "http://127.0.0.1:8789"+path, nil)
 			req.Header.Set("X-FogCast-Target-ID", tc.id)
 			req.Header.Set("Authorization", "Bearer "+tc.token)
