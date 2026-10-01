@@ -46,6 +46,11 @@ func (s *pairedLeaseService) PairedTargetKitLeaseStatus(_ context.Context, targe
 	return kitlease.Status{State: "held", Owner: "fogcast@kit", Purpose: "play", Generation: "gen-7", ExpiresInMS: 12000}, nil
 }
 
+func (s *pairedLeaseService) PairedTargetStatus(_ context.Context, target string) (kitlease.Status, bool, bool, error) {
+	s.target = target
+	return kitlease.Status{State: "held", Owner: "fogcast@kit", Generation: "gen-7", ExpiresInMS: 12000}, true, true, nil
+}
+
 func TestLauncherKitLeaseStatusIsScopedToAuthenticatedTarget(t *testing.T) {
 	service := &pairedLeaseService{}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(service), hostapi.LauncherConfig{Pairings: []hostapi.LauncherPairing{{Token: launcherToken, TargetID: launcherID}, {Token: launcherTokenB, TargetID: launcherIDB}}})
@@ -57,7 +62,7 @@ func TestLauncherKitLeaseStatusIsScopedToAuthenticatedTarget(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+launcherTokenB)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
-	if w.Code != http.StatusOK || service.target != launcherIDB || !strings.Contains(w.Body.String(), `"generation":"gen-7"`) || strings.Contains(w.Body.String(), "address") {
+	if w.Code != http.StatusOK || service.target != launcherIDB || !strings.Contains(w.Body.String(), `"generation":"gen-7"`) || !strings.Contains(w.Body.String(), `"target_reachable":true`) || !strings.Contains(w.Body.String(), `"target_ready":true`) || strings.Contains(w.Body.String(), "address") {
 		t.Fatalf("lease projection: target=%q status=%d body=%s", service.target, w.Code, w.Body.String())
 	}
 }

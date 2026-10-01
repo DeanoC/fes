@@ -2,6 +2,7 @@ package kitlauncher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -44,6 +45,16 @@ func TestPairedKitLeaseUsesAuthenticatedTarget(t *testing.T) {
 	got, err := c.PairedKitLease(context.Background())
 	if err != nil || got.State != "held" || got.Owner != "kit-hostless" || got.Purpose != "kit-local-core" || got.Generation != "gen-9" || got.ExpiresInMS != 9000 {
 		t.Fatalf("lease=%+v err=%v", got, err)
+	}
+}
+
+func TestPairedKitLease404IsUnknown(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+	c := NewClient(Config{API: server.URL, Token: "secret", TargetID: "paired-a"})
+	status, err := c.PairedKitLease(context.Background())
+	if !errors.Is(err, errPairedKitLeaseUnsupported) || status.State != "" || status.Owner != "" {
+		t.Fatalf("404 lease=%+v err=%v", status, err)
 	}
 }
 

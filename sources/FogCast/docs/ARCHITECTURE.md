@@ -704,11 +704,14 @@ selected target (#289).
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
 IDs so uncached room selections can load their detail row. It does not expose
 full `/api/v1/library/settings`, which contains host filesystem roots. Tenfoot
-uses `GET /api/v1/launcher/kit-lease` for an authenticated, target-ID-scoped
-lease projection. It returns only that enabled kit's lease state, owner,
-purpose, generation, and expiry; host health continues to describe the
-selected target. The settings overlay remains unavailable on the paired
-listener and reports its normal load error.
+and `fogcast-kit` use `GET /api/v1/launcher/kit-lease` for an authenticated,
+target-ID-scoped status projection. It returns only that enabled kit's lease
+state, owner, purpose, generation, expiry, reachability, and readiness.
+Paired-kit lease and launch guards use this projection; selected-target host
+health remains available for host-mode clients. If the projection is
+unavailable, the paired kit's lease is unknown and input fails closed. The
+endpoint exposes no host paths. The settings overlay remains unavailable on
+the paired listener and reports its normal load error.
 
 ## Native 10-foot launcher
 

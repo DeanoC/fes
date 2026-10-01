@@ -243,9 +243,14 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.err == nil && !o.hostAbsent && strings.TrimSpace(c.config.TargetID) != "" {
 				o.kitLease, o.err = c.PairedKitLease(ctx)
 				if errors.Is(o.err, errPairedKitLeaseUnsupported) {
-					// Older host builds lack the target-scoped projection.
-					o.kitLease = kitlease.Status{State: o.health.Connection.State, Owner: o.health.Connection.Owner}
+					// A missing projection leaves this kit's lease unknown.
+					o.kitLease = kitlease.Status{}
 					o.err = nil
+					o.health.TargetReachable = false
+					o.health.TargetReady = false
+				} else if o.err == nil {
+					o.health.TargetReachable = o.kitLease.TargetReachable
+					o.health.TargetReady = o.kitLease.TargetReady
 				}
 			} else if o.err == nil && !o.hostAbsent {
 				// Host-mode clients have no paired target identity; preserve the

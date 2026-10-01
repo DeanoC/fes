@@ -348,6 +348,9 @@ func newSessionTestClient(t *testing.T, hostURL, agentURL string, game hostclien
 		writeAgentTestConfig(t, cfg.path, agentURL)
 	}
 	client := NewClient(cfg)
+	// These session API tests exercise host mode. Paired-kit tests must expose
+	// the authenticated scoped status endpoint explicitly.
+	client.config.TargetID = ""
 	if client.Cache == nil {
 		t.Fatal("session fixture cache unavailable")
 	}

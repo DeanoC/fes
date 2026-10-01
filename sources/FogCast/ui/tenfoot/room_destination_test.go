@@ -588,6 +588,30 @@ func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
 	}
 }
 
+func TestPairedKitLeaseIgnoresSelectedTargetBusyAndBlocksOwnForeignLease(t *testing.T) {
+	h := newRoomHost(t)
+	app := newRoomApp(t, h, rooms.NewIndex([]rooms.Pack{testRoomPack(t, "overworld", destRoomScript)}), true)
+	app.client.paired = true
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "foreign-on-target-b"}
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{State: "free"}
+	got := app.foreignKitLeaseLocked()
+	app.mu.Unlock()
+	if got {
+		t.Fatal("selected target B busy blocked paired target A")
+	}
+
+	app.mu.Lock()
+	app.kitLease = KitLeaseStatus{State: "busy", Owner: "other-shell"}
+	got = app.foreignKitLeaseLocked()
+	app.mu.Unlock()
+	if !got {
+		t.Fatal("paired target A foreign lease was not blocked")
+	}
+}
+
 func TestForeignLeaseHostOnlyStillLaunches(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{

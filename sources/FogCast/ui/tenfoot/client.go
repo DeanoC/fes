@@ -55,17 +55,19 @@ const (
 
 // KitLeaseStatus is the status-only lease projection for a paired target.
 type KitLeaseStatus struct {
-	HTTPStatus   int    `json:"-"`
-	State        string `json:"state"`
-	Owner        string `json:"owner"`
-	Purpose      string `json:"purpose"`
-	Generation   string `json:"generation"`
-	ExpiresAt    string `json:"expires_at"`
-	ExpiresInMS  int64  `json:"expires_in_ms"`
-	Reason       string `json:"reason"`
-	ErrorCode    string `json:"error_code,omitempty"`
-	ErrorMessage string `json:"error_message,omitempty"`
-	Unavailable  bool   `json:"unavailable,omitempty"`
+	TargetReachable bool   `json:"target_reachable,omitempty"`
+	TargetReady     bool   `json:"target_ready,omitempty"`
+	HTTPStatus      int    `json:"-"`
+	State           string `json:"state"`
+	Owner           string `json:"owner"`
+	Purpose         string `json:"purpose"`
+	Generation      string `json:"generation"`
+	ExpiresAt       string `json:"expires_at"`
+	ExpiresInMS     int64  `json:"expires_in_ms"`
+	Reason          string `json:"reason"`
+	ErrorCode       string `json:"error_code,omitempty"`
+	ErrorMessage    string `json:"error_message,omitempty"`
+	Unavailable     bool   `json:"unavailable,omitempty"`
 }
 
 // Client calls the FogCast public host API.

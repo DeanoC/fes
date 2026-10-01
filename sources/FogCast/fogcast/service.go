@@ -2849,6 +2849,12 @@ func (s *Service) SelectedTargetConfig() TargetConfig {
 // PairedTargetKitLeaseStatus reads only the lease for an enabled target ID.
 // Callers on the paired listener must supply the ID authenticated by pairing.
 func (s *Service) PairedTargetKitLeaseStatus(ctx context.Context, targetID string) (kitlease.Status, error) {
+	status, _, _, err := s.PairedTargetStatus(ctx, targetID)
+	return status, err
+}
+
+// PairedTargetStatus reads lease and health for one enabled target ID.
+func (s *Service) PairedTargetStatus(ctx context.Context, targetID string) (kitlease.Status, bool, bool, error) {
 	s.targetMu.Lock()
 	var client serviceClient
 	for _, cfg := range s.targets {
@@ -2859,7 +2865,7 @@ func (s *Service) PairedTargetKitLeaseStatus(ctx context.Context, targetID strin
 				client, err = s.targetClientFactory(cfg)
 				if err != nil {
 					s.targetMu.Unlock()
-					return kitlease.Status{}, err
+					return kitlease.Status{}, false, false, err
 				}
 				if client != nil {
 					s.targetClients[cfg.Name] = client
@@ -2870,15 +2876,23 @@ func (s *Service) PairedTargetKitLeaseStatus(ctx context.Context, targetID strin
 	}
 	s.targetMu.Unlock()
 	if client == nil {
-		return kitlease.Status{}, errors.New("paired target unavailable")
+		return kitlease.Status{}, false, false, errors.New("paired target unavailable")
 	}
+	health, healthErr := client.Health(ctx)
 	provider, ok := client.(interface {
 		KitLeaseStatus(context.Context) (kitlease.Status, error)
 	})
 	if !ok {
-		return kitlease.Status{}, errors.New("paired target lease status unavailable")
+		return kitlease.Status{}, false, false, errors.New("paired target lease status unavailable")
 	}
-	return provider.KitLeaseStatus(ctx)
+	status, err := provider.KitLeaseStatus(ctx)
+	if err != nil {
+		return kitlease.Status{}, false, false, err
+	}
+	if healthErr != nil {
+		return status, false, false, nil
+	}
+	return status, true, health.Ready, nil
 }
 
 // KitLease returns the application-owned lease for the selected session target.

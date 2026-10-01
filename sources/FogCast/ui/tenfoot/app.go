@@ -2330,10 +2330,13 @@ func loadTapeChromeKey(name string) bool {
 }
 
 func (a *App) playHIDFailClosedLocked() bool {
-	if a.healthHave && kitlease.ForeignHID(kitlease.Status{
+	if (a.client == nil || !a.client.paired) && a.healthHave && kitlease.ForeignHID(kitlease.Status{
 		State: a.health.Connection.State,
 		Owner: a.health.Connection.Owner,
 	}) {
+		return true
+	}
+	if a.client != nil && a.client.paired && (!a.kitLeaseHave || a.kitLease.Unavailable) {
 		return true
 	}
 	if !a.kitLeaseHave || a.kitLease.Unavailable {
@@ -2430,17 +2433,31 @@ func (a *App) kickSessionPollLocked() {
 }
 
 func (a *App) fetchHealth(ctx context.Context) {
+	var paired KitLeaseStatus
+	var pairedErr error
+	pairedHave := a.client != nil && a.client.paired
+	if pairedHave {
+		paired, pairedErr = a.client.PairedKitLease(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+	}
 	result, err := a.client.Health(ctx)
 	if ctx.Err() != nil {
 		return
 	}
 	if err == nil {
 		lease := kitLeaseFromConnection(result.Connection)
-		if a.client != nil && a.client.paired {
-			if paired, leaseErr := a.client.PairedKitLease(ctx); leaseErr == nil {
+		if pairedHave {
+			if pairedErr == nil {
 				lease = paired
+				result.TargetReachable = paired.TargetReachable
+				result.TargetReady = paired.TargetReady
+				result.Connection = hostclient.TargetConnection{}
 			} else {
 				lease = KitLeaseStatus{Unavailable: true, Reason: "paired kit lease status unavailable"}
+				result.TargetReachable = false
+				result.TargetReady = false
 			}
 		}
 		a.mu.Lock()
@@ -2449,6 +2466,18 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.health = result
 		a.kitLeaseHave = true
 		a.kitLease = lease
+		a.mu.Unlock()
+		return
+	}
+	if pairedHave && pairedErr == nil {
+		// Paired target status remains useful when the host's selected target
+		// cannot be observed. The authenticated projection belongs to this kit.
+		a.mu.Lock()
+		a.hostUnreachable = false
+		a.healthHave = true
+		a.health = hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
+		a.kitLeaseHave = true
+		a.kitLease = paired
 		a.mu.Unlock()
 		return
 	}

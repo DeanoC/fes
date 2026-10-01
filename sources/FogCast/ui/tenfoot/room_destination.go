@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -40,7 +41,13 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 // Connection state busy is that holder. The same shell's retained grant
 // stays ready or active and is not foreign.
 func (a *App) foreignKitLeaseLocked() bool {
-	return a != nil && a.healthHave && a.health.Connection.State == "busy"
+	if a == nil {
+		return false
+	}
+	if a.client != nil && a.client.paired {
+		return a.kitLeaseHave && kitlease.ForeignHID(kitlease.Status{State: a.kitLease.State, Owner: a.kitLease.Owner, Purpose: a.kitLease.Purpose})
+	}
+	return a.healthHave && a.health.Connection.State == "busy"
 }
 
 func (a *App) rememberRoomPickLocked(d rooms.Destination, game hostclient.Game) {

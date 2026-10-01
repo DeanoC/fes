@@ -216,6 +216,18 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			return
 		}
 		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/launcher/kit-lease" {
+			if provider, ok := a.service.(interface {
+				PairedTargetStatus(context.Context, string) (kitlease.Status, bool, bool, error)
+			}); ok {
+				status, reachable, ready, err := provider.PairedTargetStatus(r.Context(), headerID)
+				if err != nil {
+					writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "paired target status is unavailable")
+					return
+				}
+				status.TargetReachable, status.TargetReady = reachable, ready
+				writeJSON(w, http.StatusOK, status)
+				return
+			}
 			provider, ok := a.service.(interface {
 				PairedTargetKitLeaseStatus(context.Context, string) (kitlease.Status, error)
 			})
