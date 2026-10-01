@@ -818,6 +818,29 @@ type shutdownOwnershipServiceClient struct {
 
 func (f *shutdownOwnershipServiceClient) HasKitGrant() bool { return f.hasKitGrant }
 
+func TestServiceStopTargetPreservesOtherTargetPlay(t *testing.T) {
+	a := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
+	b := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "a", TargetID: "target-a", Enabled: true}, {Name: "b", TargetID: "target-b", Enabled: true}},
+		selectedTarget: "a", targetClients: map[string]serviceClient{"a": a, "b": b},
+		plays: map[string]targetPlay{
+			"a": {execution: ExecutionFPGANative, gameID: "game-a", system: protocol.SystemNES},
+			"b": {execution: ExecutionFPGANative, gameID: "game-b", system: protocol.SystemSNES},
+		}, activeTarget: "a", activeExecution: ExecutionFPGANative, activeGameID: "game-a", activeSystem: protocol.SystemNES,
+	}
+	if _, err := s.StopTarget(context.Background(), "b"); err != nil {
+		t.Fatal(err)
+	}
+	if a.stopCalls != 0 || b.stopCalls != 1 {
+		t.Fatalf("target stop calls: a=%d b=%d", a.stopCalls, b.stopCalls)
+	}
+	plays := s.PlaySessions()
+	if len(plays) != 1 || plays[0].Target != "a" || plays[0].GameID != "game-a" {
+		t.Fatalf("remaining plays = %+v", plays)
+	}
+}
+
 func TestServiceShutdownCleanupRequiredUsesLocalOwnership(t *testing.T) {
 	tests := []struct {
 		name      string

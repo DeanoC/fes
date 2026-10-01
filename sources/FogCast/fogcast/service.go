@@ -611,9 +611,12 @@ func (s *Service) kitBindToKeepLocked() string {
 }
 
 type targetPlay struct {
-	execution string
-	gameID    string
-	system    protocol.System
+	execution         string
+	gameID            string
+	system            protocol.System
+	packageID         string
+	packageGeneration uint64
+	packageRejection  *protocol.APIError
 }
 
 type PlaySession struct {
@@ -628,13 +631,40 @@ func (s *Service) retainSessionTargetLocked() {
 	if s.activeTarget == "" {
 		s.activeTarget = s.selectedTarget
 	}
-	if s.activeExecution != ExecutionFPGANative && s.activeExecution != ExecutionFPGADevelopment {
+	if s.activeExecution != ExecutionFPGANative && s.activeExecution != ExecutionFPGADevelopment && s.packageRejection == nil {
 		return
 	}
 	if s.plays == nil {
 		s.plays = make(map[string]targetPlay)
 	}
-	s.plays[s.activeTarget] = targetPlay{execution: s.activeExecution, gameID: s.activeGameID, system: s.activeSystem}
+	play := targetPlay{execution: s.activeExecution, gameID: s.activeGameID, system: s.activeSystem,
+		packageID: s.activePackageID, packageGeneration: s.activePackageGeneration}
+	play.packageRejection = s.packageRejection
+	s.plays[s.activeTarget] = play
+}
+
+// bindPlayTargetLocked saves the current kit play and restores the requested
+// kit's record. Caller holds executionMu and targetMu.
+func (s *Service) bindPlayTargetLocked(name string) {
+	if s.activeTarget == name {
+		return
+	}
+	// Host-only execution has no target-owned PlaySession. Keep its ownership
+	// marker until the normal replacement path has stopped the host process.
+	// The target name still records where a subsequent kit load is bound.
+	if s.activeExecution == ExecutionHostOnly {
+		s.activeTarget = name
+		return
+	}
+	s.retainSessionTargetLocked()
+	s.activeTarget = name
+	s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+	s.activePackageID, s.activePackageGeneration, s.packageRejection = "", 0, nil
+	if play, ok := s.plays[name]; ok {
+		s.activeExecution, s.activeGameID, s.activeSystem = play.execution, play.gameID, play.system
+		s.activePackageID, s.activePackageGeneration = play.packageID, play.packageGeneration
+		s.packageRejection = play.packageRejection
+	}
 }
 
 // notePlayDisplaySink records the last play DisplaySink once a library
@@ -769,7 +799,7 @@ func (s *Service) bindLiveLaunchTarget(target string) error {
 	if _, ok := s.targetClients[name]; !ok {
 		if !explicit {
 			s.executionMu.Lock()
-			s.activeTarget = name
+			s.bindPlayTargetLocked(name)
 			s.executionMu.Unlock()
 			if launchPinnedTargetBoundHook != nil {
 				launchPinnedTargetBoundHook(name)
@@ -786,7 +816,7 @@ func (s *Service) bindLiveLaunchTarget(target string) error {
 		s.targetClients[name] = client
 	}
 	s.executionMu.Lock()
-	s.activeTarget = name
+	s.bindPlayTargetLocked(name)
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
 		s.targetOrigin(cfg, kitLeaseOf(s.targetClients[name]))
@@ -2068,6 +2098,19 @@ func (s *Service) adoptObservedForeground(status *protocol.Status) {
 }
 
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
+	return s.statusTarget(parent, "")
+}
+
+// StatusTarget observes one configured target without changing which target
+// unscoped browser Status considers foreground.
+func (s *Service) StatusTarget(parent context.Context, target string) (protocol.Status, error) {
+	if strings.TrimSpace(target) == "" {
+		return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	return s.statusTarget(parent, target)
+}
+
+func (s *Service) statusTarget(parent context.Context, target string) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	releaseLifecycle, err := s.acquireLifecycle(ctx)
@@ -2075,6 +2118,27 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
+	previousTarget := ""
+	if target != "" {
+		s.targetMu.RLock()
+		cfg := targetByName(s.targets, target)
+		s.targetMu.RUnlock()
+		if cfg.Name == "" || !cfg.Enabled {
+			return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		s.executionMu.Lock()
+		previousTarget = s.activeTarget
+		s.bindPlayTargetLocked(target)
+		s.executionMu.Unlock()
+		defer func() {
+			s.executionMu.Lock()
+			s.retainSessionTargetLocked()
+			if previousTarget != "" && previousTarget != target {
+				s.bindPlayTargetLocked(previousTarget)
+			}
+			s.executionMu.Unlock()
+		}()
+	}
 	s.executionMu.Lock()
 	localExecution := s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
 	s.executionMu.Unlock()
@@ -2140,23 +2204,32 @@ func (s *Service) allowSelectedTargetRepair(parent context.Context) {
 }
 
 func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
-	return s.stopExpected(parent, nil, nil)
+	return s.stopExpected(parent, nil, nil, "")
+}
+
+// StopTarget stops one configured target's play while preserving the default
+// foreground selection used by unscoped Stop and Status calls.
+func (s *Service) StopTarget(parent context.Context, target string) (protocol.Status, error) {
+	if strings.TrimSpace(target) == "" {
+		return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	return s.stopExpected(parent, nil, nil, target)
 }
 
 // StopExpected preserves the ordinary Stop/save lifecycle while refusing to
 // stop a different foreground play from the one the caller observed.
 func (s *Service) StopExpected(parent context.Context, expected SessionStopBinding) (protocol.Status, error) {
-	return s.stopExpected(parent, &expected, nil)
+	return s.stopExpected(parent, &expected, nil, "")
 }
 
 // StopExpectedWithPreparation admits the bound play before coordinator input
 // and media teardown. Preparation must not call a lifecycle service method:
 // lifecycle admission stays held through preparation and the physical Stop.
 func (s *Service) StopExpectedWithPreparation(parent context.Context, expected SessionStopBinding, prepare func(context.Context)) (protocol.Status, error) {
-	return s.stopExpected(parent, &expected, prepare)
+	return s.stopExpected(parent, &expected, prepare, "")
 }
 
-func (s *Service) stopExpected(parent context.Context, expected *SessionStopBinding, prepare func(context.Context)) (protocol.Status, error) {
+func (s *Service) stopExpected(parent context.Context, expected *SessionStopBinding, prepare func(context.Context), target string) (protocol.Status, error) {
 	s.executionMu.Lock()
 	activeExecution := s.activeExecution
 	pendingRejection := s.packageRejection != nil
@@ -2172,6 +2245,17 @@ func (s *Service) stopExpected(parent context.Context, expected *SessionStopBind
 		return protocol.Status{}, WithStopStage(err, "lifecycle")
 	}
 	defer releaseLifecycle()
+	if target != "" {
+		s.targetMu.RLock()
+		valid := targetByName(s.targets, target).Name != "" && targetByName(s.targets, target).Enabled
+		s.targetMu.RUnlock()
+		if !valid {
+			return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		s.executionMu.Lock()
+		s.bindPlayTargetLocked(target)
+		s.executionMu.Unlock()
+	}
 	if expected != nil && !s.matchesStopBinding(*expected) {
 		return protocol.Status{}, ErrSessionChanged
 	}
@@ -2287,7 +2371,13 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil {
-		s.targetOrigin(targetByName(s.targets, s.selectedTarget), kitLeaseOf(s.targetClients[s.selectedTarget]))
+		s.executionMu.Lock()
+		stoppedTarget := s.activeTarget
+		s.executionMu.Unlock()
+		if stoppedTarget == "" {
+			stoppedTarget = s.selectedTarget
+		}
+		s.targetOrigin(targetByName(s.targets, stoppedTarget), kitLeaseOf(s.targetClients[stoppedTarget]))
 	}
 	return status, nil
 }
