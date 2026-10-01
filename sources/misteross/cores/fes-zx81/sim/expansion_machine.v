@@ -18,6 +18,9 @@ module expansion_machine #(
     output wire [15:0] cpu_addr,
     input wire [15:0] peek_addr,
     output wire [7:0] peek_data,
+    output wire io_write,
+    output wire [15:0] io_addr,
+    output wire [7:0] io_data,
     output wire [7:0] audio_sample
 );
     wire [15:0] bus_addr;
@@ -28,6 +31,9 @@ module expansion_machine #(
     wire [`ZX81_BUS_REQ-1:0] plug_addr;
     wire [`ZX81_BUS_RSP-1:0] cart_rdata, plug_rdata;
     assign audio_sample = bus_peek_data;
+    assign io_write = !bus_iorq_n && !bus_wr_n;
+    assign io_addr = bus_addr;
+    assign io_data = bus_wdata;
     zx81_machine #(.EXTERNAL_RAM(1), .FIRMWARE_INIT(FIRMWARE_INIT)) machine (
         .clk_sys(clk_sys), .reset(reset), .keyboard(keyboard),
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),

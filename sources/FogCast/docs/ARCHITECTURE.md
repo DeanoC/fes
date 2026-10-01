@@ -704,7 +704,9 @@ selected target (#289).
 ## Native 10-foot launcher
 
 The embedded **ZX81 workbench** (`example.hardware`) reads host-owned hardware
-setups through `GET /api/v1/library/hardware`. The projection validates each
+setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
+2.0 are supported; expansion readiness uses the same exact-package/version
+admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
 status separately. Fit/remove use the existing compare-and-swap expansion
 selection API. Catalogue schema 14 adds optional household expansion labels

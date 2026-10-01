@@ -27,9 +27,10 @@ def make_rom(*, fast: bool = False) -> bytes:
         emit(0xcd); fixes.append((len(code), name, False)); emit(0, 0)
     def relative(opcode, name):
         emit(opcode); fixes.append((len(code), name, True)); emit(0)
-    def phase(name):
+    def marker(name):
         emit(0x3e, PHASES.index(name), 0x32, 0x00, 0x40)
-        call('delay')
+    def phase(name):
+        marker(name); call('delay')
     def mute():
         for reg in (8, 9, 10): write(reg, 0)
     mark('repeat')
@@ -46,10 +47,17 @@ def make_rom(*, fast: bool = False) -> bytes:
     write(7, 0x3e); write(8, 16)
     period = 64 if fast else 4096
     write(11, period & 255); write(12, period >> 8)
-    for shape, name in ((0, 'decay'), (4, 'rise'), (10, 'triangle'), (13, 'hold-high'), (0, 'retrigger')):
+    for shape, name in ((0, 'decay'), (4, 'rise'), (10, 'triangle'), (13, 'hold-high')):
         write(13, shape); phase(name)
+    # Start decay, let it advance, then repeat the unchanged R13 value.
+    marker('retrigger')
+    write(13, 0); call('delay-half'); write(13, 0); call('delay')
     mute(); phase('mute-final')
     emit(0xc3); fixes.append((len(code), 'repeat', False)); emit(0, 0)
+    mark('delay-half'); emit(0x06, 1)
+    emit(0x11, 0xff, 0x03 if fast else 0xff)
+    mark('half-inner'); emit(0x1b, 0x7a, 0xb3)
+    relative(0x20, 'half-inner'); emit(0xc9)
     mark('delay'); emit(0x06, 1 if fast else 2)
     mark('outer'); emit(0x11, 0xff, 0x07 if fast else 0xff)
     mark('inner'); emit(0x1b, 0x7a, 0xb3)

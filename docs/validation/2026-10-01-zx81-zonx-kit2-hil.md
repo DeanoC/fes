@@ -6,6 +6,8 @@ ROM, selected the `machine-rom` and cart, and launched the returned game ID.
 Two launches retained identical package, BUILD_ID, composition and programmed
 ROM-link identities with generations 1 and 2. The ASUS HDMI audio capture
 contains the isolated A/B/C tones, mixed tones, noise and envelope phases.
+Repeated-R13 restart was subsequently identified as a gap in this original
+firmware; it is covered independently in simulation and the follow-up capture.
 Hold and both Stops settle to silence within the capture's filtering limits.
 
 Kit 1 was left undisturbed. The user designated Kit 2; its independently
@@ -52,7 +54,9 @@ This was an ad hoc cross-build problem, not a cart or compiler-routing failure.
 
 The open firmware uses original CF/0F writes and repeats twelve phases:
 mute, A, B, C, mixed A/B/C, noise, decay, rise, triangle, hold-high,
-retrigger and final mute. It generates no display file, so the active frame
+a fresh shape-0 decay labeled `retrigger`, and final mute. That historical
+phase does not establish unchanged-R13 restart behavior; the corrected
+generator writes shape 0, delays, then writes shape 0 again. It generates no display file, so the active frame
 is intentionally blank. CPU firmware simulation independently validates this
 sequence; the hardware capture exercises the independently sealed implementation.
 
@@ -79,7 +83,7 @@ below 0.028 at nominal tone lags, compared with above 0.9938 for isolated
 tones. Phase-aligned early/middle/late envelope windows show decay
 (AC RMS 0.0749 → 0.00469 → 0.000569), triangle reversal
 (0.0748 → 0.00391 → 0.00617), held high output
-(0.00356 → 0.0499 → 0.15390), and retriggered decay
+(0.00356 → 0.0499 → 0.15390), and the fresh shape-0 decay
 (0.0722 → 0.00471 → 0.000690). Rise and relaunch trajectories are retained
 in the JSON. These are filtered capture observations, not an exact
 register-level envelope comparison; all sixteen shapes have separate

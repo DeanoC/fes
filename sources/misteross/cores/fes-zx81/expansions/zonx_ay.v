@@ -68,6 +68,8 @@ module zonx_ay (
         end else begin
             if (address_write) begin
                 selected <= data[3:0];
+                // GI Register Array: DA7..DA4 are chip-select address bits;
+                // the standard AY8912 recognizes 0000, not arbitrary bits.
                 selected_valid <= data[7:4] == 0;
             end
             if (data_write && selected_valid)

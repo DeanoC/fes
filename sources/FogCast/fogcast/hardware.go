@@ -142,7 +142,7 @@ func zx81RearSocket(descriptor corepackage.Descriptor) bool {
 		return false
 	}
 	for _, contract := range descriptor.Interfaces {
-		if contract.ID == expansion.Slot && contract.Major == 1 && contract.Minor == 0 && !contract.Required {
+		if contract.ID == expansion.Slot && (contract.Major == 1 || contract.Major == 2) && contract.Minor == 0 && !contract.Required {
 			return true
 		}
 	}

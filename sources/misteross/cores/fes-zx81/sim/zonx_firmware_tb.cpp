@@ -76,9 +76,17 @@ int main(int argc, char **argv) {
     dut.tape_size = 0; dut.tape_data = 0; dut.peek_addr = 0x4000;
     reset(dut);
     int phase = -1, completed = 0;
+    bool previous_write = false; unsigned selected = 0;
+    std::vector<std::pair<unsigned,unsigned>> shape_writes;
     std::vector<unsigned> samples;
     for (unsigned cycle=0; cycle<15000000 && completed<12; ++cycle) {
         tick(dut);
+        if (dut.io_write && !previous_write) {
+            if ((dut.io_addr & 255) == 0xcf) selected = dut.io_data;
+            if ((dut.io_addr & 255) == 0x0f && selected == 13)
+                shape_writes.emplace_back(dut.io_data, cycle);
+        }
+        previous_write = dut.io_write;
         int current = dut.peek_data;
         if (current < 12 && current != phase) {
             if (phase >= 0) {
@@ -90,6 +98,11 @@ int main(int argc, char **argv) {
         if (phase >= 0) samples.push_back(dut.audio_sample);
     }
     require(completed==12, "all twelve firmware phases must repeat");
+    require(shape_writes.size() >= 7, "CPU must issue all shape writes");
+    const auto &first = shape_writes[shape_writes.size()-2];
+    const auto &again = shape_writes.back();
+    require(first.first == 0 && again.first == 0 && again.second-first.second > 100000,
+            "retrigger must repeat unchanged R13 after the envelope advances");
     // Reset during audible operation and require the ROM to start over,
     // including mute and the same OUT-programmed channel-A frequency.
     for (unsigned cycle=0; cycle<2000000 && dut.peek_data!=1; ++cycle) tick(dut);
