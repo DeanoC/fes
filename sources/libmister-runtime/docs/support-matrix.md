@@ -15,7 +15,7 @@ Hardware-supported package paths: 0.
 | Described-core library persistence and retry | covered | pending |
 | Format-3 ROM-map inspection and receipt-bound activation | covered | none |
 | Format-4 two-ROM receipt-bound activation through production adapter | covered | [Coleco synthetic diagnostic](../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md); appliance acceptance pending |
-| Static ZX81 and Coleco composition | covered | pending |
+| Static ZX81 bus 1.0/2.0 and Coleco composition | covered | pending |
 | `fes.computer` admission, identity and firmware ROM activation | covered | none |
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |

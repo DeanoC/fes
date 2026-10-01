@@ -49,7 +49,7 @@ reaches uinput.
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
 1.1 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.3 socketed format-3 package. The package seals `rom-map.json` alongside
+1.4 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52.224 MHz system clock, registered M10K and
@@ -60,11 +60,13 @@ vacant-socket silence on kit 1. Earlier packages emitted nonzero HDMI samples;
 the [failed diagnostic](validation/2026-09-29-zx81-shared-audio-hil.md) is
 historical and was superseded by the
 [passing diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md).
-Zon X has a separately sealed channel-A tone diagnostic with
-[exact-artifact kit acceptance](validation/2026-09-30-zx81-zonx-hil.md);
-it is not a complete AY implementation.
-This system clock is 0.43% faster than the former 52 MHz package; keyboard,
-tape and expansion contracts are unchanged.
+Zon X implements three-channel AY8912 sound on the bus 2.0 clock/reset edge;
+see [expansion details and fidelity limits](zx81-expansion-bus.md). The
+[historical channel-A diagnostic](validation/2026-09-30-zx81-zonx-hil.md) applies
+only to the earlier artifacts. Fresh shell/cart sealing and kit evidence remain required.
+The transport schedules exact average 6.5 MHz ULA / 3.25 MHz CPU rates, replacing
+the former 3.264 MHz CPU. The cart halves the edge clock to 1.625 MHz AY.
+Enable jitter stays below one transport cycle; HDMI/audio clocks are unchanged.
 
 ## Menu / sofa UI
 

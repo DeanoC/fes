@@ -41,6 +41,7 @@ ROM_HEX = "cores/fes-zx81/rtl/zx8x.hex"
 ROM_MIF = "cores/fes-zx81/rtl/zx8x.mif"
 VERILOG_SOURCES = (
     "cores/fes-zx81/rtl/sys_pll.v",
+    "cores/fes-zx81/rtl/zx81_machine_clock.v",
     "cores/fes-zx81/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_audio_output.v",

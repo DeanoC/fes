@@ -162,6 +162,23 @@ func TestCompositionShellColecoBus(t *testing.T) {
 	}
 }
 
+func TestCompositionShellZX81V2(t *testing.T) {
+	base := Inspection{Descriptor: Descriptor{ABI: Contract{ID: "fes.simple-computer", Major: 1},
+		Interfaces: []Interface{{ID: expansion.Slot, Major: 2}}}}
+	shell, err := compositionShell(base, nil)
+	if err != nil || shell.Slot != expansion.Slot || shell.SlotMajor != 2 {
+		t.Fatalf("ZX81 v2 socket rejected: %#v, %v", shell, err)
+	}
+	base.Descriptor.Interfaces[0].Minor = 1
+	if _, err := compositionShell(base, nil); err == nil {
+		t.Fatal("accepted unimplemented ZX81 v2 minor")
+	}
+	base.Descriptor.Interfaces[0] = Interface{ID: expansion.Slot, Major: 3}
+	if _, err := compositionShell(base, nil); err == nil {
+		t.Fatal("accepted unsupported ZX81 slot major 3")
+	}
+}
+
 func TestCompositionShellColecoV2(t *testing.T) {
 	base := Inspection{Descriptor: Descriptor{ABI: Contract{ID: "fes.application", Major: 1},
 		Interfaces: []Interface{{ID: expansion.ColecoSlot, Major: 2}}}}
@@ -175,7 +192,7 @@ func TestCompositionShellColecoV2(t *testing.T) {
 	}
 	base.Descriptor.Interfaces[0] = Interface{ID: expansion.Slot, Major: 2}
 	if _, err := compositionShell(base, nil); err == nil {
-		t.Fatal("accepted ZX81 slot major 2")
+		t.Fatal("accepted ZX81 socket under application ABI")
 	}
 }
 

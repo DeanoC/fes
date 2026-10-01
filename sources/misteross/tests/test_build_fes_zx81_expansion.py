@@ -39,7 +39,7 @@ class ZX81SocketProducerTests(unittest.TestCase):
 
     def fixture(self):
         cells = {}
-        requests = list(range(10, 54))
+        requests = list(range(10, 56))
         for name, bel in expansion.socket_bels().items():
             connection = {"CLK": [2], "Q": [100]}
             if name.startswith("plug_addr_ff_"):
@@ -58,9 +58,9 @@ class ZX81SocketProducerTests(unittest.TestCase):
             path.write_text(json.dumps(before))
             expansion.prepare_shell_netlist(path)
             cells = json.loads(path.read_text())["modules"]["top"]["cells"]
-        self.assertEqual(expansion.REQUEST_BITS, 44)
+        self.assertEqual(expansion.REQUEST_BITS, 46)
         self.assertEqual(expansion.RESPONSE_BITS, 20)
-        self.assertEqual(len(cells), 64)
+        self.assertEqual(len(cells), 66)
         self.assertEqual(set(cells), set(expansion.socket_bels()))
         for name, cell in cells.items():
             self.assertEqual(cell, before["modules"]["top"]["cells"][expansion.SOCKET_PREFIX + name])
@@ -138,20 +138,20 @@ class ZX81SocketProducerTests(unittest.TestCase):
         self.assertIn("build/fes-zx81-oss/socket.qsf", route)
         record = json.loads(producer.create_build_record(
             root, "https://github.com/DeanoC/misteross.git", "a" * 40, {"yosys": "x"}, execution=EXECUTION))
-        self.assertEqual(record["parameters"]["expansion_socket"], "zx81-bus-v1")
+        self.assertEqual(record["parameters"]["expansion_socket"], "zx81-bus-v2")
 
     def test_library_carts_use_the_z80_edge_packing(self):
         root = ROOT
         pack = (root / "cores/fes-zx81/rtl/zx81_bus_pack.vh").read_text()
-        self.assertIn("`define ZX81_BUS_REQ 44", pack)
+        self.assertIn("`define ZX81_BUS_REQ 46", pack)
         self.assertIn("`define ZX81_BUS_RSP 20", pack)
         ram = (root / "cores/fes-zx81/expansions/ram16k.v").read_text()
         zonx = (root / "cores/fes-zx81/expansions/zonx.v").read_text()
         qs = (root / "cores/fes-zx81/expansions/qs_chrs.v").read_text()
         self.assertIn("cpu_a[15:14] == 2'b01", ram)
         self.assertIn("ZX81_BUS_RAM_PRESENT", pack)
-        self.assertIn("8'h8f", zonx)
-        self.assertIn("8'h0f", zonx)
+        self.assertIn("5'h0f", zonx)
+        self.assertIn("ZX81_BUS_CPU_CLK", zonx)
         self.assertIn("6'h21", qs)
         machine = (root / "cores/fes-zx81/rtl/zx81_machine.sv").read_text()
         self.assertIn("bus_dsel", machine)
@@ -222,7 +222,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
             (self.shell / name).write_bytes(data)
         package = SimpleNamespace(manifest_bytes=b"manifest", payload_bytes=b"shell",
             package_id="a" * 64, rom_map_bytes=None, fields={"format": 2, "interfaces": [{"id": "fes.expansion.zx81-bus",
-            "major": 1, "minor": 0, "required": False}], "build": {"id": "b" * 32}})
+            "major": 2, "minor": 0, "required": False}], "build": {"id": "b" * 32}})
         self.package = package
         tools = {name: SimpleNamespace(path=Path("/tools") / name, identity={"name": name})
                  for name in ("yosys", "nextpnr-mistral")}

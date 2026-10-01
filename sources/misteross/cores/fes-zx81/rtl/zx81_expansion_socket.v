@@ -5,6 +5,7 @@
 `include "zx81_bus_pack.vh"
 module zx81_expansion_socket (
     input wire clock,
+    input wire cpu_clock, cpu_reset_n,
     input wire [15:0] cpu_addr,
     input wire [7:0] cpu_wdata,
     input wire cpu_mreq_n,
@@ -25,7 +26,7 @@ module zx81_expansion_socket (
     output wire [`ZX81_BUS_RSP-1:0] plug_rdata
 );
     wire [`ZX81_BUS_REQ-1:0] plug_addr_d = {
-        peek_address,
+        cpu_reset_n, cpu_clock, peek_address,
         cpu_rfsh_n, cpu_m1_n, cpu_wr_n, cpu_rd_n, cpu_iorq_n, cpu_mreq_n,
         cpu_wdata, cpu_addr
     };
@@ -78,6 +79,8 @@ module zx81_expansion_socket (
     `ZX81_SOCKET_FF(plug_addr_ff_41, "MISTRAL_FF.24.3.4", plug_addr_d[41], plug_addr[41])
     `ZX81_SOCKET_FF(plug_addr_ff_42, "MISTRAL_FF.24.3.8", plug_addr_d[42], plug_addr[42])
     `ZX81_SOCKET_FF(plug_addr_ff_43, "MISTRAL_FF.24.3.10", plug_addr_d[43], plug_addr[43])
+    `ZX81_SOCKET_FF(plug_addr_ff_44, "MISTRAL_FF.24.3.14", plug_addr_d[44], plug_addr[44])
+    `ZX81_SOCKET_FF(plug_addr_ff_45, "MISTRAL_FF.24.3.16", plug_addr_d[45], plug_addr[45])
     `ZX81_SOCKET_FF(plug_rdata_ff_0, "MISTRAL_FF.28.1.2", plug_rdata_d[0], plug_rdata[0])
     `ZX81_SOCKET_FF(plug_rdata_ff_1, "MISTRAL_FF.28.2.2", plug_rdata_d[1], plug_rdata[1])
     `ZX81_SOCKET_FF(plug_rdata_ff_2, "MISTRAL_FF.28.3.2", plug_rdata_d[2], plug_rdata[2])

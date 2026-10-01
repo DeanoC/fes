@@ -297,7 +297,11 @@ software coverage only; no physical support claim is added.
 admission, then opens expansion companions with descriptor-relative, no-follow
 traversal beneath the package roots. `core_composition.cpp` accepts the fixed
 canonical ZX81 and Coleco CPU-bus manifest grammar. ZX81 requires
-`fes.simple-computer` 1.0; Coleco requires `fes.application` 1.0. The matching
+`fes.simple-computer` 1.0 and admits optional `fes.expansion.zx81-bus`
+1.0 with `fes.zx81-bus.socket/1`, or 2.0 with `fes.zx81-bus.socket/2`.
+Version 2 adds CPU clock and active-low reset; its physical socket rectangle
+is unchanged. A cart and shell must declare the same bus version. Coleco
+requires `fes.application` 1.0. The matching
 optional slot and map are checked together with the manifest-derived expansion
 ID, exact base package/BUILD_ID/payload binding, cart digest and linked payload
 size/digest. The composition ID uses the shared `fes-composition-v1` domain and

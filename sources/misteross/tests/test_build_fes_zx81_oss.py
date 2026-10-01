@@ -237,7 +237,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 parameters = record["parameters"]
                 self.assertEqual(parameters["placer_heap_timingweights"], ",".join(map(str, weights)))
                 self.assertEqual(parameters["placer_qor_budget"], budget)
-                self.assertEqual(parameters["expansion_socket"], "zx81-bus-v1")
+                self.assertEqual(parameters["expansion_socket"], "zx81-bus-v2")
         with self.assertRaises(BuildError):
             build_fes_zx81_oss.placement_policy("unknown")
 
@@ -416,7 +416,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             b'"revision":"' + (b"a" * 40) + b'","recipe":"scripts/build_fes_zx81_oss.py",'
             b'"recipe_sha256":"' + (b"b" * 64) + b'","abi_definition":"x",'
             b'"abi_definition_sha256":"' + (b"c" * 64) + b'","dependencies":{},'
-            b'"tools":{},"parameters":{"expansion_socket":"zx81-bus-v1"}}'
+            b'"tools":{},"parameters":{"expansion_socket":"zx81-bus-v2"}}'
         )
         manifest = _manifest(
             record,
@@ -426,7 +426,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
         )
         fields = tomllib.loads(manifest.decode())
-        self.assertEqual(fields["core"]["version"], "1.3.0")
+        self.assertEqual(fields["core"]["version"], "1.4.0")
         self.assertEqual(fields["format"], 3)
         self.assertEqual(fields["rom"]["id"], "machine-rom")
         self.assertEqual(fields["rom"]["source_size"], 8192)

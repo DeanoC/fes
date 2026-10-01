@@ -1833,6 +1833,11 @@ for an exact `fes.computer` 1.0 shell with the optional bus, every slot a
 physical socket, a recomputed `fes-composition-v2` identity and volatile
 persistence. With no card selected the load is the ordinary
 `load_rom_library_core`. Single-socket ZX81 and Coleco v1 tuples are unchanged.
+ZX81 single-socket composition admits optional `fes.expansion.zx81-bus`
+1.0 or 2.0, bound to `fes.zx81-bus.socket/1` or `/2` respectively. The
+v2 bus carries CPU clock and active-low reset within the same physical
+socket. Import, staging, adoption and runtime status checks retain exact
+shell and cart version binding; tuple identity domains are unchanged.
 
 `internal/misterruntime/computer.go` is the protocol-2 client for the other
 `fes.computer` operations. Each request is bound to the exact active package

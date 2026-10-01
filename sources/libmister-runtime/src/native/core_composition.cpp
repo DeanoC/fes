@@ -280,7 +280,7 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 	for (const auto& interface : descriptor.interfaces) {
 		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus") continue;
 		if (!socket.empty() || interface.minor!=0 || interface.required ||
-			!(interface.major==1 || (interface.id=="fes.expansion.coleco-bus" && interface.major==2)))
+			!(interface.major==1 || interface.major==2))
 			return Invalid("base package has an unsupported or ambiguous expansion bus");
 		socket=interface.id;
 		socket_major=interface.major;
@@ -315,7 +315,8 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 		return Invalid("expansion manifest must use canonical JSON");
 	if (!Hex(cart_hash,64) || !Hex(recipe,64) || !Hex(revision,40) || !Hex(build,32) ||
 		format!=1 || device!="5CSEBA6U23I7" || descriptor.target.device!=device ||
-		!(slot==socket && ((slot=="fes.expansion.zx81-bus" && map=="fes.zx81-bus.socket/1" && major==1) ||
+		!(slot==socket && ((slot=="fes.expansion.zx81-bus" && ((map=="fes.zx81-bus.socket/1" && major==1) ||
+				(map=="fes.zx81-bus.socket/2" && major==2))) ||
 			(slot=="fes.expansion.coleco-bus" && ((map=="fes.coleco-bus.socket/1" && major==1) ||
 				(map=="fes.coleco-bus.socket/2" && major==2))))) || minor!=0 ||
 		(major==2 && reader.HasBoundaryPatch()) ||

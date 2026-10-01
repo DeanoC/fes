@@ -72,6 +72,27 @@ func TestColecoV2ComposedStatusRequiresVersionedSocket(t *testing.T) {
 	}
 }
 
+func TestZX81V2ComposedStatusRequiresVersionedSocket(t *testing.T) {
+	response, _ := compositionResponse(t)
+	bus := &response.ActivePackage.Descriptor.Interfaces[2]
+	bus.Major = 2
+	if !validProtocol2Response(response) {
+		t.Fatal("ZX81 v2 composition rejected")
+	}
+	bus.Major = 3
+	if validProtocol2Response(response) {
+		t.Fatal("unsupported ZX81 socket version accepted")
+	}
+	bus.Major, bus.Minor = 2, 1
+	if validProtocol2Response(response) {
+		t.Fatal("unsupported ZX81 socket minor accepted")
+	}
+	bus.Minor, bus.Required = 0, true
+	if validProtocol2Response(response) {
+		t.Fatal("required ZX81 socket accepted")
+	}
+}
+
 func TestComposedClientChecksExactIdentityAndShape(t *testing.T) {
 	response, c := compositionResponse(t)
 	for _, mode := range []string{"valid", "wrong tuple", "unknown tuple field", "missing tuple field"} {

@@ -46,7 +46,7 @@ PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 1000, 2000, 100, 10)
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = (('clk_sys', 52.224), (None, 74.25), (None, 12.288))
-RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-zx81/rtl/fes_computer_gp.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-zx81/rtl/t80pa.v', 'cores/fes-zx81/rtl/tv80/tv80_core.v', 'cores/fes-zx81/rtl/tv80/tv80_alu.v', 'cores/fes-zx81/rtl/tv80/tv80_mcode.v', 'cores/fes-zx81/rtl/tv80/tv80_reg.v', 'cores/fes-zx81/rtl/top.v')
+RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-zx81/rtl/fes_computer_gp.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_machine_clock.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-zx81/rtl/t80pa.v', 'cores/fes-zx81/rtl/tv80/tv80_core.v', 'cores/fes-zx81/rtl/tv80/tv80_alu.v', 'cores/fes-zx81/rtl/tv80/tv80_mcode.v', 'cores/fes-zx81/rtl/tv80/tv80_reg.v', 'cores/fes-zx81/rtl/top.v')
 PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'toolchain.lock', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
 ORDINARY_RESOURCES = frozenset({'MISTRAL_BUF', 'MISTRAL_CLKENA', 'MISTRAL_COMB', 'MISTRAL_FF', 'MISTRAL_IO', 'MISTRAL_M10K', 'MISTRAL_M10K_TDP'})
@@ -91,7 +91,9 @@ def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
 def create_build_record(root: Path, repository: str, revision: str, tool_identities: Mapping[str, str], *, qor_mode: str='first-pass-paired', identity_version: int=2, execution: dict | None=None) -> bytes:
     weights, budget = placement_policy(qor_mode)
     fields = {'format': 1, 'repository': repository, 'revision': revision, 'recipe': RECIPE, 'recipe_sha256': _sha256(_regular_input(root, RECIPE)), 'abi_definition': ABI_DEFINITION, 'abi_definition_sha256': _sha256(_regular_input(root, ABI_DEFINITION)), 'dependencies': {}, 'tools': dict(tool_identities), 'parameters': {'device': TARGET, 'gpu_architectures': FES_GPU_ARCHITECTURES, 'gpu_backend': FES_GPU_BACKEND, 'pixel_clock_hz': 74250000, 'sys_clock_hz': 52224000, 'audio_clock_hz': 12288000, 'reference_clock_hz': 50000000, 'router': 'gpu', 'seed': PLACER_SEEDS[0], 'seed_order': ','.join((str(seed) for seed in PLACER_SEEDS)), 'placer_heap_timingweight': PLACER_TIMING_WEIGHT, 'placer_heap_timingweights': ','.join((str(weight) for weight in weights)), 'placer_heap_critexp': PLACER_CRITICALITY_EXPONENT, 'placer_qor_mode': qor_mode, 'placer_qor_budget': budget, 'top': TOP}}
-    fields['parameters']['expansion_socket'] = 'zx81-bus-v1'
+    fields['parameters']['expansion_socket'] = 'zx81-bus-v2'
+    fields['parameters']['machine_clock_hz'] = 6500000
+    fields['parameters']['cpu_clock_hz'] = 3250000
     fields['parameters'].update(package_format=3, rom_id='machine-rom', rom_role='firmware',
                                 rom_source_size=8192, rom_encoding='m10k-1024x10-v1',
                                 rom_database_sha256=json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(',', ':')))
@@ -289,10 +291,10 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
     record_fields = json.loads(record)
     toolchain = '; '.join((f'{name} {tools[name]}' for name in sorted(tools)))
     fields = {'format': 2, 'core': {'id': 'fes.zx81', 'name': 'FES ZX81', 'description': 'Standalone fixed-720p ZX81 for the FES simple-computer ABI (OSS)', 'version': '1.0.0'}, 'target': {'platform': 'de10_nano', 'device': TARGET, 'programming_profile': 'fes-gp-v1'}, 'payload': {'file': 'core.rbf', 'size': rbf['size'], 'sha256': rbf['sha256']}, 'abi': {'id': 'fes.simple-computer', 'major': 1, 'minor': 0}, 'interfaces': [{'id': 'fes.keyboard', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.blob', 'major': 1, 'minor': 0, 'required': True}], 'build': {'id': evidence['build_id'], 'repository': repository, 'revision': revision, 'recipe_sha256': record_fields['recipe_sha256'], 'toolchain': toolchain}}
-    if record_fields['parameters'].get('expansion_socket') == 'zx81-bus-v1':
-        fields['core']['version'] = '1.3.0'
+    if record_fields['parameters'].get('expansion_socket') == 'zx81-bus-v2':
+        fields['core']['version'] = '1.4.0'
         fields['core']['description'] = 'ZX81 with a registered Z80-like expansion bus'
-        fields['interfaces'].append({'id': 'fes.expansion.zx81-bus', 'major': 1, 'minor': 0, 'required': False})
+        fields['interfaces'].append({'id': 'fes.expansion.zx81-bus', 'major': 2, 'minor': 0, 'required': False})
         fields['interfaces'].append({'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True})
     fields['format'] = 3
     fields['rom'] = evidence['rom']
