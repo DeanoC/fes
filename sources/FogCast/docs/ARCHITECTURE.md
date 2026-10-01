@@ -257,6 +257,12 @@ target handlers, runtime lifecycle, image assembly, or FPGA builds. The FES
 parent selects the FogCast revision and owns image integration and release
 evidence.
 
+Tenfoot applies the paired kit-lease state to installed-core destinations as
+well as FPGA titles. A foreign lease displays the shared in-use copy and
+refuses Confirm; unavailable lease status fails closed. Core cartridge and
+firmware blocks retain priority, and the destination returns to Ready when the
+lease state becomes free.
+
 The dependency direction is host/UI/`catalog`/`internal/hostapi` -> public
 contracts and `targetclient`; the target executable -> target implementation
 plus those same public contracts; the runtime remains the physical owner.

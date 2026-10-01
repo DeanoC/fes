@@ -35,8 +35,20 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		}
 	}
 	d = rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
-	if a.pairedKitStatusUnavailableLocked() {
-		d.Status = "kit status unavailable"
+	if d.Kind == rooms.KindCore && d.CoreLaunchable {
+		switch {
+		case a.foreignKitLeaseLocked():
+			d.LeaseHeld = true
+			d.Availability = rooms.AvailUnavailable
+			d.Status = localInUseCopy
+			d.Action = localInUseCopy
+		case a.pairedKitStatusUnavailableLocked():
+			d.CoreLaunchable = false
+			d.CoreBlock = "kit status unavailable"
+			d.Availability = rooms.AvailUnavailable
+			d.Status = d.CoreBlock
+			d.Action = d.CoreBlock
+		}
 	}
 	return d
 }
@@ -67,7 +79,7 @@ func (a *App) kitMutationBlockedLocked() bool {
 		return true
 	}
 	if a.foreignKitLeaseLocked() {
-		a.status = "This executor is in use."
+		a.status = localInUseCopy
 		return true
 	}
 	return false

@@ -112,6 +112,55 @@ func TestKitCoreLaunchChordStopAndResume(t *testing.T) {
 	}
 }
 
+func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T) {
+	fake := &fakeLocalCores{}
+	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "Pong", true, ""))
+	waitFor(t, app, "ready Pong", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Status == "Ready to play."
+	})
+
+	app.mu.Lock()
+	app.client.paired = true
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{State: "held", Owner: "hil-355", Purpose: "hil-355-in-use"}
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	if snap.Room.Destination.Status != localInUseCopy || snap.Room.Destination.Action != localInUseCopy {
+		t.Fatalf("foreign Pong copy: status=%q action=%q", snap.Room.Destination.Status, snap.Room.Destination.Action)
+	}
+	if strings.Contains(strings.ToLower(snap.HeaderHint()), "play") {
+		t.Fatalf("foreign Pong hint offers play: %q", snap.HeaderHint())
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = app.Snapshot()
+	if snap.Status != localInUseCopy {
+		t.Fatalf("A did not surface in-use copy: %q", snap.Status)
+	}
+	if fake.launchCount() != 0 || snap.LocalCorePhase != "" {
+		t.Fatalf("foreign A launched core: launches=%d phase=%q", fake.launchCount(), snap.LocalCorePhase)
+	}
+
+	app.mu.Lock()
+	app.kitLease = KitLeaseStatus{State: "free"}
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	if snap.Room.Destination.Status != "Ready to play." || snap.Room.Destination.Action != "Play" || snap.Room.Destination.Confirm() != rooms.ConfirmLaunchCore {
+		t.Fatalf("Pong did not become ready after lease free: %+v", snap.Room.Destination)
+	}
+
+	app.mu.Lock()
+	app.kitLease = KitLeaseStatus{Unavailable: true}
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	if snap.Room.Destination.Status != "kit status unavailable" || snap.Room.Destination.Action != "kit status unavailable" || snap.Room.Destination.Confirm() != rooms.ConfirmExplain {
+		t.Fatalf("unavailable lease did not gate Pong visibly: %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	if fake.launchCount() != 0 || app.Snapshot().Status != "kit status unavailable" {
+		t.Fatalf("unavailable lease A was not refused visibly: launches=%d status=%q", fake.launchCount(), app.Snapshot().Status)
+	}
+}
+
 func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
 	hold := make(chan struct{})
 	fake := &fakeLocalCores{hold: hold}

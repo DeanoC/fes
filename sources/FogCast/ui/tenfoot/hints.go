@@ -280,6 +280,9 @@ func (s Snapshot) HeaderHint() string {
 			}
 			return roomChoiceHint(kind)
 		}
+		if s.Room.Destination.LeaseHeld {
+			return selectWord(kind) + " details  " + backWord(kind) + " back"
+		}
 		if s.CoreLibrary.Open {
 			return s.CoreLibrary.Hint
 		}
@@ -292,6 +295,9 @@ func (s Snapshot) HeaderHint() string {
 		if s.Detail.Open {
 			if s.Room.Destination.Confirm() == rooms.ConfirmImportFirmware {
 				return selectWord(kind) + " import  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
+			}
+			if s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Confirm() == rooms.ConfirmExplain {
+				return backWord(kind) + " close  " + settingsWord(kind) + " settings"
 			}
 			return selectWord(kind) + " play  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
 		}
