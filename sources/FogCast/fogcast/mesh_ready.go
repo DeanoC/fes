@@ -58,6 +58,13 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 	if s == nil || ctx.Err() != nil {
 		return nil, false
 	}
+	// Mesh readiness describes the foreground target's session. A paired
+	// kit's read must neither borrow that view nor take targetMu (a queued
+	// writer would block it behind another kit's launch), so the seam reads
+	// as off and callers keep Phase 0/1 composition fields.
+	if PairedTargetFromContext(ctx) != "" {
+		return nil, false
+	}
 	s.activateMeshExecutor(ctx)
 	if ctx.Err() != nil {
 		return nil, false

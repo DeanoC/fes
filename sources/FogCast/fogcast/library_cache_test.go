@@ -65,7 +65,7 @@ func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.
 		runtime.Gosched()
 	}
 	ctx := WithPairedTarget(context.Background(), "b")
-	results := make(chan error, 3)
+	results := make(chan error, 4)
 	go func() {
 		health, err := service.Health(ctx)
 		if err == nil && !health.Ready {
@@ -81,6 +81,23 @@ func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.
 		results <- err
 	}()
 	go func() {
+		// The /games and /games/{id} enrichment path for a paired kit.
+		if _, err := service.Games(ctx); err != nil {
+			results <- err
+			return
+		}
+		if _, err := service.CoreCompositions(ctx, []string{"pong"}); err != nil {
+			results <- err
+			return
+		}
+		_ = service.PlatformLaunchable(protocol.SystemSNES)
+		if _, on := service.GamesMeshReady(ctx, []string{"pong"}); on {
+			results <- errors.New("paired read borrowed the foreground mesh readiness view")
+			return
+		}
+		results <- nil
+	}()
+	go func() {
 		_, known := service.ROMCachePresence(ctx)
 		if !known {
 			err := errors.New("kit B rom cache presence was unknown")
@@ -91,7 +108,7 @@ func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.
 	}()
 	deadline := time.NewTimer(time.Second)
 	defer deadline.Stop()
-	for range 3 {
+	for range 4 {
 		select {
 		case err := <-results:
 			if err != nil {
