@@ -47,13 +47,16 @@ func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
-	if err := s.incompatibleTargetError(); err != nil {
+	if err := s.incompatibleSessionTargetError(ctx); err != nil {
 		return protocol.Status{}, err
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
-	target := s.activeTarget
+	target := SessionTargetFromContext(ctx)
+	if target == "" {
+		target = s.activeTarget
+	}
 	s.executionMu.Unlock()
 	if target == "" {
 		target = s.selectedTarget
@@ -61,7 +64,7 @@ func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int
 	if target != b.Target || targetByName(s.targets, target).TargetID != b.TargetID {
 		return protocol.Status{}, protocol.DevelopmentMediaIdentityError()
 	}
-	client, ok := s.selectedClientLocked()
+	client, ok := s.clientForSessionContextLocked(ctx)
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}

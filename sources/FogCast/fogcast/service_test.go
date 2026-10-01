@@ -818,6 +818,91 @@ type shutdownOwnershipServiceClient struct {
 
 func (f *shutdownOwnershipServiceClient) HasKitGrant() bool { return f.hasKitGrant }
 
+func TestServiceStopTargetPreservesOtherTargetPlay(t *testing.T) {
+	a := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
+	b := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "a", TargetID: "target-a", Enabled: true}, {Name: "b", TargetID: "target-b", Enabled: true}},
+		selectedTarget: "a", targetClients: map[string]serviceClient{"a": a, "b": b},
+		plays: map[string]targetPlay{
+			"a": {execution: ExecutionFPGANative, gameID: "game-a", system: protocol.SystemNES},
+			"b": {execution: ExecutionFPGANative, gameID: "game-b", system: protocol.SystemSNES},
+		}, activeTarget: "a", activeExecution: ExecutionFPGANative, activeGameID: "game-a", activeSystem: protocol.SystemNES,
+	}
+	if _, err := s.StopTarget(context.Background(), "b"); err != nil {
+		t.Fatal(err)
+	}
+	if a.stopCalls != 0 || b.stopCalls != 1 {
+		t.Fatalf("target stop calls: a=%d b=%d", a.stopCalls, b.stopCalls)
+	}
+	plays := s.PlaySessions()
+	if len(plays) != 1 || plays[0].Target != "a" || plays[0].GameID != "game-a" {
+		t.Fatalf("remaining plays = %+v", plays)
+	}
+	if s.activeTarget != "a" || s.activeGameID != "game-a" {
+		t.Fatalf("foreground after scoped stop = target %q game %q", s.activeTarget, s.activeGameID)
+	}
+}
+
+func TestServiceStopIdleTargetKeepsForegroundForDefaultStatusAndStop(t *testing.T) {
+	a := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
+	bGame, bSystem := "game-b", protocol.SystemSNES
+	b := &fakeServiceClient{
+		statusResult: protocol.Status{State: protocol.StateActive, GameID: &bGame, System: &bSystem},
+		stopResult:   protocol.Status{State: protocol.StateIdle},
+	}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "a", TargetID: "target-a", Enabled: true}, {Name: "b", TargetID: "target-b", Enabled: true}},
+		selectedTarget: "a", targetClients: map[string]serviceClient{"a": a, "b": b},
+		plays:        map[string]targetPlay{"b": {execution: ExecutionFPGANative, gameID: bGame, system: bSystem}},
+		activeTarget: "b", activeExecution: ExecutionFPGANative, activeGameID: bGame, activeSystem: bSystem,
+	}
+	if _, err := s.StopTarget(context.Background(), "a"); err != nil {
+		t.Fatal(err)
+	}
+	status, err := s.Status(context.Background())
+	if err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != bGame {
+		t.Fatalf("default status after idle A Stop = %+v err=%v", status, err)
+	}
+	if _, err = s.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if a.stopCalls != 1 || b.stopCalls != 1 {
+		t.Fatalf("stops A=%d B=%d foreground=%q", a.stopCalls, b.stopCalls, s.activeTarget)
+	}
+}
+
+func TestServiceStatusTargetDoesNotMoveForeground(t *testing.T) {
+	aGame, aSystem := "game-a", protocol.SystemNES
+	bGame, bSystem := "game-b", protocol.SystemSNES
+	a := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, GameID: &aGame, System: &aSystem}}
+	b := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, GameID: &bGame, System: &bSystem}}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "a", TargetID: "target-a", Enabled: true}, {Name: "b", TargetID: "target-b", Enabled: true}},
+		selectedTarget: "a", targetClients: map[string]serviceClient{"a": a, "b": b},
+		plays: map[string]targetPlay{
+			"a": {execution: ExecutionFPGANative, gameID: aGame, system: aSystem},
+			"b": {execution: ExecutionFPGANative, gameID: bGame, system: bSystem},
+		}, activeTarget: "b", activeExecution: ExecutionFPGANative, activeGameID: bGame, activeSystem: bSystem,
+	}
+	status, err := s.StatusTarget(context.Background(), "a")
+	if err != nil || status.GameID == nil || *status.GameID != aGame || a.statusCalls != 1 || b.statusCalls != 0 {
+		t.Fatalf("target A status = %+v err=%v calls=%d/%d", status, err, a.statusCalls, b.statusCalls)
+	}
+	if s.activeTarget != "b" || s.activeGameID != bGame || len(s.PlaySessions()) != 2 {
+		t.Fatalf("A status changed foreground or plays: target=%q game=%q plays=%+v", s.activeTarget, s.activeGameID, s.PlaySessions())
+	}
+}
+
+func TestPackageReplacementIsTargetScoped(t *testing.T) {
+	if packageReplacementApplies("kit-b", "kit-a") {
+		t.Fatal("launch on kit B would replace kit A's package play")
+	}
+	if !packageReplacementApplies("kit-a", "kit-a") {
+		t.Fatal("same-kit launch must replace that kit's package play")
+	}
+}
+
 func TestServiceShutdownCleanupRequiredUsesLocalOwnership(t *testing.T) {
 	tests := []struct {
 		name      string

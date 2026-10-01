@@ -62,3 +62,24 @@ func TestDevelopmentMediaRejectsTargetSwitchWithCollidingPackageGeneration(t *te
 		t.Fatal("media ignored stable target identity")
 	}
 }
+
+func TestDevelopmentMediaScopedToAWhileSelectedBIsUnavailable(t *testing.T) {
+	status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: strings.Repeat("c", 64), Generation: 3,
+		ABI:              protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1},
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}},
+	}}
+	a := &mediaServiceClient{fakeServiceClient: fakeServiceClient{statusResult: status}}
+	s := &Service{
+		activeExecution: ExecutionFPGADevelopment, selectedTarget: "kit-b", activeTarget: "kit-b",
+		targets:       []TargetConfig{{Name: "kit-a", Enabled: true}, {Name: "kit-b", Enabled: true}},
+		targetClients: map[string]serviceClient{"kit-a": a},
+	}
+	binding := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("c", 64), Generation: 3, Target: "kit-a"}
+	if _, err := s.LoadDevelopmentMedia(WithSessionTarget(context.Background(), "kit-a"), 1, strings.NewReader("x"), binding); err != nil {
+		t.Fatalf("development media on A: %v", err)
+	}
+	if a.calls != 1 {
+		t.Fatalf("A media calls=%d, want one", a.calls)
+	}
+}

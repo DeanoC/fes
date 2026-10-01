@@ -70,13 +70,24 @@ and complete typed metrics from `host.RemoteInputStatus`.
 
 `POST /api/v1/session/launch` may include `target` to bind a live FPGA session
 to a configured target without rewriting `selected_target`. Omitted `target`
-uses the selected configured target. A second configured target may be
+uses the selected configured target and keeps the ordinary placement choice.
+A second configured target may be
 launched while the first is still playing; `GET /api/v1/sessions` lists those
 live plays. `GET /api/v1/session` is the foreground session (the last launch)
 and is what sofa and kit attach to for input. Stop of the foreground session
 leaves the other target playing. One primary host input remains on the
 foreground session; a second kit uses its local pad until surfaces attach by
 session id. The kit lease remains the target-side ownership authority.
+Each target coordinator scopes its service calls, including live-media
+replace/eject and development-media delivery, to that target. Placement
+handoff admits the destination coordinator before recording a package play;
+failed admission or old-resource cleanup stops the newly placed play on that
+destination and preserves the coordinator's prior ownership state.
+Cast admission is also target scoped: the host media session keeps cast clients
+by configured target, selects one from the coordinator's session context for
+each Start, and pins that client on the returned handle for Stop and status
+monitoring. A foreground change therefore does not redirect an existing cast
+or the next cast for another target.
 
 The host keeps the household display preference and the last play
 DisplaySink in process memory (`internal/meshpref`). Both values are
@@ -205,6 +216,13 @@ in use, Ready is the lease-held block, so Confirm does not launch.
 first-candidate tie-breaks.
 `[mesh] ensure` and `[mesh] placement` stay off unless the operator
 set them.
+
+When placement starts a play on another kit, the host admits that kit's
+session coordinator before adopting the play. It rechecks the target-scoped
+status after admission, then keeps the admission through old resource cleanup,
+state transfer and new input/media attachment. Stop waits for an adoption in
+progress; if Stop ended the placed play while launch was waiting, the host
+installs no resources.
 
 ## Process ownership
 
@@ -696,18 +714,12 @@ launcher bearer must also differ from the host-to-agent token of every
 target in `config.toml`, enabled or not, not only the selected one. The
 single-kit form (one top-level token for one target) is unchanged.
 
-The host still has one foreground session. Catalogue, platform, health,
-attract, artwork, presentation, and cache reads are served to every enabled
-paired kit, whether or not it is the selected target. A kit-menu launch
-(`POST /api/v1/session/launch`) sets `target` to the requesting kit, so it
-launches on that kit and bypasses mesh placement. While another kit has a
-play, that launch returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt,
-stop, or rebind the other play; relaunching on the same kit is unchanged.
-`GET /api/v1/session` returns the foreground session only to the kit that
-owns it; every other enabled paired kit gets its own idle or active view,
-which does not touch the foreground session. Stop, `GET /api/v1/status`,
-session input, and launcher input are owner-only; another paired kit gets
-403 `TARGET_MISMATCH`. Per-kit concurrent sessions are follow-up #288.
+Each enabled paired kit has its own foreground session, input binding, media
+handle, and scoped `POST /api/v1/session/stop`. Kit-menu launches replace only
+that kit's play; its launcher input stream claims that kit's per-target input
+bridge. Scoped Stop does not move the host foreground, and unscoped browser
+Stop continues to use the active target, then the selected target. Paired
+session and status reads are target-scoped.
 On the paired listener, health, `rom_cached`, and `/api/v1/library/cache`
 describe the authenticated requesting kit. Paired health probes that kit
 without foreground lifecycle admission, so another kit's launch does not
@@ -2362,3 +2374,12 @@ The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. Menu-display passes `IdleDisplayOnly` into rooms and
 disables the live room/tape routes because its MENU framebuffer requires idle
 hardware. The separate host renderer retains those routes.
+
+The configured host capture sender is one physical pipeline with one RTP
+destination and sender token. Host-only playback claims that pipeline for its
+target until its media handle stops. A host-only start on another target fails
+with `MEDIA_BUSY_OTHER_KIT` (HTTP 409), and the target cast started for that
+launch is rolled back. FPGA-native plays do not use the host capture sender and
+remain independent. Configuration does not bind the RTP destination to a named
+target address, so the host cannot validate destination-to-kit correspondence;
+operators must configure the destination for the intended kit.

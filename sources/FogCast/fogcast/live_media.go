@@ -81,12 +81,13 @@ func (s *Service) readLiveTapeMedia(ctx context.Context, mediaID string) (*coreE
 }
 
 func (s *Service) replaceLiveMediaLocked(ctx context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	ctx = WithSessionTarget(ctx, b.Target)
 	if err := s.prepareLiveMediaClient(ctx, b); err != nil {
 		return protocol.Status{}, err
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	client, ok := s.selectedClientLocked()
+	client, ok := s.clientForSessionContextLocked(ctx)
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -136,12 +137,13 @@ func (s *Service) ejectComputerUnit(ctx context.Context, client interface{}, pri
 }
 
 func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	ctx = WithSessionTarget(ctx, b.Target)
 	if err := s.prepareLiveMediaClient(ctx, b); err != nil {
 		return protocol.Status{}, err
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	client, ok := s.selectedClientLocked()
+	client, ok := s.clientForSessionContextLocked(ctx)
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -220,13 +222,16 @@ func (s *Service) prepareLiveMediaClient(ctx context.Context, b protocol.Develop
 			return canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
-	if err := s.incompatibleTargetError(); err != nil {
+	if err := s.incompatibleSessionTargetError(ctx); err != nil {
 		return err
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
-	target := s.activeTarget
+	target := SessionTargetFromContext(ctx)
+	if target == "" {
+		target = s.activeTarget
+	}
 	s.executionMu.Unlock()
 	if target == "" {
 		target = s.selectedTarget

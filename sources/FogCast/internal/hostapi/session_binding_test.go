@@ -66,6 +66,42 @@ func TestSessionLaunchBindsOptionalTarget(t *testing.T) {
 	}
 }
 
+type selectedLaunchTargetService struct {
+	*fakeService
+	selected fogcast.TargetConfig
+}
+
+func (s *selectedLaunchTargetService) SelectedTargetConfig() fogcast.TargetConfig { return s.selected }
+func (s *selectedLaunchTargetService) SessionTargetName() string                  { return s.selected.Name }
+
+func TestOmittedLaunchUsesSelectedCoordinatorWithoutMakingTargetExplicit(t *testing.T) {
+	gameID := "megadrive-sonic-test"
+	system := protocol.SystemMegaDrive
+	service := &selectedLaunchTargetService{
+		fakeService: &fakeService{launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}}},
+		selected:    fogcast.TargetConfig{Name: "kit-b", Enabled: true, TargetID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"`+gameID+`"}`))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	hostapi.New(service).ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("launch = %d %s", response.Code, response.Body.String())
+	}
+	if service.launchTarget != "" {
+		t.Fatalf("omitted target became explicit: %q", service.launchTarget)
+	}
+	var result struct {
+		Target string `json:"target"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Target != "kit-b" {
+		t.Fatalf("session coordinator target=%q, want selected kit-b", result.Target)
+	}
+}
+
 func TestSessionsListsLivePlays(t *testing.T) {
 	gameID := "snes-two-target"
 	service := &fakeService{

@@ -138,3 +138,88 @@ func TestClearLiveMediaRetriesBusyAndPreservesHardUnavailable(t *testing.T) {
 		t.Fatalf("exhausted busy err=%v calls=%d", err, client.clearCalls-before)
 	}
 }
+
+func TestScopedMediaAdmissionUsesSessionTargetClient(t *testing.T) {
+	a := &fakeServiceClient{healthResult: protocol.Health{APIVersion: "v1"}}
+	b := &fakeServiceClient{healthErr: io.ErrUnexpectedEOF}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "kit-a", Enabled: true}, {Name: "kit-b", Enabled: true}},
+		selectedTarget: "kit-b",
+		targetClients:  map[string]serviceClient{"kit-a": a, "kit-b": b},
+	}
+	if _, err := s.refreshTargetAdmission(WithSessionTarget(context.Background(), "kit-a")); err != nil {
+		t.Fatalf("scoped admission: %v", err)
+	}
+	if a.healthCalls != 1 || b.healthCalls != 0 {
+		t.Fatalf("health calls A=%d B=%d; want A only", a.healthCalls, b.healthCalls)
+	}
+}
+
+func TestScopedLiveMediaReplaceAndEjectReachHealthyKitAWhenBUnavailable(t *testing.T) {
+	store, err := catalog.Open(t.TempDir() + "/catalog.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	payload := []byte{1, 2, 3}
+	media, _, err := store.ImportCoreMediaStream(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.Repeat("b", 64)
+	status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: id, Generation: 4, ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1},
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}},
+	}}
+	a := &liveMediaServiceClient{fakeServiceClient: fakeServiceClient{statusResult: status}}
+	s := &Service{
+		catalog: store, uploadTimeout: time.Second, activeExecution: ExecutionFPGADevelopment,
+		selectedTarget: "kit-b", activeTarget: "kit-b",
+		targets:       []TargetConfig{{Name: "kit-a", Enabled: true}, {Name: "kit-b", Enabled: true}},
+		targetClients: map[string]serviceClient{"kit-a": a}, // B is selected but unavailable.
+	}
+	binding := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 4, Target: "kit-a"}
+	ctx := WithSessionTarget(context.Background(), "kit-a")
+	if _, err := s.ReplaceLiveMedia(ctx, media.MediaID, "maze.p", binding); err != nil {
+		t.Fatalf("replace on A: %v", err)
+	}
+	if _, err := s.ClearLiveMedia(ctx, binding); err != nil {
+		t.Fatalf("eject on A: %v", err)
+	}
+	if a.replaceCalls != 1 || a.clearCalls != 1 {
+		t.Fatalf("A replace=%d eject=%d; want both calls on A", a.replaceCalls, a.clearCalls)
+	}
+}
+
+func TestLiveMediaSessionContextRoutesAwayFromForegroundTarget(t *testing.T) {
+	store, err := catalog.Open(t.TempDir() + "/catalog.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	payload := []byte("tape")
+	media, _, err := store.ImportCoreMediaStream(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	statusA := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 7, ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}}}}
+	statusB := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("b", 64), Generation: 3, ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}}}}
+	a := &liveMediaServiceClient{fakeServiceClient: fakeServiceClient{statusResult: statusA}}
+	b := &liveMediaServiceClient{fakeServiceClient: fakeServiceClient{statusResult: statusB}}
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, b)
+	s.targets = []TargetConfig{{Name: "kit-a", Enabled: true, TargetID: "id-a"}, {Name: "kit-b", Enabled: true, TargetID: "id-b"}}
+	s.targetClients = map[string]serviceClient{"kit-a": a, "kit-b": b}
+	s.selectedTarget, s.activeTarget, s.activeExecution = "kit-b", "kit-b", ExecutionFPGADevelopment
+	s.plays = map[string]targetPlay{"kit-a": {execution: ExecutionFPGADevelopment}, "kit-b": {execution: ExecutionFPGADevelopment}}
+	binding := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 7, Target: "kit-a", TargetID: "id-a"}
+	ctx := WithSessionTarget(context.Background(), "kit-a")
+	if _, err := s.ReplaceLiveMedia(ctx, media.MediaID, "maze.p", binding); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ClearLiveMedia(ctx, binding); err != nil {
+		t.Fatal(err)
+	}
+	if a.replaceCalls != 1 || a.clearCalls != 1 || b.replaceCalls != 0 || b.clearCalls != 0 {
+		t.Fatalf("routed media calls A=%d/%d B=%d/%d", a.replaceCalls, a.clearCalls, b.replaceCalls, b.clearCalls)
+	}
+}

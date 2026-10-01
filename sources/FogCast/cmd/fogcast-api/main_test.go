@@ -21,8 +21,10 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/mediasession"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
@@ -246,10 +248,14 @@ func (s *shutdownCompositionService) Stop(context.Context) (protocol.Status, err
 	defer s.mu.Unlock()
 	s.stops++
 	if len(s.stopErrs) == 0 {
+		s.shutdownCleanup = false
 		return protocol.Status{State: protocol.StateIdle}, nil
 	}
 	err := s.stopErrs[0]
 	s.stopErrs = s.stopErrs[1:]
+	if err == nil {
+		s.shutdownCleanup = false
+	}
 	return protocol.Status{State: protocol.StateIdle}, err
 }
 
@@ -279,6 +285,84 @@ func TestComposeAPIWiresRemoteInputController(t *testing.T) {
 	if err := closeRemote(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+type targetBridgeTestService struct {
+	compositionService
+	active  string
+	configs map[string]fogcast.TargetConfig
+	leases  map[string]*targetclient.KitLease
+	lookups []string
+}
+
+func (s *targetBridgeTestService) TargetConfigForName(name string) fogcast.TargetConfig {
+	return s.configs[name]
+}
+func (s *targetBridgeTestService) KitLeaseForTarget(name string) *targetclient.KitLease {
+	s.lookups = append(s.lookups, name)
+	return s.leases[name]
+}
+func (*targetBridgeTestService) Close() error { return nil }
+
+func TestPerTargetBridgeKeepsOriginAndLeaseAfterAnotherTargetLaunches(t *testing.T) {
+	var aAuth string
+	kitA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		aAuth = r.Header.Get("Authorization")
+		if r.URL.Path == "/v1/kit/claim" {
+			_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "grant-a", Status: kitlease.Status{State: "held", Generation: "generation-a", ExpiresInMS: 60000}})
+			return
+		}
+		if r.Header.Get(targetclient.KitLeaseHeader) != "grant-a" {
+			t.Errorf("A bridge lease header = %q", r.Header.Get(targetclient.KitLeaseHeader))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ready": true})
+	}))
+	defer kitA.Close()
+	kitB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("A bridge was redirected to kit B")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ready": true})
+	}))
+	defer kitB.Close()
+	aURL, _ := url.Parse(kitA.URL)
+	bURL, _ := url.Parse(kitB.URL)
+	service := &targetBridgeTestService{
+		active: "kit-a",
+		configs: map[string]fogcast.TargetConfig{
+			"kit-a": {Name: "kit-a", Address: kitA.URL, Agent: "agent-a"},
+			"kit-b": {Name: "kit-b", Address: kitB.URL, Agent: "agent-b"},
+		},
+		leases: map[string]*targetclient.KitLease{
+			"kit-a": targetclient.NewKitLease(aURL, "agent-a", nil, "host", "input"),
+			"kit-b": targetclient.NewKitLease(bURL, "agent-b", nil, "host", "input"),
+		},
+	}
+	factory := func(config fogcast.Config) (host.BridgeStarter, error) {
+		base, err := url.Parse(config.BaseURL)
+		if err != nil {
+			return nil, err
+		}
+		return host.NewHTTPBridgeStarter(host.HTTPBridgeStarterConfig{BaseURL: base, Token: config.Token})
+	}
+	starter, err := makeTargetBridgeStarter(fogcast.Config{}, "kit-a", service, factory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.active = "kit-b" // B launched after A's controller was created.
+	handle, err := starter.Start(context.Background(), host.BridgeSpec{Session: 9, Token: []byte("0123456789abcdef"), Core: "SNES"})
+	if err != nil {
+		t.Fatalf("A bridge attach after B launch: %v", err)
+	}
+	if aAuth != "Bearer agent-a" {
+		t.Fatalf("A bridge authorization = %q", aAuth)
+	}
+	if len(service.lookups) == 0 || service.lookups[len(service.lookups)-1] != "kit-a" {
+		t.Fatalf("bridge lease lookups after B launch = %v", service.lookups)
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("A bridge detach after B launch: %v", err)
+	}
+	service.leases["kit-a"].Close(context.Background())
+	service.leases["kit-b"].Close(context.Background())
 }
 
 type compositionCapture struct {
@@ -1339,6 +1423,7 @@ func TestCompositionPartialStartRetainsLocalAndTargetCleanupOwnership(t *testing
 }
 
 func TestManagedSenderComponentRetainsFailedCallerOwnedCaptureCleanup(t *testing.T) {
+	ownership := &hostMediaOwnership{}
 	capture := &compositionCapture{closeErrs: []error{errors.New("first close failed")}}
 	component := &managedSenderComponent{
 		media: fogcast.MediaConfig{
@@ -1346,12 +1431,13 @@ func TestManagedSenderComponentRetainsFailedCallerOwnedCaptureCleanup(t *testing
 			RTPDestination: "127.0.0.1:5001", ControlAddress: "127.0.0.1:5002",
 			Bitrate: 1_000_000, GOP: 30, MTU: 1200,
 		},
-		token: "token",
+		token:     "token",
+		ownership: ownership,
 		newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
 			return capture, nil, nil
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionHostOnly), "A"))
 	cancel()
 	handle, err := component.Start(ctx, "game")
 	if err == nil || handle == nil {
@@ -1360,12 +1446,87 @@ func TestManagedSenderComponentRetainsFailedCallerOwnedCaptureCleanup(t *testing
 	if got := capture.closeCount(); got != 1 {
 		t.Fatalf("initial close count = %d, want 1", got)
 	}
+	if _, err := ownership.claim("B"); !errors.As(err, new(hostapi.MediaBusyOtherKitError)) {
+		t.Fatalf("B claimed media after failed cleanup: %v", err)
+	}
 	if err := handle.Stop(context.Background()); err != nil {
 		t.Fatalf("retry cleanup = %v", err)
 	}
 	if got := capture.closeCount(); got != 2 {
 		t.Fatalf("retry close count = %d, want 2", got)
 	}
+	releaseB, err := ownership.claim("B")
+	if err != nil {
+		t.Fatalf("B claim after successful cleanup retry: %v", err)
+	}
+	releaseB()
+}
+
+func TestManagedSenderAudioConfigurationFailureRetainsClaimUntilCleanupRetry(t *testing.T) {
+	ownership := &hostMediaOwnership{}
+	capture := &compositionCapture{closeErrs: []error{errors.New("first close failed")}}
+	component := &managedSenderComponent{
+		media: fogcast.MediaConfig{
+			Session: "session", Generation: 9, SSRC: 7,
+			RTPDestination: "127.0.0.1:5001", ControlAddress: "127.0.0.1:5002",
+			Bitrate: 1_000_000, GOP: 30, MTU: 1200,
+		},
+		token: "token", ownership: ownership,
+		newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+			return capture, &compositionAudioSource{}, nil
+		},
+	}
+	ctx := fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionHostOnly), "A")
+	handle, err := component.Start(ctx, "game")
+	if err == nil || handle == nil {
+		t.Fatalf("Start = handle:%v err:%v, want retryable cleanup after audio configuration failure", handle != nil, err)
+	}
+	if _, err := ownership.claim("B"); !errors.As(err, new(hostapi.MediaBusyOtherKitError)) {
+		t.Fatalf("B claimed media during failed configuration cleanup: %v", err)
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("retry cleanup = %v", err)
+	}
+	releaseB, err := ownership.claim("B")
+	if err != nil {
+		t.Fatalf("B claim after successful cleanup: %v", err)
+	}
+	releaseB()
+}
+
+func TestOwnedMediaDoneForwardsAndReleasesOwnershipAfterSelfExit(t *testing.T) {
+	ownership := &hostMediaOwnership{}
+	releaseA, err := ownership.claim("A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	base := &compositionDirectMediaHandle{done: done}
+	component := &ownedMediaHandle{ComponentHandle: base, release: releaseA}
+	session, err := mediasession.New(ownedMediaTestComponent{handle: component}, noopMediaComponent{}).Start(context.Background(), "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(done) // The sender exits without an explicit Stop.
+	select {
+	case <-session.(interface{ Done() <-chan struct{} }).Done():
+	case <-time.After(time.Second):
+		t.Fatal("media session did not observe sender self-exit")
+	}
+	if err := session.Stop(context.Background()); err != nil {
+		t.Fatalf("normal Stop cleanup: %v", err)
+	}
+	releaseB, err := ownership.claim("B")
+	if err != nil {
+		t.Fatalf("B claim after self-exit cleanup: %v", err)
+	}
+	releaseB()
+}
+
+type ownedMediaTestComponent struct{ handle mediasession.ComponentHandle }
+
+func (c ownedMediaTestComponent) Start(context.Context, string) (mediasession.ComponentHandle, error) {
+	return c.handle, nil
 }
 
 func TestManagedSenderComponentPreservesCaptureAuthorizationError(t *testing.T) {
@@ -1387,6 +1548,48 @@ func TestManagedSenderComponentRejectsMissingSourceFactory(t *testing.T) {
 	component := &managedSenderComponent{}
 	if _, err := component.Start(context.Background(), "game"); err == nil {
 		t.Fatal("missing media source factory was accepted")
+	}
+}
+
+func TestManagedSenderComponentSerializesHostMediaByTarget(t *testing.T) {
+	ownership := &hostMediaOwnership{}
+	makeComponent := func() *managedSenderComponent {
+		return &managedSenderComponent{
+			media: fogcast.MediaConfig{Session: "session", Generation: 1, SSRC: 7, RTPDestination: "127.0.0.1:5004", ControlAddress: "127.0.0.1:5005", Bitrate: 1_000_000, GOP: 30, MTU: 1200},
+			token: "token", ownership: ownership,
+			newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+				return &compositionCapture{}, nil, nil
+			},
+			options: []remotemedia.ManagedSenderOption{remotemedia.WithManagedSenderFactory(func(_ remotemedia.SenderConfig, source remotemedia.CaptureSource) (remotemedia.ManagedSenderRunner, error) {
+				return &compositionRunner{done: make(chan struct{}), source: source}, nil
+			})},
+		}
+	}
+	ctxA := fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionHostOnly), "A")
+	handleA, err := makeComponent().Start(ctxA, "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctxB := fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionHostOnly), "B")
+	if _, err = makeComponent().Start(ctxB, "game"); err == nil || !errors.As(err, new(hostapi.MediaBusyOtherKitError)) {
+		t.Fatalf("B host media start error=%v, want MEDIA_BUSY_OTHER_KIT", err)
+	}
+	// FPGA-native play does not use the host capture pipeline and remains independent.
+	nativeCtx := fogcast.WithSessionTarget(hostapi.WithMediaExecution(context.Background(), fogcast.ExecutionFPGANative), "B")
+	if native, err := makeComponent().Start(nativeCtx, "game"); err != nil {
+		t.Fatalf("native B media start=%v", err)
+	} else if err := native.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := handleA.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	handleB, err := makeComponent().Start(ctxB, "game")
+	if err != nil {
+		t.Fatalf("B host media after A stopped: %v", err)
+	}
+	if err := handleB.Stop(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -1492,6 +1695,43 @@ func TestCompositionHandleStopsTheKitItStartedAfterRebind(t *testing.T) {
 	started, stopped := original.counts()
 	if started != 1 || stopped != 1 {
 		t.Fatalf("original cast started %d stopped %d", started, stopped)
+	}
+}
+
+func TestCompositionMediaStartsOnEachSessionTarget(t *testing.T) {
+	media := compositionDirectMediaSession{handle: &compositionDirectMediaHandle{done: make(chan struct{})}}
+	a, b := &compositionTargetCast{}, &compositionTargetCast{}
+	session := newCompositionMediaSession(media, nil, "session", "token", 9)
+	session.SetCastTarget(fogcast.TargetConfig{Name: "a", Address: "http://192.0.2.10:8182", Agent: "token-a"}, nil)
+	session.SetCastTarget(fogcast.TargetConfig{Name: "b", Address: "http://192.0.2.11:8182", Agent: "token-b"}, nil)
+	// Substitute deterministic cast clients after exercising the production
+	// target registration path.
+	session.mu.Lock()
+	session.targets["a"], session.targets["b"] = a, b
+	session.mu.Unlock()
+
+	bHandle, err := session.Start(fogcast.WithSessionTarget(context.Background(), "b"), "game-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	aHandle, err := session.Start(fogcast.WithSessionTarget(context.Background(), "a"), "game-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if as, _ := a.counts(); as != 1 {
+		t.Fatalf("A cast starts = %d, want 1", as)
+	}
+	if bs, _ := b.counts(); bs != 1 {
+		t.Fatalf("B cast starts = %d, want 1", bs)
+	}
+	if _, stopped := b.counts(); stopped != 0 {
+		t.Fatalf("B cast stops after A starts = %d, want 0", stopped)
+	}
+	if err := aHandle.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := bHandle.Stop(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 

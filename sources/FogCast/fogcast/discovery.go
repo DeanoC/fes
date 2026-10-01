@@ -251,11 +251,19 @@ func (s *Service) refreshStopAdmission(ctx context.Context) (protocol.Health, er
 // Address-only mutation admission checks the contract without adding discovery,
 // status, or lease reconciliation to the existing execution path.
 func (s *Service) refreshTargetAdmission(ctx context.Context) (result protocol.Health, resultErr error) {
-	if s.discoveryEnabled() {
+	target := SessionTargetFromContext(ctx)
+	if target == "" && s.discoveryEnabled() {
 		return s.refreshTargetConnection(ctx)
 	}
 	s.targetMu.RLock()
-	client, ok := s.selectedClientLocked()
+	var client serviceClient
+	var ok bool
+	if target == "" {
+		client, ok = s.selectedClientLocked()
+	} else {
+		client = s.targetClients[target]
+		ok = client != nil
+	}
 	s.targetMu.RUnlock()
 	if !ok {
 		return protocol.Health{}, errors.New("target unavailable")
@@ -265,11 +273,17 @@ func (s *Service) refreshTargetAdmission(ctx context.Context) (result protocol.H
 		err = protocol.CheckAPIVersion(health.APIVersion)
 	}
 	if err != nil {
+		if target != "" {
+			return protocol.Health{}, err
+		}
 		return s.connectionFailed(s.TargetConnection(), &targetObservationError{"admission_health", err})
 	}
-	if connection := s.TargetConnection(); connection.State == "version_mismatch" {
-		connection.State, connection.Message = "connecting", ""
-		s.publishConnection(connection)
+	if target == "" {
+		connection := s.TargetConnection()
+		if connection.State == "version_mismatch" {
+			connection.State, connection.Message = "connecting", ""
+			s.publishConnection(connection)
+		}
 	}
 	return health, nil
 }
@@ -291,6 +305,15 @@ func (s *Service) incompatibleTargetError() error {
 		Code:    protocol.CodeVersionMismatch,
 		Message: "target API version is missing or unsupported; expected v1",
 	}
+}
+
+// A target-scoped operation has already selected and admitted its own client;
+// the selected kit's connection warning must not block a healthy sibling.
+func (s *Service) incompatibleSessionTargetError(ctx context.Context) error {
+	if SessionTargetFromContext(ctx) != "" {
+		return nil
+	}
+	return s.incompatibleTargetError()
 }
 
 // SetTargetReset registers local input teardown at composition time. The callback

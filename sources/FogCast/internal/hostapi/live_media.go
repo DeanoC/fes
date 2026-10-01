@@ -34,7 +34,8 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
 			return
 		}
-		result, err := s.replaceLiveMedia(r.Context(), ids[0], req.MediaID, req.Name, b)
+		coordinator := s.forSessionID(ids[0])
+		result, err := coordinator.replaceLiveMedia(r.Context(), ids[0], req.MediaID, req.Name, b)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -53,7 +54,8 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
 			return
 		}
-		result, err := s.clearLiveMedia(r.Context(), ids[0], b)
+		coordinator := s.forSessionID(ids[0])
+		result, err := coordinator.clearLiveMedia(r.Context(), ids[0], b)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -63,6 +65,7 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 }
 
 func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, name string, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -86,6 +89,7 @@ func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, 
 }
 
 func (s *sessionCoordinator) clearLiveMedia(ctx context.Context, id string, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}

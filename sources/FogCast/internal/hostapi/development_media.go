@@ -22,7 +22,8 @@ func registerDevelopmentMediaRoute(mux *http.ServeMux, s *sessionCoordinator) {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxDevelopmentMediaBytes)
-		result, err := s.loadDevelopmentMedia(r.Context(), ids[0], r.ContentLength, r.Body, b)
+		coordinator := s.forSessionID(ids[0])
+		result, err := coordinator.loadDevelopmentMedia(r.Context(), ids[0], r.ContentLength, r.Body, b)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -31,6 +32,7 @@ func registerDevelopmentMediaRoute(mux *http.ServeMux, s *sessionCoordinator) {
 	})
 }
 func (s *sessionCoordinator) loadDevelopmentMedia(ctx context.Context, id string, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
+	ctx = s.scoped(ctx)
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}

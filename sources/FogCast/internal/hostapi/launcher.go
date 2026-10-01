@@ -162,6 +162,18 @@ type applicationHandler struct {
 	routes      http.Handler
 	service     Service
 	remoteInput host.RemoteInputController
+	session     *sessionCoordinator
+}
+
+type launcherTargetContextKey struct{}
+
+func withLauncherTarget(ctx context.Context, target string) context.Context {
+	return context.WithValue(ctx, launcherTargetContextKey{}, target)
+}
+
+func launcherTargetFromContext(ctx context.Context) string {
+	target, _ := ctx.Value(launcherTargetContextKey{}).(string)
+	return target
 }
 
 func (a *applicationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -246,7 +258,9 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		// Paired reads do not take targetMu. Launch holds it while running,
 		// and health/cache reads for another kit must remain responsive.
 		pairedRead := launcherPairedRead(r.Method, r.URL.Path)
-		if !pairedRead {
+		pairedStop := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop"
+		pairedLaunch := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch"
+		if !pairedRead && !pairedStop && !pairedLaunch {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
 		}
@@ -255,26 +269,37 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 			return
 		}
+		if explicitTarget := strings.TrimSpace(r.URL.Query().Get("target")); explicitTarget != "" && explicitTarget != name {
+			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the paired target")
+			return
+		}
 		if !launcherOperation(r.Method, r.URL.Path) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
 			return
 		}
 		if pairedRead {
-			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" {
+			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/status" || r.URL.Path == "/api/v1/session/input" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" {
 				r = r.WithContext(fogcast.WithPairedTarget(r.Context(), headerID))
 			}
+			r = r.WithContext(withLauncherTarget(r.Context(), name))
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		if pairedStop {
+			r = r.WithContext(fogcast.WithPairedTarget(r.Context(), headerID))
+			r = r.WithContext(withLauncherTarget(r.Context(), name))
 			a.routes.ServeHTTP(w, r)
 			return
 		}
 		switch r.Method + " " + r.URL.Path {
 		case "GET /api/v1/session":
-			if headerID == a.sessionOwnerID() {
+			if name == "" && headerID == a.sessionOwnerID() {
 				a.routes.ServeHTTP(w, r)
 				return
 			}
 			a.writeKitSession(w, name, headerID)
 			return
-		case "GET /api/v1/status", "GET /api/v1/session/input", "POST /api/v1/session/stop":
+		case "GET /api/v1/status", "GET /api/v1/session/input":
 			if headerID != a.sessionOwnerID() {
 				writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 				return
@@ -282,16 +307,6 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		case "POST /api/v1/session/launch":
-			// The host has one foreground session. Launching on this kit
-			// while another kit has a play would move the foreground here:
-			// that kit's input bridge and media are torn down, its core keeps
-			// running under a held lease, and nothing can stop it until this
-			// kit's play ends. Fail closed instead of preempting it.
-			// TODO(#288): per-target foreground sessions and Stop.
-			if a.otherKitPlaying(name, headerID) {
-				writeError(w, http.StatusConflict, "SESSION_BUSY_OTHER_KIT", "another kit's session is active; stop it on that kit first")
-				return
-			}
 			// No library name preserves the old fakes: the selected target
 			// must be this kit, and the body is forwarded unchanged.
 			if name == "" {
@@ -352,7 +367,7 @@ func launcherPairedRead(method, path string) bool {
 		return false
 	}
 	switch path {
-	case "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets":
+	case "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets":
 		return true
 	}
 	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path)
@@ -402,26 +417,6 @@ func (a *applicationHandler) sessionOwnerID() string {
 	return a.selectedTargetID()
 }
 
-// otherKitPlaying reports whether a play belongs to a target other than
-// the requesting kit. A play matches the kit by target id, or by name when
-// the kit has one. A play with neither is treated as another kit's.
-func (a *applicationHandler) otherKitPlaying(name, id string) bool {
-	lister, ok := a.service.(interface{ PlaySessions() []fogcast.PlaySession })
-	if !ok {
-		return false
-	}
-	for _, play := range lister.PlaySessions() {
-		if play.TargetID != "" && play.TargetID == id {
-			continue
-		}
-		if play.TargetID == "" && name != "" && play.Target == name {
-			continue
-		}
-		return true
-	}
-	return false
-}
-
 // writeKitSession reports one paired kit's own play. It does not read
 // or mutate the foreground session.
 func (a *applicationHandler) writeKitSession(w http.ResponseWriter, name, id string) {
@@ -432,6 +427,9 @@ func (a *applicationHandler) writeKitSession(w http.ResponseWriter, name, id str
 				continue
 			}
 			result.State = protocol.StateActive
+			if a.session != nil {
+				result.ID = a.session.forTarget(name).id
+			}
 			result.Execution = play.Execution
 			if play.GameID != "" {
 				gameID := play.GameID
@@ -541,12 +539,17 @@ func (a *applicationHandler) selectedTargetID() string {
 
 func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Request, targetID string) {
 	a.targetMu.Lock()
-	if _, ok := a.kitTarget(targetID); !ok || a.sessionOwnerID() != targetID {
+	if _, ok := a.kitTarget(targetID); !ok {
 		a.targetMu.Unlock()
 		writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 		return
 	}
-	provider, ok := a.remoteInput.(interface {
+	name, _ := a.kitTarget(targetID)
+	input := a.session.forTarget(name).remoteInput
+	if a.session.remoteInputFactory == nil {
+		input = a.remoteInput
+	}
+	provider, ok := input.(interface {
 		ClaimSource(string) (host.RemoteInputEventSource, error)
 	})
 	if !ok {
