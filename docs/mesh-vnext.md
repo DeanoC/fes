@@ -1,7 +1,11 @@
 # Mesh v-next: onboarding/pairing, two-kit placement, hardening slices, HIL2 acceptance
 
 **Status:** draft. Not a wire freeze, not an implementation claim, and
-not a default flip for `[mesh] ensure` or `[mesh] placement`. Builds on
+not a default flip for `[mesh] ensure` or `[mesh] placement`. The M1
+capability, title/backend, identity, availability, and ownership baseline
+is reconciled in [`mesh-lan.md`](mesh-lan.md#m1-two-node-contract-review-baseline)
+and [`mesh-node-protocol.md`](mesh-node-protocol.md#m1-interoperability-matrix);
+those docs mark implemented behavior, proposals, and acceptance gaps. Builds on
 #131 ([mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md))
 and [phase 3](mesh-phase3.md): Slices 1–6 (#212–#221) plus the
 Slice 7 tie-breaks and Slice 8 host wiring, all behind

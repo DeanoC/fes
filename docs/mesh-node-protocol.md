@@ -57,10 +57,11 @@ seconds; expiry and explicit takeover are in
 transitions, including idle recovery and `reboot_required`.
 
 Identity today is a persistent `target_id` per configured kit. DNS-SD
-TXT carries that id and a discovery protocol version. Advertisements
-carry no credentials, no library, and no lease secrets. Health must
-confirm the id and the target API version before the host adopts a new
-address. There is no mesh-protocol version and no capability bag.
+TXT carries the discovery version and, for mesh-capable agents, repeats
+that ID as `node_id` with mesh `1.0`, capabilities and TTL. Advertisements
+carry no credentials, title list, or lease secrets. Health must confirm
+the ID and target API version before the host adopts a new address.
+Phase 0 peers may omit mesh fields and remain directly bindable.
 
 Content today is the host library plus target-side cache for a launch
 the host already resolved. Catalog `launchable` is a platform and
@@ -98,6 +99,31 @@ names `target` does not ask for placement. Placement does not need
 the ensure seam: with the seam off, a rebind onto another kit streams
 the launch on the Phase 0 path. See [`mesh-phase3.md`](mesh-phase3.md)
 Slice 8.
+
+## M1 interoperability matrix
+
+This matrix separates the existing kit protocol from the proposed remote
+software-runner contract. A capability is an execution fact, never a
+permanent Host/Kit identity. Current DNS-SD fields are implemented; runner
+advertisement and pairing are not.
+
+| Field | Kit today (implemented) | Linux/Mac software runner (proposed; gap #360) |
+| --- | --- | --- |
+| Identity | `node_id` and `target_id` are the same persistent kit ID. Configured-target authentication and per-kit launcher credentials bind it; user pairing is not implemented, and discovery alone does not enroll. | Stable runner identity must follow an agreed existing host/config identity path; pairing/admission is unresolved. Do not add Host/Kit enum. |
+| Protocol | `mesh=1.0`; Phase 0 peers may omit it and remain directly bindable. A needed mesh major mismatch fails closed. | Negotiate the same mesh major.minor; advertise only after support is implemented. |
+| Execute | `fpga_native`; TXT has no ABI families. Placement separately reads authenticated node content/ABI data. | `native_emu` with explicit supported systems and emulator/core versions. Current `host_only` is a host-local execution label, not a remote advertisement. |
+| Display/input | `display_sink=true`, `input_source=true` mean the kit can present and supply local input; they do not attest live picture or multiple players. | Advertise only functions the runner owns. Remote video/input routing is not part of M1 evidence. |
+| Availability | DNS-SD TTL controls inventory presence only. Kit lease status and composition determine admission/readiness separately. | Heartbeat/health, backend readiness, and single-session busy state need an implementation and honest UI. |
+| Ownership | Existing target-agent kit lease is the FPGA admission authority (90-second grant, 20-second renewal); one owner, explicit release/expiry cleanup. | Runner serializes its own session lifecycle and rejects busy/incompatible requests. No second FPGA lease. |
+| Catalog/content | No title list or credentials in DNS-SD. Host library and per-kit mesh content API are separate. | Reuse title IDs and backend options through host library surfaces; do not add titles, paths, or secrets to advertisements. Content transport is outside this minimum M1 contract. |
+
+**Title/backend rule (proposed):** retain catalog `game_id` as title
+identity and represent executable options separately. A session chooses one
+backend and executor; backend compatibility/version, required package or
+media composition, availability, and ownership must all admit before launch.
+Current kit and host-local paths are separate implementations; federated
+runner negotiation and dual-backend evidence are GAP #360/#361. The evidence
+matrix and legal test-title limits are in [`mesh-lan.md`](mesh-lan.md).
 
 ## Planes, and which contracts appear when
 
