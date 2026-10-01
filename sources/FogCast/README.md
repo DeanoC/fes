@@ -155,8 +155,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   (`pairings` in `launcher-host.json`), each with its own bearer; a bearer
   shared by two kits, or equal to any target's agent token, is refused at
   startup. Every paired kit browses the catalogue and launches on itself; the
-  host keeps one foreground session, so another kit's launch returns 409
-  `SESSION_BUSY_OTHER_KIT`, and stop, status, and input stay with the owning kit.
+  host keeps per-kit play sessions. Launcher requests are scoped to the paired
+  kit; unscoped browser Stop, status, and input follow the active kit, then the
+  selected kit. Launches without a target preserve FogCast placement selection.
   USB keyboard is first-class browse/nav (arrows/Enter/Esc/Tab; no gamepad
   required); USB mouse/pointer hover moves focus and primary click activates
   (select/launch/confirm) without a controller; on-screen hints and focus

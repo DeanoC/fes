@@ -389,8 +389,12 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	}
 	var targetInputsMu sync.Mutex
 	var targetInputs []*host.RemoteInput
-	targetInputFactory := func(string) host.RemoteInputController {
-		controller, createErr := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
+	targetInputFactory := func(targetName string) host.RemoteInputController {
+		targetStarter, createErr := makeTargetBridgeStarter(config, targetName, service, makeStarter, starter)
+		if createErr != nil {
+			return nil
+		}
+		controller, createErr := host.NewRemoteInput(host.RemoteInputConfig{Starter: targetStarter})
 		if createErr != nil {
 			return nil
 		}
@@ -422,6 +426,32 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 			return errors.Join(closeErr, remoteInput.Close())
 		}, cleanup)
 	}, nil
+}
+
+func makeTargetBridgeStarter(config fogcast.Config, targetName string, service service, makeStarter bridgeStarterFactory, fallback host.BridgeStarter) (host.BridgeStarter, error) {
+	if targetName == "" {
+		return fallback, nil
+	}
+	targetConfig := config
+	if resolver, ok := service.(interface {
+		TargetConfigForName(string) fogcast.TargetConfig
+	}); ok {
+		if target := resolver.TargetConfigForName(targetName); target.Name != "" {
+			targetConfig.BaseURL, targetConfig.Token = target.Address, target.Agent
+		}
+	}
+	starter, err := makeStarter(targetConfig)
+	if err != nil {
+		return nil, err
+	}
+	if typed, ok := starter.(*host.HTTPBridgeStarter); ok {
+		if provider, ok := service.(interface {
+			KitLeaseForTarget(string) *targetclient.KitLease
+		}); ok {
+			typed.WithKitLeaseSource(func() *targetclient.KitLease { return provider.KitLeaseForTarget(targetName) })
+		}
+	}
+	return starter, nil
 }
 
 func bindSessionTargetOrigin(service service, starter *host.HTTPBridgeStarter, media *compositionMediaSession) {
@@ -1003,6 +1033,7 @@ func stopServiceForShutdown(service service) error {
 	if !ok || !owner.ShutdownCleanupRequired() {
 		return nil
 	}
+	var firstFailure error
 	for stopped := 0; stopped < 64 && owner.ShutdownCleanupRequired(); stopped++ {
 		var stopErr error
 		for attempt := 0; attempt < 2; attempt++ {
@@ -1014,6 +1045,9 @@ func stopServiceForShutdown(service service) error {
 				}
 			}
 			cancel()
+			if stopErr != nil && firstFailure == nil {
+				firstFailure = stopErr
+			}
 			if stopErr == nil {
 				break
 			}
@@ -1025,7 +1059,7 @@ func stopServiceForShutdown(service service) error {
 	if owner.ShutdownCleanupRequired() {
 		return errors.New("fogcast-api: shutdown cleanup did not settle all target sessions")
 	}
-	return nil
+	return firstFailure
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer, open openService) int {

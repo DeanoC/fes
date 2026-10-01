@@ -72,7 +72,7 @@ type selectedLaunchTargetService struct {
 }
 
 func (s *selectedLaunchTargetService) SelectedTargetConfig() fogcast.TargetConfig { return s.selected }
-func (s *selectedLaunchTargetService) SessionTargetName() string                  { return "kit-a" }
+func (s *selectedLaunchTargetService) SessionTargetName() string                  { return s.selected.Name }
 
 func TestOmittedLaunchUsesSelectedCoordinatorWithoutMakingTargetExplicit(t *testing.T) {
 	gameID := "megadrive-sonic-test"
