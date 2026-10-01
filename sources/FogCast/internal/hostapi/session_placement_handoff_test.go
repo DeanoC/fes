@@ -2,8 +2,10 @@ package hostapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
@@ -12,12 +14,19 @@ import (
 )
 
 type placementHandoffService struct {
-	state  protocol.Status
-	target string
+	state      protocol.Status
+	target     string
+	stops      int
+	stopTarget string
+	core       bool
 }
 
 func (s *placementHandoffService) Game(context.Context, string) (catalog.Game, error) {
-	return catalog.Game{ID: "placed-game", Kind: catalog.SourceKindRaw}, nil
+	kind := catalog.SourceKindRaw
+	if s.core {
+		kind = catalog.SourceKindCorePackage
+	}
+	return catalog.Game{ID: "placed-game", Kind: kind}, nil
 }
 func (s *placementHandoffService) Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
 	return protocol.CachedLaunchResponse{Status: s.state}, nil
@@ -30,7 +39,9 @@ func (s *placementHandoffService) LaunchOn(context.Context, string, string, fogc
 func (s *placementHandoffService) LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error) {
 	return protocol.Status{}, nil
 }
-func (s *placementHandoffService) Stop(context.Context) (protocol.Status, error) {
+func (s *placementHandoffService) Stop(ctx context.Context) (protocol.Status, error) {
+	s.stops++
+	s.stopTarget = fogcast.SessionTargetFromContext(ctx)
 	s.state = protocol.Status{State: protocol.StateIdle}
 	return s.state, nil
 }
@@ -59,9 +70,12 @@ func (m *handoffMedia) Start(context.Context, string) (MediaHandle, error) {
 	return handle, nil
 }
 
-type handoffMediaHandle struct{ stopped int }
+type handoffMediaHandle struct {
+	stopped int
+	err     error
+}
 
-func (h *handoffMediaHandle) Stop(context.Context) error { h.stopped++; return nil }
+func (h *handoffMediaHandle) Stop(context.Context) error { h.stopped++; return h.err }
 
 func TestOmittedPlacementHandoffMovesFlightAndStopOwnership(t *testing.T) {
 	service := &placementHandoffService{target: "kit-a"}
@@ -94,6 +108,39 @@ func TestOmittedPlacementHandoffMovesFlightAndStopOwnership(t *testing.T) {
 	}
 	if !b.nativeStoppedIdle || a.execution != "previous-a" || service.state.State != protocol.StateIdle || inputs["kit-b"].detached == 0 || media.handles[0].stopped != 1 {
 		t.Fatalf("after Stop B: A=%q B=%q target=%s", a.execution, b.execution, service.state.State)
+	}
+}
+
+func TestPlacementHandoffCleanupFailureRollsBackPlacedPlayAndKeepsOldMedia(t *testing.T) {
+	service := &placementHandoffService{target: "kit-a"}
+	root := newSessionCoordinator(service, nil, &handoffMedia{})
+	root.remoteInputFactory = func(string) host.RemoteInputController { return &handoffInput{} }
+	a, b := root.forTarget("kit-a"), root.forTarget("kit-b")
+	old := &handoffMediaHandle{err: errors.New("stop failed")}
+	b.execution, b.mediaHandle, b.mediaState = fogcast.ExecutionFPGANative, old, "active"
+	_, err := a.launch(context.Background(), "placed-game", "", clientStamp{})
+	if err == nil {
+		t.Fatal("launch succeeded despite B media cleanup failure")
+	}
+	if b.execution != fogcast.ExecutionFPGANative || b.mediaHandle != old || b.mediaState != "active" {
+		t.Fatalf("B ownership overwritten after failed cleanup: execution=%q handle=%p state=%q", b.execution, b.mediaHandle, b.mediaState)
+	}
+	if service.stops != 1 || service.stopTarget != "kit-b" || service.state.State != protocol.StateIdle {
+		t.Fatalf("placed play rollback: stops=%d target=%q status=%s", service.stops, service.stopTarget, service.state.State)
+	}
+}
+
+func TestPackagePlacementBusyCoordinatorStopsPlacedPlay(t *testing.T) {
+	service := &placementHandoffService{target: "kit-a", core: true}
+	root := newSessionCoordinator(service, nil, nil)
+	root.remoteInputFactory = func(string) host.RemoteInputController { return &handoffInput{} }
+	a, b := root.forTarget("kit-a"), root.forTarget("kit-b")
+	b.busy = true
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := a.launch(ctx, "placed-game", "", clientStamp{})
+	if err == nil || service.stops != 1 || service.stopTarget != "kit-b" || service.state.State != protocol.StateIdle {
+		t.Fatalf("busy admission rollback: err=%v stops=%d target=%q status=%s", err, service.stops, service.stopTarget, service.state.State)
 	}
 }
 
