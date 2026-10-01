@@ -1,0 +1,15 @@
+/dev/loop8 /.fes-bootstrap ext4 ro,noatime,nodiratime 0 0
+/dev/root /media/fat exfat rw,sync,dirsync,noatime,nodiratime,fmask=0022,dmask=0022,codepage=cp437,iocharset=utf8,namecase=0,errors=remount-ro 0 0
+devtmpfs /dev devtmpfs rw,relatime,size=251536k,nr_inodes=62884,mode=755 0 0
+proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
+sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0
+tmpfs /.fes-bootstrap/run tmpfs rw,nosuid,nodev,relatime 0 0
+/dev/loop0 / ext4 ro,noatime,norecovery 0 0
+proc /proc proc rw,relatime 0 0
+devpts /dev/pts devpts rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=666 0 0
+tmpfs /dev/shm tmpfs rw,nosuid,nodev,relatime 0 0
+tmpfs /run tmpfs rw,nosuid,nodev,relatime,mode=755 0 0
+tmpfs /tmp tmpfs rw,nosuid,nodev,relatime 0 0
+tmpfs /var/log tmpfs rw,nosuid,nodev,noexec,relatime,mode=755 0 0
+a6c24668d3e98ab067f0835371733ab895905919ba630e60c409cd3c678b50a2  /proc/30023/exe
+2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699  /proc/30026/exe

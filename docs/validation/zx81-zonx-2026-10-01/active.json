@@ -1,0 +1,60 @@
+{
+  "id": "4a99171b-4151-484e-82fc-7296496eb2da",
+  "target": "kit2",
+  "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+  "state": "active",
+  "game_id": "fpga-zon-x-full-ay-kit2-diagnostic-8c051dffcdbb",
+  "system": "fpga",
+  "execution": "fpga_native",
+  "core_package": {
+    "rom_link": {
+      "rom_id": "machine-rom",
+      "map_sha256": "753c307fbb0b21ce6ea4e4841fe1382d827813abb55c4608a7a095d0d6a11856",
+      "source_sha256": "adcf1ea67ac7efae5ee63515e967448c02147ffc95e95af08222c5aff7f6ae6f",
+      "source_size": 8192,
+      "programmed_sha256": "9d38a8c112c29aa388ccfc31f42decfbc0db930f388918a8e4d2942bce131b47",
+      "programmed_size": 2513468
+    },
+    "composition": {
+      "composition_id": "83f72896120826e165574f493e69f96133f0fac8c629b3cc923cd308ea09944c",
+      "package_id": "39f3984defc0dff84c75c0dceb32f54ed6d74922e8974b9b4224a0389a3a2dca",
+      "expansion_id": "c760dc38646798e87d960fd72e856f504c3a0463e9240e8b818fbda0948f2703",
+      "shell_sha256": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89",
+      "payload_sha256": "bb6f1784aff9dd89f09180c4bdbfbcacf4de470589dbf95f1b9e4056de907aa9",
+      "payload_size": 2528045
+    },
+    "persistence_mode": "volatile",
+    "package_id": "39f3984defc0dff84c75c0dceb32f54ed6d74922e8974b9b4224a0389a3a2dca",
+    "generation": 1,
+    "abi": {
+      "id": "fes.simple-computer",
+      "major": 1,
+      "minor": 0
+    },
+    "build_id": "d308c4b4aa16922c99138770c0203ba6",
+    "active_interfaces": [
+      {
+        "id": "fes.audio.pcm-s16-stereo-48k",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.keyboard",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.media.blob",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.video.fixed-720p60",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "gamepad": false
+  },
+  "flight_id": "9d99e2c2-777d-424f-9c80-3ddec99efbf1"
+}

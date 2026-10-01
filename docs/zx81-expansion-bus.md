@@ -163,7 +163,8 @@ no new settings/save-data policy is inferred from the asset or title name.
 The [historical channel-A diagnostic](validation/2026-09-30-zx81-zonx-hil.md)
 qualifies only its bus 1.0 shell and partial cart. The completed bus 2.0 pair
 passes its [own seal and behavioral checks](validation/2026-10-01-zx81-zonx-ay.md);
-exact-package full-cart kit evidence remains pending. Factory-image acceptance
+the exact-package [Kit 2 diagnostic](validation/2026-10-01-zx81-zonx-kit2-hil.md)
+passes with documented filtered-capture limits. Factory-image acceptance
 remains separate.
 
 `sim-fes-zx81-ay` checks independent frequency, volume, mixer, noise and envelope

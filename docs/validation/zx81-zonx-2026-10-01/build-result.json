@@ -209,7 +209,7 @@
       }
     }
   },
-  "classification": "host build and simulation; hardware pending",
+  "classification": "host build and simulation; exact-artifact Kit2 diagnostic recorded separately",
   "go_composition": {
     "composition_id": "83f72896120826e165574f493e69f96133f0fac8c629b3cc923cd308ea09944c",
     "expansion_id": "c760dc38646798e87d960fd72e856f504c3a0463e9240e8b818fbda0948f2703",
