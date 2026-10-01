@@ -47,7 +47,7 @@ decisions here. They do not get invented beside them.
 
 ## What is true now
 
-Present tense, FES tip `97fadf24` (includes #130).
+Present tense, verified against the FES source at this worktree's tip.
 
 Control today is the FogCast host session API to a configured target
 agent, then `/run/mister-runtime.sock` protocol 2. The agent is the kit
@@ -56,11 +56,15 @@ seconds; expiry and explicit takeover are in
 [`docs/kit-sharing.md`](kit-sharing.md). The runtime decides physical
 transitions, including idle recovery and `reboot_required`.
 
-Identity today is a persistent `target_id` per configured kit. DNS-SD
-TXT carries that id and a discovery protocol version. Advertisements
-carry no credentials, no library, and no lease secrets. Health must
-confirm the id and the target API version before the host adopts a new
-address. There is no mesh-protocol version and no capability bag.
+Identity today is a persistent `target_id` per configured kit. The current
+kit DNS-SD TXT carries `protocol=1`, repeats that ID as `node_id`, and
+advertises `mesh=1.0` plus its capability bag. The TXT encoder emits no
+`ttl` field; the parser tolerates an optional `ttl`, while DNS-SD browse
+expiry removes silent nodes from future inventory. Advertisement expiry
+does not release a lease. Advertisements carry no credentials, title list,
+or lease secrets. Health must confirm
+the ID and target API version before the host adopts a new address.
+Phase 0 peers may omit mesh fields and remain directly bindable.
 
 Content today is the host library plus target-side cache for a launch
 the host already resolved. Catalog `launchable` is a platform and
@@ -99,6 +103,31 @@ the ensure seam: with the seam off, a rebind onto another kit streams
 the launch on the Phase 0 path. See [`mesh-phase3.md`](mesh-phase3.md)
 Slice 8.
 
+## M1 interoperability matrix
+
+This matrix separates the existing kit protocol from the proposed remote
+software-runner contract. A capability is an execution fact, never a
+permanent Host/Kit identity. Current DNS-SD fields are implemented; runner
+advertisement and pairing are not.
+
+| Field | Kit today (implemented) | Linux/Mac software runner (proposed; gap #360) |
+| --- | --- | --- |
+| Identity | `node_id` and `target_id` are the same persistent kit ID. Configured-target authentication and per-kit launcher credentials bind it; user pairing is not implemented, and discovery alone does not enroll. | Stable runner identity must follow an agreed existing host/config identity path; pairing/admission is unresolved. Do not add Host/Kit enum. |
+| Protocol | `mesh=1.0`; Phase 0 peers may omit it and remain directly bindable. A needed mesh major mismatch fails closed. | Negotiate the same mesh major.minor; advertise only after support is implemented. |
+| Execute | `fpga_native`; TXT has no ABI families. Placement separately reads authenticated node content/ABI data. | `native_emu` with explicit supported systems and emulator/core versions. Current `host_only` is a host-local execution label, not a remote advertisement. |
+| Display/input | `display_sink=true`, `input_source=true` mean the kit can present and supply local input; they do not attest live picture or multiple players. | Advertise only functions the runner owns. Remote video/input routing is not part of M1 evidence. |
+| Availability | DNS-SD TTL controls inventory presence only. Kit lease status and composition determine admission/readiness separately. | Heartbeat/health, backend readiness, and single-session busy state need an implementation and honest UI. |
+| Ownership | Existing target-agent kit lease is the FPGA admission authority (90-second grant, 20-second renewal); one owner, explicit release/expiry cleanup. | Runner serializes its own session lifecycle and rejects busy/incompatible requests. No second FPGA lease. |
+| Catalog/content | No title list or credentials in DNS-SD. Host library and per-kit mesh content API are separate. | Reuse title IDs and backend options through host library surfaces; do not add titles, paths, or secrets to advertisements. Content transport is outside this minimum M1 contract. |
+
+**Title/backend rule (proposed):** retain catalog `game_id` as title
+identity and represent executable options separately. A session chooses one
+backend and executor; backend compatibility/version, required package or
+media composition, availability, and ownership must all admit before launch.
+Current kit and host-local paths are separate implementations; federated
+runner negotiation and dual-backend evidence are GAP #360/#361. The evidence
+matrix and legal test-title limits are in [`mesh-lan.md`](mesh-lan.md).
+
 ## Planes, and which contracts appear when
 
 Names match [`mesh-lan.md`](mesh-lan.md). A cell says the contract is
@@ -107,7 +136,7 @@ system, described so later phases have a floor.
 
 | Phase | Control | Content | I/O |
 | --- | --- | --- | --- |
-| **0 — now** | Host session API, named `target`, kit lease. No mesh-protocol version. | This host's library and that target's cache. | Kit HDMI and audio. Kit pad. Host input on the foreground session. |
+| **0 — compatibility floor** | Host session API, named `target`, kit lease. Legacy Phase 0 peers may omit mesh fields; the current kit advertises mesh `1.0` and capabilities. | This host's library and that target's cache. | Kit HDMI and audio. Kit pad. Host input on the foreground session. |
 | **1 — see the nodes** | Node identity, capability advertisement, TTL and heartbeat, mesh-protocol version. One active Shell. Ready stays Phase 0 composition against the bound executor. A second shell that sees the kit leased does not claim it. | Unchanged from Phase 0. Advertisements do not list titles and do not make some other node Ready. The shell's knowledge that the kit already has the package selected or installed is bound-target composition only. | Unchanged. A DisplaySink advertisement means the node can present. It does not mean the picture is up. |
 | **2 — one library** | A session may name required slot content-ids. Failure class: content missing and no source. Mid-pull stays Checking. Ready means this session can play here, not that the bytes exist on some LAN node. | Catalog entry shape. Package / ABI identity plus BIOS, primary-media, and expansion content-ids. Pull and cache onto the executor this session will use. | Unchanged. |
 | **3 — placement** | One coordinator. Chosen Execute, Display, and Input recorded on the session. Lease conflict rejects. | Ensure step completes before execute. | Bindings are named. They are still local to the chosen nodes. |
@@ -127,9 +156,10 @@ system, described so later phases have a floor.
 
 **Recommended default, updated from Caster review 2026-09-23.** Kits
 generalize today's `target_id` into node-id. A kit that later gains a
-shell keeps that id. It does not mint a second one. Phase 0 nodes that
-only speak the current target API omit mesh-protocol version and stay
-directly bindable.
+shell keeps that id. It does not mint a second one. Legacy Phase 0 nodes
+that only speak the current target API may omit mesh-protocol version and
+stay directly bindable. The current kit advertises `mesh=1.0`; Phase 0
+names the compatibility floor, not the current kit's advertisement.
 
 **Strawman, unsigned.** Hosts that are not targets need a minting rule:
 where the id is created, where it is stored, and what a reinstall does.
@@ -149,7 +179,8 @@ not a second clock that frees the kit, including relative to the
 roughly 90 second lease.
 
 Advertisements carry no credentials, no title list, and no lease
-secrets. That matches today's DNS-SD discipline (id and version only).
+secrets. That matches today's DNS-SD discipline (node id, mesh version
+and capability flags; no credentials or title data).
 
 **Recommended bag.** Names are for this draft. They are not a frozen
 enum.

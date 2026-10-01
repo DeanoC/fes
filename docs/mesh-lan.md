@@ -104,8 +104,11 @@ feels, and the migration. The shells' contracts are
 
 ## What is true now
 
-Present tense, FES tip `97fadf24` (includes #130). Paths below exist in
-this tree. None of them is a mesh.
+Present tense, verified against the FES source at this worktree's tip.
+The existing host-to-kit launch path is still a direct bind; kit DNS-SD
+discovery now advertises the implemented mesh capability contract described
+below. The broader federated library and remote software-runner behavior are
+not implemented.
 
 One FogCast host owns the catalog, rooms, launch intent, and content
 selection. The target agent owns network session and transfer coordination
@@ -125,9 +128,13 @@ authority for that kit
 one shell to configured kits.
 
 Each named target may have a persistent `target_id`. The agent advertises
-it with local DNS-SD (`_fogcast._tcp`). TXT carries `target_id` and a
-discovery protocol version, not a capability bag, not a catalog, and not
-lease secrets. The host adopts a new address only after authenticated
+it with local DNS-SD (`_fogcast._tcp`). Current kit TXT carries
+`protocol=1`, `target_id`, matching `node_id`, `mesh=1.0`, and a capability
+bag containing `execute:fpga_native`, `display_sink`, and `input_source`.
+It does not carry ABI families, a catalog, credentials, or lease secrets.
+`EncodeKitTXT` does not emit a TXT `ttl`; the parser accepts an optional
+`ttl`, and DNS-SD browse expiry governs inventory presence independently of
+the kit lease. The host adopts a new address only after authenticated
 health confirms the expected id and API version. Discovery does not launch
 a game. Explicit address configuration remains the fallback. See
 [`sources/FogCast/docs/ARCHITECTURE.md`](../sources/FogCast/docs/ARCHITECTURE.md)
@@ -157,6 +164,60 @@ This mesh draft inherits that lock.
 Nothing in the current product joins two hosts' libraries, places execute
 on a node the user did not configure, or routes a pad to a different HDMI
 sink.
+
+## M1 two-node contract (review baseline)
+
+This is the concise contract for #358–#364. “Implemented” is tied to the
+listed FES source/test or the dated HIL record; everything else is a
+proposal or gap. The mesh discovery and placement code is not a claim that
+two-node software-runner acceptance is complete.
+
+| Concern | Implemented today | M1 contract / remaining gap |
+| --- | --- | --- |
+| **Capability/version** | Kit DNS-SD advertises mesh `1.0`, `fpga_native`, `display_sink`, and `input_source`; no ABI families in TXT. Host placement reads ABI families from the authenticated kit content document. See `sources/FogCast/internal/discovery/mesh.go` and `fogcast/mesh_place_wire.go`. | **Proposed:** retain `mesh` major.minor negotiation; a major mismatch is ineligible, unknown optional minor fields are ignored. The M1 software runner advertises `native_emu` plus its supported systems/core versions; no such remote advertisement is implemented. Do not advertise shell/catalog/coordinator unless the node actually serves them. |
+| **Title/backend** | Catalog entries preserve `game_id`; host execution uses `host_only` with the host RetroArch adapter, while FPGA uses `fpga_native`. Mesh content model has `native_emu`. See `internal/systems/table.go`, `internal/hostexec/retroarch.go`, `fogcast/mesh_library.go`, `internal/meshcontent/content.go`. | **Proposed:** one title identity may list distinct executable backends; admission requires title/system compatibility and the selected backend version. Backend selection is explicit in the session, not encoded as a node role. Federated runner selection is **GAP #360/#361**. |
+| **Node identity/pairing** | Kit identity is its existing persistent `target_id`; DNS-SD repeats it as `node_id`. Host reconciles discovery with configured targets and authenticated health. The launcher listener supports per-`target_id` credentials after #287; this is not the proposed user pairing flow. See `fogcast/discovery.go`, `internal/discovery/mesh.go`, `docs/mesh-vnext.md` §2.1, and `internal/hostapi/launcher.go`. | **Proposed:** the kit keeps that ID through capability changes; software-runner identity and pairing must reuse the existing configured target/host identity mechanisms where applicable. Do not add permanent Host/Kit identity enum. **GAP #360:** a remote software runner has no agreed identity/enrollment path. The v-next PAKE flow is proposed, not implemented. |
+| **Availability** | Inventory expiry removes a node from a future placement choice but does not release its lease. Room states are Checking/Missing/Needs a choice/Unavailable/Ready. Lease and target health are separate. See `internal/discovery/mesh.go`, `fogcast/mesh_ready.go`, FogCast `docs/rooms-experience.md`. | **Proposed:** report Checking while capability, backend, composition, or required content is unresolved; Ready only for the selected usable execution option; otherwise Unavailable with reason. Software-runner health/readiness and honest UI across both nodes are **GAP #359/#360/#362**. |
+| **Ownership/admission** | Kit agent lease is 90 seconds, renewed every 20 seconds; target client mutations use that grant. Busy kit launches reject. No second FPGA lease exists. See `docs/kit-sharing.md`, `sources/FogCast/targetclient/kit_lease.go`, `fogcast/mesh_lease_acquire_test.go`. | **Proposed:** each executor session has one owner; admission checks the existing kit lease for FPGA and an equivalent single-session owner on a software runner. Discovery TTL is not ownership. Do not create a second FPGA lease. Independent per-node session/input/Stop and race/failure acceptance remain **GAP #363**. |
+
+### Named legal two-node test titles and evidence
+
+Only use titles whose distributable bytes are in this repository or whose
+license is documented. Never use copyrighted commercial ROMs in acceptance.
+Standalone FES Pong is in-repository homebrew source with
+`GPL-2.0-or-later` SPDX headers in `sources/misteross/cores/fes-pong/`; its
+package/library path is documented in
+[`sources/FogCast/docs/core-package-library.md`](../sources/FogCast/docs/core-package-library.md).
+It is a legal kit-backend candidate. Software-title selection is a
+**BLOCKING open question for #360/#364**: repository evidence does not
+establish a named legal title plus compatible software-backend pair. Before
+software-runner acceptance, select bytes included in or explicitly referenced
+by the repo, verify their redistribution license, identify a software backend
+that supports the title's system and format, and record the exact backend,
+version, and launch path. A title's legal kit availability alone does not
+establish software-backend compatibility. Do not assume FES Pong has a
+RetroArch core. The repo also contains a MIT-licensed Coleco controls
+diagnostic (`sources/misteross/cores/fes-coleco/README.md` and
+`diagnostic/LICENSE`), but it is not evidenced as a RetroArch software title.
+
+| Acceptance claim | Current evidence | M1 standing |
+| --- | --- | --- |
+| Kit can execute FES Pong; target/runtime launch and Stop work | Existing target/runtime tests and dated Pong HIL records; `docs/mesh-vnext.md` §5 HIL2 is two-kit placement diagnostic, picture-only, not designated-kit acceptance. | Implemented for the kit path; exact M1 artifact acceptance pending #364. |
+| Software runner can execute a named legal title | RetroArch host execution adapter/tests (`sources/FogCast/internal/hostexec/retroarch.go`, `_test.go`) establish a local host-only path, not a remote mesh runner or legal title/backend pair. | **BLOCKED, #360/#364:** choose redistributable title bytes and a compatible software backend/version, then record exact-artifact acceptance. |
+| Same title on both backends (dual-backend) | No evidence that current FES Pong package is a RetroArch title or has a compatible software core. | GAP #361/#364; do not claim dual-backend coverage until a legal title and compatible backend are recorded. |
+| Two nodes browse and show truthful availability | `GET /api/v1/mesh/nodes` and placement tests cover advertised kits; HIL2/HIL3 records are diagnostic as scoped in `docs/mesh-vnext.md` §5. | Kit inventory evidence exists; coherent combined library/UI remains #361/#362. |
+| Independent play, scoped input/Stop, busy/version mismatch, reconnect | Existing kit lease and launcher ownership tests cover individual rules; no exact two-node software-runner acceptance record. | GAP #363, then exact-artifact HIL #364. |
+
+Open implementation dependencies: #359 local kit host/shell and measured
+limits; #360 Linux/Mac software runner and backend negotiation; #361 shared
+library/backend projection; #362 room availability and return behavior;
+#363 independent sessions and failure handling; #364 exact-artifact
+acceptance. #288 (per-kit concurrent launcher sessions/Stop) and #289
+(launcher health/cache still describe the selected target) remain separate
+launcher gaps where M1 requires them; #287 already supplies per-kit launcher
+credentials and ownership checks. #358 freezes no wire schema: if a shared
+wire definition becomes necessary, coordinate it with mister-packages rather
+than duplicating it here.
 
 ## Decisions
 
