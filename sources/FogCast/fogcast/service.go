@@ -257,8 +257,15 @@ type Service struct {
 	// targetOrigin rebinds input/media to the selected target. The lease is
 	// the kit grant already held for that target, and may be nil. The hook
 	// must not call back into Service (same rule as targetReset).
-	targetOrigin             func(TargetConfig, *targetclient.KitLease)
-	targetMu                 sync.RWMutex
+	targetOrigin func(TargetConfig, *targetclient.KitLease)
+	targetMu     sync.RWMutex
+	// pairedTargetMu protects the independent paired-target lookup snapshot and
+	// lazy client cache. Lock order is targetMu then pairedTargetMu when both
+	// are needed; paired reads take only pairedTargetMu and release it before
+	// network I/O, so they never wait for a foreground launch's targetMu.
+	pairedTargetMu           sync.Mutex
+	pairedTargetConfigs      []TargetConfig
+	pairedTargetClients      map[string]serviceClient
 	requestTimeout           time.Duration
 	uploadTimeout            time.Duration
 	meshCheckingTimeout      time.Duration
@@ -308,8 +315,8 @@ type Service struct {
 	catalogCloseErr             error
 	closeErr                    error
 
-	romCacheMu   sync.Mutex
-	romCacheSnap romCacheSnapshot
+	romCacheMu    sync.Mutex
+	romCacheSnaps map[string]romCacheSnapshot
 }
 
 const catalogCloseScanTimeout = 2 * time.Second
@@ -496,10 +503,11 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		catalog: store, scanner: scanner, preparer: preparer,
 		roots: roots, rootsByID: rootsByID,
 		targets: append([]TargetConfig(nil), config.Targets...), selectedTarget: config.SelectedTarget,
-		targetClients:  make(map[string]serviceClient),
-		plays:          make(map[string]targetPlay),
-		displayMemory:  meshpref.New(),
-		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
+		targetClients:       make(map[string]serviceClient),
+		pairedTargetClients: make(map[string]serviceClient),
+		plays:               make(map[string]targetPlay),
+		displayMemory:       meshpref.New(),
+		requestTimeout:      config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		coreLoadReconcileTimeout: coreLoadReconcileTimeout,
 		executionResolver:        defaultExecutionResolver{},
 		attractIdle:              config.Library.AttractIdleSeconds,
@@ -517,7 +525,9 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 	}
 	if client != nil {
 		service.targetClients[service.selectedTarget] = client
+		service.pairedTargetClients[service.selectedTarget] = client
 	}
+	service.pairedTargetConfigs = append([]TargetConfig(nil), service.targets...)
 	service.catalogAdmission <- struct{}{}
 	scanner.SetAdmissionGate(service.acquireCatalogAdmission)
 	for _, option := range options {
@@ -534,6 +544,27 @@ func (s *Service) selectedClientSnapshot() (serviceClient, bool) {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	return s.selectedClientLocked()
+}
+
+func (s *Service) pairedTargetClient(targetID string) (serviceClient, bool) {
+	s.pairedTargetMu.Lock()
+	defer s.pairedTargetMu.Unlock()
+	for _, cfg := range s.pairedTargetConfigs {
+		if !cfg.Enabled || cfg.TargetID != targetID {
+			continue
+		}
+		client := s.pairedTargetClients[cfg.Name]
+		if client == nil && s.targetClientFactory != nil {
+			var err error
+			client, err = s.targetClientFactory(cfg)
+			if err != nil || client == nil {
+				return nil, false
+			}
+			s.pairedTargetClients[cfg.Name] = client
+		}
+		return client, client != nil
+	}
+	return nil, false
 }
 
 func (s *Service) selectedClientLocked() (serviceClient, bool) {
@@ -1553,6 +1584,15 @@ func (s *Service) hostLaunchable(system protocol.System) bool {
 }
 
 func (s *Service) Health(parent context.Context) (protocol.Health, error) {
+	if targetID, _ := parent.Value(pairedTargetContextKey{}).(string); targetID != "" {
+		ctx, cancel := serviceTimeout(parent, s.requestTimeout)
+		defer cancel()
+		client, ok := s.pairedTargetClient(targetID)
+		if !ok {
+			return protocol.Health{}, errors.New("paired target unavailable")
+		}
+		return client.Health(ctx)
+	}
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
@@ -2855,27 +2895,8 @@ func (s *Service) PairedTargetKitLeaseStatus(ctx context.Context, targetID strin
 
 // PairedTargetStatus reads lease and health for one enabled target ID.
 func (s *Service) PairedTargetStatus(ctx context.Context, targetID string) (kitlease.Status, bool, bool, error) {
-	s.targetMu.Lock()
-	var client serviceClient
-	for _, cfg := range s.targets {
-		if cfg.Enabled && cfg.TargetID == targetID {
-			client = s.targetClients[cfg.Name]
-			if client == nil && s.targetClientFactory != nil {
-				var err error
-				client, err = s.targetClientFactory(cfg)
-				if err != nil {
-					s.targetMu.Unlock()
-					return kitlease.Status{}, false, false, err
-				}
-				if client != nil {
-					s.targetClients[cfg.Name] = client
-				}
-			}
-			break
-		}
-	}
-	s.targetMu.Unlock()
-	if client == nil {
+	client, ok := s.pairedTargetClient(targetID)
+	if !ok {
 		return kitlease.Status{}, false, false, errors.New("paired target unavailable")
 	}
 	health, healthErr := client.Health(ctx)

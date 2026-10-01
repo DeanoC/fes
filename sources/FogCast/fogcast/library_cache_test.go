@@ -2,8 +2,11 @@ package fogcast
 
 import (
 	"context"
+	"errors"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/protocol"
@@ -31,6 +34,89 @@ func TestLibraryCacheReportsTargetInventoryWithoutLease(t *testing.T) {
 	}
 	if client.cacheIndexCalls != 1 {
 		t.Fatalf("memo not used calls=%d", client.cacheIndexCalls)
+	}
+}
+
+func TestPairedHealthAndLibraryCacheDoNotWaitForForegroundLaunchLock(t *testing.T) {
+	clientB := &fakeServiceClient{
+		healthResult: protocol.Health{Ready: true},
+		cacheIndex: func(context.Context) (protocol.CacheIndex, error) {
+			return protocol.CacheIndex{UsedBytes: 4, MaxBytes: 10, FreeBytes: 6}, nil
+		},
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	service.targets = []TargetConfig{{Name: "kit-a", Enabled: true, TargetID: "a"}, {Name: "kit-b", Enabled: true, TargetID: "b"}}
+	service.pairedTargetConfigs = append([]TargetConfig(nil), service.targets...)
+	service.pairedTargetClients["kit-b"] = clientB
+
+	// Launch holds targetMu for the full target operation. Model that critical
+	// section while paired reads for another kit exercise the real Service.
+	service.targetMu.RLock()
+	defer service.targetMu.RUnlock()
+	// A queued writer (for example a settings update) blocks new readers, so
+	// paired reads must not touch targetMu at all.
+	go func() { service.targetMu.Lock(); service.targetMu.Unlock() }()
+	queueDeadline := time.Now().Add(time.Second)
+	for service.targetMu.TryRLock() {
+		service.targetMu.RUnlock()
+		if time.Now().After(queueDeadline) {
+			t.Fatal("writer did not queue")
+		}
+		runtime.Gosched()
+	}
+	ctx := WithPairedTarget(context.Background(), "b")
+	results := make(chan error, 4)
+	go func() {
+		health, err := service.Health(ctx)
+		if err == nil && !health.Ready {
+			err = errors.New("kit B health was not ready")
+		}
+		results <- err
+	}()
+	go func() {
+		cache, err := service.LibraryCache(ctx)
+		if err == nil && (!cache.ROM.Reachable || cache.ROM.UsedBytes != 4) {
+			err = errors.New("kit B cache response was incorrect")
+		}
+		results <- err
+	}()
+	go func() {
+		// The /games and /games/{id} enrichment path for a paired kit.
+		if _, err := service.Games(ctx); err != nil {
+			results <- err
+			return
+		}
+		if _, err := service.CoreCompositions(ctx, []string{"pong"}); err != nil {
+			results <- err
+			return
+		}
+		_ = service.PlatformLaunchable(protocol.SystemSNES)
+		if _, on := service.GamesMeshReady(ctx, []string{"pong"}); on {
+			results <- errors.New("paired read borrowed the foreground mesh readiness view")
+			return
+		}
+		results <- nil
+	}()
+	go func() {
+		_, known := service.ROMCachePresence(ctx)
+		if !known {
+			err := errors.New("kit B rom cache presence was unknown")
+			results <- err
+			return
+		}
+		results <- nil
+	}()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	for range 4 {
+		select {
+		case err := <-results:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-deadline.C:
+			t.Fatal("paired health or library cache waited behind the foreground target lock or a queued writer")
+		}
 	}
 }
 

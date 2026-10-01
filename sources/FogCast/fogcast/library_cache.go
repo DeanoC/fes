@@ -75,9 +75,9 @@ func (s *Service) ROMCachePresence(ctx context.Context) (map[string]bool, bool) 
 
 func (s *Service) romCacheSnapshot(parent context.Context) romCacheSnapshot {
 	now := time.Now()
+	targetID, _ := parent.Value(pairedTargetContextKey{}).(string)
 	s.romCacheMu.Lock()
-	if !s.romCacheSnap.at.IsZero() && now.Sub(s.romCacheSnap.at) < romCacheMemoTTL {
-		snap := s.romCacheSnap
+	if snap := s.romCacheSnaps[targetID]; !snap.at.IsZero() && now.Sub(snap.at) < romCacheMemoTTL {
 		s.romCacheMu.Unlock()
 		return snap
 	}
@@ -86,19 +86,27 @@ func (s *Service) romCacheSnapshot(parent context.Context) romCacheSnapshot {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	snap := romCacheSnapshot{at: now, present: map[string]struct{}{}}
-	client, ok := s.selectedClientSnapshot()
+	// Paired reads must not touch targetMu: a queued writer would block new
+	// readers behind another kit's launch.
+	var client serviceClient
+	var ok bool
+	if targetID != "" {
+		client, ok = s.pairedTargetClient(targetID)
+	} else {
+		client, ok = s.selectedClientSnapshot()
+	}
 	if !ok {
-		s.storeROMCacheSnap(snap)
+		s.storeROMCacheSnap(targetID, snap)
 		return snap
 	}
 	indexer, ok := client.(cacheIndexClient)
 	if !ok {
-		s.storeROMCacheSnap(snap)
+		s.storeROMCacheSnap(targetID, snap)
 		return snap
 	}
 	index, err := indexer.CacheIndex(ctx)
 	if err != nil {
-		s.storeROMCacheSnap(snap)
+		s.storeROMCacheSnap(targetID, snap)
 		return snap
 	}
 	if index.Entries == nil {
@@ -112,12 +120,27 @@ func (s *Service) romCacheSnapshot(parent context.Context) romCacheSnapshot {
 		}
 		snap.present[romCacheKey(entry.System, entry.SHA256)] = struct{}{}
 	}
-	s.storeROMCacheSnap(snap)
+	s.storeROMCacheSnap(targetID, snap)
 	return snap
 }
 
-func (s *Service) storeROMCacheSnap(snap romCacheSnapshot) {
+type pairedTargetContextKey struct{}
+
+// WithPairedTarget scopes read-only launcher health and cache reads to one kit.
+func WithPairedTarget(ctx context.Context, targetID string) context.Context {
+	return context.WithValue(ctx, pairedTargetContextKey{}, targetID)
+}
+
+func PairedTargetFromContext(ctx context.Context) string {
+	targetID, _ := ctx.Value(pairedTargetContextKey{}).(string)
+	return targetID
+}
+
+func (s *Service) storeROMCacheSnap(targetID string, snap romCacheSnapshot) {
 	s.romCacheMu.Lock()
-	s.romCacheSnap = snap
+	if s.romCacheSnaps == nil {
+		s.romCacheSnaps = make(map[string]romCacheSnapshot)
+	}
+	s.romCacheSnaps[targetID] = snap
 	s.romCacheMu.Unlock()
 }

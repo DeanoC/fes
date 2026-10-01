@@ -406,6 +406,13 @@ func New(service Service, options ...ServerOption) http.Handler {
 				Connection: targetConnection(service),
 			},
 		}
+		if targetID := fogcast.PairedTargetFromContext(r.Context()); targetID != "" {
+			state := "disconnected"
+			if err == nil {
+				state = "connected"
+			}
+			result.Target.Connection = &fogcast.TargetConnection{TargetID: targetID, State: state}
+		}
 		if err == nil {
 			result.Target.Artifacts = target.Artifacts
 		}
