@@ -32,6 +32,21 @@ func TestClientAuthenticatesAndRefusesRedirect(t *testing.T) {
 	}
 }
 
+func TestPairedKitLeaseUsesAuthenticatedTarget(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/launcher/kit-lease" || r.Header.Get("Authorization") != "Bearer secret" || r.Header.Get("X-FogCast-Target-ID") != "73dc9f5f-1a12-4a95-a820-a9b4e600769a" {
+			t.Fatalf("lease request %s headers=%v", r.URL.Path, r.Header)
+		}
+		_, _ = w.Write([]byte(`{"state":"held","owner":"kit-hostless","purpose":"kit-local-core","generation":"gen-9","expires_in_ms":9000}`))
+	}))
+	defer server.Close()
+	c := NewClient(Config{API: server.URL, Token: "secret", TargetID: "73dc9f5f-1a12-4a95-a820-a9b4e600769a"})
+	got, err := c.PairedKitLease(context.Background())
+	if err != nil || got.State != "held" || got.Owner != "kit-hostless" || got.Purpose != "kit-local-core" || got.Generation != "gen-9" || got.ExpiresInMS != 9000 {
+		t.Fatalf("lease=%+v err=%v", got, err)
+	}
+}
+
 func TestClientSessionRejectsOversizeTrailingResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"state":"idle"}` + strings.Repeat("x", 1<<20)))

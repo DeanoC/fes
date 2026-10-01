@@ -138,7 +138,7 @@ func (a *App) kitLeaseBlocksMutationLocked() bool {
 	if !a.kitLeaseHave {
 		return false
 	}
-	if a.kitLease.State == "blocked" || strings.EqualFold(strings.TrimSpace(a.kitLease.ErrorCode), "KIT_LEASE_BLOCKED") {
+	if a.kitLease.State == "blocked" || a.kitLease.State == "recovery-required" || strings.EqualFold(strings.TrimSpace(a.kitLease.ErrorCode), "KIT_LEASE_BLOCKED") {
 		return true
 	}
 	return false

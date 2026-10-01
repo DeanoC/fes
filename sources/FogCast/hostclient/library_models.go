@@ -497,13 +497,6 @@ type LibrarySettings struct {
 	Systems            []LibrarySystem `json:"systems"`
 }
 
-// LauncherTarget is the minimum host configuration tenfoot needs to poll the
-// paired kit's lease. It deliberately excludes host library paths and tokens.
-type LauncherTarget struct {
-	TargetID string `json:"target_id"`
-	Address  string `json:"address"`
-}
-
 // LibrarySettingsPatch is a partial PATCH /api/v1/library/settings body.
 type LibrarySettingsPatch struct {
 	AttractIdleSeconds *int                  `json:"attract_idle_seconds,omitempty"`

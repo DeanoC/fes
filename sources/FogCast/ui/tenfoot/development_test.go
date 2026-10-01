@@ -284,6 +284,13 @@ func TestAppDevelopmentLoadRespectsLeaseBlockedAndRetryStop(t *testing.T) {
 	if strings.Contains(strings.ToLower(app.Snapshot().Status), "takeover") {
 		t.Fatalf("auto-takeover copy: %q", app.Snapshot().Status)
 	}
+	app.mu.Lock()
+	app.kitLease = KitLeaseStatus{State: "recovery-required"}
+	blockedRecovery := app.kitLeaseBlocksMutationLocked()
+	app.mu.Unlock()
+	if !blockedRecovery {
+		t.Fatal("recovery-required lease did not block development mutation")
+	}
 	app.HandleCommand(CmdBack, now)
 
 	app.mu.Lock()

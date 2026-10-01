@@ -21,6 +21,7 @@ type observation struct {
 	epoch          uint64
 	session        Session
 	health         hostclient.HealthResult
+	kitLease       kitlease.Status
 	games          []hostclient.Game
 	strip          []hostclient.Game
 	stripLabel     string
@@ -239,6 +240,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.err == nil && !o.hostAbsent {
 				o.health, o.err = c.Library.Health(ctx)
 			}
+			if o.err == nil && !o.hostAbsent && strings.TrimSpace(c.config.TargetID) != "" {
+				o.kitLease, o.err = c.PairedKitLease(ctx)
+				if errors.Is(o.err, errPairedKitLeaseUnsupported) {
+					// Older host builds lack the target-scoped projection.
+					o.kitLease = kitlease.Status{State: o.health.Connection.State, Owner: o.health.Connection.Owner}
+					o.err = nil
+				}
+			} else if o.err == nil && !o.hostAbsent {
+				// Host-mode clients have no paired target identity; preserve the
+				// selected-target health lease behavior for that mode.
+				o.kitLease = kitlease.Status{State: o.health.Connection.State, Owner: o.health.Connection.Owner}
+			}
 			if o.err == nil && !o.hostAbsent && load {
 				o.games, o.err = loadCatalog(ctx, c)
 				if o.err == nil {
@@ -415,13 +428,14 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			// ForeignLease still marks a grant this host does not own. Play
 			// input to the local socket does not consult it.
 			m.ForeignLease = kitlease.ForeignHID(kitlease.Status{
-				State: o.health.Connection.State,
-				Owner: o.health.Connection.Owner,
+				State:   o.kitLease.State,
+				Owner:   o.kitLease.Owner,
+				Purpose: o.kitLease.Purpose,
 			})
 			m.Session = applyObservedSession(m.Session, o.session)
 			if !o.mutation {
 				m.TargetReady = o.health.TargetReady
-				if o.health.Connection.State == "busy" {
+				if kitlease.ForeignHID(o.kitLease) {
 					m.Message = "Kit in use"
 				} else if !o.health.TargetReachable {
 					m.Message = "Kit unavailable"

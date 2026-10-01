@@ -24,6 +24,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/internal/meshpref"
 	"github.com/DeanoC/FogCast/internal/systems"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/librarymedia"
 	"github.com/DeanoC/FogCast/libraryuser"
 	"github.com/DeanoC/FogCast/protocol"
@@ -2843,6 +2844,41 @@ func (s *Service) SelectedTargetConfig() TargetConfig {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	return targetByName(s.targets, s.selectedTarget)
+}
+
+// PairedTargetKitLeaseStatus reads only the lease for an enabled target ID.
+// Callers on the paired listener must supply the ID authenticated by pairing.
+func (s *Service) PairedTargetKitLeaseStatus(ctx context.Context, targetID string) (kitlease.Status, error) {
+	s.targetMu.Lock()
+	var client serviceClient
+	for _, cfg := range s.targets {
+		if cfg.Enabled && cfg.TargetID == targetID {
+			client = s.targetClients[cfg.Name]
+			if client == nil && s.targetClientFactory != nil {
+				var err error
+				client, err = s.targetClientFactory(cfg)
+				if err != nil {
+					s.targetMu.Unlock()
+					return kitlease.Status{}, err
+				}
+				if client != nil {
+					s.targetClients[cfg.Name] = client
+				}
+			}
+			break
+		}
+	}
+	s.targetMu.Unlock()
+	if client == nil {
+		return kitlease.Status{}, errors.New("paired target unavailable")
+	}
+	provider, ok := client.(interface {
+		KitLeaseStatus(context.Context) (kitlease.Status, error)
+	})
+	if !ok {
+		return kitlease.Status{}, errors.New("paired target lease status unavailable")
+	}
+	return provider.KitLeaseStatus(ctx)
 }
 
 // KitLease returns the application-owned lease for the selected session target.

@@ -2435,12 +2435,20 @@ func (a *App) fetchHealth(ctx context.Context) {
 		return
 	}
 	if err == nil {
+		lease := kitLeaseFromConnection(result.Connection)
+		if a.client != nil && a.client.paired {
+			if paired, leaseErr := a.client.PairedKitLease(ctx); leaseErr == nil {
+				lease = paired
+			} else {
+				lease = KitLeaseStatus{Unavailable: true, Reason: "paired kit lease status unavailable"}
+			}
+		}
 		a.mu.Lock()
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
 		a.kitLeaseHave = true
-		a.kitLease = kitLeaseFromConnection(result.Connection)
+		a.kitLease = lease
 		a.mu.Unlock()
 		return
 	}
@@ -2837,8 +2845,11 @@ func (a *App) fetchSessionEvents(ctx context.Context) {
 
 func kitLeaseFromConnection(connection hostclient.TargetConnection) KitLeaseStatus {
 	status := KitLeaseStatus{State: connection.State, Owner: connection.Owner, Reason: connection.Message}
-	if connection.State == "busy" {
+	switch connection.State {
+	case "busy":
 		status.State = "held"
+	case "recovery-required":
+		status.State = "blocked"
 	}
 	return status
 }

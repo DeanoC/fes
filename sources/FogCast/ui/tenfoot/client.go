@@ -42,7 +42,7 @@ func launcherHTTPClient(token, targetID string) *http.Client {
 	if token == "" && targetID == "" {
 		return nil
 	}
-	return &http.Client{Transport: launcherAuthTransport{base: http.DefaultTransport, token: token, targetID: targetID}}
+	return &http.Client{Transport: launcherAuthTransport{base: http.DefaultTransport, token: token, targetID: targetID}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }
 
 const (
@@ -53,30 +53,63 @@ const (
 	defaultAttractIdleSeconds = 60
 )
 
-// KitLeaseStatus is GET /v1/kit/lease on the selected target (status-only).
+// KitLeaseStatus is the status-only lease projection for a paired target.
 type KitLeaseStatus struct {
-	HTTPStatus   int
-	State        string
-	Owner        string
-	Purpose      string
-	Generation   string
-	ExpiresAt    string
-	ExpiresInMS  int64
-	Reason       string
-	ErrorCode    string
-	ErrorMessage string
-	Unavailable  bool
+	HTTPStatus   int    `json:"-"`
+	State        string `json:"state"`
+	Owner        string `json:"owner"`
+	Purpose      string `json:"purpose"`
+	Generation   string `json:"generation"`
+	ExpiresAt    string `json:"expires_at"`
+	ExpiresInMS  int64  `json:"expires_in_ms"`
+	Reason       string `json:"reason"`
+	ErrorCode    string `json:"error_code,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+	Unavailable  bool   `json:"unavailable,omitempty"`
 }
 
 // Client calls the FogCast public host API.
 type Client struct {
 	*hostclient.Client
+	paired bool
 }
 
 // NewClient builds the sofa adapter around a host API client. baseURL defaults
 // to hostclient.DefaultAPIBase.
 func NewClient(baseURL string, httpClient *http.Client) *Client {
-	return &Client{Client: hostclient.NewClient(baseURL, httpClient)}
+	paired := false
+	if httpClient != nil {
+		if auth, ok := httpClient.Transport.(launcherAuthTransport); ok {
+			paired = auth.targetID != ""
+		}
+	}
+	return &Client{Client: hostclient.NewClient(baseURL, httpClient), paired: paired}
+}
+
+func (c *Client) PairedKitLease(ctx context.Context) (KitLeaseStatus, error) {
+	if c == nil || c.Client == nil {
+		return KitLeaseStatus{}, fmt.Errorf("tenfoot client is nil")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL()+"/api/v1/launcher/kit-lease", http.NoBody)
+	if err != nil {
+		return KitLeaseStatus{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return KitLeaseStatus{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return KitLeaseStatus{}, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return KitLeaseStatus{}, hostclient.APIStatusError(resp.StatusCode, body)
+	}
+	var status KitLeaseStatus
+	err = json.Unmarshal(body, &status)
+	return status, err
 }
 
 // withAPIHost returns a client that sends Host: host on every request.

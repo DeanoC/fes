@@ -4,7 +4,7 @@ import "testing"
 
 // Keep this inventory aligned with production requests made by tenfoot's
 // paired host client. Settings remains intentionally unsupported because its
-// response contains host filesystem roots; lease polling uses launcher/target.
+// response contains host filesystem roots; lease polling uses the paired kit lease projection.
 func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		method, path string
@@ -15,6 +15,7 @@ func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 		{"GET", "/api/v1/games/../settings", false},
 		{"GET", "/api/v1/platforms", true},
 		{"GET", "/api/v1/health", true},
+		{"GET", "/api/v1/launcher/kit-lease", true},
 		{"GET", "/v1/kit/lease", false},
 		{"GET", "/api/v1/status", true},
 		{"GET", "/api/v1/session", true},
@@ -36,7 +37,6 @@ func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 		{"GET", "/api/v1/library/firmware", false},
 		{"GET", "/api/v1/library/core-entries/fpga-zx81/expansion", false},
 		{"GET", "/api/v1/core-expansions/expansion-id/presentation", false},
-		{"GET", "/api/v1/launcher/target", true},
 		{"GET", "/api/v1/presentation/games/fpga-zx81", true},
 		{"GET", "/api/v1/presentation/artwork/" + tenfootTestArtworkID, true},
 		{"POST", "/api/v1/session/launch", true},
