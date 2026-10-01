@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/kitlauncher"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
@@ -80,11 +81,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 func parseArgs(args []string) (tenfoot.Options, error) {
+	return parseArgsWithEnv(args, os.Getenv)
+}
+
+func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Options, error) {
 	fs := flag.NewFlagSet("fogcast-tenfoot", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	cpuProfile := fs.String("cpu-profile", "", "write CPU pprof to this file until exit")
 	heapProfile := fs.String("heap-profile", "", "write heap/allocation pprof to this file at exit")
-	api := fs.String("api", envOr("FOGCAST_API", hostclient.DefaultAPIBase), "FogCast host API base URL")
+	configPath := fs.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
+	fs.String("api", "", "FogCast host API base URL")
+	fs.String("token", "", "launcher API bearer token")
+	fs.String("target-id", "", "launcher API target identity")
 	apiHost := fs.String("api-host", envOr("FOGCAST_API_HOST", ""), "optional HTTP Host header (loopback allowlist; -smoke defaults this when the API URL is not loopback)")
 	width := fs.Int("width", 1280, "window width")
 	height := fs.Int("height", 720, "window height")
@@ -109,6 +117,13 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
+	var launcher kitlauncher.Config
+	if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
+		launcher = c
+	}
+	apiValue := firstNonempty(flagValue(fs, "api"), getenv("FOGCAST_API"), launcher.API, hostclient.DefaultAPIBase)
+	tokenValue := firstNonempty(flagValue(fs, "token"), getenv("FOGCAST_TOKEN"), launcher.Token)
+	targetValue := firstNonempty(flagValue(fs, "target-id"), getenv("FOGCAST_TARGET_ID"), launcher.TargetID)
 	safeAreaSet := false
 	layoutSet := false
 	noAttractSet := envNoAttract
@@ -134,7 +149,9 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	return tenfoot.Options{
 		CPUProfile:   *cpuProfile,
 		HeapProfile:  *heapProfile,
-		APIBase:      *api,
+		APIBase:      apiValue,
+		APIToken:     tokenValue,
+		TargetID:     targetValue,
 		APIHost:      *apiHost,
 		Width:        *width,
 		Height:       *height,
@@ -161,6 +178,25 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		HomeSet:      homeSet,
 		HomeRoom:     strings.TrimSpace(*homeRoom),
 	}, nil
+}
+
+func flagValue(fs *flag.FlagSet, name string) string {
+	var value string
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			value = f.Value.String()
+		}
+	})
+	return value
+}
+
+func firstNonempty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func envTruthy(key string) bool {

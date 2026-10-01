@@ -201,7 +201,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   `fogcast-kit` (with `--menu-display` when that selection exists). Empty,
   `grid`, and unknown `kit_ui` values keep the grid; an unknown value also
   writes a stderr note. `fogcast-kit --print-kit-ui` prints `tenfoot` or
-  `grid`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running.
+  `grid`. The init script passes that same file with `-config`; tenfoot reads
+  the kit API URL, launcher bearer, and target ID from it. Explicit `-api`,
+  `-token`, and `-target-id` flags override matching environment variables,
+  which override launcher configuration. On this backend tenfoot opens the
+  kit-local control socket, shows "Starting {title}…", pauses presents so the
+  core owns HDMI, and resumes them after Select+Start stop, or when that
+  kit-local session is no longer running.
   The CGO-free on-kit `fogcast-kit` shell can explicitly select the described
   HDMI menu path with `menu_display: true` in `launcher.json` or
   `-menu-display`. It keeps the host-backed library, cached offline browsing,

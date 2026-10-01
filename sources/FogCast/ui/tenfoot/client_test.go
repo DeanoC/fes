@@ -33,6 +33,26 @@ func TestClientSessionPreservesKitFields(t *testing.T) {
 	}
 }
 
+func TestLauncherAuthTransportAddsKitIdentity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer kit-token" || r.Header.Get("X-FogCast-Target-ID") != "kit-target" {
+			t.Errorf("launcher identity headers = %q/%q", r.Header.Get("Authorization"), r.Header.Get("X-FogCast-Target-ID"))
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, launcherHTTPClient("kit-token", "kit-target"))
+	req, err := client.NewRequest(context.Background(), http.MethodGet, "/api/v1/platforms", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.HTTPClient().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+}
+
 func TestClientLaunchRejectsOversizeSessionResponse(t *testing.T) {
 	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{

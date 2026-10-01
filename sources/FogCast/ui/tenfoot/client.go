@@ -21,6 +21,30 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
+type launcherAuthTransport struct {
+	base     http.RoundTripper
+	token    string
+	targetID string
+}
+
+func (t launcherAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	if t.token != "" {
+		clone.Header.Set("Authorization", "Bearer "+t.token)
+	}
+	if t.targetID != "" {
+		clone.Header.Set("X-FogCast-Target-ID", t.targetID)
+	}
+	return t.base.RoundTrip(clone)
+}
+
+func launcherHTTPClient(token, targetID string) *http.Client {
+	if token == "" && targetID == "" {
+		return nil
+	}
+	return &http.Client{Transport: launcherAuthTransport{base: http.DefaultTransport, token: token, targetID: targetID}}
+}
+
 const (
 	defaultPageLimit          = 200
 	defaultMaxGames           = 10000

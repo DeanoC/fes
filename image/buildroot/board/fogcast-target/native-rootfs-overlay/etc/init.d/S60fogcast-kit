@@ -44,6 +44,7 @@ case "${1:-start}" in
       fi
       if [ "$kit_ui" = tenfoot ] && [ -x /usr/sbin/fogcast-tenfoot ]; then
         /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-tenfoot \
+          -config /media/fat/fogcast/launcher.json \
           -gfx menu-display -menu-socket /run/mister-runtime.sock -input auto -home rooms &
       else
         /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \

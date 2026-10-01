@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +21,37 @@ func TestParseArgsDefaultsToLoopbackHostAPI(t *testing.T) {
 	}
 	if opts.SafeAreaSet || opts.NoAttract {
 		t.Fatalf("living-room defaults = %#v", opts)
+	}
+}
+
+func TestParseArgsKitConfigPrecedence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "launcher.json")
+	if err := os.WriteFile(path, []byte(`{"api":"http://kit.test:8789","token":"launcher-token-012345678901234567890123456789","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{"FOGCAST_API": "http://env.test:8789", "FOGCAST_TOKEN": "environment-token", "FOGCAST_TARGET_ID": "environment-target"}
+	getenv := func(key string) string { return env[key] }
+	opts, err := parseArgsWithEnv([]string{"-config", path}, getenv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.APIBase != "http://env.test:8789" || opts.APIToken != "environment-token" || opts.TargetID != "environment-target" {
+		t.Fatalf("env precedence: %#v", opts)
+	}
+	opts, err = parseArgs([]string{"-config", path, "-api", "http://flag.test:8789", "-token", "flag-token", "-target-id", "flag-target"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.APIBase != "http://flag.test:8789" || opts.APIToken != "flag-token" || opts.TargetID != "flag-target" {
+		t.Fatalf("flag precedence: %#v", opts)
+	}
+	env = map[string]string{}
+	opts, err = parseArgsWithEnv([]string{"-config", path}, getenv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.APIBase != "http://kit.test:8789" || opts.APIToken != "launcher-token-012345678901234567890123456789" || opts.TargetID != "73dc9f5f-1a12-4a95-a820-a9b4e600769a" {
+		t.Fatalf("config precedence: %#v", opts)
 	}
 }
 
