@@ -31,7 +31,7 @@ func (s *Service) prepareMediaUnitClient(ctx context.Context) error {
 			return canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
-	return s.incompatibleTargetError()
+	return s.incompatibleSessionTargetError(ctx)
 }
 
 func (s *Service) mediaUnitTargetLocked(b protocol.MediaUnitBinding) (serviceClient, mediaUnitClient, error) {

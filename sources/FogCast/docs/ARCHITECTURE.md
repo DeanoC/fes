@@ -212,6 +212,13 @@ first-candidate tie-breaks.
 `[mesh] ensure` and `[mesh] placement` stay off unless the operator
 set them.
 
+When placement starts a play on another kit, the host admits that kit's
+session coordinator before adopting the play. It rechecks the target-scoped
+status after admission, then keeps the admission through old resource cleanup,
+state transfer and new input/media attachment. Stop waits for an adoption in
+progress; if Stop ended the placed play while launch was waiting, the host
+installs no resources.
+
 ## Process ownership
 
 The host owns the catalog, UI, user intent, content selection, and host-side

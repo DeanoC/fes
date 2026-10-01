@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,11 +15,14 @@ import (
 )
 
 type placementHandoffService struct {
-	state      protocol.Status
-	target     string
-	stops      int
-	stopTarget string
-	core       bool
+	mu             sync.Mutex
+	state          protocol.Status
+	target         string
+	stops          int
+	stopTarget     string
+	core           bool
+	placed         chan struct{}
+	continueLaunch chan struct{}
 }
 
 func (s *placementHandoffService) Game(context.Context, string) (catalog.Game, error) {
@@ -32,20 +36,34 @@ func (s *placementHandoffService) Launch(context.Context, string, fogcast.Progre
 	return protocol.CachedLaunchResponse{Status: s.state}, nil
 }
 func (s *placementHandoffService) LaunchOn(context.Context, string, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	s.mu.Lock()
 	s.target = "kit-b"
 	s.state = protocol.Status{State: protocol.StateActive, GameID: stringPointer("placed-game"), System: systemPointer(protocol.SystemSNES), ObservedCore: stringPointer("SNES")}
-	return protocol.CachedLaunchResponse{Status: s.state}, nil
+	status := s.state
+	placed, continueLaunch := s.placed, s.continueLaunch
+	s.mu.Unlock()
+	if placed != nil {
+		close(placed)
+	}
+	if continueLaunch != nil {
+		<-continueLaunch
+	}
+	return protocol.CachedLaunchResponse{Status: status}, nil
 }
 func (s *placementHandoffService) LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error) {
 	return protocol.Status{}, nil
 }
 func (s *placementHandoffService) Stop(ctx context.Context) (protocol.Status, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.stops++
 	s.stopTarget = fogcast.SessionTargetFromContext(ctx)
 	s.state = protocol.Status{State: protocol.StateIdle}
 	return s.state, nil
 }
 func (s *placementHandoffService) Status(context.Context) (protocol.Status, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.state, nil
 }
 func (s *placementHandoffService) DevelopmentActive(context.Context) (bool, error) { return false, nil }
@@ -59,6 +77,22 @@ type handoffInput struct {
 func (i *handoffInput) Attach(context.Context, string) error { i.attached++; return nil }
 func (i *handoffInput) Detach(context.Context, string) error { i.detached++; return nil }
 func (*handoffInput) Status() host.RemoteInputStatus {
+	return host.RemoteInputStatus{State: host.RemoteInputDetached}
+}
+
+type blockingHandoffInput struct {
+	detachStarted chan struct{}
+	release       chan struct{}
+	attached      int
+}
+
+func (i *blockingHandoffInput) Attach(context.Context, string) error { i.attached++; return nil }
+func (i *blockingHandoffInput) Detach(context.Context, string) error {
+	close(i.detachStarted)
+	<-i.release
+	return nil
+}
+func (*blockingHandoffInput) Status() host.RemoteInputStatus {
 	return host.RemoteInputStatus{State: host.RemoteInputDetached}
 }
 
@@ -141,6 +175,127 @@ func TestPackagePlacementBusyCoordinatorStopsPlacedPlay(t *testing.T) {
 	_, err := a.launch(ctx, "placed-game", "", clientStamp{})
 	if err == nil || service.stops != 1 || service.stopTarget != "kit-b" || service.state.State != protocol.StateIdle {
 		t.Fatalf("busy admission rollback: err=%v stops=%d target=%q status=%s", err, service.stops, service.stopTarget, service.state.State)
+	}
+}
+
+func TestPlacementAdoptionRechecksAfterConcurrentStop(t *testing.T) {
+	service := &placementHandoffService{target: "kit-b", state: protocol.Status{State: protocol.StateActive, GameID: stringPointer("placed-game")}}
+	root := newSessionCoordinator(service, nil, nil)
+	b := root.forTarget("kit-b")
+	input := &blockingHandoffInput{detachStarted: make(chan struct{}), release: make(chan struct{})}
+	b.remoteInput = input
+	stopDone := make(chan error, 1)
+	go func() { _, err := b.stop(context.Background(), clientStamp{}, false, false, nil); stopDone <- err }()
+	<-input.detachStarted
+	service.mu.Lock()
+	placed := service.state
+	service.mu.Unlock()
+	installed := false
+	done := make(chan error, 1)
+	go func() {
+		_, err := root.adoptPlacedPlay(context.Background(), b, placed, func() (sessionResult, error) {
+			installed = true
+			return sessionResult{}, nil
+		})
+		done <- err
+	}()
+	time.Sleep(10 * time.Millisecond)
+	close(input.release)
+	if err := <-stopDone; err != nil {
+		t.Fatalf("concurrent Stop: %v", err)
+	}
+	if err := <-done; err == nil {
+		t.Fatal("adopted a play that Stop had already ended")
+	}
+	if installed || b.execution != "" || b.mediaHandle != nil || b.inputBinding != (sessionInputBinding{}) {
+		t.Fatalf("stale adoption installed resources: installed=%v execution=%q", installed, b.execution)
+	}
+}
+
+func TestStopWaitsForPlacementAdoptionAndCleansResources(t *testing.T) {
+	service := &placementHandoffService{target: "kit-b", state: protocol.Status{State: protocol.StateActive, GameID: stringPointer("placed-game"), System: systemPointer(protocol.SystemSNES)}}
+	root := newSessionCoordinator(service, nil, nil)
+	b := root.forTarget("kit-b")
+	entered, release := make(chan struct{}), make(chan struct{})
+	service.mu.Lock()
+	placed := service.state
+	service.mu.Unlock()
+	adopted := make(chan error, 1)
+	go func() {
+		_, err := root.adoptPlacedPlay(context.Background(), b, placed, func() (sessionResult, error) {
+			b.mu.Lock()
+			b.execution = fogcast.ExecutionFPGANative
+			b.mu.Unlock()
+			b.beginFlight()
+			close(entered)
+			<-release
+			service.mu.Lock()
+			status := service.state
+			service.mu.Unlock()
+			return b.publicSession(status, nil), nil
+		})
+		adopted <- err
+	}()
+	<-entered
+	stopped := make(chan error, 1)
+	go func() { _, err := b.stop(context.Background(), clientStamp{}, false, false, nil); stopped <- err }()
+	select {
+	case err := <-stopped:
+		t.Fatalf("Stop overlapped adoption: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	if err := <-adopted; err != nil {
+		t.Fatalf("adoption: %v", err)
+	}
+	if err := <-stopped; err != nil {
+		t.Fatalf("Stop after adoption: %v", err)
+	}
+	service.mu.Lock()
+	state := service.state.State
+	service.mu.Unlock()
+	if state != protocol.StateIdle || !b.nativeStoppedIdle || b.execution != fogcast.ExecutionFPGANative {
+		t.Fatalf("Stop did not clean adopted play: state=%s nativeIdle=%v execution=%q", state, b.nativeStoppedIdle, b.execution)
+	}
+}
+
+func TestPlacementPathsDoNotInstallAfterStopWinsAdmission(t *testing.T) {
+	for _, core := range []bool{false, true} {
+		name := "ordinary"
+		if core {
+			name = "package"
+		}
+		t.Run(name, func(t *testing.T) {
+			placed, continueLaunch := make(chan struct{}), make(chan struct{})
+			service := &placementHandoffService{target: "kit-a", core: core,
+				placed: placed, continueLaunch: continueLaunch}
+			root := newSessionCoordinator(service, nil, &handoffMedia{})
+			a := root.forTarget("kit-a")
+			b := root.forTarget("kit-b")
+			input := &blockingHandoffInput{detachStarted: make(chan struct{}), release: make(chan struct{})}
+			b.remoteInput = input
+			b.execution = fogcast.ExecutionFPGANative
+			launchDone := make(chan error, 1)
+			go func() { _, err := a.launch(context.Background(), "placed-game", "", clientStamp{}); launchDone <- err }()
+			<-placed
+			stopDone := make(chan error, 1)
+			go func() { _, err := b.stop(context.Background(), clientStamp{}, false, false, nil); stopDone <- err }()
+			<-input.detachStarted
+			close(input.release)
+			if err := <-stopDone; err != nil {
+				t.Fatalf("Stop B: %v", err)
+			}
+			close(continueLaunch)
+			if err := <-launchDone; err == nil {
+				t.Fatal("launch adopted a play after Stop ended it")
+			}
+			service.mu.Lock()
+			state := service.state.State
+			service.mu.Unlock()
+			if state != protocol.StateIdle || input.attached != 0 || b.mediaHandle != nil || b.inputBinding != (sessionInputBinding{}) {
+				t.Fatalf("stale placement installed resources: state=%s attached=%d media=%v", state, input.attached, b.mediaHandle)
+			}
+		})
 	}
 }
 
