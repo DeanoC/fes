@@ -104,6 +104,36 @@ func TestLiveDiskInsertAndEjectUseTheFloppyUnit(t *testing.T) {
 	}
 }
 
+func TestScopedDiskInsertAndEjectReachBoundKitWhenForegroundKitUnavailable(t *testing.T) {
+	ctx := context.Background()
+	store, err := catalog.Open(t.TempDir() + "/catalog.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	disk := bytes.Repeat([]byte{0x96}, 143360)
+	media, _, err := store.ImportCoreMediaStream(ctx, int64(len(disk)), bytes.NewReader(disk))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.Repeat("a", 64)
+	clientA := &mediaUnitServiceClient{fakeServiceClient: fakeServiceClient{healthResult: protocol.Health{APIVersion: "v1"}, statusResult: computerSessionStatus(id, 4, "empty")},
+		after: func(state string) protocol.Status { return computerSessionStatus(id, 4, state) }}
+	service := &Service{catalog: store, uploadTimeout: time.Second, activeExecution: ExecutionFPGANative,
+		selectedTarget: "kit-b", activeTarget: "kit-b", targets: []TargetConfig{{Name: "kit-a", Enabled: true, TargetID: "id-a"}, {Name: "kit-b", Enabled: true, TargetID: "id-b"}},
+		targetClients: map[string]serviceClient{"kit-a": clientA, "kit-b": &fakeServiceClient{healthErr: errors.New("B unavailable")}}}
+	binding := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 4, Target: "kit-a", TargetID: "id-a"}
+	if _, err := service.ReplaceLiveMedia(ctx, media.MediaID, "DOS33.DSK", binding); err != nil {
+		t.Fatalf("insert on bound A: %v", err)
+	}
+	if _, err := service.ClearLiveMedia(ctx, binding); err != nil {
+		t.Fatalf("eject on bound A: %v", err)
+	}
+	if clientA.inserts != 1 || clientA.ejects != 1 {
+		t.Fatalf("A inserts=%d ejects=%d", clientA.inserts, clientA.ejects)
+	}
+}
+
 func apple2DiskLaunchFixture(t *testing.T) (*Service, *mediaUnitLaunchClient, catalog.CoreEntry, []byte) {
 	t.Helper()
 	ctx := context.Background()

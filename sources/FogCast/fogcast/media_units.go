@@ -19,13 +19,14 @@ type mediaUnitClient interface {
 // prepareMediaUnitClient repeats the development-media admission: host-only
 // play and a pending rejection block delivery, and the binding must name the
 // session's target. Caller holds lifecycle admission.
-func (s *Service) prepareMediaUnitClient(ctx context.Context) error {
+func (s *Service) prepareMediaUnitClient(ctx context.Context, b protocol.MediaUnitBinding) error {
 	s.executionMu.Lock()
 	blocked := s.activeExecution == ExecutionHostOnly || s.packageRejection != nil
 	s.executionMu.Unlock()
 	if blocked {
 		return protocol.MediaUnitIdentityError()
 	}
+	ctx = WithSessionTarget(ctx, b.Target)
 	if s.protocolAdmissionEnabled() {
 		if _, err := s.refreshTargetAdmission(ctx); err != nil {
 			return canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
@@ -35,16 +36,12 @@ func (s *Service) prepareMediaUnitClient(ctx context.Context) error {
 }
 
 func (s *Service) mediaUnitTargetLocked(b protocol.MediaUnitBinding) (serviceClient, mediaUnitClient, error) {
-	s.executionMu.Lock()
-	target := s.activeTarget
-	s.executionMu.Unlock()
-	if target == "" {
-		target = s.selectedTarget
-	}
+	target := b.Target
 	if target != b.Target || targetByName(s.targets, target).TargetID != b.TargetID {
 		return nil, nil, protocol.MediaUnitIdentityError()
 	}
-	client, ok := s.selectedClientLocked()
+	client := s.targetClients[target]
+	ok := client != nil
 	if !ok {
 		return nil, nil, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -62,7 +59,8 @@ func (s *Service) insertMediaUnitLocked(ctx context.Context, size int64, body io
 	if !b.Valid() || b.Target == "" || body == nil {
 		return protocol.Status{}, protocol.MediaUnitRequestError()
 	}
-	if err := s.prepareMediaUnitClient(ctx); err != nil {
+	ctx = WithSessionTarget(ctx, b.Target)
+	if err := s.prepareMediaUnitClient(ctx, b); err != nil {
 		return protocol.Status{}, err
 	}
 	s.targetMu.RLock()
@@ -97,7 +95,8 @@ func (s *Service) ejectMediaUnitLocked(ctx context.Context, b protocol.MediaUnit
 	if !b.Valid() || b.Target == "" {
 		return protocol.Status{}, protocol.MediaUnitRequestError()
 	}
-	if err := s.prepareMediaUnitClient(ctx); err != nil {
+	ctx = WithSessionTarget(ctx, b.Target)
+	if err := s.prepareMediaUnitClient(ctx, b); err != nil {
 		return protocol.Status{}, err
 	}
 	s.targetMu.RLock()
