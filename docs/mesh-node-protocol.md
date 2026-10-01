@@ -179,7 +179,8 @@ not a second clock that frees the kit, including relative to the
 roughly 90 second lease.
 
 Advertisements carry no credentials, no title list, and no lease
-secrets. That matches today's DNS-SD discipline (id and version only).
+secrets. That matches today's DNS-SD discipline (node id, mesh version
+and capability flags; no credentials or title data).
 
 **Recommended bag.** Names are for this draft. They are not a frozen
 enum.
