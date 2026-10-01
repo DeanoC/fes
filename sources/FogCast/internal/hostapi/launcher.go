@@ -539,12 +539,17 @@ func (a *applicationHandler) selectedTargetID() string {
 
 func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Request, targetID string) {
 	a.targetMu.Lock()
-	if _, ok := a.kitTarget(targetID); !ok || a.sessionOwnerID() != targetID {
+	if _, ok := a.kitTarget(targetID); !ok {
 		a.targetMu.Unlock()
 		writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 		return
 	}
-	provider, ok := a.remoteInput.(interface {
+	name, _ := a.kitTarget(targetID)
+	input := a.session.forTarget(name).remoteInput
+	if a.session.remoteInputFactory == nil {
+		input = a.remoteInput
+	}
+	provider, ok := input.(interface {
 		ClaimSource(string) (host.RemoteInputEventSource, error)
 	})
 	if !ok {

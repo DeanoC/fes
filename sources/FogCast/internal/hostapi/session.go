@@ -474,10 +474,7 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 }
 
 func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stamp clientStamp) (sessionResult, error) {
-	if target == "" {
-		target = s.target
-	}
-	if s.target != "" {
+	if target != "" {
 		ctx = fogcast.WithSessionTarget(ctx, s.target)
 	}
 	if !s.begin() {

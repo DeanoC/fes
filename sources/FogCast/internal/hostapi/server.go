@@ -229,8 +229,8 @@ func requestSessionCoordinator(root *sessionCoordinator, service Service, r *htt
 		}
 	}
 	if target == "" {
-		if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
-			target = resolver.SessionTargetName()
+		if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+			target = resolver.SelectedTargetConfig().Name
 		}
 	}
 	return root.forTarget(target)

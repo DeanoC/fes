@@ -2358,9 +2358,18 @@ func (s *Service) stopExpected(parent context.Context, expected *SessionStopBind
 		if !valid {
 			return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
 		}
+		previousTarget := s.SessionTargetName()
 		s.executionMu.Lock()
 		s.bindPlayTargetLocked(target)
 		s.executionMu.Unlock()
+		defer func() {
+			s.executionMu.Lock()
+			s.retainSessionTargetLocked()
+			if previousTarget != target {
+				s.bindPlayTargetLocked(previousTarget)
+			}
+			s.executionMu.Unlock()
+		}()
 	}
 	if expected != nil && !s.matchesStopBinding(*expected) {
 		return protocol.Status{}, ErrSessionChanged
