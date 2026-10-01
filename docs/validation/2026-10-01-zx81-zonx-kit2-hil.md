@@ -117,3 +117,40 @@ This qualifies these exact shell/cart/open-ROM bytes through the filtered
 Kit 2 HDMI capture and owned lifecycle. Factory-image acceptance, proprietary
 music compatibility, speakers, physical original-card phase/analog filtering,
 and a bit-exact capture on another device remain separate.
+
+## Repeated-R13 follow-up
+
+Review identified that the original phase named `retrigger` wrote shape 0 only
+once after shape 13. Its capture showed a fresh decay and did not establish
+unchanged-R13 restart. The corrected generator at `00c46c1ed` starts shape 0,
+waits approximately 0.524 seconds for it to advance, then writes shape 0 again.
+The CPU simulation observes both actual OUT writes with a substantial gap,
+alongside the existing independently specified engine restart tests.
+
+The corrected 8192-byte ROM SHA256 is
+`c063e16f1bbf652195bed14556efdc3820c9435f76ab2f9012e9787094f5e3ec`.
+A separate private-library run used the same frozen shell/cart and diagnostic
+software from this record, changing only the explicitly selected ROM. Its
+programmed payload SHA256 is
+`cb81f272730e49e96ccee8cfe244e316425eb5a97c7a5f0f89122c6cdba7ba22`.
+The [active receipt](zx81-zonx-2026-10-01/repeated-r13/active.json) and
+[relaunch receipt](zx81-zonx-2026-10-01/repeated-r13/relaunch-active.json)
+retain the same composition and ROM tuple with generations 1 and 2.
+
+Independent [analysis](zx81-zonx-2026-10-01/repeated-r13/independent-analysis.json)
+of the new [active](zx81-zonx-2026-10-01/repeated-r13/active.flac) and
+[relaunch](zx81-zonx-2026-10-01/repeated-r13/relaunch.flac) captures finds
+paired decay attacks separated by 0.520–0.525 seconds in 5 ms analysis bins,
+consistent with the programmed half-delay. Active restart events at 10.705
+and 23.815 seconds raise normalized AC RMS from 0.00182 to 0.154, then repeat
+the decay; paired decay profiles correlate above 0.999. Relaunch shows the
+same restart pattern. Capture filtering and amplitude limitations still apply.
+
+The [result](zx81-zonx-2026-10-01/repeated-r13/result.json) retains exact
+identities and hashes. Original target health and live executable hashes were
+again restored, boot/image unchanged, private credential/overlays/container
+removed, and [the lease released](zx81-zonx-2026-10-01/repeated-r13/restored-lease.json).
+This follow-up qualifies repeated unchanged-R13 behavior for these exact bytes;
+it does not replace the original ROM's frozen identities or extend factory
+acceptance. It uses the existing library launch path; workbench bus 2 readiness
+is separately tested through the real host admission/selection path.

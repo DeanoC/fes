@@ -69,9 +69,10 @@ python3 scripts/make_zx81_zonx_tone_rom.py build/diagnostics/zonx-tone.rom
 
 Bind that exact 8 KiB file as `machine-rom`. The firmware repeats mute,
 isolated A/B/C tones (approximately 400/600/800 Hz), mixed tones, noise,
-falling/rising/triangle/held envelopes, retrigger and final mute. The retrigger phase writes shape 0, waits for decay, and repeats the same R13
-value. Each phase
-lasts approximately one second. No display file is generated. `--fast --hex`
+falling/rising/triangle/held envelopes, retrigger and final mute. The retrigger
+phase writes shape 0, waits for decay, and repeats the same R13 value. Ordinary
+phases last approximately one second; retrigger adds a half-second priming
+decay. No display file is generated. `--fast --hex`
 produces short phases and memory-init text for the real CPU simulation;
 those bytes are a different diagnostic.
 

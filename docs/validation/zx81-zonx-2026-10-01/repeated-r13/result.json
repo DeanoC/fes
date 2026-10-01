@@ -1,0 +1,24 @@
+{
+  "composition": {
+    "composition_id": "83f72896120826e165574f493e69f96133f0fac8c629b3cc923cd308ea09944c",
+    "expansion_id": "c760dc38646798e87d960fd72e856f504c3a0463e9240e8b818fbda0948f2703",
+    "package_id": "39f3984defc0dff84c75c0dceb32f54ed6d74922e8974b9b4224a0389a3a2dca",
+    "payload_sha256": "bb6f1784aff9dd89f09180c4bdbfbcacf4de470589dbf95f1b9e4056de907aa9",
+    "payload_size": 2528045,
+    "shell_sha256": "6b1fde82098069c9e512528898da20978b06e4fba0f79849216d552fd3d7ec89"
+  },
+  "files_sha256": {
+    "active.flac": "a7e8f8da979925a19e7a4db13e9849765c5e05d760d6cd6a67ea357e811c0e9d",
+    "final-idle.flac": "f9b903b59f5a908490c91159e15f4f212e4d25281221a1112af57fa662a7a58b",
+    "relaunch.flac": "bcfbad951eea2425d39140dfe6ea64e03c09d8ddbf813c5c37dcb414798ccee8"
+  },
+  "firmware_sha256": "c063e16f1bbf652195bed14556efdc3820c9435f76ab2f9012e9787094f5e3ec",
+  "firmware_source_revision": "00c46c1ed",
+  "generations": [
+    1,
+    2
+  ],
+  "lease_free": true,
+  "original_health_restored_equal": true,
+  "programmed_sha256": "cb81f272730e49e96ccee8cfe244e316425eb5a97c7a5f0f89122c6cdba7ba22"
+}
