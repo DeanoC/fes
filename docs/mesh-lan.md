@@ -188,14 +188,38 @@ Standalone FES Pong is in-repository homebrew source with
 `GPL-2.0-or-later` SPDX headers in `sources/misteross/cores/fes-pong/`; its
 package/library path is documented in
 [`sources/FogCast/docs/core-package-library.md`](../sources/FogCast/docs/core-package-library.md).
-It is a legal kit-backend candidate. Software-title selection is a
-**BLOCKING open question for #360/#364**: repository evidence does not
-establish a named legal title plus compatible software-backend pair. Before
-software-runner acceptance, select bytes included in or explicitly referenced
-by the repo, verify their redistribution license, identify a software backend
-that supports the title's system and format, and record the exact backend,
-version, and launch path. A title's legal kit availability alone does not
-establish software-backend compatibility. Do not assume FES Pong has a
+It is a legal kit-backend candidate, but it has no software backend.
+
+**M1 dual-backend title (decided 2026-10-01, #360/#364):** *Data Storm* 1.00
+by Haroldo de Oliveira Pinheiro (haroldo-ok), a Master System homebrew entry in the SMS Power 2016
+coding competition. The game is Apache-2.0
+([haroldo-ok/datastorm](https://github.com/haroldo-ok/datastorm), tag `v1.00`
+at `ce420df088840ba7e3a8e2960a18dd936f2da053`). Its bundled SMSlib is
+public-domain (Unlicense) and PSGlib is BSD-3-Clause. The ROM comes from release
+asset `DataStorm-SMS-1.00.zip`
+(sha256 `d9161932007b397147a2f4bbd3331c28fcd4ba6bbff4e357eb66feed5b8af518`)
+as `datastorm.sms`: 32768 bytes, sha256
+`4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f`,
+sha1 `73d6f05c6603723ff49ff4925be405ab417c32cb`, crc32 `37b775d6`. It needs no
+BIOS and no mapper, and it is an exact 32 KiB fixed-map image, so it fits the
+`fes.sms` slice (`sources/misteross/cores/fes-sms/README.md`) without padding.
+- **Kit backend:** `fpga_native` on `fes.sms`. The core source is at
+  `e88c0426b40a81f090811dfe4e0d9fdcde96f13c`. The package digest is recorded
+  with the #364 evidence. The kit Mode 4 raster runs slower than 60 Hz, so
+  game speed can differ from the software backend. That difference is known and
+  is not an acceptance failure.
+- **Software backend:** `native_emu` using the Genesis Plus GX libretro core on
+  a Linux runner. The proposed pin is upstream
+  [libretro/Genesis-Plus-GX](https://github.com/libretro/Genesis-Plus-GX)
+  `c2838c7dc4236fc2fe94e5dbd08b41486067918e` (2026-09-12). The runner records
+  the built core's version string and sha256. The core uses its own
+  non-commercial license and is not redistributed by this repo.
+- **Fallback, if Data Storm fails on either backend:** *2048* for SMS by
+  grz0zrg (BSD-3-Clause,
+  [grz0zrg/2048-SMS](https://github.com/grz0zrg/2048-SMS), also 32 KiB).
+
+The ROM bytes are fetched from the upstream release and verified by hash. They
+are not committed here. Do not assume FES Pong has a
 RetroArch core. The repo also contains a MIT-licensed Coleco controls
 diagnostic (`sources/misteross/cores/fes-coleco/README.md` and
 `diagnostic/LICENSE`), but it is not evidenced as a RetroArch software title.
@@ -203,8 +227,8 @@ diagnostic (`sources/misteross/cores/fes-coleco/README.md` and
 | Acceptance claim | Current evidence | M1 standing |
 | --- | --- | --- |
 | Kit can execute FES Pong; target/runtime launch and Stop work | Existing target/runtime tests and dated Pong HIL records; `docs/mesh-vnext.md` §5 HIL2 is two-kit placement diagnostic, picture-only, not designated-kit acceptance. | Implemented for the kit path; exact M1 artifact acceptance pending #364. |
-| Software runner can execute a named legal title | RetroArch host execution adapter/tests (`sources/FogCast/internal/hostexec/retroarch.go`, `_test.go`) establish a local host-only path, not a remote mesh runner or legal title/backend pair. | **BLOCKED, #360/#364:** choose redistributable title bytes and a compatible software backend/version, then record exact-artifact acceptance. |
-| Same title on both backends (dual-backend) | No evidence that current FES Pong package is a RetroArch title or has a compatible software core. | GAP #361/#364; do not claim dual-backend coverage until a legal title and compatible backend are recorded. |
+| Software runner can execute a named legal title | RetroArch host execution adapter/tests (`sources/FogCast/internal/hostexec/retroarch.go`, `_test.go`) establish a local host-only path, not a remote mesh runner. | Title and backend chosen (Data Storm 1.00 on Genesis Plus GX, above). Runner implementation is #360; exact-artifact acceptance is #364. |
+| Same title on both backends (dual-backend) | Data Storm 1.00 is chosen for `fes.sms` and Genesis Plus GX; neither run is recorded yet. | GAP #361/#364; do not claim dual-backend coverage until both runs are recorded. |
 | Two nodes browse and show truthful availability | `GET /api/v1/mesh/nodes` and placement tests cover advertised kits; HIL2/HIL3 records are diagnostic as scoped in `docs/mesh-vnext.md` §5. | Kit inventory evidence exists; coherent combined library/UI remains #361/#362. |
 | Independent play, scoped input/Stop, busy/version mismatch, reconnect | Existing kit lease and launcher ownership tests cover individual rules; no exact two-node software-runner acceptance record. | GAP #363, then exact-artifact HIL #364. |
 
