@@ -190,8 +190,8 @@ function draw()
 
   rect(710,126,386,283,C.panel)
   local c=choice()
-  text(c and "ON THE SHELF" or "YOUR MACHINE",730,138,14,C.red,340,true)
-  text(c and (c.label..(c.in_progress and " · In progress" or "")) or "Zx81",730,160,25,C.ink,345,true)
+  text(c and ("ON THE SHELF"..(c.in_progress and " · In progress" or "")) or "YOUR MACHINE",730,138,14,C.red,340,true)
+  text(c and c.label or "Zx81",730,160,25,C.ink,345,true)
   lines(c and c.description or "Choose an expansion for the rear connector. The host checks that it fits this exact machine.",730,196,341,18,4,C.muted)
   local can_edit=machine and machine.socket.supported and not stale and not loading and not saving
   local fit=c and c.ready and c.expansion_id ~= machine.draft_expansion_id
@@ -211,7 +211,9 @@ function draw()
       rect(x+11,461,40,31,item.ready and C.green or C.muted)
       rect(x+16,489,30,6,"#b69252")
       text(item.label,x+63,458,17,C.ink,204,true)
-      text(item.expansion_id == (machine and machine.draft_expansion_id) and "Saved for next start" or (item.ready and "Fits this machine" or "Unavailable"),x+63,484,14,C.muted,204)
+      local card_status=item.expansion_id == (machine and machine.draft_expansion_id) and "Saved for next start" or (item.ready and "Fits this machine" or "Unavailable")
+      if item.in_progress then card_status="In progress · "..(item.expansion_id == machine.draft_expansion_id and "Saved" or (item.ready and "Fits" or "Unavailable")) end
+      text(card_status,x+63,484,14,C.muted,204)
       local id="card:"..n
       if focus == id then rect(x,513,278,3,C.red) end
       gfx.hit(id,ox+x*scale,oy+448*scale,278*scale,67*scale)
