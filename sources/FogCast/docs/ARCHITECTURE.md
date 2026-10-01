@@ -45,7 +45,10 @@ generation and session ownership checks still apply separately.
 Tenfoot and the kit launcher consume that package for session
 polling; the browser keeps its own `parseSession` and shares the common
 success/rejection matrix in `hostclient/testdata/session-contract.json`.
-That fixture is not a claim of full decoder equivalence. Launch, stop,
+That fixture is not a claim of full decoder equivalence. In paired tenfoot
+mode, launch and kit mutations require a known, non-foreign scoped kit lease;
+an unavailable status is shown as `kit status unavailable` while room browsing
+continues. Launch, stop,
 and input attach/detach stay on their existing endpoints. The host resolves installed package entries and explicitly binds library
 persistence. The runtime validates the package and declared interfaces before
 programming. Bare legacy game records remain browseable but unlaunchable.

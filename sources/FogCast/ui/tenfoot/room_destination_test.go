@@ -612,6 +612,27 @@ func TestPairedKitLeaseIgnoresSelectedTargetBusyAndBlocksOwnForeignLease(t *test
 	}
 }
 
+func TestPairedKitStatus404KeepsBrowsingAndRefusesLaunch(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "overworld", destRoomScript)})
+	app := newRoomApp(t, h, index, true)
+	waitFor(t, app, "room picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.client.paired = true
+	app.fetchHealth(t.Context()) // the scoped /launcher/kit-lease endpoint returns 404
+	snap := app.Snapshot()
+	if !snap.KitLease.Unreachable || snap.KitLease.Line != "kit status unavailable" {
+		t.Fatalf("404 status snapshot = %+v", snap.KitLease)
+	}
+	app.HandleCommand(CmdDown, time.Now())
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "room remains browsable", func(s Snapshot) bool { return s.Room.Open && len(s.Room.Frame.Hits) > 0 })
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = waitFor(t, app, "launch refusal", func(s Snapshot) bool { return s.Launch.Phase == "error" })
+	if snap.Launch.Message != "kit status unavailable" || h.launchCount() != 0 {
+		t.Fatalf("launch=%+v launches=%d", snap.Launch, h.launchCount())
+	}
+}
+
 func TestForeignLeaseHostOnlyStillLaunches(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{

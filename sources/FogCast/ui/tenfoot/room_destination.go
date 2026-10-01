@@ -34,7 +34,43 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d = rooms.ApplyEditionPreference(d, id)
 		}
 	}
-	return rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
+	d = rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
+	if a.pairedKitStatusUnavailableLocked() {
+		d.Status = "kit status unavailable"
+	}
+	return d
+}
+
+func (a *App) pairedKitStatusUnavailableLocked() bool {
+	if a == nil || a.client == nil || !a.client.paired {
+		return false
+	}
+	if !a.kitLeaseHave || a.kitLease.Unavailable {
+		return true
+	}
+	switch strings.TrimSpace(a.kitLease.State) {
+	case "free", "held", "revoking", "busy", "blocked", "recovery-required":
+		return false
+	default:
+		return true
+	}
+}
+
+// kitMutationBlockedLocked fails closed when a paired target's lease cannot be
+// established or belongs to another shell.
+func (a *App) kitMutationBlockedLocked() bool {
+	if a == nil || a.client == nil || !a.client.paired {
+		return false
+	}
+	if a.pairedKitStatusUnavailableLocked() {
+		a.status = "kit status unavailable"
+		return true
+	}
+	if a.foreignKitLeaseLocked() {
+		a.status = "This executor is in use."
+		return true
+	}
+	return false
 }
 
 // foreignKitLeaseLocked reports a kit lease held by another session.

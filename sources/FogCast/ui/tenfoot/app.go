@@ -1995,6 +1995,14 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.openFirmwarePickerLocked(game)
 		return
 	}
+	if a.client != nil && a.client.paired && a.kitMutationBlockedLocked() {
+		message := a.status
+		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: message}
+		if a.room != nil {
+			a.closeRoomOverlaysLocked()
+		}
+		return
+	}
 	if reason := launchBlockReason(game); reason != "" {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		if a.room != nil {
@@ -2480,6 +2488,14 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.kitLease = paired
 		a.mu.Unlock()
 		return
+	}
+	if pairedHave && pairedErr != nil {
+		// Keep the scoped status failure visible even when the selected host's
+		// health endpoint is also unreachable.
+		a.mu.Lock()
+		a.kitLeaseHave = true
+		a.kitLease = KitLeaseStatus{Unavailable: true, Reason: "paired kit lease status unavailable"}
+		a.mu.Unlock()
 	}
 	if isHostTransportError(err) {
 		a.mu.Lock()

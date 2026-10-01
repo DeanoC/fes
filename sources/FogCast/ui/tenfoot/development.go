@@ -212,6 +212,9 @@ func (a *App) submitDevelopmentPathOSKLocked() {
 }
 
 func (a *App) startDevelopmentLoadLocked(path string, size int64) {
+	if a.kitMutationBlockedLocked() {
+		return
+	}
 	if reason := a.developmentLoadBlockedLocked(); reason != "" {
 		a.status = reason
 		return

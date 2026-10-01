@@ -79,6 +79,9 @@ func (a *App) localCoreOwnsInput() bool {
 }
 
 func (a *App) startLocalCoreLocked(dest rooms.Destination) {
+	if a.kitMutationBlockedLocked() {
+		return
+	}
 	if a.localCoreBusyLocked() {
 		return
 	}
