@@ -844,6 +844,34 @@ func TestServiceStopTargetPreservesOtherTargetPlay(t *testing.T) {
 	}
 }
 
+func TestServiceStopIdleTargetKeepsForegroundForDefaultStatusAndStop(t *testing.T) {
+	a := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
+	bGame, bSystem := "game-b", protocol.SystemSNES
+	b := &fakeServiceClient{
+		statusResult: protocol.Status{State: protocol.StateActive, GameID: &bGame, System: &bSystem},
+		stopResult:   protocol.Status{State: protocol.StateIdle},
+	}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "a", TargetID: "target-a", Enabled: true}, {Name: "b", TargetID: "target-b", Enabled: true}},
+		selectedTarget: "a", targetClients: map[string]serviceClient{"a": a, "b": b},
+		plays:        map[string]targetPlay{"b": {execution: ExecutionFPGANative, gameID: bGame, system: bSystem}},
+		activeTarget: "b", activeExecution: ExecutionFPGANative, activeGameID: bGame, activeSystem: bSystem,
+	}
+	if _, err := s.StopTarget(context.Background(), "a"); err != nil {
+		t.Fatal(err)
+	}
+	status, err := s.Status(context.Background())
+	if err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != bGame {
+		t.Fatalf("default status after idle A Stop = %+v err=%v", status, err)
+	}
+	if _, err = s.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if a.stopCalls != 1 || b.stopCalls != 1 {
+		t.Fatalf("stops A=%d B=%d foreground=%q", a.stopCalls, b.stopCalls, s.activeTarget)
+	}
+}
+
 func TestServiceStatusTargetDoesNotMoveForeground(t *testing.T) {
 	aGame, aSystem := "game-a", protocol.SystemNES
 	bGame, bSystem := "game-b", protocol.SystemSNES

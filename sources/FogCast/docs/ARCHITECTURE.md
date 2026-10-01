@@ -70,7 +70,8 @@ and complete typed metrics from `host.RemoteInputStatus`.
 
 `POST /api/v1/session/launch` may include `target` to bind a live FPGA session
 to a configured target without rewriting `selected_target`. Omitted `target`
-uses the selected configured target. A second configured target may be
+uses the selected configured target and keeps the ordinary placement choice.
+A second configured target may be
 launched while the first is still playing; `GET /api/v1/sessions` lists those
 live plays. `GET /api/v1/session` is the foreground session (the last launch)
 and is what sofa and kit attach to for input. Stop of the foreground session
@@ -698,8 +699,10 @@ single-kit form (one top-level token for one target) is unchanged.
 
 Each enabled paired kit has its own foreground session, input binding, media
 handle, and scoped `POST /api/v1/session/stop`. Kit-menu launches replace only
-that kit's play; unscoped browser Stop continues to use the active target, then
-the selected target. Paired session and status reads are target-scoped.
+that kit's play; its launcher input stream claims that kit's per-target input
+bridge. Scoped Stop does not move the host foreground, and unscoped browser
+Stop continues to use the active target, then the selected target. Paired
+session and status reads are target-scoped.
 On the paired listener, health, `rom_cached`, and `/api/v1/library/cache`
 describe the authenticated requesting kit. Paired health probes that kit
 without foreground lifecycle admission, so another kit's launch does not

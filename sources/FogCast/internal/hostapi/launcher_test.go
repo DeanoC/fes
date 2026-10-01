@@ -516,6 +516,65 @@ func TestLauncherStreamDisconnectAndTimeoutRelease(t *testing.T) {
 		})
 	}
 }
+
+func TestLauncherInputClaimsPairedTargetsOwnBridge(t *testing.T) {
+	inputA, inputB := &launcherInput{}, &launcherInput{}
+	service := newKitService("kit-a")
+	service.settingsFake.sessionTarget = "kit-a"
+	service.settingsFake.sessionTargetID = launcherID
+	service.settingsFake.playSessions = []fogcast.PlaySession{{Target: "kit-a", TargetID: launcherID, GameID: "pong"}, {Target: "kit-b", TargetID: launcherIDB, GameID: "pong"}}
+	api := hostapi.New(service, hostapi.WithRemoteInputFactory(func(target string) host.RemoteInputController {
+		if target == "kit-a" {
+			return inputA
+		}
+		if target == "kit-b" {
+			return inputB
+		}
+		return nil
+	}))
+	handler, err := hostapi.NewLauncherHandler(api, distinctKitConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/api/v1/launcher/input?session_id=123", reader)
+	req.Header.Set("Authorization", "Bearer "+launcherTokenB)
+	req.Header.Set("X-FogCast-Target-ID", launcherIDB)
+	response, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("stream status=%d", response.StatusCode)
+	}
+	var ready map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&ready); err != nil {
+		t.Fatal(err)
+	}
+	inputB.mu.Lock()
+	bSource := inputB.source
+	inputB.mu.Unlock()
+	inputA.mu.Lock()
+	aSource := inputA.source
+	inputA.mu.Unlock()
+	if bSource == nil || aSource != nil {
+		t.Fatalf("paired B stream source: B=%v A=%v", bSource != nil, aSource != nil)
+	}
+	if _, err := io.WriteString(writer, "{\"event\":{\"Device\":1,\"Kind\":1,\"Action\":1,\"Code\":104}}\n"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-bSource.events:
+	case <-time.After(time.Second):
+		t.Fatal("kit B input was not delivered to B bridge")
+	}
+	writer.Close()
+}
+
 func TestLauncherStreamRejectsStaleSession(t *testing.T) {
 	server := httptest.NewServer(launcherHandler(t, &launcherInput{}))
 	defer server.Close()
@@ -692,7 +751,27 @@ type launcherKitService struct {
 func (s *launcherKitService) LaunchOn(ctx context.Context, gameID, target string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
 	s.launchOnCalls++
 	s.launchOnTarget = target
-	return s.settingsFake.LaunchOn(ctx, gameID, target, progress)
+	response, err := s.settingsFake.LaunchOn(ctx, gameID, target, progress)
+	if err == nil && response.Status.State == protocol.StateActive {
+		name := target
+		for _, configured := range s.settings.Targets {
+			if configured.Name == name {
+				play := fogcast.PlaySession{Target: name, TargetID: configured.TargetID, Execution: fogcast.ExecutionFPGANative, GameID: gameID}
+				if response.Status.System != nil {
+					play.System = *response.Status.System
+				}
+				plays := s.playSessions[:0]
+				for _, existing := range s.playSessions {
+					if existing.Target != name {
+						plays = append(plays, existing)
+					}
+				}
+				s.playSessions = append(plays, play)
+				break
+			}
+		}
+	}
+	return response, err
 }
 
 func twoKitSettings(selected string, kits ...fogcast.TargetConfig) fogcast.LibraryConfig {
@@ -927,8 +1006,16 @@ func TestLauncherSecondKitLaunchPreservesFirstPlay(t *testing.T) {
 	service := newKitService("kit-a")
 	service.sessionTarget, service.sessionTargetID = "kit-a", launcherID
 	service.playSessions = []fogcast.PlaySession{playA}
+	pongID := "pong"
+	service.launch = protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &pongID, System: systemPtr(protocol.SystemPong)}}
 	service.stopHook = func(context.Context) (protocol.Status, error) {
-		service.playSessions = nil
+		plays := service.playSessions[:0]
+		for _, play := range service.playSessions {
+			if play.Target != "kit-a" {
+				plays = append(plays, play)
+			}
+		}
+		service.playSessions = plays
 		service.sessionTarget, service.sessionTargetID = "", ""
 		return protocol.Status{State: protocol.StateIdle}, nil
 	}
@@ -938,7 +1025,7 @@ func TestLauncherSecondKitLaunchPreservesFirstPlay(t *testing.T) {
 	if w.Code != http.StatusOK || service.launchOnCalls != 1 || service.launchOnTarget != "kit-b" {
 		t.Fatalf("cross-kit launch: %d calls=%d target=%q %s", w.Code, service.launchOnCalls, service.launchOnTarget, w.Body.String())
 	}
-	if len(service.stopCtxErrs) != 0 || len(service.playSessions) != 1 || service.playSessions[0] != playA {
+	if len(service.stopCtxErrs) != 0 || len(service.playSessions) != 2 || service.playSessions[0] != playA || service.playSessions[1].Target != "kit-b" {
 		t.Fatalf("A disturbed: launches=%d stops=%d plays=%+v", service.launchOnCalls, len(service.stopCtxErrs), service.playSessions)
 	}
 	// Kit A's paired session view still reports A's play.
@@ -952,7 +1039,7 @@ func TestLauncherSecondKitLaunchPreservesFirstPlay(t *testing.T) {
 	}
 
 	w = kitCall(handler, http.MethodPost, "/api/v1/session/stop", launcherToken, launcherID, "")
-	if w.Code != http.StatusOK || len(service.stopCtxErrs) != 1 {
+	if w.Code != http.StatusOK || len(service.stopCtxErrs) != 1 || len(service.playSessions) != 1 || service.playSessions[0].Target != "kit-b" {
 		t.Fatalf("A stop: %d stops=%d %s", w.Code, len(service.stopCtxErrs), w.Body.String())
 	}
 	w = kitCall(handler, http.MethodPost, "/api/v1/session/launch", launcherTokenB, launcherIDB, `{"game_id":"pong"}`)
