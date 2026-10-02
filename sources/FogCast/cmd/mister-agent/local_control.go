@@ -67,6 +67,23 @@ func (n nativeLocalRuntime) LoadCore(admission, operation context.Context, path,
 	return nil
 }
 
+func (n nativeLocalRuntime) LoadCartridge(admission, operation context.Context, installPath, packageID string, rom []byte) error {
+	if n.runtime == nil {
+		return errors.New("runtime is closed")
+	}
+	if len(rom) == 0 {
+		return errors.New("cartridge is empty")
+	}
+	// The kit install is an extracted directory, not a canonical package
+	// archive, so the cartridge cannot be linked. Do not program the core
+	// without the ROM and do not dial a host.
+	_ = admission
+	_ = operation
+	_ = installPath
+	_ = packageID
+	return errors.New("kit-local cartridge link is unavailable")
+}
+
 func (n nativeLocalRuntime) Stop(admission, operation context.Context) error {
 	if n.runtime == nil {
 		return errors.New("runtime is closed")
@@ -82,3 +99,4 @@ func (n nativeLocalRuntime) Stop(admission, operation context.Context) error {
 }
 
 var _ localcores.Runtime = nativeLocalRuntime{}
+var _ localcores.CartridgeRuntime = nativeLocalRuntime{}

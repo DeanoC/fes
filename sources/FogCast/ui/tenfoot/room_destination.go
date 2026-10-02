@@ -50,7 +50,41 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d.Action = machineStatusUnknown
 		}
 	}
+	return a.applyKitDirectLocked(d)
+}
+
+// applyKitDirectLocked marks one present browse-only cartridge ready for
+// the local socket. Host-eligible rows, offline rows, and a shell with no
+// local pad stay on the host classification. There is no network fallback.
+func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
+	if a == nil || a.localCores == nil || a.localFeed == nil {
+		return d
+	}
+	game, ok := d.Game()
+	if !ok || !localCatalogPlayable(game) {
+		return d
+	}
+	d.KitDirect = true
+	d.Availability = rooms.AvailReady
+	d.GameID = game.ID
+	d.FillCopy()
 	return d
+}
+
+// localCatalogPlayable is a file that is on this machine and that the host
+// session will not launch. SMS is the cartridge the local socket accepts.
+// Anything the host can already launch keeps ConfirmLaunch.
+func localCatalogPlayable(game hostclient.Game) bool {
+	if game.HostOnly() || game.LaunchEligible() {
+		return false
+	}
+	if game.LaunchBlock() != hostclient.LaunchBrowseOnly {
+		return false
+	}
+	if !game.RootOnline || game.State != "available" {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(game.System), "sms")
 }
 
 func (a *App) pairedKitStatusUnavailableLocked() bool {
@@ -351,6 +385,13 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		return true
 	case rooms.ConfirmLaunchCore:
 		a.startLocalCoreLocked(dest)
+		return true
+	case rooms.ConfirmLaunchKit:
+		if game, ok := dest.Game(); ok {
+			a.startLocalTitleLocked(game)
+			return true
+		}
+		a.status = dest.Status
 		return true
 	default:
 		return false

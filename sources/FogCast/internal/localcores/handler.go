@@ -1,9 +1,12 @@
 package localcores
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 )
 
 // Handler is the no-bearer local-control API.
@@ -20,7 +23,7 @@ func Handler(service *Service) http.Handler {
 		writeJSON(w, http.StatusOK, cores)
 	})
 	mux.HandleFunc("POST /v1/local/cores/{package_id}/launch", func(w http.ResponseWriter, r *http.Request) {
-		core, err := service.Launch(r.Context(), r.PathValue("package_id"))
+		core, err := launchFromRequest(service, r)
 		if err != nil {
 			writeServiceError(w, err)
 			return
@@ -41,6 +44,33 @@ func Handler(service *Service) http.Handler {
 		}{true})
 	})
 	return mux
+}
+
+// launchFromRequest keeps an empty body on the package launch. A JSON
+// rom_path reads that local file and launches the cartridge. It does not
+// open a network connection.
+func launchFromRequest(service *Service, r *http.Request) (Core, error) {
+	data, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+	if err != nil {
+		return Core{}, errUnavailable
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		return service.Launch(r.Context(), r.PathValue("package_id"))
+	}
+	var body struct {
+		ROMPath string `json:"rom_path"`
+	}
+	if json.Unmarshal(data, &body) != nil {
+		return Core{}, errUnavailable
+	}
+	if strings.TrimSpace(body.ROMPath) == "" {
+		return service.Launch(r.Context(), r.PathValue("package_id"))
+	}
+	rom, err := readCartridgeFile(body.ROMPath)
+	if err != nil {
+		return Core{}, err
+	}
+	return service.LaunchCartridge(r.Context(), r.PathValue("package_id"), rom)
 }
 
 func writeServiceError(w http.ResponseWriter, err error) {

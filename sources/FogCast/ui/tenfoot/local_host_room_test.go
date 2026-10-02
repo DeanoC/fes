@@ -121,8 +121,13 @@ root = %q
 		d := s.Room.Destination
 		return s.Room.Open && len(d.Matches) == 1 && d.Matches[0].Title == "Data Storm 1.00" && d.Matches[0].RootOnline && len(s.Room.Frame.Hits) > 0
 	})
-	if snap.Room.Destination.Availability == rooms.AvailReady || snap.Room.Destination.Confirm() == rooms.ConfirmLaunch {
-		t.Fatalf("raw local title was treated as playable: %+v", snap.Room.Destination)
+	if snap.Room.Destination.Availability == rooms.AvailReady || snap.Room.Destination.Confirm() == rooms.ConfirmLaunch || snap.Room.Destination.Confirm() == rooms.ConfirmLaunchKit {
+		t.Fatalf("host-only shell treated the raw title as playable: %+v", snap.Room.Destination)
+	}
+	app.SetKitLocal(&fakeLocalCores{}, &fakePadFeed{})
+	snap = app.Snapshot()
+	if snap.Room.Destination.Availability != rooms.AvailReady || snap.Room.Destination.Confirm() != rooms.ConfirmLaunchKit || !snap.Room.Destination.KitDirect {
+		t.Fatalf("kit shell did not make Data Storm playable: %+v", snap.Room.Destination)
 	}
 	mu.Lock()
 	queried := sawAll
@@ -130,16 +135,14 @@ root = %q
 	if !queried {
 		t.Fatal("room did not query the local catalog with availability=all")
 	}
-	app.HandleCommand(CmdSelect, now)
-	snap = app.Snapshot()
 	mu.Lock()
-	gotLaunches := launches
-	mu.Unlock()
-	if gotLaunches != 0 || snap.Launch.Phase == "launching" || snap.Launch.Phase == "ok" || len(snap.Room.Frame.Hits) == 0 {
-		t.Fatalf("confirm launched or left the shelf: launch=%+v posts=%d hits=%d", snap.Launch, gotLaunches, len(snap.Room.Frame.Hits))
+	if launches != 0 {
+		t.Fatalf("browsing posted %d host launches", launches)
 	}
+	mu.Unlock()
 
-	app.HandleCommand(CmdBack, now)
+	// Stay in the room. Back leaves it, and Select on the playable row
+	// would start the local cartridge. Sort asks the script to query again.
 	if err := os.RemoveAll(root); err != nil {
 		t.Fatal(err)
 	}
@@ -154,12 +157,12 @@ root = %q
 		d := s.Room.Destination
 		return s.Room.Open && len(d.Matches) == 1 && d.Matches[0].Title == "Data Storm 1.00" && !d.Matches[0].RootOnline && len(s.Room.Frame.Hits) > 0
 	})
-	if snap.Room.Destination.Availability == rooms.AvailMissing || snap.Room.Destination.Confirm() == rooms.ConfirmLaunch {
+	if snap.Room.Destination.Availability == rooms.AvailMissing || snap.Room.Destination.Confirm() == rooms.ConfirmLaunch || snap.Room.Destination.Confirm() == rooms.ConfirmLaunchKit {
 		t.Fatalf("refresh hid or launched the saved title: %+v", snap.Room.Destination)
 	}
 	app.HandleCommand(CmdSelect, now)
 	mu.Lock()
-	gotLaunches = launches
+	gotLaunches := launches
 	mu.Unlock()
 	if gotLaunches != 0 || len(app.Snapshot().Room.Frame.Hits) == 0 {
 		t.Fatalf("offline confirm launched or blanked the room: launches=%d hits=%d", gotLaunches, len(app.Snapshot().Room.Frame.Hits))

@@ -71,6 +71,9 @@ const (
 	ConfirmOpenLibraryBrowse
 	ConfirmLauncherAction
 	ConfirmLaunchCore
+	// ConfirmLaunchKit plays a present local cartridge through the kit
+	// socket. It is not the host session launch.
+	ConfirmLaunchKit
 )
 
 // Destination is the selected location a room publishes to the launcher.
@@ -102,6 +105,10 @@ type Destination struct {
 	// LeaseHeld is a foreign kit lease. The same shell's Soft-stop retained
 	// grant leaves this false so that shell stays Ready.
 	LeaseHeld bool
+	// KitDirect is a present local cartridge the kit plays through the
+	// local-control socket. Confirm returns ConfirmLaunchKit and does not
+	// post the host session. Host-eligible rows leave this false.
+	KitDirect bool
 	// ReadyBlock and NextAction are ReadyHere when the mesh seam is on.
 	// Empty when that seam is off.
 	ReadyBlock string
@@ -411,7 +418,10 @@ func (d Destination) Confirm() ConfirmIntent {
 		return ConfirmExplain
 	case AvailReady:
 		// A selected placement stays on this launch. Confirm does not
-		// ask which machine.
+		// ask which machine. A kit-direct cartridge never posts the host.
+		if d.KitDirect {
+			return ConfirmLaunchKit
+		}
 		return ConfirmLaunch
 	default:
 		if d.Kind == KindUnresolved && d.Availability != "" {

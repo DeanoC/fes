@@ -58,7 +58,12 @@ and A still browse that snapshot. When `config.toml` is beside `launcher.json`
 (or `FOGCAST_CONFIG` / `FES_HOST_CONFIG` names one, or the default user config
 exists), `fogcast-tenfoot -gfx menu-display` and `fogcast-kit` also boot
 `fogcast.BootLocalCatalog` and browse that library while the remote host is
-absent. Host-catalog Launch and
+absent. A present Master System row from that catalog is Play on the tenfoot
+room path: Confirm posts the cartridge path to the local-control launch route
+and does not post the host session or fall back to the network. The agent
+reads that file and hands the bytes to the cartridge runtime. An extracted
+install has no canonical package archive, so the kit runtime reports the
+link unavailable instead of programming the core without the ROM. Host-catalog Launch and
 Stop stay unavailable until the configured host API reconnects; the launcher
 does not claim a lease for those titles while offline. Installed cores that need no cartridge or
 firmware are listed and launched on the kit through mister-agent's root-only

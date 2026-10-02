@@ -1,6 +1,7 @@
 package localcores
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -107,7 +109,43 @@ func (c *Client) Launch(ctx context.Context, packageID string) error {
 		post = launchPostTimeout
 	}
 	postCtx, cancel := context.WithTimeout(ctx, post)
-	err := c.do(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", nil)
+	err := c.doRequest(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", nil, nil)
+	cancel()
+	if err == nil || !timedOut(err) || ctx.Err() != nil {
+		return err
+	}
+	return c.reconcileRunning(ctx, packageID)
+}
+
+// LaunchROM posts the same launch route with a local cartridge path.
+// The agent reads the file. An empty or relative path is not sent.
+// This does not call the host session.
+func (c *Client) LaunchROM(ctx context.Context, packageID, romPath string) error {
+	if !sha256Hex(packageID) {
+		return ErrNotFound
+	}
+	romPath = strings.TrimSpace(romPath)
+	if romPath == "" || !filepath.IsAbs(romPath) || strings.ContainsAny(romPath, "\r\n") {
+		return ErrUnavailable
+	}
+	if c == nil || c.http == nil || c.path == "" {
+		return ErrUnavailable
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	body, err := json.Marshal(struct {
+		ROMPath string `json:"rom_path"`
+	}{ROMPath: romPath})
+	if err != nil {
+		return ErrUnavailable
+	}
+	post := c.launchPost
+	if post <= 0 {
+		post = launchPostTimeout
+	}
+	postCtx, cancel := context.WithTimeout(ctx, post)
+	err = c.doRequest(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", body, nil)
 	cancel()
 	if err == nil || !timedOut(err) || ctx.Err() != nil {
 		return err
@@ -132,6 +170,10 @@ func (c *Client) Stop(ctx context.Context) error {
 }
 
 func (c *Client) do(ctx context.Context, method, path string, out any) error {
+	return c.doRequest(ctx, method, path, nil, out)
+}
+
+func (c *Client) doRequest(ctx context.Context, method, path string, body []byte, out any) error {
 	if c == nil || c.http == nil || c.path == "" {
 		return ErrUnavailable
 	}
@@ -143,9 +185,16 @@ func (c *Client) do(ctx context.Context, method, path string, out any) error {
 		ctx, cancel = context.WithTimeout(ctx, clientTimeout)
 		defer cancel()
 	}
-	req, err := http.NewRequestWithContext(ctx, method, "http://local-control"+path, nil)
+	var reader io.Reader
+	if len(body) > 0 {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, "http://local-control"+path, reader)
 	if err != nil {
 		return err
+	}
+	if len(body) > 0 {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -155,17 +204,17 @@ func (c *Client) do(ctx context.Context, method, path string, out any) error {
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxClientBody))
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxClientBody))
 	if err != nil {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return classifyStatus(resp.StatusCode, body)
+		return classifyStatus(resp.StatusCode, payload)
 	}
-	if out == nil || len(strings.TrimSpace(string(body))) == 0 {
+	if out == nil || len(strings.TrimSpace(string(payload))) == 0 {
 		return nil
 	}
-	if err := json.Unmarshal(body, out); err != nil {
+	if err := json.Unmarshal(payload, out); err != nil {
 		return err
 	}
 	return nil

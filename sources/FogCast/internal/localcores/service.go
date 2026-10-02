@@ -44,6 +44,13 @@ type Runtime interface {
 	Stop(admission, operation context.Context) error
 }
 
+// CartridgeRuntime programs an installed core with cartridge bytes. The
+// local socket type-asserts this. A runtime that only implements Runtime
+// refuses the cartridge and does not call LoadCore in its place.
+type CartridgeRuntime interface {
+	LoadCartridge(admission, operation context.Context, installPath, packageID string, rom []byte) error
+}
+
 // LeaseGate is the kit lease operations local control may use.
 // Takeover is not part of this surface.
 type LeaseGate interface {
@@ -113,6 +120,21 @@ func (s *Service) List() []Core {
 // A failed renew, or cancellation of that lease context, clears the
 // session so RunStatus is not running.
 func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
+	return s.launch(ctx, packageID, nil)
+}
+
+// LaunchCartridge is Launch for a core that needs media. rom is the
+// cartridge bytes already read from a local file. An empty body, a core
+// that does not need media, or a runtime with no cartridge link is refused.
+// This does not dial a host.
+func (s *Service) LaunchCartridge(ctx context.Context, packageID string, rom []byte) (Core, error) {
+	if len(rom) == 0 || len(rom) > maxCartridgeBytes {
+		return Core{}, errUnavailable
+	}
+	return s.launch(ctx, packageID, rom)
+}
+
+func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Core, error) {
 	if s == nil || s.leases == nil || s.runtime == nil {
 		return Core{}, errUnavailable
 	}
@@ -131,7 +153,11 @@ func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 	if !found {
 		return Core{}, errNotFound
 	}
-	if core.Needs != "none" || !core.Launchable {
+	if rom == nil {
+		if core.Needs != "none" || !core.Launchable {
+			return Core{}, errBlocked
+		}
+	} else if core.Needs != "media" {
 		return Core{}, errBlocked
 	}
 	if !leaseFree(s.leases.Status()) {
@@ -166,7 +192,7 @@ func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 	s.runPackage = core.PackageID
 	s.mu.Unlock()
 	s.startRenew(grant.Token, leaseCtx, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
-	loadErr := s.load(ctx, leaseCtx, core)
+	loadErr := s.load(ctx, leaseCtx, core, rom)
 	done()
 	if loadErr != nil {
 		_, _ = s.leases.Release(grant.Token)
@@ -376,7 +402,7 @@ func (s *Service) stopRenew() {
 	}
 }
 
-func (s *Service) load(request, lease context.Context, core Core) error {
+func (s *Service) load(request, lease context.Context, core Core, rom []byte) error {
 	if request == nil {
 		request = context.Background()
 	}
@@ -387,6 +413,13 @@ func (s *Service) load(request, lease context.Context, core Core) error {
 	// client must not abort an in-flight program. Revocation still cancels it.
 	operation, cancel := context.WithTimeout(lease, loadTimeout)
 	defer cancel()
+	if len(rom) > 0 {
+		cart, ok := s.runtime.(CartridgeRuntime)
+		if !ok {
+			return errUnavailable
+		}
+		return cart.LoadCartridge(request, operation, core.installPath, core.PackageID, rom)
+	}
 	return s.runtime.LoadCore(request, operation, core.installPath, core.PackageID)
 }
 
