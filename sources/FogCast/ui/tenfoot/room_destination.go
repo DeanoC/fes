@@ -29,12 +29,14 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		return rooms.Destination{}
 	}
 	d := a.room.Destination()
+	// Lease each candidate before a saved pick collapses the choice, so a
+	// leased FPGA is not counted beside an emulator that can play.
+	d = rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
 	if key := roomPickKey(d); key != "" && a.roomPicks != nil {
 		if id := strings.TrimSpace(a.roomPicks[key]); id != "" {
 			d = rooms.ApplyEditionPreference(d, id)
 		}
 	}
-	d = rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
 	if d.Kind == rooms.KindCore && d.CoreLaunchable && a.client != nil && a.client.paired {
 		switch {
 		case a.foreignKitLeaseLocked():

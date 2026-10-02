@@ -511,3 +511,52 @@ func TestForeignLeaseIsUnavailableInUseAndOwnedLeaseStaysReady(t *testing.T) {
 		t.Fatalf("core destination rewritten by foreign lease %+v confirm=%v", coreKept, coreKept.Confirm())
 	}
 }
+
+func TestForeignLeaseCollapsesBackendChoiceBeforeCounting(t *testing.T) {
+	t.Parallel()
+	fpga := readyGame("fpga-data-storm", "Data Storm", "sms")
+	fpga.Execution = "fpga_native"
+	emu := readyGame("sms-data-storm", "Data Storm", "sms")
+	emu.Execution = hostclient.ExecutionHostOnly
+	state, matches := ClassifyGames([]hostclient.Game{fpga, emu}, "Data Storm")
+	if state != AvailNeedsChoice || len(matches) != 2 {
+		t.Fatalf("before lease: %s %+v", state, matches)
+	}
+	dest := Destination{
+		Kind: KindGame, Query: "Data Storm", Platform: "sms",
+		Availability: state, Matches: matches, Label: "Data Storm",
+	}
+	dest.FillCopy()
+	if dest.Confirm() != ConfirmChoose || dest.Choice != ChoiceBackend {
+		t.Fatalf("choice before lease %+v confirm=%v", dest, dest.Confirm())
+	}
+
+	kept := ApplyForeignLease(dest, false)
+	if kept.Availability != AvailNeedsChoice || kept.Confirm() != ConfirmChoose || len(kept.Matches) != 2 {
+		t.Fatalf("owned lease rewrote the choice %+v", kept)
+	}
+
+	got := ApplyForeignLease(dest, true)
+	if got.Availability != AvailReady || got.LeaseHeld || got.Confirm() != ConfirmLaunch || got.Choice != ChoiceNone {
+		t.Fatalf("leased FPGA should leave the emulator %+v confirm=%v", got, got.Confirm())
+	}
+	if len(got.Matches) != 1 || got.Matches[0].ID != emu.ID || got.GameID != emu.ID {
+		t.Fatalf("sole ready match %+v game=%s", got.Matches, got.GameID)
+	}
+	if got.Status != "Ready to play." || got.Action != "Play" {
+		t.Fatalf("ready copy %+v", got)
+	}
+
+	aloneState, aloneMatches := ClassifyGames([]hostclient.Game{fpga}, "Data Storm")
+	alone := Destination{
+		Kind: KindGame, Query: "Data Storm", Availability: aloneState, Matches: aloneMatches, GameID: fpga.ID,
+	}
+	alone.FillCopy()
+	leased := ApplyForeignLease(alone, true)
+	if leased.Availability != AvailUnavailable || !leased.LeaseHeld || leased.Confirm() != ConfirmExplain {
+		t.Fatalf("lone leased option %+v confirm=%v", leased, leased.Confirm())
+	}
+	if leased.Status != InUseStatus || leased.Action != InUseDetail {
+		t.Fatalf("lone in-use copy status=%q action=%q", leased.Status, leased.Action)
+	}
+}

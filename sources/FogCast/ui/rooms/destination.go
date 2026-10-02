@@ -249,24 +249,82 @@ func BackendLabel(game hostclient.Game) string {
 	}
 }
 
-// ApplyForeignLease turns a Ready FPGA title into Unavailable when another
-// session holds the kit lease. foreign is false for the shell that holds
-// the grant, including after Soft-stop. Confirm then explains and does not
-// launch or take the lease. A host-only title stays Ready so Play reaches
-// the host executor. A core destination is left to tenfoot, which applies
-// the local in-use copy and refuses Confirm. An Execute advertisement is
-// not an input.
+// ApplyForeignLease applies a foreign kit lease to each launch-eligible
+// candidate before viable choices are counted. foreign is false for the
+// shell that holds the grant, including after Soft-stop. A host-only
+// candidate stays viable, so an emulator beside a leased FPGA is the sole
+// Ready option. A lone leased option is Unavailable with the in-use reason.
+// Confirm then explains and does not launch or take the lease. An existing
+// catalog block (firmware, skew) is left as that block. A core destination
+// is left to tenfoot, which applies the local in-use copy and refuses
+// Confirm. An Execute advertisement is not an input.
 func ApplyForeignLease(d Destination, foreign bool) Destination {
-	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Kind == KindCore || d.Availability != AvailReady {
+	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Kind == KindCore {
 		return d
 	}
-	if game, ok := d.Game(); ok && game.HostOnly() {
+	if len(d.Matches) == 0 {
 		return d
 	}
-	d.LeaseHeld = true
-	d.Availability = AvailUnavailable
+	next := make([]hostclient.Game, len(d.Matches))
+	changed := false
+	for i, g := range d.Matches {
+		next[i] = g
+		if g.HostOnly() || !g.LaunchEligible() {
+			continue
+		}
+		next[i] = leaseHeldCandidate(g)
+		changed = true
+	}
+	if !changed {
+		return d
+	}
+	state, matches := ClassifyGames(next, d.Query)
+	d.Availability = state
+	d.Matches = matches
+	d.Choice = ChoiceNone
+	d.LeaseHeld = false
+	d.ReadyBlock = ""
+	d.NextAction = ""
+	if state == AvailReady && len(matches) == 1 {
+		d.GameID = matches[0].ID
+		if title := strings.TrimSpace(matches[0].Title); title != "" {
+			d.Label = title
+		}
+		if system := strings.TrimSpace(matches[0].System); system != "" {
+			d.System = system
+		}
+	}
+	d.applyMeshFacts()
+	if state == AvailUnavailable && allLeaseHeld(matches) {
+		d.LeaseHeld = true
+		if len(matches) == 1 {
+			d.ReadyBlock = matches[0].ReadyBlock
+			d.NextAction = matches[0].NextAction
+		}
+	}
 	d.FillCopy()
+	d.FillHistory()
 	return d
+}
+
+func leaseHeldCandidate(g hostclient.Game) hostclient.Game {
+	ready := false
+	g.ReadyHere = &ready
+	g.ReadyBlock = string(hostclient.LaunchLeaseHeld)
+	g.NextAction = "wait_for_lease"
+	return g
+}
+
+func allLeaseHeld(matches []hostclient.Game) bool {
+	if len(matches) == 0 {
+		return false
+	}
+	for _, g := range matches {
+		if g.LaunchBlock() != hostclient.LaunchLeaseHeld {
+			return false
+		}
+	}
+	return true
 }
 
 func matchingGames(games []hostclient.Game, query string) []hostclient.Game {

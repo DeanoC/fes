@@ -591,6 +591,52 @@ func TestPlacementSelectionLaunchesWithoutAMachineAsk(t *testing.T) {
 	}
 }
 
+func TestForeignLeaseLeavesEmulatorReadyInABackendChoice(t *testing.T) {
+	h := newRoomHost(t)
+	script := `
+function load()
+  destination.set({ kind = "game", label = "Data Storm", query = "Data Storm", matches = {
+    { id = "fpga-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "fpga_native" },
+    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "host_only" },
+  }})
+end
+function draw() gfx.rect(0,0,10,10,'#fff') end
+`
+	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "storm", script)})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "backend choice", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailNeedsChoice
+	})
+
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "other-shell"}
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	dest := snap.Room.Destination
+	if dest.Availability != rooms.AvailReady || dest.Confirm() != rooms.ConfirmLaunch || dest.GameID != "sms-data-storm" {
+		t.Fatalf("leased choice %+v confirm=%v", dest, dest.Confirm())
+	}
+	if len(dest.Matches) != 1 || dest.Matches[0].ID != "sms-data-storm" {
+		t.Fatalf("matches %+v", dest.Matches)
+	}
+	if snap.Room.Choice.Open {
+		t.Fatalf("choice overlay stayed open %+v", snap.Room.Choice)
+	}
+	if dest.Status == rooms.BackendChoiceStatus || dest.Status == rooms.InUseStatus {
+		t.Fatalf("status %q", dest.Status)
+	}
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "emulator launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	if h.launchCount() != 1 || !strings.Contains(h.launches[0], "sms-data-storm") || strings.Contains(h.launches[0], "fpga-data-storm") {
+		t.Fatalf("launches %v", h.launches)
+	}
+}
+
 func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{
