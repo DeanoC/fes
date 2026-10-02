@@ -236,6 +236,21 @@ func InspectPackage(path string) (Inspection, error) {
 		Descriptor: descriptor}, nil
 }
 
+// CanonicalArchive rewrites a package directory or archive as the canonical
+// restricted ustar ROM input expects. Identity hashes the member bytes, so
+// the package id matches InspectPackage of the same path.
+func CanonicalArchive(path string) ([]byte, error) {
+	manifest, payload, romMap, err := readPath(path)
+	if err != nil {
+		return nil, err
+	}
+	members := []canonicalMember{{name: "manifest.toml", data: manifest}, {name: "core.rbf", data: payload}}
+	if romMap != nil {
+		members = append(members, canonicalMember{name: "rom-map.json", data: romMap})
+	}
+	return writeCanonicalMembers(members, MaxArchiveSize)
+}
+
 // Inspect validates a package and returns its closed manifest projection.
 func Inspect(path string) (Descriptor, error) {
 	inspection, err := InspectPackage(path)

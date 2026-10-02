@@ -141,6 +141,34 @@ func TestInspectMatchesSharedConformanceCorpus(t *testing.T) {
 	}
 }
 
+func TestCanonicalArchivePreservesDirectoryIdentity(t *testing.T) {
+	c := loadCases(t)[0]
+	manifest, payload := fixtureBytes(t, c)
+	dir := writeDirectory(t, manifest, payload)
+	archive, err := CanonicalArchive(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "core.fcore")
+	if err := os.WriteFile(path, archive, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fromDir, err := InspectPackage(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromArchive, err := InspectPackage(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromDir.PackageID != fromArchive.PackageID || fromDir.PackageID != c.PackageID {
+		t.Fatalf("ids dir=%s archive=%s fixture=%s", fromDir.PackageID, fromArchive.PackageID, c.PackageID)
+	}
+	if !reflect.DeepEqual(fromDir.Descriptor, fromArchive.Descriptor) {
+		t.Fatalf("descriptor dir=%#v archive=%#v", fromDir.Descriptor, fromArchive.Descriptor)
+	}
+}
+
 func TestInspectPackageReturnsIdentityAndDescriptorFromOneRead(t *testing.T) {
 	c := loadCases(t)[0]
 	manifest, payload := fixtureBytes(t, c)

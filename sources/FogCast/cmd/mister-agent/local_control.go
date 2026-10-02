@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sync"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 )
@@ -74,14 +76,39 @@ func (n nativeLocalRuntime) LoadCartridge(admission, operation context.Context, 
 	if len(rom) == 0 {
 		return errors.New("cartridge is empty")
 	}
-	// The kit install is an extracted directory, not a canonical package
-	// archive, so the cartridge cannot be linked. Do not program the core
-	// without the ROM and do not dial a host.
-	_ = admission
-	_ = operation
-	_ = installPath
-	_ = packageID
-	return errors.New("kit-local cartridge link is unavailable")
+	// The kit install is an extracted directory. Rebuild the canonical
+	// archive from those members and hand it to the same ROM-link load the
+	// host uses. This does not dial a host.
+	inspection, err := corepackage.InspectPackage(installPath)
+	if err != nil || inspection.PackageID != packageID {
+		return errors.New("the core is not installed")
+	}
+	if inspection.Descriptor.Format != 3 || inspection.Descriptor.ROM == nil {
+		return errors.New("the installed core cannot take a cartridge")
+	}
+	archive, err := corepackage.CanonicalArchive(installPath)
+	if err != nil {
+		return errors.New("the installed core could not be read")
+	}
+	envelope, err := corepackage.WriteROMInput(corepackage.ROMInput{Package: archive, ROM: rom})
+	if err != nil {
+		return errors.New("this cartridge does not fit the installed core")
+	}
+	// Mark before dispatch. load_rom_core can program the FPGA and still return an error.
+	if n.program != nil {
+		n.program.mark()
+	}
+	activation, _, apiErr := n.runtime.LoadCoreOwned(admission, operation, operation, int64(len(envelope)), bytes.NewReader(envelope))
+	if apiErr != nil {
+		if apiErr.Message != "" {
+			return errors.New(apiErr.Message)
+		}
+		return errors.New("installed core load failed")
+	}
+	if activation.PackageID != packageID || activation.ROMLink == nil {
+		return errors.New("installed core load failed")
+	}
+	return nil
 }
 
 func (n nativeLocalRuntime) Stop(admission, operation context.Context) error {
