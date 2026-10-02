@@ -150,9 +150,8 @@ field list are the same object.
 
 #### 1. Combined library wire shape
 
-**Proposal.** One new host read, `GET /api/v1/library/titles`, returns
-the grouped view `Service.MeshBackendLibrary` already computes. No query
-and no body. The kit launcher consumes that route as a paired library
+**Implemented.** `GET /api/v1/library/titles` returns the grouped view
+`Service.MeshBackendLibrary` computes. No query and no body. The kit launcher consumes that route as a paired library
 read (bearer and `X-FogCast-Target-ID`, the same admission as
 `GET /api/v1/games`). It is not added to the mesh content reads. The
 route does not launch and does not report Ready. A query string is
@@ -184,23 +183,21 @@ returns 500 INTERNAL `catalog is unavailable` and does not answer
 
 A host-local `native_emu` option lists remote `native_emu` nodes. Those
 nodes stay unavailable and do not clear the option.
-`Service.MeshBackendLibrary` does not emit a further option:
 `resolveExecution` returns only `fpga_native` or `host_only`, and
-`host_local` is true only for `host_only`. The current Data Storm
+`host_local` is true only for `host_only`. The kit-only Data Storm
 projection in `mesh-lan.md` is the kit option plus that host-local
-option. Phase 2 adds the remote option inside
-`ProjectMeshBackendLibrary`, after the local titles are linked, as one
-synthetic `MeshTitle` with the same game, system, and primary-media
-digest and with `Execute` set to `native_emu`. The existing loop keeps
-it because `host_local` differs. `source_game_id` stays the raw ROM
-catalog id. The option's nodes are the inventory nodes that advertise
-`native_emu`. Until decision 4 accepts a node's provenance, the node
-reason stays `remote emulator system and version unverified` and the
-option reason stays `no compatible executor in inventory`. The
-synthetic option is emitted only when inventory advertises
-`native_emu`. Kit-only inventory keeps the two-option document. The
-host-local option stays as #361 built it, nested remote nodes included.
-That extra option is the phase-2 fragment in `mesh-lan.md`. Paths,
+option. `ProjectMeshBackendLibrary` also emits one remote option when
+inventory advertises `native_emu`: after the local titles are linked,
+one synthetic `MeshTitle` carries the same game, system, and
+primary-media digest with `Execute` set to `native_emu`. The existing
+loop keeps it because `host_local` differs. `source_game_id` stays the
+raw ROM catalog id. The option's nodes are the inventory nodes that
+advertise `native_emu`. Decision 4 has not accepted a node's provenance,
+so the node reason stays `remote emulator system and version unverified`,
+the option reason stays `no compatible executor in inventory`, and the
+option stays unavailable. Kit-only inventory keeps the two-option
+document. The host-local option stays as #361 built it, nested remote
+nodes included. That gated option is the fragment in `mesh-lan.md`. Paths,
 bytes, tokens, and `ready_here` are not fields. Skipped titles are not
 elements of `titles`.
 

@@ -198,7 +198,7 @@ default off. The same four decisions are the wire rules in
 
 #### 1. Combined library wire shape
 
-**Proposal.** Publish the grouped title to backend-options view as one
+**Implemented.** The grouped title to backend-options view is one
 read on the existing host API:
 
 `GET /api/v1/library/titles`
@@ -210,7 +210,7 @@ projection already reads. The route takes no query and no body. A query string i
 When the local catalog cannot be read, the route returns 500 INTERNAL
 `catalog is unavailable` and does not answer `{"titles":[]}`. The kit
 launcher consumes this same route.
-Phase 2 adds it to the launcher allowlist as a paired library read
+The launcher allowlist admits it as a paired library read
 (`launcherOperation` and `launcherPairedRead` in
 `internal/hostapi/launcher.go`), with the bearer and
 `X-FogCast-Target-ID` those reads already require. It is not a mesh
@@ -250,18 +250,16 @@ library id and path. `package_id` is a 64-hex shape stand-in, not the
 the shipped `fes.sms` package ABI. The ROM content-id is the real
 Data Storm 1.00 digest.
 
-The object below is the projection `Service.MeshBackendLibrary` returns
-for that fixture today: the kit `fes.sms` option and the host-local
+The object below is the kit-only projection `Service.MeshBackendLibrary`
+returns for that fixture: the kit `fes.sms` option and the host-local
 emulator option. `resolveExecution` returns only `fpga_native` or
 `host_only` (`fogcast/service.go`). `host_local` is true only when the
-title's execute label is `host_only`, so this service path does not
-emit an option with `host_local: false` and `execution: native_emu`.
-With only the kit in inventory the host-local option's `nodes` is
-empty, because the kit advertises `fpga_native`. When inventory also
-contains a `native_emu` advertisement, #361 appends that node on this
-same host-local option with reason `remote emulator system and version
-unverified`. That node does not clear the host-local option, and it
-does not create a third option.
+title's execute label is `host_only`. With only the kit in inventory
+the host-local option's `nodes` is empty, because the kit advertises
+`fpga_native`, and the document stays these two options. When inventory
+also contains a `native_emu` advertisement, #361 still appends that
+node on this same host-local option with reason `remote emulator system
+and version unverified`. That node does not clear the host-local option.
 
 ```json
 {
@@ -310,20 +308,21 @@ does not create a third option.
 }
 ```
 
-Phase 2 adds the remote option by a projection step, not by a catalog
-row and not by `resolveExecution`. Inside `ProjectMeshBackendLibrary`,
-after the local titles are linked, a row that already has a host-local
-`native_emu` option gains one synthetic `MeshTitle`: the same game,
-system, and primary-media digest, with `Execute` set to `native_emu`.
-The existing loop keeps it because `host_local` differs, so the
-duplicate check does not drop it. `source_game_id` stays the raw ROM's
-catalog id. The option's nodes are the inventory nodes that advertise
-`native_emu`. Until decision 4 accepts a node's provenance, each such
-node keeps `remote emulator system and version unverified` and the
-option reason stays `no compatible executor in inventory`. The
-synthetic option is emitted only when inventory advertises `native_emu`.
-Kit-only inventory keeps the two-option document above. The
-host-local option stays as #361 built it, nested remote nodes included.
+`ProjectMeshBackendLibrary` also emits one remote option when inventory
+advertises `native_emu`. That option is a projection step, not a catalog
+row and not a `resolveExecution` result. After the local titles are
+linked, a row that already has a host-local `native_emu` option gains
+one synthetic `MeshTitle`: the same game, system, and primary-media
+digest, with `Execute` set to `native_emu`. The existing loop keeps it
+because `host_local` differs, so the duplicate check does not drop it.
+`source_game_id` stays the raw ROM's catalog id. The option's nodes are
+the inventory nodes that advertise `native_emu`. Decision 4 has not
+accepted a node's provenance, so each such node keeps `remote emulator
+system and version unverified`, the option reason stays `no compatible
+executor in inventory`, and the option stays unavailable. The synthetic
+option is emitted only when inventory advertises `native_emu`. Kit-only
+inventory keeps the two-option document above. The host-local option
+stays as #361 built it, nested remote nodes included.
 
 ```json
 {
@@ -348,7 +347,7 @@ field on `GET /api/v1/mesh/nodes` would put a title list on the
 inventory route. A mister-packages schema is not required while the
 launcher reads the host; #358 still freezes no shared wire. An
 in-process-only view would leave the kit launcher and #362 without a
-document. This proposal uses the new library route.
+document. The host serves this view on `GET /api/v1/library/titles`.
 
 **Out of scope.** Session selection, launch, Ready, a skipped-title
 array, display strings, filters, and any change to `GET /api/v1/games`.
