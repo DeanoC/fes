@@ -47,6 +47,9 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 	if a.playHIDFailClosedLocked() || a.stopPhase == "stopping" || a.retryStopLock {
 		a.playPadChordSince = time.Time{}
 		a.suppressHeldSessionPadLocked()
+		if !down {
+			delete(a.playPadSuppressed, e.Code)
+		}
 		return true, nil
 	}
 	pair := e.Kind == remoteinput.KindButton && (e.Code == remoteinput.ButtonSelect || e.Code == remoteinput.ButtonStart)

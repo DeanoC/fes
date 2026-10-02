@@ -360,6 +360,11 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 			app.mu.Lock()
 			displayDone := app.sessionDisplayWait
 			app.mu.Unlock()
+			b := remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton,
+				Code: remoteinput.ButtonB, Action: remoteinput.ActionPress}
+			if tc.returnVia == "controller" {
+				app.HandleLocalPad(b, time.Now()) // Still held when Stop takes focus.
+			}
 			app.HandleCommand(CmdStop, time.Now())
 			waitFor(t, app, "failed Stop", func(s Snapshot) bool { return s.Session.RetryStop && !s.Session.Stopping })
 			if tc.pending {
@@ -383,8 +388,14 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 			case "back":
 				app.HandleCommand(CmdBack, time.Now())
 			case "controller":
-				app.HandleLocalPad(remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton,
-					Code: remoteinput.ButtonB, Action: remoteinput.ActionPress}, time.Now())
+				app.HandleLocalPad(b, time.Now())
+				if closes.Load() != 0 {
+					t.Fatal("held B returned the display without release and fresh press")
+				}
+				b.Action = remoteinput.ActionRelease
+				app.HandleLocalPad(b, time.Now())
+				b.Action = remoteinput.ActionPress
+				app.HandleLocalPad(b, time.Now())
 			case "exit":
 				app.Stop()
 			}
