@@ -6,7 +6,7 @@ local chosen, inspected = "", ""
 local focus = "socket"
 local controls = {}
 local loading, saving, stale = false, false, true
-local message, read_error = "Finding your ZX81 setups...", ""
+local message, read_error = "Finding your Sinclair ZX81 setups...", ""
 local last_read, page = 0, 1
 local scale, ox, oy = 1, 0, 0
 
@@ -79,7 +79,7 @@ local function read()
       if not choice() then inspected=machine.draft_expansion_id end
       page=math.max(1,math.min(page,math.ceil(math.max(1,#machine.choices)/3)))
     end
-    if message == "Finding your ZX81 setups..." then message="Choose a card to see what it adds." end
+    if message == "Finding your Sinclair ZX81 setups..." then message="Choose a card to see what it adds." end
   end)
 end
 local function save(id)
@@ -160,9 +160,9 @@ function draw()
   controls={}
   gfx.clear(C.paper)
   text("HARDWARE ROOM",24,12,15,C.red,600,true)
-  text("The Zx81 workbench",24,34,34,C.ink,760,true)
+  text("Sinclair ZX81",24,34,34,C.ink,760,true)
   text(machine and ("Your setup: "..machine.title) or "A small machine. Room to experiment.",24,76,18,C.muted,760)
-  button("setup_library","Set up Zx81",710,74,176,28,not running(),function() hardware.setup() end)
+  button("setup_library","Set up ZX81",710,74,176,28,not running(),function() hardware.setup() end)
   button("back","Back",884,25,90,44,true,function() rooms.back() end)
   button("home","Home",988,25,108,44,true,function() rooms.home() end)
 
@@ -191,7 +191,7 @@ function draw()
   rect(710,126,386,283,C.panel)
   local c=choice()
   text(c and ("ON THE SHELF"..(c.in_progress and " · In progress" or "")) or "YOUR MACHINE",730,138,14,C.red,340,true)
-  text(c and c.label or "Zx81",730,160,25,C.ink,345,true)
+  text(c and c.label or "Sinclair ZX81",730,160,25,C.ink,345,true)
   lines(c and c.description or "Choose an expansion for the rear connector. The host checks that it fits this exact machine.",730,196,341,18,4,C.muted)
   local can_edit=machine and machine.socket.supported and not stale and not loading and not saving
   local fit=c and c.ready and c.expansion_id ~= machine.draft_expansion_id
@@ -221,7 +221,7 @@ function draw()
     end
   end
   if #choices == 0 then
-    text(machine and "RAM, Zon X and QS expansions supported." or "Add a ZX81 setup in the FPGA library to begin.",24,452,21,C.muted,840)
+    text(machine and "RAM, Zon X and QS expansions supported." or "Add a Sinclair ZX81 setup in the FPGA library to begin.",24,452,21,C.muted,840)
     text("Import a card archive to add it to this shelf.",24,485,17,C.muted,840)
   end
   button("refresh",loading and "Checking..." or "Refresh",912,443,184,26,not loading and not saving,function() read() end)

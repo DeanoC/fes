@@ -76,7 +76,7 @@ closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtes
 SG-1000 and Spectrum remain sealed, registered package-only recipes. C64
 remains registered while its HIP seal is unresolved. The 128 MiB rootfs
 limit prevents including the three sealed additions in this image.
-`fes.menu` is the idle display, not a playable library entry. Each selected
+Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
 missing, extra or misidentified packages. The FES image has no legacy bundle
@@ -119,8 +119,8 @@ Run the host with an explicit local configuration:
 out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --listen 127.0.0.1:8787
 ```
 
-The native image installs the ordered playable package set: Pong, ZX81, ColecoVision and
-RAM Tester (OSS 100 MHz). The menu package supplies idle display and is not
+The native image installs the ordered playable package set: Pong, Sinclair ZX81, ColecoVision and
+RAM Tester (OSS 100 MHz). Menu supplies the idle display and is not
 a playable library entry. These packages use the package/library lifecycle. The image
 does not promise generalized/custom RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. `linux.img` is the target root

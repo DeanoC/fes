@@ -72,6 +72,39 @@ func TestCatalogDigestRejectsEditedMetadata(t *testing.T) {
 		t.Fatal("accepted changed catalog body")
 	}
 }
+func TestCatalogReadsColecoAndPublishedAlias(t *testing.T) {
+	for _, system := range []string{"coleco", "colecovision"} {
+		c, err := Load(catalogSystem(t, system))
+		if err != nil {
+			t.Fatalf("system %q: %v", system, err)
+		}
+		if len(c.Entries) != 1 || c.Entries[0].CoreID != "fes.coleco" || c.Entries[0].System != "coleco" || c.Entries[0].Label != "ColecoVision" {
+			t.Fatalf("system %q loaded as %+v", system, c.Entries)
+		}
+	}
+}
+
+func catalogSystem(t *testing.T, system string) string {
+	t.Helper()
+	root := t.TempDir()
+	value := map[string]any{"version": 1, "source_id": "fes-first-party", "entries": []any{map[string]any{"core_id": "fes.coleco", "label": "ColecoVision", "system": system, "standing": "supported"}}}
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(body)
+	value["catalog_sha256"] = hex.EncodeToString(sum[:])
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(root, "catalog.json")
+	if err := os.WriteFile(file, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return file
+}
+
 func TestCatalogCanonicalUTF8MatchesPublisher(t *testing.T) {
 	root := t.TempDir()
 	value := map[string]any{"version": 1, "source_id": "fes-first-party", "entries": []any{map[string]any{"core_id": "fes.sms", "label": "é <&>\u2028 text", "system": "sms", "standing": "supported"}}, "catalog_sha256": "a9e528a7bde9a69169b0d8a11f3e768c6fa88600b7494daf39aa2c9915b933a9"}

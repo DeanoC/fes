@@ -21,6 +21,13 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
 
 
+def emit_system(system):
+    """Write the canonical slug. Readers still accept colecovision."""
+    if system == 'colecovision':
+        return 'coleco'
+    return system
+
+
 def publish(root, metadata, prepared, output):
     root, output = Path(root).resolve(), Path(output).absolute()
     if output.exists() or output.is_symlink():
@@ -54,6 +61,7 @@ def publish(root, metadata, prepared, output):
         entries = []
         for row in sorted(rows, key=lambda r: r['core_id']):
             entry = dict(row)
+            entry['system'] = emit_system(row['system'])
             if row['core_id'] in prepared:
                 receipt = Path(prepared[row['core_id']])
                 provenance = {}

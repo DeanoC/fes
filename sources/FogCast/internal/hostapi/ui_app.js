@@ -461,7 +461,7 @@
     gba: 'Game Boy Advance',
     n64: 'Nintendo 64',
     psx: 'PlayStation',
-    sms: 'Master System',
+    sms: 'Sega Master System',
     gg: 'Game Gear',
     pce: 'PC Engine',
     '32x': '32X',

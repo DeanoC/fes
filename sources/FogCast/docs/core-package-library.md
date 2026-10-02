@@ -594,7 +594,7 @@ without packages show **unproduced**; missing archives show **unavailable**.
 Apple II is experimental: its linked firmware, slot cards and disks have passed
 a kit diagnostic, while appliance acceptance remains separate; Catch is a demo.
 
-Open **FPGA library**, choose **Master System** or **SG-1000** under **Systems and
+Open **FPGA library**, choose **Sega Master System** or **Sega SG-1000** under **Systems and
 guided setup**, and use **Install core** when a package is available. The installed
 manifest supplies each named ROM requirement. Choose a private cartridge file
 (exactly 32768 bytes for the current SMS package or 16384 bytes for SG-1000), or

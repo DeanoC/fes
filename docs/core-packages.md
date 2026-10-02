@@ -29,7 +29,7 @@ The selected FPGA sources are the tracked
 compiler lock serves factory Pong; the standard ZX81 socket uses
 `toolchains/zx81-expansion.lock`; Coleco v2 uses `toolchains/coleco-sgm.lock`,
 SG-1000 uses `toolchains/registered-memory.lock`, SMS uses `toolchains/fes-sms.lock`,
-Apple II uses `toolchains/apple2.lock`, Commodore 64 uses `toolchains/c64.lock` (the same tool commits as Apple II), and ZX Spectrum uses `toolchains/spectrum.lock`. Inspect `config/core-recipes.toml` for each
+Apple II uses `toolchains/apple2.lock`, Commodore 64 uses `toolchains/c64.lock` (the same tool commits as Apple II), and ZX Spectrum 48K uses `toolchains/spectrum.lock`. Inspect `config/core-recipes.toml` for each
 registered producer's current lock and HIP settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
 An older sealed SMS package does not accept a bitstream built from a later
@@ -66,7 +66,7 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The ZX81, SMS, SG-1000, Apple II, Commodore 64 and ZX Spectrum producers export format 3 when sealed.
+The ZX81, SMS, SG-1000, Apple II, Commodore 64 and ZX Spectrum 48K producers export format 3 when sealed.
 Other core producers retain format 2 and their current media/firmware paths
 until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
 SG-1000 requires an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
@@ -78,7 +78,7 @@ Commodore 64 requires an exact 16 KiB `c64-firmware` image (8 KiB BASIC window,
 then 8 KiB KERNAL window). Its disk is `fes.media.c64-disk` 1.0, an exact
 174,848-byte `.d64` on media unit 0, read only. Its two cartridge sockets are
 the optional `fes.expansion.c64-bus` 1.0.
-ZX Spectrum requires an exact 16 KiB `spectrum-firmware` image covering
+ZX Spectrum 48K requires an exact 16 KiB `spectrum-firmware` image covering
 `$0000–$3FFF`. Its edge cards and `.tap` cassette are separate inputs (see the
 [ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)).
 Hardware evidence is tied to the exact tested package and software; rebuilding
@@ -175,7 +175,7 @@ from both independent passes. Development and cold receipts include the exact
 selection, manifest, payload and optional ROM-map hashes; a metadata-only manifest change
 invalidates image reuse even when the RBF bytes do not change.
 
-`fes.menu` is an image service package, not a playable library core. The native
+Menu (`fes.menu`) is an image service package, not a playable library core. The native
 image installs its sealed selection at
 `/usr/share/mister-runtime/selections/fes-menu.package.toml`. Runtime startup
 uses that exact package and the kit UI enables native HDMI presentation. The
