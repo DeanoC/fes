@@ -187,7 +187,7 @@ module top #(
 `ifdef FES_COLECO_VIDEO_PART_DEV
     // The machine and capture are unchanged. Both socket boundaries run in
     // the HDMI domain; pixels, sync and enable always incur the same latency.
-    wire [31:0] video_request = {1'b0, 1'b0, raster_eol, raster_sof,
+    (* keep *) wire [31:0] video_request = {1'b0, 1'b0, raster_eol, raster_sof,
                                1'b1, machine_vs, machine_hs, machine_de, machine_rgb};
     (* keep *) wire [31:0] video_plug_request;
     wire [27:0] video_plug_response = 28'b0;
