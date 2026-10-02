@@ -275,6 +275,34 @@ core = "/cores/mgba_libretro.dylib"
 	}
 }
 
+func TestLoadConfigHostEmulatorLaunchOptionsAndBackendIdentity(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "games")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	content := validConfig(root, filepath.Join(dir, "other")) + `
+[host_emulator]
+binary = "/usr/bin/retroarch"
+args = ["--appendconfig", "/etc/retroarch/headless.cfg"]
+env = ["DISPLAY=:93", "SDL_AUDIODRIVER=dummy"]
+
+[[host_emulator.cores]]
+platform = "sms"
+core = "/usr/lib/libretro/genesis_plus_gx_libretro.so"
+id = "genesis_plus_gx"
+version = " c2838c7d"
+sha256 = "051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49"
+`
+	config, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(config.HostEmulator.Args) != 2 || len(config.HostEmulator.Env) != 2 || config.HostEmulator.Cores[0].ID != "genesis_plus_gx" || config.HostEmulator.Cores[0].Version != " c2838c7d" {
+		t.Fatalf("host emulator = %#v", config.HostEmulator)
+	}
+}
+
 func TestLoadConfigRejectsMixingLegacyCoreWithPerPlatformCores(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "games")

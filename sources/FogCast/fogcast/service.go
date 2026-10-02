@@ -2,7 +2,9 @@ package fogcast
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"io"
 	"io/fs"
@@ -407,10 +409,14 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	}}
 	if config.HostEmulator.Binary != "" {
 		cores := make(map[protocol.System]string, len(config.HostEmulator.Cores))
+		pins := make(map[string]string, len(config.HostEmulator.Cores))
 		for _, entry := range config.HostEmulator.Cores {
 			cores[entry.Platform] = entry.Core
+			if entry.SHA256 != "" {
+				pins[entry.Core] = entry.SHA256
+			}
 		}
-		host := hostexec.NewRetroArchAdapterWithCores(config.HostEmulator.Binary, config.HostEmulator.Core, cores, nil)
+		host := hostexec.NewRetroArchAdapterConfigured(config.HostEmulator.Binary, config.HostEmulator.Core, cores, hostexec.Options{Args: config.HostEmulator.Args, Env: config.HostEmulator.Env, SHA256: pins}, nil)
 		options = append(options, WithExecutionPolicy(ExecutionPolicy{Resolver: NewConfiguredExecutionResolver(config.HostEmulator.LaunchPlatforms(), host), Host: host}))
 	}
 	if paths.UserLibrary != "" {
@@ -1677,6 +1683,48 @@ func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 	return health, nil
 }
 
+// SoftwareBackends describes configured host execution after checking each core file.
+func (s *Service) SoftwareBackends() []SoftwareBackend {
+	config := s.hostEmulator
+	if config.Binary == "" {
+		return []SoftwareBackend{}
+	}
+	entries := append([]HostEmulatorCore(nil), config.Cores...)
+	if len(entries) == 0 {
+		for _, system := range config.Systems {
+			entries = append(entries, HostEmulatorCore{Platform: system, Core: config.Core})
+		}
+	}
+	out := make([]SoftwareBackend, 0, len(entries))
+	for _, entry := range entries {
+		item := SoftwareBackend{Execution: meshcontent.ExecuteNativeEmu, Emulator: "retroarch", CoreID: entry.ID, CoreVersion: entry.Version, System: string(entry.Platform), Available: false}
+		if item.CoreID == "" {
+			item.CoreID = filepath.Base(entry.Core)
+		}
+		if file, err := os.Open(entry.Core); err == nil {
+			h := sha256.New()
+			_, copyErr := io.Copy(h, file)
+			closeErr := file.Close()
+			if copyErr == nil && closeErr == nil {
+				item.CoreSHA256 = hex.EncodeToString(h.Sum(nil))
+				item.Available = entry.SHA256 == "" || item.CoreSHA256 == entry.SHA256
+			}
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+type SoftwareBackend struct {
+	Execution   string `json:"execution"`
+	Emulator    string `json:"emulator"`
+	CoreID      string `json:"core_id"`
+	CoreVersion string `json:"core_version,omitempty"`
+	CoreSHA256  string `json:"core_sha256,omitempty"`
+	System      string `json:"system"`
+	Available   bool   `json:"available"`
+}
+
 func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content io.Reader) (protocol.Status, error) {
 	if size <= 0 || size > protocol.MaxDevelopmentRBFBytes || content == nil {
 		return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
@@ -2642,6 +2690,12 @@ func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root ca
 	_ = content.Close()
 	if err != nil {
 		_ = prepared.Remove()
+		if errors.Is(err, hostexec.ErrBusy) {
+			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeBusy, nil)
+		}
+		if errors.Is(err, hostexec.ErrUnavailable) {
+			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnavailable, safeContextError(err))
+		}
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
 	// The adapter owns the process as soon as Launch succeeds. Record that
@@ -2713,6 +2767,12 @@ func (s *Service) launchHostPath(ctx context.Context, game catalog.Game, root ca
 	emitProgress(progress, "launch", "launching host content")
 	if owned, ok := s.hostExecutor.(hostOwnedPathLauncher); ok {
 		if _, err := owned.LaunchOwnedPath(ctx, game.System, launchPath, cleanup); err != nil {
+			if errors.Is(err, hostexec.ErrBusy) {
+				return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeBusy, nil)
+			}
+			if errors.Is(err, hostexec.ErrUnavailable) {
+				return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnavailable, safeContextError(err))
+			}
 			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
 		}
 		handedOff = true

@@ -48,6 +48,7 @@ const (
 	CodeUnauthorized         ErrorCode = "UNAUTHORIZED"
 	CodeROMNotFound          ErrorCode = "ROM_NOT_FOUND"
 	CodeBusy                 ErrorCode = "BUSY"
+	CodeUnavailable          ErrorCode = "UNAVAILABLE"
 	CodeUnsupportedSystem    ErrorCode = "UNSUPPORTED_SYSTEM"
 	CodeUnsupportedOperation ErrorCode = "UNSUPPORTED_OPERATION"
 	CodeInvalidROMPath       ErrorCode = "INVALID_ROM_PATH"

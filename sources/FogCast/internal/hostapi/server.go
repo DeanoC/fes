@@ -104,9 +104,11 @@ type editionPreferenceResult struct {
 }
 
 type healthResult struct {
-	Ready  bool         `json:"ready"`
-	Host   hostIdentity `json:"host"`
-	Target targetHealth `json:"target"`
+	Ready        bool                      `json:"ready"`
+	Host         hostIdentity              `json:"host"`
+	Target       targetHealth              `json:"target"`
+	Mesh         map[string]int            `json:"mesh"`
+	Capabilities []fogcast.SoftwareBackend `json:"software_backends,omitempty"`
 }
 
 type hostIdentity struct {
@@ -459,10 +461,16 @@ func New(service Service, options ...ServerOption) http.Handler {
 		result := healthResult{
 			Ready: true,
 			Host:  hostIdentity{Version: version.Version, Revision: version.Revision, OS: runtime.GOOS, Arch: runtime.GOARCH},
+			Mesh:  map[string]int{"major": 1, "minor": 0},
 			Target: targetHealth{
 				Reachable: err == nil, Ready: err == nil && target.Ready,
 				Connection: targetConnection(service),
 			},
+		}
+		if provider, ok := service.(interface {
+			SoftwareBackends() []fogcast.SoftwareBackend
+		}); ok {
+			result.Capabilities = provider.SoftwareBackends()
 		}
 		if targetID := fogcast.PairedTargetFromContext(r.Context()); targetID != "" {
 			state := "disconnected"
@@ -873,6 +881,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "catalog game was not found"
 	case protocol.CodeBusy:
 		return "another launch or stop transition is running"
+	case protocol.CodeUnavailable:
+		return "configured software emulator core is unavailable"
 	case protocol.CodeUnsupportedSystem:
 		return "game system is unsupported"
 	case protocol.CodeUnsupportedOperation:
@@ -1086,6 +1096,9 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		status := http.StatusInternalServerError
 		if apiErr.Code == protocol.CodeBusy {
 			status = http.StatusConflict
+		}
+		if apiErr.Code == protocol.CodeUnavailable {
+			status = http.StatusServiceUnavailable
 		}
 		if apiErr.Code == protocol.CodeKitLeaseDenied {
 			status = http.StatusForbidden

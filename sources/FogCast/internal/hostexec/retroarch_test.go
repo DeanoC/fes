@@ -37,16 +37,26 @@ func testIdentity() protocol.ContentIdentity {
 	return protocol.ContentIdentity{SHA256: "1a0806c20104d3461d8ede70362f16734dbd6a17db24005d1841a7387c9b2405", Size: 3, Extension: "sfc"}
 }
 
+func coreFile(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "core.so")
+	if err := os.WriteFile(path, []byte("fake core"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestRetroArchAdapterBuildsArgumentVectorWithoutShell(t *testing.T) {
 	var got []string
-	adapter := hostexec.NewRetroArchAdapter("/Applications/RetroArch.app/Contents/MacOS/RetroArch", "/cores/snes_libretro.dylib", func(_ context.Context, name string, args ...string) (hostexec.Process, error) {
+	core := coreFile(t)
+	adapter := hostexec.NewRetroArchAdapter("/Applications/RetroArch.app/Contents/MacOS/RetroArch", core, func(_ context.Context, name string, args ...string) (hostexec.Process, error) {
 		got = append([]string{name}, args...)
 		return hostexec.NoopProcess{}, nil
 	})
 	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/Applications/RetroArch.app/Contents/MacOS/RetroArch", "-L", "/cores/snes_libretro.dylib"}
+	want := []string{"/Applications/RetroArch.app/Contents/MacOS/RetroArch", "-L", core}
 	if len(got) != len(want)+1 {
 		t.Fatalf("args = %#v", got)
 	}
@@ -61,23 +71,58 @@ func TestRetroArchAdapterBuildsArgumentVectorWithoutShell(t *testing.T) {
 }
 
 func TestRetroArchAdapterRejectsEmptyContent(t *testing.T) {
-	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", nil)
+	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), nil)
 	if _, err := adapter.Launch(context.Background(), bytes.NewReader(nil), protocol.ContentIdentity{}); err == nil {
 		t.Fatal("empty content accepted")
 	}
 }
 
 func TestRetroArchAdapterCapabilitiesAreExplicit(t *testing.T) {
-	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", nil)
+	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), nil)
 	caps := adapter.Capabilities()
 	if len(caps) != 1 || caps[0] != hostexec.HostOnly {
 		t.Fatalf("capabilities = %#v", caps)
 	}
 }
 
+func TestRetroArchAdapterRejectsMissingOrMismatchedCore(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.so")
+	adapter := hostexec.NewRetroArchAdapter("retroarch", missing, nil)
+	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); !errors.Is(err, hostexec.ErrUnavailable) {
+		t.Fatalf("missing core error = %v", err)
+	}
+	core := coreFile(t)
+	adapter = hostexec.NewRetroArchAdapterConfigured("retroarch", core, nil, hostexec.Options{SHA256: map[string]string{core: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}}, nil)
+	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); !errors.Is(err, hostexec.ErrUnavailable) {
+		t.Fatalf("mismatched core error = %v", err)
+	}
+}
+
+func TestRetroArchAdapterBusyAndExtraArgs(t *testing.T) {
+	core := coreFile(t)
+	proc := &fakeProcess{done: make(chan struct{})}
+	var got []string
+	adapter := hostexec.NewRetroArchAdapterConfigured("retroarch", core, nil, hostexec.Options{Args: []string{"--appendconfig", "x.cfg"}}, func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
+		got = append([]string(nil), args...)
+		return proc, nil
+	})
+	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) < 4 || got[0] != "--appendconfig" || got[2] != "-L" {
+		t.Fatalf("args = %#v", got)
+	}
+	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); !errors.Is(err, hostexec.ErrBusy) {
+		t.Fatalf("second launch error = %v", err)
+	}
+	if err := adapter.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRetroArchAdapterStatusAndStop(t *testing.T) {
 	proc := &fakeProcess{done: make(chan struct{})}
-	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(context.Context, string, ...string) (hostexec.Process, error) { return proc, nil })
+	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), func(context.Context, string, ...string) (hostexec.Process, error) { return proc, nil })
 	status, err := adapter.Status(context.Background())
 	if err != nil || status.State != hostexec.Idle {
 		t.Fatalf("initial status = %#v, %v", status, err)
@@ -101,7 +146,7 @@ func TestRetroArchAdapterStatusAndStop(t *testing.T) {
 func TestRetroArchAdapterOwnsPreparedContentUntilStop(t *testing.T) {
 	var path string
 	proc := &fakeProcess{done: make(chan struct{})}
-	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
+	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
 		path = args[len(args)-1]
 		if _, err := os.Stat(path); err != nil {
 			t.Fatal(err)
@@ -127,7 +172,7 @@ func TestRetroArchAdapterIgnoresCanceledLaunchContext(t *testing.T) {
 	// Keep the process alive until Stop; NoopProcess exits immediately and
 	// races this test's Active assertion with the normal reaper.
 	proc := &fakeProcess{done: make(chan struct{})}
-	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(ctx context.Context, _ string, _ ...string) (hostexec.Process, error) {
+	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), func(ctx context.Context, _ string, _ ...string) (hostexec.Process, error) {
 		got = ctx
 		return proc, nil
 	})
@@ -151,7 +196,7 @@ func TestRetroArchAdapterIgnoresCanceledLaunchContext(t *testing.T) {
 func TestRetroArchAdapterReapsExitedProcess(t *testing.T) {
 	done := make(chan struct{})
 	proc := &waitProcess{done: done}
-	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(context.Context, string, ...string) (hostexec.Process, error) { return proc, nil })
+	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), func(context.Context, string, ...string) (hostexec.Process, error) { return proc, nil })
 	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
 		t.Fatal(err)
 	}
@@ -178,14 +223,15 @@ func TestRetroArchAdapterLaunchPathUsesPlatformCoreAndKeepsLibraryFile(t *testin
 		t.Fatal(err)
 	}
 	var got []string
-	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "", map[protocol.System]string{"psx": "/cores/psx.dylib"}, func(_ context.Context, name string, args ...string) (hostexec.Process, error) {
+	core := coreFile(t)
+	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "", map[protocol.System]string{"psx": core}, func(_ context.Context, name string, args ...string) (hostexec.Process, error) {
 		got = append([]string{name}, args...)
 		return hostexec.NoopProcess{}, nil
 	})
 	if _, err := adapter.LaunchPath(context.Background(), "psx", source); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"retroarch", "-L", "/cores/psx.dylib", source}
+	want := []string{"retroarch", "-L", core, source}
 	if len(got) != len(want) {
 		t.Fatalf("args = %#v", got)
 	}
@@ -215,7 +261,8 @@ func TestRetroArchAdapterLaunchOwnedPathCleansCopyAndKeepsLibraryFile(t *testing
 	}
 	cleaned := false
 	proc := &fakeProcess{done: make(chan struct{})}
-	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "", map[protocol.System]string{"psx": "/cores/psx.dylib"}, func(context.Context, string, ...string) (hostexec.Process, error) {
+	core := coreFile(t)
+	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "", map[protocol.System]string{"psx": core}, func(context.Context, string, ...string) (hostexec.Process, error) {
 		return proc, nil
 	})
 	if _, err := adapter.LaunchOwnedPath(context.Background(), "psx", copyPath, func() {
@@ -240,20 +287,22 @@ func TestRetroArchAdapterLaunchOwnedPathCleansCopyAndKeepsLibraryFile(t *testing
 
 func TestRetroArchAdapterLaunchForSelectsConfiguredCore(t *testing.T) {
 	var core string
-	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "/cores/default.dylib", map[protocol.System]string{"nes": "/cores/nes.dylib"}, func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
+	selected := coreFile(t)
+	fallback := coreFile(t)
+	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", fallback, map[protocol.System]string{"nes": selected}, func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
 		core = args[1]
 		return hostexec.NoopProcess{}, nil
 	})
 	if _, err := adapter.LaunchFor(context.Background(), "nes", bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
 		t.Fatal(err)
 	}
-	if core != "/cores/nes.dylib" {
+	if core != selected {
 		t.Fatalf("core = %q", core)
 	}
 }
 
 func TestRetroArchAdapterHonorsCanceledPrepareContext(t *testing.T) {
-	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(context.Context, string, ...string) (hostexec.Process, error) {
+	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), func(context.Context, string, ...string) (hostexec.Process, error) {
 		t.Fatal("start after canceled prepare")
 		return hostexec.NoopProcess{}, nil
 	})
@@ -267,7 +316,7 @@ func TestRetroArchAdapterHonorsCanceledPrepareContext(t *testing.T) {
 
 func TestRetroArchAdapterHonorsCancelDuringPrepareCopy(t *testing.T) {
 	gate := make(chan struct{})
-	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(context.Context, string, ...string) (hostexec.Process, error) {
+	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), func(context.Context, string, ...string) (hostexec.Process, error) {
 		t.Fatal("start after canceled copy")
 		return hostexec.NoopProcess{}, nil
 	})
