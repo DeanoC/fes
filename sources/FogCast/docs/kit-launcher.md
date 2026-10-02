@@ -61,9 +61,13 @@ exists), `fogcast-tenfoot -gfx menu-display` and `fogcast-kit` also boot
 absent. A present Master System row from that catalog is Play on the tenfoot
 room path: Confirm posts the cartridge path to the local-control launch route
 and does not post the host session or fall back to the network. The agent
-reads that file and hands the bytes to the cartridge runtime. An extracted
-install has no canonical package archive, so the kit runtime reports the
-link unavailable instead of programming the core without the ROM. Host-catalog Launch and
+reads that file and calls LoadCartridge with the bytes. The kit install is an
+extracted directory. LoadCartridge rebuilds the canonical package archive from
+those members, wraps the cartridge with that archive, and programs the core
+through the same ROM-link load the host uses. It does not dial a host. A
+missing install, a core that cannot be read, a core that cannot take a
+cartridge, or a cartridge that does not fit is reported, and the core is not
+programmed. Host-catalog Launch and
 Stop stay unavailable until the configured host API reconnects; the launcher
 does not claim a lease for those titles while offline. Installed cores that need no cartridge or
 firmware are listed and launched on the kit through mister-agent's root-only

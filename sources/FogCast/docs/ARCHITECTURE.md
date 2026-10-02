@@ -2062,8 +2062,10 @@ about once a second, off the app lock and single-flight. If the agent reports
 idle or not running, tenfoot resumes the same way. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
 ZX81 stays
-in that firmware class: this socket has no ROM link, and it does not consult
-the rom map. A held, busy, blocked, or recovery lease returns 409 and does not
+in that firmware class: the socket does not link its firmware ROM and does not
+consult that rom map. A cartridge for an installed core is linked by
+LoadCartridge, which rebuilds the canonical archive from the extracted
+directory and programs the core. A held, busy, blocked, or recovery lease returns 409 and does not
 call the runtime. The claim starts renewal immediately. The first renew waits
 a quarter of the time still remaining, so a slow launch renews before the
 grant expires, and renewal continues until stop, a failed renew, release, or
