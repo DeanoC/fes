@@ -18,7 +18,7 @@ with `sync`. `/tmp` is a 246 MiB tmpfs.
 | --- | --- | --- |
 | Image | `c41e58c1`, tenfoot launcher | `f449886f`, legacy `fogcast-kit --menu-display` |
 | Load | 0.01 | 1.5 |
-| CPU | 95% idle; `fogcast-tenfoot` 2% CPU | `fogcast-kit` about 45% CPU while idle, described as about one core |
+| CPU | 95% idle; `fogcast-tenfoot` 2% of one core | `fogcast-kit` 45% of one core while idle |
 | Memory | MemAvailable 410 MiB | MemAvailable 434 MiB |
 | `/media/fat` | 75% used, 248 MiB free | 17% used |
 
@@ -52,16 +52,19 @@ Image id is the first readable token from:
 2. `/etc/fogcast-image-id`
 3. `/usr/share/mister-runtime/image-id`
 4. `/etc/os-release` `FES_IMAGE_ID`, then `IMAGE_ID`, then `BUILD_ID`
-5. `fes_revision` in `/etc/fes/factory.json`
-6. `fes_revision` in `/.fes-bootstrap/etc/fes/factory.json`
+5. `image_sha256` in `/etc/fes/factory.json` (64 hex digits)
+6. `image_sha256` in `/.fes-bootstrap/etc/fes/factory.json`
 7. the first standalone 7–40 hex word in `/proc/version`
 
 If none of those exist, `image_id` is empty and `image_id_source` is `none`.
-The id is not shortened. `sed` is used only for the factory JSON. Without it,
-those two sources are skipped.
+The id is not shortened. `fes_revision` in those factory files is the source
+commit, not the image. The first 7–40 hex value is `source_revision`, including
+when an earlier file already supplied `image_id`. It is empty when neither
+file has that field. `sed` is used only for the factory JSON. Without it, the
+factory image id and `source_revision` are skipped.
 
-Keys, in order: `schema`, `image_id`, `image_id_source`, `uptime_seconds`,
-`load_1`, `load_5`, `load_15`, `cpu_count`, `cpu_idle_percent`,
+Keys, in order: `schema`, `image_id`, `image_id_source`, `source_revision`,
+`uptime_seconds`, `load_1`, `load_5`, `load_15`, `cpu_count`, `cpu_idle_percent`,
 `cpu_sample_seconds`, `mem_total_kib`, `mem_available_kib`, `swap_total_kib`,
 `swap_free_kib`, `cma_present`, `cma_total_kib`, `cma_free_kib`, then `present`,
 `size_kib`, `used_kib`, `free_kib`, and `used_percent` for `fs.root`,
@@ -101,9 +104,9 @@ an out-of-memory event.
 ## Kit B idle CPU
 
 Kit B on image `f449886f` was idle in `fogcast-kit --menu-display` and still
-showed load 1.5, with `fogcast-kit` at about 45% CPU, described as about one
+showed load 1.5. `fogcast-kit` was at 45% of one core, which is under half a
 core. Kit A on the newer image, running tenfoot, was at 95% idle. That idle
-cost is open and is filed as [#389](https://github.com/DeanoC/fes/issues/389).
+load is open and is filed as [#389](https://github.com/DeanoC/fes/issues/389).
 This collector does not change the launcher.
 
 ## Run

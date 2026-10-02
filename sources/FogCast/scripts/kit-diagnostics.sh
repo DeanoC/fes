@@ -230,10 +230,21 @@ read_os_release() {
   return 0
 }
 
+json_hex() {
+  flat=$1
+  key=$2
+  width=$3
+  found=$(printf '%s\n' "$flat" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([0-9a-fA-F]\\{${width}\\}\\)\".*/\\1/p") || return 0
+  found=${found%%"$nl"*}
+  printf '%s\n' "$found"
+}
+
 read_factory() {
   logical=$1
   file=$2
-  [ -n "$image_id" ] && return 0
+  if [ -n "$image_id" ] && [ -n "$source_revision" ]; then
+    return 0
+  fi
   [ -f "$file" ] || return 0
   sed_path=$(command -v sed || true)
   [ -n "$sed_path" ] || return 0
@@ -241,11 +252,18 @@ read_factory() {
   while IFS= read -r line || [ -n "$line" ]; do
     flat=$flat$line' '
   done < "$file"
-  found=$(printf '%s\n' "$flat" | sed -n 's/.*"fes_revision"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]\{7,40\}\)".*/\1/p') || return 0
-  found=${found%%"$nl"*}
-  if valid_token "$found"; then
-    image_id=$found
-    image_id_source=$logical
+  if [ -z "$image_id" ]; then
+    found=$(json_hex "$flat" image_sha256 64)
+    if valid_token "$found"; then
+      image_id=$found
+      image_id_source=$logical
+    fi
+  fi
+  if [ -z "$source_revision" ]; then
+    found=$(json_hex "$flat" fes_revision '7,40')
+    if valid_token "$found"; then
+      source_revision=$found
+    fi
   fi
 }
 
@@ -647,6 +665,7 @@ fi
 
 image_id=
 image_id_source=none
+source_revision=
 take_id /etc/fes-image-id "$(kit_path /etc/fes-image-id)"
 take_id /etc/fogcast-image-id "$(kit_path /etc/fogcast-image-id)"
 take_id /usr/share/mister-runtime/image-id "$(kit_path /usr/share/mister-runtime/image-id)"
@@ -810,6 +829,7 @@ parse_df_text "$df_text"
 emit schema fogcast.kit-diagnostics.v1
 emit image_id "$image_id"
 emit image_id_source "$image_id_source"
+emit source_revision "$source_revision"
 emit uptime_seconds "$uptime_seconds"
 emit load_1 "$load_1"
 emit load_5 "$load_5"

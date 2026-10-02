@@ -185,6 +185,7 @@ golden=$(cat <<'EOF'
 schema=fogcast.kit-diagnostics.v1
 image_id=c41e58c1
 image_id_source=/etc/fes-image-id
+source_revision=
 uptime_seconds=12345.67
 load_1=0.01
 load_5=0.05
@@ -273,17 +274,32 @@ for shell in $shells; do
     '  "fes_revision": "0123456789abcdef0123456789abcdef01234567"' \
     '}' > "$fx/etc/fes/factory.json"
   got=$(run_collector "$shell" 2>"$err") || fail "$shell factory run failed"
-  [ "$(value_of "$got" image_id)" = 0123456789abcdef0123456789abcdef01234567 ] || fail "$shell factory id"
+  [ "$(value_of "$got" image_id)" = bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ] || fail "$shell factory id"
   [ "$(value_of "$got" image_id_source)" = /etc/fes/factory.json ] || fail "$shell factory source"
+  [ "$(value_of "$got" source_revision)" = 0123456789abcdef0123456789abcdef01234567 ] || fail "$shell factory revision"
+
+  printf '%s\n' 'c41e58c1' > "$fx/etc/fes-image-id"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell stamp-and-factory run failed"
+  [ "$(value_of "$got" image_id)" = c41e58c1 ] || fail "$shell stamp still wins"
+  [ "$(value_of "$got" image_id_source)" = /etc/fes-image-id ] || fail "$shell stamp source"
+  [ "$(value_of "$got" source_revision)" = 0123456789abcdef0123456789abcdef01234567 ] || fail "$shell revision beside stamp"
 
   build_fx
   rm -f "$fx/etc/fes-image-id" "$fx/etc/os-release"
   mkdir -p "$fx/.fes-bootstrap/etc/fes"
-  printf '%s\n' '{"fes_revision":"abcdefabcdefabcdefabcdefabcdefabcdefabcd"}' \
+  printf '%s\n' '{"image_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","fes_revision":"abcdefabcdefabcdefabcdefabcdefabcdefabcd"}' \
     > "$fx/.fes-bootstrap/etc/fes/factory.json"
   got=$(run_collector "$shell" 2>"$err") || fail "$shell bootstrap factory run failed"
-  [ "$(value_of "$got" image_id)" = abcdefabcdefabcdefabcdefabcdefabcdefabcd ] || fail "$shell bootstrap id"
+  [ "$(value_of "$got" image_id)" = cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc ] || fail "$shell bootstrap id"
   [ "$(value_of "$got" image_id_source)" = /.fes-bootstrap/etc/fes/factory.json ] || fail "$shell bootstrap source"
+  [ "$(value_of "$got" source_revision)" = abcdefabcdefabcdefabcdefabcdefabcdefabcd ] || fail "$shell bootstrap revision"
+
+  printf '%s\n' '{"fes_revision":"abcdefabcdefabcdefabcdefabcdefabcdefabcd"}' \
+    > "$fx/.fes-bootstrap/etc/fes/factory.json"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell revision-only run failed"
+  [ "$(value_of "$got" image_id)" = deadbeef ] || fail "$shell revision used as image id"
+  [ "$(value_of "$got" image_id_source)" = /proc/version ] || fail "$shell revision-only source"
+  [ "$(value_of "$got" source_revision)" = abcdefabcdefabcdefabcdefabcdefabcdefabcd ] || fail "$shell revision-only value"
 
   build_fx
   rm -f "$fx/etc/fes-image-id" "$fx/etc/os-release"
