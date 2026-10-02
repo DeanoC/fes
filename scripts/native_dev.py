@@ -25,7 +25,7 @@ EXPORT = '/work/build/output/target-image/fes-development'
 def base_key(image, fogcast):
     names = git(image, 'ls-files', '-z').split('\0')
     files = {name: digest(image / name) for name in names if name and (
-        name.startswith(('buildroot/', 'containers/target-image/'))
+        name.startswith(('buildroot/', 'containers/target-image/', 'licenses/'))
         or (name.startswith('scripts/') and not name.startswith('scripts/tests/'))
         or name in ('Makefile', 'build/target-image.sources.lock.toml',
                     'build/target-image-container-packages.sha256'))}

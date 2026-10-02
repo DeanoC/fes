@@ -194,7 +194,14 @@ command outside the window or a burst left incomplete. The test checks
 identity and the video, gamepad and HPS DDR capability bits, execution
 release, a green status glyph, the `ADDR` signature at three addresses per
 port, holds that land inside a write burst and during reads, and a button
-stop. The package is not registered and is not in the factory image.
+stop. The OSS 100 MHz package is registered in FES and included in the
+factory image and standard catalog. The 130 MHz build remains explicit.
+
+The RTL is GPL-2.0-or-later. The license text and corresponding-source notice
+are in [the FES release notices](../../../../image/licenses/fes.ramtest/SOURCE.md).
+Image assembly installs COPYING and a notice generated from the sealed RBF’s
+exact source revision in the adjacent `core-notices/fes.ramtest/<package-id>/`
+directory, outside the closed package.
 
 Packages before `fes.memory.hps-ddr` tested the SDRAM addon only. Their HPS
 scan addressed DDR inside Linux memory and failed on the first write under a

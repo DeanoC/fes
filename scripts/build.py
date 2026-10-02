@@ -51,7 +51,7 @@ IMAGE_RECIPE_NAMES = (
     "build/target-image-container-packages.sha256",
     "build/target-image-kernel-defconfig.sha256",
 )
-IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts")
+IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts", "licenses")
 HOST_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/build.py", "scripts/environment.py"))
 

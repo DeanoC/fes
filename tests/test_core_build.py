@@ -337,6 +337,10 @@ class CoreBuildTest(unittest.TestCase):
             policy.write_text('[idle_rbf]\nsha256="old"\n')
             files = build.image_recipe_files(root)
             self.assertIn(policy, files)
+            license = root / 'image/licenses/fes.ramtest/COPYING'
+            license.parent.mkdir(parents=True)
+            license.write_text('license')
+            self.assertIn(license, build.image_recipe_files(root))
             before = build.digest(policy)
             policy.write_text('[idle_rbf]\nsha256="new"\n')
             self.assertNotEqual(before, build.digest(policy))

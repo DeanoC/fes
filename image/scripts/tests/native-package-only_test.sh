@@ -103,6 +103,17 @@ for core_id in $package_words; do
   mkdir "$package"
   printf "core_id = '%s'\n" "$core_id" >"$package/manifest.toml"
   printf '%s payload\n' "$core" >"$package/core.rbf"
+  if [ "$core_id" = fes.ramtest ]; then
+    cat >>"$package/manifest.toml" <<EOF
+[core]
+id = 'fes.ramtest'
+[payload]
+sha256 = '$(sha256sum "$package/core.rbf" | awk '{print $1}')'
+[build]
+repository = 'https://github.com/DeanoC/fes.git'
+revision = '1111111111111111111111111111111111111111'
+EOF
+  fi
   chmod 0444 "$package/manifest.toml" "$package/core.rbf"
   if [ "$core_id" = fes.zx81 ]; then
     printf 'sealed map fixture\n' >"$package/rom-map.json"

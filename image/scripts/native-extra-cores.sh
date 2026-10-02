@@ -186,6 +186,18 @@ package_installed_record_path_for() {
   package_installed_record_name_for "$1"
   installed_record=$target/usr/share/mister-runtime/selections/$package_installed_record_name
 }
+ramtest_notices() {
+  notice_action=$1
+  case " $selected_packages " in
+    *" fes.ramtest "*)
+      package_record_path_for fes.ramtest
+      notice_id=$(package_value_from_file "$package_record" package_id)
+      python3 "$repo/scripts/ramtest-notices.py" "$notice_action" "$target" \
+        "$target/usr/share/mister-runtime/core-packages/$notice_id"
+      ;;
+    *) python3 "$repo/scripts/ramtest-notices.py" "$notice_action" "$target" ;;
+  esac
+}
 verify_sealed_package_dir() {
   sealed_package=$1
   [ -d "$sealed_package" ] && [ ! -L "$sealed_package" ] || return 1
@@ -292,6 +304,7 @@ verify_cached_packages() {
   done
 }
 validate_installed_package_set() {
+  ramtest_notices verify
   installed_root=$target/usr/share/mister-runtime/core-packages
   [ -d "$installed_root" ] && [ ! -L "$installed_root" ] || {
     echo 'native-extra-cores: installed package set is missing' >&2
@@ -479,6 +492,7 @@ if [ "$native_mode" = package-only ]; then
         package_installed_record_path_for "$selected_id"
         install -D -m 0444 "$package_record" "$installed_record"
       done
+      ramtest_notices install
       validate_installed_package_set
       ;;
     verify-image)
