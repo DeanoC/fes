@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -207,7 +208,18 @@ type Service struct {
 	meshPlacement       bool
 	// placementNodes caches the node document reads placement uses for
 	// fpga_native eligibility. The key is the node id.
-	placementNodes   map[string]placementNodeRead
+	placementNodes map[string]placementNodeRead
+	// libraryNodes caches node-document reads GET /api/v1/library/titles
+	// made at the configured [[targets]] address. It is not placement's
+	// cache. The key is the node id.
+	libraryNodes map[string]placementNodeRead
+	// libraryPins is the process-lifetime IP pin for a configured
+	// library hostname. The key is the lowercased hostname. It is not
+	// persisted; a restart re-pins. Persisting the pin is #396.
+	libraryPins map[string]net.IP
+	// libraryResolve looks up a configured hostname for that pin. Nil
+	// uses the process resolver. Tests inject it.
+	libraryResolve   func(context.Context, string) ([]net.IP, error)
 	meshEnsureConfig bool
 	meshEnsure       bool
 	meshHTTP         *http.Client

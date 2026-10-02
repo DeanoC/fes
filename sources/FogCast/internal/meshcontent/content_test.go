@@ -23,6 +23,66 @@ func TestSumSHA256EmptyAndRoundTrip(t *testing.T) {
 	}
 }
 
+func TestContentIDLockDataStorm(t *testing.T) {
+	const digest = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	id, err := ParseContentID(AlgorithmSHA256 + ":" + digest)
+	if err != nil || id.String() != AlgorithmSHA256+":"+digest {
+		t.Fatalf("parse %v %v", id, err)
+	}
+	adapted, err := FromSHA256(digest)
+	if err != nil || adapted != id || adapted.String() != AlgorithmSHA256+":"+digest {
+		t.Fatalf("adapt %v %v", adapted, err)
+	}
+	rejected := []string{
+		strings.ToUpper(digest),
+		AlgorithmSHA256 + ":" + strings.ToUpper(digest),
+		"SHA256:" + digest,
+		digest,
+		" " + AlgorithmSHA256 + ":" + digest,
+		AlgorithmSHA256 + ":" + digest + " ",
+		" " + digest,
+		digest + " ",
+		AlgorithmSHA256 + ":" + digest + ":" + digest,
+		AlgorithmSHA256 + ":" + digest[:63],
+		AlgorithmSHA256 + ":" + digest + "ab",
+		"sha1:" + digest,
+		"blake3:" + digest,
+		"/tmp/Data Storm.sms",
+		AlgorithmSHA256 + ":/tmp/Data Storm.sms",
+		"fpga-data-storm-1-00-39c4d68f01fa",
+		"sms-data-storm-1-00-3558e845cf24",
+	}
+	for _, text := range rejected {
+		if _, err := ParseContentID(text); err == nil {
+			t.Fatalf("parsed %q", text)
+		}
+	}
+	if _, err := ParseContentID("sha1:" + digest); !errors.Is(err, ErrAlgorithm) {
+		t.Fatalf("sha1 error %v", err)
+	}
+	if _, err := ParseContentID("blake3:" + digest); !errors.Is(err, ErrAlgorithm) {
+		t.Fatalf("blake3 error %v", err)
+	}
+	fromRejected := []string{
+		strings.ToUpper(digest),
+		digest[:63],
+		digest + "ab",
+		AlgorithmSHA256 + ":" + digest,
+		"/tmp/Data Storm.sms",
+		" " + digest,
+		digest + "\n",
+	}
+	for _, text := range fromRejected {
+		got, err := FromSHA256(text)
+		if err == nil || got.String() == AlgorithmSHA256+":"+digest {
+			t.Fatalf("FromSHA256 accepted %q -> %s %v", text, got, err)
+		}
+		if !errors.Is(err, ErrContentID) {
+			t.Fatalf("FromSHA256 %q error %v", text, err)
+		}
+	}
+}
+
 func TestContentIDRejectsOtherAlgorithmsPathsAndPackageIDs(t *testing.T) {
 	pkg := strings.Repeat("ab", 32)
 	cases := []string{

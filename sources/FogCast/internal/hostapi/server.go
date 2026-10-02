@@ -36,6 +36,9 @@ type Service interface {
 	Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error)
 	LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error)
 	Stop(context.Context) (protocol.Status, error)
+	// MeshBackendLibrary is the combined library. The host API does not
+	// treat a missing projection as an empty title list.
+	MeshBackendLibrary(context.Context) ([]fogcast.MeshBackendRow, []fogcast.MeshSkip)
 }
 
 type gameResult struct {
@@ -267,6 +270,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerCoreLibrary(mux, service)
 	registerCoreData(mux, service)
 	registerMeshHostContent(mux, service)
+	registerLibraryTitles(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
 	session.remoteInputFactory = config.remoteInputFactory
 	registerHardware(mux, service, session)

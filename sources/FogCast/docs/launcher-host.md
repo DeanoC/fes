@@ -59,7 +59,7 @@ identity to the kit; the launcher does not obtain a kit lease credential.
 Each request sends `Authorization: Bearer <token>` and
 `X-FogCast-Target-ID: <target_id>`. The bearer must match a configured pairing
 token. For everything except the two mesh content GETs, that target id must be
-the matched token's kit. Catalogue, platform, health, attract, cache,
+the matched token's kit. Catalogue, platform, health, attract, cache, combined library,
 and presentation reads are served to every enabled paired kit, whether or not
 it is the host's selected target. `GET /api/v1/session` returns the foreground
 session only to the session owner; every other enabled paired kit receives its
@@ -98,6 +98,10 @@ Allowed operations are:
   admission. `GET /api/v1/library/cache` returns
   `{rom:{used_bytes,max_bytes,free_bytes,reachable}, synced_unix}` from that
   same inventory. Cover used/free stay on the kit `launcher-cache` store.
+- `GET /api/v1/library/titles` is a paired library read, with the same
+  bearer and `X-FogCast-Target-ID` admission as `GET /api/v1/games`. It is
+  not a mesh content read. The body is the combined library projection.
+  A missing bearer is 401 and a token for another kit is 403.
 - `GET /api/v1/library/attract` for idle stills and kit-safe motion preview rows
   (video handles are not decoded on kit).
 - `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover

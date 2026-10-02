@@ -9,10 +9,11 @@
 // lease. Ensure refuses a pull unless the caller reports an owned,
 // idle binding. Rooms Ready does not call Ensure.
 //
-// The content-id algorithm is an unsigned strawman: sha256. Deano has
-// not locked it. JSON tags on the catalog types are host-catalog
-// shape only. Ensure results have no JSON tags and are not a wire
-// format.
+// The content-id text was approved in #394 on 2026-10-02: sha256: plus
+// 64 lowercase hex. ParseContentID is that wire parser and does not
+// normalize. FromSHA256 builds the text from a stored bare digest.
+// JSON tags on the catalog types are host-catalog shape only. Ensure
+// results have no JSON tags and are not a wire format.
 package meshcontent
 
 import (
@@ -27,8 +28,10 @@ import (
 )
 
 const (
-	// AlgorithmSHA256 is the unsigned Phase 2 strawman. Rejecting every
-	// other name keeps a later lock from having to interpret garbage.
+	// AlgorithmSHA256 is the content-id algorithm approved in #394 on
+	// 2026-10-02. Canonical text is sha256: plus 64 lowercase hex.
+	// Rejecting every other name keeps a later algorithm from having
+	// to interpret garbage.
 	AlgorithmSHA256 = "sha256"
 
 	SlotPackageABI   = "package_abi"
@@ -47,9 +50,9 @@ const (
 )
 
 var (
-	// ErrAlgorithm reports a content-id whose algorithm is not the
-	// unsigned sha256 strawman.
-	ErrAlgorithm = errors.New("content-id algorithm is not the unsigned sha256 strawman")
+	// ErrAlgorithm reports a content-id whose algorithm is not the sha256
+	// form approved in #394 on 2026-10-02.
+	ErrAlgorithm = errors.New("content-id algorithm is not sha256")
 	// ErrContentID reports a content-id that is not canonical.
 	ErrContentID = errors.New("content-id is invalid")
 	// ErrEntry reports a catalog entry that cannot name its slots.
@@ -67,7 +70,7 @@ func (id ContentID) String() string {
 	return id.Algorithm + ":" + id.Digest
 }
 
-// Validate accepts only the sha256 strawman: 64 lowercase hex digits.
+// Validate accepts only the approved sha256 text: 64 lowercase hex digits.
 func (id ContentID) Validate() error {
 	if id.Algorithm != AlgorithmSHA256 {
 		return fmt.Errorf("%w: %q", ErrAlgorithm, id.Algorithm)
@@ -102,7 +105,7 @@ func FromSHA256(digest string) (ContentID, error) {
 	return id, nil
 }
 
-// SumSHA256 hashes one slot's bytes with the unsigned strawman.
+// SumSHA256 hashes one slot's bytes with the approved sha256 algorithm.
 // Package / ABI identity does not use this function.
 func SumSHA256(slot []byte) ContentID {
 	sum := sha256.Sum256(slot)

@@ -13,26 +13,71 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+// MeshSkipCatalogUnavailable is the whole-library skip when the local
+// catalog cannot be read. GET /api/v1/library/titles returns 500 for it
+// and does not answer an empty title list.
+const MeshSkipCatalogUnavailable = "local catalog unavailable"
+
+// MeshSkipMalformedContentID is the per-title skip when a built slot id
+// is not canonical sha256 text. A stored digest that FromSHA256 rejects,
+// and a canonical sha256: value sitting in a stored-digest field, keep
+// the slot-specific "digest is not a stored sha256" reason. The title
+// stays on the skip list either way. ParseContentID does not coerce it.
+const MeshSkipMalformedContentID = "content id is malformed"
+
+// LibraryNodeMovedReason is the node reason when a configured hostname's
+// fresh lookup no longer contains the IP this process pinned. No bearer
+// is sent. A restart re-pins. The pin is not persisted (#396).
+const LibraryNodeMovedReason = "node moved; re-pair or confirm the new address"
+
 // MeshBackendRow groups the existing one-execute catalog entries by game id,
 // with rows that share an exact ROM sha256 and system linked under one
 // canonical id (see linkMeshTitles). Each option's Entry.TitleID stays the
 // source catalog game id.
-// This is a host projection, not a session selection or a wire contract.
+// This is a host projection, not a session selection. The wire view is
+// MeshLibraryTitles, served at GET /api/v1/library/titles.
 type MeshBackendRow struct {
-	TitleID    string
-	System     string
-	ContentIDs []meshcontent.ContentID
-	Options    []MeshBackendOption
+	TitleID        string
+	System         string
+	ContentIDs     []meshcontent.ContentID
+	ContentSources []MeshContentSource
+	Options        []MeshBackendOption
+}
+
+// MeshContentSource is one slot content-id and the nodes that can supply
+// it. NodeIDs stays empty until #396. This phase does not read content_ids
+// off the node document and does not send a bearer to fill them.
+type MeshContentSource struct {
+	ContentID meshcontent.ContentID
+	NodeIDs   []string
 }
 
 // MeshBackendOption keeps each composition distinct. A HostLocal option is
 // usable on this host only when Reason is empty. Nodes are capability
 // candidates; their presence never makes this option Ready for a session.
+// CoreID is the catalog core id on a package-backed option (fes.sms).
 type MeshBackendOption struct {
 	Entry     meshcontent.Entry
 	Nodes     []MeshBackendNode
 	HostLocal bool
 	Reason    string
+	CoreID    string
+}
+
+// Available is the library wire flag. A host-local option is available
+// when its reason is empty, including when a nested remote node is not.
+// Any other option is available when one of its nodes is. This is not
+// session Ready.
+func (o MeshBackendOption) Available() bool {
+	if o.HostLocal {
+		return o.Reason == ""
+	}
+	for _, node := range o.Nodes {
+		if node.Available {
+			return true
+		}
+	}
+	return false
 }
 
 type MeshBackendNode struct {
@@ -42,7 +87,17 @@ type MeshBackendNode struct {
 }
 
 // MeshBackendLibrary projects the existing local catalog and observed node
-// inventory. It does not discover titles or publish a new library wire shape.
+// inventory. GET /api/v1/library/titles is the wire view of this same
+// projection. It does not discover titles, select a session backend, or
+// report Ready. Content-source node ids stay empty until #396. A
+// native_emu inventory node is not dialed: remote eligibility waits on
+// #298 and the runner prerequisites, and this method sends no bearer.
+// FPGA package facts come from a read of the configured [[targets]]
+// address, cached on this path. A configured hostname is resolved once
+// per process and later reads dial only that pinned IP. If a fresh
+// lookup drops that IP, the node is unavailable with
+// LibraryNodeMovedReason and no bearer is sent. A miss leaves the node
+// unavailable. The read does not use a discovered or reconciled address.
 func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []MeshSkip) {
 	if s == nil || s.catalog == nil {
 		return nil, nil
@@ -52,7 +107,7 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 	}
 	games, err := s.catalog.Games(ctx)
 	if err != nil {
-		return nil, []MeshSkip{{Reason: "local catalog unavailable"}}
+		return nil, []MeshSkip{{Reason: MeshSkipCatalogUnavailable}}
 	}
 	lib := MeshLibrary{}
 	var skipped []MeshSkip
@@ -84,25 +139,71 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 	s.meshMu.Unlock()
 	packages := make(map[string][]string)
 	abis := make(map[string][]meshcontent.EligibleABI)
+	var blocked map[string]string
 	for _, node := range nodes {
 		fpga := false
 		for _, execute := range node.Capabilities.Execute {
 			fpga = fpga || execute.Kind == meshcontent.ExecuteFPGANative
 		}
+		// Package facts are read at the enrolled origin, or reused from
+		// this path's cache. The dial never uses a discovered or
+		// reconciled address. A hostname is dialed only at the IP this
+		// process pinned. A native_emu node is not a kit content read.
 		if fpga {
-			abis[node.NodeID], packages[node.NodeID] = s.placementNodeFacts(ctx, node.NodeID)
+			var reason string
+			abis[node.NodeID], packages[node.NodeID], reason = s.libraryNodeFacts(ctx, node.NodeID)
+			if reason != "" {
+				if blocked == nil {
+					blocked = map[string]string{}
+				}
+				blocked[node.NodeID] = reason
+			}
 		}
 	}
 	rows, projectedSkipped := ProjectMeshBackendLibrary(lib, nodes, retained, packages, abis)
+	applyLibraryNodeReasons(rows, blocked)
 	return rows, append(skipped, projectedSkipped...)
+}
+
+// applyLibraryNodeReasons marks nodes a library read refused. The node
+// stays unavailable with that reason even when an older package list
+// would have passed. Host-local availability is not cleared.
+func applyLibraryNodeReasons(rows []MeshBackendRow, reasons map[string]string) {
+	if len(reasons) == 0 {
+		return
+	}
+	for i := range rows {
+		for j := range rows[i].Options {
+			opt := &rows[i].Options[j]
+			for k := range opt.Nodes {
+				reason, ok := reasons[opt.Nodes[k].NodeID]
+				if !ok {
+					continue
+				}
+				opt.Nodes[k].Available = false
+				opt.Nodes[k].Reason = reason
+			}
+			if opt.HostLocal {
+				continue
+			}
+			available := false
+			for _, node := range opt.Nodes {
+				available = available || node.Available
+			}
+			if !available && opt.Reason == "" {
+				opt.Reason = "no compatible executor in inventory"
+			}
+		}
+	}
 }
 
 // ProjectMeshBackendLibrary uses the same catalog projection and observed
 // inventory as launch and placement. An absent/retained or conflicting node
 // cannot be selected. FPGA package evidence is supplied by the authenticated
 // node document; discovery alone cannot assert that a package is installed.
-// Remote emulator compatibility remains unresolved until the runner reports
-// supported systems and core versions (#360).
+// Remote emulator compatibility stays unverified until #298 and the runner
+// admission and provisioning prerequisites. This function does not read
+// software_backends and does not send a bearer.
 func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool, kitPackages map[string][]string, kitABIs map[string][]meshcontent.EligibleABI) (rows []MeshBackendRow, skipped []MeshSkip) {
 	counts := map[string]int{}
 	for _, node := range nodes {
@@ -118,6 +219,7 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 		projected = append(projected, projectedMeshTitle{title: title, entry: entry})
 	}
 	canonical := linkMeshTitles(projected)
+	projected = appendRemoteNativeEmuOptions(projected, nodes)
 	byID := map[string]int{}
 	for _, item := range projected {
 		title, entry := item.title, item.entry
@@ -156,6 +258,11 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 			}
 		}
 		option := MeshBackendOption{Entry: entry, HostLocal: hostLocal}
+		if title.Core != nil {
+			if _, pkg := meshEntryPackage(entry); pkg {
+				option.CoreID = title.Core.CoreID
+			}
+		}
 		// Mirror the launch check: an unavailable or offline local source is
 		// not a usable host-local option.
 		if hostLocal && (title.Game.State != catalog.SourceStateAvailable || !title.Game.RootOnline) {
@@ -184,6 +291,10 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 			case !discovery.MeshMajorCompatible(node.Mesh):
 				candidate.Reason = "mesh protocol major mismatch"
 			case kind == meshcontent.ExecuteNativeEmu:
+				// Pin, system, and software_backends are not consulted.
+				// #298 and runner admission and provisioning are open, so
+				// a weaker check must not mark the node available, and no
+				// bearer is sent to learn them.
 				candidate.Reason = "remote emulator system and version unverified"
 			case kind == meshcontent.ExecuteFPGANative:
 				pkg, ok := meshEntryPackage(entry)
@@ -263,6 +374,50 @@ func linkMeshTitles(projected []projectedMeshTitle) map[string]string {
 	return canonical
 }
 
+// appendRemoteNativeEmuOptions adds the phase-2 remote option. Each
+// host-local emulator title gains one synthetic copy with the same game,
+// system, and primary-media digest and with Execute set to native_emu.
+// The existing loop keeps it because host_local differs. The option is
+// emitted only when inventory advertises native_emu, so a kit-only
+// library stays the FPGA option plus the host-local option. Nodes on the
+// synthetic option stay unavailable; this does not read a runner and does
+// not send a bearer.
+func appendRemoteNativeEmuOptions(projected []projectedMeshTitle, nodes []MeshNode) []projectedMeshTitle {
+	if !inventoryAdvertises(nodes, meshcontent.ExecuteNativeEmu) {
+		return projected
+	}
+	extra := make([]projectedMeshTitle, 0)
+	for _, item := range projected {
+		if item.title.Execute != ExecutionHostOnly {
+			continue
+		}
+		if _, ok := meshEntryPrimaryMedia(item.entry); !ok {
+			continue
+		}
+		if len(item.entry.Execute) != 1 || item.entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
+			continue
+		}
+		synth := item
+		synth.title.Execute = meshcontent.ExecuteNativeEmu
+		extra = append(extra, synth)
+	}
+	if len(extra) == 0 {
+		return projected
+	}
+	return append(projected, extra...)
+}
+
+func inventoryAdvertises(nodes []MeshNode, kind string) bool {
+	for _, node := range nodes {
+		for _, execute := range node.Capabilities.Execute {
+			if execute.Kind == kind {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // orderMeshBackendRow makes a row independent of catalog input order:
 // package-backed options first, then by source game id, host-local before
 // sourced; content ids follow that option order.
@@ -293,6 +448,12 @@ func orderMeshBackendRow(row *MeshBackendRow) {
 				row.ContentIDs = append(row.ContentIDs, id)
 			}
 		}
+	}
+	// One source row per slot id, inventory order, deduped. Node ids stay
+	// empty until #396. Filling them would require reading the node document.
+	row.ContentSources = make([]MeshContentSource, 0, len(row.ContentIDs))
+	for _, id := range row.ContentIDs {
+		row.ContentSources = append(row.ContentSources, MeshContentSource{ContentID: id, NodeIDs: []string{}})
 	}
 }
 
@@ -537,9 +698,21 @@ func appendStoredDigest(slots []meshcontent.Slot, digest string, required bool, 
 		}
 		return slots, "", true
 	}
+	// Stored fields are bare digests. ParseContentID accepts only the
+	// canonical wire text and does not trim, downcase, or add a prefix.
+	// A wire id in this field is not coerced into a slot. A bare digest
+	// FromSHA256 cannot build, and a built id ParseContentID rejects,
+	// are skips. They are not dropped.
+	if _, err := meshcontent.ParseContentID(digest); err == nil {
+		return nil, slot + " digest is not a stored sha256", false
+	}
 	id, err := parse(digest)
 	if err != nil {
 		return nil, slot + " digest is not a stored sha256", false
 	}
-	return append(slots, build(id)), "", true
+	locked, err := meshcontent.ParseContentID(id.String())
+	if err != nil || locked != id {
+		return nil, slot + " " + MeshSkipMalformedContentID, false
+	}
+	return append(slots, build(locked)), "", true
 }

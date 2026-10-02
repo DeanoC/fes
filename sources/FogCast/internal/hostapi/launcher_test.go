@@ -231,6 +231,8 @@ func TestLauncherRestrictionAndAuthentication(t *testing.T) {
 		want                          int
 	}{
 		{"catalogue", "GET", "/api/v1/games", launcherToken, launcherID, 200},
+		{"library titles", "GET", "/api/v1/library/titles", launcherToken, launcherID, 200},
+		{"library titles no token", "GET", "/api/v1/library/titles", "", launcherID, 401},
 		{"attract", "GET", "/api/v1/library/attract", launcherToken, launcherID, 200},
 		{"library cache", "GET", "/api/v1/library/cache", launcherToken, launcherID, 200},
 		{"library collections", "GET", "/api/v1/library/collections", launcherToken, launcherID, 200},
@@ -308,6 +310,7 @@ func TestLauncherMeshContentAllowsUnselectedKit(t *testing.T) {
 	sourcePath := "http://192.0.2.1:8789/api/v1/mesh/content/source?id=" + id.String()
 	objectPath := "http://192.0.2.1:8789/api/v1/mesh/content/object?id=" + id.String()
 	gamesPath := "http://192.0.2.1:8789/api/v1/games"
+	titlesPath := "http://192.0.2.1:8789/api/v1/library/titles"
 	targets := []fogcast.TargetConfig{
 		{Name: "kit-a", Enabled: true, TargetID: launcherID},
 		{Name: "kit-b", Enabled: true, TargetID: siblingID},
@@ -348,6 +351,10 @@ func TestLauncherMeshContentAllowsUnselectedKit(t *testing.T) {
 	w = serve(paired, http.MethodGet, gamesPath, siblingID, launcherToken)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("sibling catalogue: %d %s", w.Code, w.Body.String())
+	}
+	w = serve(paired, http.MethodGet, titlesPath, siblingID, launcherToken)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("sibling library titles: %d %s", w.Code, w.Body.String())
 	}
 	w = serve(paired, http.MethodGet, sourcePath, "11111111-1111-1111-1111-111111111111", launcherToken)
 	if w.Code != http.StatusForbidden {
@@ -815,6 +822,21 @@ func distinctKitConfig() hostapi.LauncherConfig {
 		{Token: launcherToken, TargetID: launcherID},
 		{Token: launcherTokenB, TargetID: launcherIDB},
 	}}
+}
+
+func TestLibraryTitlesIsPairedReadNotContentRead(t *testing.T) {
+	handler := kitHandler(t, newKitService("kit-a"), distinctKitConfig())
+	if w := kitCall(handler, http.MethodGet, "/api/v1/library/titles", launcherToken, launcherID, ""); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"titles":[]`) {
+		t.Fatalf("paired read: %d %s", w.Code, w.Body.String())
+	}
+	w := kitCall(handler, http.MethodGet, "/api/v1/library/titles", launcherToken, launcherIDB, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "TARGET_MISMATCH") {
+		t.Fatalf("cross-target library titles: %d %s", w.Code, w.Body.String())
+	}
+	w = kitCall(handler, http.MethodGet, "/api/v1/library/titles", "", launcherID, "")
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "UNAUTHORIZED") {
+		t.Fatalf("missing bearer: %d %s", w.Code, w.Body.String())
+	}
 }
 
 func TestLauncherDistinctTokens(t *testing.T) {

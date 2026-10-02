@@ -1413,9 +1413,20 @@ in as its emulator option; with more rows, package rows come first, then
 the lowest game id. A different hash (a patched ROM) or system never links,
 and catalog rows are not rewritten. Each option keeps its source game id.
 It keeps host-local and sourced options distinct, deduplicates
-repeated content ids, and annotates observed node candidates. The service
-reuses placement's authenticated kit node-document read for package and ABI
-facts. A missing, retained, conflicting, or mesh-major-incompatible
+repeated content ids, and annotates observed node candidates. The library projection reads package and ABI facts from the configured
+`[[targets]]` address, the enrolled origin as written in config. That
+read is cached on the library path and times out with the placement
+node-document deadline. `GET /api/v1/library/titles` does not send the
+agent token to a discovered or reconciled address. The library client
+does not follow redirects, so a 3xx is a failed read and does not
+forward that token. Hostname and IP-literal reads each use their own
+direct transport, so `HTTP_PROXY` does not receive the bearer. A configured hostname is resolved once per process
+and later library reads dial only that pinned IP, keeping the configured
+Host header. That lookup and the document read share one placement
+node-document deadline. If a later lookup drops that IP, no bearer is sent and the
+node is unavailable with `node moved; re-pair or confirm the new address`.
+The pin is not persisted (#396). An IP literal is dialed as written. A failed or missing
+read leaves the FPGA candidate unavailable (`package unavailable on node`). A missing, retained, conflicting, or mesh-major-incompatible
 advertisement is unavailable. A `native_emu` advertisement remains
 unverified for remote execution because the current capability bag has no
 supported-system or emulator-version fact. The host-local `host_only`
@@ -1425,9 +1436,19 @@ its root is offline. An option with no
 host-local path carries an explicit reason when no inventory node can
 run it (`no advertised executor in inventory` or `no compatible
 executor in inventory`); each node candidate carries its own reason.
-This projection does not select a backend for a session, assert
-composition Ready, or publish a library wire field. Remote title/source
-provenance remains proposed in the mesh docs.
+`GET /api/v1/library/titles` serves `MeshLibraryTitles` of that
+projection. The route does not select a backend or assert composition
+Ready. `content_sources[].node_ids` stays empty until #396; the
+projection does not read node-document `content_ids`. A remote
+`native_emu` candidate stays unverified until #298 and the runner
+admission and provisioning prerequisites, and the projection does not
+send a bearer for that read. A stored digest `FromSHA256` rejects
+skips the title with `<slot> digest is not a stored sha256`. A built
+id that is not canonical `sha256:` text skips it with `<slot> content
+id is malformed`. The title is not dropped without a reason. When the
+local catalog cannot be read the route returns 500 and does not answer
+an empty title list. The remote emulator option is added only when
+inventory advertises `native_emu`.
 
 `meshcontent.Ensure` is the host ensure step. It takes one projected
 entry and the executor the session is already bound to. Each required

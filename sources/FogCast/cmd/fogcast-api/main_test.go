@@ -203,6 +203,9 @@ func (*compositionService) LoadDevelopmentRBF(context.Context, int64, io.Reader)
 func (*compositionService) Stop(context.Context) (protocol.Status, error) {
 	return protocol.Status{State: protocol.StateIdle}, nil
 }
+func (*compositionService) MeshBackendLibrary(context.Context) ([]fogcast.MeshBackendRow, []fogcast.MeshSkip) {
+	return nil, nil
+}
 func (*compositionService) Close() error { return nil }
 
 type shutdownCompositionService struct {
