@@ -195,16 +195,17 @@ func (s *Service) placementNodeFacts(ctx context.Context, nodeID string) ([]mesh
 // may use. It dials the [[targets]] address exactly as configured, the
 // enrolled origin, and it does not call placementReadAddress. A
 // discovered or reconciled address is not a library endpoint. The
-// dial uses a client that refuses redirects, so a 3xx cannot forward
-// the agent token. A configured hostname is resolved once for this
-// process and later authenticated reads dial only that pinned IP,
-// leaving the configured host on the URL and the Host header. When
-// the library cache refreshes, the name is resolved again. If that
-// answer no longer includes the pinned IP, this returns
-// LibraryNodeMovedReason and does not dial. An IP literal is dialed
-// as written. A fresh hit in libraryNodes for that same configured
-// identity is reused so a GET does not hammer the kit. The read's
-// deadline is placementNodeTimeout. A miss, a failed read, or an
+// dial uses a client that refuses redirects and dials directly, so a
+// 3xx or HTTP_PROXY cannot forward the agent token. A configured
+// hostname is resolved once for this process and later authenticated
+// reads dial only that pinned IP, leaving the configured host on the
+// URL and the Host header. When the library cache refreshes, the name
+// is resolved again. If that answer no longer includes the pinned IP,
+// this returns LibraryNodeMovedReason and does not dial. An IP literal
+// is dialed as written, on that same direct client. A fresh hit in
+// libraryNodes for that same configured identity is reused so a GET
+// does not hammer the kit. Hostname lookup and the document read share
+// one placementNodeTimeout context. A miss, a failed read, or an
 // expired entry is not eligibility. This method does not read or
 // write placementNodes. The pin is not persisted (#396).
 func (s *Service) libraryNodeFacts(ctx context.Context, nodeID string) ([]meshcontent.EligibleABI, []string, string) {
@@ -233,17 +234,25 @@ func (s *Service) libraryNodeFacts(ctx context.Context, nodeID string) ([]meshco
 			return append([]meshcontent.EligibleABI(nil), cached.abis...), append([]string(nil), cached.packages...), cached.reason
 		}
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// Lookup and the kit read share this deadline. A child timer inside
+	// readPlacementNodeFacts cannot extend it. A deadline is not cached.
+	readCtx, cancel := context.WithTimeout(ctx, placementNodeTimeout)
+	defer cancel()
 	endpoint, err := url.Parse(configured.address)
 	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" || net.ParseIP(endpoint.Hostname()) != nil {
-		// An IP literal, and an address that is not an HTTP origin, keep
-		// the no-redirect client. A literal has no lookup that can move.
-		return s.finishLibraryRead(ctx, nodeID, configured, libraryNoRedirectClient(client))
+		// An IP literal, and an address that is not an HTTP origin, has
+		// no lookup that can move. The client still dials directly.
+		return s.finishLibraryRead(readCtx, nodeID, configured, libraryReadClient(client, nil))
 	}
 	// Resolve outside meshMu. The pin is recorded before the dial, so a
-	// failed read still leaves the first answer pinned.
-	pin, moved, lookupErr := s.libraryHostPin(ctx, endpoint.Hostname())
-	if lookupErr != nil || (ctx != nil && ctx.Err() != nil) {
-		if ctx != nil && ctx.Err() != nil {
+	// failed read still leaves the first answer pinned. The resolver
+	// sees readCtx, so LookupIP stops when the deadline passes.
+	pin, moved, lookupErr := s.libraryHostPin(readCtx, endpoint.Hostname())
+	if lookupErr != nil || readCtx.Err() != nil {
+		if readCtx.Err() != nil {
 			return nil, nil, ""
 		}
 		s.rememberLibraryRead(nodeID, configured, nil, nil, false, "")
@@ -257,7 +266,7 @@ func (s *Service) libraryNodeFacts(ctx context.Context, nodeID string) ([]meshco
 		s.rememberLibraryRead(nodeID, configured, nil, nil, false, "")
 		return nil, nil, ""
 	}
-	return s.finishLibraryRead(ctx, nodeID, configured, libraryPinnedClient(client, endpoint.Hostname(), pin))
+	return s.finishLibraryRead(readCtx, nodeID, configured, libraryReadClient(client, libraryPinnedDial(endpoint.Hostname(), pin)))
 }
 
 // finishLibraryRead dials the configured origin with client and caches
@@ -438,46 +447,51 @@ func (s *Service) discoveredPlacementOrigin(nodeID string) string {
 	return origin
 }
 
-// libraryNoRedirectClient is the HTTP client for one library read of
-// the configured kit. It does not follow redirects, and it does not
-// modify base. A nil base still refuses redirects.
-func libraryNoRedirectClient(base *http.Client) *http.Client {
+// libraryReadClient is the HTTP client for one authenticated library
+// read. It refuses redirects and dials directly: Proxy is nil, so
+// HTTP_PROXY and HTTPS_PROXY cannot receive the bearer. base is not
+// modified, and its Transport is not reused. A nil Transport on base
+// would otherwise select the process default, which honors those
+// variables. dial, when set, is the only connect path (the hostname
+// pin). A nil dial connects straight to the URL host, which for an
+// IP literal is that address. Keep-alives are off because this
+// transport is used for one read.
+func libraryReadClient(base *http.Client, dial func(context.Context, string, string) (net.Conn, error)) *http.Client {
+	if dial == nil {
+		dialer := &net.Dialer{}
+		dial = dialer.DialContext
+	}
 	next := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
+		Transport: &http.Transport{
+			Proxy:             nil,
+			DisableKeepAlives: true,
+			DialContext:       dial,
+		},
 	}
 	if base != nil {
-		next.Transport = base.Transport
 		next.Timeout = base.Timeout
 	}
 	return next
 }
 
-// libraryPinnedClient dials pin and no other address. The request URL
-// keeps the configured hostname, so the Host header does too. base is
-// not modified, and its Transport is not reused: a normal transport
-// would resolve the hostname again. Redirects are still refused.
-// Proxy stays unset so a proxy cannot see the bearer. Keep-alives are
-// off because this transport is used for one read.
-func libraryPinnedClient(base *http.Client, host string, pin net.IP) *http.Client {
-	next := libraryNoRedirectClient(base)
+// libraryPinnedDial connects only to pin. The request URL keeps the
+// configured hostname, so the Host header does too.
+func libraryPinnedDial(host string, pin net.IP) func(context.Context, string, string) (net.Conn, error) {
 	dialer := &net.Dialer{Timeout: placementNodeTimeout}
 	pinned := append(net.IP(nil), pin...)
-	next.Transport = &http.Transport{
-		DisableKeepAlives: true,
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			dialHost, dialPort, splitErr := net.SplitHostPort(addr)
-			if splitErr != nil {
-				return nil, splitErr
-			}
-			if !strings.EqualFold(dialHost, host) {
-				return nil, fmt.Errorf("library dial refused for host %s", dialHost)
-			}
-			return dialer.DialContext(ctx, network, net.JoinHostPort(pinned.String(), dialPort))
-		},
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialHost, dialPort, splitErr := net.SplitHostPort(addr)
+		if splitErr != nil {
+			return nil, splitErr
+		}
+		if !strings.EqualFold(dialHost, host) {
+			return nil, fmt.Errorf("library dial refused for host %s", dialHost)
+		}
+		return dialer.DialContext(ctx, network, net.JoinHostPort(pinned.String(), dialPort))
 	}
-	return next
 }
 
 // readPlacementNodeFacts reads one kit's content document at want.address

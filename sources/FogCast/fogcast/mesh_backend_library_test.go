@@ -491,6 +491,161 @@ func TestMeshBackendLibraryPinsConfiguredHostname(t *testing.T) {
 	}
 }
 
+// HTTP_PROXY is set to a fake proxy. The configured kit is an IP
+// literal. The library dials that address directly: the proxy receives
+// nothing and the kit receives the bearer. ProxyFromEnvironment does
+// not proxy loopback, so a second request to a non-loopback literal
+// uses the same client and must also miss the proxy.
+func TestMeshBackendLibraryIPLiteralSkipsProxy(t *testing.T) {
+	service, kitID, writeNode := newLibraryKitService(t)
+	var kitHits atomic.Int32
+	var kitAuth atomic.Bool
+	kit := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		kitHits.Add(1)
+		if r.Header.Get("Authorization") == "Bearer fixture-token" {
+			kitAuth.Store(true)
+		}
+		writeNode(w, r)
+	}))
+	defer kit.Close()
+	if net.ParseIP(kit.Listener.Addr().(*net.TCPAddr).IP.String()) == nil {
+		t.Fatalf("kit URL %s is not an IP literal", kit.URL)
+	}
+	var proxyHits atomic.Int32
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHits.Add(1)
+		http.Error(w, "proxy", http.StatusBadGateway)
+	}))
+	defer proxy.Close()
+	t.Setenv("HTTP_PROXY", proxy.URL)
+	t.Setenv("HTTPS_PROXY", proxy.URL)
+	t.Setenv("http_proxy", proxy.URL)
+	t.Setenv("https_proxy", proxy.URL)
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
+	service.meshHTTP = &http.Client{}
+	service.targets = []TargetConfig{{
+		Name: "kit", Enabled: true, TargetID: kitID, Address: kit.URL, Agent: "fixture-token",
+	}}
+	service.meshNodes = []MeshNode{{
+		NodeID: kitID, TargetID: kitID, Address: "http://203.0.113.5:8182",
+		Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities(),
+	}}
+	rows, skipped := service.MeshBackendLibrary(context.Background())
+	if proxyHits.Load() != 0 || kitHits.Load() == 0 || !kitAuth.Load() {
+		t.Fatalf("proxy=%d kit=%d auth=%v", proxyHits.Load(), kitHits.Load(), kitAuth.Load())
+	}
+	if len(skipped) != 0 || len(rows) != 1 || !rows[0].Options[0].Nodes[0].Available || rows[0].Options[0].Nodes[0].NodeID != kitID {
+		t.Fatalf("rows=%+v skipped=%+v", rows, skipped)
+	}
+	probeCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	probe, err := http.NewRequestWithContext(probeCtx, http.MethodGet, "http://192.0.2.1:9/v1/mesh/content/node", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe.Header.Set("Authorization", "Bearer fixture-token")
+	_, probeErr := libraryReadClient(nil, nil).Do(probe)
+	if proxyHits.Load() != 0 {
+		t.Fatalf("proxy received %d requests", proxyHits.Load())
+	}
+	if probeErr == nil {
+		t.Fatal("non-loopback literal was served without a direct refusal")
+	}
+}
+
+// Hostname lookup shares the document-read deadline. A resolver that
+// waits for cancellation must return with the rows unavailable, inside
+// about placementNodeTimeout, and the attempt is not cached.
+func TestMeshBackendLibraryHostnameLookupSharesReadDeadline(t *testing.T) {
+	service, kitID, _ := newLibraryKitService(t)
+	service.meshHTTP = &http.Client{}
+	service.targets = []TargetConfig{{
+		Name: "kit", Enabled: true, TargetID: kitID, Address: "http://fes-kit-a:8182", Agent: "fixture-token",
+	}}
+	service.meshNodes = []MeshNode{{
+		NodeID: kitID, TargetID: kitID, Address: "http://203.0.113.5:8182",
+		Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities(),
+	}}
+	var sawHost atomic.Value
+	service.libraryResolve = func(ctx context.Context, host string) ([]net.IP, error) {
+		sawHost.Store(host)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	type outcome struct {
+		rows    []MeshBackendRow
+		skipped []MeshSkip
+		elapsed time.Duration
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		start := time.Now()
+		rows, skipped := service.MeshBackendLibrary(context.Background())
+		done <- outcome{rows, skipped, time.Since(start)}
+	}()
+	select {
+	case got := <-done:
+		if got.elapsed < placementNodeTimeout/2 || got.elapsed > placementNodeTimeout+2*time.Second {
+			t.Fatalf("lookup duration %s, deadline %s", got.elapsed, placementNodeTimeout)
+		}
+		host, _ := sawHost.Load().(string)
+		if host != "fes-kit-a" {
+			t.Fatalf("resolver saw %q", host)
+		}
+		if len(got.skipped) != 0 || len(got.rows) != 1 || len(got.rows[0].Options) != 1 {
+			t.Fatalf("rows=%+v skipped=%+v", got.rows, got.skipped)
+		}
+		node := got.rows[0].Options[0].Nodes[0]
+		if got.rows[0].Options[0].Available() || node.Available || node.Reason != "package unavailable on node" {
+			t.Fatalf("option=%+v", got.rows[0].Options[0])
+		}
+		if len(service.libraryNodes) != 0 {
+			t.Fatalf("deadline cached: %+v", service.libraryNodes[kitID])
+		}
+	case <-time.After(placementNodeTimeout + 2*time.Second):
+		t.Fatal("hostname lookup was not bounded by the library read deadline")
+	}
+}
+
+func newLibraryKitService(t *testing.T) (*Service, string, func(http.ResponseWriter, *http.Request)) {
+	t.Helper()
+	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	const title = "Data Storm 1.00"
+	const kitID = "01234567-89ab-cdef-0123-456789abcdef"
+	ctx := context.Background()
+	archive := sizedSetupArchive(t, "fes.sms", 32768)
+	packageRoot := t.TempDir()
+	if err := os.Chmod(packageRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	packages, err := corepackage.NewStore(packageRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection, _, err := packages.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreID := catalog.GameID(catalog.CorePlatform, "core-packages", "fes.sms\x00"+title, title)
+	coreGame := catalog.Game{ID: coreID, Title: title, System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true}
+	cat := &backendCatalog{fakeServiceCatalog: &fakeServiceCatalog{games: []catalog.Game{coreGame}}, entry: catalog.CoreEntry{GameID: coreID, Title: title, CoreID: "fes.sms", PackageID: inspection.PackageID, MediaRole: "blob", MediaID: media}}
+	service := newService(Config{}, Paths{}, cat, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	service.corePackages = packages
+	writeNode := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/mesh/content/node" || r.Header.Get("Authorization") != "Bearer fixture-token" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"node_id":  kitID,
+			"abis":     []map[string]any{{"id": inspection.Descriptor.ABI.ID, "major": inspection.Descriptor.ABI.Major}},
+			"packages": []string{inspection.PackageID},
+		})
+	}
+	return service, kitID, writeNode
+}
+
 func listenLibraryPinPair(t *testing.T) (net.Listener, net.Listener, int) {
 	t.Helper()
 	var last error
