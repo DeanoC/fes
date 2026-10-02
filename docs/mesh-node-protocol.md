@@ -342,9 +342,8 @@ The algorithm name is the version. A mesh minor may add an optional
 field; an unknown algorithm still fails closed (`ErrAlgorithm`). This
 proposal adds no second algorithm.
 
-The unsigned-strawman sentences in this file and in
-[`mesh-phase2.md`](mesh-phase2.md) stay until Deano signs this
-paragraph.
+The content-id lock was approved in #394 on 2026-10-02. Canonical text
+is `sha256:` plus 64 lowercase hex. `ParseContentID` does not normalize.
 
 **Alternatives.** Coercing a bare digest or uppercase hex inside
 `ParseContentID` would alias two spellings of one wire id.
@@ -754,10 +753,9 @@ composition is:
 | **Primary media** | Content-id when the title starts from a cart, ROM, or other primary medium. |
 | **Expansions** | Content-ids for expansion slots the composition includes. |
 
-Title identity stays the catalog id. Phase 2 proposes an unsigned
-SHA-256 strawman in [`mesh-phase2.md`](mesh-phase2.md). Deano has not
-locked it. A lock of that form is **PROPOSED (needs Deano/Bob sign-off)**
-in [Combined library contract (#379)](#combined-library-contract-379).
+Title identity stays the catalog id. The content-id text, `sha256:` plus
+64 lowercase hex, was approved in #394 on 2026-10-02. See
+[Combined library contract (#379)](#combined-library-contract-379).
 This draft does not freeze bytes.
 
 ## Session request
@@ -946,10 +944,9 @@ forking a parallel design.
 **Per-slot hash.** Recommended default, updated from Caster review
 2026-09-23: package / ABI identity plus BIOS, primary-media, and
 expansion content-ids. One hash of the whole launch is not the model.
-Phase 2 Slice 1 proposes SHA-256 (`sha256:` plus 64 lowercase hex) as
-an unsigned strawman in [`mesh-phase2.md`](mesh-phase2.md). Deano has
-not locked it. The #379 proposal in this file asks to lock that form;
-it is not signed.
+The content-id text, `sha256:` plus 64 lowercase hex, was approved in
+#394 on 2026-10-02. See
+[Combined library contract (#379)](#combined-library-contract-379).
 
 **node-id and `target_id`.** Recommended default, updated from Caster
 review 2026-09-23: kits generalize `target_id` and keep that id when

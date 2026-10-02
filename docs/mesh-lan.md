@@ -505,8 +505,8 @@ Versioning is that algorithm name. A mesh minor may carry the new name
 as an optional field. An unknown name still fails closed
 (`ErrAlgorithm`). This proposal does not add a second algorithm.
 
-Until Deano signs this paragraph, the unsigned-strawman sentences in
-this file and in `mesh-phase2.md` stay as written.
+The content-id lock was approved in #394 on 2026-10-02. Canonical text
+is `sha256:` plus 64 lowercase hex. `ParseContentID` does not normalize.
 
 **Alternatives.** Coercing uppercase or a bare digest inside
 `ParseContentID` would let two spellings alias one wire id.
@@ -928,9 +928,8 @@ composition keeps separate identities:
 
 ROM-less Pong may be package / ABI only. The UI shows title, system, and
 an availability state. A path is a cache detail on the node that holds
-one of those objects. Phase 2 proposes an unsigned SHA-256 strawman
-in [`mesh-phase2.md`](mesh-phase2.md). Deano has not locked it. A lock
-of that form is **PROPOSED (needs Deano/Bob sign-off)** in
+one of those objects. The content-id text, `sha256:` plus 64 lowercase
+hex, was approved in #394 on 2026-10-02. See
 [Combined library contract (#379)](#combined-library-contract-379).
 Shape: [`mesh-node-protocol.md`](mesh-node-protocol.md).
 
@@ -1186,11 +1185,10 @@ before placement exists.
 **Content identity.** Recommended default, updated from Caster review
 2026-09-23: package / ABI identity plus BIOS, primary-media, and
 expansion content-ids as the composition requires. Title identity stays
-the catalog id. One hash of the whole launch is not the model. Phase 2
-Slice 1 proposes SHA-256 (`sha256:` plus 64 lowercase hex) as an
-unsigned strawman in [`mesh-phase2.md`](mesh-phase2.md). Deano has not
-locked it. The #379 proposal in this file asks to lock that form; it
-is not signed.
+the catalog id. One hash of the whole launch is not the model. The
+content-id text, `sha256:` plus 64 lowercase hex, was approved in #394
+on 2026-10-02. See
+[Combined library contract (#379)](#combined-library-contract-379).
 
 **Who coordinates.** Strawman: the Shell that started the session, unless
 the household has pinned another coordinator. Coordinator is an optional
