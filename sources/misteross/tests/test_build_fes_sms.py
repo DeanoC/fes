@@ -432,10 +432,14 @@ class BuildFesSmsTests(unittest.TestCase):
             "aed93f66983d6edf09d4f1ea926027ebc700e95af266ae3872a2840aec9a79cb",
         )
         header = (ROOT / "cores/fes-sms/generated/fes_simple_computer.vh").read_bytes()
+        # Shared FES regeneration adds DDR/session-display definitions while
+        # retaining the published media-stream contract and exchange fixtures.
+        header_sha256 = "e6828a75c8edcfa947ee55e33e0223a629b0ad9b0463b2f584f20d8224c77ab2"
         self.assertEqual(
             hashlib.sha256(header).hexdigest(),
-            "6896963138b81649ca91511c6804a622315fb1b7402a106f02180736543e91d1",
+            header_sha256,
         )
+        self.assertIn(f"fes_simple_computer.vh sha256 {header_sha256}", pin)
         top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
         self.assertIn("ENABLE_MEDIA_STREAM(1)", top)
         gp = (ROOT / "cores/fes-common/rtl/fes_computer_gp.v").read_text(encoding="utf-8")
