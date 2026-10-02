@@ -364,6 +364,7 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		result := s.publicSession(st, nil)
 		result.Execution = execution
 		result.Media = "stopped"
+		s.clearHostOnlyExecution(execution)
 		s.record("session.exit", result, nil)
 		return result, nil
 	}
@@ -383,6 +384,11 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		s.packageOwned = false
 		s.terminalStatus = nil
 		s.nativeStoppedIdle = false
+	}
+	if st.State == protocol.StateIdle && s.execution == fogcast.ExecutionHostOnly {
+		s.execution = ""
+		s.mediaState = "stopped"
+		s.terminalStatus = nil
 	}
 	if s.execution != "" {
 		result.Execution = s.execution
@@ -565,7 +571,10 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 		return result, err
 	}
 	development, err := s.developmentActive(ctx)
-	if err != nil {
+	// Host-only execution has no kit dependency. Keep the development probe
+	// when the target answers (so a live development session still blocks),
+	// but an unavailable kit cannot prevent a software launch.
+	if err != nil && !(execution == fogcast.ExecutionHostOnly && targetUnavailable(err)) {
 		return sessionResult{}, err
 	}
 	if development {
@@ -1470,6 +1479,22 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 	development = s.execution == fogcast.ExecutionFPGADevelopment
 	s.mu.Unlock()
 	return development, nil
+}
+
+func targetUnavailable(err error) bool {
+	var apiErr *protocol.APIError
+	return errors.As(err, &apiErr) && apiErr.Code == protocol.CodeMiSTerUnavailable
+}
+
+func (s *sessionCoordinator) clearHostOnlyExecution(execution string) {
+	s.mu.Lock()
+	if s.execution == execution && execution == fogcast.ExecutionHostOnly {
+		s.execution = ""
+		s.mediaHandle = nil
+		s.mediaState = "stopped"
+		s.terminalStatus = nil
+	}
+	s.mu.Unlock()
 }
 
 func (s *sessionCoordinator) restoreExecution(execution string) {
