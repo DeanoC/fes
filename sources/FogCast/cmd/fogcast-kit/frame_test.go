@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"image"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -183,5 +184,33 @@ func BenchmarkKitGridIdle(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+func TestWheelRefreshSkipsOnlyIdenticalSettledScenes(t *testing.T) {
+	var cache wheelFrameCache
+	frame := fbgrid.WheelFrame{Width: 1280, Height: 720, Theme: theme.Default(),
+		Hero:  image.NewRGBA(image.Rect(0, 0, 8, 8)),
+		Items: []fbgrid.WheelItem{{ID: "nes", Label: "NES"}}}
+	if !cache.shouldPaint(frame, false) || cache.shouldPaint(frame, false) {
+		t.Fatal("first paint or idle reuse failed")
+	}
+	frame.Footer = "changed title"
+	if !cache.shouldPaint(frame, false) {
+		t.Fatal("refresh hid changed footer")
+	}
+	frame.Hero = image.NewRGBA(image.Rect(0, 0, 9, 8))
+	if !cache.shouldPaint(frame, false) {
+		t.Fatal("refresh hid changed artwork")
+	}
+	frame.Items = []fbgrid.WheelItem{{ID: "snes", Label: "SNES"}}
+	if !cache.shouldPaint(frame, false) {
+		t.Fatal("refresh hid changed wheel")
+	}
+	if !cache.shouldPaint(frame, true) || !cache.shouldPaint(frame, true) || !cache.shouldPaint(frame, false) {
+		t.Fatal("motion or final settled frame was skipped")
+	}
+	if cache.shouldPaint(frame, false) {
+		t.Fatal("settled frame not reused")
 	}
 }

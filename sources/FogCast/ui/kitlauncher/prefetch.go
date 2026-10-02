@@ -52,12 +52,9 @@ func PrefetchArtworkHandles(m Model, lookup func(string) hostclient.Presentation
 			focus = titleArtwork(game, lookup)
 		}
 		page := make([]string, 0, len(m.Shelves)*3)
-		for _, id := range m.WheelPrefetchIDs() {
-			for _, game := range m.Catalog {
-				if game.ID == id {
-					page = append(page, titleArtwork(game, lookup)...)
-					break
-				}
+		for _, shelf := range m.Shelves {
+			if game, ok := m.WheelGame(shelf); ok {
+				page = append(page, titleArtwork(game, lookup)...)
 			}
 		}
 		strip := collectTitleArtwork(m.Strip, 0, len(m.Strip), lookup)

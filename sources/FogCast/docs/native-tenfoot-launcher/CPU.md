@@ -44,7 +44,26 @@ render key admits navigation, status and artwork updates immediately. Unchanged
 keys refresh once a second to capture fields outside that key, with no
 rasterization or full-frame comparison between refreshes. Animation ticks and
 their final settled frame draw immediately; menu probes/retries and Pause/Resume
-continue on idle ticks. This does not change the launcher input cadence.
+continue on idle ticks. Tile, footer and wheel-frame construction happens only
+after that gate admits a paint. At a bounded wheel refresh, identical complete
+frame content also reuses its rendered revision, avoiding artwork uploads and
+rasterization. Motion bypasses reuse and forces the final settled paint.
+Wheel representative, play-count and last-played
+queries use summaries rebuilt on catalog changes, without filtering or scanning
+the catalog on idle ticks. Models constructed without `SetCatalog` retain a
+scan fallback. This
+does not change the launcher input cadence.
+
+Tenfoot labels retain both their source and fitted visible text. Identical
+sources skip fitting; changes confined to a clipped suffix reuse the existing
+texture without invalidating the scene or settings backdrop. Visible text and
+width/font-size changes still upload new glyphs.
+
+The kit grid entry point and tenfoot `menu-display` / `linuxfb` entry points
+set a 96 MiB soft Go memory limit before starting workers, unless `GOMEMLIMIT`
+is explicitly set. This bounds idle heap growth after large startup decodes;
+it is a GC/scavenging target, not a hard RSS or artwork allocation cap. Desktop
+SDL and other tenfoot backends retain the normal Go runtime policy.
 
 ## Profiling
 
@@ -56,7 +75,11 @@ fogcast-tenfoot -gfx menu-display \
   -heap-profile /tmp/tenfoot-heap.pprof
 ```
 
-Exit normally or with SIGTERM, then inspect with matching binary bytes:
+With `-heap-profile`, SIGUSR1 also writes a live heap after collection, while
+artwork and renderer resources still exist. Copy that file before shutdown,
+which writes the final heap to the same path. The grid launcher also accepts
+`-cpu-profile`. Exit normally or with SIGTERM, then inspect with matching binary
+bytes:
 
 ```sh
 go tool pprof -top fogcast-tenfoot /tmp/tenfoot-cpu.pprof

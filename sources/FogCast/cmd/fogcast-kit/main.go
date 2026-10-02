@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"runtime/pprof"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -65,6 +66,7 @@ func selectKitUI(path string) (string, string) {
 	}
 }
 func run() error {
+	cpuProfile := flag.String("cpu-profile", "", "write CPU pprof to this file until exit")
 	configPath := flag.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
 	inputProfile := flag.String("input-profile", "", "identity, swap-ab, or JSON profile path (default identity)")
 	themeSpec := flag.String("theme", "", "classic/default, neon/arcade, sofa-dim/night, or JSON/TOML path (default classic)")
@@ -98,6 +100,21 @@ func run() error {
 	menuDisplay := flag.Bool("menu-display", false, "present the kit shell through the local described HDMI menu")
 	printKitUI := flag.Bool("print-kit-ui", false, "print tenfoot or grid and exit")
 	flag.Parse()
+	shared.ConfigureKitMemoryLimit()
+	if *cpuProfile != "" {
+		file, err := os.Create(*cpuProfile)
+		if err != nil {
+			return err
+		}
+		if err := pprof.StartCPUProfile(file); err != nil {
+			file.Close()
+			return err
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			file.Close()
+		}()
+	}
 	if *printKitUI {
 		writeKitUI(os.Stdout, os.Stderr, *configPath)
 		return nil
@@ -255,6 +272,7 @@ func run() error {
 	}
 	lastFocus := -1
 	var popAt time.Time
+	var wheelCache wheelFrameCache
 	var fx sceneFX
 	fxOff := *noTransition
 	audioEnabled := audioreact.Enabled(*audioChrome, os.Getenv("FOGCAST_AUDIO_CHROME"), c.AudioChrome, th.AudioChrome)
@@ -293,6 +311,9 @@ func run() error {
 			presentations.ClearFailed()
 		}
 		wasConnected = m.Connected
+		if !m.WheelOpen || m.Busy || m.AttractActive {
+			wheelCache = wheelFrameCache{}
+		}
 		now := time.Now()
 		look := kitLook(m, th)
 		sample := audioreact.Sample{}
@@ -352,23 +373,27 @@ func run() error {
 			covers.Request(ctx, client.Library, coverHandles)
 			cfg := d.Config()
 			w, h := cfg.Width, cfg.Height
-			frame := modelWheelFrame(m, covers, stills, presentations, look, w, h)
 			wheelFocus := m.WheelIndex()
 			if lastFocus >= 0 && wheelFocus != lastFocus {
 				popAt = now
 			}
 			lastFocus = wheelFocus
-			frame.Now = now
-			frame.PopAt = popAt
-			frame.Audio = sample
 			key := modelRenderKey(m, covers.Generation(), presentations.Generation())
 			key.Wheel = true
 			key.Stills = stills.Generation()
 			key.Audio = audioreact.Quantize(sample.Level, 16)
 			key.AudioKind = string(sample.Kind)
-			if !painter.shouldPaint(now, key, frame.MotionActive() || fx.active(now)) {
+			moving := (fbgrid.WheelFrame{Now: now, PopAt: popAt}).MotionActive() || fx.active(now)
+			if !painter.shouldPaint(now, key, moving) {
 				return
 			}
+			frame := modelWheelFrame(m, covers, stills, presentations, look, w, h)
+			frame.Audio = sample
+			if !wheelCache.shouldPaint(frame, moving) {
+				painter.presentRevision()
+				return
+			}
+			frame.Now, frame.PopAt = now, popAt
 			fbgrid.PaintWheel(painter, frame)
 			paintSceneFX(painter, w, h, fx, now, look)
 			presentKitFrame(painter, w, look, kitIdentity)
@@ -406,8 +431,11 @@ func run() error {
 		stills.Request(ctx, client.Library, backdropHandles)
 		cfg := d.Config()
 		w, h := cfg.Width, cfg.Height
-		grid := modelGrid(m, w, h, covers, presentations, look)
-		grid.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
+		// Check motion and revisions before constructing tiles and text.
+		grid := fbgrid.Grid{}
+		if m.Focus >= start && m.Focus < end {
+			grid.Focus = m.Focus - start
+		}
 		if lastFocus >= 0 && grid.Focus != lastFocus {
 			popAt = now
 		}
@@ -421,6 +449,10 @@ func run() error {
 		if !painter.shouldPaint(now, key, grid.MotionActive() || fx.active(now)) {
 			return
 		}
+		grid = modelGrid(m, w, h, covers, presentations, look)
+		grid.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
+		fbgrid.ArmPop(&grid, popAt, now)
+		grid.Audio = sample
 		if m.DetailOpen {
 			frame := modelDetailFrame(m, covers, presentations, look, w, h)
 			frame.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))

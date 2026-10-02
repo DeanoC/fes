@@ -19,6 +19,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/kitlauncher"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
@@ -36,6 +37,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
+	}
+	if opts.GFX == "menu-display" || opts.GFX == "linuxfb" {
+		shared.ConfigureKitMemoryLimit()
 	}
 	var cpuProfile *os.File
 	if opts.CPUProfile != "" {
@@ -73,6 +77,37 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// With an explicit output path, SIGUSR1 captures the live renderer heap
+	// before normal shutdown releases its textures and artwork caches.
+	if opts.HeapProfile != "" {
+		heapSignal := make(chan os.Signal, 1)
+		signal.Notify(heapSignal, syscall.SIGUSR1)
+		done := make(chan struct{})
+		defer func() {
+			signal.Stop(heapSignal)
+			stop()
+			<-done
+		}()
+		go func() {
+			defer close(done)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-heapSignal:
+					file, err := os.Create(opts.HeapProfile)
+					if err == nil {
+						runtime.GC()
+						err = pprof.WriteHeapProfile(file)
+						file.Close()
+					}
+					if err != nil {
+						fmt.Fprintf(stderr, "heap profile: %v\n", err)
+					}
+				}
+			}
+		}()
+	}
 	if err := tenfoot.Run(ctx, opts); err != nil {
 		fmt.Fprintf(stderr, "fogcast-tenfoot: %v\n", err)
 		return 1
@@ -88,7 +123,7 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 	fs := flag.NewFlagSet("fogcast-tenfoot", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	cpuProfile := fs.String("cpu-profile", "", "write CPU pprof to this file until exit")
-	heapProfile := fs.String("heap-profile", "", "write heap/allocation pprof to this file at exit")
+	heapProfile := fs.String("heap-profile", "", "write heap/allocation pprof on SIGUSR1 and at exit")
 	configPath := fs.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
 	fs.String("api", "", "FogCast host API base URL")
 	fs.String("token", "", "launcher API bearer token")

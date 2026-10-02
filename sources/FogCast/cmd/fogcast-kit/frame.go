@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/DeanoC/FogCast/ui/fbgrid"
+	"reflect"
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -50,4 +52,23 @@ func (p *kitFramePainter) presentRevision() {
 	if d, ok := p.Device.(interface{ PresentRevision(uint64) }); ok {
 		d.PresentRevision(p.revision)
 	}
+}
+
+// The bounded wheel refresh discovers fields outside renderKey. Its complete
+// frame can still be identical: avoid re-uploading immutable artwork and
+// re-rasterizing it in that case. Frames own their slices and cache images are
+// immutable. Moving frames bypass reuse and force a final settled paint.
+type wheelFrameCache struct{ last *fbgrid.WheelFrame }
+
+func (c *wheelFrameCache) shouldPaint(frame fbgrid.WheelFrame, moving bool) bool {
+	if moving {
+		c.last = nil
+		return true
+	}
+	frame.Now, frame.PopAt = time.Time{}, time.Time{}
+	if c.last != nil && reflect.DeepEqual(*c.last, frame) {
+		return false
+	}
+	c.last = &frame
+	return true
 }

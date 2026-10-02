@@ -256,3 +256,37 @@ func TestDrawAttractClearsWithTheme(t *testing.T) {
 		t.Fatalf("ops %#v color %+v", rec.Ops(), rec.Calls)
 	}
 }
+
+func TestDrawLabelReusesClippedGlyphs(t *testing.T) {
+	rec := gfx.NewRecorder()
+	labels := map[string]gpuTexture{}
+	used := map[string]struct{}{}
+	draw := func(text string, width int) gpuTexture {
+		t.Helper()
+		drawLabel(rec, labels, used, "lease", 0, 0, width, 16, text)
+		return labels[labelCacheKey("lease", "", width, 16)]
+	}
+	prefix := "Kit lease held by an operator with a long purpose 日本語 "
+	first := draw(prefix+"TTL 89s", 160)
+	if first.labelDisplay == "" || first.labelDisplay == first.labelSource {
+		t.Fatal("fixture did not truncate the label")
+	}
+	rec.Calls = nil
+	second := draw(prefix+"TTL 88s", 160)
+	if first.tex != second.tex || second.labelSource != prefix+"TTL 88s" {
+		t.Fatal("hidden suffix replaced texture or failed to remember source")
+	}
+	for _, call := range rec.Calls {
+		if call.Op == "CreateRGBA" || call.Op == "Destroy" {
+			t.Fatalf("hidden suffix mutated texture: %s", call.Op)
+		}
+	}
+	changed := draw("Lease free", 160)
+	if changed.tex == first.tex || rec.Alive(first.tex) || !rec.Alive(changed.tex) {
+		t.Fatal("visible change failed to replace texture")
+	}
+	resized := draw("Lease free", 80)
+	if resized.tex == changed.tex {
+		t.Fatal("width change reused texture")
+	}
+}

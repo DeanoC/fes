@@ -910,7 +910,11 @@ dispatches to `ui/tenfoot/menudisplay_linux.go` the same way: it reuses that
 app, evdev input, and smoke loop, forces 1280×720, and submits through the
 runtime menu socket with change-driven presents. The direct CPU loop records
 complete scenes through `gfx.FrameCache`: identical draw commands and unchanged
-textures skip rasterization. Texture mutations preserve draw order and invalidate
+textures skip rasterization. Label textures are keyed by slot, width and font
+size; unchanged source strings bypass fitting, and source changes reuse the
+texture when the fitted visible text is identical. A clipped lease countdown
+therefore cannot invalidate a scene whose visible header has not changed.
+Texture mutations preserve draw order and invalidate
 reuse. Settings marks a backdrop checkpoint after dimming and painting its
 fixed panel border, background and title. CPU devices retain one RGBA
 framebuffer copy (3.52 MiB at 1280×720). When only the panel changes, the cache
@@ -924,7 +928,15 @@ checkpoint invalidates reuse, so closing and reopening settings cannot retain
 stale pixels. Identical whole frames still do no pixel copies. Other devices
 replay their normal commands; the Device and runtime wire contracts are
 unchanged.
-Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
+The grid CLI and tenfoot CPU kit backends (`menu-display` / `linuxfb`) default
+to a 96 MiB soft Go memory limit, honoring an explicit `GOMEMLIMIT`. This
+collects and scavenges temporary decode heaps sooner; it is not a hard RSS cap.
+Desktop SDL retains the normal runtime policy. Wheel summaries are rebuilt on
+catalog replacement and volatile-field refresh; idle prefetch reads those
+representatives without catalog scans, and frame construction follows the paint
+gate. Bounded wheel refreshes compare the complete frame content and reuse
+the rendered revision when it is identical; motion bypasses reuse and forces
+a final settled paint. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
 Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
 callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip
