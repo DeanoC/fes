@@ -1,0 +1,12 @@
+selected_target = "kit"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[[targets]]
+name = "kit"
+enabled = false
+
+[[libraries]]
+id = "sms-main"
+system = "sms"
+root = "/media/fat/games/sms"

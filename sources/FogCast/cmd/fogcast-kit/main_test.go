@@ -13,7 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/anim"
 	"github.com/DeanoC/FogCast/ui/fbgrid"
@@ -80,9 +82,82 @@ func TestAttachLocalCatalogUsesSiblingConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := kitlauncher.NewClient(kitlauncher.Config{API: "http://127.0.0.1:9"})
-	attachLocalCatalog(client, launcher, func(string) string { return "" })
+	attachLocalCatalog(client, "", launcher, func(string) string { return "" })
 	if client.CatalogConfig() != catalog {
 		t.Fatalf("catalog = %q", client.CatalogConfig())
+	}
+}
+
+func TestAttachLocalCatalogUsesExplicitConfig(t *testing.T) {
+	dir := t.TempDir()
+	launcher := filepath.Join(dir, "launcher.json")
+	explicit := filepath.Join(dir, "kit.toml")
+	if err := os.WriteFile(launcher, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte("token = \"sibling\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(explicit, []byte("token = \"explicit\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client := kitlauncher.NewClient(kitlauncher.Config{API: "http://127.0.0.1:9"})
+	attachLocalCatalog(client, explicit, launcher, func(string) string { return "" })
+	if client.CatalogConfig() != explicit {
+		t.Fatalf("catalog = %q", client.CatalogConfig())
+	}
+}
+
+func TestProvisionedCatalogConfigResolvesForTheKitShell(t *testing.T) {
+	overlay := filepath.Join("..", "..", "..", "..", "image", "buildroot", "board", "fogcast-target", "native-rootfs-overlay", "usr", "share", "fogcast", "config.toml")
+	raw, err := os.ReadFile(overlay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if strings.Contains(text, "token") || strings.Contains(text, "http") {
+		t.Fatal("provisioned catalog config contains a host or token")
+	}
+	cfg, err := fogcast.LoadConfig(overlay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SelectedTarget != "kit" || cfg.Token != "" || cfg.BaseURL != "" || len(cfg.Targets) != 1 || cfg.Targets[0].Enabled || cfg.Targets[0].Address != "" || cfg.Targets[0].Agent != "" {
+		t.Fatalf("target config %+v selected %q token %q url %q", cfg.Targets, cfg.SelectedTarget, cfg.Token, cfg.BaseURL)
+	}
+	if len(cfg.Libraries) != 1 || cfg.Libraries[0].ID != "sms-main" || cfg.Libraries[0].System != protocol.SystemSMS || cfg.Libraries[0].Path != "/media/fat/games/sms" {
+		t.Fatalf("libraries %+v", cfg.Libraries)
+	}
+	if got := fogcast.ResolveCatalogConfig(overlay, filepath.Join(t.TempDir(), "launcher.json"), func(string) string { return "" }); got != overlay {
+		t.Fatalf("resolve = %q", got)
+	}
+	client := kitlauncher.NewClient(kitlauncher.Config{API: "http://127.0.0.1:9"})
+	attachLocalCatalog(client, overlay, filepath.Join(t.TempDir(), "launcher.json"), func(string) string { return "" })
+	if client.CatalogConfig() != overlay {
+		t.Fatalf("launcher catalog = %q", client.CatalogConfig())
+	}
+
+	// PathsForConfig creates state beside the file. Copy first so the
+	// overlay in the repo stays untouched, and keep the shipped root.
+	dir := t.TempDir()
+	copyPath := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(copyPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := fogcast.PathsForConfig(copyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, notice, err := fogcast.BootLocalCatalog(context.Background(), paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = service.Close() })
+	if service.SelectedTargetConfig().Enabled {
+		t.Fatal("kit catalog boot enabled a host target")
+	}
+	if _, statErr := os.Lstat("/media/fat/games/sms"); os.IsNotExist(statErr) && notice != fogcast.ShelfMissing {
+		t.Fatalf("missing shelf notice = %q", notice)
 	}
 }
 
