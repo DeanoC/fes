@@ -1,6 +1,8 @@
 package fogcast
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,8 +95,19 @@ func TestPathsForConfigUsesExplicitStateWhenTheConfigDirIsReadOnly(t *testing.T)
 }
 
 func TestPathsForConfigReadOnlyConfigIgnoresUnusableStateUnderUsr(t *testing.T) {
-	const probe = "/usr/share/fogcast-catalog-state-probe"
-	t.Cleanup(func() { _ = os.RemoveAll(probe) })
+	var suffix [8]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		t.Fatal(err)
+	}
+	// A fixed name under /usr could be a real directory. A random suffix
+	// cannot collide with one, and this test never deletes the path: a
+	// privileged run must not remove something it did not create.
+	probe := filepath.Join("/usr/share", "fogcast-catalog-state-probe-"+hex.EncodeToString(suffix[:]))
+	if _, err := os.Lstat(probe); err == nil {
+		t.Skip("probe path already exists: " + probe)
+	} else if !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
 	body := "state = \"" + probe + "/state\"\nstaging = \"" + probe + "/staging\"\n"
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -121,7 +134,7 @@ func TestPathsForConfigReadOnlyConfigIgnoresUnusableStateUnderUsr(t *testing.T) 
 		t.Fatalf("index %q staging %q, want storage under %q", paths.Index, paths.Staging, root)
 	}
 	if _, err := os.Lstat(probe); !os.IsNotExist(err) {
-		t.Fatalf("probe under /usr: %v", err)
+		t.Fatalf("probe under /usr was created: %v", err)
 	}
 	assertConfigDirUntouched(t, dir)
 }
