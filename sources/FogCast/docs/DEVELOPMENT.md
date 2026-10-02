@@ -101,9 +101,9 @@ The image selector supports nine core IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, using sealed
 format-2 or format-3 packages. `fes.menu` is idle display firmware, not a playable
 catalog entry. The current [FES default profile](../../../profiles/native-integration-dev.toml)
-selects menu, Pong, ZX81, Coleco and the OSS 100 MHz RAM Tester. SMS, SG-1000 and Spectrum remain
-package-only under the 128 MiB rootfs limit; C64 has no current timing-passing HIP
-seal. See [core status](../../../docs/core-status.md) for exact-artifact evidence.
+selects menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum and the OSS 100 MHz RAM Tester.
+C64 has no current timing-passing HIP seal and stays out.
+See [core status](../../../docs/core-status.md) for exact-artifact evidence.
 
 The following is the complete nine-ID input example for the selector interface;
 it requires sealed packages and sufficient image capacity before use. It does

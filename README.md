@@ -72,10 +72,10 @@ make verify
 
 The default `native-integration-dev` selects component revisions through the
 FES commit, retains the locked idle RBF, and installs the ordered,
-closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest`. SMS,
-SG-1000 and Spectrum remain sealed, registered package-only recipes. C64
-remains registered while its HIP seal is unresolved. The 128 MiB rootfs
-limit prevents including the three sealed additions in this image.
+closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
+`fes.sg1000`, `fes.spectrum`, `fes.ramtest`. SMS, SG-1000 and Spectrum are
+sealed and included. C64 remains registered while its HIP seal is unresolved,
+so it stays out. The 128 MiB rootfs from #347 holds this set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
@@ -155,7 +155,7 @@ artifacts they name.
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered five-package FES set (menu, Pong, ZX81, Coleco, RAM Tester) |
+| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered eight-package FES set (menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum, RAM Tester) |
 
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
