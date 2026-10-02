@@ -105,22 +105,24 @@ Slice 8.
 
 ## M1 interoperability matrix
 
-This matrix separates the existing kit protocol from the proposed remote
-software-runner contract. A capability is an execution fact, never a
+This matrix separates the existing kit protocol from the remote
+software-runner rules in the combined library contract, approved in
+#394 on 2026-10-02. A capability is an execution fact, never a
 permanent Host/Kit identity. Current DNS-SD fields are implemented; runner
-advertisement and pairing are not.
+advertisement and pairing are not. Remote eligibility stays gated on
+#298 and its prerequisites.
 
-| Field | Kit today (implemented) | Linux/Mac software runner (proposed; gap #360) |
+| Field | Kit today (implemented) | Linux/Mac software runner (approved contract; gap #360) |
 | --- | --- | --- |
-| Identity | `node_id` and `target_id` are the same persistent kit ID. Configured-target authentication and per-kit launcher credentials bind it; user pairing is not implemented, and discovery alone does not enroll. | The #379 proposal reads a runner's `software_backends` on that runner's launcher listener with a launcher pairing bearer, and only at the origin recorded at pairing. The bearer is bound to the runner's node id (#298 item 2), which is not minted here. Runner admission and provisioning are further prerequisites in decision 4. Until #298 and those prerequisites, remote `native_emu` stays unavailable. Do not add a Host/Kit enum. PAKE is not this enrollment. |
+| Identity | `node_id` and `target_id` are the same persistent kit ID. Configured-target authentication and per-kit launcher credentials bind it; user pairing is not implemented, and discovery alone does not enroll. | The combined library contract, approved in #394 on 2026-10-02, describes reading a runner's `software_backends` on that runner's launcher listener with a launcher pairing bearer, and only at the origin recorded at pairing. The bearer is bound to the runner's node id (#298 item 2), which is not minted here. Runner admission and provisioning are further prerequisites in decision 4. Until #298 and those prerequisites, remote `native_emu` stays unavailable. Do not add a Host/Kit enum. PAKE is not this enrollment. |
 | Protocol | `mesh=1.0`; Phase 0 peers may omit it and remain directly bindable. A needed mesh major mismatch fails closed. | Negotiate the same mesh major.minor; advertise only after support is implemented. |
-| Execute | `fpga_native`; TXT has no ABI families. Placement separately reads authenticated node content/ABI data. | DNS-SD carries execute kind `native_emu` only (with `node_id` and `mesh`). Systems, emulator name, core id, core version, and core pin come from authenticated `software_backends` on `GET /api/v1/health`, read at the enrolled origin. They are not DNS-SD fields. Current `host_only` is a host-local execution label, not a remote advertisement. Eligibility is **PROPOSED (needs Deano/Bob sign-off)** below. Until that sign-off, #298, and the decision 4 enrollment prerequisites, every remote candidate stays unavailable. |
+| Execute | `fpga_native`; TXT has no ABI families. Placement separately reads authenticated node content/ABI data. | DNS-SD carries execute kind `native_emu` only (with `node_id` and `mesh`). Systems, emulator name, core id, core version, and core pin come from authenticated `software_backends` on `GET /api/v1/health`, read at the enrolled origin. They are not DNS-SD fields. Current `host_only` is a host-local execution label, not a remote advertisement. The combined library contract was approved in #394 on 2026-10-02. Remote eligibility stays gated on #298 and the decision 4 enrollment prerequisites, so every remote candidate stays unavailable. |
 | Display/input | `display_sink=true`, `input_source=true` mean the kit can present and supply local input; they do not attest live picture or multiple players. | Advertise only functions the runner owns. Remote video/input routing is not part of M1 evidence. |
 | Availability | DNS-SD TTL controls inventory presence only. Kit lease status and composition determine admission/readiness separately. | Heartbeat/health, backend readiness, and single-session busy state need an implementation and honest UI. |
 | Ownership | Existing target-agent kit lease is the FPGA admission authority (90-second grant, 20-second renewal); one owner, explicit release/expiry cleanup. | Runner serializes its own session lifecycle and rejects busy/incompatible requests. No second FPGA lease. |
 | Catalog/content | No title list or credentials in DNS-SD. Host library and per-kit mesh content API are separate. | Reuse title IDs and backend options through host library surfaces; do not add titles, paths, or secrets to advertisements. Content transport is outside this minimum M1 contract. |
 
-**Title/backend rule (proposed):** retain catalog `game_id` as title
+**Title/backend rule (approved in #394 on 2026-10-02):** retain catalog `game_id` as title
 identity and represent executable options separately. A session chooses one
 backend and executor; backend compatibility/version, required package or
 media composition, availability, and ownership must all admit before launch.
@@ -129,8 +131,8 @@ runner negotiation and dual-backend evidence are GAP #360/#361. The evidence
 matrix and legal test-title limits are in [`mesh-lan.md`](mesh-lan.md).
 The contract that closes those gaps is the combined library contract
 below. Phase 2 serves `GET /api/v1/library/titles` from
-`ProjectMeshBackendLibrary`. Source provenance and remote `native_emu`
-eligibility are not implemented.
+`ProjectMeshBackendLibrary`. Source provenance waits on #396. Remote
+`native_emu` eligibility stays gated on #298 and its prerequisites.
 
 ### Combined library contract (#379)
 
@@ -224,7 +226,7 @@ off.
 
 #### 2. Remote source-provenance contract
 
-**Proposal.** Supply is an optional `content_ids` array on the
+**Approved in #394 on 2026-10-02; gated on #396.** Supply is an optional `content_ids` array on the
 authenticated node document, `GET /v1/mesh/content/node`. Each element
 is a canonical content-id string from decision 3. The host accepts the
 array only when the document's `node_id` equals the configured
@@ -245,7 +247,7 @@ automatically. The owner-facing sentence is `node moved; re-pair or
 confirm the new address`. That sentence is not a new library `reason`
 string. Confirmation is an explicit config edit or re-pairing
 step by the owner. **Phase-2 provenance must not ship before #396
-lands.** This proposal does not change `placementReadAddress`.
+lands.** Phase 2 does not change `placementReadAddress`.
 
 A configured hostname is the same rule. `prepare_launcher.py`
 (`validate_address`) accepts a hostname and writes an `http://` origin.
@@ -306,7 +308,7 @@ defaults stay off.
 
 #### 3. Content-id lock
 
-**Proposal.** Lock the Phase 2 per-slot form. A content-id is the text
+**Approved in #394 on 2026-10-02.** Lock the Phase 2 per-slot form. A content-id is the text
 `sha256:` plus 64 lowercase hex digits, SHA-256 of that slot's bytes.
 Primary media is the digest #361 links on: catalog content SHA-256, or
 core-media `MediaID` / `ROMLink.SourceSHA256`. `ProgrammedSHA256`, a
@@ -336,8 +338,8 @@ does not trim and it does not downcase. The bare-digest rejection is
 A future algorithm is a new name before the colon, added by naming it
 in `internal/meshcontent`. `sha256:` values stay valid under that name.
 The algorithm name is the version. A mesh minor may add an optional
-field; an unknown algorithm still fails closed (`ErrAlgorithm`). This
-proposal adds no second algorithm.
+field; an unknown algorithm still fails closed (`ErrAlgorithm`). The approved contract
+adds no second algorithm.
 
 The content-id lock was approved in #394 on 2026-10-02. Canonical text
 is `sha256:` plus 64 lowercase hex. `ParseContentID` does not normalize.
@@ -363,7 +365,7 @@ as a content-id. An unknown algorithm fails closed.
 
 #### 4. Remote `native_emu` eligibility and identity
 
-**Proposal.** DNS-SD for a remote runner carries `node_id`, `mesh=1.0`,
+**Approved in #394 on 2026-10-02; remote eligibility stays gated on #298 and its prerequisites.** DNS-SD for a remote runner carries `node_id`, `mesh=1.0`,
 and execute `native_emu`. `display_sink` and `input_source` are present
 only when that runner owns them. Pins, titles, paths, and tokens stay
 off the TXT record. The runner advertises `mesh` only once it
@@ -396,7 +398,7 @@ is the runner's node id. `prepare_launcher.py` mints the bearer when
 the pair is absent and keeps it distinct from `[[targets]].agent`;
 `fogcast-api` refuses to start when they are equal. Today that script
 writes the selected kit's `target_id`. Writing a runner id is
-prerequisite 3 below. This proposal does not change the script. The
+prerequisite 3 below. Phase 2 does not change the script. The
 bearer is not a DNS-SD field. Discovery does
 not enroll. PAKE is not this issuance. There is no Host/Kit enum.
 
@@ -420,12 +422,12 @@ caller's `X-FogCast-Target-ID` into `target.connection.target_id`.
 That header is not a node id the runner proved. `software_backends`
 is the serving process's cores. The id to store, send, and echo is
 #298 item 2 (random CSPRNG installation id, owner-only, stable across
-restart, not a hostname or MAC). This proposal does not mint it and
+restart, not a hostname or MAC). Phase 2 does not mint it and
 does not add the echo. A kit keeps its existing `target_id` and does
 not wait on the list below. Kit `fpga_native` eligibility is unchanged.
 
 **Prerequisites.** Remote `native_emu` stays unavailable until #298
-and every item below is done. This proposal does not implement them.
+and every item below is done. Phase 2 does not implement them.
 
 1. **Host installation id (#298).** The runner has the #298 item 2 id,
    the pairing stores it as `target_id`, and health echoes it. Until
@@ -437,7 +439,7 @@ and every item below is done. This proposal does not implement them.
    when it is an enabled `[[targets]]` row on the serving process. A
    runner installation id is not such a row. The prerequisite is a
    runner enrollment record, or an equivalent admission rule, that
-   admits that id on the launcher health read. This proposal does not
+   admits that id on the launcher health read. Phase 2 does not
    add the record and does not retarget `kitTarget`. Acceptance: with
    the record, the runner id is admitted; a missing or foreign record
    is 403 and the body is dropped. An enabled kit `[[targets]]` row
@@ -445,7 +447,7 @@ and every item below is done. This proposal does not implement them.
 3. **Provisioning.** `prepare_launcher.py` writes the selected kit's
    `target_id` only. The prerequisite is provisioning that writes the
    runner node id into `launcher-host.json` and the shell's
-   `launcher.json` (`api`, `token`, `target_id`). This proposal does
+   `launcher.json` (`api`, `token`, `target_id`). Phase 2 does
    not change the script. Acceptance: a runner enrollment produces
    that pair for the runner id. Preparing a selected kit still writes
    the kit id and does not invent a runner id.
@@ -520,8 +522,8 @@ for M1 sms is
 `051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49`.
 Linux and Mac runners whose core digests differ are not both eligible.
 Only the digest equal to the configured pin matches. The other stays
-unavailable. A separate remote pin list is an open follow-up. This
-proposal does not add it, and no issue is filed for it.
+unavailable. A separate remote pin list is an open follow-up. Phase 2
+does not add it, and no issue is filed for it.
 
 `core_version` (the label `" c2838c7d"`) is not compared. `emulator`
 (`retroarch`) is not a second gate. An empty local pin authorizes no
@@ -546,7 +548,7 @@ match the listener that serves `software_backends`. Treating
 `target.connection.target_id` as the runner id would trust the
 caller's header. Sending any bearer to a DNS-SD address hands it to a
 forged advertisement. A nonce challenge answered with the pairing key
-can be relayed to the enrolled origin, so this proposal does not use
+can be relayed to the enrolled origin, so Phase 2 does not use
 one. Resolving a configured hostname again on every request would
 follow a spoofed DNS or mDNS answer and send the bearer there. PAKE,
 minting #298, adding the runner admission record, or
@@ -864,7 +866,7 @@ or staged on that kit.
 
 | Call | Request | Response |
 | --- | --- | --- |
-| Node | `GET /v1/mesh/content/node` | `node_id`, `abis` (`id`, `major`), optional `packages` (described package ids, 64 lowercase hex). An empty or omitted list is not eligibility. Optional `content_ids` is **PROPOSED (needs Deano/Bob sign-off)** in [Combined library contract (#379)](#combined-library-contract-379); the current response has no such field. |
+| Node | `GET /v1/mesh/content/node` | `node_id`, `abis` (`id`, `major`), optional `packages` (described package ids, 64 lowercase hex). An empty or omitted list is not eligibility. Optional `content_ids` was approved with the combined library contract in #394 on 2026-10-02 and stays gated on #396; the current response has no such field. |
 | Slot | `GET /v1/mesh/content/slot?id=sha256:<64 hex>` | `state`: `present`, `checking`, or `missing` |
 | Source | `GET /v1/mesh/content/source?id=sha256:<64 hex>` | `advertises` |
 | Pull | `POST /v1/mesh/content/pull?id=sha256:<64 hex>` with an empty body | `state` after the kit reads its content source |

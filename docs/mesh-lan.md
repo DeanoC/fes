@@ -175,8 +175,8 @@ two-node software-runner acceptance is complete.
 | Concern | Implemented today | M1 contract / remaining gap |
 | --- | --- | --- |
 | **Capability/version** | Kit DNS-SD advertises mesh `1.0`, `fpga_native`, `display_sink`, and `input_source`; no ABI families in TXT. Host placement reads ABI families from the authenticated kit content document. The host `/api/v1/health` also reports mesh `1.0` and configured `native_emu` core/system identity, configured core version label, and observed SHA-256. The version is copied from config; FogCast does not query RetroArch for it. See `sources/FogCast/internal/discovery/mesh.go`, `fogcast/mesh_place_wire.go`, and the health handler. | Mesh major mismatch is ineligible; unknown optional minor fields are ignored. The software capability is visible from the host health response, but host-to-host discovery/pairing and federated placement are not implemented. Do not advertise shell/catalog/coordinator unless the node actually serves them. |
-| **Title/backend** | Catalog entries preserve `game_id`; host execution uses `host_only` with the host RetroArch adapter, while FPGA uses `fpga_native`. `Service.MeshBackendLibrary` projects the local catalog and kit inventory. It groups options by catalog game id and links rows at read time when the ROM sha256 and system match exactly: the package row's game id is canonical and the raw ROM folds in as its emulator option (more rows: package first, then lowest game id; a hash or system mismatch never links). Local Data Storm is one row with the kit `fes.sms` option and the host-local emulator option. The projection does not claim session Ready. `GET /api/v1/library/titles` serves that projection. `content_sources` node ids stay empty until #396, and a remote `native_emu` node stays unverified. See `fogcast/mesh_library.go` and `internal/meshcontent/content.go`. | **Proposed:** publish the combined library with source provenance and select one backend explicitly per session. The wire, provenance, content-id lock, and remote `native_emu` eligibility that were **GAP #360** and **GAP #361** are the contract in [Combined library contract (#379)](#combined-library-contract-379). Phase 2 serves the route. Source provenance waits on #396. Remote `native_emu` eligibility stays unavailable until #298 plus the decision 4 enrollment prerequisites. |
-| **Node identity/pairing** | Kit identity is its existing persistent `target_id`; DNS-SD repeats it as `node_id`. Host reconciles discovery with configured targets and authenticated health. The launcher listener supports per-`target_id` credentials after #287; this is not the proposed user pairing flow. See `fogcast/discovery.go`, `internal/discovery/mesh.go`, `docs/mesh-vnext.md` §2.1, and `internal/hostapi/launcher.go`. | **Proposed:** the kit keeps that ID through capability changes. A software runner's `software_backends` are read on that runner's launcher listener with a launcher pairing bearer, and only at the origin recorded at pairing. The bearer is bound to a host node id (#298 item 2). Runner admission and provisioning are further prerequisites in decision 4. This proposal implements none of them, and remote `native_emu` stays unavailable until #298 and those prerequisites. Do not add a permanent Host/Kit identity enum. The v-next PAKE flow is proposed, not implemented. Decision 4 is the contract. |
+| **Title/backend** | Catalog entries preserve `game_id`; host execution uses `host_only` with the host RetroArch adapter, while FPGA uses `fpga_native`. `Service.MeshBackendLibrary` projects the local catalog and kit inventory. It groups options by catalog game id and links rows at read time when the ROM sha256 and system match exactly: the package row's game id is canonical and the raw ROM folds in as its emulator option (more rows: package first, then lowest game id; a hash or system mismatch never links). Local Data Storm is one row with the kit `fes.sms` option and the host-local emulator option. The projection does not claim session Ready. `GET /api/v1/library/titles` serves that projection. `content_sources` node ids stay empty until #396, and a remote `native_emu` node stays unverified. See `fogcast/mesh_library.go` and `internal/meshcontent/content.go`. | **Approved (#394, 2026-10-02):** the combined library contract in [Combined library contract (#379)](#combined-library-contract-379) is the wire for title and backend options. Phase 2 serves the route. Source provenance waits on #396. Remote `native_emu` eligibility stays gated on #298 and the decision 4 enrollment prerequisites. Selecting one backend explicitly per session is not this phase. |
+| **Node identity/pairing** | Kit identity is its existing persistent `target_id`; DNS-SD repeats it as `node_id`. Host reconciles discovery with configured targets and authenticated health. The launcher listener supports per-`target_id` credentials after #287; this is not the proposed user pairing flow. See `fogcast/discovery.go`, `internal/discovery/mesh.go`, `docs/mesh-vnext.md` §2.1, and `internal/hostapi/launcher.go`. | **Approved (#394, 2026-10-02); not implemented:** the kit keeps that ID through capability changes. A software runner's `software_backends` are read on that runner's launcher listener with a launcher pairing bearer, and only at the origin recorded at pairing. The bearer is bound to a host node id (#298 item 2). Runner admission and provisioning are further prerequisites in decision 4. Phase 2 implements none of them, and remote `native_emu` stays gated on #298 and those prerequisites. Do not add a permanent Host/Kit identity enum. The v-next PAKE flow is proposed, not implemented. Decision 4 is the contract. |
 | **Availability** | Inventory expiry removes a node from a future placement choice but does not release its lease. Room states are Checking/Missing/Needs a choice/Unavailable/Ready. Lease and target health are separate. See `internal/discovery/mesh.go`, `fogcast/mesh_ready.go`, FogCast `docs/rooms-experience.md`. | **Proposed:** report Checking while capability, backend, composition, or required content is unresolved; Ready only for the selected usable execution option; otherwise Unavailable with reason. Software-runner health/readiness and honest UI across both nodes are **GAP #359/#360/#362**. |
 | **Ownership/admission** | Kit agent lease is 90 seconds, renewed every 20 seconds; target client mutations use that grant. Busy kit launches reject. No second FPGA lease exists. See `docs/kit-sharing.md`, `sources/FogCast/targetclient/kit_lease.go`, `fogcast/mesh_lease_acquire_test.go`. | **Proposed:** each executor session has one owner; admission checks the existing kit lease for FPGA and an equivalent single-session owner on a software runner. Discovery TTL is not ownership. Do not create a second FPGA lease. Independent per-node session/input/Stop and race/failure acceptance remain **GAP #363**. |
 
@@ -369,7 +369,7 @@ off.
 
 #### 2. Remote source-provenance contract
 
-**Proposal.** A node states the content-ids it can supply on the
+**Approved in #394 on 2026-10-02; gated on #396.** A node states the content-ids it can supply on the
 authenticated node content document the host already reads,
 `GET /v1/mesh/content/node` (`fogcast/mesh_place_wire.go`,
 `kitcontent.ReadNode`). Phase 2 adds an optional `content_ids` array of
@@ -392,7 +392,7 @@ re-pair or confirm the new address`. That sentence is not a new
 library `reason` string. Confirmation is an explicit config edit or
 re-pairing step by the owner, which replaces the recorded origin.
 After that edit, reads send the bearer to the new origin. **Phase-2
-provenance must not ship before #396 lands.** This proposal does not
+provenance must not ship before #396 lands.** Phase 2 does not
 change `placementReadAddress`.
 
 A configured hostname is the same rule. `scripts/prepare_launcher.py`
@@ -435,7 +435,7 @@ Reconciliation stays on the local catalog:
 would reuse a check Ensure already has, and it would not be the node
 stating its set. A DNS-SD content list would put the library on
 discovery. Publishing remote-only ids as new titles would be a second
-catalog. This proposal extends the one node document and ignores ids
+catalog. Phase 2 extends the one node document and ignores ids
 the local catalog does not already name.
 
 **Out of scope.** Byte pull, turning ensure on, a cursor for very large
@@ -463,7 +463,7 @@ Ensure and placement defaults stay off.
 
 #### 3. Content-id lock
 
-**Proposal.** Lock the per-slot form in
+**Approved in #394 on 2026-10-02.** Lock the per-slot form in
 [`mesh-phase2.md`](mesh-phase2.md) as the content id. Canonical text is
 `sha256:` plus 64 lowercase hex digits. The digest is SHA-256 of that
 slot's own bytes. Primary media uses the digest #361 already links on:
@@ -502,7 +502,7 @@ A later algorithm is a new name before the colon, accepted only when
 stay valid. The new name does not reinterpret a sha256 digest.
 Versioning is that algorithm name. A mesh minor may carry the new name
 as an optional field. An unknown name still fails closed
-(`ErrAlgorithm`). This proposal does not add a second algorithm.
+(`ErrAlgorithm`). Phase 2 does not add a second algorithm.
 
 The content-id lock was approved in #394 on 2026-10-02. Canonical text
 is `sha256:` plus 64 lowercase hex. `ParseContentID` does not normalize.
@@ -512,8 +512,8 @@ is `sha256:` plus 64 lowercase hex. `ParseContentID` does not normalize.
 `FromSHA256` already builds the prefixed id from a stored digest; that
 is the producer path, not a second wire spelling. A mesh-protocol minor as the algorithm
 version would tie slot identity to session negotiation. One hash of the
-whole launch is the model this draft already refuses. This proposal
-keeps the strawman text and rejects every other form.
+whole launch is the model this draft already refuses. The approved
+lock keeps that text and rejects every other form.
 
 **Out of scope.** Rewriting stored catalog digests, hashing files again
 inside the projection, and adding blake3, sha512, or any other name.
@@ -529,7 +529,7 @@ algorithm fails closed. No new algorithm name is accepted in this phase.
 
 #### 4. Remote `native_emu` eligibility and identity
 
-**Proposal.** A remote runner advertises capability only on DNS-SD:
+**Approved in #394 on 2026-10-02; remote eligibility stays gated on #298 and its prerequisites.** A remote runner advertises capability only on DNS-SD:
 `node_id`, `mesh=1.0`, and execute kind `native_emu`. It advertises
 `display_sink` or `input_source` only when it actually presents or
 accepts local input. A headless runner advertises execute only. DNS-SD
@@ -568,7 +568,7 @@ client, stores the matching private `launcher.json` (`api`, `token`,
 keeps it distinct from the agent token, and `fogcast-api` refuses to
 start when a launcher bearer equals a configured `[[targets]]` agent
 token. Today that script writes the selected kit's `target_id`.
-Writing a runner id is prerequisite 3 below. This proposal does not
+Writing a runner id is prerequisite 3 below. Phase 2 does not
 change the script. The bearer is not a DNS-SD field.
 Discovery of an unknown node does not enroll it. The v-next PAKE flow
 stays unimplemented and is not this issuance. There is no Host/Kit
@@ -598,13 +598,13 @@ installation produced the array.
 
 The id stored with the bearer, sent in the header, and echoed in the
 body is #298 item 2: a random installation id from the CSPRNG,
-owner-only, stable across restart, not a hostname or a MAC. This
-proposal does not mint that id and does not add the echo. A kit keeps
+owner-only, stable across restart, not a hostname or a MAC. Phase 2
+does not mint that id and does not add the echo. A kit keeps
 the `target_id` it already has and does not wait on this list. Kit
 `fpga_native` eligibility is unchanged.
 
 **Prerequisites.** Remote `native_emu` stays unavailable until #298
-and every item below is done. This proposal does not implement them.
+and every item below is done. Phase 2 does not implement them.
 
 1. **Host installation id (#298).** The runner has the #298 item 2 id,
    the pairing stores it as `target_id`, and health echoes it. Until
@@ -617,7 +617,7 @@ and every item below is done. This proposal does not implement them.
    when it is an enabled `[[targets]]` row on the serving process. A
    runner's installation id is not such a row. The prerequisite is a
    runner enrollment record, or an equivalent admission rule, that
-   admits that id on the launcher health read. This proposal does not
+   admits that id on the launcher health read. Phase 2 does not
    add the record and does not retarget `kitTarget`. Acceptance: with
    the record, the runner id is admitted; a missing or foreign record
    is 403 and the body is dropped. An enabled kit `[[targets]]` row
@@ -625,8 +625,8 @@ and every item below is done. This proposal does not implement them.
 3. **Provisioning.** `prepare_launcher.py` writes the selected kit's
    `target_id` only. The prerequisite is provisioning that writes the
    runner's node id into the runner's `launcher-host.json` and the
-   shell's `launcher.json` (`api`, `token`, `target_id`). This
-   proposal does not change the script. Acceptance: a runner
+   shell's `launcher.json` (`api`, `token`, `target_id`). Phase 2
+   does not change the script. Acceptance: a runner
    enrollment produces that pair for the runner id. Preparing a
    selected kit still writes the kit id and does not invent a runner id.
 4. **Authenticated health, end to end.** With items 1–3 done, the
@@ -723,7 +723,7 @@ Linux and Mac runners whose `core_sha256` values differ are not both
 eligible under this contract. The runner whose digest equals that one
 configured pin matches. The other keeps `remote emulator system and
 version unverified`. A separate remote pin list, so more than one
-digest could match, is an open follow-up. This proposal does not add
+digest could match, is an open follow-up. Phase 2 does not add
 it. No issue is filed for it.
 
 Any failed pin, system, or `available` check keeps the node reason
@@ -748,7 +748,7 @@ agent token does not match the listener that serves
 runner id would trust a header the caller sent. Sending any bearer to
 a DNS-SD address would give a forged advertisement the credential. A
 nonce challenge answered with the pairing key can be relayed to the
-enrolled origin, so this proposal does not use one. Resolving a
+enrolled origin, so Phase 2 does not use one. Resolving a
 configured hostname again on every request would follow a spoofed DNS
 or mDNS answer and send the bearer there. Implementing
 #298, the runner admission record, runner provisioning, or PAKE inside
