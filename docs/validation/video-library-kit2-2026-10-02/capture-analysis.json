@@ -1,0 +1,1209 @@
+{
+  "scope": "Independent local-file analysis of five normal-library Kit 2 captures; no hardware access by this analyst.",
+  "method": "Every decoded frame was hashed. Every unique RGB variant was checked against all 768 ROM-defined tile cells at both row parities, 1320 black square-gap samples, fixed image bounds and cadence. SGM audio requires both tones above quiet baselines and within frequency tolerance.",
+  "videos": {
+    "direct": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/direct.mkv",
+      "sha256": "9b3d42b574dee757be0bfbae0466e8572fc29dafabe38577d81aeec8a48a4cc3",
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv422p",
+        "r_frame_rate": "60/1",
+        "avg_frame_rate": "60/1"
+      },
+      "decoded_frame_count": 180,
+      "leading_black_frames": 2,
+      "settled_frame_count": 178,
+      "later_bad_frame_indexes": [],
+      "timestamps": {
+        "first_seconds": 0.0,
+        "last_seconds": 3.017,
+        "min_delta_seconds": 0.01599999999999996,
+        "max_delta_seconds": 0.05,
+        "non_monotonic_count": 0,
+        "delta_histogram_rounded_ms": {
+          "17": 119,
+          "50": 1,
+          "16": 59
+        },
+        "intervals_over_25ms": [
+          {
+            "from_frame": 1,
+            "to_frame": 2,
+            "seconds": 0.05,
+            "at_acquisition_boundary": true
+          }
+        ],
+        "settled_min_delta_seconds": 0.01599999999999996,
+        "settled_max_delta_seconds": 0.017000000000000348
+      },
+      "settled_max_rgb_delta_from_png": [
+        1,
+        1,
+        1
+      ],
+      "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms.",
+      "settled_rgb_frame_hash_set": [
+        "66e05ba6f19cebd8ffe987a1f5f027de1872e5f2b74c316311112d0650aa56fe",
+        "7c4ff7feff14c30bdc3ba3e29c3080b71911c77541576c36a2d7058fe92dd2fd",
+        "dab46bda196fd701233a06cd697560437541d8cd2a4e64ed1d148011de22776c",
+        "e173f92d5ee9e3ca33da5dafa55e1e2010040f242ddcb35d9089e36c6ce4b379"
+      ],
+      "settled_even_image_row_hash_set": [
+        "50e193d9d03c19ac4b51061d859be7c2f01188855fc9e72617616b30f3f7162d",
+        "654004950d436aebf052da6e1336c41cd1d019141c5cf76b71ae11d9820a4224",
+        "90a3b35d2f73d785a5b11adc0b51b509ed6b2266f5ac8c247640c4d9c6e2a63a",
+        "d6b4a6fccab750ee45e34e106be68fddb1e6e001870d95e1c204dc52a4fe24f4"
+      ]
+    },
+    "scanlines": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/scanlines.mkv",
+      "sha256": "b58c903b468082ef828b310b78a518f4c4e9377b5d5cceefc64ab8bdbf3a1f39",
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv422p",
+        "r_frame_rate": "60/1",
+        "avg_frame_rate": "60/1"
+      },
+      "decoded_frame_count": 180,
+      "leading_black_frames": 2,
+      "settled_frame_count": 178,
+      "later_bad_frame_indexes": [],
+      "timestamps": {
+        "first_seconds": 0.0,
+        "last_seconds": 3.017,
+        "min_delta_seconds": 0.01599999999999996,
+        "max_delta_seconds": 0.05,
+        "non_monotonic_count": 0,
+        "delta_histogram_rounded_ms": {
+          "17": 119,
+          "50": 1,
+          "16": 59
+        },
+        "intervals_over_25ms": [
+          {
+            "from_frame": 1,
+            "to_frame": 2,
+            "seconds": 0.05,
+            "at_acquisition_boundary": true
+          }
+        ],
+        "settled_min_delta_seconds": 0.01599999999999996,
+        "settled_max_delta_seconds": 0.017000000000000348
+      },
+      "settled_max_rgb_delta_from_png": [
+        1,
+        1,
+        1
+      ],
+      "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms.",
+      "settled_rgb_frame_hash_set": [
+        "44fa48f4bc623ee1a57013070eabf84096d72b8eb54083af166ea4fffb69d141",
+        "526ff6c7d41943cf7e37cf5e2394c17b27b7066378416a6e93f092f1f8c81e84",
+        "d92ed93f410cbcf429d62fc77b1a2389221e1d6cc9532d3a50a9e73a6b14e8b9",
+        "fa90e6b950b51115c6c6f919660c1650bcecaf05f49c50bc8f3ffc6a2d8ebdf2"
+      ],
+      "settled_even_image_row_hash_set": [
+        "50e193d9d03c19ac4b51061d859be7c2f01188855fc9e72617616b30f3f7162d",
+        "654004950d436aebf052da6e1336c41cd1d019141c5cf76b71ae11d9820a4224",
+        "90a3b35d2f73d785a5b11adc0b51b509ed6b2266f5ac8c247640c4d9c6e2a63a",
+        "d6b4a6fccab750ee45e34e106be68fddb1e6e001870d95e1c204dc52a4fe24f4"
+      ]
+    },
+    "direct-sgm": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/direct-sgm.mkv",
+      "sha256": "35f2a949b6f352a9eecf2b1a1998812046ed70dbd8b70581bde5330c1717048c",
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv422p",
+        "r_frame_rate": "60/1",
+        "avg_frame_rate": "60/1"
+      },
+      "decoded_frame_count": 180,
+      "leading_black_frames": 3,
+      "settled_frame_count": 177,
+      "later_bad_frame_indexes": [],
+      "timestamps": {
+        "first_seconds": 0.0,
+        "last_seconds": 3.017,
+        "min_delta_seconds": 0.01599999999999996,
+        "max_delta_seconds": 0.05,
+        "non_monotonic_count": 0,
+        "delta_histogram_rounded_ms": {
+          "17": 119,
+          "16": 59,
+          "50": 1
+        },
+        "intervals_over_25ms": [
+          {
+            "from_frame": 2,
+            "to_frame": 3,
+            "seconds": 0.05,
+            "at_acquisition_boundary": true
+          }
+        ],
+        "settled_min_delta_seconds": 0.01599999999999996,
+        "settled_max_delta_seconds": 0.017000000000000348
+      },
+      "settled_max_rgb_delta_from_png": [
+        1,
+        1,
+        1
+      ],
+      "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms.",
+      "settled_rgb_frame_hash_set": [
+        "66e05ba6f19cebd8ffe987a1f5f027de1872e5f2b74c316311112d0650aa56fe",
+        "7c4ff7feff14c30bdc3ba3e29c3080b71911c77541576c36a2d7058fe92dd2fd",
+        "dab46bda196fd701233a06cd697560437541d8cd2a4e64ed1d148011de22776c",
+        "e173f92d5ee9e3ca33da5dafa55e1e2010040f242ddcb35d9089e36c6ce4b379"
+      ],
+      "settled_even_image_row_hash_set": [
+        "50e193d9d03c19ac4b51061d859be7c2f01188855fc9e72617616b30f3f7162d",
+        "654004950d436aebf052da6e1336c41cd1d019141c5cf76b71ae11d9820a4224",
+        "90a3b35d2f73d785a5b11adc0b51b509ed6b2266f5ac8c247640c4d9c6e2a63a",
+        "d6b4a6fccab750ee45e34e106be68fddb1e6e001870d95e1c204dc52a4fe24f4"
+      ]
+    },
+    "scanlines-sgm": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/scanlines-sgm.mkv",
+      "sha256": "3136aa1da8917e0240bd25c3a88740b7831b97baf25cab56119f419221cdff8e",
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv422p",
+        "r_frame_rate": "60/1",
+        "avg_frame_rate": "60/1"
+      },
+      "decoded_frame_count": 180,
+      "leading_black_frames": 3,
+      "settled_frame_count": 177,
+      "later_bad_frame_indexes": [],
+      "timestamps": {
+        "first_seconds": 0.0,
+        "last_seconds": 3.017,
+        "min_delta_seconds": 0.01599999999999996,
+        "max_delta_seconds": 0.05,
+        "non_monotonic_count": 0,
+        "delta_histogram_rounded_ms": {
+          "17": 119,
+          "16": 59,
+          "50": 1
+        },
+        "intervals_over_25ms": [
+          {
+            "from_frame": 2,
+            "to_frame": 3,
+            "seconds": 0.05,
+            "at_acquisition_boundary": true
+          }
+        ],
+        "settled_min_delta_seconds": 0.01599999999999996,
+        "settled_max_delta_seconds": 0.017000000000000348
+      },
+      "settled_max_rgb_delta_from_png": [
+        1,
+        1,
+        1
+      ],
+      "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms.",
+      "settled_rgb_frame_hash_set": [
+        "44fa48f4bc623ee1a57013070eabf84096d72b8eb54083af166ea4fffb69d141",
+        "526ff6c7d41943cf7e37cf5e2394c17b27b7066378416a6e93f092f1f8c81e84",
+        "d92ed93f410cbcf429d62fc77b1a2389221e1d6cc9532d3a50a9e73a6b14e8b9",
+        "fa90e6b950b51115c6c6f919660c1650bcecaf05f49c50bc8f3ffc6a2d8ebdf2"
+      ],
+      "settled_even_image_row_hash_set": [
+        "50e193d9d03c19ac4b51061d859be7c2f01188855fc9e72617616b30f3f7162d",
+        "654004950d436aebf052da6e1336c41cd1d019141c5cf76b71ae11d9820a4224",
+        "90a3b35d2f73d785a5b11adc0b51b509ed6b2266f5ac8c247640c4d9c6e2a63a",
+        "d6b4a6fccab750ee45e34e106be68fddb1e6e001870d95e1c204dc52a4fe24f4"
+      ]
+    },
+    "direct-relaunch": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/direct-relaunch.mkv",
+      "sha256": "aee331b63c0accd8e432091aca45e31d803bb3d86c38e534364092e51cd1e05d",
+      "stream": {
+        "width": 1280,
+        "height": 720,
+        "pix_fmt": "yuv422p",
+        "r_frame_rate": "60/1",
+        "avg_frame_rate": "60/1"
+      },
+      "decoded_frame_count": 180,
+      "leading_black_frames": 4,
+      "settled_frame_count": 176,
+      "later_bad_frame_indexes": [],
+      "timestamps": {
+        "first_seconds": 0.0,
+        "last_seconds": 3.017,
+        "min_delta_seconds": 0.01599999999999996,
+        "max_delta_seconds": 0.05,
+        "non_monotonic_count": 0,
+        "delta_histogram_rounded_ms": {
+          "17": 119,
+          "16": 59,
+          "50": 1
+        },
+        "intervals_over_25ms": [
+          {
+            "from_frame": 3,
+            "to_frame": 4,
+            "seconds": 0.05,
+            "at_acquisition_boundary": true
+          }
+        ],
+        "settled_min_delta_seconds": 0.01599999999999996,
+        "settled_max_delta_seconds": 0.017000000000000348
+      },
+      "settled_max_rgb_delta_from_png": [
+        1,
+        1,
+        1
+      ],
+      "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms.",
+      "settled_rgb_frame_hash_set": [
+        "66e05ba6f19cebd8ffe987a1f5f027de1872e5f2b74c316311112d0650aa56fe",
+        "7c4ff7feff14c30bdc3ba3e29c3080b71911c77541576c36a2d7058fe92dd2fd",
+        "dab46bda196fd701233a06cd697560437541d8cd2a4e64ed1d148011de22776c",
+        "e173f92d5ee9e3ca33da5dafa55e1e2010040f242ddcb35d9089e36c6ce4b379"
+      ],
+      "settled_even_image_row_hash_set": [
+        "50e193d9d03c19ac4b51061d859be7c2f01188855fc9e72617616b30f3f7162d",
+        "654004950d436aebf052da6e1336c41cd1d019141c5cf76b71ae11d9820a4224",
+        "90a3b35d2f73d785a5b11adc0b51b509ed6b2266f5ac8c247640c4d9c6e2a63a",
+        "d6b4a6fccab750ee45e34e106be68fddb1e6e001870d95e1c204dc52a4fe24f4"
+      ]
+    }
+  },
+  "direct_scanlines": {
+    "native_capture_size": [
+      1280,
+      720
+    ],
+    "expected_image_box_exclusive": [
+      384,
+      168,
+      896,
+      552
+    ],
+    "files": {
+      "direct": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/direct.png",
+        "sha256": "d6c311fc460a1d3862a209c2832e18e79d18b6005fbb5fe04b21ac449568a8f7"
+      },
+      "scanlines": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/scanlines.png",
+        "sha256": "1ce459f8e69941c26d534912f697304ab76eee6f659a8f5a830c55f51c71cd5f"
+      }
+    },
+    "captures": {
+      "direct": {
+        "black_rgb": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "green_bbox_exclusive": [
+          384,
+          168,
+          896,
+          552
+        ],
+        "green": {
+          "even_rgb": [
+            45.0,
+            225.0,
+            69.0
+          ],
+          "odd_rgb": [
+            45.0,
+            225.0,
+            69.0
+          ],
+          "black_subtracted_odd_over_even": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "red": {
+          "even_rgb": [
+            198.65625,
+            66.65625,
+            77.65625
+          ],
+          "odd_rgb": [
+            198.71875,
+            66.71875,
+            77.71875
+          ],
+          "black_subtracted_odd_over_even": [
+            1.0003146138115464,
+            1.0009376465072668,
+            1.0008048289738432
+          ]
+        }
+      },
+      "scanlines": {
+        "black_rgb": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "green_bbox_exclusive": [
+          384,
+          168,
+          896,
+          552
+        ],
+        "green": {
+          "even_rgb": [
+            45.0,
+            225.0,
+            69.0
+          ],
+          "odd_rgb": [
+            21.0,
+            111.0,
+            33.0
+          ],
+          "black_subtracted_odd_over_even": [
+            0.4666666666666667,
+            0.49333333333333335,
+            0.4782608695652174
+          ]
+        },
+        "red": {
+          "even_rgb": [
+            198.6875,
+            66.6875,
+            77.6875
+          ],
+          "odd_rgb": [
+            97.96875,
+            33.96875,
+            36.96875
+          ],
+          "black_subtracted_odd_over_even": [
+            0.4930795847750865,
+            0.5093720712277413,
+            0.4758648431214803
+          ]
+        }
+      }
+    },
+    "regions": {
+      "black": [
+        16,
+        16,
+        256,
+        144
+      ],
+      "green": [
+        390,
+        176,
+        398,
+        544
+      ],
+      "red": [
+        420,
+        188,
+        428,
+        196
+      ]
+    },
+    "expected": {
+      "direct_green_rgb": [
+        33,
+        200,
+        66
+      ],
+      "dim_green_rgb": [
+        16,
+        100,
+        33
+      ],
+      "direct_red_rgb": [
+        212,
+        82,
+        77
+      ],
+      "dim_red_rgb": [
+        106,
+        41,
+        38
+      ],
+      "direct_odd_over_even": 1.0,
+      "scanline_odd_over_even": 0.5,
+      "note": "Capture color/range conversion may change absolute RGB; use black-subtracted ratios. JPEG, chroma filtering and scaling limit precision."
+    },
+    "comparison": {
+      "green": {
+        "even_rgb_delta": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "odd_rgb_delta": [
+          -24.0,
+          -114.0,
+          -36.0
+        ]
+      },
+      "red": {
+        "even_rgb_delta": [
+          0.03125,
+          0.03125,
+          0.03125
+        ],
+        "odd_rgb_delta": [
+          -100.75,
+          -32.75,
+          -40.75
+        ]
+      },
+      "image_even_model_mae_rgb": [
+        0.08072916666666667,
+        0.08072916666666667,
+        0.08072916666666667
+      ],
+      "image_odd_model_mae_rgb": [
+        0.9094034830729166,
+        0.709716796875,
+        1.0000406901041667
+      ]
+    }
+  },
+  "sgm_direct_scanlines": {
+    "native_capture_size": [
+      1280,
+      720
+    ],
+    "expected_image_box_exclusive": [
+      384,
+      168,
+      896,
+      552
+    ],
+    "files": {
+      "direct": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/direct-sgm.png",
+        "sha256": "fe0966772fd9826d55823e2358b43286a063089fb10444c049b2af45897bc4b0"
+      },
+      "scanlines": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/scanlines-sgm.png",
+        "sha256": "9199391f3f8d461bc183f3bae2a9606f5c11731ff3a15ca0db1b38f5a9121e21"
+      }
+    },
+    "captures": {
+      "direct": {
+        "black_rgb": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "green_bbox_exclusive": [
+          384,
+          168,
+          896,
+          552
+        ],
+        "green": {
+          "even_rgb": [
+            45.0,
+            225.0,
+            69.0
+          ],
+          "odd_rgb": [
+            45.0,
+            225.0,
+            69.0
+          ],
+          "black_subtracted_odd_over_even": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "red": {
+          "even_rgb": [
+            198.78125,
+            66.78125,
+            77.78125
+          ],
+          "odd_rgb": [
+            198.8125,
+            66.8125,
+            77.8125
+          ],
+          "black_subtracted_odd_over_even": [
+            1.0001572079861658,
+            1.0004679457182968,
+            1.0004017677782242
+          ]
+        }
+      },
+      "scanlines": {
+        "black_rgb": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "green_bbox_exclusive": [
+          384,
+          168,
+          896,
+          552
+        ],
+        "green": {
+          "even_rgb": [
+            45.0,
+            225.0,
+            69.0
+          ],
+          "odd_rgb": [
+            21.0,
+            111.0,
+            33.0
+          ],
+          "black_subtracted_odd_over_even": [
+            0.4666666666666667,
+            0.49333333333333335,
+            0.4782608695652174
+          ]
+        },
+        "red": {
+          "even_rgb": [
+            198.78125,
+            66.78125,
+            77.78125
+          ],
+          "odd_rgb": [
+            98.0,
+            34.0,
+            37.0
+          ],
+          "black_subtracted_odd_over_even": [
+            0.4930042446156265,
+            0.5091249415067852,
+            0.47569304941743673
+          ]
+        }
+      }
+    },
+    "regions": {
+      "black": [
+        16,
+        16,
+        256,
+        144
+      ],
+      "green": [
+        390,
+        176,
+        398,
+        544
+      ],
+      "red": [
+        420,
+        188,
+        428,
+        196
+      ]
+    },
+    "expected": {
+      "direct_green_rgb": [
+        33,
+        200,
+        66
+      ],
+      "dim_green_rgb": [
+        16,
+        100,
+        33
+      ],
+      "direct_red_rgb": [
+        212,
+        82,
+        77
+      ],
+      "dim_red_rgb": [
+        106,
+        41,
+        38
+      ],
+      "direct_odd_over_even": 1.0,
+      "scanline_odd_over_even": 0.5,
+      "note": "Capture color/range conversion may change absolute RGB; use black-subtracted ratios. JPEG, chroma filtering and scaling limit precision."
+    },
+    "comparison": {
+      "green": {
+        "even_rgb_delta": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "odd_rgb_delta": [
+          -24.0,
+          -114.0,
+          -36.0
+        ]
+      },
+      "red": {
+        "even_rgb_delta": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "odd_rgb_delta": [
+          -100.8125,
+          -32.8125,
+          -40.8125
+        ]
+      },
+      "image_even_model_mae_rgb": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "image_odd_model_mae_rgb": [
+        0.9182688395182291,
+        0.7018788655598959,
+        1.0089060465494792
+      ]
+    }
+  },
+  "settled_png_identity": {
+    "direct_equals_direct_sgm": false,
+    "scanlines_equals_scanlines_sgm": false,
+    "direct_equals_relaunch": false
+  },
+  "audio": {
+    "direct": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/direct.wav",
+      "sha256": "be15b388c35fcae732d55f9626fb33b0c7da8c26b527c53cd5c30fb2ff61415c",
+      "analysis_window_seconds": {
+        "start": 2.5,
+        "duration": 3.0
+      },
+      "channels": [
+        {
+          "dc_s16": -169,
+          "ac_rms_s16": 0.0,
+          "min_s16": -169,
+          "max_s16": -169,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 213.7844597868217,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 437.39677657480314,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            }
+          }
+        },
+        {
+          "dc_s16": 8,
+          "ac_rms_s16": 0.0,
+          "min_s16": 8,
+          "max_s16": 8,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 213.7844597868217,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 437.39677657480314,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            }
+          }
+        }
+      ],
+      "note": "ASUS capture filters/rescales PCM. Peak levels and DC are observed capture values, not bit-exact FPGA samples; basic graphics ROM should be silent, SGM probe should have both peaks."
+    },
+    "scanlines": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/scanlines.wav",
+      "sha256": "1f4f68687ae011041415c7c94ed20169b8b6806c3b79d2e95eef9b611c4224d5",
+      "analysis_window_seconds": {
+        "start": 2.5,
+        "duration": 3.0
+      },
+      "channels": [
+        {
+          "dc_s16": -169,
+          "ac_rms_s16": 0.0,
+          "min_s16": -169,
+          "max_s16": -169,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 213.7844597868217,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 437.39677657480314,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            }
+          }
+        },
+        {
+          "dc_s16": 8,
+          "ac_rms_s16": 0.0,
+          "min_s16": 8,
+          "max_s16": 8,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 213.7844597868217,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 437.39677657480314,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            }
+          }
+        }
+      ],
+      "note": "ASUS capture filters/rescales PCM. Peak levels and DC are observed capture values, not bit-exact FPGA samples; basic graphics ROM should be silent, SGM probe should have both peaks."
+    },
+    "direct-sgm": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/direct-sgm.wav",
+      "sha256": "7002ad2498fdd07f55c6204ef13e2a9835c96dcd7138e1ab30a569c6e4a247d5",
+      "analysis_window_seconds": {
+        "start": 2.5,
+        "duration": 3.0
+      },
+      "channels": [
+        {
+          "dc_s16": -171.18494444444445,
+          "ac_rms_s16": 10736.19055116481,
+          "min_s16": -19161,
+          "max_s16": 19245,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 216.7844597868217,
+              "fundamental_peak_amplitude_s16": 9657.635828285534,
+              "nominal_bin_amplitude_s16": 9657.635828285534
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 440.39677657480314,
+              "fundamental_peak_amplitude_s16": 9640.474573637086,
+              "nominal_bin_amplitude_s16": 9640.474573637086
+            }
+          }
+        },
+        {
+          "dc_s16": 6.471444444444445,
+          "ac_rms_s16": 10736.189517505532,
+          "min_s16": -18983,
+          "max_s16": 19422,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 216.7844597868217,
+              "fundamental_peak_amplitude_s16": 9657.639134520126,
+              "nominal_bin_amplitude_s16": 9657.639134520126
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 440.39677657480314,
+              "fundamental_peak_amplitude_s16": 9640.47109000013,
+              "nominal_bin_amplitude_s16": 9640.47109000013
+            }
+          }
+        }
+      ],
+      "note": "ASUS capture filters/rescales PCM. Peak levels and DC are observed capture values, not bit-exact FPGA samples; basic graphics ROM should be silent, SGM probe should have both peaks."
+    },
+    "scanlines-sgm": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/scanlines-sgm.wav",
+      "sha256": "fd6221aa8c4812bdfd63257b9fefb2f990b0e46a93b343f09dcbcd223bc86397",
+      "analysis_window_seconds": {
+        "start": 2.5,
+        "duration": 3.0
+      },
+      "channels": [
+        {
+          "dc_s16": -164.57172916666667,
+          "ac_rms_s16": 10736.497136062966,
+          "min_s16": -19504,
+          "max_s16": 19272,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 216.7844597868217,
+              "fundamental_peak_amplitude_s16": 9661.972826855785,
+              "nominal_bin_amplitude_s16": 9661.972826855785
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 440.39677657480314,
+              "fundamental_peak_amplitude_s16": 9630.936745202816,
+              "nominal_bin_amplitude_s16": 9630.936745202816
+            }
+          }
+        },
+        {
+          "dc_s16": 13.081902777777778,
+          "ac_rms_s16": 10736.499087926284,
+          "min_s16": -19326,
+          "max_s16": 19450,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 216.7844597868217,
+              "fundamental_peak_amplitude_s16": 9661.972816277354,
+              "nominal_bin_amplitude_s16": 9661.972816277354
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 440.39677657480314,
+              "fundamental_peak_amplitude_s16": 9630.933079079527,
+              "nominal_bin_amplitude_s16": 9630.933079079527
+            }
+          }
+        }
+      ],
+      "note": "ASUS capture filters/rescales PCM. Peak levels and DC are observed capture values, not bit-exact FPGA samples; basic graphics ROM should be silent, SGM probe should have both peaks."
+    },
+    "direct-relaunch": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/direct-relaunch.wav",
+      "sha256": "c41cdbd7f23b889acdaff566b6da3147a05613685a2f0e897daeaa8c86db4118",
+      "analysis_window_seconds": {
+        "start": 2.5,
+        "duration": 3.0
+      },
+      "channels": [
+        {
+          "dc_s16": -169,
+          "ac_rms_s16": 0.0,
+          "min_s16": -169,
+          "max_s16": -169,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 213.7844597868217,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 437.39677657480314,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            }
+          }
+        },
+        {
+          "dc_s16": 8,
+          "ac_rms_s16": 0.0,
+          "min_s16": 8,
+          "max_s16": 8,
+          "tones": {
+            "SN": {
+              "nominal_hz": 216.7844597868217,
+              "peak_near_nominal_hz": 213.7844597868217,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            },
+            "AY": {
+              "nominal_hz": 440.39677657480314,
+              "peak_near_nominal_hz": 437.39677657480314,
+              "fundamental_peak_amplitude_s16": 0.0,
+              "nominal_bin_amplitude_s16": 0.0
+            }
+          }
+        }
+      ],
+      "note": "ASUS capture filters/rescales PCM. Peak levels and DC are observed capture values, not bit-exact FPGA samples; basic graphics ROM should be silent, SGM probe should have both peaks."
+    }
+  },
+  "audio_comparison": {
+    "direct-sgm_versus_direct": [
+      {
+        "quiet_ac_rms_s16": 0.0,
+        "active_ac_rms_s16": 10736.19055116481,
+        "tones": {
+          "SN": {
+            "active_amplitude_s16": 9657.635828285534,
+            "quiet_baseline_amplitude_s16": 0.0,
+            "minimum_required_amplitude_s16": 100,
+            "frequency_error_hz": 0.0,
+            "frequency_tolerance_hz": 0.5,
+            "observed_above_baseline_and_at_expected_frequency": true
+          },
+          "AY": {
+            "active_amplitude_s16": 9640.474573637086,
+            "quiet_baseline_amplitude_s16": 0.0,
+            "minimum_required_amplitude_s16": 100,
+            "frequency_error_hz": 0.0,
+            "frequency_tolerance_hz": 0.5,
+            "observed_above_baseline_and_at_expected_frequency": true
+          }
+        }
+      },
+      {
+        "quiet_ac_rms_s16": 0.0,
+        "active_ac_rms_s16": 10736.189517505532,
+        "tones": {
+          "SN": {
+            "active_amplitude_s16": 9657.639134520126,
+            "quiet_baseline_amplitude_s16": 0.0,
+            "minimum_required_amplitude_s16": 100,
+            "frequency_error_hz": 0.0,
+            "frequency_tolerance_hz": 0.5,
+            "observed_above_baseline_and_at_expected_frequency": true
+          },
+          "AY": {
+            "active_amplitude_s16": 9640.47109000013,
+            "quiet_baseline_amplitude_s16": 0.0,
+            "minimum_required_amplitude_s16": 100,
+            "frequency_error_hz": 0.0,
+            "frequency_tolerance_hz": 0.5,
+            "observed_above_baseline_and_at_expected_frequency": true
+          }
+        }
+      }
+    ],
+    "scanlines-sgm_versus_scanlines": [
+      {
+        "quiet_ac_rms_s16": 0.0,
+        "active_ac_rms_s16": 10736.497136062966,
+        "tones": {
+          "SN": {
+            "active_amplitude_s16": 9661.972826855785,
+            "quiet_baseline_amplitude_s16": 0.0,
+            "minimum_required_amplitude_s16": 100,
+            "frequency_error_hz": 0.0,
+            "frequency_tolerance_hz": 0.5,
+            "observed_above_baseline_and_at_expected_frequency": true
+          },
+          "AY": {
+            "active_amplitude_s16": 9630.936745202816,
+            "quiet_baseline_amplitude_s16": 0.0,
+            "minimum_required_amplitude_s16": 100,
+            "frequency_error_hz": 0.0,
+            "frequency_tolerance_hz": 0.5,
+            "observed_above_baseline_and_at_expected_frequency": true
+          }
+        }
+      },
+      {
+        "quiet_ac_rms_s16": 0.0,
+        "active_ac_rms_s16": 10736.499087926284,
+        "tones": {
+          "SN": {
+            "active_amplitude_s16": 9661.972816277354,
+            "quiet_baseline_amplitude_s16": 0.0,
+            "minimum_required_amplitude_s16": 100,
+            "frequency_error_hz": 0.0,
+            "frequency_tolerance_hz": 0.5,
+            "observed_above_baseline_and_at_expected_frequency": true
+          },
+          "AY": {
+            "active_amplitude_s16": 9630.933079079527,
+            "quiet_baseline_amplitude_s16": 0.0,
+            "minimum_required_amplitude_s16": 100,
+            "frequency_error_hz": 0.0,
+            "frequency_tolerance_hz": 0.5,
+            "observed_above_baseline_and_at_expected_frequency": true
+          }
+        }
+      }
+    ],
+    "sgm_audio_ac_rms_relative_change_scanlines_versus_direct": [
+      2.855620871256015e-05,
+      2.8834291742718676e-05
+    ]
+  },
+  "temporal_comparison": {
+    "direct_equals_direct_sgm_settled_rgb_hash_set": true,
+    "direct_equals_relaunch_settled_rgb_hash_set": true,
+    "scanlines_equals_scanlines_sgm_settled_rgb_hash_set": true,
+    "direct_scanline_even_image_rows_hash_sets_equal": true,
+    "sgm_direct_scanline_even_image_rows_hash_sets_equal": true
+  },
+  "artifacts": {
+    "direct": {
+      ".png": {
+        "size": 9533,
+        "sha256": "d6c311fc460a1d3862a209c2832e18e79d18b6005fbb5fe04b21ac449568a8f7"
+      },
+      ".mkv": {
+        "size": 6706351,
+        "sha256": "9b3d42b574dee757be0bfbae0466e8572fc29dafabe38577d81aeec8a48a4cc3"
+      },
+      ".wav": {
+        "size": 1152338,
+        "sha256": "be15b388c35fcae732d55f9626fb33b0c7da8c26b527c53cd5c30fb2ff61415c"
+      }
+    },
+    "scanlines": {
+      ".png": {
+        "size": 9616,
+        "sha256": "1ce459f8e69941c26d534912f697304ab76eee6f659a8f5a830c55f51c71cd5f"
+      },
+      ".mkv": {
+        "size": 15911603,
+        "sha256": "b58c903b468082ef828b310b78a518f4c4e9377b5d5cceefc64ab8bdbf3a1f39"
+      },
+      ".wav": {
+        "size": 1152142,
+        "sha256": "1f4f68687ae011041415c7c94ed20169b8b6806c3b79d2e95eef9b611c4224d5"
+      }
+    },
+    "direct-sgm": {
+      ".png": {
+        "size": 9664,
+        "sha256": "fe0966772fd9826d55823e2358b43286a063089fb10444c049b2af45897bc4b0"
+      },
+      ".mkv": {
+        "size": 6670675,
+        "sha256": "35f2a949b6f352a9eecf2b1a1998812046ed70dbd8b70581bde5330c1717048c"
+      },
+      ".wav": {
+        "size": 1152694,
+        "sha256": "7002ad2498fdd07f55c6204ef13e2a9835c96dcd7138e1ab30a569c6e4a247d5"
+      }
+    },
+    "scanlines-sgm": {
+      ".png": {
+        "size": 9531,
+        "sha256": "9199391f3f8d461bc183f3bae2a9606f5c11731ff3a15ca0db1b38f5a9121e21"
+      },
+      ".mkv": {
+        "size": 15822591,
+        "sha256": "3136aa1da8917e0240bd25c3a88740b7831b97baf25cab56119f419221cdff8e"
+      },
+      ".wav": {
+        "size": 1152250,
+        "sha256": "fd6221aa8c4812bdfd63257b9fefb2f990b0e46a93b343f09dcbcd223bc86397"
+      }
+    },
+    "direct-relaunch": {
+      ".png": {
+        "size": 9664,
+        "sha256": "fe0966772fd9826d55823e2358b43286a063089fb10444c049b2af45897bc4b0"
+      },
+      ".mkv": {
+        "size": 6635136,
+        "sha256": "aee331b63c0accd8e432091aca45e31d803bb3d86c38e534364092e51cd1e05d"
+      },
+      ".wav": {
+        "size": 1152402,
+        "sha256": "c41cdbd7f23b889acdaff566b6da3147a05613685a2f0e897daeaa8c86db4118"
+      }
+    }
+  },
+  "analysis_tools": {
+    "analyze.py": "de3789c357b5647c5d4f5f22c78a8841511ae34c8d7e688c2e2ec4de4a3b8bd5",
+    "check_captures.py": "71d9fa1c104ce9e19d73a19786a72da837440bfaa882d6435f99b16c4e5c03a4",
+    "monitor.py": "336840bc8454ae7c91e2b184dd0a12f326b994b30ce69d8bb1be5b4e39266eb5",
+    "settled_audio.py": "32b9aa86ca23c6ff1fa23402de1e07856e08a1328d0af05ae414ae04b203a7a6"
+  },
+  "diagnostic_preparation": {
+    "source": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/sources/misteross/cores/fes-coleco/diagnostic",
+    "source_sha256": {
+      "generate.py": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe",
+      "sgm_probe.py": "e7eed442df8232de3c8bc7be96b8bc1a757017a1f6fbb3f75044b261259cda46"
+    },
+    "files": {
+      "graphics.rom": {
+        "size": 1067,
+        "sha256": "f45f692cd3280b235779e676af0b8f6a366e8ad91c9d8f1516487937f4813715"
+      },
+      "sgm-probe.rom": {
+        "size": 1261,
+        "sha256": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317"
+      },
+      "direct.ppm": {
+        "size": 2764816,
+        "sha256": "6d92a256b8840ff55233d48cd061ccd19238d9bb7c0dfc980e73ee7830e032d4"
+      },
+      "scanlines.ppm": {
+        "size": 2764816,
+        "sha256": "a89682157b1267a47f01df34d8f4a7507adaf24190cea60c682c04c3da8fa69f"
+      },
+      "LICENSE": {
+        "size": 1151,
+        "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d"
+      }
+    },
+    "geometry": {
+      "width": 1280,
+      "height": 720,
+      "image_box_exclusive": [
+        384,
+        168,
+        896,
+        552
+      ]
+    },
+    "scanlines": {
+      "bright_y_parity": 0,
+      "dim_y_parity": 1,
+      "operation": "each RGB channel >> 1"
+    },
+    "sgm_tones_nominal_hz": {
+      "SN": 216.7844597868217,
+      "AY": 440.39677657480314
+    }
+  },
+  "audio_acquisition": {
+    "onsets": {
+      "direct-sgm": [
+        {
+          "initial_constant_s16": -169,
+          "first_sample_over_100_s16_from_initial_seconds": 0.0010208333333333332,
+          "first_512_sample_window_with_ac_rms_at_least_1000_s16_start_seconds": 1.9733333333333334
+        },
+        {
+          "initial_constant_s16": 8,
+          "first_sample_over_100_s16_from_initial_seconds": 1.9823541666666666,
+          "first_512_sample_window_with_ac_rms_at_least_1000_s16_start_seconds": 1.9733333333333334
+        }
+      ],
+      "scanlines-sgm": [
+        {
+          "initial_constant_s16": -169,
+          "first_sample_over_100_s16_from_initial_seconds": 0.0010208333333333332,
+          "first_512_sample_window_with_ac_rms_at_least_1000_s16_start_seconds": 1.8453333333333333
+        },
+        {
+          "initial_constant_s16": 8,
+          "first_sample_over_100_s16_from_initial_seconds": 1.85525,
+          "first_512_sample_window_with_ac_rms_at_least_1000_s16_start_seconds": 1.8453333333333333
+        }
+      ]
+    },
+    "settled_analysis_window_seconds": {
+      "start": 2.5,
+      "duration": 3
+    },
+    "note": "The initial quiet capture interval and transition explain differing levels when acquisition was included. Stable one-second windows2.5\u20135.5s are retained in independent-sgm-audio-windows.json; reported tone and RMS comparison uses the same settled2.5\u20135.5s window for all five captures."
+  },
+  "audio_window_receipt": {
+    "file": "independent-sgm-audio-windows.json",
+    "sha256": "72a3658a102187923571a595e43cf910859429c521459210798cfa9ee19995ef"
+  }
+}

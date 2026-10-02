@@ -340,6 +340,11 @@ const coreReply = (value, status = 200, options = {}) =>
 const coreCaps = id => coreReply({package_id:id, source:'declared-contract', compatibility:'unknown',
   import_max_bytes:33554432, media:[{role:'blob', min_bytes:1, max_bytes:32768,
     transport:'fes-simple-computer-mailbox-stream-v1'}]});
+const coreVideo = (entry, overrides = {}) => coreReply({game_id:entry.game_id, package_id:entry.package_id,
+  preferred_profile:'direct', effective_profile:'direct', builtin:true,
+  choices:[{profile:'direct', label:'Direct', available:true},
+    {profile:'scanlines', label:'Scanlines', available:false, reason:'No matching video part is installed.'}],
+  ...overrides});
 
 async function browserFile(harness, selector, name, bytes) {
   await harness.evaluate(`(() => {
@@ -386,6 +391,8 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
           'GET /api/v1/core-catalog': coreReply({cores:[]}),
           'GET /api/v1/core-packages': [coreReply({packages:[]}), coreReply({packages:[corePackage(CORE_PACKAGE)]})],
           'GET /api/v1/library/core-entries': [coreReply({entries:[]}), coreReply({entries:[]}), coreReply({entries:[entry]})],
+          'GET /api/v1/library/video-parts': coreReply([]),
+          [`GET /api/v1/library/core-entries/${entry.game_id}/video`]: coreVideo(entry),
           'POST /api/v1/core-packages': coreReply(corePackage(CORE_PACKAGE), 201, {delayMs:100}),
           [`GET /api/v1/core-packages/${CORE_PACKAGE}/media-capabilities`]:coreCaps(CORE_PACKAGE),
           'POST /api/v1/core-media':coreReply({media_id:CORE_MEDIA, size:4}, 201),
@@ -451,6 +458,8 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
           'GET /api/v1/core-catalog': coreReply({cores:[]}),
             'GET /api/v1/core-packages':coreReply({packages:[corePackage(CORE_PACKAGE),corePackage(CORE_NEXT)]}),
             'GET /api/v1/library/core-entries':[coreReply({entries:[entry]}),coreReply({entries:[selected]}),coreReply({entries:[cleared]})],
+            'GET /api/v1/library/video-parts':coreReply([]),
+            [`GET /api/v1/library/core-entries/${entry.game_id}/video`]:[coreVideo(entry),coreVideo(selected)],
             [`GET /api/v1/core-packages/${CORE_PACKAGE}/media-capabilities`]:coreCaps(CORE_PACKAGE),
             [`GET /api/v1/core-packages/${CORE_NEXT}/media-capabilities`]:coreCaps(CORE_NEXT),
             [`PUT /api/v1/library/core-entries/${entry.game_id}`]:stale
@@ -480,6 +489,62 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
         });
       });
     }
+
+    await t.test('household video preference survives settings save and PATCH with visible missing-part fallback', async () => {
+      const entry = coreEntry({game_id:'coleco-browser-title', title:'Browser Coleco title', core_id:'fes.coleco'});
+      const pkg = {package_id:CORE_PACKAGE, descriptor:{core:{id:'fes.coleco', version:'1.0.0'}}};
+      const missing = 'No matching Scanlines video part is installed. Direct output will be used.';
+      await runScenario(harness, 'core-library-video-preference-fallback', basePlan({
+        sessions:[fixture('session-idle.json')],
+        coreRoutes:{
+          'GET /api/v1/core-catalog':coreReply({cores:[]}),
+          'GET /api/v1/core-packages':coreReply({packages:[pkg]}),
+          'GET /api/v1/library/core-entries':coreReply({entries:[entry]}),
+          'GET /api/v1/library/video-parts':coreReply([]),
+          [`GET /api/v1/core-packages/${CORE_PACKAGE}/media-capabilities`]:coreCaps(CORE_PACKAGE),
+          [`GET /api/v1/library/core-entries/${entry.game_id}/video`]:coreVideo(entry,
+            {preferred_profile:'scanlines', fallback_reason:missing}),
+        },
+      }), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.click('#open-settings');
+        await harness.waitForSnapshot(s => !s.settingsHidden && s.settingsVideoProfile === 'direct');
+        await browserSelect(harness, '#settings-video-profile', 'scanlines');
+        await harness.click('#save-settings');
+        const saved = await harness.waitForRequest({method:'PUT', path:'/api/v1/library/settings'});
+        await harness.waitForSettled();
+        assert.equal(JSON.parse(saved.requestBody).video_profile, 'scanlines');
+        const patched = await harness.evaluate(`(async () => {
+          const response = await fetch('/api/v1/library/settings', {method:'PATCH',
+            headers:{'Content-Type':'application/json'}, body:JSON.stringify({video_profile:'scanlines', attract_idle_seconds:42})});
+          return {status:response.status, settings:await response.json()};
+        })()`);
+        assert.equal(patched.status, 200);
+        assert.equal(patched.settings.video_profile, 'scanlines');
+        assert.equal(patched.settings.attract_idle_seconds, 42);
+        assert.deepEqual(patched.settings.preferred_regions, ['usa','world','europe','japan']);
+        const reviewStart = harness.fixtureEvidence().length;
+        await harness.reload();
+        await openAllGames(harness);
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.click('#open-settings');
+        const reopened = await harness.waitForSnapshot(s => !s.settingsHidden && s.settingsVideoProfile === 'scanlines');
+        assert.equal(reopened.settingsVideoProfile, 'scanlines');
+        assert.equal(reopened.settingsAttract, '42');
+        await harness.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
+        await harness.waitForSnapshot(s => s.settingsHidden);
+        await harness.click('#open-core-library');
+        await harness.waitForSnapshot(s => s.coreLibrary.open && !s.coreLibrary.busy);
+        await browserSelect(harness, '#core-entry-select', entry.game_id);
+        const resolved = await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.videoStatus.includes(missing));
+        assert.match(resolved.coreLibrary.videoStatus, /Household preference: Scanlines\. Next launch: Direct \(built in\)/);
+        assert.match(resolved.coreLibrary.videoChoices, /Scanlines: Unavailable.*No matching video part is installed/);
+        assert.equal(await harness.evaluate("document.querySelector('#core-video-parts').textContent"), 'No video parts imported.');
+        assert.deepEqual(harness.fixtureEvidence().slice(reviewStart).filter(r => r.method !== 'GET' && r.path !== '/api/v1/debug/ui-events'), [],
+          'reviewing resolved output after reload must not mutate parts, entries, or the running session');
+        await harness.click('#core-library-close');
+      });
+    });
 
   } finally {
     process.stdout.write(`FOGCAST_BROWSER_EVIDENCE ${JSON.stringify(harness.report())}\n`);

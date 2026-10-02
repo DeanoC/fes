@@ -103,7 +103,10 @@ remain distinct. FogCast now stores the household `direct` or `scanlines`
 preference and imports video parts for an exact shell package. Normal library
 Play composes that part with the title's CPU expansion before download; missing
 profiles fall back to direct, while an invalid installed selected part rejects
-admission. This initially supports the named format-2 Coleco video shell only;
+admission. The [normal-library Kit 2 diagnostic](validation/2026-10-02-video-library-kit2-hil.md)
+passed profile fallback, direct/scanline with and without SGM, retained active
+generation, host restart persistence and Stop/relaunch. This initially supports
+the named format-2 Coleco video shell only;
 the factory package has built-in direct output. Audio parts, DDR processing,
 other raster standards and factory video-part builds remain subsequent work.
 

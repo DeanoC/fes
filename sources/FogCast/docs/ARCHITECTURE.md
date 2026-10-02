@@ -2410,7 +2410,7 @@ The household `[library].video_profile` setting accepts `direct` or `scanlines`
 and defaults to `direct`. The existing library settings API and browser Settings
 save it through the atomic `library-settings.json` overlay. Changing it affects
 the next library launch; the running machine retains its selected parts and
-composition identity. **Manage FPGA library** imports a video-part `.fexp` for
+composition identity. **Manage FPGA library** imports a video-part archive for
 an explicitly chosen profile and shows each entry's resolved output and
 available choices.
 

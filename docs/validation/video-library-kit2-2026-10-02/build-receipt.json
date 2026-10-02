@@ -1,0 +1,54 @@
+{
+  "classification": "local native library diagnostic binaries; no image selection",
+  "built_at_utc": "2026-10-02T15:25:56.360023+00:00",
+  "fes_revision": "5612e8603cf0d531c69c6ef8ca57e14d0f723d72",
+  "source_clean": true,
+  "artifacts": {
+    "runtime": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/sources/libmister-runtime/build/video-selection-arm/mister-runtime",
+      "sha256": "9560b75d896e01c13f633abeba6887137537c8170e00b40ead9f8b27dcca34e7",
+      "size": 934396
+    },
+    "agent": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/sources/FogCast/bin/mister-agent-video-selection-linux-armv7",
+      "sha256": "3977f9e83386abc47ea3623ff846fb550eccbd213b1baff22a052818527423e5",
+      "size": 9568418
+    },
+    "host": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/sources/FogCast/bin/video-selection-test-host",
+      "sha256": "b60de44469da0f0f5d3fa317ff6a3828cc571f8824a051fc07c41d82ba6a10f6",
+      "size": 16158985
+    },
+    "host_driver": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes/out/hardware/video-selection-kit2-20261002/host-driver.go.txt",
+      "sha256": "bd17cdf29c93186573a36c8a9bd1525fa2025eaf1c3c75aa0cc11cdd7bcb3390",
+      "size": 1432
+    }
+  },
+  "runtime_toolchain": "GNU Arm10.2-2020.11 dynamic ARMv7 hardfloat",
+  "agent_env": {
+    "CGO_ENABLED": "0",
+    "GOOS": "linux",
+    "GOARCH": "arm",
+    "GOARM": "7"
+  },
+  "host_driver": "Untracked isolated Paths wrapper uses committed fogcast.Open and hostapi.New; separately hashed above. Private configuration contains only Kit 2.",
+  "go_version": "go version go1.26.5 linux/amd64",
+  "runtime_build": {
+    "directory": "sources/libmister-runtime/build/video-selection-arm",
+    "make_args": [
+      "-j3",
+      "BUILD_DIR=build/video-selection-arm",
+      "CXX=/home/deano/.cache/toolchains/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-g++",
+      "AR=/home/deano/.cache/toolchains/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-ar",
+      "MISTER_RUNTIME_VERSION=git-5612e8603cf0d531c69c6ef8ca57e14d0f723d72",
+      "all"
+    ]
+  },
+  "go_build_flags": [
+    "-buildvcs=false",
+    "-trimpath",
+    "-ldflags",
+    "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=0.1.0 -X github.com/DeanoC/FogCast/internal/version.Revision=5612e8603cf0d531c69c6ef8ca57e14d0f723d72"
+  ]
+}

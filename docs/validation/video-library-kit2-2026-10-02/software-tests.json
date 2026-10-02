@@ -1,0 +1,428 @@
+{
+  "format": 1,
+  "root": "/home/deano/.codex/worktrees/6f13/fes/out/dev/video-selection/fes",
+  "base": "85d038130e92d709a414cc09fdd168ab1b071fa4",
+  "head": "4314a052b71a0e33f24adcdde4e3202c4311a987",
+  "checkout_head": "4314a052b71a0e33f24adcdde4e3202c4311a987",
+  "merge_base": "85d038130e92d709a414cc09fdd168ab1b071fa4",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": true,
+      "runtime": true,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "paths": [
+      "docs/core-packages.md",
+      "docs/core-status.md",
+      "sources/FogCast/README.md",
+      "sources/FogCast/catalog/core_expansions_test.go",
+      "sources/FogCast/catalog/core_video_parts.go",
+      "sources/FogCast/catalog/core_video_parts_test.go",
+      "sources/FogCast/catalog/schema.go",
+      "sources/FogCast/catalog/store_test.go",
+      "sources/FogCast/docs/ARCHITECTURE.md",
+      "sources/FogCast/fogcast/config.go",
+      "sources/FogCast/fogcast/core_packages.go",
+      "sources/FogCast/fogcast/core_roms.go",
+      "sources/FogCast/fogcast/core_video.go",
+      "sources/FogCast/fogcast/core_video_test.go",
+      "sources/FogCast/fogcast/library.go",
+      "sources/FogCast/fogcast/library_overlay.go",
+      "sources/FogCast/fogcast/service.go",
+      "sources/FogCast/hostclient/client.go",
+      "sources/FogCast/hostclient/library_models.go",
+      "sources/FogCast/hostclient/library_settings_test.go",
+      "sources/FogCast/internal/agent/coordinator.go",
+      "sources/FogCast/internal/agent/parts.go",
+      "sources/FogCast/internal/agent/parts_library_test.go",
+      "sources/FogCast/internal/fogcastcli/core_library.go",
+      "sources/FogCast/internal/fogcastcli/core_video.go",
+      "sources/FogCast/internal/fogcastcli/core_video_test.go",
+      "sources/FogCast/internal/fogcastcli/run.go",
+      "sources/FogCast/internal/hostapi/core_packages.go",
+      "sources/FogCast/internal/hostapi/core_video.go",
+      "sources/FogCast/internal/hostapi/core_video_test.go",
+      "sources/FogCast/internal/hostapi/library.go",
+      "sources/FogCast/internal/hostapi/library_test.go",
+      "sources/FogCast/internal/hostapi/ui_app.js",
+      "sources/FogCast/internal/hostapi/ui_app_test.js",
+      "sources/FogCast/internal/hostapi/ui_core_library.js",
+      "sources/FogCast/internal/hostapi/ui_core_library_test.js",
+      "sources/FogCast/internal/hostapi/ui_shell.html",
+      "sources/FogCast/internal/httpapi/kit_lease.go",
+      "sources/FogCast/internal/httpapi/parts.go",
+      "sources/FogCast/internal/httpapi/parts_test.go",
+      "sources/FogCast/internal/httpapi/update.go",
+      "sources/FogCast/internal/httpapi/update_test.go",
+      "sources/FogCast/internal/misterruntime/parts.go",
+      "sources/FogCast/internal/misterruntime/parts_library_test.go",
+      "sources/FogCast/internal/misterruntime/parts_test.go",
+      "sources/FogCast/internal/misterruntime/runtime.go",
+      "sources/FogCast/targetclient/core_package_client.go",
+      "sources/FogCast/targetclient/kit_lease.go",
+      "sources/FogCast/targetclient/parts_library_test.go",
+      "sources/FogCast/ui/tenfoot/settings.go",
+      "sources/FogCast/ui/tenfoot/settings_test.go",
+      "sources/FogCast/ui/tenfoot/settings_video_test.go",
+      "sources/libmister-runtime/ARCHITECTURE.md",
+      "sources/libmister-runtime/docs/support-matrix.md",
+      "sources/libmister-runtime/include/libmister-runtime/runtime.h",
+      "sources/libmister-runtime/src/daemon/controller.cpp",
+      "sources/libmister-runtime/src/daemon/protocol.cpp",
+      "sources/libmister-runtime/src/daemon/protocol.hpp",
+      "sources/libmister-runtime/src/runtime.cpp",
+      "sources/libmister-runtime/tests/unit/native_hardware_test.cpp",
+      "sources/libmister-runtime/tests/unit/protocol_test.cpp"
+    ],
+    "reasons": [
+      "sources/FogCast/catalog/core_expansions_test.go: host and parent integration",
+      "sources/FogCast/catalog/core_video_parts.go: host and parent integration",
+      "sources/FogCast/catalog/core_video_parts_test.go: host and parent integration",
+      "sources/FogCast/catalog/schema.go: host and parent integration",
+      "sources/FogCast/catalog/store_test.go: host and parent integration",
+      "sources/FogCast/fogcast/config.go: host and parent integration",
+      "sources/FogCast/fogcast/core_packages.go: host and parent integration",
+      "sources/FogCast/fogcast/core_roms.go: host and parent integration",
+      "sources/FogCast/fogcast/core_video.go: host and parent integration",
+      "sources/FogCast/fogcast/core_video_test.go: host and parent integration",
+      "sources/FogCast/fogcast/library.go: host and parent integration",
+      "sources/FogCast/fogcast/library_overlay.go: host and parent integration",
+      "sources/FogCast/fogcast/service.go: host and parent integration",
+      "sources/FogCast/hostclient/client.go: host and parent integration",
+      "sources/FogCast/hostclient/library_models.go: host and parent integration",
+      "sources/FogCast/hostclient/library_settings_test.go: host and parent integration",
+      "sources/FogCast/internal/agent/coordinator.go: host and parent integration",
+      "sources/FogCast/internal/agent/parts.go: host and parent integration",
+      "sources/FogCast/internal/agent/parts_library_test.go: host and parent integration",
+      "sources/FogCast/internal/fogcastcli/core_library.go: host and parent integration",
+      "sources/FogCast/internal/fogcastcli/core_video.go: host and parent integration",
+      "sources/FogCast/internal/fogcastcli/core_video_test.go: host and parent integration",
+      "sources/FogCast/internal/fogcastcli/run.go: host and parent integration",
+      "sources/FogCast/internal/hostapi/core_packages.go: host and parent integration",
+      "sources/FogCast/internal/hostapi/core_video.go: host and parent integration",
+      "sources/FogCast/internal/hostapi/core_video_test.go: host and parent integration",
+      "sources/FogCast/internal/hostapi/library.go: host and parent integration",
+      "sources/FogCast/internal/hostapi/library_test.go: host and parent integration",
+      "sources/FogCast/internal/hostapi/ui_app.js: host and parent integration",
+      "sources/FogCast/internal/hostapi/ui_app_test.js: host and parent integration",
+      "sources/FogCast/internal/hostapi/ui_core_library.js: host and parent integration",
+      "sources/FogCast/internal/hostapi/ui_core_library_test.js: host and parent integration",
+      "sources/FogCast/internal/hostapi/ui_shell.html: host and parent integration",
+      "sources/FogCast/internal/httpapi/kit_lease.go: host and parent integration",
+      "sources/FogCast/internal/httpapi/parts.go: host and parent integration",
+      "sources/FogCast/internal/httpapi/parts_test.go: host and parent integration",
+      "sources/FogCast/internal/httpapi/update.go: host and parent integration",
+      "sources/FogCast/internal/httpapi/update_test.go: host and parent integration",
+      "sources/FogCast/internal/misterruntime/parts.go: host and parent integration",
+      "sources/FogCast/internal/misterruntime/parts_library_test.go: host and parent integration",
+      "sources/FogCast/internal/misterruntime/parts_test.go: host and parent integration",
+      "sources/FogCast/internal/misterruntime/runtime.go: host and parent integration",
+      "sources/FogCast/targetclient/core_package_client.go: host and parent integration",
+      "sources/FogCast/targetclient/kit_lease.go: host and parent integration",
+      "sources/FogCast/targetclient/parts_library_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/settings.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/settings_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/settings_video_test.go: host and parent integration",
+      "sources/libmister-runtime/include/libmister-runtime/runtime.h: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/daemon/controller.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/daemon/protocol.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/daemon/protocol.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/runtime.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/tests/unit/native_hardware_test.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/tests/unit/protocol_test.cpp: runtime, host protocol consumers and parent integration"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "85d038130e92d709a414cc09fdd168ab1b071fa4",
+        "--head",
+        "4314a052b71a0e33f24adcdde4e3202c4311a987"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "Go tests host",
+      "cwd": "sources/FogCast",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "./..."
+      ],
+      "tools": [
+        "cc",
+        "go"
+      ],
+      "files": [
+        "go.mod"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "Go tests /appliance",
+      "cwd": "sources/FogCast/appliance",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "./..."
+      ],
+      "tools": [
+        "cc",
+        "go"
+      ],
+      "files": [
+        "go.mod"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "shared Go expansion linker tests",
+      "cwd": "sources/misteross/expansion",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "./..."
+      ],
+      "tools": [
+        "cc",
+        "go"
+      ],
+      "files": [
+        "go.mod"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "host UI tests",
+      "cwd": "sources/FogCast",
+      "argv": [
+        "make",
+        "test-ui"
+      ],
+      "tools": [
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "runtime",
+      "label": "runtime software tests",
+      "cwd": "sources/libmister-runtime",
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go tests host",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "Go tests /appliance",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "shared Go expansion linker tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "host UI tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "returncode": 0
+    }
+  ]
+}
