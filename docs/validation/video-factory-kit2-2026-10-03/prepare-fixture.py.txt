@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+# Add a constant SN tone to the original BIOS-free graphics diagnostic.
+import hashlib,importlib.util,json
+from pathlib import Path
+root=Path(__file__).resolve().parents[2]
+out=Path(__file__).resolve().parent/'fixture';out.mkdir(exist_ok=True)
+source=root/'sources/misteross/cores/fes-coleco/diagnostic/generate.py'
+spec=importlib.util.spec_from_file_location('graphics_emitter',source);emitter=importlib.util.module_from_spec(spec);spec.loader.exec_module(emitter)
+rom=bytearray(emitter.cartridge());assert rom[:4]==bytes((0xf3,0x31,0,0x64))
+entry=0x8000+len(rom);rom[:3]=bytes((0xc3,entry&255,entry>>8))
+probe=bytearray((0xf3,0x31,0,0x64))
+for value in (0x84,0x20,0x90):probe.extend((0x3e,value,0xd3,0xe0))
+probe.extend((0xc3,4,0x80));rom.extend(probe)
+(out/'graphics-sn.rom').write_bytes(rom)
+(out/'LICENSE').write_bytes((source.parent/'LICENSE').read_bytes())
+(out/'prepared.json').write_text(json.dumps({'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'adapter_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'rom_sha256':hashlib.sha256(rom).hexdigest(),'size':len(rom),'nominal_SN_hz':3579545/(32*516),'note':'Original graphics cartridge with appended DI/stack/SN tone trampoline; original absolute table addresses are preserved.'},indent=2)+'\n')
+print((out/'prepared.json').read_text())

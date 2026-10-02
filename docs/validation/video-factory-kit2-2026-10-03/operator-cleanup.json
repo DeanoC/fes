@@ -1,0 +1,12 @@
+{
+  "capture_handles": [],
+  "alsa": {
+    "/proc/asound/card0/pcm0c/sub0/status": "closed"
+  },
+  "task_host_listener": false,
+  "existing_user_service": {
+    "is-active": "active",
+    "is-enabled": "enabled"
+  },
+  "passed": true
+}

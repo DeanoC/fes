@@ -1,0 +1,8 @@
+format = 2
+kind = "core-package"
+core_id = "fes.coleco"
+package_id = "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1"
+payload_sha256 = "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27"
+misteross_revision = "576cdbc7046eee25803d6063487554c2cb01cc99"
+mister_packages_revision = "2ce9047f8a9e91900ac46e6b961e054370b55855"
+install_path = "/usr/share/mister-runtime/core-packages/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1"

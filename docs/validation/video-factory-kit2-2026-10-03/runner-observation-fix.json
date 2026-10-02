@@ -1,0 +1,31 @@
+{
+  "checks": {
+    "guards": "healthy active ready=false; idle not ready fails before install/launch; exact target/image required idle and active; error/recovery/unsettled states fail; corrupt runtime tuple rejected with normal Stop still available",
+    "offline_tests": 5,
+    "py_compile": "pass",
+    "result": "pass"
+  },
+  "classification": "offline diagnostic-runner checks only; no target access or hardware action",
+  "diagnosis": "Health.ready is new-load admission from valid physical idle; ready=false is normal for active described package. Old runner checked ready unconditionally before active status.",
+  "files": {
+    "run-library.py": {
+      "bytes": 12511,
+      "sha256": "716d1e2432b7aa4f56da377519ea59e3af65a82744ab2daba14d4225e280da39"
+    },
+    "runner-observation-fix-tests.log": {
+      "bytes": 1440,
+      "sha256": "f459cda897e82390543b2c582c9c7716c0acc1cd19739e8b971e6c2ec6666d68"
+    },
+    "test-runner.py": {
+      "bytes": 9827,
+      "sha256": "1b31c9dfebc170dde9474c128d1931b66a5b2b40a93c29e6bcc73ffa024869e8"
+    }
+  },
+  "production_changes": false,
+  "production_source": "sources/FogCast/internal/misterruntime/runtime.go:759",
+  "scope": [
+    "out/video-factory-build/run-library.py",
+    "out/video-factory-build/test-runner.py"
+  ],
+  "source_revision": "1c328b285b11407ca1c70d9439a13d0f293be09a"
+}

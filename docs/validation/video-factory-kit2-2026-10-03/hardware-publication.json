@@ -1,0 +1,199 @@
+{
+  "classification": "Exact appliance Kit 2 operator-run hardware diagnostic; independent local-file capture analysis",
+  "format": 1,
+  "image_sha256": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+  "operator_receipts": {
+    "active-preference-preserved.json": {
+      "publication": "exact bytes",
+      "sha256": "dc6519c3b318009ef920f2bb67026ce13d273d820826e330a28df379509f161a",
+      "size": 43,
+      "source": "out/hardware/video-factory-kit2-20261003/active-preference-preserved.json"
+    },
+    "capture-analysis.json": {
+      "publication": "JSON normalized; worktree prefixes removed from paths",
+      "published": {
+        "sha256": "e9da2119832a0960d7102aceb493806fcd9203fd0f61ba03a52833f30c28d05a",
+        "size": 219177
+      },
+      "sha256": "f7464f31da71bfb5f5b59f1080bbea80db2963e7733877e1a53ba042484af8cc",
+      "size": 219561,
+      "source": "out/video-factory-build/independent-analysis/results/video-factory-kit2-20261003/analysis.json"
+    },
+    "capture-verdict.json": {
+      "publication": "JSON normalized; worktree prefixes removed from paths",
+      "published": {
+        "sha256": "46745f9b083d007e709907b23f3df91026e2c7b5164f68d17ace06b3ae9320ac",
+        "size": 20604
+      },
+      "sha256": "b309c6dcabcd53bba5c1cdd32b41cf5139c96610c69d721e4cfccc14150dc730",
+      "size": 21820,
+      "source": "out/video-factory-build/independent-analysis/results/video-factory-kit2-20261003/independent-receipt.json"
+    },
+    "direct-capture.json": {
+      "publication": "exact bytes",
+      "sha256": "ad095a726a202c899f3f912778c52038b3d371efb6cef1a7412c5a5398cf399c",
+      "size": 3102,
+      "source": "out/hardware/video-factory-kit2-20261003/direct-capture.json"
+    },
+    "direct-idle.json": {
+      "publication": "exact bytes",
+      "sha256": "b12df80db326ea6a66624eb5e2d9160469b944db8931b24b0a5ec334a5322262",
+      "size": 351,
+      "source": "out/hardware/video-factory-kit2-20261003/direct-idle.json"
+    },
+    "direct-relaunch-capture.json": {
+      "publication": "exact bytes",
+      "sha256": "5ef4faf79e2fce3af032bb0ce3898c6a309184513a0a61433fee47087b5dd140",
+      "size": 3102,
+      "source": "out/hardware/video-factory-kit2-20261003/direct-relaunch-capture.json"
+    },
+    "direct-relaunch-idle.json": {
+      "publication": "exact bytes",
+      "sha256": "342a020f15ec66e8875a3244d6c12bf82f7d421539d7ad8c5f7fde5fe98d2daf",
+      "size": 351,
+      "source": "out/hardware/video-factory-kit2-20261003/direct-relaunch-idle.json"
+    },
+    "direct-relaunch-stop.json": {
+      "publication": "exact bytes",
+      "sha256": "e45ad8febc81044e88be16c4cae5fe4b4e86babfcdaa74a48ca19c7046d15a99",
+      "size": 200,
+      "source": "out/hardware/video-factory-kit2-20261003/direct-relaunch-stop.json"
+    },
+    "direct-relaunch.json": {
+      "publication": "exact bytes",
+      "sha256": "6974af20b2fe0b02dbabb84df4d7169d96826cd7be20a21900b43adeecf7fdaf",
+      "size": 5366,
+      "source": "out/hardware/video-factory-kit2-20261003/direct-relaunch.json"
+    },
+    "direct-stop.json": {
+      "publication": "exact bytes",
+      "sha256": "c32f88cc8b907f1a602f03addcc697ee9c021d24d0328c2a1b57dfb1975905fb",
+      "size": 200,
+      "source": "out/hardware/video-factory-kit2-20261003/direct-stop.json"
+    },
+    "direct.json": {
+      "publication": "exact bytes",
+      "sha256": "133b24be4ec6f77d340cc616c543933a38fc6f0f64748fbc7488d12bd1a49753",
+      "size": 5366,
+      "source": "out/hardware/video-factory-kit2-20261003/direct.json"
+    },
+    "hardware-entry.json": {
+      "publication": "exact bytes",
+      "sha256": "d7f2957ddb36c96dfbfb9c01b82895188ae19a11d5a005a8ab06cf628476edec",
+      "size": 4428,
+      "source": "out/hardware/video-factory-kit2-20261003/entry.json"
+    },
+    "hardware-expectations.json": {
+      "publication": "exact bytes",
+      "sha256": "73aeea5fd3c05ab7a58f264f6bdd0db460efb1d9f87c6acc4a2502d2b1f3f669",
+      "size": 2932,
+      "source": "out/hardware/video-factory-kit2-20261003/expectations.json"
+    },
+    "hardware-initial-idle.json": {
+      "publication": "exact bytes",
+      "sha256": "a6ddb46894994562abd6206aa3a553c7544fe99e62011fa4623e7464bfd944b6",
+      "size": 351,
+      "source": "out/hardware/video-factory-kit2-20261003/initial-idle.json"
+    },
+    "hardware-installed.json": {
+      "publication": "exact bytes",
+      "sha256": "0b356ce3732c85cc7212ba8acb47121cb0570fe07f4a980bc65bd05cb1e7bc17",
+      "size": 3257,
+      "source": "out/hardware/video-factory-kit2-20261003/installed.json"
+    },
+    "hardware-result.json": {
+      "publication": "exact bytes",
+      "sha256": "ed2609fbb5d20a5252cf03b7625d64748e113e3289e2b35726b81922aa9f3e2c",
+      "size": 647,
+      "source": "out/hardware/video-factory-kit2-20261003/result.json"
+    },
+    "hardware-update-result.json": {
+      "publication": "exact bytes",
+      "sha256": "5e22316476fd0aafc9ebb1781df235fd97c46fb553ae264600fbbe69f512aba5",
+      "size": 386,
+      "source": "out/hardware/video-factory-kit2-20261003/update-result.json"
+    },
+    "operator-cleanup.json": {
+      "publication": "exact bytes",
+      "sha256": "2dc9176613506270d7871c20f9a882afe6b4fbfc1bc50998b2faac9ba16ed244",
+      "size": 236,
+      "source": "out/hardware/video-factory-kit2-20261003/operator-cleanup.json"
+    },
+    "restart-persistence.json": {
+      "publication": "exact bytes",
+      "sha256": "f1dfabc3666ac85ae3d511792a6352d5a9a8c9626f7c800f6c9472301f182f74",
+      "size": 848,
+      "source": "out/hardware/video-factory-kit2-20261003/restart-persistence.json"
+    },
+    "restored-retained-releases.json": {
+      "publication": "exact bytes",
+      "sha256": "9facb71715c044722957c20318b3d5f2021c43b13eae96873f251d95cb03833a",
+      "size": 1792,
+      "source": "out/hardware/video-factory-kit2-20261003/restored-retained-releases.json"
+    },
+    "restored-update-status.json": {
+      "publication": "exact bytes",
+      "sha256": "e440262587160817e94a1bc78bbcbe092fd7f32ad4d680185e9525e7073bcdab",
+      "size": 386,
+      "source": "out/hardware/video-factory-kit2-20261003/restored-update-status.json"
+    },
+    "rollback-confirmed.json": {
+      "publication": "exact bytes",
+      "sha256": "e440262587160817e94a1bc78bbcbe092fd7f32ad4d680185e9525e7073bcdab",
+      "size": 386,
+      "source": "out/hardware/video-factory-kit2-20261003/rollback-confirmed.json"
+    },
+    "scanlines-capture.json": {
+      "publication": "exact bytes",
+      "sha256": "d1c7dfb65f669c846cf9a681e4244b6d5baebb635aaa843c43813a7da85ccacb",
+      "size": 3103,
+      "source": "out/hardware/video-factory-kit2-20261003/scanlines-capture.json"
+    },
+    "scanlines-idle.json": {
+      "publication": "exact bytes",
+      "sha256": "038cbbb3558dbef046af0720aab1401799aba546eccda8f9c50eeb50b13a53ea",
+      "size": 351,
+      "source": "out/hardware/video-factory-kit2-20261003/scanlines-idle.json"
+    },
+    "scanlines-stop.json": {
+      "publication": "exact bytes",
+      "sha256": "3a117a1c97a4c73b88f2d1cc88107c7b6cf379b8520d066e149e01ba146f8ac3",
+      "size": 200,
+      "source": "out/hardware/video-factory-kit2-20261003/scanlines-stop.json"
+    },
+    "scanlines.json": {
+      "publication": "exact bytes",
+      "sha256": "ef6a4d8aa977371ca7c622a06bc17db2175ddd6d85acd9cdbcab4c252d643e47",
+      "size": 5372,
+      "source": "out/hardware/video-factory-kit2-20261003/scanlines.json"
+    }
+  },
+  "passed": true,
+  "restoration": {
+    "cause": "unestablished",
+    "cleanup": "operator-cleanup.json",
+    "confirmation": "rollback-confirmed.json",
+    "confirmation_method": "Existing targetclient ConfirmAppliance after exact protected-trial observation, with a fresh existing kit lease; lease closed afterward. No activation replay.",
+    "final_observation": {
+      "file": "hardware-platform.json",
+      "key": "observations.restored-image.json"
+    },
+    "initial_rollback_command": "exit 1; outcome unconfirmed at six-minute deadline",
+    "interim_operator_observation": "Target responded to ping while SSH/agent ports refused approximately twelve minutes after the first command; no UART attached.",
+    "observed_return": "Services later returned on the exact original image in a protected trial. Explicit existing-API confirmation stabilized good=original, previous=tested image, trial=false.",
+    "original_image_sha256": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+    "raw_restored_image_receipt": {
+      "sha256": "cfad1b711c58d9ad655641b67a94a601c72f266fd3c2fd26187f16694d2b4b3f",
+      "size": 2329,
+      "source": "out/hardware/video-factory-kit2-20261003/restored-image.json"
+    },
+    "recovery_request": "One manual user power cycle requested; completion has not been explicitly acknowledged by the user.",
+    "restored_boot_id": "453e9b34-454e-409d-b523-d1db9b5dd716",
+    "retained_boot_ticket_note": "Boot-time ticket still records protected trial; live stable confirmation status is restored-update-status.json, not the historical ticket.",
+    "retained_releases": "restored-retained-releases.json",
+    "stable_update_status": "restored-update-status.json",
+    "state": "passed",
+    "watchdog_fallback": "not observed"
+  },
+  "source_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855"
+}

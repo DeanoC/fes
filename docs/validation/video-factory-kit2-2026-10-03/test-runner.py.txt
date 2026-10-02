@@ -1,0 +1,174 @@
+"""Bounded offline checks for the ignored operator driver; no target access."""
+import copy
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
+import unittest
+
+HERE = Path(__file__).resolve().parent
+spec = importlib.util.spec_from_file_location("factory_driver", HERE / "run-library.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+
+class FakeDriver(module.Driver):
+    def __init__(self, args, corrupt_scanlines=False):
+        super().__init__(args)
+        self.calls = []
+        self.starts = 0
+        self.runtime_state = "idle"
+        self.cp = None
+        self.health_override = {}
+        self.last_error = None
+        self.recovery = ""
+        self.current_profile = "direct"
+        self.corrupt_scanlines = corrupt_scanlines
+        self.mappings = []
+        package_id = "a" * 64
+        parts = [{"profile": profile, "part_id": identity * 64, "archive_path": f"video-parts/{package_id}/{identity * 64}.tar"}
+                 for profile, identity in (("direct", "b"), ("scanlines", "c"))]
+        self.expected = {"source_id": "test-publication", "package_id": package_id, "build_id": "d" * 32,
+                         "abi": {"id": "fes.application", "major": 1, "minor": 0}, "entry": {"video_parts": parts},
+                         "compositions": {p["profile"]: {"composition_id": p["part_id"], "package_id": package_id,
+                            "parts": [{"role": "video", "part_id": p["part_id"]}], "payload_sha256": "e" * 64} for p in parts}}
+        self.row = {"core_id": "fes.coleco", "source_id": self.expected["source_id"], "library_source_id": "private-diagnostic",
+                    "package_id": package_id, "video_parts": parts}
+        self.entry = None
+
+    def start(self):
+        self.starts += 1
+        self.process = object()
+
+    def shutdown(self):
+        self.process = None
+
+    def request(self, method, path, value=None, expected=200):
+        self.calls.append((method, path, copy.deepcopy(value)))
+        if (method, path) == ("GET", "/diagnostic/expectations"):
+            return copy.deepcopy(self.expected)
+        if (method, path) == ("GET", "/diagnostic/health"):
+            return {"ready": self.runtime_state == "idle", "target_id": self.args.target_id,
+                    "artifacts": {"image_sha256": "9" * 64}, **self.health_override}
+        if (method, path) == ("GET", "/diagnostic/status"):
+            return copy.deepcopy({"state": self.runtime_state, "core_package": self.cp,
+                                  "last_error": self.last_error, "recovery": self.recovery})
+        if (method, path) == ("GET", "/diagnostic/lease"):
+            return {"state": "free" if self.runtime_state == "idle" else "held"}
+        if (method, path) == ("GET", "/api/v1/core-packages"):
+            return {"packages": []}
+        if (method, path) == ("GET", "/api/v1/library/video-parts"):
+            return copy.deepcopy(self.mappings)
+        if (method, path) == ("GET", "/api/v1/core-catalog"):
+            return {"cores": [self.row]}
+        if (method, path) == ("POST", "/api/v1/core-catalog/install"):
+            assert value == {key: self.row[key] for key in ("source_id", "core_id", "package_id")}
+            self.mappings = [{"package_id": self.expected["package_id"], "profile": part["profile"], "part_id": part["part_id"]}
+                             for part in self.row["video_parts"]]
+            return {"package_id": self.expected["package_id"]}
+        if method == "GET" and path.startswith("/api/v1/core-catalog/fes.coleco/setup?"):
+            return {"roms": [], "capabilities": {"media": [{"role": "blob", "min_bytes": 1, "max_bytes": 32768}]}}
+        if (method, path) == ("POST", "/api/v1/core-media"):
+            assert expected == 201
+            return {"media_id": hashlib.sha256(value).hexdigest(), "size": len(value)}
+        if (method, path) == ("POST", "/api/v1/core-catalog/entries"):
+            assert value["library_source_id"] == self.row["library_source_id"] and value["media_role"] == "blob"
+            self.entry = {"game_id": "factory-graphics", "package_id": value["package_id"], "media_id": value["media_id"], "media_role": "blob"}
+            return {"entry": self.entry}
+        if (method, path) == ("PATCH", "/api/v1/library/settings"):
+            self.current_profile = value["video_profile"]
+            return {"video_profile": self.current_profile}
+        if (method, path) == ("GET", "/api/v1/library/settings"):
+            return {"video_profile": self.current_profile}
+        if method == "GET" and path == "/api/v1/library/core-entries/factory-graphics/video":
+            return {"preferred_profile": self.current_profile, "effective_profile": self.current_profile, "builtin": False,
+                    "part_id": self.expected["compositions"][self.current_profile]["parts"][0]["part_id"]}
+        if (method, path) == ("GET", "/api/v1/library/core-entries/factory-graphics"):
+            return copy.deepcopy(self.entry)
+        if (method, path) == ("POST", "/api/v1/session/launch"):
+            assert value == {"game_id": "factory-graphics", "target": "kit2"}
+            self.runtime_state = "active"
+            self.cp = {"package_id": self.expected["package_id"], "build_id": self.expected["build_id"], "abi": self.expected["abi"],
+                       "persistence_mode": "volatile", "generation": self.generation + 1,
+                       "parts_composition": copy.deepcopy(self.expected["compositions"][self.current_profile])}
+            if self.corrupt_scanlines and self.current_profile == "scanlines":
+                self.cp["parts_composition"]["payload_sha256"] = "f" * 64
+            return {"game_id": "factory-graphics"}
+        if (method, path) == ("POST", "/api/v1/session/stop"):
+            assert value == {"target": "kit2"}
+            self.runtime_state = "idle"
+            self.cp = None
+            return {"state": "idle"}
+        raise AssertionError(f"unexpected request: {method} {path}")
+
+
+class RunnerTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        rom = root / "graphics.rom"
+        rom.write_bytes(b"open graphics fixture")
+        self.args = SimpleNamespace(output=root / "results", rom=rom, host_binary=root / "unused-host",
+                                    state=root / "unused-state", catalog=root / "unused-catalog", port=18788,
+                                    target_id="operator-authorized-kit2", target_name="kit2", image_sha256="9" * 64, active_command=None)
+
+    def test_complete_normal_install_preferences_restart_and_relaunch(self):
+        driver = FakeDriver(self.args)
+        driver.run()
+        self.assertEqual(driver.starts, 2)
+        self.assertEqual([result["case"] for result in driver.results], ["direct", "scanlines", "direct-relaunch"])
+        self.assertEqual([result["generation"] for result in driver.results], [1, 2, 3])
+        self.assertEqual(sum(method == "POST" and path == "/api/v1/core-catalog/install" for method, path, _ in driver.calls), 3)
+        self.assertFalse(any(path.startswith("/api/v1/library/video-parts/") for _, path, _ in driver.calls))
+        self.assertTrue(json.loads((driver.output / "result.json").read_text())["passed"])
+
+    def test_wrong_runtime_payload_is_rejected_and_normal_stop_remains_available(self):
+        driver = FakeDriver(self.args, corrupt_scanlines=True)
+        with self.assertRaisesRegex(RuntimeError, "Runtime tuple differs"):
+            driver.run()
+        self.assertTrue(driver.active)
+        driver.stop("cleanup")
+        self.assertEqual(driver.runtime_state, "idle")
+        self.assertFalse((driver.output / "result.json").exists())
+
+    def test_idle_not_ready_is_rejected_before_install_or_launch(self):
+        driver = FakeDriver(self.args)
+        driver.health_override = {"ready": False}
+        with self.assertRaisesRegex(RuntimeError, "Idle target is not ready"):
+            driver.run()
+        self.assertFalse(any(method == "POST" for method, _, _ in driver.calls))
+        self.assertFalse(driver.active)
+
+    def test_target_and_image_identity_remain_required_when_active(self):
+        self.args.image_sha256 = "9" * 64
+        for state in ("idle", "active"):
+            for change, message in [({"target_id": "another-kit"}, "Target identity mismatch"),
+                                    ({"artifacts": {"image_sha256": "8" * 64}}, "Target image identity mismatch")]:
+                with self.subTest(state=state, change=change):
+                    driver = FakeDriver(self.args)
+                    driver.runtime_state = state
+                    driver.health_override = change
+                    with self.assertRaisesRegex(RuntimeError, message):
+                        driver.observation()
+
+    def test_unsettled_error_and_recovery_states_remain_rejected(self):
+        for state, error, recovery, message in [
+                ("starting", None, "", "not in a settled"),
+                ("failed", None, "", "not in a settled"),
+                ("active", {"code": "io_failed"}, "", "error/recovery"),
+                ("active", None, "reboot_required", "error/recovery"),
+                ("idle", {"code": "save_failed"}, "", "error/recovery")]:
+            with self.subTest(state=state, error=error, recovery=recovery):
+                driver = FakeDriver(self.args)
+                driver.runtime_state = state
+                driver.last_error = error
+                driver.recovery = recovery
+                with self.assertRaisesRegex(RuntimeError, message):
+                    driver.observation()
+
+
+if __name__ == "__main__":
+    unittest.main()

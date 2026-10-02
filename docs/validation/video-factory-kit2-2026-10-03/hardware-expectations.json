@@ -1,0 +1,67 @@
+{
+  "abi": {
+    "id": "fes.application",
+    "major": 1,
+    "minor": 0
+  },
+  "build_id": "1c095e79e992327d4a8e09187ec2fb1d",
+  "catalog_sha256": "c00f25aef5c93cc20449f123a6322e826896982da4df113781eea95dc2e17110",
+  "compositions": {
+    "direct": {
+      "composition_id": "0d268a60f937274f0210932aa8d23c2d8c6f08ba240ca35e8e6723142a723c05",
+      "layout": "fes.coleco-video.parts/1",
+      "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+      "parts": [
+        {
+          "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "85b87829a3681c7e2a74d63bbaf9edfe2aa37d677d5891fa345c68a153832cf8",
+      "payload_size": 2834242,
+      "shell_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27"
+    },
+    "scanlines": {
+      "composition_id": "ad26bfe9cb372aa3c45c67499b884fac1c895e694f7977cd3fa143d1b38043a1",
+      "layout": "fes.coleco-video.parts/1",
+      "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+      "parts": [
+        {
+          "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "dccdf4b4999db0b96a2fcfa0773408da2d720e2ec4e7b1836b3732378b5ef9cc",
+      "payload_size": 2834949,
+      "shell_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27"
+    }
+  },
+  "entry": {
+    "archive_path": "packages/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1.fcore",
+    "archive_sha256": "4566a209c04a8737e8902d5a6ac82608e586727864d2ef7d03ffb02ed4c840e1",
+    "archive_size": 2838528,
+    "core_id": "fes.coleco",
+    "label": "ColecoVision",
+    "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+    "standing": "supported",
+    "system": "coleco",
+    "video_parts": [
+      {
+        "archive_path": "video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar",
+        "archive_sha256": "79d1742fadbe9c0bc4c04cf80693b158ffc0d7f5e768144277d1939ccc7e1fb8",
+        "archive_size": 2846720,
+        "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+        "profile": "direct"
+      },
+      {
+        "archive_path": "video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar",
+        "archive_sha256": "70c95e146ec934241ce576454bf4190a7ffd8de8cc18a46ad38e4527df4f3c02",
+        "archive_size": 2846720,
+        "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+        "profile": "scanlines"
+      }
+    ]
+  },
+  "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+  "source_id": "fes-first-party"
+}

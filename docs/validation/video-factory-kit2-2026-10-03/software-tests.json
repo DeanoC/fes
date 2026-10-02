@@ -1,0 +1,141 @@
+{
+  "base_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+  "ci": {
+    "browser_tests": 58,
+    "catalog_race_seconds": 564.148,
+    "conclusion": "success",
+    "fogcast_race_seconds": 600.872,
+    "head_revision": "1c328b285b11407ca1c70d9439a13d0f293be09a",
+    "host_log_sha256": "deed4c5bbfbfb3c2a69d0c7540fd7d4e962587332b97bfd2ccf847288dcfe646",
+    "host_race_timeout": "20m",
+    "host_url": "https://github.com/DeanoC/fes/actions/runs/37061383283/job/111019166014",
+    "integration_log_sha256": "15e54b329a00367a3e16bc4f3a2fb47f0bc33d67c3e52ab2b97a11a91e6e031b",
+    "integration_url": "https://github.com/DeanoC/fes/actions/runs/37061383283/job/111024546347",
+    "javascript_tests": 344,
+    "job_classification": "42 successful jobs/gates include planning, setup and gating plus software/simulation checks; not 42 separate executed test suites",
+    "job_count": 42,
+    "run_id": 37061383283,
+    "skipped_jobs": 0,
+    "successful_jobs": 42,
+    "tested_merge_revision": "dd87263d9b43d4f2ddb3a74c4df0abf910d32eae",
+    "ui_failures": 0,
+    "ui_skips": 0,
+    "url": "https://github.com/DeanoC/fes/actions/runs/37061383283"
+  },
+  "classification": "host-only software and CI checks; hardware acceptance separate",
+  "consistency": {
+    "copied_source_pins": 0,
+    "fixture_copies": 33,
+    "generated_consumers": 16,
+    "log_sha256": "5884bef5dd1338835e6380227d16feb70ae130737fea6e10b84f75d5b2258beb",
+    "source_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+    "status": "pass"
+  },
+  "final_branch_revision": "1c328b285b11407ca1c70d9439a13d0f293be09a",
+  "format": 1,
+  "image_source_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+  "limits": [
+    "QEMU does not emulate FPGA hardware",
+    "CI job success does not itself establish physical compiler or hardware acceptance",
+    "local parent suite source coverage and later focused checks are individually identified; not relabeled as one full suite at final revision"
+  ],
+  "runs": [
+    {
+      "delegated_driver_tests": {
+        "appliance_card": 3,
+        "bootstrap": 2,
+        "real_media": 33
+      },
+      "label": "full parent Python",
+      "locked_uboot_derivation": "passed",
+      "log": "parent-python-full.log",
+      "log_sha256": "8d1c1a1b409f62f1d9cba20e8533427a9a4526395d81d5546cf4948fa6f62ae1",
+      "outer_delegated_cases": 38,
+      "source_revision": "eca740ab7053dadda978b1d4cabb12b7af624c0b",
+      "status": "pass",
+      "tests": 639
+    },
+    {
+      "isolation": "committed-source test snapshot",
+      "label": "full image software suite",
+      "log": "image-full.log",
+      "log_sha256": "72048d6386d0e8172bfc7b02e212f8a622244b05deb951ac72217aba8a8dd500",
+      "source_revision": "eca740ab7053dadda978b1d4cabb12b7af624c0b",
+      "status": "pass"
+    },
+    {
+      "label": "platform software suite",
+      "log": "platform-full.log",
+      "log_sha256": "75030dea84591e3307c4be17a456a060b577935ba3b14a8875cc29c0aadef90a",
+      "source_revision": "eca740ab7053dadda978b1d4cabb12b7af624c0b",
+      "status": "pass"
+    },
+    {
+      "label": "affected Go race packages",
+      "log": "fogcast-affected-race.log",
+      "log_sha256": "084747bfe7897f35337329b2dbd0f4fc70ba8bd90e64568c2c48aebda844be40",
+      "packages": [
+        "corecatalog",
+        "fogcast",
+        "corepackage",
+        "internal/targetimage",
+        "cmd/target-image-lock"
+      ],
+      "source_revision": "eca740ab7053dadda978b1d4cabb12b7af624c0b",
+      "status": "pass"
+    },
+    {
+      "label": "inventory correction Go race",
+      "log": "fogcast-final-race.log",
+      "log_sha256": "15da40dc200d773ef41084a95c37020f504c4e81ea5e084fcb8c0a6fb3c99457",
+      "packages": [
+        "fogcast",
+        "internal/hostapi",
+        "corecatalog"
+      ],
+      "source_revision": "fcda0508c13822a2545e7063cc5479e3835c40bd",
+      "status": "pass"
+    },
+    {
+      "independent_repeat": "passed",
+      "label": "warm preparation Python",
+      "log": "warm-notices-python.log",
+      "log_sha256": "cb2becda427c12732df5e289dc4892461b1cab048879388fd6cfdddf4b625612",
+      "source_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+      "status": "pass",
+      "tests": 13
+    },
+    {
+      "independent_repeat": "passed",
+      "label": "cold/warm rootfs preparation fixture",
+      "log": "warm-rootfs-focused.log",
+      "log_sha256": "951fb42676db72150a8a74da28194c05f80e5cb3301de5f66afaab36781de4af",
+      "source_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+      "status": "pass"
+    },
+    {
+      "isolation": "base0b905e2a plus exact reviewed patch",
+      "label": "full image software suite with warm fix",
+      "log": "warm-image-full.log",
+      "log_sha256": "8c6c91b0818a59eab0fda8303ec0ad7d763e01e93c96de20819996bebbfa8adc",
+      "patch_sha256": "4dfea3c7f491335e50933a053529fa9a7986edc90d03a1e0a86ec6e6f0edb6fd",
+      "source_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+      "status": "pass"
+    }
+  ],
+  "ui": {
+    "browser": "Chrome for Testing 154.0.8037.92",
+    "browser_tests": 58,
+    "committed_revision": "0b905e2a490340fa93e8039501c91c5605518888",
+    "failures": 0,
+    "log_sha256": [
+      "e79f6d90dbe8f06b595f4081819b35ee31cbc019b3276f0514aa6e84c3535fb4",
+      "0a0bd2986c9cefc28b03103a62bfa99a974299d9c46ebdff0b6adbad702fb847"
+    ],
+    "node_tests": 344,
+    "required_browser_repeat_tests": 58,
+    "skips": 0,
+    "tested_base": "fcda0508c13822a2545e7063cc5479e3835c40bd",
+    "tested_diff_sha256": "7096e18bb19b1892c21f7e01fd17d9894aad9788615ec7d3292e020e214e7fac"
+  }
+}

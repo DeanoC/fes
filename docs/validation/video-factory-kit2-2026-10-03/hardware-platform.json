@@ -1,0 +1,310 @@
+{
+  "format": 1,
+  "observations": {
+    "installed-image.json": {
+      "observation": {
+        "disk_sha256": {
+          "/media/fat/fogcast/releases/images/b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.img": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+          "/usr/sbin/mister-agent": "5cc13278b86ac0b16c905e42d902039a0cd5d341ee4ae80ec6647318b175d4be",
+          "/usr/sbin/mister-runtime": "7bea4ac89ee79a2b9631daa96284dec55df14af93f42ff22dde0b660eb034412"
+        },
+        "health": {
+          "agent_version": "0.1.0",
+          "api_version": "v1",
+          "artifacts": {
+            "agent_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+            "agent_sha256": "5cc13278b86ac0b16c905e42d902039a0cd5d341ee4ae80ec6647318b175d4be",
+            "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+            "image_sha256": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+            "kit_sha256": "c1c800383c884fad77c9e9ac1822eb912d3a50daf5a30714aa0a96353ba9e638",
+            "package_id": "722762f192f56ca1d01bdaf5a7a6e5af2399ee16fefb1d1066bd9706b8847380",
+            "record_sha256": "d6a10333fdaaf202e0acc5c5dbe8bcf5ef05f99a05fb9ba3f52f2c78d4ebc3d6",
+            "runtime_commit": "2ce9047f8a9e91900ac46e6b961e054370b55855"
+          },
+          "boot_id": "d89dc3a2-e73f-4c67-8c86-789a970bc67b",
+          "ready": true,
+          "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+        },
+        "installed_video_parts": {
+          "index": {
+            "packages": [
+              {
+                "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+                "parts": [
+                  {
+                    "archive_path": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar",
+                    "archive_sha256": "79d1742fadbe9c0bc4c04cf80693b158ffc0d7f5e768144277d1939ccc7e1fb8",
+                    "archive_size": 2846720,
+                    "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+                    "profile": "direct"
+                  },
+                  {
+                    "archive_path": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar",
+                    "archive_sha256": "70c95e146ec934241ce576454bf4190a7ffd8de8cc18a46ad38e4527df4f3c02",
+                    "archive_size": 2846720,
+                    "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+                    "profile": "scanlines"
+                  }
+                ]
+              }
+            ],
+            "version": 1
+          },
+          "index_sha256": "f01ef1cfce3203355af3469300eefa4cbdb4c27780a32e951b6d0ad7d2164247",
+          "members": [
+            "/usr/share/mister-runtime/core-video-parts/index.json",
+            "/usr/share/mister-runtime/core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar",
+            "/usr/share/mister-runtime/core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar"
+          ],
+          "modes": "-r--r--r--    1 0        0          2846720 Jul  2  2025 /usr/share/mister-runtime/core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar\n-r--r--r--    1 0        0          2846720 Jul  2  2025 /usr/share/mister-runtime/core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar\n-r--r--r--    1 0        0              834 Jul  2  2025 /usr/share/mister-runtime/core-video-parts/index.json\n-r--r--r--    1 0        0              834 Jul  2  2025 /usr/share/mister-runtime/selections/fes-core-video-parts.json\n"
+        },
+        "kit/lease": {
+          "expires_at": "0001-01-01T00:00:00Z",
+          "expires_in_ms": 0,
+          "generation": "f6bc1e68e5a1402e49c2fd5b953a39b43fc0c8a566400a0d94f2a44e1e5178db",
+          "state": "free"
+        },
+        "live_executables": {
+          "mister-agent": {
+            "sha256": "5cc13278b86ac0b16c905e42d902039a0cd5d341ee4ae80ec6647318b175d4be"
+          },
+          "mister-runtime": {
+            "sha256": "7bea4ac89ee79a2b9631daa96284dec55df14af93f42ff22dde0b660eb034412"
+          }
+        },
+        "mounted_root": {
+          "backing_file": "/media/fat/fogcast/releases/images/b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.img",
+          "mountinfo": "21 1 7:0 / / ro,noatime - ext4 /dev/loop0 ro,norecovery"
+        },
+        "selected_artifacts": {
+          "manifest_sha256": "ec229510ba151c435b8634a358cdd4fab1245ac0f6aa0f3ac54d910d5b1877dd",
+          "sources": {
+            "FogCast": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+            "libmister-runtime": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+            "mister-packages": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+            "misteross": "2ce9047f8a9e91900ac46e6b961e054370b55855"
+          }
+        },
+        "status": {
+          "expected_core": null,
+          "game_id": null,
+          "last_error": null,
+          "observed_core": null,
+          "state": "idle",
+          "system": null
+        }
+      },
+      "sha256": "8a0dd1adade650efe53095155146935d82baa99dd579b13dca728380f767ae67",
+      "size": 5177,
+      "source": "out/hardware/video-factory-kit2-20261003/installed-image.json"
+    },
+    "post-run-image.json": {
+      "observation": {
+        "disk_sha256": {
+          "/media/fat/fogcast/releases/images/b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.img": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+          "/usr/sbin/mister-agent": "5cc13278b86ac0b16c905e42d902039a0cd5d341ee4ae80ec6647318b175d4be",
+          "/usr/sbin/mister-runtime": "7bea4ac89ee79a2b9631daa96284dec55df14af93f42ff22dde0b660eb034412"
+        },
+        "health": {
+          "agent_version": "0.1.0",
+          "api_version": "v1",
+          "artifacts": {
+            "agent_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+            "agent_sha256": "5cc13278b86ac0b16c905e42d902039a0cd5d341ee4ae80ec6647318b175d4be",
+            "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+            "image_sha256": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+            "kit_sha256": "c1c800383c884fad77c9e9ac1822eb912d3a50daf5a30714aa0a96353ba9e638",
+            "package_id": "722762f192f56ca1d01bdaf5a7a6e5af2399ee16fefb1d1066bd9706b8847380",
+            "record_sha256": "d6a10333fdaaf202e0acc5c5dbe8bcf5ef05f99a05fb9ba3f52f2c78d4ebc3d6",
+            "runtime_commit": "2ce9047f8a9e91900ac46e6b961e054370b55855"
+          },
+          "boot_id": "d89dc3a2-e73f-4c67-8c86-789a970bc67b",
+          "ready": true,
+          "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+        },
+        "installed_video_parts": {
+          "index": {
+            "packages": [
+              {
+                "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+                "parts": [
+                  {
+                    "archive_path": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar",
+                    "archive_sha256": "79d1742fadbe9c0bc4c04cf80693b158ffc0d7f5e768144277d1939ccc7e1fb8",
+                    "archive_size": 2846720,
+                    "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+                    "profile": "direct"
+                  },
+                  {
+                    "archive_path": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar",
+                    "archive_sha256": "70c95e146ec934241ce576454bf4190a7ffd8de8cc18a46ad38e4527df4f3c02",
+                    "archive_size": 2846720,
+                    "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+                    "profile": "scanlines"
+                  }
+                ]
+              }
+            ],
+            "version": 1
+          },
+          "index_sha256": "f01ef1cfce3203355af3469300eefa4cbdb4c27780a32e951b6d0ad7d2164247",
+          "members": [
+            "/usr/share/mister-runtime/core-video-parts/index.json",
+            "/usr/share/mister-runtime/core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar",
+            "/usr/share/mister-runtime/core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar"
+          ],
+          "modes": "-r--r--r--    1 0        0          2846720 Jul  2  2025 /usr/share/mister-runtime/core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar\n-r--r--r--    1 0        0          2846720 Jul  2  2025 /usr/share/mister-runtime/core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar\n-r--r--r--    1 0        0              834 Jul  2  2025 /usr/share/mister-runtime/core-video-parts/index.json\n-r--r--r--    1 0        0              834 Jul  2  2025 /usr/share/mister-runtime/selections/fes-core-video-parts.json\n"
+        },
+        "kit/lease": {
+          "expires_at": "0001-01-01T00:00:00Z",
+          "expires_in_ms": 0,
+          "generation": "68d69acadc152a54181ffac50e2144007aaed0299ff47c1dcf9248455c41373c",
+          "state": "free"
+        },
+        "live_executables": {
+          "mister-agent": {
+            "sha256": "5cc13278b86ac0b16c905e42d902039a0cd5d341ee4ae80ec6647318b175d4be"
+          },
+          "mister-runtime": {
+            "sha256": "7bea4ac89ee79a2b9631daa96284dec55df14af93f42ff22dde0b660eb034412"
+          }
+        },
+        "mounted_root": {
+          "backing_file": "/media/fat/fogcast/releases/images/b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.img",
+          "mountinfo": "21 1 7:0 / / ro,noatime - ext4 /dev/loop0 ro,norecovery"
+        },
+        "selected_artifacts": {
+          "manifest_sha256": "ec229510ba151c435b8634a358cdd4fab1245ac0f6aa0f3ac54d910d5b1877dd",
+          "sources": {
+            "FogCast": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+            "libmister-runtime": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+            "mister-packages": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+            "misteross": "2ce9047f8a9e91900ac46e6b961e054370b55855"
+          }
+        },
+        "status": {
+          "expected_core": null,
+          "game_id": null,
+          "last_error": null,
+          "observed_core": null,
+          "state": "idle",
+          "system": null
+        }
+      },
+      "sha256": "c01b3cfc54341cb823fdb503b17ef040d7c403401a0f776fa59f034a1a5a2dc0",
+      "size": 5177,
+      "source": "out/hardware/video-factory-kit2-20261003/post-run-image.json"
+    },
+    "pre-update.json": {
+      "observation": {
+        "disk_sha256": {
+          "/media/fat/fogcast/releases/images/f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e.img": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+          "/usr/sbin/mister-agent": "2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699",
+          "/usr/sbin/mister-runtime": "a6c24668d3e98ab067f0835371733ab895905919ba630e60c409cd3c678b50a2"
+        },
+        "health": {
+          "agent_version": "0.1.0",
+          "api_version": "v1",
+          "artifacts": {
+            "agent_revision": "d7e13eaa01c062f924a7a287c03261f6021b671e",
+            "agent_sha256": "2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699",
+            "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+            "image_sha256": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+            "kit_sha256": "7c62078ae6fd4a009e17f9481adf724add6a32428f9fc91891405b371a3cea65",
+            "package_id": "b7ca89754e4330f3a1ccc975ce36b466c8820564306e412bc234fd9bfef3b8a3",
+            "record_sha256": "a59c943df8e125f74d82016169d1ae1f608649d956d729eb4efb312457fa806b",
+            "runtime_commit": "d7e13eaa01c062f924a7a287c03261f6021b671e"
+          },
+          "boot_id": "da6bd708-6c4a-45ca-b600-d58a94d72b27",
+          "ready": true,
+          "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+        },
+        "kit/lease": {
+          "expires_at": "0001-01-01T00:00:00Z",
+          "expires_in_ms": 0,
+          "generation": "8344c7fb8ed60c90dc0bcb6d70bd9df4c703fda52aeed94d9e714b4eda039312",
+          "state": "free"
+        },
+        "live_executables": {
+          "mister-agent": {
+            "sha256": "2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699"
+          },
+          "mister-runtime": {
+            "sha256": "a6c24668d3e98ab067f0835371733ab895905919ba630e60c409cd3c678b50a2"
+          }
+        },
+        "mounted_root": {
+          "backing_file": "/media/fat/fogcast/releases/images/f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e.img",
+          "mountinfo": "21 1 7:0 / / ro,noatime - ext4 /dev/loop0 ro,norecovery"
+        },
+        "status": {
+          "expected_core": null,
+          "game_id": null,
+          "last_error": null,
+          "observed_core": null,
+          "state": "idle",
+          "system": null
+        }
+      },
+      "sha256": "b8109205df1fa9e64342adc860ffa65621b78a3e489f7423cda5051aafe20ac7",
+      "size": 2333,
+      "source": "out/hardware/video-factory-kit2-20261003/pre-update.json"
+    },
+    "restored-image.json": {
+      "observation": {
+        "disk_sha256": {
+          "/media/fat/fogcast/releases/images/f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e.img": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+          "/usr/sbin/mister-agent": "2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699",
+          "/usr/sbin/mister-runtime": "a6c24668d3e98ab067f0835371733ab895905919ba630e60c409cd3c678b50a2"
+        },
+        "health": {
+          "agent_version": "0.1.0",
+          "api_version": "v1",
+          "artifacts": {
+            "agent_revision": "d7e13eaa01c062f924a7a287c03261f6021b671e",
+            "agent_sha256": "2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699",
+            "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+            "image_sha256": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+            "kit_sha256": "7c62078ae6fd4a009e17f9481adf724add6a32428f9fc91891405b371a3cea65",
+            "package_id": "b7ca89754e4330f3a1ccc975ce36b466c8820564306e412bc234fd9bfef3b8a3",
+            "record_sha256": "a59c943df8e125f74d82016169d1ae1f608649d956d729eb4efb312457fa806b",
+            "runtime_commit": "d7e13eaa01c062f924a7a287c03261f6021b671e"
+          },
+          "boot_id": "453e9b34-454e-409d-b523-d1db9b5dd716",
+          "ready": true,
+          "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+        },
+        "kit/lease": {
+          "expires_at": "0001-01-01T00:00:00Z",
+          "expires_in_ms": 0,
+          "generation": "7a5eb49dd127a88a93962e9a6be9f03527aae700ef412c55a3d9d621c0fb8670",
+          "state": "free"
+        },
+        "live_executables": {
+          "mister-agent": {
+            "sha256": "2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699"
+          },
+          "mister-runtime": {
+            "sha256": "a6c24668d3e98ab067f0835371733ab895905919ba630e60c409cd3c678b50a2"
+          }
+        },
+        "mounted_root": {
+          "backing_file": "/media/fat/fogcast/releases/images/f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e.img",
+          "mountinfo": "21 1 7:0 / / ro,noatime - ext4 /dev/loop0 ro,norecovery"
+        },
+        "status": {
+          "expected_core": null,
+          "game_id": null,
+          "last_error": null,
+          "observed_core": null,
+          "state": "idle",
+          "system": null
+        }
+      },
+      "sha256": "cfad1b711c58d9ad655641b67a94a601c72f266fd3c2fd26187f16694d2b4b3f",
+      "size": 2329,
+      "source": "out/hardware/video-factory-kit2-20261003/restored-image.json"
+    }
+  },
+  "publication": "Selected public fields; source hashes identify original operator receipts"
+}
