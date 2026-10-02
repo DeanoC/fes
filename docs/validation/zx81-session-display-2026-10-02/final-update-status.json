@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "body": {
+    "confirmed_boot_id": "9805b4e2-db0a-486d-ae37-75a384e0f4ff",
+    "confirmed_image": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "good": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "previous": "b4281ca738203b96db216ec56805524448a6bb971c6998e6ed9b6cc700ed0741",
+    "corrupt": false,
+    "boot_id": "9805b4e2-db0a-486d-ae37-75a384e0f4ff",
+    "image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "trial": false,
+    "raw_idle_ready": true
+  }
+}

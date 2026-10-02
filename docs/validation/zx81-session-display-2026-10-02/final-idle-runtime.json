@@ -1,0 +1,230 @@
+{
+  "protocol": 2,
+  "ok": true,
+  "state": "idle",
+  "execution": "none",
+  "system": null,
+  "core": null,
+  "error": null,
+  "version": "git-5a58053229b5e1772defe5f9bdc34c72f659db71",
+  "capabilities": {
+    "programming_profiles": [
+      "development-contained-v1",
+      "fes-gp-v1"
+    ],
+    "abis": [
+      {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0,
+        "interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.coleco-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.firmware.blob",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keypad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.blob",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.blob-stream",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.menu-display",
+            "major": 1,
+            "minor": 0
+          }
+        ]
+      },
+      {
+        "id": "fes.computer",
+        "major": 1,
+        "minor": 0,
+        "interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.apple2-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.c64-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.apple2-floppy",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.c64-disk",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          }
+        ]
+      },
+      {
+        "id": "fes.simple-computer",
+        "major": 1,
+        "minor": 0,
+        "interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.zx81-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.blob",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.blob-stream",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ]
+      },
+      {
+        "id": "fes.simple-game",
+        "major": 1,
+        "minor": 0,
+        "interfaces": [
+          {
+            "id": "fes.gamepad",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.persistence.words",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.pong.progress",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          }
+        ]
+      }
+    ],
+    "active_interfaces": [],
+    "rom_linking": 1
+  },
+  "active_package": null,
+  "menu_display": {
+    "available": true,
+    "package_id": "6ecb849a8a35215d2cc58fb0c09a12b2faa3708b1f7de49feaeee4b609b11e40",
+    "generation": 8,
+    "width": 1280,
+    "height": 720,
+    "stride": 5120,
+    "byte_count": 3686400,
+    "slot_bytes": 4194304,
+    "staging_format": "rgba8888",
+    "displayed_sequence": 12,
+    "underflows": 0,
+    "error": null
+  },
+  "generation": null,
+  "inspected_package": null
+}

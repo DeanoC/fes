@@ -1,0 +1,14 @@
+{
+  "mister-runtime": {
+    "sha256": "69e5c6476620db8cba638d2b93675d99d34981eaa30e9027482c7ef061f7f5cc",
+    "size": 1063092
+  },
+  "mister-agent": {
+    "sha256": "dd91591c8eb6a9728bb1036cbeaba4025e52de5c747402c2c980bdb046986754",
+    "size": 9437346
+  },
+  "fogcast-kit": {
+    "sha256": "586b18a5bcaf338c99a55974d9062c65aaaf107bbb44fb2abeeea9a14c4e95b2",
+    "size": 9109666
+  }
+}

@@ -1,0 +1,365 @@
+{
+  "protocol": 2,
+  "ok": true,
+  "state": "running_development",
+  "execution": "development",
+  "system": null,
+  "core": "fes.zx81",
+  "error": null,
+  "version": "git-5a58053229b5e1772defe5f9bdc34c72f659db71",
+  "capabilities": {
+    "programming_profiles": [
+      "development-contained-v1",
+      "fes-gp-v1"
+    ],
+    "abis": [
+      {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0,
+        "interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.coleco-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.firmware.blob",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keypad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.blob",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.blob-stream",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.menu-display",
+            "major": 1,
+            "minor": 0
+          }
+        ]
+      },
+      {
+        "id": "fes.computer",
+        "major": 1,
+        "minor": 0,
+        "interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.apple2-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.c64-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.apple2-floppy",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.c64-disk",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          }
+        ]
+      },
+      {
+        "id": "fes.simple-computer",
+        "major": 1,
+        "minor": 0,
+        "interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.zx81-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.blob",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.blob-stream",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ]
+      },
+      {
+        "id": "fes.simple-game",
+        "major": 1,
+        "minor": 0,
+        "interfaces": [
+          {
+            "id": "fes.gamepad",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.persistence.words",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.pong.progress",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          }
+        ]
+      }
+    ],
+    "active_interfaces": [
+      {
+        "id": "fes.audio.pcm-s16-stereo-48k",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.keyboard",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.media.blob",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.memory.hps-ddr",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.video.fixed-720p60",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "id": "fes.video.session-display",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "rom_linking": 1
+  },
+  "active_package": {
+    "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+    "descriptor": {
+      "format": 3,
+      "core": {
+        "id": "fes.zx81",
+        "name": "Zx81",
+        "description": "ZX81 with an expansion bus and runtime-owned in-session HDMI controls",
+        "version": "1.5.0"
+      },
+      "target": {
+        "platform": "de10_nano",
+        "device": "5CSEBA6U23I7",
+        "programming_profile": "fes-gp-v1"
+      },
+      "payload": {
+        "file": "core.rbf",
+        "size": 2621476,
+        "sha256": "4c4efd299f6228fc38fe9d1d1917ced030a4ede188776f83e8705a9d934a00f0"
+      },
+      "rom": {
+        "id": "machine-rom",
+        "role": "firmware",
+        "source_size": 8192,
+        "file": "rom-map.json",
+        "size": 742014,
+        "sha256": "0c0fc00252eee9dfff62eb6b02820eb6d28fa89b91af61f24dc77165cb83d2ee"
+      },
+      "abi": {
+        "id": "fes.simple-computer",
+        "major": 1,
+        "minor": 0
+      },
+      "interfaces": [
+        {
+          "id": "fes.keyboard",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.expansion.zx81-bus",
+          "major": 2,
+          "minor": 0,
+          "required": false
+        },
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.memory.hps-ddr",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.video.session-display",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        }
+      ],
+      "build": {
+        "id": "7671359e7ef165e07820dacd5d7df8fd",
+        "repository": "https://github.com/DeanoC/fes.git",
+        "revision": "75d734f40c5ed7068ba9685c9d93b8a41564abe8",
+        "recipe_sha256": "c25b2e6bd5070fc5080581bb585641b6418d985a68c9fb56fcbfc50d050191e8",
+        "toolchain": "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=e148641d0e4b9893a08a7de95e82ad340f6bf7923b6dae509af13a7cfe87518d; nextpnr-mistral commit=c2bb4363f4628cfbc5f304f3635e1f6eb88a47a7; sha256=e76d91b158b2d9fc156894a1540b2e9613065c9b99dca8ea05703cdd06660087; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=bee3b59f5548fa586ee78f7ab950b3a48bd8cf0f2d3e9b9954610a158844777a"
+      }
+    },
+    "rom_link": {
+      "rom_id": "machine-rom",
+      "map_sha256": "0c0fc00252eee9dfff62eb6b02820eb6d28fa89b91af61f24dc77165cb83d2ee",
+      "source_sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa",
+      "source_size": 8192,
+      "programmed_sha256": "a47763fddfe00ca181aa7da3cbfc31a4296495d155b58bccb0f606f546e6a8f7",
+      "programmed_size": 2616654
+    },
+    "persistence_mode": "volatile",
+    "observed": {
+      "abi": {
+        "id": "fes.simple-computer",
+        "major": 1,
+        "minor": 0
+      },
+      "build_id": "7671359e7ef165e07820dacd5d7df8fd"
+    }
+  },
+  "menu_display": {
+    "available": true,
+    "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+    "session": true,
+    "core_generation": 1,
+    "generation": 2,
+    "width": 1280,
+    "height": 720,
+    "stride": 5120,
+    "byte_count": 3686400,
+    "slot_bytes": 4194304,
+    "staging_format": "rgba8888",
+    "displayed_sequence": 5,
+    "underflows": 0,
+    "error": null
+  },
+  "generation": 1,
+  "inspected_package": null
+}

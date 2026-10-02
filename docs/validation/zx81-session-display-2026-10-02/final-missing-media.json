@@ -1,0 +1,9 @@
+{
+  "status": 404,
+  "body": {
+    "error": {
+      "code": "ROM_NOT_FOUND",
+      "message": "catalog game was not found"
+    }
+  }
+}

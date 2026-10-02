@@ -117,9 +117,12 @@ continues suppressing machine keys until close succeeds or the machine is
 replaced/stopped. Media mutations and display frames share the runtime busy
 fence; close and Stop use the same bounded frame wait.
 
-The combined ZX81 display has host tests only. Existing idle-menu hardware
-diagnostics do not accept its FPGA artifact or prove preservation of a live
-BASIC program during cassette selection.
+The combined ZX81 display has a
+[frozen image/HDMI diagnostic](../../../docs/validation/2026-10-02-zx81-session-display.md)
+with a ROM-backed BASIC program preserved during visible tape arm/eject.
+Keyboard and controller events used Linux evdev injection. Physical operator
+input, controlled clock/service faults and expansion/audio acceptance remain
+separate; existing idle-menu evidence does not qualify a later ZX81 artifact.
 
 ## Pattern client
 

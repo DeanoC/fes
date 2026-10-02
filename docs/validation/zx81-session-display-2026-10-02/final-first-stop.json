@@ -1,0 +1,25 @@
+{
+  "status": 200,
+  "body": {
+    "id": "f960c9ca-0eec-4ae2-8e0a-f7988aead284",
+    "target": "dev",
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "state": "idle",
+    "input": {
+      "state": "detached",
+      "ready": false,
+      "metrics": {
+        "frames_sent": 1803,
+        "state_resyncs": 0,
+        "sequence_gaps": 0,
+        "releases": 1,
+        "capture_to_bridge_p95_ms": 0,
+        "bridge_to_uinput_p95_ms": 0,
+        "rtt_ms": 1.27813,
+        "bridge_to_uinput_measurable": false,
+        "shutdown_reason": "session_stop"
+      }
+    },
+    "flight_id": "18cc02cb-f01b-4f4a-afb5-bffd554ac164"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "status": 200,
+  "body": {
+    "id": "f960c9ca-0eec-4ae2-8e0a-f7988aead284",
+    "target": "dev",
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "state": "active",
+    "game_id": "fpga-zx81-hdmi-controls-370-bf2008e20c72",
+    "system": "fpga",
+    "execution": "fpga_native",
+    "input": {
+      "session_id": "ddff3167bbf93ab6",
+      "state": "attached",
+      "ready": true,
+      "metrics": {
+        "frames_sent": 44,
+        "state_resyncs": 0,
+        "sequence_gaps": 0,
+        "releases": 0,
+        "capture_to_bridge_p95_ms": 0,
+        "bridge_to_uinput_p95_ms": 0,
+        "rtt_ms": 1.313075,
+        "bridge_to_uinput_measurable": false
+      }
+    },
+    "core_package": {
+      "rom_link": {
+        "rom_id": "machine-rom",
+        "map_sha256": "0c0fc00252eee9dfff62eb6b02820eb6d28fa89b91af61f24dc77165cb83d2ee",
+        "source_sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa",
+        "source_size": 8192,
+        "programmed_sha256": "a47763fddfe00ca181aa7da3cbfc31a4296495d155b58bccb0f606f546e6a8f7",
+        "programmed_size": 2616654
+      },
+      "persistence_mode": "volatile",
+      "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+      "generation": 1,
+      "abi": {
+        "id": "fes.simple-computer",
+        "major": 1,
+        "minor": 0
+      },
+      "build_id": "7671359e7ef165e07820dacd5d7df8fd",
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keyboard",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.memory.hps-ddr",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.session-display",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "gamepad": false
+    },
+    "flight_id": "18cc02cb-f01b-4f4a-afb5-bffd554ac164"
+  }
+}
