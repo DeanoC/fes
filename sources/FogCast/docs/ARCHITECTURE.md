@@ -2393,15 +2393,75 @@ with layout, sorted role/part identities and programmed payload digest/size.
 Private part companions remain owned with their base publication. Restart
 adoption independently recomposes their bytes before recognizing an active
 parts tuple. Generation reconciliation compares the complete parts tuple, so a
-lost response cannot confirm a different video selection. Production CPU
-expansion composition and library selection do not accept this transport.
-Developer loads are volatile; this milestone does not change library settings
-or persistence and does not add a household presentation preference.
+lost response cannot confirm a different video selection. The production CPU
+expansion route does not accept this transport.
+
+Library video selection uses the separate `/v1/library/core/parts` route with
+one exact `X-FogCast-Package-ID`, a bounded octet-stream body, bearer
+credential, existing kit lease and update exclusion. `LoadLibraryPartsCore`
+retains library context through the coordinator and adapter. The agent admits
+the selected parts independently, inspects the base core-data namespace even
+for a composed load, then sends local protocol-2 `load_parts_library_core`
+with the fixed core-data root. Native admission repeats the namespace check
+before programming. A durable namespace cannot be replaced by a candidate
+without its persistence contract. This closed format-2 Coleco lane remains
+volatile; its exact parts tuple, persistence mode and generation are checked
+on response reconciliation and retained on restart adoption. Developer routes
+continue to reject library headers and remain explicitly volatile.
+Host preference and availability selection is described in
+[Library video preferences](#library-video-preferences).
 
 The current contract is a fixed pixel-domain proof. It adds no runtime output
 mode, framebuffer, CRT, overlay, audio processing or hot-reconfiguration
 capability. Host tests establish software coverage; hardware acceptance remains
 separate for exact shell, part, runtime and image artifacts.
+
+## Library video preferences
+
+The household `[library].video_profile` setting accepts `direct` or `scanlines`
+and defaults to `direct`. The existing library settings API and browser Settings
+save it through the atomic `library-settings.json` overlay. Changing it affects
+the next library launch; the running machine retains its selected parts and
+composition identity. **Manage FPGA library** imports a video-part archive for
+an explicitly chosen profile and shows each entry's resolved output and
+available choices.
+
+`catalog/core_video_parts.go` stores video archives in the existing immutable
+chunk store. Schema 17 adds a separate inventory with one part per exact
+`(shell_package_id, profile)`. Reimporting the same part/profile is idempotent;
+a different part at that mapping conflicts rather than replacing it. The
+profile is household metadata outside the immutable part manifest. Imports
+accept archives up to 32 MiB in total, require the closed video socket 1.0,
+validate archive identities, and fully compose against the installed sealed
+shell before storage. Reads recheck the archive, part identity and shell
+binding. Video imports do not enter CPU expansion inventory.
+
+| Host operation | Endpoint |
+| --- | --- |
+| List imported video parts | `GET /api/v1/library/video-parts` |
+| Import a bounded binary archive for a profile | `POST /api/v1/library/video-parts/{profile}` |
+| Inspect the next launch for an entry | `GET /api/v1/library/core-entries/{game_id}/video` |
+
+`fogcast/core_video.go` considers only parts for the entry's exact installed
+package and declared video socket. If the preferred profile is absent, it
+selects an installed direct part or the shell's built-in direct output. A core
+without that socket uses its built-in output. An installed part selected by
+either preference or fallback must pass integrity and composition checks with
+the entry's selected CPU expansion; failure blocks launch before a target
+mutation. The read-only resolution reports preferred and effective profiles,
+part identity, built-in output, fallback reason and availability for each
+choice. Absence of an installed part means unavailable, without asserting that
+the core has insufficient LUTs or routing capacity. Successful composition
+checks the part's actual changes against the exact frozen shell and its reserved
+region.
+
+Library launch uses the existing lifecycle admission and fully links the video
+part and optional Coleco bus-2 expansion before dispatch through the library
+parts route described above. The host recognizes the confirmed application ABI
+as `fpga_native` and binds the complete parts tuple, programmed digest and
+generation to the library session. The shell package, BUILD_ID, fixed video and
+audio/input contracts remain those of the sealed base. This selection path
+currently accepts the same marked format-2 Coleco layout as the developer path.
 
 ## Described-core persistent data
 

@@ -29,8 +29,8 @@ func validPartsComposition(c expansion.PartsComposition, id string) bool {
 	return true
 }
 
-func (client *Client) partsCore(ctx context.Context, operation, path, id, payload string, parts []PartPath, c expansion.PartsComposition) (Protocol2Response, error) {
-	if !validRuntimePath(path) || !validRuntimePath(payload) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) {
+func (client *Client) partsCore(ctx context.Context, operation, path, id, root, payload string, parts []PartPath, c expansion.PartsComposition) (Protocol2Response, error) {
+	if !validRuntimePath(path) || !validRuntimePath(payload) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || (operation == "load_parts_library_core" && !validRuntimePath(root)) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	for i, p := range parts {
@@ -38,7 +38,7 @@ func (client *Client) partsCore(ctx context.Context, operation, path, id, payloa
 			return Protocol2Response{}, errInvalidRuntimeRequest
 		}
 	}
-	mutation := operation == "load_parts_core"
+	mutation := operation == "load_parts_core" || operation == "load_parts_library_core"
 	if mutation {
 		if _, err := client.Protocol2Status(ctx); err != nil {
 			return Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
@@ -52,7 +52,8 @@ func (client *Client) partsCore(ctx context.Context, operation, path, id, payloa
 		Parts       []PartPath                 `json:"parts"`
 		PayloadPath string                     `json:"payload_path"`
 		Composition expansion.PartsComposition `json:"composition"`
-	}{2, operation, path, id, parts, payload, c})
+		DataRoot    string                     `json:"data_root,omitempty"`
+	}{2, operation, path, id, parts, payload, c, root})
 	if err != nil {
 		if mutation {
 			return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
@@ -76,15 +77,21 @@ func (client *Client) partsCore(ctx context.Context, operation, path, id, payloa
 }
 
 func (client *Client) LoadPartsCore(ctx context.Context, path, id, payload string, parts []PartPath, c expansion.PartsComposition) (Protocol2Response, error) {
-	return client.partsCore(ctx, "load_parts_core", path, id, payload, parts, c)
+	return client.partsCore(ctx, "load_parts_core", path, id, "", payload, parts, c)
+}
+func (client *Client) LoadLibraryPartsCore(ctx context.Context, path, id, root, payload string, parts []PartPath, c expansion.PartsComposition) (Protocol2Response, error) {
+	return client.partsCore(ctx, "load_parts_library_core", path, id, root, payload, parts, c)
 }
 func (client *Client) InspectPartsCore(ctx context.Context, path, id, payload string, parts []PartPath, c expansion.PartsComposition) (Protocol2Response, error) {
-	return client.partsCore(ctx, "inspect_parts_core", path, id, payload, parts, c)
+	return client.partsCore(ctx, "inspect_parts_core", path, id, "", payload, parts, c)
 }
 
 type protocol2PartsControl interface {
 	LoadPartsCore(context.Context, string, string, string, []PartPath, expansion.PartsComposition) (Protocol2Response, error)
 	InspectPartsCore(context.Context, string, string, string, []PartPath, expansion.PartsComposition) (Protocol2Response, error)
+}
+type protocol2LibraryPartsControl interface {
+	LoadLibraryPartsCore(context.Context, string, string, string, string, []PartPath, expansion.PartsComposition) (Protocol2Response, error)
 }
 
 func partPaths(s corepackage.Staged) []PartPath {
@@ -97,6 +104,12 @@ func partPaths(s corepackage.Staged) []PartPath {
 
 func (r *Runtime) LoadPartsCoreOwned(admission, observation, owner context.Context, size int64, body io.Reader) (CoreActivation, bool, *protocol.APIError) {
 	return r.loadCoreOwnedMode(admission, observation, owner, size, body, "", true, true)
+}
+func (r *Runtime) LoadLibraryPartsCoreOwned(admission, observation, owner context.Context, size int64, body io.Reader, id string) (CoreActivation, bool, *protocol.APIError) {
+	if !protocol2Hex64.MatchString(id) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "invalid package identity", Phase: "admission"}
+	}
+	return r.loadCoreOwnedMode(admission, observation, owner, size, body, id, true, true)
 }
 
 func (r *Runtime) InspectPartsCore(ctx context.Context, size int64, body io.Reader) (result protocol.PartsInspection, apiErr *protocol.APIError) {

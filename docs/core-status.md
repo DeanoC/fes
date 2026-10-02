@@ -99,8 +99,16 @@ both video choices with and without SGM. The selected artifacts passed a
 [Kit 2 diagnostic](validation/2026-10-02-video-parts-kit2-hil.md): native 720p
 capture, odd-row dimming, both SGM tones, Stop and direct-output relaunch.
 Software simulation, sealed-build evidence and appliance-image acceptance
-remain distinct. Audio parts, DDR processing and profile/library selection
-are subsequent work.
+remain distinct. FogCast now stores the household `direct` or `scanlines`
+preference and imports video parts for an exact shell package. Normal library
+Play composes that part with the title's CPU expansion before download; missing
+profiles fall back to direct, while an invalid installed selected part rejects
+admission. The [normal-library Kit 2 diagnostic](validation/2026-10-02-video-library-kit2-hil.md)
+passed profile fallback, direct/scanline with and without SGM, retained active
+generation, host restart persistence and Stop/relaunch. This initially supports
+the named format-2 Coleco video shell only;
+the factory package has built-in direct output. Audio parts, DDR processing,
+other raster standards and factory video-part builds remain subsequent work.
 
 ## Not implemented, or not this package
 

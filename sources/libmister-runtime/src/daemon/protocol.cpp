@@ -718,10 +718,18 @@ Error ParseRequest(const std::string& line, Request* request)
 			if (operation->string_value == "recover_idle")
 				parsed.operation = Operation::recover_idle;
 		} else if (operation->string_value == "load_parts_core" ||
+			operation->string_value == "load_parts_library_core" ||
 			operation->string_value == "inspect_parts_core") {
+			const bool library = operation->string_value == "load_parts_library_core";
 			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",
-				"parts", "payload_path", "composition"};
-			if (!HasOnly(root, fields, 7, &error)) return error;
+				"parts", "payload_path", "composition", "data_root"};
+			if (!HasOnly(root, fields, library ? 8 : 7, &error)) return error;
+			if (library) {
+				const std::string* data_root = nullptr;
+				if (!StringMember(root, "data_root", &data_root, &error)) return error;
+				if (!Path(*data_root)) return Invalid("invalid library parts core-data root");
+				parsed.data_root = *data_root;
+			}
 			const std::string *path = nullptr, *id = nullptr, *payload = nullptr;
 			if (!StringMember(root, "package_path", &path, &error) ||
 				!StringMember(root, "package_id", &id, &error) ||
@@ -783,7 +791,8 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.composition_request.payload_path = *payload;
 			parsed.package_path = *path;
 			parsed.package_id = *id;
-			parsed.operation = operation->string_value == "load_parts_core" ?
+			parsed.operation = library ? Operation::load_parts_library_core :
+				operation->string_value == "load_parts_core" ?
 				Operation::load_parts_core : Operation::inspect_parts_core;
 		} else if (operation->string_value == "load_composed_core" &&
 			Find(root, "expansions") != nullptr) {

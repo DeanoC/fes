@@ -3,6 +3,8 @@
   'use strict';
   const MAX_PACKAGE_BYTES = 65 * 1024 * 1024;
   const MAX_MEDIA_BYTES = 32 * 1024 * 1024;
+  const MAX_VIDEO_PART_BYTES = 32 * 1024 * 1024;
+  const videoProfile = value => ['direct', 'scanlines'].includes(value);
   const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
   const clone = value => JSON.parse(JSON.stringify(value));
   const core = item => item && item.descriptor && item.descriptor.core && item.descriptor.core.id;
@@ -18,7 +20,8 @@
   function createController({fetchImpl, onChange = () => {}, onCatalogChange = () => {}, requestTimeoutMs = 120000}) {
     if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs <= 0 || requestTimeoutMs > 120000) throw new Error('Invalid request timeout.');
     const state = {open:false, busy:false, loading:false, packages:[], entries:[],
-      cores:[], catalogOnline:false, catalogMessage:'', coreRef:null, setup:null, setupROMs:{}, setupGame:null, packageId:'', entryId:'', capabilities:null, compatibility:null, media:null, message:''};
+      cores:[], catalogOnline:false, catalogMessage:'', coreRef:null, setup:null, setupROMs:{}, setupGame:null, packageId:'', entryId:'', capabilities:null, compatibility:null, media:null,
+      video:null, videoMessage:'', videoParts:[], videoPartsMessage:'', message:''};
     let epoch = 0;
     let listener = () => {};
     function emit() { const value = clone(state); onChange(value); listener(value); return value; }
@@ -78,9 +81,47 @@
       if (!selectedPackage() || (entry && core(selectedPackage()) !== entry.core_id)) state.packageId = entry ? entry.package_id : '';
       state.capabilities = null;
       state.compatibility = null;
+      state.video = null;
       return true;
     }
+    function validVideoPart(value) {
+      return value && digest(value.part_id) && digest(value.package_id) && videoProfile(value.profile);
+    }
+    async function videoInventory(token) {
+      try {
+        const value = await request('/api/v1/library/video-parts');
+        if (!Array.isArray(value) || !value.every(validVideoPart)) throw new Error('Invalid video-part inventory.');
+        if (token === epoch) { state.videoParts = value; state.videoPartsMessage = ''; }
+      } catch (_) {
+        if (token === epoch) { state.videoParts = []; state.videoPartsMessage = 'Video-part inventory unavailable. Refresh to confirm saved imports.'; }
+      }
+    }
+    async function videoResolution(token) {
+      if (token !== epoch) return;
+      const entry = selectedEntry();
+      state.video = null; state.videoMessage = '';
+      if (!entry) return;
+      if (entry.package_id !== state.packageId) {
+        state.videoMessage = 'Select the package for this entry first, then review its next-launch output.';
+        return;
+      }
+      try {
+        const value = await request(entryPath(entry.game_id) + '/video');
+        if (!value || value.game_id !== entry.game_id || value.package_id !== entry.package_id ||
+            !videoProfile(value.preferred_profile) || !videoProfile(value.effective_profile) || typeof value.builtin !== 'boolean' ||
+            (value.builtin ? Boolean(value.part_id) || value.effective_profile !== 'direct' : !digest(value.part_id)) || !Array.isArray(value.choices) ||
+            !value.choices.every(c => c && videoProfile(c.profile) && typeof c.label === 'string' &&
+              typeof c.available === 'boolean' && (!c.part_id || digest(c.part_id)) && (!c.reason || typeof c.reason === 'string')) ||
+            (value.fallback_reason && typeof value.fallback_reason !== 'string')) throw new Error('Invalid resolved video output.');
+        if (token === epoch) state.video = value;
+      } catch (_) {
+        if (token === epoch) state.videoMessage = 'Next-launch video output could not be confirmed. Refresh before launching.';
+      }
+    }
     async function capabilities(token) {
+      if (token !== epoch) return;
+      await videoResolution(token);
+      if (token !== epoch) return;
       const id = state.packageId;
       if (!id) return;
       const value = await request('/api/v1/core-packages/' + id + '/media-capabilities');
@@ -128,7 +169,7 @@
       state.catalogOnline = false;
       state.message = '';
       emit();
-      try { if (await inventories(token)) { await capabilities(token); await catalogInventory(token); if (state.coreRef && state.catalogOnline) {
+      try { if (await inventories(token)) { await capabilities(token); await videoInventory(token); await catalogInventory(token); if (state.coreRef && state.catalogOnline) {
           const row = state.cores.find(c => c.source_id === state.coreRef.source_id && c.core_id === state.coreRef.core_id);
           if (!row || row.library_source_id !== state.coreRef.library_source_id || (row.package_id || '') !== state.coreRef.package_id) {
             state.coreRef = state.setup = state.setupGame = null; state.setupROMs = {}; state.media = null; state.packageId = '';
@@ -331,6 +372,17 @@
           state.media = value;
         }, 'Media stored by digest. Select it explicitly; storage does not prove core compatibility.');
       },
+      importVideoPart(profile, file) {
+        return mutate(async () => {
+          if (!videoProfile(profile)) throw new Error('Choose Direct or Scanlines explicitly.');
+          boundedFile(file, MAX_VIDEO_PART_BYTES, '.fexp');
+          const value = await request('/api/v1/library/video-parts/' + profile,
+            {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file});
+          if (!validVideoPart(value) || value.profile !== profile) throw new Error('Invalid video import response; part may be saved. Refresh to confirm.');
+          await videoInventory(epoch);
+          await videoResolution(epoch);
+        }, 'Video part imported for its exact core package. Household preference and running session are unchanged.', true);
+      },
       createEntry(title) {
         return mutate(async () => {
           const p = requirePackage();
@@ -427,6 +479,23 @@
       byId('core-media-status').textContent = limits + ' Declared only; active target capacity is checked at launch.' +
         (media ? ' Imported SHA-256 ' + media.media_id + ' — ' + media.size + ' bytes.' : ' New entry: no media selected.');
       byId('core-entry-current').textContent = entry ? 'Current package ' + entry.package_id + '; media ' + (entry.media_id || 'none') : 'Create an explicitly titled library entry.';
+      if (byId('core-video-status')) {
+        const video = state.video;
+        const name = profile => profile === 'scanlines' ? 'Scanlines' : 'Direct';
+        const effectiveChoice = video && video.choices.find(choice => choice.profile === video.effective_profile);
+        const available = video && (video.builtin || (effectiveChoice && effectiveChoice.available));
+        byId('core-video-status').textContent = state.videoMessage || (video
+          ? 'Household preference: ' + name(video.preferred_profile) + '. Next launch: ' + (available ? '' : 'Unavailable — ') + name(video.effective_profile) +
+            (video.builtin ? ' (built in).' : ' (video part ' + video.part_id + ').') +
+            (!available && effectiveChoice && effectiveChoice.reason ? ' ' + effectiveChoice.reason : '') +
+            (video.fallback_reason ? ' ' + video.fallback_reason : '')
+          : 'Choose a library entry to see its next-launch output.');
+        byId('core-video-choices').replaceChildren(...(video ? video.choices : []).map(choice => el('p',
+          choice.label + ': ' + (choice.available ? 'Available' : 'Unavailable') + (choice.reason ? ' — ' + choice.reason : ''))));
+        byId('core-video-parts').textContent = state.videoPartsMessage ||
+          (state.videoParts.length ? state.videoParts.length + ' saved video part(s). Compatibility is checked against the exact selected package.' : 'No video parts imported.');
+        byId('core-video-import').disabled = state.busy || state.loading;
+      }
       byId('core-library-message').textContent = state.loading ? 'Loading library…' : state.message;
       for (const id of ['core-package-check','core-media-import','core-entry-create','core-entry-package-save','core-entry-media-save','core-entry-media-clear']) {
         byId(id).disabled = state.busy || state.loading || !state.packageId ||
@@ -456,8 +525,9 @@
     click('core-entry-package-save', () => controller.selectEntryPackage());
     click('core-entry-media-save', () => controller.selectEntryMedia());
     click('core-entry-media-clear', () => controller.clearEntryMedia());
+    if (byId('core-video-import')) click('core-video-import', () => controller.importVideoPart(byId('core-video-profile').value, byId('core-video-file').files[0]));
   }
-  const api = {createController, mount, MAX_PACKAGE_BYTES, MAX_MEDIA_BYTES};
+  const api = {createController, mount, MAX_PACKAGE_BYTES, MAX_MEDIA_BYTES, MAX_VIDEO_PART_BYTES};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.FogCastCoreLibrary = api;
 })(globalThis);

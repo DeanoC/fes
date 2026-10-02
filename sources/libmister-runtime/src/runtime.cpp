@@ -1306,6 +1306,13 @@ Error Runtime::LoadLibraryCore(
 		return Invalid("invalid core-data root");
 	return impl_->LoadCore(directory, id, root);
 }
+Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
+	const std::string& root, const CoreCompositionRequest& request)
+{
+	if (!ValidAbsolutePath(root) || request.parts.empty() || request.composition.parts.empty())
+		return Invalid("library parts require a core-data root and parts composition");
+	return impl_->LoadCore(directory, id, root, &request);
+}
 Error Runtime::LoadROMCore(const std::string& directory, const std::string& id,
 	const std::string& path, const CoreROMLink& link)
 { return impl_->LoadCore(directory, id, "", nullptr, path, "", &link); }

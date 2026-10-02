@@ -574,6 +574,7 @@ func (s *Service) librarySettingsSnapshot() LibraryConfig {
 	return LibraryConfig{
 		AttractIdleSeconds: seconds,
 		PreferredRegions:   regions,
+		VideoProfile:       defaultVideoProfile(s.videoProfile),
 		Libraries:          append([]catalog.Root(nil), s.roots...),
 		Targets:            append([]TargetConfig(nil), s.targets...),
 		SelectedTarget:     s.selectedTarget,
@@ -592,6 +593,7 @@ func (s *Service) applyPersistedLibraryOverlay() {
 	}
 	s.attractIdle = overlay.AttractIdleSeconds
 	s.preferredRegions = append([]string(nil), overlay.PreferredRegions...)
+	s.videoProfile = overlay.VideoProfile
 }
 
 func (s *Service) SetLibrarySettings(ctx context.Context, next LibraryConfig) error {
@@ -647,6 +649,9 @@ func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigP
 	}
 	if patch.PreferredRegions != nil {
 		next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
+	}
+	if patch.VideoProfile != nil {
+		next.VideoProfile = *patch.VideoProfile
 	}
 	if patch.Libraries != nil {
 		next.Libraries = append([]catalog.Root(nil), (*patch.Libraries)...)
@@ -866,6 +871,7 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 	}
 	s.attractIdle = normalized.AttractIdleSeconds
 	s.preferredRegions = append([]string(nil), normalized.PreferredRegions...)
+	s.videoProfile = normalized.VideoProfile
 	s.roots = append([]catalog.Root(nil), normalized.Libraries...)
 	s.rootsByID = make(map[string]catalog.Root, len(s.roots))
 	for _, root := range s.roots {

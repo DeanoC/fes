@@ -396,6 +396,17 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		parts, err := s.composeVideoEntry(ctx, entry, inspection, data)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
+		if parts != nil {
+			transport, err := parts.Write(ctx)
+			if err != nil {
+				return coreLoadSource{}, videoPartUnavailable()
+			}
+			return coreLoadSource{size: int64(len(transport)), body: bytes.NewReader(transport), entry: &entry, partsComposition: &parts.Composition}, nil
+		}
 		slots, err := s.composeSlotEntry(ctx, entry, inspection, data)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -557,15 +568,16 @@ func (s *Service) libraryDevelopmentMediaBinding(packageStatus protocol.CorePack
 }
 
 type coreLoadSource struct {
-	biosID         string
-	biosMediaID    string
-	biosSourceSize int64
-	romID          string
-	romMediaID     string
-	romMapSHA256   string
-	romSourceSize  int64
-	expansionID    string
-	composition    *expansion.Composition
+	biosID           string
+	biosMediaID      string
+	biosSourceSize   int64
+	romID            string
+	romMediaID       string
+	romMapSHA256     string
+	romSourceSize    int64
+	expansionID      string
+	composition      *expansion.Composition
+	partsComposition *expansion.PartsComposition
 	// slotComposition is the v2 tuple the host linked for a multi-socket
 	// shell; the target's independent composition must equal it.
 	slotComposition *expansion.SlotComposition

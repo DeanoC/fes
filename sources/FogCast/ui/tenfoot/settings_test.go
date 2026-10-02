@@ -347,7 +347,7 @@ func TestAppSettingsPatchIdleRegionsAndTarget(t *testing.T) {
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
 		return !snap.Settings.Busy
 	})
-	app.HandleCommand(CmdDown, now)
+	focusSettingsRow(t, app, "target", now)
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {

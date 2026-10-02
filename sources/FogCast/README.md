@@ -10,11 +10,15 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
-- Developer Coleco video parts use a separate, explicitly volatile inspect/load
-  path. `go run ./cmd/fes-parts` prepares a private composition from a marked
-  format-2 shell, one video part and an optional CPU expansion; the target
-  independently links it before the runtime admits the exact parts. Household
-  video settings and library selection remain future work. See
+- Household video preference selects **Direct** or **Scanlines** for the next
+  library launch. Browser Settings saves the preference; **Manage FPGA library**
+  imports video parts and shows the resolved choice for the exact package.
+  A missing preferred part falls back to direct output; an installed selected
+  part that fails admission requires repair. Marked format-2 Coleco shells link
+  one video part with an optional CPU expansion, retaining the shell identity
+  and fixed 720p output. The target independently links the selected bytes.
+  The separate `go run ./cmd/fes-parts` developer path remains volatile. See
+  [library video preferences](docs/ARCHITECTURE.md#library-video-preferences) and
   [developer parts](docs/ARCHITECTURE.md#developer-video-parts).
 
 - The tenfoot **Settings → Systems** overlay browses the configured published

@@ -120,6 +120,7 @@ func (t TargetConfig) NodeID() string { return t.TargetID }
 type LibraryConfig struct {
 	AttractIdleSeconds int
 	PreferredRegions   []string
+	VideoProfile       string
 	Libraries          []catalog.Root
 	Targets            []TargetConfig
 	SelectedTarget     string
@@ -132,6 +133,7 @@ type LibraryConfigPatch struct {
 	PrepareTarget      *string
 	AttractIdleSeconds *int
 	PreferredRegions   *[]string
+	VideoProfile       *string
 	Libraries          *[]catalog.Root
 	Targets            *[]TargetConfig
 	SelectedTarget     *string
@@ -280,6 +282,7 @@ type fileLibraryMedia struct {
 type fileLibrarySettings struct {
 	AttractIdleSeconds int64    `toml:"attract_idle_seconds"`
 	PreferredRegions   []string `toml:"preferred_regions"`
+	VideoProfile       string   `toml:"video_profile"`
 	WatchRoot          string   `toml:"watch_root"`
 }
 
@@ -1015,6 +1018,7 @@ func normalizeLibrarySettings(raw *fileLibrarySettings) (LibraryConfig, error) {
 	return NormalizeLibraryConfig(LibraryConfig{
 		AttractIdleSeconds: int(raw.AttractIdleSeconds),
 		PreferredRegions:   raw.PreferredRegions,
+		VideoProfile:       raw.VideoProfile,
 	})
 }
 
@@ -1025,6 +1029,13 @@ const MaxAttractIdleSeconds = 2147483
 // NormalizeLibraryConfig applies the same attract-idle and preferred-region
 // rules as config.toml [library], without reading or writing that file.
 func NormalizeLibraryConfig(raw LibraryConfig) (LibraryConfig, error) {
+	profile := raw.VideoProfile
+	if profile == "" {
+		profile = "direct"
+	}
+	if !catalog.ValidVideoProfile(profile) {
+		return LibraryConfig{}, fmt.Errorf("library video_profile must be direct or scanlines")
+	}
 	if raw.AttractIdleSeconds < 0 {
 		return LibraryConfig{}, fmt.Errorf("library attract_idle_seconds must not be negative")
 	}
@@ -1063,6 +1074,7 @@ func NormalizeLibraryConfig(raw LibraryConfig) (LibraryConfig, error) {
 	return LibraryConfig{
 		AttractIdleSeconds: seconds,
 		PreferredRegions:   normalized,
+		VideoProfile:       profile,
 		Libraries:          libraries,
 		Targets:            targets,
 		SelectedTarget:     selectedTarget,

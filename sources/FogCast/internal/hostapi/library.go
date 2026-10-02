@@ -67,6 +67,7 @@ type settingsWrite struct {
 	PrepareTarget      *string                 `json:"prepare_target"`
 	AttractIdleSeconds *int                    `json:"attract_idle_seconds"`
 	PreferredRegions   *[]string               `json:"preferred_regions"`
+	VideoProfile       *string                 `json:"video_profile"`
 	Libraries          *[]settingsLibraryWrite `json:"libraries"`
 	Targets            *[]settingsTargetWrite  `json:"targets"`
 	SelectedTarget     *string                 `json:"selected_target"`
@@ -126,6 +127,9 @@ func handleLibrarySettings(w http.ResponseWriter, r *http.Request, service Servi
 var errInvalidLibrarySettings = errors.New("library settings request is invalid")
 
 func applyLibrarySettingsWrite(r *http.Request, writer librarySettingsService, patch settingsWrite) error {
+	if patch.VideoProfile != nil && *patch.VideoProfile != "direct" && *patch.VideoProfile != "scanlines" {
+		return errInvalidLibrarySettings
+	}
 	var next fogcast.LibraryConfig
 	if patch.AttractIdleSeconds != nil {
 		next.AttractIdleSeconds = *patch.AttractIdleSeconds
@@ -160,6 +164,7 @@ func applyLibrarySettingsWrite(r *http.Request, writer librarySettingsService, p
 		PrepareTarget:      patch.PrepareTarget,
 		AttractIdleSeconds: patch.AttractIdleSeconds,
 		PreferredRegions:   patch.PreferredRegions,
+		VideoProfile:       patch.VideoProfile,
 		Libraries:          libraryRootsPointer(next.Libraries, patch.Libraries != nil),
 		Targets:            targetConfigsPointer(next.Targets, patch.Targets != nil),
 		SelectedTarget:     patch.SelectedTarget,
@@ -197,6 +202,10 @@ func defaultLibrarySettings(service Service) fogcast.LibraryConfig {
 }
 
 func publicLibrarySettings(settings fogcast.LibraryConfig) map[string]any {
+	videoProfile := settings.VideoProfile
+	if videoProfile == "" {
+		videoProfile = "direct"
+	}
 	regions := settings.PreferredRegions
 	if regions == nil {
 		regions = []string{}
@@ -221,6 +230,7 @@ func publicLibrarySettings(settings fogcast.LibraryConfig) map[string]any {
 	return map[string]any{
 		"attract_idle_seconds": settings.AttractIdleSeconds,
 		"preferred_regions":    regions,
+		"video_profile":        videoProfile,
 		"libraries":            libraries,
 		"targets":              targets,
 		"selected_target":      settings.SelectedTarget,

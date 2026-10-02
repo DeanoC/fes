@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 16
+const schemaVersion = 17
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -256,6 +256,19 @@ ALTER TABLE core_expansions ADD COLUMN in_progress INTEGER NOT NULL DEFAULT 0 CH
 PRAGMA user_version = 16;
 `
 
+// Video profiles are household mappings to exact immutable shell/part pairs.
+// They are separate from CPU expansion inventory and never imply resource fit.
+const schemaV17 = `
+CREATE TABLE core_video_parts (
+  part_id TEXT PRIMARY KEY,
+  media_id TEXT NOT NULL REFERENCES core_media(media_id),
+  shell_package_id TEXT NOT NULL,
+  profile TEXT NOT NULL CHECK (profile IN ('direct', 'scanlines')),
+  UNIQUE(shell_package_id, profile)
+);
+PRAGMA user_version = 17;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -413,10 +426,17 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		if err := foreignKeyCheck(ctx, connection); err != nil {
 			return fmt.Errorf("apply catalog schema version 15: %w", err)
 		}
+		version = 15
 	}
-	if version <= 15 {
+	if version == 15 {
 		if _, err := connection.ExecContext(ctx, schemaV16); err != nil {
 			return fmt.Errorf("apply catalog schema version 16: %w", err)
+		}
+		version = 16
+	}
+	if version == 16 {
+		if _, err := connection.ExecContext(ctx, schemaV17); err != nil {
+			return fmt.Errorf("apply catalog schema version 17: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

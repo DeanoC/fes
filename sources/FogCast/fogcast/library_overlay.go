@@ -13,6 +13,7 @@ import (
 type libraryOverlayFile struct {
 	AttractIdleSeconds *int     `json:"attract_idle_seconds,omitempty"`
 	PreferredRegions   []string `json:"preferred_regions,omitempty"`
+	VideoProfile       string   `json:"video_profile,omitempty"`
 }
 
 func libraryOverlayPath(paths Paths) string {
@@ -57,7 +58,7 @@ func loadLibraryOverlay(path string) (LibraryConfig, bool, error) {
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return LibraryConfig{}, false, errors.New("library settings overlay must contain one JSON object")
 	}
-	next := LibraryConfig{PreferredRegions: raw.PreferredRegions}
+	next := LibraryConfig{PreferredRegions: raw.PreferredRegions, VideoProfile: raw.VideoProfile}
 	if raw.AttractIdleSeconds != nil {
 		next.AttractIdleSeconds = *raw.AttractIdleSeconds
 	}
@@ -84,6 +85,7 @@ func saveLibraryOverlay(path string, settings LibraryConfig) error {
 	body, err := json.Marshal(libraryOverlayFile{
 		AttractIdleSeconds: &normalized.AttractIdleSeconds,
 		PreferredRegions:   normalized.PreferredRegions,
+		VideoProfile:       normalized.VideoProfile,
 	})
 	if err != nil {
 		return err

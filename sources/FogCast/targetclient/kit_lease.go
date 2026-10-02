@@ -309,7 +309,7 @@ func (c *Client) authorizeMutation(r *http.Request) error {
 // lease header.
 func kitMutation(path string) (gated, acquire bool) {
 	switch path {
-	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm", "/v1/mesh/content/pull":
+	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/parts", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm", "/v1/mesh/content/pull":
 		return true, true
 	case "/v1/stop", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate", "/v1/mesh/content/link":
 		return true, false

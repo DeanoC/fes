@@ -25,7 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|change-tape <media-id-or-.p-path>|eject-tape|change-disk <media-id-or-.dsk/.do/.d64-path>|eject-disk|change-cassette <media-id-or-.tap-path>|eject-cassette|core-inspect <path>|core-load <path>|core-media <path>|core-install <path>|core-media-install <path>|core-media-capabilities <package-id>|core-media-select <game-id> <expected-package-id> <expected-media-id-or-none> <media-id-or-none> [blob|disk|cassette]|core-firmware-select <media-id-or-none>|core-list|core-check <package-id>|core-entry <title> <package-id> [<role> <media-id>] [firmware]|core-select <game-id> <expected-package-id> <package-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>}\n       fogcast --version [--json]\n"
+const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|change-tape <media-id-or-.p-path>|eject-tape|change-disk <media-id-or-.dsk/.do/.d64-path>|eject-disk|change-cassette <media-id-or-.tap-path>|eject-cassette|core-inspect <path>|core-load <path>|core-media <path>|core-install <path>|core-media-install <path>|core-media-capabilities <package-id>|core-media-select <game-id> <expected-package-id> <expected-media-id-or-none> <media-id-or-none> [blob|disk|cassette]|core-firmware-select <media-id-or-none>|video-parts|video-part-install <direct|scanlines> <path>|video-profile [direct|scanlines]|core-video <game-id>|core-list|core-check <package-id>|core-entry <title> <package-id> [<role> <media-id>] [firmware]|core-select <game-id> <expected-package-id> <package-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>}\n       fogcast --version [--json]\n"
 
 const maxPublicGameIDBytes = 128
 
@@ -243,6 +243,12 @@ func validCommand(args []string) bool {
 		return false
 	}
 	switch args[0] {
+	case "video-part-install":
+		return len(args) == 3 && (args[1] == "direct" || args[1] == "scanlines")
+	case "video-profile":
+		return len(args) == 1 || len(args) == 2 && (args[1] == "direct" || args[1] == "scanlines")
+	case "core-video":
+		return len(args) == 2
 	case "core-settings-set":
 		return len(args) == 5
 	case "core-media-select":
@@ -253,7 +259,7 @@ func validCommand(args []string) bool {
 		return len(args) == 3 || len(args) == 4 || len(args) == 5 || len(args) == 6
 	case "core-select":
 		return len(args) == 4
-	case "core-list", "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync", "eject-tape", "eject-disk", "eject-cassette":
+	case "video-parts", "core-list", "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync", "eject-tape", "eject-disk", "eject-cassette":
 		return len(args) == 1
 	case "core-media-capabilities", "core-media-install", "core-install", "core-check", "search", "launch", "favorite", "unfavorite", "core-inspect", "core-load", "core-media", "change-tape", "change-disk", "change-cassette":
 		return len(args) == 2
@@ -672,6 +678,9 @@ func safeCommandError(err error) commandError {
 	if errors.As(err, &apiErr) {
 		result := publicAPIError(apiErr.Code)
 		result.Phase = apiErr.Phase
+		if apiErr.Phase == "video-change-outcome" {
+			result.Message = "Video change outcome unknown; inspect video-parts or video-profile before another explicit attempt. Nothing was retried."
+		}
 		return result
 	}
 	return commandError{Code: protocol.CodeInternal, Message: "FogCast operation failed internally"}

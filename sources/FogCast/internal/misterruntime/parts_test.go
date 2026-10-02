@@ -181,3 +181,33 @@ func TestNativePartsFixtureMatchesTypedIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestLibraryPartsClientRequiresDataRootAndExactReturnedTuple(t *testing.T) {
+	r, c := partsResponse(t)
+	for _, wrong := range []bool{false, true} {
+		current := r
+		a := *r.ActivePackage
+		current.ActivePackage = &a
+		if wrong {
+			other := c
+			other.PayloadSHA256 = strings.Repeat("e", 64)
+			other.ID, _ = expansion.PartsCompositionID(other.PackageID, other.Layout, other.Parts, other.PayloadSHA256)
+			a.PartsComposition = &other
+		}
+		encoded, _ := json.Marshal(current)
+		socket := newSequenceSocketFixture(t, []string{fixtureLines(t, "protocol-v2.jsonl")[1] + "\n", string(encoded) + "\n"})
+		client := NewClient(socket.path)
+		if _, err := client.LoadLibraryPartsCore(context.Background(), "/base", c.PackageID, "relative", "/linked/linked.rbf", []PartPath{{"video", "/video"}}, c); err == nil {
+			t.Fatal("accepted invalid data root")
+		}
+		_, err := client.LoadLibraryPartsCore(context.Background(), "/base", c.PackageID, CoreDataRoot, "/linked/linked.rbf", []PartPath{{"video", "/video"}}, c)
+		if (err != nil) != wrong {
+			t.Fatalf("wrong=%v error=%v", wrong, err)
+		}
+		requests := socket.wait(t)
+		var request map[string]any
+		if len(requests) != 2 || json.Unmarshal([]byte(requests[1]), &request) != nil || request["operation"] != "load_parts_library_core" || request["data_root"] != CoreDataRoot || request["package_id"] != c.PackageID {
+			t.Fatalf("requests=%v", requests)
+		}
+	}
+}
