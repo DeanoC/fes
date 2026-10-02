@@ -94,17 +94,52 @@ func TestPathsForConfigUsesExplicitStateWhenTheConfigDirIsReadOnly(t *testing.T)
 
 func TestPathsForConfigReadOnlyConfigIgnoresUnusableStateUnderUsr(t *testing.T) {
 	const probe = "/usr/share/fogcast-catalog-state-probe"
+	t.Cleanup(func() { _ = os.RemoveAll(probe) })
 	body := "state = \"" + probe + "/state\"\nstaging = \"" + probe + "/staging\"\n"
-	dir := readOnlyConfigDir(t, body)
-	paths, err := PathsForConfig(filepath.Join(dir, "config.toml"))
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A mode 0555 directory does not stop root, and the host CI user can
+	// create directories under /usr without being root. The rejection has
+	// to hold in both cases, so only a non-root run also locks the config
+	// directory. Root still must ignore the /usr paths.
+	if os.Geteuid() != 0 {
+		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+		if err := os.Chmod(dir, 0o555); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths, err := PathsForConfig(configPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertStorageOutside(t, dir, paths)
+	root := defaultWritableCatalogRoot(configPath)
+	if filepath.Dir(paths.Index) != filepath.Join(root, "state") || paths.Staging != filepath.Join(root, "staging") {
+		t.Fatalf("index %q staging %q, want storage under %q", paths.Index, paths.Staging, root)
+	}
 	if _, err := os.Lstat(probe); !os.IsNotExist(err) {
 		t.Fatalf("probe under /usr: %v", err)
 	}
 	assertConfigDirUntouched(t, dir)
+}
+
+func TestCatalogStoragePolicyRejectsUsrWithoutAWritabilityProbe(t *testing.T) {
+	if configDirAcceptsCatalogStorage("/usr/share/fogcast/config.toml", "/usr/share/fogcast") {
+		t.Fatal("a config under /usr was accepted as a place for catalog storage")
+	}
+	for _, path := range []string{"/usr", "/usr/", "/usr/share/fogcast/state", "/usr/local/fogcast"} {
+		if !storageOnSystemReadOnlyTree(path) {
+			t.Fatalf("allowed %q", path)
+		}
+	}
+	for _, path := range []string{"/run/fogcast/catalog/state", "/tmp/fogcast", "/user/state", "/usrshare/state"} {
+		if storageOnSystemReadOnlyTree(path) {
+			t.Fatalf("rejected %q", path)
+		}
+	}
 }
 
 func TestPathsForConfigRejectsAPartialStorageSetting(t *testing.T) {

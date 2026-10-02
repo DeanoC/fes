@@ -52,13 +52,21 @@ func ResolveCatalogConfig(explicit, launcherConfig string, getenv func(string) s
 	return ""
 }
 
+// catalogSystemReadOnlyRoot is the kit rootfs tree that stays read-only.
+// Catalog storage there is rejected by policy. A writability probe is the
+// wrong test: root on a development machine, or the host CI user, can
+// create directories under /usr, and the kit still cannot use them.
+const catalogSystemReadOnlyRoot = "/usr"
+
 // PathsForConfig is the catalog Paths for one resolved config file.
-// Explicit state and staging in the file win. The default user config keeps
-// DefaultPaths. Any other file on a writable directory uses state beside
-// that file so a test does not open the operator's home library. A config
-// on a read-only directory never creates those directories beside the file:
-// an unusable explicit path, or no path at all, uses the kit tmpfs when
-// that is writable and a private temp directory otherwise.
+// Explicit state and staging in the file win when both are absolute and
+// usable. The default user config keeps DefaultPaths. Any other file on a
+// writable directory uses state beside that file so a test does not open
+// the operator's home library. A config on a read-only directory never
+// creates those directories beside the file. Paths under /usr, and paths
+// beside a config that itself lives under /usr, are unusable even when the
+// current user can write them. They fall back to the writable default: the
+// kit tmpfs when that is writable, and a private temp directory otherwise.
 func PathsForConfig(configPath string) (Paths, error) {
 	configPath = strings.TrimSpace(configPath)
 	if configPath == "" {
@@ -77,17 +85,21 @@ func PathsForConfig(configPath string) (Paths, error) {
 	if settings.configured() {
 		state, staging, err := settings.absoluteDirs()
 		if err != nil {
-			if directoryWritable(dir) {
+			if configDirAcceptsCatalogStorage(configPath, dir) {
 				return Paths{}, err
 			}
-		} else if paths, err := prepareCatalogPaths(configPath, state, staging); err == nil {
-			return paths, nil
-		} else if directoryWritable(dir) {
-			return Paths{}, err
+		} else if !storageOnSystemReadOnlyTree(state) && !storageOnSystemReadOnlyTree(staging) {
+			paths, prepErr := prepareCatalogPaths(configPath, state, staging)
+			if prepErr == nil {
+				return paths, nil
+			}
+			if configDirAcceptsCatalogStorage(configPath, dir) {
+				return Paths{}, prepErr
+			}
 		}
 	} else if defaults, err := DefaultPaths(); err == nil && filepath.Clean(defaults.Config) == configPath {
 		return defaults, nil
-	} else if directoryWritable(dir) {
+	} else if configDirAcceptsCatalogStorage(configPath, dir) {
 		return prepareCatalogPaths(configPath, filepath.Join(dir, "state"), filepath.Join(dir, "staging"))
 	}
 	root := defaultWritableCatalogRoot(configPath)
@@ -158,6 +170,18 @@ func defaultWritableCatalogRoot(configPath string) string {
 func directoryExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+func storageOnSystemReadOnlyTree(path string) bool {
+	clean := filepath.Clean(path)
+	return clean == catalogSystemReadOnlyRoot || strings.HasPrefix(clean, catalogSystemReadOnlyRoot+"/")
+}
+
+func configDirAcceptsCatalogStorage(configPath, dir string) bool {
+	if storageOnSystemReadOnlyTree(configPath) || storageOnSystemReadOnlyTree(dir) {
+		return false
+	}
+	return directoryWritable(dir)
 }
 
 func directoryWritable(dir string) bool {
