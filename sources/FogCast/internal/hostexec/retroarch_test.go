@@ -98,6 +98,21 @@ func TestRetroArchAdapterRejectsMissingOrMismatchedCore(t *testing.T) {
 	}
 }
 
+func TestRetroArchAdapterRejectsUnsupportedSystem(t *testing.T) {
+	core := coreFile(t)
+	started := false
+	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "", map[protocol.System]string{"sms": core}, func(context.Context, string, ...string) (hostexec.Process, error) {
+		started = true
+		return hostexec.NoopProcess{}, nil
+	})
+	if _, err := adapter.LaunchFor(context.Background(), "nes", bytes.NewReader([]byte("rom")), testIdentity()); !errors.Is(err, hostexec.ErrUnavailable) {
+		t.Fatalf("unsupported system error = %v", err)
+	}
+	if started {
+		t.Fatal("unsupported system started RetroArch")
+	}
+}
+
 func TestRetroArchAdapterBusyAndExtraArgs(t *testing.T) {
 	core := coreFile(t)
 	proc := &fakeProcess{done: make(chan struct{})}
