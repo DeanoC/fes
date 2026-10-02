@@ -2332,6 +2332,11 @@ for the exact tested package and software.
 
 ### Local core publication
 
+FES publishes the ROM-less `fes.ramtest` utility in the standard catalog and
+selects its OSS 100 MHz package for the factory image. The image selector
+admits it through the same sealed package path; the kit-local installed-core
+inventory marks it launchable without firmware or media, like Pong.
+
 The optional `[core_catalog] path`, with a stable per-library `library_source_id`, selects a FES-published version-1 index.
 `corecatalog` reads a bounded closed schema and verifies the canonical index
 digest, contained relative archive paths, file size and SHA-256. FogCast stages
