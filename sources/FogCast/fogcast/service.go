@@ -328,6 +328,14 @@ var (
 )
 
 func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, error) {
+	return OpenWithHostProcessStarter(ctx, paths, httpClient, nil)
+}
+
+// OpenWithHostProcessStarter opens the normal configured service while letting
+// callers provide the process boundary used by the host emulator. Production
+// callers should use Open; the explicit starter keeps end-to-end host session
+// tests on the real configured service without starting an emulator binary.
+func OpenWithHostProcessStarter(ctx context.Context, paths Paths, httpClient *http.Client, starter hostexec.StartProcess) (*Service, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -414,7 +422,7 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 				pins[entry.Core] = entry.SHA256
 			}
 		}
-		host := hostexec.NewRetroArchAdapterConfigured(config.HostEmulator.Binary, config.HostEmulator.Core, cores, hostexec.Options{Args: config.HostEmulator.Args, Env: config.HostEmulator.Env, SHA256: pins}, nil)
+		host := hostexec.NewRetroArchAdapterConfigured(config.HostEmulator.Binary, config.HostEmulator.Core, cores, hostexec.Options{Args: config.HostEmulator.Args, Env: config.HostEmulator.Env, SHA256: pins}, starter)
 		options = append(options, WithExecutionPolicy(ExecutionPolicy{Resolver: NewConfiguredExecutionResolver(config.HostEmulator.LaunchPlatforms(), host), Host: host}))
 	}
 	if paths.UserLibrary != "" {
@@ -601,6 +609,10 @@ func (s *Service) ForegroundSessionTargetName() string {
 	defer s.executionMu.Unlock()
 	return s.activeTarget
 }
+
+// HostOnlyIdleStopSafe reports that an unbound Stop can be answered locally
+// when a host emulator is configured, without probing the selected kit.
+func (s *Service) HostOnlyIdleStopSafe() bool { return s.hostEmulator.Binary != "" }
 
 // Caller holds targetMu. Admission and transport must resolve the same binding.
 // Host-only play does not own a kit, so a host marker is ignored. A launch

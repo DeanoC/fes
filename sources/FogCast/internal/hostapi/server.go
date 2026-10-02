@@ -236,6 +236,10 @@ func requestSessionCoordinator(root *sessionCoordinator, service Service, r *htt
 		if len(foregroundOnly) > 0 && foregroundOnly[0] {
 			if resolver, ok := service.(interface{ ForegroundSessionTargetName() string }); ok {
 				target = resolver.ForegroundSessionTargetName()
+			} else if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
+				target = resolver.SessionTargetName()
+			} else if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+				target = resolver.SelectedTargetConfig().Name
 			}
 		} else if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
 			target = resolver.SessionTargetName()
@@ -335,16 +339,33 @@ func New(service Service, options ...ServerOption) http.Handler {
 		// Launch routing is intentionally independent from the foreground
 		// session: preserve an omitted target so FogCast can apply placement.
 		target := request.Target
-		if target == "" {
+		pairedTarget := fogcast.PairedTargetFromContext(r.Context())
+		if target == "" && pairedTarget == "" {
 			target = launcherTargetFromContext(r.Context())
 		}
 		coordinatorTarget := target
-		if coordinatorTarget == "" {
-			if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
-				coordinatorTarget = resolver.SelectedTargetConfig().Name
+		hostOnlyLaunch := false
+		// A host-only launch belongs to the root coordinator. It has no FPGA
+		// target binding, even when a kit is selected for ordinary launches.
+		if target == "" && pairedTarget == "" {
+			hostOnly := false
+			if resolver, ok := service.(interface {
+				SessionExecution(context.Context, string) (string, error)
+			}); ok {
+				execution, err := resolver.SessionExecution(r.Context(), request.GameID)
+				hostOnly = err == nil && execution == fogcast.ExecutionHostOnly
+			}
+			hostOnlyLaunch = hostOnly
+			if !hostOnly {
+				if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+					coordinatorTarget = selected.SelectedTargetConfig().Name
+				}
 			}
 		}
-		coordinator := requestSessionCoordinator(session, service, r, coordinatorTarget)
+		coordinator := session
+		if !hostOnlyLaunch {
+			coordinator = requestSessionCoordinator(session, service, r, coordinatorTarget)
+		}
 		result, err := coordinator.launch(r.Context(), request.GameID, request.Target, stamp)
 		if err != nil {
 			writeSessionError(w, err)
@@ -396,7 +417,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the paired target")
 			return
 		}
-		coordinator := requestSessionCoordinator(session, service, r, explicitTarget)
+		coordinator := requestSessionCoordinator(session, service, r, explicitTarget, true)
 		result, err := coordinator.stop(r.Context(), stamp, retainLease, releaseIdle, expected)
 		if err != nil {
 			writeSessionError(w, err)

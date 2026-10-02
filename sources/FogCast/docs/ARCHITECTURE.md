@@ -1346,6 +1346,11 @@ identity, configured `core_version`, and observed core digest; `core_version`
 is copied from configuration and is not queried from RetroArch. A missing or
 mismatched core, or a missing/non-executable RetroArch binary, is unavailable. One
 host emulator process owns the local session until Stop or process exit.
+Host-only play is owned by the root host session coordinator regardless of
+which kit is selected. Unscoped launch resolves execution first, and unscoped
+status and Stop follow a bound FPGA foreground only when one exists; with no
+bound FPGA play they use the root coordinator. Session identity, BUSY
+admission, natural-exit reaping, and media cleanup therefore share one owner.
 Unscoped status may report idle after target loss only when host-only execution
 is active or no FPGA play/target is bound; a configured kit selection alone is
 not an active FPGA binding. A bound FPGA play or explicit target continues to

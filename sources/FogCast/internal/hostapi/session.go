@@ -1461,6 +1461,16 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 	if execution != "" {
 		return false, nil
 	}
+	// An unscoped host coordinator has no FPGA play to reconstruct when the
+	// service reports no bound foreground target. Probing the selected kit here
+	// made idle Stop fail whenever that unrelated kit was offline.
+	if s.target == "" {
+		if idleSafe, ok := s.service.(interface{ HostOnlyIdleStopSafe() bool }); ok && idleSafe.HostOnlyIdleStopSafe() {
+			if foreground, bound := s.service.(interface{ ForegroundSessionTargetName() string }); bound && foreground.ForegroundSessionTargetName() == "" {
+				return false, nil
+			}
+		}
+	}
 	var development bool
 	var reconstructedExecution string
 	var err error
