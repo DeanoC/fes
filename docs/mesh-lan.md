@@ -351,7 +351,9 @@ document. The host serves this view on `GET /api/v1/library/titles`.
 
 **Out of scope.** Session selection, launch, Ready, a skipped-title
 array, display strings, filters, and any change to `GET /api/v1/games`.
-`[mesh] ensure` and `[mesh] placement` stay off. No new reason strings.
+`[mesh] ensure` and `[mesh] placement` stay off. No new reason strings
+except the library hostname-pin node reason `node moved; re-pair or
+confirm the new address`.
 
 **Acceptance tests, phase 2.** `GET /api/v1/library/titles` returns one
 Data Storm title in the first shape above: the kit `fes.sms` option and
@@ -388,8 +390,9 @@ is the kit-path fix, and it applies the same enrolled-origin-only rule
 as decision 4: any bearer goes only to the origin recorded at pairing
 or in configuration. A discovered or changed address is never sent
 credentials automatically. The owner-facing sentence is `node moved;
-re-pair or confirm the new address`. That sentence is not a new
-library `reason` string. Confirmation is an explicit config edit or
+re-pair or confirm the new address`. The library's configured-hostname
+read uses that sentence as the node reason when its process-start pin
+no longer matches. Confirmation is an explicit config edit or
 re-pairing step by the owner, which replaces the recorded origin.
 After that edit, reads send the bearer to the new origin. **Phase-2
 provenance must not ship before #396 lands.** Phase 2 does not
@@ -407,6 +410,19 @@ re-resolved. #396 applies this on the kit path. The threat model is
 discovery spoofing and DNS or mDNS spoofing. An on-path LAN attacker
 who ARP-spoofs the recorded IP, on plain HTTP, is out of scope until
 the pinned-TLS option.
+
+The library read is the interim process-start form of that
+enrollment-time pin. The first time `libraryNodeFacts` needs a
+configured hostname, it resolves the name once and keeps the IP in
+memory. Later authenticated library reads dial only that IP, on the
+library's no-redirect client, and leave the configured host on the
+URL and the `Host` header. When the library cache refreshes, the name
+is resolved again. If the fresh answer does not include the pinned
+IP, the read sends no `Authorization` and the node is unavailable
+with `node moved; re-pair or confirm the new address`. A process
+restart re-pins. Persisting the pin, and applying this pin on the
+kit path, belong to #396. An IP-literal `[[targets]]` address is not
+resolved.
 
 The per-id `advertises` answers (`GET /v1/mesh/content/source`,
 `GET /v1/mesh/content/slots`, and the host
@@ -646,8 +662,9 @@ same node id, never receives credentials automatically and gets no
 `Authorization` header. The shell does not adopt it. The node stays
 unavailable with `node identity or address is ambiguous`, and the
 owner-facing sentence is `node moved; re-pair or confirm the new
-address`. That sentence is not a new library `reason` string.
-Confirmation is an explicit config edit or a re-pairing step by the
+address`. The library hostname pin uses that sentence as its node
+reason, as the provenance section describes. Confirmation is an
+explicit config edit or a re-pairing step by the
 owner, which replaces the recorded origin. After that confirmation,
 reads send the bearer to the new recorded origin. There is no
 challenge. A credential that is never sent cannot be relayed.

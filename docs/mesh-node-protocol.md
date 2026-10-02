@@ -176,12 +176,14 @@ returns 500 INTERNAL `catalog is unavailable` and does not answer
 | `options[].package` | `package_id` (64 lowercase hex), `abi`, `major`. Package-backed options only. |
 | `options[].nodes[]` | `node_id`, `available`, and `reason` when the node is unavailable. Always present, possibly empty. |
 
-#361 reason strings, unchanged:
+#361 reason strings, plus the library hostname-pin node reason:
 
 | Where | Strings |
 | --- | --- |
 | Option | `local source unavailable`, `no advertised executor in inventory`, `no compatible executor in inventory` |
-| Node | `inventory retained after browse error`, `node identity or address is ambiguous`, `mesh protocol major mismatch`, `remote emulator system and version unverified`, `package unavailable on node`, `package ABI incompatible on node`, `executor unsupported` |
+| Node | `inventory retained after browse error`, `node identity or address is ambiguous`, `mesh protocol major mismatch`, `remote emulator system and version unverified`, `package unavailable on node`, `package ABI incompatible on node`, `executor unsupported`, `node moved; re-pair or confirm the new address` |
+
+`node moved; re-pair or confirm the new address` is the node reason when the library's process-start hostname pin no longer matches a fresh lookup. The other node strings are #361. It is not an option reason.
 
 A host-local `native_emu` option lists remote `native_emu` nodes. Those
 nodes stay unavailable and do not clear the option.
@@ -211,7 +213,8 @@ reads; #358 freezes no shared wire. Coordinate with mister-packages
 only if a kit parses this object without the host.
 
 **Out of scope.** Session selection, Ready, filters, a skipped-title
-array, and any new reason string. Ensure and placement stay off.
+array, and any new reason string other than the hostname-pin node
+reason above. Ensure and placement stay off.
 
 **Acceptance tests, phase 2.** The current Data Storm document in
 `mesh-lan.md` round-trips: one title, the `fes.sms` option, the
@@ -244,8 +247,9 @@ It applies decision 4's enrolled-origin-only rule: any bearer goes
 only to the origin recorded at pairing or in configuration. A
 discovered or changed address never receives credentials
 automatically. The owner-facing sentence is `node moved; re-pair or
-confirm the new address`. That sentence is not a new library `reason`
-string. Confirmation is an explicit config edit or re-pairing
+confirm the new address`. The library's configured-hostname read uses
+that sentence as the node reason when its process-start pin no longer
+matches. Confirmation is an explicit config edit or re-pairing
 step by the owner. **Phase-2 provenance must not ship before #396
 lands.** Phase 2 does not change `placementReadAddress`.
 
@@ -261,6 +265,19 @@ re-resolved. #396 applies this on the kit path. The threat model is
 discovery spoofing and DNS or mDNS spoofing. An on-path LAN attacker
 who ARP-spoofs the recorded IP, on plain HTTP, is out of scope until
 the pinned-TLS option.
+
+The library read is the interim process-start form of that
+enrollment-time pin. The first time `libraryNodeFacts` needs a
+configured hostname, it resolves the name once and keeps the IP in
+memory. Later authenticated library reads dial only that IP, on the
+library's no-redirect client, and leave the configured host on the
+URL and the `Host` header. When the library cache refreshes, the name
+is resolved again. If the fresh answer does not include the pinned
+IP, the read sends no `Authorization` and the node is unavailable
+with `node moved; re-pair or confirm the new address`. A process
+restart re-pins. Persisting the pin, and applying this pin on the
+kit path, belong to #396. An IP-literal `[[targets]]` address is not
+resolved.
 
 `GET /v1/mesh/content/source`, `GET /v1/mesh/content/slots`, and the
 host `GET /api/v1/mesh/content/source` stay the per-id `advertises`
@@ -466,8 +483,9 @@ For a kit it is the address recorded on the configured target. A
 discovered or changed address never receives credentials automatically
 and gets no `Authorization` header. The node stays unavailable with
 `node identity or address is ambiguous`. The owner-facing sentence is
-`node moved; re-pair or confirm the new address`, and that sentence is
-not a new library `reason` string. Confirmation is an explicit config
+`node moved; re-pair or confirm the new address`. The library
+hostname pin uses that sentence as its node reason, as decision 2
+describes. Confirmation is an explicit config
 edit or a re-pairing step by the owner, which replaces the recorded
 origin. After that confirmation, reads send the bearer there. There is
 no challenge. A credential that is never sent cannot be relayed.
