@@ -192,10 +192,10 @@ ramtest_notices() {
     *" fes.ramtest "*)
       package_record_path_for fes.ramtest
       notice_id=$(package_value_from_file "$package_record" package_id)
-      python3 "$repo/scripts/ramtest-notices.py" "$notice_action" "$target" \
+      /usr/bin/python3 "$repo/scripts/ramtest-notices.py" "$notice_action" "$target" \
         "$target/usr/share/mister-runtime/core-packages/$notice_id"
       ;;
-    *) python3 "$repo/scripts/ramtest-notices.py" "$notice_action" "$target" ;;
+    *) /usr/bin/python3 "$repo/scripts/ramtest-notices.py" "$notice_action" "$target" ;;
   esac
 }
 verify_sealed_package_dir() {

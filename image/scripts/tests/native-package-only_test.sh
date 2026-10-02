@@ -188,6 +188,11 @@ for core_id in $package_words; do
   test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-$core.package.toml")" = 444
 done
 "$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$target"
+# Buildroot puts its Python 3.9 ahead of the container's Python 3.11.
+mkdir "$fixture/old-python"
+printf '#!/bin/sh\nexit 99\n' >"$fixture/old-python/python3"
+chmod 0755 "$fixture/old-python/python3"
+PATH="$fixture/old-python:$PATH" "$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$target"
 
 build_inputs=$fixture/build-inputs
 "$repo/scripts/native-extra-cores.sh" build-inputs "$cache" "$target" >"$build_inputs"
