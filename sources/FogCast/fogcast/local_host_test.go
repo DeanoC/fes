@@ -21,7 +21,7 @@ func TestShelfNoticeNamesEmptyMissingAndOfflineShelves(t *testing.T) {
 	if got := shelfNotice(online, nil); got != ShelfEmpty {
 		t.Fatalf("empty shelf notice = %q", got)
 	}
-	if got := shelfNotice(online, []catalog.Game{builtin}); got != ShelfEmpty {
+	if got := shelfNotice(online, []catalog.Game{builtin}); got != "" {
 		t.Fatalf("builtin-only notice = %q", got)
 	}
 	if got := shelfNotice(offline, nil); got != ShelfMissing {

@@ -82,10 +82,12 @@ func shelfNotice(report catalog.ScanReport, games []catalog.Game) string {
 	if user > 0 && (allRootsOffline || allUserOffline) {
 		return ShelfOffline
 	}
-	if user == 0 && allRootsOffline {
+	// Built-in rows are a shelf. The empty and missing sentences are only
+	// for a catalog that has no rows at all.
+	if len(games) == 0 && allRootsOffline {
 		return ShelfMissing
 	}
-	if user == 0 {
+	if len(games) == 0 {
 		return ShelfEmpty
 	}
 	return ""
