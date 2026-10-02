@@ -112,9 +112,9 @@ advertisement and pairing are not.
 
 | Field | Kit today (implemented) | Linux/Mac software runner (proposed; gap #360) |
 | --- | --- | --- |
-| Identity | `node_id` and `target_id` are the same persistent kit ID. Configured-target authentication and per-kit launcher credentials bind it; user pairing is not implemented, and discovery alone does not enroll. | The #379 proposal reads a runner's `software_backends` on that runner's launcher listener with a launcher pairing bearer. The bearer is bound to the runner's node id, which is #298 item 2 and is not minted here. Until #298, remote `native_emu` stays unavailable. Do not add a Host/Kit enum. PAKE is not this enrollment. |
+| Identity | `node_id` and `target_id` are the same persistent kit ID. Configured-target authentication and per-kit launcher credentials bind it; user pairing is not implemented, and discovery alone does not enroll. | The #379 proposal reads a runner's `software_backends` on that runner's launcher listener with a launcher pairing bearer, and only at the origin recorded at pairing. The bearer is bound to the runner's node id (#298 item 2), which is not minted here. Runner admission and provisioning are further prerequisites in decision 4. Until #298 and those prerequisites, remote `native_emu` stays unavailable. Do not add a Host/Kit enum. PAKE is not this enrollment. |
 | Protocol | `mesh=1.0`; Phase 0 peers may omit it and remain directly bindable. A needed mesh major mismatch fails closed. | Negotiate the same mesh major.minor; advertise only after support is implemented. |
-| Execute | `fpga_native`; TXT has no ABI families. Placement separately reads authenticated node content/ABI data. | `native_emu` with explicit supported systems and emulator/core versions. Current `host_only` is a host-local execution label, not a remote advertisement. Eligibility facts are **PROPOSED (needs Deano/Bob sign-off)** below and are blocked on #298. Until that sign-off and #298, every remote candidate stays unavailable. |
+| Execute | `fpga_native`; TXT has no ABI families. Placement separately reads authenticated node content/ABI data. | DNS-SD carries execute kind `native_emu` only (with `node_id` and `mesh`). Systems, emulator name, core id, core version, and core pin come from authenticated `software_backends` on `GET /api/v1/health`, read at the enrolled origin. They are not DNS-SD fields. Current `host_only` is a host-local execution label, not a remote advertisement. Eligibility is **PROPOSED (needs Deano/Bob sign-off)** below. Until that sign-off, #298, and the decision 4 enrollment prerequisites, every remote candidate stays unavailable. |
 | Display/input | `display_sink=true`, `input_source=true` mean the kit can present and supply local input; they do not attest live picture or multiple players. | Advertise only functions the runner owns. Remote video/input routing is not part of M1 evidence. |
 | Availability | DNS-SD TTL controls inventory presence only. Kit lease status and composition determine admission/readiness separately. | Heartbeat/health, backend readiness, and single-session busy state need an implementation and honest UI. |
 | Ownership | Existing target-agent kit lease is the FPGA admission authority (90-second grant, 20-second renewal); one owner, explicit release/expiry cleanup. | Runner serializes its own session lifecycle and rejects busy/incompatible requests. No second FPGA lease. |
@@ -225,6 +225,19 @@ An omitted or empty array supplies no content-ids. An element that
 does not parse is dropped. A dropped element does not fail `node_id`,
 `abis`, or `packages`.
 
+The read is `readPlacementNodeFacts`. Today `placementReadAddress`
+prefers a unique DNS-SD origin and sends the kit agent bearer there
+before `node_id` is checked, so this extension inherits that leak.
+[#396](https://github.com/DeanoC/fes/issues/396) is the kit-path fix.
+It applies decision 4's enrolled-origin-only rule: any bearer goes
+only to the origin recorded at pairing or in configuration. A
+discovered or changed address never receives credentials
+automatically. The owner-facing sentence is `node moved; re-pair or
+confirm the new address`. That sentence is not a new library `reason`
+string. Confirmation is an explicit config edit or re-pairing
+step by the owner. **Phase-2 provenance must not ship before #396
+lands.** This proposal does not change `placementReadAddress`.
+
 `GET /v1/mesh/content/source`, `GET /v1/mesh/content/slots`, and the
 host `GET /api/v1/mesh/content/source` stay the per-id `advertises`
 check Ensure uses. They are not a title inventory.
@@ -249,15 +262,21 @@ DNS-SD would break the advertisement rule (no title list, no paths).
 Creating rows for remote-only ids would be a second catalog.
 
 **Out of scope.** Pulling bytes, enabling ensure, paging a large array,
-and minting the #298 id.
+minting the #298 id, and changing `placementReadAddress` (that change
+is #396).
 
 **Acceptance tests, phase 2.** Node document includes the Data Storm
 ROM id: one library title, that `node_id` in `content_sources`, no
 second row, no path. A mismatched hash or system adds neither a row
 nor a source. A document whose `node_id` is not `target_id` is ignored.
 Two enrolled nodes listing one id yield two `node_ids` on one slot. A
-host without a #298 id adds none. Ensure and placement defaults stay
-off.
+host without a #298 id adds none. Address spoof: enrolled at origin A,
+advertised at origin B, the content read sends no `Authorization` to
+B, so nothing can be relayed, and a document from B adds no source.
+The owner-facing sentence is `node moved; re-pair or confirm the new
+address`. After the owner confirms B by a config edit or re-pair,
+reads use B and the document can add the source. Provenance tests do
+not ship before #396. Ensure and placement defaults stay off.
 
 #### 3. Content-id lock
 
@@ -333,9 +352,9 @@ is the enrolled origin for that bearer. `target_id` in both files
 is the runner's node id. `prepare_launcher.py` mints the bearer when
 the pair is absent and keeps it distinct from `[[targets]].agent`;
 `fogcast-api` refuses to start when they are equal. Today that script
-writes the selected kit's `target_id`, so it cannot enroll a FogCast
-runner until #298 supplies the runner id. This proposal does not
-change the script. The bearer is not a DNS-SD field. Discovery does
+writes the selected kit's `target_id`. Writing a runner id is
+prerequisite 3 below. This proposal does not change the script. The
+bearer is not a DNS-SD field. Discovery does
 not enroll. PAKE is not this issuance. There is no Host/Kit enum.
 
 The shell sends `Authorization: Bearer` and `X-FogCast-Target-ID` set
@@ -359,43 +378,73 @@ That header is not a node id the runner proved. `software_backends`
 is the serving process's cores. The id to store, send, and echo is
 #298 item 2 (random CSPRNG installation id, owner-only, stable across
 restart, not a hostname or MAC). This proposal does not mint it and
-does not add the echo. **Remote provenance is blocked on #298.**
-Until that id exists, no remote `software_backends` is provenance and
-every remote `native_emu` candidate stays unavailable. A kit keeps its
-existing `target_id` and does not wait on #298.
+does not add the echo. A kit keeps its existing `target_id` and does
+not wait on the list below. Kit `fpga_native` eligibility is unchanged.
 
-`kitTarget` also admits the header only when it is an enabled
-`[[targets]]` row on the serving process. A runner's installation id
-is not such a row. This proposal does not retarget that check.
+**Prerequisites.** Remote `native_emu` stays unavailable until #298
+and every item below is done. This proposal does not implement them.
 
-**Address before the bearer.** The shell sends the launcher bearer
-only to the `api` origin in that `launcher.json`, or to an origin
-already verified for that node id. Any other DNS-SD address receives
-no `Authorization` header. A new address is verified by a
-challenge that does not reveal the bearer: a nonce to the advertised
-origin with no `Authorization`, answered by HMAC-SHA256 of that nonce
-under the launcher bearer stored at both ends at enrollment. The
-bearer is the key, not a value on the wire. The challenge is not an
-existing route. Phase 2 adds it after #298. On success that origin may
-later receive the bearer. On failure the node stays unavailable with
-`node identity or address is ambiguous` and the bearer stays on the
-previously verified origin. Health from the new address is not
-provenance until the challenge succeeds, even when the body echoes the
-expected id and the pin matches.
+1. **Host installation id (#298).** The runner has the #298 item 2 id,
+   the pairing stores it as `target_id`, and health echoes it. Until
+   that id exists, no remote `software_backends` is provenance.
+   Acceptance: a missing `node_id`, or any other echo, drops the body
+   with `node identity or address is ambiguous`. With no #298 id the
+   node stays unavailable even when the pin would match.
+2. **Runner admission.** `kitTarget` admits the launcher header only
+   when it is an enabled `[[targets]]` row on the serving process. A
+   runner installation id is not such a row. The prerequisite is a
+   runner enrollment record, or an equivalent admission rule, that
+   admits that id on the launcher health read. This proposal does not
+   add the record and does not retarget `kitTarget`. Acceptance: with
+   the record, the runner id is admitted; a missing or foreign record
+   is 403 and the body is dropped. An enabled kit `[[targets]]` row
+   still admits that kit.
+3. **Provisioning.** `prepare_launcher.py` writes the selected kit's
+   `target_id` only. The prerequisite is provisioning that writes the
+   runner node id into `launcher-host.json` and the shell's
+   `launcher.json` (`api`, `token`, `target_id`). This proposal does
+   not change the script. Acceptance: a runner enrollment produces
+   that pair for the runner id. Preparing a selected kit still writes
+   the kit id and does not invent a runner id.
+4. **Authenticated health, end to end.** With items 1–3 done, the
+   shell reads `GET /api/v1/health` at the enrolled `api` origin with
+   the launcher bearer and `X-FogCast-Target-ID` equal to the stored
+   node id. The response is 200, the body echoes that node id, and
+   `software_backends` is kept. Acceptance is that read. Until items
+   1–3 are done, the fixture stays unavailable and the array is not
+   provenance.
 
-`placementReadAddress` prefers a unique discovered origin, and
-`readPlacementNodeFacts` sends the kit agent bearer there before the
-document `node_id` is checked. That is a pre-existing risk on the kit
-placement path. #379 does not change it. File a separate issue for
-that placement read. The runner read must not copy it.
+**Enrolled origin only.** Any bearer, the launcher bearer and the kit
+agent bearer, goes only to the origin recorded at pairing or in
+configuration. For this read that origin is `launcher.json`'s `api`.
+For a kit it is the address recorded on the configured target. A
+discovered or changed address never receives credentials automatically
+and gets no `Authorization` header. The node stays unavailable with
+`node identity or address is ambiguous`. The owner-facing sentence is
+`node moved; re-pair or confirm the new address`, and that sentence is
+not a new library `reason` string. Confirmation is an explicit config
+edit or a re-pairing step by the owner, which replaces the recorded
+origin. After that confirmation, reads send the bearer there. There is
+no challenge. A credential that is never sent cannot be relayed.
+
+Origin authentication by TLS, with a key pinned at pairing, is a
+possible later way to accept a new address without that manual step.
+It is tracked separately and is out of scope.
+
+`placementReadAddress` still prefers a discovered origin, and
+`readPlacementNodeFacts` still sends the kit agent bearer there. That
+leak is [#396](https://github.com/DeanoC/fes/issues/396), which applies
+this same enrolled-origin-only rule. #379 does not change
+`placementReadAddress`. The runner read must not copy that preference.
+Decision 2 must not ship before #396.
 
 Eligible means provenance was accepted and every line below is true.
 Pin, system, `available`, and mesh checks run only on a kept body.
-Until #298 they are not reached.
+Until the prerequisite list is done they are not reached.
 
 | Check | Failure reason (existing #361 string) |
 | --- | --- |
-| Enrolled launcher pairing: bearer and `X-FogCast-Target-ID` match, health echoes the node id stored with that bearer, DNS-SD `node_id` equals it, and the origin is the enrolled origin or one the challenge has verified. A duplicate node id in one browse fails this row. | `node identity or address is ambiguous` |
+| Enrolled launcher pairing: bearer and `X-FogCast-Target-ID` match, health echoes the node id stored with that bearer, DNS-SD `node_id` equals it, and the origin is the one recorded at pairing or in configuration. A discovered or changed address is not that origin until the owner confirms it. A duplicate node id in one browse fails this row. | `node identity or address is ambiguous` |
 | DNS-SD mesh passes `MeshMajorCompatible` (major 1; newer minor allowed; omitted mesh fails) and health `mesh.major` is 1 | `mesh protocol major mismatch` |
 | One backend has `execution` `native_emu`, `system` equal to the title, `available` true, non-empty `core_id`, and `core_sha256` equal to a non-empty `[host_emulator] cores` `sha256` for that system | `remote emulator system and version unverified` |
 
@@ -413,9 +462,10 @@ The #361 reason order stays: identity, then mesh major, then the
 emulator pin. An option with nodes and none eligible keeps
 `no compatible executor in inventory`. An option with no `native_emu`
 node keeps `no advertised executor in inventory`. Every remote
-candidate stays unavailable until #298, the enrolled binding, mesh
-major, and the pin match all exist in code. Phase 2 must not mark a
-remote node available on a weaker check.
+candidate stays unavailable until all of #298, runner admission, and
+runner provisioning are done, and until mesh major and the pin match
+hold.
+Phase 2 must not mark a remote node available on a weaker check.
 
 Host-local availability stays the catalog source check from #361. The
 remote pin does not move onto that option.
@@ -423,17 +473,21 @@ remote pin does not move onto that option.
 **Alternatives.** `GET /api/v1/health` with the agent token does not
 match the listener that serves `software_backends`. Treating
 `target.connection.target_id` as the runner id would trust the
-caller's header. Sending the bearer to a DNS-SD address before the
-challenge hands it to a forged advertisement. PAKE, minting #298, or
-retargeting `kitTarget` inside #379 would be a second enrollment
-design. A `core_version` match would pin a label. An empty local pin
-would accept any `.so`. DNS-SD `software_backends` would publish pins
-without authentication.
+caller's header. Sending any bearer to a DNS-SD address hands it to a
+forged advertisement. A nonce challenge answered with the pairing key
+can be relayed to the enrolled origin, so this proposal does not use
+one. PAKE, minting #298, adding the runner admission record, or
+changing `prepare_launcher.py` inside #379 would be a second
+enrollment design. A `core_version` match would pin a label. An empty
+local pin would accept any `.so`. DNS-SD `software_backends` would
+publish pins without authentication.
 
 **Out of scope.** Remote launch, I/O routing, a native mesh lease,
 #363 races, new reason strings, host-local availability, minting the
-#298 id, the health `node_id` echo, the address challenge, and any
-change to `placementReadAddress`. Ensure and placement stay off.
+#298 id, the health `node_id` echo, the runner admission record,
+changing `prepare_launcher.py`, TLS origin authentication with a key
+pinned at pairing (tracked separately), and any change to
+`placementReadAddress` (#396). Ensure and placement stay off.
 
 **Acceptance tests, phase 2.** A wrong bearer on the runner listener
 is 401, `software_backends` is ignored, and the node reason is
@@ -441,13 +495,19 @@ is 401, `software_backends` is ignored, and the node reason is
 that bearer is the same failure. A forged `node_id` in an otherwise
 authenticated body, and a missing `node_id`, drop the body with that
 same reason. A spoofed advertisement claims the enrolled node id at a
-new origin: the bearer is not sent there, and health from that origin
-does not make the node eligible even with the expected id and a
-matching pin. A failed or absent challenge stays unavailable. A
-challenge that verifies the new origin allows a later bearer read
-there. A duplicate id in one browse stays ambiguous. Until #298 the
-remote node stays unavailable even when the pin, system, `available`,
-and mesh major 1 would match. After provenance is accepted, pin,
+new origin. That request carries no `Authorization` header. No
+credential is sent, so there is nothing to relay, and health from
+that origin does not make the node eligible. The owner-facing sentence
+is `node moved; re-pair or confirm the new address`. After the owner
+confirms that origin by a config edit or re-pair, a health read to the
+new recorded origin sends the bearer and, once the prerequisite list
+is done, can be provenance. A duplicate id in one browse stays
+ambiguous. Until all of #298, runner admission, and runner
+provisioning are done, the remote node stays unavailable even when
+the pin, system,
+`available`, and mesh major 1 would match. Prerequisite 4 is the
+end-to-end test that a kept `software_backends` array requires those
+three. After provenance is accepted, pin,
 system, or `available` failure keeps `remote emulator system and
 version unverified`, and mesh `2.0` or an omitted mesh keeps `mesh
 protocol major mismatch`. The same pin with a different `core_version`
