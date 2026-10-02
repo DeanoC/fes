@@ -407,8 +407,8 @@
   }
 
   function regionLabel(region) {
-    const token = String(region || '').trim();
-    return DUMP_REGION_LABELS[token] || token;
+    const normalizedRegion = String(region || '').trim();
+    return DUMP_REGION_LABELS[normalizedRegion] || normalizedRegion;
   }
 
   function catalogRegion(title) {
