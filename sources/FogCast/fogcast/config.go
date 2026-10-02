@@ -845,6 +845,7 @@ func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
 		}
 		cores := make([]HostEmulatorCore, 0, len(raw.Cores))
 		seen := make(map[protocol.System]struct{}, len(raw.Cores))
+		corePins := make(map[string]string, len(raw.Cores))
 		for _, entry := range raw.Cores {
 			if err := catalog.ValidatePlatform(entry.Platform); err != nil {
 				return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores: %w", err)
@@ -863,6 +864,10 @@ func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
 				if decodeErr != nil || len(decoded) != sha256.Size {
 					return HostEmulatorConfig{}, fmt.Errorf("host_emulator core sha256 for %q is invalid", entry.Platform)
 				}
+				if pinned, ok := corePins[core]; ok && pinned != sha {
+					return HostEmulatorConfig{}, fmt.Errorf("host_emulator core %q has conflicting sha256 pins", core)
+				}
+				corePins[core] = sha
 			}
 			cores = append(cores, HostEmulatorCore{Platform: entry.Platform, Core: core, ID: strings.TrimSpace(entry.ID), Version: entry.Version, SHA256: sha})
 		}

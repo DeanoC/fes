@@ -2487,6 +2487,14 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 		stage = "development_recovery"
 		return s.stopRejectedCoreWithAdmission(ctx, true)
 	}
+	if activeExecution == "" && s.hostEmulator.Binary != "" {
+		s.executionMu.Lock()
+		noBoundPlay := s.activeTarget == ""
+		s.executionMu.Unlock()
+		if noBoundPlay {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		}
+	}
 
 	if activeExecution != ExecutionHostOnly && s.protocolAdmissionEnabled() {
 		if _, err := s.refreshStopAdmission(ctx); err != nil {

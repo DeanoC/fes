@@ -84,6 +84,44 @@ func TestStatusWithOfflineSelectedKitFollowsHostOnlyExecution(t *testing.T) {
 	}
 }
 
+func TestStopSucceedsAfterHostOnlyProcessExitsWithOfflineSelectedKit(t *testing.T) {
+	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+	host := &fakeHostExecutor{}
+	service := &Service{
+		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
+		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+		targetClients: map[string]serviceClient{"kit": client}, hostExecutor: host,
+	}
+	service.executionMu.Lock()
+	service.activeExecution, service.activeGameID = ExecutionHostOnly, "software-game"
+	service.executionMu.Unlock()
+	host.idle = true // Status observes and reaps the naturally exited process.
+	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Status after host process exit=%+v err=%v, want idle", status, err)
+	}
+	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Stop after host process exit=%+v err=%v, want idle", status, err)
+	}
+	if client.statusCalls != 0 || client.stopCalls != 0 {
+		t.Fatalf("kit status calls=%d stop calls=%d, want no kit access from Stop", client.statusCalls, client.stopCalls)
+	}
+}
+
+func TestStopWithNoBoundSessionDoesNotProbeOfflineSelectedKit(t *testing.T) {
+	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+	service := &Service{
+		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
+		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+		targetClients: map[string]serviceClient{"kit": client},
+	}
+	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Stop without session=%+v err=%v, want idle", status, err)
+	}
+	if client.statusCalls != 0 || client.stopCalls != 0 {
+		t.Fatalf("kit status calls=%d stop calls=%d, want no kit access", client.statusCalls, client.stopCalls)
+	}
+}
+
 func TestStatusDoesNotAssumeIdleWhenFPGAExecutionOrTargetIsKnown(t *testing.T) {
 	for _, tc := range []struct {
 		name            string

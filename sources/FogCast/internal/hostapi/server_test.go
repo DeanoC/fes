@@ -2075,7 +2075,11 @@ func TestHostOnlyStatusReapsUnexpectedMediaExit(t *testing.T) {
 	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"idle"`) || !strings.Contains(status.Body.String(), `"media":"stopped"`) {
 		t.Fatalf("status after media exit = %d %s", status.Code, status.Body.String())
 	}
-	if got, want := strings.Join(order, ","), "start:host-game,stop,service.stop"; got != want {
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK || !strings.Contains(stop.Body.String(), `"state":"idle"`) {
+		t.Fatalf("Stop after host-only exit = %d %s, want HTTP 200 idle", stop.Code, stop.Body.String())
+	}
+	if got, want := strings.Join(order, ","), "start:host-game,stop,service.stop,service.stop"; got != want {
 		t.Fatalf("reap order = %q, want %q", got, want)
 	}
 }
