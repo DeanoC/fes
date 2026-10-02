@@ -57,6 +57,37 @@ func TestStatusReportsIdleWhenNoKitIsReachableAndHostEmulatorIsConfigured(t *tes
 	}
 }
 
+func TestStatusDoesNotAssumeIdleWhenFPGAExecutionOrTargetIsKnown(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		explicitTarget  bool
+		activeExecution string
+	}{
+		{name: "known FPGA play", activeExecution: ExecutionFPGANative},
+		{name: "explicit target during host-only execution", explicitTarget: true, activeExecution: ExecutionHostOnly},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+			service := &Service{
+				hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
+				targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+				targetClients:   map[string]serviceClient{"kit": client},
+				activeExecution: tc.activeExecution, activeTarget: "kit",
+			}
+			var err error
+			if tc.explicitTarget {
+				_, err = service.StatusTarget(context.Background(), "kit")
+			} else {
+				_, err = service.Status(context.Background())
+			}
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable {
+				t.Fatalf("Status error = %v, want MISTER_UNAVAILABLE", err)
+			}
+		})
+	}
+}
+
 func TestProgressReaderStartsAfterBodyBytesAndForwardsClose(t *testing.T) {
 	var starts int
 	reader := &progressReader{

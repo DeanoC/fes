@@ -1,10 +1,12 @@
 package fogcast
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/DeanoC/FogCast/protocol"
@@ -44,5 +46,27 @@ func TestSoftwareBackendsReportObservedCoreIdentityAndAvailability(t *testing.T)
 	}
 	if got := s.SoftwareBackends()[0].Available; got {
 		t.Fatal("non-executable RetroArch binary advertised available")
+	}
+}
+
+func TestSoftwareBackendsRejectNonRegularCoreWithoutBlocking(t *testing.T) {
+	root := t.TempDir()
+	fifo := filepath.Join(root, "core.fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Skipf("mkfifo unavailable: %v", err)
+	}
+	s := &Service{hostEmulator: HostEmulatorConfig{Binary: filepath.Join(root, "runner"), Cores: []HostEmulatorCore{{Platform: protocol.SystemSMS, Core: fifo}}}}
+	if err := os.WriteFile(s.hostEmulator.Binary, []byte("runner"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	backends := s.SoftwareBackendsContext(ctx)
+	if len(backends) != 1 || backends[0].Available || backends[0].CoreSHA256 != "" {
+		t.Fatalf("FIFO backend = %#v", backends)
+	}
+	cancel()
+	if got := s.SoftwareBackendsContext(ctx)[0].Available; got {
+		t.Fatal("canceled health context advertised core available")
 	}
 }

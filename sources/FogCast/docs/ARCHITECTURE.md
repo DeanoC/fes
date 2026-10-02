@@ -1346,6 +1346,9 @@ identity, configured `core_version`, and observed core digest; `core_version`
 is copied from configuration and is not queried from RetroArch. A missing or
 mismatched core, or a missing/non-executable RetroArch binary, is unavailable. One
 host emulator process owns the local session until Stop or process exit.
+Unscoped status may report idle after target loss only when host-only execution
+is active or no FPGA play/target is known; a bound FPGA play or explicit target
+continues to report `MISTER_UNAVAILABLE` while kit state cannot be observed.
 M1 software-runner input uses a controller attached to the runner through
 RetroArch's local joypad/udev input. FogCast does not route remote controller
 input to `host_only`; that remains a #363 gap.

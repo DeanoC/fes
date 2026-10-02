@@ -2,9 +2,7 @@ package fogcast
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"io"
 	"io/fs"
@@ -1685,6 +1683,10 @@ func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 
 // SoftwareBackends describes configured host execution after checking each core file.
 func (s *Service) SoftwareBackends() []SoftwareBackend {
+	return s.SoftwareBackendsContext(context.Background())
+}
+
+func (s *Service) SoftwareBackendsContext(ctx context.Context) []SoftwareBackend {
 	config := s.hostEmulator
 	if config.Binary == "" {
 		return []SoftwareBackend{}
@@ -1703,14 +1705,9 @@ func (s *Service) SoftwareBackends() []SoftwareBackend {
 		if item.CoreID == "" {
 			item.CoreID = filepath.Base(entry.Core)
 		}
-		if file, err := os.Open(entry.Core); err == nil {
-			h := sha256.New()
-			_, copyErr := io.Copy(h, file)
-			closeErr := file.Close()
-			if copyErr == nil && closeErr == nil {
-				item.CoreSHA256 = hex.EncodeToString(h.Sum(nil))
-				item.Available = binaryAvailable && (entry.SHA256 == "" || item.CoreSHA256 == entry.SHA256)
-			}
+		if digest, err := coreFileDigest(ctx, entry.Core); err == nil {
+			item.CoreSHA256 = digest
+			item.Available = binaryAvailable && (entry.SHA256 == "" || item.CoreSHA256 == entry.SHA256)
 		}
 		out = append(out, item)
 	}
@@ -2278,12 +2275,16 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 			s.executionMu.Unlock()
 		}()
 	}
+	s.targetMu.RLock()
+	knownSelectedTarget := s.sessionTargetNameLocked() != ""
+	s.targetMu.RUnlock()
 	s.executionMu.Lock()
-	localExecution := s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
+	localExecution := target == "" && s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
+	knownFPGA := s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment || s.activeTarget != "" || knownSelectedTarget
 	s.executionMu.Unlock()
 	if !localExecution && s.discoveryEnabled() {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
-			if s.hostEmulator.Binary != "" {
+			if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 				return protocol.Status{State: protocol.StateIdle}, nil
 			}
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
@@ -2292,7 +2293,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
-	hostOnly := s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
+	hostOnly := target == "" && s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
 	gameID, system := s.activeGameID, s.activeSystem
 	s.executionMu.Unlock()
 	if hostOnly {
@@ -2315,7 +2316,11 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	}
 	client, ok := s.selectedClientLocked()
 	if !ok {
-		if s.hostEmulator.Binary != "" {
+		s.executionMu.Lock()
+		knownFPGA := s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment || s.activeTarget != "" || knownSelectedTarget
+		localExecution := target == "" && s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
+		s.executionMu.Unlock()
+		if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 			return protocol.Status{State: protocol.StateIdle}, nil
 		}
 		s.allowSelectedTargetRepair(parent)
@@ -2323,7 +2328,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	}
 	status, err := client.Status(ctx)
 	if err != nil {
-		if s.hostEmulator.Binary != "" {
+		if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 			return protocol.Status{State: protocol.StateIdle}, nil
 		}
 		s.allowSelectedTargetRepair(parent)

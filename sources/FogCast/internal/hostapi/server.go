@@ -469,6 +469,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 			},
 		}
 		if provider, ok := service.(interface {
+			SoftwareBackendsContext(context.Context) []fogcast.SoftwareBackend
+		}); ok {
+			result.Capabilities = provider.SoftwareBackendsContext(r.Context())
+		} else if provider, ok := service.(interface {
 			SoftwareBackends() []fogcast.SoftwareBackend
 		}); ok {
 			result.Capabilities = provider.SoftwareBackends()

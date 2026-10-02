@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -17,6 +18,38 @@ import (
 type fakeProcess struct {
 	killed bool
 	done   chan struct{}
+}
+
+func TestRetroArchStartExecFailureIsUnavailable(t *testing.T) {
+	adapter := hostexec.NewRetroArchAdapter("missing-retroarch", coreFile(t), func(context.Context, string, ...string) (hostexec.Process, error) {
+		return nil, &os.PathError{Op: "exec", Path: "missing-retroarch", Err: syscall.ENOENT}
+	})
+	identity := testIdentity()
+	_, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), identity)
+	if !errors.Is(err, hostexec.ErrUnavailable) {
+		t.Fatalf("launch error = %v, want ErrUnavailable", err)
+	}
+}
+
+func TestRetroArchStagingRejectsFIFOWithoutBlocking(t *testing.T) {
+	fifo := filepath.Join(t.TempDir(), "core.fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Skipf("mkfifo unavailable: %v", err)
+	}
+	adapter := hostexec.NewRetroArchAdapter("retroarch", fifo, nil)
+	done := make(chan error, 1)
+	go func() {
+		_, err := adapter.LaunchPath(context.Background(), protocol.SystemSMS, "unused.rom")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, hostexec.ErrUnavailable) {
+			t.Fatalf("FIFO launch error = %v, want ErrUnavailable", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("staging FIFO core blocked")
+	}
 }
 
 func (p *fakeProcess) Wait() error {

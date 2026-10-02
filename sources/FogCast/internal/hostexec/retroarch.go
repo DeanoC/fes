@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/protocol"
@@ -172,13 +173,18 @@ func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.R
 		return Status{}, err
 	}
 	stagedCore := filepath.Join(coreDir, filepath.Base(core))
-	coreFile, err := os.Open(core)
+	before, err := os.Lstat(core)
+	if err != nil || !before.Mode().IsRegular() || before.Size() < 0 || before.Size() > 256<<20 {
+		_ = os.RemoveAll(coreDir)
+		return Status{}, fmt.Errorf("%w: core file missing or invalid", ErrUnavailable)
+	}
+	coreFile, err := os.OpenFile(core, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		_ = os.RemoveAll(coreDir)
 		return Status{}, fmt.Errorf("%w: core file missing", ErrUnavailable)
 	}
 	info, statErr := coreFile.Stat()
-	if statErr != nil || !info.Mode().IsRegular() {
+	if statErr != nil || !info.Mode().IsRegular() || !os.SameFile(before, info) || info.Size() != before.Size() || info.Size() > 256<<20 {
 		_ = coreFile.Close()
 		_ = os.RemoveAll(coreDir)
 		return Status{}, fmt.Errorf("%w: core file missing", ErrUnavailable)
@@ -190,9 +196,9 @@ func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.R
 		return Status{}, err
 	}
 	h := sha256.New()
-	_, copyErr := io.Copy(io.MultiWriter(staged, h), contextReader{ctx: ctx, r: coreFile})
+	copySize, copyErr := io.Copy(io.MultiWriter(staged, h), io.LimitReader(contextReader{ctx: ctx, r: coreFile}, info.Size()+1))
 	closeSourceErr, closeStagedErr := coreFile.Close(), staged.Close()
-	if copyErr != nil || closeSourceErr != nil || closeStagedErr != nil || (a.sha256[core] != "" && hex.EncodeToString(h.Sum(nil)) != a.sha256[core]) {
+	if copyErr != nil || copySize != info.Size() || closeSourceErr != nil || closeStagedErr != nil || (a.sha256[core] != "" && hex.EncodeToString(h.Sum(nil)) != a.sha256[core]) {
 		_ = os.RemoveAll(coreDir)
 		if copyErr != nil {
 			return Status{}, copyErr
@@ -278,6 +284,9 @@ func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.R
 		a.mu.Unlock()
 		cleanup()
 		coreCleanup()
+		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.ENOEXEC) {
+			return Status{}, fmt.Errorf("%w: RetroArch executable unavailable", ErrUnavailable)
+		}
 		return Status{}, err
 	}
 	previousCleanup := session.cleanup
