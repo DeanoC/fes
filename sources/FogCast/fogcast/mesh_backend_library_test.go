@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -82,26 +83,28 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 	service.meshHTTP = server.Client()
 	service.meshNodes = []MeshNode{{NodeID: kitID, TargetID: kitID, Address: server.URL, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities()}}
 	rows, skipped := service.MeshBackendLibrary(ctx)
-	if len(skipped) != 0 || len(rows) != 2 || coreID == romID {
+	// Same ROM sha256 and system: one row under the package game id, with the
+	// kit FPGA option and the host-local emulator option.
+	if len(skipped) != 0 || len(rows) != 1 || coreID == romID || rows[0].TitleID != coreID {
 		t.Fatalf("ids=%q/%q rows=%+v skipped=%+v", coreID, romID, rows, skipped)
 	}
-	core := backendRow(t, rows, coreID)
-	rom := backendRow(t, rows, romID)
-	if len(core.Options) != 1 || core.Options[0].Entry.Execute[0].Kind != meshcontent.ExecuteFPGANative || !core.Options[0].Nodes[0].Available || core.Options[0].HostLocal || core.System != "sms" {
-		t.Fatalf("core=%+v", core)
+	row := rows[0]
+	if row.System != "sms" || len(row.Options) != 2 || len(row.ContentIDs) != 1 || row.ContentIDs[0].String() != "sha256:"+media {
+		t.Fatalf("row=%+v", row)
 	}
-	if len(rom.Options) != 1 || rom.Options[0].Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || !rom.Options[0].HostLocal || rom.Options[0].Reason != "" || rom.System != "sms" {
-		t.Fatalf("rom=%+v", rom)
+	fpgaOpt, emuOpt := row.Options[0], row.Options[1]
+	if fpgaOpt.Entry.TitleID != coreID || fpgaOpt.Entry.Execute[0].Kind != meshcontent.ExecuteFPGANative || fpgaOpt.HostLocal || fpgaOpt.Reason != "" || len(fpgaOpt.Nodes) != 1 || !fpgaOpt.Nodes[0].Available {
+		t.Fatalf("fpga option=%+v", fpgaOpt)
 	}
-	if len(core.ContentIDs) != 1 || len(rom.ContentIDs) != 1 || core.ContentIDs[0] != rom.ContentIDs[0] {
-		t.Fatalf("content core=%+v rom=%+v", core.ContentIDs, rom.ContentIDs)
+	if emuOpt.Entry.TitleID != romID || emuOpt.Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || !emuOpt.HostLocal || emuOpt.Reason != "" {
+		t.Fatalf("emulator option=%+v", emuOpt)
 	}
 	service.targets = nil
 	rows, skipped = service.MeshBackendLibrary(ctx)
 	if len(skipped) != 0 {
 		t.Fatalf("without authenticated kit: skipped=%+v", skipped)
 	}
-	core = backendRow(t, rows, coreID)
+	core := backendRow(t, rows, coreID)
 	if core.Options[0].Reason != "no compatible executor in inventory" || len(core.Options[0].Nodes) != 1 || core.Options[0].Nodes[0].Reason != "package unavailable on node" {
 		t.Fatalf("without package facts: core=%+v", core)
 	}
@@ -121,7 +124,7 @@ func TestMeshBackendLibraryTwoNodeProjection(t *testing.T) {
 	native.Game.Content.Size = 32768
 	native.Game.Content.Extension = "sms"
 	pong := meshCoreTitle("Pong", "fes.pong", pkgID, "", false)
-	emuOnly := meshNativeTitle("Emulator only", protocol.SystemSMS, media)
+	emuOnly := meshNativeTitle("Emulator only", protocol.SystemSMS, strings.Repeat("01", 32))
 	lib := MeshLibrary{Titles: []MeshTitle{fpga, native, pong, emuOnly, native}}
 	packages := map[string][]string{kitID: {pkgID}}
 	abis := map[string][]meshcontent.EligibleABI{kitID: {{ID: "fes.application", Major: 1}}}
@@ -259,6 +262,74 @@ func TestMeshBackendLibraryHostAndSourcedCollision(t *testing.T) {
 		rows, _ = ProjectMeshBackendLibrary(MeshLibrary{Titles: []MeshTitle{title}}, nil, false, nil, nil)
 		if opt := backendRow(t, rows, title.Game.ID).Options[0]; !opt.HostLocal || opt.Reason != "local source unavailable" {
 			t.Fatalf("%s local option=%+v", name, opt)
+		}
+	}
+}
+
+// Bob's #380 join rule: link only on an exact ROM sha256 AND system match;
+// the package row's game id is canonical; collisions resolve package first,
+// then lowest game id, independent of input order.
+func TestMeshBackendLibraryTitleLink(t *testing.T) {
+	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	patched := strings.Repeat("5a", 32)
+	pkgID := strings.Repeat("ab", 32)
+	pkg := meshCoreTitle("Data Storm 1.00", "fes.sms", pkgID, media, false)
+
+	// Hash mismatch (patched ROM): two rows.
+	hack := meshNativeTitle("Data Storm 1.00", protocol.SystemSMS, patched)
+	rows, skipped := ProjectMeshBackendLibrary(MeshLibrary{Titles: []MeshTitle{pkg, hack}}, nil, false, nil, nil)
+	if len(skipped) != 0 || len(rows) != 2 {
+		t.Fatalf("hash mismatch rows=%+v skipped=%+v", rows, skipped)
+	}
+	backendRow(t, rows, pkg.Game.ID)
+	backendRow(t, rows, hack.Game.ID)
+
+	// Same hash, different system: separate rows.
+	gg := meshNativeTitle("Data Storm 1.00", protocol.SystemGameGear, media)
+	rows, skipped = ProjectMeshBackendLibrary(MeshLibrary{Titles: []MeshTitle{pkg, gg}}, nil, false, nil, nil)
+	if len(skipped) != 0 || len(rows) != 2 {
+		t.Fatalf("system mismatch rows=%+v skipped=%+v", rows, skipped)
+	}
+	if got := backendRow(t, rows, gg.Game.ID); got.System == "sms" || len(got.Options) != 1 {
+		t.Fatalf("system mismatch row=%+v", got)
+	}
+
+	// Three-plus collision: two package rows and two raw ROM rows with the
+	// same hash and system. The lowest package game id is canonical, and
+	// the result is identical for every input order.
+	pkg2 := meshCoreTitle("Data Storm (alt package)", "fes.sms", strings.Repeat("cd", 32), media, false)
+	romA := meshNativeTitle("Data Storm A", protocol.SystemSMS, media)
+	romB := meshNativeTitle("Data Storm B", protocol.SystemSMS, media)
+	titles := []MeshTitle{romB, pkg2, romA, pkg}
+	wantID := pkg.Game.ID
+	if pkg2.Game.ID < wantID {
+		wantID = pkg2.Game.ID
+	}
+	var first []MeshBackendRow
+	orders := [][]int{{0, 1, 2, 3}, {3, 2, 1, 0}, {2, 0, 3, 1}, {1, 3, 0, 2}}
+	for n, order := range orders {
+		in := make([]MeshTitle, 0, len(order))
+		for _, i := range order {
+			in = append(in, titles[i])
+		}
+		rows, skipped := ProjectMeshBackendLibrary(MeshLibrary{Titles: in}, nil, false, nil, nil)
+		if len(skipped) != 0 || len(rows) != 1 || rows[0].TitleID != wantID || len(rows[0].Options) != 4 || len(rows[0].ContentIDs) != 1 {
+			t.Fatalf("order %v rows=%+v skipped=%+v", order, rows, skipped)
+		}
+		options := rows[0].Options
+		for i, option := range options {
+			_, isPackage := meshEntryPackage(option.Entry)
+			if isPackage != (i < 2) {
+				t.Fatalf("order %v: package options must come first: %+v", order, options)
+			}
+		}
+		if options[0].Entry.TitleID > options[1].Entry.TitleID || options[2].Entry.TitleID > options[3].Entry.TitleID {
+			t.Fatalf("order %v: options not ordered by game id: %+v", order, options)
+		}
+		if n == 0 {
+			first = rows
+		} else if !reflect.DeepEqual(rows, first) {
+			t.Fatalf("order %v differs:\n%+v\n%+v", order, rows, first)
 		}
 	}
 }

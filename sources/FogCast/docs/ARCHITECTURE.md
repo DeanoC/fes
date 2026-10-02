@@ -1325,7 +1325,13 @@ not eligibility.
 `Service.MeshBackendLibrary` reads the existing local catalog and projects
 package titles through the same helper as placement; raw games use the
 configured execution resolver. `ProjectMeshBackendLibrary` groups entries
-by catalog game id, keeps host-local and sourced options distinct, deduplicates
+by catalog game id and links rows at read time when their primary-media
+content id (the ROM sha256) and browse system both match exactly. The
+package row's game id is the canonical row id and a matching raw ROM folds
+in as its emulator option; with more rows, package rows come first, then
+the lowest game id. A different hash (a patched ROM) or system never links,
+and catalog rows are not rewritten. Each option keeps its source game id.
+It keeps host-local and sourced options distinct, deduplicates
 repeated content ids, and annotates observed node candidates. The service
 reuses placement's authenticated kit node-document read for package and ABI
 facts. A missing, retained, conflicting, or mesh-major-incompatible
@@ -1338,11 +1344,9 @@ its root is offline. An option with no
 host-local path carries an explicit reason when no inventory node can
 run it (`no advertised executor in inventory` or `no compatible
 executor in inventory`); each node candidate carries its own reason.
-Core-package and raw-ROM catalog entries retain different game ids even
-when they name the same game and primary-media digest, so they remain two
-rows. This projection does not select a backend for a session, assert
-composition Ready, or publish a library wire field. A catalog title link
-and remote title/source provenance remain proposed in the mesh docs.
+This projection does not select a backend for a session, assert
+composition Ready, or publish a library wire field. Remote title/source
+provenance remains proposed in the mesh docs.
 
 `meshcontent.Ensure` is the host ensure step. It takes one projected
 entry and the executor the session is already bound to. Each required

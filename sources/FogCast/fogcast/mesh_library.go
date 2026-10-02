@@ -13,7 +13,10 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-// MeshBackendRow groups the existing one-execute catalog entries by game id.
+// MeshBackendRow groups the existing one-execute catalog entries by game id,
+// with rows that share an exact ROM sha256 and system linked under one
+// canonical id (see linkMeshTitles). Each option's Entry.TitleID stays the
+// source catalog game id.
 // This is a host projection, not a session selection or a wire contract.
 type MeshBackendRow struct {
 	TitleID    string
@@ -105,19 +108,26 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 	for _, node := range nodes {
 		counts[node.NodeID]++
 	}
-	byID := map[string]int{}
+	var projected []projectedMeshTitle
 	for _, title := range lib.Titles {
 		entry, skip, ok := projectMeshTitle(lib.Firmware.MediaID, title)
 		if !ok {
 			skipped = append(skipped, skip)
 			continue
 		}
+		projected = append(projected, projectedMeshTitle{title: title, entry: entry})
+	}
+	canonical := linkMeshTitles(projected)
+	byID := map[string]int{}
+	for _, item := range projected {
+		title, entry := item.title, item.entry
 		hostLocal := title.Execute == ExecutionHostOnly
-		index, found := byID[entry.TitleID]
+		rowID := canonical[entry.TitleID]
+		index, found := byID[rowID]
 		if !found {
 			index = len(rows)
-			byID[entry.TitleID] = index
-			rows = append(rows, MeshBackendRow{TitleID: entry.TitleID, System: entry.System})
+			byID[rowID] = index
+			rows = append(rows, MeshBackendRow{TitleID: rowID, System: entry.System})
 		} else if rows[index].System != entry.System {
 			skipped = append(skipped, MeshSkip{TitleID: entry.TitleID, Reason: "title has conflicting browse systems"})
 			continue
@@ -203,8 +213,96 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 		}
 		row.Options = append(row.Options, option)
 	}
+	for i := range rows {
+		orderMeshBackendRow(&rows[i])
+	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].TitleID < rows[j].TitleID })
 	return rows, skipped
+}
+
+type projectedMeshTitle struct {
+	title MeshTitle
+	entry meshcontent.Entry
+}
+
+// linkMeshTitles maps each projected catalog game id to its library row id.
+// Rows whose primary-media content id (the ROM sha256) and browse system both
+// match exactly are one title. The link is derived at read time; catalog rows
+// are not rewritten. The canonical id is a package-backed row's game id when
+// one is present, otherwise the lowest game id; among several package rows the
+// lowest game id wins. A different hash (for example a patched ROM) or a
+// different system never links.
+func linkMeshTitles(projected []projectedMeshTitle) map[string]string {
+	type member struct {
+		id  string
+		pkg bool
+	}
+	groups := map[string][]member{}
+	canonical := map[string]string{}
+	for _, item := range projected {
+		canonical[item.entry.TitleID] = item.entry.TitleID
+		media, ok := meshEntryPrimaryMedia(item.entry)
+		if !ok {
+			continue
+		}
+		_, pkg := meshEntryPackage(item.entry)
+		key := item.entry.System + "\x00" + media.String()
+		groups[key] = append(groups[key], member{id: item.entry.TitleID, pkg: pkg})
+	}
+	for _, members := range groups {
+		sort.Slice(members, func(i, j int) bool {
+			if members[i].pkg != members[j].pkg {
+				return members[i].pkg
+			}
+			return members[i].id < members[j].id
+		})
+		for _, m := range members {
+			canonical[m.id] = members[0].id
+		}
+	}
+	return canonical
+}
+
+// orderMeshBackendRow makes a row independent of catalog input order:
+// package-backed options first, then by source game id, host-local before
+// sourced; content ids follow that option order.
+func orderMeshBackendRow(row *MeshBackendRow) {
+	sort.SliceStable(row.Options, func(i, j int) bool {
+		a, b := row.Options[i], row.Options[j]
+		_, ap := meshEntryPackage(a.Entry)
+		_, bp := meshEntryPackage(b.Entry)
+		if ap != bp {
+			return ap
+		}
+		if a.Entry.TitleID != b.Entry.TitleID {
+			return a.Entry.TitleID < b.Entry.TitleID
+		}
+		return a.HostLocal && !b.HostLocal
+	})
+	row.ContentIDs = row.ContentIDs[:0]
+	for _, option := range row.Options {
+		for _, id := range option.Entry.ContentIDs() {
+			present := false
+			for _, old := range row.ContentIDs {
+				if old == id {
+					present = true
+					break
+				}
+			}
+			if !present {
+				row.ContentIDs = append(row.ContentIDs, id)
+			}
+		}
+	}
+}
+
+func meshEntryPrimaryMedia(entry meshcontent.Entry) (meshcontent.ContentID, bool) {
+	for _, slot := range entry.Slots {
+		if slot.Kind == meshcontent.SlotPrimaryMedia && slot.Content != nil {
+			return *slot.Content, true
+		}
+	}
+	return meshcontent.ContentID{}, false
 }
 
 func meshEntryPackage(entry meshcontent.Entry) (meshcontent.PackageABI, bool) {
