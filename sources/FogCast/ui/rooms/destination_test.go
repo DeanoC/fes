@@ -327,6 +327,47 @@ func TestClassifyGamesOnlyViableOptionsAreAChoice(t *testing.T) {
 	}
 }
 
+func TestClassifyGamesReadyHereFailsClosed(t *testing.T) {
+	t.Parallel()
+	base := readyGame("fpga-data-storm", "Data Storm", "sms")
+	base.Execution = "fpga_native"
+	cases := []struct {
+		name  string
+		block string
+		want  Availability
+	}{
+		{name: "empty", block: "", want: AvailUnavailable},
+		{name: "unknown", block: "not_a_real_block", want: AvailUnavailable},
+		{name: "ensure_in_progress", block: string(hostclient.LaunchEnsureProgress), want: AvailChecking},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			game := base
+			ready := false
+			game.ReadyHere = &ready
+			game.ReadyBlock = tc.block
+			state, matches := ClassifyGames([]hostclient.Game{game}, game.Title)
+			dest := Destination{Kind: KindGame, Availability: state, Matches: matches, Query: game.Title, Label: game.Title}
+			dest.FillCopy()
+			if state != tc.want || dest.Availability != tc.want || len(matches) != 1 {
+				t.Fatalf("state %s dest %s matches %d", state, dest.Availability, len(matches))
+			}
+			if dest.Confirm() == ConfirmLaunch || dest.Action == "Play" || dest.Status == "Ready to play." || dest.Availability.Label() == "Ready" {
+				t.Fatalf("showed Ready %+v confirm %v", dest, dest.Confirm())
+			}
+			if tc.want == AvailChecking {
+				if dest.Confirm() != ConfirmWait || dest.Availability.Label() != "Checking" || dest.Status != CheckingStatus {
+					t.Fatalf("checking %+v confirm %v", dest, dest.Confirm())
+				}
+				return
+			}
+			if dest.Confirm() != ConfirmExplain || dest.Availability.Label() != "Unavailable" {
+				t.Fatalf("unavailable %+v confirm %v", dest, dest.Confirm())
+			}
+		})
+	}
+}
+
 func TestClassifyDoesNotPreferLaterContainsOverExact(t *testing.T) {
 	t.Parallel()
 	games := []hostclient.Game{

@@ -517,6 +517,10 @@
     }
   }
 
+  function readyBlockCode(game) {
+    return game && typeof game.ready_block === 'string' ? game.ready_block.trim() : '';
+  }
+
   function playAvailability(game, extra) {
     extra = extra && typeof extra === 'object' ? extra : {};
     if (extra.catalogLoading && !game) {
@@ -532,7 +536,9 @@
     if (!game) {
       return { state: 'unavailable', label: 'Unavailable', reason: 'Select a game first.' };
     }
-    if (game.ready_here === false && game.ready_block === 'ensure_in_progress') {
+    // Only an in-progress ensure is Checking. Every other false ready_here,
+    // including an empty or unknown block, is Unavailable.
+    if (game.ready_here === false && readyBlockCode(game) === 'ensure_in_progress') {
       return { state: 'checking', label: 'Checking', reason: 'Still resolving whether this title can play here.' };
     }
     const blocked = launchBlockReason(game);
@@ -743,9 +749,11 @@
   function launchBlockReason(game) {
     if (!game) return 'Select a game first.';
     if (game.ready_here === false) {
-      if (game.ready_block === 'ensure_in_progress') return 'Still resolving whether this title can play here.';
-      const mesh = meshUnavailableReason(game);
+      const block = readyBlockCode(game);
+      if (block === 'ensure_in_progress') return 'Still resolving whether this title can play here.';
+      const mesh = meshUnavailableReason({ ready_block: block });
       if (mesh) return mesh;
+      return 'This game isn’t ready to launch.';
     }
     if (game.launchable !== true) return 'This platform is browse-only on this host.';
     if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
