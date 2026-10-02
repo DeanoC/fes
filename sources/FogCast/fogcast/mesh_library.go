@@ -73,8 +73,10 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 		}
 		lib.Titles = append(lib.Titles, MeshTitle{Game: game, Launchable: true, Execute: execute})
 	}
-	nodes := s.MeshNodes()
+	// Copy the rows and the retained flag together so one browse result
+	// cannot pair with another's retained state.
 	s.meshMu.Lock()
+	nodes := append([]MeshNode(nil), s.meshNodes...)
 	retained := s.meshNodesRetained
 	s.meshMu.Unlock()
 	packages := make(map[string][]string)
