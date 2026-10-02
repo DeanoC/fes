@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "description": "Small extracts; complete original records remain at the recorded local paths.",
+  "records": [
+    {
+      "path": "/home/deano/kepler/worktrees/fes-fes-ramtest-compiler-gains-264-17a49c0d/out/ramtest-wide-reduction-264/capture-pipeline-264/lut-pair-review109-fixture-native-v1/record.json",
+      "sha256": "97e6e36c9755eedd6d15acb94d95fb4ad0f6d24e396ce8862ebbd02cad752e88",
+      "bytes": 1361318,
+      "summary": {
+        "state": "passed",
+        "exit_code": 0,
+        "completed_normally": true,
+        "elapsed_seconds": 179.56896127201617,
+        "native_case_count": 45,
+        "tests_run": true,
+        "full_route": false,
+        "gain_qualified": false,
+        "hardware": false
+      }
+    },
+    {
+      "path": "/home/deano/kepler/worktrees/fes-fes-ramtest-compiler-gains-264-17a49c0d/out/ramtest-wide-reduction-264/capture-pipeline-264/lut-pair-review109-current-tests-cli-v1/record.json",
+      "sha256": "561a825d29fa33e7e8ad15cd962e82ade406f1ca5220d88cd95b2dc0dc9ec0e6",
+      "bytes": 1357051,
+      "summary": {
+        "state": "passed",
+        "exit_code": 0,
+        "elapsed_seconds": 600.3625508488622,
+        "cli_ctest_target_count": 3,
+        "tests_run": true,
+        "full_route": false,
+        "gain_qualified": false,
+        "hardware": false
+      }
+    },
+    {
+      "path": "/home/deano/kepler/worktrees/fes-fes-ramtest-compiler-gains-264-17a49c0d/out/ramtest-wide-reduction-264/capture-pipeline-264/yosys-ffmux-check-build-v1/record.json",
+      "sha256": "cc6c95b085bf01303cca97d08864ea84614c3c91128ca2e43ea7087b38577533",
+      "bytes": 2442145,
+      "summary": {
+        "state": "passed",
+        "exit_code": 0,
+        "completed_normally": true,
+        "elapsed_seconds": 280.01158714294434,
+        "tests_run": false,
+        "gain_qualified": false,
+        "hardware": false
+      }
+    },
+    {
+      "path": "/home/deano/kepler/worktrees/fes-fes-ramtest-compiler-gains-264-17a49c0d/out/ramtest-wide-reduction-264/capture-pipeline-264/yosys-ffmux-test-current-ffmux-v5/record.json",
+      "sha256": "fef0afa380add486268cc5bfa6276b47166f57a14832a8201f4c8b3b1bfefffe",
+      "bytes": 2775272,
+      "summary": {
+        "state": "passed",
+        "exit_code": 0,
+        "completed_normally": true,
+        "elapsed_seconds": 3.2359774520155042,
+        "tests_run": true,
+        "gain_qualified": false,
+        "hardware": false
+      }
+    },
+    {
+      "path": "/home/deano/kepler/worktrees/fes-fes-ramtest-compiler-gains-264-17a49c0d/out/ramtest-wide-reduction-264/capture-pipeline-264/hard-input-c0-selected-placed-b64-v1/run.json",
+      "sha256": "a9de5ea379d45c17a4607187e3941a771265a817a68d87aa5c9515209d5f554e",
+      "bytes": 511048,
+      "summary": {
+        "exit_code": 0,
+        "completed_normally": true,
+        "elapsed_seconds": 463.94675069092773,
+        "hardware_tested": false,
+        "gain_accepted": false
+      }
+    }
+  ]
+}

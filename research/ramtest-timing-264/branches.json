@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "checkpoint_date": "2026-10-02",
+  "branches": [
+    {
+      "repository": "fes",
+      "path": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-lane-timing-264-17a49c0d",
+      "branch": "kepler/fes-ramtest-oss-lane-timing-264",
+      "commit": "d4de8d2a0a27670a49e9ec4abba1d2f273f7eeaa",
+      "clean": true
+    },
+    {
+      "repository": "fes",
+      "path": "/home/deano/kepler/worktrees/fes-fes-ramtest-oss-timing-264-pr-17a49c0d",
+      "branch": "kepler/fes-ramtest-oss-timing-264-pr",
+      "commit": "9960bbacf7e3459b2d50b200f03a47b64625c701",
+      "clean": true
+    },
+    {
+      "repository": "fes",
+      "path": "/home/deano/kepler/worktrees/fes-fes-ramtest-compiler-gains-264-17a49c0d",
+      "branch": "kepler/fes-ramtest-fixed-input-264",
+      "commit": "7ce9926941a5f72cc3ca4b0ed61b7b06e76e5304",
+      "clean": true
+    },
+    {
+      "repository": "nextpnr",
+      "path": "/home/deano/kepler/worktrees/nextpnr-feat-mistral-lut-pair-copies-264-54cde5d3",
+      "branch": "feat/mistral-lut-pair-copies-264",
+      "commit": "1969db9a861d5dde2a923b13575236c0e6704f1c",
+      "clean": true
+    },
+    {
+      "repository": "nextpnr",
+      "path": "/home/deano/kepler/worktrees/nextpnr-experiment-mistral-lut-pair-copy-plan-264-54cde5d3",
+      "branch": "experiment/mistral-lut-pair-copy-plan-264",
+      "commit": "5ac46a5af641296fae10d24d023df8f98e27af55",
+      "clean": true
+    },
+    {
+      "repository": "nextpnr",
+      "path": "/home/deano/kepler/worktrees/nextpnr-experiment-mistral-capture-pipeline-264-54cde5d3",
+      "branch": "experiment/mistral-capture-pipeline-264",
+      "commit": "a0432321e5ab99e20ec83e4fe97b652128b3c4b8",
+      "clean": true
+    },
+    {
+      "repository": "nextpnr",
+      "path": "/home/deano/kepler/worktrees/nextpnr-feat-mistral-capture-pipeline-locality-264-54cde5d3",
+      "branch": "feat/mistral-capture-pipeline-locality-264",
+      "commit": "7c21599d15c39ad94c629e8ce928622bebaa3113",
+      "clean": true
+    },
+    {
+      "repository": "nextpnr",
+      "path": "/home/deano/kepler/worktrees/nextpnr-experiment-mistral-capture-pipeline-search-264-54cde5d3",
+      "branch": "experiment/mistral-capture-pipeline-search-264",
+      "commit": "cdb6c4018628d8f75f746578b59aec1353e21617",
+      "clean": true
+    },
+    {
+      "repository": "nextpnr",
+      "path": "/home/deano/kepler/worktrees/nextpnr-experiment-mistral-hard-input-locality-264-54cde5d3",
+      "branch": "experiment/mistral-hard-input-locality-264",
+      "commit": "cd557f5ccdc35c6a7793447dc874f859a811f59f",
+      "clean": true
+    },
+    {
+      "repository": "yosys",
+      "path": "/home/deano/kepler/worktrees/yosys-experiment-intel-alm-ffmux-264-6f6ea018",
+      "branch": "experiment/intel-alm-ffmux-264",
+      "commit": "ac120c9d526178a5693cd96faa16d82f8c11ba7c",
+      "clean": true
+    }
+  ]
+}
