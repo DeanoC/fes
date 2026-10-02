@@ -19,6 +19,7 @@ import (
 type fakeRuntime struct {
 	mu        sync.Mutex
 	loads     [][2]string
+	romBytes  [][]byte
 	stops     int
 	loadErr   error
 	stopErr   error
@@ -39,6 +40,29 @@ func (f *fakeRuntime) LoadCore(admission, operation context.Context, path, packa
 		f.onLoad()
 	}
 	return err
+}
+
+func (f *fakeRuntime) LoadCartridge(admission, operation context.Context, path, packageID string, rom []byte) error {
+	f.mu.Lock()
+	f.admission = admission
+	f.operation = operation
+	f.romBytes = append(f.romBytes, append([]byte(nil), rom...))
+	err := f.loadErr
+	f.mu.Unlock()
+	if f.onLoad != nil {
+		f.onLoad()
+	}
+	return err
+}
+
+func (f *fakeRuntime) roms() [][]byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([][]byte, len(f.romBytes))
+	for i, rom := range f.romBytes {
+		out[i] = append([]byte(nil), rom...)
+	}
+	return out
 }
 
 func (f *fakeRuntime) Stop(admission, operation context.Context) error {

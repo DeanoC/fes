@@ -23,6 +23,10 @@ type libraryQueryService interface {
 	Platforms(context.Context) ([]catalog.PlatformInfo, error)
 }
 
+type shelfNoticeService interface {
+	LocalShelfNotice(context.Context) string
+}
+
 type favoriteService interface {
 	SetFavorite(context.Context, string, bool) error
 	LibraryState(context.Context, string) (libraryuser.State, error)
@@ -322,7 +326,16 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		return
 	}
 	applyMeshReadiness(r.Context(), service, result.Games)
+	if shelfNoticeApplies(query) {
+		if notice, ok := service.(shelfNoticeService); ok {
+			result.Notice = notice.LocalShelfNotice(r.Context())
+		}
+	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func shelfNoticeApplies(query catalog.Query) bool {
+	return query.Text == "" && query.Platform == "" && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
 }
 
 func parseGameQuery(r *http.Request) (catalog.Query, error) {

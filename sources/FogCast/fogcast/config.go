@@ -240,23 +240,29 @@ type fileCoreCatalog struct {
 }
 
 type fileConfig struct {
-	CoreCatalog           fileCoreCatalog      `toml:"core_catalog"`
-	TargetID              string               `toml:"target_id,omitempty"`
-	BaseURL               string               `toml:"base_url"`
-	Token                 string               `toml:"token"`
-	SelectedTarget        string               `toml:"selected_target"`
-	Targets               []fileTarget         `toml:"targets"`
-	RequestTimeoutSeconds int64                `toml:"request_timeout_seconds"`
-	UploadTimeoutSeconds  int64                `toml:"upload_timeout_seconds"`
-	Libraries             []fileLibrary        `toml:"libraries"`
-	RemoteInput           fileRemoteInput      `toml:"remote_input"`
-	HostEmulator          fileHostEmulator     `toml:"host_emulator"`
-	ZX81MachineROM        fileZX81MachineROM   `toml:"zx81_machine_rom"`
-	Media                 fileMedia            `toml:"media"`
-	Metadata              *fileMetadata        `toml:"metadata"`
-	LibraryMedia          []fileLibraryMedia   `toml:"library_media"`
-	Library               *fileLibrarySettings `toml:"library"`
-	Mesh                  *fileMesh            `toml:"mesh"`
+	CoreCatalog           fileCoreCatalog `toml:"core_catalog"`
+	TargetID              string          `toml:"target_id,omitempty"`
+	BaseURL               string          `toml:"base_url"`
+	Token                 string          `toml:"token"`
+	SelectedTarget        string          `toml:"selected_target"`
+	Targets               []fileTarget    `toml:"targets"`
+	RequestTimeoutSeconds int64           `toml:"request_timeout_seconds"`
+	UploadTimeoutSeconds  int64           `toml:"upload_timeout_seconds"`
+	// State and Staging are the catalog directories. They stay out of the
+	// decoded Config; PathsForConfig is the reader. Both must be set
+	// together, and both must be absolute, so a read-only config does not
+	// grow state beside itself.
+	State          string               `toml:"state,omitempty"`
+	Staging        string               `toml:"staging,omitempty"`
+	Libraries      []fileLibrary        `toml:"libraries"`
+	RemoteInput    fileRemoteInput      `toml:"remote_input"`
+	HostEmulator   fileHostEmulator     `toml:"host_emulator"`
+	ZX81MachineROM fileZX81MachineROM   `toml:"zx81_machine_rom"`
+	Media          fileMedia            `toml:"media"`
+	Metadata       *fileMetadata        `toml:"metadata"`
+	LibraryMedia   []fileLibraryMedia   `toml:"library_media"`
+	Library        *fileLibrarySettings `toml:"library"`
+	Mesh           *fileMesh            `toml:"mesh"`
 }
 
 type fileMesh struct {

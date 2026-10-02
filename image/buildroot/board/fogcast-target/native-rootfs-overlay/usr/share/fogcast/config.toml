@@ -1,0 +1,16 @@
+selected_target = "kit"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+# Catalog state lives on the kit tmpfs. The root filesystem is read-only,
+# and the FAT volume does not keep the private directory mode the catalog needs.
+state = "/run/fogcast/catalog/state"
+staging = "/run/fogcast/catalog/staging"
+
+[[targets]]
+name = "kit"
+enabled = false
+
+[[libraries]]
+id = "sms-main"
+system = "sms"
+root = "/media/fat/games/sms"

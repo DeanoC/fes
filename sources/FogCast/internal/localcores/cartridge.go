@@ -1,0 +1,37 @@
+package localcores
+
+import (
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"syscall"
+)
+
+// maxCartridgeBytes bounds a ROM the kit-local socket will read. The bytes
+// stay on this machine.
+const maxCartridgeBytes = 8 << 20
+
+// readCartridgeFile reads one regular file. Symlinks are not followed.
+// A relative path, a directory, or an oversized file is unavailable.
+func readCartridgeFile(path string) ([]byte, error) {
+	path = strings.TrimSpace(path)
+	if path == "" || strings.ContainsRune(path, 0) || !filepath.IsAbs(path) {
+		return nil, errUnavailable
+	}
+	cleaned := filepath.Clean(path)
+	file, err := os.OpenFile(cleaned, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, errUnavailable
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > maxCartridgeBytes {
+		return nil, errUnavailable
+	}
+	data, err := io.ReadAll(io.LimitReader(file, info.Size()))
+	if err != nil || int64(len(data)) != info.Size() {
+		return nil, errUnavailable
+	}
+	return data, nil
+}

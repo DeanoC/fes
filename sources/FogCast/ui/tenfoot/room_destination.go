@@ -40,17 +40,65 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		case a.foreignKitLeaseLocked():
 			d.LeaseHeld = true
 			d.Availability = rooms.AvailUnavailable
-			d.Status = localInUseCopy
-			d.Action = localInUseCopy
+			d.Status = rooms.InUseStatus
+			d.Action = rooms.InUseDetail
 		case a.pairedKitStatusUnavailableLocked():
 			d.CoreLaunchable = false
-			d.CoreBlock = "kit status unavailable"
+			d.CoreBlock = machineStatusUnknown
 			d.Availability = rooms.AvailUnavailable
-			d.Status = d.CoreBlock
-			d.Action = d.CoreBlock
+			d.Status = machineStatusUnknown
+			d.Action = machineStatusUnknown
 		}
 	}
+	return a.applyKitDirectLocked(d)
+}
+
+// applyKitDirectLocked marks one present browse-only cartridge ready for
+// the local socket once fes.sms is installed. Host-eligible rows, offline
+// rows, and a shell with no local pad stay on the host classification.
+// A missing core explains itself here. There is no network fallback.
+func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
+	if a == nil || a.localCores == nil || a.localFeed == nil {
+		return d
+	}
+	game, ok := d.Game()
+	if !ok || !localCatalogPlayable(game) {
+		return d
+	}
+	d.GameID = game.ID
+	d.KitDirect = false
+	if !a.localInstallKnown {
+		d.Availability = rooms.AvailChecking
+		d.Status = localCoreCheckingCopy
+		d.Action = localCoreCheckingAction
+		return d
+	}
+	if _, installed := a.localInstalled["fes.sms"]; !installed {
+		d.Availability = rooms.AvailUnavailable
+		d.Status = localCoreMissingCopy
+		d.Action = localCoreMissingAction
+		return d
+	}
+	d.KitDirect = true
+	d.Availability = rooms.AvailReady
+	d.FillCopy()
 	return d
+}
+
+// localCatalogPlayable is a file that is on this machine and that the host
+// session will not launch. SMS is the cartridge the local socket accepts.
+// Anything the host can already launch keeps ConfirmLaunch.
+func localCatalogPlayable(game hostclient.Game) bool {
+	if game.HostOnly() || game.LaunchEligible() {
+		return false
+	}
+	if game.LaunchBlock() != hostclient.LaunchBrowseOnly {
+		return false
+	}
+	if !game.RootOnline || game.State != "available" {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(game.System), "sms")
 }
 
 func (a *App) pairedKitStatusUnavailableLocked() bool {
@@ -75,7 +123,7 @@ func (a *App) kitMutationBlockedLocked() bool {
 		return false
 	}
 	if a.pairedKitStatusUnavailableLocked() {
-		a.status = "kit status unavailable"
+		a.status = machineStatusUnknown
 		return true
 	}
 	if a.foreignKitLeaseLocked() {
@@ -311,6 +359,9 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		return true
 	case rooms.ConfirmExplain:
 		a.status = dest.Status
+		if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
+			a.status = localInUseCopy
+		}
 		a.openRoomDetailsLocked()
 		return true
 	case rooms.ConfirmImportFirmware:
@@ -348,6 +399,13 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		return true
 	case rooms.ConfirmLaunchCore:
 		a.startLocalCoreLocked(dest)
+		return true
+	case rooms.ConfirmLaunchKit:
+		if game, ok := dest.Game(); ok {
+			a.startLocalTitleLocked(game)
+			return true
+		}
+		a.status = dest.Status
 		return true
 	default:
 		return false
@@ -418,6 +476,10 @@ func (a *App) openRoomDetailsLocked() {
 	}
 	if game, ok := dest.Game(); ok {
 		a.openRoomDetailsForLocked(game)
+		return
+	}
+	if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
+		a.status = localInUseCopy
 		return
 	}
 	a.status = dest.Status

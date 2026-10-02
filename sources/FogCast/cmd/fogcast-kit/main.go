@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/anim"
 	"github.com/DeanoC/FogCast/ui/audioreact"
@@ -99,6 +100,7 @@ func run() error {
 	audioLevelFile := flag.String("audio-level-file", "", "optional 0..1 level file used as a measured injector")
 	menuDisplay := flag.Bool("menu-display", false, "present the kit shell through the local described HDMI menu")
 	printKitUI := flag.Bool("print-kit-ui", false, "print tenfoot or grid and exit")
+	catalogConfig := flag.String("catalog-config", "", "FogCast config.toml for the kit-local catalog (default: FOGCAST_CONFIG, FES_HOST_CONFIG, config.toml beside -config, else the user config when that file exists)")
 	flag.Parse()
 	shared.ConfigureKitMemoryLimit()
 	if *cpuProfile != "" {
@@ -249,6 +251,7 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	client := kitlauncher.NewClient(c)
+	attachLocalCatalog(client, *catalogConfig, *configPath, os.Getenv)
 	client.SetMenuDisplay(activeMenuDisplay)
 	if activeMenuDisplay {
 		client.SetMenuDisplayHandoff(func(ctx context.Context) error {
@@ -481,6 +484,15 @@ func run() error {
 		return err
 	}
 	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.OpenWith(remap) })
+}
+
+// attachLocalCatalog points the grid at BootLocalCatalog when a catalog
+// file resolves. run calls this before kitlauncher.Run. An empty result
+// keeps the configured host API. explicit is the --catalog-config path.
+func attachLocalCatalog(client *kitlauncher.Client, explicit, launcherConfig string, getenv func(string) string) {
+	if path := fogcast.ResolveCatalogConfig(explicit, launcherConfig, getenv); path != "" {
+		client.SetCatalogConfig(path)
+	}
 }
 
 func readKitIdentity(addressPath string) string {

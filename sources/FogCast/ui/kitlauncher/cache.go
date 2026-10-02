@@ -24,7 +24,8 @@ const (
 
 	// OfflineMessage is the kit footer when the host is absent. Cached catalog
 	// rows remain browseable; lifecycle mutations wait for the host API.
-	OfflineMessage = "Offline - local library"
+	// The same sentence is fogcast.ShelfOffline.
+	OfflineMessage = "Offline, showing your saved list"
 
 	connectingMessage = "Connecting to FogCast"
 

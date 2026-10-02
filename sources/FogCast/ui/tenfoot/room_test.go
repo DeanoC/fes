@@ -84,6 +84,8 @@ type roomHost struct {
 	prefs        map[string]hostclient.EditionPreference
 	uiPosts      []UIEvent
 	pairedLease  bool
+	// inputs counts pad posts that must stay on the kit socket.
+	inputs int
 }
 
 func newRoomHost(t *testing.T) *roomHost {
@@ -207,6 +209,12 @@ func newRoomHost(t *testing.T) *roomHost {
 			state := h.state
 			h.mu.Unlock()
 			_, _ = io.WriteString(w, `{"state":"`+state+`"}`)
+		case r.Method == http.MethodPost && (r.URL.Path == "/api/v1/launcher/input" || r.URL.Path == "/api/v1/session/input/event"):
+			h.mu.Lock()
+			h.inputs++
+			h.mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `{}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/debug/ui-events":
 			var ev UIEvent
 			_ = json.NewDecoder(r.Body).Decode(&ev)
@@ -258,6 +266,12 @@ func (h *roomHost) launchCount() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return len(h.launches)
+}
+
+func (h *roomHost) inputCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.inputs
 }
 
 func (h *roomHost) preferenceCount() int {

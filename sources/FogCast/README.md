@@ -352,7 +352,7 @@ lease-free target inventory; cover used/free and last sync are kit-local.
 Host games may include `rom_cached` when that inventory is reachable.
 When the idle enables the HPS framebuffer, power-on may paint that shelf and
 visible covers from disk before host games HTTP as a temporary linuxfb overlay;
-an absent host shows `Offline - local library`. Confirmed idle without an HPS
+an absent host shows `Offline, showing your saved list`. Confirmed idle without an HPS
 framebuffer does not present, so FPGA splash pixels stay on HDMI.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. Launch and Stop remain bound to the persistent host session

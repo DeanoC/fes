@@ -238,7 +238,7 @@ func TestLauncherActionStaysReadyUnderForeignLease(t *testing.T) {
 	if got.Availability != AvailReady || got.Confirm() != ConfirmLauncherAction || got.LeaseHeld {
 		t.Fatalf("action under foreign lease %+v", got)
 	}
-	if got.Status == "This executor is in use." {
+	if got.Status == InUseStatus || got.Action == InUseDetail {
 		t.Fatal("launcher action must not use the lease copy")
 	}
 }
@@ -338,6 +338,14 @@ func TestClassifyColecoFirmwareReadiness(t *testing.T) {
 	if state != AvailReady || len(matches) != 1 || matches[0].LaunchBlock() != "" {
 		t.Fatalf("firmware-ready FPGA Coleco package: %s %+v", state, matches)
 	}
+	needsCartridge := readyGame("sms-data-storm", "Data Storm 1.00", "sms")
+	needsCartridge.ROMRequired = true
+	state, matches = ClassifyGames([]hostclient.Game{needsCartridge}, "Data Storm")
+	cart := Destination{Kind: KindGame, Availability: state, Matches: matches, Query: "Data Storm"}
+	cart.FillCopy()
+	if state != AvailUnavailable || cart.Confirm() != ConfirmExplain || cart.Status != "Needs a cartridge" {
+		t.Fatalf("missing cartridge: %s %+v", state, cart)
+	}
 	raw := blockedGame("coleco-donkey-kong", "Donkey Kong", "coleco", hostclient.LaunchBrowseOnly)
 	state, matches = ClassifyGames([]hostclient.Game{raw}, "Donkey Kong")
 	if state != AvailUnavailable || len(matches) != 1 || matches[0].LaunchBlock() != hostclient.LaunchBrowseOnly {
@@ -360,7 +368,7 @@ func TestForeignLeaseIsUnavailableInUseAndOwnedLeaseStaysReady(t *testing.T) {
 	if foreign.Availability != AvailUnavailable || !foreign.LeaseHeld || foreign.Confirm() != ConfirmExplain {
 		t.Fatalf("foreign lease %+v confirm=%v", foreign, foreign.Confirm())
 	}
-	if foreign.Status != "This executor is in use." || foreign.Action != "Do not take the lease." {
+	if foreign.Status != InUseStatus || foreign.Action != InUseDetail {
 		t.Fatalf("in-use copy status=%q action=%q", foreign.Status, foreign.Action)
 	}
 	firmware := Destination{

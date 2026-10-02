@@ -2,12 +2,14 @@ package tenfoot
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -15,6 +17,40 @@ import (
 )
 
 const tenfootPongID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+func TestSMSPlayRequiresInstalledMasterSystemCore(t *testing.T) {
+	game := hostclient.Game{
+		ID: "sms-data-storm", Title: "Data Storm 1.00", System: "sms",
+		State: "available", RootOnline: true,
+	}
+	dest := rooms.Destination{Kind: rooms.KindGame, GameID: game.ID, Matches: []hostclient.Game{game}}
+	app := NewApp(nil, 1280, 720, 50)
+	t.Cleanup(app.Stop)
+
+	app.SetKitLocal(&fakeLocalCores{}, &fakePadFeed{})
+	missing := app.applyKitDirectLocked(dest)
+	if missing.Availability == rooms.AvailReady || missing.Confirm() == rooms.ConfirmLaunchKit || missing.Action == "Play" || missing.KitDirect {
+		t.Fatalf("playable without fes.sms: %+v", missing)
+	}
+	if missing.Status != localCoreMissingCopy || missing.Action != localCoreMissingAction || missing.Confirm() != rooms.ConfirmExplain {
+		t.Fatalf("missing-core copy %+v", missing)
+	}
+
+	app.SetKitLocal(&fakeLocalCores{listErr: errors.New("socket is not ready")}, &fakePadFeed{})
+	checking := app.applyKitDirectLocked(dest)
+	if checking.Availability != rooms.AvailChecking || checking.KitDirect || checking.Action == "Play" || checking.Confirm() == rooms.ConfirmLaunchKit {
+		t.Fatalf("unknown install showed play: %+v", checking)
+	}
+	if checking.Status != localCoreCheckingCopy || checking.Action != localCoreCheckingAction {
+		t.Fatalf("checking copy %+v", checking)
+	}
+
+	app.SetKitLocal(&fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.sms", Name: "Master System"}}}, &fakePadFeed{})
+	ready := app.applyKitDirectLocked(dest)
+	if ready.Availability != rooms.AvailReady || ready.Confirm() != rooms.ConfirmLaunchKit || !ready.KitDirect || ready.Action != "Play" {
+		t.Fatalf("installed core did not enable play: %+v", ready)
+	}
+}
 
 func TestHostModeLeavesKitUnset(t *testing.T) {
 	prefs := filepath.Join(t.TempDir(), "prefs.json")
@@ -124,7 +160,7 @@ func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T)
 	app.kitLease = KitLeaseStatus{State: "held", Owner: "hil-355", Purpose: "hil-355-in-use"}
 	app.mu.Unlock()
 	snap := app.Snapshot()
-	if snap.Room.Destination.Status != localInUseCopy || snap.Room.Destination.Action != localInUseCopy {
+	if snap.Room.Destination.Status != rooms.InUseStatus || snap.Room.Destination.Action != rooms.InUseDetail {
 		t.Fatalf("foreign Pong copy: status=%q action=%q", snap.Room.Destination.Status, snap.Room.Destination.Action)
 	}
 	if strings.Contains(strings.ToLower(snap.HeaderHint()), "play") {
@@ -151,11 +187,11 @@ func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T)
 	app.kitLease = KitLeaseStatus{Unavailable: true}
 	app.mu.Unlock()
 	snap = app.Snapshot()
-	if snap.Room.Destination.Status != "kit status unavailable" || snap.Room.Destination.Action != "kit status unavailable" || snap.Room.Destination.Confirm() != rooms.ConfirmExplain {
+	if snap.Room.Destination.Status != machineStatusUnknown || snap.Room.Destination.Action != machineStatusUnknown || snap.Room.Destination.Confirm() != rooms.ConfirmExplain {
 		t.Fatalf("unavailable lease did not gate Pong visibly: %+v", snap.Room.Destination)
 	}
 	app.HandleCommand(CmdSelect, time.Now())
-	if fake.launchCount() != 0 || app.Snapshot().Status != "kit status unavailable" {
+	if fake.launchCount() != 0 || app.Snapshot().Status != machineStatusUnknown {
 		t.Fatalf("unavailable lease A was not refused visibly: launches=%d status=%q", fake.launchCount(), app.Snapshot().Status)
 	}
 }
@@ -451,6 +487,12 @@ func TestPresentHoldPausesAfterTheStartingFrame(t *testing.T) {
 
 func startCoreRoom(t *testing.T, cores rooms.LocalCores, feed localPadSender, script string, paired ...bool) *App {
 	t.Helper()
+	app, _ := startCoreRoomWithHost(t, cores, feed, script, paired...)
+	return app
+}
+
+func startCoreRoomWithHost(t *testing.T, cores rooms.LocalCores, feed localPadSender, script string, paired ...bool) (*App, *roomHost) {
+	t.Helper()
 	h := newRoomHost(t)
 	if len(paired) > 0 && paired[0] {
 		h.pairedLease = true
@@ -467,7 +509,133 @@ func startCoreRoom(t *testing.T, cores rooms.LocalCores, feed localPadSender, sc
 	app.SetKitLocal(cores, feed)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	return app
+	return app, h
+}
+
+func TestKitDirectPadLaunchInputStopAndRelaunch(t *testing.T) {
+	hold := make(chan struct{})
+	fake := &fakeLocalCores{hold: hold}
+	feed := &fakePadFeed{}
+	app, host := startCoreRoomWithHost(t, fake, feed, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	snap := waitFor(t, app, "pong tile", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == "cores" && s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Label == "FES Pong"
+	})
+	focus := snap.Room.Destination.Label
+	packageID := snap.Room.Destination.PackageID
+
+	app.HandleCommand(CmdSelect, time.Unix(100, 0))
+	snap = app.Snapshot()
+	if !snap.LocalCorePresentsPaused || snap.LocalCorePhase != localPhaseLaunching {
+		t.Fatalf("launch did not pause the menu phase=%s paused=%v", snap.LocalCorePhase, snap.LocalCorePresentsPaused)
+	}
+	app.HandleLocalPad(padButton(remoteinput.ButtonA, true), time.Unix(110, 0))
+	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 0 {
+		t.Fatal("launch forwarded A to the core")
+	}
+	if host.launchCount() != 0 || host.inputCount() != 0 {
+		t.Fatalf("launch touched the host launches=%d inputs=%d", host.launchCount(), host.inputCount())
+	}
+
+	close(hold)
+	waitFor(t, app, "running", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused && s.Room.Destination.Label == focus
+	})
+	if fake.launchCount() != 1 {
+		t.Fatalf("local launches %d", fake.launchCount())
+	}
+	tPlay := time.Unix(200, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonA, true), tPlay)
+	app.HandleLocalPad(padButton(remoteinput.ButtonA, false), tPlay.Add(20*time.Millisecond))
+	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 1 || feed.count(remoteinput.ButtonA, remoteinput.ActionRelease) != 1 {
+		t.Fatalf("running core did not see A: %+v", feed.snapshot())
+	}
+
+	t0 := time.Unix(210, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, false), t0.Add(400*time.Millisecond))
+	app.Tick(t0.Add(2 * time.Second))
+	if fake.stopCount() != 0 || !app.Snapshot().LocalCorePresentsPaused {
+		t.Fatal("short chord stopped the core or resumed the menu")
+	}
+
+	t1 := time.Unix(300, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
+	app.Tick(t1.Add(10*time.Millisecond + time.Second))
+	snap = waitFor(t, app, "resume", func(s Snapshot) bool {
+		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && s.LocalCoreRedraw >= 1 && roomTextHas(s, "resumed-1")
+	})
+	if fake.stopCount() != 1 || fake.launchCount() != 1 {
+		t.Fatalf("stops %d launches %d", fake.stopCount(), fake.launchCount())
+	}
+	assertRoomFocus(t, snap, focus, packageID)
+
+	app.HandleCommand(CmdSelect, time.Unix(400, 0))
+	waitFor(t, app, "relaunch", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused && s.Room.Destination.Label == focus
+	})
+	if fake.launchCount() != 2 {
+		t.Fatalf("relaunch count %d", fake.launchCount())
+	}
+	t2 := time.Unix(500, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonA, true), t2)
+	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 2 {
+		t.Fatalf("relaunch did not take A locally: %+v", feed.snapshot())
+	}
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t2.Add(time.Second))
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t2.Add(time.Second+10*time.Millisecond))
+	app.Tick(t2.Add(2*time.Second + 10*time.Millisecond))
+	snap = waitFor(t, app, "second resume", func(s Snapshot) bool {
+		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && roomTextHas(s, "resumed-2")
+	})
+	assertRoomFocus(t, snap, focus, packageID)
+	if fake.stopCount() != 2 {
+		t.Fatalf("stops %d", fake.stopCount())
+	}
+	if host.launchCount() != 0 || host.inputCount() != 0 {
+		t.Fatalf("pad path used the host launches=%d inputs=%d", host.launchCount(), host.inputCount())
+	}
+}
+
+func assertRoomFocus(t *testing.T, snap Snapshot, label, packageID string) {
+	t.Helper()
+	if !snap.Room.Open || snap.Room.ID != "cores" || snap.RoomPicker.Open || len(snap.Room.Parents) != 0 {
+		t.Fatalf("room was not restored: open=%v id=%q picker=%v parents=%v", snap.Room.Open, snap.Room.ID, snap.RoomPicker.Open, snap.Room.Parents)
+	}
+	if snap.Room.Destination.Label != label || snap.Room.Destination.PackageID != packageID || snap.Room.Destination.Kind != rooms.KindCore {
+		t.Fatalf("focus moved: %+v", snap.Room.Destination)
+	}
+}
+
+func TestKitSessionPadStaysLocalWhenTheFeedFails(t *testing.T) {
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	feed := &errPadFeed{}
+	app.SetKitLocal(&fakeLocalCores{}, feed)
+	app.mu.Lock()
+	app.session.State = "active"
+	app.mu.Unlock()
+	t.Cleanup(app.Stop)
+
+	now := time.Unix(50, 0)
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonA, true), now) {
+		t.Fatal("active kit session let the menu take the pad")
+	}
+	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 1 {
+		t.Fatal("failed local write was not attempted")
+	}
+	if h.launchCount() != 0 || h.inputCount() != 0 {
+		t.Fatalf("failed local write fell back to the host launches=%d inputs=%d", h.launchCount(), h.inputCount())
+	}
+
+	app.SetKitLocal(&fakeLocalCores{}, nil)
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonB, true), now.Add(time.Second)) {
+		t.Fatal("missing local socket fell through to the menu")
+	}
+	if h.launchCount() != 0 || h.inputCount() != 0 {
+		t.Fatalf("missing local socket fell back to the host launches=%d inputs=%d", h.launchCount(), h.inputCount())
+	}
 }
 
 func coreRoomScript(id, label string, launchable bool, block string) string {
@@ -516,6 +684,8 @@ func padButton(code remoteinput.Code, down bool) remoteinput.Event {
 
 type fakeLocalCores struct {
 	mu          sync.Mutex
+	cores       []localcores.Core
+	listErr     error
 	launches    []string
 	stops       int
 	err         error
@@ -530,7 +700,17 @@ type fakeLocalCores struct {
 }
 
 func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
-	return []localcores.Core{}, nil
+	if f == nil {
+		return []localcores.Core{}, nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	out := make([]localcores.Core, len(f.cores))
+	copy(out, f.cores)
+	return out, nil
 }
 
 func (f *fakeLocalCores) Launch(_ context.Context, id string) error {
@@ -619,14 +799,29 @@ func (f *fakePadFeed) Send(e remoteinput.Event, _ time.Time) error {
 func (f *fakePadFeed) Close() {}
 
 func (f *fakePadFeed) saw(code remoteinput.Code, action remoteinput.Action) bool {
+	return f.count(code, action) > 0
+}
+
+func (f *fakePadFeed) count(code remoteinput.Code, action remoteinput.Action) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	n := 0
 	for _, e := range f.events {
 		if e.Code == code && e.Action == action {
-			return true
+			n++
 		}
 	}
-	return false
+	return n
+}
+
+// errPadFeed records the frame and reports that the local socket write failed.
+type errPadFeed struct {
+	fakePadFeed
+}
+
+func (f *errPadFeed) Send(e remoteinput.Event, now time.Time) error {
+	_ = f.fakePadFeed.Send(e, now)
+	return errors.New("local socket is down")
 }
 
 func (f *fakePadFeed) snapshot() []remoteinput.Event {

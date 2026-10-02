@@ -71,6 +71,9 @@ const (
 	ConfirmOpenLibraryBrowse
 	ConfirmLauncherAction
 	ConfirmLaunchCore
+	// ConfirmLaunchKit plays a present local cartridge through the kit
+	// socket. It is not the host session launch.
+	ConfirmLaunchKit
 )
 
 // Destination is the selected location a room publishes to the launcher.
@@ -102,6 +105,10 @@ type Destination struct {
 	// LeaseHeld is a foreign kit lease. The same shell's Soft-stop retained
 	// grant leaves this false so that shell stays Ready.
 	LeaseHeld bool
+	// KitDirect is a present local cartridge the kit plays through the
+	// local-control socket. Confirm returns ConfirmLaunchKit and does not
+	// post the host session. Host-eligible rows leave this false.
+	KitDirect bool
 	// ReadyBlock and NextAction are ReadyHere when the mesh seam is on.
 	// Empty when that seam is off.
 	ReadyBlock string
@@ -253,10 +260,20 @@ func (d *Destination) applyMeshFacts() {
 	d.Availability = AvailUnavailable
 }
 
+const (
+	// InUseStatus is the short label when someone else holds this machine.
+	InUseStatus = "In use"
+	// InUseDetail is the action line under InUseStatus.
+	InUseDetail = "Someone else is playing on this machine. You can play when they're done."
+)
+
+// InUseLine is the single-line form of the in-use copy.
+func InUseLine() string { return InUseStatus + ". " + InUseDetail }
+
 func meshUnavailableCopy(block string) (status, action string, ok bool) {
 	switch hostclient.LaunchBlock(block) {
 	case hostclient.LaunchDistant:
-		return "This title is not on this executor.", "Bring it here before Play.", true
+		return "This title is not on this machine.", "Bring it here before Play.", true
 	case hostclient.LaunchVersionSkew:
 		return "Can't play here yet.", "Do not launch.", true
 	case hostclient.LaunchContentMissing:
@@ -338,8 +355,8 @@ func (d *Destination) FillCopy() {
 		d.Action = "Choose an edition."
 	case AvailUnavailable:
 		if d.LeaseHeld || d.ReadyBlock == string(hostclient.LaunchLeaseHeld) {
-			d.Status = "This executor is in use."
-			d.Action = "Do not take the lease."
+			d.Status = InUseStatus
+			d.Action = InUseDetail
 			break
 		}
 		if status, action, ok := meshUnavailableCopy(d.ReadyBlock); ok {
@@ -401,7 +418,10 @@ func (d Destination) Confirm() ConfirmIntent {
 		return ConfirmExplain
 	case AvailReady:
 		// A selected placement stays on this launch. Confirm does not
-		// ask which machine.
+		// ask which machine. A kit-direct cartridge never posts the host.
+		if d.KitDirect {
+			return ConfirmLaunchKit
+		}
 		return ConfirmLaunch
 	default:
 		if d.Kind == KindUnresolved && d.Availability != "" {
@@ -424,6 +444,8 @@ func LaunchBlockCopy(game hostclient.Game) string {
 		return "This game isn't ready to launch."
 	case hostclient.LaunchMissingFirmware:
 		return "Coleco BIOS required. Import household firmware before Play."
+	case hostclient.LaunchMissingROM:
+		return "Needs a cartridge"
 	case "":
 		return ""
 	default:

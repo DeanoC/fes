@@ -508,7 +508,9 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
       }), async () => {
         await harness.waitForCatalog('populated metadata_fallback');
         await harness.click('#open-settings');
-        await harness.waitForSnapshot(s => !s.settingsHidden && s.settingsVideoProfile === 'direct');
+        // The video select defaults to Direct before settings load. Wait for
+        // the loaded region list so Save does not post an empty preference.
+        await harness.waitForSnapshot(s => !s.settingsHidden && s.settingsVideoProfile === 'direct' && s.settingsRegions === 'usa, world, europe, japan');
         await browserSelect(harness, '#settings-video-profile', 'scanlines');
         await harness.click('#save-settings');
         const saved = await harness.waitForRequest({method:'PUT', path:'/api/v1/library/settings'});

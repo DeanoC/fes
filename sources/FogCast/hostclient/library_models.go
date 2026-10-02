@@ -436,6 +436,8 @@ func (item AttractItem) StillHandles() []string {
 }
 
 // GameListQuery is GET /api/v1/games with the web UI's catalog params.
+// An empty Availability keeps the ready-only shelf. Rooms pass "all" so a
+// saved title stays visible when its files are offline.
 type GameListQuery struct {
 	Cursor         string
 	Limit          int
@@ -446,8 +448,16 @@ type GameListQuery struct {
 	Genre          string
 	Year           string
 	Region         string
+	Availability   string
 	HidePrerelease bool
 	HideHacks      bool
+}
+
+// GamePage is one GET /api/v1/games response.
+type GamePage struct {
+	Games      []Game `json:"games"`
+	NextCursor string `json:"next_cursor"`
+	Notice     string `json:"notice,omitempty"`
 }
 
 // FacetValues is GET /api/v1/library/facets. The host does not return regions.

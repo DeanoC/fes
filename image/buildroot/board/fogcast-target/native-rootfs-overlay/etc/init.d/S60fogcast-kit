@@ -45,14 +45,17 @@ case "${1:-start}" in
       if [ "$kit_ui" = tenfoot ] && [ -x /usr/sbin/fogcast-tenfoot ]; then
         /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-tenfoot \
           -config /media/fat/fogcast/launcher.json \
+          -catalog-config /usr/share/fogcast/config.toml \
           -gfx menu-display -menu-socket /run/mister-runtime.sock -input auto -home rooms &
       else
         /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
-          --config /media/fat/fogcast/launcher.json --menu-display &
+          --config /media/fat/fogcast/launcher.json \
+          --catalog-config /usr/share/fogcast/config.toml --menu-display &
       fi
     else
       /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
-        --config /media/fat/fogcast/launcher.json &
+        --config /media/fat/fogcast/launcher.json \
+        --catalog-config /usr/share/fogcast/config.toml &
     fi
     printf '%s\n' "$!" > "$supervisor_pid"
     ;;

@@ -160,8 +160,9 @@ remotely, or change kit power, image, or SD card contents.
   the active shell's Phase 0 bind. Another node's Execute advertisement
   still does not make a title Ready.
 - When connection state is `busy` (a foreign holder has the kit lease), a
-  Ready rooms destination becomes Unavailable with the copy "This executor
-  is in use." Confirm explains and does not launch. Library Play takes the
+  Ready rooms destination becomes Unavailable with the copy "In use" /
+  "Someone else is playing on this machine. You can play when they're done."
+  Confirm explains and does not launch. Library Play takes the
   same path and does not post a claim. `POST /api/v1/session/launch` on
   that host returns the existing lease denial and does not claim.
   Generation takeover stays `POST /v1/kit/takeover`.

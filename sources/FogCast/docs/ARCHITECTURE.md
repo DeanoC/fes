@@ -47,7 +47,7 @@ polling; the browser keeps its own `parseSession` and shares the common
 success/rejection matrix in `hostclient/testdata/session-contract.json`.
 That fixture is not a claim of full decoder equivalence. In paired tenfoot
 mode, launch and kit mutations require a known, non-foreign scoped kit lease;
-an unavailable status is shown as `kit status unavailable` while room browsing
+an unavailable status is shown as `Can't tell if this machine is free.` while room browsing
 continues. Launch, stop,
 and input attach/detach stay on their existing endpoints. The host resolves installed package entries and explicitly binds library
 persistence. The runtime validates the package and declared interfaces before
@@ -697,8 +697,15 @@ unavailable.
 A kit-only host runs `fogcast-api` with `--launcher-config` and does not open
 the SDL sofa window. Pass `--headless` so that process does not compose local
 capture or the MJPEG preview pipeline; kit catalog, attract, session, and
-input stay on the launcher listener. Folder-watch still polls configured
-library roots every thirty seconds, but it only re-opens a source when size or
+input stay on the launcher listener. A kit without a sofa host boots the same
+FogCast service on the existing config and catalog paths.
+`fogcast.BootLocalCatalog` opens that service, scans the configured library
+roots, and does not dial a remote target. An empty library says `No games in
+this library yet.` A content root that cannot be found, with no saved rows,
+says `The game files for this library can't be found.` Saved rows whose files
+are offline say `Offline, showing your saved list`. An unfiltered
+`GET /api/v1/games` includes that sentence as `notice`. Folder-watch still polls
+configured library roots every thirty seconds, but it only re-opens a source when size or
 mtime changed. Unchanged rows bump `seen_generation` and do not rebuild the
 search index. A long scan waits a full interval before the next poll, so the
 watcher cannot run back-to-back.
@@ -1685,8 +1692,9 @@ include `connection`, including unavailable responses. Its states are
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
 Busy means another session holds the kit lease. Tenfoot rooms show a Ready
-FPGA title aimed at that kit as Unavailable, with the copy "This executor is
-in use." Confirm explains and does not launch. Library and detail Confirm
+FPGA title aimed at that kit as Unavailable, with the copy "In use" /
+"Someone else is playing on this machine. You can play when they're done."
+Confirm explains and does not launch. Library and detail Confirm
 apply that gate only after catalog blocks: a title missing Coleco BIOS still
 opens the household firmware picker, and any other catalog block keeps its
 own copy. Firmware import posts host library endpoints and does not claim
@@ -1724,7 +1732,7 @@ catalog sync are kit-local `DiskStore.Status()`. Games may include `rom_cached`
 when the target inventory is reachable; ROM-less rows omit it. When the idle
 enables the HPS framebuffer, boot may paint that shelf from disk before host
 games HTTP as a temporary linuxfb overlay. It decodes visible covers from disk
-first and labels an absent host `Offline - local library`. Confirmed idle
+first and labels an absent host `Offline, showing your saved list`. Confirmed idle
 without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
 splash pixels stay on HDMI, and a missing linuxfb device does not stop the
 service.
@@ -2128,8 +2136,10 @@ about once a second, off the app lock and single-flight. If the agent reports
 idle or not running, tenfoot resumes the same way. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
 ZX81 stays
-in that firmware class: this socket has no ROM link, and it does not consult
-the rom map. A held, busy, blocked, or recovery lease returns 409 and does not
+in that firmware class: the socket does not link its firmware ROM and does not
+consult that rom map. A cartridge for an installed core is linked by
+LoadCartridge, which rebuilds the canonical archive from the extracted
+directory and programs the core. A held, busy, blocked, or recovery lease returns 409 and does not
 call the runtime. The claim starts renewal immediately. The first renew waits
 a quarter of the time still remaining, so a slow launch renews before the
 grant expires, and renewal continues until stop, a failed renew, release, or

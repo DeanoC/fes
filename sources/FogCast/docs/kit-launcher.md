@@ -53,10 +53,23 @@ reports cover used/free and last sync. `rom_cached` on a games row is a host
 probe of that inventory while the host is up — not a hostless launch grant.
 Boot paints the last-good shelf from
 disk before host games HTTP and decodes visible covers from disk first. An absent
-host shows `Offline - local library` rather than an endless reconnect. Local D-pad
-and A still browse that snapshot. Host-catalog Launch and Stop stay unavailable
-until the configured host API reconnects; the launcher does not claim a lease
-for those titles while offline. Installed cores that need no cartridge or
+host shows `Offline, showing your saved list` rather than an endless reconnect. Local D-pad
+and A still browse that snapshot. When `config.toml` is beside `launcher.json`
+(or `FOGCAST_CONFIG` / `FES_HOST_CONFIG` names one, or the default user config
+exists), `fogcast-tenfoot -gfx menu-display` and `fogcast-kit` also boot
+`fogcast.BootLocalCatalog` and browse that library while the remote host is
+absent. A present Master System row from that catalog is Play on the tenfoot
+room path: Confirm posts the cartridge path to the local-control launch route
+and does not post the host session or fall back to the network. The agent
+reads that file and calls LoadCartridge with the bytes. The kit install is an
+extracted directory. LoadCartridge rebuilds the canonical package archive from
+those members, wraps the cartridge with that archive, and programs the core
+through the same ROM-link load the host uses. It does not dial a host. A
+missing install, a core that cannot be read, a core that cannot take a
+cartridge, or a cartridge that does not fit is reported, and the core is not
+programmed. Host-catalog Launch and
+Stop stay unavailable until the configured host API reconnects; the launcher
+does not claim a lease for those titles while offline. Installed cores that need no cartridge or
 firmware are listed and launched on the kit through mister-agent's root-only
 `/run/fogcast/local-control.sock` (`GET /v1/local/cores`,
 `POST /v1/local/cores/{package_id}/launch`, `POST /v1/local/stop`,

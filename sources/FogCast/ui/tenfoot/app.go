@@ -35,6 +35,8 @@ const (
 
 const sessionDisplayUnavailableNotice = "HDMI controls unavailable. Back returns to play."
 
+var errLibrarySuperseded = errors.New("library load superseded")
+
 var catalogSorts = []string{"title", "recently_added", "platform"}
 
 // recentsSorts are the orders queryRecents actually applies: last-played,
@@ -300,6 +302,9 @@ type App struct {
 
 	platforms              []hostclient.Platform
 	platformID             string
+	shelfQuery             hostclient.GameListQuery
+	shelfQuerySet          bool
+	shelfGames             []hostclient.Game
 	sort                   string
 	searchField            shared.TextField
 	searchOpen             bool
@@ -525,6 +530,12 @@ type App struct {
 
 	localCores          rooms.LocalCores
 	localFeed           localPadSender
+	localInstallKnown   bool
+	localInstalled      map[string]struct{}
+	localInstallGen     uint64
+	localInstallCancel  context.CancelFunc
+	localCatalogClose   func() error
+	localContent        func(context.Context, string) (string, error)
 	localPhase          string
 	localTitle          string
 	localStatus         string
@@ -663,10 +674,20 @@ func (a *App) Stop() {
 	a.attractClosed = true
 	feed := a.localFeed
 	a.localFeed = nil
+	closeCatalog := a.localCatalogClose
+	a.localCatalogClose = nil
+	installCancel := a.localInstallCancel
+	a.localInstallCancel = nil
 	cancel := a.cancel
 	a.mu.Unlock()
+	if installCancel != nil {
+		installCancel()
+	}
 	if feed != nil {
 		feed.Close()
+	}
+	if closeCatalog != nil {
+		_ = closeCatalog()
 	}
 	if cancel != nil {
 		cancel()
@@ -2053,7 +2074,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		return
 	}
 	if a.foreignKitLeaseLocked() && !game.HostOnly() {
-		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: "This executor is in use."}
+		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: localInUseCopy}
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
 		}
@@ -2099,6 +2120,8 @@ func launchBlockReason(game hostclient.Game) string {
 		return "This game isn't ready to launch."
 	case hostclient.LaunchMissingFirmware:
 		return "Coleco BIOS required. Import household firmware before Play."
+	case hostclient.LaunchMissingROM:
+		return "Needs a cartridge"
 	case "":
 		return ""
 	default:
@@ -3261,10 +3284,6 @@ func (a *App) captureCatalogFocusLocked() {
 }
 
 func (a *App) loadLibrary(ctx context.Context, gen int) {
-	var (
-		all    []hostclient.Game
-		cursor string
-	)
 	a.mu.Lock()
 	if gen != a.loadGen {
 		a.mu.Unlock()
@@ -3274,77 +3293,144 @@ func (a *App) loadLibrary(ctx context.Context, gen int) {
 	keepID := a.keepFocusID
 	keepIndex := a.keepFocusIndex
 	query := a.currentQueryLocked() // fixed for this generation; TypeText does not bump loadGen until debounce
+	previous := append([]hostclient.Game(nil), a.games...)
 	a.games = nil
 	a.grid.SetCount(0)
 	pinned := true
 	lastFocus := -1
 	a.mu.Unlock()
+
+	all, notice, err := a.collectLibraryPages(ctx, gen, query, keepID, keepIndex, &pinned, &lastFocus)
+	if err != nil {
+		a.finishLibraryLoad(ctx, gen, query, previous, nil, keepID, keepIndex, notice, err)
+		return
+	}
+	if len(all) == 0 && shelfQueryUnfiltered(query) && strings.TrimSpace(query.Availability) == "" {
+		fallback := query
+		fallback.Availability = "all"
+		fallback.Cursor = ""
+		saved, savedNotice, savedErr := a.collectLibraryPages(ctx, gen, fallback, keepID, keepIndex, &pinned, &lastFocus)
+		if savedNotice != "" {
+			notice = savedNotice
+		}
+		all = saved
+		err = savedErr
+	}
+	a.finishLibraryLoad(ctx, gen, query, previous, all, keepID, keepIndex, notice, err)
+}
+
+func (a *App) collectLibraryPages(ctx context.Context, gen int, query hostclient.GameListQuery, keepID string, keepIndex int, pinned *bool, lastFocus *int) ([]hostclient.Game, string, error) {
+	var (
+		all    []hostclient.Game
+		notice string
+	)
 	for {
 		if err := ctx.Err(); err != nil {
-			return
+			return all, notice, err
 		}
 		a.mu.Lock()
 		if gen != a.loadGen {
 			a.mu.Unlock()
-			return
+			return all, notice, errLibrarySuperseded
 		}
 		a.mu.Unlock()
-		query.Cursor = cursor
-		page, next, err := a.client.ListGames(ctx, query)
+		page, err := a.client.ListGamePage(ctx, query)
 		if err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			a.setLoadError(gen, err.Error())
-			return
+			return all, notice, err
+		}
+		if notice == "" {
+			notice = page.Notice
 		}
 		remain := a.maxGames - len(all)
 		if remain <= 0 {
 			break
 		}
-		if len(page) > remain {
-			page = page[:remain]
+		chunk := page.Games
+		if len(chunk) > remain {
+			chunk = chunk[:remain]
 		}
-		all = append(all, page...)
+		all = append(all, chunk...)
 		a.mu.Lock()
 		if gen != a.loadGen {
 			a.mu.Unlock()
-			return
+			return all, notice, errLibrarySuperseded
 		}
-		a.applyCatalogPageLocked(append([]hostclient.Game(nil), all...), keepID, keepIndex, &pinned, &lastFocus)
+		a.applyCatalogPageLocked(append([]hostclient.Game(nil), all...), keepID, keepIndex, pinned, lastFocus)
 		a.status = a.libraryStatusLocked()
 		a.mu.Unlock()
-		if next == "" || len(all) >= a.maxGames {
+		if page.NextCursor == "" || len(all) >= a.maxGames || len(chunk) == 0 {
 			break
 		}
-		cursor = next
+		query.Cursor = page.NextCursor
 	}
-	a.mu.Lock()
-	if gen != a.loadGen {
-		a.mu.Unlock()
-		return
-	}
-	a.loading = false
-	if len(a.games) == 0 {
-		a.status = "host API returned no titles"
-		if a.platformID != "" || strings.TrimSpace(a.searchField.Buffer) != "" || a.collectionID != "" || a.filtersActiveLocked() {
-			a.status = a.libraryStatusLocked()
-		}
-	} else {
-		a.status = a.libraryStatusLocked()
-	}
-	a.mu.Unlock()
+	return all, notice, nil
 }
 
-func (a *App) setLoadError(gen int, message string) {
+func (a *App) finishLibraryLoad(ctx context.Context, gen int, query hostclient.GameListQuery, previous, games []hostclient.Game, keepID string, keepIndex int, notice string, err error) {
+	if ctx.Err() != nil || errors.Is(err, errLibrarySuperseded) {
+		return
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if gen != a.loadGen {
 		return
 	}
 	a.loading = false
-	a.loadErr = message
-	a.status = "library load failed"
+	if err != nil {
+		// A failed refresh may keep the last successful shelf only when that
+		// shelf was produced by this same filter. Restoring SNES rows onto
+		// an SMS shelf is the bug.
+		if a.shelfQuerySet && !shelfFilterEqual(a.shelfQuery, query) {
+			a.loadErr = ""
+			if len(a.games) == 0 {
+				a.grid.SetCount(0)
+				a.status = "Can't reach the library right now."
+			} else {
+				a.status = a.libraryShelfStatusLocked(query, a.games, notice)
+			}
+			return
+		}
+		saved := previous
+		if a.shelfQuerySet && len(a.shelfGames) > 0 {
+			saved = a.shelfGames
+		}
+		if len(saved) > 0 {
+			pinned := true
+			lastFocus := -1
+			a.applyCatalogPageLocked(saved, keepID, keepIndex, &pinned, &lastFocus)
+			a.loadErr = ""
+			a.status = savedListOfflineCopy
+			return
+		}
+		a.loadErr = "Can't reach the library right now."
+		a.status = a.loadErr
+		return
+	}
+	a.shelfQuery = query
+	a.shelfQuerySet = true
+	a.shelfGames = append([]hostclient.Game(nil), games...)
+	a.loadErr = ""
+	a.status = a.libraryShelfStatusLocked(query, games, notice)
+}
+
+func (a *App) libraryShelfStatusLocked(query hostclient.GameListQuery, games []hostclient.Game, notice string) string {
+	if !shelfQueryUnfiltered(query) {
+		return a.libraryStatusLocked()
+	}
+	if len(games) == 0 {
+		switch notice {
+		case savedListOfflineCopy, shelfEmptyCopy, shelfMissingCopy:
+			return notice
+		}
+		if notice != "" {
+			return notice
+		}
+		return shelfEmptyCopy
+	}
+	if librarySavedOffline(games) {
+		return savedListOfflineCopy
+	}
+	return a.libraryStatusLocked()
 }
 
 func (a *App) drainResults() {

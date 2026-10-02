@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/localfeed"
@@ -17,10 +18,18 @@ const (
 	localPhaseRunning   = "running"
 	localPhaseStopping  = "stopping"
 
-	localInUseCopy       = "In use. Someone else is playing on this machine. You can play when they're done."
-	localUnavailableCopy = "This core isn't available right now."
-	localStopBudget      = 35 * time.Second
-	localChordHold       = time.Second
+	localInUseCopy          = rooms.InUseStatus + ". " + rooms.InUseDetail
+	machineStatusUnknown    = "Can't tell if this machine is free."
+	savedListOfflineCopy    = "Offline, showing your saved list"
+	shelfEmptyCopy          = "No games in this library yet."
+	shelfMissingCopy        = "The game files for this library can't be found."
+	localUnavailableCopy    = "This core isn't available right now."
+	localCoreMissingCopy    = "The Master System core is not installed."
+	localCoreMissingAction  = "Install the Master System core."
+	localCoreCheckingCopy   = "Checking whether the Master System core is installed."
+	localCoreCheckingAction = "Wait — still checking."
+	localStopBudget         = 35 * time.Second
+	localChordHold          = time.Second
 	// localStatusEvery is the fastest the running-phase status poll runs.
 	// The client's own timeout is 3s, so the poll never runs under a.mu.
 	localStatusEvery = time.Second
@@ -44,18 +53,77 @@ func (a *App) EnableKitLocal() {
 
 // SetKitLocal installs the control client and the pad feed. Both stay nil
 // on the host. Call it before Start so the home room sees the client.
+// The installed-core list is read here, outside the room lock. A failed
+// list keeps Play hidden and retries until one list succeeds.
 func (a *App) SetKitLocal(cores rooms.LocalCores, feed localPadSender) {
 	if a == nil {
 		return
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	a.mu.Lock()
 	old := a.localFeed
+	previous := a.localInstallCancel
+	a.localInstallGen++
+	gen := a.localInstallGen
+	a.localInstallCancel = cancel
 	a.localCores = cores
 	a.localFeed = feed
+	a.localInstallKnown = false
+	a.localInstalled = nil
 	a.mu.Unlock()
+	if previous != nil {
+		previous()
+	}
 	if old != nil && feed != old {
 		old.Close()
 	}
+	if cores == nil {
+		return
+	}
+	listed, err := cores.List(ctx)
+	if err == nil {
+		a.rememberInstalled(cores, gen, listed)
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	go a.retryLocalInstall(ctx, cores, gen)
+}
+
+func (a *App) retryLocalInstall(ctx context.Context, cores rooms.LocalCores, gen uint64) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			listed, err := cores.List(ctx)
+			if err != nil {
+				continue
+			}
+			a.rememberInstalled(cores, gen, listed)
+			return
+		}
+	}
+}
+
+func (a *App) rememberInstalled(cores rooms.LocalCores, gen uint64, listed []localcores.Core) {
+	ids := make(map[string]struct{}, len(listed))
+	for _, core := range listed {
+		id := strings.TrimSpace(core.CoreID)
+		if id != "" {
+			ids[id] = struct{}{}
+		}
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.localCores != cores || a.localInstallGen != gen {
+		return
+	}
+	a.localInstalled = ids
+	a.localInstallKnown = true
 }
 
 func (a *App) localCoreBusyLocked() bool {
@@ -132,6 +200,109 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 			a.localChordSince = time.Now()
 		}
 	}()
+}
+
+// localTitleLauncher is an optional test double. The production client
+// resolves the cartridge and calls LaunchROM instead.
+type localTitleLauncher interface {
+	LaunchTitle(context.Context, hostclient.Game) error
+}
+
+type localROMLauncher interface {
+	List(context.Context) ([]localcores.Core, error)
+	LaunchROM(context.Context, string, string) error
+}
+
+// startLocalTitleLocked plays one catalog row through the local socket.
+// It never calls the host session. A missing socket or an unreadable file
+// fails closed on this machine.
+func (a *App) startLocalTitleLocked(game hostclient.Game) {
+	if a.kitMutationBlockedLocked() {
+		return
+	}
+	if a.localCoreBusyLocked() {
+		return
+	}
+	title := strings.TrimSpace(game.Title)
+	if title == "" {
+		title = "game"
+	}
+	a.localGen++
+	gen := a.localGen
+	a.localPhase = localPhaseLaunching
+	a.localTitle = title
+	a.localStatus = "Starting " + title + "…"
+	a.status = a.localStatus
+	a.localPresentsPaused = true
+	a.localChordSince = time.Time{}
+	a.localChordFired = false
+	client := a.localCores
+	resolve := a.localContent
+	go func() {
+		err := launchLocalTitle(context.Background(), client, resolve, game)
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.localGen != gen {
+			return
+		}
+		if err != nil {
+			a.failLocalCoreLocked(err, "")
+			return
+		}
+		a.localPhase = localPhaseRunning
+		if a.status == a.localStatus {
+			a.status = ""
+		}
+		a.localStatus = ""
+		if a.localSelectDown && a.localStartDown {
+			a.localChordSince = time.Now()
+		}
+	}()
+}
+
+func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func(context.Context, string) (string, error), game hostclient.Game) error {
+	if titled, ok := client.(localTitleLauncher); ok {
+		return titled.LaunchTitle(ctx, game)
+	}
+	if client == nil || resolve == nil {
+		return localcores.ErrUnavailable
+	}
+	romPath, err := resolve(ctx, game.ID)
+	if err != nil || strings.TrimSpace(romPath) == "" {
+		return localcores.ErrUnavailable
+	}
+	rommer, ok := client.(localROMLauncher)
+	if !ok {
+		return localcores.ErrUnavailable
+	}
+	want := localCartridgeCore(game.System)
+	if want == "" {
+		return localcores.ErrUnavailable
+	}
+	cores, err := rommer.List(ctx)
+	if err != nil {
+		return err
+	}
+	var packageID string
+	for _, core := range cores {
+		if core.CoreID == want {
+			packageID = core.PackageID
+			break
+		}
+	}
+	if packageID == "" {
+		return localcores.ErrUnavailable
+	}
+	return rommer.LaunchROM(ctx, packageID, romPath)
+}
+
+func localCartridgeCore(system string) string {
+	switch strings.ToLower(strings.TrimSpace(system)) {
+	case "sms":
+		return "fes.sms"
+	default:
+		return ""
+	}
 }
 
 func (a *App) failLocalCoreLocked(err error, block string) {

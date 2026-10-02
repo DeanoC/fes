@@ -3,14 +3,18 @@ package kitlauncher
 import (
 	"context"
 	"errors"
-	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/kitlease"
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/theme"
 	"log"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/kitlease"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 type Pad interface {
@@ -206,6 +210,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	m.Cache = mergeCacheStatus(c.Cache, hostclient.LibraryCache{}, false)
 	paintKitHDMI(m)
+	localGames, closeLocal := bootLocalCatalog(ctx, c)
+	if closeLocal != nil {
+		defer closeLocal()
+	}
+	localApplied := false
 	send := func(o observation) {
 		select {
 		case results <- o:
@@ -418,6 +427,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.hostAbsent {
 				m.Connected = false
 				m.ClearCoreStatuses(true)
+				if !localApplied && len(localGames) > 0 {
+					m.SetCatalog(localGames)
+					localApplied = true
+					catalogLoaded = true
+				}
 				if o.session.State != "" {
 					m.Session = applyObservedSession(m.Session, o.session)
 				}
@@ -585,6 +599,50 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 		}
 	}
+}
+
+// bootLocalCatalog scans the configured library when the kit has a catalog
+// file. The remote launcher API is not required. A missing file or a failed
+// boot leaves the disk snapshot in place.
+func bootLocalCatalog(ctx context.Context, c *Client) ([]hostclient.Game, func() error) {
+	if c == nil || strings.TrimSpace(c.catalogConfig) == "" || ctx.Err() != nil {
+		return nil, nil
+	}
+	paths, err := fogcast.PathsForConfig(c.catalogConfig)
+	if err != nil {
+		return nil, nil
+	}
+	served, err := hostapi.ServeLocal(ctx, paths)
+	if err != nil {
+		return nil, nil
+	}
+	games, err := listLocalCatalog(ctx, served.Base)
+	if err != nil {
+		_ = served.Close()
+		return nil, nil
+	}
+	return games, served.Close
+}
+
+func listLocalCatalog(ctx context.Context, base string) ([]hostclient.Game, error) {
+	client := hostclient.NewClient(base, &http.Client{Timeout: 5 * time.Second})
+	var all []hostclient.Game
+	var cursor string
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		games, next, err := client.ListGames(ctx, hostclient.GameListQuery{Limit: 200, Availability: "all", Cursor: cursor})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, games...)
+		if next == "" || len(games) == 0 || len(all) >= 2000 {
+			break
+		}
+		cursor = next
+	}
+	return all, nil
 }
 
 func loadCatalog(ctx context.Context, c *Client) ([]hostclient.Game, error) {
