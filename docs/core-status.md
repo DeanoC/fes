@@ -93,7 +93,9 @@ BIOS, or an appliance image.
 The separate Coleco [video-parts development lane](../sources/misteross/docs/cores.md#video-parts-development-lane)
 uses one frozen shell with direct or scanline pixel-clock parts and an optional
 Coleco bus 2.0 expansion. It is unregistered and does not change the factory
-image. Software simulation, sealed-build evidence and hardware acceptance
+image. The [host seal and software diagnostic](validation/2026-10-02-video-parts-seal.md)
+records timing, disjoint CRAM containment and Go/Python byte agreement for
+both video choices with and without SGM. Software simulation, sealed-build evidence and hardware acceptance
 remain distinct. Audio parts, DDR processing and profile/library selection
 are subsequent work.
 

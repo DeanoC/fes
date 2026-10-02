@@ -486,7 +486,7 @@ Simulation keeps the `zx81_dpram` hex path. The sealed package stays the
 empty socket; launch splices BASIC into the programmed bitstream.
 
 
-The `expansion` Go linker admits only the versioned ZX81 full-height socket or
+The single-socket `expansion` Go path admits the versioned ZX81 full-height socket or
 the Coleco CPU-bus rectangle `(1769, 32, 2806, 1034)`, selected by the exact
 slot/map pair. A Coleco manifest may also declare
 `fes.coleco.response-boundary/4`: exactly two fixed shell-response CRAM
