@@ -127,8 +127,17 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 			}
 			option.Nodes = append(option.Nodes, candidate)
 		}
-		if len(option.Nodes) == 0 && !option.HostLocal {
-			option.Reason = "no advertised executor in inventory"
+		if !option.HostLocal {
+			available := false
+			for _, candidate := range option.Nodes {
+				available = available || candidate.Available
+			}
+			switch {
+			case len(option.Nodes) == 0:
+				option.Reason = "no advertised executor in inventory"
+			case !available:
+				option.Reason = "no compatible executor in inventory"
+			}
 		}
 		row.Options = append(row.Options, option)
 	}

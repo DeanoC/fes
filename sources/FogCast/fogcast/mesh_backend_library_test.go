@@ -114,3 +114,57 @@ func TestMeshInventoryObservesWithoutBoundTarget(t *testing.T) {
 	}
 	t.Fatal("observer-only monitor did not populate inventory")
 }
+
+// M1 scope (#361): one local library shows both backends for the same
+// title. The kit runs fes.sms; the host-local RetroArch path is the
+// emulator option. A remote-sourced emulator option stays unavailable
+// with an explicit reason until the runner contract (#360) exists.
+func TestMeshBackendLibraryLocalDualBackend(t *testing.T) {
+	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	kitID, emuID := "01234567-89ab-cdef-0123-456789abcdef", "fedcba98-7654-3210-fedc-ba9876543210"
+	kit := MeshNode{NodeID: kitID, TargetID: kitID, Mesh: discovery.MeshProtocol, Address: "http://192.0.2.1:8182", Capabilities: discovery.KitCapabilities()}
+	pkgID := strings.Repeat("cd", 32)
+	fpga := meshCoreTitle("Data Storm 1.00", "fes.sms", pkgID, media, false)
+	local := meshNativeTitle("Data Storm 1.00", protocol.SystemSMS, media)
+	local.Game.ID = fpga.Game.ID
+	lib := MeshLibrary{Titles: []MeshTitle{fpga, local}}
+	packages := map[string][]string{kitID: {pkgID}}
+	abis := map[string][]meshcontent.EligibleABI{kitID: {{ID: "fes.application", Major: 1}}}
+
+	rows, skipped := ProjectMeshBackendLibrary(lib, []MeshNode{kit}, false, packages, abis)
+	if len(skipped) != 0 || len(rows) != 1 {
+		t.Fatalf("rows=%+v skipped=%+v", rows, skipped)
+	}
+	row := rows[0]
+	if len(row.Options) != 2 || len(row.ContentIDs) != 1 || row.ContentIDs[0].String() != "sha256:"+media {
+		t.Fatalf("row=%+v", row)
+	}
+	fpgaOpt, emuOpt := row.Options[0], row.Options[1]
+	if fpgaOpt.Entry.Execute[0].Kind != meshcontent.ExecuteFPGANative || fpgaOpt.HostLocal || fpgaOpt.Reason != "" ||
+		len(fpgaOpt.Nodes) != 1 || fpgaOpt.Nodes[0].NodeID != kitID || !fpgaOpt.Nodes[0].Available {
+		t.Fatalf("fpga option=%+v", fpgaOpt)
+	}
+	if emuOpt.Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || !emuOpt.HostLocal || emuOpt.Reason != "" || len(emuOpt.Nodes) != 0 {
+		t.Fatalf("local emulator option=%+v", emuOpt)
+	}
+
+	// A remote-sourced emulator title (not host-local) is listed but
+	// unavailable, with explicit node and option reasons.
+	remote := meshNativeTitle("Remote only", protocol.SystemSMS, media)
+	remote.Execute = meshcontent.ExecuteNativeEmu
+	emu := MeshNode{NodeID: emuID, TargetID: emuID, Mesh: discovery.MeshProtocol, Address: "http://192.0.2.2:8182", Capabilities: discovery.Capabilities{Execute: []discovery.Execute{{Kind: meshcontent.ExecuteNativeEmu}}}}
+	rows, _ = ProjectMeshBackendLibrary(MeshLibrary{Titles: []MeshTitle{remote}}, []MeshNode{kit, emu}, false, packages, abis)
+	got := backendRow(t, rows, remote.Game.ID)
+	if len(got.Options) != 1 {
+		t.Fatalf("remote=%+v", got)
+	}
+	opt := got.Options[0]
+	if opt.HostLocal || opt.Reason != "no compatible executor in inventory" || len(opt.Nodes) != 1 ||
+		opt.Nodes[0].Available || opt.Nodes[0].Reason != "remote emulator system and version unverified" {
+		t.Fatalf("remote option=%+v", opt)
+	}
+	rows, _ = ProjectMeshBackendLibrary(MeshLibrary{Titles: []MeshTitle{remote}}, []MeshNode{kit}, false, packages, abis)
+	if opt := backendRow(t, rows, remote.Game.ID).Options[0]; opt.Reason != "no advertised executor in inventory" {
+		t.Fatalf("remote without runner=%+v", opt)
+	}
+}

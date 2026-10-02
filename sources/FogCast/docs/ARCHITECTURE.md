@@ -1330,7 +1330,10 @@ documents. A missing, retained, conflicting, or mesh-major-incompatible
 advertisement is unavailable. A `native_emu` advertisement remains
 unverified for remote execution because the current capability bag has no
 supported-system or emulator-version fact. The host-local `host_only`
-path remains labelled separately. This projection does not select a
+path is the local emulator option (`HostLocal`). An option with no
+host-local path carries an explicit reason when no inventory node can
+run it (`no advertised executor in inventory` or `no compatible
+executor in inventory`); each node candidate carries its own reason. This projection does not select a
 backend for a session, assert composition Ready, or publish a library
 wire field. Remote title/source provenance and that wire contract remain
 proposed in the mesh docs.
