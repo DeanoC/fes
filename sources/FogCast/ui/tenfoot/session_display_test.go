@@ -279,6 +279,126 @@ func TestKitStopDuringDisplayOpenDropsLateCompletion(t *testing.T) {
 	}
 }
 
+func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		pending   bool
+		lostStop  bool
+		returnVia string
+	}{
+		{"open-rejected-stop-back", false, false, "back"},
+		{"pending-open-rejected-stop-back", true, false, "back"},
+		{"open-rejected-stop-controller", false, false, "controller"},
+		{"pending-open-rejected-stop-controller", true, false, "controller"},
+		{"open-lost-stop-shell-exit", false, true, "exit"},
+		{"pending-open-lost-stop-shell-exit", true, true, "exit"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prior := kitDisplaySession()
+			entered, gate := make(chan struct{}), make(chan struct{})
+			var release sync.Once
+			var opens, closes, stops atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/session/display":
+					b, ok := protocol.DevelopmentMediaHeaders(r.Header)
+					if !ok || b.PackageID != prior.CorePackage.PackageID || b.Generation != prior.CorePackage.Generation ||
+						b.Target != prior.Target || b.TargetID != prior.TargetID || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
+						t.Error("display return lost the captured machine identity")
+					}
+					var req struct{ Visible bool }
+					json.NewDecoder(r.Body).Decode(&req)
+					if req.Visible {
+						opens.Add(1)
+						close(entered)
+						if tc.pending {
+							<-gate
+						}
+					} else {
+						closes.Add(1)
+					}
+					writeKitDisplaySession(w, prior)
+				case "/api/v1/session/stop":
+					var req struct {
+						ReleaseIdle bool `json:"release_idle"`
+					}
+					json.NewDecoder(r.Body).Decode(&req)
+					if req.ReleaseIdle {
+						writeKitDisplaySession(w, prior)
+						return
+					}
+					stops.Add(1)
+					if tc.lostStop {
+						conn, _, err := w.(http.Hijacker).Hijack()
+						if err != nil {
+							t.Error(err)
+							return
+						}
+						conn.Close()
+						return
+					}
+					w.WriteHeader(http.StatusConflict)
+					io.WriteString(w, `{"error":{"code":"BUSY","message":"display request is still running"}}`)
+				case "/api/v1/session":
+					writeKitDisplaySession(w, prior)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			app, _ := kitDisplayApp(t, server)
+			t.Cleanup(func() { release.Do(func() { close(gate) }) })
+			app.HandleCommand(CmdHome, time.Now())
+			select {
+			case <-entered:
+			case <-time.After(time.Second):
+				t.Fatal("display open never began")
+			}
+			if !tc.pending {
+				waitFor(t, app, "HDMI room", func(s Snapshot) bool { return s.Room.DuringPlay })
+			}
+			app.mu.Lock()
+			displayDone := app.sessionDisplayWait
+			app.mu.Unlock()
+			app.HandleCommand(CmdStop, time.Now())
+			waitFor(t, app, "failed Stop", func(s Snapshot) bool { return s.Session.RetryStop && !s.Session.Stopping })
+			if tc.pending {
+				release.Do(func() { close(gate) })
+				select {
+				case <-displayDone:
+				case <-time.After(time.Second):
+					t.Fatal("late display open never completed")
+				}
+			}
+			if app.ForwardsPlayHID() {
+				t.Fatal("failed Stop returned input while HDMI may still show controls")
+			}
+			app.mu.Lock()
+			bound := samePlayHIDSession(app.sessionDisplayBinding, prior)
+			app.mu.Unlock()
+			if !bound || closes.Load() != 0 {
+				t.Fatal("failed Stop forgot or implicitly returned the display")
+			}
+			switch tc.returnVia {
+			case "back":
+				app.HandleCommand(CmdBack, time.Now())
+			case "controller":
+				app.HandleLocalPad(remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton,
+					Code: remoteinput.ButtonB, Action: remoteinput.ActionPress}, time.Now())
+			case "exit":
+				app.Stop()
+			}
+			waitFor(t, app, "return after failed Stop", func(Snapshot) bool { return closes.Load() == 1 })
+			if tc.returnVia != "exit" {
+				waitFor(t, app, "confirmed display return", func(Snapshot) bool { return app.ForwardsPlayHID() })
+			}
+			if opens.Load() != 1 || stops.Load() != 1 || app.Snapshot().Session.State != "active" {
+				t.Fatal("display return retried Stop or replaced the running machine")
+			}
+		})
+	}
+}
+
 func TestKitSelectStartKeepsStopPriority(t *testing.T) {
 	var displays, stops atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

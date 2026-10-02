@@ -70,7 +70,7 @@ func (a *App) consumeSuppressedPlayKey(name string, down bool) bool {
 }
 
 func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
-	if a.sessionDisplayBusy || a.client == nil || a.session.State != "active" || !hostclient.SessionDisplayCapable(a.session.CorePackage) || a.playHIDFailClosedLocked() {
+	if a.sessionDisplayBusy || a.stopPhase == "stopping" || a.client == nil || a.session.State != "active" || !hostclient.SessionDisplayCapable(a.session.CorePackage) || a.playHIDFailClosedLocked() {
 		return
 	}
 	a.releasePlayHIDLocked()
@@ -152,6 +152,13 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 			display.Resume()
 		}
 		if visible {
+			if a.stopPhase == "stopping" || a.retryStopLock {
+				// A late open must keep the guarded return available if Stop
+				// fails, without reopening the room or issuing another mutation.
+				a.sessionDisplayUncertain = true
+				a.kickSessionPollLocked()
+				return
+			}
 			a.openPlayingHardwareRoomLocked()
 			if !a.roomDuringPlay {
 				a.beginSessionDisplayLocked(false, false)

@@ -103,6 +103,76 @@ func TestPublicCapturedMutationRejectsAnotherTargetsSessionID(t *testing.T) {
 	}
 }
 
+func TestPublicCapturedMutationRejectsReboundTargetID(t *testing.T) {
+	for _, scoped := range []bool{false, true} {
+		for _, tc := range []struct{ name, captured, current string }{
+			{"replacement-kit", launcherID, launcherIDB},
+			{"lost-identity", launcherID, ""},
+			{"new-identity", "", launcherIDB},
+		} {
+			name := tc.name + "/foreground"
+			if scoped {
+				name = tc.name + "/target"
+			}
+			t.Run(name, func(t *testing.T) {
+				id := strings.Repeat("a", 64)
+				s := &displayHostService{fakeService: fakeService{sessionTarget: "kit-a", sessionTargetID: tc.captured,
+					status: protocol.Status{State: protocol.StateActive, Development: true,
+						CorePackage: &protocol.CorePackageStatus{PackageID: id, Generation: 9,
+							ABI:              protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1},
+							ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}}}}},
+					settings: fogcast.LibraryConfig{Targets: []fogcast.TargetConfig{{Name: "kit-a", TargetID: tc.captured, Enabled: true}}}}
+				api := hostapi.New(s)
+				path := "/api/v1/session"
+				if scoped {
+					path += "?target=kit-a"
+				}
+				var observed struct {
+					ID       string `json:"id"`
+					TargetID string `json:"target_id"`
+				}
+				response := serve(t, api, http.MethodGet, path)
+				if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &observed) != nil || observed.ID == "" || observed.TargetID != tc.captured {
+					t.Fatalf("observe captured identity: %d %s", response.Code, response.Body)
+				}
+				// Keep the name, package and generation while rebinding its kit.
+				s.sessionTargetID = tc.current
+				s.settings.Targets[0].TargetID = tc.current
+				for _, mutation := range []struct{ path, body string }{
+					{"/api/v1/session/display", `{"visible":true}`},
+					{"/api/v1/session/display", `{"visible":false}`},
+					{"/api/v1/session/live-media", `{"media_id":"` + strings.Repeat("b", 64) + `","name":"second.p"}`},
+					{"/api/v1/session/live-media/clear", ""},
+				} {
+					for _, binding := range []struct {
+						id   string
+						want int
+					}{{tc.captured, 409}, {tc.current, 200}} {
+						r := httptest.NewRequest(http.MethodPost, mutation.path, strings.NewReader(mutation.body))
+						r.Host = "127.0.0.1"
+						if mutation.body != "" {
+							r.Header.Set("Content-Type", "application/json")
+						}
+						r.Header.Set(protocol.HostSessionIDHeader, observed.ID)
+						protocol.DevelopmentMediaBinding{PackageID: id, Generation: 9, Target: "kit-a", TargetID: binding.id}.SetHeaders(r.Header)
+						before := s.calls + s.mediaCalls
+						w := httptest.NewRecorder()
+						api.ServeHTTP(w, r)
+						wantCalls := before
+						if binding.want == 200 {
+							wantCalls++
+						}
+						if w.Code != binding.want || s.calls+s.mediaCalls != wantCalls {
+							t.Fatalf("%s target_id=%q: status=%d want=%d calls=%d want=%d body=%s", mutation.path, binding.id,
+								w.Code, binding.want, s.calls+s.mediaCalls, wantCalls, w.Body)
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestPairedDisplayKeepsFullObservedBindingAndRejectsForeignSession(t *testing.T) {
 	id := strings.Repeat("a", 64)
 	s := &displayHostService{fakeService: fakeService{status: protocol.Status{State: protocol.StateActive, Development: true,

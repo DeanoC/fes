@@ -2158,7 +2158,12 @@ func (a *App) startStopLocked() {
 	}
 	a.roomDuringPlay = false
 	a.roomPickerOpen = false
-	a.invalidateSessionDisplayLocked()
+	// Stop can fail while the core still owns this display generation. Keep
+	// its binding and any pending display reply until idle is confirmed;
+	// otherwise Back and shell exit could no longer return the HDMI plane.
+	a.sessionDisplayUncertain = a.sessionDisplayUncertain || a.sessionDisplayVisible || a.sessionDisplayBusy
+	a.suppressHeldPlayKeysLocked()
+	a.suppressHeldSessionPadLocked()
 	a.cancelPlayHIDLocked()
 	a.stopPhase = "stopping"
 	a.stopMessage = "stopping session"

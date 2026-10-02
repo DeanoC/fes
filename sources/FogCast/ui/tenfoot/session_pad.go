@@ -37,6 +37,13 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 	} else {
 		delete(a.playPadHeld, e.Code)
 	}
+	// A failed Stop retains the display binding. B may return that plane
+	// while the retry-Stop lock continues to block other controller input.
+	if a.sessionDisplayUncertain && !a.sessionDisplayBusy && a.stopPhase != "stopping" && !a.playHIDFailClosedLocked() &&
+		e.Code == remoteinput.ButtonB && down && !a.playPadSuppressed[e.Code] {
+		a.beginSessionDisplayLocked(false, false)
+		return true, nil
+	}
 	if a.playHIDFailClosedLocked() || a.stopPhase == "stopping" || a.retryStopLock {
 		a.playPadChordSince = time.Time{}
 		a.suppressHeldSessionPadLocked()
@@ -99,10 +106,6 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 		if !down {
 			delete(a.playPadSuppressed, e.Code)
 		}
-		return true, nil
-	}
-	if a.sessionDisplayUncertain && e.Code == remoteinput.ButtonB && down {
-		a.beginSessionDisplayLocked(false, false)
 		return true, nil
 	}
 	if a.sessionDisplayBusy || a.sessionDisplayUncertain || a.stopPhase == "stopping" || a.retryStopLock || a.playHIDFailClosedLocked() {

@@ -40,15 +40,21 @@ func registerSessionDisplayRoute(mux *http.ServeMux, s *sessionCoordinator) {
 }
 
 // Both public and paired requests must bind this coordinator's captured
-// target. A service must not reroute its session ID using another kit's headers.
+// target name and ID. A service must not reroute its session ID using another
+// kit's headers, including a new kit assigned the same configured name.
 func (s *sessionCoordinator) matchesSessionTargetBinding(ctx context.Context, b protocol.DevelopmentMediaBinding) bool {
 	target := s.target
-	if target == "" {
+	var targetID string
+	if target != "" {
+		if resolver, ok := s.service.(interface{ TargetIDForName(string) string }); ok {
+			targetID = resolver.TargetIDForName(target)
+		}
+	} else {
 		if resolver, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
-			target, _ = resolver.SessionTarget()
+			target, targetID = resolver.SessionTarget()
 		}
 	}
-	if target == "" || b.Target != target {
+	if target == "" || b.Target != target || b.TargetID != targetID {
 		return false
 	}
 	paired := launcherTargetFromContext(ctx)

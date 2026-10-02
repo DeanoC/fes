@@ -2379,6 +2379,10 @@ existing target/package/core-generation headers. The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
 bounded 1..16384-byte tape imports and live replace/clear/display operations.
 These do not change the library's next-start media selection.
+Public and paired display/live-media mutations compare the captured target name
+and ID with the coordinator's current target before service dispatch. Rebinding
+a configured name to another kit rejects the old binding even if that kit has
+the same package and core generation.
 
 Paired session reads use the current foreground fields for that kit immediately
 after launch, or its retained target record while another kit is foreground.
@@ -2393,7 +2397,11 @@ pixels only after a full completed frame on its shared 720p raster. CPU, RAM,
 audio and the expansion socket continue. Back/Return closes and drains the plane
 before input resumes. UI navigation is suppressed at both launcher and target;
 held keyboard controls require release and a fresh press. Failed close retains
-focus for an explicit retry. Display faults cannot invoke MENU reload or Stop.
+focus for an explicit retry. Stop retains the display binding and pending display
+reply until idle or a replacement session is confirmed. If Stop fails, Back,
+controller B and shell exit can return the captured plane; a late open does not
+reopen the room or implicitly close the plane. Display faults cannot invoke MENU
+reload or Stop.
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
