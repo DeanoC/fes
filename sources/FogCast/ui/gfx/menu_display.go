@@ -160,7 +160,7 @@ func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
 // SetChangeDriven opts into skipping Present when the pixels match the last
 // queued frame, that frame has not since failed or been dropped, and the
 // display's known generation is still the generation at submit. The default
-// is off: every Present is submitted. fogcast-kit depends on that default.
+// is off: every Present is submitted. Both kit launchers explicitly opt in.
 //
 // While it is on, an unchanged frame still queues a status probe once a
 // second after a successful present. A new menu generation is submitted; the

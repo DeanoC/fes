@@ -1,7 +1,7 @@
 // Package gfx is the tenfoot 2D bitmap device.
 //
 // UI draw helpers talk only to Device. Production sofa runs use the SDL3
-// backend (WrapSDLRenderer, build tag sdl3). Software is a pure-Go
+// backend (WrapSDLRenderer, build tag sdl3). Software is a CGO-free
 // rasterizer for tests and CI. FPGA records the versioned FC2D command
 // stream and rasters through Software until a programmed 2D core exists
 // (IsStub stays true; see fpga_protocol.md). FPGAStub is the older thin

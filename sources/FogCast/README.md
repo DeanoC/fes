@@ -170,7 +170,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   not steal that session, and a foreign or recovery-required kit lease fails closed. Mac is the primary sofa target;
   Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
-  the production backend; Software is a pure-Go rasterizer for tests/CI;
+  the production backend; Software is a CGO-free rasterizer with portable Go and an optional ARM NEON alpha-fill kernel;
   FPGA records a versioned FC2D command stream and rasters through Software
   (`-gfx fpga` / `TENFOOT_GFX=fpga`; `IsStub` true until a programmed 2D
   core exists — not HDMI FPGA UI); FPGA stub remains the thin Software

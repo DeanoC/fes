@@ -222,6 +222,7 @@ func run() error {
 	// actually paints. Splash idle (no 0x002f) must not fail the service or
 	// blank FPGA splash pixels when /dev/fb0 is missing.
 	var d kitDisplay
+	var painter *kitFramePainter
 	defer func() {
 		if d != nil {
 			d.Close()
@@ -252,8 +253,6 @@ func run() error {
 		covers.SetStore(client.Cache)
 		stills.SetStore(client.Cache)
 	}
-	last := time.Time{}
-	var lastKey renderKey
 	lastFocus := -1
 	var popAt time.Time
 	var fx sceneFX
@@ -286,6 +285,7 @@ func run() error {
 				return
 			}
 			d = opened
+			painter = newKitFramePainter(d)
 		}
 		if m.Connected && !wasConnected {
 			covers.ClearFailed()
@@ -317,17 +317,15 @@ func run() error {
 			key.Stills = stills.Generation()
 			key.Audio = audioreact.Quantize(sample.Level, 16)
 			key.AudioKind = string(sample.Kind)
-			if !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
+			if !painter.shouldPaint(now, key, fx.active(now)) {
 				return
 			}
-			last = now
-			lastKey = key
 			cfg := d.Config()
 			frame := attractFrame(view, stills, look, cfg.Width, cfg.Height)
 			frame.Audio = sample
-			fbgrid.PaintAttract(d, frame)
-			paintSceneFX(d, cfg.Width, cfg.Height, fx, now, look)
-			presentKitFrame(d, cfg.Width, look, kitIdentity)
+			fbgrid.PaintAttract(painter, frame)
+			paintSceneFX(painter, cfg.Width, cfg.Height, fx, now, look)
+			presentKitFrame(painter, cfg.Width, look, kitIdentity)
 			return
 		}
 		if m.WheelOpen && !m.Busy {
@@ -368,14 +366,12 @@ func run() error {
 			key.Stills = stills.Generation()
 			key.Audio = audioreact.Quantize(sample.Level, 16)
 			key.AudioKind = string(sample.Kind)
-			if !frame.MotionActive() && !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
+			if !painter.shouldPaint(now, key, frame.MotionActive() || fx.active(now)) {
 				return
 			}
-			last = now
-			lastKey = key
-			fbgrid.PaintWheel(d, frame)
-			paintSceneFX(d, w, h, fx, now, look)
-			presentKitFrame(d, w, look, kitIdentity)
+			fbgrid.PaintWheel(painter, frame)
+			paintSceneFX(painter, w, h, fx, now, look)
+			presentKitFrame(painter, w, look, kitIdentity)
 			return
 		}
 		start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
@@ -422,11 +418,9 @@ func run() error {
 		key.Stills = stills.Generation()
 		key.Audio = audioreact.Quantize(sample.Level, 16)
 		key.AudioKind = string(sample.Kind)
-		if !grid.MotionActive() && !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
+		if !painter.shouldPaint(now, key, grid.MotionActive() || fx.active(now)) {
 			return
 		}
-		last = now
-		lastKey = key
 		if m.DetailOpen {
 			frame := modelDetailFrame(m, covers, presentations, look, w, h)
 			frame.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
@@ -438,17 +432,17 @@ func run() error {
 			}
 			frame.Marquee = stillImage(stills, mq)
 			frame.Audio = sample
-			fbgrid.PaintDetail(d, frame)
-			paintSceneFX(d, w, h, fx, now, look)
-			presentKitFrame(d, w, look, kitIdentity)
+			fbgrid.PaintDetail(painter, frame)
+			paintSceneFX(painter, w, h, fx, now, look)
+			presentKitFrame(painter, w, look, kitIdentity)
 			return
 		}
-		fbgrid.Paint(d, grid)
+		fbgrid.Paint(painter, grid)
 		if m.SearchOpen {
-			fbgrid.PaintOSK(d, modelOSKFrame(m, w, h, look, grid))
+			fbgrid.PaintOSK(painter, modelOSKFrame(m, w, h, look, grid))
 		}
-		paintSceneFX(d, w, h, fx, now, look)
-		presentKitFrame(d, w, look, kitIdentity)
+		paintSceneFX(painter, w, h, fx, now, look)
+		presentKitFrame(painter, w, look, kitIdentity)
 	}
 	remap, err := loadKitRemapper(*inputProfile, c.InputProfile)
 	if err != nil {

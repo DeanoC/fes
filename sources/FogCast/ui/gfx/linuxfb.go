@@ -51,7 +51,8 @@ func (d *LinuxFB) Destination() []byte { return d.dst }
 
 // Framebuffer returns the live software RGBA8 buffer. Callers must not
 // mutate Pix.
-func (d *LinuxFB) Framebuffer() *image.RGBA { return d.sw.Framebuffer() }
+func (d *LinuxFB) Framebuffer() *image.RGBA  { return d.sw.Framebuffer() }
+func (d *LinuxFB) frameSurface() *image.RGBA { return d.sw.frameSurface() }
 
 // Snapshot returns a copy of the current software framebuffer.
 func (d *LinuxFB) Snapshot() *image.RGBA { return d.sw.Snapshot() }

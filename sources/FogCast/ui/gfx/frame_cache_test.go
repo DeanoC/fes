@@ -154,3 +154,189 @@ func TestFrameCacheMutationAfterDrawInvalidatesNextFrame(t *testing.T) {
 		})
 	}
 }
+
+type backdropPainter struct {
+	*Software
+	clears int
+}
+
+func (d *backdropPainter) Clear(color Color) { d.clears++; d.Software.Clear(color) }
+
+func TestFrameCacheBackdropRestoresPixelsAndInvalidates(t *testing.T) {
+	plain, _ := NewSoftware(64, 48)
+	sw, _ := NewSoftware(64, 48)
+	painter := &backdropPainter{Software: sw}
+	cache := NewFrameCache(painter)
+	img := opaqueRGBA(8, 8)
+	a, _ := plain.CreateRGBA(img)
+	b, _ := cache.CreateRGBA(img)
+	scene := func(d Device, tex Texture, base, overlay int, checkpoint bool) {
+		d.BeginFrame()
+		d.SetBlend(BlendNone)
+		d.Clear(RGB(uint8(base), 20, 30))
+		d.Draw(tex, nil, Rect{W: 32, H: 32})
+		d.SetBlend(BlendAlpha)
+		d.FillRect(Rect{W: 64, H: 48}, RGBA(8, 8, 12, 180))
+		if checkpoint {
+			if c, ok := d.(interface{ CacheBackdrop() }); ok {
+				c.CacheBackdrop()
+			}
+		}
+		// Moving translucent overlays expose pixels painted by the previous frame.
+		d.FillRect(Rect{X: float32(overlay), Y: 5, W: 12, H: 12}, RGBA(200, 80, 10, 128))
+		d.SetBlend(BlendNone)
+		d.Present()
+	}
+	check := func(base, overlay int, checkpoint bool) {
+		t.Helper()
+		scene(plain, a, base, overlay, checkpoint)
+		scene(cache, b, base, overlay, checkpoint)
+		if !bytes.Equal(plain.fb.Pix, sw.fb.Pix) {
+			t.Fatal("backdrop pixels differ")
+		}
+	}
+	check(10, 0, true)
+	check(10, 5, true)
+	check(10, 15, true)
+	if painter.clears != 1 {
+		t.Fatalf("unchanged backdrop rasterized %d times", painter.clears)
+	}
+	check(20, 20, true)
+	if painter.clears != 2 {
+		t.Fatal("changed backdrop reused")
+	}
+	img.Pix[0] ^= 255
+	plain.UpdateRGBA(a, img)
+	cache.UpdateRGBA(b, img)
+	check(20, 25, true)
+	if painter.clears != 3 {
+		t.Fatal("updated texture reused")
+	}
+	// A changed overlay resource must not evict a backdrop that never draws it.
+	unrelated, _ := cache.CreateRGBA(opaqueRGBA(1, 1))
+	cache.UpdateRGBA(unrelated, opaqueRGBA(1, 1))
+	check(20, 26, true)
+	cache.Destroy(unrelated)
+	check(20, 27, true)
+	if painter.clears != 3 {
+		t.Fatal("overlay-only mutation evicted backdrop")
+	}
+	check(20, 30, false)
+	check(20, 35, true)
+	check(20, 35, true)
+	if painter.clears != 5 {
+		t.Fatalf("close/reopen or identical frame rasterized incorrectly: %d", painter.clears)
+	}
+}
+
+func TestBackdropMutationDuringFramePreservesOrder(t *testing.T) {
+	for _, beforeCheckpoint := range []bool{false, true} {
+		plain, _ := NewSoftware(4, 2)
+		sw, _ := NewSoftware(4, 2)
+		cache := NewFrameCache(sw)
+		red := image.NewRGBA(image.Rect(0, 0, 1, 1))
+		red.Pix = []byte{255, 0, 0, 255}
+		green := image.NewRGBA(image.Rect(0, 0, 1, 1))
+		green.Pix = []byte{0, 255, 0, 255}
+		a, _ := plain.CreateRGBA(red)
+		b, _ := cache.CreateRGBA(red)
+		scene := func(d Device, tex Texture, mutate bool) {
+			d.BeginFrame()
+			d.Clear(RGB(0, 0, 0))
+			d.Draw(tex, nil, Rect{W: 1, H: 1})
+			if mutate && beforeCheckpoint {
+				d.UpdateRGBA(tex, green)
+			}
+			if c, ok := d.(interface{ CacheBackdrop() }); ok {
+				c.CacheBackdrop()
+			}
+			if mutate && !beforeCheckpoint {
+				d.UpdateRGBA(tex, green)
+			}
+			d.Draw(tex, nil, Rect{X: 2, W: 1, H: 1})
+			d.Present()
+		}
+		for _, mutate := range []bool{true, false, false} {
+			scene(plain, a, mutate)
+			scene(cache, b, mutate)
+			if !bytes.Equal(plain.fb.Pix, sw.fb.Pix) {
+				t.Fatalf("mutation beforeCheckpoint=%v mutate=%v", beforeCheckpoint, mutate)
+			}
+		}
+	}
+}
+
+func TestBackdropDamageBoundsAndRestore(t *testing.T) {
+	bounds := image.Rect(0, 0, 16, 12)
+	for _, tc := range []struct {
+		name     string
+		commands []frameCommand
+		want     image.Rectangle
+	}{
+		{"empty", nil, image.Rectangle{}},
+		{"blend", []frameCommand{{op: OpSetBlend}}, image.Rectangle{}},
+		{"clipped", []frameCommand{{op: OpFillRect, dst: Rect{X: -2.5, Y: 1.5, W: 8, H: 5}}}, image.Rect(0, 1, 6, 7)},
+		{"outside", []frameCommand{{op: OpDraw, dst: Rect{X: 20, W: 3, H: 3}}}, image.Rectangle{}},
+		{"union", []frameCommand{{op: OpFillRect, dst: Rect{X: 2, Y: 3, W: 4, H: 4}}, {op: OpDraw, dst: Rect{X: 10, Y: 8, W: 3, H: 2}}}, image.Rect(2, 3, 13, 10)},
+		{"text", []frameCommand{{op: OpDrawText}}, bounds},
+		{"debug", []frameCommand{{op: OpDebugText}}, bounds},
+		{"clear", []frameCommand{{op: OpClear}}, bounds},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := backdropDamage(tc.commands, bounds)
+			if got != tc.want {
+				t.Fatalf("bounds %v want %v", got, tc.want)
+			}
+			fb := image.NewRGBA(bounds)
+			for i := range fb.Pix {
+				fb.Pix[i] = 99
+			}
+			cache := &FrameCache{backdropDamage: got, backdropPixels: make([]byte, len(fb.Pix))}
+			cache.restoreBackdrop(fb)
+			for y := 0; y < 12; y++ {
+				for x := 0; x < 16; x++ {
+					want := uint8(99)
+					if image.Pt(x, y).In(got) {
+						want = 0
+					}
+					for c := 0; c < 4; c++ {
+						if fb.Pix[fb.PixOffset(x, y)+c] != want {
+							t.Fatalf("restored outside bounds or missed (%d,%d)", x, y)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestBackdropRestoreErasesRemovedTextAndClippedOverlays(t *testing.T) {
+	plain, _ := NewSoftware(64, 48)
+	sw, _ := NewSoftware(64, 48)
+	cache := NewFrameCache(sw)
+	scene := func(d Device, frame int) {
+		d.BeginFrame()
+		d.SetBlend(BlendNone)
+		d.Clear(RGB(20, 30, 40))
+		if c, ok := d.(interface{ CacheBackdrop() }); ok {
+			c.CacheBackdrop()
+		}
+		d.SetBlend(BlendAlpha)
+		d.FillRect(Rect{X: float32(frame*9-15) + 0.5, Y: 5.5, W: 15, H: 10}, RGBA(200, 80, 10, 128))
+		if frame == 0 {
+			d.DrawText(0, 30, "Wide overlay", 14, RGB(255, 255, 255))
+		}
+		if frame == 1 {
+			d.DebugText(20, 40, "HUD", 1)
+		}
+		d.SetBlend(BlendNone)
+		d.Present()
+	}
+	for i := 0; i < 8; i++ {
+		scene(plain, i)
+		scene(cache, i)
+		if !bytes.Equal(plain.fb.Pix, sw.fb.Pix) {
+			t.Fatalf("overlay removal frame %d differs", i)
+		}
+	}
+}

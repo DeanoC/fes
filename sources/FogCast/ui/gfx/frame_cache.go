@@ -10,6 +10,7 @@ import (
 // artwork use the same invalidation path as ordinary UI chrome. Input and
 // simulation continue at their usual cadence. Only frames that clear their
 // background before drawing can be reused; incremental drawing always runs.
+// CacheBackdrop can also reuse a CPU framebuffer prefix while overlays change.
 // Texture mutations flush pending commands before changing their resources.
 // The caller owns the wrapped device's lifecycle and must draw through this
 // wrapper exclusively while the cache is in use.
@@ -19,6 +20,15 @@ type FrameCache struct {
 	blend                                        BlendMode
 	active, direct, dirty, clear, painted, valid bool
 	mutatedDuringFrame                           bool
+	checkpoint                                   int
+	backdropCommands                             []frameCommand
+	backdropPixels                               []byte
+	backdropBounds                               image.Rectangle
+	backdropStride                               int
+	backdropBlend                                BlendMode
+	backdropValid                                bool
+	backdropDamage                               image.Rectangle
+	mutatedTextures                              []Texture
 	revision                                     uint64
 }
 
@@ -39,6 +49,8 @@ func NewFrameCache(device Device) *FrameCache { return &FrameCache{device: devic
 
 func (c *FrameCache) BeginFrame() {
 	c.current = c.current[:0]
+	c.checkpoint = -1
+	c.mutatedTextures = c.mutatedTextures[:0]
 	c.active, c.direct, c.clear, c.painted, c.mutatedDuringFrame = true, false, false, false, false
 	c.record(frameCommand{op: OpSetBlend, blend: c.blend})
 }
@@ -88,12 +100,96 @@ func (c *FrameCache) DrawTextWeight(x, y int, text string, size int, weight Weig
 	c.record(frameCommand{op: OpDrawText, x: x, y: y, text: text, size: size, weight: NormalizeWeight(weight), color: color})
 }
 
+// CacheBackdrop marks one reusable command prefix in a complete frame. CPU
+// painters keep one framebuffer copy; unsupported painters replay normally.
+// The checkpoint is deferred so identical whole frames still do no raster work.
+func (c *FrameCache) CacheBackdrop() {
+	if !c.active || !c.clear || c.checkpoint >= 0 {
+		return
+	}
+	if _, ok := c.device.(interface{ frameSurface() *image.RGBA }); !ok {
+		return
+	}
+	c.checkpoint = len(c.current)
+	c.backdropBlend = c.blend
+	if c.direct {
+		c.captureBackdrop()
+	}
+}
+
+func (c *FrameCache) captureBackdrop() {
+	for _, tex := range c.mutatedTextures {
+		if prefixUsesTexture(c.current[:c.checkpoint], tex) {
+			c.backdropValid = false
+			return
+		}
+	}
+	fb := c.device.(interface{ frameSurface() *image.RGBA }).frameSurface()
+	if cap(c.backdropPixels) < len(fb.Pix) {
+		c.backdropPixels = make([]byte, len(fb.Pix))
+	}
+	c.backdropPixels = c.backdropPixels[:len(fb.Pix)]
+	copy(c.backdropPixels, fb.Pix)
+	c.backdropBounds, c.backdropStride = fb.Rect, fb.Stride
+	c.backdropCommands = append(c.backdropCommands[:0], c.current[:c.checkpoint]...)
+	c.backdropValid = true
+}
+
+// Only the preceding overlay can have altered a matching backdrop. Commands
+// with uncertain pixel bounds conservatively damage the whole framebuffer.
+func backdropDamage(commands []frameCommand, bounds image.Rectangle) image.Rectangle {
+	var damage image.Rectangle
+	for _, command := range commands {
+		switch command.op {
+		case OpSetBlend:
+		case OpFillRect, OpDraw:
+			x0, y0, x1, y1, ok := clipRect(command.dst, bounds.Dx(), bounds.Dy())
+			if ok {
+				damage = damage.Union(image.Rect(x0, y0, x1, y1).Add(bounds.Min))
+			}
+		default:
+			return bounds
+		}
+	}
+	return damage
+}
+
+func (c *FrameCache) restoreBackdrop(fb *image.RGBA) {
+	r := c.backdropDamage.Intersect(fb.Rect)
+	if r.Empty() {
+		return
+	}
+	if r == fb.Rect {
+		copy(fb.Pix, c.backdropPixels)
+		return
+	}
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		start := fb.PixOffset(r.Min.X, y)
+		end := start + r.Dx()*4
+		copy(fb.Pix[start:end], c.backdropPixels[start:end])
+	}
+}
+
 func (c *FrameCache) flush() {
 	if !c.active || c.direct {
 		return
 	}
 	c.device.BeginFrame()
-	for _, command := range c.current {
+	start := 0
+	if c.checkpoint >= 0 {
+		fb := c.device.(interface{ frameSurface() *image.RGBA }).frameSurface()
+		if c.backdropValid && fb.Rect == c.backdropBounds && fb.Stride == c.backdropStride && len(fb.Pix) == len(c.backdropPixels) && slices.Equal(c.current[:c.checkpoint], c.backdropCommands) {
+			c.restoreBackdrop(fb)
+			c.device.SetBlend(c.backdropBlend)
+		} else {
+			for _, command := range c.current[:c.checkpoint] {
+				c.execute(command)
+			}
+			c.captureBackdrop()
+		}
+		start = c.checkpoint
+	}
+	for _, command := range c.current[start:] {
 		c.execute(command)
 	}
 	c.direct = true
@@ -126,6 +222,12 @@ func (c *FrameCache) Present() {
 		c.revision++
 		c.previous = append(c.previous[:0], c.current...)
 	}
+	if c.checkpoint >= 0 {
+		c.backdropDamage = backdropDamage(c.current[c.checkpoint:], c.backdropBounds)
+	} else {
+		// A frame drawn without this checkpoint may touch any backdrop pixel.
+		c.backdropValid = false
+	}
 	// A mutation after an earlier draw can make the next identical command
 	// list produce different pixels. Do not reuse that frame.
 	c.active, c.valid, c.dirty = false, !c.mutatedDuringFrame, false
@@ -145,6 +247,7 @@ func (c *FrameCache) UpdateRGBA(tex Texture, img *image.RGBA) error {
 	c.flush()
 	err := c.device.UpdateRGBA(tex, img)
 	if err == nil {
+		c.invalidateBackdrop(tex)
 		c.dirty = true
 		c.mutatedDuringFrame = c.active
 	}
@@ -152,10 +255,31 @@ func (c *FrameCache) UpdateRGBA(tex Texture, img *image.RGBA) error {
 }
 func (c *FrameCache) Destroy(tex Texture) {
 	c.flush()
+	c.invalidateBackdrop(tex)
 	c.dirty = true
 	c.mutatedDuringFrame = c.active
 	c.device.Destroy(tex)
 }
+
+// Overlay-only resources do not affect the saved prefix. Mutations of a
+// texture already drawn in that prefix prevent capturing its old pixels.
+func (c *FrameCache) invalidateBackdrop(tex Texture) {
+	if prefixUsesTexture(c.backdropCommands, tex) {
+		c.backdropValid = false
+	}
+	if c.active {
+		c.mutatedTextures = append(c.mutatedTextures, tex)
+	}
+}
+func prefixUsesTexture(commands []frameCommand, tex Texture) bool {
+	for _, command := range commands {
+		if command.op == OpDraw && command.tex == tex {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *FrameCache) Close() { c.device.Close() }
 
 var _ Device = (*FrameCache)(nil)

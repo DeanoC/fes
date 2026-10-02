@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"runtime"
 )
 
-// Software is a pure-Go Device. It rasters into an RGBA8 framebuffer of
-// logical size and stores textures as CPU bitmaps. There is no cgo and no
-// SDL. Draw uses nearest-neighbour sampling so present-loop blits stay cheap.
+// Software is a CGO-free Device with portable Go and an optional ARM NEON alpha
+// kernel. It stores CPU textures and rasters to a logical-size RGBA8 framebuffer.
+// Draw uses nearest-neighbour sampling. There is no cgo or SDL.
 // Cover, screenshot, and still downscale uses Catmull–Rom once at decode
 // (ui/shared.DecodeCover and siblings), not here. FillRect honors
 // BlendNone and BlendAlpha. Textured Draw always uses source-over alpha,
@@ -80,6 +81,9 @@ func (s *Software) BackendName() string { return BackendSoftware }
 // Framebuffer returns the live RGBA8 buffer. Callers must not mutate Pix.
 func (s *Software) Framebuffer() *image.RGBA { return s.fb }
 
+// frameSurface permits the package-owned frame cache to restore CPU pixels.
+func (s *Software) frameSurface() *image.RGBA { return s.fb }
+
 // Snapshot returns a copy of the current framebuffer for tests.
 func (s *Software) Snapshot() *image.RGBA {
 	out := image.NewRGBA(image.Rect(0, 0, s.w, s.h))
@@ -149,6 +153,9 @@ func (s *Software) FillRect(rect Rect, c Color) {
 			}
 			return
 		}
+		if fillAlphaSIMD(s.pix, s.stride, x0, y0, x1, y1, c) {
+			return
+		}
 		if !s.fillLUTValid || s.fillColor != c {
 			alpha, inv := uint32(c.A), uint32(255-c.A)
 			red, green, blue := uint32(c.R)*alpha, uint32(c.G)*alpha, uint32(c.B)*alpha
@@ -161,13 +168,24 @@ func (s *Software) FillRect(rect Rect, c Color) {
 			}
 			s.fillColor, s.fillLUTValid = c, true
 		}
+		r, g, b, a := &s.fillLUT[0], &s.fillLUT[1], &s.fillLUT[2], &s.fillLUT[3]
 		for y := y0; y < y1; y++ {
 			row := s.pix[y*s.stride+x0*4 : y*s.stride+x1*4]
-			for i := 0; i < len(row); i += 4 {
-				row[i] = s.fillLUT[0][row[i]]
-				row[i+1] = s.fillLUT[1][row[i+1]]
-				row[i+2] = s.fillLUT[2][row[i+2]]
-				row[i+3] = s.fillLUT[3][row[i+3]]
+			if runtime.GOARCH == "arm" {
+				// A complete pixel per iteration removes the four per-channel
+				// bounds branches in ARM code. Keep the indexed loop elsewhere:
+				// slice advancement is more expensive on the measured amd64 path.
+				for len(row) >= 4 {
+					row[0], row[1], row[2], row[3] = r[row[0]], g[row[1]], b[row[2]], a[row[3]]
+					row = row[4:]
+				}
+			} else {
+				for i := 0; i < len(row); i += 4 {
+					row[i] = s.fillLUT[0][row[i]]
+					row[i+1] = s.fillLUT[1][row[i+1]]
+					row[i+2] = s.fillLUT[2][row[i+2]]
+					row[i+3] = s.fillLUT[3][row[i+3]]
+				}
 			}
 		}
 		return

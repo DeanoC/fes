@@ -380,6 +380,8 @@ func TestRetroArchAdapterLaunchOwnedPathCleansCopyAndKeepsLibraryFile(t *testing
 
 func TestRetroArchAdapterLaunchForSelectsConfiguredCore(t *testing.T) {
 	var core string
+	var content []byte
+	var readErr error
 	selected := coreFile(t)
 	if err := os.WriteFile(selected, []byte("selected core"), 0o600); err != nil {
 		t.Fatal(err)
@@ -387,6 +389,9 @@ func TestRetroArchAdapterLaunchForSelectsConfiguredCore(t *testing.T) {
 	fallback := coreFile(t)
 	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", fallback, map[protocol.System]string{"nes": selected}, func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
 		core = args[1]
+		// Inspect the staged core while the process starts. NoopProcess exits
+		// immediately, so the reaper may remove it before LaunchFor returns.
+		content, readErr = os.ReadFile(core)
 		return hostexec.NoopProcess{}, nil
 	})
 	if _, err := adapter.LaunchFor(context.Background(), "nes", bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
@@ -395,8 +400,8 @@ func TestRetroArchAdapterLaunchForSelectsConfiguredCore(t *testing.T) {
 	if core == selected {
 		t.Fatalf("RetroArch received configured core path directly: %q", core)
 	}
-	if content, err := os.ReadFile(core); err != nil || string(content) != "selected core" {
-		t.Fatalf("staged core content=%q err=%v", content, err)
+	if readErr != nil || string(content) != "selected core" {
+		t.Fatalf("staged core content=%q err=%v", content, readErr)
 	}
 }
 

@@ -37,7 +37,7 @@ func cpuSceneApp() *App {
 // Includes model update, Snapshot and the real warmed renderer; no network,
 // decoding or physical presentation. ARM runs show the remaining idle cost.
 func BenchmarkCPUBackend(b *testing.B) {
-	for _, scene := range []string{"Static", "Navigation", "Settings", "Room", "Attract"} {
+	for _, scene := range []string{"Static", "Navigation", "Settings", "SettingsNavigation", "Room", "Attract"} {
 		for _, cached := range []bool{false, true} {
 			backend := "Immediate"
 			if cached {
@@ -45,7 +45,7 @@ func BenchmarkCPUBackend(b *testing.B) {
 			}
 			b.Run(scene+"/"+backend, func(b *testing.B) {
 				app := cpuSceneApp()
-				if scene == "Settings" {
+				if scene == "Settings" || scene == "SettingsNavigation" {
 					app.settingsOpen, app.settingsHydrated = true, true
 				}
 				software, _ := gfx.NewSoftware(1280, 720)
@@ -61,6 +61,9 @@ func BenchmarkCPUBackend(b *testing.B) {
 				frame := func(i int) {
 					if scene == "Navigation" {
 						app.grid.Focus = i % min(12, app.grid.Columns*app.grid.VisibleRows)
+					}
+					if scene == "SettingsNavigation" {
+						app.settingsIndex = i % settingsRowFixedCount
 					}
 					app.Tick(now)
 					snap := app.Snapshot()
@@ -117,6 +120,42 @@ func TestCachedCPURendererTracksVisibleAppChanges(t *testing.T) {
 	check()
 	app.HandleCommand(CmdSettings, time.Now())
 	check()
+	check()
+	for i := 0; i < settingsRowFixedCount; i++ {
+		app.settingsIndex = i
+		check()
+	}
+	decorate = func(snap *Snapshot) {
+		snap.OSK = shared.OSKSnapshot{Open: true, Hint: "type  Enter done  Esc close", Page: shared.OSKPageLetters}
+		snap.DebugHUD = DebugHUDSnapshot{Enabled: true, Lines: []string{"A debug overlay outside the panel"}}
+	}
+	check()
+	check()
+	decorate = func(snap *Snapshot) {
+		snap.OSK = shared.OSKSnapshot{Open: true, Hint: "type", Page: shared.OSKPageLetters}
+	}
+	check()
+	decorate = nil
+	check()
+	app.status = "Status while settings open"
+	check()
+	app.covers[app.games[0].ID].image = image.NewRGBA(image.Rect(0, 0, 160, 224))
+	check()
+	app.SetLayout(LayoutList)
+	check()
+	app.SetLayout(LayoutShelf)
+	check()
+	decorate = func(snap *Snapshot) {
+		snap.Settings.Rows[0].Value = "Changed setting"
+		snap.Settings.Status = "Changed settings status"
+		snap.Settings.Rows = snap.Settings.Rows[:3]
+		snap.Room = RoomSnapshot{Open: true, Width: 1280, Height: 720, Frame: rooms.Frame{HasClear: true, Clear: gfx.RGB(1, 2, 3), Ops: []rooms.Op{{Kind: rooms.OpRect, X: float32(snap.Settings.Index * 10), Y: 100, W: 40, H: 40, Color: gfx.RGB(255, 0, 0)}}}}
+	}
+	check()
+	check()
+	app.settingsIndex = 1
+	check()
+	decorate = nil
 	check()
 	app.HandleCommand(CmdBack, time.Now())
 	check()
