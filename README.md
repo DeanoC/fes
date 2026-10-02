@@ -119,8 +119,8 @@ Run the host with an explicit local configuration:
 out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --listen 127.0.0.1:8787
 ```
 
-The native image installs the ordered playable package set: Pong, Sinclair ZX81, ColecoVision and
-RAM Tester (OSS 100 MHz). Menu supplies the idle display and is not
+The native image installs the ordered playable package set: Pong, Sinclair ZX81, ColecoVision, Sega Master System,
+Sega SG-1000, ZX Spectrum 48K and RAM Tester (OSS 100 MHz). Menu supplies the idle display and is not
 a playable library entry. These packages use the package/library lifecycle. The image
 does not promise generalized/custom RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. `linux.img` is the target root
