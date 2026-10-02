@@ -89,21 +89,18 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 	service.targets = []TargetConfig{{Name: "kit", Enabled: true, TargetID: kitID, Address: server.URL, Agent: "fixture-token"}}
 	service.meshHTTP = client
 	service.meshNodes = []MeshNode{{NodeID: kitID, TargetID: kitID, Address: server.URL, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities()}}
-	if service.meshEnsure || service.meshPlacement {
-		t.Fatalf("ensure=%v placement=%v", service.meshEnsure, service.meshPlacement)
+	if service.meshEnsure || service.meshPlacement || len(service.placementNodes) != 0 || len(service.libraryNodes) != 0 {
+		t.Fatalf("ensure=%v placement=%v placement_cache=%d library_cache=%d", service.meshEnsure, service.meshPlacement, len(service.placementNodes), len(service.libraryNodes))
 	}
-	// A sanctioned placement read fills the cache. The library GET below
-	// must reuse it and must not dial again.
-	if _, pkgs := service.placementNodeFacts(ctx, kitID); len(pkgs) != 1 {
-		t.Fatalf("placement cache %v", pkgs)
-	}
+	// Unseeded GET: placement is off and both caches are empty. The
+	// configured kit answers, and the FPGA row is available.
+	rows, skipped := service.MeshBackendLibrary(ctx)
 	seeded := kitReads.Load()
 	if seeded == 0 {
-		t.Fatal("placement did not read the enrolled origin")
+		t.Fatal("unseeded library read did not dial the configured origin")
 	}
-	rows, skipped := service.MeshBackendLibrary(ctx)
-	if kitReads.Load() != seeded {
-		t.Fatalf("library read dialed the kit: before=%d after=%d", seeded, kitReads.Load())
+	if len(service.placementNodes) != 0 {
+		t.Fatal("library read wrote placement's cache")
 	}
 	// Same ROM sha256 and system: one row under the package game id, with the
 	// kit FPGA option and the host-local emulator option.
@@ -120,6 +117,10 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 	}
 	if emuOpt.Entry.TitleID != romID || emuOpt.Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || !emuOpt.HostLocal || emuOpt.Reason != "" {
 		t.Fatalf("emulator option=%+v", emuOpt)
+	}
+	cachedRows, cachedSkipped := service.MeshBackendLibrary(ctx)
+	if kitReads.Load() != seeded || len(cachedSkipped) != 0 || len(cachedRows) != 1 || !cachedRows[0].Options[0].Nodes[0].Available {
+		t.Fatalf("library cache missed: reads=%d seeded=%d rows=%+v skipped=%+v", kitReads.Load(), seeded, cachedRows, cachedSkipped)
 	}
 	library, err := MeshLibraryTitles(rows)
 	if err != nil {
@@ -180,6 +181,79 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 	core := backendRow(t, rows, coreID)
 	if core.Options[0].Reason != "no compatible executor in inventory" || len(core.Options[0].Nodes) != 1 || core.Options[0].Nodes[0].Reason != "package unavailable on node" {
 		t.Fatalf("without package facts: core=%+v", core)
+	}
+}
+
+// An unseeded library read, with placement off and no cached node
+// document, still loads package and ABI facts from the configured
+// [[targets]] address. The discovered origin is a different server and
+// receives no Authorization header.
+func TestMeshBackendLibraryUnseededConfiguredRead(t *testing.T) {
+	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	const title = "Data Storm 1.00"
+	const kitID = "01234567-89ab-cdef-0123-456789abcdef"
+	ctx := context.Background()
+	archive := sizedSetupArchive(t, "fes.sms", 32768)
+	packageRoot := t.TempDir()
+	if err := os.Chmod(packageRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	packages, err := corepackage.NewStore(packageRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection, _, err := packages.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreID := catalog.GameID(catalog.CorePlatform, "core-packages", "fes.sms\x00"+title, title)
+	coreGame := catalog.Game{ID: coreID, Title: title, System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true}
+	cat := &backendCatalog{fakeServiceCatalog: &fakeServiceCatalog{games: []catalog.Game{coreGame}}, entry: catalog.CoreEntry{GameID: coreID, Title: title, CoreID: "fes.sms", PackageID: inspection.PackageID, MediaRole: "blob", MediaID: media}}
+	service := newService(Config{}, Paths{}, cat, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	service.corePackages = packages
+	var configuredHits atomic.Int32
+	configured := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		configuredHits.Add(1)
+		if r.URL.Path != "/v1/mesh/content/node" || r.Header.Get("Authorization") != "Bearer fixture-token" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"node_id": kitID, "abis": []map[string]any{{"id": inspection.Descriptor.ABI.ID, "major": inspection.Descriptor.ABI.Major}}, "packages": []string{inspection.PackageID}})
+	}))
+	defer configured.Close()
+	var discoveredAuth atomic.Int32
+	discovered := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			discoveredAuth.Add(1)
+		}
+		http.Error(w, "discovered origin", http.StatusForbidden)
+	}))
+	defer discovered.Close()
+	service.meshHTTP = &http.Client{Transport: &libraryHostSwitch{
+		configuredHost: strings.TrimPrefix(configured.URL, "http://"),
+		configured:     configured.Client().Transport,
+		discoveredHost: strings.TrimPrefix(discovered.URL, "http://"),
+		discovered:     discovered.Client().Transport,
+		discoveredAuth: &discoveredAuth,
+	}}
+	service.targets = []TargetConfig{{Name: "kit", Enabled: true, TargetID: kitID, Address: configured.URL, Agent: "fixture-token"}}
+	service.meshNodes = []MeshNode{{NodeID: kitID, TargetID: kitID, Address: discovered.URL, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities()}}
+	if service.meshPlacement || len(service.placementNodes) != 0 || len(service.libraryNodes) != 0 {
+		t.Fatalf("placement=%v placement_cache=%d library_cache=%d", service.meshPlacement, len(service.placementNodes), len(service.libraryNodes))
+	}
+	rows, skipped := service.MeshBackendLibrary(ctx)
+	if configuredHits.Load() == 0 || discoveredAuth.Load() != 0 {
+		t.Fatalf("configured_hits=%d discovered_auth=%d", configuredHits.Load(), discoveredAuth.Load())
+	}
+	if len(skipped) != 0 || len(rows) != 1 || len(rows[0].Options) != 1 || !rows[0].Options[0].Nodes[0].Available || rows[0].Options[0].Nodes[0].NodeID != kitID {
+		t.Fatalf("unseeded rows=%+v skipped=%+v", rows, skipped)
+	}
+	if len(service.placementNodes) != 0 || len(service.libraryNodes) != 1 {
+		t.Fatalf("placement cache=%d library cache=%d", len(service.placementNodes), len(service.libraryNodes))
+	}
+	hits := configuredHits.Load()
+	if _, skipped = service.MeshBackendLibrary(ctx); configuredHits.Load() != hits || discoveredAuth.Load() != 0 || len(skipped) != 0 {
+		t.Fatalf("second GET hammered the kit: configured=%d discovered_auth=%d skipped=%+v", configuredHits.Load(), discoveredAuth.Load(), skipped)
 	}
 }
 
@@ -256,6 +330,37 @@ func TestMeshBackendLibraryTwoNodeProjection(t *testing.T) {
 	duplicate, _ := ProjectMeshBackendLibrary(lib, []MeshNode{kit, reconnected, emu}, false, packages, abis)
 	if got := backendRow(t, duplicate, fpga.Game.ID); got.Options[0].Nodes[0].Available || got.Options[0].Nodes[1].Available {
 		t.Fatalf("duplicate=%+v", got)
+	}
+}
+
+// libraryHostSwitch sends a library dial to the server for that host.
+// A discovered origin and the configured origin stay distinct, so a
+// bearer sent to the wrong one is visible on discoveredAuth.
+type libraryHostSwitch struct {
+	configuredHost string
+	configured     http.RoundTripper
+	discoveredHost string
+	discovered     http.RoundTripper
+	discoveredAuth *atomic.Int32
+}
+
+func (h *libraryHostSwitch) RoundTrip(r *http.Request) (*http.Response, error) {
+	switch r.URL.Host {
+	case h.configuredHost:
+		if h.configured == nil {
+			return nil, fmt.Errorf("no configured transport")
+		}
+		return h.configured.RoundTrip(r)
+	case h.discoveredHost:
+		if r.Header.Get("Authorization") != "" && h.discoveredAuth != nil {
+			h.discoveredAuth.Add(1)
+		}
+		if h.discovered == nil {
+			return nil, fmt.Errorf("no discovered transport")
+		}
+		return h.discovered.RoundTrip(r)
+	default:
+		return nil, fmt.Errorf("refusing %s", r.URL.Host)
 	}
 }
 

@@ -87,8 +87,9 @@ type MeshBackendNode struct {
 // report Ready. Content-source node ids stay empty until #396. A
 // native_emu inventory node is not dialed: remote eligibility waits on
 // #298 and the runner prerequisites, and this method sends no bearer.
-// FPGA package facts come only from placement's cache. A miss leaves
-// the node unavailable and does not read a discovered address.
+// FPGA package facts come from a read of the configured [[targets]]
+// address, cached on this path. A miss leaves the node unavailable.
+// The read does not use a discovered or reconciled address.
 func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []MeshSkip) {
 	if s == nil || s.catalog == nil {
 		return nil, nil
@@ -135,12 +136,11 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 		for _, execute := range node.Capabilities.Execute {
 			fpga = fpga || execute.Kind == meshcontent.ExecuteFPGANative
 		}
-		// Package facts are whatever placement already cached. This GET
-		// does not start a node-document read, so it cannot send the
-		// agent token to a discovered or reconciled address. A native_emu
-		// node is not a kit content read either.
+		// Package facts are read at the enrolled origin, or reused from
+		// this path's cache. The dial never uses a discovered or
+		// reconciled address. A native_emu node is not a kit content read.
 		if fpga {
-			abis[node.NodeID], packages[node.NodeID] = s.libraryPlacementFacts(node.NodeID)
+			abis[node.NodeID], packages[node.NodeID] = s.libraryNodeFacts(ctx, node.NodeID)
 		}
 	}
 	rows, projectedSkipped := ProjectMeshBackendLibrary(lib, nodes, retained, packages, abis)

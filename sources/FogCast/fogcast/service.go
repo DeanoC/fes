@@ -207,7 +207,11 @@ type Service struct {
 	meshPlacement       bool
 	// placementNodes caches the node document reads placement uses for
 	// fpga_native eligibility. The key is the node id.
-	placementNodes   map[string]placementNodeRead
+	placementNodes map[string]placementNodeRead
+	// libraryNodes caches node-document reads GET /api/v1/library/titles
+	// made at the configured [[targets]] address. It is not placement's
+	// cache. The key is the node id.
+	libraryNodes     map[string]placementNodeRead
 	meshEnsureConfig bool
 	meshEnsure       bool
 	meshHTTP         *http.Client

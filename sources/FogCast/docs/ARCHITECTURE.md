@@ -1376,11 +1376,12 @@ in as its emulator option; with more rows, package rows come first, then
 the lowest game id. A different hash (a patched ROM) or system never links,
 and catalog rows are not rewritten. Each option keeps its source game id.
 It keeps host-local and sourced options distinct, deduplicates
-repeated content ids, and annotates observed node candidates. The library projection uses package and ABI facts only when placement
-has already cached that node's document. `GET /api/v1/library/titles`
-does not start a node-document read and does not send the agent token
-to a discovered or reconciled address. Without a fresh cache entry the
-FPGA candidate stays unavailable (`package unavailable on node`). A missing, retained, conflicting, or mesh-major-incompatible
+repeated content ids, and annotates observed node candidates. The library projection reads package and ABI facts from the configured
+`[[targets]]` address, the enrolled origin as written in config. That
+read is cached on the library path and times out with the placement
+node-document deadline. `GET /api/v1/library/titles` does not send the
+agent token to a discovered or reconciled address. A failed or missing
+read leaves the FPGA candidate unavailable (`package unavailable on node`). A missing, retained, conflicting, or mesh-major-incompatible
 advertisement is unavailable. A `native_emu` advertisement remains
 unverified for remote execution because the current capability bag has no
 supported-system or emulator-version fact. The host-local `host_only`
