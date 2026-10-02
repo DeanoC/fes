@@ -84,6 +84,7 @@ package_words=$(printf '%s' "$package_ids" | tr ',' ' ')
 package_count=$(printf '%s' "$package_ids" | awk -F, '{print NF}')
 package_id_for() {
   case "$1" in
+    fes.ramtest) package_id=4444444444444444444444444444444444444444444444444444444444444444 ;;
     fes.menu) package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
     fes.pong) package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
     fes.zx81) package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
@@ -117,6 +118,8 @@ package_id = '$package_id'
 EOF
   chmod 0444 "$selection"
   case "$core_id" in
+    fes.ramtest)
+      export FES_RAMTEST_PACKAGE_DIR=$package FES_RAMTEST_PACKAGE_SELECTION=$selection ;;
     fes.menu)
       export FES_MENU_PACKAGE_DIR=$package FES_MENU_PACKAGE_SELECTION=$selection ;;
     fes.pong)
@@ -299,6 +302,7 @@ for variable in FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION \
   FES_SMS_PACKAGE_DIR FES_SMS_PACKAGE_SELECTION \
   FES_SG1000_PACKAGE_DIR FES_SG1000_PACKAGE_SELECTION \
   FES_C64_PACKAGE_DIR FES_C64_PACKAGE_SELECTION \
+  FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION \
   FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION; do
   grep -Fq "$variable" "$repo/Makefile"
 done

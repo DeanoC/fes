@@ -123,6 +123,14 @@ def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
     )
 
 
+def _require_clean_source(root, *, identity_version=2):
+    return board._require_clean_source(root, pinned_inputs=inputs_for(100), identity_version=identity_version)
+
+
+def _authenticate_tools(root, *, cache_root=None):
+    return authenticate_for(root, 100, cache_root)
+
+
 def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], *, memory_mhz: int) -> dict:
     return {
         "format": 1, "repository": repository, "revision": revision,
@@ -142,7 +150,7 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
 
 
 @guard_functional_source
-def create_build_record(root, repository, revision, identities, *, memory_mhz, identity_version=2, execution=None):
+def create_build_record(root, repository, revision, identities, *, memory_mhz=100, identity_version=2, execution=None):
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
     return encode_build_record(functional_record_fields(
@@ -209,7 +217,7 @@ def require_clean_source(root, pinned_inputs):
 
 
 @guard_functional_source
-def build(root: Path = ROOT, package_store=None, *, memory_mhz, cache_root: Path | None = None, identity_version=2, gpu_device=0) -> Path:
+def build(root: Path = ROOT, package_store=None, *, memory_mhz=100, cache_root: Path | None = None, identity_version=2, gpu_device=0) -> Path:
     root = Path(root).resolve()
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
@@ -282,9 +290,12 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu-device", type=int, default=0)
-    parser.add_argument("--memory-mhz", type=int, choices=(100, 130), required=True)
+    parser.add_argument("--memory-mhz", type=int, choices=(100, 130), default=100)
+    parser.add_argument("--package-output", type=Path)
+    parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     args = parser.parse_args()
-    print(build(args.root, cache_root=args.cache_root, gpu_device=args.gpu_device,
+    print(build(args.root, package_store=args.package_output, cache_root=args.cache_root,
+                identity_version=args.identity_version, gpu_device=args.gpu_device,
                 memory_mhz=args.memory_mhz))
     return 0
 

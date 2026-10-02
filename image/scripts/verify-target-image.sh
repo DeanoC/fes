@@ -99,6 +99,7 @@ inspection_package_id() {
 				fes.sg1000) package_selection_path=${FES_SG1000_PACKAGE_SELECTION:-} ;;
 				fes.c64) package_selection_path=${FES_C64_PACKAGE_SELECTION:-} ;;
 				fes.spectrum) package_selection_path=${FES_SPECTRUM_PACKAGE_SELECTION:-} ;;
+				fes.ramtest) package_selection_path=${FES_RAMTEST_PACKAGE_SELECTION:-} ;;
 				*) return 1 ;;
 			esac
 			[ -f "$package_selection_path" ] && [ ! -L "$package_selection_path" ] || return 1

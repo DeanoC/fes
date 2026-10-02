@@ -116,8 +116,10 @@ before it listed only command port 2 and data port 3. The OSS recipe checks
 that the synthesized fpga2sdram cell carries the generated layout constants.
 Each rate seals a package into `build/fes-ramtest-100/` or
 `build/fes-ramtest-130/`; its timing report covers the memory, capture and
-74.25 MHz video domains. Direct recipe invocation requires `--memory-mhz 100`
-or `--memory-mhz 130`.
+74.25 MHz video domains. FES registers and ships the OSS 100 MHz variant as a standard catalog
+utility. Direct recipe invocation defaults to `--memory-mhz 100`;
+`--memory-mhz 130` requests the separate higher-rate build. The default
+retains timing signoff; the open 130 MHz timing work does not block shipment.
 
 The build ID hashes the source revision, so each commit synthesises a slightly
 different netlist. The seal therefore routes `PLACER_SEEDS` in turn and keeps

@@ -228,7 +228,7 @@ from pathlib import Path
 from scripts.fes_build_common import _authenticate_tools as default_authenticate
 producer = importlib.import_module(sys.argv[1])
 assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
-locks = [value for name, value in vars(producer).items() if name.endswith("_TOOLCHAIN_LOCK")]
+locks = [value for name, value in vars(producer).items() if name == "TOOLCHAIN_LOCK" or name.endswith("_TOOLCHAIN_LOCK")]
 authenticate = getattr(producer, sys.argv[2])
 # A scoped socket compiler does not replace the shared authenticator's
 # default lock used by the ordinary ZX81 recipe.
