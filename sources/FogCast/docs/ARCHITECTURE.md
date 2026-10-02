@@ -2591,6 +2591,13 @@ for the exact tested package and software.
 
 ### Local core publication
 
+The systems catalog reports a package as installed only when its declared video
+companion mappings also match. A previously imported base shell with missing
+companions remains available for the ordinary Install action, which imports the
+pair without programming the target. Conflicting mappings still require repair;
+install does not replace them. Complete cached installs remain installed when
+the original publication archive becomes unavailable.
+
 FES publishes the ROM-less `fes.ramtest` utility in the standard catalog and
 selects its OSS 100 MHz package for the factory image. The image selector
 admits it through the same sealed package path; the kit-local installed-core

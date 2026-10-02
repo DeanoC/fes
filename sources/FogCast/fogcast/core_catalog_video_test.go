@@ -179,6 +179,49 @@ func TestCoreCatalogVideoInstallFeedsOrdinaryPlay(t *testing.T) {
 	}
 }
 
+func TestCoreCatalogVideoExistingBaseRemainsInstallableUntilCompanionsMatch(t *testing.T) {
+	for _, partial := range []bool{false, true} {
+		t.Run(fmt.Sprintf("partial=%t", partial), func(t *testing.T) {
+			ctx := context.Background()
+			s, client, inspection, raw, assets, _ := publishedVideoFixture(t)
+			if _, _, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw)); err != nil {
+				t.Fatal(err)
+			}
+			if partial {
+				importVideoFixture(t, s, assets[0], "direct")
+			}
+			check := func(state string) {
+				t.Helper()
+				rows, err := s.AvailableCores(ctx)
+				if err != nil || len(rows) != 1 || rows[0].ArtifactState != state ||
+					rows[0].Descriptor == nil || !reflect.DeepEqual(*rows[0].Descriptor, inspection.Descriptor) {
+					t.Fatalf("inventory=%+v expected=%s err=%v", rows, state, err)
+				}
+			}
+			check("available")
+			archive := filepath.Join(filepath.Dir(s.coreCatalogPath), "core.fcore")
+			if err := os.Remove(archive); err != nil {
+				t.Fatal(err)
+			}
+			check("unavailable")
+			if err := os.WriteFile(archive, raw, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.InstallAvailableCore(ctx, "fes-first-party", "fes.coleco", inspection.PackageID); err != nil {
+				t.Fatal(err)
+			}
+			check("installed")
+			if err := os.Remove(archive); err != nil {
+				t.Fatal(err)
+			}
+			check("installed") // A complete cached install remains usable after publication removal.
+			if client.coreCalls != 0 || client.stopCalls != 0 || client.inspections != 0 {
+				t.Fatal("inventory or catalog install contacted the physical target")
+			}
+		})
+	}
+}
+
 func TestCoreCatalogVideoRejectsCompanionsBeforeImport(t *testing.T) {
 	for _, mode := range []string{"changed second archive", "wrong second part id", "CPU part", "incompatible shell", "symlink"} {
 		t.Run(mode, func(t *testing.T) {
@@ -299,7 +342,11 @@ func TestCoreCatalogVideoConflictPreservesImportedProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := importVideoFixture(t, s, assets[1], "direct")
-	_, err := s.InstallAvailableCore(ctx, "fes-first-party", "fes.coleco", inspection.PackageID)
+	rows, err := s.AvailableCores(ctx)
+	if err != nil || len(rows) != 1 || rows[0].ArtifactState != "available" || rows[0].Descriptor == nil {
+		t.Fatalf("conflicting mapping cannot claim complete installation: %+v %v", rows, err)
+	}
+	_, err = s.InstallAvailableCore(ctx, "fes-first-party", "fes.coleco", inspection.PackageID)
 	var apiErr *protocol.APIError
 	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeStaleRevision {
 		t.Fatalf("conflict=%v", err)
