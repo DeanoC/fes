@@ -75,7 +75,10 @@ def process(action, target, package=None):
                 path = destination / name
                 path.write_bytes(data)
                 path.chmod(0o444)
-            destination.chmod(0o555)
+            # Buildroot removes its copied root after filesystem creation.
+            # Keep unlink permission on this adjacent metadata directory;
+            # the closed package and both notice files remain read-only.
+            destination.chmod(0o755)
     if expected is None:
         if root.exists() or root.is_symlink():
             raise ValueError('unselected RAM Tester has installed notices')
@@ -83,7 +86,7 @@ def process(action, target, package=None):
     if root.is_symlink() or not root.is_dir() or {p.name for p in root.iterdir()} != {package.name}:
         raise ValueError('RAM Tester notices do not match selected package')
     destination = root / package.name
-    if destination.is_symlink() or not destination.is_dir() or destination.stat().st_mode & 0o777 != 0o555 or {p.name for p in destination.iterdir()} != set(expected):
+    if destination.is_symlink() or not destination.is_dir() or destination.stat().st_mode & 0o777 != 0o755 or {p.name for p in destination.iterdir()} != set(expected):
         raise ValueError('RAM Tester notices members differ')
     for name, data in expected.items():
         path = destination / name

@@ -39,6 +39,11 @@ class RamtestNoticesTest(unittest.TestCase):
         self.assertEqual({p.name for p in self.package.iterdir()}, {'manifest.toml', 'core.rbf'})
         notices.process('verify', self.target, self.package)
         notices.process('install', self.target, self.package)  # Repeated image finalization.
+        # Buildroot cleans the copied tree without changing notice file modes.
+        for path in self.destination.iterdir():
+            self.assertEqual(path.stat().st_mode & 0o777, 0o444)
+            path.unlink()
+        self.destination.rmdir()
 
     def test_missing_and_changed_notices_fail_verification(self):
         notices.process('install', self.target, self.package)
