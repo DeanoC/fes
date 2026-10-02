@@ -14,11 +14,13 @@ import (
 // gpuTexture is a Device-backed bitmap plus the CPU source used to decide
 // when to upload again. Keys "preview" and "attract" are park/teardown exceptions.
 type gpuTexture struct {
-	tex gfx.Texture
-	w   int
-	h   int
-	src *image.RGBA
-	seq int
+	tex          gfx.Texture
+	w            int
+	h            int
+	src          *image.RGBA
+	seq          int
+	labelSource  string
+	labelDisplay string
 }
 
 func presentFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture, parked bool) bool {
@@ -264,11 +266,26 @@ func drawLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]str
 	if text == "" || maxW < 1 {
 		return
 	}
-	key = labelCacheKey(key, text, maxW, sizePx)
+	// Hidden suffix changes must not upload or invalidate identical glyphs.
+	key = labelCacheKey(key, "", maxW, sizePx)
 	used[key] = struct{}{}
 	tex, ok := labels[key]
-	if !ok {
-		img := rasterizeLabel(text, maxW, sizePx)
+	if !ok || tex.labelSource != text {
+		labelMu.Lock()
+		face := labelFace(sizePx)
+		display := ""
+		if face != nil {
+			display = fitLabel(face, text, maxW)
+		}
+		if ok && tex.labelDisplay == display {
+			labelMu.Unlock()
+			tex.labelSource = text
+			labels[key] = tex
+			drawGPU(dev, tex, float32(x), float32(y), float32(tex.w), float32(tex.h))
+			return
+		}
+		img := rasterizeLabelWithFace(face, display, maxW, sizePx)
+		labelMu.Unlock()
 		if img == nil {
 			delete(used, key)
 			return
@@ -278,7 +295,11 @@ func drawLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]str
 			delete(used, key)
 			return
 		}
+		if ok {
+			dev.Destroy(tex.tex)
+		}
 		tex = uploaded
+		tex.labelSource, tex.labelDisplay = text, display
 		labels[key] = tex
 	}
 	drawGPU(dev, tex, float32(x), float32(y), float32(tex.w), float32(tex.h))

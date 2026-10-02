@@ -17,6 +17,7 @@ const axisDeadzone int32 = 8000
 // framebuffer enablement, controller capture, or the target session lease.
 type Model struct {
 	Catalog                                                         []hostclient.Game
+	wheelSummaries                                                  map[string]wheelSummary
 	Games                                                           []hostclient.Game
 	Shelves                                                         []string
 	Shelf                                                           string

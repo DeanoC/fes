@@ -17,6 +17,73 @@ type WheelItem struct {
 	Count int
 }
 
+// Summaries belong to the catalog revision, not the presentation tick.
+type wheelSummary struct {
+	count               int
+	plays               int64
+	first, launch, last int
+	lastAt              int64
+}
+
+func emptyWheelSummary() wheelSummary {
+	return wheelSummary{first: -1, launch: -1, last: -1}
+}
+
+func (s *wheelSummary) add(game *hostclient.Game, i int) {
+	if s.count == 0 {
+		s.first = i
+	}
+	s.count++
+	if s.launch < 0 && game.Launchable {
+		s.launch = i
+	}
+	if game.PlayCount > 0 {
+		s.plays += game.PlayCount
+	}
+	if game.LastPlayedAt > s.lastAt {
+		s.lastAt, s.last = game.LastPlayedAt, i
+	}
+}
+
+func (m *Model) rebuildWheelSummaries() {
+	all := emptyWheelSummary()
+	m.wheelSummaries = make(map[string]wheelSummary, len(m.Shelves))
+	for i := range m.Catalog {
+		game := &m.Catalog[i]
+		all.add(game, i)
+		shelf := strings.ToLower(strings.TrimSpace(game.System))
+		if shelf == "" || shelf == ShelfAll {
+			continue
+		}
+		summary, ok := m.wheelSummaries[shelf]
+		if !ok {
+			summary = emptyWheelSummary()
+		}
+		summary.add(game, i)
+		m.wheelSummaries[shelf] = summary
+	}
+	m.wheelSummaries[ShelfAll] = all
+}
+
+func (m Model) wheelSummary(shelf string) wheelSummary {
+	shelf = normalizeShelf(shelf)
+	if m.wheelSummaries != nil {
+		if summary, ok := m.wheelSummaries[shelf]; ok {
+			return summary
+		}
+		return emptyWheelSummary()
+	}
+	// Models constructed directly by embedders also work without SetCatalog.
+	summary := emptyWheelSummary()
+	for i := range m.Catalog {
+		game := &m.Catalog[i]
+		if shelf == ShelfAll || strings.EqualFold(strings.TrimSpace(game.System), shelf) {
+			summary.add(game, i)
+		}
+	}
+	return summary
+}
+
 func (m *Model) inputWheel(e remoteinput.Event, dx, dy int, now time.Time) string {
 	if significantPad(e, dx, dy) {
 		m.noteActivity(now)
@@ -94,12 +161,12 @@ func (m Model) WheelIndex() int {
 func (m Model) WheelItems() []WheelItem {
 	items := make([]WheelItem, 0, len(m.Shelves))
 	for _, id := range m.Shelves {
-		games := filterGames(m.Catalog, id)
+		count := m.wheelSummary(id).count
 		label := strings.ToUpper(id)
 		if id == ShelfAll {
 			label = "ALL"
 		}
-		items = append(items, WheelItem{ID: id, Label: label, Count: len(games)})
+		items = append(items, WheelItem{ID: id, Label: label, Count: count})
 	}
 	return items
 }
@@ -130,32 +197,18 @@ func (m Model) WheelStats() string {
 
 // WheelPlayCount sums admitted play_count values on the focused shelf.
 func (m Model) WheelPlayCount() int64 {
-	var n int64
-	for _, game := range filterGames(m.Catalog, m.activeShelf()) {
-		if game.PlayCount > 0 {
-			n += game.PlayCount
-		}
-	}
-	return n
+	return m.wheelSummary(m.activeShelf()).plays
 }
 
 // WheelLastPlayed is the shelf title with the newest last_played_at, else the
 // first recents row on that shelf. Empty when the host has not admitted either.
 func (m Model) WheelLastPlayed() (hostclient.Game, bool) {
-	var best hostclient.Game
-	var at int64
-	found := false
-	for _, game := range filterGames(m.Catalog, m.activeShelf()) {
-		if game.LastPlayedAt > at {
-			at = game.LastPlayedAt
-			best = game
-			found = true
-		}
-	}
-	if found {
-		return best, true
-	}
 	shelf := m.activeShelf()
+	summary := m.wheelSummary(shelf)
+	if summary.last >= 0 {
+		return m.Catalog[summary.last], true
+	}
+
 	for _, game := range m.Recents {
 		if shelf != ShelfAll && !strings.EqualFold(strings.TrimSpace(game.System), shelf) {
 			continue
@@ -183,14 +236,12 @@ func (m Model) WheelFeaturedTitle() string {
 
 // WheelGame is the first launchable title on shelf, else the first row.
 func (m Model) WheelGame(shelf string) (hostclient.Game, bool) {
-	games := filterGames(m.Catalog, shelf)
-	for _, game := range games {
-		if game.Launchable {
-			return game, true
-		}
+	summary := m.wheelSummary(shelf)
+	if summary.launch >= 0 {
+		return m.Catalog[summary.launch], true
 	}
-	if len(games) > 0 {
-		return games[0], true
+	if summary.first >= 0 {
+		return m.Catalog[summary.first], true
 	}
 	return hostclient.Game{}, false
 }
