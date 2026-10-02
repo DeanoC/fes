@@ -25,6 +25,35 @@ func (s *libraryTitlesService) MeshBackendLibrary(context.Context) ([]fogcast.Me
 	return s.rows, s.skipped
 }
 
+func TestLibraryTitlesUsesServiceContract(t *testing.T) {
+	media := strings.Repeat("cd", 32)
+	id, err := meshcontent.ParseContentID("sha256:" + media)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const titleID = "sms-contract-cart"
+	var service hostapi.Service = &libraryTitlesService{rows: []fogcast.MeshBackendRow{{
+		TitleID: titleID, System: "sms", ContentIDs: []meshcontent.ContentID{id},
+		ContentSources: []fogcast.MeshContentSource{{ContentID: id, NodeIDs: []string{}}},
+		Options: []fogcast.MeshBackendOption{{
+			Entry: meshcontent.Entry{
+				TitleID: titleID, System: "sms",
+				Execute: []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
+				Slots:   []meshcontent.Slot{meshcontent.PrimaryMediaSlot(id)},
+			},
+			HostLocal: true,
+		}},
+	}}}
+	rows, skipped := service.MeshBackendLibrary(context.Background())
+	if len(rows) != 1 || rows[0].TitleID != titleID || len(skipped) != 0 {
+		t.Fatalf("contract rows=%+v skipped=%+v", rows, skipped)
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/library/titles")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), titleID) {
+		t.Fatalf("route dropped the projection: %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestLibraryTitlesRoute(t *testing.T) {
 	media := strings.Repeat("ab", 32)
 	id, err := meshcontent.ParseContentID("sha256:" + media)

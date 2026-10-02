@@ -75,6 +75,9 @@ type fakeService struct {
 	playSessions           []fogcast.PlaySession
 }
 
+func (s *fakeService) MeshBackendLibrary(context.Context) ([]fogcast.MeshBackendRow, []fogcast.MeshSkip) {
+	return nil, nil
+}
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
 	return append([]catalog.Game(nil), s.games...), s.gamesErr
 }

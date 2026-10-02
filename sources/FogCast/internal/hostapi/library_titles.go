@@ -1,7 +1,6 @@
 package hostapi
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/DeanoC/FogCast/fogcast"
@@ -19,14 +18,7 @@ func registerLibraryTitles(mux *http.ServeMux, service Service) {
 // id the wire parser rejects fails the response the same way. The route
 // does not launch and does not report Ready. A query string is not a filter.
 func handleLibraryTitles(w http.ResponseWriter, r *http.Request, service Service) {
-	provider, ok := service.(interface {
-		MeshBackendLibrary(context.Context) ([]fogcast.MeshBackendRow, []fogcast.MeshSkip)
-	})
-	if !ok {
-		writeLibraryTitles(w, nil)
-		return
-	}
-	rows, skipped := provider.MeshBackendLibrary(r.Context())
+	rows, skipped := service.MeshBackendLibrary(r.Context())
 	for _, skip := range skipped {
 		if skip.Reason == fogcast.MeshSkipCatalogUnavailable {
 			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
