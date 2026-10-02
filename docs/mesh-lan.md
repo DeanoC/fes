@@ -175,19 +175,25 @@ two-node software-runner acceptance is complete.
 | Concern | Implemented today | M1 contract / remaining gap |
 | --- | --- | --- |
 | **Capability/version** | Kit DNS-SD advertises mesh `1.0`, `fpga_native`, `display_sink`, and `input_source`; no ABI families in TXT. Host placement reads ABI families from the authenticated kit content document. The host `/api/v1/health` also reports mesh `1.0` and configured `native_emu` core/system identity, configured core version label, and observed SHA-256. The version is copied from config; FogCast does not query RetroArch for it. See `sources/FogCast/internal/discovery/mesh.go`, `fogcast/mesh_place_wire.go`, and the health handler. | Mesh major mismatch is ineligible; unknown optional minor fields are ignored. The software capability is visible from the host health response, but host-to-host discovery/pairing and federated placement are not implemented. Do not advertise shell/catalog/coordinator unless the node actually serves them. |
-| **Title/backend** | Catalog entries preserve `game_id`; host execution uses `host_only` with the host RetroArch adapter, while FPGA uses `fpga_native`. `Service.MeshBackendLibrary` projects the local catalog and kit inventory. It groups options by catalog game id and links rows at read time when the ROM sha256 and system match exactly: the package row's game id is canonical and the raw ROM folds in as its emulator option (more rows: package first, then lowest game id; a hash or system mismatch never links). Local Data Storm is one row with the kit `fes.sms` option and the host-local emulator option. The projection does not claim session Ready. See `fogcast/mesh_library.go` and `internal/meshcontent/content.go`. | **Proposed:** publish the combined library with source provenance and select one backend explicitly per session. The wire, provenance, content-id lock, and remote `native_emu` eligibility that were **GAP #360** and **GAP #361** are **PROPOSED (needs Deano/Bob sign-off)** in [Combined library contract (#379)](#combined-library-contract-379). They are not implemented. Remote options stay unavailable until that sign-off and until #298 plus the decision 4 enrollment prerequisites. |
+| **Title/backend** | Catalog entries preserve `game_id`; host execution uses `host_only` with the host RetroArch adapter, while FPGA uses `fpga_native`. `Service.MeshBackendLibrary` projects the local catalog and kit inventory. It groups options by catalog game id and links rows at read time when the ROM sha256 and system match exactly: the package row's game id is canonical and the raw ROM folds in as its emulator option (more rows: package first, then lowest game id; a hash or system mismatch never links). Local Data Storm is one row with the kit `fes.sms` option and the host-local emulator option. The projection does not claim session Ready. `GET /api/v1/library/titles` serves that projection. `content_sources` node ids stay empty until #396, and a remote `native_emu` node stays unverified. See `fogcast/mesh_library.go` and `internal/meshcontent/content.go`. | **Proposed:** publish the combined library with source provenance and select one backend explicitly per session. The wire, provenance, content-id lock, and remote `native_emu` eligibility that were **GAP #360** and **GAP #361** are the contract in [Combined library contract (#379)](#combined-library-contract-379). Phase 2 serves the route. Source provenance waits on #396. Remote `native_emu` eligibility stays unavailable until #298 plus the decision 4 enrollment prerequisites. |
 | **Node identity/pairing** | Kit identity is its existing persistent `target_id`; DNS-SD repeats it as `node_id`. Host reconciles discovery with configured targets and authenticated health. The launcher listener supports per-`target_id` credentials after #287; this is not the proposed user pairing flow. See `fogcast/discovery.go`, `internal/discovery/mesh.go`, `docs/mesh-vnext.md` §2.1, and `internal/hostapi/launcher.go`. | **Proposed:** the kit keeps that ID through capability changes. A software runner's `software_backends` are read on that runner's launcher listener with a launcher pairing bearer, and only at the origin recorded at pairing. The bearer is bound to a host node id (#298 item 2). Runner admission and provisioning are further prerequisites in decision 4. This proposal implements none of them, and remote `native_emu` stays unavailable until #298 and those prerequisites. Do not add a permanent Host/Kit identity enum. The v-next PAKE flow is proposed, not implemented. Decision 4 is the contract. |
 | **Availability** | Inventory expiry removes a node from a future placement choice but does not release its lease. Room states are Checking/Missing/Needs a choice/Unavailable/Ready. Lease and target health are separate. See `internal/discovery/mesh.go`, `fogcast/mesh_ready.go`, FogCast `docs/rooms-experience.md`. | **Proposed:** report Checking while capability, backend, composition, or required content is unresolved; Ready only for the selected usable execution option; otherwise Unavailable with reason. Software-runner health/readiness and honest UI across both nodes are **GAP #359/#360/#362**. |
 | **Ownership/admission** | Kit agent lease is 90 seconds, renewed every 20 seconds; target client mutations use that grant. Busy kit launches reject. No second FPGA lease exists. See `docs/kit-sharing.md`, `sources/FogCast/targetclient/kit_lease.go`, `fogcast/mesh_lease_acquire_test.go`. | **Proposed:** each executor session has one owner; admission checks the existing kit lease for FPGA and an equivalent single-session owner on a software runner. Discovery TTL is not ownership. Do not create a second FPGA lease. Independent per-node session/input/Stop and race/failure acceptance remain **GAP #363**. |
 
 ### Combined library contract (#379)
 
-**PROPOSED (needs Deano/Bob sign-off).** Phase 1 of #379 records the
-four decisions below. Nothing in this section is implemented. Phase 2,
-after sign-off, extends `ProjectMeshBackendLibrary` and adds the tests
-named here. There is no second inventory and no second discovery path.
-`[mesh] ensure` and `[mesh] placement` stay default off. The same four
-decisions are the wire rules in
+**Approved contract, phase 2 in progress.** Phase 1 of #379 records the
+four decisions below. Phase 2 serves decision 1 from
+`ProjectMeshBackendLibrary` at `GET /api/v1/library/titles`. There is
+no second inventory and no second discovery path. Decision 2 provenance
+waits on #396: `content_sources[].node_ids` is present and empty, and
+this phase does not read `content_ids` from the node document. Decision
+4 remote `native_emu` eligibility waits on #298 and the runner admission
+and provisioning prerequisites. Those nodes stay unavailable with
+`remote emulator system and version unverified`. This phase does not
+read `software_backends` and does not send a bearer to a discovered or
+re-resolved address. `[mesh] ensure` and `[mesh] placement` stay
+default off. The same four decisions are the wire rules in
 [`mesh-node-protocol.md`](mesh-node-protocol.md#combined-library-contract-379).
 
 #### 1. Combined library wire shape
@@ -200,7 +206,9 @@ read on the existing host API:
 The body is a JSON view of `Service.MeshBackendLibrary`. The new fields
 are `content_sources` (decision 2), `available` derived from the
 existing reasons, and `core_id` copied from the catalog core id the
-projection already reads. The route takes no query and no body. The kit
+projection already reads. The route takes no query and no body. A query string is not a filter.
+When the local catalog cannot be read, the route returns 500 INTERNAL
+`catalog is unavailable` and does not answer `{"titles":[]}`. The kit
 launcher consumes this same route.
 Phase 2 adds it to the launcher allowlist as a paired library read
 (`launcherOperation` and `launcherPairedRead` in
@@ -313,6 +321,8 @@ catalog id. The option's nodes are the inventory nodes that advertise
 `native_emu`. Until decision 4 accepts a node's provenance, each such
 node keeps `remote emulator system and version unverified` and the
 option reason stays `no compatible executor in inventory`. The
+synthetic option is emitted only when inventory advertises `native_emu`.
+Kit-only inventory keeps the two-option document above. The
 host-local option stays as #361 built it, nested remote nodes included.
 
 ```json
@@ -472,7 +482,14 @@ canonical text. `meshcontent.ParseContentID` does not trim, does not
 downcase, and does not add a missing prefix. It rejects uppercase hex,
 an uppercase algorithm name, a bare 64-hex digest, a second colon, the
 wrong length, `sha1:` or `blake3:`, a filesystem path, and one hash of
-the whole launch.
+the whole launch. A stored slot digest is kept only when `FromSHA256`
+builds an id and `ParseContentID` accepts that id's `String()`. A
+canonical `sha256:` value already in the stored field is not coerced.
+A digest `FromSHA256` rejects, including uppercase hex, a filesystem
+path, and that prefixed wire text, skips the title with `<slot>
+digest is not a stored sha256`. A built id that `ParseContentID`
+rejects skips the title with `<slot> content id is malformed`. The
+title is not dropped without a reason.
 
 `FromSHA256` is not that parser. It accepts a bare 64-lowercase-hex
 digest the host already stores and returns a `ContentID` whose

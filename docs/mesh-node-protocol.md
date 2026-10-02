@@ -127,15 +127,22 @@ media composition, availability, and ownership must all admit before launch.
 Current kit and host-local paths are separate implementations; federated
 runner negotiation and dual-backend evidence are GAP #360/#361. The evidence
 matrix and legal test-title limits are in [`mesh-lan.md`](mesh-lan.md).
-The contract that closes those gaps is proposed in the next section and
-is not implemented.
+The contract that closes those gaps is the combined library contract
+below. Phase 2 serves `GET /api/v1/library/titles` from
+`ProjectMeshBackendLibrary`. Source provenance and remote `native_emu`
+eligibility are not implemented.
 
 ### Combined library contract (#379)
 
-**PROPOSED (needs Deano/Bob sign-off).** Phase 1 of #379 records these
-four decisions. Phase 2, after sign-off, extends
-`ProjectMeshBackendLibrary` and adds the tests named here. There is no
-second inventory and no second discovery path. `[mesh] ensure` and
+**Approved contract, phase 2 in progress.** Phase 1 of #379 records these
+four decisions. Phase 2 extends `ProjectMeshBackendLibrary` and serves
+it at `GET /api/v1/library/titles`. There is no
+second inventory and no second discovery path. Decision 2 provenance
+waits on #396, so `content_sources[].node_ids` stays empty. Decision 4
+remote `native_emu` eligibility waits on #298 and the runner admission
+and provisioning prerequisites, so those nodes stay unavailable.
+This phase does not send a bearer to a discovered or re-resolved
+address. `[mesh] ensure` and
 `[mesh] placement` stay default off. The current Data Storm projection and the phase-2 remote-option
 fragment are in [`mesh-lan.md`](mesh-lan.md#combined-library-contract-379).
 This page is the rule those examples follow. The two copies of the
@@ -148,7 +155,10 @@ the grouped view `Service.MeshBackendLibrary` already computes. No query
 and no body. The kit launcher consumes that route as a paired library
 read (bearer and `X-FogCast-Target-ID`, the same admission as
 `GET /api/v1/games`). It is not added to the mesh content reads. The
-route does not launch and does not report Ready.
+route does not launch and does not report Ready. A query string is
+not a filter. When the local catalog cannot be read, the route
+returns 500 INTERNAL `catalog is unavailable` and does not answer
+`{"titles":[]}`.
 
 | Field | Rule |
 | --- | --- |
@@ -187,6 +197,8 @@ catalog id. The option's nodes are the inventory nodes that advertise
 `native_emu`. Until decision 4 accepts a node's provenance, the node
 reason stays `remote emulator system and version unverified` and the
 option reason stays `no compatible executor in inventory`. The
+synthetic option is emitted only when inventory advertises
+`native_emu`. Kit-only inventory keeps the two-option document. The
 host-local option stays as #361 built it, nested remote nodes included.
 That extra option is the phase-2 fragment in `mesh-lan.md`. Paths,
 bytes, tokens, and `ready_here` are not fields. Skipped titles are not
@@ -310,7 +322,13 @@ uppercase algorithm, a bare digest, a second colon, the wrong length,
 any other algorithm name, and a filesystem path. It does not trim, it
 does not downcase, and it does not add a missing prefix. One hash of
 the whole launch is rejected by the catalog shape, as it is today. A
-title id must not parse as a content-id.
+title id must not parse as a content-id. A stored slot digest is kept
+only when `FromSHA256` builds an id and `ParseContentID` accepts that
+id's `String()`. A canonical `sha256:` value already in the stored
+field is not coerced. A digest `FromSHA256` rejects skips the title
+with `<slot> digest is not a stored sha256`. A built id that
+`ParseContentID` rejects skips the title with `<slot> content id is
+malformed`. The title is not dropped without a reason.
 
 `FromSHA256` accepts a bare 64-lowercase-hex digest and builds the
 prefixed id (`String()` is `sha256:` plus that digest). It rejects
