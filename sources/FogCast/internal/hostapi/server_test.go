@@ -69,6 +69,7 @@ type fakeService struct {
 	sessionTarget          string
 	sessionTargetID        string
 	launchTarget           string
+	connection             fogcast.TargetConnection
 	playSessions           []fogcast.PlaySession
 }
 
@@ -85,6 +86,7 @@ func (s *fakeService) SessionExecution(context.Context, string) (string, error) 
 func (s *fakeService) SessionTarget() (string, string) {
 	return s.sessionTarget, s.sessionTargetID
 }
+func (s *fakeService) TargetConnection() fogcast.TargetConnection { return s.connection }
 func (s *fakeService) PlaySessions() []fogcast.PlaySession {
 	return s.playSessions
 }
@@ -532,6 +534,26 @@ func TestSessionLaunchAndStopUseOnlyGameIDAndExposeProgress(t *testing.T) {
 	handler.ServeHTTP(stopResponse, stop)
 	if stopResponse.Code != http.StatusOK || !strings.Contains(stopResponse.Body.String(), `"state":"idle"`) {
 		t.Fatalf("stop response = %d %s", stopResponse.Code, stopResponse.Body.String())
+	}
+}
+
+func TestSessionLaunchReportsUnavailableSoftwareCoreAs503(t *testing.T) {
+	service := &fakeService{launchErr: &protocol.APIError{Code: protocol.CodeUnavailable, Message: "configured software emulator core is unavailable"}}
+	handler := hostapi.New(service)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"sms-datastorm"}`))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"code":"UNAVAILABLE"`) {
+		t.Fatalf("launch response = %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestSessionIdleResponseIncludesDisconnectedKitConnection(t *testing.T) {
+	service := &fakeService{status: protocol.Status{State: protocol.StateIdle}, connection: fogcast.TargetConnection{State: "disconnected", Address: "http://127.0.0.1:1"}}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"idle"`) || !strings.Contains(response.Body.String(), `"connection":{"state":"disconnected","address":"http://127.0.0.1:1"}`) {
+		t.Fatalf("idle session response = %d %s", response.Code, response.Body.String())
 	}
 }
 

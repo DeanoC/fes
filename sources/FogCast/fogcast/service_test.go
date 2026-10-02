@@ -45,6 +45,18 @@ func TestServiceCatalogAdmissionWaitHonorsCancellation(t *testing.T) {
 	}
 }
 
+func TestStatusReportsIdleWhenNoKitIsReachableAndHostEmulatorIsConfigured(t *testing.T) {
+	service := &Service{hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"}}
+	status, err := service.Status(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("host runner status=%+v err=%v", status, err)
+	}
+	kitOnly := &Service{}
+	if _, err := kitOnly.Status(context.Background()); err == nil {
+		t.Fatal("kit-only configuration stopped reporting unavailable target")
+	}
+}
+
 func TestProgressReaderStartsAfterBodyBytesAndForwardsClose(t *testing.T) {
 	var starts int
 	reader := &progressReader{

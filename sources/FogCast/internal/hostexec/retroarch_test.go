@@ -56,8 +56,8 @@ func TestRetroArchAdapterBuildsArgumentVectorWithoutShell(t *testing.T) {
 	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/Applications/RetroArch.app/Contents/MacOS/RetroArch", "-L", core}
-	if len(got) != len(want)+1 {
+	want := []string{"/Applications/RetroArch.app/Contents/MacOS/RetroArch", "-L"}
+	if len(got) != 4 {
 		t.Fatalf("args = %#v", got)
 	}
 	for i := range want {
@@ -67,6 +67,9 @@ func TestRetroArchAdapterBuildsArgumentVectorWithoutShell(t *testing.T) {
 	}
 	if got[3] == "" {
 		t.Fatal("empty content path")
+	}
+	if got[2] == core {
+		t.Fatal("RetroArch received the mutable configured core path")
 	}
 }
 
@@ -96,6 +99,38 @@ func TestRetroArchAdapterRejectsMissingOrMismatchedCore(t *testing.T) {
 	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); !errors.Is(err, hostexec.ErrUnavailable) {
 		t.Fatalf("mismatched core error = %v", err)
 	}
+}
+
+func TestRetroArchAdapterLaunchesPrivateCoreSnapshotAndCleansItOnExit(t *testing.T) {
+	core := coreFile(t)
+	proc := &fakeProcess{done: make(chan struct{})}
+	var stagedPath string
+	adapter := hostexec.NewRetroArchAdapter("retroarch", core, func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
+		stagedPath = args[1]
+		if err := os.WriteFile(core, []byte("replaced core"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(stagedPath)
+		if err != nil || string(got) != "fake core" {
+			t.Fatalf("staged bytes=%q err=%v", got, err)
+		}
+		info, err := os.Stat(filepath.Dir(stagedPath))
+		if err != nil || info.Mode().Perm() != 0o700 {
+			t.Fatalf("staging dir mode=%v err=%v", info.Mode().Perm(), err)
+		}
+		return proc, nil
+	})
+	if _, err := adapter.Launch(context.Background(), bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
+		t.Fatal(err)
+	}
+	close(proc.done)
+	for i := 0; i < 100; i++ {
+		if _, err := os.Stat(filepath.Dir(stagedPath)); os.IsNotExist(err) {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("staged core directory was not removed after process exit")
 }
 
 func TestRetroArchAdapterRejectsUnsupportedSystem(t *testing.T) {
@@ -159,9 +194,10 @@ func TestRetroArchAdapterStatusAndStop(t *testing.T) {
 }
 
 func TestRetroArchAdapterOwnsPreparedContentUntilStop(t *testing.T) {
-	var path string
+	var path, stagedCore string
 	proc := &fakeProcess{done: make(chan struct{})}
 	adapter := hostexec.NewRetroArchAdapter("retroarch", coreFile(t), func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
+		stagedCore = args[1]
 		path = args[len(args)-1]
 		if _, err := os.Stat(path); err != nil {
 			t.Fatal(err)
@@ -179,6 +215,9 @@ func TestRetroArchAdapterOwnsPreparedContentUntilStop(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("content after Stop err=%v", err)
+	}
+	if _, err := os.Stat(stagedCore); !os.IsNotExist(err) {
+		t.Fatalf("staged core after Stop err=%v", err)
 	}
 }
 
@@ -246,14 +285,20 @@ func TestRetroArchAdapterLaunchPathUsesPlatformCoreAndKeepsLibraryFile(t *testin
 	if _, err := adapter.LaunchPath(context.Background(), "psx", source); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"retroarch", "-L", core, source}
+	want := []string{"retroarch", "-L", "", source}
 	if len(got) != len(want) {
 		t.Fatalf("args = %#v", got)
 	}
 	for i := range want {
+		if i == 2 {
+			continue
+		}
 		if got[i] != want[i] {
 			t.Fatalf("args = %#v, want %#v", got, want)
 		}
+	}
+	if got[2] == core {
+		t.Fatalf("used configured core path %q", got[2])
 	}
 	if _, err := os.Stat(source); err != nil {
 		t.Fatalf("library file removed: %v", err)
@@ -303,6 +348,9 @@ func TestRetroArchAdapterLaunchOwnedPathCleansCopyAndKeepsLibraryFile(t *testing
 func TestRetroArchAdapterLaunchForSelectsConfiguredCore(t *testing.T) {
 	var core string
 	selected := coreFile(t)
+	if err := os.WriteFile(selected, []byte("selected core"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	fallback := coreFile(t)
 	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", fallback, map[protocol.System]string{"nes": selected}, func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
 		core = args[1]
@@ -311,8 +359,11 @@ func TestRetroArchAdapterLaunchForSelectsConfiguredCore(t *testing.T) {
 	if _, err := adapter.LaunchFor(context.Background(), "nes", bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
 		t.Fatal(err)
 	}
-	if core != selected {
-		t.Fatalf("core = %q", core)
+	if core == selected {
+		t.Fatalf("RetroArch received configured core path directly: %q", core)
+	}
+	if content, err := os.ReadFile(core); err != nil || string(content) != "selected core" {
+		t.Fatalf("staged core content=%q err=%v", content, err)
 	}
 }
 

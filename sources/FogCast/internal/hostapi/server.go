@@ -268,6 +268,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
 			return
 		}
+		result.Connection = targetConnection(service)
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/sessions", func(w http.ResponseWriter, r *http.Request) {

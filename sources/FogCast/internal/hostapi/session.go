@@ -72,6 +72,7 @@ type sessionResult struct {
 	ID          string                      `json:"id"`
 	Target      string                      `json:"target,omitempty"`
 	TargetID    string                      `json:"target_id,omitempty"`
+	Connection  *fogcast.TargetConnection   `json:"connection,omitempty"`
 	State       protocol.State              `json:"state"`
 	GameID      *string                     `json:"game_id,omitempty"`
 	System      *protocol.System            `json:"system,omitempty"`

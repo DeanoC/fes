@@ -1342,7 +1342,9 @@ sha256 = "051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49"
 ```
 
 The host health response advertises mesh version 1.0 and software backend
-identity/version/digest; a missing or mismatched core is unavailable. One
+identity, configured `core_version`, and observed core digest; `core_version`
+is copied from configuration and is not queried from RetroArch. A missing or
+mismatched core, or a missing/non-executable RetroArch binary, is unavailable. One
 host emulator process owns the local session until Stop or process exit.
 M1 software-runner input uses a controller attached to the runner through
 RetroArch's local joypad/udev input. FogCast does not route remote controller

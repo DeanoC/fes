@@ -157,28 +157,49 @@ func (a *RetroArchAdapter) launchOwnedPath(ctx context.Context, system protocol.
 }
 
 func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.Reader, identity protocol.ContentIdentity, sourcePath string, ownedCleanup func()) (Status, error) {
-	info, statErr := os.Stat(core)
-	if statErr != nil || !info.Mode().IsRegular() {
-		return Status{}, fmt.Errorf("%w: core file missing", ErrUnavailable)
-	}
-	if expected := a.sha256[core]; expected != "" {
-		file, openErr := os.Open(core)
-		if openErr != nil {
-			return Status{}, fmt.Errorf("%w: core file missing", ErrUnavailable)
-		}
-		h := sha256.New()
-		_, copyErr := io.Copy(h, file)
-		closeErr := file.Close()
-		if copyErr != nil || closeErr != nil || hex.EncodeToString(h.Sum(nil)) != expected {
-			return Status{}, fmt.Errorf("%w: sha256 mismatch", ErrUnavailable)
-		}
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
 		return Status{}, err
 	}
+	coreDir, err := os.MkdirTemp("", "fogcast-host-core-*")
+	if err != nil {
+		return Status{}, err
+	}
+	if err := os.Chmod(coreDir, 0o700); err != nil {
+		_ = os.RemoveAll(coreDir)
+		return Status{}, err
+	}
+	stagedCore := filepath.Join(coreDir, filepath.Base(core))
+	coreFile, err := os.Open(core)
+	if err != nil {
+		_ = os.RemoveAll(coreDir)
+		return Status{}, fmt.Errorf("%w: core file missing", ErrUnavailable)
+	}
+	info, statErr := coreFile.Stat()
+	if statErr != nil || !info.Mode().IsRegular() {
+		_ = coreFile.Close()
+		_ = os.RemoveAll(coreDir)
+		return Status{}, fmt.Errorf("%w: core file missing", ErrUnavailable)
+	}
+	staged, err := os.OpenFile(stagedCore, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		_ = coreFile.Close()
+		_ = os.RemoveAll(coreDir)
+		return Status{}, err
+	}
+	h := sha256.New()
+	_, copyErr := io.Copy(io.MultiWriter(staged, h), contextReader{ctx: ctx, r: coreFile})
+	closeSourceErr, closeStagedErr := coreFile.Close(), staged.Close()
+	if copyErr != nil || closeSourceErr != nil || closeStagedErr != nil || (a.sha256[core] != "" && hex.EncodeToString(h.Sum(nil)) != a.sha256[core]) {
+		_ = os.RemoveAll(coreDir)
+		if copyErr != nil {
+			return Status{}, copyErr
+		}
+		return Status{}, fmt.Errorf("%w: core copy verification failed", ErrUnavailable)
+	}
+	coreCleanup := func() { _ = os.RemoveAll(coreDir) }
 	path := strings.TrimSpace(sourcePath)
 	cleanup := ownedCleanup
 	if cleanup == nil {
@@ -187,13 +208,16 @@ func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.R
 	keepLibraryPath := path != "" && ownedCleanup == nil
 	if path == "" {
 		if content == nil || identity.Size < 1 || strings.TrimSpace(identity.Extension) == "" || identity.SHA256 == "" {
+			coreCleanup()
 			return Status{}, errors.New("valid content is required")
 		}
 		if err := protocol.ValidateContentIdentity(identity); err != nil {
+			coreCleanup()
 			return Status{}, err
 		}
 		file, err := os.CreateTemp("", "fogcast-host-*-"+filepath.Ext("."+identity.Extension))
 		if err != nil {
+			coreCleanup()
 			return Status{}, err
 		}
 		path = file.Name()
@@ -202,6 +226,7 @@ func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.R
 		n, copyErr := io.Copy(io.MultiWriter(file, hash), contextReader{ctx: ctx, r: io.LimitReader(content, identity.Size+1)})
 		if copyErr != nil || n != identity.Size || hex.EncodeToString(hash.Sum(nil)) != identity.SHA256 {
 			cleanup()
+			coreCleanup()
 			if copyErr != nil {
 				return Status{}, copyErr
 			}
@@ -209,16 +234,19 @@ func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.R
 		}
 		if err := file.Chmod(0o600); err != nil {
 			cleanup()
+			coreCleanup()
 			return Status{}, err
 		}
 		if err := file.Close(); err != nil {
 			_ = os.Remove(path)
+			coreCleanup()
 			return Status{}, err
 		}
 		cleanup = func() { _ = os.Remove(path) }
 	}
 	if err := ctx.Err(); err != nil {
 		cleanup()
+		coreCleanup()
 		return Status{}, err
 	}
 
@@ -226,11 +254,13 @@ func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.R
 	if err := ctx.Err(); err != nil {
 		a.mu.Unlock()
 		cleanup()
+		coreCleanup()
 		return Status{}, err
 	}
 	if a.session != nil {
 		a.mu.Unlock()
 		cleanup()
+		coreCleanup()
 		return Status{}, ErrBusy
 	}
 	session := &processSession{done: make(chan struct{})}
@@ -242,12 +272,24 @@ func (a *RetroArchAdapter) launch(ctx context.Context, core string, content io.R
 		session.path = path
 	}
 	args := append([]string(nil), a.extraArgs...)
-	args = append(args, "-L", core, path)
+	args = append(args, "-L", stagedCore, path)
 	proc, err := a.start(context.Background(), a.binary, args...)
 	if err != nil {
 		a.mu.Unlock()
 		cleanup()
+		coreCleanup()
 		return Status{}, err
+	}
+	previousCleanup := session.cleanup
+	if previousCleanup == nil && session.path != "" {
+		romPath := session.path
+		previousCleanup = func() { _ = os.Remove(romPath) }
+	}
+	session.cleanup = func() {
+		if previousCleanup != nil {
+			previousCleanup()
+		}
+		coreCleanup()
 	}
 	session.proc = proc
 	a.session = session

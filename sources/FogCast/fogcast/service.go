@@ -1689,6 +1689,8 @@ func (s *Service) SoftwareBackends() []SoftwareBackend {
 	if config.Binary == "" {
 		return []SoftwareBackend{}
 	}
+	binaryInfo, binaryErr := os.Stat(config.Binary)
+	binaryAvailable := binaryErr == nil && binaryInfo.Mode().IsRegular() && binaryInfo.Mode().Perm()&0o111 != 0
 	entries := append([]HostEmulatorCore(nil), config.Cores...)
 	if len(entries) == 0 {
 		for _, system := range config.Systems {
@@ -1707,7 +1709,7 @@ func (s *Service) SoftwareBackends() []SoftwareBackend {
 			closeErr := file.Close()
 			if copyErr == nil && closeErr == nil {
 				item.CoreSHA256 = hex.EncodeToString(h.Sum(nil))
-				item.Available = entry.SHA256 == "" || item.CoreSHA256 == entry.SHA256
+				item.Available = binaryAvailable && (entry.SHA256 == "" || item.CoreSHA256 == entry.SHA256)
 			}
 		}
 		out = append(out, item)
@@ -1719,7 +1721,7 @@ type SoftwareBackend struct {
 	Execution   string `json:"execution"`
 	Emulator    string `json:"emulator"`
 	CoreID      string `json:"core_id"`
-	CoreVersion string `json:"core_version,omitempty"`
+	CoreVersion string `json:"core_version,omitempty"` // Configured version label; not queried from RetroArch.
 	CoreSHA256  string `json:"core_sha256,omitempty"`
 	System      string `json:"system"`
 	Available   bool   `json:"available"`
@@ -2281,6 +2283,9 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	s.executionMu.Unlock()
 	if !localExecution && s.discoveryEnabled() {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
+			if s.hostEmulator.Binary != "" {
+				return protocol.Status{State: protocol.StateIdle}, nil
+			}
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
@@ -2310,11 +2315,17 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	}
 	client, ok := s.selectedClientLocked()
 	if !ok {
+		if s.hostEmulator.Binary != "" {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		}
 		s.allowSelectedTargetRepair(parent)
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	status, err := client.Status(ctx)
 	if err != nil {
+		if s.hostEmulator.Binary != "" {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		}
 		s.allowSelectedTargetRepair(parent)
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
@@ -2997,6 +3008,8 @@ func canonicalError(code protocol.ErrorCode, cause error) error {
 		message = "catalog game was not found"
 	case protocol.CodeBusy:
 		message = "another launch or stop transition is running"
+	case protocol.CodeUnavailable:
+		message = "configured software emulator core is unavailable"
 	case protocol.CodeKitLeaseDenied:
 		message = "Another session owns the target; release it from that session before retrying."
 	case protocol.CodeUnsupportedSystem:
