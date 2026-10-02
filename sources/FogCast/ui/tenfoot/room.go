@@ -67,6 +67,11 @@ func (s roomServices) QueryGames(ctx context.Context, q hostclient.GameListQuery
 	if q.Limit <= 0 || q.Limit > defaultPageLimit {
 		q.Limit = defaultPageLimit
 	}
+	// Rooms classify offline and missing-media rows. Other ListGames callers
+	// keep the ready-only default by leaving Availability empty.
+	if strings.TrimSpace(q.Availability) == "" {
+		q.Availability = "all"
+	}
 	var out []hostclient.Game
 	for {
 		page, next, err := s.client.ListGames(ctx, q)

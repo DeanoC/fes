@@ -253,10 +253,20 @@ func (d *Destination) applyMeshFacts() {
 	d.Availability = AvailUnavailable
 }
 
+const (
+	// InUseStatus is the short label when someone else holds this machine.
+	InUseStatus = "In use"
+	// InUseDetail is the action line under InUseStatus.
+	InUseDetail = "Someone else is playing on this machine. You can play when they're done."
+)
+
+// InUseLine is the single-line form of the in-use copy.
+func InUseLine() string { return InUseStatus + ". " + InUseDetail }
+
 func meshUnavailableCopy(block string) (status, action string, ok bool) {
 	switch hostclient.LaunchBlock(block) {
 	case hostclient.LaunchDistant:
-		return "This title is not on this executor.", "Bring it here before Play.", true
+		return "This title is not on this machine.", "Bring it here before Play.", true
 	case hostclient.LaunchVersionSkew:
 		return "Can't play here yet.", "Do not launch.", true
 	case hostclient.LaunchContentMissing:
@@ -338,8 +348,8 @@ func (d *Destination) FillCopy() {
 		d.Action = "Choose an edition."
 	case AvailUnavailable:
 		if d.LeaseHeld || d.ReadyBlock == string(hostclient.LaunchLeaseHeld) {
-			d.Status = "This executor is in use."
-			d.Action = "Do not take the lease."
+			d.Status = InUseStatus
+			d.Action = InUseDetail
 			break
 		}
 		if status, action, ok := meshUnavailableCopy(d.ReadyBlock); ok {
@@ -424,6 +434,8 @@ func LaunchBlockCopy(game hostclient.Game) string {
 		return "This game isn't ready to launch."
 	case hostclient.LaunchMissingFirmware:
 		return "Coleco BIOS required. Import household firmware before Play."
+	case hostclient.LaunchMissingROM:
+		return "Needs a cartridge"
 	case "":
 		return ""
 	default:

@@ -89,7 +89,7 @@ func formatKitLeaseLine(status KitLeaseStatus) string {
 		if msg := strings.TrimSpace(status.ErrorMessage); msg != "" {
 			return msg
 		}
-		return "kit status unavailable"
+		return machineStatusUnknown
 	}
 	if status.HTTPStatus == 0 && status.State == "" && status.ErrorCode == "" {
 		return ""

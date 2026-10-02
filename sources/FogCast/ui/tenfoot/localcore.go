@@ -17,7 +17,11 @@ const (
 	localPhaseRunning   = "running"
 	localPhaseStopping  = "stopping"
 
-	localInUseCopy       = "In use. Someone else is playing on this machine. You can play when they're done."
+	localInUseCopy       = rooms.InUseStatus + ". " + rooms.InUseDetail
+	machineStatusUnknown = "Can't tell if this machine is free."
+	savedListOfflineCopy = "Offline, showing your saved list"
+	shelfEmptyCopy       = "No games in this library yet."
+	shelfMissingCopy     = "The game files for this library can't be found."
 	localUnavailableCopy = "This core isn't available right now."
 	localStopBudget      = 35 * time.Second
 	localChordHold       = time.Second

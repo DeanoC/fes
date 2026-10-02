@@ -468,7 +468,7 @@ this list.
 | **Checking** | Still resolving whether this title can play here. | Wait. Do not launch. |
 | **Missing content** | Name the missing slot (BIOS, primary media, or expansion) and the way to supply it. | The resolution action for that slot. If there is no one-step action, open Details. |
 | **Needs a choice** | Several editions match and none is saved. | Force a clear choice. Remember it for the household. Do not launch an arbitrary edition. |
-| **In use** | This executor is in use. | Do not launch. Do not take the lease. |
+| **In use** | In use. Someone else is playing on this machine. You can play when they're done. | Do not launch. |
 | **Version skew** | "Can't play here yet," with the mismatch in plain language. | Do not launch. |
 
 ## Process model

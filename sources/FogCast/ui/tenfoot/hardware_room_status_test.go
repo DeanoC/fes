@@ -57,7 +57,7 @@ func TestHardwareRoomStatusKeepsTransportLeaseAndNoticePriority(t *testing.T) {
 		{"host unreachable", func(s *Snapshot) { s.Health.HostUnreachable = true; s.Health.Line = "host unreachable" }, "host unreachable"},
 		{"host not ready", func(s *Snapshot) { s.Health.Ready = false; s.Health.Line = "host not ready" }, "host not ready"},
 		{"target unreachable", func(s *Snapshot) { s.Health.TargetReachable = false; s.Health.Line = "kit unreachable" }, "kit unreachable"},
-		{"lease unreachable", func(s *Snapshot) { s.KitLease.Unreachable = true; s.KitLease.Line = "kit status unavailable" }, "kit status unavailable"},
+		{"lease unreachable", func(s *Snapshot) { s.KitLease.Unreachable = true; s.KitLease.Line = machineStatusUnknown }, machineStatusUnknown},
 		{"foreign held lease", func(s *Snapshot) {
 			s.KitLease.Owner = "hardware-operator"
 			s.KitLease.Line = "lease held · hardware-operator"

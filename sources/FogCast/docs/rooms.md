@@ -177,7 +177,7 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 
 | call | callback |
 | --- | --- |
-| `library.query({platform, collection, q, sort, genre, year, region, hide_prerelease, hide_hacks, limit}, fn(games, err))` | `games` is an array of game tables |
+| `library.query({platform, collection, q, sort, genre, year, region, hide_prerelease, hide_hacks, limit}, fn(games, err))` | `games` is an array of game tables. The query returns every matching catalog row, including titles that are not ready. |
 | `library.platforms(fn(platforms, err))` | `{id, label, game_count, online, launchable, tags}` |
 | `library.collections(fn(collections, err))` | `{id, name}` |
 | `library.game(id, fn(game, err))` | one game |

@@ -66,8 +66,8 @@ func TestReadyHereRoomsStayUnavailableUntilTheTitleIsHere(t *testing.T) {
 		confirm ConfirmIntent
 		status  string
 	}{
-		{hostclient.LaunchDistant, "fetch_here", AvailUnavailable, ConfirmExplain, "This title is not on this executor."},
-		{hostclient.LaunchLeaseHeld, "wait_for_lease", AvailUnavailable, ConfirmExplain, "This executor is in use."},
+		{hostclient.LaunchDistant, "fetch_here", AvailUnavailable, ConfirmExplain, "This title is not on this machine."},
+		{hostclient.LaunchLeaseHeld, "wait_for_lease", AvailUnavailable, ConfirmExplain, InUseStatus},
 		{hostclient.LaunchVersionSkew, "resolve_version", AvailUnavailable, ConfirmExplain, "Can't play here yet."},
 		{hostclient.LaunchNoExecutor, "bind_executor", AvailUnavailable, ConfirmExplain, "This title cannot play on the current setup."},
 		{hostclient.LaunchContentMissing, "supply_content", AvailUnavailable, ConfirmExplain, "A required part of this title is missing."},
@@ -154,7 +154,7 @@ func TestPlacementSelectionStaysQuietAndBlockedRowsDoNotLaunch(t *testing.T) {
 	busy := placementReadyRow(false, hostclient.PlacementUnresolved, hostclient.LaunchLeaseHeld)
 	busy.NextAction = "wait_for_lease"
 	dest = placementDestination(busy)
-	if dest.Availability != AvailUnavailable || dest.Confirm() != ConfirmExplain || dest.Status != "This executor is in use." || dest.Action != "Do not take the lease." || dest.Confirm() == ConfirmLaunch {
+	if dest.Availability != AvailUnavailable || dest.Confirm() != ConfirmExplain || dest.Status != InUseStatus || dest.Action != InUseDetail || dest.Confirm() == ConfirmLaunch {
 		t.Fatalf("in use %+v confirm %v", dest, dest.Confirm())
 	}
 }
@@ -227,7 +227,7 @@ func assertPlacementNotPlayable(t *testing.T, dest Destination, name string) {
 	if dest.Availability == AvailReady || dest.Availability == AvailNeedsChoice || dest.Confirm() == ConfirmLaunch || dest.Confirm() == ConfirmChoose {
 		t.Fatalf("%s %+v confirm %v", name, dest, dest.Confirm())
 	}
-	if dest.Status == "Can't play here yet." || dest.Status == "This executor is in use." || dest.Status == "Several editions match. Choose one." {
+	if dest.Status == "Can't play here yet." || dest.Status == InUseStatus || dest.Status == "Several editions match. Choose one." {
 		t.Fatalf("%s copy %q", name, dest.Status)
 	}
 	if dest.Confirm() != ConfirmExplain {

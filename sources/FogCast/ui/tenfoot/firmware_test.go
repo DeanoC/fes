@@ -202,7 +202,7 @@ func TestBusyKitPreservesFirmwareImportAndCatalogBlocks(t *testing.T) {
 	app.startLaunchGameLocked(ready)
 	phase, message = app.launch.Phase, app.launch.Message
 	app.mu.Unlock()
-	if phase != "error" || message != "This executor is in use." || h.launchCount() != 0 {
+	if phase != "error" || message != localInUseCopy || h.launchCount() != 0 {
 		t.Fatalf("ready FPGA while busy phase=%s message=%q launches=%d", phase, message, h.launchCount())
 	}
 }

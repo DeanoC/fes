@@ -202,15 +202,29 @@ func (t apiHostTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.base.RoundTrip(clone)
 }
 
-// ListGames fetches one catalog page. grouped=1 and availability=ready stay the default.
+// ListGames fetches one catalog page. grouped=1 stays on. availability=ready
+// stays the default unless GameListQuery.Availability is set.
 func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, string, error) {
+	page, err := c.ListGamePage(ctx, query)
+	if err != nil {
+		return nil, "", err
+	}
+	return page.Games, page.NextCursor, nil
+}
+
+// ListGamePage fetches one catalog page, including an optional shelf notice.
+func (c *Client) ListGamePage(ctx context.Context, query GameListQuery) (GamePage, error) {
 	limit := query.Limit
 	if limit <= 0 {
 		limit = defaultPageLimit
 	}
 	values := url.Values{}
 	values.Set("grouped", "1")
-	values.Set("availability", "ready")
+	availability := "ready"
+	if value := strings.TrimSpace(query.Availability); value != "" {
+		availability = value
+	}
+	values.Set("availability", availability)
 	values.Set("limit", strconv.Itoa(limit))
 	if platform := strings.TrimSpace(query.Platform); platform != "" {
 		values.Set("platform", platform)
@@ -242,12 +256,9 @@ func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, st
 	if strings.TrimSpace(query.Cursor) != "" {
 		values.Set("cursor", query.Cursor)
 	}
-	var page struct {
-		Games      []Game `json:"games"`
-		NextCursor string `json:"next_cursor"`
-	}
+	var page GamePage
 	if err := c.getJSON(ctx, "/api/v1/games?"+values.Encode(), &page); err != nil {
-		return nil, "", err
+		return GamePage{}, err
 	}
 	if page.Games == nil {
 		page.Games = []Game{}
@@ -255,7 +266,7 @@ func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, st
 	for i, game := range page.Games {
 		page.Games[i] = preferLaunchable(game)
 	}
-	return page.Games, page.NextCursor, nil
+	return page, nil
 }
 
 // Game loads one catalog row from GET /api/v1/games/{id}.

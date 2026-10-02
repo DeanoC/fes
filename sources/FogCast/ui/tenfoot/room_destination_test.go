@@ -509,7 +509,7 @@ func TestPlacementSelectionLaunchesWithoutAMachineAsk(t *testing.T) {
 	if snap.Room.Choice.Open || snap.Room.Destination.Confirm() == rooms.ConfirmLaunch || snap.Room.Destination.Confirm() == rooms.ConfirmChoose || snap.Room.Destination.Availability == rooms.AvailReady || snap.Room.Destination.Availability == rooms.AvailNeedsChoice {
 		t.Fatalf("unresolved %+v choice %+v", snap.Room.Destination, snap.Room.Choice)
 	}
-	if snap.Room.Destination.Status == "Can't play here yet." || snap.Room.Destination.Status == "This executor is in use." || snap.Room.Destination.Status == "Several editions match. Choose one." {
+	if snap.Room.Destination.Status == "Can't play here yet." || snap.Room.Destination.Status == rooms.InUseStatus || snap.Room.Destination.Status == "Several editions match. Choose one." {
 		t.Fatalf("unresolved copy %q", snap.Room.Destination.Status)
 	}
 	before := h.launchCount()
@@ -556,7 +556,7 @@ func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
 	if snap.Room.Destination.Availability != rooms.AvailUnavailable || snap.Room.Destination.Confirm() != rooms.ConfirmExplain {
 		t.Fatalf("foreign destination %+v confirm=%v", snap.Room.Destination, snap.Room.Destination.Confirm())
 	}
-	if !strings.Contains(snap.Room.Destination.Status, "in use") || snap.Room.Destination.Action != "Do not take the lease." {
+	if snap.Room.Destination.Status != rooms.InUseStatus || snap.Room.Destination.Action != rooms.InUseDetail {
 		t.Fatalf("in-use copy %+v", snap.Room.Destination)
 	}
 	app.HandleCommand(CmdSelect, now)
@@ -619,7 +619,7 @@ func TestPairedKitStatus404KeepsBrowsingAndRefusesLaunch(t *testing.T) {
 	waitFor(t, app, "room picker", func(s Snapshot) bool { return s.RoomPicker.Open })
 	app.fetchHealth(t.Context()) // the scoped /launcher/kit-lease endpoint returns 404
 	snap := app.Snapshot()
-	if !snap.KitLease.Unreachable || snap.KitLease.Line != "kit status unavailable" {
+	if !snap.KitLease.Unreachable || snap.KitLease.Line != machineStatusUnknown {
 		t.Fatalf("404 status snapshot = %+v", snap.KitLease)
 	}
 	app.HandleCommand(CmdDown, time.Now())
@@ -627,7 +627,7 @@ func TestPairedKitStatus404KeepsBrowsingAndRefusesLaunch(t *testing.T) {
 	waitFor(t, app, "room remains browsable", func(s Snapshot) bool { return s.Room.Open && len(s.Room.Frame.Hits) > 0 })
 	app.HandleCommand(CmdSelect, time.Now())
 	snap = waitFor(t, app, "launch refusal", func(s Snapshot) bool { return s.Launch.Phase == "error" })
-	if snap.Launch.Message != "kit status unavailable" || h.launchCount() != 0 {
+	if snap.Launch.Message != machineStatusUnknown || h.launchCount() != 0 {
 		t.Fatalf("launch=%+v launches=%d", snap.Launch, h.launchCount())
 	}
 }

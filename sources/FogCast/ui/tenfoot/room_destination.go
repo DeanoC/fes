@@ -40,14 +40,14 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		case a.foreignKitLeaseLocked():
 			d.LeaseHeld = true
 			d.Availability = rooms.AvailUnavailable
-			d.Status = localInUseCopy
-			d.Action = localInUseCopy
+			d.Status = rooms.InUseStatus
+			d.Action = rooms.InUseDetail
 		case a.pairedKitStatusUnavailableLocked():
 			d.CoreLaunchable = false
-			d.CoreBlock = "kit status unavailable"
+			d.CoreBlock = machineStatusUnknown
 			d.Availability = rooms.AvailUnavailable
-			d.Status = d.CoreBlock
-			d.Action = d.CoreBlock
+			d.Status = machineStatusUnknown
+			d.Action = machineStatusUnknown
 		}
 	}
 	return d
@@ -75,7 +75,7 @@ func (a *App) kitMutationBlockedLocked() bool {
 		return false
 	}
 	if a.pairedKitStatusUnavailableLocked() {
-		a.status = "kit status unavailable"
+		a.status = machineStatusUnknown
 		return true
 	}
 	if a.foreignKitLeaseLocked() {
@@ -311,6 +311,9 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		return true
 	case rooms.ConfirmExplain:
 		a.status = dest.Status
+		if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
+			a.status = localInUseCopy
+		}
 		a.openRoomDetailsLocked()
 		return true
 	case rooms.ConfirmImportFirmware:
@@ -418,6 +421,10 @@ func (a *App) openRoomDetailsLocked() {
 	}
 	if game, ok := dest.Game(); ok {
 		a.openRoomDetailsForLocked(game)
+		return
+	}
+	if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
+		a.status = localInUseCopy
 		return
 	}
 	a.status = dest.Status

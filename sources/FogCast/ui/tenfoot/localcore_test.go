@@ -124,7 +124,7 @@ func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T)
 	app.kitLease = KitLeaseStatus{State: "held", Owner: "hil-355", Purpose: "hil-355-in-use"}
 	app.mu.Unlock()
 	snap := app.Snapshot()
-	if snap.Room.Destination.Status != localInUseCopy || snap.Room.Destination.Action != localInUseCopy {
+	if snap.Room.Destination.Status != rooms.InUseStatus || snap.Room.Destination.Action != rooms.InUseDetail {
 		t.Fatalf("foreign Pong copy: status=%q action=%q", snap.Room.Destination.Status, snap.Room.Destination.Action)
 	}
 	if strings.Contains(strings.ToLower(snap.HeaderHint()), "play") {
@@ -151,11 +151,11 @@ func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T)
 	app.kitLease = KitLeaseStatus{Unavailable: true}
 	app.mu.Unlock()
 	snap = app.Snapshot()
-	if snap.Room.Destination.Status != "kit status unavailable" || snap.Room.Destination.Action != "kit status unavailable" || snap.Room.Destination.Confirm() != rooms.ConfirmExplain {
+	if snap.Room.Destination.Status != machineStatusUnknown || snap.Room.Destination.Action != machineStatusUnknown || snap.Room.Destination.Confirm() != rooms.ConfirmExplain {
 		t.Fatalf("unavailable lease did not gate Pong visibly: %+v", snap.Room.Destination)
 	}
 	app.HandleCommand(CmdSelect, time.Now())
-	if fake.launchCount() != 0 || app.Snapshot().Status != "kit status unavailable" {
+	if fake.launchCount() != 0 || app.Snapshot().Status != machineStatusUnknown {
 		t.Fatalf("unavailable lease A was not refused visibly: launches=%d status=%q", fake.launchCount(), app.Snapshot().Status)
 	}
 }

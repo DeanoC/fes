@@ -47,7 +47,7 @@ polling; the browser keeps its own `parseSession` and shares the common
 success/rejection matrix in `hostclient/testdata/session-contract.json`.
 That fixture is not a claim of full decoder equivalence. In paired tenfoot
 mode, launch and kit mutations require a known, non-foreign scoped kit lease;
-an unavailable status is shown as `kit status unavailable` while room browsing
+an unavailable status is shown as `Can't tell if this machine is free.` while room browsing
 continues. Launch, stop,
 and input attach/detach stay on their existing endpoints. The host resolves installed package entries and explicitly binds library
 persistence. The runtime validates the package and declared interfaces before
@@ -1618,8 +1618,9 @@ include `connection`, including unavailable responses. Its states are
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
 Busy means another session holds the kit lease. Tenfoot rooms show a Ready
-FPGA title aimed at that kit as Unavailable, with the copy "This executor is
-in use." Confirm explains and does not launch. Library and detail Confirm
+FPGA title aimed at that kit as Unavailable, with the copy "In use" /
+"Someone else is playing on this machine. You can play when they're done."
+Confirm explains and does not launch. Library and detail Confirm
 apply that gate only after catalog blocks: a title missing Coleco BIOS still
 opens the household firmware picker, and any other catalog block keeps its
 own copy. Firmware import posts host library endpoints and does not claim

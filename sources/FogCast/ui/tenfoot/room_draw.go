@@ -417,7 +417,7 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if strings.TrimSpace(snap.Status) != "" && strings.HasPrefix(snap.Status, "room failed") {
 		line = snap.Status
 	}
-	if snap.Status == localInUseCopy || snap.Status == "kit status unavailable" {
+	if snap.Status == localInUseCopy || snap.Status == machineStatusUnknown {
 		line = snap.Status
 	}
 	if line != "" {
