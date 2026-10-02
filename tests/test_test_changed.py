@@ -16,11 +16,12 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
-    def test_menu_rtl_selects_the_menu_simulation(self):
+    def test_shared_menu_scanout_selects_idle_and_session_simulations(self):
         self.change("sources/misteross/cores/fes-menu/rtl/fes_menu_video.v")
         result = self.plan()
-        self.assertEqual(result["impact"]["cores"], ["menu"])
-        self.assertTrue(any("sim-fes-menu" in c["argv"] for c in result["commands"]))
+        self.assertEqual(result["impact"]["cores"], ["menu", "zx81"])
+        for target in ("sim-fes-menu", "sim-fes-zx81"):
+            self.assertTrue(any(target in c["argv"] for c in result["commands"]))
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

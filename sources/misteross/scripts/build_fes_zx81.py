@@ -49,6 +49,13 @@ VERILOG_SOURCES = (
     "cores/fes-zx81/rtl/zx81_dpram.v",
     "cores/fes-zx81/rtl/zx81_video_720p.v",
     "cores/fes-zx81/rtl/top.v",
+    "cores/fes-zx81/rtl/zx81_display_cdc.v",
+    "cores/fes-zx81/rtl/zx81_session_display.v",
+    "cores/fes-menu/rtl/fes_menu_control.v",
+    "cores/fes-menu/rtl/fes_menu_video.v",
+    "cores/fes-menu/rtl/fes_menu_reader.v",
+    "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
 )
 SYSTEMVERILOG_SOURCES = (
     "cores/fes-zx81/rtl/zx81_machine.sv",
@@ -65,6 +72,7 @@ PINNED_INPUTS = (
     "scripts/source_provenance.py",
     "scripts/quartus_tools.py",
     ABI_DEFINITION,
+    "cores/fes-common/generated/fes_application.vh",
     QSF_PINS,
     SDC,
     ROM_HEX,
@@ -196,6 +204,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
         'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-zx81/generated"',
+        f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
         'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
         f'set_global_assignment -name VERILOG_MACRO "FES_ZX81_BUILD_ID=128\'h{build_id}"',
         assignment("SDC_FILE", SDC),
@@ -314,7 +323,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "id": "fes.zx81",
             "name": "Zx81",
             "description": "Quartus bring-up ZX81 computer for the FES simple-computer ABI",
-            "version": "1.1.0",
+            "version": "1.2.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -326,6 +335,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
         "interfaces": [
             {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.video.session-display", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
             {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
         ],

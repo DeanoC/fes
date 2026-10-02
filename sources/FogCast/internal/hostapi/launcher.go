@@ -16,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/discovery"
+	"github.com/DeanoC/FogCast/internal/zx81tapes"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -260,7 +261,9 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		pairedRead := launcherPairedRead(r.Method, r.URL.Path)
 		pairedStop := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop"
 		pairedLaunch := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch"
-		if !pairedRead && !pairedStop && !pairedLaunch {
+		pairedMedia := launcherLiveMutation(r.Method, r.URL.Path)
+		pairedImport := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/core-media" || launcherTapeImportPath(r.URL.Path))
+		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
 		}
@@ -275,6 +278,24 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		}
 		if !launcherOperation(r.Method, r.URL.Path) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
+			return
+		}
+		if pairedMedia {
+			binding, valid := protocol.DevelopmentMediaHeaders(r.Header)
+			if !valid || name == "" || binding.Target != name || binding.TargetID != headerID || len(r.Header.Values(protocol.HostTargetIDHeader)) != 1 {
+				writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher media binding does not match the paired target")
+				return
+			}
+			r = r.WithContext(withLauncherTarget(r.Context(), name))
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		if pairedImport {
+			if r.URL.Path == "/api/v1/core-media" && (!protocol.AdmitTapeMediaSize(r.ContentLength) || len(r.TransferEncoding) != 0) {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
+				return
+			}
+			a.routes.ServeHTTP(w, r)
 			return
 		}
 		if pairedRead {
@@ -297,7 +318,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 				a.routes.ServeHTTP(w, r)
 				return
 			}
-			a.writeKitSession(w, name, headerID)
+			a.writeKitSession(w, r, name, headerID)
 			return
 		case "GET /api/v1/status", "GET /api/v1/session/input":
 			if headerID != a.sessionOwnerID() {
@@ -367,7 +388,7 @@ func launcherPairedRead(method, path string) bool {
 		return false
 	}
 	switch path {
-	case "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets":
+	case "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/zx81-tapes":
 		return true
 	}
 	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path)
@@ -419,7 +440,21 @@ func (a *applicationHandler) sessionOwnerID() string {
 
 // writeKitSession reports one paired kit's own play. It does not read
 // or mutate the foreground session.
-func (a *applicationHandler) writeKitSession(w http.ResponseWriter, name, id string) {
+func (a *applicationHandler) writeKitSession(w http.ResponseWriter, r *http.Request, name, id string) {
+	if _, scoped := a.service.(interface {
+		StatusTarget(context.Context, string) (protocol.Status, error)
+	}); scoped && name != "" {
+		// Observe the paired kit, including live interfaces and core generation.
+		// The lightweight play list cannot establish a physical display binding.
+		result, err := a.session.forTarget(name).status(fogcast.WithPairedTarget(r.Context(), id))
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		result.TargetID = id
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
 	result := sessionResult{Target: name, TargetID: id, State: protocol.StateIdle}
 	if lister, ok := a.service.(interface{ PlaySessions() []fogcast.PlaySession }); ok {
 		for _, play := range lister.PlaySessions() {
@@ -486,11 +521,27 @@ func rewriteLauncherLaunch(w http.ResponseWriter, r *http.Request, name string) 
 }
 
 func launcherOperation(method, path string) bool {
+	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
+		return true
+	}
 	switch method + " " + path {
-	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/facets", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
+	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/zx81-tapes", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media":
 		return true
 	}
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path))
+}
+
+func launcherLiveMutation(method, path string) bool {
+	return method == http.MethodPost && (path == "/api/v1/session/display" || path == "/api/v1/session/live-media" || path == "/api/v1/session/live-media/clear")
+}
+
+func launcherTapeImportPath(path string) bool {
+	const prefix, suffix = "/api/v1/library/zx81-tapes/", "/import"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	_, ok := zx81tapes.Lookup(strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix))
+	return ok
 }
 
 func launcherArtworkPath(path string) bool {

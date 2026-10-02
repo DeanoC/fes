@@ -18,6 +18,8 @@ import (
 type KeyboardSink struct {
 	mu      sync.Mutex
 	pressed [sourceCount]map[remoteinput.Code]bool
+	blocked [sourceCount]map[remoteinput.Code]bool
+	focused bool
 	poster  func(context.Context, uint64) error
 }
 
@@ -44,6 +46,20 @@ func (s *KeyboardSink) ApplyFrom(ctx context.Context, source inputSource, f prot
 	}
 	code := remoteinput.Code(f.Code)
 	s.mu.Lock()
+	if f.Action == uint8(remoteinput.ActionRelease) {
+		delete(s.blocked[source], code)
+	}
+	if s.focused || s.blocked[source][code] {
+		if s.focused && f.Action == uint8(remoteinput.ActionPress) {
+			if s.blocked[source] == nil {
+				s.blocked[source] = map[remoteinput.Code]bool{}
+			}
+			s.blocked[source][code] = true
+		}
+		delete(s.pressed[source], code)
+		s.mu.Unlock()
+		return nil
+	}
 	if s.pressed[source] == nil {
 		s.pressed[source] = map[remoteinput.Code]bool{}
 	}
@@ -80,6 +96,7 @@ func (s *KeyboardSink) ReleaseSource(source inputSource) error {
 	}
 	s.mu.Lock()
 	s.pressed[source] = map[remoteinput.Code]bool{}
+	s.blocked[source] = map[remoteinput.Code]bool{}
 	matrix := zx81keys.Matrix(s.unionLocked())
 	poster := s.poster
 	s.mu.Unlock()
@@ -94,6 +111,8 @@ func (s *KeyboardSink) ReleaseSource(source inputSource) error {
 
 func (s *KeyboardSink) ReleaseAll() error {
 	s.mu.Lock()
+	s.focused = false
+	s.blocked = [sourceCount]map[remoteinput.Code]bool{}
 	for source := range s.pressed {
 		s.pressed[source] = map[remoteinput.Code]bool{}
 	}
@@ -108,6 +127,26 @@ func (s *KeyboardSink) ReleaseAll() error {
 	// poster's own deadline instead of the local write bound.
 	_ = poster(context.Background(), zx81keys.Neutral)
 	return nil
+}
+
+// setDisplayFocus retires held keys without posting while an input fence is
+// held. The physical display operation neutralizes the matrix. Keys held on
+// either side of the visit require release and a fresh press before delivery.
+func (s *KeyboardSink) setDisplayFocus(focused bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if focused {
+		for source, keys := range s.pressed {
+			if s.blocked[source] == nil {
+				s.blocked[source] = map[remoteinput.Code]bool{}
+			}
+			for code := range keys {
+				s.blocked[source][code] = true
+			}
+			s.pressed[source] = map[remoteinput.Code]bool{}
+		}
+	}
+	s.focused = focused
 }
 
 func (s *KeyboardSink) Close() error { return s.ReleaseAll() }

@@ -1487,8 +1487,128 @@ void TestStaleMenuErrorIsNotPromotedOntoIdleStatus()
 	assert(f.runtime.status().menu_display.error.message == "stale menu map");
 }
 
+void StartSessionDisplayFixture(Fixture& f,const std::string& id)
+{
+ f.hardware.core_info.descriptor.abi={"fes.simple-computer",1,0};
+ f.hardware.core_info.descriptor.interfaces={
+  {"fes.keyboard",1,0,true},{"fes.video.fixed-720p60",1,0,true},
+  {"fes.media.blob",1,0,true},{"fes.memory.hps-ddr",1,0,true},
+  {"fes.video.session-display",1,0,true}};
+ f.hardware.supported.abis={{"fes.simple-computer",1,0,{
+  {"fes.keyboard",1,0},{"fes.video.fixed-720p60",1,0},
+  {"fes.media.blob",1,0},{"fes.memory.hps-ddr",1,0},{"fes.video.session-display",1,0}}}};
+ assert(f.runtime.Start().ok());assert(f.runtime.LoadCore("/zx81",id).ok());
+}
+
+void TestSessionDisplayBindingsFocusAndFrameRevocation()
+{
+ Fixture f;const std::string id(64,'a');StartSessionDisplayFixture(f,id);
+ const auto active=f.runtime.status();const auto core_generation=active.generation;
+ assert(active.menu_display.session&&!active.menu_display.available);
+ assert(active.menu_display.package_id==id&&active.menu_display.core_generation==core_generation);
+ assert(active.menu_display.generation==0);
+ assert(f.runtime.SetSessionDisplay(id,0,true).code==ErrorCode::invalid_request);
+ assert(f.runtime.SetSessionDisplay(id,core_generation+1,true).code==ErrorCode::invalid_request);
+ assert(f.runtime.SetSessionDisplay(std::string(64,'b'),core_generation,true).code==ErrorCode::invalid_request);
+ assert(f.hardware.session_display_calls==0);
+ assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true).ok());
+ const auto opened=f.runtime.status().menu_display;
+ assert(opened.available&&opened.generation&&opened.core_generation==core_generation);
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true).ok());
+ assert(f.runtime.status().menu_display.generation==opened.generation&&f.hardware.session_display_calls==1);
+ assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ assert(f.runtime.SetComputerKeyboard((std::uint64_t(1)<<40)-1).ok()&&f.hardware.keyboard_calls==2);
+ assert(f.runtime.SetComputerKeyboard(std::uint64_t(1)<<40).code==ErrorCode::invalid_request);
+ std::unique_ptr<mister::MenuFrame> old;SealMenuFrame(f.runtime,opened.generation,&old);
+ assert(f.runtime.SetSessionDisplay(id,core_generation,false).ok());
+ assert(!f.runtime.status().menu_display.available&&f.runtime.status().menu_display.generation==0);
+ assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==3);
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true).ok());
+ const auto fresh=f.runtime.status().menu_display.generation;assert(fresh>opened.generation);
+ std::unique_ptr<mister::MenuFrame> frame;SealMenuFrame(f.runtime,fresh,&frame);
+ mister::MenuDisplayInfo info;
+ assert(!f.runtime.PresentMenuFrame(opened.generation,*old,&info).ok());
+ assert(!f.runtime.PresentMenuFrame(fresh,*old,&info).ok());
+ assert(f.hardware.menu_present_calls==0);
+ f.hardware.on_menu_present=[&] {
+  assert(f.runtime.ReplaceLiveComputerMedia("/next.p",id,core_generation).code==ErrorCode::busy);
+  assert(f.runtime.SetComputerKeyboard(0).code==ErrorCode::busy);
+ };
+ assert(f.runtime.PresentMenuFrame(fresh,*frame,&info).ok());
+ assert(f.runtime.ReplaceLiveComputerMedia("/next.p",id,core_generation).ok());
+ assert(f.runtime.ClearComputerMedia(id,core_generation).ok());
+ assert(f.runtime.status().generation==core_generation&&f.hardware.core_calls==1&&f.hardware.idle_calls==1);
+ frame.reset();SealMenuFrame(f.runtime,fresh,&frame);
+ assert(f.runtime.LoadCore("/replacement",id).ok());
+ assert(!f.runtime.PresentMenuFrame(fresh,*frame,&info).ok());
+ const auto replacement=f.runtime.status().generation;assert(replacement>core_generation);
+ assert(!f.runtime.SetSessionDisplay(id,core_generation,true).ok());
+ assert(f.runtime.SetSessionDisplay(id,replacement,true).ok());
+ std::unique_ptr<mister::MenuFrame> next;SealMenuFrame(f.runtime,f.runtime.status().menu_display.generation,&next);
+ assert(f.runtime.Stop().ok());
+ assert(!f.runtime.PresentMenuFrame(fresh,*next,&info).ok());
+}
+
+void TestSessionDisplayFailuresNeverReloadIdleOrRetireCore()
+{
+ Fixture f;const std::string id(64,'a');StartSessionDisplayFixture(f,id);
+ const auto active=f.runtime.status();const auto generation=active.generation;
+ assert(f.runtime.SetSessionDisplay(id,generation,true).ok());
+ const auto display=f.runtime.status().menu_display.generation;
+ std::unique_ptr<mister::MenuFrame> frame;SealMenuFrame(f.runtime,display,&frame);
+ f.hardware.idle_result={{ErrorCode::io_failed,"idle must never be called"},true,""};
+ f.hardware.menu_present_result={ErrorCode::io_failed,"session frame timed out","menu"};
+ mister::MenuDisplayInfo info;assert(!f.runtime.PresentMenuFrame(display,*frame,&info).ok());
+ const auto failed=f.runtime.status();
+ assert(failed.state==active.state&&failed.generation==generation&&failed.active_package.package_id==id);
+ assert(failed.menu_display.session&&!failed.menu_display.available&&failed.menu_display.generation==0);
+ assert(failed.menu_display.error.message=="session frame timed out");
+ assert(f.hardware.idle_calls==1&&f.hardware.core_calls==1&&f.hardware.flush_calls==0);
+ assert(f.runtime.ClearComputerMedia(id,generation).ok());
+ f.hardware.session_display_result={ErrorCode::io_failed,"drain not proved","menu"};
+ assert(!f.runtime.SetSessionDisplay(id,generation,false).ok());
+ assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==0);
+ assert(f.runtime.status().generation==generation&&f.hardware.idle_calls==1);
+ f.hardware.session_display_result={};assert(f.runtime.SetSessionDisplay(id,generation,false).ok());
+ assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ f.hardware.session_display_result={ErrorCode::io_failed,"enable failed","menu"};
+ assert(!f.runtime.SetSessionDisplay(id,generation,true).ok());
+ assert(f.runtime.status().generation==generation&&f.hardware.idle_calls==1);
+}
+
+void TestSessionCloseAndStopWaitForInFlightFrame()
+{
+ for(bool stop:{false,true}) {
+  Fixture f;const std::string id(64,'a');StartSessionDisplayFixture(f,id);
+  const auto generation=f.runtime.status().generation;
+  assert(f.runtime.SetSessionDisplay(id,generation,true).ok());
+  const auto display=f.runtime.status().menu_display.generation;
+  std::unique_ptr<mister::MenuFrame> frame;SealMenuFrame(f.runtime,display,&frame);
+  std::mutex mutex;std::condition_variable ready;bool entered=false,release=false;
+  f.hardware.on_menu_present=[&] {
+   std::unique_lock<std::mutex> lock(mutex);entered=true;ready.notify_all();
+   ready.wait(lock,[&]{return release;});
+  };
+  mister::MenuDisplayInfo info;
+  std::thread present([&]{assert(f.runtime.PresentMenuFrame(display,*frame,&info).ok());});
+  {std::unique_lock<std::mutex> lock(mutex);ready.wait(lock,[&]{return entered;});}
+  mister::Error result;
+  std::thread mutation([&]{result=stop?f.runtime.Stop():f.runtime.SetSessionDisplay(id,generation,false);});
+  std::this_thread::sleep_for(std::chrono::milliseconds(25));
+  assert(f.hardware.session_display_calls==1&&f.hardware.idle_calls==1);
+  {std::lock_guard<std::mutex> lock(mutex);release=true;ready.notify_all();}
+  present.join();mutation.join();assert(result.ok());
+  assert(!f.runtime.status().menu_display.available);
+  assert(f.runtime.status().state==(stop?State::idle:State::running_development));
+ }
+}
+
 int main()
 {
+ TestSessionDisplayBindingsFocusAndFrameRevocation();
+ TestSessionDisplayFailuresNeverReloadIdleOrRetireCore();
+ TestSessionCloseAndStopWaitForInFlightFrame();
  TestMenuFrameYieldsToLifecycleOps();
  TestMenuLifecycleWaitIsBounded();
  TestStaleMenuErrorIsNotPromotedOntoIdleStatus();
@@ -1544,6 +1664,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 52 passed");
+	puts("runtime_test: 55 passed");
 	return 0;
 }

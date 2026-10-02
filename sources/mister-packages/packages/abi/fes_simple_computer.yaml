@@ -155,6 +155,106 @@ constants:
     value: 0xedb88320
   - name: FesSimpleComputerMediaStreamCRC32FinalXor
     value: 0xffffffff
+  # fes.memory.hps-ddr 1.0. The core owns these HPS DDR3 bytes, the MiSTer
+  # core DDRAM window. Linux boots with mem=511M memmap=513M$511M and never
+  # allocates them; the kernel framebuffer below 0x30000000 is not included.
+  - name: FesSimpleComputerHpsDdrWindowBase
+    value: 0x30000000
+  - name: FesSimpleComputerHpsDdrWindowBytes
+    value: 0x10000000
+  # fpga2sdram cfg_* inputs of the MiSTer sysmem layout. U-Boot latches the
+  # boot splash's copy with staticcfg.applycfg; a core must drive the same
+  # values. Port 0: 128-bit Avalon-MM, command 0, data FIFOs 0 and 1.
+  # Port 1: 64-bit, command 1, FIFO 2. Port 2: 64-bit, command 2, FIFO 3.
+  - name: FesSimpleComputerHpsDdrCfgPortWidth
+    value: 0x016
+  - name: FesSimpleComputerHpsDdrCfgCportType
+    value: 0x03f
+  - name: FesSimpleComputerHpsDdrCfgCportWfifoMap
+    value: 0x000d0
+  - name: FesSimpleComputerHpsDdrCfgCportRfifoMap
+    value: 0x000d0
+  - name: FesSimpleComputerHpsDdrCfgWfifoCportMap
+    value: 0x2100
+  - name: FesSimpleComputerHpsDdrCfgRfifoCportMap
+    value: 0x2100
+  - name: FesSimpleComputerHpsDdrCfgAxiMmSelect
+    value: 0x00
+  - name: FesSimpleComputerHpsDdrMaxBurst
+    value: 128
+  # fes.video.session-display 1.0: fixed, runtime-owned reserved DDR slots.
+  - name: FesSimpleComputerOpcodeMenuInfo
+    value: 18
+  - name: FesSimpleComputerOpcodeMenuConfigure
+    value: 19
+  - name: FesSimpleComputerOpcodeMenuControl
+    value: 20
+  - name: FesSimpleComputerOpcodeMenuSubmit
+    value: 21
+  - name: FesSimpleComputerMenuWidth
+    value: 1280
+  - name: FesSimpleComputerMenuHeight
+    value: 720
+  - name: FesSimpleComputerMenuStride
+    value: 5120
+  - name: FesSimpleComputerMenuFrameBytes
+    value: 3686400
+  - name: FesSimpleComputerMenuSlotBytes
+    value: 4194304
+  - name: FesSimpleComputerMenuSlotCount
+    value: 2
+  - name: FesSimpleComputerMenuPixelFormat
+    value: 1
+  - name: FesSimpleComputerMenuLayout
+    value: 1
+  - name: FesSimpleComputerMenuStateConfigured
+    value: 1
+  - name: FesSimpleComputerMenuStateEnabled
+    value: 2
+  - name: FesSimpleComputerMenuStatePending
+    value: 4
+  - name: FesSimpleComputerMenuStateQuiesced
+    value: 8
+  - name: FesSimpleComputerMenuStateFaulted
+    value: 16
+  - name: FesSimpleComputerMenuControlQuiesce
+    value: 0
+  - name: FesSimpleComputerMenuControlEnable
+    value: 1
+  - name: FesSimpleComputerMenuSubmitSequenceLoIndex
+    value: 0
+  - name: FesSimpleComputerMenuSubmitSequenceHiIndex
+    value: 1
+  - name: FesSimpleComputerMenuSubmitCommitIndex
+    value: 2
+  - name: FesSimpleComputerMenuInfoWidthIndex
+    value: 0
+  - name: FesSimpleComputerMenuInfoHeightIndex
+    value: 1
+  - name: FesSimpleComputerMenuInfoStrideIndex
+    value: 2
+  - name: FesSimpleComputerMenuInfoFrameBytesLoIndex
+    value: 3
+  - name: FesSimpleComputerMenuInfoFrameBytesHiIndex
+    value: 4
+  - name: FesSimpleComputerMenuInfoSlotBytesLoIndex
+    value: 5
+  - name: FesSimpleComputerMenuInfoSlotBytesHiIndex
+    value: 6
+  - name: FesSimpleComputerMenuInfoPixelFormatIndex
+    value: 7
+  - name: FesSimpleComputerMenuInfoSlotCountIndex
+    value: 8
+  - name: FesSimpleComputerMenuInfoStateIndex
+    value: 9
+  - name: FesSimpleComputerMenuInfoSequenceLoIndex
+    value: 10
+  - name: FesSimpleComputerMenuInfoSequenceHiIndex
+    value: 11
+  - name: FesSimpleComputerMenuInfoUnderflowsLoIndex
+    value: 12
+  - name: FesSimpleComputerMenuInfoUnderflowsHiIndex
+    value: 13
 interfaces:
   - id: fes.keyboard
     major: 1
@@ -176,3 +276,11 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 4
+  - id: fes.memory.hps-ddr
+    major: 1
+    minor: 0
+    capability_bit: 8
+  - id: fes.video.session-display
+    major: 1
+    minor: 0
+    capability_bit: 9

@@ -947,7 +947,7 @@ the FogCast virtual gamepad, and seeds startup affinity. Zero supported devices 
 fatal: the UI paints, and automatic mode rescans evdev about once a second
 with the same classifier so a hotplugged keyboard or gamepad is opened
 without a restart. Unplugging a device drops it without turning held buttons
-into release actions and leaves the UI running. Explicit input paths remain
+into synthetic click actions; it releases that device's held input and leaves the UI running. Explicit input paths remain
 strict. It restores the mapped display bytes on normal exit. Pointer input is
 outside this development-testing slice. The framebuffer smoke
 uses no physical input and only verifies library loading and rendering; it
@@ -960,7 +960,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` submits every `Present`. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` submits every `Present`. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -2371,9 +2371,45 @@ retains the captured package and previous media ID for compare-and-swap; expansi
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
 The attributed `internal/zx81tapes` assets enter the existing media store only
-after explicit selection. Menu-display passes `IdleDisplayOnly` into rooms and
-disables the live room/tape routes because its MENU framebuffer requires idle
-hardware. The separate host renderer retains those routes.
+after explicit selection. A menu-display kit enables live routes only when the
+observed simple-computer package advertises `fes.video.session-display` 1.0 and
+`fes.memory.hps-ddr` 1.0. Home/Select first requests
+`POST /api/v1/session/display` with `visible: true`, the captured session ID and
+existing target/package/core-generation headers. The paired listener admits only
+that kit's captured session, hardware/starter reads, exact starter imports,
+bounded 1..16384-byte tape imports and live replace/clear/display operations.
+These do not change the library's next-start media selection.
+Public and paired display/live-media mutations compare the captured target name
+and ID with the coordinator's current target before service dispatch. Rebinding
+a configured name to another kit rejects the old binding even if that kit has
+the same package and core generation.
+
+Paired session reads use the current foreground fields for that kit immediately
+after launch, or its retained target record while another kit is foreground.
+For described cores, enrichment requires the observed package and core generation
+to match the record. This keeps the captured game identity consistent between
+session reads and display replies.
+
+The runtime opens a separate display generation. The asynchronous presenter pins
+package, core and display generations instead of following a replacement;
+idle presenters cannot acquire an active session plane. ZX81 selects launcher
+pixels only after a full completed frame on its shared 720p raster. CPU, RAM,
+audio and the expansion socket continue. Back/Return closes and drains the plane
+before input resumes. UI navigation is suppressed at both launcher and target;
+held keys and controller buttons require release and a fresh press, including B
+when Stop fails. Button releases still clear suppression while Stop is pending
+or retryable. Failed close retains
+focus for an explicit retry. Stop retains the display binding and pending display
+reply until idle or a replacement session is confirmed. If Stop fails, Back,
+controller B and shell exit can return the captured plane; a late open does not
+reopen the room or implicitly close the plane. Display faults cannot invoke MENU
+reload or Stop.
+Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
+probe clears that presentation error and its retry delay; the room removes the
+temporary HDMI notice while retaining the cassette operation's status.
+Older packages keep prelaunch controls and the separate host renderer keeps its
+live routes. The shared wire layout is in
+[mister-packages session display](../../mister-packages/docs/session-display.md).
 
 The configured host capture sender is one physical pipeline with one RTP
 destination and sender token. Host-only playback claims that pipeline for its

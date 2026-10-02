@@ -1251,6 +1251,48 @@ void TestMenuDescriptorRoundTripAndRevocation()
  Contains(rejected.line,"\"ok\":false");close(socket);assert(fixture.hardware.core_calls==1);
 }
 
+void TestSessionDescriptorExchangeDoesNotFollowReopenedPlane()
+{
+ using namespace mister::daemon;
+ TempDirectory temporary;Fixture fixture;
+ fixture.hardware.core_info.descriptor.abi={"fes.simple-computer",1,0};
+ fixture.hardware.core_info.descriptor.interfaces={
+  {"fes.keyboard",1,0,true},{"fes.video.fixed-720p60",1,0,true},
+  {"fes.media.blob",1,0,true},{"fes.memory.hps-ddr",1,0,true},{"fes.video.session-display",1,0,true}};
+ fixture.hardware.supported.abis={{"fes.simple-computer",1,0,{
+  {"fes.keyboard",1,0},{"fes.video.fixed-720p60",1,0},
+  {"fes.media.blob",1,0},{"fes.memory.hps-ddr",1,0},{"fes.video.session-display",1,0}}}};
+ fixture.Start();const auto path=temporary.Entry("runtime.sock");RunningServer server(fixture.runtime,path);
+ Contains(Exchange(path,kLoad),"\"ok\":true");
+ const auto generation=fixture.runtime.status().generation;
+ const auto control=[&](bool visible) {
+  return std::string("{\"protocol\":2,\"operation\":\"session_display\",\"expected_package_id\":\"")+kPackageId+
+   "\",\"expected_generation\":"+std::to_string(generation)+",\"visible\":"+(visible?"true":"false")+"}";
+ };
+ Contains(Exchange(path,kStatus),"\"session\":true");
+ assert(!fixture.runtime.status().menu_display.available);
+ Contains(Exchange(path,control(true)),"\"ok\":true");
+ for(bool revoked:{true,false}) {
+  const auto display=fixture.runtime.status().menu_display.generation;
+  const int socket=Connect(path);const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(7);
+  const auto begin=std::string("{\"protocol\":2,\"operation\":\"menu_frame_begin\",\"expected_generation\":")+
+   std::to_string(display)+",\"byte_count\":3686400}";
+  assert(SendFrame(socket,begin,-1,deadline).ok());ReceivedFrame prepared;
+  assert(ReceiveFrame(socket,deadline,&prepared).ok());Contains(prepared.line,"\"ok\":true");assert(prepared.fds.size()==1);
+  const int fd=prepared.fds[0];assert(fcntl(fd,F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+  if(revoked){Contains(Exchange(path,control(false)),"\"ok\":true");Contains(Exchange(path,control(true)),"\"ok\":true");}
+  const auto commit=std::string("{\"protocol\":2,\"operation\":\"menu_frame_commit\",\"generation\":")+
+   std::to_string(display)+",\"byte_count\":3686400}";
+  assert(SendFrame(socket,commit,fd,deadline).ok());ReceivedFrame completed;
+  assert(ReceiveFrame(socket,deadline,&completed).ok());Contains(completed.line,revoked?"\"ok\":false":"\"ok\":true");
+  assert(completed.fds.empty());assert(ReadToEof(socket).empty());assert(close(socket)==0);
+ }
+ assert(fixture.hardware.menu_present_calls==1&&fixture.hardware.idle_calls==1&&fixture.hardware.core_calls==1);
+ assert(fixture.runtime.status().generation==generation);
+ Contains(Exchange(path,control(false)),"\"ok\":true");Contains(Exchange(path,kStop),"\"ok\":true");
+ assert(fixture.runtime.status().state==mister::State::idle&&!fixture.runtime.status().menu_display.session);
+}
+
 void TestMenuPreparationDeadlineAndCommitDisconnect()
 {
  using namespace mister::daemon;
@@ -1324,6 +1366,7 @@ void TestMenuMultipleAndTruncatedDescriptorsClose()
 
 int main()
 {
+ TestSessionDescriptorExchangeDoesNotFollowReopenedPlane();
  TestMenuPatternClientAgainstDaemon();
  TestMenuMultipleAndTruncatedDescriptorsClose();
  TestMenuDescriptorRoundTripAndRevocation();

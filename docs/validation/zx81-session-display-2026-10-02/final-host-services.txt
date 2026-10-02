@@ -1,0 +1,7 @@
+Id=fogcast-api.service
+ActiveState=inactive
+UnitFileState=disabled
+
+Id=fogcast-370.service
+ActiveState=inactive
+UnitFileState=

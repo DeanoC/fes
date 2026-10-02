@@ -240,7 +240,7 @@ func TestHardwareRoomDoesNotInventMissingComposition(t *testing.T) {
 	}
 }
 
-func TestHardwareRoomSelectsCassetteBeforeLaunchAndDisablesLiveHDMIControls(t *testing.T) {
+func TestHardwareRoomSelectsCassetteBeforeLaunchAndGatesLiveHDMIControls(t *testing.T) {
 	s := hardwareData(false)
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	r.Activate("tape")
@@ -256,7 +256,7 @@ func TestHardwareRoomSelectsCassetteBeforeLaunchAndDisablesLiveHDMIControls(t *t
 	s = hardwareData(true)
 	index := NewIndex(Examples())
 	pack, _ := index.Find("example.hardware")
-	r, err := New(pack, Options{Width: 1120, Height: 630, Services: s, IdleDisplayOnly: true, Budget: Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second}})
+	r, err := New(pack, Options{Width: 1120, Height: 630, Services: s, SessionDisplayRequired: true, Budget: Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,5 +268,26 @@ func TestHardwareRoomSelectsCassetteBeforeLaunchAndDisablesLiveHDMIControls(t *t
 	r.Activate("tape")
 	if acts = r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("offered invisible live controls: %+v", acts)
+	}
+}
+
+func TestKitHardwareRoomOffersTapeForObservedSessionDisplay(t *testing.T) {
+	s := hardwareData(true)
+	s.value.Session.CorePackage.ActiveInterfaces = append(s.value.Session.CorePackage.ActiveInterfaces,
+		hostclient.SessionCoreInterface{ID: "fes.video.session-display", Major: 1},
+		hostclient.SessionCoreInterface{ID: "fes.memory.hps-ddr", Major: 1})
+	r, err := New(examplePack(t, "example.hardware"), Options{Width: 1120, Height: 630, Services: s, SessionDisplayRequired: true, Budget: Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return !r.hardwareReading })
+	r.Activate("tape")
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionOpenTape || acts[0].SessionID != s.value.Session.ID || acts[0].MediaBinding.Generation != s.value.Session.CorePackage.Generation {
+		t.Fatalf("kit tape action lost observed capability or session binding: %+v", acts)
 	}
 }

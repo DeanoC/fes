@@ -53,16 +53,17 @@ type controllerPortsSink struct {
 	// publishSeq is the newest set_controller decision for a port.
 	// inflight counts poster calls that have not rejoined mu.
 	// haltPublish rejects new posts while ReleaseAll neutralizes.
-	publishSeq  [controllerPortCount]uint64
-	inflight    [controllerPortCount]int
-	haltPublish bool
-	keyboard    bool
-	keyboardHID bool
-	coreActive  bool
-	observed    bool
-	keys        *KeyboardSink
-	hid         *keyboardHIDSink
-	pads        *padMerge
+	publishSeq     [controllerPortCount]uint64
+	inflight       [controllerPortCount]int
+	haltPublish    bool
+	keyboard       bool
+	keyboardHID    bool
+	coreActive     bool
+	observed       bool
+	displayFocused bool
+	keys           *KeyboardSink
+	hid            *keyboardHIDSink
+	pads           *padMerge
 }
 
 func (s *controllerPortsSink) bind(binding *ControllerBinding) error {
@@ -152,6 +153,10 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 	}
 	s.mu.Lock()
 	shaped, ok := s.shapeLocked(source, f)
+	if s.displayFocused && ok && !keyboardFrame(shaped) {
+		s.mu.Unlock()
+		return nil
+	}
 	if ok && s.keyboardHID && keyboardFrame(shaped) {
 		// HID key state has its own ordered sink; a slow set_keyboard_hid
 		// post must not hold the controller-port lock.
@@ -428,6 +433,7 @@ func (s *controllerPortsSink) ReleaseAll() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.initPublishLocked()
+	s.displayFocused = false
 	s.keyboardHID = false
 	if s.binding == nil {
 		s.resetSourcesLocked()

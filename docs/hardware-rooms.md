@@ -34,15 +34,22 @@ recommended). Their sources, licences, provenance and checksums are retained in
 
 **Start machine** takes the ordinary library launch path, including firmware,
 selected media, target readiness, kit ownership and launch failures. On the kit's
-single HDMI output, the menu core displays only while idle. Select the cassette
-before Start, then type `LOAD ""` and `RUN` in BASIC. Live tape swapping and a
-second display/overlay are deferred; this change does not program MENU over a
-running machine. Stop before choosing another cassette.
+single HDMI output, a running ZX81 package that advertises
+`fes.video.session-display` and `fes.memory.hps-ddr` can show the workbench and
+cassette picker in its own shell. The launcher occupies the full screen while
+CPU execution, RAM, audio and the fitted expansion continue. A completed frame
+switches to the controls; closing them drains scanout and returns machine pixels.
+Older packages keep prelaunch selection. Idle rendering still uses MENU.
 
-On a separate host display, the existing live room remains available. During play,
+On the capable kit display and on a separate host display, the live room is available. During play,
 the **Hardware room** button, keyboard **Home**, or a single controller
 **Select/View** press opens the room without stopping the machine. The letter
-H remains a computer key. **Return to play** or Back restores the playing view.
+H remains a computer key. Arrows/d-pad navigate; Enter/A confirms; Escape/B
+returns. **Return to play** or Back first closes the display plane before restoring
+machine input. Held keys are neutralized when the controls open and require a
+release and fresh press after return. Select+Start held for one second retains
+the ordinary Stop action. An unconfirmed close keeps input focused on the UI
+and offers retry; it never silently stops or restarts BASIC.
 
 The room shows **Next start** separately from **Running**. The latter uses
 the session's target-reported package/composition receipt. Editing a running
@@ -54,7 +61,8 @@ machine; saving a setup does not save RAM.
 
 **Choose / eject tape** opens the existing `.p` picker while the active
 session advertises the supported live-media binding. Import/replace/eject
-reuse the session, target, package and generation guards. A successful swap
+reuse the session, target, package and generation guards. The live picker offers
+the same attributed starters and bounded `.p` imports without changing **Next start**. A successful swap
 keeps the session and running machine. Enter `LOAD ""` on the ZX81 after
 arming a tape; there is no cassette transport, playhead or automatic LOAD.
 Busy, unavailable and failed operations retain their existing status and
@@ -70,7 +78,7 @@ hardware acceptance.
 ## Data and ownership
 
 `GET /api/v1/library/hardware` returns typed machine records and the existing
-host session projection. Machine records carry the entry/package identity,
+host session projection for the paired kit or requested target. Machine records carry the entry/package identity,
 firmware readiness, one rear socket, saved expansion and admitted choices.
 Local readiness does not assert that a kit is connected or available. The
 session is a separate observation; connection loss leaves it unavailable,
@@ -113,7 +121,16 @@ asset through the ordinary media store. Neither endpoint selects or launches it.
 Normal launch/Stop/tape/navigation are
 launcher actions. Per-room storage contains navigation only: selected entry,
 inspected card, shelf page and focus. Physical transitions remain in runtime;
-this slice changes no FPGA, runtime or shared wire definitions.
+the shared display contract is defined in
+[session display](../sources/mister-packages/docs/session-display.md).
+`POST /api/v1/session/display` carries an explicit `visible` boolean with the
+captured session/target/package/generation headers. The target operation requires
+the existing kit lease. The runtime admits immutable full frames only while the
+plane is open and revokes their separate display generation on close, replacement
+or Stop. A display fault disables only that plane; idle recovery cannot replace
+the running core. Paired launchers have access to hardware/starter reads, exact
+starter imports, tape imports of 1..16384 bytes and captured live operations;
+next-start library writes and host filesystem settings remain host operations.
 
 ## Design provenance and next families
 

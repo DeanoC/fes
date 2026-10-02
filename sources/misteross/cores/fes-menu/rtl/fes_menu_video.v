@@ -3,9 +3,15 @@
 // with initial prefetch in vertical blank; late pixels are discarded by index.
 module fes_menu_video #(
     parameter [31:0] WINDOW_BASE = 32'd0,
-    parameter [0:0] TEST_PATTERN = 1'b0
+    parameter [0:0] TEST_PATTERN = 1'b0,
+    // Session planes share the machine's raster and acknowledge only a fully
+    // scanned frame. Defaults preserve the standalone idle-menu contract.
+    parameter [0:0] EXTERNAL_RASTER = 1'b0,
+    parameter [0:0] COMPLETE_FRAME_ACK = 1'b0
 ) (
     input wire clk, rst, enable, quiesce,
+    input wire [10:0] raster_h,
+    input wire [9:0] raster_v,
     input wire submit_valid, submit_slot,
     input wire [31:0] submit_sequence,
     output wire submit_ready,
@@ -23,8 +29,11 @@ module fes_menu_video #(
 );
     localparam [1:0] DRAIN = 2'd0, START = 2'd1, FETCH = 2'd2, DISPLAY = 2'd3;
     reg [1:0] state = DRAIN;
-    reg [10:0] h = 11'd0;
-    reg [9:0] v = 10'd720;
+    reg [10:0] internal_h = 11'd0;
+    reg [9:0] internal_v = 10'd720;
+    wire [10:0] h = EXTERNAL_RASTER ? raster_h : internal_h;
+    wire [9:0] v = EXTERNAL_RASTER ? raster_v : internal_v;
+    reg frame_complete = 1'b0;
     reg [19:0] raster_index = 20'd0;
     reg pending = 1'b0;
     reg armed = 1'b0;
@@ -84,10 +93,12 @@ module fes_menu_video #(
         .readdatavalid(reader_readdatavalid)
     );
     always @(posedge clk) begin
-        if (h == 11'd1649) begin
-            h <= 11'd0;
-            v <= v == 10'd749 ? 10'd0 : v + 10'd1;
-        end else h <= h + 11'd1;
+        if (!EXTERNAL_RASTER) begin
+            if (internal_h == 11'd1649) begin
+                internal_h <= 11'd0;
+                internal_v <= internal_v == 10'd749 ? 10'd0 : internal_v + 10'd1;
+            end else internal_h <= internal_h + 11'd1;
+        end
         if (frame_end) raster_index <= 20'd0;
         else if (de) raster_index <= raster_index + 20'd1;
 
@@ -112,11 +123,26 @@ module fes_menu_video #(
                     if (pixel_valid && pixel_index == 20'd0) begin
                         state <= DISPLAY;
                         current_slot <= fetch_slot;
-                        displayed_sequence <= fetch_sequence;
-                        pending <= 1'b0;
+                        frame_complete <= 1'b1;
+                        if (!COMPLETE_FRAME_ACK) begin
+                            displayed_sequence <= fetch_sequence;
+                            pending <= 1'b0;
+                        end
                     end else state <= DRAIN;
                 end
-                DISPLAY: if (blank_start) state <= DRAIN;
+                DISPLAY: begin
+                    if (de && !pixel_matches) frame_complete <= 1'b0;
+                    if (blank_start) begin
+                        state <= DRAIN;
+                        // Include the final pixel in the completion decision.
+                        if (COMPLETE_FRAME_ACK && frame_complete && pixel_matches) begin
+                            displayed_sequence <= fetch_sequence;
+                            // A new submission received during this frame
+                            // belongs to the next fetch, not this completion.
+                            if (pending_sequence == fetch_sequence) pending <= 1'b0;
+                        end
+                    end
+                end
                 default: state <= DRAIN;
             endcase
         end else begin
@@ -127,8 +153,9 @@ module fes_menu_video #(
         if (de && armed && running && !pixel_matches && underflows != 32'hffffffff)
             underflows <= underflows + 32'd1;
         if (rst) begin
-            h <= 11'd0;
-            v <= 10'd720;
+            internal_h <= 11'd0;
+            internal_v <= 10'd720;
+            frame_complete <= 1'b0;
             raster_index <= 20'd0;
             displayed_sequence <= 32'd0;
             underflows <= 32'd0;

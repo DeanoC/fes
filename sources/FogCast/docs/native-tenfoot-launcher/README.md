@@ -60,7 +60,7 @@ in `ui/tenfoot/sdl.go` until a later slice.
 | FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. Attract still/crossfade and sprite helpers: `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Thin Software wrapper without a command stream (`fpga-stub`). `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `ui/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits; `-theme` selects the shared look tokens. |
-| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. Both direct CPU shells cache complete draw commands and textures, skipping identical raster work; menu-display uses frame revisions to skip byte comparison. An unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). Host-testable. The image starts this client only when `kit_ui` is `tenfoot`; otherwise the kit runs `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. |
+| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. Both direct CPU shells cache complete draw commands and textures, skipping identical raster work; menu-display uses frame revisions to skip byte comparison. An unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new idle menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. An idle generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). Host-testable. The image starts this client only when `kit_ui` is `tenfoot`; otherwise the kit runs `fogcast-kit`. For direct kit-local package launches, tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. |
 
 `gfx.Recorder` is a call-order test double and does not draw pixels. Optional
 `TENFOOT_GFX=software|sdl|fpga|fpga-stub` (or `Options.GFX` / `-gfx`) selects a
@@ -70,6 +70,27 @@ software-replay of the FC2D stream, not a programmed 2D core. `linuxfb` and
 `-gfx menu-display` to `gfx.MenuDisplay` (change-driven presents,
 `-menu-socket`). `linuxfb` on the kit can still use `cmd/tenfoot-linuxfb-spike`
 or `cmd/tenfoot-linuxfb-grid`.
+
+For an active library ZX81 package that reports `fes.video.session-display` 1.0
+and `fes.memory.hps-ddr` 1.0, **Home** on a keyboard or **Select/View** on a pad
+opens the hardware workbench on the same HDMI output. The launcher waits for the
+captured host session's display request before showing controls; the FPGA switches
+pixels after the first complete menu frame. Arrows/D-pad navigate, Enter/A
+confirms, and Back/Esc/B returns to the running machine. **Select+Start held for
+one second** remains Stop, including while the workbench is open. Opening and
+returning release held input; gameplay resumes only after release and a fresh
+press. The existing kit-local input source carries the kit keyboard and pad.
+
+The live cassette picker offers the host's attributed starter tapes and local
+`.p` imports. It imports bytes and replaces/ejects media through the captured
+session, package, core generation and target; it preserves the library's **Next
+start** cassette. Menu frames also pin that captured package and core generation
+and reject changed display generations. A lost open response keeps Back/Esc/B
+available for a guarded return and Home/Select for retry. A failed return retains
+room input until another return succeeds. Shell exit attempts that return without
+stopping the machine. Packages without the observed display contracts retain
+pre-launch cassette selection; the independent host window keeps its live tape
+controls.
 
 ## CPU profiling and optimization
 

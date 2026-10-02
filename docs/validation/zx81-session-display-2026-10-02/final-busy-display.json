@@ -1,0 +1,34 @@
+[
+  {
+    "http_status": 409,
+    "error_code": "BUSY"
+  },
+  {
+    "http_status": 200,
+    "same_session_package_generation": true
+  },
+  {
+    "http_status": 409,
+    "error_code": "BUSY"
+  },
+  {
+    "http_status": 409,
+    "error_code": "BUSY"
+  },
+  {
+    "http_status": 409,
+    "error_code": "BUSY"
+  },
+  {
+    "http_status": 409,
+    "error_code": "BUSY"
+  },
+  {
+    "http_status": 409,
+    "error_code": "BUSY"
+  },
+  {
+    "http_status": 409,
+    "error_code": "BUSY"
+  }
+]

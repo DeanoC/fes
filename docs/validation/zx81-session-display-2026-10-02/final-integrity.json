@@ -1,0 +1,125 @@
+{
+  "classification": "exact-artifact HDMI diagnostic with synthetic evdev inputs",
+  "boot_id": "9805b4e2-db0a-486d-ae37-75a384e0f4ff",
+  "first_paired_read_matches_launch": true,
+  "core_package_and_linked_rbf_unchanged": true,
+  "runtime_observations": [
+    {
+      "observation": "final-first-home-runtime.json",
+      "core_generation": 1,
+      "display": {
+        "available": true,
+        "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+        "session": true,
+        "core_generation": 1,
+        "generation": 2,
+        "width": 1280,
+        "height": 720,
+        "stride": 5120,
+        "byte_count": 3686400,
+        "slot_bytes": 4194304,
+        "staging_format": "rgba8888",
+        "displayed_sequence": 5,
+        "underflows": 0,
+        "error": null
+      }
+    },
+    {
+      "observation": "final-program-before-runtime.json",
+      "core_generation": 1,
+      "display": {
+        "available": false,
+        "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+        "session": true,
+        "core_generation": 1,
+        "generation": 0,
+        "width": 1280,
+        "height": 720,
+        "stride": 5120,
+        "byte_count": 3686400,
+        "slot_bytes": 4194304,
+        "staging_format": "rgba8888",
+        "displayed_sequence": 33,
+        "underflows": 0,
+        "error": null
+      }
+    },
+    {
+      "observation": "final-after-swap-runtime.json",
+      "core_generation": 1,
+      "display": {
+        "available": false,
+        "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+        "session": true,
+        "core_generation": 1,
+        "generation": 0,
+        "width": 1280,
+        "height": 720,
+        "stride": 5120,
+        "byte_count": 3686400,
+        "slot_bytes": 4194304,
+        "staging_format": "rgba8888",
+        "displayed_sequence": 57,
+        "underflows": 0,
+        "error": null
+      }
+    },
+    {
+      "observation": "final-after-eject-runtime.json",
+      "core_generation": 1,
+      "display": {
+        "available": false,
+        "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+        "session": true,
+        "core_generation": 1,
+        "generation": 0,
+        "width": 1280,
+        "height": 720,
+        "stride": 5120,
+        "byte_count": 3686400,
+        "slot_bytes": 4194304,
+        "staging_format": "rgba8888",
+        "displayed_sequence": 69,
+        "underflows": 0,
+        "error": null
+      }
+    },
+    {
+      "observation": "final-before-stop-runtime.json",
+      "core_generation": 1,
+      "display": {
+        "available": false,
+        "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+        "session": true,
+        "core_generation": 1,
+        "generation": 0,
+        "width": 1280,
+        "height": 720,
+        "stride": 5120,
+        "byte_count": 3686400,
+        "slot_bytes": 4194304,
+        "staging_format": "rgba8888",
+        "displayed_sequence": 146,
+        "underflows": 0,
+        "error": null
+      }
+    }
+  ],
+  "program_png_sha256": {
+    "final-program-before.png": "a7a0cf58c71409b069153a59b49c6e88a62abacb051853497b98c60c50020d84",
+    "final-program-after-swap-held.png": "a7a0cf58c71409b069153a59b49c6e88a62abacb051853497b98c60c50020d84",
+    "final-program-after-eject.png": "a7a0cf58c71409b069153a59b49c6e88a62abacb051853497b98c60c50020d84",
+    "final-program-after-import.png": "a7a0cf58c71409b069153a59b49c6e88a62abacb051853497b98c60c50020d84",
+    "final-program-after-controller.png": "a7a0cf58c71409b069153a59b49c6e88a62abacb051853497b98c60c50020d84"
+  },
+  "relaunch_core_generation": 2,
+  "old_binding_display_and_eject_http": 409,
+  "cleanup": {
+    "runtime": "idle",
+    "lease": "free",
+    "synthetic_helpers": "closed and removed",
+    "temporary_host": "inactive",
+    "normal_host": "disabled and inactive",
+    "fat_free_mib": 248.2
+  }
+}

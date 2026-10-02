@@ -44,6 +44,7 @@ type Runtime struct {
 	activePackage      *corepackage.Staged
 	retiredPackages    []corepackage.Staged
 	coreBarrier        CoreReplacementBarrier
+	displayFocus       SessionDisplayFocus
 	events             flightdiag.Sink
 	eventsPath         string
 	eventsMu           sync.Mutex

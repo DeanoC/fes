@@ -2164,7 +2164,20 @@ func (s *Service) statusPairedTarget(parent context.Context, targetID string) (p
 	}
 	s.executionMu.Lock()
 	play, hasPlay := s.plays[name]
-	if hasPlay && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
+	if s.activeTarget == name && (s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment) {
+		// Launch publishes these fields before another public status read
+		// refreshes plays. Paired reads must see that same current identity.
+		play = targetPlay{gameID: s.activeGameID, system: s.activeSystem,
+			packageID: s.activePackageID, packageGeneration: s.activePackageGeneration,
+			packageRejection: s.packageRejection}
+		hasPlay = true
+	}
+	matchingPackage := status.CorePackage == nil && play.packageID == "" && play.packageGeneration == 0
+	if status.CorePackage != nil {
+		matchingPackage = status.CorePackage.PackageID != "" && status.CorePackage.Generation != 0 &&
+			status.CorePackage.PackageID == play.packageID && status.CorePackage.Generation == play.packageGeneration
+	}
+	if hasPlay && matchingPackage && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
 		if status.GameID == nil && play.gameID != "" {
 			status.GameID = stringPtr(play.gameID)
 		}

@@ -1,0 +1,24 @@
+{
+  "fes_revision": "5a58053229b5e1772defe5f9bdc34c72f659db71",
+  "files": {
+    "core-packages/3f6e78d03fc952b45dbe6e15c9c684e6186e2cd7be8a26b9f28237a16b80da21/core.rbf": "3f0782a3a4f98df5c86bf5944c78281a16ade9a91673ce38baed427fb3148ecb",
+    "core-packages/3f6e78d03fc952b45dbe6e15c9c684e6186e2cd7be8a26b9f28237a16b80da21/manifest.toml": "14d3e6a4691c5b255d3cd051b93bb5809bee17530764eb7e81f844e8150c1a12",
+    "core-packages/519ac44a9d801267eb8a07d7f9258cf2df59fbeb389f3a630d1d5c8f02dfb798/core.rbf": "743d75475eae961d3320707dcd51103ac9f9fcc7f334f7583eebe6b5427a88d8",
+    "core-packages/519ac44a9d801267eb8a07d7f9258cf2df59fbeb389f3a630d1d5c8f02dfb798/manifest.toml": "380f2045546a7535229a2c2d126b9d52fe0292c846f18e148b246748e1f272ef",
+    "core-packages/6ecb849a8a35215d2cc58fb0c09a12b2faa3708b1f7de49feaeee4b609b11e40/core.rbf": "4b8e645c01357f0dc8e4a0a281cf880c733bd3d3c4244a479e31dae09bfb7198",
+    "core-packages/6ecb849a8a35215d2cc58fb0c09a12b2faa3708b1f7de49feaeee4b609b11e40/manifest.toml": "d44f5ec2f69ceda5482440e9ceadfa3254f18fa3eb98af9f453ba9cc957d31fc",
+    "core-packages/f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f/core.rbf": "4c4efd299f6228fc38fe9d1d1917ced030a4ede188776f83e8705a9d934a00f0",
+    "core-packages/f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f/manifest.toml": "17840abd6772f667bfd49a8ba6d5efb2b0e9c534696119c881cdf5b3ce7cf83d",
+    "core-packages/f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f/rom-map.json": "0c0fc00252eee9dfff62eb6b02820eb6d28fa89b91af61f24dc77165cb83d2ee",
+    "fes-coleco.package-selection.toml": "df8cd124bbab88bbabdde45cf1fdb05f7f3162282fe2fee8bea0d29817bd4a1c",
+    "fes-menu.package-selection.toml": "ecc4d8eb7fe02bcd0d8ea157986ab07aceb29392038d3534ac1e702bed6f517b",
+    "fes-pong.package-selection.toml": "2ec5134feecac5654e477b1804cdf4ea35e895551f9638f30f58744565d7bdce",
+    "fes-zx81.package-selection.toml": "fdebec05ce8446d1bad94f38200537f102c4c7502cde7c04cd67ac6c086d2520",
+    "inputs.json": "b52c9c361cb7feb0b0c251d096783e913e0456276ad63e5bfe279683187a22ec",
+    "library-report.tsv": "85b3ddf6aebd25a58a8ea736d081e028fd7bdab35a4567be67f01a07848dd926",
+    "linux.img": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "manifest.tsv": "da72b232997db94b6b7ac5cceca6e391bcb873bbfe76c62dc52e98d36b4d4c2f",
+    "reproducibility.txt": "ff4900ba51640bddaa97170177ef18c71f578539c37b091fe9912a8e4e85f6be"
+  },
+  "inputs": "a9c115d592d9cf88ba88faf80d5205714add8169db9c52e6ee764981ee40e5ad"
+}

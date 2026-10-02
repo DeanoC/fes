@@ -39,6 +39,8 @@ type Protocol2Error struct {
 
 type Protocol2MenuDisplay struct {
 	Available         bool            `json:"available"`
+	Session           bool            `json:"session,omitempty"`
+	CoreGeneration    uint64          `json:"core_generation,omitempty"`
 	PackageID         *string         `json:"package_id"`
 	Generation        uint64          `json:"generation"`
 	Width             uint64          `json:"width"`
@@ -606,7 +608,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateMenuDisplayShape(raw json.RawMessage) error {
-	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "staging_format", "displayed_sequence", "underflows", "error"}, nil)
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "staging_format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation"})
 	if err != nil {
 		return err
 	}
@@ -618,6 +620,17 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 		"underflows": rawUnsigned, "error": rawNullableObject,
 	}); err != nil {
 		return err
+	}
+	if session, present := menu["session"]; present {
+		if !bytes.Equal(bytes.TrimSpace(session), []byte("true")) || requireRawKinds(menu, map[string]rawKind{"core_generation": rawUnsigned}) != nil {
+			return errInvalidRuntimeResponse
+		}
+		var generation uint64
+		if json.Unmarshal(menu["core_generation"], &generation) != nil || generation == 0 || isNull(menu["package_id"]) {
+			return errInvalidRuntimeResponse
+		}
+	} else if _, present := menu["core_generation"]; present {
+		return errInvalidRuntimeResponse
 	}
 	if !isNull(menu["error"]) {
 		return validateErrorShape(menu["error"])

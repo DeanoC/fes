@@ -12,6 +12,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
@@ -45,6 +47,9 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	app, err := configuredApp(opts)
 	if err != nil {
 		return err
+	}
+	if display, ok := dev.(*gfx.MenuDisplay); ok {
+		app.SetMenuDisplay(display)
 	}
 	inputSpec := opts.Input
 	if opts.Smoke {
@@ -126,6 +131,8 @@ type nativeInput struct {
 	axes     map[uint16]Command
 	controls map[uint16]Command
 	hatHeld  map[uint16]Button
+	padHeld  map[remoteinput.Code]remoteinput.Event
+	keysHeld map[uint16]string
 	mapper   *controller.Mapper
 }
 type nativeInputs struct {
@@ -314,7 +321,9 @@ devices:
 						continue
 					}
 					if code == 316 {
-						if app.localCoreOwnsInput() {
+						if value == 1 && app.Snapshot().Session.HardwareRoom {
+							app.Press(CmdHome, now)
+						} else if app.coreOwnsPadInput() {
 							if value != 0 {
 								app.NoteInput(InputGamepad, in.fd)
 							}
@@ -354,7 +363,7 @@ devices:
 			}
 		}
 	}
-	if app.localCoreOwnsInput() {
+	if app.coreOwnsPadInput() {
 		if !ins.menuSuppressed {
 			ins.dropMenuEdges(app)
 			ins.menuSuppressed = true
@@ -435,13 +444,6 @@ func (ins *nativeInputs) applyButtons(app *App, now time.Time) bool {
 	}
 	return applyPressed(app, pressed, ins.held, now)
 }
-func nativeButtonCommand(app *App, button Button) Command {
-	e := remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Code: LogicalFromButton(button), Action: remoteinput.ActionPress}
-	if remap := app.remapper(); remap != nil {
-		e = remap.Apply(e)
-	}
-	return CommandFromLogical(e)
-}
 func (in *nativeInput) button(app *App, button Button, value int32, now time.Time) {
 	if value == 2 || button == ButtonNone {
 		return
@@ -457,6 +459,14 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 	}
 	if remap := app.remapper(); remap != nil {
 		e = remap.Apply(e)
+	}
+	if in.padHeld == nil {
+		in.padHeld = make(map[remoteinput.Code]remoteinput.Event)
+	}
+	if value != 0 {
+		in.padHeld[e.Code] = e
+	} else {
+		delete(in.padHeld, e.Code)
 	}
 	if app.HandleLocalPad(e, now) {
 		if value != 0 {
@@ -490,25 +500,14 @@ func (in *nativeInput) localHat(app *App, code uint16, value int32, now time.Tim
 		return
 	}
 	if prev != ButtonNone {
-		app.HandleLocalPad(remoteinput.Event{
-			Device: remoteinput.DeviceGamepad,
-			Kind:   remoteinput.KindButton,
-			Action: remoteinput.ActionRelease,
-			Code:   LogicalFromButton(prev),
-		}, now)
+		in.button(app, prev, 0, now)
 	}
 	if button == ButtonNone {
 		delete(in.hatHeld, code)
 		return
 	}
 	in.hatHeld[code] = button
-	app.HandleLocalPad(remoteinput.Event{
-		Device: remoteinput.DeviceGamepad,
-		Kind:   remoteinput.KindButton,
-		Action: remoteinput.ActionPress,
-		Code:   LogicalFromButton(button),
-	}, now)
-	app.NoteInput(InputGamepad, in.fd)
+	in.button(app, button, 1, now)
 }
 
 func (in *nativeInput) localAxis(app *App, code remoteinput.Code, value int32, now time.Time) {
@@ -526,39 +525,10 @@ func (in *nativeInput) localAxis(app *App, code remoteinput.Code, value int32, n
 }
 
 func (in *nativeInput) hat(app *App, code uint16, value int32, now time.Time) {
-	if app.localCoreOwnsInput() {
-		in.localHat(app, code, value, now)
-		return
-	}
-	if in.axes == nil {
-		in.axes = map[uint16]Command{}
-	}
-	button := ButtonNone
-	if code == 16 {
-		if value < 0 {
-			button = ButtonDPadLeft
-		} else if value > 0 {
-			button = ButtonDPadRight
-		}
-	} else {
-		if value < 0 {
-			button = ButtonDPadUp
-		} else if value > 0 {
-			button = ButtonDPadDown
-		}
-	}
-	cmd := nativeButtonCommand(app, button)
-	if old := in.axes[code]; old != cmd {
-		in.setButton(1000+code, old, false)
-		in.axes[code] = cmd
-		in.setButton(1000+code, cmd, cmd != CmdNone)
-		if cmd != CmdNone {
-			app.NoteInput(InputGamepad, in.fd)
-		}
-	}
+	in.localHat(app, code, value, now)
 }
 func (in *nativeInput) axis(app *App, code remoteinput.Code, value int32, now time.Time) {
-	if app.localCoreOwnsInput() {
+	if app.coreOwnsPadInput() {
 		in.localAxis(app, code, value, now)
 		return
 	}
@@ -572,17 +542,37 @@ func (in *nativeInput) axis(app *App, code remoteinput.Code, value int32, now ti
 	old := in.axes[uint16(code)]
 	cmd := CommandFromStickHeld(axisX, axisY, old)
 	if cmd != old {
-		in.setButton(uint16(2000+code), old, false)
+		in.button(app, nativeDirectionButton(old), 0, now)
 		in.axes[uint16(code)] = cmd
-		in.setButton(uint16(2000+code), cmd, cmd != CmdNone)
-		if cmd != CmdNone {
-			app.NoteInput(InputGamepad, in.fd)
-		}
+		in.button(app, nativeDirectionButton(cmd), 1, now)
 	}
 	_ = now
 }
+
+func nativeDirectionButton(cmd Command) Button {
+	switch cmd {
+	case CmdUp:
+		return ButtonDPadUp
+	case CmdDown:
+		return ButtonDPadDown
+	case CmdLeft:
+		return ButtonDPadLeft
+	case CmdRight:
+		return ButtonDPadRight
+	default:
+		return ButtonNone
+	}
+}
 func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bool {
 	name := nativeKeyName(code)
+	if in.keysHeld == nil {
+		in.keysHeld = make(map[uint16]string)
+	}
+	if value != 0 {
+		in.keysHeld[code] = name
+	} else {
+		delete(in.keysHeld, code)
+	}
 	modifier := code == 42 || code == 54
 	if modifier {
 		if in.shifts == nil {
@@ -808,6 +798,77 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 	for _, cmd := range lost.commands {
 		app.Release(cmd)
 	}
+	ins.releaseLostPlayInput(app, lost)
 	app.DetachInput(InputKeyboard, lost.fd)
 	app.DetachInput(InputGamepad, lost.fd)
+}
+
+func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
+	remainingPads, remainingKeys := map[remoteinput.Code]bool{}, map[string]bool{}
+	for _, in := range ins.devices {
+		for code := range in.padHeld {
+			remainingPads[code] = true
+		}
+		for _, name := range in.keysHeld {
+			remainingKeys[name] = true
+		}
+	}
+	app.mu.Lock()
+	var padEvents, keyEvents []remoteinput.Event
+	for code, event := range lost.padHeld {
+		if remainingPads[code] {
+			continue
+		}
+		delete(app.playPadHeld, code)
+		delete(app.playPadSuppressed, code)
+		if code == remoteinput.ButtonSelect {
+			app.playPadSelectDown = false
+			app.localSelectDown = false
+		}
+		if code == remoteinput.ButtonStart {
+			app.playPadStartDown = false
+			app.localStartDown = false
+		}
+		delete(app.localSent, code)
+		event.Action = remoteinput.ActionRelease
+		event.Value = 0
+		padEvents = append(padEvents, event)
+	}
+	if !app.playPadSelectDown || !app.playPadStartDown {
+		app.playPadChordSince = time.Time{}
+		app.playPadChordFired = false
+	}
+	if !app.localSelectDown || !app.localStartDown {
+		app.localChordSince = time.Time{}
+		app.localChordFired = false
+	}
+	for code, name := range lost.keysHeld {
+		if remainingKeys[name] {
+			continue
+		}
+		delete(app.playKeyHeld, name)
+		delete(app.playKeySuppressed, name)
+		event, ok := playhid.Event(name, false, app.session.CoreKeyboard)
+		if app.session.CoreKeyboardHID {
+			event, ok = hidkeys.Event(nativeHIDUsage(code), false)
+		}
+		if ok {
+			key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
+			if _, held := app.playHIDHeld[key]; held {
+				delete(app.playHIDHeld, key)
+				keyEvents = append(keyEvents, event)
+			}
+		}
+	}
+	feed := app.localFeed
+	forward := (app.localPhase == localPhaseRunning || app.session.State == "active") && !app.playHIDFailClosedLocked()
+	if forward {
+		app.queuePlayHIDLocked(keyEvents)
+	}
+	app.mu.Unlock()
+	if forward && feed != nil {
+		for _, event := range padEvents {
+			_ = feed.Send(event, time.Now())
+		}
+	}
 }

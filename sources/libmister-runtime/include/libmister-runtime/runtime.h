@@ -280,6 +280,10 @@ struct MenuDisplayInfo {
 };
 struct MenuDisplayStatus {
  bool available=false;
+ // A running-core plane binds both its independent display generation and
+ // the gameplay generation. Idle MENU status omits these fields on the wire.
+ bool session=false;
+ std::uint64_t core_generation=0;
  std::string package_id;
  std::uint64_t generation=0;
  MenuGeometry geometry;
@@ -376,6 +380,9 @@ public:
   return {{ErrorCode::unsupported_interface,"menu display unavailable"},false,""};
  }
  virtual MenuDisplayStatus menu_display() const {return {};}
+ virtual Error SetSessionDisplay(bool) {
+  return {ErrorCode::unsupported_interface,"session display unavailable","menu"};
+ }
  virtual Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) {
   return {ErrorCode::unsupported_interface,"menu display unavailable"};
  }
@@ -498,6 +505,8 @@ public:
 	Runtime& operator=(const Runtime&) = delete;
 	Error Start();
  Error ConfigureMenuPackage(const std::string&,const std::string&);
+ Error SetSessionDisplay(const std::string& expected_package_id,
+  std::uint64_t expected_generation,bool visible);
  Error BeginMenuFrame(std::uint64_t,std::unique_ptr<MenuFrame>*);
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;

@@ -8,8 +8,11 @@
 // FES_APPLICATION_HPS_DDR_WINDOW_BASE/BYTES: the ports reach all of DDR.
 //
 // hold is the core's execution reset. It is synchronized to each port clock
-// and returned as pN_reset; reset that port's master with it. The guards
-// finish or drain a transfer the master had started, so the controller never
+// and returned as pN_reset; reset that port's master with it. pN_drained
+// proves that every guard-owned command, write beat and read response has
+// completed, including responses hidden during hold. A master must quiesce
+// before using this proof for reprogramming; hold alone is insufficient.
+// The guards finish or drain a transfer the master had started, so the controller never
 // sees a burst stop midway. Tie an unused port's read and write low.
 // The wiring follows Quartus 17.0 f2sdram::add_port (ip/altera/hps/util/
 // procedures.tcl). Its Avalon ports leave wr_valid undriven; here it follows
@@ -26,6 +29,7 @@ module fes_hps_ddr #(
 
     input  wire         p0_clk,
     output wire         p0_reset,
+    output wire         p0_drained,
     input  wire [27:0]  p0_address,
     input  wire [7:0]   p0_burstcount,
     output wire         p0_waitrequest,
@@ -38,6 +42,7 @@ module fes_hps_ddr #(
 
     input  wire         p1_clk,
     output wire         p1_reset,
+    output wire         p1_drained,
     input  wire [28:0]  p1_address,
     input  wire [7:0]   p1_burstcount,
     output wire         p1_waitrequest,
@@ -50,6 +55,7 @@ module fes_hps_ddr #(
 
     input  wire         p2_clk,
     output wire         p2_reset,
+    output wire         p2_drained,
     input  wire [28:0]  p2_address,
     input  wire [7:0]   p2_burstcount,
     output wire         p2_waitrequest,
@@ -93,7 +99,7 @@ module fes_hps_ddr #(
     wire         rd_valid_1, rd_valid_2, rd_valid_3;
 
     fes_hps_ddr_guard #(.DATA_W(128), .ADDR_W(28)) port0 (
-        .clk(p0_clk), .hold(p0_reset),
+        .clk(p0_clk), .hold(p0_reset), .drained(p0_drained),
         .address(p0_address), .burstcount(p0_burstcount),
         .waitrequest(p0_waitrequest), .readdata(p0_readdata),
         .readdatavalid(p0_readdatavalid), .read(p0_read),
@@ -105,7 +111,7 @@ module fes_hps_ddr #(
         .m_writedata(m0_writedata), .m_byteenable(m0_byteenable), .m_write(m0_write)
     );
     fes_hps_ddr_guard #(.DATA_W(64), .ADDR_W(29)) port1 (
-        .clk(p1_clk), .hold(p1_reset),
+        .clk(p1_clk), .hold(p1_reset), .drained(p1_drained),
         .address(p1_address), .burstcount(p1_burstcount),
         .waitrequest(p1_waitrequest), .readdata(p1_readdata),
         .readdatavalid(p1_readdatavalid), .read(p1_read),
@@ -116,7 +122,7 @@ module fes_hps_ddr #(
         .m_writedata(m1_writedata), .m_byteenable(m1_byteenable), .m_write(m1_write)
     );
     fes_hps_ddr_guard #(.DATA_W(64), .ADDR_W(29)) port2 (
-        .clk(p2_clk), .hold(p2_reset),
+        .clk(p2_clk), .hold(p2_reset), .drained(p2_drained),
         .address(p2_address), .burstcount(p2_burstcount),
         .waitrequest(p2_waitrequest), .readdata(p2_readdata),
         .readdatavalid(p2_readdatavalid), .read(p2_read),

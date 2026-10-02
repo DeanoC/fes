@@ -15,6 +15,8 @@ module zx81_video_720p (
     output wire        hsync,
     output wire        vsync,
     output wire        frame_tick,
+    output wire [10:0] raster_h,
+    output wire [9:0]  raster_v,
     output reg  [9:0]  src_x_max,
     output reg  [8:0]  src_y_max
 );
@@ -62,6 +64,8 @@ module zx81_video_720p (
     reg [10:0] horizontal;
     reg [9:0] vertical;
 
+    assign raster_h = horizontal;
+    assign raster_v = vertical;
     assign de = horizontal < H_ACTIVE && vertical < V_ACTIVE;
     assign hsync = horizontal >= H_ACTIVE + H_FRONT &&
                    horizontal < H_ACTIVE + H_FRONT + H_SYNC;

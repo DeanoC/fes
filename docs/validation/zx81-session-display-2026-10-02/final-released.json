@@ -1,0 +1,9 @@
+{
+  "status": 200,
+  "body": {
+    "expires_in_ms": 0,
+    "state": "free",
+    "generation": "7f78cc879aaeadf90733b20bfe528905a585c510c5ff7de258ff35aebaac049a",
+    "expires_at": "0001-01-01T00:00:00Z"
+  }
+}

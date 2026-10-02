@@ -940,7 +940,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (!descriptor.core.system.empty())
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"FES GP packages must omit core.system");
-		bool keyboard = false, video = false, media = false;
+		bool keyboard = false, video = false, media = false, ddr = false, display = false;
 		for (const CoreInterface& interface : descriptor.interfaces) {
 			if (interface.id == FesSimpleComputerInterfaceKeyboardID) {
 				const bool supported =
@@ -978,11 +978,21 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 					interface.minor != FesSimpleComputerInterfaceAudioPcmS16Stereo48kMinor)
 					return CompatibilityError(ErrorCode::unsupported_interface,
 						"simple-computer audio must be required at version 1.0");
+			} else if (interface.id == FesSimpleComputerInterfaceMemoryHpsDdrID ||
+				interface.id == FesSimpleComputerInterfaceVideoSessionDisplayID) {
+				if (!interface.required || interface.major != 1 || interface.minor != 0)
+					return CompatibilityError(ErrorCode::unsupported_interface,
+						"simple-computer DDR and session display must be required at version 1.0");
+				if (interface.id == FesSimpleComputerInterfaceMemoryHpsDdrID) ddr = true;
+				else display = true;
 			} else if (interface.required) {
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required interface is unsupported");
 			}
 		}
+		if (display && !ddr)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"session display requires HPS DDR");
 		const bool linked_cartridge = descriptor.format == 3 &&
 			descriptor.rom.role == "cartridge";
 		if (!keyboard || !video || (!media && !linked_cartridge))

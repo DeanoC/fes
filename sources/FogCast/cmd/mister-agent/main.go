@@ -134,6 +134,11 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 			return errors.New("native input controller cannot fence core replacement")
 		}
 		nativeRuntime.ConfigureCoreReplacementBarrier(barrier)
+		if focus, ok := controller.(misterruntime.SessionDisplayFocus); ok {
+			nativeRuntime.ConfigureSessionDisplayFocus(focus)
+		} else {
+			return errors.New("native input controller cannot fence session display focus")
+		}
 		if ports, ok := controller.(interface {
 			ConfigureControllerPorts(func(context.Context) (*input.ControllerBinding, error), input.ControllerPoster)
 			ObserveCore(func(context.Context) (input.CoreObservation, error))
@@ -180,6 +185,8 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 				if ctx == nil {
 					ctx = context.Background()
 				}
+				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
 				err := nativeRuntime.SetKeyboard(ctx, matrix)
 				var apiErr *protocol.APIError
 				if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeUnsupportedOperation {

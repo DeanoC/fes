@@ -16,12 +16,13 @@ import (
 )
 
 const (
-	tapePickerKindOSK    = "osk"
-	tapePickerKindRoot   = "root"
-	tapePickerKindParent = "parent"
-	tapePickerKindDir    = "dir"
-	tapePickerKindFile   = "file"
-	tapePickerKindEject  = "eject"
+	tapePickerKindOSK     = "osk"
+	tapePickerKindRoot    = "root"
+	tapePickerKindParent  = "parent"
+	tapePickerKindDir     = "dir"
+	tapePickerKindFile    = "file"
+	tapePickerKindEject   = "eject"
+	tapePickerKindStarter = "starter"
 
 	tapePickerOSKLabel   = "Type a path…"
 	tapePickerEjectLabel = "Eject tape"
@@ -35,6 +36,7 @@ type TapePickerRow struct {
 	Kind       string
 	Size       int64
 	Selectable bool
+	Starter    *hostclient.HardwareTape
 }
 
 // TapePickerSnapshot is renderer-facing overlay state for ZX81 Load-tape.
@@ -190,6 +192,8 @@ func tapePickerRowLabel(row TapePickerRow) string {
 		return label
 	case tapePickerKindEject:
 		return row.Name
+	case tapePickerKindStarter:
+		return row.Name + "  ·  Starter tape"
 	case tapePickerKindDir, tapePickerKindRoot, tapePickerKindParent:
 		return row.Name
 	default:
@@ -239,20 +243,17 @@ func (a *App) closeTapePickerLocked() {
 	a.tapePickerPath = ""
 	a.tapePickerAtRoots = false
 	a.tapePickerSession = hostclient.SessionResult{}
+	a.tapePickerStarters = nil
 	if a.settingsOSKKind == settingsOSKTapePath {
 		a.closeSettingsOSKLocked()
 	}
 }
 
 func (a *App) sessionLiveMediaOfferedLocked() bool {
-	return a.session.State == "active" && hostclient.LiveMediaCapable(a.session.CorePackage)
+	return a.session.State == "active" && hostclient.LiveMediaCapable(a.session.CorePackage) && a.sessionDisplayOfferedLocked()
 }
 
 func (a *App) openTapePickerLocked() {
-	if a.localCores != nil {
-		a.status = "Choose a cassette before starting; HDMI controls return after Stop."
-		return
-	}
 	if !a.sessionLiveMediaOfferedLocked() {
 		a.status = "Live tape is unavailable for this running machine."
 		a.roomSessionNotice = a.status
@@ -261,7 +262,12 @@ func (a *App) openTapePickerLocked() {
 	if a.tapePickerBusy {
 		return
 	}
+	if a.needsSessionDisplayLocked() && !a.sessionDisplayVisible {
+		a.beginSessionDisplayLocked(true, true)
+		return
+	}
 	a.releasePlayHIDLocked()
+	a.suppressHeldPlayKeysLocked()
 	a.closeFirmwarePickerLocked()
 	a.closeDetailLocked()
 	a.roomChoiceOpen = false
@@ -271,6 +277,39 @@ func (a *App) openTapePickerLocked() {
 	a.tapePickerBusy = false
 	a.tapePickerGen++
 	a.showTapePickerRootsLocked("Choose a .p tape to arm on the running ZX81.")
+	if a.client != nil {
+		parent := a.ctx
+		if parent == nil {
+			parent = context.Background()
+		}
+		go a.fetchLiveTapeStarters(parent, a.tapePickerGen)
+	}
+}
+
+func (a *App) fetchLiveTapeStarters(parent context.Context, gen int) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	defer cancel()
+	tapes, err := a.client.ZX81Tapes(ctx)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err != nil || !a.tapePickerOpen || a.tapePickerGen != gen {
+		return
+	}
+	for _, tape := range tapes {
+		if tape.ID != "" && protocol.ValidateDigest(tape.SHA256) == nil && protocol.AdmitTapeMediaName(tape.Filename) {
+			a.tapePickerStarters = append(a.tapePickerStarters, tape)
+		}
+	}
+	if a.tapePickerAtRoots {
+		a.appendTapeStartersLocked()
+	}
+}
+
+func (a *App) appendTapeStartersLocked() {
+	for _, tape := range a.tapePickerStarters {
+		copy := tape
+		a.tapePickerRows = append(a.tapePickerRows, TapePickerRow{Name: tape.Name, Kind: tapePickerKindStarter, Selectable: true, Starter: &copy})
+	}
 }
 
 func (a *App) showTapePickerRootsLocked(status string) {
@@ -278,6 +317,7 @@ func (a *App) showTapePickerRootsLocked(status string) {
 	a.tapePickerAtRoots = true
 	a.tapePickerPath = ""
 	a.tapePickerRows = tapePickerRoots(home, a.hostSettings.Libraries)
+	a.appendTapeStartersLocked()
 	a.tapePickerIndex = 0
 	a.tapePickerStatus = status
 	a.status = status
@@ -380,6 +420,14 @@ func (a *App) tapePickerDetailsLocked() {
 	case tapePickerKindEject:
 		a.tapePickerStatus = "Clear the armed mailbox so the next empty LOAD \"\" is 0/0."
 		a.status = a.tapePickerStatus
+	case tapePickerKindStarter:
+		if row.Starter != nil {
+			a.tapePickerStatus = row.Starter.Controls + " · " + row.Starter.License + " · " + row.Starter.SourceURL
+			if row.Starter.RAMKB > 0 {
+				a.tapePickerStatus = fmt.Sprintf("%d KiB RAM · %s", row.Starter.RAMKB, a.tapePickerStatus)
+			}
+			a.status = a.tapePickerStatus
+		}
 	case tapePickerKindDir, tapePickerKindRoot:
 		a.showTapePickerDirLocked(row.Path, "")
 	case tapePickerKindParent:
@@ -399,6 +447,10 @@ func (a *App) tapePickerConfirmLocked() {
 		a.openTapePathOSKLocked()
 	case tapePickerKindEject:
 		a.startTapeEjectLocked()
+	case tapePickerKindStarter:
+		if row.Starter != nil {
+			a.startStarterTapeArmLocked(*row.Starter)
+		}
 	case tapePickerKindRoot, tapePickerKindDir:
 		a.showTapePickerDirLocked(row.Path, "")
 	case tapePickerKindParent:
@@ -512,6 +564,33 @@ func (a *App) startTapeEjectLocked() {
 
 func (a *App) doTapeArm(ctx context.Context, gen int, prior hostclient.SessionResult, path string) {
 	result, err := importAndArmTape(ctx, a.client, prior, path)
+	a.finishTapeArm(gen, prior, result, err)
+}
+
+func (a *App) startStarterTapeArmLocked(tape hostclient.HardwareTape) {
+	if a.tapePickerBusy || a.client == nil || !a.sessionLiveMediaOfferedLocked() {
+		return
+	}
+	a.tapePickerBusy = true
+	a.tapePickerGen++
+	gen, prior := a.tapePickerGen, a.tapePickerSession
+	a.tapePickerStatus = "Arming " + tape.Name + "…"
+	a.status = a.tapePickerStatus
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go func() {
+		media, err := a.client.ImportZX81Tape(ctx, tape)
+		var result hostclient.SessionResult
+		if err == nil {
+			result, err = a.client.ReplaceLiveMediaForSession(ctx, prior, media.MediaID, tape.Filename)
+		}
+		a.finishTapeArm(gen, prior, result, err)
+	}()
+}
+
+func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result hostclient.SessionResult, err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.tapePickerGen != gen {

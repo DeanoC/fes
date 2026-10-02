@@ -18,6 +18,9 @@ const (
 type Client struct{ Path string }
 type Status struct {
 	Available                                   bool
+	Session                                     bool
+	PackageID                                   string
+	CoreGeneration                              uint64
 	Generation                                  uint64
 	Width, Height, Stride, ByteCount, SlotBytes int
 	DisplayedSequence, Underflows               uint64

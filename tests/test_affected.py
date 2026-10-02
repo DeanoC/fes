@@ -50,8 +50,13 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
             'scripts/sim_fes_demo.py': {'demo'},
-            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu'},
+            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81'},
+            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81'},
+            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81'},
+            'cores/fes-menu/rtl/fes_menu_ddr.v': {'menu'},
+            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81'},
             'scripts/sim_fes_menu.py': {'menu'},
+            'scripts/sim_fes_zx81_session.py': {'zx81'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
@@ -125,6 +130,8 @@ class AffectedTests(unittest.TestCase):
                        root / 'scripts' / ('build_fes_' + core + '_oss.py')]
             if core in ('demo', 'menu'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
+            if core == 'zx81':
+                sources.append(root / 'scripts/sim_fes_zx81_session.py')
             recipe += ''.join(path.read_text() for path in sources if path.exists())
             references = set(re.findall(r'cores/[A-Za-z0-9_./-]+', recipe))
             self.assertTrue(references, core)

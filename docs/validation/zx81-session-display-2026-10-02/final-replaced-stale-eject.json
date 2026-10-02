@@ -1,0 +1,10 @@
+{
+  "status": 409,
+  "body": {
+    "error": {
+      "code": "BUSY",
+      "message": "another launch or stop transition is running",
+      "phase": "admission"
+    }
+  }
+}
