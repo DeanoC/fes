@@ -108,7 +108,8 @@ jobs:
       - run: |
           make host
           cd sources/FogCast
-          go test -race ./...
+          # SQLite-heavy packages exceed Go's default ten-minute budget on CI.
+          go test -race -timeout=20m ./...
           make test-ui
           cd appliance
           go test -race ./...
