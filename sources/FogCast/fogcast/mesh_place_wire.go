@@ -185,6 +185,37 @@ func (s *Service) placementNodeFacts(ctx context.Context, nodeID string) ([]mesh
 	return append([]meshcontent.EligibleABI(nil), abis...), append([]string(nil), packages...)
 }
 
+// libraryPlacementFacts is the package evidence GET /api/v1/library/titles
+// may use. It returns facts placement has already cached for this
+// configured kit, and it does not dial. A miss, a failed read, or an
+// expired entry is not eligibility. The cached address may be one
+// placement (#396) chose; this method does not repeat that dial and does
+// not adopt a discovered or reconciled origin.
+func (s *Service) libraryPlacementFacts(nodeID string) ([]meshcontent.EligibleABI, []string) {
+	if s == nil {
+		return nil, nil
+	}
+	cfg, _, ok := s.targetForPlacementRead(nodeID)
+	if !ok {
+		return nil, nil
+	}
+	configured := meshTargetIdentityOf(cfg.Name, cfg)
+	if !configured.dialable() || configured.nodeID != nodeID {
+		return nil, nil
+	}
+	s.meshMu.Lock()
+	cached, hit := s.placementNodes[nodeID]
+	s.meshMu.Unlock()
+	if !hit || !cached.ok || time.Since(cached.at) >= placementNodeTTL {
+		return nil, nil
+	}
+	stored := cached.identity
+	if stored.name != configured.name || stored.agent != configured.agent || stored.nodeID != configured.nodeID || !stored.enabled {
+		return nil, nil
+	}
+	return append([]meshcontent.EligibleABI(nil), cached.abis...), append([]string(nil), cached.packages...)
+}
+
 // placementReadAddress is the one address a placement node read dials.
 // A unique discovered origin from the current browse window is the
 // freshest evidence and wins, so a target client adopted at an earlier

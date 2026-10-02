@@ -73,7 +73,9 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 	service := newService(Config{}, Paths{}, cat, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{}, WithExecutionPolicy(ExecutionPolicy{Resolver: NewConfiguredExecutionResolver([]protocol.System{protocol.SystemSMS}, &fakeHostExecutor{}), Host: &fakeHostExecutor{}}))
 	service.corePackages = packages
 	const kitID = "01234567-89ab-cdef-0123-456789abcdef"
+	var kitReads atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		kitReads.Add(1)
 		if r.URL.Path != "/v1/mesh/content/node" || r.Header.Get("Authorization") != "Bearer fixture-token" {
 			http.NotFound(w, r)
 			return
@@ -90,7 +92,19 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 	if service.meshEnsure || service.meshPlacement {
 		t.Fatalf("ensure=%v placement=%v", service.meshEnsure, service.meshPlacement)
 	}
+	// A sanctioned placement read fills the cache. The library GET below
+	// must reuse it and must not dial again.
+	if _, pkgs := service.placementNodeFacts(ctx, kitID); len(pkgs) != 1 {
+		t.Fatalf("placement cache %v", pkgs)
+	}
+	seeded := kitReads.Load()
+	if seeded == 0 {
+		t.Fatal("placement did not read the enrolled origin")
+	}
 	rows, skipped := service.MeshBackendLibrary(ctx)
+	if kitReads.Load() != seeded {
+		t.Fatalf("library read dialed the kit: before=%d after=%d", seeded, kitReads.Load())
+	}
 	// Same ROM sha256 and system: one row under the package game id, with the
 	// kit FPGA option and the host-local emulator option.
 	if len(skipped) != 0 || len(rows) != 1 || coreID == romID || rows[0].TitleID != coreID {
@@ -141,6 +155,22 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 	}
 	if hits := runnerHits.Load(); hits != 0 || len(guard.denied) != 0 {
 		t.Fatalf("bearer left the configured kit origin: runner_hits=%d denied=%v", hits, guard.denied)
+	}
+	discoveredAuth := atomic.Int32{}
+	discovered := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			discoveredAuth.Add(1)
+		}
+		http.Error(w, "discovered origin", http.StatusForbidden)
+	}))
+	defer discovered.Close()
+	service.meshNodes[0].Address = discovered.URL
+	rows, skipped = service.MeshBackendLibrary(ctx)
+	if discoveredAuth.Load() != 0 || kitReads.Load() != seeded || len(guard.denied) != 0 {
+		t.Fatalf("library read dialed after discovery moved: discovered_auth=%d kit_reads=%d seeded=%d denied=%v", discoveredAuth.Load(), kitReads.Load(), seeded, guard.denied)
+	}
+	if moved := rows[0].Options[0]; !moved.Nodes[0].Available || moved.Nodes[0].NodeID != kitID {
+		t.Fatalf("cached facts dropped: %+v", moved)
 	}
 	service.targets = nil
 	rows, skipped = service.MeshBackendLibrary(ctx)
