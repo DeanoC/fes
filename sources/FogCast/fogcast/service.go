@@ -1155,8 +1155,10 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 			return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
-	if err := s.incompatibleTargetError(); err != nil {
-		return protocol.CachedLaunchResponse{}, err
+	if execution != ExecutionHostOnly {
+		if err := s.incompatibleTargetError(); err != nil {
+			return protocol.CachedLaunchResponse{}, err
+		}
 	}
 
 	if err := s.stopPackageOwnedForCatalogLaunch(ctx, snap.name); err != nil {

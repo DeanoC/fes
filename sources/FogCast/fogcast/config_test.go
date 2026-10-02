@@ -350,6 +350,28 @@ sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	}
 }
 
+func TestLoadConfigRejectsMixedPinPolicyForSharedHostEmulatorCore(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "games")
+	content := validConfig(root, filepath.Join(dir, "other")) + `
+[host_emulator]
+binary = "/usr/bin/retroarch"
+
+[[host_emulator.cores]]
+platform = "nes"
+core = "/cores/shared.dylib"
+sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+[[host_emulator.cores]]
+platform = "gba"
+core = "/cores/shared.dylib"
+`
+	_, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err == nil || !strings.Contains(err.Error(), "mixes pinned and unpinned") {
+		t.Fatalf("LoadConfig error = %v, want mixed core pin policy error", err)
+	}
+}
+
 func TestLoadConfigDefaultsMediaDisabled(t *testing.T) {
 	dir := t.TempDir()
 	config, err := fogcast.LoadConfig(writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))))

@@ -310,7 +310,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		mux.Handle("GET /api/v1/session/preview", config.mediaPreview)
 	}
 	mux.HandleFunc("GET /api/v1/session/events", func(w http.ResponseWriter, r *http.Request) {
-		coordinator := requestSessionCoordinator(session, service, r, "")
+		coordinator := requestSessionCoordinator(session, service, r, "", true)
 		var after uint64
 		if raw := r.URL.Query().Get("after"); raw != "" {
 			if _, err := fmt.Sscanf(raw, "%d", &after); err != nil {
@@ -346,27 +346,27 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinatorTarget := target
 		hostOnlyLaunch := false
 		// A host-only launch belongs to the root coordinator. It has no FPGA
-		// target binding, even when a kit is selected for ordinary launches.
-		if target == "" && pairedTarget == "" {
-			hostOnly := false
-			if resolver, ok := service.(interface {
-				SessionExecution(context.Context, string) (string, error)
-			}); ok {
-				execution, err := resolver.SessionExecution(r.Context(), request.GameID)
-				hostOnly = err == nil && execution == fogcast.ExecutionHostOnly
-			}
-			hostOnlyLaunch = hostOnly
-			if !hostOnly {
-				if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
-					coordinatorTarget = selected.SelectedTargetConfig().Name
-				}
+		// target binding, even when the caller names a kit.
+		if resolver, ok := service.(interface {
+			SessionExecution(context.Context, string) (string, error)
+		}); ok {
+			execution, err := resolver.SessionExecution(r.Context(), request.GameID)
+			hostOnlyLaunch = err == nil && execution == fogcast.ExecutionHostOnly
+		}
+		if hostOnlyLaunch {
+			coordinatorTarget = ""
+			target = ""
+			pairedTarget = ""
+		} else if target == "" && pairedTarget == "" {
+			if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+				coordinatorTarget = selected.SelectedTargetConfig().Name
 			}
 		}
 		coordinator := session
 		if !hostOnlyLaunch {
 			coordinator = requestSessionCoordinator(session, service, r, coordinatorTarget)
 		}
-		result, err := coordinator.launch(r.Context(), request.GameID, request.Target, stamp)
+		result, err := coordinator.launch(r.Context(), request.GameID, target, stamp)
 		if err != nil {
 			writeSessionError(w, err)
 			return

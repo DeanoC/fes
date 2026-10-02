@@ -1786,8 +1786,11 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	s.mu.Lock()
 	result.ID = s.id
 	result.FlightID = s.flightID
+	execution := s.execution
 	s.mu.Unlock()
-	if s.target != "" {
+	if result.Execution == fogcast.ExecutionHostOnly || execution == fogcast.ExecutionHostOnly {
+		result.Target, result.TargetID = "", ""
+	} else if s.target != "" {
 		result.Target = s.target
 		if binder, ok := s.service.(interface{ TargetIDForName(string) string }); ok {
 			result.TargetID = binder.TargetIDForName(s.target)

@@ -161,7 +161,7 @@ core = %q
 		return resp.StatusCode, value
 	}
 	launch := func() (int, map[string]any) {
-		body, _ := json.Marshal(map[string]string{"game_id": games[0].ID})
+		body, _ := json.Marshal(map[string]string{"game_id": games[0].ID, "target": "kit"})
 		resp, value := request(http.MethodPost, "/api/v1/session/launch", string(body))
 		return resp.StatusCode, value
 	}
@@ -173,10 +173,21 @@ core = %q
 	if status != 200 || started["state"] != string(protocol.StateActive) || started["execution"] != fogcast.ExecutionHostOnly {
 		t.Fatalf("launch: %d %+v", status, started)
 	}
+	if started["target"] != nil || started["target_id"] != nil {
+		t.Fatalf("host-only launch reported kit target: %+v", started)
+	}
 	id := started["id"]
 	status, during := get()
 	if status != 200 || during["id"] != id || during["execution"] != fogcast.ExecutionHostOnly {
 		t.Fatalf("during: %d %+v; launch id=%v", status, during, id)
+	}
+	if during["target"] != nil || during["target_id"] != nil {
+		t.Fatalf("host-only status reported kit target: %+v", during)
+	}
+	_, eventPayload := request(http.MethodGet, "/api/v1/session/events", "")
+	events, ok := eventPayload["events"].([]any)
+	if !ok || len(events) == 0 {
+		t.Fatalf("root host-only session events missing: %+v", eventPayload)
 	}
 	firstProcess := <-processes
 	if status, _ := launch(); status != http.StatusConflict {

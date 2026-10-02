@@ -71,6 +71,10 @@ and complete typed metrics from `host.RemoteInputStatus`.
 `POST /api/v1/session/launch` may include `target` to bind a live FPGA session
 to a configured target without rewriting `selected_target`. Omitted `target`
 uses the selected configured target and keeps the ordinary placement choice.
+A host-only launch always stays on the root session coordinator, even when its
+request includes a kit target; host-only session responses leave `target` empty.
+Unscoped session events follow the foreground session coordinator, like status
+and Stop, so a root-owned host-only session's events remain visible.
 A second configured target may be
 launched while the first is still playing; `GET /api/v1/sessions` lists those
 live plays. `GET /api/v1/session` is the foreground session (the last launch)
