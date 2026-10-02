@@ -22,8 +22,13 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Raster timing is not locked to HDMI. No sprites, bitmap or badlines.
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
   and volume. No filter.
-- CIA1: keyboard matrix, joystick and timer A. CIA2: IEC and the VIC bank.
-  Port 2 (CIA1 port A) is controller port 0.
+- CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
+  Both CIAs have timer A and timer B with live counter reads, stopped high-byte
+  loading, force-load strobes, continuous and one-shot operation. Timer B can
+  count Phi2 or timer A underflows. CNT is held high without external edges,
+  so CNT edge modes do not count and the gated timer A mode can count.
+  TOD, serial shift and PB6/PB7 timer outputs remain unimplemented; internal
+  6526 pipeline delays are not modelled. Port 2 (CIA1 port A) is controller port 0.
 - HDMI 720p60. The 320×200 text picture is scaled 4× horizontally and 3×
   vertically. Audio is the shared 48 kHz I2S serializer.
 
@@ -65,11 +70,24 @@ at `$C000`. A failure stores a stage at `$C000` and `1` at `$C001`:
 | 7 | joystick |
 | 8 | keyboard |
 | 9 | D64 `BOOT` bytes `01 08 11 22 33 44` at `$0800` |
+| 10 | CIA1 timer B one-shot, IRQ vector and interrupt acknowledgement |
+| 11 | CIA2 timer A one-shot, NMI vector and acknowledgement while `SEI` is set |
 
 ```sh
 make -C sources/misteross sim-fes-c64
+make -C sources/misteross sim-fes-c64-cia # directed timer/register checks
 make -C sources/misteross build-fes-c64   # HIP seal; not part of the sim gate
 ```
+
+The CIA register behavior follows the MOS/Commodore
+[6526 data sheet](https://www.retrodocs.fr/wp-content/uploads/pdf/MOS-6526.pdf),
+pages 5–7: separate latches and counters, load conditions, clock selection,
+one-shot stopping, ICR acknowledgement and the read-zero force-load bit.
+The CIA2 NMI connection follows the Commodore
+[Programmer's Reference Guide](https://www.zimmers.net/anonftp/pub/cbm/c64/manuals/c64-programmers-reference-guide.txt),
+pages 348–349. `sim-fes-c64` includes the directed CIA regression and the
+firmware's CPU interrupt checks. These are host simulations, with no sealed
+artifact or kit acceptance implied.
 
 `build-fes-c64` authenticates `toolchains/c64.lock` (the Apple II tool
 commits: Yosys `e2d425de`, Mistral `7ed06e21`, nextpnr `0259c6dc`).

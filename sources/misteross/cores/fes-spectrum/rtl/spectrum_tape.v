@@ -2,8 +2,8 @@
 // ZX Spectrum .tap player for fes.media.spectrum-tape unit 0.
 //
 // The image is a sequence of blocks: a little-endian uint16 length, then
-// that many payload bytes. A block whose first byte is 0 gets the header
-// pilot (8063 edges); any other flag gets the data pilot (3223). Edges are
+// that many payload bytes. A flag below $80 gets the header pilot (8063
+// edges); other flags get the data pilot (3223). Edges are
 // 2168 T-states, sync pulses are 667 then 735, a 0-bit is two 855 T pulses
 // and a 1-bit is two 1710 T pulses. A one-second pause (EAR low) follows
 // each block. A trailing partial block is not played. EAR stays low while
@@ -26,9 +26,8 @@ module spectrum_tape (
     localparam [2:0] S_LEN_HI = 3'd2;
     localparam [2:0] S_FLAG = 3'd3;
     localparam [2:0] S_PULSE = 3'd4;
-    localparam [2:0] S_FETCH = 3'd5;
-    localparam [2:0] S_PAUSE = 3'd6;
-    localparam [2:0] S_DONE = 3'd7;
+    localparam [2:0] S_PAUSE = 3'd5;
+    localparam [2:0] S_DONE = 3'd6;
     localparam [1:0] P_PILOT = 2'd0;
     localparam [1:0] P_SYNC1 = 2'd1;
     localparam [1:0] P_SYNC2 = 2'd2;
@@ -110,7 +109,11 @@ module spectrum_tape (
                     cur <= read_data;
                     bytes_left <= length - 16'd1;
                     next_addr <= ptr[15:0] + 16'd3;
-                    pilot_left <= read_data == 8'h00 ? 14'd8063 : 14'd3223;
+                    // Fetch the following byte while the current byte's
+                    // pulses run. A fetch state at the byte boundary would
+                    // stretch its first half-pulse by one Z80 T-state.
+                    read_addr <= ptr[15:0] + 16'd3;
+                    pilot_left <= read_data[7] ? 14'd3223 : 14'd8063;
                     ear <= 1'b1;
                     timer <= 22'd2168;
                     width <= 22'd2168;
@@ -154,8 +157,14 @@ module spectrum_tape (
                                     width <= cur[bit_i - 3'd1] ? 22'd1710 : 22'd855;
                                     timer <= cur[bit_i - 3'd1] ? 22'd1710 : 22'd855;
                                 end else if (bytes_left != 16'd0) begin
-                                    read_addr <= next_addr;
-                                    state <= S_FETCH;
+                                    cur <= read_data;
+                                    bytes_left <= bytes_left - 16'd1;
+                                    next_addr <= next_addr + 16'd1;
+                                    read_addr <= next_addr + 16'd1;
+                                    bit_i <= 3'd7;
+                                    bit_half <= 1'b0;
+                                    width <= read_data[7] ? 22'd1710 : 22'd855;
+                                    timer <= read_data[7] ? 22'd1710 : 22'd855;
                                 end else begin
                                     ear <= 1'b0;
                                     timer <= 22'd3500000;
@@ -167,17 +176,6 @@ module spectrum_tape (
                     end else begin
                         timer <= timer - 22'd1;
                     end
-                end
-                S_FETCH: begin
-                    cur <= read_data;
-                    bytes_left <= bytes_left - 16'd1;
-                    next_addr <= next_addr + 16'd1;
-                    bit_i <= 3'd7;
-                    bit_half <= 1'b0;
-                    phase <= P_BIT;
-                    width <= read_data[7] ? 22'd1710 : 22'd855;
-                    timer <= read_data[7] ? 22'd1710 : 22'd855;
-                    state <= S_PULSE;
                 end
                 S_PAUSE: begin
                     ear <= 1'b0;

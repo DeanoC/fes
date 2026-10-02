@@ -25,7 +25,8 @@ retail-game compatibility.
 ## Implemented first slice
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
-  domain.
+  domain at exactly 3,579,545 Hz on average, with alternating fractional
+  half-cycle enables.
 - Raw 1–32 KiB cartridge via `fes.media.blob-stream` 1.0. Images up to
   16 KiB retain the mirrored map; larger images map linearly at `0x8000–0xffff`.
   Legacy `fes.media.blob` remains bounded to 1–16 KiB.
@@ -43,10 +44,17 @@ retail-game compatibility.
 
 - TI SN76489A tone/noise synthesis at ports E0–FF with shared 48 kHz stereo
   HDMI output. `make sim-fes-coleco-audio` checks PSG and coherent PCM transfer.
-  System/audio clocks share one 52.224/12.288 MHz PLL. The reduced CPU stays
-  on its /16 enable; a shared 32-bit fractional accumulator drives 4,024,320
+  System/audio clocks share one 52.224/12.288 MHz PLL. CPU and PSG now match
+  the NTSC clock rate; a shared 32-bit fractional accumulator drives 4,024,320
   logical raster samples per second for 256×262 frames at a nominal 60 Hz.
   HDMI pixel timing stays fixed and independent.
+
+The CPU rate follows the [ColecoVision technical manual](https://www.colecovisionaddict.com/manuals/Colecovision_Technical_Manual.pdf),
+main-clock test point U1:6 (3.579545 MHz). `make sim-fes-z80-timing`
+counts both half-cycle enables over one second and checks their spacing and
+cumulative phase. This restores the nominal CPU cadence; composite timing and
+cycle-perfect VDP effects remain outside this slice. The VDP retains Coleco's
+NMI connection. A new RBF seal and exact-artifact kit check remain required.
 
 The factory v2 shell models a normally vacant CPU peripheral edge. It exposes
 Z80 address/data/control cycles and accepts read data, claim, WAIT and

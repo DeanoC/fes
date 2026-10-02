@@ -248,8 +248,8 @@ module c64_machine #(
         .sample(sid_sample)
     );
     assign audio_sample = sid_sample;
-    assign irq_n = cart_irq | cia1_irq | cia2_irq;
-    assign nmi_n = cart_nmi;
+    assign irq_n = cart_irq | cia1_irq;
+    assign nmi_n = cart_nmi | cia2_irq;
 
     wire [7:0] char_byte = c64_glyph(bus_addr[10:3], bus_addr[2:0]);
     wire [7:0] read_data =

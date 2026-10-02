@@ -110,9 +110,11 @@ int main(int argc, char **argv) {
     require(dut.tone0_atten == 0xF, "0x7E write must update volume");
     require(int16_t(dut.sample) == 0, "silent after atten 15");
 
-    io_write(dut, 0x7F, 0x80);  // period 0: Sega reload is 1024, not truncated 0
+    io_write(dut, 0x7F, 0x80);  // period 0: Sega runs at its fastest prescaler rate, unlike TI
     io_write(dut, 0x7F, 0x00);
     require(dut.tone0_period == 0, "tone0 period 0");
+    // Let the previous period finish; period writes retain counter phase.
+    chip_cycles(dut, 16 * 1024);
     unsigned zero_flips = 0;
     previous = dut.tone0;
     for (unsigned cycle = 0; cycle != 16 * 200; ++cycle) {
@@ -124,11 +126,64 @@ int main(int argc, char **argv) {
         }
     }
     dut.ce = 0;
-    require(zero_flips <= 2, "period 0 must count 1024, not toggle every prescaler");
+    require(zero_flips == 200, "Sega zero period must toggle each prescaler");
 
     io_write(dut, 0x7F, 0x81);  // tone0 period low nibble 1, then data 0 => 1
     io_write(dut, 0x7F, 0x00);
     require(dut.tone0_period == 1, "tone0 period 1");
+
+    // Sega's periodic noise is a 16-bit ring. Official hardware manual:
+    // fixed shifts at N/512, N/1024, N/2048; rate 3 follows tone 2.
+    io_write(dut, 0x7F, 0x9F);
+    io_write(dut, 0x7F, 0xC2);
+    io_write(dut, 0x7F, 0x03); // tone 2 N=50, half period 800 chip ticks
+    chip_cycles(dut, 16 * 1024);
+    io_write(dut, 0x7F, 0xF0);
+    for (unsigned rate = 0; rate < 4; ++rate) {
+        io_write(dut, 0x7F, 0xE0 | rate);
+        const unsigned shift_period = rate == 3 ? 1600 : (512u << rate);
+        int last_rise = -1;
+        unsigned periods = 0;
+        bool high = int16_t(dut.sample) > 0;
+        for (unsigned cycle = 0; cycle < shift_period * 16 * 4; ++cycle) {
+            dut.ce = 1;
+            tick(dut);
+            const bool next_high = int16_t(dut.sample) > 0;
+            if (next_high && !high) {
+                if (last_rise >= 0) {
+                    require(cycle - unsigned(last_rise) == shift_period * 16,
+                            "Sega fixed/tone-2 periodic noise frequency");
+                    ++periods;
+                }
+                last_rise = int(cycle);
+            }
+            high = next_high;
+        }
+        dut.ce = 0;
+        require(periods >= 2, "Sega periodic noise must repeat");
+    }
+    // Compare audible white-noise bits with the Sega 16-stage XOR recurrence,
+    // including the seed and full chip-clock spacing, rather than just checking
+    // that the noise waveform changes.
+    dut.reset = 1;
+    tick(dut);
+    dut.reset = 0;
+    io_write(dut, 0x7F, 0xE4);
+    io_write(dut, 0x7F, 0xF0);
+    uint16_t expected_lfsr = 0x8000;
+    for (unsigned cycle = 0; cycle < 512 * 100; ++cycle) {
+        dut.ce = 1;
+        tick(dut);
+        require(int16_t(dut.sample) == ((expected_lfsr & 1) ? 8191 : -8191),
+                "Sega white-noise bit sequence");
+        if ((cycle % 512) == 0) {
+            const unsigned feedback = (expected_lfsr ^ (expected_lfsr >> 3)) & 1;
+            expected_lfsr = (expected_lfsr >> 1) | (feedback << 15);
+        }
+    }
+    dut.ce = 0;
+    io_write(dut, 0x7F, 0xFF);
+    require(dut.sample == 0, "noise attenuation must mute");
 
     std::cout << "FES SMS PSG checks passed\n";
     return 0;

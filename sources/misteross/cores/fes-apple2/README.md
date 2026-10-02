@@ -28,8 +28,17 @@ The core lane is [docs/cores.md](../../docs/cores.md).
   soft switches `$C050-$C057`, annunciators `$C058-$C05F`, push buttons and
   paddle timers `$C061-$C067`, paddle trigger `$C070`. Unclaimed I/O and slot
   space reads `$FF` (there is no floating-bus emulation).
-- Ctrl-Reset (Control+F12 or Control+Pause) resets the 6502, soft switches,
-  language card and cards, keeping RAM. Host Hold is a power-on reset.
+- Ctrl-Reset (Control+F12 or Control+Pause) holds the 6502 and card RESET line
+  throughout the key press, keeping RAM, video/annunciator switches and
+  language-card mapping/write protection. The 6502 reads the reset vector from
+  that retained ROM/RAM mapping; firmware restores the screen. Host Hold
+  initializes the machine's switches and selects the motherboard ROM again.
+
+The II/II+ reset behavior follows the motherboard's address-controlled F14
+latch in Apple's [Reference Manual, Figure S-10](https://apple2history.org/dl/Apple_II_Redbook.pdf)
+and the power-on clear in the original
+[Language Card schematic 050-0019-01](https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/hardware/schematics/language_card_050-0019-01_schematic.pdf).
+The IIe's reset of its integrated memory switches is different.
 
 ## Video
 
@@ -137,12 +146,18 @@ and verify sectors on tracks 0, 17 and 34 (every other sector holds all 256
 byte values in an arithmetic progression). `render.py` independently renders
 the expected HDMI frames. Nothing is derived from Apple's ROMs.
 
+The diagnostic's `R` command installs a reset vector in language-card RAM,
+selects and write-protects bank 1, and changes all four video switches and
+the annunciators. Ctrl-Reset then checks retained RAM, stack bytes, bank
+selection and write protection through the running 6502. Host Hold returns
+to the normal diagnostic.
+
 ## Simulation
 
 ```sh
 make sim-fes-apple2            # all three below
 make sim-fes-apple2-mailbox    # fes.computer golden exchanges on fes_computer_mailbox
-make sim-fes-apple2-machine    # diagnostic boot, screens and disk; every frame compared
+make sim-fes-apple2-machine    # diagnostic boot, screens, held RESET/LC vector and disk
 make sim-fes-apple2-board      # top.v through the mailbox: HID keys, live disk, eject, reset
 ```
 

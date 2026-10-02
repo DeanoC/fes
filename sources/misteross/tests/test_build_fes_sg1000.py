@@ -172,6 +172,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(SG1000_GPU_BACKEND, "hip")
         self.assertIn("cores/fes-sg1000/rtl/top.v", OSS_RTL_SOURCES)
         self.assertIn("cores/fes-sg1000/rtl/sg1000_machine.sv", OSS_RTL_SOURCES)
+        self.assertIn("cores/fes-common/rtl/fes_z80_ce.sv", OSS_RTL_SOURCES)
 
     def test_oss_manifest_requires_linked_cartridge_without_media_mailbox(self) -> None:
         record = b'{"recipe_sha256":"' + b"b" * 64 + b'"}'
@@ -236,6 +237,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
         self.assertIn('VERILOG_MACRO "FES_SG1000_BUILD_ID=', qsf)
         self.assertIn("cores/fes-sg1000/rtl/sg1000_machine.sv", qsf)
+        self.assertIn("cores/fes-common/rtl/fes_z80_ce.sv", qsf)
         self.assertIn("cores/fes-sg1000/rtl/top.v", qsf)
         self.assertIn("cores/fes-common/rtl/tv80/tv80_core.v", qsf)
         self.assertIn("cores/fes-common/rtl/coleco_vdp.sv", qsf)

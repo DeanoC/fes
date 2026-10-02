@@ -47,9 +47,12 @@ socket index. The machine simulation links it into sockets 1 and 3.
 
 Media unit 0 (`fes.media.spectrum-tape`) holds 1..65,536 bytes of `.tap`.
 While the unit is ready the player emits EAR edges: 2168 T pilot pulses
-(8063 for a flag of 0, otherwise 3223), sync 667/735, bit pulses 855 or 1710,
-then a one-second pause. A trailing partial block is not played. MIC writes
-are not returned to the host.
+(8063 for flags below `$80`, otherwise 3223), sync 667/735, and two 855 or
+1710 T pulses per bit, most significant bit first, then a one-second pause.
+The next byte is prefetched so byte boundaries retain the same pulse widths.
+These are the standard ROM timings recorded in the original
+[TZX specification, blocks 10/11](https://worldofspectrum.net/TZXformat.html).
+A trailing partial block is not played. MIC writes are not returned to the host.
 
 ## Simulation
 
@@ -57,14 +60,17 @@ are not returned to the host.
 make sim-fes-spectrum
 make sim-fes-spectrum-machine
 make sim-fes-spectrum-board
+make sim-fes-spectrum-tape
 ```
 
 The machine simulation boots the open diagnostic, checks the keyboard matrix,
 Kempston port, probe id and scratch register, the 2168 T pilot, a red border
 and a black ink pixel. The board simulation drives `top.v` through the
 mailbox: identity capability bit 5, tape limits 1..65536, a 3-byte commit and
-HID usage `A` landing on the Spectrum A key. These are host simulations, not
-an RBF, timing or kit result.
+HID usage `A` landing on the Spectrum A key. The cassette regression decodes
+every EAR pulse for flags `$00`, `$7F`, `$80` and `$FF`, mixed adjacent bytes,
+consecutive blocks, partial tails and live eject/replacement. These are host
+simulations, not an RBF, timing or kit result.
 
 ## Not implemented
 

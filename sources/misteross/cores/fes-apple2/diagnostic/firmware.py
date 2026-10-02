@@ -16,9 +16,11 @@ the CPU's $C000-$FFFF window exactly as the shell's linked ROM does:
 
 Commands (Apple II keyboard codes with bit 7 set): T text, L lo-res, H hi-res,
 M mixed, B boot slot 6, S scan the slots for FES probe cards and call each one
-(its result byte goes to $0380 + slot). Other keys are echoed. After each command the monitor
+(its result byte goes to $0380 + slot), R prepare a language-card warm-reset
+test (press Ctrl-Reset, then use host Hold to return). Other keys are echoed. After each command the monitor
 writes the command code to STAGE ($03F1); RESULT ($03F0) holds $11 after the
-self tests, $A5 after a verified disk boot, or an $E0-$EF failure code.
+self tests, $A5 after a verified disk boot, $51/$52 before/after the R reset
+test, or an $E0-$EF failure code.
 
 The synthetic disk is a 143,360-byte DOS 3.3 order image. Logical sector 0
 of track 0 (physical 0) is the stage-1 boot sector; physical sector 1 of
@@ -88,7 +90,7 @@ BANNER = [
 CHARSET_ROW = 3
 MESSAGE_ROW = 20
 DUMP_ROW = 12
-KEYS_TEXT = "KEYS T L H M B S D"
+KEYS_TEXT = "KEYS T L H M B S D R"
 MIXED_TEXT = "MIXED MODE TEXT WINDOW"
 DISK_PASS = "DISK BOOT OK"
 
@@ -129,6 +131,67 @@ FAIL:   LDA $C082
 """
 
 
+# Run from main RAM while the motherboard ROM is hidden. The language-card
+# reset vector returns to WARM; a hardware reset must keep bank 1 readable and
+# write-protected. The stack sentinel also catches writes during CPU RESET.
+WARM_RESET_TEST = """
+        .org $1200
+        SEI
+        CLD
+        LDA #$5A
+        STA $02F0
+        LDX #$FF
+STACK:  STA $0100,X
+        DEX
+        BNE STACK
+        STA $0100
+        LDA $C089
+        LDA $C089
+        LDA #$A5
+        STA $D000
+        LDA #<WARM
+        STA $FFFC
+        LDA #>WARM
+        STA $FFFD
+        LDA $C088           ; bank 1 RAM read, writes disabled
+        LDA $C050           ; graphics, mixed, page 2, hi-res
+        LDA $C053
+        LDA $C055
+        LDA $C057
+        LDA $C058           ; annunciators 0/2 off, 1/3 on
+        LDA $C05B
+        LDA $C05C
+        LDA $C05F
+        LDA #$51
+        STA $03F0
+WAIT:   INC $03F2
+        JMP WAIT
+WARM:   LDA $02F0
+        CMP #$5A
+        BNE FAIL
+        LDX #$FF
+CHECK:  LDA $0100,X
+        CMP #$5A
+        BNE FAIL
+        DEX
+        BNE CHECK
+        LDA $0100
+        CMP #$5A
+        BNE FAIL
+        LDA #0
+        STA $D000           ; warm reset must keep RAM write-protected
+        LDA $D000
+        CMP #$A5
+        BNE FAIL
+        LDA #$52
+        STA $03F0
+HALT:   JMP HALT
+FAIL:   LDA #$E2
+        STA $03F0
+        JMP HALT
+"""
+
+
 def firmware_source() -> str:
     txt_lo = ", ".join(f"${text_row_base(r) & 0xFF:02X}" for r in range(24))
     txt_hi = ", ".join(f"${text_row_base(r) >> 8:02X}" for r in range(24))
@@ -150,6 +213,10 @@ def firmware_source() -> str:
     lc = lc[:lc.rindex(b"\x38\x60") + 2]
     lc_bytes = "\n".join(
         "        .byte " + ", ".join(f"${b:02X}" for b in lc[i:i + 16]) for i in range(0, len(lc), 16))
+    warm_reset = assemble(WARM_RESET_TEST, 0x1200, 256, fill=0)
+    warm_reset_bytes = "\n".join(
+        "        .byte " + ", ".join(f"${b:02X}" for b in warm_reset[i:i + 16])
+        for i in range(0, len(warm_reset), 16))
     return f"""
 ; ---------------------------------------------------------------- symbols
 TXTPTR  = $06
@@ -214,6 +281,8 @@ MSGDER: .byte {screen_bytes("DISK ERROR")}, 0
 LCSRC:
 {lc_bytes}
 LCEND:
+RESETSRC:
+{warm_reset_bytes}
 
 ; ---------------------------------------------------------------- entry
         .org $E000
@@ -310,7 +379,15 @@ M6:     CMP #$C4            ; D
         BNE M7
         JSR DUMP
         JMP MDONE
-M7:     JSR PUTC            ; echo any other key
+M7:     CMP #$D2            ; R: main-RAM warm-reset test
+        BNE M8
+        LDX #0
+RCOPY:  LDA RESETSRC,X
+        STA $1200,X
+        INX
+        BNE RCOPY
+        JMP $1200
+M8:     JSR PUTC            ; echo any other key
         LDA SPKR            ; and click the speaker twice
         LDA SPKR
 MDONE:  LDA TMP2

@@ -56,6 +56,7 @@ SHARED_RTL = {
     'fes_audio_pll.v': ('demo',),
     'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
+    'fes_z80_ce.sv': COLECO_CONSUMERS,
     'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum'),
     't80pa.v': ('coleco', 'sg1000', 'sms', 'spectrum'),
 }

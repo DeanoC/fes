@@ -24,7 +24,8 @@ recipe; it is not in the factory image.
 ## Implemented first slice
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
-  domain (Coleco `t80pa` / `tv80`).
+  domain at exactly 3,579,545 Hz on average, with alternating fractional
+  half-cycle enables (Coleco `t80pa` / `tv80`).
 - Exact 16 KiB `cartridge-rom` linked into the RBF before FPGA download,
   mapped at `0x0000–0x3fff`. Pad shorter fixed-map images with `0xff` before
   library import. There is no BIOS or reset shim; reset fetches the cartridge.
@@ -66,8 +67,18 @@ video and audio capability bits (`0x13`). The format-3 manifest requires no star
 programming, then release reset. The diagnostic mailbox build still exercises
 the legacy media handshake in simulation and the Quartus oracle.
 
-VDP interrupt still connects to Z80 NMI. The cartridge itself occupies
-`0x0066`; there is no Coleco `JP 0x8066` shim.
+VDP interrupt connects to the Z80 maskable INT input. Software selects IM1
+and enables interrupts with EI; DI masks delivery. The cartridge owns the
+`0x0038` interrupt vector. The separate pause NMI remains unused in this slice.
+
+The VDP INT wiring and separate pause NMI follow the
+[SG-1000 hardware reconstruction and scope measurements](https://www.leadedsolder.com/2022/05/20/sg1000-clone-v1.html).
+The shared NTSC CPU cadence is checked by `make sim-fes-z80-timing`;
+`make sim-fes-sg1000` and its OSS memory lane execute original ROM probes
+that prove DI masks VBlank, EI/IM1 reaches `0x0038`, and VBlank never enters
+`0x0066`. The TI PSG retains its 15-bit periodic-noise recurrence and
+period-zero reload of 1024. Host simulation does not accept a new bitstream;
+fresh sealing and exact-artifact hardware checks remain separate.
 
 ## Standard joystick mapping
 

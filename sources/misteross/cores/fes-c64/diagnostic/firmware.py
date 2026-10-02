@@ -5,7 +5,8 @@
 No Commodore ROM is used. The KERNAL window is a diagnostic that checks RAM,
 the linked BASIC signature, VIC and character generator, both cartridge
 sockets, the joystick and keyboard, then LOADs BOOT from the built-in 1541
-over the IEC bus. Bytes 0..8191 map at $A000 and bytes 8192..16383 at $E000.
+over the IEC bus and checks CIA1 IRQ and CIA2 NMI delivery. Bytes 0..8191 map
+at $A000 and bytes 8192..16383 at $E000.
 """
 
 from __future__ import annotations
@@ -169,6 +170,7 @@ disk_bad:
         lda #$09
         jmp fail
 disk_ok:
+        jsr check_interrupts
         lda #$ff
         sta $c000
         lda #$00
@@ -179,6 +181,84 @@ fail:
         lda #$01
         sta $c001
         jmp hang
+
+check_interrupts:
+        lda #$00
+        sta $19
+        sta $1a
+        sta $1b
+        sta $1c
+        lda #$20
+        sta $dc06
+        lda #$00
+        sta $dc07
+        lda #$82
+        sta $dc0d
+        lda #$09
+        sta $dc0f
+        cli
+        ldx #$ff
+wait_irq:
+        lda $19
+        bne irq_done
+        dex
+        bne wait_irq
+irq_bad:
+        sei
+        lda #$0a
+        jmp fail
+irq_done:
+        sei
+        cmp #$01
+        bne irq_bad
+        lda $1b
+        cmp #$82
+        bne irq_bad
+        lda $1a
+        bne irq_bad
+        lda #$20
+        sta $dd04
+        lda #$00
+        sta $dd05
+        lda #$81
+        sta $dd0d
+        lda #$09
+        sta $dd0e
+        ldx #$ff
+wait_nmi:
+        lda $1a
+        bne nmi_done
+        dex
+        bne wait_nmi
+nmi_bad:
+        lda #$0b
+        jmp fail
+nmi_done:
+        cmp #$01
+        bne nmi_bad
+        lda $1c
+        cmp #$81
+        bne nmi_bad
+        lda $19
+        cmp #$01
+        bne nmi_bad
+        rts
+
+irq_handler:
+        pha
+        lda $dc0d
+        sta $1b
+        inc $19
+        pla
+        rti
+
+nmi_handler:
+        pha
+        lda $dd0d
+        sta $1c
+        inc $1a
+        pla
+        rti
 
 load_boot:
         lda #$00
@@ -391,9 +471,10 @@ delay_loop:
 msg:
         .byte 6, 5, 19, 32, 3, 54, 52
 
-        .org $fffc
+        .org $fffa
+        .word nmi_handler
         .word reset
-        .word reset
+        .word irq_handler
 """
 
 

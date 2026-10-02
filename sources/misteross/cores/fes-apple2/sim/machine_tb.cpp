@@ -30,6 +30,7 @@ struct Bench {
     uint64_t next_pix = 0;
     bool video_on = true;
     uint64_t cpu_cycles = 0;
+    uint64_t cpu_writes = 0;
     int result = -1;
     int stage = -1;
     int speaker_toggles = 0;
@@ -64,6 +65,7 @@ struct Bench {
     void on_sys_edge() {
         if (top.bus_cycle) {
             cpu_cycles++;
+            if (top.bus_write) cpu_writes++;
             if (top.bus_write && top.bus_addr == 0x03F0) result = top.bus_data;
             if (top.bus_write && top.bus_addr == 0x03F1) stage = top.bus_data;
             if (top.bus_write && top.bus_addr >= 0x0381 && top.bus_addr <= 0x0387)
@@ -277,6 +279,59 @@ int main(int argc, char** argv) {
         b.video_on = true;
         ok = check("disk") && ok;
     }
+
+    // The II+ keeps its motherboard and language-card latches on RESET.
+    // R installs a reset vector in language-card RAM, protects bank 1 and
+    // switches the display away from the defaults. Its reset handler checks
+    // both bank-1 write protection and every stack byte through the CPU bus.
+    b.video_on = false;
+    // Disk stage 2 halts after its checks; return to the command monitor.
+    if (disk) {
+        b.top.reset = 1;
+        b.run_ps(50'000'000);
+        b.top.reset = 0;
+        b.result = -1;
+        if (!b.run_until("reset-test monitor", 2'000'000'000'000ull,
+                         [&] { return b.result == 0x11 || b.result >= 0xE0; })) return 1;
+        if (b.result != 0x11) return 1;
+    }
+    b.key('R');
+    if (!b.run_until("warm-reset setup", 200'000'000'000ull,
+                     [&] { return b.result == 0x51; })) return 1;
+    if (b.top.soft_switches != 0xAE) {
+        std::fprintf(stderr, "warm-reset setup has switches %02x, expected ae\n", b.top.soft_switches);
+        return 1;
+    }
+    b.top.reset_key = 1;
+    b.run_ps(50'000'000);  // exceed the old fifteen-cycle reset pulse
+    uint64_t held_writes = b.cpu_writes;
+    b.run_ps(500'000'000);
+    if (!b.top.slot_reset || b.cpu_writes != held_writes || b.result != 0x51 ||
+        b.top.soft_switches != 0xAE) {
+        std::fprintf(stderr, "held Ctrl-Reset released execution or changed II+ latches\n");
+        return 1;
+    }
+    b.top.reset_key = 0;
+    if (!b.run_until("language-card reset vector", 200'000'000'000ull,
+                     [&] { return b.result == 0x52 || b.result >= 0xE0; })) return 1;
+    if (b.result != 0x52 || b.top.soft_switches != 0xAE) {
+        std::fprintf(stderr, "warm-reset handler failed: result %02x switches %02x\n",
+                     b.result, b.top.soft_switches);
+        return 1;
+    }
+    // Host Hold still initializes the switches and chooses the ROM vector.
+    b.top.reset = 1;
+    b.run_ps(50'000'000);
+    if (!b.top.slot_reset || b.top.soft_switches != 0x01) {
+        std::fprintf(stderr, "host Hold did not initialize the machine\n");
+        return 1;
+    }
+    b.top.reset = 0;
+    b.result = -1;
+    if (!b.run_until("host reset ROM self tests", 2'000'000'000'000ull,
+                     [&] { return b.result == 0x11 || b.result >= 0xE0; })) return 1;
+    if (b.result != 0x11) return 1;
+    std::printf("held Ctrl-Reset preserved II+ latches, RAM, stack and language-card reset vector\n");
 
     std::printf("%s\n", ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
