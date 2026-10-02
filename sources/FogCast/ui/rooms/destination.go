@@ -8,7 +8,10 @@ import (
 	"github.com/DeanoC/FogCast/libraryuser"
 )
 
-// Availability is one of the five destination states in rooms-experience §4.
+// Availability is the play-availability family rooms, tenfoot, and the
+// browser show. Play uses Checking, Ready, Needs a choice, and
+// Unavailable. Missing is the Unavailable reason when no title matches;
+// Confirm still opens the library.
 type Availability string
 
 const (
@@ -17,6 +20,29 @@ const (
 	AvailNeedsChoice Availability = "needs_choice"
 	AvailUnavailable Availability = "unavailable"
 	AvailReady       Availability = "ready"
+)
+
+// Label is the four-state name every surface shows. Missing is Unavailable.
+func (a Availability) Label() string {
+	switch a {
+	case AvailReady:
+		return "Ready"
+	case AvailNeedsChoice:
+		return "Needs a choice"
+	case AvailUnavailable, AvailMissing:
+		return "Unavailable"
+	default:
+		return "Checking"
+	}
+}
+
+// ChoiceKind is why Needs a choice opened. Fail-closed rows never use it.
+type ChoiceKind string
+
+const (
+	ChoiceNone    ChoiceKind = ""
+	ChoiceEdition ChoiceKind = "edition"
+	ChoiceBackend ChoiceKind = "backend"
 )
 
 // Kind is the selected location the compact info panel identifies.
@@ -113,18 +139,24 @@ type Destination struct {
 	// Empty when that seam is off.
 	ReadyBlock string
 	NextAction string
+	// Choice is edition or backend when Availability is Needs a choice.
+	Choice ChoiceKind
 }
 
-// ClassifyGames maps a library result set onto Missing, Needs a choice,
-// Unavailable, or Ready. The caller reports Checking while the query is
-// still in flight. query, when set, filters titles; an exact title match
-// wins over looser contains-matches.
+// ClassifyGames maps a library result set onto Checking, Missing, Needs a
+// choice, Unavailable, or Ready. The caller reports Checking while the
+// query is still in flight. query, when set, filters titles; an exact
+// title match wins over looser contains-matches.
 // Ready is Phase 0 composition when the game has no ReadyHere result.
 // When ReadyHere is set, that result is Ready: a false result is
 // Unavailable, and a slot mid-pull is Checking. A selected placement
 // leaves that Ready path in place, so Play does not ask which machine.
 // Unresolved and fail closed are not Ready. A mesh Execute
 // advertisement is not an input and cannot change the result.
+// Needs a choice is only the viable play options: two Ready backends or
+// two Ready editions. One viable option is Ready with no prompt.
+// Skew, in use, not installed, and other fail-closed rows are
+// Unavailable with a short reason. They are never a choice.
 func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostclient.Game) {
 	matches := matchingGames(games, query)
 	if len(matches) == 0 {
@@ -133,16 +165,86 @@ func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostc
 	if exact := exactTitleMatches(matches, query); len(exact) > 0 {
 		matches = exact
 	}
-	if len(matches) > 1 {
-		return AvailNeedsChoice, matches
+	viable, blocked, checking := partitionPlayOptions(matches)
+	if len(viable) > 1 {
+		return AvailNeedsChoice, viable
 	}
-	if matches[0].ReadyHere != nil && !*matches[0].ReadyHere && matches[0].LaunchBlock() == hostclient.LaunchEnsureProgress {
+	if len(viable) == 1 {
+		return AvailReady, viable
+	}
+	if checking {
 		return AvailChecking, matches
 	}
-	if !matches[0].LaunchEligible() {
-		return AvailUnavailable, matches
+	if len(blocked) == 0 {
+		return AvailMissing, nil
 	}
-	return AvailReady, matches
+	return AvailUnavailable, blocked
+}
+
+func partitionPlayOptions(matches []hostclient.Game) (viable, blocked []hostclient.Game, checking bool) {
+	for _, game := range matches {
+		if game.ReadyHere != nil && !*game.ReadyHere && game.LaunchBlock() == hostclient.LaunchEnsureProgress {
+			checking = true
+			continue
+		}
+		if game.LaunchEligible() {
+			viable = append(viable, game)
+			continue
+		}
+		blocked = append(blocked, game)
+	}
+	return viable, blocked, checking
+}
+
+// PlayChoiceKind is backend when the viable rows use more than one
+// execute kind (FPGA versus emulator). Same-kind rows are editions.
+func PlayChoiceKind(matches []hostclient.Game) ChoiceKind {
+	if len(matches) < 2 {
+		return ChoiceNone
+	}
+	seen := ""
+	for _, game := range matches {
+		exec := playExecution(game)
+		if exec == "" {
+			continue
+		}
+		if seen == "" {
+			seen = exec
+			continue
+		}
+		if exec != seen {
+			return ChoiceBackend
+		}
+	}
+	return ChoiceEdition
+}
+
+func playExecution(game hostclient.Game) string {
+	exec := strings.TrimSpace(game.Execution)
+	switch exec {
+	case hostclient.ExecutionHostOnly, "native_emu":
+		return "native_emu"
+	case "fpga_native", "fpga_development":
+		return "fpga_native"
+	default:
+		return exec
+	}
+}
+
+// BackendLabel is the sofa name for one play option.
+func BackendLabel(game hostclient.Game) string {
+	switch playExecution(game) {
+	case "native_emu":
+		return "Emulator"
+	case "fpga_native":
+		return "FPGA"
+	default:
+		sys := strings.TrimSpace(game.System)
+		if sys == "" {
+			return game.Title
+		}
+		return strings.ToUpper(sys)
+	}
 }
 
 // ApplyForeignLease turns a Ready FPGA title into Unavailable when another
@@ -222,6 +324,7 @@ func ApplyEditionPreference(d Destination, gameID string) Destination {
 		d.System = g.System
 		state, picked := ClassifyGames([]hostclient.Game{g}, "")
 		d.Availability = state
+		d.Choice = ChoiceNone
 		if len(picked) == 1 {
 			d.Matches = picked
 		}
@@ -265,6 +368,18 @@ const (
 	InUseStatus = "In use"
 	// InUseDetail is the action line under InUseStatus.
 	InUseDetail = "Someone else is playing on this machine. You can play when they're done."
+	// CheckingStatus is the sofa sentence while play is still unresolved.
+	CheckingStatus = "Still resolving whether this title can play here."
+	// CheckingAction is Confirm on Checking: wait, never launch.
+	CheckingAction = "Wait. Do not launch."
+	// EditionChoiceStatus is Needs a choice among playable editions.
+	EditionChoiceStatus = "Several editions match. Choose one."
+	// EditionChoiceAction is Confirm on an edition choice.
+	EditionChoiceAction = "Choose an edition."
+	// BackendChoiceStatus is Needs a choice among playable backends.
+	BackendChoiceStatus = "This title can play in more than one way. Choose one."
+	// BackendChoiceAction is Confirm on a backend choice.
+	BackendChoiceAction = "Choose how to play."
 )
 
 // InUseLine is the single-line form of the in-use copy.
@@ -291,6 +406,9 @@ func (d *Destination) FillCopy() {
 		return
 	}
 	d.applyMeshFacts()
+	if d.Availability != AvailNeedsChoice {
+		d.Choice = ChoiceNone
+	}
 	switch d.Kind {
 	case KindRoom:
 		d.Status = "Enter room."
@@ -332,13 +450,8 @@ func (d *Destination) FillCopy() {
 	}
 	switch d.Availability {
 	case AvailChecking:
-		if d.ReadyBlock == string(hostclient.LaunchEnsureProgress) {
-			d.Status = "Still resolving whether this title can play here."
-			d.Action = "Wait. Do not launch."
-			break
-		}
-		d.Status = "Matching this title in your library…"
-		d.Action = "Wait — still checking."
+		d.Status = CheckingStatus
+		d.Action = CheckingAction
 	case AvailMissing:
 		label := strings.TrimSpace(d.Query)
 		if label == "" {
@@ -351,8 +464,15 @@ func (d *Destination) FillCopy() {
 		}
 		d.Action = "Open the library to add it."
 	case AvailNeedsChoice:
-		d.Status = "Several editions match. Choose one."
-		d.Action = "Choose an edition."
+		d.Choice = PlayChoiceKind(d.Matches)
+		if d.Choice == ChoiceBackend {
+			d.Status = BackendChoiceStatus
+			d.Action = BackendChoiceAction
+			break
+		}
+		d.Choice = ChoiceEdition
+		d.Status = EditionChoiceStatus
+		d.Action = EditionChoiceAction
 	case AvailUnavailable:
 		if d.LeaseHeld || d.ReadyBlock == string(hostclient.LaunchLeaseHeld) {
 			d.Status = InUseStatus
@@ -378,8 +498,8 @@ func (d *Destination) FillCopy() {
 		d.Status = "Ready to play."
 		d.Action = "Play"
 	default:
-		d.Status = "Matching this location…"
-		d.Action = "Wait — still checking."
+		d.Status = CheckingStatus
+		d.Action = CheckingAction
 	}
 }
 
@@ -446,6 +566,20 @@ func LaunchBlockCopy(game hostclient.Game) string {
 		return "Coleco BIOS required. Import household firmware before Play."
 	case hostclient.LaunchMissingROM:
 		return "Needs a cartridge"
+	case hostclient.LaunchDistant:
+		return "This title is not on this machine."
+	case hostclient.LaunchLeaseHeld:
+		return InUseStatus
+	case hostclient.LaunchVersionSkew:
+		return "Can't play here yet."
+	case hostclient.LaunchContentMissing:
+		return "A required part of this title is missing."
+	case hostclient.LaunchNoExecutor, hostclient.LaunchMeshInvalid:
+		return "This title cannot play on the current setup."
+	case hostclient.LaunchEnsureProgress:
+		return CheckingStatus
+	case hostclient.LaunchPlacementUnresolved, hostclient.LaunchPlacementFailClosed:
+		return "This title cannot play on the current setup."
 	case "":
 		return ""
 	default:

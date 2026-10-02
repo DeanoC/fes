@@ -209,6 +209,9 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 	}
 	t.RawSetString("availability", lua.LString(d.Availability))
 	t.RawSetString("state", lua.LString(d.Availability))
+	if d.Choice != ChoiceNone {
+		t.RawSetString("choice", lua.LString(d.Choice))
+	}
 	t.RawSetString("status", lua.LString(d.Status))
 	t.RawSetString("action", lua.LString(d.Action))
 	t.RawSetString("note", lua.LString(d.Note))
