@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 
@@ -103,3 +104,97 @@ class RamtestNoticesTest(unittest.TestCase):
         (self.package / 'core.rbf').write_bytes(b'changed')
         with self.assertRaises(ValueError):
             notices.process('install', self.target, self.package)
+
+    def retained_package(self):
+        package = self.target / 'usr/share/mister-runtime/core-packages' / self.package.name
+        package.parent.mkdir(parents=True)
+        shutil.copytree(self.package, package)
+        for path in package.iterdir():
+            path.chmod(0o444)
+        package.chmod(0o555)
+        self.addCleanup(package.chmod, 0o755)
+        return package
+
+    def test_retained_notice_binds_previous_installed_package(self):
+        self.assertIsNone(notices.verify_retained(self.target))
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        # A new producing revision outside the retained installation cannot
+        # change which notice the warm tree admits before post-build refresh.
+        manifest = self.package / 'manifest.toml'
+        manifest.write_text(manifest.read_text().replace('1' * 40, '2' * 40))
+        self.assertEqual(notices.verify_retained(self.target), self.destination / 'SOURCE.md')
+        self.assertIn('Exact producing commit: ' + '1' * 40,
+                      (self.destination / 'SOURCE.md').read_text())
+
+    def test_retained_notice_rejects_missing_package_and_changed_notice(self):
+        notices.process('install', self.target, self.package)
+        with self.assertRaises(ValueError):
+            notices.verify_retained(self.target)
+        self.retained_package()
+        source = self.destination / 'SOURCE.md'
+        source.chmod(0o644)
+        source.write_text('changed source notice')
+        source.chmod(0o444)
+        with self.assertRaises(ValueError):
+            notices.verify_retained(self.target)
+
+    def test_retained_notice_rejects_extra_members(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        (self.destination / 'EXTRA.md').write_text('extra')
+        with self.assertRaises(ValueError):
+            notices.verify_retained(self.target)
+
+    def test_notice_parent_symlinks_are_rejected_before_install_or_verify(self):
+        for relative in ('usr', 'usr/share', 'usr/share/mister-runtime',
+                         'usr/share/mister-runtime/core-notices'):
+            with self.subTest(relative=relative):
+                target = self.target / relative.replace('/', '-')
+                notices.process('install', target, self.package)
+                parent = target / relative
+                redirected = self.target / (relative.replace('/', '-') + '-redirected')
+                parent.rename(redirected)
+                parent.symlink_to(redirected, target_is_directory=True)
+                for action in ('install', 'verify'):
+                    with self.assertRaises(ValueError):
+                        notices.process(action, target, self.package)
+                with self.assertRaises(ValueError):
+                    notices.verify_retained(target)
+
+    def test_retained_package_and_record_parent_symlinks_are_rejected(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        packages = package.parent
+        redirected = packages.with_name('redirected-packages')
+        packages.rename(redirected)
+        packages.symlink_to(redirected, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            notices.verify_retained(self.target)
+        packages.unlink()
+        redirected.rename(packages)
+        selections = self.target / 'usr/share/mister-runtime/selections'
+        selections.symlink_to(self.package, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            notices.verify_retained(self.target)
+
+    def test_package_input_symlinks_are_rejected(self):
+        for name in ('manifest.toml', 'core.rbf'):
+            with self.subTest(name=name):
+                path = self.package / name
+                original = path.with_name(name + '.original')
+                path.rename(original)
+                path.symlink_to(original)
+                with self.assertRaises(ValueError):
+                    notices.source_notice(self.package)
+                path.unlink()
+                original.rename(path)
+
+    def test_retained_selection_record_symlink_is_rejected(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        selections = self.target / 'usr/share/mister-runtime/selections'
+        selections.mkdir()
+        (selections / 'fes-ramtest.package.toml').symlink_to(self.package / 'manifest.toml')
+        with self.assertRaises(ValueError):
+            notices.verify_retained(self.target)
