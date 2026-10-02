@@ -358,6 +358,19 @@ sshpass -p 1 ssh -o StrictHostKeyChecking=no \
 curl --fail http://192.168.10.84:8182/v1/health
 ```
 
+## Kit resource diagnostics
+
+A read-only collector reports image id, uptime, load, CPU idle, `fogcast-*`
+CPU and RSS, memory, swap, CMA, and filesystem size for `/`, `/media/fat`,
+and `/tmp`. It does not write to the kit. From `sources/FogCast`:
+
+```sh
+scripts/kit-diagnostics-ssh.sh 192.168.10.84
+```
+
+Budgets for the local host and shell, and the kit B idle-CPU finding, are in
+[kit resource limits](kit-resource-limits.md).
+
 ## Change discipline
 
 Before changing target behavior, trace the path from
