@@ -110,7 +110,7 @@ new layout fit.
 The default and only FES integration profile is `native-integration-dev`.
 Build and verify do not deploy. The profile authenticates the pinned open-source
 misteross HIP/nextpnr tools before selecting the ordered
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set in
+`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest` package set in
 [the default profile](../profiles/native-integration-dev.toml). The image selector
 also supports `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`. SMS, SG-1000
 and Spectrum remain package-only because the combined rootfs exceeds 128 MiB;

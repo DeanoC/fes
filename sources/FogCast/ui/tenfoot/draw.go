@@ -14,11 +14,13 @@ import (
 // gpuTexture is a Device-backed bitmap plus the CPU source used to decide
 // when to upload again. Keys "preview" and "attract" are park/teardown exceptions.
 type gpuTexture struct {
-	tex gfx.Texture
-	w   int
-	h   int
-	src *image.RGBA
-	seq int
+	tex          gfx.Texture
+	w            int
+	h            int
+	src          *image.RGBA
+	seq          int
+	labelSource  string
+	labelDisplay string
 }
 
 func presentFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture, parked bool) bool {
@@ -264,11 +266,26 @@ func drawLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]str
 	if text == "" || maxW < 1 {
 		return
 	}
-	key = labelCacheKey(key, text, maxW, sizePx)
+	// Hidden suffix changes must not upload or invalidate identical glyphs.
+	key = labelCacheKey(key, "", maxW, sizePx)
 	used[key] = struct{}{}
 	tex, ok := labels[key]
-	if !ok {
-		img := rasterizeLabel(text, maxW, sizePx)
+	if !ok || tex.labelSource != text {
+		labelMu.Lock()
+		face := labelFace(sizePx)
+		display := ""
+		if face != nil {
+			display = fitLabel(face, text, maxW)
+		}
+		if ok && tex.labelDisplay == display {
+			labelMu.Unlock()
+			tex.labelSource = text
+			labels[key] = tex
+			drawGPU(dev, tex, float32(x), float32(y), float32(tex.w), float32(tex.h))
+			return
+		}
+		img := rasterizeLabelWithFace(face, display, maxW, sizePx)
+		labelMu.Unlock()
 		if img == nil {
 			delete(used, key)
 			return
@@ -278,7 +295,11 @@ func drawLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]str
 			delete(used, key)
 			return
 		}
+		if ok {
+			dev.Destroy(tex.tex)
+		}
 		tex = uploaded
+		tex.labelSource, tex.labelDisplay = text, display
 		labels[key] = tex
 	}
 	drawGPU(dev, tex, float32(x), float32(y), float32(tex.w), float32(tex.h))
@@ -614,12 +635,8 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 	if !ok {
 		return
 	}
-	contentW := snap.Grid.contentWidth()
-	contentH := snap.Grid.contentHeight()
-	dev.SetBlend(gfx.BlendAlpha)
-	fillRect(dev, float32(snap.Grid.contentLeft()), float32(snap.Grid.contentTop()), float32(contentW), float32(contentH), 8, 8, 12, 180)
-	dev.SetBlend(gfx.BlendNone)
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
+	dimOutsidePanel(dev, snap.Grid, rectI{x - 4, y - 4, panelW + 8, panelH + 8})
 	rows := snap.Settings.Rows
 	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
 	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
@@ -633,6 +650,9 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 		title = fmt.Sprintf("Settings  ·  %d libraries", snap.Settings.LibraryCount)
 	}
 	drawLabel(dev, labels, used, "set-title", x+16, y+12, panelW-32, 18, title)
+	if cache, ok := dev.(interface{ CacheBackdrop() }); ok {
+		cache.CacheBackdrop()
+	}
 	labelW := 180
 	if labelW > panelW/3 {
 		labelW = panelW / 3
@@ -661,6 +681,26 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 		status = "loading host settings"
 	}
 	drawLabel(dev, labels, used, "set-status", x+16, y+panelH-24, panelW-32, 14, status)
+}
+
+// The opaque settings panel overwrites its entire border and interior. Only
+// blend the visible backdrop; shading hidden pixels costs a full alpha pass
+// and cannot contribute to the resulting frame.
+func dimOutsidePanel(dev gfx.Device, grid Grid, panel rectI) {
+	x, y := grid.contentLeft(), grid.contentTop()
+	right, bottom := x+grid.contentWidth(), y+grid.contentHeight()
+	x0, y0 := max(x, panel.X), max(y, panel.Y)
+	x1, y1 := min(right, panel.X+panel.W), min(bottom, panel.Y+panel.H)
+	dev.SetBlend(gfx.BlendAlpha)
+	if x0 >= x1 || y0 >= y1 {
+		fillRect(dev, float32(x), float32(y), float32(right-x), float32(bottom-y), 8, 8, 12, 180)
+	} else {
+		fillRect(dev, float32(x), float32(y), float32(right-x), float32(y0-y), 8, 8, 12, 180)
+		fillRect(dev, float32(x), float32(y1), float32(right-x), float32(bottom-y1), 8, 8, 12, 180)
+		fillRect(dev, float32(x), float32(y0), float32(x0-x), float32(y1-y0), 8, 8, 12, 180)
+		fillRect(dev, float32(x1), float32(y0), float32(right-x1), float32(y1-y0), 8, 8, 12, 180)
+	}
+	dev.SetBlend(gfx.BlendNone)
 }
 
 func drawFilters(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {

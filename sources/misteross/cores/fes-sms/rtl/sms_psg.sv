@@ -2,9 +2,11 @@
 // Sega SN76489-compatible PSG for the FES Master System slice.
 //
 // Writes to ports 0x7E and 0x7F share the same latch/data protocol. The chip
-// enable is the SMS 3.58 MHz approximation (one pulse every 16 system clocks);
-// tone and noise counters then divide by 16, matching F = clk / (32 * N).
-// Period 0 reloads as 1024 (Sega PSG). Audio leaves this module as a signed
+// enable runs at the NTSC 3,579,545 Hz rate. Tone counters divide by 16;
+// noise shifts at chip /512, /1024, /2048 or tone 2 rising edges, as specified
+// in Sega's official PSG manual. Sega period zero runs at the fastest divider
+// rate; the TI variant used by Coleco/SG-1000 instead reloads 1024.
+// Audio leaves this module as a signed
 // 16-bit mix; HDMI I2S lives in the board top.
 
 module sms_psg (
@@ -49,6 +51,11 @@ module sms_psg (
     reg        tone_out1;
     reg        tone_out2;
     reg [15:0] lfsr;
+    wire [2:0] selected = cpu_din[7] ? cpu_din[6:4] : latched;
+    wire noise_write = write && selected == 3'b110;
+    wire tone2_rise = tone_div2 == 0 && tone_cnt2 <= 1 && !tone_out2;
+    wire noise_shift = noise_ctrl[1:0] == 3 ? tone2_rise :
+                       noise_div == 0 && noise_cnt <= 1;
 
     assign tone0_period = period0;
     assign tone0_atten = atten0;
@@ -60,19 +67,18 @@ module sms_psg (
     function automatic [10:0] reload;
         input [9:0] period;
         begin
-            reload = (period == 10'd0) ? 11'd1024 : {1'b0, period};
+            reload = (period == 10'd0) ? 11'd1 : {1'b0, period};
         end
     endfunction
 
     function automatic [10:0] noise_reload;
         input [1:0] rate;
-        input [9:0] tone2;
         begin
             case (rate)
-                2'b00: noise_reload = 11'd16;
-                2'b01: noise_reload = 11'd32;
-                2'b10: noise_reload = 11'd64;
-                default: noise_reload = reload(tone2);
+                2'b00: noise_reload = 11'd32;
+                2'b01: noise_reload = 11'd64;
+                2'b10: noise_reload = 11'd128;
+                default: noise_reload = 11'd128;
             endcase
         end
     endfunction
@@ -234,17 +240,21 @@ module sms_psg (
                 if (noise_div == 4'd0) begin
                     noise_div <= 4'd15;
                     if (noise_cnt <= 11'd1) begin
-                        noise_cnt <= noise_reload(noise_ctrl[1:0], period2);
-                        if (noise_ctrl[2])
-                            lfsr <= {lfsr[0] ^ lfsr[3], lfsr[15:1]};
-                        else
-                            lfsr <= {lfsr[0], lfsr[15:1]};
+                        noise_cnt <= noise_reload(noise_ctrl[1:0]);
                     end else begin
                         noise_cnt <= noise_cnt - 1'b1;
                     end
                 end else begin
                     noise_div <= noise_div - 1'b1;
                 end
+                if (noise_shift)
+                    lfsr <= {lfsr[0] ^ (noise_ctrl[2] && lfsr[3]), lfsr[15:1]};
+            end
+            // A control write clears the LFSR even when a shift is due.
+            if (noise_write) begin
+                noise_ctrl <= cpu_din[2:0];
+                lfsr <= 16'h8000;
+                noise_cnt <= 0;
             end
         end
     end

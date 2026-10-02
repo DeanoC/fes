@@ -310,8 +310,10 @@ state survives lock loss to avoid interpreting a stale acknowledgement as a
 new sample. The custom tone demo remains a native audio-clock source and needs
 no CDC. V11 reaches two qualified PLL sites, so Coleco uses a shared fractional
 417.792 MHz VCO for system 52.224 MHz (C8) and audio 12.288 MHz (C34), plus
-the separate video PLL. This raises the reduced CPU cadence by 0.43% from the
-old 52 MHz profile; the CPU remains /16 (3.264 MHz), not cycle-accurate NTSC.
+the separate video PLL. The shared `fes_z80_ce.sv` supplies Coleco, SG-1000
+and SMS with alternating CPU half-cycle enables at an exact average
+3,579,545 Hz, independently of the 52.224 MHz transport and reset. Its phase
+error stays below one system clock.
 The TMS9918 logical raster now uses its independent fractional 60 Hz enable.
 HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
 The producer checks all three timing domains and each audio output pad before
@@ -486,7 +488,7 @@ Simulation keeps the `zx81_dpram` hex path. The sealed package stays the
 empty socket; launch splices BASIC into the programmed bitstream.
 
 
-The `expansion` Go linker admits only the versioned ZX81 full-height socket or
+The single-socket `expansion` Go path admits the versioned ZX81 full-height socket or
 the Coleco CPU-bus rectangle `(1769, 32, 2806, 1034)`, selected by the exact
 slot/map pair. A Coleco manifest may also declare
 `fes.coleco.response-boundary/4`: exactly two fixed shell-response CRAM
@@ -516,6 +518,45 @@ any socket. The v2 composition ID is SHA256 of `fes-composition-v2`, NUL,
 package ID, NUL, `slot:expansion-id` NUL per card in ascending slot order,
 then the linked-payload SHA256. The single-socket `Compose` path rejects
 multi-socket cards.
+
+### Video parts
+
+The first video-parts layout is `fes.coleco-video.parts/1`. It reserves a
+Coleco bus 2.0 socket at placement columns 24–28, rows 1–19, and a video
+socket at columns 24–28, rows 23–38. Their half-open CRAM rectangles are
+`(1769,32,2806,1800)` and `(1769,1800,2806,3442)`. The separate developer
+shell declares optional `fes.fabric.video.raster-rgb888` 1.0; it retains the
+fixed-720p60 external interface and the base package's GP capabilities and
+BUILD_ID. It does not replace the factory recipe.
+
+The [shared fabric contract](../../mister-packages/docs/video-parts.md)
+defines RGB888, DE/HS/VS, pixel enable, start-of-frame, end-of-line, HOLD
+and a required-zero reserved bit. In this layout all video logic uses
+`pixel_clk` at 74.25 MHz. The shell owns clocks, HDMI, HPS and I2S.
+Request and response registers add two pixel clocks of latency to the
+entire raster word. A vacant socket selects the equally delayed machine
+raster; a linked direct or scanline part asserts response CE to select its
+output. Audio follows the existing machine path.
+
+`build_video_part.py` builds each part against the exact sealed shell,
+adapting its public RTL interface to the compiler's packed cartridge ports.
+It checks timing, clock ownership, the original configuration header and
+every changed CRAM bit before publishing an archive. Pixel clock coverage
+anchors lie inside the video fence; CPU anchors remain frozen. Part outputs
+retain logic drivers through separate synthesis, avoiding input/output alias
+collapse during packed-port merge. This uses the locked Coleco compiler
+without a new compiler ABI.
+
+`ComposePartsContext` requires one video part and permits one Coleco bus 2.0
+expansion. It validates both against the original shell, rejects duplicate
+roles, mismatched layouts and outside-region writes, then composes disjoint
+regions in canonical role order. Its identity binds the base package ID,
+layout, selected part IDs and resulting payload digest. Legacy single-socket
+composition rejects video parts. The target independently recomposes the
+developer transfer and retains separate part status alongside base identity.
+This is full-chip download-time composition; changing a selection requires
+another load. Native raster capture, DDR scanout, overlays, variable modes,
+audio parts and library/profile selection remain subsequent work.
 
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
@@ -760,6 +801,9 @@ RAM at `0xc000`), the 8255 joystick ports `0xdc`/`0xdd`, and PSG write decode at
 3,579,545 Hz enable. Its signed mono sample feeds both channels of the shared
 PCM-to-I2S output. Coleco's two-output PLL supplies 52.224 MHz system and
 12.288 MHz audio from one board PLL; video uses the other. There is no BIOS shim.
+The VDP asserts the Z80's maskable INT input; NMI is inactive.
+`make sim-fes-z80-timing` checks both CPU half-cycle enables over a full second;
+each machine's simulation includes it.
 
 `make sim-fes-sg1000` is the diagnostic Verilator machine check
 (`-DTV80_REFRESH=1` only). `make sim-fes-sg1000-oss` compiles the same
@@ -836,7 +880,8 @@ the mailbox consumes `cores/fes-sms/generated/stream-exchanges.json`, the VDP
 unit covers legacy Text/Multicolor colors, Mode 4 VRAM buffering, CRAM color,
 tile priority/palette, sprite collision,
 line IRQ and VBlank IRQ, the PSG unit covers ports `0x7E`/`0x7F` and the tone-0
-square wave, shared HDMI I2S covers 16-bit 48 kHz frames and Hold/clock-loss
+square wave, zero-period behavior and fixed/tone-driven Sega noise dividers,
+shared HDMI I2S covers 16-bit 48 kHz frames and Hold/clock-loss
 mute, and the machine covers the
 32 KiB map, long-then-short `0xff` tails, and CPU execution of that diagnostic
 (not reset-only peeks).
@@ -1329,6 +1374,10 @@ video result or hardware-support claim.
 `cores/fes-apple2` is `fes.apple2`, an Apple II+ class home computer on the
 `fes.computer` 1.0 mailbox. Its machine, video, Disk II, slot bus and open
 diagnostic are described in [its README](../cores/fes-apple2/README.md).
+Ctrl-Reset holds the CPU and backplane RESET for the whole key press while
+retaining II/II+ video, annunciator and language-card switches. Host execution
+reset initializes them. The machine regression installs an alternate reset
+vector in language-card RAM and checks both reset paths through the real CPU.
 Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
 `rtl/cpu6502` (Arlet Ottens, module names only changed) and the generic
 `rtl/fes_computer_mailbox.v` endpoint, which replays the mister-packages
@@ -1370,6 +1419,11 @@ built-in Kempston port, `.tap` player and four edge sockets are described in
 [its README](../cores/fes-spectrum/README.md). It reuses
 `rtl/fes_computer_mailbox.v` with `ENABLE_SPECTRUM_TAPE` and the TV80 already
 used by Coleco, SMS and SG-1000. No Sinclair ROM bytes are in the tree.
+The cassette player selects its pilot length from flag bit 7 and prefetches
+the next byte so each encoded half-pulse keeps its standard ROM width.
+`make sim-fes-spectrum-tape`, included in the aggregate, decodes all pilot,
+sync and data edges across mixed bytes and consecutive blocks, then checks
+partial tails and live eject/replacement.
 
 `make build-fes-spectrum` (`scripts/build_fes_spectrum_oss.py`,
 `toolchains/spectrum.lock`, `make toolchain-fes-spectrum`) is the format-3
@@ -1389,6 +1443,12 @@ the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
 joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+Both CIA timers expose their live counters, load stopped counters on high-byte
+writes, treat force-load as a strobe, and implement continuous/one-shot counting.
+Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
+NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
+`make sim-fes-c64-cia` adds directed register/timer coverage. External CNT edges,
+TOD, serial shifting and timer port outputs remain outside this slice.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
@@ -1492,6 +1552,11 @@ explicit Quartus/oracle and splash firmware records retain their separately
 specified diagnostic schema; they are not an alternate normal product route.
 Historical source-record verification checks original immutable provenance
 without admitting arbitrary live standalone producer roots.
+
+The FES factory/catalog recipe for `fes.ramtest` selects the OSS 100 MHz
+variant through `build_fes_ramtest.py`. Its parent-facing authentication and
+functional-record defaults match that rate; explicit 130 MHz builds retain
+their separate output and timing gates. Quartus remains an oracle.
 
 ## Shared FPGA producer and RTL ownership
 

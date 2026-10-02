@@ -83,6 +83,7 @@ ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
 QSF = "cores/fes-coleco/constraints-oss.qsf"
 SDC = "cores/fes-coleco/clocks-oss.sdc"
 RTL_SOURCES = (
+    "cores/fes-common/rtl/fes_z80_ce.sv",
     "cores/fes-common/rtl/fes_sn76489.sv",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_audio_output.v",

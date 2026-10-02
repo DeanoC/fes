@@ -18,7 +18,7 @@ they were written. They are not the schedule for this tree.
 
 Parent recipe rows live in FES `config/core-recipes.toml`. The factory image
 installs the idle display `fes.menu` and playable `fes.pong`, `fes.zx81` and
-`fes.coleco`. A producer in this
+`fes.coleco` and the OSS 100 MHz `fes.ramtest` utility. A producer in this
 module does not put a package on that image.
 
 | Package | Tree | Mailbox | Lock | OSS seal | In factory image |
@@ -34,7 +34,7 @@ module does not put a package on that image.
 | `fes.c64` | `cores/fes-c64` | `fes.computer` | `toolchains/c64.lock` | `make build-fes-c64` | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | no; package-only recipe; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
-| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchains/ramtest.lock` (100 and 130 MHz) | `make build-fes-ramtest-100`, `make build-fes-ramtest-130` | no; not registered |
+| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchains/ramtest.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
@@ -42,7 +42,7 @@ a package. The package is `cores/fes-pong`. ZX81 has no
 `cores/fes-zx81/README.md`. Its machine contract is the ZX81 sections of
 [the architecture](architecture.md).
 
-Do not use `fes.mastersystem`. The Master System package id is `fes.sms`.
+Do not use `fes.mastersystem`. The Sega Master System package id is `fes.sms`.
 
 Quartus recipes (`make build-fes-zx81-quartus`, `build-fes-coleco-quartus`,
 `build-fes-sg1000-quartus`, `build-fes-sms-quartus`) are bring-up oracles.
@@ -50,6 +50,43 @@ A failed HIP route does not fall back to Quartus. Quartus never programs a kit.
 `--compile-only`, where the recipe has it, writes an RBF and timing evidence
 without sealing. `--synth-only` on the OSS producers is a dirty-tree Yosys
 probe and does not seal.
+
+## Video-parts development lane
+
+The first slice is a separate Coleco shell with a fixed 720p60 RGB888
+pixel-clock interface. Choose a direct part or a simple scanline part;
+an independently built Coleco bus 2.0 expansion can share the same frozen
+shell. The factory producer and image selection retain their existing path.
+The [fabric contract](../../mister-packages/docs/video-parts.md) describes
+the public RTL ports; [the architecture](architecture.md#video-parts)
+describes physical containment and composition.
+
+From a clean committed `sources/misteross` tree:
+
+```sh
+make sim-fes-video-parts
+make build-fes-coleco-video CACHE_ROOT=/absolute/cache
+make build-fes-video-part VIDEO_VARIANT=direct \
+  VIDEO_SHELL="$PWD/build/fes-coleco-video" \
+  VIDEO_PACKAGE="$PWD/build/packages/<package-id>" CACHE_ROOT=/absolute/cache
+make build-fes-video-part VIDEO_VARIANT=scanlines \
+  VIDEO_SHELL="$PWD/build/fes-coleco-video" \
+  VIDEO_PACKAGE="$PWD/build/packages/<package-id>" CACHE_ROOT=/absolute/cache
+```
+
+Use the exact package directory printed by the shell producer. The part
+producer prints its archive beneath `build/video-parts/<variant>/<recipe>/`;
+that directory also contains timing, clock and CRAM containment evidence.
+Both parts bind the exact base package. Rebuilding the shell requires
+rebuilding its parts and any selected CPU expansion.
+
+For offline composition, run `expansion/cmd/fes-parts-link` with `-shell`,
+`-package-id`, `-build-id`, `-video`, optional `-expansion`, and `-output`.
+For a contained developer transfer, FogCast's `cmd/fes-parts` packages the
+base and selected parts for the target's parts inspect/load routes. See
+[FogCast development](../../FogCast/docs/DEVELOPMENT.md). An inspect does
+not program hardware; a load follows the existing designated-kit lease and
+physical lifecycle. This lane has no library selection UI or audio parts.
 
 ## Three results you must not collapse
 

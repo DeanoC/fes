@@ -23,8 +23,47 @@ texture's entries. Resized bitmaps cover the visible integer raster bounds and
 use the original sampling expression even for fractional source/destination
 rectangles. First-use and continuously updated textures use the general sampler
 to avoid allocating a resize bitmap for every video frame. Large
-constant-color alpha fills use exact channel lookup tables. Text blits borrow
+constant-color alpha fills on ARM use a NEON assembly kernel when
+`cpu.ARM.HasNEON` is observed and eight pixels fit in a row. Each iteration
+blends eight RGBA pixels with widening integer multiplies and exact `/255`
+truncation, including destination alpha. Row tails remain scalar. Other CPUs,
+narrow rows and small fills retain scalar arithmetic or exact channel lookup
+tables; the ARM lookup loop eliminates per-channel bounds branches. The
+backend remains CGO-free. Opaque fills and pixel copies retain the portable
+implementation: measured custom NEON kernels provided no throughput gain for
+full frames or the settings panel, and copying 1 KiB rows regressed on the
+designated Cortex-A9. Settings shades only the visible
+backdrop outside its opaque panel and border. The scene cache checkpoints that
+backdrop plus the fixed panel background/title, then restores only the previous
+overlay's bounding rectangle for navigation. Uncertain draw bounds use a full
+restore; changes to prefix commands/resources rebuild it. Text blits borrow
 pixels during the synchronous draw rather than cloning them.
+
+The `fogcast-kit` grid also uses change-driven rendered revisions. Its existing
+render key admits navigation, status and artwork updates immediately. Unchanged
+keys refresh once a second to capture fields outside that key, with no
+rasterization or full-frame comparison between refreshes. Animation ticks and
+their final settled frame draw immediately; menu probes/retries and Pause/Resume
+continue on idle ticks. Tile, footer and wheel-frame construction happens only
+after that gate admits a paint. At a bounded wheel refresh, identical complete
+frame content also reuses its rendered revision, avoiding artwork uploads and
+rasterization. Motion bypasses reuse and forces the final settled paint.
+Wheel representative, play-count and last-played
+queries use summaries rebuilt on catalog changes, without filtering or scanning
+the catalog on idle ticks. Models constructed without `SetCatalog` retain a
+scan fallback. This
+does not change the launcher input cadence.
+
+Tenfoot labels retain both their source and fitted visible text. Identical
+sources skip fitting; changes confined to a clipped suffix reuse the existing
+texture without invalidating the scene or settings backdrop. Visible text and
+width/font-size changes still upload new glyphs.
+
+The kit grid entry point and tenfoot `menu-display` / `linuxfb` entry points
+set a 96 MiB soft Go memory limit before starting workers, unless `GOMEMLIMIT`
+is explicitly set. This bounds idle heap growth after large startup decodes;
+it is a GC/scavenging target, not a hard RSS or artwork allocation cap. Desktop
+SDL and other tenfoot backends retain the normal Go runtime policy.
 
 ## Profiling
 
@@ -36,7 +75,11 @@ fogcast-tenfoot -gfx menu-display \
   -heap-profile /tmp/tenfoot-heap.pprof
 ```
 
-Exit normally or with SIGTERM, then inspect with matching binary bytes:
+With `-heap-profile`, SIGUSR1 also writes a live heap after collection, while
+artwork and renderer resources still exist. Copy that file before shutdown,
+which writes the final heap to the same path. The grid launcher also accepts
+`-cpu-profile`. Exit normally or with SIGTERM, then inspect with matching binary
+bytes:
 
 ```sh
 go tool pprof -top fogcast-tenfoot /tmp/tenfoot-cpu.pprof
@@ -55,6 +98,7 @@ keep decoding and physical presentation visible in actual-process profiles.
 
 ```sh
 go test ./ui/gfx -run '^$' -bench 'Benchmark(Software|MenuDisplay|FrameCache)' -benchmem
+go test ./cmd/fogcast-kit -run '^$' -bench BenchmarkKitGridIdle -benchmem
 go test ./ui/tenfoot -run '^$' -bench BenchmarkCPUBackend -benchmem
 ```
 
@@ -62,7 +106,8 @@ go test ./ui/tenfoot -run '^$' -bench BenchmarkCPUBackend -benchmem
 real scene drawing with warmed generated covers. It excludes network operations,
 asset decode and physical presentation. Its Room case replays a synthetic room
 display list; it does not measure Lua execution. Static Attract measures a still,
-not video decode. Navigation changes visible focus each iteration.
+not video decode. Navigation changes visible focus each iteration. SettingsNavigation changes the
+settings row each iteration and forces redraws through the production cache.
 
 Cross-build the same tests for ARMv7:
 
@@ -76,7 +121,17 @@ Copy to private `/tmp` paths and run the test binaries with the corresponding
 `-test.run`, `-test.bench`, `-test.benchmem` and `-test.cpuprofile` flags. These CPU
 benchmarks do not program an FPGA, replace services or qualify a factory image.
 
+For scalar-fallback diagnostics on ARM, `GODEBUG=cpu.neon=off` disables the
+`golang.org/x/sys/cpu` dispatch. The Go runtime itself reports this feature
+name as unknown on ARM; x/sys still applies it. The NEON-specific tests skip
+and exhaustive renderer arithmetic tests continue through the scalar path.
+
 ## Diagnostic measurements
 
 ARMv7 measurements and qualification limits are recorded in the FES
-[CPU-backend diagnostic](../../../../docs/validation/2026-09-30-tenfoot-cpu-backend.md).
+[CPU-backend diagnostic](../../../../docs/validation/2026-09-30-tenfoot-cpu-backend.md),
+[settings raster profile](../../../../docs/validation/2026-10-02-settings-raster-cost.md),
+and [NEON alpha-fill diagnostic](../../../../docs/validation/2026-10-02-neon-alpha-fill.md).
+Kit-wide CPU, memory, and storage budgets for the local host and shell are in
+[kit resource limits](../kit-resource-limits.md). That collector is read-only
+and is separate from these opt-in profiles.

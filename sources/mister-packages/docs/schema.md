@@ -149,7 +149,7 @@ Every package file starts with:
 
 ```yaml
 schema: mister-packages.v1
-kind: platform | board | soc | cpu | register_bank | abi | programming_profiles
+kind: platform | board | soc | cpu | register_bank | abi | fabric | programming_profiles
 id: unique.dot.or.slash.free.id
 ```
 
@@ -280,6 +280,21 @@ Begin on the control index with argument 0 remains invalid argument (golden
 wire fixture). While the ZX81 tape-loader is copying (`media_busy`), begin
 and eject reject with error 4 rather than aborting the copy. See
 FES [`docs/zx81-tape-media.md`](../../../docs/zx81-tape-media.md).
+
+## fabric
+
+An internal FPGA fabric contract carries `id`, `major`, `minor`, optional
+`description` and named unsigned 32-bit `constants`. It shares ABI identifier,
+version and constant validation, but rejects host ABI `tag` and `interfaces`
+fields. `validate` accepts fabric packages and `emit-verilog` emits guarded
+constant includes using the existing naming rules. This path does not generate
+RTL modules, connections, constraints, or host Go/C++ admission tables.
+
+[`fabric/fes_fabric_video_raster_rgb888.yaml`](../packages/fabric/fes_fabric_video_raster_rgb888.yaml)
+defines `fes.fabric.video.raster-rgb888` 1.0. See
+[timed video parts](video-parts.md) for bundled pixels/timing, CE-qualified
+markers, HOLD and the fixed 720p mode bounds. The source/socket package marker
+remains separate from operational GP capabilities and programming profiles.
 
 ## programming_profiles
 

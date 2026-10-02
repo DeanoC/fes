@@ -26,7 +26,8 @@ is registered for package-only parent builds and is not in the factory image.
 ## Implemented slice
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
-  domain (Coleco `t80pa` / `tv80`).
+  domain at exactly 3,579,545 Hz on average, with alternating fractional
+  half-cycle enables (Coleco `t80pa` / `tv80`).
 - The OSS package seals a blank 32 KiB ROM map at `0x0000–0x7fff`.
   Library launch selects `cartridge-rom` as an exact 32 KiB binary; the target
   patches its bytes into the RBF before FPGA download. Pad shorter fixed-map
@@ -92,7 +93,20 @@ the OSS product package.
 
 VDP interrupt connects to Z80 INT. The cartridge itself occupies `0x0038` if
 it installs an IM1 handler; there is no Coleco `JP 0x8066` shim and no
-SG-1000 NMI vector at `0x0066`.
+pause NMI vector at `0x0066`.
+
+CPU and PSG clock rates follow the
+[Sega service manual](https://www.smspower.org/Development/SegaMasterSystemServiceManual)
+and [official Sega PSG manual](https://www.smspower.org/Development/GGOfficialDocs):
+3.579545 MHz, noise shifts at chip /512, /1024, /2048, or tone 2 rising edges,
+and a 16-bit periodic-noise ring. The CPU/PSG rate is independent of the
+slower Mode 4 renderer. `make sim-fes-z80-timing` checks exact enable counts
+and half-cycle spacing; the PSG simulation checks every noise rate and ring
+period. Sega period zero runs at the fastest divider rate, following the
+[hardware-verified chip investigation](https://github.com/mamedev/mame/blob/master/src/devices/sound/sn76496.cpp);
+the TI chip in Coleco/SG-1000 retains its different zero-period behavior.
+These are RTL simulation results; fresh sealing and exact-artifact kit
+acceptance remain required for the changed bytes.
 
 ## Standard joystick mapping
 

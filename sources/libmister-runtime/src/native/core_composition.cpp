@@ -250,6 +250,84 @@ Error OpenSlotComposition(const std::vector<std::string>& roots,
 	if (!error.ok()) return error;
 	*output=std::move(opened);return {};
 }
+// Developer parts retain the base GP identity and add no operational capability.
+Error OpenPartsComposition(const std::vector<std::string>& roots,
+	const OpenedCorePackage& base, const CoreCompositionRequest& request,
+	OpenedCoreComposition* output) {
+	const auto& descriptor = base.descriptor;
+	bool video = false, cpu = false;
+	for (const auto& interface : descriptor.interfaces) {
+		if (interface.id == "fes.fabric.video.raster-rgb888")
+			video = !interface.required && interface.major == 1 && interface.minor == 0;
+		if (interface.id == "fes.expansion.coleco-bus")
+			cpu = !interface.required && interface.major == 2 && interface.minor == 0;
+	}
+	if (descriptor.format != 2 || descriptor.core.id != "fes.coleco" ||
+		descriptor.abi.id != "fes.application" || descriptor.abi.major != 1 ||
+		descriptor.abi.minor != 0 || !video || !cpu)
+		return Invalid("parts require the declared Coleco video developer shell");
+	const auto& info = request.composition;
+	if (!request.expansion_path.empty() || !request.expansions.empty() ||
+		!info.expansion_id.empty() || !info.expansions.empty() ||
+		info.layout != "fes.coleco-video.parts/1" || !Hex(info.id, 64) ||
+		!Hex(info.package_id, 64) || !Hex(info.shell_sha256, 64) ||
+		!Hex(info.payload_sha256, 64) || info.package_id != base.package_id ||
+		info.shell_sha256 != descriptor.payload.sha256 || info.payload_size < 40408 ||
+		info.payload_size > MaximumPayload || info.parts.empty() || info.parts.size() > 2 ||
+		request.parts.size() != info.parts.size())
+		return Invalid("invalid developer parts identity or base binding");
+	std::string canonical = "fes-parts-composition-v1" + std::string(1, '\0') +
+		info.package_id + std::string(1, '\0') + info.layout + std::string(1, '\0');
+	std::string previous;
+	bool have_video = false;
+	OpenedCoreComposition opened;
+	opened.info = info;
+	for (std::size_t i = 0; i < info.parts.size(); ++i) {
+		const auto& part = info.parts[i];
+		if ((part.role != "expansion" && part.role != "video") || part.role <= previous ||
+			!Hex(part.part_id, 64) || request.parts[i].role != part.role)
+			return Invalid("parts must be unique supported roles in ascending order");
+		previous = part.role;
+		have_video |= part.role == "video";
+		canonical += part.role + ":" + part.part_id + std::string(1, '\0');
+		OpenedCoreExpansion asset;
+		Error error = OpenExpansion(roots, request.parts[i].path, &asset);
+		if (!error.ok()) return error;
+		ManifestReader reader(asset.manifest_bytes);
+		std::string hash, device, map, recipe, revision, build, package, shell, slot;
+		std::uint64_t size = 0, format = 0, major = 0, minor = 0;
+		if (reader.HasBoundaryPatch() || !reader.Text("cart_sha256", &hash) ||
+			!reader.Number("cart_size", &size) || !reader.Text("device", &device) ||
+			!reader.Number("format", &format) || !reader.Text("map", &map) ||
+			!reader.Text("recipe_sha256", &recipe) || !reader.Text("revision", &revision) ||
+			!reader.Text("shell_build_id", &build) || !reader.Text("shell_package_id", &package) ||
+			!reader.Text("shell_sha256", &shell) || !reader.Text("slot", &slot) ||
+			!reader.Number("slot_major", &major) || !reader.Number("slot_minor", &minor) ||
+			!reader.End())
+			return Invalid("parts manifest must use canonical JSON");
+		const bool is_video = part.role == "video";
+		if (!Hex(hash, 64) || !Hex(recipe, 64) || !Hex(revision, 40) || !Hex(build, 32) ||
+			format != 1 || device != "5CSEBA6U23I7" || descriptor.target.device != device ||
+			slot != (is_video ? "fes.fabric.video.raster-rgb888" : "fes.expansion.coleco-bus") ||
+			map != (is_video ? "fes.coleco-video.socket/1" : "fes.coleco-bus.socket/2") ||
+			major != (is_video ? 1u : 2u) || minor != 0 || size < 40408 ||
+			size != asset.cart.size() || package != base.package_id ||
+			build != descriptor.build.id || shell != descriptor.payload.sha256 ||
+			Hash(std::string("fes-expansion-v1\0", 17) + asset.manifest_bytes) != part.part_id)
+			return Invalid("part does not match its role and frozen shell");
+		asset.cart_sha256 = hash;
+		opened.expansions.push_back(std::move(asset));
+	}
+	canonical += info.payload_sha256;
+	if (!have_video || Hash(canonical) != info.id)
+		return Invalid("parts composition ID does not match canonical identity");
+	Error error = OpenLinkedPayload(roots, request.payload_path, info.payload_size, &opened.payload);
+	if (error.ok()) error = RecheckCoreComposition(opened);
+	if (!error.ok()) return error;
+	*output = std::move(opened);
+	return {};
+}
+
 } // namespace
 
 Error RecheckCoreComposition(const OpenedCoreComposition& opened) {
@@ -272,6 +350,8 @@ Error RecheckCoreComposition(const OpenedCoreComposition& opened) {
 Error OpenCoreComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage& base, const CoreCompositionRequest& request, OpenedCoreComposition* output) {
 	if (!output) return Invalid("missing composition output");
+	if (!request.parts.empty() || !request.composition.parts.empty())
+		return OpenPartsComposition(roots,base,request,output);
 	if (!request.expansions.empty() || !request.composition.expansions.empty())
 		return OpenSlotComposition(roots,base,request,output);
 	const auto& descriptor=base.descriptor;

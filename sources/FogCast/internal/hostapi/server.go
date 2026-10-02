@@ -107,9 +107,11 @@ type editionPreferenceResult struct {
 }
 
 type healthResult struct {
-	Ready  bool         `json:"ready"`
-	Host   hostIdentity `json:"host"`
-	Target targetHealth `json:"target"`
+	Ready        bool                      `json:"ready"`
+	Host         hostIdentity              `json:"host"`
+	Target       targetHealth              `json:"target"`
+	Mesh         map[string]int            `json:"mesh"`
+	Capabilities []fogcast.SoftwareBackend `json:"software_backends,omitempty"`
 }
 
 type hostIdentity struct {
@@ -220,7 +222,7 @@ func WithMetadata(runtime metadata.Runtime, states ...metadata.ConfigState) Serv
 	}
 }
 
-func requestSessionCoordinator(root *sessionCoordinator, service Service, r *http.Request, target string) *sessionCoordinator {
+func requestSessionCoordinator(root *sessionCoordinator, service Service, r *http.Request, target string, foregroundOnly ...bool) *sessionCoordinator {
 	if target == "" {
 		target = launcherTargetFromContext(r.Context())
 	}
@@ -234,7 +236,15 @@ func requestSessionCoordinator(root *sessionCoordinator, service Service, r *htt
 	if target == "" {
 		// Unscoped reads and mutations follow the foreground session, falling
 		// back to the selected target only when no kit is active.
-		if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
+		if len(foregroundOnly) > 0 && foregroundOnly[0] {
+			if resolver, ok := service.(interface{ ForegroundSessionTargetName() string }); ok {
+				target = resolver.ForegroundSessionTargetName()
+			} else if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
+				target = resolver.SessionTargetName()
+			} else if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+				target = resolver.SelectedTargetConfig().Name
+			}
+		} else if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
 			target = resolver.SessionTargetName()
 		} else if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
 			target = resolver.SelectedTargetConfig().Name
@@ -263,12 +273,13 @@ func New(service Service, options ...ServerOption) http.Handler {
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
-		coordinator := requestSessionCoordinator(session, service, r, r.URL.Query().Get("target"))
+		coordinator := requestSessionCoordinator(session, service, r, r.URL.Query().Get("target"), true)
 		result, err := coordinator.status(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
 			return
 		}
+		result.Connection = targetConnection(service)
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/sessions", func(w http.ResponseWriter, r *http.Request) {
@@ -302,7 +313,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		mux.Handle("GET /api/v1/session/preview", config.mediaPreview)
 	}
 	mux.HandleFunc("GET /api/v1/session/events", func(w http.ResponseWriter, r *http.Request) {
-		coordinator := requestSessionCoordinator(session, service, r, "")
+		coordinator := requestSessionCoordinator(session, service, r, "", true)
 		var after uint64
 		if raw := r.URL.Query().Get("after"); raw != "" {
 			if _, err := fmt.Sscanf(raw, "%d", &after); err != nil {
@@ -331,17 +342,34 @@ func New(service Service, options ...ServerOption) http.Handler {
 		// Launch routing is intentionally independent from the foreground
 		// session: preserve an omitted target so FogCast can apply placement.
 		target := request.Target
-		if target == "" {
+		pairedTarget := fogcast.PairedTargetFromContext(r.Context())
+		if target == "" && pairedTarget == "" {
 			target = launcherTargetFromContext(r.Context())
 		}
 		coordinatorTarget := target
-		if coordinatorTarget == "" {
-			if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
-				coordinatorTarget = resolver.SelectedTargetConfig().Name
+		hostOnlyLaunch := false
+		// A host-only launch belongs to the root coordinator. It has no FPGA
+		// target binding, even when the caller names a kit.
+		if resolver, ok := service.(interface {
+			SessionExecution(context.Context, string) (string, error)
+		}); ok {
+			execution, err := resolver.SessionExecution(r.Context(), request.GameID)
+			hostOnlyLaunch = err == nil && execution == fogcast.ExecutionHostOnly
+		}
+		if hostOnlyLaunch {
+			coordinatorTarget = ""
+			target = ""
+			pairedTarget = ""
+		} else if target == "" && pairedTarget == "" {
+			if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+				coordinatorTarget = selected.SelectedTargetConfig().Name
 			}
 		}
-		coordinator := requestSessionCoordinator(session, service, r, coordinatorTarget)
-		result, err := coordinator.launch(r.Context(), request.GameID, request.Target, stamp)
+		coordinator := session
+		if !hostOnlyLaunch {
+			coordinator = requestSessionCoordinator(session, service, r, coordinatorTarget)
+		}
+		result, err := coordinator.launch(r.Context(), request.GameID, target, stamp)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -393,7 +421,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the paired target")
 			return
 		}
-		coordinator := requestSessionCoordinator(session, service, r, explicitTarget)
+		coordinator := requestSessionCoordinator(session, service, r, explicitTarget, true)
 		result, err := coordinator.stop(r.Context(), stamp, retainLease, releaseIdle, expected)
 		if err != nil {
 			writeSessionError(w, err)
@@ -463,10 +491,20 @@ func New(service Service, options ...ServerOption) http.Handler {
 		result := healthResult{
 			Ready: true,
 			Host:  hostIdentity{Version: version.Version, Revision: version.Revision, OS: runtime.GOOS, Arch: runtime.GOARCH},
+			Mesh:  map[string]int{"major": 1, "minor": 0},
 			Target: targetHealth{
 				Reachable: err == nil, Ready: err == nil && target.Ready,
 				Connection: targetConnection(service),
 			},
+		}
+		if provider, ok := service.(interface {
+			SoftwareBackendsContext(context.Context) []fogcast.SoftwareBackend
+		}); ok {
+			result.Capabilities = provider.SoftwareBackendsContext(r.Context())
+		} else if provider, ok := service.(interface {
+			SoftwareBackends() []fogcast.SoftwareBackend
+		}); ok {
+			result.Capabilities = provider.SoftwareBackends()
 		}
 		if targetID := fogcast.PairedTargetFromContext(r.Context()); targetID != "" {
 			state := "disconnected"
@@ -877,6 +915,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "catalog game was not found"
 	case protocol.CodeBusy:
 		return "another launch or stop transition is running"
+	case protocol.CodeUnavailable:
+		return "configured software emulator core is unavailable"
 	case protocol.CodeUnsupportedSystem:
 		return "game system is unsupported"
 	case protocol.CodeUnsupportedOperation:
@@ -1090,6 +1130,9 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		status := http.StatusInternalServerError
 		if apiErr.Code == protocol.CodeBusy {
 			status = http.StatusConflict
+		}
+		if apiErr.Code == protocol.CodeUnavailable {
+			status = http.StatusServiceUnavailable
 		}
 		if apiErr.Code == protocol.CodeKitLeaseDenied {
 			status = http.StatusForbidden

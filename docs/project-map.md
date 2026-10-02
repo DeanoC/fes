@@ -1,6 +1,6 @@
 # Project map
 
-FES means Fogger Entertainment System. It is the parent integration repository:
+FES means Fogger Expandable System. It is the parent integration repository:
 its first-party modules share one Git repository, with common build and validation
 commands. Source paths remain under `sources/` while module ownership stays explicit.
 

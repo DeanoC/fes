@@ -66,9 +66,13 @@ func (c *Client) LoadCore(ctx context.Context, size int64, content io.Reader) (p
 }
 func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, libraryID string, composition ...bool) (protocol.Status, error) {
 	composed := len(composition) == 1 && composition[0]
+	parts := len(composition) == 2 && composition[1]
 	limit := int64(corepackage.MaxROMInputSize)
 	if composed {
 		limit = corepackage.MaxCompositionArchiveSize
+	}
+	if parts {
+		limit = corepackage.MaxPartsArchiveSize
 	}
 	if size < 1 || size > limit || content == nil {
 		return protocol.Status{}, fmt.Errorf("development core input is invalid")
@@ -79,6 +83,9 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	}
 	if composed {
 		path = "/v1/library/core/compose"
+	}
+	if parts {
+		path = "/v1/library/core/parts"
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		c.endpoint(path, nil).String(), readOnlyReader{Reader: content})
@@ -107,7 +114,7 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 		return protocol.Status{}, err
 	}
 	singleComposed, slotComposed := status.CorePackage != nil && status.CorePackage.Composition != nil, status.CorePackage != nil && status.CorePackage.SlotComposition != nil
-	if !validCorePackageStatus(status) || (composed && singleComposed == slotComposed) || (!composed && (singleComposed || slotComposed) && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
+	if !validCorePackageStatus(status) || (parts != (status.CorePackage.PartsComposition != nil)) || (composed && singleComposed == slotComposed) || (!composed && !parts && (singleComposed || slotComposed) && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
 	return status, nil
@@ -132,6 +139,11 @@ func validCorePackageStatus(status protocol.Status) bool {
 	}
 	if value.Composition != nil && value.SlotComposition != nil {
 		return false
+	}
+	if c := value.PartsComposition; c != nil {
+		if value.Composition != nil || value.SlotComposition != nil || value.ROMLink != nil || value.ROMLinks != nil || value.PersistenceMode != "volatile" || value.ABI != (protocol.RuntimeContract{ID: "fes.application", Major: 1}) || !validPartsStatus(*c, value.PackageID) {
+			return false
+		}
 	}
 	if c := value.SlotComposition; c != nil {
 		if id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256); err != nil || id != c.ID || c.PackageID != value.PackageID {
@@ -184,4 +196,26 @@ func (c *Client) LoadComposedCore(ctx context.Context, size int64, body io.Reade
 		return protocol.Status{}, fmt.Errorf("invalid package identity")
 	}
 	return c.loadCore(ctx, size, body, id, true)
+}
+
+// LoadLibraryPartsCore retains library core-data context while selecting the
+// closed Coleco video composition. The target independently admits all bytes.
+func (c *Client) LoadLibraryPartsCore(ctx context.Context, size int64, body io.Reader, id string) (protocol.Status, error) {
+	if !lowerHex(id, 64) {
+		return protocol.Status{}, fmt.Errorf("invalid package identity")
+	}
+	return c.loadCore(ctx, size, body, id, true, true)
+}
+
+func validPartsStatus(c expansion.PartsComposition, id string) bool {
+	calculated, err := expansion.PartsCompositionID(c.PackageID, c.Layout, c.Parts, c.PayloadSHA256)
+	if err != nil || calculated != c.ID || c.PackageID != id || !lowerHex(c.ShellSHA256, 64) || c.PayloadSize < 40408 || c.PayloadSize > corepackage.MaxPayloadSize {
+		return false
+	}
+	for i, part := range c.Parts {
+		if i > 0 && c.Parts[i-1].Role >= part.Role {
+			return false
+		}
+	}
+	return true
 }

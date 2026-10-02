@@ -1,0 +1,223 @@
+{
+  "scope": "Independent local-file analysis of five normal-library Kit 2 captures; no hardware access by this analyst.",
+  "verdict": "pass",
+  "checks": {
+    "all_five_captures_have_180_decoded_frames": true,
+    "all_settled_grids_valid": true,
+    "all_settled_image_bounds_match": true,
+    "all_settled_cadence_regular": true,
+    "direct_sgm_and_relaunch_settled_rgb_hash_sets_equal": true,
+    "all_captured_even_row_hash_sets_preserved": true,
+    "odd_rows_have_expected_half_intensity_with_capture_tolerance": true,
+    "both_sgm_tones_exceed_baseline_and_match_frequency": true,
+    "quiet_graphics_baselines": true,
+    "sgm_audio_rms_retained_within_five_percent": true
+  },
+  "decoded_frames": 900,
+  "leading_black_acquisition_frames": {
+    "direct": 2,
+    "scanlines": 2,
+    "direct-sgm": 3,
+    "scanlines-sgm": 3,
+    "direct-relaunch": 4
+  },
+  "settled_frames_checked": 886,
+  "grid_samples_per_unique_variant": 2856,
+  "expected_image_box_exclusive": [
+    384,
+    168,
+    896,
+    552
+  ],
+  "maximum_capture_rgb_variant_delta": 1,
+  "scanline_dominant_odd_over_even_ratios": {
+    "direct_scanlines": {
+      "green_G": 0.49333333333333335,
+      "red_R": 0.4930795847750865
+    },
+    "sgm_direct_scanlines": {
+      "green_G": 0.49333333333333335,
+      "red_R": 0.4930042446156265
+    }
+  },
+  "audio_ac_rms_s16": {
+    "direct": [
+      0.0,
+      0.0
+    ],
+    "scanlines": [
+      0.0,
+      0.0
+    ],
+    "direct-sgm": [
+      10736.19055116481,
+      10736.189517505532
+    ],
+    "scanlines-sgm": [
+      10736.497136062966,
+      10736.499087926284
+    ],
+    "direct-relaunch": [
+      0.0,
+      0.0
+    ]
+  },
+  "audio_tone_frequency_tolerance_hz": 0.5,
+  "audio_peak_search_resolution_hz": 0.05,
+  "acquisition_timestamp_intervals_over_25ms": {
+    "direct": [
+      {
+        "from_frame": 1,
+        "to_frame": 2,
+        "seconds": 0.05,
+        "at_acquisition_boundary": true
+      }
+    ],
+    "scanlines": [
+      {
+        "from_frame": 1,
+        "to_frame": 2,
+        "seconds": 0.05,
+        "at_acquisition_boundary": true
+      }
+    ],
+    "direct-sgm": [
+      {
+        "from_frame": 2,
+        "to_frame": 3,
+        "seconds": 0.05,
+        "at_acquisition_boundary": true
+      }
+    ],
+    "scanlines-sgm": [
+      {
+        "from_frame": 2,
+        "to_frame": 3,
+        "seconds": 0.05,
+        "at_acquisition_boundary": true
+      }
+    ],
+    "direct-relaunch": [
+      {
+        "from_frame": 3,
+        "to_frame": 4,
+        "seconds": 0.05,
+        "at_acquisition_boundary": true
+      }
+    ]
+  },
+  "limitations": "Leading black video acquisition frames and the initial quiet audio acquisition period are recorded separately. Tone comparison uses settled2.5\u20135.5s capture audio. Capture color/range conversion can produce RGB variants and alter absolute ratios. USB timestamps/decoded geometry do not directly measure FPGA HS/VS; ASUS audio filters/rescales PCM, so this is not bit-exact FPGA audio. Scope is the listed open diagnostic ROMs and selected software/parts, not factory-image or general game compatibility acceptance.",
+  "aggregate_receipt": {
+    "file": "capture-analysis.json",
+    "sha256": "ac3ed94a989e99a7ba3e588577ad81ae6592fdc0ae977241c1a2428ab1e8aff9"
+  },
+  "artifacts": {
+    "direct": {
+      ".png": {
+        "size": 9533,
+        "sha256": "d6c311fc460a1d3862a209c2832e18e79d18b6005fbb5fe04b21ac449568a8f7"
+      },
+      ".mkv": {
+        "size": 6706351,
+        "sha256": "9b3d42b574dee757be0bfbae0466e8572fc29dafabe38577d81aeec8a48a4cc3"
+      },
+      ".wav": {
+        "size": 1152338,
+        "sha256": "be15b388c35fcae732d55f9626fb33b0c7da8c26b527c53cd5c30fb2ff61415c"
+      }
+    },
+    "scanlines": {
+      ".png": {
+        "size": 9616,
+        "sha256": "1ce459f8e69941c26d534912f697304ab76eee6f659a8f5a830c55f51c71cd5f"
+      },
+      ".mkv": {
+        "size": 15911603,
+        "sha256": "b58c903b468082ef828b310b78a518f4c4e9377b5d5cceefc64ab8bdbf3a1f39"
+      },
+      ".wav": {
+        "size": 1152142,
+        "sha256": "1f4f68687ae011041415c7c94ed20169b8b6806c3b79d2e95eef9b611c4224d5"
+      }
+    },
+    "direct-sgm": {
+      ".png": {
+        "size": 9664,
+        "sha256": "fe0966772fd9826d55823e2358b43286a063089fb10444c049b2af45897bc4b0"
+      },
+      ".mkv": {
+        "size": 6670675,
+        "sha256": "35f2a949b6f352a9eecf2b1a1998812046ed70dbd8b70581bde5330c1717048c"
+      },
+      ".wav": {
+        "size": 1152694,
+        "sha256": "7002ad2498fdd07f55c6204ef13e2a9835c96dcd7138e1ab30a569c6e4a247d5"
+      }
+    },
+    "scanlines-sgm": {
+      ".png": {
+        "size": 9531,
+        "sha256": "9199391f3f8d461bc183f3bae2a9606f5c11731ff3a15ca0db1b38f5a9121e21"
+      },
+      ".mkv": {
+        "size": 15822591,
+        "sha256": "3136aa1da8917e0240bd25c3a88740b7831b97baf25cab56119f419221cdff8e"
+      },
+      ".wav": {
+        "size": 1152250,
+        "sha256": "fd6221aa8c4812bdfd63257b9fefb2f990b0e46a93b343f09dcbcd223bc86397"
+      }
+    },
+    "direct-relaunch": {
+      ".png": {
+        "size": 9664,
+        "sha256": "fe0966772fd9826d55823e2358b43286a063089fb10444c049b2af45897bc4b0"
+      },
+      ".mkv": {
+        "size": 6635136,
+        "sha256": "aee331b63c0accd8e432091aca45e31d803bb3d86c38e534364092e51cd1e05d"
+      },
+      ".wav": {
+        "size": 1152402,
+        "sha256": "c41cdbd7f23b889acdaff566b6da3147a05613685a2f0e897daeaa8c86db4118"
+      }
+    }
+  },
+  "audio_acquisition": {
+    "onsets": {
+      "direct-sgm": [
+        {
+          "initial_constant_s16": -169,
+          "first_sample_over_100_s16_from_initial_seconds": 0.0010208333333333332,
+          "first_512_sample_window_with_ac_rms_at_least_1000_s16_start_seconds": 1.9733333333333334
+        },
+        {
+          "initial_constant_s16": 8,
+          "first_sample_over_100_s16_from_initial_seconds": 1.9823541666666666,
+          "first_512_sample_window_with_ac_rms_at_least_1000_s16_start_seconds": 1.9733333333333334
+        }
+      ],
+      "scanlines-sgm": [
+        {
+          "initial_constant_s16": -169,
+          "first_sample_over_100_s16_from_initial_seconds": 0.0010208333333333332,
+          "first_512_sample_window_with_ac_rms_at_least_1000_s16_start_seconds": 1.8453333333333333
+        },
+        {
+          "initial_constant_s16": 8,
+          "first_sample_over_100_s16_from_initial_seconds": 1.85525,
+          "first_512_sample_window_with_ac_rms_at_least_1000_s16_start_seconds": 1.8453333333333333
+        }
+      ]
+    },
+    "settled_analysis_window_seconds": {
+      "start": 2.5,
+      "duration": 3
+    },
+    "note": "The initial quiet capture interval and transition explain differing levels when acquisition was included. Stable one-second windows2.5\u20135.5s are retained in independent-sgm-audio-windows.json; reported tone and RMS comparison uses the same settled2.5\u20135.5s window for all five captures."
+  },
+  "sgm_audio_ac_rms_relative_change_scanlines_versus_direct": [
+    2.855620871256015e-05,
+    2.8834291742718676e-05
+  ]
+}

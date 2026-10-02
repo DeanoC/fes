@@ -13,6 +13,7 @@ export NATIVE_RUNTIME_MODE FES_PACKAGE_IDS \
 	FES_SMS_PACKAGE_DIR FES_SMS_PACKAGE_SELECTION \
 	FES_SG1000_PACKAGE_DIR FES_SG1000_PACKAGE_SELECTION \
 	FES_C64_PACKAGE_DIR FES_C64_PACKAGE_SELECTION \
+	FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION \
 	FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION \
 	FOGCAST_DIR TARGET_IMAGE_OUTPUT_VOLUME
 require_fogcast = @test -n "$(FOGCAST_DIR)" || { echo 'image: FOGCAST_DIR is required' >&2; exit 2; }
@@ -33,6 +34,7 @@ test:
 	sh scripts/tests/rootfs-package-cleanup_test.sh
 	sh scripts/tests/verify-target-image-cleanup_test.sh
 	sh scripts/tests/scan-target-image-secrets_test.sh
+	sh scripts/tests/check-native-payloads_test.sh
 	sh scripts/tests/target-image_test.sh
 	sh scripts/tests/target-kernel_test.sh
 

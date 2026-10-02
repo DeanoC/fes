@@ -208,12 +208,18 @@ struct CoreCompositionSlot {
 	std::string expansion_id;
 };
 
+struct CoreCompositionPart {
+	std::string role, part_id;
+};
+
 // A single-socket composition names one expansion_id. A multi-slot
 // composition instead lists one expansion per slot in ascending slot order.
 struct CoreComposition {
 	std::string id, package_id, expansion_id, shell_sha256, payload_sha256;
 	std::uint64_t payload_size = 0;
 	std::vector<CoreCompositionSlot> expansions;
+	std::string layout;
+	std::vector<CoreCompositionPart> parts;
 };
 
 struct CoreExpansionPath {
@@ -221,9 +227,12 @@ struct CoreExpansionPath {
 	std::string path;
 };
 
+struct CorePartPath { std::string role, path; };
+
 struct CoreCompositionRequest {
 	std::string expansion_path, payload_path;
 	std::vector<CoreExpansionPath> expansions;
+	std::vector<CorePartPath> parts;
 	CoreComposition composition;
 };
 
@@ -514,6 +523,8 @@ public:
 		const std::string& expected_package_id);
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&);
 	Error LoadComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&);
+	Error LoadLibraryPartsCore(const std::string&, const std::string&, const std::string&, const CoreCompositionRequest&);
+	Error InspectPartsCore(const std::string&, const std::string&, const CoreCompositionRequest&, CorePackageInspection*);
 	Error LoadInitializedCore(const std::string&, const std::string&, const std::string&, const std::string&);
 	Error LoadInitializedLibraryCore(const std::string&, const std::string&, const std::string&,
 		const std::string&, const std::string&);

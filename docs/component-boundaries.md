@@ -1,6 +1,6 @@
 # FES component boundaries
 
-FES means Fogger Entertainment System. This document distinguishes the
+FES means Fogger Expandable System. This document distinguishes the
 whole system from the narrower native build currently implemented in this
 repository. All first-party source modules share the FES Git tree; the ownership
 direction below governs module work. The current integration
@@ -103,7 +103,7 @@ The tracked modules contain the host, runtime, shared package definitions and
 FPGA product sources in one FES commit. Original repository URLs and imported
 histories are recorded in [config/source-imports.toml](../config/source-imports.toml).
 The current profile remains package-only and installs the ordered closed
-`fes.menu`, `fes.pong`, `fes.zx81` and `fes.coleco` set through the HIP/nextpnr
+`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` and `fes.ramtest` set through the HIP/nextpnr
 route, as selected by [the default profile](../profiles/native-integration-dev.toml).
 `fes.menu` is idle display firmware, not a playable library entry. The image
 selector also admits `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`;
@@ -161,7 +161,7 @@ This does not require a fixed agent team for every change.
 ## Current profile
 
 The factory image is the ordered `fes.menu`, `fes.pong`, `fes.zx81`,
-`fes.coleco` set. The menu selection is not a playable core.
+`fes.coleco`, `fes.ramtest` set. The menu selection is not a playable core.
 Package, image and QEMU commands do not inherit NES, SNES, Mega Drive, or any
 other historical kit result. Later revisions need their own evidence.
 [Core status](core-status.md) is the package matrix.

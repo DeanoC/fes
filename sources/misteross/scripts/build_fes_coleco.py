@@ -58,6 +58,7 @@ VERILOG_SOURCES = (
     "cores/fes-coleco/rtl/top.v",
 )
 SYSTEMVERILOG_SOURCES = (
+    "cores/fes-common/rtl/fes_z80_ce.sv",
     "cores/fes-common/rtl/fes_sn76489.sv",
     "cores/fes-coleco/rtl/coleco_machine.sv",
 )

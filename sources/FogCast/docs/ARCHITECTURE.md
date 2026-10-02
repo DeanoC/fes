@@ -71,6 +71,10 @@ and complete typed metrics from `host.RemoteInputStatus`.
 `POST /api/v1/session/launch` may include `target` to bind a live FPGA session
 to a configured target without rewriting `selected_target`. Omitted `target`
 uses the selected configured target and keeps the ordinary placement choice.
+A host-only launch always stays on the root session coordinator, even when its
+request includes a kit target; host-only session responses leave `target` empty.
+Unscoped session events follow the foreground session coordinator, like status
+and Stop, so a root-owned host-only session's events remain visible.
 A second configured target may be
 launched while the first is still playing; `GET /api/v1/sessions` lists those
 live plays. `GET /api/v1/session` is the foreground session (the last launch)
@@ -747,7 +751,7 @@ the paired listener and reports its normal load error.
 
 ## Native 10-foot launcher
 
-The embedded **ZX81 workbench** (`example.hardware`) reads host-owned hardware
+The embedded **Sinclair ZX81 workbench** (`example.hardware`) reads host-owned hardware
 setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
@@ -913,8 +917,33 @@ dispatches to `ui/tenfoot/menudisplay_linux.go` the same way: it reuses that
 app, evdev input, and smoke loop, forces 1280×720, and submits through the
 runtime menu socket with change-driven presents. The direct CPU loop records
 complete scenes through `gfx.FrameCache`: identical draw commands and unchanged
-textures skip rasterization. Texture mutations preserve draw order and invalidate
-reuse. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
+textures skip rasterization. Label textures are keyed by slot, width and font
+size; unchanged source strings bypass fitting, and source changes reuse the
+texture when the fitted visible text is identical. A clipped lease countdown
+therefore cannot invalidate a scene whose visible header has not changed.
+Texture mutations preserve draw order and invalidate
+reuse. Settings marks a backdrop checkpoint after dimming and painting its
+fixed panel border, background and title. CPU devices retain one RGBA
+framebuffer copy (3.52 MiB at 1280×720). When only the panel changes, the cache
+restores the bounding rectangle touched by the previous overlay commands and
+draws the rows, status and later overlays. Fill and texture bounds use the
+rasterizer's clipping; text and other operations without certain bounds fall
+back to restoring the full framebuffer. Prefix command changes, framebuffer
+geometry changes and updates/destruction of textures used by the prefix rebuild
+the checkpoint. Changing panel-only textures preserves it. A frame without a
+checkpoint invalidates reuse, so closing and reopening settings cannot retain
+stale pixels. Identical whole frames still do no pixel copies. Other devices
+replay their normal commands; the Device and runtime wire contracts are
+unchanged.
+The grid CLI and tenfoot CPU kit backends (`menu-display` / `linuxfb`) default
+to a 96 MiB soft Go memory limit, honoring an explicit `GOMEMLIMIT`. This
+collects and scavenges temporary decode heaps sooner; it is not a hard RSS cap.
+Desktop SDL retains the normal runtime policy. Wheel summaries are rebuilt on
+catalog replacement and volatile-field refresh; idle prefetch reads those
+representatives without catalog scans, and frame construction follows the paint
+gate. Bounded wheel refreshes compare the complete frame content and reuse
+the rendered revision when it is identical; motion bypasses reuse and forces
+a final settled paint. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
 Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
 callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip
@@ -937,7 +966,12 @@ columns and cache repeated source/destination resizes within an 8 MiB/64-entry
 budget. Cached bitmaps cover only visible raster bounds, preserving fractional
 position and sampling. First-use and continuously updated textures use the
 general sampler to avoid creating a resize bitmap every video frame. Texture update/destroy invalidates those entries. Large constant-color
-alpha fills reuse exact channel lookup tables. Text blits borrow their bitmap for
+alpha fills use an ARMv7 NEON kernel when the OS advertises NEON and at least
+eight pixels fit in a row. The kernel blends eight RGBA pixels at a time with
+exact integer division by 255; scalar tails preserve clipping and destination
+alpha. Other CPUs, narrow rows and small fills retain scalar arithmetic or
+channel lookup tables. Opaque fills repeat one painted row using Go's copy;
+pixel copies retain Go's implementation. The path remains CGO-free. Text blits borrow their bitmap for
 the synchronous draw. Menu submission buffers return to a bounded pool only when
 neither a queued/in-flight frame nor the remembered submission references them;
 status probes share immutable bytes. The runtime frame protocol is unchanged.
@@ -963,11 +997,11 @@ is separate from the broader SDL smoke.
 | Backend | Construction | Role |
 | --- | --- | --- |
 | SDL3 | `gfx.WrapSDLRenderer` (`ui/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
-| Software | `gfx.NewSoftware` (`ui/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
+| Software | `gfx.NewSoftware` (`ui/gfx/software.go`) | CGO-free RGBA8 rasterizer with portable Go and an optional ARM NEON alpha-fill kernel (no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` submits every `Present`. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` uses rendered revisions and change-driven presents: known scene changes and animations redraw immediately, while an unchanged render key skips rasterization until a one-second fallback refresh. Idle ticks still service menu generation probes, retries and Resume with the existing revision; linuxfb idle ticks skip presentation. The fallback refresh captures presentation fields outside the render key, and the final settled animation frame always redraws. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -1115,9 +1149,9 @@ The only image variant is `native-dev`, which starts image-owned
 `mister-runtime` and `mister-agent`. It installs the locked splash/idle artifact
 and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
-`fes.pong`, `fes.zx81`, `fes.coleco`. The selector supports eight IDs in total,
+`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest`. The selector supports nine IDs in total,
 also admitting `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`. These four
-remain package-only: the sealed additions exceed the 64 MiB rootfs limit and
+remain package-only: the sealed additions exceed the 128 MiB rootfs limit and
 C64 has no current timing-passing HIP seal. The menu package is idle firmware,
 not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
@@ -1328,6 +1362,46 @@ content-id of an RBF. `PackageABI.Major` is that ABI's major, not the
 mesh protocol major. `ReadyHere` requires that package id and an
 eligible ABI id and major before it reports Ready. Package id alone is
 not eligibility.
+
+#### Configured host emulator
+
+`[host_emulator]` maps catalog systems to local RetroArch cores. For the M1
+Data Storm SMS runner, configure the verified core and its optional digest pin
+along with headless display/audio settings:
+
+```toml
+[host_emulator]
+binary = "/usr/bin/retroarch"
+args = ["--appendconfig", "/etc/fogcast/retroarch-headless.cfg"]
+env = ["DISPLAY=:93", "SDL_AUDIODRIVER=dummy"]
+
+[[host_emulator.cores]]
+platform = "sms"
+core = "/usr/lib/x86_64-linux-gnu/libretro/genesis_plus_gx_libretro.so"
+id = "genesis_plus_gx"
+version = " c2838c7d"
+sha256 = "051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49"
+```
+
+The host health response advertises mesh version 1.0 and software backend
+identity, configured `core_version`, and observed core digest; `core_version`
+is copied from configuration and is not queried from RetroArch. A missing or
+mismatched core, or a missing/non-executable RetroArch binary, is unavailable. One
+host emulator process owns the local session until Stop or process exit.
+Host-only play is owned by the root host session coordinator regardless of
+which kit is selected. Unscoped launch resolves execution first, and unscoped
+status and Stop follow a bound FPGA foreground only when one exists; with no
+bound FPGA play they use the root coordinator. Session identity, BUSY
+admission, natural-exit reaping, and media cleanup therefore share one owner.
+Unscoped status may report idle after target loss only when host-only execution
+is active or no FPGA play/target is bound; a configured kit selection alone is
+not an active FPGA binding. A bound FPGA play or explicit target continues to
+report `MISTER_UNAVAILABLE` while kit state cannot be observed. Before replacing
+media for another host-only launch, FogCast checks the local executor; an active
+RetroArch process returns `BUSY` and retains its current media session.
+M1 software-runner input uses a controller attached to the runner through
+RetroArch's local joypad/udev input. FogCast does not route remote controller
+input to `host_only`; that remains a #363 gap.
 
 `Service.MeshBackendLibrary` reads the existing local catalog and projects
 package titles through the same helper as placement; raw games use the
@@ -2290,6 +2364,115 @@ host-side backoff refusal, not every possible Stop failure, and is not itself a
 hardware acceptance claim.
 
 
+## Developer video parts
+
+The separate developer parts path admits only a format-2 `fes.coleco`
+`fes.application` 1.0 package with optional `fes.expansion.coleco-bus` 2.0 and
+optional `fes.fabric.video.raster-rgb888` 1.0 markers. The fabric marker has no
+GP capability bit. The shell keeps its fixed 720p video and declared audio/input
+interfaces, GP BUILD_ID and package identity. The closed
+`fes.coleco-video.parts/1` layout requires one video part; one Coleco bus-2
+expansion may also occupy its separate socket. Each asset binds the exact
+sealed shell package, payload hash and BUILD_ID.
+
+From `sources/FogCast`, prepare the operator's selected parts offline:
+
+```sh
+go run ./cmd/fes-parts -package /absolute/path/shell.fcore \
+  -video /absolute/path/direct.fexp -out /absolute/path/parts.tar
+# Add -expansion /absolute/path/card.fexp to select a CPU expansion too.
+```
+
+The command creates a private file and prints its composition identity. It
+never contacts or claims a kit. The file contains canonical `parts.json`,
+`package.tar`, ascending `part-expansion.tar` when present, `part-video.tar`,
+and `linked.rbf`. The target recomputes all linked bytes and the typed
+composition identity; uploaded linked bytes are comparison evidence.
+
+POST the bounded file as `application/octet-stream` to
+`/v1/development/core/parts/inspect` for read-only native admission, then
+`/v1/development/core/parts` for activation with the existing kit lease. Both
+require the ordinary agent bearer credential. Neither accepts query paths or
+`X-FogCast-Package-ID` library context. Inspection reports the exact base
+descriptor and composition with `persistence_mode: volatile`, and leaves the
+active machine unchanged. Activation uses the existing coordinator and physical
+replacement lifecycle through local protocol-2 `load_parts_core`; inspection
+uses `inspect_parts_core`. Active status exposes `core_package.parts_composition`
+with layout, sorted role/part identities and programmed payload digest/size.
+
+Private part companions remain owned with their base publication. Restart
+adoption independently recomposes their bytes before recognizing an active
+parts tuple. Generation reconciliation compares the complete parts tuple, so a
+lost response cannot confirm a different video selection. The production CPU
+expansion route does not accept this transport.
+
+Library video selection uses the separate `/v1/library/core/parts` route with
+one exact `X-FogCast-Package-ID`, a bounded octet-stream body, bearer
+credential, existing kit lease and update exclusion. `LoadLibraryPartsCore`
+retains library context through the coordinator and adapter. The agent admits
+the selected parts independently, inspects the base core-data namespace even
+for a composed load, then sends local protocol-2 `load_parts_library_core`
+with the fixed core-data root. Native admission repeats the namespace check
+before programming. A durable namespace cannot be replaced by a candidate
+without its persistence contract. This closed format-2 Coleco lane remains
+volatile; its exact parts tuple, persistence mode and generation are checked
+on response reconciliation and retained on restart adoption. Developer routes
+continue to reject library headers and remain explicitly volatile.
+Host preference and availability selection is described in
+[Library video preferences](#library-video-preferences).
+
+The current contract is a fixed pixel-domain proof. It adds no runtime output
+mode, framebuffer, CRT, overlay, audio processing or hot-reconfiguration
+capability. Host tests establish software coverage; hardware acceptance remains
+separate for exact shell, part, runtime and image artifacts.
+
+## Library video preferences
+
+The household `[library].video_profile` setting accepts `direct` or `scanlines`
+and defaults to `direct`. The existing library settings API and browser Settings
+save it through the atomic `library-settings.json` overlay. Changing it affects
+the next library launch; the running machine retains its selected parts and
+composition identity. **Manage FPGA library** imports a video-part archive for
+an explicitly chosen profile and shows each entry's resolved output and
+available choices.
+
+`catalog/core_video_parts.go` stores video archives in the existing immutable
+chunk store. Schema 17 adds a separate inventory with one part per exact
+`(shell_package_id, profile)`. Reimporting the same part/profile is idempotent;
+a different part at that mapping conflicts rather than replacing it. The
+profile is household metadata outside the immutable part manifest. Imports
+accept archives up to 32 MiB in total, require the closed video socket 1.0,
+validate archive identities, and fully compose against the installed sealed
+shell before storage. Reads recheck the archive, part identity and shell
+binding. Video imports do not enter CPU expansion inventory.
+
+| Host operation | Endpoint |
+| --- | --- |
+| List imported video parts | `GET /api/v1/library/video-parts` |
+| Import a bounded binary archive for a profile | `POST /api/v1/library/video-parts/{profile}` |
+| Inspect the next launch for an entry | `GET /api/v1/library/core-entries/{game_id}/video` |
+
+`fogcast/core_video.go` considers only parts for the entry's exact installed
+package and declared video socket. If the preferred profile is absent, it
+selects an installed direct part or the shell's built-in direct output. A core
+without that socket uses its built-in output. An installed part selected by
+either preference or fallback must pass integrity and composition checks with
+the entry's selected CPU expansion; failure blocks launch before a target
+mutation. The read-only resolution reports preferred and effective profiles,
+part identity, built-in output, fallback reason and availability for each
+choice. Absence of an installed part means unavailable, without asserting that
+the core has insufficient LUTs or routing capacity. Successful composition
+checks the part's actual changes against the exact frozen shell and its reserved
+region.
+
+Library launch uses the existing lifecycle admission and fully links the video
+part and optional Coleco bus-2 expansion before dispatch through the library
+parts route described above. The host recognizes the confirmed application ABI
+as `fpga_native` and binds the complete parts tuple, programmed digest and
+generation to the library session. The shell package, BUILD_ID, fixed video and
+audio/input contracts remain those of the sealed base. This selection path
+currently accepts the same marked format-2 Coleco layout as the developer path.
+
 ## Described-core persistent data
 
 `fogcast/core_data.go` resolves a selected immutable library package under the
@@ -2369,6 +2552,11 @@ for the exact tested package and software.
 
 ### Local core publication
 
+FES publishes the ROM-less `fes.ramtest` utility in the standard catalog and
+selects its OSS 100 MHz package for the factory image. The image selector
+admits it through the same sealed package path; the kit-local installed-core
+inventory marks it launchable without firmware or media, like Pong.
+
 The optional `[core_catalog] path`, with a stable per-library `library_source_id`, selects a FES-published version-1 index.
 `corecatalog` reads a bounded closed schema and verifies the canonical index
 digest, contained relative archive paths, file size and SHA-256. FogCast stages
@@ -2401,7 +2589,7 @@ lock overlay mutation and use bounded contexts; failed refresh retains cached
 rows with setup disabled. App/renderer snapshots copy row data and pointer hit
 routing gives the systems overlay priority over room/catalog widgets.
 
-The Zx81 room reuses that overlay for local installed-package/ROM setup,
+The Sinclair ZX81 room reuses that overlay for local installed-package/ROM setup,
 expansion import and prelaunch cassette selection. Installed setup uses existing
 package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion

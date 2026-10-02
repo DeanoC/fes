@@ -17,6 +17,8 @@ Hardware-supported package paths: 0.
 | Format-3 ROM-map inspection and receipt-bound activation | covered | none |
 | Format-4 two-ROM receipt-bound activation through production adapter | covered | [Coleco synthetic diagnostic](../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md); appliance acceptance pending |
 | Static ZX81 bus 1.0/2.0 and Coleco composition | covered | pending |
+| Library Coleco video/CPU parts with required core-data root and namespace admission before programming | covered by host tests | [Kit 2 normal-library diagnostic](../../../docs/validation/2026-10-02-video-library-kit2-hil.md): direct/scanline with and without SGM, profile fallback, media, Stop/relaunch; appliance acceptance pending |
+| Explicit volatile Coleco video/CPU developer parts: inspect, typed identity, retained-file admission and existing programming lifecycle | covered by host tests | [Kit 2 exact-artifact diagnostic](../../../docs/validation/2026-10-02-video-parts-kit2-hil.md): direct/scanline with and without SGM, media, Stop/relaunch; appliance acceptance pending |
 | `fes.computer` admission, identity and firmware ROM activation | covered | none |
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |

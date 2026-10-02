@@ -103,7 +103,7 @@ func TestUpdateHTTPAuthenticationLeaseAndTrialGate(t *testing.T) {
 			t.Fatalf("unleased %s: %d", path, w.Code)
 		}
 	}
-	for _, path := range []string{"/v1/development/media-stream", "/v1/development/media", "/v1/library/core/load", "/v1/development/rbf", "/v1/development/core", "/v1/input/attach", "/v1/input/stream", "/v1/cast/start"} {
+	for _, path := range []string{"/v1/development/media-stream", "/v1/development/media", "/v1/library/core/load", "/v1/library/core/parts", "/v1/development/rbf", "/v1/development/core", "/v1/input/attach", "/v1/input/stream", "/v1/cast/start"} {
 		if w := updateRequest(h, path, "", lease); w.Code != 409 {
 			t.Fatalf("trial %s: %d %s", path, w.Code, w.Body.String())
 		}

@@ -1,0 +1,209 @@
+{
+  "note": "1-second windows at nominal frequencies; small expected leakage at fractional period windows. Capture-side filtered PCM only.",
+  "results": {
+    "direct-sgm": [
+      {
+        "start_seconds": 0.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 0.0,
+            "SN_nominal_bin_amplitude_s16": 0.0,
+            "AY_nominal_bin_amplitude_s16": 0.0,
+            "minimum_s16": -169,
+            "maximum_s16": -169
+          },
+          {
+            "ac_rms_s16": 0.0,
+            "SN_nominal_bin_amplitude_s16": 0.0,
+            "AY_nominal_bin_amplitude_s16": 0.0,
+            "minimum_s16": 8,
+            "maximum_s16": 8
+          }
+        ]
+      },
+      {
+        "start_seconds": 1.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 7728.582484880326,
+            "SN_nominal_bin_amplitude_s16": 5019.175336478991,
+            "AY_nominal_bin_amplitude_s16": 4998.352997871524,
+            "minimum_s16": -19516,
+            "maximum_s16": 19278
+          },
+          {
+            "ac_rms_s16": 7728.583866068157,
+            "SN_nominal_bin_amplitude_s16": 5019.173091889489,
+            "AY_nominal_bin_amplitude_s16": 4998.35372024594,
+            "minimum_s16": -19339,
+            "maximum_s16": 19456
+          }
+        ]
+      },
+      {
+        "start_seconds": 2.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 10730.354476453333,
+            "SN_nominal_bin_amplitude_s16": 9642.533090587944,
+            "AY_nominal_bin_amplitude_s16": 9642.389304233806,
+            "minimum_s16": -19161,
+            "maximum_s16": 19245
+          },
+          {
+            "ac_rms_s16": 10730.352911663098,
+            "SN_nominal_bin_amplitude_s16": 9642.536657290004,
+            "AY_nominal_bin_amplitude_s16": 9642.385077553168,
+            "minimum_s16": -18983,
+            "maximum_s16": 19422
+          }
+        ]
+      },
+      {
+        "start_seconds": 3.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 10741.622067020126,
+            "SN_nominal_bin_amplitude_s16": 9682.28012752802,
+            "AY_nominal_bin_amplitude_s16": 9681.971994620128,
+            "minimum_s16": -18920,
+            "maximum_s16": 19214
+          },
+          {
+            "ac_rms_s16": 10741.621480438082,
+            "SN_nominal_bin_amplitude_s16": 9682.275740038884,
+            "AY_nominal_bin_amplitude_s16": 9681.968768762898,
+            "minimum_s16": -18742,
+            "maximum_s16": 19391
+          }
+        ]
+      },
+      {
+        "start_seconds": 4.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 10736.565971596603,
+            "SN_nominal_bin_amplitude_s16": 9668.965054902812,
+            "AY_nominal_bin_amplitude_s16": 9688.839633688774,
+            "minimum_s16": -18772,
+            "maximum_s16": 18679
+          },
+          {
+            "ac_rms_s16": 10736.56501499002,
+            "SN_nominal_bin_amplitude_s16": 9668.97594170824,
+            "AY_nominal_bin_amplitude_s16": 9688.835723325294,
+            "minimum_s16": -18594,
+            "maximum_s16": 18857
+          }
+        ]
+      }
+    ],
+    "scanlines-sgm": [
+      {
+        "start_seconds": 0.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 0.0,
+            "SN_nominal_bin_amplitude_s16": 0.0,
+            "AY_nominal_bin_amplitude_s16": 0.0,
+            "minimum_s16": -169,
+            "maximum_s16": -169
+          },
+          {
+            "ac_rms_s16": 0.0,
+            "SN_nominal_bin_amplitude_s16": 0.0,
+            "AY_nominal_bin_amplitude_s16": 0.0,
+            "minimum_s16": 8,
+            "maximum_s16": 8
+          }
+        ]
+      },
+      {
+        "start_seconds": 1.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 8625.132554375254,
+            "SN_nominal_bin_amplitude_s16": 6249.168071450032,
+            "AY_nominal_bin_amplitude_s16": 6253.345266983905,
+            "minimum_s16": -19375,
+            "maximum_s16": 19179
+          },
+          {
+            "ac_rms_s16": 8624.849039811843,
+            "SN_nominal_bin_amplitude_s16": 6249.163320660795,
+            "AY_nominal_bin_amplitude_s16": 6253.348741384012,
+            "minimum_s16": -19197,
+            "maximum_s16": 19357
+          }
+        ]
+      },
+      {
+        "start_seconds": 2.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 10730.804134581495,
+            "SN_nominal_bin_amplitude_s16": 9654.48853968748,
+            "AY_nominal_bin_amplitude_s16": 9655.233288535524,
+            "minimum_s16": -19504,
+            "maximum_s16": 19272
+          },
+          {
+            "ac_rms_s16": 10730.804969719553,
+            "SN_nominal_bin_amplitude_s16": 9654.493808210345,
+            "AY_nominal_bin_amplitude_s16": 9655.236677789948,
+            "minimum_s16": -19326,
+            "maximum_s16": 19450
+          }
+        ]
+      },
+      {
+        "start_seconds": 3.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 10741.97271372062,
+            "SN_nominal_bin_amplitude_s16": 9682.587424837433,
+            "AY_nominal_bin_amplitude_s16": 9653.651330405257,
+            "minimum_s16": -19205,
+            "maximum_s16": 19251
+          },
+          {
+            "ac_rms_s16": 10741.97532872252,
+            "SN_nominal_bin_amplitude_s16": 9682.584747634177,
+            "AY_nominal_bin_amplitude_s16": 9653.639284345594,
+            "minimum_s16": -19027,
+            "maximum_s16": 19429
+          }
+        ]
+      },
+      {
+        "start_seconds": 4.5,
+        "duration_seconds": 1,
+        "channels": [
+          {
+            "ac_rms_s16": 10736.695041932206,
+            "SN_nominal_bin_amplitude_s16": 9669.545224412028,
+            "AY_nominal_bin_amplitude_s16": 9667.885378642944,
+            "minimum_s16": -19106,
+            "maximum_s16": 19247
+          },
+          {
+            "ac_rms_s16": 10736.697447564162,
+            "SN_nominal_bin_amplitude_s16": 9669.543364436211,
+            "AY_nominal_bin_amplitude_s16": 9667.883315918987,
+            "minimum_s16": -18928,
+            "maximum_s16": 19424
+          }
+        ]
+      }
+    ]
+  }
+}

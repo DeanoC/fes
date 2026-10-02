@@ -549,7 +549,20 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 			output.Append(",\"composition\":");
 			output.Append("{\"composition_id\":");AppendQuoted(&output,composition.id);
 			output.Append(",\"package_id\":");AppendQuoted(&output,composition.package_id);
-			if (composition.expansions.empty()) {
+			if (!composition.parts.empty()) {
+				output.Append(",\"layout\":");
+				AppendQuoted(&output, composition.layout);
+				output.Append(",\"parts\":[");
+				for (std::size_t i = 0; i < composition.parts.size(); ++i) {
+					if (i != 0) output.Append(',');
+					output.Append("{\"role\":");
+					AppendQuoted(&output, composition.parts[i].role);
+					output.Append(",\"part_id\":");
+					AppendQuoted(&output, composition.parts[i].part_id);
+					output.Append("}");
+				}
+				output.Append("]");
+			} else if (composition.expansions.empty()) {
 				output.Append(",\"expansion_id\":");AppendQuoted(&output,composition.expansion_id);
 			} else {
 				output.Append(",\"expansions\":[");
@@ -704,6 +717,83 @@ Error ParseRequest(const std::string& line, Request* request)
 			if (operation->string_value == "stop") parsed.operation = Operation::stop;
 			if (operation->string_value == "recover_idle")
 				parsed.operation = Operation::recover_idle;
+		} else if (operation->string_value == "load_parts_core" ||
+			operation->string_value == "load_parts_library_core" ||
+			operation->string_value == "inspect_parts_core") {
+			const bool library = operation->string_value == "load_parts_library_core";
+			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",
+				"parts", "payload_path", "composition", "data_root"};
+			if (!HasOnly(root, fields, library ? 8 : 7, &error)) return error;
+			if (library) {
+				const std::string* data_root = nullptr;
+				if (!StringMember(root, "data_root", &data_root, &error)) return error;
+				if (!Path(*data_root)) return Invalid("invalid library parts core-data root");
+				parsed.data_root = *data_root;
+			}
+			const std::string *path = nullptr, *id = nullptr, *payload = nullptr;
+			if (!StringMember(root, "package_path", &path, &error) ||
+				!StringMember(root, "package_id", &id, &error) ||
+				!StringMember(root, "payload_path", &payload, &error)) return error;
+			if (!Path(*path) || !Path(*payload) || !PackageID(*id))
+				return Invalid("invalid developer parts paths or package identity");
+			const auto* parts = Find(root, "parts");
+			const auto* tuple = Find(root, "composition");
+			if (!parts || parts->type != json::Type::array || parts->array.empty() ||
+				parts->array.size() > 2 || !tuple || tuple->type != json::Type::object)
+				return Invalid("parts need a bounded role list and composition");
+			const char* const tuple_fields[] = {"composition_id", "package_id", "layout",
+				"parts", "shell_sha256", "payload_sha256", "payload_size"};
+			if (!HasOnly(*tuple, tuple_fields, 7, &error)) return error;
+			auto& composition = parsed.composition_request.composition;
+			const char* const hashes[] = {"composition_id", "package_id", "shell_sha256", "payload_sha256"};
+			std::string* outputs[] = {&composition.id, &composition.package_id,
+				&composition.shell_sha256, &composition.payload_sha256};
+			for (unsigned i = 0; i < 4; ++i) {
+				const std::string* value = nullptr;
+				if (!StringMember(*tuple, hashes[i], &value, &error)) return error;
+				if (!PackageID(*value)) return Invalid("parts identities must be lowercase SHA-256");
+				*outputs[i] = *value;
+			}
+			const std::string* layout = nullptr;
+			if (!StringMember(*tuple, "layout", &layout, &error)) return error;
+			composition.layout = *layout;
+			const auto* selections = Find(*tuple, "parts");
+			const auto* size = Find(*tuple, "payload_size");
+			if (composition.layout != "fes.coleco-video.parts/1" || composition.package_id != *id ||
+				!BoundedInteger(size, 40408, 32 * 1024 * 1024) || !selections ||
+				selections->type != json::Type::array || selections->array.size() != parts->array.size())
+				return Invalid("invalid parts layout, size or package binding");
+			composition.payload_size = static_cast<std::uint64_t>(size->integer_value);
+			std::string previous;
+			bool video = false;
+			for (std::size_t i = 0; i < parts->array.size(); ++i) {
+				const auto& part = parts->array[i];
+				const auto& selection = selections->array[i];
+				const char* const part_fields[] = {"role", "path"};
+				const char* const selection_fields[] = {"role", "part_id"};
+				if (part.type != json::Type::object || selection.type != json::Type::object ||
+					!HasOnly(part, part_fields, 2, &error) || !HasOnly(selection, selection_fields, 2, &error))
+					return Invalid("invalid parts entry");
+				const std::string *role = nullptr, *part_path = nullptr, *selected_role = nullptr, *part_id = nullptr;
+				if (!StringMember(part, "role", &role, &error) ||
+					!StringMember(part, "path", &part_path, &error) ||
+					!StringMember(selection, "role", &selected_role, &error) ||
+					!StringMember(selection, "part_id", &part_id, &error)) return error;
+				if ((*role != "expansion" && *role != "video") || *role <= previous ||
+					*role != *selected_role || !Path(*part_path) || !PackageID(*part_id))
+					return Invalid("parts roles must ascend and match their paths");
+				previous = *role;
+				video |= *role == "video";
+				parsed.composition_request.parts.push_back({*role, *part_path});
+				composition.parts.push_back({*role, *part_id});
+			}
+			if (!video) return Invalid("developer parts require video");
+			parsed.composition_request.payload_path = *payload;
+			parsed.package_path = *path;
+			parsed.package_id = *id;
+			parsed.operation = library ? Operation::load_parts_library_core :
+				operation->string_value == "load_parts_core" ?
+				Operation::load_parts_core : Operation::inspect_parts_core;
 		} else if (operation->string_value == "load_composed_core" &&
 			Find(root, "expansions") != nullptr) {
 			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",

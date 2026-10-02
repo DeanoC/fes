@@ -12,9 +12,9 @@ The locked idle core is the in-tree misteross seal
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum` and `fes.catch` HIP/nextpnr
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`, `fes.catch` and `fes.ramtest` HIP/nextpnr
 producers. The default target-image selector installs the ordered closed
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set.
+`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest` package set.
 SMS, SG-1000 and Spectrum passed timing at the selected identity but remain
 registered for package-only use because the combined rootfs exceeds 128 MiB. `fes.apple2`
 and `fes.catch` also remain package-only. `fes.c64` is registered, but has no
@@ -29,14 +29,14 @@ The selected FPGA sources are the tracked
 compiler lock serves factory Pong; the standard ZX81 socket uses
 `toolchains/zx81-expansion.lock`; Coleco v2 uses `toolchains/coleco-sgm.lock`,
 SG-1000 uses `toolchains/registered-memory.lock`, SMS uses `toolchains/fes-sms.lock`,
-Apple II uses `toolchains/apple2.lock`, Commodore 64 uses `toolchains/c64.lock` (the same tool commits as Apple II), and ZX Spectrum uses `toolchains/spectrum.lock`. Inspect `config/core-recipes.toml` for each
+Apple II uses `toolchains/apple2.lock`, Commodore 64 uses `toolchains/c64.lock` (the same tool commits as Apple II), and ZX Spectrum 48K uses `toolchains/spectrum.lock`. Inspect `config/core-recipes.toml` for each
 registered producer's current lock and HIP settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
 An older sealed SMS package does not accept a bitstream built from a later
 tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
-the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` package set.
+the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest` package set.
 The FES image route is package-only. Quartus is reserved for a documented bring-up or
 oracle/check when a system is not yet supported by nextpnr; the package-only
 route does not invoke it.
@@ -66,7 +66,7 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The ZX81, SMS, SG-1000, Apple II, Commodore 64 and ZX Spectrum producers export format 3 when sealed.
+The ZX81, SMS, SG-1000, Apple II, Commodore 64 and ZX Spectrum 48K producers export format 3 when sealed.
 Other core producers retain format 2 and their current media/firmware paths
 until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
 SG-1000 requires an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
@@ -78,13 +78,38 @@ Commodore 64 requires an exact 16 KiB `c64-firmware` image (8 KiB BASIC window,
 then 8 KiB KERNAL window). Its disk is `fes.media.c64-disk` 1.0, an exact
 174,848-byte `.d64` on media unit 0, read only. Its two cartridge sockets are
 the optional `fes.expansion.c64-bus` 1.0.
-ZX Spectrum requires an exact 16 KiB `spectrum-firmware` image covering
+ZX Spectrum 48K requires an exact 16 KiB `spectrum-firmware` image covering
 `$0000–$3FFF`. Its edge cards and `.tap` cassette are separate inputs (see the
 [ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)).
 Hardware evidence is tied to the exact tested package and software; rebuilding
 a package does not inherit earlier acceptance. Cartridge ROM packages must remove redundant reset-held application
 blob/stream and firmware mailboxes; firmware ROM packages may retain separate
 tape/disk input.
+
+## Library video preference
+
+Settings selects the household `direct` or `scanlines` preference for the next
+launch. Manage FPGA Library imports a video archive with its profile. The CLI
+equivalents are `fogcast video-profile scanlines`,
+`fogcast video-part-install scanlines /absolute/path/part.tar`, and
+`fogcast core-video GAME_ID` to inspect the resolved choice.
+
+The first supported shell is the separate format-2 Coleco video development
+package. A part binds to that exact package and its frozen socket, rather than
+every package with the same core name. Import and launch run the real FPGA
+linker. Play combines the video part with the title's selected CPU expansion;
+the target independently recomposes the transport and admits its library data
+namespace before programming. Existing cartridge/firmware delivery follows
+the activated package generation.
+
+If the preferred profile has no installed matching part, Play uses direct
+output and the library panel explains why. An installed selected part that
+fails integrity or compatibility checks rejects the launch before hardware
+mutation. Missing parts do not prove insufficient FPGA capacity. A rebuilt
+shell needs its own sealed parts; the factory package still uses built-in
+direct output. Settings do not alter a running session. ROM-linked format-3/4
+parts, other video standards, CRT/DDR/overlay processors and audio parts are
+not supported by this initial library path.
 
 ## Build and inspect
 
@@ -175,7 +200,7 @@ from both independent passes. Development and cold receipts include the exact
 selection, manifest, payload and optional ROM-map hashes; a metadata-only manifest change
 invalidates image reuse even when the RBF bytes do not change.
 
-`fes.menu` is an image service package, not a playable library core. The native
+Menu (`fes.menu`) is an image service package, not a playable library core. The native
 image installs its sealed selection at
 `/usr/share/mister-runtime/selections/fes-menu.package.toml`. Runtime startup
 uses that exact package and the kit UI enables native HDMI presentation. The

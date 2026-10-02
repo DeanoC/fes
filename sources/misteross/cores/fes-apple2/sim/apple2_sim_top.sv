@@ -25,6 +25,8 @@ module apple2_sim_top (
     output wire [7:0]  bus_data,
     output wire        bus_write,
     output wire        speaker,
+    output wire [7:0]  soft_switches,
+    output wire        slot_reset,
     output wire [7:0]  quarter_track,
     output wire        motor_on
 );
@@ -33,6 +35,7 @@ module apple2_sim_top (
     wire [7:0] slot_iosel;
     wire [`A2_BUS_RSP-1:0] disk_response;
     wire text_mode, mixed_mode, page2, hires_mode;
+    wire [3:0] annunciators;
     wire [15:0] video_addr;
     wire [7:0] video_data;
 
@@ -45,13 +48,15 @@ module apple2_sim_top (
         .slot_response({slot7_response, disk_response, `A2_BUS_RSP'd0, slot4_response,
                         {4{`A2_BUS_RSP'd0}}}),
         .video_text(text_mode), .video_mixed(mixed_mode),
-        .video_page2(page2), .video_hires(hires_mode), .annunciators(),
+        .video_page2(page2), .video_hires(hires_mode), .annunciators(annunciators),
         .video_clk(pixel_clk), .video_addr(video_addr), .video_data(video_data),
         .speaker(speaker), .cassette_out(), .slot_audio(),
         .debug_pc_addr(bus_addr), .cpu_cycle(bus_cycle),
         .debug_bus_data(bus_data), .debug_bus_write(bus_write)
     );
     /* verilator lint_on PINCONNECTEMPTY */
+    assign soft_switches = {annunciators, hires_mode, page2, mixed_mode, text_mode};
+    assign slot_reset = slot_request[`A2_BUS_RESET];
 
     function [`A2_BUS_REQ-1:0] slot_word;
         input [`A2_BUS_REQ-1:0] common;

@@ -35,6 +35,8 @@ func packageCoreName(coreID string) (string, error) {
 		return "sg1000", nil
 	case "fes.c64":
 		return "c64", nil
+	case "fes.ramtest":
+		return "ramtest", nil
 	case "fes.spectrum":
 		return "spectrum", nil
 	default:

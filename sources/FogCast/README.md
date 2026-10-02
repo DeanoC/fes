@@ -10,6 +10,17 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- Household video preference selects **Direct** or **Scanlines** for the next
+  library launch. Browser Settings saves the preference; **Manage FPGA library**
+  imports video parts and shows the resolved choice for the exact package.
+  A missing preferred part falls back to direct output; an installed selected
+  part that fails admission requires repair. Marked format-2 Coleco shells link
+  one video part with an optional CPU expansion, retaining the shell identity
+  and fixed 720p output. The target independently links the selected bytes.
+  The separate `go run ./cmd/fes-parts` developer path remains volatile. See
+  [library video preferences](docs/ARCHITECTURE.md#library-video-preferences) and
+  [developer parts](docs/ARCHITECTURE.md#developer-video-parts).
+
 - The tenfoot **Settings → Systems** overlay browses the configured published
   core catalog, installs packages and creates normal library games from their
   manifest-declared ROM requirements. Gamepad, keyboard and pointer navigation
@@ -23,7 +34,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   package links its selected `firmware` ROM at download. An Apple II shell
   with optional `fes.expansion.apple2-bus` selects one card per physical slot;
   a Commodore 64 shell with optional `fes.expansion.c64-bus` selects socket 1
-  (ROM) and socket 2 (I/O); a ZX Spectrum shell with optional
+  (ROM) and socket 2 (I/O); a ZX Spectrum 48K shell with optional
   `fes.expansion.spectrum-bus` selects one card per edge socket. Selection is
   `GET`/`PUT /api/v1/library/core-entries/{game_id}/expansions[/{slot}]`;
   launch links the ROM and cards on the host, the target relinks them
@@ -31,10 +42,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
   The entry's selected medium is inserted into media unit 0 after Start:
   Apple II is an exact 143,360-byte `.dsk`/`.do` image, Commodore 64 is an
-  exact 174,848-byte `.d64`, and ZX Spectrum is a 1..65,536-byte `.tap`.
+  exact 174,848-byte `.d64`, and ZX Spectrum 48K is a 1..65,536-byte `.tap`.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
   machine runs. Apple II and Commodore 64 use `fogcast change-disk` and
-  `fogcast eject-disk`. ZX Spectrum uses `fogcast change-cassette` and
+  `fogcast eject-disk`. ZX Spectrum 48K uses `fogcast change-cassette` and
   `fogcast eject-cassette`. A stored media ID follows the active unit's
   size. See
   [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
@@ -170,7 +181,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   not steal that session, and a foreign or recovery-required kit lease fails closed. Mac is the primary sofa target;
   Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
-  the production backend; Software is a pure-Go rasterizer for tests/CI;
+  the production backend; Software is a CGO-free rasterizer with portable Go and an optional ARM NEON alpha-fill kernel;
   FPGA records a versioned FC2D command stream and rasters through Software
   (`-gfx fpga` / `TENFOOT_GFX=fpga`; `IsStub` true until a programmed 2D
   core exists — not HDMI FPGA UI); FPGA stub remains the thin Software
@@ -232,7 +243,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   native agent backend, one locked idle RBF, and the selected Mega Drive RBF
   with optional sealed Pong, SNES and NES RBFs. FES integration can also add a
   selected set of validated format-2/3 packages (`fes.menu`, `fes.pong`,
-  `fes.zx81`, and `fes.coleco`) through the closed package selection described in [the
+  `fes.zx81`, `fes.coleco`, and `fes.ramtest`) through the closed package selection described in [the
   development guide](docs/DEVELOPMENT.md).
   Source-built Mega Drive selection is the native image default; use the
   explicit upstream selection for fallback. Its idle path and one-player Mega
@@ -614,7 +625,7 @@ Phase 1 Coleco firmware (household BIOS slot, Ready gate, sofa import picker)
 is in [docs/launch-composition.md](docs/launch-composition.md), with the
 ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
 
-The [Zx81 workbench](../../docs/hardware-rooms.md) adds local installed-package
+The [Sinclair ZX81 workbench](../../docs/hardware-rooms.md) adds local installed-package
 setup, compatible expansion import with progress labels, and cassettes selected
 before Start. Its three starter programs retain their source and licences in
 [`internal/zx81tapes`](internal/zx81tapes/README.md). The kit's single HDMI menu

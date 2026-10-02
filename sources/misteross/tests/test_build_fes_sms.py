@@ -217,12 +217,14 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(SMS_GPU_BACKEND, "hip")
         self.assertIn("cores/fes-sms/rtl/top.v", OSS_RTL_SOURCES)
         self.assertIn("cores/fes-sms/rtl/sms_machine.sv", OSS_RTL_SOURCES)
+        self.assertIn("cores/fes-common/rtl/fes_z80_ce.sv", OSS_RTL_SOURCES)
 
     def test_quartus_project_reuses_coleco_sibling_modules(self) -> None:
         qsf = project_qsf(ROOT, ROOT / QUARTUS_OUTPUT / "project", "00112233445566778899aabbccddeeff")
         self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
         self.assertIn('VERILOG_MACRO "FES_SMS_BUILD_ID=', qsf)
         self.assertIn("cores/fes-sms/rtl/sms_machine.sv", qsf)
+        self.assertIn("cores/fes-common/rtl/fes_z80_ce.sv", qsf)
         self.assertIn("cores/fes-sms/rtl/sms_vdp.sv", qsf)
         self.assertIn("cores/fes-sms/rtl/sms_psg.sv", qsf)
         self.assertIn("cores/fes-common/rtl/fes_audio_output.v", qsf)

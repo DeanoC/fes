@@ -250,3 +250,84 @@ func TestWheelEmptyCatalogIsIdle(t *testing.T) {
 		t.Fatalf("empty wheel=%v stats=%q", m.WheelOpen, m.WheelStats())
 	}
 }
+
+func TestWheelReadQueriesDoNotCopyCatalog(t *testing.T) {
+	m := Model{Shelf: " NES "}
+	m.SetCatalog([]hostclient.Game{
+		{ID: "fallback", System: " NES ", PlayCount: -1},
+		{ID: "other", System: "snes", Launchable: true, PlayCount: 99, LastPlayedAt: 99},
+		{ID: "launch", System: "NeS", Launchable: true, PlayCount: 3, LastPlayedAt: 5},
+		{ID: "latest", System: "nes", PlayCount: 2, LastPlayedAt: 7},
+	})
+	if game, ok := m.WheelGame(" NES "); !ok || game.ID != "launch" {
+		t.Fatalf("representative = %q, %v", game.ID, ok)
+	}
+	if count := m.WheelPlayCount(); count != 5 {
+		t.Fatalf("plays = %d", count)
+	}
+	if game, ok := m.WheelLastPlayed(); !ok || game.ID != "latest" {
+		t.Fatalf("last played = %q, %v", game.ID, ok)
+	}
+	for _, item := range m.WheelItems() {
+		want := len(filterGames(m.Catalog, item.ID))
+		if item.Count != want {
+			t.Fatalf("%s count = %d, want %d", item.ID, item.Count, want)
+		}
+	}
+	if allocs := testing.AllocsPerRun(100, func() {
+		m.WheelGame("nes")
+		m.WheelPlayCount()
+		m.WheelLastPlayed()
+	}); allocs != 0 {
+		t.Fatalf("read queries allocate catalog copies: %g", allocs)
+	}
+	next := append([]hostclient.Game(nil), m.Catalog...)
+	next[2].Launchable = false
+	m.ApplyCatalog(next)
+	if game, _ := m.WheelGame("nes"); game.ID != "fallback" {
+		t.Fatalf("fallback = %q", game.ID)
+	}
+}
+
+func BenchmarkWheelLargeCatalog(b *testing.B) {
+	m := Model{Shelf: "nes", Shelves: []string{ShelfAll, "nes", "snes"}}
+	m.Catalog = make([]hostclient.Game, 3656)
+	for i := range m.Catalog {
+		m.Catalog[i] = hostclient.Game{System: "nes", PlayCount: 1, LastPlayedAt: int64(i)}
+	}
+	m.Catalog[len(m.Catalog)-1].Launchable = true
+	m.SetCatalog(m.Catalog)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.WheelItems()
+		m.WheelGame("nes")
+		m.WheelPlayCount()
+		m.WheelLastPlayed()
+	}
+}
+
+func TestWheelSummariesRefreshWithCatalogFields(t *testing.T) {
+	m := Model{Shelf: "nes"}
+	games := []hostclient.Game{{ID: "one", Title: "One", System: "nes", Launchable: true}, {ID: "two", Title: "Two", System: "nes"}}
+	m.SetCatalog(games)
+	games[1].PlayCount, games[1].LastPlayedAt = 4, 100
+	m.ApplyCatalog(games) // Browse-identical updates also rebuild play summaries.
+	if game, ok := m.WheelLastPlayed(); !ok || game.ID != "two" || m.WheelPlayCount() != 4 {
+		t.Fatalf("stale summaries: last=%q plays=%d", game.ID, m.WheelPlayCount())
+	}
+	games[0].Launchable, games[1].Launchable = false, true
+	m.ApplyCatalog(games)
+	if game, _ := m.WheelGame("nes"); game.ID != "two" {
+		t.Fatalf("stale representative %q", game.ID)
+	}
+	m.ApplyCatalog(nil)
+	if _, ok := m.WheelGame("all"); ok || m.WheelPlayCount() != 0 {
+		t.Fatal("removed catalog remains in summaries")
+	}
+	// Directly constructed models retain the same query semantics.
+	m = Model{Shelf: "nes", Catalog: games}
+	if game, _ := m.WheelGame("nes"); game.ID != "two" || m.WheelPlayCount() != 4 {
+		t.Fatalf("direct model: representative=%q plays=%d", game.ID, m.WheelPlayCount())
+	}
+}

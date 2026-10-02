@@ -329,6 +329,7 @@ function browserDocument() {
     'open-settings': 'button',
     'settings-attract-idle': 'input',
     'settings-preferred-regions': 'input',
+    'settings-video-profile': 'select',
     'settings-selected-target': 'select',
     'add-library': 'button',
     'add-target': 'button',
@@ -347,7 +348,7 @@ function browserDocument() {
     'platform-list', 'catalog-layout', 'layout-cover', 'layout-list',
     'catalog-sort', 'catalog-sort-label', 'catalog-sort-filter',
     'attract', 'attract-title', 'attract-stage',
-    'open-settings', 'settings', 'settings-attract-idle', 'settings-preferred-regions',
+    'open-settings', 'settings', 'settings-attract-idle', 'settings-preferred-regions', 'settings-video-profile',
     'settings-libraries', 'add-library', 'settings-targets', 'add-target', 'settings-selected-target',
     'settings-host-health', 'settings-message', 'save-settings', 'close-settings',
     'game-actions-menu',
@@ -869,6 +870,7 @@ test('library wording shows clean titles and honest launch blocks', () => {
   assert.equal(systemLabel('snes'), 'SNES');
   assert.equal(systemLabel('gbc'), 'Game Boy Color');
   assert.equal(systemLabel('a2600'), 'Atari 2600');
+  assert.equal(systemLabel('sms'), 'Sega Master System');
   assert.equal(systemLabel('coleco'), 'ColecoVision');
   assert.equal(systemLabel('lynx'), 'Atari Lynx');
   assert.equal(sourceLabel('available'), 'Ready');
@@ -3571,6 +3573,7 @@ async function runKeyboardApp({ pages, railPages, platforms, launchResponse, glo
         return jsonResponse({
           attract_idle_seconds: written.attract_idle_seconds,
           preferred_regions: written.preferred_regions,
+          video_profile: written.video_profile,
           libraries: written.libraries || [],
           targets: (written.targets || []).map(target => ({ ...target, agent_configured: Boolean(target.agent) })),
           selected_target: written.selected_target || '',
@@ -4048,7 +4051,7 @@ test('settings overlay traps Tab and blocks launcher Enter', async () => {
   assert.equal(document.activeElement, document.nodes.get('close-settings'));
 
   const allowed = new Set([
-    'settings-attract-idle', 'settings-preferred-regions', 'add-library',
+    'settings-attract-idle', 'settings-preferred-regions', 'settings-video-profile', 'add-library',
     'settings-selected-target', 'add-target', 'save-settings', 'close-settings',
   ]);
   for (let index = 0; index < 6; index += 1) {
@@ -4250,8 +4253,10 @@ test('settings overlay opens from the header and Escape returns to the previous 
   assert.equal(document.activeElement, document.nodes.get('settings-attract-idle'));
   assert.equal(document.nodes.get('settings-attract-idle').value, '60');
   assert.equal(document.nodes.get('settings-preferred-regions').value, 'usa, world, europe, japan');
+  assert.equal(document.nodes.get('settings-video-profile').value, 'direct');
   document.nodes.get('settings-attract-idle').value = '12';
   document.nodes.get('settings-preferred-regions').value = 'japan, europe';
+  document.nodes.get('settings-video-profile').value = 'scanlines';
   const arrow = await pressKey(document, 'ArrowDown', document.nodes.get('settings-attract-idle'));
   const enter = await pressKey(document, 'Enter', document.nodes.get('settings-attract-idle'));
   assert.equal(arrow.defaultPrevented, undefined);
@@ -4266,6 +4271,9 @@ test('settings overlay opens from the header and Escape returns to the previous 
   assert.ok(saved);
   assert.equal(JSON.parse(saved.options.body).attract_idle_seconds, 12);
   assert.deepEqual(JSON.parse(saved.options.body).preferred_regions, ['japan', 'europe']);
+  assert.equal(JSON.parse(saved.options.body).video_profile, 'scanlines');
+  assert.equal(document.nodes.get('settings-video-profile').value, 'scanlines');
+  assert.equal(calls.some(call => call.path.startsWith('/api/v1/library/core-entries/') && call.options?.method === 'PUT'), false);
   await pressKey(document, 'Escape', document.nodes.get('settings-attract-idle'));
   assert.equal(document.nodes.get('settings').hidden, true);
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');

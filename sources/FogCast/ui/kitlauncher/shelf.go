@@ -92,6 +92,7 @@ func (m *Model) SetCatalog(games []hostclient.Game) {
 	keep := focusedID(m.Games, m.Focus)
 	m.Catalog = append([]hostclient.Game(nil), games...)
 	m.Shelves = deriveShelves(m.Catalog)
+	m.rebuildWheelSummaries()
 	m.searchPool = nil
 	m.Shelf = normalizeShelf(m.Shelf)
 	if !shelfPresent(m.Shelves, m.Shelf) {
@@ -161,6 +162,7 @@ func romCachedValue(v *bool) int {
 
 func (m *Model) replaceCatalogFields(games []hostclient.Game) {
 	m.Catalog = append([]hostclient.Game(nil), games...)
+	m.rebuildWheelSummaries()
 	byID := make(map[string]hostclient.Game, len(games))
 	for _, game := range games {
 		byID[game.ID] = game

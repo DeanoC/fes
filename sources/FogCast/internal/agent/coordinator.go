@@ -279,7 +279,21 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 	var activation misterruntime.CoreActivation
 	var attempted bool
 	var apiErr *protocol.APIError
-	if len(composition) == 1 && composition[0] {
+	if len(composition) == 2 && composition[1] {
+		if libraryID != "" {
+			parts, ok := c.runtime.(libraryPartsCoreRuntime)
+			if !ok {
+				return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+			}
+			activation, attempted, apiErr = parts.LoadLibraryPartsCoreOwned(parent, observation, c.operationContext, size, content, libraryID)
+		} else {
+			parts, ok := c.runtime.(partsCoreRuntime)
+			if !ok {
+				return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+			}
+			activation, attempted, apiErr = parts.LoadPartsCoreOwned(parent, observation, c.operationContext, size, content)
+		}
+	} else if len(composition) == 1 && composition[0] {
 		composed, ok := c.runtime.(composedCoreRuntime)
 		if !ok {
 			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
@@ -334,13 +348,14 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	active.CorePackage = &protocol.CorePackageStatus{
-		ROMLink:         activation.ROMLink,
-		ROMLinks:        activation.ROMLinks,
-		Composition:     activation.Composition,
-		SlotComposition: activation.SlotComposition,
-		MediaStream:     activation.MediaStream,
-		MediaUnits:      activation.MediaUnits,
-		PackageID:       activation.PackageID, Generation: activation.Generation,
+		ROMLink:          activation.ROMLink,
+		ROMLinks:         activation.ROMLinks,
+		Composition:      activation.Composition,
+		PartsComposition: activation.PartsComposition,
+		SlotComposition:  activation.SlotComposition,
+		MediaStream:      activation.MediaStream,
+		MediaUnits:       activation.MediaUnits,
+		PackageID:        activation.PackageID, Generation: activation.Generation,
 		ABI: protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID,
 			Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces,
@@ -545,6 +560,11 @@ func cloneStatus(status protocol.Status) protocol.Status {
 		if status.CorePackage.Composition != nil {
 			compositionCopy := *status.CorePackage.Composition
 			packageCopy.Composition = &compositionCopy
+		}
+		if status.CorePackage.PartsComposition != nil {
+			partsCopy := *status.CorePackage.PartsComposition
+			partsCopy.Parts = append([]expansion.PartSelection(nil), partsCopy.Parts...)
+			packageCopy.PartsComposition = &partsCopy
 		}
 		if status.CorePackage.SlotComposition != nil {
 			slotsCopy := *status.CorePackage.SlotComposition

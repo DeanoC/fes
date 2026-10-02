@@ -84,15 +84,15 @@ module apple2_machine #(
     wire bus_sample = cycle_clock == 6'd16;
 
     // ------------------------------------------------------------------
-    // Reset: host reset is a power-on reset; Ctrl-Reset is the backplane
-    // RESET line (6502, soft switches, language card and cards), RAM kept.
-    // The line is held for a few CPU cycles so every card observes it.
+    // Reset: host reset initializes the machine; Ctrl-Reset is the backplane
+    // RESET line (6502 and cards), RAM and II/II+ soft switches kept. Unlike
+    // the IIe, the motherboard latches and language card have no RESET input.
+    // Hold the line throughout the key press, then stretch its release so
+    // even a short press gives every card a few CPU cycles of RESET.
     // ------------------------------------------------------------------
-    reg reset_key_d = 0;
     reg [3:0] reset_hold = 4'hf;
     always @(posedge clk_sys) begin
-        reset_key_d <= reset_key;
-        if (reset || (reset_key && !reset_key_d))
+        if (reset || reset_key)
             reset_hold <= 4'hf;
         else if (cpu_ce && reset_hold != 4'd0)
             reset_hold <= reset_hold - 4'd1;
@@ -264,7 +264,7 @@ module apple2_machine #(
             speaker <= 1'b0;
             cassette_out <= 1'b0;
         end
-        if (system_reset) begin
+        if (reset) begin
             video_text <= 1'b1;
             video_mixed <= 1'b0;
             video_page2 <= 1'b0;
@@ -281,7 +281,7 @@ module apple2_machine #(
                 for (p = 0; p < 4; p = p + 1)
                     if (paddle_timer[p] != 12'd0)
                         paddle_timer[p] <= paddle_timer[p] - 12'd1;
-            if (bus_strobe) begin
+            if (bus_strobe && !system_reset) begin
                 if (sel_kbd_clear && !key_event)
                     kbd_strobe <= 1'b0;
                 if (sel_cass_out)

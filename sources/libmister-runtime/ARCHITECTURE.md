@@ -359,6 +359,39 @@ admission leaves the current generation untouched. Successful activation carries
 the composition tuple in active status, and the ordinary retirement/recovery
 paths clear it together with package identity.
 
+### Presentation parts admission
+
+Protocol-2 `inspect_parts_core` and `load_parts_core` accept a closed role list
+(`video`, plus optional `expansion`) and a separate typed parts composition.
+Only a format-2 Coleco application shell that explicitly declares optional
+`fes.fabric.video.raster-rgb888` 1.0 and Coleco bus 2.0 qualifies. The fabric
+marker has no GP capability and does not enter the runtime interface registry.
+The recognized layout is `fes.coleco-video.parts/1`; its video socket map is
+`fes.coleco-video.socket/1`. A CPU part uses `fes.coleco-bus.socket/2`.
+
+Native admission checks the exact shell package, payload, BUILD_ID, canonical
+part manifests, role ordering, part IDs, composed digest and the
+`fes-parts-composition-v1` identity. Every file is retained and rehashed before
+physical mutation. The FogCast agent owns independent CRAM recomposition.
+Inspection admits those companions without programming. Load uses the existing
+physical lifecycle, drivers and fixed ADV7513 recipe; live GP capability and
+BUILD_ID checks remain those of the sealed base package. Active status carries
+layout and role identities under `active_package.composition`.
+
+The separate `load_parts_library_core` operation requires an absolute
+`data_root` and uses the same sealed admission and replacement lifecycle.
+It prepares the base core's data namespace before programming, even though
+this format-2 Coleco layout has no persistence contract and remains volatile.
+An existing durable namespace rejects the candidate with `incompatible_data`;
+selecting video cannot silently discard a previous persistence requirement.
+FogCast fixes the root locally and supplies explicit library identity.
+
+Developer inspect/load operations have no data-root field and remain
+explicitly volatile. Existing CPU composition operations reject the parts
+request shape. Library admission has host software coverage only; it adds no
+hardware acceptance, alternate output timing, DDR presentation or ROM-linked
+parts support.
+
 ### Initialized bitstream
 
 `load_initialized_core`, `load_initialized_library_core`, and

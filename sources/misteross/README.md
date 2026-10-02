@@ -37,7 +37,11 @@ SMS requires an exact 32768-byte cartridge input; SG-1000 requires an exact
 selected Mistral database, routed ROM placements and blank INIT bits. Other
 normal producers retain format 2. See [functional input identity](docs/architecture.md#functional-input-identity).
 
-The factory image installs `fes.pong`, `fes.zx81` and `fes.coleco`. Another
+The separate Coleco [video-parts development lane](docs/cores.md#video-parts-development-lane)
+links direct or scanline processing into a frozen pixel-clock socket. Its shared
+RTL contract is owned by [mister-packages](../mister-packages/docs/video-parts.md).
+
+The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco` and `fes.ramtest`. Another
 package is not added to that set merely because its producer exists.
 
 ## What builds now
@@ -70,6 +74,7 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | package-only, not in the factory image |
 | `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | package-only, not in the factory image |
 | `fes.catch` | `make sim-fes-demo` | `python3 scripts/build_fes_catch.py` | no oracle | registered, not in the factory image |
+| `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | factory utility, OSS 100 MHz |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
 `fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked

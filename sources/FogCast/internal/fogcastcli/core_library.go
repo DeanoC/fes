@@ -13,13 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "core-media-capabilities", "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-firmware-select":
+	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-firmware-select":
 		return true
 	}
 	return false
@@ -33,7 +34,35 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	var expectedInspection *corepackage.Inspection
 	expectedMediaID := ""
 	var mediaSnapshot *coreMediaSnapshot
+	var expectedVideoPart *catalog.CoreVideoPart
+	expectedVideoProfile := ""
 	switch args[0] {
+	case "video-parts":
+		path = "/api/v1/library/video-parts"
+	case "video-part-install":
+		if !catalog.ValidVideoProfile(args[1]) {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "choose direct or scanlines explicitly"}, exit: 1}
+		}
+		snapshot, asset, err := snapshotVideoPart(args[2])
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		method, path, data, contentType = http.MethodPost, "/api/v1/library/video-parts/"+args[1], snapshot, "application/octet-stream"
+		expectedVideoPart = &catalog.CoreVideoPart{PartID: asset.ID, PackageID: asset.Manifest.ShellPackageID, Profile: args[1]}
+	case "video-profile":
+		path = "/api/v1/library/settings"
+		if len(args) == 2 {
+			if !catalog.ValidVideoProfile(args[1]) {
+				return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "choose direct or scanlines explicitly"}, exit: 1}
+			}
+			method, expectedVideoProfile = http.MethodPatch, args[1]
+			data, _ = json.Marshal(map[string]string{"video_profile": args[1]})
+		}
+	case "core-video":
+		if protocol.ValidateGameID(args[1]) != nil {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "game ID is invalid"}, exit: 1}
+		}
+		path = "/api/v1/library/core-entries/" + url.PathEscape(args[1]) + "/video"
 	case "core-media-capabilities":
 		if protocol.ValidateDigest(args[1]) != nil {
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "package ID is invalid"}, exit: 1}
@@ -131,6 +160,9 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		return commandResult{err: err, exit: 1}
 	}
 	request.Header.Set("Accept", "application/json")
+	if expectedVideoPart != nil {
+		request.GetBody = nil
+	}
 	if mediaSnapshot != nil {
 		request.ContentLength = mediaSnapshot.size
 		// No GetBody: an ambiguous import must never be replayed.
@@ -141,11 +173,17 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	client := &http.Client{Timeout: 2 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirects are not accepted") }}
 	response, err := client.Do(request)
 	if err != nil {
+		if expectedVideoPart != nil || expectedVideoProfile != "" {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Phase: "video-change-outcome"}, exit: 1}
+		}
 		return commandResult{err: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "running FogCast host API is unavailable"}, exit: 1}
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(response.Body, (4<<20)+1))
 	if err != nil || len(body) > 4<<20 || !json.Valid(body) {
+		if expectedVideoPart != nil || expectedVideoProfile != "" {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Phase: "video-change-outcome"}, exit: 1}
+		}
 		return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "invalid package library response"}, exit: 1}
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -159,6 +197,20 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		var result corepackage.Inspection
 		if json.Unmarshal(body, &result) != nil || expectedInspection == nil || result.PackageID != expectedID || !reflect.DeepEqual(result, *expectedInspection) {
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "installed package response differs from imported archive"}, exit: 1}
+		}
+	}
+	if expectedVideoPart != nil {
+		var imported catalog.CoreVideoPart
+		if json.Unmarshal(body, &imported) != nil || imported != *expectedVideoPart {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Phase: "video-change-outcome"}, exit: 1}
+		}
+	}
+	if expectedVideoProfile != "" {
+		var settings struct {
+			VideoProfile string `json:"video_profile"`
+		}
+		if json.Unmarshal(body, &settings) != nil || settings.VideoProfile != expectedVideoProfile {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Phase: "video-change-outcome"}, exit: 1}
 		}
 	}
 	if expectedMediaID != "" {

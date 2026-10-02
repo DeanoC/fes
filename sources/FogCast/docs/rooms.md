@@ -12,7 +12,7 @@ The intended explore-and-play experience is specified in
 pads in [rooms-controller-bindings.md](rooms-controller-bindings.md). This
 page is the authoring and API guide.
 
-The embedded [ZX81 hardware workbench](../../../docs/hardware-rooms.md)
+The embedded [Sinclair ZX81 hardware workbench](../../../docs/hardware-rooms.md)
 adds an illustrated view of host-owned setups, exact-package expansion
 selection, and the existing live tape picker during play.
 

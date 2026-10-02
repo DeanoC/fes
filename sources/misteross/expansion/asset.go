@@ -86,7 +86,7 @@ func hash(data []byte) string { sum := sha256.Sum256(data); return hex.EncodeToS
 
 func (m Manifest) validate() error {
 	if m.Format != 1 || m.Device != Device || m.SlotMinor != 0 ||
-		!supportedSocketVersion(m.Slot, m.Map, m.SlotMajor) {
+		!(supportedSocketVersion(m.Slot, m.Map, m.SlotMajor) || supportedVideoPart(m)) {
 		return errors.New("unsupported expansion target, socket or version")
 	}
 	if sockets := slotPolicies(m.Slot, m.Map); sockets != nil {
@@ -284,6 +284,9 @@ func CompositionID(packageID, expansionID, payloadSHA256 string) (string, error)
 func Admit(shell Shell, asset Asset) error {
 	if err := asset.Validate(); err != nil {
 		return err
+	}
+	if asset.Manifest.Slot == VideoSlot {
+		return errors.New("video part requires explicit parts composition")
 	}
 	if slotPolicies(asset.Manifest.Slot, asset.Manifest.Map) != nil {
 		return errors.New("multi-socket expansion requires slot composition")

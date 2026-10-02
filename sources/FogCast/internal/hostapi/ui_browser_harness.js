@@ -186,11 +186,12 @@ function normalizePlan(plan = {}) {
       prefetchVisibleCovers: plan.prefetchVisibleCovers === true,
     }),
     attract: plan.attract || { items: [], idle_seconds: 60 },
-    settings: plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] },
+    settings: plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' },
     platforms: plan.platforms || { platforms: [] },
     collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
     coreRoutes: new Map(Object.entries(plan.coreRoutes || {}).map(([route, responses]) => {
-      if (!/^(GET|POST|PUT) \/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)) {
+      if (!/^(GET|POST|PUT) \/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)
+          && !/^(GET \/api\/v1\/library\/video-parts|POST \/api\/v1\/library\/video-parts\/(direct|scanlines))$/.test(route)) {
         throw new TypeError(`invalid core fixture route: ${route}`);
       }
       return [route, normalizeQueue(responses, route)];
@@ -474,7 +475,7 @@ class FixtureServer extends EventEmitter {
       if (request.method === 'GET') {
         await this.deliver(record, response, {
           fixture: 'settings.json', status: 200, hold: false, delayMs: 0,
-          override: this.plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] },
+          override: this.plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' },
         });
         return;
       }
@@ -486,10 +487,11 @@ class FixtureServer extends EventEmitter {
         await this.deliver(record, response, this.unexpectedResponse(record, 400, 'settings body was not JSON'));
         return;
       }
-      const current = this.plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] };
+      const current = this.plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' };
       this.plan.settings = {
         attract_idle_seconds: Number.isFinite(written.attract_idle_seconds) ? written.attract_idle_seconds : current.attract_idle_seconds,
         preferred_regions: Array.isArray(written.preferred_regions) ? written.preferred_regions : current.preferred_regions,
+        video_profile: written.video_profile === undefined ? current.video_profile : written.video_profile,
       };
       await this.deliver(record, response, {
         fixture: 'settings.json', status: 200, hold: false, delayMs: 0,
@@ -716,7 +718,8 @@ class FixtureServer extends EventEmitter {
       requestContentLength: boundedText(record.requestContentLength, '', 24),
       requestTransferEncoding: boundedText(record.requestTransferEncoding, '', 24),
       requestBody: record.path === '/api/v1/session/launch' || record.path === '/api/v1/session/stop'
-        || /^\/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/|$)/.test(record.path)
+        || record.path === '/api/v1/library/settings'
+        || /^\/api\/v1\/(core-catalog|core-packages|core-media|library\/(core-entries|video-parts))(\/|$)/.test(record.path)
         ? boundedText(record.requestBody, '', 512)
         : undefined,
       responseOrder: record.responseOrder,
@@ -1426,12 +1429,15 @@ class BrowserPage {
           packageStatus: text('#core-package-status'),
           mediaStatus: text('#core-media-status'),
           current: text('#core-entry-current'),
+          videoStatus: text('#core-video-status'),
+          videoChoices: text('#core-video-choices'),
           entry: document.querySelector('#core-entry-select')?.value || '',
           package: document.querySelector('#core-package-select')?.value || '',
         },
         settingsHidden: document.querySelector('#settings')?.hidden !== false,
         settingsAttract: document.querySelector('#settings-attract-idle')?.value || '',
         settingsRegions: document.querySelector('#settings-preferred-regions')?.value || '',
+        settingsVideoProfile: document.querySelector('#settings-video-profile')?.value || '',
         keyboardPane: document.querySelector('#launcher')?.getAttribute('data-keyboard-pane') || '',
         activeElementID: document.activeElement?.id || '',
         cards: Array.from(document.querySelectorAll('#catalog-list .game-card')).map(card => ({

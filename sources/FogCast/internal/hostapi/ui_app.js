@@ -461,7 +461,7 @@
     gba: 'Game Boy Advance',
     n64: 'Nintendo 64',
     psx: 'PlayStation',
-    sms: 'Master System',
+    sms: 'Sega Master System',
     gg: 'Game Gear',
     pce: 'PC Engine',
     '32x': '32X',
@@ -2776,6 +2776,8 @@
     }
 
     function parseLibrarySettings(payload) {
+      const videoProfile = payload && payload.video_profile !== undefined ? payload.video_profile : 'direct';
+      if (!['direct', 'scanlines'].includes(videoProfile)) throw createError('INVALID_SETTINGS', 'Unknown video preference. Refresh settings before saving.');
       const idle = boundedAttractIdleSeconds(payload && payload.attract_idle_seconds);
       const regions = payload && Array.isArray(payload.preferred_regions)
         ? payload.preferred_regions.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim().toLowerCase())
@@ -2802,6 +2804,7 @@
       return Object.freeze({
         attract_idle_seconds: idle > 0 ? idle : 60,
         preferred_regions: Object.freeze(regions),
+        video_profile: videoProfile,
         libraries: Object.freeze(libraries),
         targets: Object.freeze(targets),
         selected_target: payload && typeof payload.selected_target === 'string' ? payload.selected_target : '',
@@ -2844,6 +2847,7 @@
         body: JSON.stringify({
           attract_idle_seconds: next && next.attract_idle_seconds,
           preferred_regions: next && next.preferred_regions,
+          video_profile: next && next.video_profile,
           libraries: next && next.libraries,
           targets: next && next.targets,
           selected_target: next && next.selected_target,
@@ -3252,6 +3256,7 @@
     settings: document.getElementById('settings'),
     settingsAttractIdle: document.getElementById('settings-attract-idle'),
     settingsPreferredRegions: document.getElementById('settings-preferred-regions'),
+    settingsVideoProfile: document.getElementById('settings-video-profile'),
     settingsLibraries: document.getElementById('settings-libraries'),
     addLibrary: document.getElementById('add-library'),
     settingsTargets: document.getElementById('settings-targets'),
@@ -5072,7 +5077,8 @@
         || id === 'close-settings'
         || id === 'save-settings'
         || id === 'settings-attract-idle'
-        || id === 'settings-preferred-regions') {
+        || id === 'settings-preferred-regions'
+        || id === 'settings-video-profile') {
         return true;
       }
       node = node.parentNode;
@@ -5084,6 +5090,7 @@
     const fixed = [
       nodes.settingsAttractIdle,
       nodes.settingsPreferredRegions,
+      nodes.settingsVideoProfile,
       nodes.addLibrary,
       nodes.settingsSelectedTarget,
       nodes.addTarget,
@@ -5315,6 +5322,7 @@
   }
 
   function fillSettingsForm(settings) {
+    if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.value = (settings && settings.video_profile) || 'direct';
     if (nodes.settingsAttractIdle) {
       nodes.settingsAttractIdle.value = String((settings && settings.attract_idle_seconds) || state.attractIdleSeconds || 60);
     }
@@ -5403,6 +5411,7 @@
       await controller.saveSettings({
         attract_idle_seconds: idle,
         preferred_regions: regions,
+        video_profile: nodes.settingsVideoProfile ? nodes.settingsVideoProfile.value : 'direct',
         libraries,
         targets,
         selected_target: nodes.settingsSelectedTarget ? nodes.settingsSelectedTarget.value : '',
@@ -5892,6 +5901,7 @@
   });
   if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', bumpSettingsGeneration);
   if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', bumpSettingsGeneration);
+  if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.addEventListener('change', bumpSettingsGeneration);
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keyup', event => {
       if (keyboardCapture.active) forwardCapturedKey(event, false);

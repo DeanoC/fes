@@ -49,6 +49,13 @@ func TestSMBFolderUsesMappedAlias(t *testing.T) {
 	}
 }
 
+func TestSMSDisplayLabel(t *testing.T) {
+	row, ok := Lookup(protocol.SystemSMS)
+	if !ok || row.Label != "Sega Master System" || row.PlatformID != protocol.SystemSMS {
+		t.Fatalf("sms = %+v %v", row, ok)
+	}
+}
+
 func TestTagsAreClassifiedAndCopied(t *testing.T) {
 	row, ok := Lookup(protocol.SystemColecoVision)
 	if !ok {

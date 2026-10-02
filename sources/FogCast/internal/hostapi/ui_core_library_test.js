@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {createController, mount, MAX_PACKAGE_BYTES, MAX_MEDIA_BYTES} = require('./ui_core_library.js');
+const {createController, mount, MAX_PACKAGE_BYTES, MAX_MEDIA_BYTES, MAX_VIDEO_PART_BYTES} = require('./ui_core_library.js');
 const A = 'a'.repeat(64), B = 'b'.repeat(64), C = 'c'.repeat(64), M = 'd'.repeat(64);
 const copy = value => JSON.parse(JSON.stringify(value));
 const pkg = (id, core = 'fes.fixture') => ({package_id:id, descriptor:{core:{id:core, version:'1.0'}}});
@@ -19,6 +19,9 @@ function fixture(options = {}) {
     const intercepted=override(path,options);
     if (intercepted !== undefined) return intercepted;
     const method=options.method || 'GET';
+    if (path === '/api/v1/library/video-parts') return response([]);
+    if (path.endsWith('/video')) return response({game_id:'entry',package_id:db.entries[0].package_id,
+      preferred_profile:'direct',effective_profile:'direct',builtin:true,choices:[{profile:'direct',label:'Direct',available:true},{profile:'scanlines',label:'Scanlines',available:false,reason:'No compatible build imported.'}]});
     if (path === '/api/v1/core-packages') {
       if (method==='POST') return response(pkg(B),201);
       return response({packages:db.packages});
@@ -81,7 +84,7 @@ test('empty/null inventories work without compatibility or lifecycle calls',asyn
   await f.controller.open();
   assert.deepEqual(f.controller.snapshot().entries,[]);
   assert.deepEqual(f.controller.snapshot().packages,[]);
-  assert.equal(f.calls.length,3);
+  assert.equal(f.calls.length,4);
 });
 test('package import sends the original File body without Content-Length',async()=>{
   const f=fixture(); await f.controller.open();
@@ -255,6 +258,7 @@ test('mounted panel uses literal text, locks controls and filters same-core vers
     'core-media-file','core-media-import','core-media-discard','core-media-status','core-entry-title',
     'core-entry-create','core-entry-select','core-entry-current','core-entry-package-save',
     'core-entry-media-save','core-entry-media-clear','core-library-message'];
+  ids.push('core-video-status','core-video-choices','core-video-profile','core-video-file','core-video-import','core-video-parts');
   const nodes=Object.fromEntries(ids.map(id=>[id,new Node()]));
   nodes['core-library'].querySelectorAll=()=>ids.filter(id=>!id.endsWith('status') && id!=='core-library').map(id=>nodes[id]);
   const document={getElementById:id=>nodes[id],createElement:()=>new Node()};
@@ -264,6 +268,14 @@ test('mounted panel uses literal text, locks controls and filters same-core vers
   await f.controller.open(); await f.controller.selectEntry('entry');
   assert.ok(nodes['core-entry-select'].children[1].textContent.startsWith('<img'));
   assert.equal(nodes['core-package-select'].children.length,3);
+  assert.match(nodes['core-video-status'].textContent,/Next launch: Direct \(built in\)/);
+  assert.match(nodes['core-video-choices'].children[1].textContent,/Scanlines: Unavailable — No compatible build imported/);
+  f.intercept(path=>path.endsWith('/video')?response({game_id:'entry',package_id:A,
+    preferred_profile:'scanlines',effective_profile:'scanlines',builtin:false,part_id:M,choices:[{profile:'direct',label:'Direct',available:true},
+      {profile:'scanlines',label:'Scanlines',available:false,reason:'Installed part failed integrity checks; launch requires repair.'}]}):undefined);
+  await f.controller.selectEntry('entry');
+  assert.match(nodes['core-video-status'].textContent,/Next launch: Unavailable — Scanlines/);
+  assert.match(nodes['core-video-status'].textContent,/requires repair/);
   const pending=deferred();
   f.intercept((path,options)=>options.method==='POST'?pending.promise:undefined);
   const uploading=f.controller.importMedia({size:4});
@@ -275,6 +287,76 @@ test('mounted panel uses literal text, locks controls and filters same-core vers
   f.controller.close();
   assert.equal(nodes['core-library'].hidden,true);
   assert.equal(nodes['core-library'].open,false);
+});
+test('video preference resolution shows fallback without selecting a substitute part',async()=>{
+  const f=fixture();
+  const fallback={game_id:'entry',package_id:A,preferred_profile:'scanlines',effective_profile:'direct',builtin:true,
+    fallback_reason:'No compatible build for this exact package.',choices:[{profile:'direct',label:'Direct',available:true},
+      {profile:'scanlines',label:'Scanlines',available:false,reason:'No compatible build imported.'}]};
+  f.intercept(path=>path.endsWith('/video')?response(fallback):undefined);
+  await f.controller.open(); await f.controller.selectEntry('entry');
+  assert.deepEqual(f.controller.snapshot().video,fallback);
+  assert.equal(f.calls.filter(c=>c.options.method==='PUT' || c.options.method==='POST').length,0);
+  await f.controller.selectPackage(B);
+  assert.equal(f.controller.snapshot().video,null);
+  assert.match(f.controller.snapshot().videoMessage,/Select the package.*first/);
+});
+test('stale video response cannot replace another selected entry',async()=>{
+  const f=fixture();
+  f.db.entries.push({...f.db.entries[0],game_id:'second',package_id:B});
+  await f.controller.open();
+  const pending=deferred();
+  f.intercept(path=>path==='/api/v1/library/core-entries/entry/video'?pending.promise:
+    path==='/api/v1/library/core-entries/second/video'?response({game_id:'second',package_id:B,
+      preferred_profile:'direct',effective_profile:'direct',builtin:true,choices:[]}):undefined);
+  const first=f.controller.selectEntry('entry');
+  await f.controller.selectEntry('second');
+  pending.resolve(response({game_id:'entry',package_id:A,preferred_profile:'scanlines',effective_profile:'scanlines',part_id:M,builtin:false,choices:[]}));
+  await first;
+  assert.equal(f.controller.snapshot().entryId,'second');
+  assert.equal(f.controller.snapshot().video.game_id,'second');
+  assert.equal(f.controller.snapshot().video.effective_profile,'direct');
+});
+test('malformed or unavailable video projection cannot claim a confirmed output',async()=>{
+  for (const value of [{game_id:'entry',package_id:B}, {game_id:'entry',package_id:A,preferred_profile:'direct',effective_profile:'crt',builtin:true,choices:[]},
+    {game_id:'entry',package_id:A,preferred_profile:'scanlines',effective_profile:'scanlines',builtin:false,choices:[]}]) {
+    const f=fixture(); await f.controller.open();
+    f.intercept(path=>path.endsWith('/video')?response(value):undefined);
+    await f.controller.selectEntry('entry');
+    assert.equal(f.controller.snapshot().video,null);
+    assert.match(f.controller.snapshot().videoMessage,/could not be confirmed/);
+  }
+});
+test('video import uses explicit profile, bounded original file and read-only resolution',async()=>{
+  const f=fixture(); await f.controller.open(); await f.controller.selectEntry('entry');
+  const part={part_id:M,package_id:A,profile:'scanlines'};
+  f.intercept((path,options)=>path==='/api/v1/library/video-parts/scanlines'?response(part):
+    path==='/api/v1/library/video-parts'?response([part]):undefined);
+  for (const [profile,file] of [['crt',{name:'x.fexp',size:4}],['direct',{name:'x.zip',size:4}],
+    ['scanlines',{name:'x.fexp',size:MAX_VIDEO_PART_BYTES+1}]]) await f.controller.importVideoPart(profile,file);
+  assert.equal(f.calls.filter(c=>c.options.method==='POST').length,0);
+  const file={name:'scanlines.fexp',size:4096};
+  await f.controller.importVideoPart('scanlines',file);
+  const upload=f.calls.find(c=>c.options.method==='POST');
+  assert.equal(upload.path,'/api/v1/library/video-parts/scanlines');
+  assert.equal(upload.options.body,file);
+  assert.deepEqual(upload.options.headers,{'Content-Type':'application/octet-stream'});
+  assert.deepEqual(f.controller.snapshot().videoParts,[part]);
+  assert.ok(f.calls.every(c=>!c.path.includes('/session/') && c.options.method!=='PUT'));
+  assert.match(f.controller.snapshot().message,/Household preference and running session are unchanged/);
+});
+test('lost video-import response releases the lock and does not retry or claim an import',async()=>{
+  const f=fixture({requestTimeoutMs:20}); await f.controller.open();
+  const pending=deferred();
+  f.intercept((path,options)=>options.method==='POST'?pending.promise:undefined);
+  await f.controller.importVideoPart('direct',{name:'direct.fexp',size:4});
+  assert.equal(f.controller.snapshot().busy,false);
+  assert.match(f.controller.snapshot().message,/outcome unknown.*nothing was retried/);
+  assert.deepEqual(f.controller.snapshot().videoParts,[]);
+  assert.equal(f.calls.filter(c=>c.options.method==='POST').length,1);
+  pending.resolve(response({part_id:M,package_id:A,profile:'direct'}));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(f.controller.snapshot().videoParts,[]);
 });
 test('systems exist before games and setup keeps source and exact ROM choice',async()=>{
  const calls=[];const row={library_source_id:'library-two',source_id:'source-two',core_id:'fes.sms',label:'Master System',system:'sms',standing:'supported',package_id:A,artifact_state:'installed'};

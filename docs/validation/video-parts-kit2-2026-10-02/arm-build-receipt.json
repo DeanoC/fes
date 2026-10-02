@@ -1,0 +1,72 @@
+{
+  "classification": "local ARM diagnostic build; no target deployment or hardware execution",
+  "built_at_utc": "2026-10-02T13:38:47.918137+00:00",
+  "fes_revision": "fabbb1a05ce17d2c232b67d9713ba79e5a88552f",
+  "source_clean": true,
+  "artifacts": {
+    "runtime": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/pluggable-av/fes/sources/libmister-runtime/build/pluggable-av-arm/mister-runtime",
+      "sha256": "110eb06ee806ae9df7de1da281ee9e81720ec9be70197980143d900a355ddf00",
+      "size": 934280,
+      "file": "ELF 32-bit LSB executable, ARM, EABI5 version 1 (GNU/Linux), dynamically linked, interpreter /lib/ld-linux-armhf.so.3, for GNU/Linux 3.2.0, with debug_info, not stripped"
+    },
+    "agent": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/pluggable-av/fes/sources/FogCast/bin/mister-agent-pluggable-av-linux-armv7",
+      "sha256": "ea76da09b6535227a6ae182dcc0a840be74c6eb087cac68e11f8bccfe89dad3d",
+      "size": 9568418,
+      "file": "ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), statically linked, Go BuildID=r40dAP_q2gwl5UWko4bv/-GDRIC5ySjgqOVWJSPCP/DGprsxjghVjDNGSFZDou/qq5Wm4W8JbF03cOBcBK2, BuildID[sha1]=871ed3c1a80ffdcb8a2096b1343388d2041b0f79, stripped"
+    }
+  },
+  "runtime": {
+    "version": "git-fabbb1a05ce17d2c232b67d9713ba79e5a88552f",
+    "toolchain": "GNU Arm 10.2-2020.11; GCC 10.2.1 20201103",
+    "toolchain_bin": "/home/deano/.cache/toolchains/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf/bin",
+    "build_directory": "sources/libmister-runtime/build/pluggable-av-arm",
+    "cppflags": [
+      "-D_FILE_OFFSET_BITS=64",
+      "-Iinclude",
+      "-Isrc",
+      "-isystem third_party/toml11/include"
+    ],
+    "cxxflags": [
+      "-O2",
+      "-std=c++14",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-pthread",
+      "-MMD",
+      "-MP"
+    ],
+    "interpreter": "/lib/ld-linux-armhf.so.3",
+    "needed": [
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libgcc_s.so.1",
+      "libpthread.so.0",
+      "libc.so.6"
+    ],
+    "required_versions": [
+      "GLIBC_2.30",
+      "GLIBCXX_3.4.22",
+      "CXXABI_1.3.9",
+      "CXXABI_ARM_1.3.3",
+      "GCC_3.5"
+    ]
+  },
+  "agent": {
+    "go_version": "go version go1.24.4 linux/amd64",
+    "env": {
+      "CGO_ENABLED": "0",
+      "GOOS": "linux",
+      "GOARCH": "arm",
+      "GOARM": "7"
+    },
+    "flags": [
+      "-buildvcs=false",
+      "-trimpath",
+      "-ldflags",
+      "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=0.1.0 -X github.com/DeanoC/FogCast/internal/version.Revision=fabbb1a05ce17d2c232b67d9713ba79e5a88552f"
+    ]
+  }
+}

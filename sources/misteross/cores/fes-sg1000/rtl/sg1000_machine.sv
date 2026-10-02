@@ -68,9 +68,8 @@ module sg1000_machine (
     wire nRFSH;
     wire nHALT;
 
-    reg ce_cpu_p;
-    reg ce_cpu_n;
-    reg [4:0] ce_counter;
+    wire ce_cpu_p;
+    wire ce_cpu_n;
     wire ce_raster;
 
     tms9918_raster_ce #(
@@ -133,18 +132,11 @@ module sg1000_machine (
         media_request_done = 1'b0;
         media_write_addr = 14'h0000;
 `endif
-        ce_cpu_p = 1'b0;
-        ce_cpu_n = 1'b0;
-        ce_counter = 5'h00;
     end
 
-    // Keep the reduced TV80 CPU's /16 enable shape. The shared TMS9918 raster
-    // has a separate nominal 60 Hz enable generated above.
-    always @(negedge clk_sys) begin
-        ce_counter <= ce_counter + 1'b1;
-        ce_cpu_p <= !ce_counter[3] && !ce_counter[2:0];
-        ce_cpu_n <= ce_counter[3] && !ce_counter[2:0];
-    end
+    fes_z80_ce cpu_timing (
+        .clk(clk_sys), .positive(ce_cpu_p), .negative(ce_cpu_n)
+    );
 
     T80pa cpu (
         .RESET_n(~machine_reset),
@@ -152,8 +144,8 @@ module sg1000_machine (
         .CEN_p(ce_cpu_p),
         .CEN_n(ce_cpu_n),
         .WAIT_n(1'b1),
-        .INT_n(1'b1),
-        .NMI_n(vdp_irq_n),
+        .INT_n(vdp_irq_n),
+        .NMI_n(1'b1),
         .BUSRQ_n(1'b1),
         .M1_n(nM1),
         .MREQ_n(nMREQ),

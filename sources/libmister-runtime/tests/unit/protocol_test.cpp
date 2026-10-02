@@ -1039,11 +1039,73 @@ void TestSessionDisplayRequestAndBoundStatus()
  assert(idle.find("\"session\"")==std::string::npos&&idle.find("\"core_generation\"")==std::string::npos);
 }
 
+std::vector<std::string> PartsResponseFixtures() {
+ Status status;status.state=State::running_development;status.execution=Execution::development;
+ status.core="fes.coleco";status.generation=1;status.core_data.mode="volatile";
+ status.active_package.package_id=std::string(64,'a');
+ auto& d=status.active_package.descriptor;d=FixtureDescriptor();d.core.id=status.core;d.abi={"fes.application",1,0};
+ d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.expansion.coleco-bus",2,0,false},{"fes.fabric.video.raster-rgb888",1,0,false}};
+ status.active_package.observed={d.abi,d.build.id};
+ status.capabilities.programming_profiles={"development-contained-v1","fes-gp-v1"};
+ status.capabilities.abis={{"fes.application",1,0,{{"fes.video.fixed-720p60",1,0}}}};
+ status.capabilities.active_interfaces={{"fes.video.fixed-720p60",1,0}};
+ auto& c=status.active_package.composition;c.package_id=status.active_package.package_id;c.layout="fes.coleco-video.parts/1";
+ c.shell_sha256=d.payload.sha256;c.payload_sha256=std::string(64,'d');c.payload_size=40408;
+ c.parts={{"video",std::string(64,'c')}};
+ std::vector<std::string> output;
+ for(bool with_cpu:{false,true}) {
+  if(with_cpu)c.parts.insert(c.parts.begin(),{"expansion",std::string(64,'b')});
+  std::string material="fes-parts-composition-v1"+std::string(1,'\0')+c.package_id+std::string(1,'\0')+c.layout+std::string(1,'\0');
+  for(const auto& p:c.parts)material+=p.role+":"+p.part_id+std::string(1,'\0');
+  material+=c.payload_sha256;
+  mister::native::Sha256 hash;hash.Update(material.data(),material.size());c.id=mister::native::Sha256Hex(hash.Final());
+  output.push_back(mister::daemon::EncodeResponse(2,true,status,"fixture"));
+ }
+ return output;
+}
+
+void TestDeveloperPartsProtocol() {
+ const std::string a(64,'a'),b(64,'b'),c(64,'c');
+ const std::string tuple="{\"composition_id\":\""+a+"\",\"package_id\":\""+a+
+  "\",\"layout\":\"fes.coleco-video.parts/1\",\"parts\":[{\"role\":\"video\",\"part_id\":\""+b+
+  "\"}],\"shell_sha256\":\""+b+"\",\"payload_sha256\":\""+c+"\",\"payload_size\":40408}";
+ const auto request=[&](const std::string& operation) {
+  return "{\"protocol\":2,\"operation\":\""+operation+"\",\"package_path\":\"/tmp/p\",\"package_id\":\""+a+
+   "\",\"parts\":[{\"role\":\"video\",\"path\":\"/tmp/v\"}],\"payload_path\":\"/tmp/l/linked.rbf\",\"composition\":"+tuple+"}";
+ };
+ Request parsed;assert(Parse(request("load_parts_core"),&parsed).ok());
+ assert(parsed.operation==mister::daemon::Operation::load_parts_core&&parsed.data_root.empty()&&parsed.composition_request.parts.size()==1);
+ assert(Parse(request("inspect_parts_core"),&parsed).ok());
+ assert(parsed.operation==mister::daemon::Operation::inspect_parts_core);
+ std::string persistent=request("load_parts_core");persistent.insert(1,"\"data_root\":\"/tmp/data\",");
+ assert(!Parse(persistent,&parsed).ok());
+ assert(!Parse(request("load_parts_library_core"),&parsed).ok());
+ std::string library=request("load_parts_library_core");library.insert(1,"\"data_root\":\"/tmp/data\",");
+ assert(Parse(library,&parsed).ok());
+ assert(parsed.operation==mister::daemon::Operation::load_parts_library_core&&parsed.data_root=="/tmp/data");
+ library.replace(library.find("/tmp/data"),9,"relative");assert(!Parse(library,&parsed).ok());
+ assert(!Parse(request("load_composed_core"),&parsed).ok());
+ std::string unknown=request("load_parts_core");
+ unknown.replace(unknown.find("\"role\":\"video\""),14,"\"role\":\"other\"");assert(!Parse(unknown,&parsed).ok());
+ mister::Status status;status.state=mister::State::running_development;status.execution=mister::Execution::development;
+ status.active_package.package_id=a;status.active_package.composition.id=a;status.active_package.composition.package_id=a;
+ status.active_package.composition.layout="fes.coleco-video.parts/1";status.active_package.composition.parts={{"video",b}};
+ status.active_package.composition.shell_sha256=b;status.active_package.composition.payload_sha256=c;status.active_package.composition.payload_size=40408;
+ const std::string encoded=mister::daemon::EncodeResponse(2,true,status,"test");
+ assert(encoded.find("\"parts\":[{\"role\":\"video\",\"part_id\":")!=std::string::npos);
+ assert(encoded.find("\"expansion_id\":")==std::string::npos);
+}
+
 int main(int argc, char** argv)
 {
+ TestDeveloperPartsProtocol();
  TestSessionDisplayRequestAndBoundStatus();
  TestRetiredProtocolRejected();
  TestMenuProtocolRequestsAndStatus();
+	if (argc == 2 && std::string(argv[1]) == "--emit-parts-fixtures") {
+		for (const auto& line : PartsResponseFixtures()) std::cout << line << '\n';
+		return 0;
+	}
 	if (argc == 2 && std::string(argv[1]) == "--emit-application-fixtures") {
 		for (const auto& line : ApplicationResponseFixtures()) std::cout << line << '\n';
 		return 0;
@@ -1062,6 +1124,7 @@ int main(int argc, char** argv)
 		return 0;
 	}
 	assert(argc == 1);
+	assert(ReadLines("tests/fixtures/protocol-v2-parts-responses.jsonl")==PartsResponseFixtures());
 	TestComputerOperationRequests();
 	TestSlotCompositionProtocol();
 	TestComputerResponseFixtures();

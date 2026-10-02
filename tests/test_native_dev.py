@@ -36,6 +36,7 @@ class NativeDevTest(unittest.TestCase):
                 'build/target-image.sources.lock.toml': 'sources',
                 'build/target-image-container-packages.sha256': 'packages',
                 'scripts/build-target-image.sh': 'recipe',
+                'licenses/fes.ramtest/COPYING': 'license',
                 'Makefile': 'make',
             }
             for name, data in files.items():
@@ -56,7 +57,7 @@ class NativeDevTest(unittest.TestCase):
             for name in ('buildroot/configs/native', 'containers/target-image/Dockerfile',
                          'build/target-image.sources.lock.toml',
                          'build/target-image-container-packages.sha256',
-                         'scripts/build-target-image.sh', 'Makefile'):
+                         'scripts/build-target-image.sh', 'licenses/fes.ramtest/COPYING', 'Makefile'):
                 with self.subTest(name=name):
                     original = (image / name).read_bytes()
                     (image / name).write_bytes(b'changed base')

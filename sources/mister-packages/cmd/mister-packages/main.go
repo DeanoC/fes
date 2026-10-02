@@ -115,6 +115,12 @@ func validatePath(path string) (string, error) {
 			return "", err
 		}
 		return abi.ID, nil
+	case "fabric":
+		fabric, err := pack.LoadFabric(path)
+		if err != nil {
+			return "", err
+		}
+		return fabric.ID, nil
 	case "programming_profiles":
 		profiles, err := pack.LoadProgrammingProfiles(path)
 		if err != nil {
@@ -122,7 +128,7 @@ func validatePath(path string) (string, error) {
 		}
 		return profiles.ID, nil
 	default:
-		return "", fmt.Errorf("%s: kind %q is not platform, abi, or programming_profiles", path, kind)
+		return "", fmt.Errorf("%s: kind %q is not platform, abi, fabric, or programming_profiles", path, kind)
 	}
 }
 
@@ -200,8 +206,15 @@ func emitVerilogPath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if kind == "fabric" {
+		fabric, err := pack.LoadFabric(path)
+		if err != nil {
+			return "", err
+		}
+		return emitverilog.GenerateFabric(fabric)
+	}
 	if kind != "abi" {
-		return "", fmt.Errorf("%s: emit-verilog expects kind abi, got %q", path, kind)
+		return "", fmt.Errorf("%s: emit-verilog expects kind abi or fabric, got %q", path, kind)
 	}
 	abi, err := pack.LoadABI(path)
 	if err != nil {
@@ -258,10 +271,10 @@ Commands:
   report [package.yaml]
   emit-cpp [package.yaml]
   emit-go [abi.yaml|programming.yaml]
-  emit-verilog [abi.yaml]
+	emit-verilog [abi.yaml|fabric.yaml]
   diff-oracle <package.yaml> <oracle.yaml>
 
 Default package is packages/platform/de10_nano.yaml.
-Package kind is platform, abi, or programming_profiles.
+Package kind is platform, abi, fabric, or programming_profiles.
 `)
 }

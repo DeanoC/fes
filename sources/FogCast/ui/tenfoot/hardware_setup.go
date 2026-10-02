@@ -19,7 +19,7 @@ type hardwareExpansionFamily struct {
 }
 
 var hardwareExpansionFamilies = []hardwareExpansionFamily{
-	{"16K RAM", "Memory expansion for the Zx81 rear connector. Select a compatible RAM archive.", false},
+	{"16K RAM", "Memory expansion for the Sinclair ZX81 rear connector. Select a compatible RAM archive.", false},
 	{"Zon X", "Zon X sound expansion. Implementation is in progress.", true},
 	{"QS Character Board", "Quicksilva programmable character expansion. Implementation is in progress.", true},
 }
@@ -164,7 +164,7 @@ func (a *App) importHardwareFileLocked(path string) {
 				return err
 			}
 			if asset.PackageID != pkg || asset.Slot != 0 {
-				return fmt.Errorf("archive imported, but it does not fit this exact Zx81 setup")
+				return fmt.Errorf("archive imported, but it does not fit this exact Sinclair ZX81 setup")
 			}
 			return a.client.DescribeCoreExpansion(ctx, asset.ExpansionID, family.label, family.description, family.inProgress)
 		}
@@ -211,7 +211,7 @@ func (a *App) refreshInstalledZX81Locked() {
 	s.Ref = nil
 	s.Setup = nil
 	s.Index = 0
-	s.Status = "Finding installed Zx81 packages…"
+	s.Status = "Finding installed Sinclair ZX81 packages…"
 	var cores []hostclient.AvailableCore
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		library, err := a.client.CoreLibrary(ctx)
@@ -226,15 +226,15 @@ func (a *App) refreshInstalledZX81Locked() {
 			if err != nil {
 				continue
 			}
-			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: "Zx81 " + p.Version + " · " + p.PackageID[:8], Standing: "supported", ArtifactState: "installed"})
+			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: "Sinclair ZX81 " + p.Version + " · " + p.PackageID[:8], Standing: "supported", ArtifactState: "installed"})
 		}
 		return nil
 	}, func() {
 		s.Cores = cores
 		s.Online = true
-		s.Status = "Choose an installed Zx81 and its BASIC ROM. Adding a setup does not start it."
+		s.Status = "Choose an installed Sinclair ZX81 and its BASIC ROM. Adding a setup does not start it."
 		if len(cores) == 0 {
-			s.Status = "No Zx81 with a sealed ROM requirement is installed. Browse published systems to install one."
+			s.Status = "No Sinclair ZX81 with a sealed ROM requirement is installed. Browse published systems to install one."
 		}
 	})
 }

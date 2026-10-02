@@ -1,0 +1,2 @@
+/pluggable-av-fabbb1a05/mister-runtime /usr/sbin/mister-runtime
+/pluggable-av-fabbb1a05/mister-agent /usr/sbin/mister-agent

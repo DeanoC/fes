@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Boots the open C64 diagnostic and requires the CPU, both cartridge sockets,
 // the joystick, the keyboard, a SID sample, the D64 LOAD and both border and
-// text pixels.
+// text pixels. The firmware also requires CIA1 timer B IRQ and CIA2 timer A
+// NMI through the CPU vectors, with SEI still set during the NMI check.
 #include "Vc64_sim_top.h"
 #include "verilated.h"
 

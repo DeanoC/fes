@@ -76,6 +76,7 @@ ABI_DEFINITION = "cores/fes-sms/generated/fes_simple_computer.vh"
 QSF = "cores/fes-sms/constraints-oss.qsf"
 SDC = "cores/fes-sms/clocks-oss.sdc"
 RTL_SOURCES = (
+    "cores/fes-common/rtl/fes_z80_ce.sv",
     "cores/fes-coleco/rtl/coleco_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_computer_gp.v",
