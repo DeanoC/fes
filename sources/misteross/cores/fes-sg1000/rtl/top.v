@@ -172,7 +172,7 @@ module top #(
         .de(HDMI_TX_DE),
         .hsync(HDMI_TX_HS),
         .vsync(HDMI_TX_VS),
-        .frame_tick()
+        .frame_tick(), .raster_sof(), .raster_eol()
     );
 
     assign HDMI_TX_CLK = pixel_clk;

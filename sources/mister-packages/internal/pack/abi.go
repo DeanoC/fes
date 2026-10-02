@@ -44,18 +44,8 @@ func (a *ABIFile) Validate() error {
 	if a.Major == 0 {
 		return fmt.Errorf("ABI major must be at least 1")
 	}
-	constantNames := make(map[string]bool, len(a.Constants))
-	for i, constant := range a.Constants {
-		if !validABIConstantName(constant.Name) {
-			return fmt.Errorf("constants[%d]: invalid name %q", i, constant.Name)
-		}
-		if constantNames[constant.Name] {
-			return fmt.Errorf("constants[%d]: duplicate name %q", i, constant.Name)
-		}
-		constantNames[constant.Name] = true
-		if uint64(constant.Value) > math.MaxUint32 {
-			return fmt.Errorf("constants[%d]: value 0x%x exceeds uint32", i, uint64(constant.Value))
-		}
+	if err := validateConstants(a.Constants); err != nil {
+		return err
 	}
 	interfaceIDs := make(map[string]bool, len(a.Interfaces))
 	capabilityBits := make(map[uint8]bool, len(a.Interfaces))
@@ -77,6 +67,23 @@ func (a *ABIFile) Validate() error {
 		}
 		interfaceIDs[iface.ID] = true
 		capabilityBits[iface.CapabilityBit] = true
+	}
+	return nil
+}
+
+func validateConstants(constants []ABIConstant) error {
+	constantNames := make(map[string]bool, len(constants))
+	for i, constant := range constants {
+		if !validABIConstantName(constant.Name) {
+			return fmt.Errorf("constants[%d]: invalid name %q", i, constant.Name)
+		}
+		if constantNames[constant.Name] {
+			return fmt.Errorf("constants[%d]: duplicate name %q", i, constant.Name)
+		}
+		constantNames[constant.Name] = true
+		if uint64(constant.Value) > math.MaxUint32 {
+			return fmt.Errorf("constants[%d]: value 0x%x exceeds uint32", i, uint64(constant.Value))
+		}
 	}
 	return nil
 }

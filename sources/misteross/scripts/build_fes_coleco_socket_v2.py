@@ -13,7 +13,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import build_fes_coleco_oss as factory, coleco_expansion
+from scripts import build_fes_coleco_oss as factory, coleco_expansion, video_parts
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import (
@@ -30,6 +30,7 @@ from scripts.search_placer_qor import SearchError, route_after_synth
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_coleco_socket_v2.py"
 OUTPUT_RELATIVE = Path("build/fes-coleco-socket-v2")
+VIDEO_OUTPUT_RELATIVE = Path("build/fes-coleco-video")
 TOOLCHAIN_LOCK = "toolchains/coleco-sgm.lock"
 COLECO_TOOLCHAIN_LOCK = TOOLCHAIN_LOCK
 PLACER_SEEDS = (3, 4, 5, 1, 2, 6, 7, 8, 9, 10)
@@ -49,6 +50,8 @@ PINNED_INPUTS = tuple(dict.fromkeys((
       if path not in (factory.RECIPE, factory.COLECO_TOOLCHAIN_LOCK)),
     *RTL_SOURCES,
 )))
+VIDEO_INPUTS = (*PINNED_INPUTS, "scripts/video_parts.py", video_parts.RTL,
+                "cores/fes-common/generated/fes_video_part.vh")
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log",
     "nextpnr.log", "build-inputs.json", "build-summary.json", "manifest.toml",
@@ -68,17 +71,17 @@ def authenticate_tools(root: Path, cache_root: Path | None):
     )
 
 
-def _require_clean_source(root: Path, *, identity_version: int = 2):
+def _require_clean_source(root: Path, *, identity_version: int = 2, video_socket: bool = False):
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
-    return require_clean_source(root, pinned_inputs=PINNED_INPUTS,
+    return require_clean_source(root, pinned_inputs=VIDEO_INPUTS if video_socket else PINNED_INPUTS,
                                 identity_version=identity_version)
 
 
 @guard_functional_source
 def create_build_record(root: Path, repository: str, revision: str,
                         identities: Mapping[str, str], execution: dict | None = None,
-                        *, identity_version: int = 2) -> bytes:
+                        *, identity_version: int = 2, video_socket: bool = False) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
     fields = {
@@ -105,16 +108,24 @@ def create_build_record(root: Path, repository: str, revision: str,
             "expansion_rect": coleco_expansion.SOCKET_RECT_V2,
         },
     }
+    inputs = VIDEO_INPUTS if video_socket else PINNED_INPUTS
+    if video_socket:
+        fields["parameters"].update(video_socket=video_parts.MAP,
+            parts_layout=video_parts.LAYOUT, video_rect=video_parts.PLACEMENT,
+            video_clock_hz=74_250_000)
     fields = functional_record_fields(
-        root, fields, source_roots_for_inputs(PINNED_INPUTS), execution,
-        pinned_inputs=PINNED_INPUTS,
+        root, fields, source_roots_for_inputs(inputs), execution,
+        pinned_inputs=inputs,
     )
     return encode_build_record(fields)
 
 
 def build_commands(root: Path, output: Path, build_id: str,
-                   tools: Mapping[str, Path]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    if output != root / OUTPUT_RELATIVE:
+                   tools: Mapping[str, Path], *, video_socket: bool = False) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    relative = VIDEO_OUTPUT_RELATIVE if video_socket else OUTPUT_RELATIVE
+    sources = (*RTL_SOURCES, video_parts.RTL) if video_socket else RTL_SOURCES
+    video_define = "-DFES_COLECO_VIDEO_PART_DEV=1 " if video_socket else ""
+    if output != root / relative:
         raise BuildError("Coleco socket output path changed")
     if factory.HEX32_RE.fullmatch(build_id) is None:
         raise BuildError("Coleco socket BUILD_ID is malformed")
@@ -123,30 +134,30 @@ def build_commands(root: Path, output: Path, build_id: str,
     program = (
         "read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1 "
         "-DFES_COLECO_EXPANSION_V2_DEV=1 "
-        f"-I cores/fes-common/generated -I cores/fes-coleco/rtl {' '.join(RTL_SOURCES)}; "
+        f"{video_define}-I cores/fes-common/generated -I cores/fes-coleco/rtl {' '.join(sources)}; "
         f"chparam -set BUILD_ID 128'h{build_id} top; "
         "chparam -set ENABLE_FIRMWARE 1 coleco_application_gp; "
         "synth_intel_alm -nolutram -nodsp -top top; stat; "
-        f"write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
+        f"write_json {relative.as_posix()}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
     route = (
-        str(tools["nextpnr-mistral"]), "--json", f"{OUTPUT_RELATIVE}/synth.json",
-        "--device", factory.TARGET, "--qsf", f"{OUTPUT_RELATIVE}/socket.qsf",
+        str(tools["nextpnr-mistral"]), "--json", f"{relative}/synth.json",
+        "--device", factory.TARGET, "--qsf", f"{relative}/socket.qsf",
         "--sdc", factory.SDC, "--freq", "74.25",
         "--seed", str(PLACER_SEEDS[0]),
         "--placer-heap-timingweight", "2000",
         "--placer-heap-critexp", str(factory.PLACER_CRITICALITY_EXPONENT),
         "--router", factory.ROUTER, "--timing-allow-fail",
-        "--rbf", f"{OUTPUT_RELATIVE}/core.rbf", "--compress-rbf",
-        "--write", f"{OUTPUT_RELATIVE}/routed.json",
-        "--report", f"{OUTPUT_RELATIVE}/timing.json", "--detailed-timing-report",
+        "--rbf", f"{relative}/core.rbf", "--compress-rbf",
+        "--write", f"{relative}/routed.json",
+        "--report", f"{relative}/timing.json", "--detailed-timing-report",
     )
     return yosys, route
 
 
 def manifest(record: bytes, evidence: dict, repository: str, revision: str,
-             identities: Mapping[str, str]) -> bytes:
+             identities: Mapping[str, str], *, video_socket: bool = False) -> bytes:
     fields = tomllib.loads(factory._manifest(
         record, evidence, repository, revision, identities).decode())
     fields["core"]["version"] = "1.2.0"
@@ -155,32 +166,43 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
         "id": "fes.expansion.coleco-bus", "major": 2, "minor": 0,
         "required": False,
     })
+    if video_socket:
+        fields["core"]["description"] = "ColecoVision development shell with CPU and pixel-domain video sockets"
+        fields["interfaces"].append({"id": video_parts.INTERFACE, "major": 1,
+                                     "minor": 0, "required": False})
     return encode_manifest(fields)
 
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *,
-          cache_root: Path | None = None, identity_version: int = 2) -> Path:
+          cache_root: Path | None = None, identity_version: int = 2,
+          video_socket: bool = False) -> Path:
     root = root.resolve()
-    repository, revision = _require_clean_source(root, identity_version=identity_version)
+    repository, revision = _require_clean_source(root, identity_version=identity_version, video_socket=video_socket)
+    relative = VIDEO_OUTPUT_RELATIVE if video_socket else OUTPUT_RELATIVE
+    inputs = VIDEO_INPUTS if video_socket else PINNED_INPUTS
     package_store = factory._package_store(root, package_store, private_bios=False)
     tools = authenticate_tools(root, cache_root)
     identities = {name: tool.identity for name, tool in tools.items()}
-    output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
-    _write_atomic(output / "socket.qsf", coleco_expansion.shell_qsf(
-        (root / factory.QSF).read_text(), version=2).encode())
+    output = _prepare_output(root, relative=relative, build_outputs=BUILD_OUTPUTS)
+    qsf = coleco_expansion.shell_qsf((root / factory.QSF).read_text(), version=2)
+    if video_socket:
+        qsf = video_parts.shell_qsf(qsf)
+    _write_atomic(output / "socket.qsf", qsf.encode())
     invocation = FunctionalInvocation(tools, 0)
     try:
         execution, env = invocation.inputs, invocation.env
         record = create_build_record(root, repository, revision, identities,
-                                     execution=execution, identity_version=identity_version)
+                                     execution=execution, identity_version=identity_version, video_socket=video_socket)
         _write_atomic(output / "build-inputs.json", record)
         build_id = build_identity(record)
         commands = build_commands(root, output, build_id, {
-            name: tools[name].path for name in ("yosys", "nextpnr-mistral")})
+            name: tools[name].path for name in ("yosys", "nextpnr-mistral")}, video_socket=video_socket)
         _run_tool(commands[0], root, output / "yosys.log", env=env,
-                  audit_source_root=root, output_relative=OUTPUT_RELATIVE)
+                  audit_source_root=root, output_relative=relative)
         coleco_expansion.prepare_shell_netlist(output / "synth.json", version=2)
+        if video_socket:
+            video_parts.validate_boundary(json.loads((output / "synth.json").read_bytes())["modules"]["top"], routed=False)
         try:
             winner = route_after_synth(
                 nextpnr=tools["nextpnr-mistral"].path,
@@ -198,27 +220,29 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
         coleco_expansion.validate_routed_shell(output / "routed.json", version=2)
+        if video_socket:
+            video_parts.validate_boundary(json.loads((output / "routed.json").read_bytes())["modules"]["top"], routed=True)
         evidence = factory.validate_build_evidence(output, root)
         evidence["route"].update(placer_seed=winner.seed,
                                  placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
         evidence.update({
             "build_id": build_id, "device": factory.TARGET, "top": factory.TOP,
-            "inputs": {path: _sha256(root / path) for path in sorted(PINNED_INPUTS)},
+            "inputs": {path: _sha256(root / path) for path in sorted(inputs)},
             "tools": identities, "execution": execution,
             "expansion_rect": coleco_expansion.SOCKET_RECT_V2,
         })
         _write_atomic(output / "build-summary.json",
                       (json.dumps(evidence, sort_keys=True, indent=2) + "\n").encode())
-        encoded = manifest(record, evidence, repository, revision, identities)
+        encoded = manifest(record, evidence, repository, revision, identities, video_socket=video_socket)
         _write_atomic(output / "manifest.toml", encoded)
         if {name: tool.identity for name, tool in authenticate_tools(root, cache_root).items()} != identities:
             raise BuildError("Coleco socket compiler identity changed")
-        if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
+        if _require_clean_source(root, identity_version=identity_version, video_socket=video_socket) != (repository, revision):
             raise BuildError("Coleco socket source changed")
         invocation.verify()
         if create_build_record(root, repository, revision, identities,
-                               execution=execution, identity_version=identity_version) != record:
+                               execution=execution, identity_version=identity_version, video_socket=video_socket) != record:
             raise BuildError("Coleco socket functional inputs changed")
         return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
@@ -237,10 +261,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
+    parser.add_argument("--video-socket", action="store_true", help="build the separate development shell with a pixel-domain video socket")
     args = parser.parse_args(argv)
     try:
         print(build(args.root, args.package_output, cache_root=args.cache_root,
-                    identity_version=args.identity_version))
+                    identity_version=args.identity_version, video_socket=args.video_socket))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-coleco-socket-v2: {exc}", file=sys.stderr)
         return 1

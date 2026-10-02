@@ -26,3 +26,7 @@ to verify them. See [schema](docs/schema.md),
 and [stream media](docs/media-stream.md). The simple-computer
 [session display](docs/session-display.md) shares the fixed DDR framebuffer
 layout while preserving machine execution and existing ABI 1.0 packages.
+
+[Timed video parts](docs/video-parts.md) define an internal FPGA fabric socket
+using a separate `kind: fabric` package and the existing Verilog constant
+emitter. Its fixed 720p proof adds no GP ABI or runtime capability assignment.

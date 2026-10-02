@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_application.vh"
+`ifdef FES_COLECO_VIDEO_PART_DEV
+`include "fes_video_part.vh"
+`endif
 `ifndef FES_COLECO_BUILD_ID
 `define FES_COLECO_BUILD_ID 128'h00000000000000000000000000000000
 `endif
@@ -164,6 +167,8 @@ module top #(
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
+    wire [23:0] machine_rgb;
+    wire machine_de, machine_hs, machine_vs, raster_sof, raster_eol;
     coleco_video_720p video (
         .clk_sys(clk_sys),
         .pixel_clk(pixel_clk),
@@ -172,14 +177,38 @@ module top #(
         .logical_y(logical_y),
         .logical_pixel(logical_pixel),
         .logical_blank(logical_blank),
-        .red(HDMI_TX_D[23:16]),
-        .green(HDMI_TX_D[15:8]),
-        .blue(HDMI_TX_D[7:0]),
-        .de(HDMI_TX_DE),
-        .hsync(HDMI_TX_HS),
-        .vsync(HDMI_TX_VS),
-        .frame_tick()
+        .red(machine_rgb[23:16]),
+        .green(machine_rgb[15:8]),
+        .blue(machine_rgb[7:0]),
+        .de(machine_de), .hsync(machine_hs), .vsync(machine_vs),
+        .frame_tick(), .raster_sof(raster_sof), .raster_eol(raster_eol)
     );
+
+`ifdef FES_COLECO_VIDEO_PART_DEV
+    // The machine and capture are unchanged. Both socket boundaries run in
+    // the HDMI domain; pixels, sync and enable always incur the same latency.
+    wire [31:0] video_request = {1'b0, 1'b0, raster_eol, raster_sof,
+                               1'b1, machine_vs, machine_hs, machine_de, machine_rgb};
+    (* keep *) wire [31:0] video_plug_request;
+    wire [27:0] video_plug_response = 28'b0;
+    wire [27:0] video_response;
+    reg [27:0] video_fallback_1 = 0, video_fallback_2 = 0;
+    always @(posedge pixel_clk) begin
+        video_fallback_1 <= video_request[27:0];
+        video_fallback_2 <= video_fallback_1;
+    end
+    coleco_video_socket video_socket (
+        .clock(pixel_clk), .request(video_request), .response(video_response),
+        .plug_request(video_plug_request), .plug_response(video_plug_response)
+    );
+    wire [27:0] presented = video_response[27] ? video_response : video_fallback_2;
+    assign {HDMI_TX_VS, HDMI_TX_HS, HDMI_TX_DE, HDMI_TX_D} = presented[26:0];
+`else
+    assign HDMI_TX_D = machine_rgb;
+    assign HDMI_TX_DE = machine_de;
+    assign HDMI_TX_HS = machine_hs;
+    assign HDMI_TX_VS = machine_vs;
+`endif
 
     assign HDMI_TX_CLK = pixel_clk;
 endmodule

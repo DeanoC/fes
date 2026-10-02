@@ -517,6 +517,45 @@ package ID, NUL, `slot:expansion-id` NUL per card in ascending slot order,
 then the linked-payload SHA256. The single-socket `Compose` path rejects
 multi-socket cards.
 
+### Video parts
+
+The first video-parts layout is `fes.coleco-video.parts/1`. It reserves a
+Coleco bus 2.0 socket at placement columns 24–28, rows 1–19, and a video
+socket at columns 24–28, rows 23–38. Their half-open CRAM rectangles are
+`(1769,32,2806,1800)` and `(1769,1800,2806,3442)`. The separate developer
+shell declares optional `fes.fabric.video.raster-rgb888` 1.0; it retains the
+fixed-720p60 external interface and the base package's GP capabilities and
+BUILD_ID. It does not replace the factory recipe.
+
+The [shared fabric contract](../../mister-packages/docs/video-parts.md)
+defines RGB888, DE/HS/VS, pixel enable, start-of-frame, end-of-line, HOLD
+and a required-zero reserved bit. In this layout all video logic uses
+`pixel_clk` at 74.25 MHz. The shell owns clocks, HDMI, HPS and I2S.
+Request and response registers add two pixel clocks of latency to the
+entire raster word. A vacant socket selects the equally delayed machine
+raster; a linked direct or scanline part asserts response CE to select its
+output. Audio follows the existing machine path.
+
+`build_video_part.py` builds each part against the exact sealed shell,
+adapting its public RTL interface to the compiler's packed cartridge ports.
+It checks timing, clock ownership, the original configuration header and
+every changed CRAM bit before publishing an archive. Pixel clock coverage
+anchors lie inside the video fence; CPU anchors remain frozen. Part outputs
+retain logic drivers through separate synthesis, avoiding input/output alias
+collapse during packed-port merge. This uses the locked Coleco compiler
+without a new compiler ABI.
+
+`ComposePartsContext` requires one video part and permits one Coleco bus 2.0
+expansion. It validates both against the original shell, rejects duplicate
+roles, mismatched layouts and outside-region writes, then composes disjoint
+regions in canonical role order. Its identity binds the base package ID,
+layout, selected part IDs and resulting payload digest. Legacy single-socket
+composition rejects video parts. The target independently recomposes the
+developer transfer and retains separate part status alongside base identity.
+This is full-chip download-time composition; changing a selection requires
+another load. Native raster capture, DDR scanout, overlays, variable modes,
+audio parts and library/profile selection remain subsequent work.
+
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
 frames and regenerate the affected EDCRC/CRC16 checksums, preserving other CRAM

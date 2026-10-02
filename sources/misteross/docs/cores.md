@@ -51,6 +51,43 @@ A failed HIP route does not fall back to Quartus. Quartus never programs a kit.
 without sealing. `--synth-only` on the OSS producers is a dirty-tree Yosys
 probe and does not seal.
 
+## Video-parts development lane
+
+The first slice is a separate Coleco shell with a fixed 720p60 RGB888
+pixel-clock interface. Choose a direct part or a simple scanline part;
+an independently built Coleco bus 2.0 expansion can share the same frozen
+shell. The factory producer and image selection retain their existing path.
+The [fabric contract](../../mister-packages/docs/video-parts.md) describes
+the public RTL ports; [the architecture](architecture.md#video-parts)
+describes physical containment and composition.
+
+From a clean committed `sources/misteross` tree:
+
+```sh
+make sim-fes-video-parts
+make build-fes-coleco-video CACHE_ROOT=/absolute/cache
+make build-fes-video-part VIDEO_VARIANT=direct \
+  VIDEO_SHELL="$PWD/build/fes-coleco-video" \
+  VIDEO_PACKAGE="$PWD/build/packages/<package-id>" CACHE_ROOT=/absolute/cache
+make build-fes-video-part VIDEO_VARIANT=scanlines \
+  VIDEO_SHELL="$PWD/build/fes-coleco-video" \
+  VIDEO_PACKAGE="$PWD/build/packages/<package-id>" CACHE_ROOT=/absolute/cache
+```
+
+Use the exact package directory printed by the shell producer. The part
+producer prints its archive beneath `build/video-parts/<variant>/<recipe>/`;
+that directory also contains timing, clock and CRAM containment evidence.
+Both parts bind the exact base package. Rebuilding the shell requires
+rebuilding its parts and any selected CPU expansion.
+
+For offline composition, run `expansion/cmd/fes-parts-link` with `-shell`,
+`-package-id`, `-build-id`, `-video`, optional `-expansion`, and `-output`.
+For a contained developer transfer, FogCast's `cmd/fes-parts` packages the
+base and selected parts for the target's parts inspect/load routes. See
+[FogCast development](../../FogCast/docs/DEVELOPMENT.md). An inspect does
+not program hardware; a load follows the existing designated-kit lease and
+physical lifecycle. This lane has no library selection UI or audio parts.
+
 ## Three results you must not collapse
 
 | Command kind | Proves | Does not prove |

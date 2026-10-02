@@ -16,7 +16,9 @@ module coleco_video_720p (
     output wire       de,
     output wire       hsync,
     output wire       vsync,
-    output wire       frame_tick
+    output wire       frame_tick,
+    output wire       raster_sof,
+    output wire       raster_eol
 );
     localparam [10:0] H_ACTIVE = 11'd1280;
     localparam [10:0] H_FRONT = 11'd110;
@@ -72,6 +74,8 @@ module coleco_video_720p (
                    vertical < V_ACTIVE + V_FRONT + V_SYNC;
     assign frame_tick = horizontal == H_TOTAL - 1'b1 &&
                         vertical == V_TOTAL - 1'b1;
+    assign raster_sof = horizontal == 0 && vertical == 0;
+    assign raster_eol = horizontal == H_TOTAL - 1'b1;
 
     always @* begin
         red = 8'h00;

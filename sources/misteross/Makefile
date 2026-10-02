@@ -53,6 +53,9 @@ help:
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
 		"  sim-fes-demo  Test composable application endpoints and reference demos" \
+		"  sim-fes-video-parts  Test direct and scanline video parts through the physical socket" \
+		"  build-fes-coleco-video  Seal the separate Coleco video development shell" \
+		"  build-fes-video-part  Build VIDEO_VARIANT=direct|scanlines against VIDEO_SHELL and VIDEO_PACKAGE" \
 		"  sim-fes-ramtest  Test the RAM tester against SDRAM and HPS DDR models, holds and identity" \
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
 		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
@@ -184,6 +187,19 @@ build-fes-ramtest-quartus:
 sim-fes-demo:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_demo.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-video-parts build-fes-coleco-video build-fes-video-part
+sim-fes-video-parts:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_video_parts.py --verilator "$(VERILATOR)"
+
+build-fes-coleco-video:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2.py --root "$(CURDIR)" --video-socket$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+VIDEO_VARIANT ?= direct
+build-fes-video-part:
+	@test -n "$(VIDEO_SHELL)" -a -n "$(VIDEO_PACKAGE)" || { echo 'Set VIDEO_SHELL and VIDEO_PACKAGE to the exact frozen producer output and sealed package'; exit 1; }
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_video_part.py --root "$(CURDIR)" --shell "$(VIDEO_SHELL)" --package "$(VIDEO_PACKAGE)" --variant "$(VIDEO_VARIANT)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 sim-fes-splash:
 	$(require_local_sim)
