@@ -9,10 +9,11 @@
 // lease. Ensure refuses a pull unless the caller reports an owned,
 // idle binding. Rooms Ready does not call Ensure.
 //
-// The content-id algorithm is an unsigned strawman: sha256. Deano has
-// not locked it. JSON tags on the catalog types are host-catalog
-// shape only. Ensure results have no JSON tags and are not a wire
-// format.
+// The content-id text is locked (#379): sha256: plus 64 lowercase hex.
+// ParseContentID is that wire parser and does not normalize.
+// FromSHA256 builds the text from a stored bare digest. JSON tags on
+// the catalog types are host-catalog shape only. Ensure results have
+// no JSON tags and are not a wire format.
 package meshcontent
 
 import (
