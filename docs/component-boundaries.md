@@ -1,6 +1,6 @@
 # FES component boundaries
 
-FES means Fogger Entertainment System. This document distinguishes the
+FES means Fogger Expandable System. This document distinguishes the
 whole system from the narrower native build currently implemented in this
 repository. All first-party source modules share the FES Git tree; the ownership
 direction below governs module work. The current integration

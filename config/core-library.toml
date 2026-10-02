@@ -9,25 +9,25 @@ standing = "supported"
 
 [[cores]]
 core_id = "fes.zx81"
-label = "ZX81"
+label = "Sinclair ZX81"
 system = "zx81"
 standing = "supported"
 
 [[cores]]
 core_id = "fes.coleco"
 label = "ColecoVision"
-system = "colecovision"
+system = "coleco"
 standing = "supported"
 
 [[cores]]
 core_id = "fes.sms"
-label = "Master System"
+label = "Sega Master System"
 system = "sms"
 standing = "supported"
 
 [[cores]]
 core_id = "fes.sg1000"
-label = "SG-1000"
+label = "Sega SG-1000"
 system = "sg1000"
 standing = "supported"
 
@@ -51,7 +51,7 @@ standing = "experimental"
 
 [[cores]]
 core_id = "fes.spectrum"
-label = "ZX Spectrum"
+label = "ZX Spectrum 48K"
 system = "spectrum"
 standing = "experimental"
 

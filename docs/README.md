@@ -19,7 +19,7 @@ a dated record. A dated record is not the schedule.
 
 The factory image is the ordered closed package set `fes.menu`, `fes.pong`,
 `fes.zx81`, `fes.coleco`, `fes.ramtest`, selected by the [default profile](../profiles/native-integration-dev.toml)
-and built with HIP/nextpnr. `fes.menu` provides the idle
+and built with HIP/nextpnr. Menu (`fes.menu`) provides the idle
 display and is not a playable library entry. Other registered packages are not
 in that image. The selector also supports `fes.sms`, `fes.sg1000`, `fes.c64`
 and `fes.spectrum`; admission does not establish a passing seal, rootfs capacity

@@ -79,12 +79,29 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
         self.assertEqual(rows['fes.c64']['system'], 'c64')
         self.assertEqual(rows['fes.spectrum']['standing'], 'experimental')
         self.assertEqual(rows['fes.spectrum']['system'], 'spectrum')
+        self.assertEqual(rows['fes.spectrum']['label'], 'ZX Spectrum 48K')
+        self.assertEqual(rows['fes.zx81']['label'], 'Sinclair ZX81')
+        self.assertEqual(rows['fes.sms']['label'], 'Sega Master System')
+        self.assertEqual(rows['fes.sms']['system'], 'sms')
+        self.assertEqual(rows['fes.sg1000']['label'], 'Sega SG-1000')
+        self.assertEqual(rows['fes.coleco']['label'], 'ColecoVision')
+        self.assertEqual(rows['fes.coleco']['system'], 'coleco')
+        self.assertEqual(rows['fes.catch']['label'], 'Catch')
         self.assertEqual(rows['fes.catch']['standing'], 'demo')
         self.assertEqual(rows['fes.ramtest']['standing'], 'supported')
         self.assertEqual(rows['fes.ramtest']['system'], 'ramtest')
         self.assertIn('fes.sms', rows)
         self.assertIn('fes.sg1000', rows)
         self.assertTrue(all('package_id' not in row for row in rows.values()))
+
+    def test_colecovision_alias_is_emitted_as_coleco(self):
+        self.metadata.write_text(
+            'version = 1\nsource_id = "fes-first-party"\n'
+            '[[cores]]\ncore_id = "fes.coleco"\nlabel = "ColecoVision"\n'
+            'system = "colecovision"\nstanding = "supported"\n')
+        value = core_catalog.publish(ROOT, self.metadata, {}, self.root / 'alias')
+        self.assertEqual(value['entries'][0]['system'], 'coleco')
+        self.assertNotIn('colecovision', json.dumps(value))
 
     def test_idle_menu_cannot_be_published_as_a_playable_core(self):
         self.metadata.write_text(self.metadata.read_text().replace('fes.pong', 'fes.menu'))

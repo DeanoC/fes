@@ -869,6 +869,7 @@ test('library wording shows clean titles and honest launch blocks', () => {
   assert.equal(systemLabel('snes'), 'SNES');
   assert.equal(systemLabel('gbc'), 'Game Boy Color');
   assert.equal(systemLabel('a2600'), 'Atari 2600');
+  assert.equal(systemLabel('sms'), 'Sega Master System');
   assert.equal(systemLabel('coleco'), 'ColecoVision');
   assert.equal(systemLabel('lynx'), 'Atari Lynx');
   assert.equal(sourceLabel('available'), 'Ready');

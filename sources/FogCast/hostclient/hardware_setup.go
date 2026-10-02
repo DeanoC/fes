@@ -135,7 +135,7 @@ func (c *Client) InstalledZX81Setup(ctx context.Context, pkg string) (CoreSetup,
 		return CoreSetup{}, err
 	}
 	if installed.PackageID != pkg || installed.Descriptor.Core.ID != "fes.zx81" || installed.Descriptor.ROM == nil {
-		return CoreSetup{}, fmt.Errorf("choose a Zx81 package with a sealed machine ROM requirement")
+		return CoreSetup{}, fmt.Errorf("choose a Sinclair ZX81 package with a sealed machine ROM requirement")
 	}
 	r := installed.Descriptor.ROM
 	library, err := c.CoreLibrary(ctx)
@@ -156,7 +156,7 @@ func (c *Client) InstalledZX81Setup(ctx context.Context, pkg string) (CoreSetup,
 // selections. Explicit retries can finish an empty ROM binding, never replace it.
 func (c *Client) CreateInstalledZX81Entry(ctx context.Context, setup CoreSetup, title string, roms map[string]string) (CoreEntry, error) {
 	if setup.CoreID != "fes.zx81" || len(setup.ROMs) != 1 || protocol.ValidateDigest(setup.PackageID) != nil {
-		return CoreEntry{}, fmt.Errorf("invalid Zx81 setup")
+		return CoreEntry{}, fmt.Errorf("invalid Sinclair ZX81 setup")
 	}
 	rom := setup.ROMs[0]
 	mediaID := roms[rom.ID]

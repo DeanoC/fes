@@ -42,7 +42,7 @@ a package. The package is `cores/fes-pong`. ZX81 has no
 `cores/fes-zx81/README.md`. Its machine contract is the ZX81 sections of
 [the architecture](architecture.md).
 
-Do not use `fes.mastersystem`. The Master System package id is `fes.sms`.
+Do not use `fes.mastersystem`. The Sega Master System package id is `fes.sms`.
 
 Quartus recipes (`make build-fes-zx81-quartus`, `build-fes-coleco-quartus`,
 `build-fes-sg1000-quartus`, `build-fes-sms-quartus`) are bring-up oracles.

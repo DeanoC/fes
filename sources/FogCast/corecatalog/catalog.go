@@ -94,6 +94,14 @@ func Load(path string) (Catalog, error) {
 	if hex.EncodeToString(sum[:]) != c.SHA256 {
 		return Catalog{}, errors.New("catalog digest mismatch")
 	}
+	// colecovision is the slug already published catalogs use. New
+	// publications emit coleco. The digest above is over the file bytes,
+	// so the alias is applied only after that check.
+	for i := range c.Entries {
+		if c.Entries[i].System == "colecovision" {
+			c.Entries[i].System = "coleco"
+		}
+	}
 	c.root = filepath.Dir(path)
 	return c, nil
 }

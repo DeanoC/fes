@@ -23,7 +23,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   package links its selected `firmware` ROM at download. An Apple II shell
   with optional `fes.expansion.apple2-bus` selects one card per physical slot;
   a Commodore 64 shell with optional `fes.expansion.c64-bus` selects socket 1
-  (ROM) and socket 2 (I/O); a ZX Spectrum shell with optional
+  (ROM) and socket 2 (I/O); a ZX Spectrum 48K shell with optional
   `fes.expansion.spectrum-bus` selects one card per edge socket. Selection is
   `GET`/`PUT /api/v1/library/core-entries/{game_id}/expansions[/{slot}]`;
   launch links the ROM and cards on the host, the target relinks them
@@ -31,10 +31,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
   The entry's selected medium is inserted into media unit 0 after Start:
   Apple II is an exact 143,360-byte `.dsk`/`.do` image, Commodore 64 is an
-  exact 174,848-byte `.d64`, and ZX Spectrum is a 1..65,536-byte `.tap`.
+  exact 174,848-byte `.d64`, and ZX Spectrum 48K is a 1..65,536-byte `.tap`.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
   machine runs. Apple II and Commodore 64 use `fogcast change-disk` and
-  `fogcast eject-disk`. ZX Spectrum uses `fogcast change-cassette` and
+  `fogcast eject-disk`. ZX Spectrum 48K uses `fogcast change-cassette` and
   `fogcast eject-cassette`. A stored media ID follows the active unit's
   size. See
   [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
@@ -614,7 +614,7 @@ Phase 1 Coleco firmware (household BIOS slot, Ready gate, sofa import picker)
 is in [docs/launch-composition.md](docs/launch-composition.md), with the
 ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
 
-The [Zx81 workbench](../../docs/hardware-rooms.md) adds local installed-package
+The [Sinclair ZX81 workbench](../../docs/hardware-rooms.md) adds local installed-package
 setup, compatible expansion import with progress labels, and cassettes selected
 before Start. Its three starter programs retain their source and licences in
 [`internal/zx81tapes`](internal/zx81tapes/README.md). The kit's single HDMI menu

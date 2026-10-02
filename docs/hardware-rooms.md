@@ -1,9 +1,9 @@
-# Hardware rooms: the Zx81 workbench
+# Hardware rooms: the Sinclair ZX81 workbench
 
-The tenfoot Home screen includes **The Zx81 workbench** (`example.hardware`).
+The tenfoot Home screen includes **The Sinclair ZX81 workbench** (`example.hardware`).
 It shows the household's existing ZX81 core entries, the rear expansion
 connector, installed expansions admitted for the exact selected package, and
-prelaunch cassette selection. **Set up Zx81** creates a library entry from an
+prelaunch cassette selection. **Set up ZX81** creates a library entry from an
 installed sealed package and an explicitly selected household BASIC ROM. This
 uses the local library APIs even when the published-core catalogue is unavailable;
 published Systems remains an optional installation route. No hardware is fabricated when the
