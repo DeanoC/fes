@@ -149,7 +149,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-spectrum sim-fes-spectrum-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -401,7 +401,7 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/$@" \
 		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
@@ -475,7 +475,7 @@ sim-fes-coleco-megacart-machine:
 		cores/fes-coleco/expansions/sgm_control.v \
 		cores/fes-coleco/expansions/sgm_ay.v \
 		cores/fes-coleco/rtl/coleco_megacart_rom.v \
-		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv \
 		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -510,7 +510,7 @@ sim-fes-coleco-sgm-shell-ram:
 		cores/fes-coleco/rtl/coleco_expansion_socket_v2.v \
 		cores/fes-coleco/rtl/coleco_expansion_ram.v \
 		cores/fes-coleco/rtl/coleco_audio_mix.v \
-		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv \
 		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -572,7 +572,7 @@ sim-fes-coleco-firmware sim-fes-coleco-firmware-oss:
 		cores/fes-coleco/sim/firmware_model.sv \
 		cores/fes-common/rtl/fes_sn76489.sv \
 		cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
@@ -580,7 +580,7 @@ sim-fes-coleco-firmware sim-fes-coleco-firmware-oss:
 		"$(CURDIR)/cores/fes-coleco/sim/firmware_tb.cpp"
 	@build/sim/$@/Vfirmware_model
 
-sim-fes-coleco-unit: sim-fes-tms9918-timing sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io sim-fes-coleco-firmware
+sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io sim-fes-coleco-firmware
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -607,7 +607,7 @@ sim-fes-coleco-unit: sim-fes-tms9918-timing sim-fes-coleco-audio sim-fes-coleco-
 		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine" \
 		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
@@ -635,7 +635,7 @@ sim-fes-coleco-expansion:
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
 		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-expansion" \
-		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv \
 		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -672,7 +672,7 @@ sim-fes-coleco-diagnostic-machine:
 		cores/fes-coleco/sim/diagnostic_machine.sv \
 		cores/fes-coleco/rtl/coleco_expansion_socket.v \
 		cores/fes-coleco/expansions/diagnostic.v \
-		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv \
 		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -701,7 +701,7 @@ sim-fes-coleco-sgm-integrated:
 		cores/fes-coleco/expansions/sgm.v \
 		cores/fes-coleco/expansions/sgm_control.v \
 		cores/fes-coleco/expansions/sgm_ay.v \
-		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv \
 		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -730,7 +730,7 @@ sim-fes-coleco-board-build:
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
 		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
-		cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv \
 		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/coleco_video_720p.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -738,7 +738,7 @@ sim-fes-coleco-board-build:
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 
-sim-fes-coleco-unit-oss: sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss sim-fes-coleco-firmware-oss
+sim-fes-coleco-unit-oss: sim-fes-z80-timing sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss sim-fes-coleco-firmware-oss
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -770,7 +770,7 @@ sim-fes-coleco-unit-oss: sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss s
 		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine-oss" \
 		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
@@ -794,7 +794,7 @@ sim-fes-coleco-board-build-oss:
 		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_video_720p.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
@@ -914,12 +914,21 @@ SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rt
 	cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
 	cores/fes-common/rtl/tv80/tv80_reg.v
 
-.PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board
+.PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
 spectrum-diagnostic:
 	@mkdir -p $(SPECTRUM_DIAGNOSTIC)
 	$(PYTHON) cores/fes-spectrum/diagnostic/firmware.py --output-dir $(SPECTRUM_DIAGNOSTIC)
 
-sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board
+sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
+
+sim-fes-spectrum-tape: spectrum-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-spectrum-tape
+	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-spectrum-tape" \
+		cores/fes-spectrum/rtl/spectrum_tape.v \
+		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
+	@build/sim/fes-spectrum-tape/Vspectrum_tape
 
 sim-fes-spectrum-machine: spectrum-diagnostic
 	$(require_local_sim)
@@ -955,7 +964,7 @@ C64_RTL := cores/fes-c64/rtl/c64_machine.sv cores/fes-c64/rtl/c64_ram.v \
 	cores/fes-c64/expansions/probe.v \
 	cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v
 
-.PHONY: c64-diagnostic sim-fes-c64
+.PHONY: c64-diagnostic sim-fes-c64 sim-fes-c64-cia
 c64-diagnostic:
 	@mkdir -p $(C64_DIAGNOSTIC)
 	$(PYTHON) cores/fes-c64/diagnostic/font.py --verilog $(C64_DIAGNOSTIC)/font.vh
@@ -965,7 +974,15 @@ c64-diagnostic:
 	$(PYTHON) cores/fes-c64/diagnostic/disk.py --output $(C64_DIAGNOSTIC)/disk.d64 \
 		--hex-output $(C64_DIAGNOSTIC)/disk.hex
 
-sim-fes-c64: c64-diagnostic
+sim-fes-c64-cia:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-cia
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_cia $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-cia" \
+		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_tb.cpp"
+	@build/sim/fes-c64-cia/Vc64_cia
+
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
@@ -990,7 +1007,7 @@ sg1000-diagnostic:
 	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --sound --pad-to 16384 \
 		--output build/diagnostics/fes-sg1000/sound-16k.rom
 
-sim-fes-sg1000: sg1000-diagnostic
+sim-fes-sg1000: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-machine
 	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
@@ -1001,7 +1018,7 @@ sim-fes-sg1000: sg1000-diagnostic
 		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine" \
-		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/fes_sn76489.sv \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -1012,7 +1029,7 @@ sim-fes-sg1000: sg1000-diagnostic
 		build/diagnostics/fes-sg1000/graphics-i.rom \
 		build/diagnostics/fes-sg1000/controller.rom
 
-sim-fes-sg1000-oss: sg1000-diagnostic
+sim-fes-sg1000-oss: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-machine-oss
 	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
@@ -1024,7 +1041,7 @@ sim-fes-sg1000-oss: sg1000-diagnostic
 		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine-oss" \
-		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/fes_sn76489.sv \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -1035,7 +1052,7 @@ sim-fes-sg1000-oss: sg1000-diagnostic
 		build/diagnostics/fes-sg1000/graphics-i.rom \
 		build/diagnostics/fes-sg1000/controller.rom
 
-sim-fes-sg1000-rom-link: sg1000-diagnostic
+sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-rom-link
 	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
@@ -1047,7 +1064,7 @@ sim-fes-sg1000-rom-link: sg1000-diagnostic
 		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-rom-link" \
-		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-sg1000/rtl/sg1000_rom_link.v \
+		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-sg1000/rtl/sg1000_rom_link.v \
 		cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/fes_sn76489.sv \
@@ -1109,7 +1126,7 @@ sms-diagnostic:
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive --pad-to 32768 \
 		--output build/diagnostics/fes-sms/mode4-hil-32k.rom
 
-sim-fes-sms: sms-diagnostic sim-fes-audio-output
+sim-fes-sms: sim-fes-z80-timing sms-diagnostic sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
@@ -1150,7 +1167,7 @@ sim-fes-sms: sms-diagnostic sim-fes-audio-output
 		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine" \
-		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-sms/rtl/sms_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-sms/rtl/sms_vdp.sv \
 		cores/fes-sms/rtl/sms_psg.sv \
 		cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
@@ -1175,7 +1192,7 @@ sim-fes-sms-rom-link-mailbox:
 		"$(CURDIR)/cores/fes-sms/sim/no_media_tb.cpp"
 	@build/sim/fes-sms-gp-rom-link/Vfes_computer_gp
 
-sim-fes-sms-oss: sms-diagnostic sim-fes-sms-rom-link-mailbox sim-fes-audio-output
+sim-fes-sms-oss: sim-fes-z80-timing sms-diagnostic sim-fes-sms-rom-link-mailbox sim-fes-audio-output
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
@@ -1211,7 +1228,7 @@ sim-fes-sms-oss: sms-diagnostic sim-fes-sms-rom-link-mailbox sim-fes-audio-outpu
 		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine-oss" \
-		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_rom_link.v cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-sms/rtl/sms_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-sms/rtl/sms_rom_link.v cores/fes-sms/rtl/sms_vdp.sv \
 		cores/fes-sms/rtl/sms_psg.sv \
 		cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
@@ -1384,3 +1401,12 @@ sim-fes-zx81-clock:
 	@build/sim/fes-zx81-clock/Vzx81_machine_clock
 sim-fes-zx81-ay:
 	@python3 -m unittest tests.test_zonx_ay tests.test_zonx_firmware -v
+
+.PHONY: sim-fes-z80-timing
+sim-fes-z80-timing:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-z80-timing
+	$(VERILATOR) --cc --exe --build -O2 --top-module fes_z80_ce -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-z80-timing" \
+		cores/fes-common/rtl/fes_z80_ce.sv "$(CURDIR)/cores/fes-coleco/sim/cpu_ce_tb.cpp"
+	@build/sim/fes-z80-timing/Vfes_z80_ce

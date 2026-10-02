@@ -2,6 +2,7 @@
 #include "Vsg1000_machine.h"
 #include "verilated.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -249,6 +250,47 @@ int main(int argc, char **argv) {
     for (unsigned i = 0; i < 4; ++i)
         tick(dut, noise_prog, registered_media_data);
     require(int16_t(dut.psg_sample) == 0, "PSG reset did not mute PCM");
+
+    // Execute original test code through TV80: DI must mask VDP VBlank,
+    // while EI/IM1 dispatches to 0038. 0066 is a distinct NMI failure trap.
+    for (bool interrupts_enabled : {false, true}) {
+        std::vector<uint8_t> interrupt_rom(256, 0x00);
+        const std::vector<uint8_t> setup{
+            0xf3,                   // DI
+            0x31, 0x00, 0xc4,       // LD SP,C400
+            0xaf,                   // XOR A
+            0x32, 0x00, 0xc0,       // clear IM1 signature
+            0x32, 0x01, 0xc0,       // clear NMI signature
+            0x3e, 0x20, 0xd3, 0xbf, // VDP R1 IE, display disabled
+            0x3e, 0x81, 0xd3, 0xbf,
+            0xed, 0x56,             // IM 1
+            uint8_t(interrupts_enabled ? 0xfb : 0x00), // EI or NOP
+            0x76, 0x18, 0xfd        // HALT; JR HALT
+        };
+        std::copy(setup.begin(), setup.end(), interrupt_rom.begin());
+        const std::vector<uint8_t> int_handler{
+            0xdb, 0xbf,             // read status: acknowledges VBlank
+            0x3e, 0x5a, 0x32, 0x00, 0xc0,
+            0xf3, 0x76, 0x18, 0xfd  // DI; HALT; JR HALT
+        };
+        std::copy(int_handler.begin(), int_handler.end(), interrupt_rom.begin() + 0x38);
+        const std::vector<uint8_t> nmi_handler{
+            0x3e, 0xa5, 0x32, 0x01, 0xc0,
+            0x76, 0x18, 0xfd
+        };
+        std::copy(nmi_handler.begin(), nmi_handler.end(), interrupt_rom.begin() + 0x66);
+        load_blob(dut, interrupt_rom, registered_media_data);
+        dut.reset = 0;
+        // More than two full raster frames, independent of CPU execution speed.
+        for (unsigned i = 0; i < 2000000; ++i)
+            tick(dut, interrupt_rom, registered_media_data);
+        require(peek(dut, 0xc001, registered_media_data) == 0,
+                "SG-1000 VDP must not invoke NMI at 0066");
+        require(peek(dut, 0xc000, registered_media_data) ==
+                    (interrupts_enabled ? 0x5a : 0),
+                "SG-1000 VDP must respect DI and enter IM1 at 0038 after EI");
+        require(!dut.cpu_halt_n, "interrupt diagnostic must return to HALT");
+    }
 
     if (argc > 1) {
         FILE *rom = std::fopen(argv[1], "rb");

@@ -76,8 +76,8 @@ module sms_machine (
     wire nRFSH;
     wire nHALT;
 
-    reg ce_cpu_p;
-    reg ce_cpu_n;
+    wire ce_cpu_p;
+    wire ce_cpu_n;
     reg ce_vdp;
     reg [4:0] ce_counter;
     wire ce_raster;
@@ -142,18 +142,17 @@ module sms_machine (
         media_request_done = 1'b0;
         media_write_addr = 15'h0000;
 `endif
-        ce_cpu_p = 1'b0;
-        ce_cpu_n = 1'b0;
         ce_vdp = 1'b0;
         ce_counter = 5'h00;
     end
 
-    // Keep the reduced TV80 and PSG clock enables. SMS Mode 4 retains its
-    // existing line-render budget; the shared TMS9918 path uses nominal 60 Hz.
+    fes_z80_ce cpu_timing (
+        .clk(clk_sys), .positive(ce_cpu_p), .negative(ce_cpu_n)
+    );
+
+    // Mode 4 retains the serial renderer's existing scanline budget.
     always @(negedge clk_sys) begin
         ce_counter <= ce_counter + 1'b1;
-        ce_cpu_p <= !ce_counter[3] && !ce_counter[2:0];
-        ce_cpu_n <= ce_counter[3] && !ce_counter[2:0];
         ce_vdp <= !ce_counter[3:0];
     end
 
@@ -204,7 +203,7 @@ module sms_machine (
     sms_psg psg (
         .clk(clk_sys),
         .reset(machine_reset),
-        .ce(ce_vdp),
+        .ce(ce_cpu_p),
         .cpu_ce(vdp_bus_ce),
         .cpu_iorq_n(nIORQ),
         .cpu_wr_n(nWR),

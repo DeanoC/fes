@@ -81,9 +81,8 @@ module coleco_machine (
     assign bus_request = {machine_reset, nRFSH, nM1, nWR, nRD, nIORQ,
                           nMREQ, cpu_dout, cpu_addr};
 
-    reg ce_cpu_p;
-    reg ce_cpu_n;
-    reg [4:0] ce_counter;
+    wire ce_cpu_p;
+    wire ce_cpu_n;
     wire ce_raster;
 
     tms9918_raster_ce #(
@@ -107,7 +106,7 @@ module coleco_machine (
     wire       vdp_bus_ce = ce_cpu_n && (nWR || !vdp_write_seen);
 
     // PSG clock stays at the NTSC chip frequency independently of the
-    // reduced machine's CPU cadence. Fractional enable has <1 system tick jitter.
+    // CPU and renderer scheduling. Fractional enable has <1 system tick jitter.
     reg [25:0] psg_phase = 0;
     wire [26:0] psg_next = {1'b0, psg_phase} + 27'd3579545;
     wire psg_ce = psg_next >= 27'd52224000;
@@ -211,19 +210,11 @@ module coleco_machine (
         media_write_addr = 15'h0000;
 `endif
 `endif
-        ce_cpu_p = 1'b0;
-        ce_cpu_n = 1'b0;
-        ce_counter = 5'h00;
     end
 
-    // This audio-capable profile runs at 52.224 MHz. The reduced CPU remains
-    // /16 (3.264 MHz); the logical VDP raster uses its separate nominal 60 Hz
-    // enable so video frame pacing does not inherit the CPU approximation.
-    always @(negedge clk_sys) begin
-        ce_counter <= ce_counter + 1'b1;
-        ce_cpu_p <= !ce_counter[3] && !ce_counter[2:0];
-        ce_cpu_n <= ce_counter[3] && !ce_counter[2:0];
-    end
+    fes_z80_ce cpu_timing (
+        .clk(clk_sys), .positive(ce_cpu_p), .negative(ce_cpu_n)
+    );
 
     T80pa cpu (
         .RESET_n(~machine_reset),

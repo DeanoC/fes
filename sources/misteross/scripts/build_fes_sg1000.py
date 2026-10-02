@@ -56,6 +56,7 @@ VERILOG_SOURCES = (
     "cores/fes-sg1000/rtl/top.v",
 )
 SYSTEMVERILOG_SOURCES = (
+    "cores/fes-common/rtl/fes_z80_ce.sv",
     "cores/fes-sg1000/rtl/sg1000_machine.sv",
     "cores/fes-common/rtl/fes_sn76489.sv",
 )

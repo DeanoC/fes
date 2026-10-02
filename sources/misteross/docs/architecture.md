@@ -310,8 +310,10 @@ state survives lock loss to avoid interpreting a stale acknowledgement as a
 new sample. The custom tone demo remains a native audio-clock source and needs
 no CDC. V11 reaches two qualified PLL sites, so Coleco uses a shared fractional
 417.792 MHz VCO for system 52.224 MHz (C8) and audio 12.288 MHz (C34), plus
-the separate video PLL. This raises the reduced CPU cadence by 0.43% from the
-old 52 MHz profile; the CPU remains /16 (3.264 MHz), not cycle-accurate NTSC.
+the separate video PLL. The shared `fes_z80_ce.sv` supplies Coleco, SG-1000
+and SMS with alternating CPU half-cycle enables at an exact average
+3,579,545 Hz, independently of the 52.224 MHz transport and reset. Its phase
+error stays below one system clock.
 The TMS9918 logical raster now uses its independent fractional 60 Hz enable.
 HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
 The producer checks all three timing domains and each audio output pad before
@@ -760,6 +762,9 @@ RAM at `0xc000`), the 8255 joystick ports `0xdc`/`0xdd`, and PSG write decode at
 3,579,545 Hz enable. Its signed mono sample feeds both channels of the shared
 PCM-to-I2S output. Coleco's two-output PLL supplies 52.224 MHz system and
 12.288 MHz audio from one board PLL; video uses the other. There is no BIOS shim.
+The VDP asserts the Z80's maskable INT input; NMI is inactive.
+`make sim-fes-z80-timing` checks both CPU half-cycle enables over a full second;
+each machine's simulation includes it.
 
 `make sim-fes-sg1000` is the diagnostic Verilator machine check
 (`-DTV80_REFRESH=1` only). `make sim-fes-sg1000-oss` compiles the same
@@ -836,7 +841,8 @@ the mailbox consumes `cores/fes-sms/generated/stream-exchanges.json`, the VDP
 unit covers legacy Text/Multicolor colors, Mode 4 VRAM buffering, CRAM color,
 tile priority/palette, sprite collision,
 line IRQ and VBlank IRQ, the PSG unit covers ports `0x7E`/`0x7F` and the tone-0
-square wave, shared HDMI I2S covers 16-bit 48 kHz frames and Hold/clock-loss
+square wave, zero-period behavior and fixed/tone-driven Sega noise dividers,
+shared HDMI I2S covers 16-bit 48 kHz frames and Hold/clock-loss
 mute, and the machine covers the
 32 KiB map, long-then-short `0xff` tails, and CPU execution of that diagnostic
 (not reset-only peeks).
@@ -1329,6 +1335,10 @@ video result or hardware-support claim.
 `cores/fes-apple2` is `fes.apple2`, an Apple II+ class home computer on the
 `fes.computer` 1.0 mailbox. Its machine, video, Disk II, slot bus and open
 diagnostic are described in [its README](../cores/fes-apple2/README.md).
+Ctrl-Reset holds the CPU and backplane RESET for the whole key press while
+retaining II/II+ video, annunciator and language-card switches. Host execution
+reset initializes them. The machine regression installs an alternate reset
+vector in language-card RAM and checks both reset paths through the real CPU.
 Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
 `rtl/cpu6502` (Arlet Ottens, module names only changed) and the generic
 `rtl/fes_computer_mailbox.v` endpoint, which replays the mister-packages
@@ -1370,6 +1380,11 @@ built-in Kempston port, `.tap` player and four edge sockets are described in
 [its README](../cores/fes-spectrum/README.md). It reuses
 `rtl/fes_computer_mailbox.v` with `ENABLE_SPECTRUM_TAPE` and the TV80 already
 used by Coleco, SMS and SG-1000. No Sinclair ROM bytes are in the tree.
+The cassette player selects its pilot length from flag bit 7 and prefetches
+the next byte so each encoded half-pulse keeps its standard ROM width.
+`make sim-fes-spectrum-tape`, included in the aggregate, decodes all pilot,
+sync and data edges across mixed bytes and consecutive blocks, then checks
+partial tails and live eject/replacement.
 
 `make build-fes-spectrum` (`scripts/build_fes_spectrum_oss.py`,
 `toolchains/spectrum.lock`, `make toolchain-fes-spectrum`) is the format-3
@@ -1389,6 +1404,12 @@ the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
 joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+Both CIA timers expose their live counters, load stopped counters on high-byte
+writes, treat force-load as a strobe, and implement continuous/one-shot counting.
+Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
+NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
+`make sim-fes-c64-cia` adds directed register/timer coverage. External CNT edges,
+TOD, serial shifting and timer port outputs remain outside this slice.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this

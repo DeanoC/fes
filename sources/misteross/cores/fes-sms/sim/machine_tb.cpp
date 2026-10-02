@@ -9,6 +9,30 @@
 #include <string>
 #include <vector>
 
+// N=256 has a 4096-chip-clock half period. Verify both machine lanes use
+// 3.579545 MHz independently of the slower Mode 4 raster enable.
+template <typename Tick, typename Require>
+static void check_psg_rate(Vsms_machine &dut, Tick tick, Require require) {
+    int previous_tone = dut.psg_tone0;
+    unsigned last_edge = 0, measured_edges = 0;
+    const uint64_t scaled_half_period = uint64_t(52224000) * 4096;
+    const unsigned shortest = scaled_half_period / 3579545;
+    for (unsigned cycle = 1; cycle < 400000; ++cycle) {
+        tick();
+        if (dut.psg_tone0 != previous_tone) {
+            if (last_edge) {
+                require(cycle - last_edge == shortest ||
+                        cycle - last_edge == shortest + 1,
+                        "SMS PSG must use the NTSC chip rate");
+                ++measured_edges;
+            }
+            last_edge = cycle;
+            previous_tone = dut.psg_tone0;
+        }
+    }
+    require(measured_edges >= 5, "not enough SMS PSG periods measured");
+}
+
 #ifdef FES_SMS_ROM_LINK
 static void linked_require(bool condition, const char *message) {
     if (!condition) {
@@ -67,6 +91,10 @@ int main(int argc, char **argv) {
     linked_require(uint8_t(dut.peek_data) == 0x18, "upper-half data signature missing");
     linked_require(dut.psg_tone0_period == 256 && dut.psg_tone0_atten == 0,
                    "PSG tone absent");
+    check_psg_rate(dut, [&]() {
+        dut.clk_sys = 1; dut.eval();
+        dut.clk_sys = 0; dut.eval();
+    }, linked_require);
     std::cout << "FES SMS linked-ROM machine checks passed\n";
     return 0;
 }
@@ -297,6 +325,9 @@ int main(int argc, char **argv) {
                 saw_tone_edge = true;
         }
         require(saw_tone_edge, "diagnostic PSG tone0 did not toggle");
+        check_psg_rate(dut, [&]() {
+            tick(dut, diagnostic, registered_media_data);
+        }, require);
         require(int16_t(dut.psg_sample) != 0, "diagnostic PSG mix is silent");
     }
 
