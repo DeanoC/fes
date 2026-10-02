@@ -302,6 +302,9 @@ type App struct {
 
 	platforms              []hostclient.Platform
 	platformID             string
+	shelfQuery             hostclient.GameListQuery
+	shelfQuerySet          bool
+	shelfGames             []hostclient.Game
 	sort                   string
 	searchField            shared.TextField
 	searchOpen             bool
@@ -3365,10 +3368,27 @@ func (a *App) finishLibraryLoad(ctx context.Context, gen int, query hostclient.G
 	}
 	a.loading = false
 	if err != nil {
-		if len(previous) > 0 {
+		// A failed refresh may keep the last successful shelf only when that
+		// shelf was produced by this same filter. Restoring SNES rows onto
+		// an SMS shelf is the bug.
+		if a.shelfQuerySet && !shelfFilterEqual(a.shelfQuery, query) {
+			a.loadErr = ""
+			if len(a.games) == 0 {
+				a.grid.SetCount(0)
+				a.status = "Can't reach the library right now."
+			} else {
+				a.status = a.libraryShelfStatusLocked(query, a.games, notice)
+			}
+			return
+		}
+		saved := previous
+		if a.shelfQuerySet && len(a.shelfGames) > 0 {
+			saved = a.shelfGames
+		}
+		if len(saved) > 0 {
 			pinned := true
 			lastFocus := -1
-			a.applyCatalogPageLocked(previous, keepID, keepIndex, &pinned, &lastFocus)
+			a.applyCatalogPageLocked(saved, keepID, keepIndex, &pinned, &lastFocus)
 			a.loadErr = ""
 			a.status = savedListOfflineCopy
 			return
@@ -3377,6 +3397,9 @@ func (a *App) finishLibraryLoad(ctx context.Context, gen int, query hostclient.G
 		a.status = a.loadErr
 		return
 	}
+	a.shelfQuery = query
+	a.shelfQuerySet = true
+	a.shelfGames = append([]hostclient.Game(nil), games...)
 	a.loadErr = ""
 	a.status = a.libraryShelfStatusLocked(query, games, notice)
 }

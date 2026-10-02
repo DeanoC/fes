@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -206,6 +207,50 @@ func TestLibraryRefreshKeepsSavedRowsWhenTheHostDrops(t *testing.T) {
 	})
 	if snap.LoadErr != "" {
 		t.Fatalf("refresh surfaced a load error: %q", snap.LoadErr)
+	}
+}
+
+func TestLibraryRefreshDoesNotLeakRowsOntoAnotherPlatform(t *testing.T) {
+	mario := availableGame("snes-mario", "Mario", "snes")
+	var mu sync.Mutex
+	fail := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/games" {
+			mu.Lock()
+			down := fail
+			mu.Unlock()
+			if down {
+				http.Error(w, "down", http.StatusBadGateway)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{mario}})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+	app := NewApp(NewClient(srv.URL, srv.Client()), 1280, 720, 50)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "mario", func(s Snapshot) bool { return !s.Loading && len(s.Games) == 1 && s.Games[0].ID == mario.ID })
+
+	mu.Lock()
+	fail = true
+	mu.Unlock()
+	app.mu.Lock()
+	app.platformID = "sms"
+	app.reloadLocked()
+	app.mu.Unlock()
+	snap := waitFor(t, app, "sms shelf", func(s Snapshot) bool { return !s.Loading })
+	for _, game := range snap.Games {
+		if game.ID == mario.ID || game.System == "snes" || strings.Contains(game.Title, "Mario") {
+			t.Fatalf("failed SMS refresh kept a SNES row: %+v", snap.Games)
+		}
+	}
+	if len(snap.Games) != 0 {
+		t.Fatalf("SMS shelf = %+v", snap.Games)
 	}
 }
 
