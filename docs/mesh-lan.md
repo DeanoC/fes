@@ -689,11 +689,12 @@ leaves the node unavailable.
   reason.
 - One `software_backends` element has `execution` `native_emu`,
   `system` equal to the title system, `available` true, a non-empty
-  `core_id`, and `core_sha256` equal to a non-empty pin on this shell's
-  `[host_emulator] cores` for that system (`sha256` in
-  `fogcast/config.go`). One pin is the usual case. More than one pin is
-  the allowed list. Comparison is exact 64-lowercase-hex match. The M1
-  sms pin recorded for Genesis Plus GX is
+  `core_id`, and `core_sha256` equal to the single `sha256` on this
+  shell's `[host_emulator] cores` entry for that system
+  (`fogcast/config.go`). That loader rejects a duplicate platform and
+  stores one `sha256` on the entry. Comparison is exact match to that
+  one lowercase hex value. There is no second pin. The M1 sms pin
+  recorded for Genesis Plus GX is
   `051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49`.
   `core_version` is the configured label (Genesis Plus GX reports
   `" c2838c7d"`, including the leading space) and is not a gate.
@@ -701,6 +702,13 @@ leaves the node unavailable.
   is not a second gate. An empty local pin does not authorize a remote digest. The
   shell's own health array does not make a remote node eligible. The
   facts have to come from that runner's health.
+
+Linux and Mac runners whose `core_sha256` values differ are not both
+eligible under this contract. The runner whose digest equals that one
+configured pin matches. The other keeps `remote emulator system and
+version unverified`. A separate remote pin list, so more than one
+digest could match, is an open follow-up. This proposal does not add
+it. No issue is filed for it.
 
 Any failed pin, system, or `available` check keeps the node reason
 `remote emulator system and version unverified`. The option reason
@@ -729,8 +737,12 @@ configured hostname again on every request would follow a spoofed DNS
 or mDNS answer and send the bearer there. Implementing
 #298, the runner admission record, runner provisioning, or PAKE inside
 #379 would be a second enrollment design. Matching `core_version`
-would treat a display label as identity. Trusting a runner against an
-empty local pin would accept any observed `.so`. Putting
+would treat a display label as identity. An allow-list of several
+`sha256` values for one system is not this contract: `fogcast/config.go`
+rejects a duplicate platform and stores one `sha256` on the entry. A
+separate remote pin list is an open follow-up, and no issue is filed
+for it. Trusting a runner against an empty local pin would accept any
+observed `.so`. Putting
 `software_backends` on DNS-SD would publish pins on an unauthenticated
 advertisement.
 
@@ -740,8 +752,9 @@ and Stop races (#363), PAKE, minting the #298 id, adding the health
 `prepare_launcher.py`, TLS origin authentication with a key pinned at
 pairing (tracked separately), ARP spoofing of the recorded IP on
 plain HTTP until that option, changing `placementReadAddress` (#396),
-new reason strings, and any change to host-local availability. Ensure
-and placement stay off.
+new reason strings, a remote pin list of more than one core digest
+per system (open follow-up), and any change to host-local
+availability. Ensure and placement stay off.
 
 **Acceptance tests, phase 2.** A wrong bearer on the runner listener
 returns 401. The shell ignores `software_backends` and the node reason
@@ -765,10 +778,12 @@ runner admission, and runner provisioning are done, the remote node stays
 unavailable even when the pin, the system, `available`, and mesh major
 1 would all match. The end-to-end health read in prerequisite 4 is the
 test that a kept `software_backends` array requires those three. After
-provenance is accepted, a pin, system, or `available`
-failure keeps `remote emulator system and version unverified`, and
-mesh `2.0` or an omitted mesh keeps `mesh protocol major mismatch`. A
-different `core_version` with the same pin stays eligible once
+provenance is accepted, `core_sha256` must equal the single configured
+`sha256` for that system. A different digest, including a Linux build
+and a Mac build of the same core, keeps `remote emulator system and
+version unverified`, as does a system or `available` failure. Mesh
+`2.0` or an omitted mesh keeps `mesh protocol major mismatch`. A
+different `core_version` with that same one pin stays eligible once
 provenance is accepted. The host-local option's availability is
 unchanged. Ensure and placement defaults stay off.
 
