@@ -7,6 +7,7 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import build_coleco_sgm as sgm
 from scripts import build_fes_coleco_socket_v2 as shell
@@ -241,6 +242,44 @@ class VideoPartsProducerTest(unittest.TestCase):
             self.assertTrue(accepted["archive_published"])
             self.assertEqual(accepted["part_id"], "a" * 64)
             self.assertEqual(accepted["route_contract"], "passed")
+
+    def test_publication_evidence_follows_archive_and_rolls_back_failures(self):
+        for failed_step in (None, "rename", "summary"):
+            with self.subTest(failed_step=failed_step), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                part_id = "a" * 64
+                destination = output / (part_id + ".tar")
+                original_write = part._write_atomic
+                original_replace = Path.replace
+                original_report = part.write_cram_report
+
+                def write(path, data):
+                    if failed_step == "summary" and path.name == "build-summary.json":
+                        raise OSError("summary publication failed")
+                    return original_write(path, data)
+
+                def replace(path, target):
+                    if failed_step == "rename" and path.name.endswith(".tar.tmp"):
+                        raise OSError("archive publication failed")
+                    return original_replace(path, target)
+
+                def report(path, cart, changes, *, part_id=None):
+                    if part_id is not None:
+                        self.assertTrue(destination.is_file())
+                    return original_report(path, cart, changes, part_id=part_id)
+
+                with patch.object(part, "_write_atomic", side_effect=write), \
+                        patch.object(Path, "replace", replace), \
+                        patch.object(part, "write_cram_report", side_effect=report):
+                    if failed_step:
+                        with self.assertRaises(OSError):
+                            part.publish_archive(output, part_id, b"{}", b"cart", {}, {})
+                    else:
+                        self.assertEqual(part.publish_archive(output, part_id, b"{}", b"cart", {}, {}), destination)
+                self.assertEqual(destination.exists(), failed_step is None)
+                self.assertEqual((output / "build-summary.json").exists(), failed_step is None)
+                self.assertFalse((output / (part_id + ".tar.tmp")).exists())
+                self.assertEqual(json.loads((output / "cram-diff.json").read_bytes())["archive_published"], failed_step is None)
 
     def test_only_cart_clock_pins_are_required_on_pixel_clock(self):
         routed = {"modules": {"top": {"netnames": {"pixel_clk": {"bits": [9000]}}, "cells": {

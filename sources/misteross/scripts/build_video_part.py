@@ -37,12 +37,35 @@ def write_cram_report(output: Path, cart: bytes, changes: dict, *, part_id: str 
     if part_id is not None and outside:
         raise ValueError("cannot publish a video part with outside-region changes")
     path = output / "cram-diff.json"
-    path.write_text(json.dumps({"archive_published": part_id is not None,
+    _write_atomic(path, (json.dumps({"archive_published": part_id is not None,
         "cart_sha256": sgm.digest(cart), "cram_diff": changes,
         "cram_region": video_parts.CRAM, "map": video_parts.MAP,
         "part_id": part_id, "route_contract": "failed" if outside else "passed"},
-        sort_keys=True, indent=2) + "\n")
+        sort_keys=True, indent=2) + "\n").encode())
     return path
+
+
+def publish_archive(output: Path, part_id: str, encoded: bytes, cart: bytes,
+                    changes: dict, summary: dict) -> Path:
+    destination = output / (part_id + ".tar")
+    temporary = output / (part_id + ".tar.tmp")
+    summary_path = output / "build-summary.json"
+    try:
+        with tarfile.open(temporary, "w", format=tarfile.USTAR_FORMAT) as archive:
+            for name, data in (("manifest.json", encoded), ("cart.rbf", cart)):
+                info = tarfile.TarInfo(name)
+                info.size, info.mode = len(data), 0o600
+                archive.addfile(info, io.BytesIO(data))
+        temporary.replace(destination)
+        write_cram_report(output, cart, changes, part_id=part_id)
+        _write_atomic(summary_path, (json.dumps(summary, sort_keys=True, indent=2) + "\n").encode())
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        destination.unlink(missing_ok=True)
+        summary_path.unlink(missing_ok=True)
+        write_cram_report(output, cart, changes)
+        raise
+    return destination
 
 
 def prepare_scaffold(source: Path, destination: Path) -> bytes:
@@ -185,26 +208,11 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         if (output / "clocks.sdc").read_bytes() != clocks or (output / "cart.qsf").read_bytes() != qsf or \
                 (output / "scaffold.json").read_bytes() != scaffold:
             raise ValueError("video generated compiler inputs changed")
-        destination = output / (part_id + ".tar")
-        temporary = output / (part_id + ".tar.tmp")
-        try:
-            with tarfile.open(temporary, "w", format=tarfile.USTAR_FORMAT) as archive:
-                for name, data in (("manifest.json", encoded), ("cart.rbf", cart)):
-                    info = tarfile.TarInfo(name)
-                    info.size, info.mode = len(data), 0o600
-                    archive.addfile(info, io.BytesIO(data))
-            _write_atomic(output / "build-summary.json", (json.dumps({"recipe": recipe, "part_id": part_id,
+        return publish_archive(output, part_id, encoded, cart, changes,
+            {"recipe": recipe, "part_id": part_id,
                 "manifest": manifest, "cram_diff": changes, "checked_clock_pins": checked_clocks,
                 "timing": measured, "resources": resources, "synthesis_cells": synthesis_counts,
-                "route": {"complete": True, "gpu_backend": gpu_backend}}, sort_keys=True, indent=2) + "\n").encode())
-            write_cram_report(output, cart, changes, part_id=part_id)
-            temporary.replace(destination)
-        except BaseException:
-            temporary.unlink(missing_ok=True)
-            destination.unlink(missing_ok=True)
-            write_cram_report(output, cart, changes)
-            raise
-        return destination
+                "route": {"complete": True, "gpu_backend": gpu_backend}})
     finally:
         invocation.close()
 
