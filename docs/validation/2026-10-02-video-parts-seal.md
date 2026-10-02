@@ -100,5 +100,7 @@ The implemented lane is volatile, fixed-720p developer loading. Its fabric
 marker adds no operational GP bit; base package identity and BUILD_ID remain
 the observed hardware identity. Native raster capture, DDR/CRT/overlay parts,
 audio parts and user/library profile selection need subsequent work. The next
-integration step is a designated-kit diagnostic using the exact selected
-shell, parts and updated runtime/agent artifacts, then profile admission.
+integration step was a designated-kit diagnostic using the exact selected
+shell, parts and updated runtime/agent artifacts. The subsequent
+[Kit 2 record](2026-10-02-video-parts-kit2-hil.md) qualifies those named
+artifacts; profile admission remains subsequent work.

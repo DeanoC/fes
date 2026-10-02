@@ -1,0 +1,59 @@
+{
+  "scope": "Independent analysis of the five exact operator-provided Kit 2 native 720p60 YUYV/FFV1 video and 48 kHz stereo captures. No hardware access by this analyst.",
+  "verdict": "pass",
+  "checks": {
+    "all_settled_grids_valid": true,
+    "all_settled_cadence_regular": true,
+    "all_captured_even_row_hash_sets_preserved": true,
+    "both_sgm_tones_exceed_baseline_and_match_frequency": true,
+    "relaunch_matches_original_settled_variants": true
+  },
+  "decoded_frames": 900,
+  "leading_black_acquisition_frames": {
+    "direct": 2,
+    "scanlines": 2,
+    "direct-sgm": 2,
+    "scanlines-sgm": 3,
+    "direct-relaunch": 3
+  },
+  "settled_frames_checked": 888,
+  "grid_samples_per_unique_variant": 2856,
+  "all_settled_image_box_exclusive": [
+    384,
+    168,
+    896,
+    552
+  ],
+  "maximum_capture_rgb_variant_delta": 1,
+  "scanline_green_G_odd_over_even": 0.49333333333333335,
+  "scanline_red_R_odd_over_even": 0.4930795847750865,
+  "audio_ac_rms_s16": {
+    "direct": [
+      0.0,
+      0.0
+    ],
+    "scanlines": [
+      0.0,
+      0.0
+    ],
+    "direct-sgm": [
+      10736.75919306135,
+      10736.758173840608
+    ],
+    "scanlines-sgm": [
+      10737.880041407869,
+      10737.879207567152
+    ],
+    "direct-relaunch": [
+      0.0,
+      0.0
+    ]
+  },
+  "audio_tone_frequency_tolerance_hz": 0.5,
+  "audio_peak_search_resolution_hz": 0.05,
+  "limitations": "Initial 2 or 3 black frames and one 50 ms interval at the acquisition boundary are retained observations; all subsequent intervals are 16/17 ms. Four settled capture-conversion variants differ by at most 1 RGB LSB. ASUS audio filters and rescales PCM. These observations establish the listed stable capture behaviors, not direct electrical HS/VS measurement, bit-exact FPGA PCM, retail compatibility, or factory-image acceptance.",
+  "aggregate_receipt": {
+    "file": "independent-capture-analysis.json",
+    "sha256": "60e66cd6660671a3897fa5b1436610a36a765684afc3294f729fa77517b6bc34"
+  }
+}
