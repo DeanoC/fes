@@ -614,7 +614,7 @@ Phase 1 Coleco firmware (household BIOS slot, Ready gate, sofa import picker)
 is in [docs/launch-composition.md](docs/launch-composition.md), with the
 ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
 
-The [Zx81 workbench](../../docs/hardware-rooms.md) adds local installed-package
+The [Sinclair ZX81 workbench](../../docs/hardware-rooms.md) adds local installed-package
 setup, compatible expansion import with progress labels, and cassettes selected
 before Start. Its three starter programs retain their source and licences in
 [`internal/zx81tapes`](internal/zx81tapes/README.md). The kit's single HDMI menu

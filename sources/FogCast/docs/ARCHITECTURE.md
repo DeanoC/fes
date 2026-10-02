@@ -744,7 +744,7 @@ the paired listener and reports its normal load error.
 
 ## Native 10-foot launcher
 
-The embedded **ZX81 workbench** (`example.hardware`) reads host-owned hardware
+The embedded **Sinclair ZX81 workbench** (`example.hardware`) reads host-owned hardware
 setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
@@ -2440,7 +2440,7 @@ lock overlay mutation and use bounded contexts; failed refresh retains cached
 rows with setup disabled. App/renderer snapshots copy row data and pointer hit
 routing gives the systems overlay priority over room/catalog widgets.
 
-The Zx81 room reuses that overlay for local installed-package/ROM setup,
+The Sinclair ZX81 room reuses that overlay for local installed-package/ROM setup,
 expansion import and prelaunch cassette selection. Installed setup uses existing
 package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion

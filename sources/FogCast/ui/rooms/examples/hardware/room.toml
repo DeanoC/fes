@@ -1,7 +1,7 @@
 id = "hardware"
-title = "The Zx81 workbench"
+title = "The Sinclair ZX81 workbench"
 author = "FES"
-description = "Set up your Zx81, fit an expansion and choose a cassette before starting."
+description = "Set up your Sinclair ZX81, fit an expansion and choose a cassette before starting."
 version = 1
 main = "main.lua"
 
