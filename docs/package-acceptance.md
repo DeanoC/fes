@@ -6,8 +6,8 @@ library are separate: the host retains an imported `.fcore` and transfers that
 archive for library launches through the existing target agent and runtime.
 
 The package acceptance runner exercises one explicitly selected package, not
-the factory three-core image. The parent recipe registry includes `fes.sms` and
-`fes.sg1000` for this lane; those cores are not in the factory image closed set. It does not compile, reseal, update software,
+the factory image. The parent recipe registry also includes cores outside that
+closed set, including `fes.c64`. It does not compile, reseal, update software,
 rewrite `linux.img`, resize FAT or provision a card. It cannot repair a
 version-mismatched kit. Restore a coherent platform separately before physical
 testing.

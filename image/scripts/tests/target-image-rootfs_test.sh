@@ -237,6 +237,9 @@ package_fixture menu d
 package_fixture pong a
 package_fixture zx81 b
 package_fixture coleco c
+package_fixture sms f
+package_fixture sg1000 1
+package_fixture spectrum 2
 package_fixture ramtest e
 FES_PACKAGE_IDS=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo/..")
 export FES_PACKAGE_IDS
@@ -244,6 +247,9 @@ export FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION
 export FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION
 export FES_ZX81_PACKAGE_DIR FES_ZX81_PACKAGE_SELECTION
 export FES_COLECO_PACKAGE_DIR FES_COLECO_PACKAGE_SELECTION
+export FES_SMS_PACKAGE_DIR FES_SMS_PACKAGE_SELECTION
+export FES_SG1000_PACKAGE_DIR FES_SG1000_PACKAGE_SELECTION
+export FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION
 export FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION
 
 cache=$fixture/cache
@@ -288,6 +294,14 @@ test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-menu.package
 grep -Fq 'fes.zx81_package_id=' \
   "$target/usr/share/mister-runtime/build-inputs"
 grep -Fq 'fes.coleco_package_id=' \
+  "$target/usr/share/mister-runtime/build-inputs"
+grep -Fq 'fes.sms_package_id=' \
+  "$target/usr/share/mister-runtime/build-inputs"
+grep -Fq 'fes.sg1000_package_id=' \
+  "$target/usr/share/mister-runtime/build-inputs"
+grep -Fq 'fes.spectrum_package_id=' \
+  "$target/usr/share/mister-runtime/build-inputs"
+grep -Fq 'fes.ramtest_package_id=' \
   "$target/usr/share/mister-runtime/build-inputs"
 
 NATIVE_RUNTIME_MODE=package-only \

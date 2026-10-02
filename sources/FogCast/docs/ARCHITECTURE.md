@@ -1149,10 +1149,9 @@ The only image variant is `native-dev`, which starts image-owned
 `mister-runtime` and `mister-agent`. It installs the locked splash/idle artifact
 and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
-`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest`. The selector supports nine IDs in total,
-also admitting `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`. These four
-remain package-only: the sealed additions exceed the 128 MiB rootfs limit and
-C64 has no current timing-passing HIP seal. The menu package is idle firmware,
+`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`,
+`fes.ramtest`. The selector also admits `fes.c64`, which stays out because it
+has no current timing-passing HIP seal. The menu package is idle firmware,
 not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
 exact-artifact kit evidence.

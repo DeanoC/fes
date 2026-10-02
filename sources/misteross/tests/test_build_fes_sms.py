@@ -340,7 +340,8 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertIn("HeAP 1000", text)
         self.assertIn("e2d425de", readme)
         self.assertIn("package-only", readme.lower())
-        self.assertIn("not in the factory image", readme.lower())
+        self.assertIn("in the factory image", readme.lower())
+        self.assertNotIn("not in the factory image", readme.lower())
         self.assertNotIn("remain later jobs", readme.lower())
 
     def test_diagnostic_is_reproducible_and_enters_at_reset(self) -> None:
