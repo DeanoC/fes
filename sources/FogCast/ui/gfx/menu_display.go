@@ -88,6 +88,7 @@ type MenuDisplay struct {
 	freeBuffers  []*menuPixels
 	now          func() time.Time
 	probeQueued  bool
+	probeEpoch   uint64
 	lastProbe    time.Time
 	backoff      time.Duration
 	backoffUntil time.Time
@@ -233,6 +234,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 			}
 			probe = true
 			d.probeQueued = true
+			d.probeEpoch = d.bindingEpoch
 		}
 	}
 	var seq uint64
@@ -329,7 +331,7 @@ func (d *MenuDisplay) run() {
 			if d.paused || frame.epoch != d.bindingEpoch {
 				d.pending--
 				if frame.probe {
-					d.probeQueued = false
+					d.clearProbeQueuedLocked(frame.epoch)
 				} else {
 					d.forgetLocked(frame.seq)
 				}
@@ -398,7 +400,7 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 		d.hasPresented && status.Generation == d.presentedGen {
 		// Validate the binding and clear recovered state under one lock: an
 		// old probe must not clear an error after a new binding is installed.
-		d.probeQueued = false
+		d.clearProbeQueuedLocked(frame.epoch)
 		d.lastProbe = d.clock()
 		d.lastErr = nil
 		d.resetBackoffLocked()
@@ -442,7 +444,11 @@ func (d *MenuDisplay) acceptStatusLocked(frame queuedMenuFrame, status menudispl
 func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudisplay.Status, err error, presented bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.probeQueued = false
+	if frame.epoch != d.bindingEpoch {
+		d.clearProbeQueuedLocked(frame.epoch)
+		return
+	}
+	d.clearProbeQueuedLocked(frame.epoch)
 	if err == nil {
 		d.generation = status.Generation
 		d.known = true
@@ -524,6 +530,12 @@ func (d *MenuDisplay) clearPaceLocked() {
 	d.probeQueued = false
 }
 
+func (d *MenuDisplay) clearProbeQueuedLocked(epoch uint64) {
+	if d.probeQueued && d.probeEpoch == epoch {
+		d.probeQueued = false
+	}
+}
+
 // probeDueLocked is true one probe interval after the last successful present.
 // lastProbe stays zero until that present, which also sets hasPresented, so a
 // zero clock is not due. Production submits the first frame because nothing
@@ -550,7 +562,7 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 		case d.frames <- frame:
 			d.pending++
 		default:
-			d.probeQueued = false
+			d.clearProbeQueuedLocked(frame.epoch)
 			d.releaseBufferLocked(frame.buffer)
 		}
 		return
@@ -566,7 +578,7 @@ func (d *MenuDisplay) sendFrameLocked(frame queuedMenuFrame) {
 		d.pending--
 		d.releaseBufferLocked(dropped.buffer)
 		if dropped.probe {
-			d.probeQueued = false
+			d.clearProbeQueuedLocked(dropped.epoch)
 		}
 	default:
 	}
