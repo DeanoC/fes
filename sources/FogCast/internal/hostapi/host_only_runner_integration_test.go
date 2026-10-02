@@ -189,6 +189,21 @@ core = %q
 	if !ok || len(events) == 0 {
 		t.Fatalf("root host-only session events missing: %+v", eventPayload)
 	}
+	resp, explicit := request(http.MethodGet, "/api/v1/session?target=kit", "")
+	if resp.StatusCode != http.StatusServiceUnavailable || explicit["error"] == nil {
+		t.Fatalf("explicit target status=%d %+v, want offline kit error", resp.StatusCode, explicit)
+	}
+	if status, stillActive := get(); status != 200 || stillActive["id"] != id || stillActive["execution"] != fogcast.ExecutionHostOnly {
+		t.Fatalf("unscoped status after target observation: %d %+v, want root host-only session %v", status, stillActive, id)
+	}
+	resp, explicit = request(http.MethodPost, "/api/v1/session/stop", `{"target":"kit"}`)
+	stopError, _ := explicit["error"].(map[string]any)
+	if resp.StatusCode == http.StatusOK || stopError["stop_stage"] != "target_stop" {
+		t.Fatalf("explicit target Stop=%d %+v, want offline kit error", resp.StatusCode, explicit)
+	}
+	if status, stillActive := get(); status != 200 || stillActive["id"] != id || stillActive["execution"] != fogcast.ExecutionHostOnly {
+		t.Fatalf("unscoped status after target Stop: %d %+v, want root host-only session %v", status, stillActive, id)
+	}
 	firstProcess := <-processes
 	if status, _ := launch(); status != http.StatusConflict {
 		t.Fatalf("second launch status=%d, want 409", status)
@@ -231,14 +246,5 @@ core = %q
 	}
 	if status, result := stop(); status != 200 || result["state"] != string(protocol.StateIdle) {
 		t.Fatalf("stop without session: %d %+v", status, result)
-	}
-	resp, explicit := request(http.MethodGet, "/api/v1/session?target=kit", "")
-	if resp.StatusCode != http.StatusServiceUnavailable || explicit["error"] == nil {
-		t.Fatalf("explicit target status=%d %+v", resp.StatusCode, explicit)
-	}
-	explicitStopBody := `{"target":"kit"}`
-	resp, explicit = request(http.MethodPost, "/api/v1/session/stop", explicitStopBody)
-	if resp.StatusCode == http.StatusOK || explicit["error"] == nil {
-		t.Fatalf("explicit target Stop=%d %+v", resp.StatusCode, explicit)
 	}
 }

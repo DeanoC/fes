@@ -952,6 +952,36 @@ func TestServiceStopTargetPreservesOtherTargetPlay(t *testing.T) {
 	}
 }
 
+func TestServiceStopTargetDoesNotStopHostOnlyExecution(t *testing.T) {
+	kit := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
+	host := &fakeHostExecutor{}
+	service := &Service{
+		hostEmulator:    HostEmulatorConfig{Binary: "/configured/retroarch"},
+		targets:         []TargetConfig{{Name: "kit", Enabled: true}},
+		selectedTarget:  "kit",
+		targetClients:   map[string]serviceClient{"kit": kit},
+		hostExecutor:    host,
+		activeExecution: ExecutionHostOnly,
+		activeGameID:    "software-game",
+	}
+
+	if status, err := service.StopTarget(context.Background(), "kit"); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("kit-scoped Stop=%+v err=%v, want kit idle", status, err)
+	}
+	if kit.stopCalls != 1 || host.stopCalls != 0 {
+		t.Fatalf("kit stops=%d host stops=%d, want kit-only Stop", kit.stopCalls, host.stopCalls)
+	}
+	if service.activeExecution != ExecutionHostOnly || service.activeTarget != "" {
+		t.Fatalf("host-only ownership after kit Stop: execution=%q target=%q", service.activeExecution, service.activeTarget)
+	}
+	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("unscoped Stop=%+v err=%v, want host idle", status, err)
+	}
+	if host.stopCalls != 1 {
+		t.Fatalf("host stops after unscoped Stop=%d, want 1", host.stopCalls)
+	}
+}
+
 func TestServiceStopIdleTargetKeepsForegroundForDefaultStatusAndStop(t *testing.T) {
 	a := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
 	bGame, bSystem := "game-b", protocol.SystemSNES

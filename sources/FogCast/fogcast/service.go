@@ -2127,7 +2127,7 @@ func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, requeste
 	timeout := s.uploadTimeout
 	stopCtx, cancel := serviceTimeout(ctx, timeout)
 	defer cancel()
-	stopped, err := s.stopLocked(stopCtx, ctx, timeout)
+	stopped, err := s.stopLocked(stopCtx, ctx, timeout, "")
 	if err != nil {
 		return err
 	}
@@ -2288,6 +2288,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	}
 	defer releaseLifecycle()
 	previousTarget := ""
+	previousExecution := ""
 	if target != "" {
 		s.targetMu.RLock()
 		cfg := targetByName(s.targets, target)
@@ -2297,13 +2298,22 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		}
 		s.executionMu.Lock()
 		previousTarget = s.activeTarget
+		previousExecution = s.activeExecution
 		s.bindPlayTargetLocked(target)
 		s.executionMu.Unlock()
 		defer func() {
 			s.executionMu.Lock()
-			s.retainSessionTargetLocked()
-			if previousTarget != "" && previousTarget != target {
-				s.bindPlayTargetLocked(previousTarget)
+			if previousExecution == ExecutionHostOnly {
+				// Explicit target observation must not turn a root-owned host
+				// execution into a kit-bound foreground session.
+				if s.activeExecution == ExecutionHostOnly {
+					s.activeTarget = previousTarget
+				}
+			} else {
+				s.retainSessionTargetLocked()
+				if previousTarget != "" && previousTarget != target {
+					s.bindPlayTargetLocked(previousTarget)
+				}
 			}
 			s.executionMu.Unlock()
 		}()
@@ -2467,15 +2477,22 @@ func (s *Service) stopExpected(parent context.Context, expected *SessionStopBind
 		if !valid {
 			return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
 		}
-		previousTarget := s.SessionTargetName()
 		s.executionMu.Lock()
+		previousTarget := s.activeTarget
+		previousExecution := s.activeExecution
 		s.bindPlayTargetLocked(target)
 		s.executionMu.Unlock()
 		defer func() {
 			s.executionMu.Lock()
-			s.retainSessionTargetLocked()
-			if previousTarget != target {
-				s.bindPlayTargetLocked(previousTarget)
+			if previousExecution == ExecutionHostOnly {
+				if s.activeExecution == ExecutionHostOnly {
+					s.activeTarget = previousTarget
+				}
+			} else {
+				s.retainSessionTargetLocked()
+				if previousTarget != target {
+					s.bindPlayTargetLocked(previousTarget)
+				}
 			}
 			s.executionMu.Unlock()
 		}()
@@ -2486,11 +2503,11 @@ func (s *Service) stopExpected(parent context.Context, expected *SessionStopBind
 	if prepare != nil {
 		prepare(ctx)
 	}
-	return s.stopLocked(ctx, parent, timeout)
+	return s.stopLocked(ctx, parent, timeout, target)
 }
 
 // Caller holds lifecycle admission.
-func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration) (result protocol.Status, resultErr error) {
+func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration, scopedTarget string) (result protocol.Status, resultErr error) {
 	stage := "admission"
 	defer func() { resultErr = WithStopStage(resultErr, stage) }()
 	s.executionMu.Lock()
@@ -2516,7 +2533,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 		}
 	}
 
-	hostOnly := activeExecution == ExecutionHostOnly
+	hostOnly := activeExecution == ExecutionHostOnly && scopedTarget == ""
 	if hostOnly {
 		stage = "host_stop"
 		if err := s.stopHostOnlyIfActive(ctx); err != nil {
