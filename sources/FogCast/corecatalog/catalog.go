@@ -19,14 +19,15 @@ import (
 )
 
 type Entry struct {
-	CoreID        string `json:"core_id"`
-	Label         string `json:"label"`
-	System        string `json:"system"`
-	Standing      string `json:"standing"`
-	PackageID     string `json:"package_id,omitempty"`
-	ArchivePath   string `json:"archive_path,omitempty"`
-	ArchiveSHA256 string `json:"archive_sha256,omitempty"`
-	ArchiveSize   int64  `json:"archive_size,omitempty"`
+	CoreID        string                              `json:"core_id"`
+	Label         string                              `json:"label"`
+	System        string                              `json:"system"`
+	Standing      string                              `json:"standing"`
+	PackageID     string                              `json:"package_id,omitempty"`
+	ArchivePath   string                              `json:"archive_path,omitempty"`
+	ArchiveSHA256 string                              `json:"archive_sha256,omitempty"`
+	ArchiveSize   int64                               `json:"archive_size,omitempty"`
+	VideoParts    []corepackage.FactoryVideoReference `json:"video_parts,omitempty"`
 }
 type Catalog struct {
 	Version  int     `json:"version"`
@@ -70,13 +71,16 @@ func Load(path string) (Catalog, error) {
 		}
 		seen[e.CoreID] = true
 		if e.PackageID == "" {
-			if e.ArchivePath != "" || e.ArchiveSHA256 != "" || e.ArchiveSize != 0 {
+			if e.ArchivePath != "" || e.ArchiveSHA256 != "" || e.ArchiveSize != 0 || len(e.VideoParts) != 0 {
 				return Catalog{}, errors.New("incomplete artifact identity")
 			}
 			continue
 		}
 		if !digest.MatchString(e.PackageID) || !digest.MatchString(e.ArchiveSHA256) || e.ArchiveSize < 1 || e.ArchiveSize > corepackage.MaxArchiveSize || !validPath(e.ArchivePath) {
 			return Catalog{}, errors.New("invalid artifact identity")
+		}
+		if err := validateVideoReferences(e.VideoParts); err != nil {
+			return Catalog{}, err
 		}
 	}
 	var body map[string]any

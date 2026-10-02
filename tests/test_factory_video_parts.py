@@ -1,0 +1,364 @@
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from scripts import factory_video_parts as video
+
+
+class VideoIndexTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.tree = self.root / "tree"
+        self.addCleanup(lambda: video._remove(self.tree))
+        self.package_id = "a" * 64
+        self.files = {}
+        parts = []
+        for profile, identity in (("direct", "b" * 64), ("scanlines", "c" * 64)):
+            relative = f"{self.package_id}/{identity}.tar"
+            archive = (profile + " opaque archive").encode()
+            self.files[relative] = archive
+            parts.append(dict(profile=profile, part_id=identity, archive_path=relative,
+                              archive_sha256=hashlib.sha256(archive).hexdigest(), archive_size=len(archive)))
+        self.index = dict(version=1, packages=[dict(package_id=self.package_id, parts=parts)])
+
+    def publish(self, index=None):
+        return video._publish(self.tree, self.files | {"index.json": video.canonical(index or self.index)})
+
+    def rewrite(self, name, data):
+        path = self.tree / name
+        path.chmod(0o644)
+        path.write_bytes(data)
+        path.chmod(0o444)
+
+    def test_closed_inventory_is_canonical_sealed_and_idempotent(self):
+        self.publish()
+        self.assertEqual(video.read_index(self.tree), self.index)
+        before = (self.tree / "index.json").stat().st_ino
+        self.publish()
+        self.assertEqual((self.tree / "index.json").stat().st_ino, before)
+        self.assertEqual((self.tree / "index.json").stat().st_mode & 0o777, 0o444)
+        self.assertEqual((self.tree / self.package_id).stat().st_mode & 0o777, 0o555)
+
+    def test_canonical_json_and_exact_schema(self):
+        self.publish()
+        for data in (json.dumps(self.index, indent=2).encode(), video.canonical(self.index)[:-1],
+                     video.canonical(self.index | {"extra": 1}),
+                     video.canonical(self.index | {"version": True}),
+                     video.canonical(dict(version=1, packages=[]))):
+            with self.subTest(data=data[:60]):
+                self.rewrite("index.json", data)
+                with self.assertRaises(ValueError):
+                    video.read_index(self.tree)
+
+    def test_profiles_order_duplicates_and_exact_pair(self):
+        self.publish()
+        original = self.index["packages"][0]["parts"]
+        for parts in (list(reversed(original)), original[:1], [original[0], original[0]],
+                      [original[0], original[1] | {"profile": "crt"}],
+                      [original[0], original[1] | {"part_id": original[0]["part_id"]}]):
+            with self.subTest(parts=parts):
+                changed = copy.deepcopy(self.index)
+                changed["packages"][0]["parts"] = parts
+                self.rewrite("index.json", video.canonical(changed))
+                with self.assertRaises(ValueError):
+                    video.read_index(self.tree)
+
+    def test_path_traversal_digest_size_and_boolean_size_rejected(self):
+        self.publish()
+        for change in ({"archive_path": "../outside.tar"}, {"archive_path": "b" * 64 + "/bad.tar"},
+                       {"archive_sha256": "0" * 64}, {"archive_size": 1},
+                       {"archive_size": True}, {"archive_size": video.MAX_ARCHIVE_BYTES + 1}):
+            with self.subTest(change=change):
+                changed = copy.deepcopy(self.index)
+                changed["packages"][0]["parts"][0].update(change)
+                self.rewrite("index.json", video.canonical(changed))
+                with self.assertRaises(ValueError):
+                    video.read_index(self.tree)
+
+    def test_hash_tampering_and_unsealed_or_linked_members(self):
+        self.publish()
+        relative = self.index["packages"][0]["parts"][0]["archive_path"]
+        self.rewrite(relative, b"tampered")
+        with self.assertRaisesRegex(ValueError, "digest or size"):
+            video.read_index(self.tree)
+        self.rewrite(relative, self.files[relative])
+        (self.tree / relative).chmod(0o400)
+        with self.assertRaisesRegex(ValueError, "required mode"):
+            video.read_index(self.tree)
+        (self.tree / relative).chmod(0o444)
+        (self.tree / self.package_id).chmod(0o755)
+        (self.tree / relative).unlink()
+        (self.tree / relative).symlink_to(self.root / "elsewhere")
+        with self.assertRaisesRegex(ValueError, "linked or special"):
+            video.read_index(self.tree, sealed=False)
+
+    def test_unlisted_tree_members_rejected_and_publication_does_not_replace(self):
+        self.publish()
+        self.tree.chmod(0o755)
+        (self.tree / "unexpected").mkdir()
+        (self.tree / "unexpected").chmod(0o555)
+        self.tree.chmod(0o555)
+        with self.assertRaisesRegex(ValueError, "unexpected members"):
+            video.read_index(self.tree)
+        with self.assertRaisesRegex(ValueError, "immutable video artifacts differ"):
+            self.publish()
+
+    def test_failed_publication_leaves_no_partial_destination(self):
+        original = Path.rename
+        def fail(path, destination):
+            if path.name.startswith(".publish-video-"):
+                raise OSError("injected rename failure")
+            return original(path, destination)
+        with patch.object(Path, "rename", fail), self.assertRaisesRegex(OSError, "injected"):
+            self.publish()
+        self.assertFalse(self.tree.exists())
+        self.assertEqual(list(self.root.iterdir()), [])
+
+
+_FIXTURE = r'''
+import hashlib, io, json, subprocess, sys, tarfile
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from scripts import build_fes_coleco_socket_v2 as shell_producer, build_video_part as producer, video_parts
+from scripts.export_core_package import build_identity, source_input_closure, POLICY
+from scripts.functional_execution import source_roots_for_inputs
+from scripts.core_package import read_package, package_identity
+from scripts.cyclonev_rbf import SX120F, LoadedRbf, header_nbytes, cram_set, rbf_save, rbf_load, CramRect, classify_cram_diff
+root, output=Path(sys.argv[1]), Path(sys.argv[2])
+def enc(value): return json.dumps(value,sort_keys=True,separators=(',',':')).encode()
+def sha(value): return hashlib.sha256(value).hexdigest()
+revision=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
+current={'inputs':source_input_closure(root,source_roots_for_inputs(producer.INPUTS),policy=POLICY),
+         'source_roots':source_roots_for_inputs(producer.INPUTS),'source_closure_policy':POLICY,
+         'tools':{'yosys':'synthetic validated fixture'},'execution':{'version':1,'gpu_device':0},'revision':revision}
+record=shell_producer.create_build_record(root,'https://github.com/DeanoC/fes.git',revision,current['tools'],current['execution'],video_socket=True)
+base=LoadedRbf(die=SX120F,header=bytes(header_nbytes(SX120F)),cram=bytearray((SX120F.cram_sx*SX120F.cram_sy+7)//8),compressed=True)
+base_bytes=rbf_save(base,compressed=True)
+evidence={'build_id':build_identity(record),'rbf':{'sha256':sha(base_bytes),'size':len(base_bytes)}}
+manifest=shell_producer.manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools'],video_socket=True)
+package_id=package_identity(manifest,base_bytes)
+package=output/package_id; package.mkdir()
+for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes)]: (package/name).write_bytes(value)
+shell=output/'shell'; shell.mkdir()
+for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes),('routed.json',b'{}'),('socket.qsf',b'fixture constraints'),('build-inputs.json',record)]: (shell/name).write_bytes(value)
+cases={}
+for case in ('direct','scanlines','outside','header'):
+    profile='scanlines' if case=='scanlines' else 'direct'
+    directory=output/case; directory.mkdir()
+    placed=LoadedRbf(die=SX120F,header=base.header,cram=bytearray(base.cram),compressed=True)
+    cram_set(placed.cram,SX120F,1800,1801 if case!='outside' else 1799,1)
+    if case=='header': placed.header=bytes([1])+placed.header[1:]
+    cart=rbf_save(placed,compressed=True)
+    recipe={k:current[k] for k in ('inputs','source_roots','source_closure_policy','tools','execution')}
+    recipe.update(shell={name:sha((shell/name).read_bytes()) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')},variant=profile,slot_clock=video_parts.CLOCK,map=video_parts.MAP,cram_region=list(video_parts.CRAM),required_clocks_mhz=producer.sgm.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(producer.sgm.cart_clock_constraints(root)))
+    part_manifest={'cart_sha256':sha(cart),'cart_size':len(cart),'device':'5CSEBA6U23I7','format':1,'map':video_parts.MAP,'recipe_sha256':sha(enc(recipe)),'revision':revision,'shell_build_id':build_identity(record),'shell_package_id':package_id,'shell_sha256':sha(base_bytes),'slot':video_parts.INTERFACE,'slot_major':1,'slot_minor':0}
+    encoded=enc(part_manifest); part_id=sha(b'fes-expansion-v1\0'+encoded)
+    archive=directory/'part.tar'
+    with tarfile.open(archive,'w',format=tarfile.USTAR_FORMAT) as tar:
+        for name,value in [('manifest.json',encoded),('cart.rbf',cart)]:
+            info=tarfile.TarInfo(name);info.size=len(value);tar.addfile(info,io.BytesIO(value))
+    cells={} if profile=='direct' else {'state':{'type':'MISTRAL_FF'}}
+    synth={'modules':{'cart':{'cells':cells}}};counts=producer._cell_counts(synth)
+    routed={'modules':{'top':{'netnames':{video_parts.CLOCK:{'bits':[42]}},'cells':{}}}}
+    if profile=='scanlines': routed['modules']['top']['cells']['fes_cart$state']={'type':'MISTRAL_FF','connections':{'CLK':[42]}}
+    timing={'fmax':{name:{'constraint':freq,'achieved':freq+10} for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()},'utilization':{'MISTRAL_FF':{'used':len(cells),'available':167640}}}
+    changes=classify_cram_diff(rbf_load(base_bytes),rbf_load(cart),CramRect(*video_parts.CRAM),include_outside_coordinates=True)
+    summary={'recipe':recipe,'part_id':part_id,'manifest':part_manifest,'cram_diff':changes,'checked_clock_pins':len(cells),'timing':{name:[name,freq,freq+10] for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()},'resources':timing['utilization'],'synthesis_cells':counts,'route':{'complete':True,'gpu_backend':'hip'}}
+    report={'archive_published':True,'cart_sha256':sha(cart),'cram_diff':changes,'cram_region':list(video_parts.CRAM),'map':video_parts.MAP,'part_id':part_id,'route_contract':'passed'}
+    for name,value in [('cart.json',synth),('cart-routed.json',routed),('timing.json',timing),('build-summary.json',summary),('cram-diff.json',report)]: (directory/name).write_bytes(enc(value))
+    (directory/'route.log').write_text('Info: GPU router backend hip: fixture device ready\nInfo: Program finished normally.\n')
+    cases[case]={'package':str(package),'shell':str(shell),'current':current,'profile':profile,'archive':str(archive),'directory':str(directory)}
+(output/'cases.json').write_bytes(enc(cases))
+'''
+
+
+class RealProducerEvidenceTests(unittest.TestCase):
+    """Exercise actual package, clock/resource and full-device CRAM readers."""
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.temp.name)
+        cls.source = Path(__file__).resolve().parents[1] / "sources/misteross"
+        subprocess.run([sys.executable, "-I", "-B", "-c", _FIXTURE, str(cls.source), str(cls.root)], check=True)
+        cls.cases = json.loads((cls.root / "cases.json").read_bytes())
+        cls.recipe = video.recipes.recipe_for("fes.coleco")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def inspect(self, case, **changes):
+        args = copy.deepcopy(self.cases[case])
+        args.update(changes)
+        return video._inspect(self.source, "part", args, self.recipe, {})
+
+    def test_direct_and_scanlines_real_frame_evidence(self):
+        for case in ("direct", "scanlines"):
+            with self.subTest(case=case):
+                value = self.inspect(case)
+                self.assertEqual(value["profile"], case)
+                self.assertTrue(video.HEX64.fullmatch(value["part_id"]))
+
+    def test_actual_outside_bit_and_header_rejected(self):
+        with self.assertRaisesRegex(ValueError, "outside its CRAM"):
+            self.inspect("outside")
+        with self.assertRaisesRegex(ValueError, "configuration header"):
+            self.inspect("header")
+
+    def test_profile_and_current_source_or_tool_mismatch_rejected(self):
+        with self.assertRaisesRegex(ValueError, "current build recipe"):
+            self.inspect("direct", profile="scanlines")
+        for field, update in (("tools", {"yosys": "changed"}), ("inputs", {"changed.v": "f" * 64})):
+            current = copy.deepcopy(self.cases["direct"]["current"])
+            current[field] = update
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "current build recipe"):
+                self.inspect("direct", current=current)
+
+    def test_evidence_snapshot_cannot_change_before_validation(self):
+        with self.assertRaisesRegex(ValueError, "evidence changed after snapshot"):
+            self.inspect("direct", evidence_sha256={"build-summary.json": "0" * 64})
+
+    def test_timing_clock_and_publication_evidence_tampering(self):
+        case = self.cases["scanlines"]
+        directory = Path(case["directory"])
+        for name, mutate, expected in (
+                ("timing.json", lambda data: data["fmax"]["pixel_clk"].update(achieved=10), "timing"),
+                ("cart-routed.json", lambda data: data["modules"]["top"]["cells"]["fes_cart$state"]["connections"].update(CLK=[99]), "pixel clock"),
+                ("cram-diff.json", lambda data: data.update(archive_published=False), "publication evidence")):
+            path = directory / name
+            before = path.read_bytes()
+            try:
+                changed = json.loads(before)
+                mutate(changed)
+                path.write_bytes(video.canonical(changed))
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, expected):
+                    self.inspect("scanlines")
+            finally:
+                path.write_bytes(before)
+
+
+class ResolverTransactionTests(unittest.TestCase):
+    """Check cache/publication orchestration; real producer readers run above."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(lambda: self.unseal())
+        self.source = self.root / "source"
+        self.source.mkdir()
+        self.package_id = "a" * 64
+        self.package = self.root / self.package_id
+        self.package.mkdir()
+        self.resolved = {"directory": self.package, "inputs": {
+            "selection": {"package_id": self.package_id},
+            "source_selection": {"functional_inputs_sha256": "d" * 64}}}
+        self.cache = self.root / "cache/core-video-parts"
+        self.destination = self.root / "result"
+        self.current = {"revision": "e" * 40, "tools": {"yosys": "fixture"}}
+        self.builder = patch.object(video, "_build_part", side_effect=self.build_part).start()
+        self.addCleanup(patch.stopall)
+        self.inspector = patch.object(video, "_inspect", side_effect=self.inspect).start()
+
+    def unseal(self):
+        for path in self.root.rglob("*"):
+            if not path.is_symlink():
+                path.chmod(0o755 if path.is_dir() else 0o644)
+
+    def inspect(self, source, mode, args, recipe, env):
+        if mode == "canonical":
+            return copy.deepcopy(self.current)
+        if mode == "shell":
+            return {"package_id": self.package_id, "build_record_sha256": "1" * 64}
+        archive = Path(args["archive"]).read_bytes()
+        return {"profile": args["profile"], "part_id": ("b" if args["profile"] == "direct" else "c") * 64,
+                "archive_sha256": hashlib.sha256(archive).hexdigest(), "archive_size": len(archive),
+                "recipe_sha256": "2" * 64}
+
+    def shell(self):
+        shell = self.source / "build/fes-coleco-video"
+        shell.mkdir(parents=True)
+        for name in video.SHELL_MEMBERS:
+            (shell / name).write_bytes(b"fixture evidence")
+
+    def build_part(self, source, shell, package, profile, recipe, env):
+        directory = self.source / "build/video-parts" / profile
+        directory.mkdir(parents=True)
+        for name in video.PART_MEMBERS:
+            (directory / name).write_bytes(b"fixture evidence")
+        archive = directory / "part.tar"
+        archive.write_bytes(profile.encode())
+        return archive
+
+    def resolve(self, destination=None):
+        return video.resolve_video_parts(self.source, self.resolved, destination or self.destination,
+                                         cache_root=self.cache, env={})
+
+    def test_missing_shell_is_explicit_and_does_not_build_or_publish(self):
+        with self.assertRaises(video.MissingVideoShell):
+            self.resolve()
+        self.builder.assert_not_called()
+        self.assertFalse(self.destination.exists())
+
+    def test_sealed_companion_and_parts_are_reused_without_producer_invocation(self):
+        self.shell()
+        result = self.resolve()
+        self.assertEqual(self.builder.call_count, 2)
+        self.assertEqual(video.read_index(result["directory"]), result["inputs"]["index"])
+        result2 = self.resolve(self.root / "second")
+        self.assertEqual(self.builder.call_count, 2)
+        self.assertEqual(result["inputs"], result2["inputs"])
+        self.assertEqual(result["index_path"].read_bytes(), result2["index_path"].read_bytes())
+
+    def test_corrupt_cached_modes_fail_before_rebuilding(self):
+        self.shell()
+        self.resolve()
+        archive = next(self.cache.glob("*/direct/archive.tar"))
+        archive.chmod(0o644)
+        with self.assertRaisesRegex(ValueError, "required mode"):
+            self.resolve(self.root / "second")
+        self.assertEqual(self.builder.call_count, 2)
+        self.assertFalse((self.root / "second").exists())
+
+    def test_changed_final_inputs_leave_output_unpublished(self):
+        self.shell()
+        original = self.inspect
+        calls = 0
+        def changed(source, mode, args, recipe, env):
+            nonlocal calls
+            result = original(source, mode, args, recipe, env)
+            if mode == "canonical":
+                calls += 1
+                if calls > 1:
+                    result["tools"] = {"yosys": "changed"}
+            return result
+        self.inspector.side_effect = changed
+        with self.assertRaisesRegex(ValueError, "inputs changed"):
+            self.resolve()
+        self.assertFalse(self.destination.exists())
+
+    def test_second_profile_failure_does_not_publish_partial_index(self):
+        self.shell()
+        original = self.build_part
+        def fail(source, shell, package, profile, recipe, env):
+            if profile == "scanlines":
+                raise ValueError("injected scanline failure")
+            return original(source, shell, package, profile, recipe, env)
+        self.builder.side_effect = fail
+        with self.assertRaisesRegex(ValueError, "injected scanline"):
+            self.resolve()
+        self.assertFalse(self.destination.exists())
+        self.assertEqual(len(list(self.cache.glob("*/direct/archive.tar"))), 1)
+        self.assertEqual(len(list(self.cache.glob("*/scanlines"))), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

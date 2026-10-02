@@ -1,6 +1,7 @@
 package fogcast
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"github.com/DeanoC/FogCast/catalog"
@@ -99,14 +100,44 @@ func (s *Service) InstallAvailableCore(ctx context.Context, sourceID, coreID, pa
 	if staged.PackageID != packageID || staged.Descriptor.Core.ID != coreID {
 		return InstalledCorePackage{}, canonicalError(protocol.CodeInvalidArchive, nil)
 	}
-	bytesReader, _, err := c.OpenPackage(coreID)
+	archive, err := corepackage.CanonicalArchive(staged.Directory)
+	if err != nil {
+		return InstalledCorePackage{}, canonicalError(protocol.CodeInvalidArchive, nil)
+	}
+	parts, err := c.ReadVideoParts(ctx, e, archive)
+	if err != nil {
+		return InstalledCorePackage{}, canonicalError(protocol.CodeInvalidArchive, safeContextError(err))
+	}
+	if len(parts) != 0 {
+		store, ok := s.catalog.(coreVideoCatalog)
+		if !ok {
+			return InstalledCorePackage{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
+		existing, err := store.CoreVideoParts(ctx)
+		if err != nil {
+			return InstalledCorePackage{}, videoPartError(err)
+		}
+		for _, part := range parts {
+			for _, row := range existing {
+				if (row.PackageID == packageID && row.Profile == part.Reference.Profile) || row.PartID == part.Reference.PartID {
+					if row.PackageID != packageID || row.Profile != part.Reference.Profile || row.PartID != part.Reference.PartID {
+						return InstalledCorePackage{}, videoPartError(catalog.ErrCoreVideoProfileConflict)
+					}
+					if _, err := store.ReadCoreVideoPart(ctx, row.PartID); err != nil {
+						return InstalledCorePackage{}, videoPartError(err)
+					}
+				}
+			}
+		}
+	}
+	p, _, err := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
 	if err != nil {
 		return InstalledCorePackage{}, err
 	}
-	defer bytesReader.Close()
-	p, _, err := s.ImportCorePackage(ctx, e.ArchiveSize, bytesReader)
-	if err != nil {
-		return InstalledCorePackage{}, err
+	for _, part := range parts {
+		if _, err := s.ImportCoreVideoPart(ctx, int64(len(part.Archive)), bytes.NewReader(part.Archive), part.Reference.Profile); err != nil {
+			return InstalledCorePackage{}, err
+		}
 	}
 	return InstalledCorePackage{Inspection: p, Entries: []catalog.CoreEntry{}, Compatibility: "unknown"}, nil
 }

@@ -77,8 +77,9 @@ def publish(root, metadata, prepared, output):
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
 from scripts.core_package import read_package
+from scripts.video_parts import INTERFACE
 x=read_package(Path(sys.argv[2]))
-print(json.dumps(dict(core_id=x.fields['core']['id'],package_id=x.package_id,manifest_sha256=hashlib.sha256(x.manifest_bytes).hexdigest(),payload_sha256=hashlib.sha256(x.payload_bytes).hexdigest())))'''
+print(json.dumps(dict(core_id=x.fields['core']['id'],package_id=x.package_id,manifest_sha256=hashlib.sha256(x.manifest_bytes).hexdigest(),payload_sha256=hashlib.sha256(x.payload_bytes).hexdigest(),video_socket=any(i['id']==INTERFACE for i in x.fields['interfaces']))))'''
                 identity = json.loads(subprocess.check_output([sys.executable, '-I', '-c', program,
                     str(root / 'sources/misteross'), str(target)], text=True))
                 record = json.loads(receipt.read_text())
@@ -86,8 +87,20 @@ print(json.dumps(dict(core_id=x.fields['core']['id'],package_id=x.package_id,man
                         or identity['manifest_sha256'] != record['selection']['manifest_sha256']
                         or identity['payload_sha256'] != record['selection']['payload_sha256']):
                     raise ValueError('canonical package differs from prepared identity')
+                if identity['video_socket'] and 'video_parts' not in provenance:
+                    raise ValueError('factory video shell publication requires its selected parts inventory')
                 entry.update(package_id=identity['package_id'], archive_path=relative,
                              archive_sha256=observed['sha256'], archive_size=observed['size'])
+                if 'video_parts' in provenance:
+                    parts = []
+                    for part in provenance['video_parts']:
+                        relative = 'video-parts/' + part['archive_path']
+                        target = staging / relative
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        snapshot(receipt.parent / 'core-video-parts' / part['archive_path'], target,
+                                 limit=32 << 20, expected=part['archive_sha256'])
+                        parts.append(dict(part, archive_path=relative))
+                    entry['video_parts'] = parts
             entries.append(entry)
         result = dict(version=1, source_id=data['source_id'], entries=entries)
         result['catalog_sha256'] = hashlib.sha256(canonical(result)).hexdigest()

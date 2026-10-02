@@ -92,8 +92,8 @@ BIOS, or an appliance image.
 
 The separate Coleco [video-parts development lane](../sources/misteross/docs/cores.md#video-parts-development-lane)
 uses one frozen shell with direct or scanline pixel-clock parts and an optional
-Coleco bus 2.0 expansion. It is unregistered and does not change the factory
-image. The [host seal and software diagnostic](validation/2026-10-02-video-parts-seal.md)
+Coleco bus 2.0 expansion. The factory recipe now selects that shell variant and
+builds a matching Direct/Scanlines pair from current sources. The [host seal and software diagnostic](validation/2026-10-02-video-parts-seal.md)
 records timing, disjoint CRAM containment and Go/Python byte agreement for
 both video choices with and without SGM. The selected artifacts passed a
 [Kit 2 diagnostic](validation/2026-10-02-video-parts-kit2-hil.md): native 720p
@@ -106,9 +106,11 @@ profiles fall back to direct, while an invalid installed selected part rejects
 admission. The [normal-library Kit 2 diagnostic](validation/2026-10-02-video-library-kit2-hil.md)
 passed profile fallback, direct/scanline with and without SGM, retained active
 generation, host restart persistence and Stop/relaunch. This initially supports
-the named format-2 Coleco video shell only;
-the factory package has built-in direct output. Audio parts, DDR processing,
-other raster standards and factory video-part builds remain subsequent work.
+format-2 Coleco video shells only. Factory image assembly retains a separate
+sealed video-part inventory, and normal catalog Install admits its companions
+into the host library. The historical diagnostics qualify only their named
+artifacts; a newly built image needs its own acceptance. Audio parts, DDR
+processing and other raster standards remain subsequent work.
 
 ## Not implemented, or not this package
 

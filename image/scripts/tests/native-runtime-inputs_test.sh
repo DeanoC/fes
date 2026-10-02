@@ -86,6 +86,7 @@ read_value() {
     '$1 ~ "^[[:space:]]*" wanted "[[:space:]]*=" { print $2; exit }' "$selection"
 }
 case "$command" in
+  verify-video-coverage) : ;;
   select-package)
     package_id=$(read_value package_id)
     destination=$cache/core-packages/$package_id
@@ -337,6 +338,14 @@ for source in "$standalone" "$mono/sources/libmister-runtime"; do
   git -C "$source" restore README
 done
 mkdir -p "$mono/other-runtime"
+video_parts=$fixture/video-parts
+mkdir "$video_parts"
+FES_VIDEO_PARTS_DIR="$video_parts" FOGCAST_DIR="$selected_fogcast" LIBMISTER_RUNTIME_DIR= \
+  NATIVE_RUNTIME_INPUT_LOCK="$fixture/selected.lock" NATIVE_RUNTIME_IDLE_FILE="$cache/idle.rbf" \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fake_bin/container" \
+  sh "$repo/scripts/target-image-container.sh" run /bin/true
+grep -Fxq "$video_parts:/fes-core-video-parts:ro" "$CONTAINER_ARGS" || fail 'video parts source tree was not mounted read-only'
+grep -Fxq 'FES_VIDEO_PARTS_DIR=/fes-core-video-parts' "$CONTAINER_ARGS" || fail 'video parts container path missing'
 if sh "$repo/scripts/verify-native-runtime-inputs.sh" \
   "$fixture/selected.lock" "$mono/other-runtime" "$cache/idle.rbf" "$cache/splash.rbf" \
   > /dev/null 2>&1; then

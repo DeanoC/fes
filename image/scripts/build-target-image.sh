@@ -312,6 +312,13 @@ if [ "$variant" = native-dev ]; then
       exit 1
     }
   done
+  if [ -n "${FES_VIDEO_PARTS_DIR:-}" ]; then
+    cmp "$output_root/work-1-$variant/fes-core-video-parts.json" \
+      "$output_root/work-2-$variant/fes-core-video-parts.json" || {
+      echo 'build-target-image: factory video index differs between reproducible outputs' >&2
+      exit 1
+    }
+  fi
   for work in "$output_root/work-1-$variant" "$output_root/work-2-$variant"; do
     for stale in "$work"/*.rbf "$work"/*-rbf.toml "$work"/*.selection.toml; do
       [ ! -e "$stale" ] && [ ! -L "$stale" ] || {

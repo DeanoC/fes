@@ -135,6 +135,32 @@ if "$fixture/fakeroot-ambiguous-key" >"$fixture/ambiguous-key.log" 2>&1; then
   exit 1
 fi
 
+# Factory archives require the same directory-only cleanup in disposable
+# Buildroot copies; their exact archive/index file modes stay sealed.
+video_target=$fixture/video-target
+make_target "$video_target"
+video=$video_target/usr/share/mister-runtime/core-video-parts
+mkdir -p "$video/$package_id"
+printf 'index' >"$video/index.json"
+printf 'archive' >"$video/$package_id/direct.tar"
+chmod 0444 "$video/index.json" "$video/$package_id/direct.tar"
+chmod 0555 "$video" "$video/$package_id"
+printf 'factory_video_0_package_id=%s\nfactory_video_1_package_id=%s\n' "$package_id" "$package_id" \
+  >>"$video_target/usr/share/mister-runtime/build-inputs"
+"$repo/buildroot/board/fogcast-target/rootfs-package-cleanup.sh" "$video_target"
+test "$(stat -c %a "$video")" = 755
+test "$(stat -c %a "$video/$package_id")" = 755
+test "$(stat -c %a "$video/index.json")" = 444
+test "$(stat -c %a "$video/$package_id/direct.tar")" = 444
+chmod 0555 "$video" "$video/$package_id"
+chmod u+w "$video"
+ln -s "$fixture" "$video/unlisted"
+chmod 0555 "$video"
+if "$repo/buildroot/board/fogcast-target/rootfs-package-cleanup.sh" "$video_target" >"$fixture/video-symlink.log" 2>&1; then
+  echo 'video cleanup accepted an unlisted symlink' >&2; exit 1
+fi
+test "$(stat -c %a "$video/$package_id/direct.tar")" = 444
+
 # Absent packages are a no-op, while malformed/symlinked destinations make a
 # successful image command fail and never affect the symlink target.
 absent=$fixture/absent

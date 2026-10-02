@@ -524,10 +524,12 @@ multi-socket cards.
 The first video-parts layout is `fes.coleco-video.parts/1`. It reserves a
 Coleco bus 2.0 socket at placement columns 24–28, rows 1–19, and a video
 socket at columns 24–28, rows 23–38. Their half-open CRAM rectangles are
-`(1769,32,2806,1800)` and `(1769,1800,2806,3442)`. The separate developer
+`(1769,32,2806,1800)` and `(1769,1800,2806,3442)`. The video-socket
 shell declares optional `fes.fabric.video.raster-rgb888` 1.0; it retains the
 fixed-720p60 external interface and the base package's GP capabilities and
-BUILD_ID. It does not replace the factory recipe.
+BUILD_ID during composition. FES selects `video_socket=True` and the matching
+`--video-socket` CLI option on the existing Coleco producer for its factory
+package. The standalone producer default remains the CPU-only socket.
 
 The [shared fabric contract](../../mister-packages/docs/video-parts.md)
 defines RGB888, DE/HS/VS, pixel enable, start-of-frame, end-of-line, HOLD
@@ -555,8 +557,16 @@ layout, selected part IDs and resulting payload digest. Legacy single-socket
 composition rejects video parts. The target independently recomposes the
 developer transfer and retains separate part status alongside base identity.
 This is full-chip download-time composition; changing a selection requires
-another load. Native raster capture, DDR scanout, overlays, variable modes,
-audio parts and library/profile selection remain subsequent work.
+another load. FogCast owns library/profile selection and its installed part
+inventory. FES builds the direct and scanline profiles against the selected
+package and publishes a separate sealed `core-video-parts` tree. Its canonical
+index binds the exact shell package, profile, part identity and archive
+digest/size. Compiler evidence and the frozen routed netlist remain in host
+caches; they are not installed on the target. Reuse validates the current
+functional inputs and original provenance, then independently checks the
+configuration header, actual CRAM fence, timing and clock/resource ownership.
+Native raster capture, DDR scanout, overlays, variable modes and audio parts
+remain subsequent work.
 
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded

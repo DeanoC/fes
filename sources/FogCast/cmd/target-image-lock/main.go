@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
@@ -40,12 +41,57 @@ func run(args []string, stdout, stderr io.Writer, runner commandRunner) int {
 		return runCoreSelection(args[0], args[1:], stdout, stderr)
 	case "select-package", "verify-package":
 		return runPackageSelection(args[0], args[1:], stdout, stderr)
+	case "select-video-parts", "verify-video-parts", "verify-video-coverage":
+		return runFactoryVideoSelection(args[0], args[1:], stdout, stderr)
 	case "select-megadrive":
 		return runSelectMegaDrive(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "target-image-lock: unknown command %q\n", args[0])
 		return 2
 	}
+}
+
+func runFactoryVideoSelection(command string, args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet(command, flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	parts := flags.String("parts", "", "sealed factory video parts tree")
+	packages := flags.String("packages", "", "selected sealed core package root")
+	cache := flags.String("cache", "", "native input cache")
+	selection := flags.String("selection", "", "external factory video index")
+	printInputs := flags.Bool("print-inputs", false, "print canonical factory video build inputs")
+	if flags.Parse(args) != nil || flags.NArg() != 0 || *packages == "" {
+		return 2
+	}
+	var err error
+	if command == "select-video-parts" {
+		if *parts == "" || *cache == "" || *selection != "" || *printInputs {
+			return 2
+		}
+		err = targetimage.PrepareFactoryVideoParts(context.Background(), *parts, *packages, *cache)
+	} else {
+		if *cache != "" || (command == "verify-video-parts" && *parts == "") || (command == "verify-video-coverage" && (*selection != "" || *printInputs)) {
+			return 2
+		}
+		set, inspectErr := targetimage.InspectFactoryVideoParts(context.Background(), *parts, *packages)
+		err = inspectErr
+		if err == nil && command == "verify-video-parts" && set == nil {
+			err = fmt.Errorf("factory video tree is unavailable")
+		}
+		if err == nil && *selection != "" {
+			err = targetimage.VerifyFactoryVideoSelection(set, *selection)
+		}
+		if err == nil && *printInputs {
+			fmt.Fprint(stdout, targetimage.FactoryVideoBuildInputs(set))
+		}
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if !*printInputs {
+		fmt.Fprintln(stdout, command+" verified")
+	}
+	return 0
 }
 
 func runPackageSelection(command string, args []string, stdout, stderr io.Writer) int {

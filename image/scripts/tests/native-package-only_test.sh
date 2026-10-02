@@ -42,6 +42,7 @@ read_value() {
     '$1 ~ "^[[:space:]]*" wanted "[[:space:]]*=" { print $2; exit }' "$selection"
 }
 case "$command" in
+  verify-video-coverage) : ;;
   select-package)
     package_id=$(read_value package_id)
     core_id=$(read_value core_id)

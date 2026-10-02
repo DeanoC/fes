@@ -65,10 +65,14 @@ class Format2Recipe:
     quartus_role: str
     cache_root: Path = TOOLCHAIN_CACHE_ROOT
     identity_version: int = 2
+    producer_arguments: tuple[str, ...] = ()
+    producer_options: tuple[tuple[str, object], ...] = ()
+    video_profiles: tuple[str, ...] = ()
 
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
-_RECIPE_FIELDS = frozenset(Format2Recipe.__dataclass_fields__) - {"cache_root"}
+_OPTIONAL_RECIPE_FIELDS = frozenset({"producer_arguments", "producer_options", "video_profiles"})
+_RECIPE_FIELDS = frozenset(Format2Recipe.__dataclass_fields__) - {"cache_root"} - _OPTIONAL_RECIPE_FIELDS
 _IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
 
 
@@ -92,14 +96,36 @@ def load_recipes(path=REGISTRY_PATH):
     result, selections, environment_names = {}, set(), set()
     for entry in entries:
         if (not isinstance(entry, dict) or not _RECIPE_FIELDS <= set(entry)
-                or set(entry) - _RECIPE_FIELDS):
+                or set(entry) - _RECIPE_FIELDS - _OPTIONAL_RECIPE_FIELDS):
             raise ValueError("recipe fields must exactly match the version-1 schema")
         if type(entry.get("identity_version")) is not int or entry["identity_version"] != 2:
             raise ValueError("identity_version must be explicitly 2")
         if any(not isinstance(value, str) or not value.strip()
                or any(ord(char) < 32 or ord(char) == 127 for char in value)
-               for key, value in entry.items() if key != "identity_version"):
+               for key, value in entry.items() if key != "identity_version" and key not in _OPTIONAL_RECIPE_FIELDS):
             raise ValueError("recipe fields must be nonempty strings without control characters")
+        entry = dict(entry)
+        arguments = entry.get("producer_arguments", [])
+        options = entry.get("producer_options", {})
+        profiles = entry.get("video_profiles", [])
+        if (not isinstance(arguments, list) or any(not isinstance(value, str) or not value
+                or any(ord(c) < 32 or ord(c) == 127 for c in value) for value in arguments)):
+            raise ValueError("invalid producer arguments")
+        owned_arguments = {"--root", "--package-output", "--cache-root", "--identity-version"}
+        if any(argument.startswith('--') and any(owned.startswith(argument.split('=', 1)[0])
+               for owned in owned_arguments) for argument in arguments):
+            raise ValueError('producer arguments cannot override assembly-owned inputs')
+        reserved = {"root", "repository", "revision", "tools", "execution", "identity_version", "cache_root"}
+        if (not isinstance(options, dict) or any(not re.fullmatch(_IDENTIFIER, key)
+                or keyword.iskeyword(key) or key in reserved
+                or type(value) not in (str, bool, int)
+                or (isinstance(value, str) and any(ord(c) < 32 or ord(c) == 127 for c in value))
+                for key, value in options.items())):
+            raise ValueError("invalid producer options")
+        if profiles not in ([], ["direct", "scanlines"]):
+            raise ValueError("video profiles must select direct and scanlines in order")
+        entry.update(producer_arguments=tuple(arguments), producer_options=tuple(sorted(options.items())),
+                     video_profiles=tuple(profiles))
         core_id = entry["core_id"]
         if not re.fullmatch(r"fes\.[a-z0-9]+(?:[._-][a-z0-9]+)*", core_id):
             raise ValueError("invalid recipe core_id")

@@ -1158,6 +1158,22 @@ establish playability; [core status](../../../docs/core-status.md) records the
 exact-artifact kit evidence.
 The image selector validates and copies the closed `manifest.toml` and
 `core.rbf` set, including `rom-map.json` for format 3, beneath exact package IDs. It
+separately retains factory video assets beneath
+`/usr/share/mister-runtime/core-video-parts`. Its canonical `index.json` binds
+each marked shell to one direct and one scanlines archive by profile, exact part
+ID, relative path, size and digest. The selected `FES_VIDEO_PARTS_DIR` tree has
+0555 directories and 0444 files. The selector rejects unlisted members,
+symlinks, mutable objects and missing coverage of a selected video-marked shell,
+then independently composes every indexed part against the exact shell before
+copying its original producer archive bytes. Canonical core package members
+and identities stay unchanged. Older unmarked package-only selections need no
+video tree. The external `fes-core-video-parts.json` is byte-identical to the
+installed index; both reproducible image passes retain and compare that record.
+The installed selection copy and canonical build-input record bind the index
+digest, each selected shell/profile/part/archive identity and its install path.
+Image verification reconstructs the same projection from the closed installed
+tree and the external selected index.
+The selector
 retains the external producer/package selections beside the image,
 has no Main startup or legacy Menu-configuration helper, has no
 `/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
@@ -2455,7 +2471,9 @@ save it through the atomic `library-settings.json` overlay. Changing it affects
 the next library launch; the running machine retains its selected parts and
 composition identity. **Manage FPGA library** imports a video-part archive for
 an explicitly chosen profile and shows each entry's resolved output and
-available choices.
+available choices. Installing a published core also installs its declared
+video companions through the same immutable inventory; those parts need no
+separate manual import.
 
 `catalog/core_video_parts.go` stores video archives in the existing immutable
 chunk store. Schema 17 adds a separate inventory with one part per exact
@@ -2582,7 +2600,18 @@ The optional `[core_catalog] path`, with a stable per-library `library_source_id
 `corecatalog` reads a bounded closed schema and verifies the canonical index
 digest, contained relative archive paths, file size and SHA-256. FogCast stages
 canonical package bytes and checks package/core identities before importing to
-its existing core-package store. Available systems and manifest-derived setup
+its existing core-package store. An entry may include `video_parts` references
+with profile, part ID, contained archive path, archive size and SHA-256; the
+entry's exact package ID binds every companion to its shell. The catalog digest
+covers these references. `InstallAvailableCore` snapshots the canonical shell
+and all declared companions, and admits each through the shared
+`corepackage.AdmitFactoryVideoPart` real linker before any package or video
+mapping is published. It then imports the shell and profile mappings through
+the existing stores. Identical installs are idempotent; a different existing
+profile mapping conflicts and remains intact. Package-only catalog entries
+keep their existing behavior. This does not add video parts to mesh inventory
+or change the kit-local cartridge launch path.
+Available systems and manifest-derived setup
 requirements are exposed under `/api/v1/core-catalog`; existing manual APIs remain
 available when publication is disabled. Guided title setup writes the existing
 catalog and ROM selections locally; target compatibility remains a launch gate.
