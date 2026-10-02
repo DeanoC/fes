@@ -90,6 +90,13 @@ with and without SGM, including Stop/relaunch and retained selections after
 host restart. That record does not qualify a retail mapper, a proprietary
 BIOS, or an appliance image.
 
+The separate Coleco [video-parts development lane](../sources/misteross/docs/cores.md#video-parts-development-lane)
+uses one frozen shell with direct or scanline pixel-clock parts and an optional
+Coleco bus 2.0 expansion. It is unregistered and does not change the factory
+image. Software simulation, sealed-build evidence and hardware acceptance
+remain distinct. Audio parts, DDR processing and profile/library selection
+are subsequent work.
+
 ## Not implemented, or not this package
 
 - ZX81 mid-session tape replace and eject use the same `fes.media.blob`

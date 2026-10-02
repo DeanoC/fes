@@ -645,7 +645,22 @@ func validateCompositionShape(value json.RawMessage) error {
 	if err := json.Unmarshal(value, &probe); err != nil {
 		return err
 	}
-	if _, slots := probe["expansions"]; slots {
+	if _, parts := probe["parts"]; parts {
+		tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "layout", "parts", "shell_sha256", "payload_sha256", "payload_size"}, nil)
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(tuple, map[string]rawKind{"composition_id": rawString, "package_id": rawString, "layout": rawString, "parts": rawArray, "shell_sha256": rawString, "payload_sha256": rawString, "payload_size": rawUnsigned}); err != nil {
+			return err
+		}
+		return eachRaw(tuple["parts"], func(item json.RawMessage) error {
+			fields, err := exactRawObject(item, []string{"role", "part_id"}, nil)
+			if err != nil {
+				return err
+			}
+			return requireRawKinds(fields, map[string]rawKind{"role": rawString, "part_id": rawString})
+		})
+	} else if _, slots := probe["expansions"]; slots {
 		tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "expansions", "shell_sha256", "payload_sha256", "payload_size"}, nil)
 		if err != nil {
 			return err
@@ -1167,6 +1182,14 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
+	if c := active.PartsComposition; c != nil {
+		if active.Composition != nil || active.SlotComposition != nil || active.PersistenceMode != "volatile" || !validPartsComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 {
+			return false
+		}
+		if _, err := corepackage.PartsShell(corepackage.Inspection{PackageID: active.PackageID, Descriptor: active.Descriptor}, nil); err != nil {
+			return false
+		}
+	}
 	if c := active.SlotComposition; c != nil && (active.Composition != nil || !validSlotComposition(*c, active)) {
 		return false
 	}

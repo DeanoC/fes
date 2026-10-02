@@ -117,12 +117,14 @@ type Build struct {
 }
 
 type Staged struct {
-	ROMLink            *ROMLinkIdentity       `json:"rom_link,omitempty"`
-	ROMLinks           *ROMLinksIdentity      `json:"rom_links,omitempty"`
-	ProgrammedPath     string                 `json:"programmed_path,omitempty"`
-	Composition        *expansion.Composition `json:"composition,omitempty"`
-	ExpansionDirectory string                 `json:"expansion_directory,omitempty"`
-	PayloadPath        string                 `json:"payload_path,omitempty"`
+	PartsComposition   *expansion.PartsComposition `json:"parts_composition,omitempty"`
+	PartDirectories    []PartDirectory             `json:"parts,omitempty"`
+	ROMLink            *ROMLinkIdentity            `json:"rom_link,omitempty"`
+	ROMLinks           *ROMLinksIdentity           `json:"rom_links,omitempty"`
+	ProgrammedPath     string                      `json:"programmed_path,omitempty"`
+	Composition        *expansion.Composition      `json:"composition,omitempty"`
+	ExpansionDirectory string                      `json:"expansion_directory,omitempty"`
+	PayloadPath        string                      `json:"payload_path,omitempty"`
 	companions         []Staged
 	Directory          string     `json:"directory"`
 	PackageID          string     `json:"package_id"`
@@ -311,6 +313,9 @@ func adoptOpenedRoot(root string, rootHandle *os.Root, rootInfo os.FileInfo) ([]
 			if err := adoptComposition(rootHandle, &adopted[len(adopted)-1]); err != nil {
 				return nil, err
 			}
+		}
+		if err := adoptParts(rootHandle, &adopted[len(adopted)-1]); err != nil {
+			return nil, err
 		}
 		if err := adoptROMInput(rootHandle, &adopted[len(adopted)-1]); err != nil {
 			return nil, err

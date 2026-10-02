@@ -1934,16 +1934,22 @@ void TestHpsDdrReleaseFailureRecoversBeforeExecution()
 
 void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 {
-	for (const bool mutate : {false, true}) {
+	for (const bool parts : {false, true}) for (const bool mutate : {false, true}) {
 		std::vector<std::string> driver_events;
 		RecordingDriver driver(driver_events);
 		Fixture fixture(&driver);
 		TempDirectory package, expansion, composition;
 		std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+		if(parts) {
+			ReplaceAll(&manifest,"fes.simple-game","fes.application");ReplaceAll(&manifest,"fes.pong","fes.coleco");
+			manifest += "\n[[interfaces]]\nid = \"fes.expansion.coleco-bus\"\nmajor = 2\nminor = 0\nrequired = false\n";
+			manifest += "\n[[interfaces]]\nid = \"fes.fabric.video.raster-rgb888\"\nmajor = 1\nminor = 0\nrequired = false\n";
+		} else {
 		ReplaceAll(&manifest, "fes.simple-game", "fes.simple-computer");
 		ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard");
 		manifest += "\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 1\nminor = 0\nrequired = false\n";
 		manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		}
 		package.File("manifest.toml", manifest);
 		package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
 		mister::native::OpenedCorePackage base;
@@ -1958,6 +1964,7 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 			"\"map\":\"fes.zx81-bus.socket/1\",\"recipe_sha256\":\"" + std::string(64,'c') + "\",\"revision\":\"" + std::string(40,'d') +
 			"\",\"shell_build_id\":\"" + base.descriptor.build.id + "\",\"shell_package_id\":\"" + base.package_id +
 			"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 + "\",\"slot\":\"fes.expansion.zx81-bus\",\"slot_major\":1,\"slot_minor\":0}";
+		if(parts) {ReplaceAll(&manifest,"fes.zx81-bus.socket/1","fes.coleco-video.socket/1");ReplaceAll(&manifest,"fes.expansion.zx81-bus","fes.fabric.video.raster-rgb888");}
 		expansion.File("manifest.json", manifest);
 		mister::CoreCompositionRequest request;
 		request.expansion_path = expansion.path;
@@ -1968,10 +1975,16 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 		info.expansion_id = hash(std::string("fes-expansion-v1\0",17) + manifest);
 		info.payload_sha256 = hash(linked); info.payload_size = linked.size();
 		info.id = hash(std::string("fes-composition-v1\0",19) + info.package_id + std::string(1,'\0') + info.expansion_id + std::string(1,'\0') + info.payload_sha256);
+		if(parts) {
+			request.parts={{"video",request.expansion_path}};request.expansion_path.clear();info.layout="fes.coleco-video.parts/1";
+			info.parts={{"video",info.expansion_id}};info.expansion_id.clear();
+			info.id=hash("fes-parts-composition-v1"+std::string(1,'\0')+info.package_id+std::string(1,'\0')+info.layout+std::string(1,'\0')+"video:"+info.parts[0].part_id+std::string(1,'\0')+info.payload_sha256);
+		}
 		std::unique_ptr<mister::AdmittedCorePackage> admitted;
 		const auto admission = fixture.hardware.AdmitCoreComposition(package.path, base.package_id, request, &admitted);
 		if (!admission.ok()) fprintf(stderr, "composition admission: %s\n", admission.message.c_str());
 		assert(admission.ok());
+		if(parts)assert(admitted->composition().parts[0].part_id==info.parts[0].part_id);
 		fixture.events.clear();
 		if (mutate) {
 			const int fd = open(request.payload_path.c_str(), O_WRONLY);

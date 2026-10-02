@@ -10,6 +10,13 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- Developer Coleco video parts use a separate, explicitly volatile inspect/load
+  path. `go run ./cmd/fes-parts` prepares a private composition from a marked
+  format-2 shell, one video part and an optional CPU expansion; the target
+  independently links it before the runtime admits the exact parts. Household
+  video settings and library selection remain future work. See
+  [developer parts](docs/ARCHITECTURE.md#developer-video-parts).
+
 - The tenfoot **Settings → Systems** overlay browses the configured published
   core catalog, installs packages and creates normal library games from their
   manifest-declared ROM requirements. Gamepad, keyboard and pointer navigation

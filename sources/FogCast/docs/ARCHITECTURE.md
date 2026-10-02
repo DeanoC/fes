@@ -2324,6 +2324,55 @@ host-side backoff refusal, not every possible Stop failure, and is not itself a
 hardware acceptance claim.
 
 
+## Developer video parts
+
+The separate developer parts path admits only a format-2 `fes.coleco`
+`fes.application` 1.0 package with optional `fes.expansion.coleco-bus` 2.0 and
+optional `fes.fabric.video.raster-rgb888` 1.0 markers. The fabric marker has no
+GP capability bit. The shell keeps its fixed 720p video and declared audio/input
+interfaces, GP BUILD_ID and package identity. The closed
+`fes.coleco-video.parts/1` layout requires one video part; one Coleco bus-2
+expansion may also occupy its separate socket. Each asset binds the exact
+sealed shell package, payload hash and BUILD_ID.
+
+From `sources/FogCast`, prepare the operator's selected parts offline:
+
+```sh
+go run ./cmd/fes-parts -package /absolute/path/shell.fcore \
+  -video /absolute/path/direct.fexp -out /absolute/path/parts.tar
+# Add -expansion /absolute/path/card.fexp to select a CPU expansion too.
+```
+
+The command creates a private file and prints its composition identity. It
+never contacts or claims a kit. The file contains canonical `parts.json`,
+`package.tar`, ascending `part-expansion.tar` when present, `part-video.tar`,
+and `linked.rbf`. The target recomputes all linked bytes and the typed
+composition identity; uploaded linked bytes are comparison evidence.
+
+POST the bounded file as `application/octet-stream` to
+`/v1/development/core/parts/inspect` for read-only native admission, then
+`/v1/development/core/parts` for activation with the existing kit lease. Both
+require the ordinary agent bearer credential. Neither accepts query paths or
+`X-FogCast-Package-ID` library context. Inspection reports the exact base
+descriptor and composition with `persistence_mode: volatile`, and leaves the
+active machine unchanged. Activation uses the existing coordinator and physical
+replacement lifecycle through local protocol-2 `load_parts_core`; inspection
+uses `inspect_parts_core`. Active status exposes `core_package.parts_composition`
+with layout, sorted role/part identities and programmed payload digest/size.
+
+Private part companions remain owned with their base publication. Restart
+adoption independently recomposes their bytes before recognizing an active
+parts tuple. Generation reconciliation compares the complete parts tuple, so a
+lost response cannot confirm a different video selection. Production CPU
+expansion composition and library selection do not accept this transport.
+Developer loads are volatile; this milestone does not change library settings
+or persistence and does not add a household presentation preference.
+
+The current contract is a fixed pixel-domain proof. It adds no runtime output
+mode, framebuffer, CRT, overlay, audio processing or hot-reconfiguration
+capability. Host tests establish software coverage; hardware acceptance remains
+separate for exact shell, part, runtime and image artifacts.
+
 ## Described-core persistent data
 
 `fogcast/core_data.go` resolves a selected immutable library package under the

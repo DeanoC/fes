@@ -341,7 +341,39 @@ void RejectSlotCompositionVariants() {
 	assert(!OpenCoreComposition({zx81.root},zx81.base,slots,&out).ok());
 	assert(zx81.Open(&out).ok()); // single-socket ZX81 admission is unchanged
 }
+void DeveloperVideoPartsAdmission() {
+ Fixture f(true,2);
+ f.base.descriptor.format=2;f.base.descriptor.core.id="fes.coleco";
+ f.base.descriptor.interfaces.push_back({"fes.fabric.video.raster-rgb888",1,0,false});
+ const std::string video_slot="fes.fabric.video.raster-rgb888";
+ const std::string old_map="fes.coleco-bus.socket/2",old_slot="fes.expansion.coleco-bus";
+ f.manifest.replace(f.manifest.find(old_map),old_map.size(),"fes.coleco-video.socket/1");
+ f.manifest.replace(f.manifest.find(old_slot),old_slot.size(),video_slot);
+ f.manifest.replace(f.manifest.find("\"slot_major\":2"),14,"\"slot_major\":1");
+ auto seal=[&]() {
+  Write(f.root+"/expansion/manifest.json",f.manifest);
+  f.request.expansion_path.clear();f.request.composition.expansion_id.clear();
+  f.request.parts={{"video",f.root+"/expansion"}};
+  auto& c=f.request.composition;c.layout="fes.coleco-video.parts/1";
+  c.parts={{"video",Hash(std::string("fes-expansion-v1\0",17)+f.manifest)}};
+  const std::string canonical="fes-parts-composition-v1"+std::string(1,'\0')+c.package_id+std::string(1,'\0')+
+   c.layout+std::string(1,'\0')+"video:"+c.parts[0].part_id+std::string(1,'\0')+c.payload_sha256;
+  c.id=Hash(canonical);
+ };
+ seal();OpenedCoreComposition out;assert(f.Open(&out).ok());
+ assert(out.info.parts.size()==1&&RecheckCoreComposition(out).ok());
+ f.base.descriptor.interfaces.pop_back();assert(!f.Open(&out).ok());
+ f.base.descriptor.interfaces.push_back({video_slot,1,0,true});assert(!f.Open(&out).ok());
+ f.base.descriptor.interfaces.back().required=false;
+ f.base.descriptor.format=3;assert(!f.Open(&out).ok());f.base.descriptor.format=2;
+ f.request.composition.parts[0].role="unregistered";assert(!f.Open(&out).ok());seal();
+ f.request.composition.id[0]='0';assert(!f.Open(&out).ok());seal();
+ f.manifest.insert(1,"\"unknown\":0,");seal();assert(!f.Open(&out).ok());
+ f.manifest.erase(1,12);seal();assert(f.Open(&out).ok());
+ Write(f.root+"/expansion/cart.rbf",std::string(40408,'x'));assert(!RecheckCoreComposition(out).ok());
 }
-int main() {SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
+
+}
+int main() {DeveloperVideoPartsAdmission();SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
 	SlotIdentityVector();SlotCompositionAdmission();RejectSlotCompositionVariants();
 	puts("core_composition_test: single-socket and multi-slot admission passed");}
