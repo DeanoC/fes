@@ -271,7 +271,10 @@ enrollment-time pin. The first time `libraryNodeFacts` needs a
 configured hostname, it resolves the name once and keeps the IP in
 memory. Later authenticated library reads dial only that IP, on the
 library's no-redirect client, and leave the configured host on the
-URL and the `Host` header. When the library cache refreshes, the name
+URL and the `Host` header. That client dials directly: `Proxy` is nil,
+so `HTTP_PROXY` is not a path for the bearer, for a hostname or an IP
+literal. The lookup and the read share one placement node-document
+deadline. When the library cache refreshes, the name
 is resolved again. If the fresh answer does not include the pinned
 IP, the read sends no `Authorization` and the node is unavailable
 with `node moved; re-pair or confirm the new address`. A process
