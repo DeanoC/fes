@@ -386,6 +386,19 @@ After that edit, reads send the bearer to the new origin. **Phase-2
 provenance must not ship before #396 lands.** This proposal does not
 change `placementReadAddress`.
 
+A configured hostname is the same rule. `scripts/prepare_launcher.py`
+(`validate_address`) accepts a hostname and writes an `http://` origin.
+At enrollment or configuration the implementation resolves that name
+once and records the IP beside it. A bearer request connects only to
+the recorded IP and sends the configured `Host` header. If the name
+later resolves to a different address, the shell sends no
+`Authorization` and surfaces `node moved; re-pair or confirm the new
+address` until the owner confirms. An IP-literal origin is not
+re-resolved. #396 applies this on the kit path. The threat model is
+discovery spoofing and DNS or mDNS spoofing. An on-path LAN attacker
+who ARP-spoofs the recorded IP, on plain HTTP, is out of scope until
+the pinned-TLS option.
+
 The per-id `advertises` answers (`GET /v1/mesh/content/source`,
 `GET /v1/mesh/content/slots`, and the host
 `GET /api/v1/mesh/content/source`) stay the Ensure check for one id.
@@ -432,7 +445,11 @@ no `Authorization` to B, so there is no credential to relay. A document
 from B does not add a source. The owner-facing sentence is `node moved;
 re-pair or confirm the new address`. After the owner confirms B by a
 config edit or re-pair, the recorded origin is B and the same document
-can add the source. These provenance tests do not ship before #396.
+can add the source. Hostname rebinding: enrollment resolved the
+configured name to the owner's IP and recorded that IP. A later lookup
+returns the attacker's address. The content read sends no
+`Authorization` to that address. An IP-literal origin has no lookup
+to move. These provenance tests do not ship before #396.
 Ensure and placement defaults stay off.
 
 #### 3. Content-id lock
@@ -450,12 +467,19 @@ identity stays a package id plus ABI id and major, and it is not a
 content-id. Title id stays the catalog game id and must not parse as a
 content-id.
 
-Normalization is refusal. Producers emit the canonical text. Parsers
-(`meshcontent.ParseContentID`, `FromSHA256`) do not trim, do not
-downcase, and do not add a missing prefix. Rejected forms include
-uppercase hex, an uppercase algorithm name, a bare 64-hex digest, a
-second colon, the wrong length, `sha1:` or `blake3:`, a filesystem
-path, and one hash of the whole launch.
+Normalization is refusal on the wire parser. Producers emit the
+canonical text. `meshcontent.ParseContentID` does not trim, does not
+downcase, and does not add a missing prefix. It rejects uppercase hex,
+an uppercase algorithm name, a bare 64-hex digest, a second colon, the
+wrong length, `sha1:` or `blake3:`, a filesystem path, and one hash of
+the whole launch.
+
+`FromSHA256` is not that parser. It accepts a bare 64-lowercase-hex
+digest the host already stores and returns a `ContentID` whose
+`String()` is `sha256:` plus that digest
+(`internal/meshcontent/content.go`). It still rejects uppercase hex,
+the wrong length, a prefixed string, and a filesystem path. It does
+not trim and it does not downcase.
 
 A later algorithm is a new name before the colon, accepted only when
 `internal/meshcontent` is changed to name it. Existing `sha256:` ids
@@ -467,8 +491,10 @@ as an optional field. An unknown name still fails closed
 Until Deano signs this paragraph, the unsigned-strawman sentences in
 this file and in `mesh-phase2.md` stay as written.
 
-**Alternatives.** Coercing uppercase or a bare digest to `sha256:` would
-let two encodings alias one id. A mesh-protocol minor as the algorithm
+**Alternatives.** Coercing uppercase or a bare digest inside
+`ParseContentID` would let two spellings alias one wire id.
+`FromSHA256` already builds the prefixed id from a stored digest; that
+is the producer path, not a second wire spelling. A mesh-protocol minor as the algorithm
 version would tie slot identity to session negotiation. One hash of the
 whole launch is the model this draft already refuses. This proposal
 keeps the strawman text and rejects every other form.
@@ -476,8 +502,11 @@ keeps the strawman text and rejects every other form.
 **Out of scope.** Rewriting stored catalog digests, hashing files again
 inside the projection, and adding blake3, sha512, or any other name.
 
-**Acceptance tests, phase 2.** Parse accepts `sha256:` plus the Data
-Storm ROM digest and rejects the forms listed above. The title-link key
+**Acceptance tests, phase 2.** `ParseContentID` accepts `sha256:` plus
+the Data Storm ROM digest and rejects the forms listed above, including
+the bare digest. `FromSHA256` accepts that bare 64-lowercase-hex digest
+and `String()` is the prefixed id. `FromSHA256` rejects uppercase hex,
+the wrong length, a `sha256:` prefix, and a path. The title-link key
 is that primary-media id, and a `ProgrammedSHA256` of different bytes
 does not link. A title id does not parse as a content-id. An unknown
 algorithm fails closed. No new algorithm name is accepted in this phase.
@@ -607,9 +636,29 @@ owner, which replaces the recorded origin. After that confirmation,
 reads send the bearer to the new recorded origin. There is no
 challenge. A credential that is never sent cannot be relayed.
 
+A configured hostname is not a fresh lookup on each request.
+`scripts/prepare_launcher.py` (`validate_address`) accepts a hostname
+and writes an `http://` origin. Today that write does not record a
+resolved IP. At enrollment or configuration the implementation resolves
+the hostname once and records that IP beside the hostname. Bearer
+requests connect only to the recorded IP and send the configured `Host`
+header. If the hostname later resolves to a different address, that is
+the same `node moved; re-pair or confirm the new address` case: no
+`Authorization` header until the owner confirms, which records the new
+IP. An IP-literal origin is unchanged. It is the connect address, and
+it is not re-resolved. When a lookup returns several addresses, the
+shell still connects only to the recorded IP.
+
+This defends against discovery spoofing and against DNS or mDNS
+spoofing that points a configured hostname at an attacker after
+enrollment. An on-path LAN attacker who ARP-spoofs the recorded IP,
+while the bearer is plain HTTP, is out of scope until the pinned-TLS
+option.
+
 Origin authentication by TLS, with a key pinned at pairing, is a
-possible later way to accept a new address without that manual step.
-It is tracked separately and is out of scope.
+possible later way to accept a new address without that manual step,
+and the way an on-path attacker would be in scope. It is tracked
+separately and is out of scope.
 
 `placementReadAddress` (`fogcast/mesh_place_wire.go`) still prefers a
 unique discovered origin, and `readPlacementNodeFacts` still sends the
@@ -627,9 +676,11 @@ leaves the node unavailable.
 
 - The read is the enrolled pairing above: bearer, header, echoed
   `node_id`, and the origin recorded at pairing or in configuration.
-  A discovered or changed address is not that origin until the owner
-  confirms it. DNS-SD `node_id` equals that enrolled id. Two claims of
-  one node id in a single browse stay ambiguous.
+  For a hostname, the connection is the IP recorded then, with the
+  configured `Host` header. A discovered address, a changed address, or
+  a hostname that now resolves elsewhere is not that origin until the
+  owner confirms it. DNS-SD `node_id` equals that enrolled id. Two
+  claims of one node id in a single browse stay ambiguous.
 - Mesh major matches. `discovery.MeshMajorCompatible` on the DNS-SD
   mesh string, and health `mesh.major` of 1. A newer minor is
   compatible. Unknown optional minor fields are ignored. An omitted
@@ -673,7 +724,9 @@ agent token does not match the listener that serves
 runner id would trust a header the caller sent. Sending any bearer to
 a DNS-SD address would give a forged advertisement the credential. A
 nonce challenge answered with the pairing key can be relayed to the
-enrolled origin, so this proposal does not use one. Implementing
+enrolled origin, so this proposal does not use one. Resolving a
+configured hostname again on every request would follow a spoofed DNS
+or mDNS answer and send the bearer there. Implementing
 #298, the runner admission record, runner provisioning, or PAKE inside
 #379 would be a second enrollment design. Matching `core_version`
 would treat a display label as identity. Trusting a runner against an
@@ -685,7 +738,8 @@ advertisement.
 and Stop races (#363), PAKE, minting the #298 id, adding the health
 `node_id` echo, the runner admission record, changing
 `prepare_launcher.py`, TLS origin authentication with a key pinned at
-pairing (tracked separately), changing `placementReadAddress` (#396),
+pairing (tracked separately), ARP spoofing of the recorded IP on
+plain HTTP until that option, changing `placementReadAddress` (#396),
 new reason strings, and any change to host-local availability. Ensure
 and placement stay off.
 
@@ -699,7 +753,11 @@ enrolled node id at a new origin. That request carries no
 `Authorization` header. No credential is sent, so there is nothing to
 relay. Health taken from that origin does not make the node eligible.
 The owner-facing sentence is `node moved; re-pair or confirm the new
-address`. After the owner confirms that origin by a config edit or
+address`. Hostname rebinding: enrollment resolved the configured name
+to the owner's IP and recorded that IP. A later lookup returns the
+attacker's address. No bearer request is connected there, and no
+`Authorization` header is sent. An IP-literal origin has no lookup to
+move. After the owner confirms that origin by a config edit or
 re-pair, a health read to the new recorded origin sends the bearer
 and, once the prerequisite list is done, can be provenance. A
 duplicate node id in one browse stays ambiguous. Until all of #298,
