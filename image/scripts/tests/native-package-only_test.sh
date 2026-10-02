@@ -84,6 +84,7 @@ package_words=$(printf '%s' "$package_ids" | tr ',' ' ')
 package_count=$(printf '%s' "$package_ids" | awk -F, '{print NF}')
 package_id_for() {
   case "$1" in
+    fes.ramtest) package_id=4444444444444444444444444444444444444444444444444444444444444444 ;;
     fes.menu) package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
     fes.pong) package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
     fes.zx81) package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
@@ -102,6 +103,17 @@ for core_id in $package_words; do
   mkdir "$package"
   printf "core_id = '%s'\n" "$core_id" >"$package/manifest.toml"
   printf '%s payload\n' "$core" >"$package/core.rbf"
+  if [ "$core_id" = fes.ramtest ]; then
+    cat >>"$package/manifest.toml" <<EOF
+[core]
+id = 'fes.ramtest'
+[payload]
+sha256 = '$(sha256sum "$package/core.rbf" | awk '{print $1}')'
+[build]
+repository = 'https://github.com/DeanoC/fes.git'
+revision = '1111111111111111111111111111111111111111'
+EOF
+  fi
   chmod 0444 "$package/manifest.toml" "$package/core.rbf"
   if [ "$core_id" = fes.zx81 ]; then
     printf 'sealed map fixture\n' >"$package/rom-map.json"
@@ -117,6 +129,8 @@ package_id = '$package_id'
 EOF
   chmod 0444 "$selection"
   case "$core_id" in
+    fes.ramtest)
+      export FES_RAMTEST_PACKAGE_DIR=$package FES_RAMTEST_PACKAGE_SELECTION=$selection ;;
     fes.menu)
       export FES_MENU_PACKAGE_DIR=$package FES_MENU_PACKAGE_SELECTION=$selection ;;
     fes.pong)
@@ -174,6 +188,11 @@ for core_id in $package_words; do
   test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-$core.package.toml")" = 444
 done
 "$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$target"
+# Buildroot puts its Python 3.9 ahead of the container's Python 3.11.
+mkdir "$fixture/old-python"
+printf '#!/bin/sh\nexit 99\n' >"$fixture/old-python/python3"
+chmod 0755 "$fixture/old-python/python3"
+PATH="$fixture/old-python:$PATH" "$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$target"
 
 build_inputs=$fixture/build-inputs
 "$repo/scripts/native-extra-cores.sh" build-inputs "$cache" "$target" >"$build_inputs"
@@ -299,6 +318,7 @@ for variable in FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION \
   FES_SMS_PACKAGE_DIR FES_SMS_PACKAGE_SELECTION \
   FES_SG1000_PACKAGE_DIR FES_SG1000_PACKAGE_SELECTION \
   FES_C64_PACKAGE_DIR FES_C64_PACKAGE_SELECTION \
+  FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION \
   FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION; do
   grep -Fq "$variable" "$repo/Makefile"
 done

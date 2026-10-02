@@ -24,12 +24,12 @@ selection are [core packages](core-packages.md).
 | Board firmware | A pinned RBF. Not a described play package and not a `fes.*` recipe. |
 
 The current [default profile](../profiles/native-integration-dev.toml) installs
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco` in that order. The menu supplies
+`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest` in that order. The menu supplies
 idle display and is not a library core. Factory standing records image inclusion;
 playability and hardware acceptance depend on the exact-artifact kit evidence below.
 
-The image selector supports eight IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`. SMS, SG-1000
+The image selector supports nine IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`. SMS, SG-1000
 and Spectrum remain sealed package-only recipes because adding them exceeds the
 128 MiB rootfs limit. C64 is registered but has no current timing-passing HIP seal.
 The factory packages, SMS, SG-1000, Apple II, Spectrum and Catch seal with
@@ -40,6 +40,7 @@ path and not a fallback.
 
 | Package | Version | Standing | ABI | Required interfaces | Optional | What it implements |
 | --- | --- | --- | --- | --- | --- | --- |
+| `fes.ramtest` | 1.1.0 | Factory | `fes.application` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.memory.hps-ddr` 1.0 | — | ROM-less RAM testing utility for the SDRAM addon and all three HPS DDR ports. Ships the OSS 100 MHz variant using `toolchains/ramtest.lock`; 130 MHz timing closure remains open (#264). No exact-image hardware acceptance is claimed. |
 | `fes.pong` | 1.1.0 | Factory | `fes.simple-game` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.persistence.words` 1.0, `fes.pong.progress` 1.0 | — | ROM-less Pong. Paddle speed and best rally persist. Lock `toolchain.lock`. |
 | `fes.zx81` | 1.5.0 | Factory | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0 | `fes.expansion.zx81-bus` 2.0 | 1 KiB RAM, 40-key matrix, live `.p` blob, sealed ROM link and in-session HDMI controls. The [frozen image diagnostic](validation/2026-10-02-zx81-session-display.md) records visible cassette swap/eject with preserved BASIC state. Physical operator input and expansion/audio acceptance of this shell remain separate. Bus 2.0 retains CPU clock/reset, exact-average 3.25 MHz CPU and 1.625 MHz AY. Historical shell/cart evidence does not qualify 1.5.0. Lock `toolchains/zx81-expansion.lock`. |
 | `fes.coleco` | 1.2.0 | Factory | `fes.application` 1.0 | `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0, `fes.media.blob-stream` 1.0 | `fes.firmware.blob` 1.0, `fes.expansion.coleco-bus` 2.0 | Reduced ColecoVision with a vacant or linked SGM socket. Blob 1–16 KiB keeps the mirrored map. Stream admits 1–32 KiB at `0x8000–0xffff`. Two gamepads, two 12-key keypads, SN76489, optional 8 KiB firmware overlay. Open `JP 0x8000` shim when no firmware is bound. Not a retail-complete core. Lock `toolchains/coleco-sgm.lock`. |

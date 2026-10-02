@@ -45,6 +45,114 @@ func TestServiceCatalogAdmissionWaitHonorsCancellation(t *testing.T) {
 	}
 }
 
+func TestStatusReportsIdleWhenNoKitIsReachableAndHostEmulatorIsConfigured(t *testing.T) {
+	service := &Service{hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"}}
+	status, err := service.Status(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("host runner status=%+v err=%v", status, err)
+	}
+	kitOnly := &Service{}
+	if _, err := kitOnly.Status(context.Background()); err == nil {
+		t.Fatal("kit-only configuration stopped reporting unavailable target")
+	}
+}
+
+func TestStatusWithOfflineSelectedKitFollowsHostOnlyExecution(t *testing.T) {
+	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+	host := &fakeHostExecutor{}
+	service := &Service{
+		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
+		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+		targetClients: map[string]serviceClient{"kit": client}, hostExecutor: host,
+	}
+	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("status before host launch=%+v err=%v, want idle", status, err)
+	}
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionHostOnly
+	service.activeGameID = "software-game"
+	service.executionMu.Unlock()
+	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != "software-game" {
+		t.Fatalf("status during host-only session=%+v err=%v, want active host status", status, err)
+	}
+	service.executionMu.Lock()
+	service.activeExecution, service.activeGameID = "", ""
+	service.executionMu.Unlock()
+	host.idle = true
+	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("status after host Stop=%+v err=%v, want idle", status, err)
+	}
+}
+
+func TestStopSucceedsAfterHostOnlyProcessExitsWithOfflineSelectedKit(t *testing.T) {
+	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+	host := &fakeHostExecutor{}
+	service := &Service{
+		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
+		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+		targetClients: map[string]serviceClient{"kit": client}, hostExecutor: host,
+	}
+	service.executionMu.Lock()
+	service.activeExecution, service.activeGameID = ExecutionHostOnly, "software-game"
+	service.executionMu.Unlock()
+	host.idle = true // Status observes and reaps the naturally exited process.
+	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Status after host process exit=%+v err=%v, want idle", status, err)
+	}
+	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Stop after host process exit=%+v err=%v, want idle", status, err)
+	}
+	if client.statusCalls != 0 || client.stopCalls != 0 {
+		t.Fatalf("kit status calls=%d stop calls=%d, want no kit access from Stop", client.statusCalls, client.stopCalls)
+	}
+}
+
+func TestStopWithNoBoundSessionDoesNotProbeOfflineSelectedKit(t *testing.T) {
+	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+	service := &Service{
+		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
+		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+		targetClients: map[string]serviceClient{"kit": client},
+	}
+	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Stop without session=%+v err=%v, want idle", status, err)
+	}
+	if client.statusCalls != 0 || client.stopCalls != 0 {
+		t.Fatalf("kit status calls=%d stop calls=%d, want no kit access", client.statusCalls, client.stopCalls)
+	}
+}
+
+func TestStatusDoesNotAssumeIdleWhenFPGAExecutionOrTargetIsKnown(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		explicitTarget  bool
+		activeExecution string
+	}{
+		{name: "known FPGA play", activeExecution: ExecutionFPGANative},
+		{name: "explicit target during host-only execution", explicitTarget: true, activeExecution: ExecutionHostOnly},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+			service := &Service{
+				hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
+				targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+				targetClients:   map[string]serviceClient{"kit": client},
+				activeExecution: tc.activeExecution, activeTarget: "kit",
+			}
+			var err error
+			if tc.explicitTarget {
+				_, err = service.StatusTarget(context.Background(), "kit")
+			} else {
+				_, err = service.Status(context.Background())
+			}
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable {
+				t.Fatalf("Status error = %v, want MISTER_UNAVAILABLE", err)
+			}
+		})
+	}
+}
+
 func TestProgressReaderStartsAfterBodyBytesAndForwardsClose(t *testing.T) {
 	var starts int
 	reader := &progressReader{
@@ -841,6 +949,36 @@ func TestServiceStopTargetPreservesOtherTargetPlay(t *testing.T) {
 	}
 	if s.activeTarget != "a" || s.activeGameID != "game-a" {
 		t.Fatalf("foreground after scoped stop = target %q game %q", s.activeTarget, s.activeGameID)
+	}
+}
+
+func TestServiceStopTargetDoesNotStopHostOnlyExecution(t *testing.T) {
+	kit := &fakeServiceClient{stopResult: protocol.Status{State: protocol.StateIdle}}
+	host := &fakeHostExecutor{}
+	service := &Service{
+		hostEmulator:    HostEmulatorConfig{Binary: "/configured/retroarch"},
+		targets:         []TargetConfig{{Name: "kit", Enabled: true}},
+		selectedTarget:  "kit",
+		targetClients:   map[string]serviceClient{"kit": kit},
+		hostExecutor:    host,
+		activeExecution: ExecutionHostOnly,
+		activeGameID:    "software-game",
+	}
+
+	if status, err := service.StopTarget(context.Background(), "kit"); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("kit-scoped Stop=%+v err=%v, want kit idle", status, err)
+	}
+	if kit.stopCalls != 1 || host.stopCalls != 0 {
+		t.Fatalf("kit stops=%d host stops=%d, want kit-only Stop", kit.stopCalls, host.stopCalls)
+	}
+	if service.activeExecution != ExecutionHostOnly || service.activeTarget != "" {
+		t.Fatalf("host-only ownership after kit Stop: execution=%q target=%q", service.activeExecution, service.activeTarget)
+	}
+	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("unscoped Stop=%+v err=%v, want host idle", status, err)
+	}
+	if host.stopCalls != 1 {
+		t.Fatalf("host stops after unscoped Stop=%d, want 1", host.stopCalls)
 	}
 }
 
@@ -2893,6 +3031,7 @@ type fakeHostExecutor struct {
 	statusCalls int
 	contentPath string
 	stopErr     error
+	idle        bool
 }
 
 type ambiguousPackageLoadError struct {
@@ -2922,6 +3061,9 @@ func (f *fakeHostExecutor) Launch(_ context.Context, content io.Reader, identity
 func (f *fakeHostExecutor) Stop(context.Context) error { f.stopCalls++; return f.stopErr }
 func (f *fakeHostExecutor) Status(context.Context) (hostexec.Status, error) {
 	f.statusCalls++
+	if f.idle {
+		return hostexec.Status{State: hostexec.Idle}, nil
+	}
 	return hostexec.Status{State: hostexec.Active}, nil
 }
 

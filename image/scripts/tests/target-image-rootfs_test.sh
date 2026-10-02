@@ -173,6 +173,17 @@ package_fixture() {
   printf "core_id = 'fes.%s'\npackage_id = '%s'\n" \
     "$package_core" "$package_id" >"$package_dir/manifest.toml"
   printf '%s package payload\n' "$package_core" >"$package_dir/core.rbf"
+  if [ "$package_core" = ramtest ]; then
+    cat >>"$package_dir/manifest.toml" <<EOF
+[core]
+id = 'fes.ramtest'
+[payload]
+sha256 = '$(sha256sum "$package_dir/core.rbf" | awk '{print $1}')'
+[build]
+repository = 'https://github.com/DeanoC/fes.git'
+revision = '1111111111111111111111111111111111111111'
+EOF
+  fi
   chmod 0444 "$package_dir/manifest.toml" "$package_dir/core.rbf"
   chmod 0555 "$package_dir"
   cat >"$package_selection" <<EOF
@@ -215,6 +226,10 @@ EOF
       FES_SPECTRUM_PACKAGE_DIR=$package_dir
       FES_SPECTRUM_PACKAGE_SELECTION=$package_selection
       ;;
+    ramtest)
+      FES_RAMTEST_PACKAGE_DIR=$package_dir
+      FES_RAMTEST_PACKAGE_SELECTION=$package_selection
+      ;;
   esac
 }
 
@@ -222,12 +237,14 @@ package_fixture menu d
 package_fixture pong a
 package_fixture zx81 b
 package_fixture coleco c
+package_fixture ramtest e
 FES_PACKAGE_IDS=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo/..")
 export FES_PACKAGE_IDS
 export FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION
 export FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION
 export FES_ZX81_PACKAGE_DIR FES_ZX81_PACKAGE_SELECTION
 export FES_COLECO_PACKAGE_DIR FES_COLECO_PACKAGE_SELECTION
+export FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION
 
 cache=$fixture/cache
 mkdir "$cache"

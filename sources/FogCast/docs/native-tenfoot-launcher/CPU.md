@@ -109,3 +109,6 @@ ARMv7 measurements and qualification limits are recorded in the FES
 [CPU-backend diagnostic](../../../../docs/validation/2026-09-30-tenfoot-cpu-backend.md),
 [settings raster profile](../../../../docs/validation/2026-10-02-settings-raster-cost.md),
 and [NEON alpha-fill diagnostic](../../../../docs/validation/2026-10-02-neon-alpha-fill.md).
+Kit-wide CPU, memory, and storage budgets for the local host and shell are in
+[kit resource limits](../kit-resource-limits.md). That collector is read-only
+and is separate from these opt-in profiles.

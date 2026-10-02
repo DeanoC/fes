@@ -80,6 +80,8 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
         self.assertEqual(rows['fes.spectrum']['standing'], 'experimental')
         self.assertEqual(rows['fes.spectrum']['system'], 'spectrum')
         self.assertEqual(rows['fes.catch']['standing'], 'demo')
+        self.assertEqual(rows['fes.ramtest']['standing'], 'supported')
+        self.assertEqual(rows['fes.ramtest']['system'], 'ramtest')
         self.assertIn('fes.sms', rows)
         self.assertIn('fes.sg1000', rows)
         self.assertTrue(all('package_id' not in row for row in rows.values()))

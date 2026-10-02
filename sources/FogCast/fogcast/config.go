@@ -153,11 +153,16 @@ type HostEmulatorConfig struct {
 	Core    string
 	Systems []protocol.System
 	Cores   []HostEmulatorCore
+	Args    []string
+	Env     []string
 }
 
 type HostEmulatorCore struct {
 	Platform protocol.System
 	Core     string
+	ID       string
+	Version  string
+	SHA256   string
 }
 
 // ZX81MachineROMConfig names the host linker that fills the empty ZX81 machine
@@ -301,11 +306,16 @@ type fileHostEmulator struct {
 	Core    string                 `toml:"core"`
 	Systems []protocol.System      `toml:"systems"`
 	Cores   []fileHostEmulatorCore `toml:"cores"`
+	Args    []string               `toml:"args"`
+	Env     []string               `toml:"env"`
 }
 
 type fileHostEmulatorCore struct {
 	Platform protocol.System `toml:"platform"`
 	Core     string          `toml:"core"`
+	ID       string          `toml:"id"`
+	Version  string          `toml:"version"`
+	SHA256   string          `toml:"sha256"`
 }
 
 type fileZX81MachineROM struct {
@@ -835,6 +845,9 @@ func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
 		}
 		cores := make([]HostEmulatorCore, 0, len(raw.Cores))
 		seen := make(map[protocol.System]struct{}, len(raw.Cores))
+		corePins := make(map[string]string, len(raw.Cores))
+		corePinPolicies := make(map[string]bool, len(raw.Cores))
+		corePinSeen := make(map[string]bool, len(raw.Cores))
 		for _, entry := range raw.Cores {
 			if err := catalog.ValidatePlatform(entry.Platform); err != nil {
 				return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores: %w", err)
@@ -847,9 +860,28 @@ func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
 				return HostEmulatorConfig{}, fmt.Errorf("host_emulator core for %q must be a clean absolute path", entry.Platform)
 			}
 			seen[entry.Platform] = struct{}{}
-			cores = append(cores, HostEmulatorCore{Platform: entry.Platform, Core: core})
+			sha := strings.ToLower(strings.TrimSpace(entry.SHA256))
+			if corePinSeen[core] && corePinPolicies[core] != (sha != "") {
+				return HostEmulatorConfig{}, fmt.Errorf("host_emulator core %q mixes pinned and unpinned sha256 policy", core)
+			}
+			corePinSeen[core] = true
+			corePinPolicies[core] = sha != ""
+			if sha != "" {
+				decoded, decodeErr := hex.DecodeString(sha)
+				if decodeErr != nil || len(decoded) != sha256.Size {
+					return HostEmulatorConfig{}, fmt.Errorf("host_emulator core sha256 for %q is invalid", entry.Platform)
+				}
+				if pinned, ok := corePins[core]; ok && pinned != sha {
+					return HostEmulatorConfig{}, fmt.Errorf("host_emulator core %q has conflicting sha256 pins", core)
+				}
+				corePins[core] = sha
+			}
+			cores = append(cores, HostEmulatorCore{Platform: entry.Platform, Core: core, ID: strings.TrimSpace(entry.ID), Version: entry.Version, SHA256: sha})
 		}
-		return HostEmulatorConfig{Binary: binary, Cores: cores}, nil
+		if err := validateHostEmulatorOptions(raw.Args, raw.Env); err != nil {
+			return HostEmulatorConfig{}, err
+		}
+		return HostEmulatorConfig{Binary: binary, Cores: cores, Args: append([]string(nil), raw.Args...), Env: append([]string(nil), raw.Env...)}, nil
 	}
 	seen := make(map[protocol.System]struct{}, len(systems))
 	for _, system := range systems {
@@ -876,7 +908,25 @@ func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
 	if !filepath.IsAbs(legacyCore) || filepath.Clean(legacyCore) != legacyCore {
 		return HostEmulatorConfig{}, fmt.Errorf("host_emulator core must be a clean absolute path")
 	}
-	return HostEmulatorConfig{Binary: binary, Core: legacyCore, Systems: systems}, nil
+	if err := validateHostEmulatorOptions(raw.Args, raw.Env); err != nil {
+		return HostEmulatorConfig{}, err
+	}
+	return HostEmulatorConfig{Binary: binary, Core: legacyCore, Systems: systems, Args: append([]string(nil), raw.Args...), Env: append([]string(nil), raw.Env...)}, nil
+}
+
+func validateHostEmulatorOptions(args, env []string) error {
+	for _, arg := range args {
+		if strings.ContainsRune(arg, 0) {
+			return fmt.Errorf("host_emulator args contain NUL")
+		}
+	}
+	for _, item := range env {
+		key, _, ok := strings.Cut(item, "=")
+		if !ok || key == "" || strings.ContainsAny(key, "=\x00") || strings.ContainsRune(item, 0) {
+			return fmt.Errorf("host_emulator env entries must be KEY=VALUE")
+		}
+	}
+	return nil
 }
 
 func normalizeHTTPOrigin(raw string) (string, error) {

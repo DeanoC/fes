@@ -50,6 +50,7 @@ if [ -n "${FES_PACKAGE_IDS:-}" ] ||
   [ -n "${FES_SMS_PACKAGE_DIR:-}" ] || [ -n "${FES_SMS_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_SG1000_PACKAGE_DIR:-}" ] || [ -n "${FES_SG1000_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_C64_PACKAGE_DIR:-}" ] || [ -n "${FES_C64_PACKAGE_SELECTION:-}" ] ||
+  [ -n "${FES_RAMTEST_PACKAGE_DIR:-}" ] || [ -n "${FES_RAMTEST_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_SPECTRUM_PACKAGE_DIR:-}" ] || [ -n "${FES_SPECTRUM_PACKAGE_SELECTION:-}" ]; then
   "$repo_root/scripts/native-extra-cores.sh" validate
 fi
@@ -70,6 +71,7 @@ load_package_mount_order() {
       fes.sg1000) package_core=sg1000 ;;
       fes.c64) package_core=c64 ;;
       fes.spectrum) package_core=spectrum ;;
+      fes.ramtest) package_core=ramtest ;;
       *) exit 2 ;;
     esac
     package_ids_reverse="$package_core $package_ids_reverse"
@@ -166,6 +168,12 @@ docker_run() {
         package_selection=$FES_SPECTRUM_PACKAGE_SELECTION
         package_dir_env=FES_SPECTRUM_PACKAGE_DIR
         package_selection_env=FES_SPECTRUM_PACKAGE_SELECTION
+        ;;
+      ramtest)
+        package_dir=$FES_RAMTEST_PACKAGE_DIR
+        package_selection=$FES_RAMTEST_PACKAGE_SELECTION
+        package_dir_env=FES_RAMTEST_PACKAGE_DIR
+        package_selection_env=FES_RAMTEST_PACKAGE_SELECTION
         ;;
       *) exit 2 ;;
     esac

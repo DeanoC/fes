@@ -195,21 +195,34 @@ func (s *Service) installDialedMeshSession(want meshTargetIdentity, remote *kitc
 // existing launch path and omit ready_here. A title the projection
 // cannot name returns false for the same reason.
 func (s *Service) meshCatalogEntry(gameID string) (meshcontent.Entry, bool) {
-	if s == nil || s.catalog == nil {
-		return meshcontent.Entry{}, false
-	}
-	store, ok := s.catalog.(coreEntryCatalog)
+	title, firmware, ok := s.meshCatalogTitle(context.Background(), gameID)
 	if !ok {
 		return meshcontent.Entry{}, false
 	}
-	ctx := context.Background()
+	entries, _ := ProjectMeshLibrary(MeshLibrary{Firmware: firmware, Titles: []MeshTitle{title}})
+	if len(entries) != 1 {
+		return meshcontent.Entry{}, false
+	}
+	return entries[0], true
+}
+
+// meshCatalogTitle is shared by placement's single-entry lookup and the
+// local backend library. Both use the selected core media and ABI contract.
+func (s *Service) meshCatalogTitle(ctx context.Context, gameID string) (MeshTitle, catalog.CoreFirmware, bool) {
+	if s == nil || s.catalog == nil {
+		return MeshTitle{}, catalog.CoreFirmware{}, false
+	}
+	store, ok := s.catalog.(coreEntryCatalog)
+	if !ok {
+		return MeshTitle{}, catalog.CoreFirmware{}, false
+	}
 	entry, err := store.CoreEntry(ctx, gameID)
 	if err != nil {
-		return meshcontent.Entry{}, false
+		return MeshTitle{}, catalog.CoreFirmware{}, false
 	}
 	inspection, _, err := s.readInstalledCore(ctx, entry.PackageID)
 	if err != nil {
-		return meshcontent.Entry{}, false
+		return MeshTitle{}, catalog.CoreFirmware{}, false
 	}
 	// Named linked ROMs live in core_entry_roms, independently of optional
 	// blob/disk media. Use a ROM only when no primary media is selected;
@@ -222,7 +235,7 @@ func (s *Service) meshCatalogEntry(gameID string) (meshcontent.Entry, bool) {
 	}
 	abi := inspection.Descriptor.ABI
 	if !RecognizedPlayABI(abi.ID, abi.Major, abi.Minor) {
-		return meshcontent.Entry{}, false
+		return MeshTitle{}, catalog.CoreFirmware{}, false
 	}
 	game, err := s.catalog.Game(ctx, gameID)
 	if err != nil {
@@ -238,12 +251,12 @@ func (s *Service) meshCatalogEntry(gameID string) (meshcontent.Entry, bool) {
 	if expansions, ok := s.catalog.(coreExpansionCatalog); ok {
 		selected, err := expansions.CoreEntryExpansion(ctx, gameID)
 		if err != nil {
-			return meshcontent.Entry{}, false
+			return MeshTitle{}, catalog.CoreFirmware{}, false
 		}
 		if selected.ExpansionID != "" {
 			asset, err := expansions.ReadCoreExpansion(ctx, selected.ExpansionID)
 			if err != nil || strings.TrimSpace(asset.Manifest.Slot) == "" || asset.Manifest.CartSHA256 == "" {
-				return meshcontent.Entry{}, false
+				return MeshTitle{}, catalog.CoreFirmware{}, false
 			}
 			title.Expansions = []MeshExpansion{{
 				Name:   asset.Manifest.Slot,
@@ -255,15 +268,11 @@ func (s *Service) meshCatalogEntry(gameID string) (meshcontent.Entry, bool) {
 	if entry.FirmwareRequired {
 		slot, err := s.CoreFirmware(ctx, protocol.FirmwareRole)
 		if err != nil || slot.MediaID == "" {
-			return meshcontent.Entry{}, false
+			return MeshTitle{}, catalog.CoreFirmware{}, false
 		}
 		firmware = slot
 	}
-	entries, _ := ProjectMeshLibrary(MeshLibrary{Firmware: firmware, Titles: []MeshTitle{title}})
-	if len(entries) != 1 {
-		return meshcontent.Entry{}, false
-	}
-	return entries[0], true
+	return title, firmware, true
 }
 
 // MeshContentAdvertises reports whether this host holds id as core-media

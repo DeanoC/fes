@@ -1493,6 +1493,11 @@ specified diagnostic schema; they are not an alternate normal product route.
 Historical source-record verification checks original immutable provenance
 without admitting arbitrary live standalone producer roots.
 
+The FES factory/catalog recipe for `fes.ramtest` selects the OSS 100 MHz
+variant through `build_fes_ramtest.py`. Its parent-facing authentication and
+functional-record defaults match that rate; explicit 130 MHz builds retain
+their separate output and timing gates. Quartus remains an oracle.
+
 ## Shared FPGA producer and RTL ownership
 
 Build entrypoints remain per core: `scripts/build_fes_pong.py` and the

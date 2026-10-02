@@ -140,3 +140,17 @@ selection_filename = "fes-spectrum.package-selection.toml"
 package_dir_env = "FES_SPECTRUM_PACKAGE_DIR"
 package_selection_env = "FES_SPECTRUM_PACKAGE_SELECTION"
 quartus_role = "no oracle required"
+
+[[recipes]]
+core_id = "fes.ramtest"
+identity_version = 2
+producer_script = "scripts/build_fes_ramtest.py"
+producer_module = "scripts.build_fes_ramtest"
+authenticate = "_authenticate_tools"
+lock_path = "toolchains/ramtest.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-ramtest.package-selection.toml"
+package_dir_env = "FES_RAMTEST_PACKAGE_DIR"
+package_selection_env = "FES_RAMTEST_PACKAGE_SELECTION"
+quartus_role = "bring-up/check oracle"

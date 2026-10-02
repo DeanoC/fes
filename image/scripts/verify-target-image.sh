@@ -99,6 +99,7 @@ inspection_package_id() {
 				fes.sg1000) package_selection_path=${FES_SG1000_PACKAGE_SELECTION:-} ;;
 				fes.c64) package_selection_path=${FES_C64_PACKAGE_SELECTION:-} ;;
 				fes.spectrum) package_selection_path=${FES_SPECTRUM_PACKAGE_SELECTION:-} ;;
+				fes.ramtest) package_selection_path=${FES_RAMTEST_PACKAGE_SELECTION:-} ;;
 				*) return 1 ;;
 			esac
 			[ -f "$package_selection_path" ] && [ ! -L "$package_selection_path" ] || return 1
@@ -427,16 +428,11 @@ EOF
     }
 
   if [ "$variant" = native-dev ]; then
-    if find "$root" -type f \( \
-      -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
-      -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o \
-      -iname '*.bin' -o -iname '*.mgl' -o -iname '*.map' -o -name 'agent.toml' \
-      -o -name '*-gdb.py' \
-    \) -print -quit | grep -q .; then
-      printf '%s\n' 'verify-target-image: forbidden game, runtime, or debug payload found' >&2
-      exit 1
-    fi
-
+    # verify_package_only_native has already checked the selected notice's
+    # exact path, contents and modes. Exempt that file from the Mega Drive
+    # *.md payload ban; all other Markdown/game files remain forbidden.
+    set -- "$root/usr/share/mister-runtime/core-notices/fes.ramtest/"*/SOURCE.md
+    sh "$repo/scripts/check-native-payloads.sh" "$root" "$1"
   fi
   "$repo/scripts/scan-target-image-secrets.sh" "$root"
   for forbidden_tool in \

@@ -71,6 +71,10 @@ and complete typed metrics from `host.RemoteInputStatus`.
 `POST /api/v1/session/launch` may include `target` to bind a live FPGA session
 to a configured target without rewriting `selected_target`. Omitted `target`
 uses the selected configured target and keeps the ordinary placement choice.
+A host-only launch always stays on the root session coordinator, even when its
+request includes a kit target; host-only session responses leave `target` empty.
+Unscoped session events follow the foreground session coordinator, like status
+and Stop, so a root-owned host-only session's events remain visible.
 A second configured target may be
 launched while the first is still playing; `GET /api/v1/sessions` lists those
 live plays. `GET /api/v1/session` is the foreground session (the last launch)
@@ -1126,9 +1130,9 @@ The only image variant is `native-dev`, which starts image-owned
 `mister-runtime` and `mister-agent`. It installs the locked splash/idle artifact
 and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
-`fes.pong`, `fes.zx81`, `fes.coleco`. The selector supports eight IDs in total,
+`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest`. The selector supports nine IDs in total,
 also admitting `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`. These four
-remain package-only: the sealed additions exceed the 64 MiB rootfs limit and
+remain package-only: the sealed additions exceed the 128 MiB rootfs limit and
 C64 has no current timing-passing HIP seal. The menu package is idle firmware,
 not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
@@ -1304,8 +1308,9 @@ one row per node id. Instances of one node at one address (the same kit
 seen on two host interfaces) are one row; when the browse window's
 instances of a node id name more than one address, the row carries
 `address_conflict: true` and no `address`, and uniqueness is checked on
-every instance before the rows are collapsed. A browse error keeps the
-previous rows. The inventory does
+every instance before the rows are collapsed. The monitor observes these
+advertisements even when the selected target has no Phase 0 binding. A
+browse error keeps the previous rows. The inventory does
 not adopt an endpoint, claim a lease, or make a title Ready. A later browse
 that no longer sees a node, including a node that omitted `ttl`, drops that
 row only. A mesh major other than 1 does not remove that direct bind; a
@@ -1338,6 +1343,72 @@ content-id of an RBF. `PackageABI.Major` is that ABI's major, not the
 mesh protocol major. `ReadyHere` requires that package id and an
 eligible ABI id and major before it reports Ready. Package id alone is
 not eligibility.
+
+#### Configured host emulator
+
+`[host_emulator]` maps catalog systems to local RetroArch cores. For the M1
+Data Storm SMS runner, configure the verified core and its optional digest pin
+along with headless display/audio settings:
+
+```toml
+[host_emulator]
+binary = "/usr/bin/retroarch"
+args = ["--appendconfig", "/etc/fogcast/retroarch-headless.cfg"]
+env = ["DISPLAY=:93", "SDL_AUDIODRIVER=dummy"]
+
+[[host_emulator.cores]]
+platform = "sms"
+core = "/usr/lib/x86_64-linux-gnu/libretro/genesis_plus_gx_libretro.so"
+id = "genesis_plus_gx"
+version = " c2838c7d"
+sha256 = "051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49"
+```
+
+The host health response advertises mesh version 1.0 and software backend
+identity, configured `core_version`, and observed core digest; `core_version`
+is copied from configuration and is not queried from RetroArch. A missing or
+mismatched core, or a missing/non-executable RetroArch binary, is unavailable. One
+host emulator process owns the local session until Stop or process exit.
+Host-only play is owned by the root host session coordinator regardless of
+which kit is selected. Unscoped launch resolves execution first, and unscoped
+status and Stop follow a bound FPGA foreground only when one exists; with no
+bound FPGA play they use the root coordinator. Session identity, BUSY
+admission, natural-exit reaping, and media cleanup therefore share one owner.
+Unscoped status may report idle after target loss only when host-only execution
+is active or no FPGA play/target is bound; a configured kit selection alone is
+not an active FPGA binding. A bound FPGA play or explicit target continues to
+report `MISTER_UNAVAILABLE` while kit state cannot be observed. Before replacing
+media for another host-only launch, FogCast checks the local executor; an active
+RetroArch process returns `BUSY` and retains its current media session.
+M1 software-runner input uses a controller attached to the runner through
+RetroArch's local joypad/udev input. FogCast does not route remote controller
+input to `host_only`; that remains a #363 gap.
+
+`Service.MeshBackendLibrary` reads the existing local catalog and projects
+package titles through the same helper as placement; raw games use the
+configured execution resolver. `ProjectMeshBackendLibrary` groups entries
+by catalog game id and links rows at read time when their primary-media
+content id (the ROM sha256) and browse system both match exactly. The
+package row's game id is the canonical row id and a matching raw ROM folds
+in as its emulator option; with more rows, package rows come first, then
+the lowest game id. A different hash (a patched ROM) or system never links,
+and catalog rows are not rewritten. Each option keeps its source game id.
+It keeps host-local and sourced options distinct, deduplicates
+repeated content ids, and annotates observed node candidates. The service
+reuses placement's authenticated kit node-document read for package and ABI
+facts. A missing, retained, conflicting, or mesh-major-incompatible
+advertisement is unavailable. A `native_emu` advertisement remains
+unverified for remote execution because the current capability bag has no
+supported-system or emulator-version fact. The host-local `host_only`
+path is the local emulator option (`HostLocal`); like launch, it carries
+`local source unavailable` when the game's source is not available or
+its root is offline. An option with no
+host-local path carries an explicit reason when no inventory node can
+run it (`no advertised executor in inventory` or `no compatible
+executor in inventory`); each node candidate carries its own reason.
+This projection does not select a backend for a session, assert
+composition Ready, or publish a library wire field. Remote title/source
+provenance remains proposed in the mesh docs.
 
 `meshcontent.Ensure` is the host ensure step. It takes one projected
 entry and the executor the session is already bound to. Each required
@@ -2349,6 +2420,11 @@ do not establish hardware acceptance or kit performance; those remain evidence
 for the exact tested package and software.
 
 ### Local core publication
+
+FES publishes the ROM-less `fes.ramtest` utility in the standard catalog and
+selects its OSS 100 MHz package for the factory image. The image selector
+admits it through the same sealed package path; the kit-local installed-core
+inventory marks it launchable without firmware or media, like Pong.
 
 The optional `[core_catalog] path`, with a stable per-library `library_source_id`, selects a FES-published version-1 index.
 `corecatalog` reads a bounded closed schema and verifies the canonical index
