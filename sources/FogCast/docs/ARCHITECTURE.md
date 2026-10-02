@@ -1321,6 +1321,33 @@ mesh protocol major. `ReadyHere` requires that package id and an
 eligible ABI id and major before it reports Ready. Package id alone is
 not eligibility.
 
+#### Configured host emulator
+
+`[host_emulator]` maps catalog systems to local RetroArch cores. For the M1
+Data Storm SMS runner, configure the verified core and its optional digest pin
+along with headless display/audio settings:
+
+```toml
+[host_emulator]
+binary = "/usr/bin/retroarch"
+args = ["--appendconfig", "/etc/fogcast/retroarch-headless.cfg"]
+env = ["DISPLAY=:93", "SDL_AUDIODRIVER=dummy"]
+
+[[host_emulator.cores]]
+platform = "sms"
+core = "/usr/lib/x86_64-linux-gnu/libretro/genesis_plus_gx_libretro.so"
+id = "genesis_plus_gx"
+version = " c2838c7d"
+sha256 = "051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49"
+```
+
+The host health response advertises mesh version 1.0 and software backend
+identity/version/digest; a missing or mismatched core is unavailable. One
+host emulator process owns the local session until Stop or process exit.
+M1 software-runner input uses a controller attached to the runner through
+RetroArch's local joypad/udev input. FogCast does not route remote controller
+input to `host_only`; that remains a #363 gap.
+
 `meshcontent.Ensure` is the host ensure step. It takes one projected
 entry and the executor the session is already bound to. Each required
 content-id comes back Present, Checking (mid-pull), or Missing. A

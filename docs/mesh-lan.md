@@ -174,7 +174,7 @@ two-node software-runner acceptance is complete.
 
 | Concern | Implemented today | M1 contract / remaining gap |
 | --- | --- | --- |
-| **Capability/version** | Kit DNS-SD advertises mesh `1.0`, `fpga_native`, `display_sink`, and `input_source`; no ABI families in TXT. Host placement reads ABI families from the authenticated kit content document. See `sources/FogCast/internal/discovery/mesh.go` and `fogcast/mesh_place_wire.go`. | **Proposed:** retain `mesh` major.minor negotiation; a major mismatch is ineligible, unknown optional minor fields are ignored. The M1 software runner advertises `native_emu` plus its supported systems/core versions; no such remote advertisement is implemented. Do not advertise shell/catalog/coordinator unless the node actually serves them. |
+| **Capability/version** | Kit DNS-SD advertises mesh `1.0`, `fpga_native`, `display_sink`, and `input_source`; no ABI families in TXT. Host placement reads ABI families from the authenticated kit content document. The host `/api/v1/health` also reports mesh `1.0` and configured `native_emu` core/system identity, version and observed SHA-256. See `sources/FogCast/internal/discovery/mesh.go`, `fogcast/mesh_place_wire.go`, and the health handler. | Mesh major mismatch is ineligible; unknown optional minor fields are ignored. The software capability is visible from the host health response, but host-to-host discovery/pairing and federated placement are not implemented. Do not advertise shell/catalog/coordinator unless the node actually serves them. |
 | **Title/backend** | Catalog entries preserve `game_id`; host execution uses `host_only` with the host RetroArch adapter, while FPGA uses `fpga_native`. Mesh content model has `native_emu`. See `internal/systems/table.go`, `internal/hostexec/retroarch.go`, `fogcast/mesh_library.go`, `internal/meshcontent/content.go`. | **Proposed:** one title identity may list distinct executable backends; admission requires title/system compatibility and the selected backend version. Backend selection is explicit in the session, not encoded as a node role. Federated runner selection is **GAP #360/#361**. |
 | **Node identity/pairing** | Kit identity is its existing persistent `target_id`; DNS-SD repeats it as `node_id`. Host reconciles discovery with configured targets and authenticated health. The launcher listener supports per-`target_id` credentials after #287; this is not the proposed user pairing flow. See `fogcast/discovery.go`, `internal/discovery/mesh.go`, `docs/mesh-vnext.md` §2.1, and `internal/hostapi/launcher.go`. | **Proposed:** the kit keeps that ID through capability changes; software-runner identity and pairing must reuse the existing configured target/host identity mechanisms where applicable. Do not add permanent Host/Kit identity enum. **GAP #360:** a remote software runner has no agreed identity/enrollment path. The v-next PAKE flow is proposed, not implemented. |
 | **Availability** | Inventory expiry removes a node from a future placement choice but does not release its lease. Room states are Checking/Missing/Needs a choice/Unavailable/Ready. Lease and target health are separate. See `internal/discovery/mesh.go`, `fogcast/mesh_ready.go`, FogCast `docs/rooms-experience.md`. | **Proposed:** report Checking while capability, backend, composition, or required content is unresolved; Ready only for the selected usable execution option; otherwise Unavailable with reason. Software-runner health/readiness and honest UI across both nodes are **GAP #359/#360/#362**. |
@@ -209,11 +209,13 @@ BIOS and no mapper, and it is an exact 32 KiB fixed-map image, so it fits the
   game speed can differ from the software backend. That difference is known and
   is not an acceptance failure.
 - **Software backend:** `native_emu` using the Genesis Plus GX libretro core on
-  a Linux runner. The proposed pin is upstream
+  Powerboat (Debian 13 x86_64, headless), using RetroArch 1.20.0 from the
+  Debian package and the upstream
   [libretro/Genesis-Plus-GX](https://github.com/libretro/Genesis-Plus-GX)
-  `c2838c7dc4236fc2fe94e5dbd08b41486067918e` (2026-09-12). The runner records
-  the built core's version string and sha256. The core uses its own
-  non-commercial license and is not redistributed by this repo.
+  build at `c2838c7dc4236fc2fe94e5dbd08b41486067918e`. The core reports
+  `library_version` `" c2838c7d"`; the built `.so` sha256 is
+  `051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49`.
+  The core uses its own non-commercial license and is not redistributed here.
 - **Fallback, if Data Storm fails on either backend:** *2048* for SMS by
   grz0zrg (BSD-3-Clause,
   [grz0zrg/2048-SMS](https://github.com/grz0zrg/2048-SMS), also 32 KiB).
