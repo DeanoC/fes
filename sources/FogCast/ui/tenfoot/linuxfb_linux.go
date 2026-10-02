@@ -57,6 +57,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	}
 	inputs, err := openNativeInputs(inputSpec, label)
 	if err != nil {
+		app.Stop()
 		return err
 	}
 	defer inputs.close()

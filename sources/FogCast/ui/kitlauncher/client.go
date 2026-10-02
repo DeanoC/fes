@@ -140,6 +140,27 @@ type Client struct {
 	// localDial, when set, replaces net.DialTimeout for the local socket.
 	// Tests count failed dials. Production leaves it nil.
 	localDial func(network, address string, timeout time.Duration) (net.Conn, error)
+	// catalogConfig is a FogCast config.toml. Run boots BootLocalCatalog
+	// from it when the remote host is absent. Empty leaves the host API
+	// and the disk snapshot unchanged.
+	catalogConfig string
+}
+
+// SetCatalogConfig names the catalog file Run boots for hostless browse.
+// fogcast-kit sets it from the launcher config path. An empty path is a no-op.
+func (c *Client) SetCatalogConfig(path string) {
+	if c == nil {
+		return
+	}
+	c.catalogConfig = strings.TrimSpace(path)
+}
+
+// CatalogConfig is the catalog file SetCatalogConfig stored.
+func (c *Client) CatalogConfig() string {
+	if c == nil {
+		return ""
+	}
+	return c.catalogConfig
 }
 
 func (c *Client) PairedKitLease(ctx context.Context) (kitlease.Status, error) {

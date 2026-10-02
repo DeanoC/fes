@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"fmt"
+
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -78,6 +81,13 @@ type Options struct {
 	// when Home is rooms. Empty falls back to tenfoot.json home_room, then
 	// FOGCAST_HOME_ROOM. A missing or invalid id falls back to the picker.
 	HomeRoom string
+	// CatalogConfig is a FogCast config.toml. menu-display boots
+	// BootLocalCatalog from it so the shelf works with the remote host
+	// absent. Empty keeps the configured host API. The fogcast-tenfoot
+	// flag parser fills this from -catalog-config, FOGCAST_CONFIG,
+	// FES_HOST_CONFIG, config.toml beside launcher.json, or the default
+	// user config when that file exists.
+	CatalogConfig string
 	// ReducedMotion skips decorative room animation. Empty falls back to
 	// FOGCAST_TENFOOT_REDUCED_MOTION / FOGCAST_REDUCED_MOTION, then
 	// tenfoot.json reduced_motion.
@@ -294,10 +304,35 @@ func configuredApp(opts Options) (*App, error) {
 	app.SetReducedMotion(opts.ReducedMotion)
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
 	// menu-display is the kit_ui=tenfoot entry. Host SDL, software, and
-	// linuxfb leave the local-control client unset.
+	// linuxfb leave the local-control client unset. A resolved catalog
+	// config replaces the remote API with the loopback catalog. A failed
+	// boot keeps the configured host.
 	if backend, err := gfx.ParseBackend(opts.GFX); err == nil && backend == gfx.BackendMenuDisplay {
 		app.EnableKitLocal()
+		if served := serveCatalog(opts.CatalogConfig); served != nil {
+			app.client = NewClient(served.Base, launcherHTTPClient("", "")).withAPIHost("")
+			app.localCatalogClose = served.Close
+			app.localContent = served.ContentPath
+		}
 	}
 
 	return app, nil
+}
+
+// serveCatalog boots the local catalog when configPath names a real file.
+// A missing path or a failed boot returns nil and leaves the host API in place.
+func serveCatalog(configPath string) *hostapi.LocalServe {
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
+		return nil
+	}
+	paths, err := fogcast.PathsForConfig(configPath)
+	if err != nil {
+		return nil
+	}
+	served, err := hostapi.ServeLocal(context.Background(), paths)
+	if err != nil {
+		return nil
+	}
+	return served
 }

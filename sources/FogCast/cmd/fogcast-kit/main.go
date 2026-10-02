@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/anim"
 	"github.com/DeanoC/FogCast/ui/audioreact"
@@ -231,6 +232,7 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	client := kitlauncher.NewClient(c)
+	attachLocalCatalog(client, *configPath, os.Getenv)
 	client.SetMenuDisplay(activeMenuDisplay)
 	if activeMenuDisplay {
 		client.SetMenuDisplayHandoff(func(ctx context.Context) error {
@@ -455,6 +457,15 @@ func run() error {
 		return err
 	}
 	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.OpenWith(remap) })
+}
+
+// attachLocalCatalog points the grid at BootLocalCatalog when a catalog
+// file resolves. run calls this before kitlauncher.Run. An empty result
+// keeps the configured host API.
+func attachLocalCatalog(client *kitlauncher.Client, launcherConfig string, getenv func(string) string) {
+	if path := fogcast.ResolveCatalogConfig("", launcherConfig, getenv); path != "" {
+		client.SetCatalogConfig(path)
+	}
 }
 
 func readKitIdentity(addressPath string) string {

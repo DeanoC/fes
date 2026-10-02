@@ -69,6 +69,23 @@ func TestPrintKitUI(t *testing.T) {
 	}
 }
 
+func TestAttachLocalCatalogUsesSiblingConfig(t *testing.T) {
+	dir := t.TempDir()
+	launcher := filepath.Join(dir, "launcher.json")
+	catalog := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(launcher, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(catalog, []byte("token = \"synthetic\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client := kitlauncher.NewClient(kitlauncher.Config{API: "http://127.0.0.1:9"})
+	attachLocalCatalog(client, launcher, func(string) string { return "" })
+	if client.CatalogConfig() != catalog {
+		t.Fatalf("catalog = %q", client.CatalogConfig())
+	}
+}
+
 func TestKitSelectsNativeMenuDisplayWithoutHPSFramebuffer(t *testing.T) {
 	m := kitlauncher.Model{Session: kitlauncher.Session{State: "idle"}}
 	fbOpened := false

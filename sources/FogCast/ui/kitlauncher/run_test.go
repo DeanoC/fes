@@ -225,6 +225,129 @@ func TestRunOfflineFooterUsesLocalLibraryCopy(t *testing.T) {
 	}
 }
 
+func TestRunBrowsesBootedCatalogWhenTheRemoteHostIsAbsent(t *testing.T) {
+	var gameHits atomic.Int64
+	launcher := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/games") {
+			gameHits.Add(1)
+		}
+		http.Error(w, "remote host is absent", http.StatusBadGateway)
+	}))
+	defer launcher.Close()
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "agent is absent", http.StatusBadGateway)
+	}))
+	defer agent.Close()
+	dir := t.TempDir()
+	root := filepath.Join(dir, "sms")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Data Storm 1.00.sms"), []byte("data-storm-fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	catalog := filepath.Join(dir, "config.toml")
+	body := `base_url = "` + agent.URL + `"
+token = "synthetic-token"
+request_timeout_seconds = 1
+upload_timeout_seconds = 2
+
+[[libraries]]
+id = "sms-main"
+system = "sms"
+root = "` + root + `"
+`
+	if err := os.WriteFile(catalog, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient(writeKitConfig(t, dir, launcher.URL))
+	client.SetCatalogConfig(catalog)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	var saw atomic.Bool
+	err := Run(ctx, client, func(m Model) {
+		for _, game := range m.Catalog {
+			if strings.Contains(game.Title, "Data Storm") && game.RootOnline {
+				saw.Store(true)
+				cancel()
+			}
+		}
+	}, func() (Pad, error) { return nil, errors.New("no pad") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saw.Load() {
+		t.Fatal("grid did not show Data Storm from the local catalog")
+	}
+	if gameHits.Load() != 0 {
+		t.Fatalf("remote launcher games hits=%d", gameHits.Load())
+	}
+}
+
+func TestRunKeepsHostCatalogWhenTheHostIsUp(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"snes","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"mario","title":"Mario","system":"snes","launchable":true,"state":"available","root_online":true}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "agent is absent", http.StatusBadGateway)
+	}))
+	defer agent.Close()
+	dir := t.TempDir()
+	root := filepath.Join(dir, "sms")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Data Storm 1.00.sms"), []byte("data-storm-fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	catalog := filepath.Join(dir, "config.toml")
+	toml := `base_url = "` + agent.URL + `"
+token = "synthetic-token"
+request_timeout_seconds = 1
+upload_timeout_seconds = 2
+
+[[libraries]]
+id = "sms-main"
+system = "sms"
+root = "` + root + `"
+`
+	if err := os.WriteFile(catalog, []byte(toml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient(writeKitConfig(t, dir, server.URL))
+	client.SetCatalogConfig(catalog)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	var saw atomic.Bool
+	err := Run(ctx, client, func(m Model) {
+		if !m.Connected {
+			return
+		}
+		if len(m.Catalog) == 1 && m.Catalog[0].ID == "mario" {
+			saw.Store(true)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errors.New("no pad") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saw.Load() {
+		t.Fatal("live host catalog was replaced by the local scan")
+	}
+}
+
 func TestRunEmptyCacheStaysOfflineWithoutHang(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "down", http.StatusBadGateway)

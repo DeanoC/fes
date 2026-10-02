@@ -527,6 +527,8 @@ type App struct {
 
 	localCores          rooms.LocalCores
 	localFeed           localPadSender
+	localCatalogClose   func() error
+	localContent        func(context.Context, string) (string, error)
 	localPhase          string
 	localTitle          string
 	localStatus         string
@@ -665,10 +667,15 @@ func (a *App) Stop() {
 	a.attractClosed = true
 	feed := a.localFeed
 	a.localFeed = nil
+	closeCatalog := a.localCatalogClose
+	a.localCatalogClose = nil
 	cancel := a.cancel
 	a.mu.Unlock()
 	if feed != nil {
 		feed.Close()
+	}
+	if closeCatalog != nil {
+		_ = closeCatalog()
 	}
 	if cancel != nil {
 		cancel()
