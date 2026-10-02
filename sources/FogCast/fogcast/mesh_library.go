@@ -25,6 +25,11 @@ const MeshSkipCatalogUnavailable = "local catalog unavailable"
 // stays on the skip list either way. ParseContentID does not coerce it.
 const MeshSkipMalformedContentID = "content id is malformed"
 
+// LibraryNodeMovedReason is the node reason when a configured hostname's
+// fresh lookup no longer contains the IP this process pinned. No bearer
+// is sent. A restart re-pins. The pin is not persisted (#396).
+const LibraryNodeMovedReason = "node moved; re-pair or confirm the new address"
+
 // MeshBackendRow groups the existing one-execute catalog entries by game id,
 // with rows that share an exact ROM sha256 and system linked under one
 // canonical id (see linkMeshTitles). Each option's Entry.TitleID stays the
@@ -88,8 +93,11 @@ type MeshBackendNode struct {
 // native_emu inventory node is not dialed: remote eligibility waits on
 // #298 and the runner prerequisites, and this method sends no bearer.
 // FPGA package facts come from a read of the configured [[targets]]
-// address, cached on this path. A miss leaves the node unavailable.
-// The read does not use a discovered or reconciled address.
+// address, cached on this path. A configured hostname is resolved once
+// per process and later reads dial only that pinned IP. If a fresh
+// lookup drops that IP, the node is unavailable with
+// LibraryNodeMovedReason and no bearer is sent. A miss leaves the node
+// unavailable. The read does not use a discovered or reconciled address.
 func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []MeshSkip) {
 	if s == nil || s.catalog == nil {
 		return nil, nil
@@ -131,6 +139,7 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 	s.meshMu.Unlock()
 	packages := make(map[string][]string)
 	abis := make(map[string][]meshcontent.EligibleABI)
+	var blocked map[string]string
 	for _, node := range nodes {
 		fpga := false
 		for _, execute := range node.Capabilities.Execute {
@@ -138,13 +147,54 @@ func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []M
 		}
 		// Package facts are read at the enrolled origin, or reused from
 		// this path's cache. The dial never uses a discovered or
-		// reconciled address. A native_emu node is not a kit content read.
+		// reconciled address. A hostname is dialed only at the IP this
+		// process pinned. A native_emu node is not a kit content read.
 		if fpga {
-			abis[node.NodeID], packages[node.NodeID] = s.libraryNodeFacts(ctx, node.NodeID)
+			var reason string
+			abis[node.NodeID], packages[node.NodeID], reason = s.libraryNodeFacts(ctx, node.NodeID)
+			if reason != "" {
+				if blocked == nil {
+					blocked = map[string]string{}
+				}
+				blocked[node.NodeID] = reason
+			}
 		}
 	}
 	rows, projectedSkipped := ProjectMeshBackendLibrary(lib, nodes, retained, packages, abis)
+	applyLibraryNodeReasons(rows, blocked)
 	return rows, append(skipped, projectedSkipped...)
+}
+
+// applyLibraryNodeReasons marks nodes a library read refused. The node
+// stays unavailable with that reason even when an older package list
+// would have passed. Host-local availability is not cleared.
+func applyLibraryNodeReasons(rows []MeshBackendRow, reasons map[string]string) {
+	if len(reasons) == 0 {
+		return
+	}
+	for i := range rows {
+		for j := range rows[i].Options {
+			opt := &rows[i].Options[j]
+			for k := range opt.Nodes {
+				reason, ok := reasons[opt.Nodes[k].NodeID]
+				if !ok {
+					continue
+				}
+				opt.Nodes[k].Available = false
+				opt.Nodes[k].Reason = reason
+			}
+			if opt.HostLocal {
+				continue
+			}
+			available := false
+			for _, node := range opt.Nodes {
+				available = available || node.Available
+			}
+			if !available && opt.Reason == "" {
+				opt.Reason = "no compatible executor in inventory"
+			}
+		}
+	}
 }
 
 // ProjectMeshBackendLibrary uses the same catalog projection and observed

@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -315,6 +317,209 @@ func TestMeshBackendLibraryRedirectDoesNotForwardBearer(t *testing.T) {
 	if rows[0].Options[0].Reason == "" || node.Available || node.Reason != "package unavailable on node" {
 		t.Fatalf("redirect counted as package facts: option=%+v", rows[0].Options[0])
 	}
+}
+
+// A configured hostname is pinned to the first lookup. A later lookup
+// that no longer includes that IP is not dialed and sends no bearer.
+// This host does not assign 127.0.0.2, so the second answer is ::1,
+// another loopback address with its own server. An IP literal does not
+// consult the resolver.
+func TestMeshBackendLibraryPinsConfiguredHostname(t *testing.T) {
+	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	const title = "Data Storm 1.00"
+	const kitID = "01234567-89ab-cdef-0123-456789abcdef"
+	const token = "fixture-token"
+	ctx := context.Background()
+	archive := sizedSetupArchive(t, "fes.sms", 32768)
+	packageRoot := t.TempDir()
+	if err := os.Chmod(packageRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	packages, err := corepackage.NewStore(packageRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection, _, err := packages.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreID := catalog.GameID(catalog.CorePlatform, "core-packages", "fes.sms\x00"+title, title)
+	coreGame := catalog.Game{ID: coreID, Title: title, System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true}
+	cat := &backendCatalog{fakeServiceCatalog: &fakeServiceCatalog{games: []catalog.Game{coreGame}}, entry: catalog.CoreEntry{GameID: coreID, Title: title, CoreID: "fes.sms", PackageID: inspection.PackageID, MediaRole: "blob", MediaID: media}}
+	newLibrary := func() *Service {
+		service := newService(Config{}, Paths{}, cat, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+		service.corePackages = packages
+		return service
+	}
+	writeNode := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/mesh/content/node" || r.Header.Get("Authorization") != "Bearer "+token {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"node_id":  kitID,
+			"abis":     []map[string]any{{"id": inspection.Descriptor.ABI.ID, "major": inspection.Descriptor.ABI.Major}},
+			"packages": []string{inspection.PackageID},
+		})
+	}
+
+	ln1, ln2, port := listenLibraryPinPair(t)
+	defer ln1.Close()
+	defer ln2.Close()
+	hostHeader := fmt.Sprintf("fes-kit-a:%d", port)
+	var ip1Hits, ip2Hits atomic.Int32
+	var ip1Auth, ip2Auth atomic.Bool
+	var ip1Host atomic.Bool
+	ip1 := serveLibraryPinListener(t, ln1, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip1Hits.Add(1)
+		if r.Header.Get("Authorization") == "Bearer "+token {
+			ip1Auth.Store(true)
+		}
+		if r.Host == hostHeader {
+			ip1Host.Store(true)
+		}
+		writeNode(w, r)
+	}))
+	defer ip1.Close()
+	ip2 := serveLibraryPinListener(t, ln2, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip2Hits.Add(1)
+		if r.Header.Get("Authorization") != "" {
+			ip2Auth.Store(true)
+		}
+		writeNode(w, r)
+	}))
+	defer ip2.Close()
+	var discoveredHits atomic.Int32
+	discovered := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		discoveredHits.Add(1)
+		http.Error(w, "discovered origin", http.StatusForbidden)
+	}))
+	defer discovered.Close()
+
+	service := newLibrary()
+	service.meshHTTP = &http.Client{}
+	service.targets = []TargetConfig{{Name: "kit", Enabled: true, TargetID: kitID, Address: "http://" + hostHeader, Agent: token}}
+	service.meshNodes = []MeshNode{{NodeID: kitID, TargetID: kitID, Address: discovered.URL, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities()}}
+	var resolveMu sync.Mutex
+	answer := net.ParseIP("127.0.0.1")
+	service.libraryResolve = func(_ context.Context, host string) ([]net.IP, error) {
+		if host != "fes-kit-a" {
+			t.Errorf("library resolved %q", host)
+		}
+		resolveMu.Lock()
+		defer resolveMu.Unlock()
+		return []net.IP{append(net.IP(nil), answer...)}, nil
+	}
+
+	rows, skipped := service.MeshBackendLibrary(ctx)
+	if ip1Hits.Load() == 0 || !ip1Auth.Load() || !ip1Host.Load() || ip2Hits.Load() != 0 || discoveredHits.Load() != 0 {
+		t.Fatalf("first pin read: ip1=%d auth=%v host=%v ip2=%d discovered=%d", ip1Hits.Load(), ip1Auth.Load(), ip1Host.Load(), ip2Hits.Load(), discoveredHits.Load())
+	}
+	if len(skipped) != 0 || len(rows) != 1 || !rows[0].Options[0].Nodes[0].Available || rows[0].Options[0].Nodes[0].NodeID != kitID {
+		t.Fatalf("pinned rows=%+v skipped=%+v", rows, skipped)
+	}
+	if got := service.libraryPins["fes-kit-a"]; !got.Equal(net.ParseIP("127.0.0.1")) {
+		t.Fatalf("pin = %v", got)
+	}
+	seeded := ip1Hits.Load()
+
+	resolveMu.Lock()
+	answer = net.ParseIP("::1")
+	resolveMu.Unlock()
+	service.meshMu.Lock()
+	cached := service.libraryNodes[kitID]
+	cached.at = time.Now().Add(-placementNodeTTL - time.Second)
+	service.libraryNodes[kitID] = cached
+	service.meshMu.Unlock()
+	rows, skipped = service.MeshBackendLibrary(ctx)
+	if ip2Hits.Load() != 0 || ip2Auth.Load() || ip1Hits.Load() != seeded || discoveredHits.Load() != 0 {
+		t.Fatalf("moved read dialed: ip1=%d seeded=%d ip2=%d ip2_auth=%v discovered=%d", ip1Hits.Load(), seeded, ip2Hits.Load(), ip2Auth.Load(), discoveredHits.Load())
+	}
+	if len(skipped) != 0 || len(rows) != 1 || len(rows[0].Options) != 1 {
+		t.Fatalf("moved rows=%+v skipped=%+v", rows, skipped)
+	}
+	moved := rows[0].Options[0]
+	if moved.Available() || moved.Nodes[0].Available || moved.Nodes[0].Reason != LibraryNodeMovedReason {
+		t.Fatalf("moved option=%+v", moved)
+	}
+	if got := service.libraryPins["fes-kit-a"]; !got.Equal(net.ParseIP("127.0.0.1")) {
+		t.Fatalf("pin replaced after move: %v", got)
+	}
+
+	// A new process has no pin, so the current answer is the enrolled IP.
+	restart := newLibrary()
+	restart.meshHTTP = &http.Client{}
+	restart.targets = service.targets
+	restart.meshNodes = service.meshNodes
+	restart.libraryResolve = func(_ context.Context, host string) ([]net.IP, error) {
+		if host != "fes-kit-a" {
+			t.Errorf("restart resolved %q", host)
+		}
+		return []net.IP{net.ParseIP("::1")}, nil
+	}
+	rows, skipped = restart.MeshBackendLibrary(ctx)
+	if ip2Hits.Load() == 0 || !ip2Auth.Load() || len(skipped) != 0 || len(rows) != 1 || !rows[0].Options[0].Nodes[0].Available {
+		t.Fatalf("restart did not re-pin: ip2=%d auth=%v rows=%+v skipped=%+v", ip2Hits.Load(), ip2Auth.Load(), rows, skipped)
+	}
+	if got := restart.libraryPins["fes-kit-a"]; !got.Equal(net.ParseIP("::1")) {
+		t.Fatalf("restart pin = %v", got)
+	}
+	if got := service.libraryPins["fes-kit-a"]; !got.Equal(net.ParseIP("127.0.0.1")) {
+		t.Fatalf("first process pin changed: %v", got)
+	}
+
+	literal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			http.NotFound(w, r)
+			return
+		}
+		writeNode(w, r)
+	}))
+	defer literal.Close()
+	plain := newLibrary()
+	plain.meshHTTP = &http.Client{}
+	plain.libraryResolve = func(_ context.Context, host string) ([]net.IP, error) {
+		t.Errorf("IP literal resolved %q", host)
+		return nil, fmt.Errorf("resolver must not be called")
+	}
+	plain.targets = []TargetConfig{{Name: "kit", Enabled: true, TargetID: kitID, Address: literal.URL, Agent: token}}
+	plain.meshNodes = []MeshNode{{NodeID: kitID, TargetID: kitID, Address: discovered.URL, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities()}}
+	before := discoveredHits.Load()
+	rows, skipped = plain.MeshBackendLibrary(ctx)
+	if discoveredHits.Load() != before || len(plain.libraryPins) != 0 || len(skipped) != 0 || len(rows) != 1 || !rows[0].Options[0].Nodes[0].Available {
+		t.Fatalf("IP literal: discovered=%d pins=%v rows=%+v skipped=%+v", discoveredHits.Load(), plain.libraryPins, rows, skipped)
+	}
+}
+
+func listenLibraryPinPair(t *testing.T) (net.Listener, net.Listener, int) {
+	t.Helper()
+	var last error
+	for i := 0; i < 8; i++ {
+		v4, err := net.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		port := v4.Addr().(*net.TCPAddr).Port
+		v6, err := net.Listen("tcp6", net.JoinHostPort("::1", fmt.Sprintf("%d", port)))
+		if err == nil {
+			return v4, v6, port
+		}
+		last = err
+		v4.Close()
+	}
+	t.Fatalf("listen ::1: %v", last)
+	return nil, nil, 0
+}
+
+func serveLibraryPinListener(t *testing.T, ln net.Listener, h http.Handler) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewUnstartedServer(h)
+	if err := srv.Listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv.Listener = ln
+	srv.Start()
+	return srv
 }
 
 func TestMeshBackendLibraryTwoNodeProjection(t *testing.T) {

@@ -1382,7 +1382,11 @@ read is cached on the library path and times out with the placement
 node-document deadline. `GET /api/v1/library/titles` does not send the
 agent token to a discovered or reconciled address. The library client
 does not follow redirects, so a 3xx is a failed read and does not
-forward that token. A failed or missing
+forward that token. A configured hostname is resolved once per process
+and later library reads dial only that pinned IP, keeping the configured
+Host header. If a later lookup drops that IP, no bearer is sent and the
+node is unavailable with `node moved; re-pair or confirm the new address`.
+The pin is not persisted (#396). An IP literal is dialed as written. A failed or missing
 read leaves the FPGA candidate unavailable (`package unavailable on node`). A missing, retained, conflicting, or mesh-major-incompatible
 advertisement is unavailable. A `native_emu` advertisement remains
 unverified for remote execution because the current capability bag has no
