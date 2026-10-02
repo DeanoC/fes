@@ -331,6 +331,18 @@ public:
 		return {};
 	}
 
+	Error InspectPartsCore(const std::string& directory, const std::string& id,
+		const CoreCompositionRequest& request, CorePackageInspection* output)
+	{
+		if (!output || !ValidAbsolutePath(directory) || !ValidPackageId(id) || request.parts.empty())
+			return Invalid("invalid developer parts inspection request");
+		std::unique_ptr<AdmittedCorePackage> admitted;
+		Error error = hardware_.AdmitCoreComposition(directory, id, request, &admitted);
+		if (error.ok()) error = hardware_.InspectCorePackage(directory, id, output);
+		Log("inspect_parts_core", "", "", error.ok() ? "admission" : error.phase, error);
+		return error;
+	}
+
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
@@ -1353,6 +1365,11 @@ Error Runtime::InspectCore(const std::string& directory,
 	const std::string& expected_package_id, CorePackageInspection* output)
 {
 	return impl_->InspectCore(directory, expected_package_id, output);
+}
+Error Runtime::InspectPartsCore(const std::string& directory, const std::string& id,
+	const CoreCompositionRequest& request, CorePackageInspection* output)
+{
+	return impl_->InspectPartsCore(directory, id, request, output);
 }
 Error Runtime::SetController(const std::string& package_id, std::uint64_t generation,
 	std::uint8_t port, std::uint16_t buttons, std::uint16_t keypad)

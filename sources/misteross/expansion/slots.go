@@ -171,20 +171,37 @@ func ComposeSlotsContext(ctx context.Context, shell Shell, assets []Asset) (Slot
 }
 
 func linkSlotsContext(ctx context.Context, shell []byte, assets []Asset, policies map[int]socketPolicy) ([]byte, error) {
+	overlays := make([]regionOverlay, 0, len(assets))
+	for _, asset := range assets {
+		overlays = append(overlays, regionOverlay{label: fmt.Sprintf("slot %d", asset.Manifest.SlotIndex),
+			cart: asset.Cart, policy: policies[asset.Manifest.SlotIndex]})
+	}
+	return linkRegionOverlaysContext(ctx, shell, overlays)
+}
+
+// regionOverlay is internal: callers can select only the closed socket policies
+// admitted by their public composition API, never upload their own rectangles.
+type regionOverlay struct {
+	label  string
+	cart   []byte
+	policy socketPolicy
+}
+
+func linkRegionOverlaysContext(ctx context.Context, shell []byte, overlays []regionOverlay) ([]byte, error) {
 	base, err := loadFramesContext(ctx, shell)
 	if err != nil {
 		return nil, fmt.Errorf("shell: %w", err)
 	}
 	result := bytes.Clone(base.frames)
 	dirty := make([]bool, cramWidth)
-	for _, asset := range assets {
-		policy := policies[asset.Manifest.SlotIndex]
-		addition, err := loadFramesContext(ctx, asset.Cart)
+	for _, overlay := range overlays {
+		policy := overlay.policy
+		addition, err := loadFramesContext(ctx, overlay.cart)
 		if err != nil {
-			return nil, fmt.Errorf("slot %d cart: %w", asset.Manifest.SlotIndex, err)
+			return nil, fmt.Errorf("%s cart: %w", overlay.label, err)
 		}
 		if !bytes.Equal(base.header, addition.header) {
-			return nil, fmt.Errorf("slot %d cart changes shell ORAM/PRAM header", asset.Manifest.SlotIndex)
+			return nil, fmt.Errorf("%s cart changes shell ORAM/PRAM header", overlay.label)
 		}
 		for x := 0; x < cramWidth; x++ {
 			if err := ctx.Err(); err != nil {
@@ -203,8 +220,7 @@ func linkSlotsContext(ctx context.Context, shell []byte, assets []Asset, policie
 					continue
 				}
 				if !policy.inside(x, y) {
-					return nil, fmt.Errorf("slot %d cart changes CRAM outside its socket at %d,%d",
-						asset.Manifest.SlotIndex, x, y)
+					return nil, fmt.Errorf("%s cart changes CRAM outside its socket at %d,%d", overlay.label, x, y)
 				}
 				target[pos/8] = (target[pos/8] &^ mask) | (after[pos/8] & mask)
 				dirty[x] = true

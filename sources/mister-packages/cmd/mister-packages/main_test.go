@@ -38,3 +38,21 @@ func TestCommandsAcceptABIAndProgrammingDefinitions(t *testing.T) {
 		t.Fatalf("emit-verilog computer ABI = %q, %v", computerVerilog, err)
 	}
 }
+
+func TestCommandsKeepFabricSeparateFromHostABI(t *testing.T) {
+	path := filepath.Join("..", "..", "packages", "fabric", "fes_fabric_video_raster_rgb888.yaml")
+	id, err := validatePath(path)
+	if err != nil || id != "fes.fabric.video.raster-rgb888" {
+		t.Fatalf("validate fabric = %q, %v", id, err)
+	}
+	verilog, err := emitVerilogPath(path)
+	if err != nil || !strings.Contains(verilog, "`define FES_VIDEO_PART_REQUEST_BITS") {
+		t.Fatalf("emit-verilog fabric = %q, %v", verilog, err)
+	}
+	if _, err := emitGoPath(path); err == nil {
+		t.Fatal("fabric unexpectedly accepted as a host Go ABI")
+	}
+	if _, err := emitPath(path); err == nil {
+		t.Fatal("fabric unexpectedly accepted as a host C++ ABI")
+	}
+}

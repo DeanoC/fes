@@ -1,0 +1,60 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.video.raster-rgb888
+description: >-
+  Internal timed RGB888 video-part socket. The fixed 720p60 proof carries
+  pixels and timing together without source backpressure. This is not a GP
+  mailbox ABI or a runtime video capability.
+major: 1
+minor: 0
+constants:
+  - name: FesVideoPartMajor
+    value: 1
+  - name: FesVideoPartMinor
+    value: 0
+  - name: FesVideoPartRequestBits
+    value: 32
+  - name: FesVideoPartResponseBits
+    value: 28
+  - name: FesVideoPartRgbBits
+    value: 24
+  - name: FesVideoPartRequestRgbLow
+    value: 0
+  - name: FesVideoPartRequestDeBit
+    value: 24
+  - name: FesVideoPartRequestHsBit
+    value: 25
+  - name: FesVideoPartRequestVsBit
+    value: 26
+  - name: FesVideoPartRequestCeBit
+    value: 27
+  - name: FesVideoPartRequestSofBit
+    value: 28
+  - name: FesVideoPartRequestEolBit
+    value: 29
+  - name: FesVideoPartRequestHoldBit
+    value: 30
+  - name: FesVideoPartRequestReservedBit
+    value: 31
+  - name: FesVideoPartResponseRgbLow
+    value: 0
+  - name: FesVideoPartResponseDeBit
+    value: 24
+  - name: FesVideoPartResponseHsBit
+    value: 25
+  - name: FesVideoPartResponseVsBit
+    value: 26
+  - name: FesVideoPartResponseCeBit
+    value: 27
+  - name: FesVideoPartBoundaryLatencyCycles
+    value: 2
+  - name: FesVideoPart720pPixelClockHz
+    value: 74250000
+  - name: FesVideoPart720pHorizontalActive
+    value: 1280
+  - name: FesVideoPart720pHorizontalTotal
+    value: 1650
+  - name: FesVideoPart720pVerticalActive
+    value: 720
+  - name: FesVideoPart720pVerticalTotal
+    value: 750

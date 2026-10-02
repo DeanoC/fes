@@ -16,6 +16,8 @@ enum class Operation {
 	inspect_core,
 	load_core,
 	load_composed_core,
+	load_parts_core,
+	inspect_parts_core,
 	load_rom_core,
 	load_rom_library_core,
 	load_rom_composed_core,

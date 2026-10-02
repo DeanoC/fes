@@ -20,7 +20,7 @@ FPGA_SOFTWARE_TESTS = (
     'test_export_core_package.py', 'test_compiler_read_audit.py',
     'test_source_provenance.py', 'test_source_repository.py',
     'test_core_package.py', 'test_core_package_v3.py', 'test_search_placer_qor.py',
-    'test_coleco_sim_shards.py', 'test_rom_map.py',
+    'test_coleco_sim_shards.py', 'test_rom_map.py', 'test_video_parts_build.py',
 )
 FPGA_PRODUCER_HELPERS = {
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',

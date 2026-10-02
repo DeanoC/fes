@@ -839,7 +839,16 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				"unsupported FES application ABI or system declaration");
 		bool video = false, blob = false, stream = false, menu = false, ddr = false;
 		bool gamepad = false, ports = false, keypad = false;
+		bool video_socket = false, coleco_bus = false;
 		for (const auto& interface : descriptor.interfaces) {
+			if (interface.id == "fes.fabric.video.raster-rgb888") {
+				if (interface.required || interface.major != 1 || interface.minor != 0)
+					return CompatibilityError(ErrorCode::unsupported_interface, "video fabric socket must be optional at version 1.0");
+				video_socket = true;
+				continue;
+			}
+			if (interface.id == "fes.expansion.coleco-bus" && interface.major == 2 &&
+				interface.minor == 0 && !interface.required) coleco_bus = true;
 			const bool firmware = interface.id == FesApplicationInterfaceFirmwareBlobID;
 			const bool known = interface.id == FesApplicationInterfaceGamepadID ||
 				interface.id == FesApplicationInterfaceGamepadPortsID ||
@@ -869,6 +878,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesApplicationInterfaceGamepadPortsID) ports = true;
 			if (interface.id == FesApplicationInterfaceKeypadPortsID) keypad = true;
 		}
+		if (video_socket && (descriptor.format != 2 || descriptor.core.id != "fes.coleco" || !coleco_bus))
+			return CompatibilityError(ErrorCode::unsupported_interface, "video fabric socket requires the format-2 Coleco bus-2 developer shell");
 		if (menu && (!ddr || descriptor.interfaces.size() != 3))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"menu display requires exactly fixed video, HPS DDR and menu display");

@@ -63,9 +63,16 @@ std::string Controller::Handle(const std::string& line)
 		EmitFifoConsume("load_core", result.ok());
 		break;
 	case Operation::load_composed_core:
+	case Operation::load_parts_core:
 		result = runtime_.LoadComposedCore(request.package_path, request.package_id,
 			request.composition_request);
-		EmitFifoConsume("load_composed_core", result.ok());
+		EmitFifoConsume(request.operation == Operation::load_parts_core ?
+			"load_parts_core" : "load_composed_core", result.ok());
+		break;
+	case Operation::inspect_parts_core:
+		result = runtime_.InspectPartsCore(request.package_path, request.package_id,
+			request.composition_request, &inspection);
+		if (result.ok()) inspected = &inspection;
 		break;
 	case Operation::load_rom_core:
 		result = request.rom_links.sources.empty() ?

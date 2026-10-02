@@ -319,6 +319,19 @@ void TestLinkedCartridgeRejectsResetHeldMediaContracts()
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
 }
 
+void TestDeveloperVideoSocketCompatibility() {
+ mister::CoreDescriptor d;
+ d.format=2;d.core.id="fes.coleco";d.target={"de10_nano","5CSEBA6U23I7","fes-gp-v1"};d.abi={"fes.application",1,0};
+ d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.expansion.coleco-bus",2,0,false},{"fes.fabric.video.raster-rgb888",1,0,false}};
+ assert(mister::native::CheckCoreCompatibility(d).ok());
+ auto changed=d;changed.core.id="fes.other";assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.format=3;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.interfaces.back().required=true;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.interfaces.back().minor=1;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.interfaces[1].major=1;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.interfaces.push_back({"unknown.operational.capability",1,0,true});assert(!mister::native::CheckCoreCompatibility(changed).ok());
+}
+
 void TestApplicationCompatibilityComposesInterfaces()
 {
 	mister::native::CoreDescriptor descriptor;
@@ -875,6 +888,7 @@ int main()
 	TestSharedFormat3IdentityAndManifestFixtures();
 	TestFormat3IdentityAndRetainedMap();
 	TestLinkedCartridgeRejectsResetHeldMediaContracts();
+	TestDeveloperVideoSocketCompatibility();
 	TestApplicationCompatibilityComposesInterfaces();
 	TestSha256StandardVectorsAndStreaming();
 	TestAllSharedFixturesAndExactIdentity();

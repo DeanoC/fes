@@ -37,6 +37,10 @@ SMS requires an exact 32768-byte cartridge input; SG-1000 requires an exact
 selected Mistral database, routed ROM placements and blank INIT bits. Other
 normal producers retain format 2. See [functional input identity](docs/architecture.md#functional-input-identity).
 
+The separate Coleco [video-parts development lane](docs/cores.md#video-parts-development-lane)
+links direct or scanline processing into a frozen pixel-clock socket. Its shared
+RTL contract is owned by [mister-packages](../mister-packages/docs/video-parts.md).
+
 The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco` and `fes.ramtest`. Another
 package is not added to that set merely because its producer exists.
 

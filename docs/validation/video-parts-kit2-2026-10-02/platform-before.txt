@@ -1,0 +1,70 @@
+da6bd708-6c4a-45ca-b600-d58a94d72b27
+2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699  /usr/sbin/mister-agent
+a6c24668d3e98ab067f0835371733ab895905919ba630e60c409cd3c678b50a2  /usr/sbin/mister-runtime
+2de33b804ccd03c7bbb695cf3fc460d7277e31bded24f2cacb9c59b965d89699  /proc/13547/exe
+/usr/sbin/mister-agent --config /media/fat/fogcast/agent.toml
+a6c24668d3e98ab067f0835371733ab895905919ba630e60c409cd3c678b50a2  /proc/13541/exe
+/usr/sbin/mister-runtime --menu-package /usr/share/mister-runtime/core-packages/562f687edce0e73609555203ba6bf2c122501e04f82ae16fa0eef0da972fc18c 562f687edce0e73609555203ba6bf2c122501e04f82ae16fa0eef0da972fc18c
+/dev/loop8 /.fes-bootstrap ext4 ro,noatime,nodiratime 0 0
+/dev/root /media/fat exfat rw,sync,dirsync,noatime,nodiratime,fmask=0022,dmask=0022,codepage=cp437,iocharset=utf8,namecase=0,errors=remount-ro 0 0
+devtmpfs /dev devtmpfs rw,relatime,size=251536k,nr_inodes=62884,mode=755 0 0
+proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
+sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0
+tmpfs /.fes-bootstrap/run tmpfs rw,nosuid,nodev,relatime 0 0
+/dev/loop0 / ext4 ro,noatime,norecovery 0 0
+proc /proc proc rw,relatime 0 0
+devpts /dev/pts devpts rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=666 0 0
+tmpfs /dev/shm tmpfs rw,nosuid,nodev,relatime 0 0
+tmpfs /run tmpfs rw,nosuid,nodev,relatime,mode=755 0 0
+tmpfs /tmp tmpfs rw,nosuid,nodev,relatime 0 0
+tmpfs /var/log tmpfs rw,nosuid,nodev,noexec,relatime,mode=755 0 0
+#!/bin/sh
+set -eu
+
+supervisor_pid=/run/fogcast-kit-supervisor.pid
+child_pid=/run/fogcast-kit.pid
+
+read_pid() {
+  [ -f "$1" ] || return 1
+  IFS= read -r pid < "$1"
+  case "$pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+}
+
+stop_service() {
+  read_pid "$supervisor_pid" || return 0
+  supervisor=$pid
+  /bin/kill "$supervisor" 2>/dev/null || true
+  stop_wait=5
+  while /bin/kill -0 "$supervisor" 2>/dev/null && [ "$stop_wait" -gt 0 ]; do
+    /bin/sleep 1
+    stop_wait=$((stop_wait - 1))
+  done
+  if /bin/kill -0 "$supervisor" 2>/dev/null; then
+    if read_pid "$child_pid"; then
+      /bin/kill -KILL "$pid" 2>/dev/null || true
+    fi
+    /bin/kill -KILL "$supervisor" 2>/dev/null || true
+  fi
+  /bin/rm -f "$supervisor_pid" "$child_pid"
+}
+
+case "${1:-start}" in
+  start)
+    if read_pid "$supervisor_pid" && /bin/kill -0 "$pid" 2>/dev/null; then
+      exit 0
+    fi
+    # Config, networking and the host may appear later. The shared supervisor
+    # retries an unsuccessful process without holding up the boot sequence.
+    if [ -f /usr/share/mister-runtime/selections/fes-menu.package.toml ]; then
+      /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
+        --config /media/fat/fogcast/launcher.json --menu-display &
+    else
+      /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
+        --config /media/fat/fogcast/launcher.json &
+    fi
+    printf '%s\n' "$!" > "$supervisor_pid"
+    ;;
+  stop) stop_service ;;
+  restart) stop_service; "$0" start ;;
+  *) printf 'usage: %s start|stop|restart\n' "$0" >&2; exit 2 ;;
+esac

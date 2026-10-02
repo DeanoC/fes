@@ -95,6 +95,13 @@ type CoreInspection struct {
 	CompatibilityError *APIError              `json:"compatibility_error"`
 }
 
+// PartsInspection describes an explicitly volatile developer composition.
+type PartsInspection struct {
+	Core            CoreInspection             `json:"core"`
+	Composition     expansion.PartsComposition `json:"composition"`
+	PersistenceMode string                     `json:"persistence_mode"`
+}
+
 type Health struct {
 	TargetID     string     `json:"target_id,omitempty"`
 	APIVersion   string     `json:"api_version"`
@@ -131,6 +138,7 @@ type RuntimeInterface struct {
 }
 
 type CorePackageStatus struct {
+	PartsComposition *expansion.PartsComposition   `json:"parts_composition,omitempty"`
 	ROMLink          *corepackage.ROMLinkIdentity  `json:"rom_link,omitempty"`
 	ROMLinks         *corepackage.ROMLinksIdentity `json:"rom_links,omitempty"`
 	Composition      *expansion.Composition        `json:"composition,omitempty"`

@@ -5,6 +5,7 @@ import tempfile
 from environment import build_environment
 
 GENERATED = (
+    ('emit-verilog', 'packages/fabric/fes_fabric_video_raster_rgb888.yaml', 'misteross', 'cores/fes-common/generated/fes_video_part.vh'),
     ('emit-cpp', 'packages/platform/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano.hpp'),
     ('emit-cpp', 'packages/abi/fes_simple_game.yaml', 'libmister-runtime', 'src/native/generated/fes_gp.hpp'),
     ('emit-cpp', 'packages/abi/fes_application.yaml', 'libmister-runtime', 'src/native/generated/fes_application.hpp'),
@@ -53,6 +54,8 @@ COPIED_FILES = (
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
 )
 COMPONENT_FIXTURES = (
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-parts-responses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-parts-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-rom-package-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-rom-package-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-application-responses.jsonl',
