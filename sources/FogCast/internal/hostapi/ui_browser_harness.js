@@ -189,6 +189,12 @@ function normalizePlan(plan = {}) {
     settings: plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' },
     platforms: plan.platforms || { platforms: [] },
     collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
+    libraryTitles: plan.libraryTitles && typeof plan.libraryTitles === 'object'
+      ? plan.libraryTitles
+      : { titles: [] },
+    editionPreferences: plan.editionPreferences && typeof plan.editionPreferences === 'object'
+      ? plan.editionPreferences
+      : { preferences: [] },
     coreRoutes: new Map(Object.entries(plan.coreRoutes || {}).map(([route, responses]) => {
       if (!/^(GET|POST|PUT) \/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)
           && !/^(GET \/api\/v1\/library\/video-parts|POST \/api\/v1\/library\/video-parts\/(direct|scanlines))$/.test(route)) {
@@ -525,6 +531,20 @@ class FixtureServer extends EventEmitter {
       await this.deliver(record, response, {
         fixture: 'collections.json', status: 200, hold: false, delayMs: 0,
         override: { collections: this.plan.collections || [] },
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/library/titles' && request.method === 'GET') {
+      await this.deliver(record, response, {
+        fixture: 'library-titles.json', status: 200, hold: false, delayMs: 0,
+        override: this.plan.libraryTitles || { titles: [] },
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/library/edition-preferences' && request.method === 'GET') {
+      await this.deliver(record, response, {
+        fixture: 'edition-preferences.json', status: 200, hold: false, delayMs: 0,
+        override: this.plan.editionPreferences || { preferences: [] },
       });
       return;
     }

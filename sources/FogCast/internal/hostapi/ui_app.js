@@ -583,13 +583,22 @@
     return option.execution || option.source_game_id;
   }
 
+  function savedSourceGameID(title, game, picks) {
+    if (!title || !picks) return '';
+    const options = availableTitleOptions(title);
+    const known = id => typeof id === 'string' && options.some(option => option.source_game_id === id);
+    if (known(picks[title.title_id])) return picks[title.title_id];
+    const query = game && typeof game.title === 'string' ? game.title.trim().toLowerCase() : '';
+    if (query && known(picks[query])) return picks[query];
+    return '';
+  }
+
   function playChoiceFor(game, titles, picks) {
     const title = titleForGame(titles, game);
     const options = availableTitleOptions(title);
     if (options.length < 2) return {};
     if (game && options.some(option => option.source_game_id === game.id)) return {};
-    const picked = title && picks ? picks[title.title_id] : '';
-    if (picked && options.some(option => option.source_game_id === picked)) return {};
+    if (savedSourceGameID(title, game, picks)) return {};
     return { needsChoice: true, choiceReason: 'This title can play in more than one way. Choose one.' };
   }
 
@@ -1516,6 +1525,7 @@
 
     let retainedSessionTitleID = '';
     let retainedSessionTitle = '';
+    let playContextGeneration = 0;
 
     function liveSessionTitle(id) {
       const selected = state.selectedLiveGame && state.selectedLiveGame.id === id
@@ -2040,13 +2050,15 @@
       return emit();
     }
 
+    // The play pane calls this when it opens and again when that pane refreshes.
+    // A newer open replaces an in-flight load so a stale reply cannot win.
     async function ensurePlayContext() {
-      if (state.playContextLoaded) return snapshot();
-      state.playContextLoaded = true;
+      const generation = ++playContextGeneration;
       const titlesPromise = request(fetchImpl, titlesPath()).catch(() => null);
       const prefsPromise = request(fetchImpl, editionPreferencesPath()).catch(() => null);
       const titlesPayload = await titlesPromise;
       const prefsPayload = await prefsPromise;
+      if (generation !== playContextGeneration) return snapshot();
       if (titlesPayload) {
         try {
           state.libraryTitles = Object.freeze(parseLibraryTitles(titlesPayload));
@@ -2058,12 +2070,24 @@
       const listed = prefsPayload && Array.isArray(prefsPayload.preferences) ? prefsPayload.preferences : [];
       listed.forEach(pref => {
         if (!pref || typeof pref.game_id !== 'string' || !pref.game_id.trim()) return;
+        const gameID = pref.game_id.trim();
         const key = typeof pref.query === 'string' ? pref.query.trim().toLowerCase() : '';
-        if (key) picks[key] = pref.game_id;
-        picks[pref.game_id] = pref.game_id;
+        if (key) picks[key] = gameID;
+        picks[gameID] = gameID;
       });
       state.playPicks = Object.freeze(picks);
+      state.playContextLoaded = true;
       return emit();
+    }
+
+    function playSelection(game) {
+      if (!game) return game;
+      const title = titleForGame(state.libraryTitles, game);
+      const options = availableTitleOptions(title);
+      if (options.some(option => option.source_game_id === game.id)) return game;
+      const picked = savedSourceGameID(title, game, state.playPicks);
+      if (!picked || picked === game.id) return game;
+      return Object.freeze({ ...game, id: picked });
     }
 
     function rememberPlayPick(game) {
@@ -2122,7 +2146,7 @@
     }
 
     async function launchSelected() {
-      const selected = state.selectedLiveGame;
+      const selected = playSelection(state.selectedLiveGame);
       if (state.activeMutation) return mutationConflict();
       if (!selected) return snapshot();
       const choice = playChoiceFor(selected, state.libraryTitles, state.playPicks);
@@ -3085,6 +3109,12 @@
     async function refreshDetail(gameOrID) {
       const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
       if (!state.selectedLiveGame || state.selectedLiveGame.id !== id) return snapshot();
+      const playContext = ensurePlayContext();
+      const settle = async followup => {
+        if (typeof followup === 'function') await followup();
+        await playContext;
+        return snapshot();
+      };
       const previousIdentity = presentationIdentity(state.selectedLiveGame);
       const selectionRevision = state.selectionRevision;
       const sequence = ++state.detailSequence;
@@ -3098,7 +3128,7 @@
           || selectionRevision !== state.selectionRevision
           || !state.selectedLiveGame
           || state.selectedLiveGame.id !== id
-        ) return snapshot();
+        ) return settle();
         const detail = parseDetail(result, id);
         const identityChanged = !samePresentationIdentity(previousIdentity, presentationIdentity(detail));
         if (identityChanged) {
@@ -3116,24 +3146,25 @@
           || selectionRevision !== state.selectionRevision
           || !state.selectedLiveGame
           || state.selectedLiveGame.id !== id
-        ) return snapshot();
+        ) return settle();
         state.selectedLiveGame = detail;
         state.selectedGameView = view;
         state.detailState = 'populated';
         state.detailError = null;
-        const next = emit();
-        if (identityChanged && presentationEnabled) return refreshPresentation(detail);
-        return next;
+        emit();
+        if (identityChanged && presentationEnabled) return settle(() => refreshPresentation(detail));
+        return settle();
       } catch (error) {
         if (
           sequence !== state.detailSequence
           || selectionRevision !== state.selectionRevision
           || !state.selectedLiveGame
           || state.selectedLiveGame.id !== id
-        ) return snapshot();
+        ) return settle();
         state.detailState = 'detail_error';
         state.detailError = errorSnapshot(error, 'The live detail could not be refreshed.');
-        return emit();
+        emit();
+        return settle();
       }
     }
 
@@ -4927,12 +4958,15 @@
       const label = element('label', 'filter-label', 'How to play');
       const select = element('select');
       select.id = 'play-backend';
+      const onOption = backendOptions.some(option => option.source_game_id === game.id);
+      const chosen = onOption ? game.id : savedSourceGameID(title, game, state.playPicks);
       backendOptions.forEach(option => {
         const optionEl = element('option', '', backendOptionLabel(option));
         optionEl.value = option.source_game_id;
-        if (option.source_game_id === game.id) optionEl.selected = true;
+        if (option.source_game_id === chosen) optionEl.selected = true;
         select.appendChild(optionEl);
       });
+      if (chosen) select.value = chosen;
       select.addEventListener('change', () => {
         const picked = backendOptions.find(option => option.source_game_id === select.value);
         if (!picked) return;

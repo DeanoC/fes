@@ -138,9 +138,22 @@ function jsonResponse(payload, status = 200) {
   };
 }
 
+// Detail open loads play context beside the scripted detail response.
+// Empty documents keep that load from consuming the scenario queue.
+function defaultPlayContextResponse(requestPath, options) {
+  const pathOnly = String(requestPath || '').split('?')[0];
+  const method = String((options && options.method) || 'GET').toUpperCase();
+  if (method !== 'GET') return null;
+  if (pathOnly === '/api/v1/library/titles') return jsonResponse({ titles: [] });
+  if (pathOnly === '/api/v1/library/edition-preferences') return jsonResponse({ preferences: [] });
+  return null;
+}
+
 function queuedFetch(responses) {
   const calls = [];
   const fetchImpl = async (requestPath, options) => {
+    const playContext = defaultPlayContextResponse(requestPath, options);
+    if (playContext) return playContext;
     calls.push({ path: requestPath, options });
     const response = responses.shift();
     if (!response) throw new Error(`missing fixture response for ${requestPath}`);
@@ -472,6 +485,8 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       return jsonResponse({ favorite: (options && options.method) === 'PUT' });
     }
+    const playContext = defaultPlayContextResponse(requestPath, options);
+    if (playContext) return playContext;
     if (pathOnly === '/api/v1/library/settings') {
       return jsonResponse(librarySettings);
     }
@@ -552,6 +567,8 @@ async function runCollectionEditorApp({ collections = [], writeResponses = [], o
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       return jsonResponse({ favorite: (options && options.method) === 'PUT' });
     }
+    const playContext = defaultPlayContextResponse(requestPath, options);
+    if (playContext) return playContext;
     if (pathOnly === '/api/v1/session') return jsonResponse({ state: 'idle' });
     if (pathOnly === '/api/v1/games') return jsonResponse(readFixture('catalog-populated.json'));
     throw new Error(`unexpected collection editor fixture ${requestPath}`);
@@ -2018,6 +2035,12 @@ function gamesRequestKey(requestPath) {
 function routedFetch(routes) {
   const calls = [];
   const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    const explicit = routes[requestPath] || routes[pathOnly];
+    if (!explicit) {
+      const playContext = defaultPlayContextResponse(requestPath, options);
+      if (playContext) return playContext;
+    }
     calls.push({ path: requestPath, options });
     const key = gamesRequestKey(requestPath);
     const exact = routes[requestPath];
@@ -3651,6 +3674,8 @@ async function runKeyboardApp({ pages, railPages, platforms, launchResponse, glo
       const game = allGames.find(item => item.id === id) || availableGame(id, id);
       return jsonResponse(game);
     }
+    const playContext = defaultPlayContextResponse(requestPath, options);
+    if (playContext) return playContext;
     throw new Error(`unexpected keyboard fixture path ${requestPath}`);
   };
   const context = {
