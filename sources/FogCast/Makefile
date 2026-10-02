@@ -25,7 +25,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
+.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix test-kit-diagnostics test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -36,6 +36,10 @@ test: build-agent test-ui test-target-boundary test-target-contract-boundary tes
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
 	sh scripts/tests/package-runtime-smoke_test.sh
+	sh scripts/tests/kit-diagnostics_test.sh
+
+test-kit-diagnostics:
+	sh scripts/tests/kit-diagnostics_test.sh
 
 test-ui:
 	$(MAKE) test-ui-boundary

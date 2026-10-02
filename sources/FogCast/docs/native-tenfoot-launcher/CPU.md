@@ -80,3 +80,6 @@ benchmarks do not program an FPGA, replace services or qualify a factory image.
 
 ARMv7 measurements and qualification limits are recorded in the FES
 [CPU-backend diagnostic](../../../../docs/validation/2026-09-30-tenfoot-cpu-backend.md).
+Kit-wide CPU, memory, and storage budgets for the local host and shell are in
+[kit resource limits](../kit-resource-limits.md). That collector is read-only
+and is separate from these opt-in profiles.
