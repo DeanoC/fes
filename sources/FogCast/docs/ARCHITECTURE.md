@@ -1286,8 +1286,9 @@ one row per node id. Instances of one node at one address (the same kit
 seen on two host interfaces) are one row; when the browse window's
 instances of a node id name more than one address, the row carries
 `address_conflict: true` and no `address`, and uniqueness is checked on
-every instance before the rows are collapsed. A browse error keeps the
-previous rows. The inventory does
+every instance before the rows are collapsed. The monitor observes these
+advertisements even when the selected target has no Phase 0 binding. A
+browse error keeps the previous rows. The inventory does
 not adopt an endpoint, claim a lease, or make a title Ready. A later browse
 that no longer sees a node, including a node that omitted `ttl`, drops that
 row only. A mesh major other than 1 does not remove that direct bind; a
@@ -1320,6 +1321,19 @@ content-id of an RBF. `PackageABI.Major` is that ABI's major, not the
 mesh protocol major. `ReadyHere` requires that package id and an
 eligible ABI id and major before it reports Ready. Package id alone is
 not eligibility.
+
+`ProjectMeshBackendLibrary` groups the existing single-execute entries
+by catalog game id. It keeps separate package and emulator compositions,
+deduplicates repeated content ids, and annotates observed node candidates.
+The caller supplies package and ABI facts from authenticated kit node
+documents. A missing, retained, conflicting, or mesh-major-incompatible
+advertisement is unavailable. A `native_emu` advertisement remains
+unverified for remote execution because the current capability bag has no
+supported-system or emulator-version fact. The host-local `host_only`
+path remains labelled separately. This projection does not select a
+backend for a session, assert composition Ready, or publish a library
+wire field. Remote title/source provenance and that wire contract remain
+proposed in the mesh docs.
 
 `meshcontent.Ensure` is the host ensure step. It takes one projected
 entry and the executor the session is already bound to. Each required

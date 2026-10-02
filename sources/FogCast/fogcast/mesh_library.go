@@ -1,13 +1,158 @@
 package fogcast
 
 import (
+	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+// MeshBackendRow groups the existing one-execute catalog entries by game id.
+// This is a host projection, not a session selection or a wire contract.
+type MeshBackendRow struct {
+	TitleID    string
+	System     string
+	ContentIDs []meshcontent.ContentID
+	Options    []MeshBackendOption
+}
+
+// MeshBackendOption keeps each composition distinct. Nodes are capability
+// candidates; their presence never makes this option Ready for a session.
+type MeshBackendOption struct {
+	Entry     meshcontent.Entry
+	Nodes     []MeshBackendNode
+	HostLocal bool
+	Reason    string
+}
+
+type MeshBackendNode struct {
+	NodeID    string
+	Available bool
+	Reason    string
+}
+
+// ProjectMeshBackendLibrary uses the same catalog projection and observed
+// inventory as launch and placement. An absent/retained or conflicting node
+// cannot be selected. FPGA package evidence is supplied by the authenticated
+// node document; discovery alone cannot assert that a package is installed.
+// Remote emulator compatibility remains unresolved until the runner reports
+// supported systems and core versions (#360).
+func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool, kitPackages map[string][]string, kitABIs map[string][]meshcontent.EligibleABI) (rows []MeshBackendRow, skipped []MeshSkip) {
+	entries, skipped := ProjectMeshLibrary(lib)
+	counts := map[string]int{}
+	for _, node := range nodes {
+		counts[node.NodeID]++
+	}
+	byID := map[string]int{}
+	for _, entry := range entries {
+		index, found := byID[entry.TitleID]
+		if !found {
+			index = len(rows)
+			byID[entry.TitleID] = index
+			rows = append(rows, MeshBackendRow{TitleID: entry.TitleID, System: entry.System})
+		} else if rows[index].System != entry.System {
+			skipped = append(skipped, MeshSkip{TitleID: entry.TitleID, Reason: "title has conflicting browse systems"})
+			continue
+		}
+		row := &rows[index]
+		duplicate := false
+		for _, old := range row.Options {
+			if reflect.DeepEqual(old.Entry, entry) {
+				duplicate = true
+				break
+			}
+		}
+		if duplicate {
+			continue
+		}
+		for _, id := range entry.ContentIDs() {
+			present := false
+			for _, old := range row.ContentIDs {
+				if old == id {
+					present = true
+					break
+				}
+			}
+			if !present {
+				row.ContentIDs = append(row.ContentIDs, id)
+			}
+		}
+		option := MeshBackendOption{Entry: entry}
+		for _, title := range lib.Titles {
+			local, _, ok := projectMeshTitle(lib.Firmware.MediaID, title)
+			if ok && title.Execute == ExecutionHostOnly && reflect.DeepEqual(local, entry) {
+				option.HostLocal = true
+			}
+		}
+		for _, node := range nodes {
+			kind := ""
+			if len(entry.Execute) == 1 {
+				kind = entry.Execute[0].Kind
+			}
+			advertised := false
+			for _, execute := range node.Capabilities.Execute {
+				if execute.Kind == kind {
+					advertised = true
+				}
+			}
+			if !advertised {
+				continue
+			}
+			candidate := MeshBackendNode{NodeID: node.NodeID}
+			switch {
+			case retained:
+				candidate.Reason = "inventory retained after browse error"
+			case counts[node.NodeID] != 1 || node.AddressConflict || node.Address == "" || node.NodeID == "" || node.NodeID != node.TargetID:
+				candidate.Reason = "node identity or address is ambiguous"
+			case !discovery.MeshMajorCompatible(node.Mesh):
+				candidate.Reason = "mesh protocol major mismatch"
+			case kind == meshcontent.ExecuteNativeEmu:
+				candidate.Reason = "remote emulator system and version unverified"
+			case kind == meshcontent.ExecuteFPGANative:
+				pkg, ok := meshEntryPackage(entry)
+				if !ok || !containsString(kitPackages[node.NodeID], pkg.PackageID) {
+					candidate.Reason = "package unavailable on node"
+				} else if !meshcontent.ABIMatches(pkg, kitABIs[node.NodeID]) {
+					candidate.Reason = "package ABI incompatible on node"
+				} else {
+					candidate.Available = true
+				}
+			default:
+				candidate.Reason = "executor unsupported"
+			}
+			option.Nodes = append(option.Nodes, candidate)
+		}
+		if len(option.Nodes) == 0 && !option.HostLocal {
+			option.Reason = "no advertised executor in inventory"
+		}
+		row.Options = append(row.Options, option)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].TitleID < rows[j].TitleID })
+	return rows, skipped
+}
+
+func meshEntryPackage(entry meshcontent.Entry) (meshcontent.PackageABI, bool) {
+	for _, slot := range entry.Slots {
+		if slot.Kind == meshcontent.SlotPackageABI && slot.Package != nil {
+			return *slot.Package, true
+		}
+	}
+	return meshcontent.PackageABI{}, false
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
 
 // MeshLibrary is the host catalog view Slice 2 can already see.
 // Firmware.MediaID is the household BIOS core-media id when that slot
