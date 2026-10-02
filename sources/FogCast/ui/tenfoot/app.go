@@ -530,6 +530,10 @@ type App struct {
 
 	localCores          rooms.LocalCores
 	localFeed           localPadSender
+	localInstallKnown   bool
+	localInstalled      map[string]struct{}
+	localInstallGen     uint64
+	localInstallCancel  context.CancelFunc
 	localCatalogClose   func() error
 	localContent        func(context.Context, string) (string, error)
 	localPhase          string
@@ -672,8 +676,13 @@ func (a *App) Stop() {
 	a.localFeed = nil
 	closeCatalog := a.localCatalogClose
 	a.localCatalogClose = nil
+	installCancel := a.localInstallCancel
+	a.localInstallCancel = nil
 	cancel := a.cancel
 	a.mu.Unlock()
+	if installCancel != nil {
+		installCancel()
+	}
 	if feed != nil {
 		feed.Close()
 	}

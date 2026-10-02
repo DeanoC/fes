@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -16,6 +17,40 @@ import (
 )
 
 const tenfootPongID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+func TestSMSPlayRequiresInstalledMasterSystemCore(t *testing.T) {
+	game := hostclient.Game{
+		ID: "sms-data-storm", Title: "Data Storm 1.00", System: "sms",
+		State: "available", RootOnline: true,
+	}
+	dest := rooms.Destination{Kind: rooms.KindGame, GameID: game.ID, Matches: []hostclient.Game{game}}
+	app := NewApp(nil, 1280, 720, 50)
+	t.Cleanup(app.Stop)
+
+	app.SetKitLocal(&fakeLocalCores{}, &fakePadFeed{})
+	missing := app.applyKitDirectLocked(dest)
+	if missing.Availability == rooms.AvailReady || missing.Confirm() == rooms.ConfirmLaunchKit || missing.Action == "Play" || missing.KitDirect {
+		t.Fatalf("playable without fes.sms: %+v", missing)
+	}
+	if missing.Status != localCoreMissingCopy || missing.Action != localCoreMissingAction || missing.Confirm() != rooms.ConfirmExplain {
+		t.Fatalf("missing-core copy %+v", missing)
+	}
+
+	app.SetKitLocal(&fakeLocalCores{listErr: errors.New("socket is not ready")}, &fakePadFeed{})
+	checking := app.applyKitDirectLocked(dest)
+	if checking.Availability != rooms.AvailChecking || checking.KitDirect || checking.Action == "Play" || checking.Confirm() == rooms.ConfirmLaunchKit {
+		t.Fatalf("unknown install showed play: %+v", checking)
+	}
+	if checking.Status != localCoreCheckingCopy || checking.Action != localCoreCheckingAction {
+		t.Fatalf("checking copy %+v", checking)
+	}
+
+	app.SetKitLocal(&fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.sms", Name: "Master System"}}}, &fakePadFeed{})
+	ready := app.applyKitDirectLocked(dest)
+	if ready.Availability != rooms.AvailReady || ready.Confirm() != rooms.ConfirmLaunchKit || !ready.KitDirect || ready.Action != "Play" {
+		t.Fatalf("installed core did not enable play: %+v", ready)
+	}
+}
 
 func TestHostModeLeavesKitUnset(t *testing.T) {
 	prefs := filepath.Join(t.TempDir(), "prefs.json")
@@ -649,6 +684,8 @@ func padButton(code remoteinput.Code, down bool) remoteinput.Event {
 
 type fakeLocalCores struct {
 	mu          sync.Mutex
+	cores       []localcores.Core
+	listErr     error
 	launches    []string
 	stops       int
 	err         error
@@ -663,7 +700,17 @@ type fakeLocalCores struct {
 }
 
 func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
-	return []localcores.Core{}, nil
+	if f == nil {
+		return []localcores.Core{}, nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	out := make([]localcores.Core, len(f.cores))
+	copy(out, f.cores)
+	return out, nil
 }
 
 func (f *fakeLocalCores) Launch(_ context.Context, id string) error {

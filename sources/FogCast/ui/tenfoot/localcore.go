@@ -18,14 +18,18 @@ const (
 	localPhaseRunning   = "running"
 	localPhaseStopping  = "stopping"
 
-	localInUseCopy       = rooms.InUseStatus + ". " + rooms.InUseDetail
-	machineStatusUnknown = "Can't tell if this machine is free."
-	savedListOfflineCopy = "Offline, showing your saved list"
-	shelfEmptyCopy       = "No games in this library yet."
-	shelfMissingCopy     = "The game files for this library can't be found."
-	localUnavailableCopy = "This core isn't available right now."
-	localStopBudget      = 35 * time.Second
-	localChordHold       = time.Second
+	localInUseCopy          = rooms.InUseStatus + ". " + rooms.InUseDetail
+	machineStatusUnknown    = "Can't tell if this machine is free."
+	savedListOfflineCopy    = "Offline, showing your saved list"
+	shelfEmptyCopy          = "No games in this library yet."
+	shelfMissingCopy        = "The game files for this library can't be found."
+	localUnavailableCopy    = "This core isn't available right now."
+	localCoreMissingCopy    = "The Master System core is not installed."
+	localCoreMissingAction  = "Install the Master System core."
+	localCoreCheckingCopy   = "Checking whether the Master System core is installed."
+	localCoreCheckingAction = "Wait — still checking."
+	localStopBudget         = 35 * time.Second
+	localChordHold          = time.Second
 	// localStatusEvery is the fastest the running-phase status poll runs.
 	// The client's own timeout is 3s, so the poll never runs under a.mu.
 	localStatusEvery = time.Second
@@ -49,18 +53,77 @@ func (a *App) EnableKitLocal() {
 
 // SetKitLocal installs the control client and the pad feed. Both stay nil
 // on the host. Call it before Start so the home room sees the client.
+// The installed-core list is read here, outside the room lock. A failed
+// list keeps Play hidden and retries until one list succeeds.
 func (a *App) SetKitLocal(cores rooms.LocalCores, feed localPadSender) {
 	if a == nil {
 		return
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	a.mu.Lock()
 	old := a.localFeed
+	previous := a.localInstallCancel
+	a.localInstallGen++
+	gen := a.localInstallGen
+	a.localInstallCancel = cancel
 	a.localCores = cores
 	a.localFeed = feed
+	a.localInstallKnown = false
+	a.localInstalled = nil
 	a.mu.Unlock()
+	if previous != nil {
+		previous()
+	}
 	if old != nil && feed != old {
 		old.Close()
 	}
+	if cores == nil {
+		return
+	}
+	listed, err := cores.List(ctx)
+	if err == nil {
+		a.rememberInstalled(cores, gen, listed)
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	go a.retryLocalInstall(ctx, cores, gen)
+}
+
+func (a *App) retryLocalInstall(ctx context.Context, cores rooms.LocalCores, gen uint64) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			listed, err := cores.List(ctx)
+			if err != nil {
+				continue
+			}
+			a.rememberInstalled(cores, gen, listed)
+			return
+		}
+	}
+}
+
+func (a *App) rememberInstalled(cores rooms.LocalCores, gen uint64, listed []localcores.Core) {
+	ids := make(map[string]struct{}, len(listed))
+	for _, core := range listed {
+		id := strings.TrimSpace(core.CoreID)
+		if id != "" {
+			ids[id] = struct{}{}
+		}
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.localCores != cores || a.localInstallGen != gen {
+		return
+	}
+	a.localInstalled = ids
+	a.localInstallKnown = true
 }
 
 func (a *App) localCoreBusyLocked() bool {

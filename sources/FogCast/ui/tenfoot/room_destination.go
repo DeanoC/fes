@@ -54,8 +54,9 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 }
 
 // applyKitDirectLocked marks one present browse-only cartridge ready for
-// the local socket. Host-eligible rows, offline rows, and a shell with no
-// local pad stay on the host classification. There is no network fallback.
+// the local socket once fes.sms is installed. Host-eligible rows, offline
+// rows, and a shell with no local pad stay on the host classification.
+// A missing core explains itself here. There is no network fallback.
 func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 	if a == nil || a.localCores == nil || a.localFeed == nil {
 		return d
@@ -64,9 +65,22 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 	if !ok || !localCatalogPlayable(game) {
 		return d
 	}
+	d.GameID = game.ID
+	d.KitDirect = false
+	if !a.localInstallKnown {
+		d.Availability = rooms.AvailChecking
+		d.Status = localCoreCheckingCopy
+		d.Action = localCoreCheckingAction
+		return d
+	}
+	if _, installed := a.localInstalled["fes.sms"]; !installed {
+		d.Availability = rooms.AvailUnavailable
+		d.Status = localCoreMissingCopy
+		d.Action = localCoreMissingAction
+		return d
+	}
 	d.KitDirect = true
 	d.Availability = rooms.AvailReady
-	d.GameID = game.ID
 	d.FillCopy()
 	return d
 }

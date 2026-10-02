@@ -16,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -125,7 +126,7 @@ root = %q
 	if snap.Room.Destination.Availability == rooms.AvailReady || snap.Room.Destination.Confirm() == rooms.ConfirmLaunch || snap.Room.Destination.Confirm() == rooms.ConfirmLaunchKit {
 		t.Fatalf("host-only shell treated the raw title as playable: %+v", snap.Room.Destination)
 	}
-	app.SetKitLocal(&fakeLocalCores{}, &fakePadFeed{})
+	app.SetKitLocal(&fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.sms", Name: "Master System"}}}, &fakePadFeed{})
 	snap = app.Snapshot()
 	if snap.Room.Destination.Availability != rooms.AvailReady || snap.Room.Destination.Confirm() != rooms.ConfirmLaunchKit || !snap.Room.Destination.KitDirect {
 		t.Fatalf("kit shell did not make Data Storm playable: %+v", snap.Room.Destination)
