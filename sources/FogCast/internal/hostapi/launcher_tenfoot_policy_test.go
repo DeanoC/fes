@@ -34,6 +34,7 @@ func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 		{"GET", "/api/v1/core-catalog", false},
 		{"GET", "/api/v1/core-catalog/fes.zx81/setup", false},
 		{"GET", "/api/v1/library/hardware", true},
+		{"GET", "/api/v1/library/titles", true},
 		{"GET", "/api/v1/library/zx81-tapes", true},
 		{"POST", "/api/v1/library/zx81-tapes/guess-number/import", true},
 		{"POST", "/api/v1/library/zx81-tapes/unknown/import", false},
@@ -70,6 +71,15 @@ func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 				t.Fatal("paired read admitted a request outside the documented allowlist")
 			}
 		})
+	}
+}
+
+func TestLibraryTitlesIsPairedReadNotMeshContent(t *testing.T) {
+	if launcherMeshContentRead("GET", "/api/v1/library/titles") {
+		t.Fatal("library titles admitted as a mesh content read")
+	}
+	if !launcherPairedRead("GET", "/api/v1/library/titles") || !launcherOperation("GET", "/api/v1/library/titles") {
+		t.Fatal("library titles is not a paired launcher read")
 	}
 }
 

@@ -264,6 +264,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerCoreLibrary(mux, service)
 	registerCoreData(mux, service)
 	registerMeshHostContent(mux, service)
+	registerLibraryTitles(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
 	session.remoteInputFactory = config.remoteInputFactory
 	registerHardware(mux, service, session)

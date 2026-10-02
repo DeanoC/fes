@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -79,9 +81,15 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"node_id": kitID, "abis": []map[string]any{{"id": inspection.Descriptor.ABI.ID, "major": inspection.Descriptor.ABI.Major}}, "packages": []string{inspection.PackageID}})
 	}))
 	defer server.Close()
+	client := server.Client()
+	guard := &originGuard{base: client.Transport, allow: strings.TrimPrefix(server.URL, "http://")}
+	client.Transport = guard
 	service.targets = []TargetConfig{{Name: "kit", Enabled: true, TargetID: kitID, Address: server.URL, Agent: "fixture-token"}}
-	service.meshHTTP = server.Client()
+	service.meshHTTP = client
 	service.meshNodes = []MeshNode{{NodeID: kitID, TargetID: kitID, Address: server.URL, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities()}}
+	if service.meshEnsure || service.meshPlacement {
+		t.Fatalf("ensure=%v placement=%v", service.meshEnsure, service.meshPlacement)
+	}
 	rows, skipped := service.MeshBackendLibrary(ctx)
 	// Same ROM sha256 and system: one row under the package game id, with the
 	// kit FPGA option and the host-local emulator option.
@@ -98,6 +106,41 @@ func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
 	}
 	if emuOpt.Entry.TitleID != romID || emuOpt.Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || !emuOpt.HostLocal || emuOpt.Reason != "" {
 		t.Fatalf("emulator option=%+v", emuOpt)
+	}
+	library, err := MeshLibraryTitles(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := json.Marshal(library)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertKitOnlyLibraryDocument(t, document, coreID, romID, media, inspection.PackageID, inspection.Descriptor.ABI.ID, int(inspection.Descriptor.ABI.Major), kitID)
+	const emuID = "fedcba98-7654-3210-fedc-ba9876543210"
+	var runnerHits atomic.Int32
+	runner := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runnerHits.Add(1)
+		t.Errorf("runner dialed %s %s Authorization=%q", r.Method, r.URL.RequestURI(), r.Header.Get("Authorization"))
+		http.Error(w, "runner must not be dialed", http.StatusForbidden)
+	}))
+	defer runner.Close()
+	service.meshNodes = append(service.meshNodes, MeshNode{
+		NodeID: emuID, TargetID: emuID, Address: runner.URL, Mesh: discovery.MeshProtocol,
+		Capabilities: discovery.Capabilities{Execute: []discovery.Execute{{Kind: meshcontent.ExecuteNativeEmu}}},
+	})
+	rows, skipped = service.MeshBackendLibrary(ctx)
+	if len(skipped) != 0 || len(rows) != 1 || len(rows[0].Options) != 3 {
+		t.Fatalf("with runner rows=%+v skipped=%+v", rows, skipped)
+	}
+	remote := rows[0].Options[2]
+	if remote.HostLocal || remote.Entry.TitleID != romID || remote.Reason != "no compatible executor in inventory" || len(remote.Nodes) != 1 || remote.Nodes[0].Available || remote.Nodes[0].NodeID != emuID || remote.Nodes[0].Reason != "remote emulator system and version unverified" {
+		t.Fatalf("remote option=%+v", remote)
+	}
+	if len(rows[0].ContentSources) != 1 || len(rows[0].ContentSources[0].NodeIDs) != 0 {
+		t.Fatalf("provenance shipped: %+v", rows[0].ContentSources)
+	}
+	if hits := runnerHits.Load(); hits != 0 || len(guard.denied) != 0 {
+		t.Fatalf("bearer left the configured kit origin: runner_hits=%d denied=%v", hits, guard.denied)
 	}
 	service.targets = nil
 	rows, skipped = service.MeshBackendLibrary(ctx)
@@ -134,7 +177,7 @@ func TestMeshBackendLibraryTwoNodeProjection(t *testing.T) {
 		t.Fatalf("rows=%+v skipped=%+v", rows, skipped)
 	}
 	dual := backendRow(t, rows, fpga.Game.ID)
-	if len(dual.Options) != 2 || len(dual.ContentIDs) != 1 || dual.ContentIDs[0].String() != "sha256:"+media {
+	if len(dual.Options) != 3 || len(dual.ContentIDs) != 1 || dual.ContentIDs[0].String() != "sha256:"+media {
 		t.Fatalf("dual=%+v", dual)
 	}
 	if dual.Options[0].Entry.Execute[0].Kind != meshcontent.ExecuteFPGANative || !dual.Options[0].Nodes[0].Available {
@@ -143,10 +186,13 @@ func TestMeshBackendLibraryTwoNodeProjection(t *testing.T) {
 	if dual.Options[1].Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || !dual.Options[1].HostLocal || dual.Options[1].Nodes[0].Available || dual.Options[1].Nodes[0].Reason == "" {
 		t.Fatalf("emu=%+v", dual.Options[1])
 	}
+	if opt := dual.Options[2]; opt.HostLocal || opt.Reason != "no compatible executor in inventory" || len(opt.Nodes) != 1 || opt.Nodes[0].Available || opt.Nodes[0].NodeID != emuID || opt.Nodes[0].Reason != "remote emulator system and version unverified" {
+		t.Fatalf("phase-2 option=%+v", opt)
+	}
 	if got := backendRow(t, rows, pong.Game.ID); len(got.Options) != 1 || got.Options[0].Entry.Execute[0].Kind != meshcontent.ExecuteFPGANative {
 		t.Fatalf("pong=%+v", got)
 	}
-	if got := backendRow(t, rows, emuOnly.Game.ID); len(got.Options) != 1 || got.Options[0].Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu {
+	if got := backendRow(t, rows, emuOnly.Game.ID); len(got.Options) != 2 || !got.Options[0].HostLocal || got.Options[0].Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || got.Options[1].HostLocal || got.Options[1].Nodes[0].Available {
 		t.Fatalf("emu-only=%+v", got)
 	}
 
@@ -180,6 +226,87 @@ func TestMeshBackendLibraryTwoNodeProjection(t *testing.T) {
 	duplicate, _ := ProjectMeshBackendLibrary(lib, []MeshNode{kit, reconnected, emu}, false, packages, abis)
 	if got := backendRow(t, duplicate, fpga.Game.ID); got.Options[0].Nodes[0].Available || got.Options[0].Nodes[1].Available {
 		t.Fatalf("duplicate=%+v", got)
+	}
+}
+
+type originGuard struct {
+	base   http.RoundTripper
+	allow  string
+	denied []string
+}
+
+func (g *originGuard) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Host != g.allow {
+		g.denied = append(g.denied, r.URL.String()+" "+r.Header.Get("Authorization"))
+		return nil, fmt.Errorf("refused %s", r.URL.Host)
+	}
+	return g.base.RoundTrip(r)
+}
+
+func assertKitOnlyLibraryDocument(t *testing.T, raw []byte, coreID, romID, media, packageID, abi string, major int, kitID string) {
+	t.Helper()
+	var doc struct {
+		Titles []struct {
+			TitleID        string   `json:"title_id"`
+			System         string   `json:"system"`
+			ContentIDs     []string `json:"content_ids"`
+			ContentSources []struct {
+				ContentID string   `json:"content_id"`
+				NodeIDs   []string `json:"node_ids"`
+			} `json:"content_sources"`
+			Options []struct {
+				SourceGameID string `json:"source_game_id"`
+				Execution    string `json:"execution"`
+				HostLocal    bool   `json:"host_local"`
+				Available    bool   `json:"available"`
+				Reason       string `json:"reason"`
+				CoreID       string `json:"core_id"`
+				Package      *struct {
+					PackageID string `json:"package_id"`
+					ABI       string `json:"abi"`
+					Major     int    `json:"major"`
+				} `json:"package"`
+				Nodes []struct {
+					NodeID    string `json:"node_id"`
+					Available bool   `json:"available"`
+					Reason    string `json:"reason"`
+				} `json:"nodes"`
+			} `json:"options"`
+		} `json:"titles"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	for _, absent := range []string{"ready_here", "host_only", "Data Storm.sms", "logical/", `"path"`, `"nodes":null`, `"node_ids":null`, `"titles":null`} {
+		if strings.Contains(body, absent) {
+			t.Fatalf("document contains %q: %s", absent, body)
+		}
+	}
+	if len(doc.Titles) != 1 {
+		t.Fatalf("titles %+v", doc)
+	}
+	title := doc.Titles[0]
+	if title.TitleID != coreID || title.System != "sms" || len(title.ContentIDs) != 1 || title.ContentIDs[0] != "sha256:"+media {
+		t.Fatalf("title %+v", title)
+	}
+	if len(title.ContentSources) != 1 || title.ContentSources[0].ContentID != title.ContentIDs[0] || len(title.ContentSources[0].NodeIDs) != 0 {
+		t.Fatalf("sources %+v", title.ContentSources)
+	}
+	if len(title.Options) != 2 {
+		t.Fatalf("options %+v", title.Options)
+	}
+	fpga, emu := title.Options[0], title.Options[1]
+	if fpga.SourceGameID != coreID || fpga.Execution != "fpga_native" || fpga.HostLocal || !fpga.Available || fpga.Reason != "" || fpga.CoreID != "fes.sms" || fpga.Package == nil || fpga.Package.PackageID != packageID || fpga.Package.ABI != abi || fpga.Package.Major != major || len(fpga.Nodes) != 1 || fpga.Nodes[0].NodeID != kitID || !fpga.Nodes[0].Available || fpga.Nodes[0].Reason != "" {
+		t.Fatalf("fpga %+v", fpga)
+	}
+	if emu.SourceGameID != romID || emu.Execution != "native_emu" || !emu.HostLocal || !emu.Available || emu.Reason != "" || emu.CoreID != "" || emu.Package != nil || len(emu.Nodes) != 0 {
+		t.Fatalf("emu %+v", emu)
+	}
+	for _, option := range title.Options {
+		if !option.HostLocal && option.Execution == "native_emu" {
+			t.Fatalf("kit-only remote option %+v", option)
+		}
 	}
 }
 
@@ -332,4 +459,145 @@ func TestMeshBackendLibraryTitleLink(t *testing.T) {
 			t.Fatalf("order %v differs:\n%+v\n%+v", order, rows, first)
 		}
 	}
+}
+
+// Kit plus a runner: one merged title per content id, per-node availability,
+// and a malformed content id recorded as a skip.
+func TestMeshBackendLibraryCombinedTwoNode(t *testing.T) {
+	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	kitID, emuID := "01234567-89ab-cdef-0123-456789abcdef", "fedcba98-7654-3210-fedc-ba9876543210"
+	kit := MeshNode{NodeID: kitID, TargetID: kitID, Mesh: discovery.MeshProtocol, Address: "http://192.0.2.1:8182", Capabilities: discovery.KitCapabilities()}
+	emu := MeshNode{NodeID: emuID, TargetID: emuID, Mesh: discovery.MeshProtocol, Address: "http://192.0.2.2:8182", Capabilities: discovery.Capabilities{Execute: []discovery.Execute{{Kind: meshcontent.ExecuteNativeEmu}}}}
+	pkgID := strings.Repeat("ab", 32)
+	fpga := meshCoreTitle("Data Storm 1.00", "fes.sms", pkgID, media, false)
+	native := meshNativeTitle("Data Storm 1.00", protocol.SystemSMS, media)
+	other := meshNativeTitle("Other Cart", protocol.SystemSMS, strings.Repeat("11", 32))
+	gear := meshNativeTitle("Data Storm 1.00", protocol.SystemGameGear, media)
+	malformedText := "sha256:" + strings.ToUpper(media)
+	if _, err := meshcontent.ParseContentID(malformedText); err == nil {
+		t.Fatal("uppercase wire id parsed")
+	}
+	if _, err := meshcontent.ParseContentID("/tmp/Data Storm.sms"); err == nil {
+		t.Fatal("path parsed as a content id")
+	}
+	bad := meshNativeTitle("Broken", protocol.SystemSMS, malformedText)
+	pathed := meshNativeTitle("Pathed", protocol.SystemSMS, "/tmp/Data Storm.sms")
+	prefixed := meshNativeTitle("Prefixed", protocol.SystemSMS, "sha256:"+media)
+	dev := meshNativeTitle("Development", protocol.SystemSMS, strings.Repeat("22", 32))
+	dev.Execute = "development"
+	lib := MeshLibrary{Titles: []MeshTitle{native, fpga, native, other, gear, bad, pathed, prefixed, dev}}
+	packages := map[string][]string{kitID: {pkgID}}
+	abis := map[string][]meshcontent.EligibleABI{kitID: {{ID: "fes.application", Major: 1}}}
+
+	kitOnly, kitSkipped := ProjectMeshBackendLibrary(lib, []MeshNode{kit}, false, packages, abis)
+	mergedKit := backendRow(t, kitOnly, fpga.Game.ID)
+	if len(mergedKit.Options) != 2 || mergedKit.TitleID != fpga.Game.ID {
+		t.Fatalf("kit-only merge %+v", mergedKit)
+	}
+	for _, option := range mergedKit.Options {
+		if !option.HostLocal && len(option.Entry.Execute) == 1 && option.Entry.Execute[0].Kind == meshcontent.ExecuteNativeEmu {
+			t.Fatalf("kit-only remote option %+v", option)
+		}
+	}
+	const storedDigestSkip = "primary media digest is not a stored sha256"
+	if !skipHas(kitSkipped, bad.Game.ID, storedDigestSkip) || !skipHas(kitSkipped, pathed.Game.ID, storedDigestSkip) || !skipHas(kitSkipped, prefixed.Game.ID, storedDigestSkip) || !skipHas(kitSkipped, dev.Game.ID, "execution is not a mesh catalog kind") {
+		t.Fatalf("kit-only skipped=%+v", kitSkipped)
+	}
+
+	rows, skipped := ProjectMeshBackendLibrary(lib, []MeshNode{kit, emu}, false, packages, abis)
+	if len(rows) != 3 {
+		t.Fatalf("rows=%d %+v skipped=%+v", len(rows), rows, skipped)
+	}
+	if !skipHas(skipped, bad.Game.ID, storedDigestSkip) || !skipHas(skipped, pathed.Game.ID, storedDigestSkip) || !skipHas(skipped, prefixed.Game.ID, storedDigestSkip) || !skipHas(skipped, dev.Game.ID, "execution is not a mesh catalog kind") || len(skipped) != 4 {
+		t.Fatalf("skipped=%+v", skipped)
+	}
+	for _, skip := range skipped {
+		if skip.TitleID == "" || skip.Reason == "" {
+			t.Fatalf("silent skip %+v", skip)
+		}
+		for _, row := range rows {
+			if row.TitleID == skip.TitleID {
+				t.Fatalf("skipped title was projected: %+v", row)
+			}
+		}
+	}
+
+	merged := backendRow(t, rows, fpga.Game.ID)
+	if merged.System != "sms" || len(merged.ContentIDs) != 1 || merged.ContentIDs[0].String() != "sha256:"+media {
+		t.Fatalf("merged content %+v", merged)
+	}
+	if len(merged.ContentSources) != 1 || merged.ContentSources[0].ContentID != merged.ContentIDs[0] || len(merged.ContentSources[0].NodeIDs) != 0 {
+		t.Fatalf("sources %+v", merged.ContentSources)
+	}
+	if len(merged.Options) != 3 {
+		t.Fatalf("options %+v", merged.Options)
+	}
+	fpgaOpt, hostOpt, remoteOpt := merged.Options[0], merged.Options[1], merged.Options[2]
+	if fpgaOpt.CoreID != "fes.sms" || !fpgaOpt.Nodes[0].Available || fpgaOpt.Nodes[0].NodeID != kitID || len(fpgaOpt.Nodes) != 1 {
+		t.Fatalf("kit node %+v", fpgaOpt)
+	}
+	if !hostOpt.HostLocal || hostOpt.Reason != "" || !hostOpt.Available() || hostOpt.Entry.TitleID != native.Game.ID || len(hostOpt.Nodes) != 1 || hostOpt.Nodes[0].Available || hostOpt.Nodes[0].NodeID != emuID || hostOpt.Nodes[0].Reason != "remote emulator system and version unverified" {
+		t.Fatalf("host-local %+v", hostOpt)
+	}
+	if remoteOpt.HostLocal || remoteOpt.Entry.TitleID != native.Game.ID || remoteOpt.Reason != "no compatible executor in inventory" || remoteOpt.Available() || len(remoteOpt.Nodes) != 1 || remoteOpt.Nodes[0].Available || remoteOpt.Nodes[0].NodeID != emuID || remoteOpt.Nodes[0].Reason != "remote emulator system and version unverified" {
+		t.Fatalf("remote %+v", remoteOpt)
+	}
+	otherRow := backendRow(t, rows, other.Game.ID)
+	if otherRow.TitleID == merged.TitleID || len(otherRow.ContentIDs) != 1 || otherRow.ContentIDs[0] == merged.ContentIDs[0] {
+		t.Fatalf("distinct hash collapsed %+v", otherRow)
+	}
+	gearRow := backendRow(t, rows, gear.Game.ID)
+	if gearRow.System == "sms" || gearRow.TitleID == merged.TitleID {
+		t.Fatalf("system mismatch linked %+v", gearRow)
+	}
+
+	library, err := MeshLibraryTitles([]MeshBackendRow{merged})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(library)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	for _, absent := range []string{"ready_here", "host_only", "roms/", ".sfc", "/tmp/", "logical", malformedText, `"node_ids":["`} {
+		if strings.Contains(body, absent) {
+			t.Fatalf("document contains %q: %s", absent, body)
+		}
+	}
+	if !strings.Contains(body, `"reason":"no compatible executor in inventory"`) || !strings.Contains(body, `"reason":"remote emulator system and version unverified"`) || !strings.Contains(body, `"host_local":false`) || !strings.Contains(body, `"available":false`) {
+		t.Fatalf("phase-2 option missing from %s", body)
+	}
+}
+
+func TestMeshLibraryTitlesRejectsMalformedContentID(t *testing.T) {
+	bad := meshcontent.ContentID{Algorithm: "sha256", Digest: "ZZ"}
+	_, err := MeshLibraryTitles([]MeshBackendRow{{
+		TitleID:        "sms-cart",
+		System:         "sms",
+		ContentIDs:     []meshcontent.ContentID{bad},
+		ContentSources: []MeshContentSource{{ContentID: bad, NodeIDs: []string{}}},
+		Options: []MeshBackendOption{{
+			Entry: meshcontent.Entry{
+				TitleID: "sms-cart",
+				Execute: []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
+			},
+			HostLocal: true,
+		}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), MeshSkipMalformedContentID) {
+		t.Fatalf("malformed content id: %v", err)
+	}
+	if _, parseErr := meshcontent.ParseContentID("fpga-data-storm-1-00-39c4d68f01fa"); parseErr == nil {
+		t.Fatal("title id parsed as a content id")
+	}
+}
+
+func skipHas(skipped []MeshSkip, titleID, reason string) bool {
+	for _, skip := range skipped {
+		if skip.TitleID == titleID && skip.Reason == reason {
+			return true
+		}
+	}
+	return false
 }

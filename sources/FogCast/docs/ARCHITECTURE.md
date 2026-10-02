@@ -1388,9 +1388,19 @@ its root is offline. An option with no
 host-local path carries an explicit reason when no inventory node can
 run it (`no advertised executor in inventory` or `no compatible
 executor in inventory`); each node candidate carries its own reason.
-This projection does not select a backend for a session, assert
-composition Ready, or publish a library wire field. Remote title/source
-provenance remains proposed in the mesh docs.
+`GET /api/v1/library/titles` serves `MeshLibraryTitles` of that
+projection. The route does not select a backend or assert composition
+Ready. `content_sources[].node_ids` stays empty until #396; the
+projection does not read node-document `content_ids`. A remote
+`native_emu` candidate stays unverified until #298 and the runner
+admission and provisioning prerequisites, and the projection does not
+send a bearer for that read. A stored digest `FromSHA256` rejects
+skips the title with `<slot> digest is not a stored sha256`. A built
+id that is not canonical `sha256:` text skips it with `<slot> content
+id is malformed`. The title is not dropped without a reason. When the
+local catalog cannot be read the route returns 500 and does not answer
+an empty title list. The remote emulator option is added only when
+inventory advertises `native_emu`.
 
 `meshcontent.Ensure` is the host ensure step. It takes one projected
 entry and the executor the session is already bound to. Each required

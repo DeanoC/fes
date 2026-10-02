@@ -26,6 +26,7 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 	zx.ABI = corepackage.Contract{ID: "fes.simple-computer", Major: 1, Minor: 0}
 	zx.Expansions = []MeshExpansion{{Name: expansion.Slot, Digest: ram}}
 	native := meshNativeTitle("Super Mario World", protocol.SystemSNES, snesROM)
+	prefixed := meshNativeTitle("Prefixed", protocol.SystemSNES, "sha256:"+snesROM)
 	missingBIOS := meshCoreTitle("Donkey Kong", "fes.coleco", colecoPkg, cart, true)
 	uppercase := meshCoreTitle("Frogger", "fes.coleco", colecoPkg, cart, true)
 	development := meshCoreTitle("Probe", "fes.coleco", colecoPkg, cart, false)
@@ -119,6 +120,11 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 			name:       "uppercase stored digest is not rewritten",
 			lib:        MeshLibrary{Firmware: catalog.CoreFirmware{Slot: protocol.FirmwareRole, MediaID: strings.ToUpper(strings.Repeat("ab", 32))}, Titles: []MeshTitle{uppercase}},
 			skipReason: "household firmware digest is not a stored sha256",
+		},
+		{
+			name:       "prefixed digest is not coerced",
+			lib:        MeshLibrary{Titles: []MeshTitle{prefixed}},
+			skipReason: "primary media digest is not a stored sha256",
 		},
 		{
 			name:       "development execution is not relabeled",
