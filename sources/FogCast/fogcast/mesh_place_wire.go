@@ -30,6 +30,7 @@ const (
 type placementNodeRead struct {
 	identity meshTargetIdentity
 	abis     []meshcontent.EligibleABI
+	packages []string
 	ok       bool
 	at       time.Time
 }
@@ -142,13 +143,20 @@ func (s *Service) placementCandidates(ctx context.Context) []meshplace.Candidate
 // and a failure for placementNodeBackoff. A read the caller canceled is
 // not remembered. The read is not a kit-lease mutation.
 func (s *Service) placementNodeABIs(ctx context.Context, nodeID string) []meshcontent.EligibleABI {
+	abis, _ := s.placementNodeFacts(ctx, nodeID)
+	return abis
+}
+
+// placementNodeFacts reuses placement's authenticated document and cache for
+// both ABI eligibility and the installed package ids in that same document.
+func (s *Service) placementNodeFacts(ctx context.Context, nodeID string) ([]meshcontent.EligibleABI, []string) {
 	cfg, clientEndpoint, ok := s.targetForPlacementRead(nodeID)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 	want := meshTargetIdentityOf(cfg.Name, cfg)
 	if !want.dialable() || want.nodeID != nodeID {
-		return nil
+		return nil, nil
 	}
 	want.address = placementReadAddress(want.address, s.discoveredPlacementOrigin(nodeID), clientEndpoint)
 	s.meshMu.Lock()
@@ -161,20 +169,20 @@ func (s *Service) placementNodeABIs(ctx context.Context, nodeID string) []meshco
 			ttl = placementNodeBackoff
 		}
 		if time.Since(cached.at) < ttl {
-			return append([]meshcontent.EligibleABI(nil), cached.abis...)
+			return append([]meshcontent.EligibleABI(nil), cached.abis...), append([]string(nil), cached.packages...)
 		}
 	}
-	abis, ok := readPlacementNode(ctx, want, client)
+	abis, packages, ok := readPlacementNodeFacts(ctx, want, client)
 	if !ok && ctx != nil && ctx.Err() != nil {
-		return nil
+		return nil, nil
 	}
 	s.meshMu.Lock()
 	if s.placementNodes == nil {
 		s.placementNodes = map[string]placementNodeRead{}
 	}
-	s.placementNodes[nodeID] = placementNodeRead{identity: want, abis: abis, ok: ok, at: time.Now()}
+	s.placementNodes[nodeID] = placementNodeRead{identity: want, abis: abis, packages: packages, ok: ok, at: time.Now()}
 	s.meshMu.Unlock()
-	return append([]meshcontent.EligibleABI(nil), abis...)
+	return append([]meshcontent.EligibleABI(nil), abis...), append([]string(nil), packages...)
 }
 
 // placementReadAddress is the one address a placement node read dials.
@@ -256,12 +264,12 @@ func (s *Service) discoveredPlacementOrigin(nodeID string) string {
 	return origin
 }
 
-// readPlacementNode reads one kit's content document at want.address
+// readPlacementNodeFacts reads one kit's content document at want.address
 // with the configured agent token. The document must name want.nodeID.
-func readPlacementNode(ctx context.Context, want meshTargetIdentity, client *http.Client) ([]meshcontent.EligibleABI, bool) {
+func readPlacementNodeFacts(ctx context.Context, want meshTargetIdentity, client *http.Client) ([]meshcontent.EligibleABI, []string, bool) {
 	endpoint, err := url.Parse(want.address)
 	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" {
-		return nil, false
+		return nil, nil, false
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -273,7 +281,7 @@ func readPlacementNode(ctx context.Context, want meshTargetIdentity, client *htt
 	defer cancel()
 	node, err := kitcontent.ReadNode(readCtx, endpoint, want.agent, client)
 	if err != nil || node.NodeID != want.nodeID {
-		return nil, false
+		return nil, nil, false
 	}
-	return node.ABIs, true
+	return node.ABIs, node.Packages, true
 }

@@ -1322,21 +1322,25 @@ mesh protocol major. `ReadyHere` requires that package id and an
 eligible ABI id and major before it reports Ready. Package id alone is
 not eligibility.
 
-`ProjectMeshBackendLibrary` groups the existing single-execute entries
-by catalog game id. It keeps separate package and emulator compositions,
-deduplicates repeated content ids, and annotates observed node candidates.
-The caller supplies package and ABI facts from authenticated kit node
-documents. A missing, retained, conflicting, or mesh-major-incompatible
+`Service.MeshBackendLibrary` reads the existing local catalog and projects
+package titles through the same helper as placement; raw games use the
+configured execution resolver. `ProjectMeshBackendLibrary` groups entries
+by catalog game id, keeps host-local and sourced options distinct, deduplicates
+repeated content ids, and annotates observed node candidates. The service
+reuses placement's authenticated kit node-document read for package and ABI
+facts. A missing, retained, conflicting, or mesh-major-incompatible
 advertisement is unavailable. A `native_emu` advertisement remains
 unverified for remote execution because the current capability bag has no
 supported-system or emulator-version fact. The host-local `host_only`
 path is the local emulator option (`HostLocal`). An option with no
 host-local path carries an explicit reason when no inventory node can
 run it (`no advertised executor in inventory` or `no compatible
-executor in inventory`); each node candidate carries its own reason. This projection does not select a
-backend for a session, assert composition Ready, or publish a library
-wire field. Remote title/source provenance and that wire contract remain
-proposed in the mesh docs.
+executor in inventory`); each node candidate carries its own reason.
+Core-package and raw-ROM catalog entries retain different game ids even
+when they name the same game and primary-media digest, so they remain two
+rows. This projection does not select a backend for a session, assert
+composition Ready, or publish a library wire field. A catalog title link
+and remote title/source provenance remain proposed in the mesh docs.
 
 `meshcontent.Ensure` is the host ensure step. It takes one projected
 entry and the executor the session is already bound to. Each required

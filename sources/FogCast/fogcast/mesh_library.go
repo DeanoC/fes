@@ -1,6 +1,7 @@
 package fogcast
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"strings"
@@ -36,6 +37,60 @@ type MeshBackendNode struct {
 	Reason    string
 }
 
+// MeshBackendLibrary projects the existing local catalog and observed node
+// inventory. It does not discover titles or publish a new library wire shape.
+func (s *Service) MeshBackendLibrary(ctx context.Context) ([]MeshBackendRow, []MeshSkip) {
+	if s == nil || s.catalog == nil {
+		return nil, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	games, err := s.catalog.Games(ctx)
+	if err != nil {
+		return nil, []MeshSkip{{Reason: "local catalog unavailable"}}
+	}
+	lib := MeshLibrary{}
+	var skipped []MeshSkip
+	for _, game := range games {
+		if game.Kind == catalog.SourceKindCorePackage {
+			title, firmware, ok := s.meshCatalogTitle(ctx, game.ID)
+			if !ok {
+				skipped = append(skipped, MeshSkip{TitleID: game.ID, Reason: "core package projection unavailable"})
+				continue
+			}
+			if firmware.MediaID != "" {
+				lib.Firmware = firmware
+			}
+			lib.Titles = append(lib.Titles, title)
+			continue
+		}
+		execute, err := s.resolveExecution(ctx, game)
+		if err != nil {
+			skipped = append(skipped, MeshSkip{TitleID: game.ID, Reason: "local execution unavailable"})
+			continue
+		}
+		lib.Titles = append(lib.Titles, MeshTitle{Game: game, Launchable: true, Execute: execute})
+	}
+	nodes := s.MeshNodes()
+	s.meshMu.Lock()
+	retained := s.meshNodesRetained
+	s.meshMu.Unlock()
+	packages := make(map[string][]string)
+	abis := make(map[string][]meshcontent.EligibleABI)
+	for _, node := range nodes {
+		fpga := false
+		for _, execute := range node.Capabilities.Execute {
+			fpga = fpga || execute.Kind == meshcontent.ExecuteFPGANative
+		}
+		if fpga {
+			abis[node.NodeID], packages[node.NodeID] = s.placementNodeFacts(ctx, node.NodeID)
+		}
+	}
+	rows, projectedSkipped := ProjectMeshBackendLibrary(lib, nodes, retained, packages, abis)
+	return rows, append(skipped, projectedSkipped...)
+}
+
 // ProjectMeshBackendLibrary uses the same catalog projection and observed
 // inventory as launch and placement. An absent/retained or conflicting node
 // cannot be selected. FPGA package evidence is supplied by the authenticated
@@ -43,13 +98,18 @@ type MeshBackendNode struct {
 // Remote emulator compatibility remains unresolved until the runner reports
 // supported systems and core versions (#360).
 func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool, kitPackages map[string][]string, kitABIs map[string][]meshcontent.EligibleABI) (rows []MeshBackendRow, skipped []MeshSkip) {
-	entries, skipped := ProjectMeshLibrary(lib)
 	counts := map[string]int{}
 	for _, node := range nodes {
 		counts[node.NodeID]++
 	}
 	byID := map[string]int{}
-	for _, entry := range entries {
+	for _, title := range lib.Titles {
+		entry, skip, ok := projectMeshTitle(lib.Firmware.MediaID, title)
+		if !ok {
+			skipped = append(skipped, skip)
+			continue
+		}
+		hostLocal := title.Execute == ExecutionHostOnly
 		index, found := byID[entry.TitleID]
 		if !found {
 			index = len(rows)
@@ -62,7 +122,7 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 		row := &rows[index]
 		duplicate := false
 		for _, old := range row.Options {
-			if reflect.DeepEqual(old.Entry, entry) {
+			if old.HostLocal == hostLocal && reflect.DeepEqual(old.Entry, entry) {
 				duplicate = true
 				break
 			}
@@ -82,13 +142,7 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 				row.ContentIDs = append(row.ContentIDs, id)
 			}
 		}
-		option := MeshBackendOption{Entry: entry}
-		for _, title := range lib.Titles {
-			local, _, ok := projectMeshTitle(lib.Firmware.MediaID, title)
-			if ok && title.Execute == ExecutionHostOnly && reflect.DeepEqual(local, entry) {
-				option.HostLocal = true
-			}
-		}
+		option := MeshBackendOption{Entry: entry, HostLocal: hostLocal}
 		for _, node := range nodes {
 			kind := ""
 			if len(entry.Execute) == 1 {

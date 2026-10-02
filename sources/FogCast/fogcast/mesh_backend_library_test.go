@@ -1,17 +1,115 @@
 package fogcast
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+type backendCatalog struct {
+	*fakeServiceCatalog
+	entry catalog.CoreEntry
+}
+
+func (c *backendCatalog) Game(_ context.Context, id string) (catalog.Game, error) {
+	for _, game := range c.games {
+		if game.ID == id {
+			return game, nil
+		}
+	}
+	return catalog.Game{}, catalog.ErrInvalidCoreEntry
+}
+
+func (c *backendCatalog) CoreEntry(context.Context, string) (catalog.CoreEntry, error) {
+	return c.entry, nil
+}
+func (c *backendCatalog) CoreEntries(context.Context) ([]catalog.CoreEntry, error) {
+	return []catalog.CoreEntry{c.entry}, nil
+}
+func (c *backendCatalog) CreateCoreEntry(context.Context, string, string, string) (catalog.CoreEntry, error) {
+	return catalog.CoreEntry{}, catalog.ErrInvalidCoreEntry
+}
+func (c *backendCatalog) SelectCoreEntry(context.Context, string, string, string, string) (catalog.CoreEntry, error) {
+	return catalog.CoreEntry{}, catalog.ErrInvalidCoreEntry
+}
+
+func TestServiceMeshBackendLibraryRealCatalogIDs(t *testing.T) {
+	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	const title = "Data Storm 1.00"
+	ctx := context.Background()
+	archive := sizedSetupArchive(t, "fes.sms", 32768)
+	packageRoot := t.TempDir()
+	if err := os.Chmod(packageRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	packages, err := corepackage.NewStore(packageRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection, _, err := packages.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreID := catalog.GameID(catalog.CorePlatform, "core-packages", "fes.sms\x00"+title, title)
+	romID := catalog.GameID(protocol.SystemSMS, "sms-root", "Data Storm.sms", title)
+	coreGame := catalog.Game{ID: coreID, Title: title, System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true}
+	romGame := catalog.Game{ID: romID, Title: title, LibraryID: "sms-root", RelativePath: "Data Storm.sms", System: protocol.SystemSMS, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true, Content: &catalog.Content{SHA256: media, Size: 32768, Extension: "sms"}}
+	cat := &backendCatalog{fakeServiceCatalog: &fakeServiceCatalog{games: []catalog.Game{coreGame, romGame}}, entry: catalog.CoreEntry{GameID: coreID, Title: title, CoreID: "fes.sms", PackageID: inspection.PackageID, MediaRole: "blob", MediaID: media}}
+	service := newService(Config{}, Paths{}, cat, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{}, WithExecutionPolicy(ExecutionPolicy{Resolver: NewConfiguredExecutionResolver([]protocol.System{protocol.SystemSMS}, &fakeHostExecutor{}), Host: &fakeHostExecutor{}}))
+	service.corePackages = packages
+	const kitID = "01234567-89ab-cdef-0123-456789abcdef"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/mesh/content/node" || r.Header.Get("Authorization") != "Bearer fixture-token" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"node_id": kitID, "abis": []map[string]any{{"id": inspection.Descriptor.ABI.ID, "major": inspection.Descriptor.ABI.Major}}, "packages": []string{inspection.PackageID}})
+	}))
+	defer server.Close()
+	service.targets = []TargetConfig{{Name: "kit", Enabled: true, TargetID: kitID, Address: server.URL, Agent: "fixture-token"}}
+	service.meshHTTP = server.Client()
+	service.meshNodes = []MeshNode{{NodeID: kitID, TargetID: kitID, Address: server.URL, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities()}}
+	rows, skipped := service.MeshBackendLibrary(ctx)
+	if len(skipped) != 0 || len(rows) != 2 || coreID == romID {
+		t.Fatalf("ids=%q/%q rows=%+v skipped=%+v", coreID, romID, rows, skipped)
+	}
+	core := backendRow(t, rows, coreID)
+	rom := backendRow(t, rows, romID)
+	if len(core.Options) != 1 || core.Options[0].Entry.Execute[0].Kind != meshcontent.ExecuteFPGANative || !core.Options[0].Nodes[0].Available || core.Options[0].HostLocal || core.System != "sms" {
+		t.Fatalf("core=%+v", core)
+	}
+	if len(rom.Options) != 1 || rom.Options[0].Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || !rom.Options[0].HostLocal || rom.Options[0].Reason != "" || rom.System != "sms" {
+		t.Fatalf("rom=%+v", rom)
+	}
+	if len(core.ContentIDs) != 1 || len(rom.ContentIDs) != 1 || core.ContentIDs[0] != rom.ContentIDs[0] {
+		t.Fatalf("content core=%+v rom=%+v", core.ContentIDs, rom.ContentIDs)
+	}
+	service.targets = nil
+	rows, skipped = service.MeshBackendLibrary(ctx)
+	if len(skipped) != 0 {
+		t.Fatalf("without authenticated kit: skipped=%+v", skipped)
+	}
+	core = backendRow(t, rows, coreID)
+	if core.Options[0].Reason != "no compatible executor in inventory" || len(core.Options[0].Nodes) != 1 || core.Options[0].Nodes[0].Reason != "package unavailable on node" {
+		t.Fatalf("without package facts: core=%+v", core)
+	}
+}
+
 func TestMeshBackendLibraryTwoNodeProjection(t *testing.T) {
+	// This synthetic same-id composition exercises projection only. The
+	// catalog gives a core entry and a raw ROM different game ids.
 	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
 	kitID, emuID := "01234567-89ab-cdef-0123-456789abcdef", "fedcba98-7654-3210-fedc-ba9876543210"
 	kit := MeshNode{NodeID: kitID, TargetID: kitID, Mesh: discovery.MeshProtocol, Address: "http://192.0.2.1:8182", Capabilities: discovery.KitCapabilities()}
@@ -115,43 +213,26 @@ func TestMeshInventoryObservesWithoutBoundTarget(t *testing.T) {
 	t.Fatal("observer-only monitor did not populate inventory")
 }
 
-// M1 scope (#361): one local library shows both backends for the same
-// title. The kit runs fes.sms; the host-local RetroArch path is the
-// emulator option. A remote-sourced emulator option stays unavailable
-// with an explicit reason until the runner contract (#360) exists.
-func TestMeshBackendLibraryLocalDualBackend(t *testing.T) {
+// Same-id host and sourced options must retain their distinct availability.
+func TestMeshBackendLibraryHostAndSourcedCollision(t *testing.T) {
 	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
-	kitID, emuID := "01234567-89ab-cdef-0123-456789abcdef", "fedcba98-7654-3210-fedc-ba9876543210"
-	kit := MeshNode{NodeID: kitID, TargetID: kitID, Mesh: discovery.MeshProtocol, Address: "http://192.0.2.1:8182", Capabilities: discovery.KitCapabilities()}
-	pkgID := strings.Repeat("cd", 32)
-	fpga := meshCoreTitle("Data Storm 1.00", "fes.sms", pkgID, media, false)
 	local := meshNativeTitle("Data Storm 1.00", protocol.SystemSMS, media)
-	local.Game.ID = fpga.Game.ID
-	lib := MeshLibrary{Titles: []MeshTitle{fpga, local}}
-	packages := map[string][]string{kitID: {pkgID}}
-	abis := map[string][]meshcontent.EligibleABI{kitID: {{ID: "fes.application", Major: 1}}}
-
-	rows, skipped := ProjectMeshBackendLibrary(lib, []MeshNode{kit}, false, packages, abis)
+	remote := local
+	remote.Execute = meshcontent.ExecuteNativeEmu
+	rows, skipped := ProjectMeshBackendLibrary(MeshLibrary{Titles: []MeshTitle{local, remote}}, nil, false, nil, nil)
 	if len(skipped) != 0 || len(rows) != 1 {
 		t.Fatalf("rows=%+v skipped=%+v", rows, skipped)
 	}
-	row := rows[0]
-	if len(row.Options) != 2 || len(row.ContentIDs) != 1 || row.ContentIDs[0].String() != "sha256:"+media {
-		t.Fatalf("row=%+v", row)
-	}
-	fpgaOpt, emuOpt := row.Options[0], row.Options[1]
-	if fpgaOpt.Entry.Execute[0].Kind != meshcontent.ExecuteFPGANative || fpgaOpt.HostLocal || fpgaOpt.Reason != "" ||
-		len(fpgaOpt.Nodes) != 1 || fpgaOpt.Nodes[0].NodeID != kitID || !fpgaOpt.Nodes[0].Available {
-		t.Fatalf("fpga option=%+v", fpgaOpt)
-	}
-	if emuOpt.Entry.Execute[0].Kind != meshcontent.ExecuteNativeEmu || !emuOpt.HostLocal || emuOpt.Reason != "" || len(emuOpt.Nodes) != 0 {
-		t.Fatalf("local emulator option=%+v", emuOpt)
+	if options := rows[0].Options; len(options) != 2 || !options[0].HostLocal || options[0].Reason != "" || options[1].HostLocal || options[1].Reason != "no advertised executor in inventory" {
+		t.Fatalf("options=%+v", options)
 	}
 
 	// A remote-sourced emulator title (not host-local) is listed but
 	// unavailable, with explicit node and option reasons.
-	remote := meshNativeTitle("Remote only", protocol.SystemSMS, media)
-	remote.Execute = meshcontent.ExecuteNativeEmu
+	kitID, emuID := "01234567-89ab-cdef-0123-456789abcdef", "fedcba98-7654-3210-fedc-ba9876543210"
+	kit := MeshNode{NodeID: kitID, TargetID: kitID, Mesh: discovery.MeshProtocol, Address: "http://192.0.2.1:8182", Capabilities: discovery.KitCapabilities()}
+	packages := map[string][]string{}
+	abis := map[string][]meshcontent.EligibleABI{}
 	emu := MeshNode{NodeID: emuID, TargetID: emuID, Mesh: discovery.MeshProtocol, Address: "http://192.0.2.2:8182", Capabilities: discovery.Capabilities{Execute: []discovery.Execute{{Kind: meshcontent.ExecuteNativeEmu}}}}
 	rows, _ = ProjectMeshBackendLibrary(MeshLibrary{Titles: []MeshTitle{remote}}, []MeshNode{kit, emu}, false, packages, abis)
 	got := backendRow(t, rows, remote.Game.ID)
