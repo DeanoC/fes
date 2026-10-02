@@ -91,17 +91,18 @@ For an available, matched game, **Confirm** launches directly. The focused panel
 
 ### Availability states (distinct treatment)
 
+Play surfaces (rooms, tenfoot, browser) show four names: **Checking**, **Ready**, **Needs a choice**, **Unavailable**. They never claim Ready before it is known.
+
 | State | Meaning | Confirm behaviour |
 | --- | --- | --- |
-| Checking | Library match still resolving | Honest wait / progress; never silent no-op |
-| Missing | No matching game in this household’s library | Explanation + resolution action |
-| Needs a choice | Several editions match; no preference saved | Force a clear choice; remember for household |
-| Unavailable | Matched, but a requirement blocks play | Reason + specific next action. Missing Coleco BIOS Confirm opens the household file picker (Import Coleco BIOS). Other blocks still open Details. |
-| Ready | Can launch through the current setup | Launch (Play) |
+| Checking | Capability, composition, or required content is still resolving | Honest wait; never silent no-op; do not launch |
+| Needs a choice | More than one **viable** edition or backend can play this title; no preference saved | Force a clear choice; remember for household. A single viable option is Ready with no prompt. |
+| Unavailable | Matched, but a requirement blocks play (skew, in use, not installed, missing firmware, browse-only). Missing (no library match) is this family. | Reason + specific next action. Missing Coleco BIOS Confirm opens the household file picker (Import Coleco BIOS). Other blocks still open Details. Fail-closed rows are never offered as a choice. |
+| Ready | The selected option can launch through the current setup | Launch (Play) |
 
 Missing locations remain on the authored map so structure survives. Confirm must **never** silently do nothing.
 
-Remember edition choices for the household; do not re-ask every visit.
+Needs a choice is FPGA versus emulator when both can run the title, or two playable editions. Remember the chosen `game_id` for the household; do not re-ask every visit.
 
 **Storage:** household `libraryuser` table `edition_preference` in `library-user.sqlite3` (same store as favorites and play counts). Tenfoot loads `GET /api/v1/library/edition-preferences` at start and writes `PUT /api/v1/library/edition-preferences` when Confirm or Details chooses an edition. A saved `game_id` that is still among the current matches makes Needs a choice Ready (or Unavailable), so Confirm launches and Details opens the shared game panel. A stale or missing preference still forces a clear choice. Back and the system menu stay reachable.
 
