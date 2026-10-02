@@ -219,6 +219,12 @@ func (s *Service) readTwoROMFirmware(ctx context.Context, descriptor corepackage
 // The target computes linked and composed identities. The host binds the
 // returned receipt to its selected source identities, not a host-built image.
 func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus) bool {
+	if !reflect.DeepEqual(status.PartsComposition, s.partsComposition) {
+		return false
+	}
+	if s.partsComposition != nil {
+		return status.Composition == nil && status.SlotComposition == nil && status.ROMLink == nil && status.ROMLinks == nil
+	}
 	if s.biosID != "" {
 		links := status.ROMLinks
 		if links == nil || len(links.Sources) != 2 || links.Sources[0].ID != s.biosID || links.Sources[0].Role != "firmware" || links.Sources[0].SourceSHA256 != s.biosMediaID || links.Sources[0].SourceSize != s.biosSourceSize || links.Sources[1].ID != s.romID || links.Sources[1].Role != "cartridge" || links.Sources[1].SourceSHA256 != s.romMediaID || links.Sources[1].SourceSize != s.romSourceSize || links.MapSHA256 != s.romMapSHA256 || status.PackageID != s.entry.PackageID {

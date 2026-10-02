@@ -86,6 +86,31 @@ a package does not inherit earlier acceptance. Cartridge ROM packages must remov
 blob/stream and firmware mailboxes; firmware ROM packages may retain separate
 tape/disk input.
 
+## Library video preference
+
+Settings selects the household `direct` or `scanlines` preference for the next
+launch. Manage FPGA Library imports a video archive with its profile. The CLI
+equivalents are `fogcast video-profile scanlines`,
+`fogcast video-part-install scanlines /absolute/path/part.tar`, and
+`fogcast core-video GAME_ID` to inspect the resolved choice.
+
+The first supported shell is the separate format-2 Coleco video development
+package. A part binds to that exact package and its frozen socket, rather than
+every package with the same core name. Import and launch run the real FPGA
+linker. Play combines the video part with the title's selected CPU expansion;
+the target independently recomposes the transport and admits its library data
+namespace before programming. Existing cartridge/firmware delivery follows
+the activated package generation.
+
+If the preferred profile has no installed matching part, Play uses direct
+output and the library panel explains why. An installed selected part that
+fails integrity or compatibility checks rejects the launch before hardware
+mutation. Missing parts do not prove insufficient FPGA capacity. A rebuilt
+shell needs its own sealed parts; the factory package still uses built-in
+direct output. Settings do not alter a running session. ROM-linked format-3/4
+parts, other video standards, CRT/DDR/overlay processors and audio parts are
+not supported by this initial library path.
+
 ## Build and inspect
 
 For a single core without image assembly, use the

@@ -280,11 +280,19 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 	var attempted bool
 	var apiErr *protocol.APIError
 	if len(composition) == 2 && composition[1] {
-		parts, ok := c.runtime.(partsCoreRuntime)
-		if !ok {
-			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+		if libraryID != "" {
+			parts, ok := c.runtime.(libraryPartsCoreRuntime)
+			if !ok {
+				return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+			}
+			activation, attempted, apiErr = parts.LoadLibraryPartsCoreOwned(parent, observation, c.operationContext, size, content, libraryID)
+		} else {
+			parts, ok := c.runtime.(partsCoreRuntime)
+			if !ok {
+				return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+			}
+			activation, attempted, apiErr = parts.LoadPartsCoreOwned(parent, observation, c.operationContext, size, content)
 		}
-		activation, attempted, apiErr = parts.LoadPartsCoreOwned(parent, observation, c.operationContext, size, content)
 	} else if len(composition) == 1 && composition[0] {
 		composed, ok := c.runtime.(composedCoreRuntime)
 		if !ok {

@@ -591,6 +591,9 @@ func (c *Client) PatchLibrarySettings(ctx context.Context, patch LibrarySettings
 }
 
 func normalizeLibrarySettings(result LibrarySettings) LibrarySettings {
+	if result.VideoProfile == "" {
+		result.VideoProfile = "direct"
+	}
 	if result.PreferredRegions == nil {
 		result.PreferredRegions = []string{}
 	}

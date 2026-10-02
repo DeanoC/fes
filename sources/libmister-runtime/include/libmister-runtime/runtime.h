@@ -523,6 +523,7 @@ public:
 		const std::string& expected_package_id);
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&);
 	Error LoadComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&);
+	Error LoadLibraryPartsCore(const std::string&, const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error InspectPartsCore(const std::string&, const std::string&, const CoreCompositionRequest&, CorePackageInspection*);
 	Error LoadInitializedCore(const std::string&, const std::string&, const std::string&, const std::string&);
 	Error LoadInitializedLibraryCore(const std::string&, const std::string&, const std::string&,

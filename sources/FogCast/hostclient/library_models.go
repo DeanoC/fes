@@ -491,6 +491,7 @@ type LibrarySystem struct {
 type LibrarySettings struct {
 	AttractIdleSeconds int             `json:"attract_idle_seconds"`
 	PreferredRegions   []string        `json:"preferred_regions"`
+	VideoProfile       string          `json:"video_profile"`
 	SelectedTarget     string          `json:"selected_target"`
 	Targets            []LibraryTarget `json:"targets"`
 	Libraries          []LibraryRoot   `json:"libraries"`
@@ -501,6 +502,7 @@ type LibrarySettings struct {
 type LibrarySettingsPatch struct {
 	AttractIdleSeconds *int                  `json:"attract_idle_seconds,omitempty"`
 	PreferredRegions   *[]string             `json:"preferred_regions,omitempty"`
+	VideoProfile       *string               `json:"video_profile,omitempty"`
 	SelectedTarget     *string               `json:"selected_target,omitempty"`
 	Targets            *[]LibraryTargetWrite `json:"targets,omitempty"`
 	Libraries          *[]LibraryRoot        `json:"libraries,omitempty"`
@@ -509,6 +511,12 @@ type LibrarySettingsPatch struct {
 
 func (p LibrarySettingsPatch) payload() (map[string]any, error) {
 	raw := map[string]any{}
+	if p.VideoProfile != nil {
+		if *p.VideoProfile != "direct" && *p.VideoProfile != "scanlines" {
+			return nil, fmt.Errorf("unknown video profile")
+		}
+		raw["video_profile"] = *p.VideoProfile
+	}
 	if p.AttractIdleSeconds != nil {
 		raw["attract_idle_seconds"] = *p.AttractIdleSeconds
 	}

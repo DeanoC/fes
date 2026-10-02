@@ -1079,6 +1079,11 @@ void TestDeveloperPartsProtocol() {
  assert(parsed.operation==mister::daemon::Operation::inspect_parts_core);
  std::string persistent=request("load_parts_core");persistent.insert(1,"\"data_root\":\"/tmp/data\",");
  assert(!Parse(persistent,&parsed).ok());
+ assert(!Parse(request("load_parts_library_core"),&parsed).ok());
+ std::string library=request("load_parts_library_core");library.insert(1,"\"data_root\":\"/tmp/data\",");
+ assert(Parse(library,&parsed).ok());
+ assert(parsed.operation==mister::daemon::Operation::load_parts_library_core&&parsed.data_root=="/tmp/data");
+ library.replace(library.find("/tmp/data"),9,"relative");assert(!Parse(library,&parsed).ok());
  assert(!Parse(request("load_composed_core"),&parsed).ok());
  std::string unknown=request("load_parts_core");
  unknown.replace(unknown.find("\"role\":\"video\""),14,"\"role\":\"other\"");assert(!Parse(unknown,&parsed).ok());

@@ -282,6 +282,7 @@ type Service struct {
 	libraryMu                sync.RWMutex
 	attractIdle              int
 	preferredRegions         []string
+	videoProfile             string
 	hostEmulator             HostEmulatorConfig
 	machineROM               MachineROMLinker
 	metadataRoot             string
@@ -525,6 +526,7 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		executionResolver:        defaultExecutionResolver{},
 		attractIdle:              config.Library.AttractIdleSeconds,
 		preferredRegions:         append([]string(nil), config.Library.PreferredRegions...),
+		videoProfile:             defaultVideoProfile(config.Library.VideoProfile),
 		hostEmulator:             config.HostEmulator,
 		metadataRoot:             paths.MetadataRoot,
 		metadataScope:            config.Metadata.ClientID,
@@ -1882,7 +1884,15 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		if err != nil {
 			return protocol.Status{}, err
 		}
-		if selected.composition != nil || (selected.slotComposition != nil && selected.romID == "") {
+		if selected.partsComposition != nil {
+			parts, ok := client.(interface {
+				LoadLibraryPartsCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
+			})
+			if !ok {
+				return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+			}
+			status, err = parts.LoadLibraryPartsCore(ctx, size, content, selected.entry.PackageID)
+		} else if selected.composition != nil || (selected.slotComposition != nil && selected.romID == "") {
 			composed, ok := client.(interface {
 				LoadComposedCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
 			})

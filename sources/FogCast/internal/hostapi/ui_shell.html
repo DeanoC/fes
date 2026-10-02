@@ -156,6 +156,10 @@
       <label class="filter-label" for="settings-preferred-regions">Preferred regions
         <input id="settings-preferred-regions" type="text" autocomplete="off" spellcheck="false">
       </label>
+      <label class="filter-label" for="settings-video-profile">Video preference
+        <select id="settings-video-profile"><option value="direct">Direct</option><option value="scanlines">Scanlines</option></select>
+      </label>
+      <p class="settings-help">Applies on the next launch. Without an installed matching part, a core uses direct output. An invalid installed part requires repair. Manage FPGA library shows the resolved choice.</p>
       <section class="settings-group" aria-labelledby="settings-libraries-heading">
         <div class="settings-group-header">
           <h3 id="settings-libraries-heading">Library folders</h3>
@@ -214,6 +218,18 @@
       <button id="core-package-check" class="button secondary" type="button">Check compatibility</button>
       <p id="core-package-status" role="status"></p>
       <button id="core-entry-package-save" class="button" type="button">Select package for entry</button>
+    </fieldset>
+    <fieldset>
+      <legend>Video output</legend>
+      <p id="core-video-status" role="status">Choose a library entry to see its next-launch output.</p>
+      <div id="core-video-choices"></div>
+      <label for="core-video-profile">Import a video part for this household profile</label>
+      <select id="core-video-profile"><option value="direct">Direct</option><option value="scanlines">Scanlines</option></select>
+      <label for="core-video-file">Video part archive (.fexp, up to 32 MiB total)</label>
+      <input id="core-video-file" type="file" accept=".fexp">
+      <button id="core-video-import" class="button" type="button">Import video part</button>
+      <p>Choose the profile supplied with the build. Import stores a part for its exact core package; Settings chooses the household preference for the next launch.</p>
+      <p id="core-video-parts" role="status"></p>
     </fieldset>
     <fieldset>
       <legend>Optional immutable media</legend>

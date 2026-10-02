@@ -13,6 +13,22 @@ func TestLibrarySettingsPatchRejectsEmptyPayload(t *testing.T) {
 	}
 }
 
+func TestLibrarySettingsVideoPreferenceIsExplicitAndDefaultsDirect(t *testing.T) {
+	if got := normalizeLibrarySettings(LibrarySettings{}).VideoProfile; got != "direct" {
+		t.Fatalf("legacy settings preference=%q", got)
+	}
+	profile := "scanlines"
+	raw, err := (LibrarySettingsPatch{VideoProfile: &profile}).payload()
+	if err != nil || len(raw) != 1 || raw["video_profile"] != "scanlines" {
+		t.Fatalf("profile patch=%v err=%v", raw, err)
+	}
+	for _, invalid := range []string{"", "crt"} {
+		if _, err := (LibrarySettingsPatch{VideoProfile: &invalid}).payload(); err == nil {
+			t.Fatalf("invalid profile accepted: %q", invalid)
+		}
+	}
+}
+
 func TestLibrarySettingsPatchPayloadLibraries(t *testing.T) {
 	t.Parallel()
 	idle := 60

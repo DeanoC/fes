@@ -74,6 +74,11 @@ std::string Controller::Handle(const std::string& line)
 			request.composition_request, &inspection);
 		if (result.ok()) inspected = &inspection;
 		break;
+	case Operation::load_parts_library_core:
+		result = runtime_.LoadLibraryPartsCore(request.package_path, request.package_id,
+			request.data_root, request.composition_request);
+		EmitFifoConsume("load_parts_library_core", result.ok());
+		break;
 	case Operation::load_rom_core:
 		result = request.rom_links.sources.empty() ?
 			runtime_.LoadROMCore(request.package_path, request.package_id,

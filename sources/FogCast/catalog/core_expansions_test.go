@@ -42,7 +42,7 @@ func TestExpansionProgressMigrationPreservesExistingSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Reconstruct the previous schema without touching its saved records.
-	_, err = db.ExecContext(ctx, "ALTER TABLE core_expansions DROP COLUMN in_progress; PRAGMA user_version = 15;")
+	_, err = db.ExecContext(ctx, "DROP TABLE core_video_parts; ALTER TABLE core_expansions DROP COLUMN in_progress; PRAGMA user_version = 15;")
 	if err != nil {
 		t.Fatal(err)
 	}

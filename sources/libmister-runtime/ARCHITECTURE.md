@@ -359,7 +359,7 @@ admission leaves the current generation untouched. Successful activation carries
 the composition tuple in active status, and the ordinary retirement/recovery
 paths clear it together with package identity.
 
-### Developer presentation parts
+### Presentation parts admission
 
 Protocol-2 `inspect_parts_core` and `load_parts_core` accept a closed role list
 (`video`, plus optional `expansion`) and a separate typed parts composition.
@@ -378,11 +378,19 @@ physical lifecycle, drivers and fixed ADV7513 recipe; live GP capability and
 BUILD_ID checks remain those of the sealed base package. Active status carries
 layout and role identities under `active_package.composition`.
 
-These developer operations have no data-root field and remain explicitly
-volatile. They do not select household settings or alter production library
-persistence. Existing CPU composition operations reject their request shape.
-The path has host software coverage only and adds no hardware acceptance,
-alternate output timing, DDR presentation or ROM-linked parts support.
+The separate `load_parts_library_core` operation requires an absolute
+`data_root` and uses the same sealed admission and replacement lifecycle.
+It prepares the base core's data namespace before programming, even though
+this format-2 Coleco layout has no persistence contract and remains volatile.
+An existing durable namespace rejects the candidate with `incompatible_data`;
+selecting video cannot silently discard a previous persistence requirement.
+FogCast fixes the root locally and supplies explicit library identity.
+
+Developer inspect/load operations have no data-root field and remain
+explicitly volatile. Existing CPU composition operations reject the parts
+request shape. Library admission has host software coverage only; it adds no
+hardware acceptance, alternate output timing, DDR presentation or ROM-linked
+parts support.
 
 ### Initialized bitstream
 

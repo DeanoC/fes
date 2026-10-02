@@ -16,6 +16,7 @@ const (
 	settingsRowAttract
 	settingsRowIdle
 	settingsRowRegions
+	settingsRowVideo
 	settingsRowTarget
 	settingsRowPrepareTarget
 	settingsRowHome
@@ -188,6 +189,7 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "attract", Label: "Attract", Value: attract},
 		{ID: "idle", Label: "Idle", Value: idle},
 		{ID: "regions", Label: "Regions", Value: regions},
+		{ID: "video-profile", Label: "Video preference · next launch", Value: a.settingsVideoValueLocked()},
 		{ID: "target", Label: "Target", Value: target},
 		{ID: "prepare-target", Label: "Prepare target", Value: "A generate identity"},
 		{ID: "home", Label: "Home", Value: a.settingsHomeValueLocked()},
@@ -252,6 +254,20 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		SettingsRow{ID: "close", Label: "Close", Value: "B back"},
 	)
 	return rows
+}
+
+func (a *App) settingsVideoValueLocked() string {
+	if !a.settingsHydrated {
+		return "—"
+	}
+	switch a.hostSettings.VideoProfile {
+	case "", "direct":
+		return "Direct"
+	case "scanlines":
+		return "Scanlines"
+	default:
+		return "Unavailable"
+	}
 }
 
 func formatSettingsRegions(selected []string, cursor int) string {
@@ -471,6 +487,18 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			regions := append([]string(nil), next...)
 			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{PreferredRegions: &regions})
 		}
+	case settingsRowVideo:
+		if !a.settingsHydrated || cmd != CmdLeft && cmd != CmdRight && cmd != CmdSelect {
+			return
+		}
+		profile := "scanlines"
+		if a.hostSettings.VideoProfile == "scanlines" {
+			profile = "direct"
+		} else if a.hostSettings.VideoProfile != "" && a.hostSettings.VideoProfile != "direct" {
+			a.settingsStatus = "refresh unavailable video preference"
+			return
+		}
+		a.patchSettingsLocked(hostclient.LibrarySettingsPatch{VideoProfile: &profile})
 	case settingsRowTarget:
 		if !a.settingsHydrated {
 			return
@@ -1496,6 +1524,8 @@ func (a *App) applyAttractIdleFromSettingsLocked(seconds int) {
 
 func (a *App) settingsSavedStatusLocked(patch hostclient.LibrarySettingsPatch) string {
 	switch {
+	case patch.VideoProfile != nil:
+		return "Video: " + a.settingsVideoValueLocked() + " · next launch"
 	case patch.AttractIdleSeconds != nil:
 		return fmt.Sprintf("idle %ds", a.hostSettings.AttractIdleSeconds)
 	case patch.PreferredRegions != nil:

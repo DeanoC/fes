@@ -254,9 +254,6 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		return CoreActivation{}, false, unsupportedOperationError()
 	}
 	parts := len(partsMode) == 1 && partsMode[0]
-	if parts && libraryID != "" {
-		return CoreActivation{}, false, unsupportedOperationError()
-	}
 	maxInputSize := int64(max(corepackage.MaxROMInputSize, corepackage.MaxCompositionArchiveSize))
 	if parts {
 		maxInputSize = corepackage.MaxPartsArchiveSize
@@ -298,6 +295,11 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	if parts {
 		if _, ok := r.control.(protocol2PartsControl); !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		if libraryID != "" {
+			if _, ok := r.control.(protocol2LibraryPartsControl); !ok {
+				return CoreActivation{}, false, unsupportedOperationError()
+			}
 		}
 		staged, err = corepackage.StageParts(admission, r.corePackageRoot, size, content)
 	} else if romLinked {
@@ -373,13 +375,15 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			mapProtocol2Error(inspection.CompatibilityError)
 	}
 	expectedMode := "volatile"
-	if libraryID != "" && !composed {
+	if libraryID != "" && (!composed || parts) {
 		inspector, ok := r.control.(protocol2DataControl)
 		if !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
-		if _, ok := r.control.(protocol2LibraryControl); !ok {
-			return CoreActivation{}, false, unsupportedOperationError()
+		if !parts {
+			if _, ok := r.control.(protocol2LibraryControl); !ok {
+				return CoreActivation{}, false, unsupportedOperationError()
+			}
 		}
 		data, err := inspector.InspectCoreData(admission, staged.Directory, staged.PackageID, CoreDataRoot)
 		if err != nil {
@@ -439,8 +443,13 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	var response Protocol2Response
 	var callErr error
 	if staged.PartsComposition != nil {
-		response, callErr = r.control.(protocol2PartsControl).LoadPartsCore(operationOwner, staged.Directory, staged.PackageID, staged.PayloadPath, partPaths(staged), *staged.PartsComposition)
-		r.noteDispatch("load_parts_core", callErr == nil)
+		if libraryID != "" {
+			response, callErr = r.control.(protocol2LibraryPartsControl).LoadLibraryPartsCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, staged.PayloadPath, partPaths(staged), *staged.PartsComposition)
+			r.noteDispatch("load_parts_library_core", callErr == nil)
+		} else {
+			response, callErr = r.control.(protocol2PartsControl).LoadPartsCore(operationOwner, staged.Directory, staged.PackageID, staged.PayloadPath, partPaths(staged), *staged.PartsComposition)
+			r.noteDispatch("load_parts_core", callErr == nil)
+		}
 	} else if staged.ROMLinks != nil {
 		dataRoot := ""
 		if libraryID != "" && !composed {
@@ -664,6 +673,7 @@ func sameProtocol2RuntimeState(left, right Protocol2Response) bool {
 		return left.ActivePackage == nil && right.ActivePackage == nil
 	}
 	return left.ActivePackage.PackageID == right.ActivePackage.PackageID &&
+		left.ActivePackage.PersistenceMode == right.ActivePackage.PersistenceMode &&
 		reflect.DeepEqual(left.ActivePackage.Descriptor, right.ActivePackage.Descriptor) &&
 		reflect.DeepEqual(left.ActivePackage.Observed, right.ActivePackage.Observed) &&
 		reflect.DeepEqual(left.ActivePackage.Composition, right.ActivePackage.Composition) &&

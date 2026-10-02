@@ -725,6 +725,9 @@ func (s *settingsFake) PatchLibrarySettings(_ context.Context, patch fogcast.Lib
 	if patch.AttractIdleSeconds != nil {
 		next.AttractIdleSeconds = *patch.AttractIdleSeconds
 	}
+	if patch.VideoProfile != nil {
+		next.VideoProfile = *patch.VideoProfile
+	}
 	if patch.PreferredRegions != nil {
 		next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
 	}

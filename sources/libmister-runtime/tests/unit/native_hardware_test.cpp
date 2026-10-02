@@ -2007,6 +2007,78 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 	}
 }
 
+void TestLibraryPartsChecksCoreNamespaceBeforeProgramming()
+{
+	std::vector<std::string> driver_events;
+	RecordingDriver driver(driver_events);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	TempDirectory package, expansion, composition, data;
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.simple-game", "fes.application");
+	ReplaceAll(&manifest, "fes.pong", "fes.coleco");
+	manifest += "\n[[interfaces]]\nid = \"fes.expansion.coleco-bus\"\nmajor = 2\nminor = 0\nrequired = false\n";
+	manifest += "\n[[interfaces]]\nid = \"fes.fabric.video.raster-rgb888\"\nmajor = 1\nminor = 0\nrequired = false\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	mister::native::OpenedCorePackage base;
+	assert(mister::native::OpenCorePackage(package.path, "", &base).ok());
+	auto hash = [](const std::string& value) {
+		mister::native::Sha256 h; h.Update(value.data(), value.size());
+		return mister::native::Sha256Hex(h.Final());
+	};
+	const std::string cart(40408, 'c'), linked(40408, 'l');
+	expansion.File("cart.rbf", cart);
+	manifest = "{\"cart_sha256\":\"" + hash(cart) + "\",\"cart_size\":40408,\"device\":\"5CSEBA6U23I7\",\"format\":1,"
+		"\"map\":\"fes.coleco-video.socket/1\",\"recipe_sha256\":\"" + std::string(64,'c') + "\",\"revision\":\"" + std::string(40,'d') +
+		"\",\"shell_build_id\":\"" + base.descriptor.build.id + "\",\"shell_package_id\":\"" + base.package_id +
+		"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 + "\",\"slot\":\"fes.fabric.video.raster-rgb888\",\"slot_major\":1,\"slot_minor\":0}";
+	expansion.File("manifest.json", manifest);
+	mister::CoreCompositionRequest request;
+	request.parts = {{"video", expansion.path}};
+	request.payload_path = composition.File("linked.rbf", linked);
+	auto& info = request.composition;
+	info.package_id = base.package_id;
+	info.shell_sha256 = base.descriptor.payload.sha256;
+	info.payload_sha256 = hash(linked);
+	info.payload_size = linked.size();
+	info.layout = "fes.coleco-video.parts/1";
+	info.parts = {{"video", hash(std::string("fes-expansion-v1\0", 17) + manifest)}};
+	info.id = hash("fes-parts-composition-v1" + std::string(1, '\0') + info.package_id +
+		std::string(1, '\0') + info.layout + std::string(1, '\0') + "video:" +
+		info.parts[0].part_id + std::string(1, '\0') + info.payload_sha256);
+	const auto programs = fixture.native.fpga.calls;
+	assert(fixture.runtime.LoadLibraryPartsCore(package.path, base.package_id, "", request).code == mister::ErrorCode::invalid_request);
+	assert(fixture.native.fpga.calls == programs);
+	std::unique_ptr<mister::native::CoreDataFile> file;
+	assert(mister::native::CoreDataFile::Open(data.path, "fes.coleco", &file).ok());
+	mister::CoreData saved;
+	saved.core_id = "fes.coleco";
+	saved.layout = {"fes.pong.progress", 1, 0};
+	saved.paddle_speed = 1;
+	assert(file->Persist(saved, "absent", &saved).ok());
+	fixture.native.events.clear();
+	driver_events.clear();
+	const auto rejected = fixture.runtime.LoadLibraryPartsCore(package.path, base.package_id, data.path, request);
+	assert(rejected.code == mister::ErrorCode::incompatible_data && rejected.phase == "core_data");
+	assert(fixture.native.fpga.calls == programs && fixture.native.events.empty() && driver_events.empty());
+	assert(fixture.runtime.status().state == mister::State::idle);
+	// Developer loads intentionally stay volatile, even with an existing namespace.
+	assert(fixture.runtime.LoadComposedCore(package.path, base.package_id, request).ok());
+	assert(fixture.runtime.status().core_data.mode == "volatile");
+	assert(fixture.runtime.Stop().ok());
+	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.coleco");
+	file.reset();
+	assert(unlink((dir + "/record.bin").c_str()) == 0);
+	assert(fixture.runtime.LoadLibraryPartsCore(package.path, base.package_id, data.path, request).ok());
+	const auto status = fixture.runtime.status();
+	assert(status.active_package.package_id == base.package_id && status.active_package.composition.id == info.id);
+	assert(status.active_package.composition.parts[0].part_id == info.parts[0].part_id);
+	assert(status.core_data.mode == "volatile" && status.core_data.core_id == "fes.coleco");
+	assert(fixture.runtime.Stop().ok());
+	assert(rmdir(dir.c_str()) == 0);
+}
+
 void TestActivationRechecksRetainedPayloadIdentityBeforeMutation()
 {
 	std::vector<std::string> gp_events;
@@ -2805,6 +2877,7 @@ void TestComputerSlotCompositionActivatesLinkedPayload()
 
 int main()
 {
+	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
  TestNativeMenuActivationAndCompletion();
  TestMenuUnderflowPolicyReactivatesThenSplashes();
