@@ -1286,8 +1286,9 @@ one row per node id. Instances of one node at one address (the same kit
 seen on two host interfaces) are one row; when the browse window's
 instances of a node id name more than one address, the row carries
 `address_conflict: true` and no `address`, and uniqueness is checked on
-every instance before the rows are collapsed. A browse error keeps the
-previous rows. The inventory does
+every instance before the rows are collapsed. The monitor observes these
+advertisements even when the selected target has no Phase 0 binding. A
+browse error keeps the previous rows. The inventory does
 not adopt an endpoint, claim a lease, or make a title Ready. A later browse
 that no longer sees a node, including a node that omitted `ttl`, drops that
 row only. A mesh major other than 1 does not remove that direct bind; a
@@ -1320,6 +1321,32 @@ content-id of an RBF. `PackageABI.Major` is that ABI's major, not the
 mesh protocol major. `ReadyHere` requires that package id and an
 eligible ABI id and major before it reports Ready. Package id alone is
 not eligibility.
+
+`Service.MeshBackendLibrary` reads the existing local catalog and projects
+package titles through the same helper as placement; raw games use the
+configured execution resolver. `ProjectMeshBackendLibrary` groups entries
+by catalog game id and links rows at read time when their primary-media
+content id (the ROM sha256) and browse system both match exactly. The
+package row's game id is the canonical row id and a matching raw ROM folds
+in as its emulator option; with more rows, package rows come first, then
+the lowest game id. A different hash (a patched ROM) or system never links,
+and catalog rows are not rewritten. Each option keeps its source game id.
+It keeps host-local and sourced options distinct, deduplicates
+repeated content ids, and annotates observed node candidates. The service
+reuses placement's authenticated kit node-document read for package and ABI
+facts. A missing, retained, conflicting, or mesh-major-incompatible
+advertisement is unavailable. A `native_emu` advertisement remains
+unverified for remote execution because the current capability bag has no
+supported-system or emulator-version fact. The host-local `host_only`
+path is the local emulator option (`HostLocal`); like launch, it carries
+`local source unavailable` when the game's source is not available or
+its root is offline. An option with no
+host-local path carries an explicit reason when no inventory node can
+run it (`no advertised executor in inventory` or `no compatible
+executor in inventory`); each node candidate carries its own reason.
+This projection does not select a backend for a session, assert
+composition Ready, or publish a library wire field. Remote title/source
+provenance remains proposed in the mesh docs.
 
 `meshcontent.Ensure` is the host ensure step. It takes one projected
 entry and the executor the session is already bound to. Each required
