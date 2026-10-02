@@ -61,8 +61,8 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 	if a == nil || a.localCores == nil || a.localFeed == nil {
 		return d
 	}
-	game, ok := d.Game()
-	if !ok || !localCatalogPlayable(game) {
+	game, ok := kitDirectMatch(d)
+	if !ok {
 		return d
 	}
 	d.GameID = game.ID
@@ -83,6 +83,21 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 	d.Availability = rooms.AvailReady
 	d.FillCopy()
 	return d
+}
+
+func kitDirectMatch(d rooms.Destination) (hostclient.Game, bool) {
+	if game, ok := d.Game(); ok && localCatalogPlayable(game) {
+		return game, true
+	}
+	if d.Availability == rooms.AvailReady {
+		return hostclient.Game{}, false
+	}
+	for _, game := range d.Matches {
+		if localCatalogPlayable(game) {
+			return game, true
+		}
+	}
+	return hostclient.Game{}, false
 }
 
 // localCatalogPlayable is a file that is on this machine and that the host
@@ -341,7 +356,7 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 	case rooms.ConfirmWait:
 		a.status = dest.Status
 		if a.status == "" {
-			a.status = "Matching this title in your library…"
+			a.status = rooms.CheckingStatus
 		}
 		return true
 	case rooms.ConfirmOpenLibrary:

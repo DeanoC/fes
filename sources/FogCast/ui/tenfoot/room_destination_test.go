@@ -134,6 +134,63 @@ func TestRoomDestinationPanelAndConfirmStates(t *testing.T) {
 	}
 }
 
+func TestRoomBackendChoiceIsNotAFailClosedPrompt(t *testing.T) {
+	h := newRoomHost(t)
+	script := `
+function load()
+  destination.set({ kind = "game", label = "Data Storm", query = "Data Storm", matches = {
+    { id = "fpga-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "fpga_native" },
+    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "host_only" },
+  }})
+end
+function draw() gfx.rect(0,0,10,10,'#fff') end
+`
+	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "storm", script)})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	snap := waitFor(t, app, "backend choice", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailNeedsChoice
+	})
+	if snap.Room.Destination.Choice != rooms.ChoiceBackend || snap.Room.Destination.Status != rooms.BackendChoiceStatus {
+		t.Fatalf("backend dest %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdSelect, now)
+	snap = app.Snapshot()
+	if !snap.Room.Choice.Open || len(snap.Room.Choice.Rows) != 2 {
+		t.Fatalf("choice overlay %+v", snap.Room.Choice)
+	}
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "backend launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	if h.launchCount() != 1 {
+		t.Fatalf("launches %v", h.launches)
+	}
+	app.HandleCommand(CmdStop, now)
+	snap = waitFor(t, app, "return", func(s Snapshot) bool { return !s.GPUParked && s.Room.Open && s.Room.ID == "storm" })
+	if snap.Room.Destination.Label != "Data Storm" {
+		t.Fatalf("stop lost focus %+v", snap.Room.Destination)
+	}
+
+	blocked := hostclient.Game{ID: "fpga-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: "fpga_native"}
+	ready := false
+	blocked.ReadyHere = &ready
+	blocked.ReadyBlock = string(hostclient.LaunchVersionSkew)
+	busy := hostclient.Game{ID: "sms-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: hostclient.ExecutionHostOnly}
+	busy.ReadyHere = &ready
+	busy.ReadyBlock = string(hostclient.LaunchLeaseHeld)
+	app.mu.Lock()
+	if app.room != nil {
+		app.room.RefreshCachedGames([]hostclient.Game{blocked, busy})
+	}
+	app.mu.Unlock()
+	got := app.Snapshot().Room.Destination
+	if got.Availability != rooms.AvailUnavailable || got.Confirm() == rooms.ConfirmChoose {
+		t.Fatalf("fail closed stayed a choice %+v", got)
+	}
+}
+
 func TestRoomDetailsOpensSharedPanelAndKeepsContext(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{
