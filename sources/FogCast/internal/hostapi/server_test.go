@@ -18,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -35,6 +36,7 @@ type fakeService struct {
 	healthErr              error
 	status                 protocol.Status
 	statusErr              error
+	developmentStateErr    error
 	statusStarted          chan struct{}
 	statusRelease          chan struct{}
 	statusOnce             sync.Once
@@ -62,12 +64,14 @@ type fakeService struct {
 	stopHook               func(context.Context) (protocol.Status, error)
 	progress               []string
 	execution              string
+	hostExecutionState     hostexec.State
 	executionErr           error
 	reconstructedExecution string
 	order                  *[]string
 	sessionTarget          string
 	sessionTargetID        string
 	launchTarget           string
+	connection             fogcast.TargetConnection
 	playSessions           []fogcast.PlaySession
 }
 
@@ -81,9 +85,67 @@ func (s *fakeService) Search(_ context.Context, query string) ([]catalog.Game, e
 func (s *fakeService) SessionExecution(context.Context, string) (string, error) {
 	return s.execution, s.executionErr
 }
+func (s *fakeService) HostExecutionStatus(context.Context) (hostexec.Status, error) {
+	return hostexec.Status{State: s.hostExecutionState}, nil
+}
 func (s *fakeService) SessionTarget() (string, string) {
 	return s.sessionTarget, s.sessionTargetID
 }
+func (s *fakeService) ForegroundSessionTargetName() string {
+	if s.execution == fogcast.ExecutionFPGANative || s.execution == fogcast.ExecutionFPGADevelopment {
+		return s.sessionTarget
+	}
+	return ""
+}
+
+func TestSessionHTTPHostOnlyWithUnreachableSelectedKit(t *testing.T) {
+	stopped := false
+	service := &fakeService{
+		sessionTarget:      "kit",
+		connection:         fogcast.TargetConnection{State: "disconnected"},
+		execution:          fogcast.ExecutionHostOnly,
+		hostExecutionState: hostexec.Idle,
+		launch:             protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+	}
+	service.statusHook = func(ctx context.Context) (protocol.Status, error) {
+		if fogcast.SessionTargetFromContext(ctx) != "" {
+			return protocol.Status{}, errors.New("selected kit unreachable")
+		}
+		if service.launchCalls == 0 || stopped {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		}
+		gameID, system := "sms-test", protocol.SystemSMS
+		return protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}, nil
+	}
+	service.stopHook = func(context.Context) (protocol.Status, error) {
+		stopped = true
+		return protocol.Status{State: protocol.StateIdle}, nil
+	}
+	handler := hostapi.New(service)
+	explicit := serve(t, handler, http.MethodGet, "/api/v1/session?target=kit")
+	if explicit.Code != http.StatusServiceUnavailable || !strings.Contains(explicit.Body.String(), `"code":"TARGET_UNAVAILABLE"`) {
+		t.Fatalf("explicit unreachable target = %d %s, want 503 TARGET_UNAVAILABLE", explicit.Code, explicit.Body.String())
+	}
+	getSession := func(wantState protocol.State) {
+		t.Helper()
+		response := serve(t, handler, http.MethodGet, "/api/v1/session")
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"`+string(wantState)+`"`) {
+			t.Fatalf("GET /api/v1/session = %d %s, want 200 state %s", response.Code, response.Body.String(), wantState)
+		}
+	}
+	getSession(protocol.StateIdle)
+	launch := serveBody(t, handler, http.MethodPost, "/api/v1/session/launch", `{"game_id":"sms-test"}`)
+	if launch.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/session/launch = %d %s, want 200", launch.Code, launch.Body.String())
+	}
+	getSession(protocol.StateActive)
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/session/stop = %d %s, want 200", stop.Code, stop.Body.String())
+	}
+	getSession(protocol.StateIdle)
+}
+func (s *fakeService) TargetConnection() fogcast.TargetConnection { return s.connection }
 func (s *fakeService) PlaySessions() []fogcast.PlaySession {
 	return s.playSessions
 }
@@ -91,6 +153,9 @@ func (s *fakeService) DevelopmentActive(context.Context) (bool, error) {
 	return s.status.Development && s.status.State != protocol.StateIdle, s.statusErr
 }
 func (s *fakeService) DevelopmentSessionState(context.Context) (bool, string, error) {
+	if s.developmentStateErr != nil {
+		return false, "", s.developmentStateErr
+	}
 	if s.reconstructedExecution != "" {
 		return s.reconstructedExecution == fogcast.ExecutionFPGADevelopment, s.reconstructedExecution, s.statusErr
 	}
@@ -528,6 +593,26 @@ func TestSessionLaunchAndStopUseOnlyGameIDAndExposeProgress(t *testing.T) {
 	handler.ServeHTTP(stopResponse, stop)
 	if stopResponse.Code != http.StatusOK || !strings.Contains(stopResponse.Body.String(), `"state":"idle"`) {
 		t.Fatalf("stop response = %d %s", stopResponse.Code, stopResponse.Body.String())
+	}
+}
+
+func TestSessionLaunchReportsUnavailableSoftwareCoreAs503(t *testing.T) {
+	service := &fakeService{launchErr: &protocol.APIError{Code: protocol.CodeUnavailable, Message: "configured software emulator core is unavailable"}}
+	handler := hostapi.New(service)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"sms-datastorm"}`))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"code":"UNAVAILABLE"`) {
+		t.Fatalf("launch response = %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestSessionIdleResponseIncludesDisconnectedKitConnection(t *testing.T) {
+	service := &fakeService{status: protocol.Status{State: protocol.StateIdle}, connection: fogcast.TargetConnection{State: "disconnected", Address: "http://127.0.0.1:1"}}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"idle"`) || !strings.Contains(response.Body.String(), `"connection":{"state":"disconnected","address":"http://127.0.0.1:1"}`) {
+		t.Fatalf("idle session response = %d %s", response.Code, response.Body.String())
 	}
 }
 
@@ -1211,7 +1296,7 @@ func TestSessionStopReconstructsDevelopmentAfterHostRestart(t *testing.T) {
 	}
 }
 
-func TestSessionUnknownDevelopmentStateBlocksLaunchAfterHostRestart(t *testing.T) {
+func TestSessionUnknownDevelopmentStateAllowsKnownHostOnlyLaunch(t *testing.T) {
 	service := &fakeService{
 		statusErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target unavailable"},
 		execution: fogcast.ExecutionHostOnly,
@@ -1222,8 +1307,58 @@ func TestSessionUnknownDevelopmentStateBlocksLaunchAfterHostRestart(t *testing.T
 	request.Host = "127.0.0.1"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusInternalServerError || service.launchCalls != 0 || !strings.Contains(response.Body.String(), `"code":"MISTER_UNAVAILABLE"`) {
-		t.Fatalf("unknown-state launch = %d %s calls=%d", response.Code, response.Body.String(), service.launchCalls)
+	if response.Code != http.StatusOK || service.launchCalls != 1 || !strings.Contains(response.Body.String(), `"execution":"host_only"`) {
+		t.Fatalf("known host-only launch with unavailable kit = %d %s calls=%d", response.Code, response.Body.String(), service.launchCalls)
+	}
+}
+
+func TestHostOnlyLifecycleContinuesWhenConfiguredKitIsUnavailable(t *testing.T) {
+	gameID := "sms-datastorm"
+	service := &fakeService{
+		developmentStateErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "configured kit is unreachable"},
+		execution:           fogcast.ExecutionHostOnly,
+		status:              protocol.Status{State: protocol.StateActive, GameID: &gameID},
+		launch:              protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID}},
+		stopped:             protocol.Status{State: protocol.StateIdle},
+	}
+	handler := hostapi.New(service)
+	launch := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"sms-datastorm"}`))
+		req.Host = "127.0.0.1"
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, req)
+		return response
+	}
+	if response := launch(); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"execution":"host_only"`) {
+		t.Fatalf("host-only launch = %d %s", response.Code, response.Body.String())
+	}
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"active"`) || !strings.Contains(status.Body.String(), `"execution":"host_only"`) {
+		t.Fatalf("active host-only status = %d %s", status.Code, status.Body.String())
+	}
+	service.launchErr = &protocol.APIError{Code: protocol.CodeBusy, Message: "host executor already has a process"}
+	if response := launch(); response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"code":"BUSY"`) {
+		t.Fatalf("second host-only launch = %d %s", response.Code, response.Body.String())
+	}
+	service.launchErr = nil
+	if response := serve(t, handler, http.MethodPost, "/api/v1/session/stop"); response.Code != http.StatusOK {
+		t.Fatalf("host-only stop = %d %s", response.Code, response.Body.String())
+	}
+	service.status = protocol.Status{State: protocol.StateIdle}
+	status = serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"idle"`) || strings.Contains(status.Body.String(), `"execution":"host_only"`) {
+		t.Fatalf("host-only idle status = %d %s", status.Code, status.Body.String())
+	}
+
+	// A fresh host-only launch that exits on its own is reaped as idle too.
+	service.status = protocol.Status{State: protocol.StateActive, GameID: &gameID}
+	if response := launch(); response.Code != http.StatusOK {
+		t.Fatalf("second host-only launch = %d %s", response.Code, response.Body.String())
+	}
+	service.status = protocol.Status{State: protocol.StateIdle}
+	status = serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"idle"`) || strings.Contains(status.Body.String(), `"execution":"host_only"`) {
+		t.Fatalf("natural host-only exit status = %d %s", status.Code, status.Body.String())
 	}
 }
 
@@ -1879,6 +2014,28 @@ func TestHostOnlySessionOwnsMediaLifecycleAndPublishesSafeEvents(t *testing.T) {
 	}
 }
 
+func TestSecondHostOnlyLaunchKeepsCurrentMediaWhenBusy(t *testing.T) {
+	gameID := "host-game"
+	service := &fakeService{
+		execution: fogcast.ExecutionHostOnly,
+		launch:    protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID}},
+	}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	first := launchSession(t, handler, gameID)
+	if first.Code != http.StatusOK || len(media.start) != 1 {
+		t.Fatalf("first host-only launch = %d %s starts=%v", first.Code, first.Body.String(), media.start)
+	}
+	service.hostExecutionState = hostexec.Active
+	second := launchSession(t, handler, gameID)
+	if second.Code != http.StatusConflict || !strings.Contains(second.Body.String(), `"code":"BUSY"`) {
+		t.Fatalf("second host-only launch = %d %s, want BUSY", second.Code, second.Body.String())
+	}
+	if len(media.stop) != 0 || service.launchCalls != 1 {
+		t.Fatalf("busy launch disturbed current session: media stops=%v service launches=%d", media.stop, service.launchCalls)
+	}
+}
+
 func TestHostOnlyStopTearsDownMediaBeforeSessionService(t *testing.T) {
 	gameID := "host-game"
 	order := []string{}
@@ -1918,7 +2075,11 @@ func TestHostOnlyStatusReapsUnexpectedMediaExit(t *testing.T) {
 	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"idle"`) || !strings.Contains(status.Body.String(), `"media":"stopped"`) {
 		t.Fatalf("status after media exit = %d %s", status.Code, status.Body.String())
 	}
-	if got, want := strings.Join(order, ","), "start:host-game,stop,service.stop"; got != want {
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK || !strings.Contains(stop.Body.String(), `"state":"idle"`) {
+		t.Fatalf("Stop after host-only exit = %d %s, want HTTP 200 idle", stop.Code, stop.Body.String())
+	}
+	if got, want := strings.Join(order, ","), "start:host-game,stop,service.stop,service.stop"; got != want {
 		t.Fatalf("reap order = %q, want %q", got, want)
 	}
 }

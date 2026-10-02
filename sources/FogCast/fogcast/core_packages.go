@@ -509,7 +509,7 @@ func retainImageSHA(status protocol.Status, imageSHA string) protocol.Status {
 func (s *Service) recoverLibrarySlot(parent context.Context, mediaStatus protocol.Status, mediaErr error) (protocol.CachedLaunchResponse, error) {
 	cleanupParent := context.WithoutCancel(parent)
 	cleanupCtx, cleanupCancel := serviceTimeout(cleanupParent, s.uploadTimeout)
-	stopStatus, stopErr := s.stopLocked(cleanupCtx, cleanupParent, s.uploadTimeout)
+	stopStatus, stopErr := s.stopLocked(cleanupCtx, cleanupParent, s.uploadTimeout, "")
 	cleanupCancel()
 	if stopErr != nil {
 		recoveryErr := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "library core media cleanup is not confirmed", Phase: "recovery"}

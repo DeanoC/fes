@@ -11,6 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -51,6 +52,10 @@ type sessionExecutionService interface {
 	SessionExecution(context.Context, string) (string, error)
 }
 
+type hostExecutionStatusService interface {
+	HostExecutionStatus(context.Context) (hostexec.Status, error)
+}
+
 type sessionDevelopmentService interface {
 	DevelopmentActive(context.Context) (bool, error)
 }
@@ -72,6 +77,7 @@ type sessionResult struct {
 	ID          string                      `json:"id"`
 	Target      string                      `json:"target,omitempty"`
 	TargetID    string                      `json:"target_id,omitempty"`
+	Connection  *fogcast.TargetConnection   `json:"connection,omitempty"`
 	State       protocol.State              `json:"state"`
 	GameID      *string                     `json:"game_id,omitempty"`
 	System      *protocol.System            `json:"system,omitempty"`
@@ -364,6 +370,7 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		result := s.publicSession(st, nil)
 		result.Execution = execution
 		result.Media = "stopped"
+		s.clearHostOnlyExecution(execution)
 		s.record("session.exit", result, nil)
 		return result, nil
 	}
@@ -383,6 +390,11 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		s.packageOwned = false
 		s.terminalStatus = nil
 		s.nativeStoppedIdle = false
+	}
+	if st.State == protocol.StateIdle && s.execution == fogcast.ExecutionHostOnly {
+		s.execution = ""
+		s.mediaState = "stopped"
+		s.terminalStatus = nil
 	}
 	if s.execution != "" {
 		result.Execution = s.execution
@@ -565,11 +577,25 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 		return result, err
 	}
 	development, err := s.developmentActive(ctx)
-	if err != nil {
+	// Host-only execution has no kit dependency. Keep the development probe
+	// when the target answers (so a live development session still blocks),
+	// but an unavailable kit cannot prevent a software launch.
+	if err != nil && !(execution == fogcast.ExecutionHostOnly && targetUnavailable(err)) {
 		return sessionResult{}, err
 	}
 	if development {
 		return sessionResult{}, developmentMustStopError()
+	}
+	// RetroArch rejects a second process while one is running. Ask the real
+	// executor before retiring the current media owner, so BUSY leaves the
+	// active emulator and its content together.
+	if execution == fogcast.ExecutionHostOnly {
+		if executor, ok := s.service.(hostExecutionStatusService); ok {
+			status, statusErr := executor.HostExecutionStatus(ctx)
+			if statusErr == nil && status.State == hostexec.Active {
+				return sessionResult{}, busyError()
+			}
+		}
 	}
 	if err := s.stopPackageOwnedForReplacement(ctx, target); err != nil {
 		return sessionResult{}, err
@@ -1435,6 +1461,16 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 	if execution != "" {
 		return false, nil
 	}
+	// An unscoped host coordinator has no FPGA play to reconstruct when the
+	// service reports no bound foreground target. Probing the selected kit here
+	// made idle Stop fail whenever that unrelated kit was offline.
+	if s.target == "" {
+		if idleSafe, ok := s.service.(interface{ HostOnlyIdleStopSafe() bool }); ok && idleSafe.HostOnlyIdleStopSafe() {
+			if foreground, bound := s.service.(interface{ ForegroundSessionTargetName() string }); bound && foreground.ForegroundSessionTargetName() == "" {
+				return false, nil
+			}
+		}
+	}
 	var development bool
 	var reconstructedExecution string
 	var err error
@@ -1470,6 +1506,22 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 	development = s.execution == fogcast.ExecutionFPGADevelopment
 	s.mu.Unlock()
 	return development, nil
+}
+
+func targetUnavailable(err error) bool {
+	var apiErr *protocol.APIError
+	return errors.As(err, &apiErr) && apiErr.Code == protocol.CodeMiSTerUnavailable
+}
+
+func (s *sessionCoordinator) clearHostOnlyExecution(execution string) {
+	s.mu.Lock()
+	if s.execution == execution && execution == fogcast.ExecutionHostOnly {
+		s.execution = ""
+		s.mediaHandle = nil
+		s.mediaState = "stopped"
+		s.terminalStatus = nil
+	}
+	s.mu.Unlock()
 }
 
 func (s *sessionCoordinator) restoreExecution(execution string) {
@@ -1734,8 +1786,11 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	s.mu.Lock()
 	result.ID = s.id
 	result.FlightID = s.flightID
+	execution := s.execution
 	s.mu.Unlock()
-	if s.target != "" {
+	if result.Execution == fogcast.ExecutionHostOnly || execution == fogcast.ExecutionHostOnly {
+		result.Target, result.TargetID = "", ""
+	} else if s.target != "" {
 		result.Target = s.target
 		if binder, ok := s.service.(interface{ TargetIDForName(string) string }); ok {
 			result.TargetID = binder.TargetIDForName(s.target)

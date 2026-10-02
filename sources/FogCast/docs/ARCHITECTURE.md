@@ -71,6 +71,10 @@ and complete typed metrics from `host.RemoteInputStatus`.
 `POST /api/v1/session/launch` may include `target` to bind a live FPGA session
 to a configured target without rewriting `selected_target`. Omitted `target`
 uses the selected configured target and keeps the ordinary placement choice.
+A host-only launch always stays on the root session coordinator, even when its
+request includes a kit target; host-only session responses leave `target` empty.
+Unscoped session events follow the foreground session coordinator, like status
+and Stop, so a root-owned host-only session's events remain visible.
 A second configured target may be
 launched while the first is still playing; `GET /api/v1/sessions` lists those
 live plays. `GET /api/v1/session` is the foreground session (the last launch)
@@ -1321,6 +1325,46 @@ content-id of an RBF. `PackageABI.Major` is that ABI's major, not the
 mesh protocol major. `ReadyHere` requires that package id and an
 eligible ABI id and major before it reports Ready. Package id alone is
 not eligibility.
+
+#### Configured host emulator
+
+`[host_emulator]` maps catalog systems to local RetroArch cores. For the M1
+Data Storm SMS runner, configure the verified core and its optional digest pin
+along with headless display/audio settings:
+
+```toml
+[host_emulator]
+binary = "/usr/bin/retroarch"
+args = ["--appendconfig", "/etc/fogcast/retroarch-headless.cfg"]
+env = ["DISPLAY=:93", "SDL_AUDIODRIVER=dummy"]
+
+[[host_emulator.cores]]
+platform = "sms"
+core = "/usr/lib/x86_64-linux-gnu/libretro/genesis_plus_gx_libretro.so"
+id = "genesis_plus_gx"
+version = " c2838c7d"
+sha256 = "051cb96ad3d1a98809c103b3836e2830e269de43f9f1943d482749873082bc49"
+```
+
+The host health response advertises mesh version 1.0 and software backend
+identity, configured `core_version`, and observed core digest; `core_version`
+is copied from configuration and is not queried from RetroArch. A missing or
+mismatched core, or a missing/non-executable RetroArch binary, is unavailable. One
+host emulator process owns the local session until Stop or process exit.
+Host-only play is owned by the root host session coordinator regardless of
+which kit is selected. Unscoped launch resolves execution first, and unscoped
+status and Stop follow a bound FPGA foreground only when one exists; with no
+bound FPGA play they use the root coordinator. Session identity, BUSY
+admission, natural-exit reaping, and media cleanup therefore share one owner.
+Unscoped status may report idle after target loss only when host-only execution
+is active or no FPGA play/target is bound; a configured kit selection alone is
+not an active FPGA binding. A bound FPGA play or explicit target continues to
+report `MISTER_UNAVAILABLE` while kit state cannot be observed. Before replacing
+media for another host-only launch, FogCast checks the local executor; an active
+RetroArch process returns `BUSY` and retains its current media session.
+M1 software-runner input uses a controller attached to the runner through
+RetroArch's local joypad/udev input. FogCast does not route remote controller
+input to `host_only`; that remains a #363 gap.
 
 `Service.MeshBackendLibrary` reads the existing local catalog and projects
 package titles through the same helper as placement; raw games use the
