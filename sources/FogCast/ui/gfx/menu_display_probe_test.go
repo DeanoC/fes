@@ -234,6 +234,88 @@ func TestMenuDisplayStaleProbeDoesNotChangeReboundState(t *testing.T) {
 	}
 }
 
+func TestMenuDisplayPresentCompletionDoesNotChangeReboundState(t *testing.T) {
+	for _, probe := range []bool{false, true} {
+		name := "frame"
+		if probe {
+			name = "probe"
+		}
+		t.Run(name, func(t *testing.T) {
+			gate := make(chan struct{})
+			client := &testMenuClient{generation: 4, ready: make(chan struct{}, 4)}
+			d, err := newMenuDisplayWithClient(client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer d.Close()
+			d.SetChangeDriven(true)
+			clock := newMenuClock()
+			d.now = clock.Now
+			d.Clear(RGB(1, 2, 3))
+			presentMenu(t, d, client)
+			waitMenuIdle(t, d, client, 1)
+
+			if probe {
+				// A changed runtime generation makes a real scheduled probe
+				// re-present the last submitted pixels.
+				clock.Advance(menuProbeInterval)
+				client.mu.Lock()
+				client.generation = 5
+				client.mu.Unlock()
+				client.presentBlock = gate
+				d.Present()
+			} else {
+				client.presentBlock = gate
+				d.Clear(RGB(4, 5, 6))
+				d.Present()
+			}
+			select {
+			case <-client.ready:
+			case <-time.After(time.Second):
+				t.Fatal("runtime Present did not start after Status")
+			}
+
+			d.BindSession("new-package", 77)
+			wantErr := errors.New("new binding error")
+			d.mu.Lock()
+			wantSubmission := &submittedMenuFrame{seq: d.nextSeq + 100}
+			d.generation = 91
+			d.known = true
+			d.lastErr = wantErr
+			d.submitted = wantSubmission
+			d.hasPresented = true
+			d.presentedGen = 92
+			d.backoff = 3 * time.Second
+			d.backoffUntil = clock.Now().Add(3 * time.Second)
+			d.lastProbe = clock.Now().Add(-time.Minute)
+			d.mu.Unlock()
+
+			close(gate)
+			deadline := time.Now().Add(time.Second)
+			for {
+				d.mu.Lock()
+				idle := d.flight == nil
+				d.mu.Unlock()
+				if idle {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("stale Present completion did not release its flight")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			if d.pending != 0 || d.flight != nil || d.generation != 91 || !d.known || d.lastErr != wantErr ||
+				d.submitted != wantSubmission || !d.hasPresented || d.presentedGen != 92 || d.backoff != 3*time.Second ||
+				!d.backoffUntil.Equal(clock.Now().Add(3*time.Second)) || !d.lastProbe.Equal(clock.Now().Add(-time.Minute)) {
+				t.Fatalf("stale %s completion changed rebound state: pending=%d flight=%v generation=%d known=%t err=%v submitted=%p presented=%t/%d backoff=%s until=%s lastProbe=%s",
+					name, d.pending, d.flight, d.generation, d.known, d.lastErr, d.submitted, d.hasPresented, d.presentedGen, d.backoff, d.backoffUntil, d.lastProbe)
+			}
+		})
+	}
+}
+
 func TestMenuDisplaySameEpochProbeResultApplies(t *testing.T) {
 	d, _ := newChangeDrivenMenu(t, 3, true)
 	clock := newMenuClock()

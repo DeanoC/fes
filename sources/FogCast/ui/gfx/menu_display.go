@@ -372,6 +372,17 @@ func (d *MenuDisplay) run() {
 				}
 			}
 			d.mu.Lock()
+			if frame.epoch != d.bindingEpoch {
+				// BindSession reset presentation state while this runtime call
+				// was in flight. Its result belongs to the old binding; only
+				// release its resources and flight marker.
+				d.releaseBufferLocked(frame.buffer)
+				d.pending--
+				d.flight = nil
+				close(flight)
+				d.mu.Unlock()
+				continue
+			}
 			d.lastErr = err
 			if !presented {
 				d.forgetLocked(frame.seq)
