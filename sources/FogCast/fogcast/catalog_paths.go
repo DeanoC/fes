@@ -1,11 +1,22 @@
 package fogcast
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pelletier/go-toml/v2"
 )
+
+// kitCatalogRoot is the writable catalog tree on the kit. /run is the tmpfs
+// that already holds FogCast sockets and /run/fogcast/fesdata3. The catalog
+// opener requires a private 0700 directory. The rootfs is mounted read-only,
+// /var is not a separate writable mount, and /media/fat is exFAT, which does
+// not keep that mode. The index is rebuilt from the FAT library on each boot.
+const kitCatalogRoot = "/run/fogcast/catalog"
 
 // ResolveCatalogConfig chooses the catalog file an installed launcher boots.
 // An explicit path is used only when that file exists; a missing explicit
@@ -42,9 +53,12 @@ func ResolveCatalogConfig(explicit, launcherConfig string, getenv func(string) s
 }
 
 // PathsForConfig is the catalog Paths for one resolved config file.
-// The default user config keeps DefaultPaths. Any other file uses a state
-// directory beside that file so a kit or a test does not open the operator's
-// home library.
+// Explicit state and staging in the file win. The default user config keeps
+// DefaultPaths. Any other file on a writable directory uses state beside
+// that file so a test does not open the operator's home library. A config
+// on a read-only directory never creates those directories beside the file:
+// an unusable explicit path, or no path at all, uses the kit tmpfs when
+// that is writable and a private temp directory otherwise.
 func PathsForConfig(configPath string) (Paths, error) {
 	configPath = strings.TrimSpace(configPath)
 	if configPath == "" {
@@ -55,20 +69,73 @@ func PathsForConfig(configPath string) (Paths, error) {
 		return Paths{}, fmt.Errorf("catalog config is unavailable")
 	}
 	configPath = filepath.Clean(configPath)
-	if defaults, err := DefaultPaths(); err == nil && filepath.Clean(defaults.Config) == configPath {
-		return defaults, nil
-	}
 	dir := filepath.Dir(configPath)
-	state := filepath.Join(dir, "state")
+	settings, err := readCatalogStorageSettings(configPath)
+	if err != nil {
+		return Paths{}, fmt.Errorf("catalog config is unavailable")
+	}
+	if settings.configured() {
+		state, staging, err := settings.absoluteDirs()
+		if err != nil {
+			if directoryWritable(dir) {
+				return Paths{}, err
+			}
+		} else if paths, err := prepareCatalogPaths(configPath, state, staging); err == nil {
+			return paths, nil
+		} else if directoryWritable(dir) {
+			return Paths{}, err
+		}
+	} else if defaults, err := DefaultPaths(); err == nil && filepath.Clean(defaults.Config) == configPath {
+		return defaults, nil
+	} else if directoryWritable(dir) {
+		return prepareCatalogPaths(configPath, filepath.Join(dir, "state"), filepath.Join(dir, "staging"))
+	}
+	root := defaultWritableCatalogRoot(configPath)
+	return prepareCatalogPaths(configPath, filepath.Join(root, "state"), filepath.Join(root, "staging"))
+}
+
+type catalogStorageSettings struct {
+	State   string `toml:"state"`
+	Staging string `toml:"staging"`
+}
+
+func (s catalogStorageSettings) configured() bool {
+	return strings.TrimSpace(s.State) != "" || strings.TrimSpace(s.Staging) != ""
+}
+
+func (s catalogStorageSettings) absoluteDirs() (string, string, error) {
+	state := filepath.Clean(strings.TrimSpace(s.State))
+	staging := filepath.Clean(strings.TrimSpace(s.Staging))
+	if state == "." || staging == "." || !filepath.IsAbs(state) || !filepath.IsAbs(staging) {
+		return "", "", fmt.Errorf("catalog state and staging must both be absolute paths")
+	}
+	return state, staging, nil
+}
+
+func readCatalogStorageSettings(configPath string) (catalogStorageSettings, error) {
+	file, err := os.Open(configPath)
+	if err != nil {
+		return catalogStorageSettings{}, err
+	}
+	defer file.Close()
+	var settings catalogStorageSettings
+	if err := toml.NewDecoder(file).Decode(&settings); err != nil {
+		return catalogStorageSettings{}, err
+	}
+	return settings, nil
+}
+
+func prepareCatalogPaths(configPath, state, staging string) (Paths, error) {
+	root := filepath.Dir(state)
 	paths := Paths{
 		Config:          configPath,
 		Index:           filepath.Join(state, "library.sqlite3"),
-		Staging:         filepath.Join(dir, "staging"),
-		MetadataRoot:    filepath.Join(dir, "metadata"),
+		Staging:         staging,
+		MetadataRoot:    filepath.Join(root, "metadata"),
 		UserLibrary:     filepath.Join(state, "library-user.sqlite3"),
 		LibrarySettings: filepath.Join(state, "library-settings.json"),
 		MediaIndex:      filepath.Join(state, "library-media.sqlite3"),
-		MediaCache:      filepath.Join(dir, "media-cache"),
+		MediaCache:      filepath.Join(root, "media-cache"),
 		CorePackages:    filepath.Join(state, "core-packages"),
 	}
 	if err := os.MkdirAll(state, 0o700); err != nil {
@@ -78,6 +145,30 @@ func PathsForConfig(configPath string) (Paths, error) {
 		return Paths{}, err
 	}
 	return paths, nil
+}
+
+func defaultWritableCatalogRoot(configPath string) string {
+	if directoryWritable("/run/fogcast") || (directoryExists("/run") && directoryWritable("/run")) {
+		return kitCatalogRoot
+	}
+	sum := sha256.Sum256([]byte(configPath))
+	return filepath.Join(os.TempDir(), "fogcast-catalog", hex.EncodeToString(sum[:8]))
+}
+
+func directoryExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+func directoryWritable(dir string) bool {
+	file, err := os.CreateTemp(dir, ".fogcast-write-*")
+	if err != nil {
+		return false
+	}
+	name := file.Name()
+	_ = file.Close()
+	_ = os.Remove(name)
+	return true
 }
 
 func regularFile(path string) bool {

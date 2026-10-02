@@ -137,11 +137,17 @@ func TestProvisionedCatalogConfigResolvesForTheKitShell(t *testing.T) {
 		t.Fatalf("launcher catalog = %q", client.CatalogConfig())
 	}
 
-	// PathsForConfig creates state beside the file. Copy first so the
-	// overlay in the repo stays untouched, and keep the shipped root.
+	// The shipped file names /run/fogcast. This machine has no kit tmpfs,
+	// so the copy points state and staging at the temp dir. The read-only
+	// in-place test is what proves a config directory cannot grow state.
 	dir := t.TempDir()
 	copyPath := filepath.Join(dir, "config.toml")
-	if err := os.WriteFile(copyPath, raw, 0o600); err != nil {
+	rewritten := strings.ReplaceAll(string(raw), "/run/fogcast/catalog/state", filepath.Join(dir, "state"))
+	rewritten = strings.ReplaceAll(rewritten, "/run/fogcast/catalog/staging", filepath.Join(dir, "staging"))
+	if rewritten == string(raw) {
+		t.Fatal("shipped config has no /run/fogcast catalog paths to retarget")
+	}
+	if err := os.WriteFile(copyPath, []byte(rewritten), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	paths, err := fogcast.PathsForConfig(copyPath)

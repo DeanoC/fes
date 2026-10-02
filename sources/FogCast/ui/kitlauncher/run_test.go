@@ -284,6 +284,87 @@ root = "` + root + `"
 	}
 }
 
+func TestRunBootsReadOnlyCatalogConfigWithoutTheHostSnapshot(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write a mode 0555 directory")
+	}
+	var gameHits atomic.Int64
+	launcher := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/games") {
+			gameHits.Add(1)
+		}
+		http.Error(w, "remote host is absent", http.StatusBadGateway)
+	}))
+	defer launcher.Close()
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "agent is absent", http.StatusBadGateway)
+	}))
+	defer agent.Close()
+	writable := t.TempDir()
+	root := filepath.Join(writable, "sms")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Data Storm 1.00.sms"), []byte("data-storm-fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := filepath.Join(writable, "state")
+	staging := filepath.Join(writable, "staging")
+	configDir := t.TempDir()
+	catalog := filepath.Join(configDir, "config.toml")
+	body := `base_url = "` + agent.URL + `"
+token = "synthetic-token"
+request_timeout_seconds = 1
+upload_timeout_seconds = 2
+state = "` + state + `"
+staging = "` + staging + `"
+
+[[libraries]]
+id = "sms-main"
+system = "sms"
+root = "` + root + `"
+`
+	if err := os.WriteFile(catalog, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(configDir, 0o755) })
+	if err := os.Chmod(configDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient(writeKitConfig(t, writable, launcher.URL))
+	client.SetCatalogConfig(catalog)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	var saw atomic.Bool
+	err := Run(ctx, client, func(m Model) {
+		for _, game := range m.Catalog {
+			if strings.Contains(game.Title, "Data Storm") && game.RootOnline {
+				saw.Store(true)
+				cancel()
+			}
+		}
+	}, func() (Pad, error) { return nil, errors.New("no pad") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saw.Load() {
+		t.Fatal("grid fell back instead of booting the read-only catalog")
+	}
+	if gameHits.Load() != 0 {
+		t.Fatalf("remote launcher games hits=%d", gameHits.Load())
+	}
+	entries, err := os.ReadDir(configDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "config.toml" {
+		t.Fatalf("read-only config dir = %v", entries)
+	}
+	if _, err := os.Stat(filepath.Join(state, "library.sqlite3")); err != nil {
+		t.Fatalf("state index: %v", err)
+	}
+}
+
 func TestRunKeepsHostCatalogWhenTheHostIsUp(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
