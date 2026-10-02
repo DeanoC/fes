@@ -18,6 +18,68 @@ const {
 const REQUIRED = process.env.FOGCAST_BROWSER_REQUIRED === '1';
 const SONIC_ID = 'megadrive-sonic-test';
 const UNKNOWN_ID = 'snes-unknown-test';
+const DATA_STORM_FPGA = 'fpga-data-storm';
+const DATA_STORM_EMU = 'sms-data-storm';
+
+function dataStormRow(id, execution, extra = {}) {
+  return {
+    id,
+    title: 'Data Storm',
+    system: 'sms',
+    kind: 'raw',
+    state: 'available',
+    launchable: true,
+    root_online: true,
+    content_prepared: true,
+    execution,
+    ready_here: true,
+    ...extra,
+  };
+}
+
+function dataStormTitles(titleID, available = true) {
+  return {
+    titles: [{
+      title_id: titleID,
+      system: 'sms',
+      options: [
+        { source_game_id: DATA_STORM_FPGA, execution: 'fpga_native', available, host_local: false },
+        { source_game_id: DATA_STORM_EMU, execution: 'native_emu', available, host_local: true },
+      ],
+    }],
+  };
+}
+
+function dataStormLaunch(gameID, execution) {
+  return fixture('launch-success.json', 200, {
+    override: {
+      state: 'active',
+      game_id: gameID,
+      system: 'sms',
+      execution,
+    },
+  });
+}
+
+function dataStormSessions(gameID, execution) {
+  return [
+    fixture('session-idle.json'),
+    fixture('session-active.json', 200, {
+      override: {
+        state: 'active',
+        game_id: gameID,
+        system: 'sms',
+        execution,
+      },
+    }),
+  ];
+}
+
+function dataStormPresentation(gameID) {
+  return fixture('presentation-no-match.json', 200, {
+    override: { game_id: gameID, state: 'no_match' },
+  });
+}
 const ARTWORK_HANDLE = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 function populatedCatalog() {
@@ -554,7 +616,7 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
   }
 });
 
-test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async t => {
+test('FogCast production UI Chrome/CDP integration', { timeout: 180_000 }, async t => {
   const harness = new BrowserHarness();
   try {
     try {
@@ -1009,17 +1071,12 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
     await t.test('opening a title shows the backend choice and the saved pick', async () => {
       const titleID = 'title-data-storm';
       const savedID = 'sms-data-storm';
-      const game = {
-        id: titleID,
-        title: 'Data Storm',
-        system: 'sms',
-        kind: 'raw',
-        state: 'available',
-        launchable: true,
-        root_online: true,
-        content_prepared: true,
-        execution: 'fpga_native',
-      };
+      const game = dataStormRow(titleID, 'fpga_native', {
+        variants: [
+          dataStormRow(DATA_STORM_FPGA, 'fpga_native'),
+          dataStormRow(savedID, 'native_emu'),
+        ],
+      });
       const titlesBefore = () => harness.fixtureEvidence()
         .filter(record => record.method === 'GET' && record.path === '/api/v1/library/titles').length;
       await runScenario(harness, 'play-pane-backend-choice', basePlan({
@@ -1034,16 +1091,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
             override: { game_id: titleID, state: 'no_match' },
           }),
         },
-        libraryTitles: {
-          titles: [{
-            title_id: titleID,
-            system: 'sms',
-            options: [
-              { source_game_id: 'fpga-data-storm', execution: 'fpga_native', available: true, host_local: false },
-              { source_game_id: savedID, execution: 'native_emu', available: true, host_local: true },
-            ],
-          }],
-        },
+        libraryTitles: dataStormTitles(titleID),
         editionPreferences: {
           preferences: [{ query: 'Data Storm', platform: 'sms', game_id: savedID }],
         },
@@ -1077,6 +1125,149 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           return select.value;
         })()`);
         assert.equal(refreshed, savedID);
+      }, { openAllGames: false });
+    });
+
+    await t.test('canonical title id shows Needs a choice until the household picks', async () => {
+      const titleID = DATA_STORM_FPGA;
+      const fpga = dataStormRow(titleID, 'fpga_native');
+      const emu = dataStormRow(DATA_STORM_EMU, 'native_emu');
+      await runScenario(harness, 'canonical-title-needs-choice', basePlan({
+        catalog: {
+          '': fixture('catalog-populated.json', 200, { override: { games: [fpga, emu] } }),
+        },
+        details: {
+          [titleID]: fixture('detail-refreshed.json', 200, { override: fpga }),
+          [DATA_STORM_EMU]: fixture('detail-refreshed.json', 200, { override: emu }),
+        },
+        presentations: {
+          [titleID]: dataStormPresentation(titleID),
+          [DATA_STORM_EMU]: dataStormPresentation(DATA_STORM_EMU),
+        },
+        libraryTitles: dataStormTitles(titleID, false),
+        editionPreferences: { preferences: [] },
+        sessions: dataStormSessions(DATA_STORM_EMU, 'native_emu'),
+        launches: [dataStormLaunch(DATA_STORM_EMU, 'native_emu')],
+      }), async () => {
+        await harness.click('#nav-all');
+        await harness.waitForSnapshot(item => item.cards.length === 2
+          && item.cards.every(card => card.title === 'Data Storm'));
+        await harness.click(`[data-game-id="${titleID}"]`);
+        const choice = await harness.page.waitForValue(`(() => {
+          const select = document.querySelector('#play-backend');
+          const button = document.querySelector('#launch-game');
+          if (!select || !button || select.value !== '') return null;
+          const labels = Array.from(select.options).map(option => option.textContent || '');
+          if (!labels.includes('FPGA') || !labels.includes('Emulator')) return null;
+          if ((button.textContent || '').trim() !== 'Choose' || button.disabled) return null;
+          return { value: select.value, labels, button: button.textContent };
+        })()`);
+        const opened = await harness.snapshot();
+        assert.match(opened.detailText, /Needs a choice/);
+        assert.equal(choice.value, '');
+        assert.equal(choice.button.trim(), 'Choose');
+        await harness.click('#launch-game');
+        await harness.waitForSettled();
+        assert.equal(harness.fixtureEvidence().some(record => record.method === 'POST' && record.path === '/api/v1/session/launch'), false);
+        await harness.evaluate(`(() => {
+          const select = document.querySelector('#play-backend');
+          if (!select) throw new Error('missing backend choice');
+          select.value = ${JSON.stringify(DATA_STORM_EMU)};
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()`);
+        await harness.page.waitForValue(`(() => {
+          const select = document.querySelector('#play-backend');
+          const button = document.querySelector('#launch-game');
+          if (!select || select.value !== ${JSON.stringify(DATA_STORM_EMU)}) return null;
+          if (!button || button.disabled || (button.textContent || '').trim() !== 'Play') return null;
+          return select.value;
+        })()`);
+        await harness.click('#launch-game');
+        await harness.waitForText('#launch-status', 'launch_success');
+        const launch = harness.fixtureEvidence().find(record => record.method === 'POST' && record.path === '/api/v1/session/launch');
+        assert.ok(launch);
+        assert.equal(JSON.parse(launch.requestBody).game_id, DATA_STORM_EMU);
+      }, { openAllGames: false });
+    });
+
+    await t.test('canonical title id uses the household saved backend', async () => {
+      const titleID = DATA_STORM_FPGA;
+      const fpga = dataStormRow(titleID, 'fpga_native');
+      const emu = dataStormRow(DATA_STORM_EMU, 'native_emu');
+      await runScenario(harness, 'canonical-title-saved-pick', basePlan({
+        catalog: {
+          '': fixture('catalog-populated.json', 200, { override: { games: [fpga, emu] } }),
+        },
+        details: {
+          [titleID]: fixture('detail-refreshed.json', 200, { override: fpga }),
+        },
+        presentations: {
+          [titleID]: dataStormPresentation(titleID),
+        },
+        libraryTitles: dataStormTitles(titleID),
+        editionPreferences: {
+          preferences: [{ query: 'Data Storm', platform: 'sms', game_id: DATA_STORM_EMU }],
+        },
+        sessions: dataStormSessions(DATA_STORM_EMU, 'native_emu'),
+        launches: [dataStormLaunch(DATA_STORM_EMU, 'native_emu')],
+      }), async () => {
+        await harness.click('#nav-all');
+        await harness.waitForSnapshot(item => item.cards.length === 2);
+        await harness.click(`[data-game-id="${titleID}"]`);
+        const choice = await harness.page.waitForValue(`(() => {
+          const select = document.querySelector('#play-backend');
+          const button = document.querySelector('#launch-game');
+          if (!select || select.value !== ${JSON.stringify(DATA_STORM_EMU)}) return null;
+          const saved = Array.from(select.options).find(option => option.value === select.value);
+          if (!saved || saved.textContent !== 'Emulator') return null;
+          if (!button || button.disabled || (button.textContent || '').trim() !== 'Play') return null;
+          return { value: select.value, label: saved.textContent };
+        })()`);
+        assert.equal(choice.value, DATA_STORM_EMU);
+        assert.equal(choice.label, 'Emulator');
+        await harness.click('#launch-game');
+        await harness.waitForText('#launch-status', 'launch_success');
+        const launch = harness.fixtureEvidence().find(record => record.method === 'POST' && record.path === '/api/v1/session/launch');
+        assert.ok(launch);
+        assert.equal(JSON.parse(launch.requestBody).game_id, DATA_STORM_EMU);
+      }, { openAllGames: false });
+    });
+
+    await t.test('a leased FPGA is not a play option beside a ready emulator', async () => {
+      const titleID = DATA_STORM_FPGA;
+      const fpga = dataStormRow(titleID, 'fpga_native', { ready_here: false, ready_block: 'lease_held' });
+      const emu = dataStormRow(DATA_STORM_EMU, 'native_emu');
+      await runScenario(harness, 'launch-ready-filters-leased-fpga', basePlan({
+        catalog: {
+          '': fixture('catalog-populated.json', 200, { override: { games: [fpga, emu] } }),
+        },
+        details: {
+          [titleID]: fixture('detail-refreshed.json', 200, { override: fpga }),
+        },
+        presentations: {
+          [titleID]: dataStormPresentation(titleID),
+        },
+        libraryTitles: dataStormTitles(titleID),
+        editionPreferences: { preferences: [] },
+        sessions: dataStormSessions(DATA_STORM_EMU, 'native_emu'),
+        launches: [dataStormLaunch(DATA_STORM_EMU, 'native_emu')],
+      }), async () => {
+        await harness.click('#nav-all');
+        await harness.waitForSnapshot(item => item.cards.length === 2);
+        await harness.click(`[data-game-id="${titleID}"]`);
+        const ready = await harness.page.waitForValue(`(() => {
+          if (document.querySelector('#play-backend')) return null;
+          const button = document.querySelector('#launch-game');
+          if (!button || button.disabled || (button.textContent || '').trim() !== 'Play') return null;
+          return button.textContent;
+        })()`);
+        assert.equal(ready.trim(), 'Play');
+        await harness.click('#launch-game');
+        await harness.waitForText('#launch-status', 'launch_success');
+        const launch = harness.fixtureEvidence().find(record => record.method === 'POST' && record.path === '/api/v1/session/launch');
+        assert.ok(launch);
+        assert.equal(JSON.parse(launch.requestBody).game_id, DATA_STORM_EMU);
       }, { openAllGames: false });
     });
 

@@ -561,9 +561,48 @@
     return payload.titles.filter(title => title && typeof title.title_id === 'string' && title.title_id.trim());
   }
 
-  function availableTitleOptions(title) {
+  function titleOptionList(title) {
     if (!title || !Array.isArray(title.options)) return [];
-    return title.options.filter(option => option && option.available === true && typeof option.source_game_id === 'string' && option.source_game_id.trim());
+    return title.options.filter(option => option && typeof option.source_game_id === 'string' && option.source_game_id.trim());
+  }
+
+  // choiceGameRows is the catalog plus the open game, including edition variants.
+  // A later row for the same id wins so a detail refresh beats a stale card.
+  function choiceGameRows(game, games) {
+    const rows = [];
+    const push = item => {
+      if (!item || typeof item !== 'object') return;
+      rows.push(item);
+      if (Array.isArray(item.variants)) {
+        item.variants.forEach(variant => {
+          if (variant && typeof variant === 'object') rows.push(variant);
+        });
+      }
+    };
+    if (Array.isArray(games)) games.forEach(push);
+    push(game);
+    return rows;
+  }
+
+  function findGameRow(rows, id) {
+    if (!id || !Array.isArray(rows)) return null;
+    let found = null;
+    for (const game of rows) {
+      if (game && game.id === id) found = game;
+    }
+    return found;
+  }
+
+  // viableTitleOptions keeps a backend only when its current game row is
+  // launch-eligible. Inventory `available` is not session Ready: ready_here
+  // false (lease, skew, empty block) and every other launch block drop the
+  // option. A missing game row cannot prove readiness, so it is not offered.
+  function viableTitleOptions(title, games) {
+    const rows = choiceGameRows(null, games);
+    return titleOptionList(title).filter(option => {
+      const row = findGameRow(rows, option.source_game_id);
+      return Boolean(row) && launchBlockReason(row) === '';
+    });
   }
 
   function titleForGame(titles, game) {
@@ -583,23 +622,42 @@
     return option.execution || option.source_game_id;
   }
 
-  function savedSourceGameID(title, game, picks) {
-    if (!title || !picks) return '';
-    const options = availableTitleOptions(title);
+  function savedSourceGameID(title, game, picks, options) {
+    if (!title || !picks || !Array.isArray(options)) return '';
     const known = id => typeof id === 'string' && options.some(option => option.source_game_id === id);
+    // Household pick against the canonical title first, then the title query.
+    // A catalog id that happens to equal a source id is not a choice.
     if (known(picks[title.title_id])) return picks[title.title_id];
     const query = game && typeof game.title === 'string' ? game.title.trim().toLowerCase() : '';
     if (query && known(picks[query])) return picks[query];
     return '';
   }
 
-  function playChoiceFor(game, titles, picks) {
+  // resolvePlay classifies the viable backends. The open catalog row is chosen
+  // only when the household or the user actually picked that source.
+  function resolvePlay(game, titles, picks, games) {
     const title = titleForGame(titles, game);
-    const options = availableTitleOptions(title);
-    if (options.length < 2) return {};
-    if (game && options.some(option => option.source_game_id === game.id)) return {};
-    if (savedSourceGameID(title, game, picks)) return {};
-    return { needsChoice: true, choiceReason: 'This title can play in more than one way. Choose one.' };
+    const rows = choiceGameRows(game, games);
+    const options = viableTitleOptions(title, rows);
+    if (options.length > 1) {
+      const saved = savedSourceGameID(title, game, picks, options);
+      if (!saved) {
+        return {
+          game,
+          options,
+          choice: { needsChoice: true, choiceReason: 'This title can play in more than one way. Choose one.' },
+        };
+      }
+      return { game: findGameRow(rows, saved) || game, options, choice: {} };
+    }
+    if (options.length === 1) {
+      return { game: findGameRow(rows, options[0].source_game_id) || game, options, choice: {} };
+    }
+    return { game, options, choice: {} };
+  }
+
+  function playChoiceFor(game, titles, picks, games) {
+    return resolvePlay(game, titles, picks, games).choice;
   }
 
   function cardSourceOffline(game) {
@@ -2082,18 +2140,22 @@
 
     function playSelection(game) {
       if (!game) return game;
-      const title = titleForGame(state.libraryTitles, game);
-      const options = availableTitleOptions(title);
-      if (options.some(option => option.source_game_id === game.id)) return game;
-      const picked = savedSourceGameID(title, game, state.playPicks);
-      if (!picked || picked === game.id) return game;
-      return Object.freeze({ ...game, id: picked });
+      const resolved = resolvePlay(game, state.libraryTitles, state.playPicks, state.games);
+      return resolved.game || game;
+    }
+
+    function chooseBackend(sourceGameID) {
+      const id = typeof sourceGameID === 'string' ? sourceGameID.trim() : '';
+      if (!id) return snapshot();
+      const row = findGameRow(choiceGameRows(state.selectedLiveGame, state.games), id);
+      if (row) rememberPlayPick(row);
+      return selectGame(id);
     }
 
     function rememberPlayPick(game) {
       if (!game || !game.id) return;
       const title = titleForGame(state.libraryTitles, game);
-      const options = availableTitleOptions(title);
+      const options = viableTitleOptions(title, choiceGameRows(game, state.games));
       if (options.length < 2) return;
       const picks = { ...state.playPicks, [game.id]: game.id };
       if (title && title.title_id) picks[title.title_id] = game.id;
@@ -2149,7 +2211,7 @@
       const selected = playSelection(state.selectedLiveGame);
       if (state.activeMutation) return mutationConflict();
       if (!selected) return snapshot();
-      const choice = playChoiceFor(selected, state.libraryTitles, state.playPicks);
+      const choice = playChoiceFor(selected, state.libraryTitles, state.playPicks, state.games);
       if (choice.needsChoice) return emit();
       if (!launchAllowed(selected)) return emit();
       state.playOriginPane = 'detail';
@@ -3292,6 +3354,7 @@
       prepareTarget,
       loadSession,
       ensurePlayContext,
+      chooseBackend,
       selectGame,
       refreshDetail,
       refreshPresentation,
@@ -4807,12 +4870,10 @@
     if (coverMarks) scheduleCardMarksClearance(card, coverMarks);
   }
 
-  function playChoiceExtra(game) {
-    return playChoiceFor(game, state && state.libraryTitles, state && state.playPicks);
-  }
-
   function launchControl(game) {
-    const play = playAvailability(game, playChoiceExtra(game));
+    const resolved = resolvePlay(game, state && state.libraryTitles, state && state.playPicks, state && state.games);
+    const subject = resolved.game || game;
+    const play = playAvailability(subject, resolved.choice);
     const label = play.state === 'needs_choice' ? 'Choose' : 'Play';
     if (play.state === 'checking') {
       return { label, reason: play.reason, enabled: false };
@@ -4823,8 +4884,8 @@
     if (play.state !== 'ready') {
       return { label: 'Play', reason: play.reason, enabled: false };
     }
-    if (!game) return { label: 'Play', reason: launchBlockReason(game), enabled: false };
-    const blocked = launchBlockReason(game);
+    if (!subject) return { label: 'Play', reason: launchBlockReason(subject), enabled: false };
+    const blocked = launchBlockReason(subject);
     if (blocked) return { label: 'Play', reason: blocked, enabled: false };
     if (state.activeMutation) {
       return { label, reason: 'A session transition is already in progress.', enabled: false };
@@ -4847,7 +4908,7 @@
         enabled: false,
       };
     }
-    if (state.session && state.session.state === 'active' && state.session.game_id === game.id) {
+    if (state.session && state.session.state === 'active' && state.session.game_id === subject.id) {
       return { label, reason: 'Already playing.', enabled: false };
     }
     if (state.session && state.session.state === 'active') {
@@ -4891,10 +4952,12 @@
     }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const detailGame = liveGame || game;
+    const resolvedPlay = resolvePlay(detailGame, state.libraryTitles, state.playPicks, state.games);
+    const shownPlay = playAvailability(resolvedPlay.game || detailGame, resolvedPlay.choice);
     const facts = element('div', 'detail-facts');
     const factRows = [
       [systemLabel(game.system), 'System'],
-      [coverStatusLabel(detailGame), 'Status'],
+      [shownPlay.label, 'Status'],
       [sourceKindLabel(liveGame || game), 'Source'],
       [catalogYear(gameView), 'Year'],
       [catalogGenre(gameView), 'Genre'],
@@ -4952,25 +5015,29 @@
       nodes.detailContent.appendChild(toggle);
     });
     const variants = Array.isArray(game.variants) ? game.variants : [];
-    const title = titleForGame(state.libraryTitles, game);
-    const backendOptions = availableTitleOptions(title);
+    const backendOptions = resolvedPlay.options;
     if (backendOptions.length > 1) {
       const label = element('label', 'filter-label', 'How to play');
       const select = element('select');
       select.id = 'play-backend';
-      const onOption = backendOptions.some(option => option.source_game_id === game.id);
-      const chosen = onOption ? game.id : savedSourceGameID(title, game, state.playPicks);
+      const pickedID = resolvedPlay.choice.needsChoice ? '' : (resolvedPlay.game && resolvedPlay.game.id) || '';
+      const chosen = backendOptions.some(option => option.source_game_id === pickedID) ? pickedID : '';
+      if (!chosen) {
+        const placeholder = element('option', '', 'Choose how to play');
+        placeholder.value = '';
+        placeholder.selected = true;
+        select.appendChild(placeholder);
+      }
       backendOptions.forEach(option => {
         const optionEl = element('option', '', backendOptionLabel(option));
         optionEl.value = option.source_game_id;
         if (option.source_game_id === chosen) optionEl.selected = true;
         select.appendChild(optionEl);
       });
-      if (chosen) select.value = chosen;
+      select.value = chosen;
       select.addEventListener('change', () => {
-        const picked = backendOptions.find(option => option.source_game_id === select.value);
-        if (!picked) return;
-        return selectGame(picked.source_game_id);
+        if (!select.value) return;
+        return controller.chooseBackend(select.value);
       });
       label.appendChild(select);
       nodes.detailContent.appendChild(label);

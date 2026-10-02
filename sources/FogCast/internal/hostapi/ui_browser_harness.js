@@ -548,6 +548,24 @@ class FixtureServer extends EventEmitter {
       });
       return;
     }
+    if (url.pathname === '/api/v1/library/edition-preferences' && request.method === 'PUT') {
+      record.requestBody = await this.readRequestBody(request);
+      let written = {};
+      try {
+        written = JSON.parse(record.requestBody || '{}');
+      } catch (_) {
+        written = {};
+      }
+      await this.deliver(record, response, {
+        fixture: 'edition-preferences.json', status: 200, hold: false, delayMs: 0,
+        override: {
+          query: typeof written.query === 'string' ? written.query : '',
+          platform: typeof written.platform === 'string' ? written.platform : '',
+          game_id: typeof written.game_id === 'string' ? written.game_id : '',
+        },
+      });
+      return;
+    }
     const collectionMemberMatch = url.pathname.match(/^\/api\/v1\/library\/collections\/([^/]+)\/([^/]+)$/);
     if (collectionMemberMatch && (request.method === 'PUT' || request.method === 'DELETE')) {
       await this.deliver(record, response, {

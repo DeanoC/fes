@@ -54,6 +54,7 @@ const {
   systemLabel,
   sourceLabel,
   playAvailability,
+  playChoiceFor,
   launchBlockReason,
   collectionIDFromName,
   uniqueCollectionID,
@@ -907,6 +908,136 @@ test('playAvailability uses Checking, Ready, Needs a choice, and Unavailable', (
   assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'version_skew' }).reason, 'Can’t play here yet.');
   assert.equal(coverStatusLabel({ ...ready, root_online: false }), 'Unavailable');
   assert.notEqual(coverStatusLabel({ ...ready, state: 'available' }), 'Offline');
+});
+
+const dataStormFPGA = 'fpga-data-storm';
+const dataStormEmu = 'sms-data-storm';
+
+function dataStormPlayRow(id, execution, extra = {}) {
+  return {
+    id,
+    title: 'Data Storm',
+    system: 'sms',
+    kind: 'raw',
+    state: 'available',
+    root_online: true,
+    content_prepared: true,
+    execution,
+    launchable: true,
+    ready_here: true,
+    ...extra,
+  };
+}
+
+function dataStormTitle(available = true) {
+  return {
+    title_id: dataStormFPGA,
+    system: 'sms',
+    options: [
+      { source_game_id: dataStormFPGA, execution: 'fpga_native', available, host_local: false },
+      { source_game_id: dataStormEmu, execution: 'native_emu', available, host_local: true },
+    ],
+  };
+}
+
+function launchPosts(calls) {
+  return calls.filter(call => String(call.path || '').split('?')[0] === '/api/v1/session/launch');
+}
+
+// Production titles use a package-backed game id as title_id, and that id is
+// also one option's source_game_id. Opening that row is not a household choice.
+test('canonical title id stays a choice until the household picks a backend', () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const title = dataStormTitle(true);
+  const games = [fpga, emu];
+  assert.equal(playChoiceFor(fpga, [title], {}, games).needsChoice, true);
+  assert.equal(playChoiceFor(fpga, [title], { [dataStormFPGA]: dataStormEmu }, games).needsChoice, undefined);
+  assert.equal(playChoiceFor(fpga, [title], { 'data storm': dataStormEmu }, games).needsChoice, undefined);
+  assert.equal(playChoiceFor(fpga, [dataStormTitle(false)], {}, games).needsChoice, true);
+  const leased = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'lease_held' });
+  const skewed = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'version_skew' });
+  const checking = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'ensure_in_progress' });
+  assert.equal(playChoiceFor(leased, [title], { 'data storm': dataStormFPGA }, [leased, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(skewed, [title], {}, [skewed, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(checking, [title], {}, [checking, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(fpga, [title], {}, [fpga]).needsChoice, undefined);
+});
+
+async function openDataStorm(fpga, emu, preferences, extraRoutes = {}) {
+  const launchedID = extraRoutes.launchedID || emu.id;
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse({ games: [fpga, emu] })],
+    [`/api/v1/games/${fpga.id}`]: [jsonResponse(fpga)],
+    [`/api/v1/games/${emu.id}`]: [jsonResponse(emu)],
+    '/api/v1/library/titles': [jsonResponse({ titles: [dataStormTitle(extraRoutes.available !== false)] })],
+    '/api/v1/library/edition-preferences': [
+      jsonResponse({ preferences }),
+      jsonResponse({ query: 'Data Storm', platform: 'sms', game_id: launchedID }),
+    ],
+    '/api/v1/session/launch': [jsonResponse(sessionFixture({
+      state: 'active',
+      game_id: launchedID,
+      system: 'sms',
+      execution: launchedID === fpga.id ? fpga.execution : emu.execution,
+    }))],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.selectGame(fpga.id);
+  return { calls, controller };
+}
+
+test('opening the canonical source row does not launch until a backend is chosen', async () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const { calls, controller } = await openDataStorm(fpga, emu, []);
+  await controller.launchSelected();
+  assert.equal(launchPosts(calls).length, 0);
+  await controller.chooseBackend(emu.id);
+  await controller.launchSelected();
+  const posts = launchPosts(calls);
+  assert.equal(posts.length, 1);
+  assert.equal(JSON.parse(posts[0].options.body).game_id, emu.id);
+});
+
+test('a household backend pick wins when the title id equals a source id', async () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const { calls, controller } = await openDataStorm(fpga, emu, [
+    { query: 'Data Storm', platform: 'sms', game_id: emu.id },
+  ]);
+  await controller.launchSelected();
+  const posts = launchPosts(calls);
+  assert.equal(posts.length, 1);
+  assert.equal(JSON.parse(posts[0].options.body).game_id, emu.id);
+});
+
+test('browser play follows launch readiness when inventory available is stale', async () => {
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const leased = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'lease_held' });
+  const leasedOpen = await openDataStorm(leased, emu, [
+    { query: 'Data Storm', platform: 'sms', game_id: leased.id },
+  ]);
+  await leasedOpen.controller.launchSelected();
+  const leasedPosts = launchPosts(leasedOpen.calls);
+  assert.equal(leasedPosts.length, 1);
+  assert.equal(JSON.parse(leasedPosts[0].options.body).game_id, emu.id);
+
+  const skewed = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'version_skew' });
+  const skewedOpen = await openDataStorm(skewed, emu, []);
+  await skewedOpen.controller.launchSelected();
+  assert.equal(JSON.parse(launchPosts(skewedOpen.calls)[0].options.body).game_id, emu.id);
+
+  const checking = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'ensure_in_progress' });
+  const checkingOpen = await openDataStorm(checking, emu, []);
+  await checkingOpen.controller.launchSelected();
+  assert.equal(JSON.parse(launchPosts(checkingOpen.calls)[0].options.body).game_id, emu.id);
+
+  const listed = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const hidden = await openDataStorm(listed, emu, [], { available: false });
+  await hidden.controller.launchSelected();
+  assert.equal(launchPosts(hidden.calls).length, 0);
 });
 
 test('library wording shows clean titles and honest launch blocks', () => {
@@ -7656,7 +7787,7 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
   assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
-  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
+  assert.match(app, /\[shownPlay\.label, 'Status'\]/);
   assert.match(app, /coverHoverMeta\(game, view\)/);
   assert.match(app, /\(game && game\.year\) \|\| catalogYear\(view\)/);
   assert.match(app, /dumpFlagLabels\(game\)/);
@@ -10777,7 +10908,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   const app = readAsset('ui_app.js');
   assert.match(app, /function sourceKindLabel\(game\)/);
   assert.match(app, /\[sourceKindLabel\(liveGame \|\| game\), 'Source'\]/);
-  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
+  assert.match(app, /\[shownPlay\.label, 'Status'\]/);
   assert.doesNotMatch(app, /'Staging'/);
   assert.doesNotMatch(app, /'Prepared'/);
   assert.doesNotMatch(app, /'On demand'/);
@@ -11206,7 +11337,8 @@ test('detail dump identity Status and Collections follow the selected variant be
   const app = readAsset('ui_app.js');
   assert.match(app, /const detailGame = liveGame \|\| game/);
   assert.match(app, /dumpIdentityFacts\(detailGame\)/);
-  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
+  assert.match(app, /const shownPlay = playAvailability\(resolvedPlay\.game \|\| detailGame, resolvedPlay\.choice\)/);
+  assert.match(app, /\[shownPlay\.label, 'Status'\]/);
   assert.match(app, /collectionLabels\(detailGame, state\.collections\)/);
   assert.match(app, /const membershipReady = Boolean\(/);
   assert.match(app, /game\.id === detailGame\.id/);
