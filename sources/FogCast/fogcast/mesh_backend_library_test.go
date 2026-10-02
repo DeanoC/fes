@@ -248,4 +248,17 @@ func TestMeshBackendLibraryHostAndSourcedCollision(t *testing.T) {
 	if opt := backendRow(t, rows, remote.Game.ID).Options[0]; opt.Reason != "no advertised executor in inventory" {
 		t.Fatalf("remote without runner=%+v", opt)
 	}
+
+	// An offline or unavailable local source is not a usable host-local
+	// option, matching the launch check.
+	offline := local
+	offline.Game.RootOnline = false
+	unavailable := local
+	unavailable.Game.State = catalog.SourceStateMissing
+	for name, title := range map[string]MeshTitle{"offline": offline, "missing": unavailable} {
+		rows, _ = ProjectMeshBackendLibrary(MeshLibrary{Titles: []MeshTitle{title}}, nil, false, nil, nil)
+		if opt := backendRow(t, rows, title.Game.ID).Options[0]; !opt.HostLocal || opt.Reason != "local source unavailable" {
+			t.Fatalf("%s local option=%+v", name, opt)
+		}
+	}
 }

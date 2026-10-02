@@ -22,7 +22,8 @@ type MeshBackendRow struct {
 	Options    []MeshBackendOption
 }
 
-// MeshBackendOption keeps each composition distinct. Nodes are capability
+// MeshBackendOption keeps each composition distinct. A HostLocal option is
+// usable on this host only when Reason is empty. Nodes are capability
 // candidates; their presence never makes this option Ready for a session.
 type MeshBackendOption struct {
 	Entry     meshcontent.Entry
@@ -143,6 +144,11 @@ func ProjectMeshBackendLibrary(lib MeshLibrary, nodes []MeshNode, retained bool,
 			}
 		}
 		option := MeshBackendOption{Entry: entry, HostLocal: hostLocal}
+		// Mirror the launch check: an unavailable or offline local source is
+		// not a usable host-local option.
+		if hostLocal && (title.Game.State != catalog.SourceStateAvailable || !title.Game.RootOnline) {
+			option.Reason = "local source unavailable"
+		}
 		for _, node := range nodes {
 			kind := ""
 			if len(entry.Execute) == 1 {

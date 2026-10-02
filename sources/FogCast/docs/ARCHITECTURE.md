@@ -1332,7 +1332,9 @@ facts. A missing, retained, conflicting, or mesh-major-incompatible
 advertisement is unavailable. A `native_emu` advertisement remains
 unverified for remote execution because the current capability bag has no
 supported-system or emulator-version fact. The host-local `host_only`
-path is the local emulator option (`HostLocal`). An option with no
+path is the local emulator option (`HostLocal`); like launch, it carries
+`local source unavailable` when the game's source is not available or
+its root is offline. An option with no
 host-local path carries an explicit reason when no inventory node can
 run it (`no advertised executor in inventory` or `no compatible
 executor in inventory`); each node candidate carries its own reason.
