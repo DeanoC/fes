@@ -11,6 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -49,6 +50,10 @@ func (err MediaBusyOtherKitError) PublicMediaStartError() error { return err }
 
 type sessionExecutionService interface {
 	SessionExecution(context.Context, string) (string, error)
+}
+
+type hostExecutionStatusService interface {
+	HostExecutionStatus(context.Context) (hostexec.Status, error)
 }
 
 type sessionDevelopmentService interface {
@@ -580,6 +585,17 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 	}
 	if development {
 		return sessionResult{}, developmentMustStopError()
+	}
+	// RetroArch rejects a second process while one is running. Ask the real
+	// executor before retiring the current media owner, so BUSY leaves the
+	// active emulator and its content together.
+	if execution == fogcast.ExecutionHostOnly {
+		if executor, ok := s.service.(hostExecutionStatusService); ok {
+			status, statusErr := executor.HostExecutionStatus(ctx)
+			if statusErr == nil && status.State == hostexec.Active {
+				return sessionResult{}, busyError()
+			}
+		}
 	}
 	if err := s.stopPackageOwnedForReplacement(ctx, target); err != nil {
 		return sessionResult{}, err

@@ -57,6 +57,33 @@ func TestStatusReportsIdleWhenNoKitIsReachableAndHostEmulatorIsConfigured(t *tes
 	}
 }
 
+func TestStatusWithOfflineSelectedKitFollowsHostOnlyExecution(t *testing.T) {
+	client := &fakeServiceClient{statusErr: errors.New("kit disconnected")}
+	host := &fakeHostExecutor{}
+	service := &Service{
+		hostEmulator: HostEmulatorConfig{Binary: "/configured/retroarch"},
+		targets:      []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+		targetClients: map[string]serviceClient{"kit": client}, hostExecutor: host,
+	}
+	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("status before host launch=%+v err=%v, want idle", status, err)
+	}
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionHostOnly
+	service.activeGameID = "software-game"
+	service.executionMu.Unlock()
+	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != "software-game" {
+		t.Fatalf("status during host-only session=%+v err=%v, want active host status", status, err)
+	}
+	service.executionMu.Lock()
+	service.activeExecution, service.activeGameID = "", ""
+	service.executionMu.Unlock()
+	host.idle = true
+	if status, err := service.Status(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("status after host Stop=%+v err=%v, want idle", status, err)
+	}
+}
+
 func TestStatusDoesNotAssumeIdleWhenFPGAExecutionOrTargetIsKnown(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
@@ -2936,6 +2963,7 @@ type fakeHostExecutor struct {
 	statusCalls int
 	contentPath string
 	stopErr     error
+	idle        bool
 }
 
 type ambiguousPackageLoadError struct {
@@ -2965,6 +2993,9 @@ func (f *fakeHostExecutor) Launch(_ context.Context, content io.Reader, identity
 func (f *fakeHostExecutor) Stop(context.Context) error { f.stopCalls++; return f.stopErr }
 func (f *fakeHostExecutor) Status(context.Context) (hostexec.Status, error) {
 	f.statusCalls++
+	if f.idle {
+		return hostexec.Status{State: hostexec.Idle}, nil
+	}
 	return hostexec.Status{State: hostexec.Active}, nil
 }
 

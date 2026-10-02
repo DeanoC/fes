@@ -18,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -63,6 +64,7 @@ type fakeService struct {
 	stopHook               func(context.Context) (protocol.Status, error)
 	progress               []string
 	execution              string
+	hostExecutionState     hostexec.State
 	executionErr           error
 	reconstructedExecution string
 	order                  *[]string
@@ -82,6 +84,9 @@ func (s *fakeService) Search(_ context.Context, query string) ([]catalog.Game, e
 }
 func (s *fakeService) SessionExecution(context.Context, string) (string, error) {
 	return s.execution, s.executionErr
+}
+func (s *fakeService) HostExecutionStatus(context.Context) (hostexec.Status, error) {
+	return hostexec.Status{State: s.hostExecutionState}, nil
 }
 func (s *fakeService) SessionTarget() (string, string) {
 	return s.sessionTarget, s.sessionTargetID
@@ -1952,6 +1957,28 @@ func TestHostOnlySessionOwnsMediaLifecycleAndPublishesSafeEvents(t *testing.T) {
 		if strings.Contains(body, secret) {
 			t.Fatalf("event leaked %q: %s", secret, body)
 		}
+	}
+}
+
+func TestSecondHostOnlyLaunchKeepsCurrentMediaWhenBusy(t *testing.T) {
+	gameID := "host-game"
+	service := &fakeService{
+		execution: fogcast.ExecutionHostOnly,
+		launch:    protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID}},
+	}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	first := launchSession(t, handler, gameID)
+	if first.Code != http.StatusOK || len(media.start) != 1 {
+		t.Fatalf("first host-only launch = %d %s starts=%v", first.Code, first.Body.String(), media.start)
+	}
+	service.hostExecutionState = hostexec.Active
+	second := launchSession(t, handler, gameID)
+	if second.Code != http.StatusConflict || !strings.Contains(second.Body.String(), `"code":"BUSY"`) {
+		t.Fatalf("second host-only launch = %d %s, want BUSY", second.Code, second.Body.String())
+	}
+	if len(media.stop) != 0 || service.launchCalls != 1 {
+		t.Fatalf("busy launch disturbed current session: media stops=%v service launches=%d", media.stop, service.launchCalls)
 	}
 }
 

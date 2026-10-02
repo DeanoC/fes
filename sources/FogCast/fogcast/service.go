@@ -2246,6 +2246,17 @@ func (s *Service) StatusTarget(parent context.Context, target string) (protocol.
 	return s.statusTarget(parent, target)
 }
 
+// HostExecutionStatus observes the local software runner for session
+// admission before coordinator-owned media is changed.
+func (s *Service) HostExecutionStatus(parent context.Context) (hostexec.Status, error) {
+	if s.hostExecutor == nil {
+		return hostexec.Status{}, errors.New("host executor is unavailable")
+	}
+	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
+	defer cancel()
+	return s.hostExecutor.Status(ctx)
+}
+
 func (s *Service) statusTarget(parent context.Context, target string) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
@@ -2275,12 +2286,9 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 			s.executionMu.Unlock()
 		}()
 	}
-	s.targetMu.RLock()
-	knownSelectedTarget := s.sessionTargetNameLocked() != ""
-	s.targetMu.RUnlock()
 	s.executionMu.Lock()
 	localExecution := target == "" && s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
-	knownFPGA := s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment || s.activeTarget != "" || knownSelectedTarget
+	knownFPGA := target != "" || s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment || s.activeTarget != ""
 	s.executionMu.Unlock()
 	if !localExecution && s.discoveryEnabled() {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
@@ -2317,7 +2325,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	client, ok := s.selectedClientLocked()
 	if !ok {
 		s.executionMu.Lock()
-		knownFPGA := s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment || s.activeTarget != "" || knownSelectedTarget
+		knownFPGA := target != "" || s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment || s.activeTarget != ""
 		localExecution := target == "" && s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
 		s.executionMu.Unlock()
 		if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
