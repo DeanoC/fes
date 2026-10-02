@@ -80,7 +80,7 @@ only the requested target. Unscoped browser Stop keeps its active-then-selected
 behavior. Health, `rom_cached`, and `/api/v1/library/cache` stay target-scoped (#289).
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
-`Offline - local library`. Local D-pad/A still browse that snapshot. Offline
+`Offline, showing your saved list`. Local D-pad/A still browse that snapshot. Offline
 launch and Stop are disabled or unavailable until the configured host API
 reconnects. The kit process never claims a target lease or calls a direct target
 launch path; all lifecycle mutations go through the persistent host session API.

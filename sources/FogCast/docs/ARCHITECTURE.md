@@ -693,8 +693,15 @@ unavailable.
 A kit-only host runs `fogcast-api` with `--launcher-config` and does not open
 the SDL sofa window. Pass `--headless` so that process does not compose local
 capture or the MJPEG preview pipeline; kit catalog, attract, session, and
-input stay on the launcher listener. Folder-watch still polls configured
-library roots every thirty seconds, but it only re-opens a source when size or
+input stay on the launcher listener. A kit without a sofa host boots the same
+FogCast service on the existing config and catalog paths.
+`fogcast.BootLocalCatalog` opens that service, scans the configured library
+roots, and does not dial a remote target. An empty library says `No games in
+this library yet.` A content root that cannot be found, with no saved rows,
+says `The game files for this library can't be found.` Saved rows whose files
+are offline say `Offline, showing your saved list`. An unfiltered
+`GET /api/v1/games` includes that sentence as `notice`. Folder-watch still polls
+configured library roots every thirty seconds, but it only re-opens a source when size or
 mtime changed. Unchanged rows bump `seen_generation` and do not rebuild the
 search index. A long scan waits a full interval before the next poll, so the
 watcher cannot run back-to-back.
@@ -1650,7 +1657,7 @@ catalog sync are kit-local `DiskStore.Status()`. Games may include `rom_cached`
 when the target inventory is reachable; ROM-less rows omit it. When the idle
 enables the HPS framebuffer, boot may paint that shelf from disk before host
 games HTTP as a temporary linuxfb overlay. It decodes visible covers from disk
-first and labels an absent host `Offline - local library`. Confirmed idle
+first and labels an absent host `Offline, showing your saved list`. Confirmed idle
 without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
 splash pixels stay on HDMI, and a missing linuxfb device does not stop the
 service.

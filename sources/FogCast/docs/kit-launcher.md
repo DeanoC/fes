@@ -53,7 +53,7 @@ reports cover used/free and last sync. `rom_cached` on a games row is a host
 probe of that inventory while the host is up — not a hostless launch grant.
 Boot paints the last-good shelf from
 disk before host games HTTP and decodes visible covers from disk first. An absent
-host shows `Offline - local library` rather than an endless reconnect. Local D-pad
+host shows `Offline, showing your saved list` rather than an endless reconnect. Local D-pad
 and A still browse that snapshot. Host-catalog Launch and Stop stay unavailable
 until the configured host API reconnects; the launcher does not claim a lease
 for those titles while offline. Installed cores that need no cartridge or

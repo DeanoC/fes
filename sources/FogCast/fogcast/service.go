@@ -280,26 +280,31 @@ type Service struct {
 	librarySettingsOnce      sync.Once
 	librarySettingsAdmission chan struct{}
 	libraryMu                sync.RWMutex
-	attractIdle              int
-	preferredRegions         []string
-	hostEmulator             HostEmulatorConfig
-	machineROM               MachineROMLinker
-	metadataRoot             string
-	metadataScope            string
-	watchRoot                string
-	folderWatchInterval      time.Duration
-	folderWatchFailureMu     sync.Mutex
-	folderWatchFailureCount  int
-	catalogAdmission         chan struct{}
-	scanMu                   sync.Mutex
-	scanWG                   sync.WaitGroup
-	closing                  bool
-	catalogCloseWait         time.Duration
-	activeExecution          string
-	activeTarget             string
-	activeGameID             string
-	activeSystem             protocol.System
-	plays                    map[string]targetPlay
+	// lastScan is the latest successful catalog scan. LocalShelfNotice
+	// reads it so an unfiltered games list can explain an empty shelf
+	// without dialing a remote target. Guarded by libraryMu.
+	lastScan                catalog.ScanReport
+	lastScanOK              bool
+	attractIdle             int
+	preferredRegions        []string
+	hostEmulator            HostEmulatorConfig
+	machineROM              MachineROMLinker
+	metadataRoot            string
+	metadataScope           string
+	watchRoot               string
+	folderWatchInterval     time.Duration
+	folderWatchFailureMu    sync.Mutex
+	folderWatchFailureCount int
+	catalogAdmission        chan struct{}
+	scanMu                  sync.Mutex
+	scanWG                  sync.WaitGroup
+	closing                 bool
+	catalogCloseWait        time.Duration
+	activeExecution         string
+	activeTarget            string
+	activeGameID            string
+	activeSystem            protocol.System
+	plays                   map[string]targetPlay
 	// displayMemory is host process memory for the household display
 	// preference and the last play DisplaySink. Open seeds the
 	// preference from [mesh] display_preference. The last sink is not
@@ -1331,6 +1336,7 @@ func (s *Service) scanLocked(ctx context.Context) (catalog.ScanReport, error) {
 		}
 		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
+	s.rememberScan(report)
 	_ = s.ScanMedia(ctx)
 	return report, nil
 }
@@ -1381,7 +1387,16 @@ func (s *Service) reconcileFolderWatchLocked(ctx context.Context) (catalog.ScanR
 		}
 		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
+	s.rememberScan(report)
 	return report, nil
+}
+
+func (s *Service) rememberScan(report catalog.ScanReport) {
+	copied := catalog.ScanReport{Roots: append([]catalog.RootReport(nil), report.Roots...)}
+	s.libraryMu.Lock()
+	s.lastScan = copied
+	s.lastScanOK = true
+	s.libraryMu.Unlock()
 }
 
 type catalogLibraryRetirer interface {
