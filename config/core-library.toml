@@ -54,3 +54,9 @@ core_id = "fes.spectrum"
 label = "ZX Spectrum"
 system = "spectrum"
 standing = "experimental"
+
+[[cores]]
+core_id = "fes.ramtest"
+label = "RAM Tester"
+system = "ramtest"
+standing = "supported"

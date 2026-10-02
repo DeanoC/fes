@@ -1112,9 +1112,9 @@ The only image variant is `native-dev`, which starts image-owned
 `mister-runtime` and `mister-agent`. It installs the locked splash/idle artifact
 and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
-`fes.pong`, `fes.zx81`, `fes.coleco`. The selector supports eight IDs in total,
+`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest`. The selector supports nine IDs in total,
 also admitting `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`. These four
-remain package-only: the sealed additions exceed the 64 MiB rootfs limit and
+remain package-only: the sealed additions exceed the 128 MiB rootfs limit and
 C64 has no current timing-passing HIP seal. The menu package is idle firmware,
 not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
@@ -2402,6 +2402,11 @@ do not establish hardware acceptance or kit performance; those remain evidence
 for the exact tested package and software.
 
 ### Local core publication
+
+FES publishes the ROM-less `fes.ramtest` utility in the standard catalog and
+selects its OSS 100 MHz package for the factory image. The image selector
+admits it through the same sealed package path; the kit-local installed-core
+inventory marks it launchable without firmware or media, like Pong.
 
 The optional `[core_catalog] path`, with a stable per-library `library_source_id`, selects a FES-published version-1 index.
 `corecatalog` reads a bounded closed schema and verifies the canonical index

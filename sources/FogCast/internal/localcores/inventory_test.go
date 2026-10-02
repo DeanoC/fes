@@ -102,6 +102,7 @@ func TestReadInstalledCores(t *testing.T) {
 	}
 	rom := []byte(`{"format":1}` + "\n")
 	menu := installCore(t, packages, selections, "fes.menu", "FES Menu", "fes.menu", coreOpts{})
+	ramtest := installCore(t, packages, selections, "fes.ramtest", "FES RAM Tester", "fes.application", coreOpts{})
 	pong := installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
 	zx81 := installCore(t, packages, selections, "fes.zx81", "ZX81  (sealed)", "fes.simple-computer", coreOpts{rom: rom})
 	coleco := installCore(t, packages, selections, "fes.coleco", "FES Coleco", "fes.application", coreOpts{})
@@ -130,6 +131,7 @@ func TestReadInstalledCores(t *testing.T) {
 		id, packageID, name, abi, needs, block string
 		launchable                             bool
 	}{
+		{"fes.ramtest", ramtest, "FES RAM Tester", "fes.application", "none", "", true},
 		{"fes.pong", pong, "FES Pong", "fes.simple-game", "none", "", true},
 		{"fes.zx81", zx81, "ZX81  (sealed)", "fes.simple-computer", "firmware", "Needs firmware", false},
 		{"fes.coleco", coleco, "FES Coleco", "fes.application", "media", "Needs a cartridge", false},
