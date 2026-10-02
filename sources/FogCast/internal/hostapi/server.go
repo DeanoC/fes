@@ -219,7 +219,7 @@ func WithMetadata(runtime metadata.Runtime, states ...metadata.ConfigState) Serv
 	}
 }
 
-func requestSessionCoordinator(root *sessionCoordinator, service Service, r *http.Request, target string) *sessionCoordinator {
+func requestSessionCoordinator(root *sessionCoordinator, service Service, r *http.Request, target string, foregroundOnly ...bool) *sessionCoordinator {
 	if target == "" {
 		target = launcherTargetFromContext(r.Context())
 	}
@@ -233,7 +233,11 @@ func requestSessionCoordinator(root *sessionCoordinator, service Service, r *htt
 	if target == "" {
 		// Unscoped reads and mutations follow the foreground session, falling
 		// back to the selected target only when no kit is active.
-		if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
+		if len(foregroundOnly) > 0 && foregroundOnly[0] {
+			if resolver, ok := service.(interface{ ForegroundSessionTargetName() string }); ok {
+				target = resolver.ForegroundSessionTargetName()
+			}
+		} else if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
 			target = resolver.SessionTargetName()
 		} else if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
 			target = resolver.SelectedTargetConfig().Name
@@ -262,7 +266,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
-		coordinator := requestSessionCoordinator(session, service, r, r.URL.Query().Get("target"))
+		coordinator := requestSessionCoordinator(session, service, r, r.URL.Query().Get("target"), true)
 		result, err := coordinator.status(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})

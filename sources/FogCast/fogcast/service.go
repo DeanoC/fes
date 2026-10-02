@@ -594,6 +594,14 @@ func (s *Service) SessionTargetName() string {
 	return s.sessionTargetNameLocked()
 }
 
+// ForegroundSessionTargetName reports only a target already bound to the
+// foreground FPGA session. An idle selected kit does not scope host-only reads.
+func (s *Service) ForegroundSessionTargetName() string {
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	return s.activeTarget
+}
+
 // Caller holds targetMu. Admission and transport must resolve the same binding.
 // Host-only play does not own a kit, so a host marker is ignored. A launch
 // that has already bound a configured target still uses that name while the

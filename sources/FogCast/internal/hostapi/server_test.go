@@ -91,6 +91,60 @@ func (s *fakeService) HostExecutionStatus(context.Context) (hostexec.Status, err
 func (s *fakeService) SessionTarget() (string, string) {
 	return s.sessionTarget, s.sessionTargetID
 }
+func (s *fakeService) ForegroundSessionTargetName() string {
+	if s.execution == fogcast.ExecutionFPGANative || s.execution == fogcast.ExecutionFPGADevelopment {
+		return s.sessionTarget
+	}
+	return ""
+}
+
+func TestSessionHTTPHostOnlyWithUnreachableSelectedKit(t *testing.T) {
+	stopped := false
+	service := &fakeService{
+		sessionTarget:      "kit",
+		connection:         fogcast.TargetConnection{State: "disconnected"},
+		execution:          fogcast.ExecutionHostOnly,
+		hostExecutionState: hostexec.Idle,
+		launch:             protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+	}
+	service.statusHook = func(ctx context.Context) (protocol.Status, error) {
+		if fogcast.SessionTargetFromContext(ctx) != "" {
+			return protocol.Status{}, errors.New("selected kit unreachable")
+		}
+		if service.launchCalls == 0 || stopped {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		}
+		gameID, system := "sms-test", protocol.SystemSMS
+		return protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}, nil
+	}
+	service.stopHook = func(context.Context) (protocol.Status, error) {
+		stopped = true
+		return protocol.Status{State: protocol.StateIdle}, nil
+	}
+	handler := hostapi.New(service)
+	explicit := serve(t, handler, http.MethodGet, "/api/v1/session?target=kit")
+	if explicit.Code != http.StatusServiceUnavailable || !strings.Contains(explicit.Body.String(), `"code":"TARGET_UNAVAILABLE"`) {
+		t.Fatalf("explicit unreachable target = %d %s, want 503 TARGET_UNAVAILABLE", explicit.Code, explicit.Body.String())
+	}
+	getSession := func(wantState protocol.State) {
+		t.Helper()
+		response := serve(t, handler, http.MethodGet, "/api/v1/session")
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"`+string(wantState)+`"`) {
+			t.Fatalf("GET /api/v1/session = %d %s, want 200 state %s", response.Code, response.Body.String(), wantState)
+		}
+	}
+	getSession(protocol.StateIdle)
+	launch := serveBody(t, handler, http.MethodPost, "/api/v1/session/launch", `{"game_id":"sms-test"}`)
+	if launch.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/session/launch = %d %s, want 200", launch.Code, launch.Body.String())
+	}
+	getSession(protocol.StateActive)
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/session/stop = %d %s, want 200", stop.Code, stop.Body.String())
+	}
+	getSession(protocol.StateIdle)
+}
 func (s *fakeService) TargetConnection() fogcast.TargetConnection { return s.connection }
 func (s *fakeService) PlaySessions() []fogcast.PlaySession {
 	return s.playSessions
