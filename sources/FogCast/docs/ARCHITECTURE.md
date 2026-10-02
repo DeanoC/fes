@@ -1380,7 +1380,9 @@ repeated content ids, and annotates observed node candidates. The library projec
 `[[targets]]` address, the enrolled origin as written in config. That
 read is cached on the library path and times out with the placement
 node-document deadline. `GET /api/v1/library/titles` does not send the
-agent token to a discovered or reconciled address. A failed or missing
+agent token to a discovered or reconciled address. The library client
+does not follow redirects, so a 3xx is a failed read and does not
+forward that token. A failed or missing
 read leaves the FPGA candidate unavailable (`package unavailable on node`). A missing, retained, conflicting, or mesh-major-incompatible
 advertisement is unavailable. A `native_emu` advertisement remains
 unverified for remote execution because the current capability bag has no

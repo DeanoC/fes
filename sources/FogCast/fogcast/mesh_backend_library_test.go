@@ -257,6 +257,66 @@ func TestMeshBackendLibraryUnseededConfiguredRead(t *testing.T) {
 	}
 }
 
+// A 302 from the configured kit must not be followed. Go would forward
+// Authorization to the same hostname on another port. The redirect
+// target receives nothing, and the FPGA row stays unavailable.
+func TestMeshBackendLibraryRedirectDoesNotForwardBearer(t *testing.T) {
+	const media = "4b0fc42c8ab3d6d073dbc0f902b0fe35709e804613740ab52cb122bdb5082d4f"
+	const title = "Data Storm 1.00"
+	const kitID = "01234567-89ab-cdef-0123-456789abcdef"
+	ctx := context.Background()
+	archive := sizedSetupArchive(t, "fes.sms", 32768)
+	packageRoot := t.TempDir()
+	if err := os.Chmod(packageRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	packages, err := corepackage.NewStore(packageRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection, _, err := packages.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreID := catalog.GameID(catalog.CorePlatform, "core-packages", "fes.sms\x00"+title, title)
+	coreGame := catalog.Game{ID: coreID, Title: title, System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true}
+	cat := &backendCatalog{fakeServiceCatalog: &fakeServiceCatalog{games: []catalog.Game{coreGame}}, entry: catalog.CoreEntry{GameID: coreID, Title: title, CoreID: "fes.sms", PackageID: inspection.PackageID, MediaRole: "blob", MediaID: media}}
+	service := newService(Config{}, Paths{}, cat, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	service.corePackages = packages
+	var targetHits atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetHits.Add(1)
+		if r.Header.Get("Authorization") != "" {
+			t.Errorf("Authorization forwarded to redirect target: %s", r.Header.Get("Authorization"))
+		}
+		http.Error(w, "redirect target", http.StatusForbidden)
+	}))
+	defer target.Close()
+	configured := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", target.URL+"/v1/mesh/content/node")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer configured.Close()
+	shared := &http.Client{}
+	service.meshHTTP = shared
+	service.targets = []TargetConfig{{Name: "kit", Enabled: true, TargetID: kitID, Address: configured.URL, Agent: "fixture-token"}}
+	service.meshNodes = []MeshNode{{NodeID: kitID, TargetID: kitID, Address: configured.URL, Mesh: discovery.MeshProtocol, Capabilities: discovery.KitCapabilities()}}
+	rows, skipped := service.MeshBackendLibrary(ctx)
+	if shared.CheckRedirect != nil {
+		t.Fatal("library read mutated the shared HTTP client")
+	}
+	if targetHits.Load() != 0 {
+		t.Fatalf("redirect target received %d requests", targetHits.Load())
+	}
+	if len(skipped) != 0 || len(rows) != 1 || len(rows[0].Options) != 1 {
+		t.Fatalf("rows=%+v skipped=%+v", rows, skipped)
+	}
+	node := rows[0].Options[0].Nodes[0]
+	if rows[0].Options[0].Reason == "" || node.Available || node.Reason != "package unavailable on node" {
+		t.Fatalf("redirect counted as package facts: option=%+v", rows[0].Options[0])
+	}
+}
+
 func TestMeshBackendLibraryTwoNodeProjection(t *testing.T) {
 	// This synthetic same-id composition exercises projection only. The
 	// catalog gives a core entry and a raw ROM different game ids.

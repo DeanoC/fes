@@ -188,11 +188,13 @@ func (s *Service) placementNodeFacts(ctx context.Context, nodeID string) ([]mesh
 // libraryNodeFacts is the package evidence GET /api/v1/library/titles
 // may use. It dials the [[targets]] address exactly as configured, the
 // enrolled origin, and it does not call placementReadAddress. A
-// discovered or reconciled address is not a library endpoint. A fresh
-// hit in libraryNodes for that same configured identity is reused so a
-// GET does not hammer the kit. The read's deadline is
-// placementNodeTimeout. A miss, a failed read, or an expired entry is
-// not eligibility. This method does not read or write placementNodes.
+// discovered or reconciled address is not a library endpoint. The
+// dial uses a client that refuses redirects, so a 3xx cannot forward
+// the agent token. A fresh hit in libraryNodes for that same
+// configured identity is reused so a GET does not hammer the kit. The
+// read's deadline is placementNodeTimeout. A miss, a failed read, or
+// an expired entry is not eligibility. This method does not read or
+// write placementNodes.
 func (s *Service) libraryNodeFacts(ctx context.Context, nodeID string) ([]meshcontent.EligibleABI, []string) {
 	if s == nil {
 		return nil, nil
@@ -219,7 +221,12 @@ func (s *Service) libraryNodeFacts(ctx context.Context, nodeID string) ([]meshco
 			return append([]meshcontent.EligibleABI(nil), cached.abis...), append([]string(nil), cached.packages...)
 		}
 	}
-	abis, packages, ok := readPlacementNodeFacts(ctx, configured, client)
+	// A new client shares the transport and refuses every redirect.
+	// CheckRedirect is not set on the shared mesh client. Go would
+	// otherwise forward Authorization to this host on another port,
+	// or to a subdomain. ErrUseLastResponse surfaces the 3xx, and
+	// ReadNode treats that as a failed read.
+	abis, packages, ok := readPlacementNodeFacts(ctx, configured, libraryNoRedirectClient(client))
 	if !ok && ctx != nil && ctx.Err() != nil {
 		return nil, nil
 	}
@@ -309,6 +316,22 @@ func (s *Service) discoveredPlacementOrigin(nodeID string) string {
 		return ""
 	}
 	return origin
+}
+
+// libraryNoRedirectClient is the HTTP client for one library read of
+// the configured kit. It does not follow redirects, and it does not
+// modify base. A nil base still refuses redirects.
+func libraryNoRedirectClient(base *http.Client) *http.Client {
+	next := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	if base != nil {
+		next.Transport = base.Transport
+		next.Timeout = base.Timeout
+	}
+	return next
 }
 
 // readPlacementNodeFacts reads one kit's content document at want.address
