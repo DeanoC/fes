@@ -1,0 +1,70 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "d0305225f8cfca939c7058ddae9a797a9711e26a",
+    "file": "sources/libmister-runtime/src/native/generated/fes_simple_computer.hpp",
+    "note": "Base runtime revision; session-display constants are the reviewed additions in the same FES issue 370 change. Software contract evidence, not hardware acceptance."
+  },
+  "constants": {
+    "FesSimpleComputerHpsDdrWindowBase": 805306368,
+    "FesSimpleComputerHpsDdrWindowBytes": 268435456,
+    "FesSimpleComputerHpsDdrCfgPortWidth": 22,
+    "FesSimpleComputerHpsDdrCfgCportType": 63,
+    "FesSimpleComputerHpsDdrCfgCportWfifoMap": 208,
+    "FesSimpleComputerHpsDdrCfgCportRfifoMap": 208,
+    "FesSimpleComputerHpsDdrCfgWfifoCportMap": 8448,
+    "FesSimpleComputerHpsDdrCfgRfifoCportMap": 8448,
+    "FesSimpleComputerHpsDdrCfgAxiMmSelect": 0,
+    "FesSimpleComputerHpsDdrMaxBurst": 128,
+    "FesSimpleComputerOpcodeMenuInfo": 18,
+    "FesSimpleComputerOpcodeMenuConfigure": 19,
+    "FesSimpleComputerOpcodeMenuControl": 20,
+    "FesSimpleComputerOpcodeMenuSubmit": 21,
+    "FesSimpleComputerMenuWidth": 1280,
+    "FesSimpleComputerMenuHeight": 720,
+    "FesSimpleComputerMenuStride": 5120,
+    "FesSimpleComputerMenuFrameBytes": 3686400,
+    "FesSimpleComputerMenuSlotBytes": 4194304,
+    "FesSimpleComputerMenuSlotCount": 2,
+    "FesSimpleComputerMenuPixelFormat": 1,
+    "FesSimpleComputerMenuLayout": 1,
+    "FesSimpleComputerMenuStateConfigured": 1,
+    "FesSimpleComputerMenuStateEnabled": 2,
+    "FesSimpleComputerMenuStatePending": 4,
+    "FesSimpleComputerMenuStateQuiesced": 8,
+    "FesSimpleComputerMenuStateFaulted": 16,
+    "FesSimpleComputerMenuControlQuiesce": 0,
+    "FesSimpleComputerMenuControlEnable": 1,
+    "FesSimpleComputerMenuSubmitSequenceLoIndex": 0,
+    "FesSimpleComputerMenuSubmitSequenceHiIndex": 1,
+    "FesSimpleComputerMenuSubmitCommitIndex": 2,
+    "FesSimpleComputerMenuInfoWidthIndex": 0,
+    "FesSimpleComputerMenuInfoHeightIndex": 1,
+    "FesSimpleComputerMenuInfoStrideIndex": 2,
+    "FesSimpleComputerMenuInfoFrameBytesLoIndex": 3,
+    "FesSimpleComputerMenuInfoFrameBytesHiIndex": 4,
+    "FesSimpleComputerMenuInfoSlotBytesLoIndex": 5,
+    "FesSimpleComputerMenuInfoSlotBytesHiIndex": 6,
+    "FesSimpleComputerMenuInfoPixelFormatIndex": 7,
+    "FesSimpleComputerMenuInfoSlotCountIndex": 8,
+    "FesSimpleComputerMenuInfoStateIndex": 9,
+    "FesSimpleComputerMenuInfoSequenceLoIndex": 10,
+    "FesSimpleComputerMenuInfoSequenceHiIndex": 11,
+    "FesSimpleComputerMenuInfoUnderflowsLoIndex": 12,
+    "FesSimpleComputerMenuInfoUnderflowsHiIndex": 13
+  },
+  "interfaces": [
+    {
+      "id": "fes.memory.hps-ddr",
+      "major": 1,
+      "minor": 0,
+      "capability_bit": 8
+    },
+    {
+      "id": "fes.video.session-display",
+      "major": 1,
+      "minor": 0,
+      "capability_bit": 9
+    }
+  ]
+}

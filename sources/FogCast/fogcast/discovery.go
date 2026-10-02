@@ -211,11 +211,11 @@ func (s *Service) startTargetMonitor() {
 				if ctx.Err() != nil {
 					return
 				}
-				if s.discoveryEnabled() || s.meshCollectInstalled() {
-					observe, observeCancel := context.WithTimeout(ctx, meshInventoryWindow)
-					_, _ = s.ObserveMesh(observe)
-					observeCancel()
-				}
+				// Inventory browsing is independent of the selected target's
+				// Phase 0 bind. Admission still checks discoveryEnabled.
+				observe, observeCancel := context.WithTimeout(ctx, meshInventoryWindow)
+				_, _ = s.ObserveMesh(observe)
+				observeCancel()
 			}
 		}
 	}()
@@ -430,12 +430,6 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 	// stays reachable for a later explicit release.
 	s.stoppedKitLeases = dropStoppedKitLease(s.stoppedKitLeases, client.KitLease())
 	s.selectedTargetReconciled = false
-}
-
-func (s *Service) meshCollectInstalled() bool {
-	s.meshMu.Lock()
-	defer s.meshMu.Unlock()
-	return s.collectNodes != nil
 }
 
 // MeshNodes returns the last collected advertisement inventory. The slice is

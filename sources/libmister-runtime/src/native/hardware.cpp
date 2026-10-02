@@ -64,6 +64,13 @@ bool HasMenu(const CoreDescriptor& descriptor) {
   if(interface.id==generated::FesApplicationInterfaceVideoMenuDisplayID)return true;
  return false;
 }
+bool HasSessionDisplay(const CoreDescriptor& descriptor) {
+ if(descriptor.abi.id!=generated::FesSimpleComputerABIID)return false;
+ for(const auto& interface:descriptor.interfaces)
+  if(interface.id==generated::FesSimpleComputerInterfaceVideoSessionDisplayID&&
+   interface.required&&interface.major==1&&interface.minor==0)return true;
+ return false;
+}
 Error CheckMenu(const CoreDescriptor& descriptor) {
  if(descriptor.format!=2||descriptor.core.id!="fes.menu"||!descriptor.core.system.empty()||
   descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=3||!HasMenu(descriptor))
@@ -71,10 +78,11 @@ Error CheckMenu(const CoreDescriptor& descriptor) {
  return CheckCoreCompatibility(descriptor);
 }
 
-// Admission accepts this interface only as a required application declaration.
+// Applications and simple computers share the boot-latched DDR port layout.
 bool RequiresHpsDdr(const CoreDescriptor& descriptor)
 {
-	if (descriptor.abi.id != generated::FesApplicationABIID) return false;
+	if (descriptor.abi.id != generated::FesApplicationABIID &&
+		descriptor.abi.id != generated::FesSimpleComputerABIID) return false;
 	for (const CoreInterface& interface : descriptor.interfaces)
 		if (interface.id == generated::FesApplicationInterfaceMemoryHpsDdrID &&
 			interface.required &&
@@ -336,6 +344,7 @@ CoreDriver* NativeHardware::ResolveDriver(ProgrammingProfile profile) const
 
 void NativeHardware::ForgetActiveCore()
 {
+	session_display_focused_ = false;
 	active_driver_ = nullptr;
 	active_context_ = {};
 	active_package_.reset();
@@ -386,6 +395,8 @@ Error NativeHardware::AdmitCorePackage(const std::string& directory,
 	if (error.ok()) error = CheckCoreCompatibility(opened.descriptor);
 	if (error.ok() && RequiresHpsDdr(opened.descriptor) && !fpga_.BootHpsDdrLayout())
 		error = BootHpsDdrLayoutError();
+	if (error.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_memory_))
+		error = {ErrorCode::unsupported_interface, "session presentation adapter unavailable", "admission"};
 	ProgrammingProfile profile = ProgrammingProfile::development_contained_v1;
 	CoreDriver* driver = nullptr;
 	if (error.ok()) error = driver_registry_.Resolve(opened.descriptor,
@@ -435,6 +446,8 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	if (compatibility.ok() && RequiresHpsDdr(opened.descriptor) &&
 		!fpga_.BootHpsDdrLayout())
 		compatibility = BootHpsDdrLayoutError();
+	if (compatibility.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_memory_))
+		compatibility = {ErrorCode::unsupported_interface, "session presentation adapter unavailable", "admission"};
 	ProgrammingProfile profile = ProgrammingProfile::development_contained_v1;
 	CoreDriver* driver = nullptr;
 	if (compatibility.ok())
@@ -600,6 +613,10 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesSimpleComputerInterfaceMediaBlobStreamID,
 				generated::FesSimpleComputerInterfaceMediaBlobStreamMajor,
 				generated::FesSimpleComputerInterfaceMediaBlobStreamMinor}};
+		if (fpga_.BootHpsDdrLayout())
+			computer.interfaces.push_back({generated::FesSimpleComputerInterfaceMemoryHpsDdrID,1,0});
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_)
+			computer.interfaces.push_back({generated::FesSimpleComputerInterfaceVideoSessionDisplayID,1,0});
 		std::sort(computer.interfaces.begin(), computer.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer));
@@ -689,6 +706,9 @@ Error NativeHardware::SetController(std::uint8_t port, std::uint16_t buttons,
 
 Error NativeHardware::SetComputerKeyboard(std::uint64_t matrix)
 {
+	if (matrix >> 40) return {ErrorCode::invalid_request,"invalid computer keyboard matrix","input"};
+	if (session_display_focused_ && matrix != ((std::uint64_t(1)<<40)-1))
+		return {}; // UI focus never sends navigation keys to the running machine.
 	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
 		return {ErrorCode::unsupported_interface,
 			"FES computer is not active", "input"};
@@ -922,8 +942,10 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		return {{ErrorCode::invalid_request,
 			"invalid admitted core package", "request"}, false, ""};
  const bool menu=HasMenu(admitted->opened_.descriptor);
+ const bool session_display=HasSessionDisplay(admitted->opened_.descriptor);
  if(menu&&!allow_menu)return {{ErrorCode::unsupported_interface,"menu packages require idle configuration","admission"},false,""};
  if(menu&&(!menu_display_||!menu_memory_))return {{ErrorCode::unsupported_interface,"menu presentation adapter unavailable","admission"},false,""};
+ if(session_display&&(!menu_display_||!menu_memory_))return {{ErrorCode::unsupported_interface,"session presentation adapter unavailable","admission"},false,""};
  if(menu){const auto checked=CheckMenu(admitted->opened_.descriptor);if(!checked.ok())return {checked,false,""};}
 	Error error = RecheckCorePackage(admitted->opened_);
 	if (error.ok() && admitted->composition_) error=RecheckCoreComposition(*admitted->composition_);
@@ -975,7 +997,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		return {stopped.ok() ? quiesced.error : WithPhase(stopped, "input"),
 			quiesced.mutation_attempted, quiesced.observed_core};
 	}
- menu_status_.available=false;
+ menu_status_={};session_display_focused_=false;
 	const Artifact* bitstream = &admitted->opened_.payload;
 	if (admitted->has_programmed_) bitstream = &admitted->programmed_;
 	else if (admitted->composition_) bitstream = &admitted->composition_->payload;
@@ -1026,7 +1048,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 				WithPhase(stopped, "input"), true, identified.observed_core};
 		}
 	}
- if(menu) {
+ if(menu||session_display) {
   error=menu_memory_->InitializeBlack();
   if(error.ok()){menu_memory_->AllowCopies();menu_underflow_streak_=0;}
   if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
@@ -1087,6 +1109,13 @@ HardwareResult NativeHardware::LoadCoreInternal(
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
    menu_status_.geometry=info.geometry;menu_slot_=0;
+  } else if(session_display) {
+   MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
+   if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
+    error={ErrorCode::io_failed,"session display initial state is not drained","menu"};
+   if(!error.ok())return {error,true,identified.observed_core};
+   menu_status_={};menu_status_.session=true;menu_status_.core_generation=generation;
+   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;
   }
 		if (fes_gamepad) {
 			error = input_.Start(generation,
@@ -1108,6 +1137,38 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	core_snapshot_.clear();
 	core_data_flushed_ = false;
 	return {{}, true, identified.observed_core};
+}
+
+Error NativeHardware::SetSessionDisplay(bool visible)
+{
+ if(!active_package_||!HasSessionDisplay(active_package_->info().descriptor)||
+  !menu_status_.session||!menu_display_||!menu_memory_)
+  return {ErrorCode::unsupported_interface,"session display is inactive","menu"};
+ const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
+ if(visible) {
+  if(menu_status_.available)return {};
+  // Neutralize held machine keys before handing navigation to the UI. There
+  // is no execution hold here: BASIC, RAM and expansions keep running.
+  Error error=SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+  if(error.ok())error=menu_display_->Enable(deadline);
+  if(!error.ok())return FailMenuPresent(error);
+  session_display_focused_=true;
+  MenuDisplayInfo info;error=menu_display_->ReadInfo(deadline,&info);
+  if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||
+   info.displayed_sequence!=menu_status_.displayed_sequence))
+   error={ErrorCode::io_failed,"session display enable did not preserve slot ownership","menu"};
+  if(!error.ok())return FailMenuPresent(error);
+  menu_memory_->AllowCopies();menu_underflow_streak_=0;menu_status_.available=true;menu_status_.error={};
+  return {};
+ }
+ CancelMenuCopies();
+ MenuDisplayInfo info;
+ const Error error=menu_display_->Quiesce(deadline,&active_package_->info().descriptor,&info);
+ menu_status_.available=false;
+ if(!error.ok()){menu_status_.error=error;session_display_focused_=true;return error;}
+ menu_status_.displayed_sequence=info.displayed_sequence;
+ session_display_focused_=false;menu_underflow_streak_=0;
+ return {};
 }
 
 HardwareResult NativeHardware::ConfigureMenuPackage(const std::string& directory,const std::string& id)
@@ -1178,7 +1239,8 @@ HardwareResult NativeHardware::LoadSplashIdle()
 		return {input_error.ok() ? error : input_error,
 			quiesce_mutation || programmed.mutation_attempted, ""};
 	}
- menu_unsafe_=false;menu_status_.available=false;
+ menu_unsafe_=false;session_display_focused_=false;
+ if(menu_status_.session)menu_status_={};else menu_status_.available=false;
 	const VideoResult video = idle_video_.BringUp(idle_recipe_,
 		Deadline(clock_, timeouts_.video_ms));
 	if (!video.error.ok())
@@ -1205,6 +1267,18 @@ bool NativeHardware::MenuReactivationAllowed()
 }
 Error NativeHardware::FailMenuPresent(const Error& error)
 {
+ if(menu_status_.session) {
+  CancelMenuCopies();menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=error;
+  // The only physical recovery is disabling this plane. Never execute hold,
+  // program another core, or spend the idle-menu reactivation budget here.
+  MenuDisplayInfo info;
+  const Error drained=menu_display_->Quiesce(Deadline(clock_,timeouts_.core_io_ms),
+   active_package_?&active_package_->info().descriptor:nullptr,&info);
+  session_display_focused_=!drained.ok();
+  if(drained.ok())menu_status_.displayed_sequence=info.displayed_sequence;
+  if(!drained.ok())menu_status_.error={error.code,error.message+"; session display quiesce failed: "+drained.message,"menu"};
+  return menu_status_.error;
+ }
  // The runtime's present failure path calls LoadIdle. Keeping the package
  // selects menu reactivation; clearing it selects splash. The counter resets
  // on that program, so the streak does not carry into the new image.

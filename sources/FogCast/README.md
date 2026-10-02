@@ -196,7 +196,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only
   talks to the runtime menu socket; the tenfoot app keeps its existing host
   session client and existing status reads (for example the kit-lease status
-  read). Host tests cover the backend. The kit image starts this renderer only
+  read). With a running ZX81 that advertises the session display and HPS DDR
+  interfaces, Home or Select opens the hardware room on the same HDMI output;
+  live cassette replace/eject preserves the core generation and RAM. Other
+  packages keep prelaunch controls. Opening/closing is a leased host session
+  operation; frame submission stays on the local runtime socket. Host tests cover the backend. The kit image starts this renderer only
   when `launcher.json` sets `kit_ui` to `tenfoot`, the sealed menu selection is
   present, and `/usr/sbin/fogcast-tenfoot` is installed. Otherwise it starts
   `fogcast-kit` (with `--menu-display` when that selection exists). Empty,
@@ -614,7 +618,9 @@ The [Zx81 workbench](../../docs/hardware-rooms.md) adds local installed-package
 setup, compatible expansion import with progress labels, and cassettes selected
 before Start. Its three starter programs retain their source and licences in
 [`internal/zx81tapes`](internal/zx81tapes/README.md). The kit's single HDMI menu
-is idle-only; live cassette changes require the separate host display path.
+uses MENU while idle. A display-capable ZX81 shell also offers visible live
+replace/eject on that HDMI output; older packages keep prelaunch selection.
+CPU execution and RAM continue while those controls are open.
 
 Native image assembly defaults to Mega Drive; the explicit
 `NATIVE_RUNTIME_SYSTEMS="megadrive pong snes nes"` selection adds sealed

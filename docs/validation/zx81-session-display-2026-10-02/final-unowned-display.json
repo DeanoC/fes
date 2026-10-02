@@ -1,0 +1,9 @@
+{
+  "status": 403,
+  "body": {
+    "error": {
+      "code": "KIT_LEASE_REQUIRED",
+      "message": "KIT_LEASE_REQUIRED"
+    }
+  }
+}

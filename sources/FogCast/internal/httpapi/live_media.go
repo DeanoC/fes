@@ -14,6 +14,7 @@ type liveMediaController interface {
 }
 
 func registerLiveMediaRoutes(mux *http.ServeMux, token string, controller DevelopmentController) {
+	mux.Handle("/v1/session/display", authenticate(token, exactMethod(http.MethodPost, sessionDisplayHandler(controller))))
 	mux.Handle("/v1/development/live-media", authenticate(token, exactMethod(http.MethodPost, replaceLiveMediaHandler(controller))))
 	mux.Handle("/v1/development/clear-media", authenticate(token, exactMethod(http.MethodPost, clearLiveMediaHandler(controller))))
 }

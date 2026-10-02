@@ -28,6 +28,8 @@ std::string Controller::Handle(const std::string& line)
 	switch (request.operation) {
  case Operation::configure_menu:
   result=runtime_.ConfigureMenuPackage(request.package_path,request.package_id);break;
+ case Operation::session_display:
+  result=runtime_.SetSessionDisplay(request.expected_package_id,request.expected_generation,request.visible);break;
  case Operation::menu_frame_begin:
  case Operation::menu_frame_commit:
   result={ErrorCode::invalid_request,"menu frame requires same-connection descriptor exchange","request"};break;

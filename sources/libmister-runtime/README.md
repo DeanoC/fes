@@ -22,6 +22,11 @@ driver, or general framebuffer service.
 Menu-display GP, immutable staging and reserved-memory primitives have host
 test coverage. Explicit idle-menu activation and generation-bound presentation
 use the existing local socket with immutable descriptor transfer.
+Required simple-computer session-display and HPS DDR capabilities reuse that
+frame path with a separate display generation. Opening/closing controls the
+plane without resetting the machine; a session frame fault disables the plane
+and retains the active core instead of loading idle. This has host coverage;
+combined ZX81 exact-artifact hardware acceptance remains pending.
 Default startup remains splash unless the image passes an explicitly selected
 menu package to the daemon. That menu returns after Stop with a fresh
 presentation generation.

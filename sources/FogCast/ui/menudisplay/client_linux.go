@@ -28,6 +28,9 @@ const (
 type Client struct{ Path string }
 type Status struct {
 	Available         bool   `json:"available"`
+	Session           bool   `json:"session"`
+	PackageID         string `json:"package_id"`
+	CoreGeneration    uint64 `json:"core_generation"`
 	Generation        uint64 `json:"generation"`
 	Width             int    `json:"width"`
 	Height            int    `json:"height"`

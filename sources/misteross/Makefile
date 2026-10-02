@@ -66,7 +66,7 @@ help:
 		"  build-fes-demo-media  Seal gamepad/palette-media application with HIP nextpnr" \
 		"  build-fes-demo-audio  Seal gamepad/stereo-tone application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
-		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
+		"  sim-fes-zx81  Test the ZX81 machine, GP mailbox, raster and live DDR session display" \
 		"  sim-fes-zx81-rom  Read the ZX81 machine ROM port for the 8 KiB BASIC image" \
 		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
@@ -149,13 +149,13 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-spectrum sim-fes-spectrum-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-spectrum sim-fes-spectrum-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -285,7 +285,7 @@ sim-fes-zx81-rom:
 		"$(CURDIR)/cores/fes-zx81/sim/rom_init_tb.cpp"
 	@build/sim/fes-zx81-rom/Vrom_init_window "$(CURDIR)/cores/fes-zx81/rtl/zx8x.hex"
 
-sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion
+sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-zx81-session
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -325,6 +325,11 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion
 		cores/fes-zx81/rtl/zx81_video_720p.v \
 		"$(CURDIR)/cores/fes-zx81/sim/video_tb.cpp"
 	@build/sim/fes-zx81-video/Vzx81_video_720p
+
+.PHONY: sim-fes-zx81-session
+sim-fes-zx81-session:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_zx81_session.py --verilator "$(VERILATOR)"
 
 .PHONY: coleco-diagnostic coleco-sprite-diagnostic
 .PHONY: sim-fes-coleco-quartus

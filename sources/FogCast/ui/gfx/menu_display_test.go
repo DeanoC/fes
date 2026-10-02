@@ -12,27 +12,31 @@ import (
 )
 
 type testMenuClient struct {
-	mu           sync.Mutex
-	generation   uint64
-	underflows   uint64
-	pixels       []byte
-	calls        int
-	lastGen      uint64
-	lastLen      int
-	fail         bool
-	unavailable  bool
-	statusErr    error
-	statusCalls  int
-	holdStatus   func()
-	ready        chan struct{}
-	statusSeen   chan uint64
-	presentBlock <-chan struct{}
+	mu             sync.Mutex
+	generation     uint64
+	session        bool
+	packageID      string
+	coreGeneration uint64
+	underflows     uint64
+	pixels         []byte
+	calls          int
+	lastGen        uint64
+	lastLen        int
+	fail           bool
+	unavailable    bool
+	statusErr      error
+	statusCalls    int
+	holdStatus     func()
+	ready          chan struct{}
+	statusSeen     chan uint64
+	presentBlock   <-chan struct{}
 }
 
 func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	c.mu.Lock()
 	c.statusCalls++
 	generation := c.generation
+	session, packageID, coreGeneration := c.session, c.packageID, c.coreGeneration
 	underflows := c.underflows
 	unavailable := c.unavailable
 	statusErr := c.statusErr
@@ -50,7 +54,7 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	if statusErr != nil {
 		return menudisplay.Status{}, statusErr
 	}
-	return menudisplay.Status{Available: !unavailable, Generation: generation, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows}, nil
+	return menudisplay.Status{Available: !unavailable, Generation: generation, Session: session, PackageID: packageID, CoreGeneration: coreGeneration, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows}, nil
 }
 func (c *testMenuClient) Present(_ context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
 	c.mu.Lock()

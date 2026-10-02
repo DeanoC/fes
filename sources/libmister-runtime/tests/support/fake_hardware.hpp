@@ -21,13 +21,17 @@ public:
 	void SetFaultSink(mister::HardwareFaultSink*) override;
 	mister::HardwareResult LoadIdle() override;
  mister::HardwareResult ConfigureMenuPackage(const std::string&,const std::string& id) override {
+  menu_status.session=false;menu_status.core_generation=0;
   menu_configured=true;menu_status.available=true;menu_status.package_id=id;
   menu_status.geometry={1280,720,5120,3686400,4194304};return {{},true,"fes.menu"};
  }
  mister::MenuDisplayStatus menu_display() const override {return menu_status;}
  mister::Error PresentMenuFrame(const mister::MenuFrame&,mister::MenuDisplayInfo* info) override {
   ++menu_present_calls;if(on_menu_present)on_menu_present();
-  if(!menu_present_result.ok())return menu_present_result;
+  if(!menu_present_result.ok()) {
+   if(menu_status.session){menu_status.available=false;menu_status.error=menu_present_result;}
+   return menu_present_result;
+  }
   info->geometry=menu_status.geometry;info->displayed_sequence=++menu_status.displayed_sequence;return {};
  }
  bool menu_configured=false;
@@ -35,6 +39,19 @@ public:
  unsigned menu_present_calls=0;
  mister::Error menu_present_result;
  std::function<void()> on_menu_present;
+ mister::Error SetSessionDisplay(bool visible) override {
+  ++session_display_calls;if(on_session_display)on_session_display();
+  if(!session_display_result.ok()){menu_status.available=false;menu_status.error=session_display_result;return session_display_result;}
+  menu_status.available=visible;if(visible)menu_status.error={};return {};
+ }
+ unsigned session_display_calls=0;
+ mister::Error session_display_result;
+ std::function<void()> on_session_display;
+ mister::Error SetComputerKeyboard(std::uint64_t matrix) override {
+  ++keyboard_calls;keyboard_matrix=matrix;return {};
+ }
+ unsigned keyboard_calls=0;
+ std::uint64_t keyboard_matrix=0;
 	mister::Error FlushSave() override { ++flush_calls; if (on_flush) on_flush(); return flush_result; }
 	mister::Error RestoreInput(std::uint64_t generation) override
 	{

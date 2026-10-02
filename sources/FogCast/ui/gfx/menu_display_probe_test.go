@@ -109,6 +109,232 @@ func TestMenuDisplayProbeSameGenerationPresentsNothing(t *testing.T) {
 	}
 }
 
+func TestMenuDisplayQueuedProbeClearsTransientPresentError(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	// A probe can already be queued when an in-flight frame is rejected by
+	// a concurrent runtime media operation. Its healthy status must clear
+	// that transient error without presenting the unchanged generation.
+	gate := make(chan struct{})
+	client.mu.Lock()
+	client.fail = true
+	client.presentBlock = gate
+	client.mu.Unlock()
+	d.Clear(RGB(4, 5, 6))
+	presentMenu(t, d, client)
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	d.mu.Lock()
+	queued := d.probeQueued
+	d.mu.Unlock()
+	close(gate)
+	if !queued {
+		t.Fatal("healthy probe was not queued behind the rejected frame")
+	}
+	waitMenuStatus(t, d, client, 3)
+	if err := d.LastError(); err != nil {
+		t.Fatalf("healthy probe retained presentation error: %v", err)
+	}
+	d.mu.Lock()
+	backoff, until := d.backoff, d.backoffUntil
+	d.mu.Unlock()
+	if backoff != 0 || !until.IsZero() {
+		t.Fatalf("healthy probe retained backoff %s until %s", backoff, until)
+	}
+	if calls, _, _, _ := client.snapshot(); calls != 2 {
+		t.Fatalf("healthy probe re-presented an unchanged generation: calls=%d", calls)
+	}
+}
+
+func TestMenuDisplayStaleProbeDoesNotChangeReboundState(t *testing.T) {
+	gate := make(chan struct{})
+	var block atomic.Bool
+	client := &testMenuClient{generation: 4, ready: make(chan struct{}, 4), statusSeen: make(chan uint64, 8)}
+	client.holdStatus = func() {
+		if block.Load() {
+			<-gate
+		}
+	}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := false
+	t.Cleanup(func() {
+		block.Store(false)
+		if !closed {
+			close(gate)
+		}
+		d.Close()
+	})
+	d.SetChangeDriven(true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	block.Store(true)
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	deadline := time.Now().Add(time.Second)
+	for client.statusCount() < 2 {
+		if time.Now().After(deadline) {
+			t.Fatal("probe did not reach status")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	d.BindSession("new-package", 77)
+	d.mu.Lock()
+	d.generation = 91
+	d.known = true
+	d.lastErr = errors.New("new binding error")
+	d.hasPresented = false
+	d.presentedGen = 92
+	d.backoff = 3 * time.Second
+	d.backoffUntil = clock.Now().Add(3 * time.Second)
+	d.lastProbe = clock.Now().Add(-time.Minute)
+	// Model a probe queued for the new epoch while the old one is still
+	// completing. The old completion must not clear its queued marker.
+	d.probeQueued = true
+	d.probeEpoch = d.bindingEpoch
+	wantEpoch := d.bindingEpoch
+	d.mu.Unlock()
+
+	closed = true
+	close(gate)
+	block.Store(false)
+	deadline = time.Now().Add(time.Second)
+	for {
+		d.mu.Lock()
+		idle := d.flight == nil
+		d.mu.Unlock()
+		if idle {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("stale probe did not finish")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.bindingEpoch != wantEpoch || d.generation != 91 || !d.known || d.lastErr == nil || d.lastErr.Error() != "new binding error" ||
+		d.hasPresented || d.presentedGen != 92 || d.backoff != 3*time.Second || !d.backoffUntil.Equal(clock.Now().Add(3*time.Second)) ||
+		!d.lastProbe.Equal(clock.Now().Add(-time.Minute)) || !d.probeQueued || d.probeEpoch != wantEpoch {
+		t.Fatalf("stale probe changed rebound state: epoch=%d generation=%d known=%t err=%v presented=%t/%d backoff=%s until=%s lastProbe=%s queued=%t probeEpoch=%d",
+			d.bindingEpoch, d.generation, d.known, d.lastErr, d.hasPresented, d.presentedGen, d.backoff, d.backoffUntil, d.lastProbe, d.probeQueued, d.probeEpoch)
+	}
+}
+
+func TestMenuDisplayPresentCompletionDoesNotChangeReboundState(t *testing.T) {
+	for _, probe := range []bool{false, true} {
+		name := "frame"
+		if probe {
+			name = "probe"
+		}
+		t.Run(name, func(t *testing.T) {
+			gate := make(chan struct{})
+			client := &testMenuClient{generation: 4, ready: make(chan struct{}, 4)}
+			d, err := newMenuDisplayWithClient(client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer d.Close()
+			d.SetChangeDriven(true)
+			clock := newMenuClock()
+			d.now = clock.Now
+			d.Clear(RGB(1, 2, 3))
+			presentMenu(t, d, client)
+			waitMenuIdle(t, d, client, 1)
+
+			if probe {
+				// A changed runtime generation makes a real scheduled probe
+				// re-present the last submitted pixels.
+				clock.Advance(menuProbeInterval)
+				client.mu.Lock()
+				client.generation = 5
+				client.mu.Unlock()
+				client.presentBlock = gate
+				d.Present()
+			} else {
+				client.presentBlock = gate
+				d.Clear(RGB(4, 5, 6))
+				d.Present()
+			}
+			select {
+			case <-client.ready:
+			case <-time.After(time.Second):
+				t.Fatal("runtime Present did not start after Status")
+			}
+
+			d.BindSession("new-package", 77)
+			wantErr := errors.New("new binding error")
+			d.mu.Lock()
+			wantSubmission := &submittedMenuFrame{seq: d.nextSeq + 100}
+			d.generation = 91
+			d.known = true
+			d.lastErr = wantErr
+			d.submitted = wantSubmission
+			d.hasPresented = true
+			d.presentedGen = 92
+			d.backoff = 3 * time.Second
+			d.backoffUntil = clock.Now().Add(3 * time.Second)
+			d.lastProbe = clock.Now().Add(-time.Minute)
+			d.mu.Unlock()
+
+			close(gate)
+			deadline := time.Now().Add(time.Second)
+			for {
+				d.mu.Lock()
+				idle := d.flight == nil
+				d.mu.Unlock()
+				if idle {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("stale Present completion did not release its flight")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			if d.pending != 0 || d.flight != nil || d.generation != 91 || !d.known || d.lastErr != wantErr ||
+				d.submitted != wantSubmission || !d.hasPresented || d.presentedGen != 92 || d.backoff != 3*time.Second ||
+				!d.backoffUntil.Equal(clock.Now().Add(3*time.Second)) || !d.lastProbe.Equal(clock.Now().Add(-time.Minute)) {
+				t.Fatalf("stale %s completion changed rebound state: pending=%d flight=%v generation=%d known=%t err=%v submitted=%p presented=%t/%d backoff=%s until=%s lastProbe=%s",
+					name, d.pending, d.flight, d.generation, d.known, d.lastErr, d.submitted, d.hasPresented, d.presentedGen, d.backoff, d.backoffUntil, d.lastProbe)
+			}
+		})
+	}
+}
+
+func TestMenuDisplaySameEpochProbeResultApplies(t *testing.T) {
+	d, _ := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	t.Cleanup(d.Close)
+	d.mu.Lock()
+	epoch := d.bindingEpoch
+	frame := queuedMenuFrame{epoch: epoch, seq: 1}
+	d.probeQueued = true
+	d.probeEpoch = epoch
+	d.mu.Unlock()
+	d.finishProbeLocked(frame, menudisplay.Status{Available: true, Generation: 12}, nil, true)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.probeQueued || !d.known || d.generation != 12 || !d.hasPresented || d.presentedGen != 12 || d.lastErr != nil || d.backoff != 0 || !d.backoffUntil.IsZero() {
+		t.Fatalf("same-epoch probe result not applied: queued=%t known=%t generation=%d presented=%t/%d err=%v backoff=%s until=%s", d.probeQueued, d.known, d.generation, d.hasPresented, d.presentedGen, d.lastErr, d.backoff, d.backoffUntil)
+	}
+}
+
 func TestMenuDisplayProbePresentsWhenNeverPresented(t *testing.T) {
 	d, client := newChangeDrivenMenu(t, 3, true)
 	clock := newMenuClock()

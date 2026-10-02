@@ -98,6 +98,7 @@ public:
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
  HardwareResult ConfigureMenuPackage(const std::string& path,const std::string& id) override {return hardware_.ConfigureMenuPackage(path,id);}
  MenuDisplayStatus menu_display() const override {return hardware_.menu_display();}
+ Error SetSessionDisplay(bool visible) override {return hardware_.SetSessionDisplay(visible);}
  Error PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* info) override {return hardware_.PresentMenuFrame(frame,info);}
 	Error FlushSave() override { return hardware_.FlushSave(); }
 	Error RestoreInput(std::uint64_t generation) override

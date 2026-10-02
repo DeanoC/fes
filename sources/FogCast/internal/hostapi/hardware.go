@@ -41,7 +41,7 @@ func registerHardware(mux *http.ServeMux, service Service, session *sessionCoord
 		if result.Machines == nil {
 			result.Machines = []fogcast.HardwareMachine{}
 		}
-		active, err := session.status(r.Context())
+		active, err := requestSessionCoordinator(session, service, r, "").status(r.Context())
 		if err != nil {
 			result.SessionError = "The running machine is unavailable. Reconnect before changing live media or stopping."
 		} else {

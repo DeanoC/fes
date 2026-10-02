@@ -38,6 +38,7 @@ module top #(
     end
     generate if (TEST_PATTERN) begin : pattern
     fes_menu_video #(.TEST_PATTERN(1'b1)) scanout (
+        .raster_h(11'd0), .raster_v(10'd0),
         .clk(pixel_clk), .rst(!locked), .enable(locked && DIAGNOSTIC_ENABLE), .quiesce(1'b0),
         .submit_valid(desired_sequence != displayed_sequence),
         .submit_slot(desired_sequence[0]), .submit_sequence(desired_sequence),

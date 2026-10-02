@@ -284,14 +284,14 @@ func TestCoreMediaErrorsAreReturnedWithoutReplay(t *testing.T) {
 	}
 }
 
-func TestCoreMediaManagementIsHostOnly(t *testing.T) {
+func TestCoreMediaEntryManagementIsHostOnly(t *testing.T) {
 	s := &coreMediaAPIService{}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ method, path string }{
-		{"POST", "/api/v1/core-media"}, {"GET", "/api/v1/core-media/" + strings.Repeat("a", 64)},
+		{"GET", "/api/v1/core-media/" + strings.Repeat("a", 64)},
 		{"POST", "/api/v1/library/core-entries"}, {"PUT", "/api/v1/library/core-entries/core-test/media"},
 	} {
 		req := launcherRequest(tc.method, "http://192.0.2.1:8789"+tc.path, strings.NewReader("{}"))

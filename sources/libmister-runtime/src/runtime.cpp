@@ -230,6 +230,7 @@ public:
  Error PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output)
  {
   if(!output)return Invalid("missing menu completion output");
+  bool session=false;
   {
    std::lock_guard<std::mutex> lock(mutex_);
    Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
@@ -238,10 +239,22 @@ public:
    error=frame.ValidateImmutable(frame.fd());if(!error.ok())return error;
    busy_=true;
    menu_frame_busy_=true;
+   session=status_.menu_display.session;
   }
   MenuDisplayInfo info;const Error error=hardware_.PresentMenuFrame(frame,&info);
   frame.preparation_.reset();
   if(!error.ok()) {
+   if(session) {
+    // Display ownership is revoked without retiring the running generation.
+    // Hardware only disables the plane; this branch can never program idle.
+    {
+     std::lock_guard<std::mutex> lock(mutex_);
+     status_.menu_display=hardware_.menu_display();
+     status_.menu_display.available=false;status_.menu_display.generation=0;
+     status_.menu_display.error=error;preparation_.reset();busy_=false;menu_frame_busy_=false;
+    }
+    condition_.notify_all();return error;
+   }
    // Hardware keeps the menu package while a bounded reactivation is allowed
    // and clears it once that limit is exhausted. LoadIdle then reprograms the
    // package or the splash. The copy has already finished or been cancelled.
@@ -255,6 +268,45 @@ public:
    status_.menu_display.underflows=info.underflows;busy_=false;menu_frame_busy_=false;*output=info;
   }
   condition_.notify_all();return {};
+ }
+
+ Error SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible)
+ {
+  if(!ValidPackageId(package_id)||!generation)return Invalid("invalid session display request");
+  {
+   std::unique_lock<std::mutex> lock(mutex_);
+   WaitForMenuFrame(lock);
+   if(busy_||!started_||pending_fault_generation_||status_.state!=State::running_development)
+    return Busy("session display is unavailable");
+   if(generation!=active_generation_||generation!=status_.generation||package_id!=status_.active_package.package_id)
+    return Invalid("session display package or generation changed");
+   bool capable=false;
+   for(const auto& interface:status_.capabilities.active_interfaces)
+    if(interface.id==native::generated::FesSimpleComputerInterfaceVideoSessionDisplayID&&interface.major==1&&interface.minor==0)
+     capable=true;
+   if(!capable)return {ErrorCode::unsupported_interface,"session display is unavailable","menu"};
+   if(visible&&status_.menu_display.available)return {};
+   if(visible&&next_menu_generation_==std::numeric_limits<std::uint64_t>::max())return Invalid("menu generation exhausted");
+   busy_=true;preparation_.reset();
+  }
+  const Error error=hardware_.SetSessionDisplay(visible);
+  {
+   std::lock_guard<std::mutex> lock(mutex_);
+   status_.menu_display=hardware_.menu_display();
+   status_.menu_display.session=true;status_.menu_display.core_generation=generation;
+   status_.menu_display.package_id=package_id;status_.menu_display.generation=0;
+   if(error.ok()&&visible) {
+    status_.menu_display.generation=++next_menu_generation_;session_display_focused_=true;
+   } else if(error.ok())session_display_focused_=false;
+   else {
+    status_.menu_display.available=false;status_.menu_display.error=error;
+    // A failed close does not prove the UI plane has left HDMI. Require a
+    // successful close before machine input becomes eligible again.
+    session_display_focused_=true;
+   }
+   busy_=false;
+  }
+  condition_.notify_all();return error;
  }
 
 	Status status() const
@@ -453,6 +505,7 @@ public:
 			const Capabilities observed = hardware_.capabilities();
 			status_.capabilities.media_stream = observed.media_stream;
 			status_.capabilities.media_units = observed.media_units;
+   status_.menu_display=hardware_.menu_display();
 			if (status_.capabilities.media_stream.interface.id.empty()) {
 				auto& interfaces = status_.capabilities.active_interfaces;
 				interfaces.erase(std::remove_if(interfaces.begin(), interfaces.end(),
@@ -592,10 +645,12 @@ public:
 
 	Error SetComputerKeyboard(std::uint64_t matrix)
 	{
+		if (matrix >> 40) return Invalid("invalid computer keyboard matrix");
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || !started_ || status_.state != State::running_development)
 				return Busy("FES computer is not running");
+   if(session_display_focused_&&matrix!=((std::uint64_t(1)<<40)-1))return {};
 			busy_ = true;
 		}
 		const Error error = hardware_.SetComputerKeyboard(matrix);
@@ -982,8 +1037,14 @@ public:
   --menu_mutation_waiters_;
  }
  Error AdmitMenuGeneration(std::uint64_t generation) const {
-  if(busy_||menu_mutation_waiters_||!started_||status_.state!=State::idle||!status_.menu_display.available)
-   return Busy("idle menu display is unavailable");
+  if(busy_||menu_mutation_waiters_||!started_||pending_fault_generation_||!status_.menu_display.available)
+   return Busy("menu display is unavailable");
+  if(status_.menu_display.session) {
+   if(status_.state!=State::running_development||!active_generation_||
+    status_.menu_display.core_generation!=active_generation_||status_.generation!=active_generation_||
+    status_.menu_display.package_id!=status_.active_package.package_id)
+    return Invalid("session display binding changed");
+  } else if(status_.state!=State::idle)return Busy("idle menu display is unavailable");
   if(!generation||generation!=status_.menu_display.generation)return Invalid("menu generation changed");
   return {};
  }
@@ -1062,6 +1123,7 @@ public:
 
 	Status FreshStatus(State state)
 	{
+  if(state!=State::idle){preparation_.reset();session_display_focused_=false;}
 		Status result;
 		result.state = state;
 		result.capabilities = hardware_.capabilities();
@@ -1190,6 +1252,7 @@ public:
 	std::deque<HardwareFault> faults_;
 	bool busy_;
 	bool menu_frame_busy_=false;
+ bool session_display_focused_=false;
 	unsigned menu_mutation_waiters_=0;
 	bool started_;
 	bool stopping_;
@@ -1209,6 +1272,7 @@ Runtime::~Runtime() = default;
 Error Runtime::Start() { return impl_->Start(); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
 Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}
+Error Runtime::SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible) {return impl_->SetSessionDisplay(package_id,generation,visible);}
 Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output) {return impl_->PresentMenuFrame(generation,frame,output);}
 
 Status Runtime::status() const { return impl_->status(); }

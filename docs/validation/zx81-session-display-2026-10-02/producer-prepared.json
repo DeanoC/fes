@@ -1,0 +1,26 @@
+{
+  "archive": {
+    "path": "core.fcore",
+    "sha256": "24efd207383ad8f32059e16982dad2cc32ce05e6229f61ace2f5ff04862cb1be",
+    "size": 3368960
+  },
+  "core_id": "fes.zx81",
+  "format": 2,
+  "package_id": "f04f058c1a1b38de1c4f2f65f8191ac1e0fac63664de816300482b184411574f",
+  "selection": {
+    "manifest_sha256": "17840abd6772f667bfd49a8ba6d5efb2b0e9c534696119c881cdf5b3ce7cf83d",
+    "path": "fes-zx81.package-selection.toml",
+    "payload_sha256": "4c4efd299f6228fc38fe9d1d1917ced030a4ede188776f83e8705a9d934a00f0",
+    "sha256": "be299568007c3436efb581d0d34f0be9e4f2f6d6801605ed303fee9ea56d836a"
+  },
+  "source_selection": {
+    "path": "fes-zx81.package-selection.provenance.json",
+    "sha256": "33295df47ac5f5cc1f4ec72ebce2f4fd418ca6628430cb498a6f004dc17892d5"
+  },
+  "sources": {
+    "FogCast": "75d734f40c5ed7068ba9685c9d93b8a41564abe8",
+    "libmister-runtime": "75d734f40c5ed7068ba9685c9d93b8a41564abe8",
+    "mister-packages": "75d734f40c5ed7068ba9685c9d93b8a41564abe8",
+    "misteross": "75d734f40c5ed7068ba9685c9d93b8a41564abe8"
+  }
+}

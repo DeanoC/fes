@@ -12,11 +12,18 @@ conservative configuration recommendation, not a measured minimum.
 | `aritm` | Mental arithmetic training game | Mikael O. Bonnier | GPL-3.0-or-later | 8672 | Type answers and NEW LINE; `-1` leaves the problem set; follow the menus |
 | `character-display` | Character display demo | maziac (wrapper credited upstream to stevexyz and Lardo) | MIT | 980 | Hold `S` to start |
 
-Select the cassette before starting the kit core, enter `LOAD ""` in BASIC,
-then `RUN` if needed. The kit's idle HDMI menu cannot currently appear over a
-running ZX81; stop before selecting another tape. These files have passed
-host-side bounds, digest and memory-layout checks. None has kit load/run
-acceptance in this change.
+Select a cassette before Start, or use Home on a keyboard / Select on a
+controller to open the hardware room in a running session when the selected
+ZX81 package supports in-session HDMI controls. Its visible cassette picker
+can arm another tape or eject it while the machine keeps running. Older kit
+packages retain selection before Start; the separate host display also offers
+live controls. Enter `LOAD ""` in BASIC, then `RUN` if needed; selecting a tape
+does not enter those commands.
+
+These files have passed host-side bounds, digest and memory-layout checks.
+The FES validation records identify hardware observations against an exact
+core, BASIC ROM and cassette; host checks alone do not establish load/run
+acceptance.
 
 ## Provenance and reproduction
 
@@ -39,7 +46,7 @@ terminators. `CLS` before each hint limits displayed text to one 24-character
 line, so repeated guesses cannot grow the display. Two scalar number variables
 need 12 bytes; the memory budget check reserves a further 64 bytes for numeric
 input/editing, 64 for the calculator and 128 for the machine stack. This checks
-normal numeric guesses; kit load/run acceptance remains outstanding.
+normal numeric guesses; it does not establish hardware load/run acceptance.
 
 ### Aritm
 

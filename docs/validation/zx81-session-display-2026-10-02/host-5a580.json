@@ -1,0 +1,10 @@
+{
+  "arch": "amd64",
+  "fes_revision": "5a58053229b5e1772defe5f9bdc34c72f659db71",
+  "files": {
+    "fogcast": "482249fa8bef1edc9c84e07cb9d8b819bf5d1ff637bb7d119a936fe45ba9e99d",
+    "fogcast-api": "e41c1f1794a143474c4b2a54f43fb7c628238c40bfce175c0d6957fa1887f07e"
+  },
+  "inputs": "3b253cc6b7b86b371fa7071a3aaeaa7ff0f1313c6ca1cc7bec2c20390d08ce50",
+  "os": "linux"
+}

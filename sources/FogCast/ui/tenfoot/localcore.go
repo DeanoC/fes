@@ -283,8 +283,15 @@ func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 	}
 	a.mu.Lock()
 	if !a.localCoreBusyLocked() {
+		handled, forward := a.sessionPadLocked(e, now)
+		feed := a.localFeed
 		a.mu.Unlock()
-		return false
+		for _, ev := range forward {
+			if feed != nil {
+				_ = feed.Send(ev, now)
+			}
+		}
+		return handled
 	}
 	if a.localPhase != localPhaseRunning {
 		a.noteLocalHeldLocked(e)

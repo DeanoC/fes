@@ -84,6 +84,46 @@ reload both fail. Stop from splash idle remains idempotent. A present that
 misses completion or trips the underflow limit reactivates the menu within
 the budget above before using the splash path. Failed containment requires reboot.
 
+## In-session simple-computer display
+
+An active package with required `fes.video.session-display` and
+`fes.memory.hps-ddr` 1.0 exposes the same frame transport. Open/return uses the
+active core identity, not the frame generation:
+
+```json
+{"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":true}
+{"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":false}
+```
+
+Status carries `session: true` and `core_generation: 7` in `menu_display`,
+alongside the active package ID and fixed geometry, while the plane is closed.
+`available` becomes true only after successful open, which grants a fresh
+nonzero `menu_display.generation` for immutable frame submissions. A repeated
+open is idempotent. Close sets availability false and generation zero, revokes
+the preparation immediately, and requires a new generation after the next
+open. Stop and replacement also revoke outstanding display ownership. The
+frame generation never follows a replacement core automatically.
+
+Open neutralizes held ZX81 keys and suppresses navigation keys while the
+launcher owns focus. The first complete submitted frame becomes visible at a
+frame boundary. Close and frame failure disable and drain the plane without
+holding execution or resetting the computer. A sticky reader fault does not
+prevent proof that the disabled plane is drained. On an ambiguous GP exchange,
+the adapter realigns from the live ACK and verifies the same package identity
+before the distinct quiesce operation. It never repeats a submission, programs
+idle or retires the active machine to recover the display. The error remains
+in `menu_display.error`. If close cannot prove drained state, the runtime
+continues suppressing machine keys until close succeeds or the machine is
+replaced/stopped. Media mutations and display frames share the runtime busy
+fence; close and Stop use the same bounded frame wait.
+
+The combined ZX81 display has a
+[frozen image/HDMI diagnostic](../../../docs/validation/2026-10-02-zx81-session-display.md)
+with a ROM-backed BASIC program preserved during visible tape arm/eject.
+Keyboard and controller events used Linux evdev injection. Physical operator
+input, controlled clock/service faults and expansion/audio acceptance remain
+separate; existing idle-menu evidence does not qualify a later ZX81 artifact.
+
 ## Pattern client
 
 Build with `make menu-pattern-client`. It uses the daemon protocol only:

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_application.vh"
-module fes_menu_control (
+module fes_menu_control #(
+    // A broken session plane can be disabled without resetting its machine.
+    // Idle firmware retains its original fault containment behavior.
+    parameter [0:0] FAULT_QUIESCE_ACK = 1'b0
+) (
     input wire clk, request, exec_reset, drained, faulted, submit_ready,
     input wire [6:0] opcode,
     input wire [7:0] index,
@@ -32,7 +36,7 @@ module fes_menu_control (
         if (response_valid) begin
             if (!request) response_valid <= 1'b0;
         end else if (wait_drain) begin
-            if (drained && !faulted) begin
+            if (drained && (!faulted || FAULT_QUIESCE_ACK)) begin
                 enable <= 1'b0; pending <= 1'b0; stage_count <= 2'd0;
                 wait_drain <= 1'b0; response_valid <= 1'b1;
             end

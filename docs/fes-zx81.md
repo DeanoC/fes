@@ -1,15 +1,17 @@
 # FES ZX81
 
 The standard core is a `fes.simple-computer` 1.0 package (`fes.zx81`
-1.4.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
-fixed 720p60 HDMI and a registered Z80-like expansion bus. There is no ZX80,
+1.5.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
+fixed 720p60 HDMI, runtime-owned in-session launcher controls and a registered
+Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
 package carries the vacant bus; carts are independent bus consumers.
 
-The FES factory recipe selects this package for a future native image. The
-1.3.0 package has passed the exact-package kit 1 silent-path diagnostic with
-the repaired OSS compiler, but has not been installed in the current factory
-image. See the [kit diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md).
+The native image selects this package. The
+[session-display validation](validation/2026-10-02-zx81-session-display.md)
+records the exact sealed shell,
+verified image and designated-kit HDMI diagnostics. Physical operator input
+and expansion/audio acceptance remain separate from that display smoke.
 The host library path is `core-install` / `core-entry` /
 `POST /api/v1/session/launch` with the returned `game_id`, as for other
 described FPGA cores. Select the 8192-byte `machine-rom` binary explicitly;
@@ -24,21 +26,20 @@ the target links it through the package's sealed ROM map at download time. See
 | Core ID | `fes.zx81` |
 | ABI | `fes.simple-computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k` (required); `fes.expansion.zx81-bus` (optional) |
+| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required); `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
 | Input | 40-bit active-low matrix via runtime `set_keyboard`; no `fes.gamepad` |
-| Stop | existing package Select+Start |
+| Stop | ordinary session Stop; Select+Start held for one second on the kit |
+| Live controls | Home or Select opens the launcher plane; Escape/B or Return to play closes it |
 | Tape | launch `load_media` (hold-reset primary bind) or mid-session `replace_live_media` / `clear_media`; empty `LOAD ""` reports `0/0` |
 
-Mid-session tape select/load while the core is already running is the
-design lock in [ZX81 tape media](zx81-tape-media.md). Slice 1 delivers the
-runtime mailbox path without hold-reset soft-reboot. Slice 2 adds the FogCast
-host/agent session change-tape and eject API over core-media ids
-(`POST /api/v1/session/live-media`, `…/clear`, CLI `change-tape` /
-`eject-tape`). Slice 3 adds sofa/tenfoot Load-tape chrome (arm + eject) on that
-API. Kit HIL is Slice 4. That path is distinct from the launch-time
-machine-ROM splice and from Stop→relaunch. This page describes the mailbox
-contract that is true today.
+Live tape arm/eject uses the existing `fes.media.blob` mailbox without a
+hold-reset reboot. The captured host/agent session operations are
+`POST /api/v1/session/live-media` and `…/clear`; CLI uses `change-tape` /
+`eject-tape`. The visible kit picker offers imported `.p` files and attributed
+starter tapes while the computer continues running. Arming does not type
+`LOAD ""`, change next-start library selections or reload the machine. See
+[ZX81 tape media](zx81-tape-media.md) and [hardware rooms](hardware-rooms.md).
 
 `core-load` is the development loader and does not create a library entry.
 The target agent must post `set_keyboard`; an agent without that path only
@@ -47,13 +48,15 @@ reaches uinput.
 ## Producers
 
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
-1.1 bring-up/oracle lane; it does not produce the standard socketed package.
+1.2 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.4 socketed format-3 package. The package seals `rom-map.json` alongside
+1.5 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52.224 MHz system clock, registered M10K and
-the scoped `toolchains/zx81-expansion.lock`; it does not inherit Quartus
+the scoped `toolchains/zx81-expansion.lock`, including the bounded HPS DDR atom
+declaration. The producer closes over the shared display/DDR sources and checks
+all three clocks, ROM patching and the reserved socket. It does not inherit Quartus
 acceptance. Its combined 52.224/12.288 MHz system/audio PLL and shared PCM/I2S
 output mute on Hold or lost audio lock. The repaired 1.3.0 package passed
 vacant-socket silence on kit 1. Earlier packages emitted nonzero HDMI samples;
@@ -73,14 +76,32 @@ Enable jitter stays below one transport cycle; HDMI/audio clocks are unchanged.
 
 ## Menu / sofa UI
 
-Library install and `session/launch` of `fes.zx81` are host APIs. Showing
-that `game_id` in the sofa catalog grid is FogCast UI work, not this core
-slice.
+Library install and `session/launch` use the normal FogCast host APIs. The kit
+launcher enables live workbench/tape controls only when the active package
+advertises the supported session-display and HPS DDR interfaces. Its immutable
+full frames reuse the idle MENU transport under a separate display generation;
+opening and closing controls never programs MENU. The first complete frame
+selects opaque launcher pixels on the shared 720p raster. Returning drains
+physical scanout before machine input resumes. Held keys require release and a
+fresh press. Failed or ambiguous close retains UI focus for retry.
+
+Older packages retain prelaunch cassette selection, and the separate host
+display retains its live controls. The
+[shared contract](../sources/mister-packages/docs/session-display.md) and
+[runtime presentation](../sources/libmister-runtime/docs/menu-display.md)
+describe ownership and failure
+behavior.
 
 ## Validation
 
-Component tests and Verilator live in the misteross worktree. Hardware
-diagnostics on the designated kit used a sealed OSS package and a derived
+Component tests and Verilator live in `sources/misteross` in this FES repository.
+The current 1.5.0 display plane has a
+[frozen image/HDMI record](validation/2026-10-02-zx81-session-display.md),
+including manual BASIC load/list
+and preserved program pixels during live swap/eject. Input events were injected
+through keyboard/controller evdev paths; physical button acceptance is pending.
+
+Earlier hardware diagnostics on the designated kit used a sealed OSS package and a derived
 keyboard-agent rootfs. Those are not exact-artifact acceptance of an
 assembled FES image. The [1.3.0 shared-audio diagnostic](validation/2026-09-30-zx81-shared-audio-hil.md)
 passed vacant-socket silence, GP/package identity, ROM linking and Stop with
