@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
@@ -40,9 +41,9 @@ func TestLibraryPartsClientCarriesExactIdentityAndRejectsOtherReceipts(t *testin
 			case "persistence":
 				status.CorePackage.PersistenceMode = "persistent"
 			}
-			calls := 0
+			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls++
+				calls.Add(1)
 				path := "/v1/library/core/parts"
 				if name == "ordinary load" {
 					path = "/v1/development/core"
@@ -70,15 +71,15 @@ func TestLibraryPartsClientCarriesExactIdentityAndRejectsOtherReceipts(t *testin
 			} else {
 				_, err = client.LoadLibraryPartsCore(context.Background(), 5, strings.NewReader("parts"), id)
 			}
-			if (err == nil) != (name == "library") || calls != 1 {
-				t.Fatalf("error=%v calls=%d", err, calls)
+			if (err == nil) != (name == "library") || calls.Load() != 1 {
+				t.Fatalf("error=%v calls=%d", err, calls.Load())
 			}
 		})
 	}
 }
 
 func TestLibraryPartsClientUsesSharedKitLease(t *testing.T) {
-	calls := 0
+	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/kit/claim":
@@ -86,7 +87,7 @@ func TestLibraryPartsClientUsesSharedKitLease(t *testing.T) {
 		case "/v1/kit/release":
 			io.WriteString(w, `{"state":"free"}`)
 		case "/v1/library/core/parts":
-			calls++
+			calls.Add(1)
 			if r.Header.Get(targetclient.KitLeaseHeader) != "parts-owner" {
 				t.Error("missing lease")
 			}
@@ -101,7 +102,7 @@ func TestLibraryPartsClientUsesSharedKitLease(t *testing.T) {
 	defer lease.Close(context.Background())
 	client := targetclient.NewClient(base, "secret", server.Client()).WithKitLease(lease)
 	_, err := client.LoadLibraryPartsCore(context.Background(), 5, strings.NewReader("parts"), strings.Repeat("a", 64))
-	if err != nil || calls != 1 {
-		t.Fatalf("err=%v calls=%d", err, calls)
+	if err != nil || calls.Load() != 1 {
+		t.Fatalf("err=%v calls=%d", err, calls.Load())
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -114,9 +115,9 @@ func TestVideoCLIImportRejectsOversizedArchiveBeforeHTTP(t *testing.T) {
 
 func TestVideoCLIImportLostResponseIsNotReplayed(t *testing.T) {
 	path, _, _ := cliVideoArchive(t)
-	calls := 0
+	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
+		calls.Add(1)
 		_, _ = io.Copy(io.Discard, r.Body)
 		connection, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
@@ -127,7 +128,7 @@ func TestVideoCLIImportLostResponseIsNotReplayed(t *testing.T) {
 	}))
 	defer server.Close()
 	result := runCoreLibraryCommand(context.Background(), server.URL, []string{"video-part-install", "scanlines", path})
-	if result.err == nil || calls != 1 || !strings.Contains(safeCommandError(result.err).Message, "outcome unknown") {
-		t.Fatalf("lost response result=%+v calls=%d", result, calls)
+	if result.err == nil || calls.Load() != 1 || !strings.Contains(safeCommandError(result.err).Message, "outcome unknown") {
+		t.Fatalf("lost response result=%+v calls=%d", result, calls.Load())
 	}
 }
