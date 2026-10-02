@@ -61,11 +61,40 @@ class RamtestNoticesTest(unittest.TestCase):
         notices.process('verify', self.target)
         self.assertFalse(self.destination.exists())
 
-    def test_changed_payload_or_wrong_source_rejected(self):
-        (self.package / 'core.rbf').write_bytes(b'changed')
-        with self.assertRaises(ValueError):
-            notices.process('install', self.target, self.package)
+    def test_equivalent_clone_urls_produce_the_same_notice(self):
         path = self.package / 'manifest.toml'
-        path.write_text(path.read_text().replace('https://github.com/DeanoC/fes.git', 'https://github.com/DeanoC/misteross.git'))
+        original = path.read_text()
+        expected = notices.source_notice(self.package)
+        for repository in (
+                'https://github.com/DeanoC/fes',
+                'https://github.com/DeanoC/fes.git/',
+                'git@github.com:DeanoC/fes',
+                'git@github.com:DeanoC/fes.git',
+                'ssh://git@github.com/DeanoC/fes',
+                'ssh://git@github.com/DeanoC/fes.git',
+                'https://GITHUB.COM/deanoc/FES'):
+            with self.subTest(repository=repository):
+                path.write_text(original.replace(notices.REPOSITORY, repository))
+                self.assertEqual(notices.source_notice(self.package), expected)
+                notices.process('install', self.target, self.package)
+                notices.process('verify', self.target, self.package)
+
+    def test_wrong_source_rejected(self):
+        path = self.package / 'manifest.toml'
+        original = path.read_text()
+        for repository in (
+                'https://github.com/DeanoC/misteross.git',
+                'https://github.com/another/fes.git',
+                'https://example.com/DeanoC/fes.git',
+                'https://github.com/DeanoC/fes.git/extra',
+                'https://github.com/DeanoC/fes.git?other',
+                'git@github.com:DeanoC/fes-other'):
+            with self.subTest(repository=repository):
+                path.write_text(original.replace(notices.REPOSITORY, repository))
+                with self.assertRaises(ValueError):
+                    notices.process('install', self.target, self.package)
+
+    def test_changed_payload_rejected(self):
+        (self.package / 'core.rbf').write_bytes(b'changed')
         with self.assertRaises(ValueError):
             notices.process('install', self.target, self.package)

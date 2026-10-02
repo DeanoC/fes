@@ -12,11 +12,17 @@ LICENSE = IMAGE / 'licenses/fes.ramtest/COPYING'
 REPOSITORY = 'https://github.com/DeanoC/fes.git'
 
 
+def is_fes_repository(repository):
+    return re.fullmatch(
+        r'(?:https://(?i:github\.com)/|git@(?i:github\.com):|ssh://git@(?i:github\.com)/)'
+        r'(?i:DeanoC/fes)(?:\.git)?/?', repository) is not None
+
+
 def source_notice(package):
     manifest = tomllib.loads((package / 'manifest.toml').read_text())
     revision = manifest['build']['revision']
     if (manifest['core']['id'] != 'fes.ramtest'
-            or manifest['build']['repository'] != REPOSITORY
+            or not is_fes_repository(manifest['build']['repository'])
             or re.fullmatch(r'[0-9a-f]{40}', revision) is None
             or re.fullmatch(r'[0-9a-f]{64}', package.name) is None):
         raise ValueError('RAM Tester notice requires an exact FES source identity')
