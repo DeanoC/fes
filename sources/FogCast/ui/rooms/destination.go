@@ -126,8 +126,15 @@ type Destination struct {
 	NoteBy         string
 	Query          string
 	Platform       string
-	Matches        []hostclient.Game
-	History        History
+	// Matches is the play rows Confirm may use. When any sibling can play,
+	// this is only those viable rows. It is not the full candidate set.
+	Matches []hostclient.Game
+	// Candidates is every query match, including blocked siblings. A blocked
+	// sibling stays here as Unavailable (its launch block is the reason) and
+	// is not a choice. Refresh reclassifies this set, so a sibling that
+	// becomes viable can turn Ready or Needs a choice.
+	Candidates []hostclient.Game
+	History    History
 	// LeaseHeld is a foreign kit lease. The same shell's Soft-stop retained
 	// grant leaves this false so that shell stays Ready.
 	LeaseHeld bool
@@ -159,28 +166,81 @@ type Destination struct {
 // two Ready editions. One viable option is Ready with no prompt.
 // Skew, in use, not installed, and other fail-closed rows are
 // Unavailable with a short reason. They are never a choice.
+// The returned games are those play rows. Blocked siblings are omitted
+// here; publish and refresh keep them on Destination.Candidates.
 func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostclient.Game) {
+	state, choices, _ := playSplit(games, query)
+	return state, choices
+}
+
+// playSplit filters to the query's candidate set and the play rows.
+// choices is what Confirm may offer. candidates keeps every sibling,
+// including Unavailable ones, so a later refresh can reclassify them.
+func playSplit(games []hostclient.Game, query string) (state Availability, choices, candidates []hostclient.Game) {
 	matches := matchingGames(games, query)
 	if len(matches) == 0 {
-		return AvailMissing, nil
+		return AvailMissing, nil, nil
 	}
 	if exact := exactTitleMatches(matches, query); len(exact) > 0 {
 		matches = exact
 	}
+	candidates = append([]hostclient.Game(nil), matches...)
 	viable, blocked, checking := partitionPlayOptions(matches)
-	if len(viable) > 1 {
-		return AvailNeedsChoice, viable
+	switch {
+	case len(viable) > 1:
+		return AvailNeedsChoice, viable, candidates
+	case len(viable) == 1:
+		return AvailReady, viable, candidates
+	case checking:
+		return AvailChecking, matches, candidates
+	case len(blocked) == 0:
+		return AvailMissing, nil, nil
+	default:
+		return AvailUnavailable, blocked, candidates
 	}
-	if len(viable) == 1 {
-		return AvailReady, viable
+}
+
+// storePlay classifies games onto d. retargetReadyID points GameID at the
+// sole ready row when the previous id is no longer that row. A script-set
+// id is left alone when retargetReadyID is false.
+func (d *Destination) storePlay(games []hostclient.Game, retargetReadyID bool) {
+	if d == nil {
+		return
 	}
-	if checking {
-		return AvailChecking, matches
+	state, choices, candidates := playSplit(games, d.Query)
+	d.Availability = state
+	d.Matches = choices
+	d.Candidates = candidates
+	if state == AvailReady && len(choices) == 1 {
+		id := strings.TrimSpace(d.GameID)
+		switched := retargetReadyID && id != "" && id != choices[0].ID
+		if id == "" || switched {
+			d.GameID = choices[0].ID
+			if switched {
+				if system := strings.TrimSpace(choices[0].System); system != "" {
+					d.System = system
+				}
+			}
+		}
 	}
-	if len(blocked) == 0 {
-		return AvailMissing, nil
+	if d.System == "" && len(choices) == 1 {
+		d.System = choices[0].System
 	}
-	return AvailUnavailable, blocked
+}
+
+// PlayChoices is the viable rows a Needs a choice confirm may offer.
+// Blocked siblings are not included.
+func PlayChoices(d Destination) []hostclient.Game {
+	if d.Availability != AvailNeedsChoice {
+		return nil
+	}
+	out := make([]hostclient.Game, 0, len(d.Matches))
+	for _, g := range d.Matches {
+		if g.LaunchEligible() {
+			out = append(out, g)
+		}
+	}
+	return out
 }
 
 func partitionPlayOptions(matches []hostclient.Game) (viable, blocked []hostclient.Game, checking bool) {
@@ -255,19 +315,25 @@ func BackendLabel(game hostclient.Game) string {
 // candidate stays viable, so an emulator beside a leased FPGA is the sole
 // Ready option. A lone leased option is Unavailable with the in-use reason.
 // Confirm then explains and does not launch or take the lease. An existing
-// catalog block (firmware, skew) is left as that block. A core destination
-// is left to tenfoot, which applies the local in-use copy and refuses
-// Confirm. An Execute advertisement is not an input.
+// catalog block (firmware, skew) is left as that block. A leased sibling
+// stays in Candidates with the in-use reason and is not a choice, so a
+// later refresh can reclassify it when the lease is released. A core
+// destination is left to tenfoot, which applies the local in-use copy and
+// refuses Confirm. An Execute advertisement is not an input.
 func ApplyForeignLease(d Destination, foreign bool) Destination {
 	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Kind == KindCore {
 		return d
 	}
-	if len(d.Matches) == 0 {
+	source := d.Candidates
+	if len(source) == 0 {
+		source = d.Matches
+	}
+	if len(source) == 0 {
 		return d
 	}
-	next := make([]hostclient.Game, len(d.Matches))
+	next := make([]hostclient.Game, len(source))
 	changed := false
-	for i, g := range d.Matches {
+	for i, g := range source {
 		next[i] = g
 		if g.HostOnly() || !g.LaunchEligible() {
 			continue
@@ -278,28 +344,29 @@ func ApplyForeignLease(d Destination, foreign bool) Destination {
 	if !changed {
 		return d
 	}
-	state, matches := ClassifyGames(next, d.Query)
+	state, choices, candidates := playSplit(next, d.Query)
 	d.Availability = state
-	d.Matches = matches
+	d.Matches = choices
+	d.Candidates = candidates
 	d.Choice = ChoiceNone
 	d.LeaseHeld = false
 	d.ReadyBlock = ""
 	d.NextAction = ""
-	if state == AvailReady && len(matches) == 1 {
-		d.GameID = matches[0].ID
-		if title := strings.TrimSpace(matches[0].Title); title != "" {
+	if state == AvailReady && len(choices) == 1 {
+		d.GameID = choices[0].ID
+		if title := strings.TrimSpace(choices[0].Title); title != "" {
 			d.Label = title
 		}
-		if system := strings.TrimSpace(matches[0].System); system != "" {
+		if system := strings.TrimSpace(choices[0].System); system != "" {
 			d.System = system
 		}
 	}
 	d.applyMeshFacts()
-	if state == AvailUnavailable && allLeaseHeld(matches) {
+	if state == AvailUnavailable && allLeaseHeld(choices) {
 		d.LeaseHeld = true
-		if len(matches) == 1 {
-			d.ReadyBlock = matches[0].ReadyBlock
-			d.NextAction = matches[0].NextAction
+		if len(choices) == 1 {
+			d.ReadyBlock = choices[0].ReadyBlock
+			d.NextAction = choices[0].NextAction
 		}
 	}
 	d.FillCopy()

@@ -191,6 +191,91 @@ function draw() gfx.rect(0,0,10,10,'#fff') end
 	}
 }
 
+func TestBlockedSiblingRefreshShowsUpInTheRoom(t *testing.T) {
+	h := newRoomHost(t)
+	script := `
+function load()
+  destination.set({ kind = "game", label = "Data Storm", query = "Data Storm", matches = {
+    { id = "fpga-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "fpga_native", ready_here = false, ready_block = "version_skew" },
+    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "host_only" },
+  }})
+end
+function draw() gfx.rect(0,0,10,10,'#fff') end
+`
+	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "storm", script)})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	snap := waitFor(t, app, "emulator ready", func(s Snapshot) bool {
+		d := s.Room.Destination
+		return s.Room.Open && d.Availability == rooms.AvailReady && d.GameID == "sms-data-storm"
+	})
+	dest := snap.Room.Destination
+	if dest.Confirm() != rooms.ConfirmLaunch || len(dest.Matches) != 1 || len(dest.Candidates) != 2 || snap.Room.Choice.Open {
+		t.Fatalf("blocked sibling published as a choice %+v choice %+v", dest, snap.Room.Choice)
+	}
+	var blocked hostclient.Game
+	for _, g := range dest.Candidates {
+		if g.ID == "fpga-data-storm" {
+			blocked = g
+		}
+	}
+	if blocked.LaunchEligible() || rooms.LaunchBlockCopy(blocked) != "Can't play here yet." {
+		t.Fatalf("unavailable reason %+v", blocked)
+	}
+
+	yes := true
+	fpga := hostclient.Game{ID: "fpga-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: "fpga_native", ReadyHere: &yes}
+	app.mu.Lock()
+	app.room.RefreshCachedGames([]hostclient.Game{fpga})
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	dest = snap.Room.Destination
+	if dest.Availability != rooms.AvailNeedsChoice || dest.Confirm() != rooms.ConfirmChoose || dest.Choice != rooms.ChoiceBackend || len(rooms.PlayChoices(dest)) != 2 {
+		t.Fatalf("refresh did not offer the sibling %+v", dest)
+	}
+
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "other-shell"}
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	dest = snap.Room.Destination
+	if dest.Availability != rooms.AvailReady || dest.Confirm() != rooms.ConfirmLaunch || dest.GameID != "sms-data-storm" || len(dest.Matches) != 1 {
+		t.Fatalf("foreign lease still offered fpga %+v", dest)
+	}
+	held := false
+	for _, g := range dest.Candidates {
+		if g.ID == "fpga-data-storm" && !g.LaunchEligible() && rooms.LaunchBlockCopy(g) == rooms.InUseStatus {
+			held = true
+		}
+	}
+	if !held || snap.Room.Choice.Open {
+		t.Fatalf("leased sibling missing %+v choice %+v", dest.Candidates, snap.Room.Choice)
+	}
+
+	app.mu.Lock()
+	app.health.Connection = hostclient.TargetConnection{State: "ready"}
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	dest = snap.Room.Destination
+	if dest.Availability != rooms.AvailNeedsChoice || dest.Confirm() != rooms.ConfirmChoose {
+		t.Fatalf("lease release %+v", dest)
+	}
+	app.HandleCommand(CmdSelect, now)
+	snap = app.Snapshot()
+	if !snap.Room.Choice.Open || len(snap.Room.Choice.Rows) != 2 {
+		t.Fatalf("choice overlay %+v", snap.Room.Choice)
+	}
+	for _, row := range snap.Room.Choice.Rows {
+		if !row.LaunchEligible() {
+			t.Fatalf("overlay offered an unavailable row %+v", row)
+		}
+	}
+}
+
 func TestRoomDetailsOpensSharedPanelAndKeepsContext(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{

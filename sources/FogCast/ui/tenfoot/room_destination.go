@@ -91,10 +91,21 @@ func kitDirectMatch(d rooms.Destination) (hostclient.Game, bool) {
 	if game, ok := d.Game(); ok && localCatalogPlayable(game) {
 		return game, true
 	}
-	if d.Availability == rooms.AvailReady {
+	// Ready and Needs a choice already have a host play row. Do not scan
+	// retained siblings or a local cartridge replaces that play.
+	if d.Availability == rooms.AvailReady || d.Availability == rooms.AvailNeedsChoice {
 		return hostclient.Game{}, false
 	}
-	for _, game := range d.Matches {
+	if game, ok := localCatalogIn(d.Matches); ok {
+		return game, true
+	}
+	// Fail-closed refresh keeps a local cartridge on Candidates when the
+	// play rows were collapsed onto some other blocked sibling.
+	return localCatalogIn(d.Candidates)
+}
+
+func localCatalogIn(games []hostclient.Game) (hostclient.Game, bool) {
+	for _, game := range games {
 		if localCatalogPlayable(game) {
 			return game, true
 		}
@@ -460,12 +471,13 @@ func (a *App) rejectLauncherActionLocked(id string) {
 }
 
 func (a *App) openRoomChoiceLocked(dest rooms.Destination) {
-	if len(dest.Matches) == 0 {
+	rows := rooms.PlayChoices(dest)
+	if len(rows) == 0 {
 		a.status = dest.Status
 		return
 	}
 	a.closeDetailLocked()
-	a.roomChoice = append([]hostclient.Game(nil), dest.Matches...)
+	a.roomChoice = rows
 	a.roomChoiceIndex = 0
 	a.roomChoiceOpen = true
 	a.status = dest.Status

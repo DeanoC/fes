@@ -657,6 +657,55 @@ function draw() gfx.rect(0,0,10,10,'#fff') end`
 	}
 }
 
+func TestBlockedSiblingRefreshBecomesReadyOrAChoice(t *testing.T) {
+	src := `
+result = nil
+function load()
+  local games = {
+    { id = "fpga-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "fpga_native", ready_here = false, ready_block = "version_skew" },
+    { id = "sms-data-storm", title = "Data Storm", system = "sms", launchable = true, state = "available", execution = "host_only" },
+  }
+  result = destination.classify(games, { q = "Data Storm" })
+  destination.set{ kind = "game", label = "Data Storm", query = "Data Storm", matches = result.candidates or result.matches }
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "storm", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal(`result.state == 'ready' and #result.matches == 1 and result.matches[1].id == 'sms-data-storm' and #result.candidates == 2 and result.candidates[1].availability == 'unavailable' and result.candidates[1].reason == "Can't play here yet."`); err != nil {
+		t.Fatal(err)
+	}
+	d := r.Destination()
+	if d.Availability != AvailReady || d.Confirm() != ConfirmLaunch || len(d.Matches) != 1 || d.Matches[0].ID != "sms-data-storm" || len(d.Candidates) != 2 {
+		t.Fatalf("published %+v", d)
+	}
+	if PlayChoices(d) != nil {
+		t.Fatal("blocked sibling was offered")
+	}
+
+	yes := true
+	fpga := hostclient.Game{ID: "fpga-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: "fpga_native", ReadyHere: &yes}
+	r.RefreshCachedGames([]hostclient.Game{fpga})
+	d = r.Destination()
+	if d.Availability != AvailNeedsChoice || d.Confirm() != ConfirmChoose || d.Choice != ChoiceBackend || len(PlayChoices(d)) != 2 {
+		t.Fatalf("both viable %+v choices=%d", d, len(PlayChoices(d)))
+	}
+
+	no := false
+	emu := hostclient.Game{ID: "sms-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, Execution: hostclient.ExecutionHostOnly, ReadyHere: &no, ReadyBlock: string(hostclient.LaunchLeaseHeld)}
+	r.RefreshCachedGames([]hostclient.Game{emu})
+	d = r.Destination()
+	if d.Availability != AvailReady || d.Confirm() != ConfirmLaunch || d.GameID != "fpga-data-storm" || len(d.Matches) != 1 || len(d.Candidates) != 2 {
+		t.Fatalf("fpga should be the sole ready row %+v", d)
+	}
+	for _, g := range d.Matches {
+		if g.ID == "sms-data-storm" {
+			t.Fatal("blocked emulator was offered")
+		}
+	}
+}
+
 func TestPlayHistoryLuaDoesNotConflatePlayedAndCompleted(t *testing.T) {
 	svc := &fakeServices{
 		games: []hostclient.Game{

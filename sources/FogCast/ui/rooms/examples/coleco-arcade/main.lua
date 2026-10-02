@@ -87,13 +87,14 @@ local function resolve(cab)
     resolving = resolving - 1
     if not err and games then
       local result = destination.classify(coleco_games(games), { q = cab.search })
-      if result.state ~= "missing" and result.matches and #result.matches > 0 then
-        cab.matches = result.matches
+      local kept = result.candidates or result.matches
+      if result.state ~= "missing" and kept and #kept > 0 then
+        cab.matches = kept
         cab.game = result.game
         if result.game then
           cab.cover = image.cover(result.game.id)
-        elseif result.matches[1] then
-          cab.cover = image.cover(result.matches[1].id)
+        elseif kept[1] then
+          cab.cover = image.cover(kept[1].id)
         end
       end
     end
