@@ -53,6 +53,7 @@ const {
   catalogDumpRegions,
   systemLabel,
   sourceLabel,
+  playAvailability,
   launchBlockReason,
   collectionIDFromName,
   uniqueCollectionID,
@@ -719,6 +720,8 @@ test('collectionLabels resolves rail-order names and skips unknown ids', () => {
     dump_flags: 'beta',
     collections: ['weekend-queue'],
     kind: 'zip',
+    launchable: true,
+    root_online: true,
   }), 'SNES · USA · 1991 · Ready');
 });
 
@@ -789,31 +792,32 @@ test('variantLabel and dump facts share region revision and flags', () => {
   }), 'USA · rev a · Beta');
   assert.equal(coverHoverMeta({
     system: 'snes', state: 'available', region: 'usa', year: '1991', dump_flags: 'beta',
+    launchable: true, root_online: true,
   }), 'SNES · USA · 1991 · Ready');
   assert.equal(variantLabel({ title: 'Mystery Dump' }), 'Mystery Dump');
-  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', region: 'usa' }), 'Mega Drive · USA · Ready');
-  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available' }), 'Mega Drive · Ready');
+  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', region: 'usa', launchable: true, root_online: true }), 'Mega Drive · USA · Ready');
+  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', launchable: true, root_online: true }), 'Mega Drive · Ready');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
-  }), 'Mega Drive · USA · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, launchable: true,
+  }), 'Mega Drive · USA · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992',
-  }), 'Mega Drive · USA · 1992 · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992', launchable: true,
+  }), 'Mega Drive · USA · 1992 · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992',
-  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1992 · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992', launchable: true,
+  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1992 · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
-  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1991 · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, launchable: true,
+  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1991 · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
-  }, { presentation: { isFallback: false, year: '' } }), 'Mega Drive · USA · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, launchable: true,
+  }, { presentation: { isFallback: false, year: '' } }), 'Mega Drive · USA · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
-  }, { presentation: { isFallback: false, year: '—' } }), 'Mega Drive · USA · Offline');
-  assert.equal(coverHoverMeta({ system: 'snes', state: 'invalid', root_online: true }), 'SNES · Unreadable');
-  assert.equal(coverStatusLabel({ state: 'available', root_online: false }), 'Offline');
-  assert.equal(coverStatusLabel({ state: 'invalid', root_online: true }), 'Unreadable');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, launchable: true,
+  }, { presentation: { isFallback: false, year: '—' } }), 'Mega Drive · USA · Unavailable');
+  assert.equal(coverHoverMeta({ system: 'snes', state: 'invalid', root_online: true, launchable: true }), 'SNES · Unavailable');
+  assert.equal(coverStatusLabel({ state: 'available', root_online: false, launchable: true }), 'Unavailable');
+  assert.equal(coverStatusLabel({ state: 'invalid', root_online: true, launchable: true }), 'Unavailable');
   assert.equal(cardSourceOffline({ state: 'available', root_online: false }), true);
   assert.equal(cardSourceOffline({ state: 'invalid', root_online: true }), false);
   assert.equal(cardSourceUnreadable({ state: 'invalid', root_online: true }), true);
@@ -860,6 +864,19 @@ test('unmatched catalog cards stay quiet and sort/count the visible library', ()
   assert.deepEqual(sortCatalogViews(views, 'system').map(view => view.live.id), ['megadrive-b', 'megadrive-c', 'snes-a']);
   assert.equal(formatCatalogCount(3, 2138), '3 of 2,138 games');
   assert.equal(formatCatalogCount(2138, 2138), '2,138 games');
+});
+
+test('playAvailability uses Checking, Ready, Needs a choice, and Unavailable', () => {
+  const ready = { launchable: true, state: 'available', root_online: true };
+  assert.deepEqual(playAvailability(ready), { state: 'ready', label: 'Ready', reason: '' });
+  assert.equal(playAvailability(null).state, 'unavailable');
+  assert.equal(playAvailability(null, { catalogLoading: true }).state, 'checking');
+  assert.equal(playAvailability(ready, { needsChoice: true }).label, 'Needs a choice');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'ensure_in_progress' }).state, 'checking');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'lease_held' }).label, 'Unavailable');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'version_skew' }).reason, 'Can’t play here yet.');
+  assert.equal(coverStatusLabel({ ...ready, root_online: false }), 'Unavailable');
+  assert.notEqual(coverStatusLabel({ ...ready, state: 'available' }), 'Offline');
 });
 
 test('library wording shows clean titles and honest launch blocks', () => {
@@ -7460,17 +7477,17 @@ test('detail facts show dump identity and hide Version unless multiple variants'
   await settleBrowser();
   assert.equal(
     gameCards(offlineApp.document)[0].children.find(child => child.className === 'game-meta').textContent,
-    'Mega Drive · USA · Offline',
+    'Mega Drive · USA · Unavailable',
   );
   offlineApp.document.nodes.get('layout-list').click();
   await settleBrowser();
   const offlineRow = gameCards(offlineApp.document)[0];
   const offlineBody = offlineRow.children.find(child => String(child.className).includes('game-row-body'));
-  assert.match(offlineBody.children[1].textContent, /Offline/);
+  assert.match(offlineBody.children[1].textContent, /Unavailable/);
   assert.doesNotMatch(offlineBody.children[1].textContent, /Ready/);
   await offlineRow.click();
   await settleBrowser();
-  assert.ok(detailFactsFrom(offlineApp.document).some(fact => fact.label === 'Status' && fact.value === 'Offline'));
+  assert.ok(detailFactsFrom(offlineApp.document).some(fact => fact.label === 'Status' && fact.value === 'Unavailable'));
 
   const unreadable = availableGame('snes-invalid-test', 'Bad Dump', {
     state: 'invalid',
@@ -7483,18 +7500,18 @@ test('detail facts show dump identity and hide Version unless multiple variants'
   await settleBrowser();
   assert.equal(
     gameCards(unreadableApp.document)[0].children.find(child => child.className === 'game-meta').textContent,
-    'SNES · Unreadable',
+    'SNES · Unavailable',
   );
   unreadableApp.document.nodes.get('layout-list').click();
   await settleBrowser();
   const unreadableRow = gameCards(unreadableApp.document)[0];
   const unreadableBody = unreadableRow.children.find(child => String(child.className).includes('game-row-body'));
-  assert.match(unreadableBody.children[1].textContent, /Unreadable/);
+  assert.match(unreadableBody.children[1].textContent, /Unavailable/);
   assert.doesNotMatch(unreadableBody.children[1].textContent, /Offline/);
   assert.equal(cardMark(unreadableRow), null);
   await unreadableRow.click();
   await settleBrowser();
-  assert.ok(detailFactsFrom(unreadableApp.document).some(fact => fact.label === 'Status' && fact.value === 'Unreadable'));
+  assert.ok(detailFactsFrom(unreadableApp.document).some(fact => fact.label === 'Status' && fact.value === 'Unavailable'));
 
   const flagged = availableGame('snes-beta-hack-test', 'ActRaiser (USA) (Beta) (Hack)', {
     dump_flags: 'beta,hack',
@@ -7680,9 +7697,9 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.equal(byID[unreadable.id].getAttribute('data-invalid'), 'true');
   assert.equal(byID[ready.id].getAttribute('data-unavailable'), null);
   assert.equal(byID[favorite.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Ready');
-  assert.equal(byID[offlineRoot.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Offline');
-  assert.equal(byID[offlineMega.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1992 · Offline');
-  assert.equal(byID[unreadable.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unreadable');
+  assert.equal(byID[offlineRoot.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unavailable');
+  assert.equal(byID[offlineMega.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1992 · Unavailable');
+  assert.equal(byID[unreadable.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unavailable');
   assert.equal(cardMark(byID[offlineMega.id], 'offline').textContent, 'Offline');
   assert.equal(cardMark(byID[favorite.id], 'beta'), null);
   assert.equal(cardMark(byID[ready.id], 'beta'), null);
@@ -7714,20 +7731,20 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
 
   const offlineBody = listByID[offlineRoot.id].children.find(child => String(child.className).includes('game-row-body'));
   assert.equal(offlineBody.children[1].className, 'game-meta');
-  assert.match(offlineBody.children[1].textContent, /Offline/);
+  assert.match(offlineBody.children[1].textContent, /Unavailable/);
   assert.doesNotMatch(offlineBody.children[1].textContent, /Ready/);
   assert.equal(cardMark(listByID[offlineRoot.id]), null);
   assert.equal(listByID[offlineRoot.id].children.some(child => String(child.className).includes('card-marks')), false);
 
   const megaBody = listByID[offlineMega.id].children.find(child => String(child.className).includes('game-row-body'));
-  assert.equal(megaBody.children[1].textContent, 'Mega Drive · 1992 · Beat \'em Up · Offline');
+  assert.equal(megaBody.children[1].textContent, 'Mega Drive · 1992 · Beat \'em Up · Unavailable');
   assert.doesNotMatch(megaBody.children[1].textContent, /Ready/);
   assert.doesNotMatch(megaBody.children[1].textContent, /USA/);
   assert.equal(cardMark(listByID[offlineMega.id]), null);
   assert.equal(listByID[offlineMega.id].children.some(child => String(child.className).includes('card-marks')), false);
 
   const unreadableBody = listByID[unreadable.id].children.find(child => String(child.className).includes('game-row-body'));
-  assert.equal(unreadableBody.children[1].textContent, 'SNES · Unreadable');
+  assert.equal(unreadableBody.children[1].textContent, 'SNES · Unavailable');
   assert.doesNotMatch(unreadableBody.children[1].textContent, /Offline/);
   assert.equal(cardMark(listByID[unreadable.id]), null);
   assert.equal(listByID[unreadable.id].children.some(child => String(child.className).includes('card-marks')), false);
@@ -10868,7 +10885,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   await gameCards(offlineApp.document)[0].click();
   await settleBrowser();
   const offlineFacts = detailFactsFrom(offlineApp.document);
-  assert.ok(offlineFacts.some(fact => fact.label === 'Status' && fact.value === 'Offline'));
+  assert.ok(offlineFacts.some(fact => fact.label === 'Status' && fact.value === 'Unavailable'));
   assert.ok(offlineFacts.some(fact => fact.label === 'Source' && fact.value === 'ZIP'));
   assertOmitsStagingAndExecution(offlineFacts);
 
@@ -11226,8 +11243,8 @@ test('detail dump identity Status and Collections follow the selected variant be
   const grouped = { ...usa };
   assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
   assert.equal(coverStatusLabel(usa), 'Ready');
-  assert.equal(coverStatusLabel(japan), 'Offline');
-  assert.equal(coverStatusLabel(europe), 'Unreadable');
+  assert.equal(coverStatusLabel(japan), 'Unavailable');
+  assert.equal(coverStatusLabel(europe), 'Unavailable');
   assert.deepEqual(collectionLabels(usa, [WEEKEND_QUEUE, SPEEDRUNS]), ['Weekend Queue']);
   assert.deepEqual(collectionLabels(japan, [WEEKEND_QUEUE, SPEEDRUNS]), ['Speedruns']);
   assert.deepEqual(collectionLabels(europe, [WEEKEND_QUEUE, SPEEDRUNS]), []);
@@ -11239,13 +11256,13 @@ test('detail dump identity Status and Collections follow the selected variant be
     region: 'USA', revision: 'rev a', flags: 'Beta', status: 'Ready', source: 'ZIP', collections: 'Weekend Queue',
   };
   const japanFacts = {
-    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM', collections: 'Speedruns',
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Unavailable', source: 'ROM', collections: 'Speedruns',
   };
   const japanPendingFacts = {
-    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM',
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Unavailable', source: 'ROM',
   };
   const europeFacts = {
-    region: 'Europe', revision: 'rev 00', flags: 'Proto', status: 'Unreadable', source: 'ZIP',
+    region: 'Europe', revision: 'rev 00', flags: 'Proto', status: 'Unavailable', source: 'ZIP',
   };
   const publicVariant = game => {
     const next = { ...game };
@@ -11461,7 +11478,7 @@ test('Cover hover Home rails and List keep representative dump identity', async 
   select.dispatchEvent({ type: 'change' });
   await settleBrowser();
   assertDetailDumpIdentity(detailFactsFrom(coverApp.document), {
-    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM', collections: 'Speedruns',
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Unavailable', source: 'ROM', collections: 'Speedruns',
   });
   assertDetailCollectionMembership(coverApp.document, japan, [WEEKEND_QUEUE, SPEEDRUNS]);
   assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, representativeHover);
@@ -11559,6 +11576,7 @@ test('variantLabel distinguishes same-region dumps by title and ZIP/ROM', () => 
   }), 'Mystery Dump · ZIP');
   assert.equal(coverHoverMeta({
     system: 'megadrive', state: 'available', region: 'usa', year: '1991', kind: 'zip',
+    launchable: true, root_online: true,
   }), 'Mega Drive · USA · 1991 · Ready');
 
   const sonic = { id: 'megadrive-sonic', title: 'Sonic', canonical_title: 'Sonic', kind: 'raw' };
@@ -12013,10 +12031,10 @@ test('keyboard HID events reach the host in order and failed releases are retrie
 
 test('launchBlockReason requires selected ROM readiness', () => {
   const ready = { launchable: true, state: 'available', root_online: true };
-  assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'This game’s required BIOS is not ready.');
+  assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'Coleco BIOS required. Import household firmware before Play.');
   assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: true, rom_required: true, rom_ready: true }), '');
-  assert.equal(launchBlockReason({ ...ready, rom_required: true }), 'This game’s required ROM is not ready.');
-  assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: false }), 'This game’s required ROM is not ready.');
+  assert.equal(launchBlockReason({ ...ready, rom_required: true }), 'Needs a cartridge');
+  assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: false }), 'Needs a cartridge');
   assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: true }), '');
   assert.equal(launchBlockReason({ ...ready, rom_required: false, rom_ready: false }), '');
 });

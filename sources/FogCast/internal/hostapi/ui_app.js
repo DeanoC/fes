@@ -341,6 +341,17 @@
       if (collections.length) record.collections = Object.freeze(collections);
     }
     if (source.launchable === true || source.launchable === false) record.launchable = source.launchable;
+    if (source.firmware_required === true || source.firmware_required === false) record.firmware_required = source.firmware_required;
+    if (source.firmware_ready === true || source.firmware_ready === false) record.firmware_ready = source.firmware_ready;
+    if (source.rom_required === true || source.rom_required === false) record.rom_required = source.rom_required;
+    if (source.rom_ready === true || source.rom_ready === false) record.rom_ready = source.rom_ready;
+    if (source.ready_here === true || source.ready_here === false) record.ready_here = source.ready_here;
+    const readyBlock = optionalCatalogText(source.ready_block);
+    if (readyBlock) record.ready_block = readyBlock;
+    const nextAction = optionalCatalogText(source.next_action);
+    if (nextAction) record.next_action = nextAction;
+    const placement = optionalCatalogText(source.placement);
+    if (placement) record.placement = placement;
     const cover = primitiveSnapshotValue(source.cover);
     if (typeof cover === 'string' && ARTWORK_HANDLE_PATTERN.test(cover)) record.cover = cover;
     const platform = optionalCatalogText(source.platform);
@@ -491,6 +502,91 @@
     return String(state || '');
   }
 
+  function meshUnavailableReason(game) {
+    switch (game && game.ready_block) {
+      case 'distant': return 'This title is not on this machine.';
+      case 'lease_held': return 'In use. Someone else is playing on this machine. You can play when they’re done.';
+      case 'version_skew': return 'Can’t play here yet.';
+      case 'content_missing': return 'A required part of this title is missing.';
+      case 'no_capable_executor':
+      case 'invalid':
+      case 'placement_unresolved':
+      case 'placement_fail_closed': return 'This title cannot play on the current setup.';
+      case 'ensure_in_progress': return 'Still resolving whether this title can play here.';
+      default: return '';
+    }
+  }
+
+  function playAvailability(game, extra) {
+    extra = extra && typeof extra === 'object' ? extra : {};
+    if (extra.catalogLoading && !game) {
+      return { state: 'checking', label: 'Checking', reason: 'Still resolving whether this title can play here.' };
+    }
+    if (extra.needsChoice) {
+      return {
+        state: 'needs_choice',
+        label: 'Needs a choice',
+        reason: extra.choiceReason || 'This title can play in more than one way. Choose one.',
+      };
+    }
+    if (!game) {
+      return { state: 'unavailable', label: 'Unavailable', reason: 'Select a game first.' };
+    }
+    if (game.ready_here === false && game.ready_block === 'ensure_in_progress') {
+      return { state: 'checking', label: 'Checking', reason: 'Still resolving whether this title can play here.' };
+    }
+    const blocked = launchBlockReason(game);
+    if (blocked) {
+      return { state: 'unavailable', label: 'Unavailable', reason: blocked };
+    }
+    return { state: 'ready', label: 'Ready', reason: '' };
+  }
+
+  function titlesPath() {
+    return '/api/v1/library/titles';
+  }
+
+  function editionPreferencesPath() {
+    return '/api/v1/library/edition-preferences';
+  }
+
+  function parseLibraryTitles(payload) {
+    if (!payload || !Array.isArray(payload.titles)) return [];
+    return payload.titles.filter(title => title && typeof title.title_id === 'string' && title.title_id.trim());
+  }
+
+  function availableTitleOptions(title) {
+    if (!title || !Array.isArray(title.options)) return [];
+    return title.options.filter(option => option && option.available === true && typeof option.source_game_id === 'string' && option.source_game_id.trim());
+  }
+
+  function titleForGame(titles, game) {
+    if (!game || !Array.isArray(titles)) return null;
+    for (const title of titles) {
+      if (title.title_id === game.id) return title;
+      const options = Array.isArray(title.options) ? title.options : [];
+      if (options.some(option => option && option.source_game_id === game.id)) return title;
+    }
+    return null;
+  }
+
+  function backendOptionLabel(option) {
+    if (!option) return 'Play';
+    if (option.execution === 'fpga_native' || option.execution === 'fpga_development') return 'FPGA';
+    if (option.execution === 'native_emu' || option.host_local === true) return 'Emulator';
+    return option.execution || option.source_game_id;
+  }
+
+  function playChoiceFor(game, titles, picks) {
+    const title = titleForGame(titles, game);
+    const options = availableTitleOptions(title);
+    if (options.length < 2) return {};
+    if (game && options.some(option => option.source_game_id === game.id)) return {};
+    const picked = title && picks ? picks[title.title_id] : '';
+    if (picked && options.some(option => option.source_game_id === picked)) return {};
+    return { needsChoice: true, choiceReason: 'This title can play in more than one way. Choose one.' };
+  }
+
   function cardSourceOffline(game) {
     return Boolean(game) && (game.state === 'missing' || game.root_online === false);
   }
@@ -500,8 +596,7 @@
   }
 
   function coverStatusLabel(game) {
-    if (cardSourceOffline(game)) return 'Offline';
-    return sourceLabel(game && game.state);
+    return playAvailability(game).label;
   }
 
   function isSessionPlayingCard(session, game, sessionLive, sessionAuthority) {
@@ -647,12 +742,20 @@
 
   function launchBlockReason(game) {
     if (!game) return 'Select a game first.';
+    if (game.ready_here === false) {
+      if (game.ready_block === 'ensure_in_progress') return 'Still resolving whether this title can play here.';
+      const mesh = meshUnavailableReason(game);
+      if (mesh) return mesh;
+    }
     if (game.launchable !== true) return 'This platform is browse-only on this host.';
     if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
-    if (game.firmware_required === true && game.firmware_ready !== true) return 'This game’s required BIOS is not ready.';
-    if (game.rom_required === true && game.rom_ready !== true) return 'This game’s required ROM is not ready.';
+    if (game.firmware_required === true && game.firmware_ready !== true) return 'Coleco BIOS required. Import household firmware before Play.';
+    if (game.rom_required === true && game.rom_ready !== true) return 'Needs a cartridge';
+    if (game.placement === 'unresolved' || game.placement === 'fail_closed') {
+      return 'This title cannot play on the current setup.';
+    }
     return '';
   }
 
@@ -1386,6 +1489,10 @@
       activeMutation: null,
       mutationMessage: '',
       catalogState: 'loading',
+      libraryTitles: [],
+      playPicks: Object.freeze({}),
+      playOriginPane: '',
+      playContextLoaded: false,
       catalogError: null,
       metadataFallbackCount: 0,
       metadataState: presentationEnabled ? 'metadata_idle' : 'metadata_fallback',
@@ -1925,6 +2032,51 @@
       return emit();
     }
 
+    async function ensurePlayContext() {
+      if (state.playContextLoaded) return snapshot();
+      state.playContextLoaded = true;
+      const titlesPromise = request(fetchImpl, titlesPath()).catch(() => null);
+      const prefsPromise = request(fetchImpl, editionPreferencesPath()).catch(() => null);
+      const titlesPayload = await titlesPromise;
+      const prefsPayload = await prefsPromise;
+      if (titlesPayload) {
+        try {
+          state.libraryTitles = Object.freeze(parseLibraryTitles(titlesPayload));
+        } catch (_) {
+          state.libraryTitles = [];
+        }
+      }
+      const picks = { ...state.playPicks };
+      const listed = prefsPayload && Array.isArray(prefsPayload.preferences) ? prefsPayload.preferences : [];
+      listed.forEach(pref => {
+        if (!pref || typeof pref.game_id !== 'string' || !pref.game_id.trim()) return;
+        const key = typeof pref.query === 'string' ? pref.query.trim().toLowerCase() : '';
+        if (key) picks[key] = pref.game_id;
+        picks[pref.game_id] = pref.game_id;
+      });
+      state.playPicks = Object.freeze(picks);
+      return emit();
+    }
+
+    function rememberPlayPick(game) {
+      if (!game || !game.id) return;
+      const title = titleForGame(state.libraryTitles, game);
+      const options = availableTitleOptions(title);
+      if (options.length < 2) return;
+      const picks = { ...state.playPicks, [game.id]: game.id };
+      if (title && title.title_id) picks[title.title_id] = game.id;
+      if (game.title) picks[String(game.title).trim().toLowerCase()] = game.id;
+      state.playPicks = Object.freeze(picks);
+      const query = game.title || '';
+      const platform = game.system || '';
+      if (!query) return;
+      void request(fetchImpl, editionPreferencesPath(), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, platform, game_id: game.id }),
+      }).catch(() => {});
+    }
+
     function launchAllowed(selected) {
       if (launchBlockReason(selected)) return false;
       if (!state.sessionStarted) return true;
@@ -1936,6 +2088,8 @@
     async function launchLegacy(selected) {
       const selectionRevision = state.selectionRevision;
       const sequence = ++state.launchSequence;
+      state.playOriginPane = state.playOriginPane || 'detail';
+      rememberPlayPick(selected);
       state.launchState = 'launching';
       state.launchError = null;
       state.launchMessage = '';
@@ -1963,7 +2117,11 @@
       const selected = state.selectedLiveGame;
       if (state.activeMutation) return mutationConflict();
       if (!selected) return snapshot();
+      const choice = playChoiceFor(selected, state.libraryTitles, state.playPicks);
+      if (choice.needsChoice) return emit();
       if (!launchAllowed(selected)) return emit();
+      state.playOriginPane = 'detail';
+      rememberPlayPick(selected);
       if (!state.sessionStarted) return launchLegacy(selected);
       const mutation = {
         kind: 'launch',
@@ -3094,6 +3252,7 @@
       saveSettings,
       prepareTarget,
       loadSession,
+      ensurePlayContext,
       selectGame,
       refreshDetail,
       refreshPresentation,
@@ -3171,7 +3330,11 @@
     catalogDumpRegions,
     systemLabel,
     sourceLabel,
+    playAvailability,
     launchBlockReason,
+    titlesPath,
+    parseLibraryTitles,
+    playChoiceFor,
     collectionIDFromName,
     uniqueCollectionID,
     parseCollection,
@@ -4605,11 +4768,25 @@
     if (coverMarks) scheduleCardMarksClearance(card, coverMarks);
   }
 
+  function playChoiceExtra(game) {
+    return playChoiceFor(game, state && state.libraryTitles, state && state.playPicks);
+  }
+
   function launchControl(game) {
-    const label = 'Play';
-    if (!game) return { label, reason: launchBlockReason(game), enabled: false };
+    const play = playAvailability(game, playChoiceExtra(game));
+    const label = play.state === 'needs_choice' ? 'Choose' : 'Play';
+    if (play.state === 'checking') {
+      return { label, reason: play.reason, enabled: false };
+    }
+    if (play.state === 'needs_choice') {
+      return { label, reason: play.reason, enabled: true };
+    }
+    if (play.state !== 'ready') {
+      return { label: 'Play', reason: play.reason, enabled: false };
+    }
+    if (!game) return { label: 'Play', reason: launchBlockReason(game), enabled: false };
     const blocked = launchBlockReason(game);
-    if (blocked) return { label, reason: blocked, enabled: false };
+    if (blocked) return { label: 'Play', reason: blocked, enabled: false };
     if (state.activeMutation) {
       return { label, reason: 'A session transition is already in progress.', enabled: false };
     }
@@ -4736,6 +4913,26 @@
       nodes.detailContent.appendChild(toggle);
     });
     const variants = Array.isArray(game.variants) ? game.variants : [];
+    const title = titleForGame(state.libraryTitles, game);
+    const backendOptions = availableTitleOptions(title);
+    if (backendOptions.length > 1) {
+      const label = element('label', 'filter-label', 'How to play');
+      const select = element('select');
+      select.id = 'play-backend';
+      backendOptions.forEach(option => {
+        const optionEl = element('option', '', backendOptionLabel(option));
+        optionEl.value = option.source_game_id;
+        if (option.source_game_id === game.id) optionEl.selected = true;
+        select.appendChild(optionEl);
+      });
+      select.addEventListener('change', () => {
+        const picked = backendOptions.find(option => option.source_game_id === select.value);
+        if (!picked) return;
+        return selectGame(picked.source_game_id);
+      });
+      label.appendChild(select);
+      nodes.detailContent.appendChild(label);
+    }
     if (variants.length > 1) {
       const label = element('label', 'filter-label', 'Version');
       const select = element('select');
@@ -4796,6 +4993,11 @@
     if (control.reason) launch.setAttribute('aria-describedby', reason.id);
     launch.addEventListener('click', () => {
       keyboardPane = 'detail';
+      if (control.label === 'Choose') {
+        const picker = nodes.detailContent.querySelector && nodes.detailContent.querySelector('#play-backend');
+        if (picker) focusWithoutScroll(picker);
+        return;
+      }
       return launchSelected();
     });
     nodes.launchActions.appendChild(launch);
@@ -4924,7 +5126,12 @@
       focusWithoutScroll(nodes.sessionPanel);
     }
     if (previous && previous.activeMutation === 'stop' && next.sessionPhase === 'stopped') {
-      focusWithoutScroll(refreshSessionButton);
+      if (next.playOriginPane === 'home' || next.playOriginPane === 'grid' || next.playOriginPane === 'detail') {
+        keyboardPane = next.playOriginPane;
+        forceKeyboardRestore = true;
+      } else {
+        focusWithoutScroll(refreshSessionButton);
+      }
     }
     if ((keyboardPane === 'grid' || keyboardPane === 'home') && !next.selectedLiveGame && next.catalogState === 'populated' && next.gameViews && next.gameViews.length) {
       forceKeyboardRestore = true;
