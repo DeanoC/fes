@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -357,5 +358,70 @@ func TestConfirmApplianceTrialStates(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// gatedUpload returns one chunk, then blocks until released, so the
+// transport is still inside Read when an early rejection returns from Do.
+type gatedUpload struct {
+	first   bool
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (r *gatedUpload) Read(b []byte) (int, error) {
+	if !r.first {
+		r.first = true
+		n := min(len(b), 4096)
+		for i := range n {
+			b[i] = 'x'
+		}
+		return n, nil
+	}
+	close(r.entered)
+	<-r.release
+	n := min(len(b), 4096)
+	for i := range n {
+		b[i] = 'x'
+	}
+	return n, nil
+}
+
+func TestStageProgressStopsWhenEarlyRejectionReturns(t *testing.T) {
+	// The released second chunk completes the body, which would report 100%.
+	body := strings.Repeat("x", 8192)
+	m := updateManifest(body)
+	upload := &gatedUpload{entered: make(chan struct{}), release: make(chan struct{})}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-upload.entered
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Connection", "close")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error":{"code":"BAD_REQUEST","message":"rejected early"}}`)
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	var mu sync.Mutex
+	var phases []string
+	returned := false
+	c := NewClient(u, "secret", srv.Client()).WithProgress(func(phase, detail string) {
+		mu.Lock()
+		defer mu.Unlock()
+		if returned {
+			t.Errorf("progress %q reported after StageAppliance returned", phase)
+		}
+		phases = append(phases, phase)
+	})
+	if err := c.StageAppliance(context.Background(), m, upload); err == nil {
+		t.Fatal("expected early rejection")
+	}
+	mu.Lock()
+	returned = true
+	got := append([]string(nil), phases...)
+	mu.Unlock()
+	upload.release <- struct{}{}
+	time.Sleep(100 * time.Millisecond)
+	if len(got) == 0 || got[0] != "upload start" {
+		t.Fatalf("phases = %v", got)
 	}
 }

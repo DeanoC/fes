@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance"
@@ -41,7 +42,12 @@ func (c *Client) StageAppliance(ctx context.Context, m appliance.Manifest, conte
 		return errors.New("missing release image")
 	}
 	c.reportProgress("upload start", fmt.Sprintf("%d bytes", m.ImageSize))
-	content = &applianceUploadProgress{reader: content, size: m.ImageSize, report: c.reportProgress, last: time.Now()}
+	upload := &applianceUploadProgress{reader: content, size: m.ImageSize, report: c.reportProgress, last: time.Now()}
+	// The transport may still read the body after Do returns (an early reply).
+	// Closing the wrapper first keeps every progress call on this goroutine's
+	// side of the return, so hooks never race later phases or the caller.
+	defer upload.finish()
+	content = upload
 	raw, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -58,6 +64,7 @@ func (c *Client) StageAppliance(ctx context.Context, m appliance.Manifest, conte
 		return err
 	}
 	response, err := c.httpClient.Do(req)
+	upload.finish()
 	if err != nil {
 		return err
 	}
@@ -71,6 +78,8 @@ func (c *Client) StageAppliance(ctx context.Context, m appliance.Manifest, conte
 }
 
 type applianceUploadProgress struct {
+	mu          sync.Mutex
+	done        bool
 	reader      io.Reader
 	size, sent  int64
 	last        time.Time
@@ -78,8 +87,27 @@ type applianceUploadProgress struct {
 	report      func(string, string)
 }
 
+// finish stops further reads and progress reports. It is idempotent.
+func (p *applianceUploadProgress) finish() {
+	p.mu.Lock()
+	p.done = true
+	p.mu.Unlock()
+}
+
 func (p *applianceUploadProgress) Read(b []byte) (int, error) {
+	p.mu.Lock()
+	done := p.done
+	p.mu.Unlock()
+	if done {
+		return 0, io.ErrClosedPipe
+	}
+	// The source read is not under the lock, so a blocked read cannot stall finish.
 	n, err := p.reader.Read(b)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.done {
+		return n, err
+	}
 	p.sent += int64(n)
 	percent := p.sent * 100 / p.size
 	if p.sent == p.size || (p.sent > 0 && (time.Since(p.last) >= 10*time.Second || percent-p.lastPercent >= 10)) {
