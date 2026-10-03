@@ -54,8 +54,10 @@ package without an image rebuild is the FES
 The original shared Z80 CPU has NMOS and documented fast variants. Run
 `make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
 [the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
-Cyclone V timing diagnostic. Current console packages retain TV80/T80 while
-this implementation is qualified.
+Cyclone V timing diagnostic. SG-1000 and Spectrum select the NMOS variant.
+Spectrum also has an explicit documented-only 56 MHz development build;
+`make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
+Coleco, SMS and ZX81 retain their existing CPU implementations.
 
 ### OSS experiments
 

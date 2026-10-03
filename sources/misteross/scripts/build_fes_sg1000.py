@@ -37,7 +37,7 @@ RECIPE = "scripts/build_fes_sg1000.py"
 ABI_DEFINITION = "cores/fes-sg1000/generated/fes_simple_computer.vh"
 QSF_PINS = "cores/fes-sg1000/constraints.qsf"
 SDC = "cores/fes-sg1000/clocks.sdc"
-# Shared Coleco sibling modules. SG-1000 does not fork TV80, VDP, video, GP or PLL.
+# Shared sibling modules and original FES NMOS CPU; no duplicated VDP or shell.
 VERILOG_SOURCES = (
     "cores/fes-coleco/rtl/coleco_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
@@ -48,15 +48,14 @@ VERILOG_SOURCES = (
     "cores/fes-common/rtl/coleco_video_dpram.v",
     "cores/fes-common/rtl/coleco_vdp.sv",
     "cores/fes-common/rtl/coleco_video_720p.v",
-    "cores/fes-common/rtl/t80pa.v",
-    "cores/fes-common/rtl/tv80/tv80_core.v",
-    "cores/fes-common/rtl/tv80/tv80_alu.v",
-    "cores/fes-common/rtl/tv80/tv80_mcode.v",
-    "cores/fes-common/rtl/tv80/tv80_reg.v",
     "cores/fes-sg1000/rtl/top.v",
 )
 SYSTEMVERILOG_SOURCES = (
     "cores/fes-common/rtl/fes_z80_ce.sv",
+    "cores/fes-common/rtl/z80/fes_z80_alu.sv",
+    "cores/fes-common/rtl/z80/fes_z80_engine.sv",
+    "cores/fes-common/rtl/z80/fes_z80_bus.sv",
+    "cores/fes-common/rtl/z80/fes_z80_nmos.sv",
     "cores/fes-sg1000/rtl/sg1000_machine.sv",
     "cores/fes-common/rtl/fes_sn76489.sv",
 )
@@ -302,7 +301,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "id": "fes.sg1000",
             "name": "FES SG-1000",
             "description": "Quartus bring-up SG-1000 computer for the FES simple-computer ABI",
-            "version": "1.2.0",
+            "version": "1.3.0",
         },
         "target": {
             "platform": "de10_nano",

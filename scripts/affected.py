@@ -60,7 +60,7 @@ SHARED_RTL = {
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
     'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum'),
-    't80pa.v': ('coleco', 'sg1000', 'sms', 'spectrum'),
+    't80pa.v': ('coleco', 'sms'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -83,14 +83,16 @@ def fpga_cores(path):
     if len(parts) >= 3 and parts[0] == 'cores':
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'z80'):
-            return ('z80',), 'standalone Z80 simulation; no production consumers'
+            if parts[2] == 'rtl':
+                return ('z80', 'sg1000', 'spectrum'), 'shared original Z80 RTL consumers'
+            return ('z80',), 'standalone Z80 simulation fixtures'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
             return ('menu', 'zx81'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
             if len(parts) >= 5 and parts[3] == 'tv80':
-                return COLECO_CONSUMERS + ('spectrum',), 'shared TV80 consumers'
+                return ('coleco', 'sms'), 'shared TV80 consumers'
             if len(parts) >= 5 and parts[3] == 'cpu6502':
                 return ('apple2', 'c64'), 'shared 6502 consumers'
             if len(parts) == 4 and parts[3] in SHARED_RTL:
@@ -104,7 +106,7 @@ def fpga_cores(path):
         if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
-        if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py'):
+        if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py', 'test_fes_z80_pin_trace.py'):
             return ('z80',), 'standalone Z80 diagnostic/qualification recipe'
         if parts[1] == 'sim_fes_zx81_session.py':
             return ('zx81',), 'ZX81 session-display simulation recipe'
@@ -112,6 +114,8 @@ def fpga_cores(path):
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:
             return ('c64',), 'Commodore 64 socket/card recipe'
+        if parts[1] == 'sim_fes_spectrum_turbo.py':
+            return ('spectrum',), 'Spectrum turbo simulation and performance recipe'
         if parts[1] in SPECTRUM_SCRIPTS:
             return ('spectrum',), 'Spectrum socket recipe'
     if len(parts) == 2 and parts[0] == 'tests' and any(

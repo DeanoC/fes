@@ -373,3 +373,41 @@ func TestRunAdoptsExternallyStartedLocalRunAndStopsIt(t *testing.T) {
 		t.Fatalf("launches=%d paused=%t local stops=%d resumed=%t host stops=%d", launches, paused.Load(), stops, resumed.Load(), hostStops.Load())
 	}
 }
+
+func TestRunRetriesExternalAdoptionAfterMenuPauseFailure(t *testing.T) {
+	f := &recoveryCore{statuses: []localcores.RunStatus{{Phase: "idle"}, {Phase: "running", Running: true}}}
+	client, _ := recoveryTestClient(t, f)
+	var pauses, presents atomic.Int64
+	var presentsAtAdoption atomic.Int64
+	var activeBeforePauseSuccess atomic.Bool
+	var presentedAfterPauseFailure atomic.Bool
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		if pauses.Add(1) == 1 {
+			return errors.New("pause timed out")
+		}
+		presentsAtAdoption.Store(presents.Load())
+		return nil
+	}, func() {})
+	if err := Run(ctx, client, func(m Model) {
+		presents.Add(1)
+		if pauses.Load() == 1 && m.Session.State != "active" {
+			presentedAfterPauseFailure.Store(true)
+		}
+		if m.Session.State == "active" {
+			if pauses.Load() < 2 {
+				activeBeforePauseSuccess.Store(true)
+			}
+			cancel()
+		}
+	}, func() (Pad, error) { return &scriptPad{}, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if pauses.Load() != 2 || activeBeforePauseSuccess.Load() || !presentedAfterPauseFailure.Load() {
+		t.Fatalf("pauses=%d active before pause succeeded=%t presented after failed pause=%t", pauses.Load(), activeBeforePauseSuccess.Load(), presentedAfterPauseFailure.Load())
+	}
+	if presents.Load() != presentsAtAdoption.Load() {
+		t.Fatalf("menu presented after adoption: at pause=%d after=%d", presentsAtAdoption.Load(), presents.Load())
+	}
+}
