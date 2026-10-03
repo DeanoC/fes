@@ -271,6 +271,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		defer closeLocal()
 	}
 	localApplied := false
+	hostCatalog := false
 	send := func(o observation) {
 		select {
 		case results <- o:
@@ -462,6 +463,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			localPending = true
 			var hostGame hostclient.Game
 			online := m.Connected
+			kitRow := !hostCatalog && containsLocalID(localGames, id)
 			cachedDigest := ""
 			if action == "local-launch" {
 				hostGame = displayedGame(m, id)
@@ -476,7 +478,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					if c.Library != nil {
 						fetch = c.Library.GameROMHash
 					}
-					learned, err := launchMatchedLocalGame(ctx, c.LocalCores, online, cachedDigest, fetch, localPath, localGames, matcher, hostGame)
+					learned, err := launchMatchedLocalGame(ctx, c.LocalCores, online, kitRow, cachedDigest, fetch, localPath, localGames, matcher, hostGame)
 					if learned != "" && c.Cache != nil {
 						_ = c.Cache.RememberROMHash(hostGame.ID, learned)
 					}
@@ -708,6 +710,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.ClearCoreStatuses(true)
 				if !localApplied && len(localGames) > 0 {
 					m.SetCatalog(localGames)
+					hostCatalog = false
 					localApplied = true
 					catalogLoaded = true
 				}
@@ -790,6 +793,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 				if o.games != nil {
 					m.ApplyCatalog(o.games)
+					hostCatalog = true
 					catalogLoaded = true
 					lastCatalog = time.Now()
 				}

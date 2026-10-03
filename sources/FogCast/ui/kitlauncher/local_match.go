@@ -83,9 +83,9 @@ func (m *localROMMatcher) matchDigest(ctx context.Context, want string, resolve 
 // That title match is weaker than a hash: a saved host row has no cartridge
 // size, so size is not compared, and two local rows that share the title are
 // refused instead of guessed.
-func launchMatchedLocalGame(ctx context.Context, client LocalCoreClient, online bool, cachedDigest string, fetch func(context.Context, string) (string, error), resolve func(context.Context, string) (string, error), games []hostclient.Game, matcher *localROMMatcher, host hostclient.Game) (string, error) {
+func launchMatchedLocalGame(ctx context.Context, client LocalCoreClient, online, kitRow bool, cachedDigest string, fetch func(context.Context, string) (string, error), resolve func(context.Context, string) (string, error), games []hostclient.Game, matcher *localROMMatcher, host hostclient.Game) (string, error) {
 	id := strings.TrimSpace(host.ID)
-	if containsLocalID(games, id) {
+	if containsLocalID(games, id) && (kitRow || !online) {
 		return "", launchLocalGame(ctx, client, resolve, games, id)
 	}
 	if resolve == nil || matcher == nil {
@@ -246,17 +246,8 @@ func (f *smsHashFill) start(parent context.Context, fetch func(context.Context, 
 	ctx, cancel := context.WithCancel(parent)
 	f.cancel = cancel
 	f.mu.Unlock()
-	copied := make([]hostclient.Game, 0, len(games))
-	now := time.Now()
-	for _, game := range games {
-		if game.LocalCatalogPlayable() && f.due(game.ID, now) {
-			copied = append(copied, game)
-		}
-	}
-	if len(copied) == 0 {
-		return
-	}
-	go fillSMSROMHashes(ctx, fetch, store, copied)
+	copied := append([]hostclient.Game(nil), games...)
+	go fillSMSROMHashes(ctx, fetch, store, copied, f)
 }
 
 func (f *smsHashFill) stop() {
@@ -271,7 +262,7 @@ func (f *smsHashFill) stop() {
 	}
 }
 
-func fillSMSROMHashes(ctx context.Context, fetch func(context.Context, string) (string, error), store *DiskStore, games []hostclient.Game) {
+func fillSMSROMHashes(ctx context.Context, fetch func(context.Context, string) (string, error), store *DiskStore, games []hostclient.Game, throttle ...*smsHashFill) {
 	if fetch == nil || store == nil {
 		return
 	}
@@ -280,6 +271,9 @@ func fillSMSROMHashes(ctx context.Context, fetch func(context.Context, string) (
 			return
 		}
 		if !game.LocalCatalogPlayable() {
+			continue
+		}
+		if len(throttle) > 0 && throttle[0] != nil && !throttle[0].due(game.ID, time.Now()) {
 			continue
 		}
 		reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
