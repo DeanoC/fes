@@ -97,12 +97,18 @@ func (s *KeyboardSink) ReleaseSource(source inputSource) error {
 }
 
 func (s *KeyboardSink) releaseSourceContext(ctx context.Context, source inputSource) error {
-	if source >= sourceCount {
-		source = sourceRemote
-	}
+	return s.releaseSourcesContext(ctx, source)
+}
+
+func (s *KeyboardSink) releaseSourcesContext(ctx context.Context, sources ...inputSource) error {
 	s.mu.Lock()
-	s.pressed[source] = map[remoteinput.Code]bool{}
-	s.blocked[source] = map[remoteinput.Code]bool{}
+	for _, source := range sources {
+		if source >= sourceCount {
+			source = sourceRemote
+		}
+		s.pressed[source] = nil
+		s.blocked[source] = nil
+	}
 	matrix := zx81keys.Matrix(s.unionLocked())
 	poster := s.poster
 	s.mu.Unlock()

@@ -130,18 +130,18 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 		}
 	}
 	sameMatrixCore := obs.Active && obs.Keyboard && obs.CoreID == s.coreID && obs.Generation == s.coreGeneration
+	if confirmed && !sameMatrixCore && s.keys != nil {
+		// Physical keyboard holds belong to that core too. Observation proves
+		// its matrix has retired; discard both local contributions without a post.
+		s.keys.forgetSource(sourceLocal)
+		s.keys.forgetSource(sourceLocalMatrix)
+	}
 	if (len(s.localKeys) != 0 || len(s.localMatrixKeysLocked()) != 0 || s.pendingMatrixNeutral) &&
 		(!confirmed || !sameMatrixCore || s.pendingMatrixNeutral) {
 		// Stop replaying old pad holds as soon as observation becomes uncertain.
 		// A failed neutral post still needs retry on the same observed core.
 		s.localMatrix.ReleaseAll()
-		if confirmed && !sameMatrixCore {
-			// Idle or replacement has already retired the old runtime matrix.
-			// Forget its contribution without posting into a replacement core.
-			if s.keys != nil {
-				s.keys.forgetSource(sourceLocalMatrix)
-			}
-		} else if s.keys != nil {
+		if (!confirmed || sameMatrixCore) && s.keys != nil {
 			s.pendingMatrixNeutral = true
 			if err := s.keys.releaseSourceContext(ctx, sourceLocalMatrix); err != nil {
 				s.observed = false
@@ -151,9 +151,11 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 		s.localKeys = nil
 		s.pendingMatrixNeutral = false
 	}
-	s.keyboard = obs.Keyboard
-	s.coreID = obs.CoreID
-	s.coreGeneration = obs.Generation
+	if confirmed {
+		s.keyboard = obs.Keyboard
+		s.coreID = obs.CoreID
+		s.coreGeneration = obs.Generation
+	}
 	s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
 	s.coreActive = obs.Active
 	// A negative result can still be cached once no neutral write is pending.
@@ -568,24 +570,38 @@ func (s *controllerPortsSink) releaseSource(source inputSource) error {
 	s.sources[source].ReleaseAll()
 	if source == sourceLocal {
 		s.localMatrix.ReleaseAll()
-		s.localKeys = nil
-		s.pendingMatrixNeutral = false
 		s.localClaim = [controllerPortCount]bool{}
+		if s.binding != nil || s.keys == nil {
+			s.localKeys = nil
+			s.pendingMatrixNeutral = false
+		}
 	}
 	if s.binding == nil {
+		var result error
 		if s.keys != nil {
 			if source == sourceLocal {
-				_ = s.keys.ReleaseSource(sourceLocalMatrix)
+				// One full matrix post retires pad and physical-keyboard holds.
+				// Disconnect does not prove the core retired, so failure still
+				// needs the same observation-driven retry as a local timeout.
+				s.pendingMatrixNeutral = true
+				result = s.keys.releaseSourcesContext(context.Background(), sourceLocal, sourceLocalMatrix)
+				if result == nil {
+					s.localKeys = nil
+					s.pendingMatrixNeutral = false
+				} else {
+					s.observed = false
+				}
+			} else {
+				_ = s.keys.ReleaseSource(source)
 			}
-			_ = s.keys.ReleaseSource(source)
 		}
 		if s.pads != nil {
-			return s.pads.ReleaseSource(source)
+			return errors.Join(result, s.pads.ReleaseSource(source))
 		}
 		if s.fallback != nil && s.keys == nil && s.pads == nil {
 			return s.fallback.ReleaseAll()
 		}
-		return nil
+		return result
 	}
 	// Disconnect and local-socket close are not a frame held under the
 	// lifecycle lock. The host poster keeps its own deadline.

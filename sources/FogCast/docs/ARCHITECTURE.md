@@ -2215,7 +2215,9 @@ Idle observations and active observations without a controller-port binding
 are cached for 250ms, then refreshed. An unavailable observation retires local
 pad holds with a bounded neutral post. A failed post remains pending and keeps
 the observation cache invalid; the next frame refreshes status and retries before
-accepting input. Confirmed idle, a different core or a changed runtime generation
+accepting input. Failed socket-disconnect cleanup preserves that pending neutral
+too, including physical keyboard releases. Confirmed idle, a different core or a
+changed runtime generation
 discards the old contribution without posting its release into the new core.
 Local frame drops, including idle,
 replacement and delivery refusals, are counted by `LocalInputDrops()`.
