@@ -83,7 +83,7 @@ func (m *localROMMatcher) matchDigest(ctx context.Context, want string, resolve 
 // That title match is weaker than a hash: a saved host row has no cartridge
 // size, so size is not compared, and two local rows that share the title are
 // refused instead of guessed.
-func launchMatchedLocalGame(ctx context.Context, client LocalCoreClient, fetch func(context.Context, string) (string, error), resolve func(context.Context, string) (string, error), games []hostclient.Game, matcher *localROMMatcher, host hostclient.Game) (string, error) {
+func launchMatchedLocalGame(ctx context.Context, client LocalCoreClient, online bool, cachedDigest string, fetch func(context.Context, string) (string, error), resolve func(context.Context, string) (string, error), games []hostclient.Game, matcher *localROMMatcher, host hostclient.Game) (string, error) {
 	id := strings.TrimSpace(host.ID)
 	if containsLocalID(games, id) {
 		return "", launchLocalGame(ctx, client, resolve, games, id)
@@ -91,16 +91,24 @@ func launchMatchedLocalGame(ctx context.Context, client LocalCoreClient, fetch f
 	if resolve == nil || matcher == nil {
 		return "", errNeedsHost
 	}
-	want := normalizeROMHash(host.ROMSHA256)
+	want := ""
 	learned := ""
-	if want == "" && fetch != nil {
+	if online {
+		// Always ask the connected host: a game id names a library path, not
+		// ROM bytes, so a digest on the row or in the cache can be stale.
+		if fetch == nil {
+			return "", errCartridgeCheck
+		}
 		checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		got, err := fetch(checkCtx, id)
 		cancel()
-		if err == nil {
-			want = normalizeROMHash(got)
-			learned = want
+		if err != nil || normalizeROMHash(got) == "" {
+			return "", errCartridgeCheck
 		}
+		want = normalizeROMHash(got)
+		learned = want
+	} else if !online {
+		want = normalizeROMHash(cachedDigest)
 	}
 	if want != "" {
 		localID, err := matcher.matchDigest(ctx, want, resolve, games)
@@ -108,6 +116,9 @@ func launchMatchedLocalGame(ctx context.Context, client LocalCoreClient, fetch f
 			return learned, err
 		}
 		return learned, launchLocalGame(ctx, client, resolve, games, localID)
+	}
+	if online {
+		return "", errCartridgeCheck
 	}
 	localID, err := matchSMSByTitle(host, games)
 	if err != nil {
@@ -203,6 +214,25 @@ func looseTitle(title string) string {
 type smsHashFill struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
+	// checked bounds background refreshes: each id is re-fetched at most
+	// once per smsHashRefreshEvery, not on every 30s catalog reload.
+	checked map[string]time.Time
+}
+
+const smsHashRefreshEvery = 15 * time.Minute
+
+// due reports whether id should be fetched now and marks it checked.
+func (f *smsHashFill) due(id string, now time.Time) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if last, ok := f.checked[id]; ok && now.Sub(last) < smsHashRefreshEvery {
+		return false
+	}
+	if f.checked == nil {
+		f.checked = map[string]time.Time{}
+	}
+	f.checked[id] = now
+	return true
 }
 
 func (f *smsHashFill) start(parent context.Context, fetch func(context.Context, string) (string, error), store *DiskStore, games []hostclient.Game) {
@@ -216,7 +246,16 @@ func (f *smsHashFill) start(parent context.Context, fetch func(context.Context, 
 	ctx, cancel := context.WithCancel(parent)
 	f.cancel = cancel
 	f.mu.Unlock()
-	copied := append([]hostclient.Game(nil), games...)
+	copied := make([]hostclient.Game, 0, len(games))
+	now := time.Now()
+	for _, game := range games {
+		if game.LocalCatalogPlayable() && f.due(game.ID, now) {
+			copied = append(copied, game)
+		}
+	}
+	if len(copied) == 0 {
+		return
+	}
 	go fillSMSROMHashes(ctx, fetch, store, copied)
 }
 
@@ -240,7 +279,7 @@ func fillSMSROMHashes(ctx context.Context, fetch func(context.Context, string) (
 		if ctx.Err() != nil {
 			return
 		}
-		if !game.LocalCatalogPlayable() || normalizeROMHash(game.ROMSHA256) != "" || store.ROMHash(game.ID) != "" {
+		if !game.LocalCatalogPlayable() {
 			continue
 		}
 		reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)

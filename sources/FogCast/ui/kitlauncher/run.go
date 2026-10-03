@@ -461,10 +461,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		if local {
 			localPending = true
 			var hostGame hostclient.Game
+			online := m.Connected
+			cachedDigest := ""
 			if action == "local-launch" {
 				hostGame = displayedGame(m, id)
-				if c.Cache != nil && normalizeROMHash(hostGame.ROMSHA256) == "" {
-					hostGame.ROMSHA256 = c.Cache.ROMHash(id)
+				if !online && c.Cache != nil {
+					cachedDigest = c.Cache.ROMHash(id)
 				}
 			}
 			go func() {
@@ -474,7 +476,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					if c.Library != nil {
 						fetch = c.Library.GameROMHash
 					}
-					learned, err := launchMatchedLocalGame(ctx, c.LocalCores, fetch, localPath, localGames, matcher, hostGame)
+					learned, err := launchMatchedLocalGame(ctx, c.LocalCores, online, cachedDigest, fetch, localPath, localGames, matcher, hostGame)
 					if learned != "" && c.Cache != nil {
 						_ = c.Cache.RememberROMHash(hostGame.ID, learned)
 					}

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
@@ -66,7 +67,7 @@ func TestHostSMSMatchesLocalROMAndLaunchesLocalEntry(t *testing.T) {
 	}
 	core := &fakeLocalCore{cores: []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}}
 	host := hostclient.Game{ID: "host-id"}
-	learned, err := launchMatchedLocalGame(context.Background(), core, fetch, resolve, []hostclient.Game{local}, matcher, host)
+	learned, err := launchMatchedLocalGame(context.Background(), core, true, "", fetch, resolve, []hostclient.Game{local}, matcher, host)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,17 +78,68 @@ func TestHostSMSMatchesLocalROMAndLaunchesLocalEntry(t *testing.T) {
 		t.Fatalf("launch %q %q", core.launchID, core.launchPath)
 	}
 	core.launchPath = ""
-	if _, err := launchMatchedLocalGame(context.Background(), core, func(context.Context, string) (string, error) { return strings.Repeat("b", 64), nil }, resolve, []hostclient.Game{local}, matcher, host); !errors.Is(err, errNotOnKit) || localCoreMessage(err) != "Not on this kit" {
+	if _, err := launchMatchedLocalGame(context.Background(), core, true, "", func(context.Context, string) (string, error) { return strings.Repeat("b", 64), nil }, resolve, []hostclient.Game{local}, matcher, host); !errors.Is(err, errNotOnKit) || localCoreMessage(err) != "Not on this kit" {
 		t.Fatalf("miss: %v", err)
 	}
-	if _, err := launchMatchedLocalGame(context.Background(), core, func(context.Context, string) (string, error) { return "", errors.New("offline") }, resolve, []hostclient.Game{local}, matcher, host); !errors.Is(err, errNeedsHost) || localCoreMessage(err) != "Needs the host" {
+	if _, err := launchMatchedLocalGame(context.Background(), core, true, "", func(context.Context, string) (string, error) { return "", errors.New("offline") }, resolve, []hostclient.Game{local}, matcher, host); !errors.Is(err, errCartridgeCheck) || localCoreMessage(err) != "Could not check this kit's cartridges" {
 		t.Fatalf("fetch: %v", err)
 	}
 	if core.launchPath != "" {
 		t.Fatal("unexpected launch on miss or fetch failure")
 	}
-	if _, err := launchMatchedLocalGame(context.Background(), core, nil, resolve, []hostclient.Game{local}, matcher, hostclient.Game{ID: local.ID}); err != nil || core.launchPath != path {
+	if _, err := launchMatchedLocalGame(context.Background(), core, false, "", nil, resolve, []hostclient.Game{local}, matcher, hostclient.Game{ID: local.ID}); err != nil || core.launchPath != path {
 		t.Fatalf("direct local = %q, %v", core.launchPath, err)
+	}
+}
+
+func TestOnlineLiveDigestWinsOverStaleCachedDigest(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "replacement.sms")
+	newBytes := []byte("replacement ROM")
+	if err := os.WriteFile(path, newBytes, 0600); err != nil {
+		t.Fatal(err)
+	}
+	newHash := fmt.Sprintf("%x", sha256.Sum256(newBytes))
+	oldHash := fmt.Sprintf("%x", sha256.Sum256([]byte("old ROM")))
+	local := smsRow()
+	local.ID = "kit-replacement"
+	resolve := func(context.Context, string) (string, error) { return path, nil }
+	fetches := 0
+	fetch := func(context.Context, string) (string, error) {
+		fetches++
+		return newHash, nil
+	}
+	core := &fakeLocalCore{cores: []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}}
+	store := mustOpenStore(t)
+	const hostID = "sms-replacement-5f961211d191"
+	if err := store.RememberROMHash(hostID, oldHash); err != nil {
+		t.Fatal(err)
+	}
+	host := smsRow()
+	host.ID = hostID
+	host.ROMSHA256 = oldHash // A stale digest on the row must not be trusted while online.
+	learned, err := launchMatchedLocalGame(context.Background(), core, true, "", fetch, resolve, []hostclient.Game{local}, &localROMMatcher{}, host)
+	if err != nil || learned != newHash {
+		t.Fatalf("launch learned=%q err=%v", learned, err)
+	}
+	if err := store.RememberROMHash(hostID, learned); err != nil {
+		t.Fatal(err)
+	}
+	if store.ROMHash(hostID) != newHash || core.launchPath != path || fetches != 1 {
+		t.Fatalf("cached=%q launch=%q fetches=%d", store.ROMHash(hostID), core.launchPath, fetches)
+	}
+
+	core.launchPath = ""
+	oldPath := filepath.Join(t.TempDir(), "old.sms")
+	if err := os.WriteFile(oldPath, []byte("old ROM"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	oldLocal := local
+	resolveOld := func(context.Context, string) (string, error) { return oldPath, nil }
+	if _, err := launchMatchedLocalGame(context.Background(), core, true, oldHash, fetch, resolveOld, []hostclient.Game{oldLocal}, &localROMMatcher{}, host); !errors.Is(err, errNotOnKit) {
+		t.Fatalf("old local ROM matched replacement: %v", err)
+	}
+	if core.launchPath != "" {
+		t.Fatal("old local ROM launched for replaced host ROM")
 	}
 }
 
@@ -116,7 +168,7 @@ func TestOfflineCachedHostSMSRowLaunchesMatchingLocalROM(t *testing.T) {
 		return "", errors.New("offline")
 	}
 	core := &fakeLocalCore{cores: []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}}
-	learned, err := launchMatchedLocalGame(context.Background(), core, fetch, resolve, []hostclient.Game{local}, &localROMMatcher{}, host)
+	learned, err := launchMatchedLocalGame(context.Background(), core, false, hash, fetch, resolve, []hostclient.Game{local}, &localROMMatcher{}, host)
 	if err != nil || learned != "" {
 		t.Fatalf("launch err=%v learned=%q", err, learned)
 	}
@@ -126,7 +178,7 @@ func TestOfflineCachedHostSMSRowLaunchesMatchingLocalROM(t *testing.T) {
 
 	core.launchPath = ""
 	host.ROMSHA256 = strings.Repeat("ab", 32)
-	if _, err := launchMatchedLocalGame(context.Background(), core, fetch, resolve, []hostclient.Game{local}, &localROMMatcher{}, host); !errors.Is(err, errNotOnKit) || localCoreMessage(err) != "Not on this kit" {
+	if _, err := launchMatchedLocalGame(context.Background(), core, false, host.ROMSHA256, fetch, resolve, []hostclient.Game{local}, &localROMMatcher{}, host); !errors.Is(err, errNotOnKit) || localCoreMessage(err) != "Not on this kit" {
 		t.Fatalf("hash miss: %v", err)
 	}
 	if core.launchPath != "" {
@@ -153,7 +205,7 @@ func TestOfflineHostSMSRowWithoutHashUsesWeakerTitleMatch(t *testing.T) {
 	}
 	offline := func(context.Context, string) (string, error) { return "", errors.New("offline") }
 	core := &fakeLocalCore{cores: []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}}
-	if _, err := launchMatchedLocalGame(context.Background(), core, offline, resolve, []hostclient.Game{local}, &localROMMatcher{}, host); err != nil || core.launchPath != path {
+	if _, err := launchMatchedLocalGame(context.Background(), core, false, "", offline, resolve, []hostclient.Game{local}, &localROMMatcher{}, host); err != nil || core.launchPath != path {
 		t.Fatalf("title match %q %v", core.launchPath, err)
 	}
 
@@ -163,7 +215,7 @@ func TestOfflineHostSMSRowWithoutHashUsesWeakerTitleMatch(t *testing.T) {
 	other.Title = "Other"
 	host.Title = "Data Storm"
 	host.ID = "sms-datastorm-5f961211d191"
-	if _, err := launchMatchedLocalGame(context.Background(), core, offline, resolve, []hostclient.Game{other}, &localROMMatcher{}, host); !errors.Is(err, errNotOnKit) || localCoreMessage(err) != "Not on this kit" {
+	if _, err := launchMatchedLocalGame(context.Background(), core, false, "", offline, resolve, []hostclient.Game{other}, &localROMMatcher{}, host); !errors.Is(err, errNotOnKit) || localCoreMessage(err) != "Not on this kit" {
 		t.Fatalf("no match: %v", err)
 	}
 	if core.launchPath != "" {
@@ -172,7 +224,7 @@ func TestOfflineHostSMSRowWithoutHashUsesWeakerTitleMatch(t *testing.T) {
 
 	twin := local
 	twin.ID = "sms-datastorm-aaaaaaaaaaaa"
-	if _, err := launchMatchedLocalGame(context.Background(), core, offline, resolve, []hostclient.Game{local, twin}, &localROMMatcher{}, host); !errors.Is(err, errNeedsHost) || localCoreMessage(err) != "Needs the host" {
+	if _, err := launchMatchedLocalGame(context.Background(), core, false, "", offline, resolve, []hostclient.Game{local, twin}, &localROMMatcher{}, host); !errors.Is(err, errNeedsHost) || localCoreMessage(err) != "Needs the host" {
 		t.Fatalf("ambiguous title: %v", err)
 	}
 	if core.launchPath != "" {
@@ -200,7 +252,51 @@ func TestSMSHashFillRemembersDigestForOfflineLaunch(t *testing.T) {
 		again++
 		return strings.Repeat("cd", 32), nil
 	}, store, []hostclient.Game{row})
-	if again != 0 || store.ROMHash(id) != hash {
+	if again != 1 || store.ROMHash(id) != strings.Repeat("cd", 32) {
 		t.Fatalf("refill calls=%d hash=%q", again, store.ROMHash(id))
+	}
+}
+
+func TestOnlineDigestFailureNeverFallsBackToTitle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "datastorm.sms")
+	if err := os.WriteFile(path, []byte("different bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	local := smsRow()
+	local.ID = "sms-datastorm-2a1507179e25"
+	local.Title = "Data Storm"
+	host := smsRow()
+	host.ID = "sms-datastorm-5f961211d191"
+	host.Title = "Data Storm"
+	resolve := func(context.Context, string) (string, error) { return path, nil }
+	core := &fakeLocalCore{cores: []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}}
+	for name, fetch := range map[string]func(context.Context, string) (string, error){
+		"error":   func(context.Context, string) (string, error) { return "", errors.New("host 503") },
+		"invalid": func(context.Context, string) (string, error) { return "not-a-digest", nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			core.launchPath = ""
+			_, err := launchMatchedLocalGame(context.Background(), core, true, strings.Repeat("ab", 32), fetch, resolve, []hostclient.Game{local}, &localROMMatcher{}, host)
+			if !errors.Is(err, errCartridgeCheck) || localCoreMessage(err) != "Could not check this kit's cartridges" {
+				t.Fatalf("host-up digest failure: %v", err)
+			}
+			if core.launchPath != "" {
+				t.Fatal("host-up digest failure launched a title match")
+			}
+		})
+	}
+}
+
+func TestSMSHashFillRefreshesEachIDAtMostOncePerInterval(t *testing.T) {
+	var f smsHashFill
+	now := time.Now()
+	if !f.due("sms-a-000000000000", now) {
+		t.Fatal("first check not due")
+	}
+	if f.due("sms-a-000000000000", now.Add(30*time.Second)) {
+		t.Fatal("re-fetched on the next catalog reload")
+	}
+	if !f.due("sms-a-000000000000", now.Add(smsHashRefreshEvery)) {
+		t.Fatal("not refreshed after the interval")
 	}
 }
