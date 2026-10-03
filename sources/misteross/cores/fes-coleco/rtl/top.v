@@ -10,6 +10,8 @@
 // DE10-Nano shell for the reduced ColecoVision machine. The mailbox and
 // machine remain in the 52.224 MHz system domain; the logical frame buffer crosses
 // to the independent 74.25 MHz HDMI pixel domain in coleco_video_720p.
+// FES_COLECO_NATIVE_VIDEO_DEV is an inline source/consumer prototype. It does
+// not expose the sealed RGB888 socket or change the factory producer.
 module top #(
     parameter [127:0] BUILD_ID = `FES_COLECO_BUILD_ID
 ) (
@@ -167,6 +169,31 @@ module top #(
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
+`ifdef FES_COLECO_NATIVE_VIDEO_DEV
+    wire [31:0] native_source_request, native_request;
+    wire [27:0] native_response;
+    coleco_native_video native_source (
+        .clk_sys(clk_sys), .hold(exec_reset),
+        .logical_x(logical_x), .logical_y(logical_y),
+        .logical_pixel(logical_pixel), .logical_blank(logical_blank),
+        .request(native_source_request)
+    );
+    fes_native_cdc native_crossing (
+        .source_clk(clk_sys), .pixel_clk(pixel_clk),
+        .source_request(native_source_request), .request(native_request)
+    );
+    fes_native_video #(
+`ifdef FES_NATIVE_SCANLINES
+        .SCANLINES(1),
+`else
+        .SCANLINES(0),
+`endif
+        .WIDTH(256), .HEIGHT(192)
+    ) native_output (
+        .clock(pixel_clk), .request(native_request), .response(native_response)
+    );
+    assign {HDMI_TX_VS, HDMI_TX_HS, HDMI_TX_DE, HDMI_TX_D} = native_response[26:0];
+`else
     wire [23:0] machine_rgb;
     wire machine_de, machine_hs, machine_vs, raster_sof, raster_eol;
     coleco_video_720p video (
@@ -208,6 +235,7 @@ module top #(
     assign HDMI_TX_DE = machine_de;
     assign HDMI_TX_HS = machine_hs;
     assign HDMI_TX_VS = machine_vs;
+`endif
 `endif
 
     assign HDMI_TX_CLK = pixel_clk;
