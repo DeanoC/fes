@@ -1,7 +1,8 @@
 # Atari 520ST motherboard integration, 2026-10-03
 
 This records host digital simulation and native compiler qualification for
-[PR #483](https://github.com/DeanoC/fes/pull/483), based on FES
+[PR #483](https://github.com/DeanoC/fes/pull/483) and its subsequent timing
+qualification in [PR #490](https://github.com/DeanoC/fes/pull/490), based on FES
 `9a42c71e9f3b36e9b13fa194914b757adfda2514`. It is not physical SDRAM, HDMI,
 input, audio, or appliance acceptance. No device was programmed.
 
@@ -96,8 +97,9 @@ Notable results:
   exchanges and existing ZX81 AY/audio diagnostics.
 - Contract schemas, fixture generation and Go tests passed. Generated
   consistency covers 17 consumers and 33 copied fixtures.
-- Producer/ROM-map/card tests passed 25 cases, including real Verilator
-  ROM and packed-card transactions; one optional Mistral oracle was skipped.
+- Producer/ROM-map/card/compiler-audit tests passed the combined 39-test
+  run, including real Verilator ROM and packed-card transactions; one
+  optional Mistral oracle was skipped.
 
 The parent regression suite's generated-consumer count changed from 16 to
 17. Its stale expected count was corrected and the affected parent suites
@@ -111,6 +113,8 @@ The parent regression run passed 616 tests (39 deliberate skips) both at
 `a3a867671` and after the main merge at `52060e1d84`. Clean `make check`
 also passed at both checkpoints with 17 generated consumers and 33 fixture
 copies. The merge leaves the Atari RTL and shared media source bytes unchanged.
+Focused parent checks passed 96 cases after the timing changes; clean
+`make check` also passed for the current `83ce82152` module bytes.
 The full FogCast race suite also passed after the merge at `52060e1d84`:
 74 tested packages, including 21 rerun packages covering the changed host
 input, launcher and reboot handling.
