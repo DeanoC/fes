@@ -2152,7 +2152,7 @@
         picks[gameID] = gameID;
       });
       state.playPicks = Object.freeze(picks);
-      if (!titlesPayload) {
+      if (!titlesPayload || !Array.isArray(titlesPayload.titles)) {
         state.playOptionState = 'error';
         return emit();
       }
