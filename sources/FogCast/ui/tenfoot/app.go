@@ -279,26 +279,27 @@ type App struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 
-	mu        sync.Mutex
-	games     []hostclient.Game
-	grid      Grid
-	covers    map[string]*coverSlot
-	inflight  map[string]workKind
-	status    string
-	loadErr   string
-	loading   bool
-	launch    LaunchSnapshot
-	gamepads  int
-	keyboards int
-	mice      int
-	affinity  affinityTracker
-	repeat    Repeater
-	remap     *inputmap.Remapper
-	theme     theme.Theme
-	jobs      chan workItem
-	results   chan workResult
-	maxGames  int
-	pageLimit int
+	mu                 sync.Mutex
+	games              []hostclient.Game
+	grid               Grid
+	covers             map[string]*coverSlot
+	inflight           map[string]workKind
+	status             string
+	statusLeaseRefusal bool
+	loadErr            string
+	loading            bool
+	launch             LaunchSnapshot
+	gamepads           int
+	keyboards          int
+	mice               int
+	affinity           affinityTracker
+	repeat             Repeater
+	remap              *inputmap.Remapper
+	theme              theme.Theme
+	jobs               chan workItem
+	results            chan workResult
+	maxGames           int
+	pageLimit          int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -2550,11 +2551,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 			}
 		}
 		a.mu.Lock()
+		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
 		a.kitLeaseHave = true
 		a.kitLease = lease
+		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
 		return
 	}
@@ -2562,11 +2565,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 		// Paired target status remains useful when the host's selected target
 		// cannot be observed. The authenticated projection belongs to this kit.
 		a.mu.Lock()
+		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
 		a.kitLeaseHave = true
 		a.kitLease = paired
+		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
 		return
 	}
@@ -2594,6 +2599,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = hostclient.HealthResult{Ready: true, TargetReachable: false, TargetReady: false}
+	}
+}
+
+func (a *App) clearLeaseRefusalAfterTransitionLocked(wasForeign bool) {
+	if wasForeign && !a.foreignKitLeaseLocked() && a.statusLeaseRefusal && a.status == localInUseCopy {
+		a.status = ""
+		a.statusLeaseRefusal = false
 	}
 }
 
