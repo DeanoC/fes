@@ -23,6 +23,18 @@ class TestChangedTest(unittest.TestCase):
         for target in ("sim-fes-native-video", "sim-fes-coleco-native", "sim-fes-native-socket"):
             self.assertTrue(any(target in c["argv"] for c in result["commands"]))
 
+    def test_standalone_z80_changes_select_cpu_simulation(self):
+        self.change("sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv")
+        self.change("sources/misteross/cores/fes-common/sim/z80/cpu_tb.cpp")
+        self.change("sources/misteross/scripts/sim_fes_z80.py")
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], ["z80"])
+        targets = [c["argv"][1] for c in result["commands"]
+                   if c["lane"] == "fpga" and c["argv"][0] == "make"]
+        self.assertEqual(targets, ["sim-fes-z80"])
+        self.assertEqual({lane for lane, enabled in result["impact"]["lanes"].items() if enabled},
+                         {"parent", "fpga"})
+
     def test_shared_menu_scanout_selects_idle_and_session_simulations(self):
         self.change("sources/misteross/cores/fes-menu/rtl/fes_menu_video.v")
         result = self.plan()

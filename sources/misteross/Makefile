@@ -78,6 +78,7 @@ help:
 		"  build-fes-coleco-native-video  Seal the native-pixel shell requiring a linked video part" \
 		"  sim-fes-coleco-native  Test actual registered Coleco VDP native pixels and inline board path" \
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
+		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-sgm-integrated  Test the v2 SGM module and shell RAM through CPU/socket cycles" \
@@ -157,7 +158,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -1453,3 +1454,8 @@ sim-fes-z80-timing:
 		--Mdir "$(CURDIR)/build/sim/fes-z80-timing" \
 		cores/fes-common/rtl/fes_z80_ce.sv "$(CURDIR)/cores/fes-coleco/sim/cpu_ce_tb.cpp"
 	@build/sim/fes-z80-timing/Vfes_z80_ce
+
+.PHONY: sim-fes-z80
+sim-fes-z80:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_z80.py --verilator "$(VERILATOR)"

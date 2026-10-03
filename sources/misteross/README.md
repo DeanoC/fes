@@ -65,6 +65,12 @@ Run the commands below from `sources/misteross/`. Preparing one registered
 package without an image rebuild is the FES
 [core developer workflow](../../docs/core-development.md).
 
+The original shared Z80 CPU has NMOS and documented fast variants. Run
+`make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
+[the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
+Cyclone V timing diagnostic. Current console packages retain TV80/T80 while
+this implementation is qualified.
+
 ### OSS experiments
 
 `make toolchain` (GPU router off), then `make sim EXP=…` and `make oss EXP=…`.

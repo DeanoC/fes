@@ -81,6 +81,14 @@ class AffectedTests(unittest.TestCase):
             'scripts/build_c64_slot_card.py': {'c64'},
             'cores/fes-spectrum/rtl/spectrum_machine.sv': {'spectrum'},
             'scripts/spectrum_slots.py': {'spectrum'},
+            'cores/fes-common/rtl/z80/fes_z80_alu.sv': {'z80'},
+            'cores/fes-common/rtl/z80/fes_z80_engine.sv': {'z80'},
+            'cores/fes-common/rtl/z80/new_unit.sv': {'z80'},
+            'cores/fes-common/sim/z80/cpu_tb.cpp': {'z80'},
+            'cores/fes-common/sim/z80/new_fixture.bin': {'z80'},
+            'scripts/sim_fes_z80.py': {'z80'},
+            'scripts/benchmark_fes_z80.py': {'z80'},
+            'scripts/test_fes_z80_vectors.py': {'z80'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):
@@ -105,7 +113,8 @@ class AffectedTests(unittest.TestCase):
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'AGENTS.md', 'toolchain.lock',
                      'toolchains/registered-memory.lock', 'scripts/new_helper.py',
-                     'scripts/build_fes_new_core.py', 'tests/test_new_behavior.py',
+                     'scripts/build_fes_new_core.py', 'scripts/build_fes_z80.py',
+                     'tests/test_new_behavior.py',
                      'cores/fes-new/rtl/top.v', 'cores/fes-common/rtl/new_unit.sv',
                      'cores/fes-common/generated/fes_application.vh'):
             with self.subTest(path=path):
@@ -141,7 +150,7 @@ class AffectedTests(unittest.TestCase):
             # producer modules (which could have execution side effects).
             sources = [root / 'scripts' / ('build_fes_' + core + '.py'),
                        root / 'scripts' / ('build_fes_' + core + '_oss.py')]
-            if core in ('demo', 'menu'):
+            if core in ('demo', 'menu', 'z80'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')
