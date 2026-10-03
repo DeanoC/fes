@@ -230,3 +230,21 @@ GPI is `{SIGNATURE, plug_addr[5:0], plug_rdata}`. GPO for 904 is
 with strobes low, then pulse. Do not apply `0x13579BDF` (it is an I/O write
 to xxDF). This is a development-RBF diagnostic, not image acceptance, and it
 does not seal `fes.zx81`.
+
+## First-pass route ladders are a stopgap (DeanoC/fes#436)
+
+Each package's functional key covers the `scripts/` source closure. Its 128-bit
+`BUILD_ID` is chparam'd into the netlist, so an unrelated script edit changes
+placement. On main's #436 closure, SG-1000 seed 3 reached 48.93 MHz against
+the 52.224 MHz system constraint. At the PR closure, the 12-seed sweep passed
+10 seeds; seeds 2 and 11 failed. The SG-1000 producer now tries seeds 12, 5, 4, 8, 10, 1, 6, 9
+in order and keeps the first route meeting its 52.224 MHz system, 12.288 MHz
+audio and 74.25 MHz pixel constraints.
+Pong similarly tries seeds 1 through 8 for its pixel constraint. The described
+menu package tries seed 5 first, then 1, 2, 3, 4, 6, 7, 8. Each winner still
+passes the producer's full timing, resource, and package evidence checks.
+
+The bounded ladders are a stopgap. Timing closure margin is tracked in
+[DeanoC/nextpnr#112](https://github.com/DeanoC/nextpnr/issues/112); narrowing
+the functional source closure is tracked in
+[DeanoC/fes#447](https://github.com/DeanoC/fes/issues/447).

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/atomicwrite"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/kitlease"
 )
 
@@ -129,6 +130,7 @@ type Client struct {
 	menuResume  func()
 	HTTP        *http.Client
 	Library     *hostclient.Client
+	LocalCores  LocalCoreClient
 	Cache       *DiskStore
 	// localCore reports whether a runtime core is bound. fogcast-kit installs
 	// it. Play input uses the result and ignores host reachability. Nil leaves
@@ -145,6 +147,16 @@ type Client struct {
 	// and the disk snapshot unchanged.
 	catalogConfig string
 }
+
+// LocalCoreClient is the kit-local control route; tests supply a fake.
+type LocalCoreClient interface {
+	List(context.Context) ([]localcores.Core, error)
+	LaunchROM(context.Context, string, string) error
+	Status(context.Context) (localcores.RunStatus, error)
+	Stop(context.Context) error
+}
+
+func (c *Client) SetLocalCores(client LocalCoreClient) { c.LocalCores = client }
 
 // SetCatalogConfig names the catalog file Run boots for hostless browse.
 // fogcast-kit sets it from the launcher config path. An empty path is a no-op.

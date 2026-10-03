@@ -279,26 +279,28 @@ type App struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 
-	mu        sync.Mutex
-	games     []hostclient.Game
-	grid      Grid
-	covers    map[string]*coverSlot
-	inflight  map[string]workKind
-	status    string
-	loadErr   string
-	loading   bool
-	launch    LaunchSnapshot
-	gamepads  int
-	keyboards int
-	mice      int
-	affinity  affinityTracker
-	repeat    Repeater
-	remap     *inputmap.Remapper
-	theme     theme.Theme
-	jobs      chan workItem
-	results   chan workResult
-	maxGames  int
-	pageLimit int
+	mu                 sync.Mutex
+	games              []hostclient.Game
+	grid               Grid
+	covers             map[string]*coverSlot
+	inflight           map[string]workKind
+	status             string
+	statusLeaseRefusal bool
+	launchLeaseRefusal bool
+	loadErr            string
+	loading            bool
+	launch             LaunchSnapshot
+	gamepads           int
+	keyboards          int
+	mice               int
+	affinity           affinityTracker
+	repeat             Repeater
+	remap              *inputmap.Remapper
+	theme              theme.Theme
+	jobs               chan workItem
+	results            chan workResult
+	maxGames           int
+	pageLimit          int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -2041,6 +2043,7 @@ func (a *App) startLaunchLocked() {
 		return
 	}
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+		a.launchLeaseRefusal = false
 		a.launch = LaunchSnapshot{Phase: "error", Message: "no title selected"}
 		return
 	}
@@ -2061,12 +2064,14 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	if a.client != nil && a.client.paired && a.kitMutationBlockedLocked() {
 		message := a.status
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: message}
+		a.launchLeaseRefusal = a.statusLeaseRefusal
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
 		}
 		return
 	}
 	if reason := launchBlockReason(game); reason != "" {
+		a.launchLeaseRefusal = false
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
@@ -2075,6 +2080,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	}
 	if a.foreignKitLeaseLocked() && !game.HostOnly() {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: localInUseCopy}
+		a.launchLeaseRefusal = true
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
 		}
@@ -2082,6 +2088,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	}
 	a.sessionTitle = game.Title
 	a.cancelPlayHIDLocked()
+	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{
 		GameID:  game.ID,
 		Phase:   "launching",
@@ -2139,6 +2146,7 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	a.bumpSessionGenLocked()
 	if err != nil {
 		a.launch.Phase = "error"
+		a.launchLeaseRefusal = false
 		a.launch.Message = "launch failed: " + err.Error()
 		a.launch.ErrorMessage = err.Error()
 		return
@@ -2149,10 +2157,12 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	a.launch.State = result.State
 	if result.ErrorCode != "" {
 		a.launch.Phase = "host"
+		a.launchLeaseRefusal = false
 		a.launch.Message = fmt.Sprintf("host launch %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
 		return
 	}
 	a.launch.Phase = "ok"
+	a.launchLeaseRefusal = false
 	a.launch.Message = fmt.Sprintf("host accepted launch for %s", game.ID)
 	a.applySessionLocked(result)
 	if a.session.State == "active" && a.session.GameID == "" {
@@ -2550,11 +2560,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 			}
 		}
 		a.mu.Lock()
+		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
 		a.kitLeaseHave = true
 		a.kitLease = lease
+		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
 		return
 	}
@@ -2562,11 +2574,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 		// Paired target status remains useful when the host's selected target
 		// cannot be observed. The authenticated projection belongs to this kit.
 		a.mu.Lock()
+		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
 		a.kitLeaseHave = true
 		a.kitLease = paired
+		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
 		return
 	}
@@ -2594,6 +2608,21 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = hostclient.HealthResult{Ready: true, TargetReachable: false, TargetReady: false}
+	}
+}
+
+func (a *App) clearLeaseRefusalAfterTransitionLocked(wasForeign bool) {
+	if !wasForeign || a.foreignKitLeaseLocked() {
+		return
+	}
+	if a.statusLeaseRefusal && a.status == localInUseCopy {
+		a.status = ""
+	}
+	a.statusLeaseRefusal = false
+	if a.launchLeaseRefusal {
+		a.launch.Message = ""
+		a.launch.Phase = "idle"
+		a.launchLeaseRefusal = false
 	}
 }
 

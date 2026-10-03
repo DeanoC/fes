@@ -14,7 +14,10 @@ Example with an existing local v1 corpus:
   python3 scripts/test_fes_z80_vectors.py --corpus /absolute/z80/v1 --opcode 'ed b0'
 
 One retired instruction corresponds to one fixture, including one repeat-block
-iteration or HALT entry. Exact cycle waveforms are intentionally not compared.
+iteration or HALT entry. --pins runs the complete NMOS wrapper and compares
+total T states, ordered memory/I/O transactions and observed M1/refresh cycles.
+The corpus simplifies memory strobes to one T state and omits M1/RFSH, so exact
+strobe widths, half-cycle phases and unstrobed addresses are not compared.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -148,6 +151,51 @@ def ram(state, label):
     return [len(entries), *values]
 
 
+def pin_expectations(case, label):
+    cycles = case['cycles']
+    if not isinstance(cycles, list) or not 1 <= len(cycles) <= 1024:
+        raise ValueError('invalid cycle list: ' + label)
+    transactions = []
+    kinds = {'r-m-': 0, '-wm-': 1, 'r--i': 2, '-w-i': 3}
+    for cycle in cycles:
+        if not isinstance(cycle, list) or len(cycle) != 3:
+            raise ValueError('invalid cycle triple: ' + label)
+        address, data, pins = cycle
+        if address is not None: number(address, 65535, label + '.cycle.address')
+        if data is not None: number(data, 255, label + '.cycle.data')
+        if not isinstance(pins, str): raise ValueError('invalid cycle pins: ' + label)
+        if pins != '----' and (pins not in kinds or address is None):
+            raise ValueError('unsupported corpus pin encoding: ' + label)
+    for index, (address, data, pins) in enumerate(cycles):
+        if pins == '----': continue
+        # Simplified read strobes precede the fixture's sampled read byte;
+        # write bytes are supplied alongside their simplified write strobe.
+        value = data if pins[1] == 'w' else cycles[index + 1][1] if index + 1 < len(cycles) else None
+        transactions.extend((kinds[pins], address, number(value, 255, label + '.transaction.data')))
+
+    # Public Z80 prefix rules supply the M1 count because the corpus omits M1.
+    # Indexed CB displacement/operation bytes are ordinary reads, not M1s.
+    memory = dict(case['initial']['ram'])
+    pc, indexed, m1_count = case['initial']['pc'], False, 0
+    for _ in range(256):
+        if pc not in memory: raise ValueError('missing opcode RAM for M1 count: ' + label)
+        opcode = memory[pc]
+        pc = (pc + 1) & 65535
+        m1_count += 1
+        if opcode in (0xdd, 0xfd):
+            indexed = True
+            continue
+        if opcode == 0xed or (opcode == 0xcb and not indexed):
+            m1_count += 1
+        break
+    else:
+        raise ValueError('unterminated prefix sequence: ' + label)
+    i_reg, r_reg = case['initial']['i'], case['initial']['r']
+    refreshes = [(i_reg << 8) | (r_reg & 128) | ((r_reg + index) & 127)
+                 for index in range(m1_count)]
+    return [len(cycles), len(transactions) // 3, *transactions, len(refreshes), *refreshes]
+
+
 def write_stream(files, output, args):
     count = 0
     with output.open('w') as stream:
@@ -156,6 +204,7 @@ def write_stream(files, output, args):
             if not isinstance(cases, list) or not cases:
                 raise ValueError('expected a nonempty fixture array: ' + str(path))
             for case in cases[:args.limit_per_opcode]:
+                if not isinstance(case, dict): raise ValueError('invalid fixture object: ' + str(path))
                 if not isinstance(case['name'], str): raise ValueError('invalid fixture name')
                 label = urllib.parse.quote(path.stem, safe='') + '/' + urllib.parse.quote(case['name'], safe='')
                 values = registers(case['initial'], label) + registers(case['final'], label)
@@ -169,6 +218,8 @@ def write_stream(files, output, args):
                         raise ValueError('invalid port triple: ' + label)
                     values.extend((number(port[0], 65535, label + '.port'),
                                    number(port[1], 255, label + '.port.value'), int(port[2] == 'w')))
+                if args.pins:
+                    values += pin_expectations(case, label)
                 stream.write(label + ' ' + ' '.join(map(str, values)) + '\n')
                 count += 1
     return count
@@ -178,6 +229,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--corpus', type=Path)
     parser.add_argument('--download', action='store_true', help='explicitly fetch pinned JSON data into ignored build/')
+    parser.add_argument('--pins', action='store_true', help='qualify complete NMOS wrapper state, T count, ordered bus accesses and M1/refresh')
     parser.add_argument('--group', choices=GROUPS, action='append')
     parser.add_argument('--opcode', action='append', help="exact fixture stem, e.g. 'ed b0' or 'dd cb __ 46'")
     parser.add_argument('--limit-per-opcode', type=int, default=100)
@@ -211,31 +263,37 @@ def main():
         manifest_path = corpus / 'fes-z80-corpus.json'
         if manifest_path.exists():
             manifest = json.loads(manifest_path.read_text())
+            if (not isinstance(manifest, dict) or not isinstance(manifest.get('files'), dict)
+                    or not isinstance(manifest.get('repository'), str)
+                    or not isinstance(manifest.get('revision'), str)):
+                raise ValueError('invalid corpus receipt: ' + str(manifest_path))
             for path in files:
                 record = manifest['files'].get(path.name)
-                if not record or hashlib.sha256(path.read_bytes()).hexdigest() != record['sha256']:
+                if not isinstance(record, dict) or hashlib.sha256(path.read_bytes()).hexdigest() != record.get('sha256'):
                     raise ValueError('cached data differs from corpus receipt: ' + path.name)
             print('Corpus:', manifest['repository'], 'revision', manifest['revision'], flush=True)
         else:
             print('Local corpus: revision/provenance not verified by this runner', flush=True)
-        stream = output / 'fixtures.txt'
+        stream = output / ('pin-fixtures.txt' if args.pins else 'fixtures.txt')
         count = write_stream(files, stream, args)
         print(f'Selected {len(files)} opcode files, {count} vectors', flush=True)
-        build = output / 'engine'
+        top = 'fes_z80_nmos' if args.pins else 'fes_z80_engine'
+        build = output / ('pins' if args.pins else 'engine')
         build.mkdir(exist_ok=True)
         rtl = ROOT / 'cores/fes-common/rtl/z80'
         command = [args.verilator, '--cc', '--exe', '--build', '--public-flat-rw',
-                   '--top-module', 'fes_z80_engine', '-Wall', '-j', str(args.jobs),
-                   '--Mdir', str(build), '-CFLAGS', '-std=c++17 -O2',
+                   '--top-module', top, '-Wall', '-j', str(args.jobs),
+                   '--Mdir', str(build), '-CFLAGS', '-std=c++17 -O2' + (' -DPIN_QUALIFICATION' if args.pins else ''),
                    str(rtl / 'fes_z80_alu.sv'), str(rtl / 'fes_z80_engine.sv'),
+                   *([str(rtl / 'fes_z80_bus.sv'), str(rtl / 'fes_z80_nmos.sv')] if args.pins else []),
                    str(ROOT / 'cores/fes-common/sim/z80/vectors_tb.cpp')]
-        log = output / 'build.log'
+        log = output / ('pin-build.log' if args.pins else 'build.log')
         with log.open('w') as destination:
             result = subprocess.run(command, cwd=ROOT, stdout=destination, stderr=subprocess.STDOUT)
         if result.returncode:
             sys.stderr.write(log.read_text())
             return result.returncode
-        return subprocess.run([str(build / 'Vfes_z80_engine'), str(stream), str(args.max_detailed_failures)], cwd=ROOT).returncode
+        return subprocess.run([str(build / ('V' + top)), str(stream), str(args.max_detailed_failures)], cwd=ROOT).returncode
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print('External-vector qualification error:', error, file=sys.stderr)
         return 2

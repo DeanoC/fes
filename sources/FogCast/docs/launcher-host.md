@@ -78,6 +78,13 @@ Each paired kit has its own foreground session and input/media lifecycle.
 in the stop body must name that same kit. Explicit browser/API launches replace
 only the requested target. Unscoped browser Stop keeps its active-then-selected
 behavior. Health, `rom_cached`, and `/api/v1/library/cache` stay target-scoped (#289).
+On the public host API, `GET /api/v1/session?target=name`,
+`GET /api/v1/status?target=name`, and target-bound
+`POST /api/v1/session/launch` accept a configured target name. Stop accepts a
+configured name in its `{"target":"name"}` body. An unconfigured explicit
+name returns `404 TARGET_NOT_FOUND` (`target is not configured`). A configured
+but unreachable target keeps the existing `503 TARGET_UNAVAILABLE` behavior
+for session and status reads.
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
 `Offline, showing your saved list`. Local D-pad/A still browse that snapshot. Offline

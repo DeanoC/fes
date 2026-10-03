@@ -52,8 +52,14 @@ from scripts.fes_build_common import (
 )
 from scripts.fes_de10nano_evidence import SDC, PLL_PARAMETERS, REFERENCE_SDC_BYTES, REFERENCE_CONSTRAINT_LOG, PLL_ROUTE_LOG
 from scripts.fes_de10nano_evidence import validate_build_evidence as validate_board_evidence
+from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
+PLACER_SEEDS = (1, 2, 3, 4, 5, 6, 7, 8)
+PLACER_TIMING_WEIGHT = 10
+PLACER_CRITICALITY_EXPONENT = 2
+ROUTE_TIMEOUT_SECONDS = 1800
+PLACER_QOR_CLOCKS = ((None, 74.25),)
 OUTPUT_RELATIVE = Path("build/fes-pong")
 QSF = "cores/fes-pong/constraints.qsf"
 RECIPE = "scripts/build_fes_pong.py"
@@ -76,6 +82,7 @@ PINNED_INPUTS = (
     *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
+    "qor-ranking.json",
     "synth.json",
     "routed.json",
     "core.rbf",
@@ -141,6 +148,7 @@ def create_build_record(
             "reference_clock_hz": 50_000_000,
             "router": "gpu",
             "seed": 1,
+            "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "top": TOP,
         },
     }
@@ -232,6 +240,18 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
     return encode_manifest(fields)
 
 
+def _route_placement(root: Path, output: Path, nextpnr: Path, invocation):
+    return route_after_synth(
+        nextpnr=nextpnr, fixture=output / "synth.json", dest=output,
+        device=TARGET, qsf=root / QSF, sdc=root / SDC, freq="74.25",
+        seeds=PLACER_SEEDS, weights=(PLACER_TIMING_WEIGHT,),
+        critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
+        mode="first-pass", extra=("--router", "gpu"),
+        required=PLACER_QOR_CLOCKS, timeout=ROUTE_TIMEOUT_SECONDS,
+        gpu_devices=(invocation.gpu_device,), env=invocation.env, audit_source_root=root,
+    )
+
+
 def _build_after_record(
     root: Path,
     package_store: Path,
@@ -255,8 +275,14 @@ def _build_after_record(
     _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root}), output_relative=OUTPUT_RELATIVE)
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
-    _run_tool(commands[1] + (("--gpu-device", str(invocation.gpu_device))), root, output / "nextpnr.log", **({"env": invocation.env, "audit_source_root": root}), output_relative=OUTPUT_RELATIVE)
+    try:
+        winner = _route_placement(root, output, authenticated["nextpnr-mistral"].path,
+                                  invocation)
+    except SearchError as exc:
+        raise BuildError(str(exc)) from exc
     evidence = validate_build_evidence(output, root)
+    evidence["route"]["placer_seed"] = winner.seed
+    evidence["route"]["placer_heap_timingweight"] = winner.weight
     evidence["execution"] = invocation.inputs
     evidence.update(
         {

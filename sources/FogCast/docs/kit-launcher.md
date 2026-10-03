@@ -79,7 +79,7 @@ without taking over, when the lease is already held (fes#172). See [the host con
 contract](launcher-host.md) for listener configuration and the session HTTP
 schema. Play input from a pad on the kit uses the local socket described below.
 `fogcast-kit` supplies the socket path and the runtime core-bound probe.
-`fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. While that core is running, tenfoot polls `GET /v1/local/status` about once a second and resumes presents if the session is idle or stop returns in use. The grid launcher is unchanged.
+`fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. While that core is running, tenfoot polls `GET /v1/local/status` about once a second and resumes presents if the session is idle or stop returns in use. The default grid also plays available kit-local SMS rows through that socket from browse and detail (attract stays host-only while offline; fes#442). Select+Start stops local play; stop, failure or idle local status returns to the menu.
 Host endpoint configuration is explicit; target discovery is separate.
 
 ## Physical controls
@@ -279,9 +279,12 @@ events are raw input frames on `/run/fogcast/local-input.sock`. mister-agent
 delivers them into the running core. The kit does not post that play input to
 the host, and it does not wait for launcher.json reachability or the host
 session's input.ready. A pad on the kit still drives the core when another
-host holds the lease. While a core is bound, those events do not leave the
-platform wheel, change browse selection, or request a launch from a stale
-idle host session. With no core bound, the same pad still browses. The player
+host holds the lease. For Coleco, SMS and SG-1000, mister-agent turns local
+pad directions and A into the core's keyboard joystick matrix; SMS and SG-1000
+ignore B. Select+Start remains the kit-local stop chord. While a core is bound,
+those events do not leave the platform wheel, change browse selection, or
+request a launch from a stale idle host session. With no core bound, the same
+pad still browses. The player
 index on the frame is the one the kit assigned. If the socket is not
 listening, the kit reports `Local input unavailable`, waits one second before
 dialing again, and does not fall back to the host input route. Hold Select +
