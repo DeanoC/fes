@@ -66,7 +66,8 @@ class BuildFixture:
                     "interfaces": [{"id": atari_st_slot.INTERFACE, "major": 1, "minor": 0, "required": False}]})
         for name, data in (("manifest.toml", b"manifest"), ("core.rbf", b"shell"),
                            ("rom-map.json", b"rom-map"),
-                           ("socket.qsf", b'FES_RESERVED_RECT "expansion 24 1 28 18"\n'),
+                           ("socket.qsf", b'FES_RESERVED_RECT "expansion 24 1 28 18"\n'
+                                          b'FES_RESERVED_RECT "ram_guard 26 19 26 19"\n'),
                            ("routed.json", json.dumps(frozen_shell()).encode())):
             (self.shell / name).write_bytes(data)
         self.tools = {name: SimpleNamespace(path=root / name, identity=name + "-authenticated")
@@ -199,6 +200,9 @@ class AtariSTSlotCardTests(unittest.TestCase):
             self.assertEqual(route[route.index("--fes-cram-region") + 1], "1769,32,2806,1722")
             self.assertEqual(route[route.index("--fes-slot-clock") + 1], card.SLOT_CLOCK)
             self.assertIn("--no-pack", route)
+            cart_qsf = (result.parent / "cart.qsf").read_bytes()
+            self.assertEqual(cart_qsf, (fixture.shell / "socket.qsf").read_bytes())
+            self.assertEqual(cart_qsf.count(b'FES_RESERVED_RECT "ram_guard 26 19 26 19"'), 1)
 
     def test_no_archive_on_outside_cram_header_clock_or_timing_change(self):
         for failure, message in (("outside", "outside"), ("header", "header"),

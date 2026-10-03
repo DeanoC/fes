@@ -1,0 +1,104 @@
+{
+  "boot_source_commit": "9cfb97c54ea005ddd47746a5a233f772fbd32f2a",
+  "boot_source_identity_sha256": "2a414c59b89d788a89b6d61151e42e5330c99d288c3ce412f831fb49634b93b6",
+  "boot_capture_sha256": "82ff7fbe885ce45a30ffdae0c32f702c2b4ef359cffced96d314b1830d116089",
+  "corrected_source_commit": "0435f069230846600984b2c1e9964c2fa63e0a07",
+  "corrected_source_identity_sha256": "8aa9414ec32598e2d871000edd8ad46d6eb8e220870195c13005eb15f627a24d",
+  "changed_source_files": [
+    "sources/misteross/cores/fes-atari-st/rtl/st_video.sv"
+  ],
+  "source_change": "Only the identical read_ahead/read_wrap declaration block moved before generate. Removing that exact two-line block from both files produces identical source bytes.",
+  "source_changes_verified_declaration_order_only": true,
+  "compared_generated_cpp_header_files": 21,
+  "generated_cpp_headers_byte_identical": true,
+  "different_generated_files": [],
+  "compared_file_sha256": {
+    "Vst_boot_memory_sim_top.cpp": {
+      "boot_model": "60319b3ae49c5d5463565106115373191ccd56f4fa6071cf6ef7fc7d32e9b6d7",
+      "corrected_model": "60319b3ae49c5d5463565106115373191ccd56f4fa6071cf6ef7fc7d32e9b6d7"
+    },
+    "Vst_boot_memory_sim_top.h": {
+      "boot_model": "3f63d5c0ebe75fece98adecb4f43741afedf64eda8c38be2bd13532b69699008",
+      "corrected_model": "3f63d5c0ebe75fece98adecb4f43741afedf64eda8c38be2bd13532b69699008"
+    },
+    "Vst_boot_memory_sim_top__ConstPool_0.cpp": {
+      "boot_model": "3ddc97a12d9cb527e1e0337687ceae617be2235c140bc59de3df48e200aa7fb5",
+      "corrected_model": "3ddc97a12d9cb527e1e0337687ceae617be2235c140bc59de3df48e200aa7fb5"
+    },
+    "Vst_boot_memory_sim_top__Syms.cpp": {
+      "boot_model": "cc639eb56a0c0d879d6386ebb3a039ef0410c1144f9fdaa8a356ad907f56d509",
+      "corrected_model": "cc639eb56a0c0d879d6386ebb3a039ef0410c1144f9fdaa8a356ad907f56d509"
+    },
+    "Vst_boot_memory_sim_top__Syms.h": {
+      "boot_model": "1cd3cd0aa5364a4b541be0a280fd1553c65bc678b2970a29a85bb5c5b26add52",
+      "corrected_model": "1cd3cd0aa5364a4b541be0a280fd1553c65bc678b2970a29a85bb5c5b26add52"
+    },
+    "Vst_boot_memory_sim_top___024root.h": {
+      "boot_model": "f0ab455c90ad9ce3f0961e4f665b124f839968baca4b28eefd6b44baf574de13",
+      "corrected_model": "f0ab455c90ad9ce3f0961e4f665b124f839968baca4b28eefd6b44baf574de13"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__0.cpp": {
+      "boot_model": "6cca145fe61258867f93c6b1b8e1fdfcb8651b61cdd2089ad5bb905652971cb1",
+      "corrected_model": "6cca145fe61258867f93c6b1b8e1fdfcb8651b61cdd2089ad5bb905652971cb1"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__0__Slow.cpp": {
+      "boot_model": "2856a1e0cced6a050f2fe6a4454a5bbc83978730a654188955eae7d911d698b6",
+      "corrected_model": "2856a1e0cced6a050f2fe6a4454a5bbc83978730a654188955eae7d911d698b6"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__1.cpp": {
+      "boot_model": "0b4be463e22f1540f137e24172c6f24cdcf36ee303262a4af378c8ed86c02291",
+      "corrected_model": "0b4be463e22f1540f137e24172c6f24cdcf36ee303262a4af378c8ed86c02291"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__1__Slow.cpp": {
+      "boot_model": "a24eeac307814e3e1d9e8d82e2e9ff580d74c3d51d0d1a02ade122b01cc97610",
+      "corrected_model": "a24eeac307814e3e1d9e8d82e2e9ff580d74c3d51d0d1a02ade122b01cc97610"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__2.cpp": {
+      "boot_model": "a18a572e944792a9b6239c90d71514d2b27c41e2e6e299f5fb156614def572a3",
+      "corrected_model": "a18a572e944792a9b6239c90d71514d2b27c41e2e6e299f5fb156614def572a3"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__2__Slow.cpp": {
+      "boot_model": "bc4f3bdc7ef2a2e586478401df2d79f2798e3f75358c68dd234cc53a561d57f4",
+      "corrected_model": "bc4f3bdc7ef2a2e586478401df2d79f2798e3f75358c68dd234cc53a561d57f4"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__3.cpp": {
+      "boot_model": "fd71fd98f2712c6511f11a9a6856f0ad4847bd34bcceda2b7ece24f1271cdf01",
+      "corrected_model": "fd71fd98f2712c6511f11a9a6856f0ad4847bd34bcceda2b7ece24f1271cdf01"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h99b8b367__0.cpp": {
+      "boot_model": "e2e7f4c103904d9660946b52f282092b2f6e1ced3fe1cb6efb887709d920f8c0",
+      "corrected_model": "e2e7f4c103904d9660946b52f282092b2f6e1ced3fe1cb6efb887709d920f8c0"
+    },
+    "Vst_boot_memory_sim_top___024root__DepSet_h99b8b367__0__Slow.cpp": {
+      "boot_model": "e495096f497d722d335787a087c944e787c0d8405206f6f0cb049c35e926b606",
+      "corrected_model": "e495096f497d722d335787a087c944e787c0d8405206f6f0cb049c35e926b606"
+    },
+    "Vst_boot_memory_sim_top___024root__Slow.cpp": {
+      "boot_model": "b874c042e65bb6f6fa33a4001a30fb53072ea462933a383f60c7b2f12b5e6d39",
+      "corrected_model": "b874c042e65bb6f6fa33a4001a30fb53072ea462933a383f60c7b2f12b5e6d39"
+    },
+    "Vst_boot_memory_sim_top___024unit.h": {
+      "boot_model": "8a1eb3837c1103b2bfdc364a9adbe82d52b9cd676c0d99174457c2cd3eb5e14c",
+      "corrected_model": "8a1eb3837c1103b2bfdc364a9adbe82d52b9cd676c0d99174457c2cd3eb5e14c"
+    },
+    "Vst_boot_memory_sim_top___024unit__DepSet_hef7166fe__0.cpp": {
+      "boot_model": "15f289ef299437ae3957d087b421210f9d0a87463e47c5b45326d0822251914f",
+      "corrected_model": "15f289ef299437ae3957d087b421210f9d0a87463e47c5b45326d0822251914f"
+    },
+    "Vst_boot_memory_sim_top___024unit__DepSet_hef7166fe__0__Slow.cpp": {
+      "boot_model": "a0bbe18daed3a00c563f64e4ade1ad3c4a120e7bf2b4ca66d5717740f491e687",
+      "corrected_model": "a0bbe18daed3a00c563f64e4ade1ad3c4a120e7bf2b4ca66d5717740f491e687"
+    },
+    "Vst_boot_memory_sim_top___024unit__Slow.cpp": {
+      "boot_model": "21992b703785cfa2e89c1bc34b52952ea188d86968f923c405d6c8bcb989606f",
+      "corrected_model": "21992b703785cfa2e89c1bc34b52952ea188d86968f923c405d6c8bcb989606f"
+    },
+    "Vst_boot_memory_sim_top__pch.h": {
+      "boot_model": "78a2bd44e5c53c90617d4ce4091be9f20881e9419d6dfd41c01685e605a0c3d1",
+      "corrected_model": "78a2bd44e5c53c90617d4ce4091be9f20881e9419d6dfd41c01685e605a0c3d1"
+    }
+  },
+  "classification": "Exact generated C++/header byte comparison; original eight-second execution remains labeled with boot_source_commit. Native compilation/timing remains separately qualified.",
+  "all_generated_cpp_header_file_sets_identical": true,
+  "comparison_method": "All actual generated .cpp/.h files from both directories are compared byte-for-byte without normalization or excluded model sources. Nonlogic build/dependency metadata is separately retained in source identities."
+}

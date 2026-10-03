@@ -1,0 +1,282 @@
+{
+  "classification": "Host-only isolated simulation of actual v5 mapped cache primitive configuration and two-edge bank selection; no whole-board native boot, routed timing, electrical or hardware qualification",
+  "mapping_identity": {
+    "mapped_source_checkpoint": "81ae4badec6f13d9a724457d559849887cf148b4",
+    "actual_v5_synth_json_path": "/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-520st/oss-build-fes-v5/sources/misteross/build/fes-atari-st-oss/synth.json",
+    "actual_v5_synth_json_sha256": "037c6ad2c8335f696b1c2156f8b25c57b90d7b83306e4b6f10d78f30a72cdb36",
+    "cache_cells": {
+      "video.cache0.0.0.0": {
+        "hide_name": 0,
+        "type": "MISTRAL_M10K",
+        "parameters": {
+          "CFG_ABITS": "00000000000000000000000000001001",
+          "CFG_BYTE_ENABLE": "00000000000000000000000000000001",
+          "CFG_DBITS": "00000000000000000000000000010100",
+          "CFG_DUAL_CLOCK": "00000000000000000000000000000001",
+          "INIT": "00000000000000000000000000000000"
+        },
+        "attributes": {
+          "module_not_derived": "00000000000000000000000000000001",
+          "src": "/home/deano/fes/out/cache/misteross-toolchains/slots/1e3827e592617f41dbbaa2fad1c64ce7377a16c73eab03a83c7d3e7af602758e/install/bin/../share/yosys/intel_alm/common/bram_m10k_map.v:22.50-24.82"
+        },
+        "port_directions": {
+          "A1ADDR": "input",
+          "A1BE": "input",
+          "A1DATA": "input",
+          "A1EN": "input",
+          "B1ADDR": "input",
+          "B1DATA": "output",
+          "B1EN": "input",
+          "CLK1": "input",
+          "CLK2": "input"
+        },
+        "connections": {
+          "A1ADDR": [
+            22358,
+            22359,
+            22360,
+            22361,
+            22362,
+            22363,
+            22364,
+            "0",
+            "0"
+          ],
+          "A1BE": [
+            22365,
+            22365
+          ],
+          "A1DATA": [
+            21989,
+            21986,
+            21979,
+            21981,
+            21991,
+            21988,
+            21978,
+            21985,
+            21983,
+            21980,
+            21990,
+            21982,
+            21992,
+            21984,
+            21993,
+            21987,
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "A1EN": [
+            22365
+          ],
+          "B1ADDR": [
+            22366,
+            22367,
+            22368,
+            22369,
+            22370,
+            22371,
+            22372,
+            "0",
+            "0"
+          ],
+          "B1DATA": [
+            22373,
+            22374,
+            22375,
+            22376,
+            22377,
+            22378,
+            22379,
+            22380,
+            22381,
+            22382,
+            22383,
+            22384,
+            22385,
+            22386,
+            22387,
+            22388,
+            22389,
+            22390,
+            22391,
+            22392
+          ],
+          "B1EN": [
+            "1"
+          ],
+          "CLK1": [
+            154
+          ],
+          "CLK2": [
+            80
+          ]
+        }
+      },
+      "video.cache1.0.0.0": {
+        "hide_name": 0,
+        "type": "MISTRAL_M10K",
+        "parameters": {
+          "CFG_ABITS": "00000000000000000000000000001001",
+          "CFG_BYTE_ENABLE": "00000000000000000000000000000001",
+          "CFG_DBITS": "00000000000000000000000000010100",
+          "CFG_DUAL_CLOCK": "00000000000000000000000000000001",
+          "INIT": "00000000000000000000000000000000"
+        },
+        "attributes": {
+          "module_not_derived": "00000000000000000000000000000001",
+          "src": "/home/deano/fes/out/cache/misteross-toolchains/slots/1e3827e592617f41dbbaa2fad1c64ce7377a16c73eab03a83c7d3e7af602758e/install/bin/../share/yosys/intel_alm/common/bram_m10k_map.v:22.50-24.82"
+        },
+        "port_directions": {
+          "A1ADDR": "input",
+          "A1BE": "input",
+          "A1DATA": "input",
+          "A1EN": "input",
+          "B1ADDR": "input",
+          "B1DATA": "output",
+          "B1EN": "input",
+          "CLK1": "input",
+          "CLK2": "input"
+        },
+        "connections": {
+          "A1ADDR": [
+            22358,
+            22359,
+            22360,
+            22361,
+            22362,
+            22363,
+            22364,
+            "0",
+            "0"
+          ],
+          "A1BE": [
+            22845,
+            22845
+          ],
+          "A1DATA": [
+            21989,
+            21986,
+            21979,
+            21981,
+            21991,
+            21988,
+            21978,
+            21985,
+            21983,
+            21980,
+            21990,
+            21982,
+            21992,
+            21984,
+            21993,
+            21987,
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          "A1EN": [
+            22845
+          ],
+          "B1ADDR": [
+            22366,
+            22367,
+            22368,
+            22369,
+            22370,
+            22371,
+            22372,
+            "0",
+            "0"
+          ],
+          "B1DATA": [
+            22846,
+            22847,
+            22848,
+            22849,
+            22850,
+            22851,
+            22852,
+            22853,
+            22854,
+            22855,
+            22856,
+            22857,
+            22858,
+            22859,
+            22860,
+            22861,
+            22862,
+            22863,
+            22864,
+            22865
+          ],
+          "B1EN": [
+            "1"
+          ],
+          "CLK1": [
+            154
+          ],
+          "CLK2": [
+            80
+          ]
+        }
+      }
+    },
+    "pinned_primitive_path": "/home/deano/fes/out/cache/misteross-toolchains/slots/1e3827e592617f41dbbaa2fad1c64ce7377a16c73eab03a83c7d3e7af602758e/install/share/yosys/intel_alm/common/mem_sim.v",
+    "pinned_primitive_sha256": "e86f4ed03c08506d7d9b84f4485a62815617af6fbb34ab9f10cb3e3a6fdac452",
+    "primitive_default_async_read": 0
+  },
+  "actual_binding": {
+    "CLK1": "system_clock.clocks_MISTRAL_CLKBUF_Q via system_clock.pll_outclk",
+    "CLK2": "pixel_clk",
+    "write_data_low16": "memory.video_rdata",
+    "write_data_high4": 0,
+    "write_address_high2": 0,
+    "read_address_high2": 0,
+    "A1EN": "active-high bank write enable",
+    "A1BE": "both active-high physical lanes follow A1EN",
+    "B1EN": 1,
+    "CFG_ASYNC_READ": "omitted in actual mapping; exact pinned primitive default0"
+  },
+  "clock_ratio": {
+    "system_half_period_units": 74250,
+    "pixel_half_period_units": 52224,
+    "pixel_phase_offset_units": 173,
+    "equivalent_frequency_ratio": "52.224 MHz system / 74.25 MHz pixel"
+  },
+  "tests": {
+    "result": "PASS",
+    "enabled_writes": 240,
+    "disabled_write_gaps_with_contrasting_data": 240,
+    "all_eighty_columns_in_both_banks": true,
+    "two_edge_bank_valid_data_checks": 2453,
+    "stable_bank_registered_q_checks": 3773,
+    "CLK1_only_registered_output_hold_checks": 3449,
+    "system_rising_edges": 1725,
+    "pixel_rising_edges": 2453,
+    "column_changes_do_not_change_q_before_pixel_edge": true,
+    "unowned_bank_refill_while_consuming_neighbor": true,
+    "tag_flush_without_clearing_ram": true,
+    "invalid_word_masking": true,
+    "unselected_cross_clock_collision_data_is_not_asserted": true
+  },
+  "source_sha256": {
+    "st_cache_primitive_sim_top.sv": "03997412469472ca4049fe6c92587938e84f9b1c5fa82f1163150b53d1d66998",
+    "cache_primitive_tb.cpp": "d72185cc5febca0c33870a70533d7788a5ef3f7315b5db6820ce14f48d347095",
+    "mem_sim.v": "e86f4ed03c08506d7d9b84f4485a62815617af6fbb34ab9f10cb3e3a6fdac452",
+    "pinned_model_lint.vlt": "9af9205541cc0b3b67a9616106a3e294ec924de62dca279ae48224d9ffec3d91"
+  },
+  "artifacts_sha256": {
+    "mapping-identity.json": "5d324ba03b9113fbb48df92610069634360c2abb7ef9ffaf9e61aeacd9644b07",
+    "compile-command.json": "32fdba93f2203debb00064ff301265cc43d9d4fc931bb2180372727c273879af",
+    "compile.log": "06de68ad7726b6ad199b23d24c36e7b338f930d226dd14d341445181b7cf975d",
+    "test.log": "730f4c8fcbeebc570692bbca53a9d80dfe3e1d32b7c24952510b697e2bf31c88",
+    "primitive-source.zip": "314dc631292b842e3303e05923a82f6fce91c686a2c57d0d26f7b954a76ec844",
+    "build/Vst_cache_primitive_sim_top": "f7775eb4954fb012e4b08d912d6cca46dd1604b11331f6c81c7a693c5bad21f2"
+  },
+  "lint": "-Wall; only unused-clear pins, filename and unnamed-generate style warnings waived for the exact unmodified pinned mem_sim.v file"
+}

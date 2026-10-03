@@ -1,6 +1,6 @@
 # Atari 520ST motherboard integration, 2026-10-03
 
-This records host digital simulation and native compiler qualification for
+This records host digital simulation and native compiler validation for
 [PR #483](https://github.com/DeanoC/fes/pull/483) and its subsequent timing
 qualification in [PR #490](https://github.com/DeanoC/fes/pull/490), based on FES
 `9a42c71e9f3b36e9b13fa194914b757adfda2514`. It is not physical SDRAM, HDMI,
@@ -45,17 +45,30 @@ binds the retained output, RAM and log hashes.
 ![Monochrome EmuTOS desktop captured from simulated output](2026-10-03-atari-st-integration/monochrome.png)
 
 Both eight-second boots were repeated after the video and keyboard timing
-changes at `5e2b3e9f7cf094517d5fbf0c4661de793477877f`. All 25 compiled inputs
-were extracted from that commit into immutable snapshots and verified again
-after execution. Every reported counter, the complete PPM pixels and RAM
-bytes match the earlier runs exactly; both remain at zero underruns. The
+changes at `5e2b3e9f7cf094517d5fbf0c4661de793477877f` and again after cache
+pipelining and FIFO banking at `9cfb97c54ea005ddd47746a5a233f772fbd32f2a`,
+and the final fixed fetch windows, synchronous caches and scheduler simplification
+at `b9711bcdfd8606f3f9861670cb680d577b58ea7e`.
+All 25 compiled inputs were extracted from each commit into immutable
+snapshots and verified again after execution. Every reported counter, the
+complete PPM pixels and RAM bytes match the earlier runs exactly; both
+remain at zero underruns. The
 color run used the original test and top without modifications. Current
 records are [color capture](2026-10-03-atari-st-integration/color-current-capture.json),
 [color model](2026-10-03-atari-st-integration/color-current-model.json),
 [monochrome capture](2026-10-03-atari-st-integration/monochrome-current-capture.json)
 and [monochrome model](2026-10-03-atari-st-integration/monochrome-current-model.json).
-The color image above is from this later run. Neither run exercises disk DMA
+The color image above matches this latest capture exactly. Neither run exercises disk DMA
 or host input, and neither establishes physical FPGA acceptance.
+
+`0435f069230846600984b2c1e9964c2fa63e0a07` moves two lookahead declarations
+before their use for the pinned Slang frontend. A separate generation-only
+comparison freezes its 25 inputs and verifies all 21 generated C++/header
+files against the executed color model byte for byte, without normalization
+or exclusions. The [comparison](2026-10-03-atari-st-integration/declaration-order-model-equivalence.json)
+and [corrected model identity](2026-10-03-atari-st-integration/declaration-order-model.json)
+retain that historical distinction. The current color and monochrome boots
+were separately compiled and executed from frozen `b9711bcdf` inputs.
 
 The [capture sidecar](2026-10-03-atari-st-integration/assembled-sdram-capture.json)
 binds the PPM and RAM dump hashes. The
@@ -100,6 +113,10 @@ Notable results:
 - Producer/ROM-map/card/compiler-audit tests passed the combined 39-test
   run, including real Verilator ROM and packed-card transactions; one
   optional Mistral oracle was skipped.
+  The RAM-footprint follow-up passed 44 tests with the same deliberate skip,
+  including control-only overlaps, cache/CPU/firmware placement rejection,
+  database authentication and withdrawal of a timing winner that overlaps
+  the socket.
 
 The parent regression suite's generated-consumer count changed from 16 to
 17. Its stale expected count was corrected and the affected parent suites
@@ -114,10 +131,21 @@ The parent regression run passed 616 tests (39 deliberate skips) both at
 also passed at both checkpoints with 17 generated consumers and 33 fixture
 copies. The merge leaves the Atari RTL and shared media source bytes unchanged.
 Focused parent checks passed 96 cases after the timing changes; clean
-`make check` also passed for the current `83ce82152` module bytes.
+`make check` also passed for `83ce82152`, `9cfb97c54`, `81ae4bade` and `b9711bcdf`. The latter focused
+parent run passed all 96 cases again. At both `9cfb97c54` and `b9711bcdf`, the default renderer
+passed 8,662,509 clocks and the registered cache test passed 215,669
+independent word/tag comparisons across 11,137,617 pixel clocks. Cache
+completions immediately before, at and after the first lookup produced
+the expected complete visible or black lines. Keyboard FIFO tests cover
+all 64 tail addresses, packet sizes 1/2/3/6/7/8, wraps, simultaneous pop/push,
+backpressure and soft/hard resets; the pinned Slang frontend passed.
 The full FogCast race suite also passed after the merge at `52060e1d84`:
 74 tested packages, including 21 rerun packages covering the changed host
 input, launcher and reboot handling.
+The [PR CI run](https://github.com/DeanoC/fes/actions/runs/37147225779) at
+`b9711bcdf` passed consistency, producer tests, the complete Atari ST
+simulation, parent tests and the required integration gate. Host, runtime
+and contract jobs were deliberately unselected for this narrower change.
 
 ## Native qualification
 
@@ -126,14 +154,43 @@ Yosys `886afa63953e97407153e9f4aae25fcedb639696`, Mistral
 `7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039` and nextpnr
 `655f38334b8a1ba798cc05cf3744b6a897119b5d`.
 
-Full shell synthesis passed with 199 M10Ks, including 192 blank synchronous
-firmware lanes and seven preserved FX68K microcode memories. Native packing
+Full shell synthesis and packing at `81ae4bade` passed with 201 M10Ks:
+192 blank synchronous firmware lanes, seven preserved FX68K microcode
+memories and two dual-clock video caches. Native packing
 required intentionally unused DDR and M10K ports to be left open. The pinned
 FX68K vendor bytes remain unchanged; the generated Slang compatibility copy
 only normalizes its two simulation-exclusion comment directives.
 
-Final route, timing, ROM-map and independent-card qualification are pending.
-No package or hardware qualification is inferred from synthesis alone.
+The normal seed-4 route at `81ae4bade` completed with zero overuse and
+achieved 56.558 MHz system and 190.404 MHz audio, passing their
+52.225/12.288 MHz requirements. Pixel timing reached 69.013 MHz against
+74.250 MHz; the remaining path entered the line scheduler through a
+redundant current-row geometry mask. The reviewed `b9711bcdf` simplification
+removes that mask and uses constant scheduling bounds without changing
+state, latency or the physical word port. The strict tests and separately
+executed stock boots above preserve pixels, RAM and counters exactly.
+
+Placement inspection also found M10K(26,19)'s initialization and control
+configuration overlapping the expansion socket CRAM despite its BEL being
+outside the reserved LAB rows. That candidate was stopped before publication.
+The producer correction reserves the adjacent RAM site, pins both caches at
+safe nearby sites, and checks all RAM-local configuration footprints using
+the authenticated Mistral table and die geometry. Existing frozen routing
+and shell/card CRAM containment checks remain responsible for routing PIPs.
+The [geometry preflight](2026-10-03-atari-st-integration/ram-configuration-preflight.json)
+binds the real failed placement and the proposed safe placement; its changed
+BEL metadata is not a fresh routed result.
+
+A separate [native cache primitive test](2026-10-03-atari-st-integration/native-cache-primitive.json)
+instantiates both actual mapped 9-bit-address/20-bit-data cache configurations
+with the pinned, unmodified memory model. It covers all 80 live columns in
+both banks, write-enable/byte-enable polarity, independent clocks, registered
+reads, two-edge bank/tag selection and refilling the unowned bank. It does
+not establish a whole-board native boot or promise data during collisions.
+
+Fresh strict route/timing, sealed ROM-map and independent-card qualification
+are pending. No package or hardware qualification is inferred from synthesis
+or from the unsealed failed timing candidate.
 
 An authenticated, unsealed seed-4 diagnostic at `df0f38e2f` completed a
 zero-overuse HIP route in 511.9 seconds. Its diagnostic run disabled timing
@@ -147,6 +204,17 @@ CPU and keyboard tests passed; the keyboard tree also passed the pinned
 Yosys/Slang frontend. Production routing retains normal timing repair and
 all three original clock gates, with a separate 1,800-second Atari attempt
 bound. Compiler cancellation tests preserve timeouts and file-read auditing.
+
+A second authenticated unsealed diagnostic at `83ce82152` completed in
+670.0 seconds with zero route overuse. Pixel/system/audio results were
+34.902/44.423/210.172 MHz against 74.250/52.225/12.288 MHz requirements.
+Its 28.652 ns pixel path traversed scaled-row/address selection into plane
+staging; its 22.511 ns system path traversed an IKBD response into the FIFO.
+The reviewed `9cfb97c54` implementation replaces pixel division with native
+row/repetition counters and two registered cache lookup stages, and writes
+response packets through eight address banks. It preserves the original
+plane-capture and atomic FIFO edges. Independent reviews and the focused
+tests above passed; a fresh normal native build is required to qualify it.
 
 ## Contracts and next integration
 

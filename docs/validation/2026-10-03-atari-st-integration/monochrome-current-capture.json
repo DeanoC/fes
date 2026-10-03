@@ -1,6 +1,6 @@
 {
   "classification": "host digital SDRAM/controller/dual-clock adapter simulation",
-  "source_commit": "5e2b3e9f7cf094517d5fbf0c4661de793477877f",
+  "source_commit": "b9711bcdfd8606f3f9861670cb680d577b58ea7e",
   "capture_source": "shared direct video response after two pixel-domain registers",
   "size": [
     1280,
@@ -48,15 +48,18 @@
   "ppm_sha256": "54c555aa9b264c6abc92d43bd12886d84442b95a45d2e6d70696836c6ddaadd2",
   "png_sha256": "dabedc840e883de249b14fedad258ae59e5b45e30ded83ef1b7f4b3ecc765777",
   "ram_sha256": "7f970ebce12f6cf0a1621d39b20b582713c5473a869789dbc5bf38cfb61866d1",
-  "log_sha256": "346736b0c8602326d84a90a60cacc649c3fe77a6529a9ffe5d34c37b6f86a327",
-  "source_identity_sha256": "53075ddb3825ab9fe26e76ac3833184c34c6048d00fbdc170bfc969e3f53a585",
-  "prior_source_commit": "a3a86767182bdff0d37583abdc049de06422cd41",
+  "log_sha256": "80a8e6d187c2337e3ae64aed50091b291f984241c55aaef281e1cb7076ff26ab",
+  "source_identity_sha256": "f97ef17fff99e059c64d39ba778ff9db18a045edcdfd20e70fbe4f55cd67add2",
+  "prior_source_commit": "81ae4badec6f13d9a724457d559849887cf148b4",
   "prior_ppm_sha256": "54c555aa9b264c6abc92d43bd12886d84442b95a45d2e6d70696836c6ddaadd2",
   "matches_prior_frame_bytes": true,
   "limitation": "Stock boot tests CPU/scanout contention with monochrome input forced in a temporary shell; no media upload or floppy DMA traffic and no physical FPGA acceptance.",
   "metrics_identical_to_prior": true,
-  "generated_model_archive_sha256": "d500330ba7f879e9c7ed7b219641622f59da78ebb8c5950b2bc60180954c7d09",
-  "visual_check": "EmuTOS GEM desktop: Desk/File/View/Options menu, Disk A icon, mouse arrow and Trash icon visible; no missing lines observed",
+  "metrics_changed_since_prior": {},
   "matches_prior_png_bytes": true,
-  "matches_prior_ram_bytes": true
+  "matches_prior_ram_bytes": true,
+  "all_progress_status_lines_identical_to_prior": true,
+  "generated_model_archive_sha256": "6a531c15814081106b2691f7bc09ef7c16a50ab94994404f5e4448a239604f03",
+  "visual_check": "Inspected final 1280x720 PNG: monochrome GEM menu bar, Disk A icon, trash and mouse pointer, with 640x400 native image doubled horizontally and black top/bottom border.",
+  "selected_git_inputs_and_archive_members_verified": true
 }

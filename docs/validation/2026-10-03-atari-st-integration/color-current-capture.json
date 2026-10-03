@@ -1,6 +1,6 @@
 {
-  "source_commit": "5e2b3e9f7cf094517d5fbf0c4661de793477877f",
-  "source_identity_sha256": "9e8d350be995420e64c52b3bc22798e90eb346cd924bd357928983c9d9129b2e",
+  "source_commit": "b9711bcdfd8606f3f9861670cb680d577b58ea7e",
+  "source_identity_sha256": "338a6e6f00cd71e3c6efa877d194b0f032eb1339be5a32debbe30ac966fec287",
   "capture_source": "shared direct video response after two pixel-domain registers",
   "size": [
     1280,
@@ -45,19 +45,23 @@
     "initialized_after_clocks": 13153
   },
   "comparison_to_prior_color": {
+    "source_commit": "81ae4badec6f13d9a724457d559849887cf148b4",
     "previous_ppm_sha256": "f7c7d235f7aa4699928dace7f1b4be54b29eb7f170708b45b4e5119a4d3ee7d6",
     "ppm_identical": true,
     "previous_ram_sha256": "0c4ff0bec895f35f26a14434717dce66025039474b7d81146a725ddce292cc89",
     "ram_identical": true,
-    "all_status_lines_identical": true
+    "all_status_lines_identical": true,
+    "all_final_metrics_identical": true,
+    "png_pixels_identical": true,
+    "png_bytes_identical": true
   },
   "artifacts_sha256": {
     "color.ppm": "f7c7d235f7aa4699928dace7f1b4be54b29eb7f170708b45b4e5119a4d3ee7d6",
-    "color.png": "4e981f692f5ed6af3c474f69d8ed03ba79380907068fca71278905144038b1a5",
+    "color.png": "562c3044a69284784537a4d231f182d2ba83217893e72dd16024a2292faced42",
     "color-ram.bin": "0c4ff0bec895f35f26a14434717dce66025039474b7d81146a725ddce292cc89",
-    "boot.log": "86b3e04e5196b34e8391e4a88edc994ea2bc1575439d5d682ef35c7df379be11",
-    "color-generated-model.zip": "a19a44985c98222c302f1fc9723bd9263ee00f6d0662695860d916dedd9151b0",
-    "color-frozen-source.zip": "7241256da80b8c1e8bb14219a5167acd8b5d98ea34dcdeee2d8de1af6a0188d7"
+    "boot.log": "833412095d2eb1cffd11bf2ce89c0342566ad442a7589a8037bec37cf12f6dcf",
+    "color-generated-model.zip": "54b10298f4553fa205f716f1160ef44cb897ffd79032d0223376b341e249675c",
+    "color-frozen-source.zip": "d60a6ed9607787510333e3df9e817e1975d5f7cfc9a08e8cc4ae8dc2df41f669"
   },
   "validation": "Original unmodified color top and stock boot test; all RAM, raster, contention, timer, frame and CPU assertions passed.",
   "classification": "host-only digital physical-SDRAM-command/independent-clock video simulation; no electrical or hardware acceptance",
