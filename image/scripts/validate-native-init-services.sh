@@ -80,6 +80,28 @@ validate_supervisor_assignment() {
   ' "$service"
 }
 
+validate_bounded_stop() {
+  service=$1
+  child=$2
+  label=$3
+  awk -v child="$child" '
+    { lines[NR]=$0 }
+    END {
+      text=""
+      for (i=1; i<=NR; i++) text=text lines[i] "\n"
+      if (text !~ /case .*pid.* in/ || text !~ /0\|1\) return 1/ ||
+          index(text, "stop_wait=5") == 0 ||
+          index(text, "while /bin/kill -0 \"$supervisor\"") == 0 ||
+          index(text, "/bin/kill -KILL \"$pid\"") == 0 ||
+          index(text, "/bin/kill -KILL \"$supervisor\"") == 0 ||
+          index(text, "child_pid=" child) == 0) exit 1
+    }
+  ' "$service" || {
+    printf 'validate-native-init-services: %s lacks bounded stop escalation\n' "$label" >&2
+    exit 1
+  }
+}
+
 validate_start_commands() {
   service=$1
   expected_launch=$2
@@ -197,6 +219,7 @@ validate_supervisor_assignment \
     printf '%s\n' 'validate-native-init-services: runtime supervisor PID assignment is invalid' >&2
     exit 1
   }
+validate_bounded_stop "$runtime_service" /run/mister-runtime.pid runtime
 validate_start_commands \
   "$runtime_service" \
   '/usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime "$@" &' \
@@ -209,6 +232,7 @@ validate_supervisor_assignment \
     printf '%s\n' 'validate-native-init-services: agent supervisor PID assignment is invalid' >&2
     exit 1
   }
+validate_bounded_stop "$agent_service" /run/mister-agent.pid agent
 validate_start_commands \
   "$agent_service" \
   '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent --config /media/fat/fogcast/agent.toml &' \
