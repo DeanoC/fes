@@ -52,6 +52,41 @@ func TestSMSPlayRequiresInstalledMasterSystemCore(t *testing.T) {
 	}
 }
 
+func TestKitDirectKeepsARetainedCartridgeAndDoesNotStealAReadyHostRow(t *testing.T) {
+	sms := hostclient.Game{
+		ID: "sms-data-storm", Title: "Data Storm", System: "sms",
+		State: "available", RootOnline: true, Launchable: false,
+	}
+	emu := hostclient.Game{
+		ID: "sms-emu", Title: "Data Storm", System: "sms",
+		State: "available", RootOnline: true, Launchable: true,
+		Execution: hostclient.ExecutionHostOnly,
+	}
+	ready := rooms.Destination{
+		Kind: rooms.KindGame, Availability: rooms.AvailReady, GameID: emu.ID,
+		Matches:    []hostclient.Game{emu},
+		Candidates: []hostclient.Game{emu, sms},
+	}
+	if game, ok := kitDirectMatch(ready); ok {
+		t.Fatalf("kit direct stole a ready host row %+v", game)
+	}
+
+	blocked := rooms.Destination{
+		Kind: rooms.KindGame, Availability: rooms.AvailUnavailable,
+		Matches:    []hostclient.Game{{ID: "fpga-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, ReadyHere: readyNo(), ReadyBlock: string(hostclient.LaunchVersionSkew)}},
+		Candidates: []hostclient.Game{sms},
+	}
+	game, ok := kitDirectMatch(blocked)
+	if !ok || game.ID != sms.ID {
+		t.Fatalf("retained cartridge %+v ok=%v", game, ok)
+	}
+}
+
+func readyNo() *bool {
+	v := false
+	return &v
+}
+
 func TestHostModeLeavesKitUnset(t *testing.T) {
 	prefs := filepath.Join(t.TempDir(), "prefs.json")
 	host, err := configuredApp(Options{GFX: "sdl", APIBase: "http://127.0.0.1:9", PrefsPath: prefs})

@@ -585,8 +585,9 @@ func (r *Instance) CachedGame(id string) (hostclient.Game, bool) {
 }
 
 // RefreshCachedGames updates host catalog rows the script already saw and
-// reclassifies the published destination when those rows are the match set.
-// It does not move focus or call the script.
+// reclassifies the published destination from its retained candidate set.
+// A blocked sibling stays in that set, so a row that becomes viable is
+// found on the next refresh. It does not move focus or call the script.
 func (r *Instance) RefreshCachedGames(games []hostclient.Game) {
 	if r == nil {
 		return
@@ -601,30 +602,29 @@ func (r *Instance) RefreshCachedGames(games []hostclient.Game) {
 		}
 		r.games[id] = g
 	}
-	if r.dest.Kind != KindGame || len(r.dest.Matches) == 0 {
+	if r.dest.Kind != KindGame {
 		return
 	}
-	for i, m := range r.dest.Matches {
+	source := r.dest.Candidates
+	if len(source) == 0 {
+		source = r.dest.Matches
+	}
+	if len(source) == 0 {
+		return
+	}
+	next := append([]hostclient.Game(nil), source...)
+	for i, m := range next {
 		if g, ok := r.games[m.ID]; ok {
-			r.dest.Matches[i] = g
+			next[i] = g
 		}
 	}
 	if id := strings.TrimSpace(r.dest.GameID); id != "" {
 		if g, ok := r.games[id]; ok {
-			r.dest.GameID = g.ID
 			r.dest.Label = firstNonEmpty(r.dest.Label, g.Title)
 			r.dest.System = firstNonEmpty(r.dest.System, g.System)
 		}
 	}
-	state, matches := ClassifyGames(r.dest.Matches, r.dest.Query)
-	r.dest.Availability = state
-	r.dest.Matches = matches
-	if state == AvailReady && len(matches) == 1 && strings.TrimSpace(r.dest.GameID) == "" {
-		r.dest.GameID = matches[0].ID
-	}
-	if r.dest.System == "" && len(matches) == 1 {
-		r.dest.System = matches[0].System
-	}
+	r.dest.storePlay(next, true)
 	r.dest.FillCopy()
 	r.dest.FillHistory()
 }

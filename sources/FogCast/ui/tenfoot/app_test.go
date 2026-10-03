@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
 	"image/color"
@@ -173,6 +174,40 @@ func TestSnapshotSharesCatalogSlice(t *testing.T) {
 	}
 	if &replaced.Games[0] == &snap.Games[0] {
 		t.Fatal("replaced catalog still aliases the previous snapshot")
+	}
+}
+
+func TestLibraryPlayDestinationFailsClosedOnUnknownReadyBlock(t *testing.T) {
+	t.Parallel()
+	base := availableGame("fpga-data-storm", "Data Storm", "sms")
+	base.Execution = "fpga_native"
+	ready := false
+	cases := []struct {
+		name  string
+		block string
+		label string
+	}{
+		{name: "empty", block: "", label: "Unavailable"},
+		{name: "unknown", block: "not_a_real_block", label: "Unavailable"},
+		{name: "ensure_in_progress", block: string(hostclient.LaunchEnsureProgress), label: "Checking"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			game := base
+			game.ReadyHere = &ready
+			game.ReadyBlock = tc.block
+			dest := libraryPlayDestination(game)
+			if dest.Availability.Label() != tc.label || dest.Confirm() == rooms.ConfirmLaunch || dest.Action == "Play" || dest.Status == "Ready to play." || dest.Availability.Label() == "Ready" {
+				t.Fatalf("%s %+v confirm %v", tc.name, dest, dest.Confirm())
+			}
+			if reason := launchBlockReason(game); reason == "" {
+				t.Fatal("launch allowed")
+			}
+			if tc.label == "Checking" && (dest.Availability.Label() != "Checking" || dest.Status != rooms.CheckingStatus) {
+				t.Fatalf("checking %+v", dest)
+			}
+		})
 	}
 }
 

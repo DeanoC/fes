@@ -1840,6 +1840,12 @@ func (s Snapshot) chromeBody() string {
 	parts := []string{view, platform, sortLabel(s.Collection, s.Sort)}
 	parts = append(parts, filterSummaryParts(s.Genre, s.Year, s.Region, s.HidePrerelease, s.HideHacks)...)
 	parts = append(parts, search)
+	if s.Grid.Focus >= 0 && s.Grid.Focus < len(s.Games) {
+		play := libraryPlayDestination(s.Games[s.Grid.Focus])
+		if label := play.Availability.Label(); label != "" {
+			parts = append(parts, label)
+		}
+	}
 	status := s.Status
 	if health := strings.TrimSpace(s.Health.Line); health != "" && status == health {
 		return strings.Join(parts, "  ·  ")
@@ -2047,7 +2053,12 @@ func (a *App) startLaunchLocked() {
 		a.launch = LaunchSnapshot{Phase: "error", Message: "no title selected"}
 		return
 	}
-	a.startLaunchGameLocked(a.games[a.grid.Focus])
+	game := a.games[a.grid.Focus]
+	if libraryPlayDestination(game).Confirm() == rooms.ConfirmWait {
+		a.status = rooms.CheckingStatus
+		return
+	}
+	a.startLaunchGameLocked(game)
 }
 
 func (a *App) startLaunchGameLocked(game hostclient.Game) {
@@ -2116,24 +2127,17 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 // Admission rules live on hostclient.Game; unavailable titles must not
 // POST /api/v1/session/launch.
 func launchBlockReason(game hostclient.Game) string {
-	switch game.LaunchBlock() {
-	case hostclient.LaunchBrowseOnly:
-		return "This platform is browse-only on this host."
-	case hostclient.LaunchSourceOffline:
-		return "This game's source is offline."
-	case hostclient.LaunchUnreadable:
-		return "This ROM can't be read."
-	case hostclient.LaunchNotReady:
-		return "This game isn't ready to launch."
-	case hostclient.LaunchMissingFirmware:
-		return "Coleco BIOS required. Import household firmware before Play."
-	case hostclient.LaunchMissingROM:
-		return "Needs a cartridge"
-	case "":
+	if game.LaunchBlock() == "" {
 		return ""
-	default:
-		return "This game isn't ready to launch."
 	}
+	return rooms.LaunchBlockCopy(game)
+}
+
+func libraryPlayDestination(game hostclient.Game) rooms.Destination {
+	state, matches := rooms.ClassifyGames([]hostclient.Game{game}, "")
+	d := rooms.Destination{Kind: rooms.KindGame, Availability: state, Matches: matches, GameID: game.ID, Label: game.Title, System: game.System}
+	d.FillCopy()
+	return d
 }
 
 func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientStamp) {

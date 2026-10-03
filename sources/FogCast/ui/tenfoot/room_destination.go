@@ -29,12 +29,14 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		return rooms.Destination{}
 	}
 	d := a.room.Destination()
+	// Lease each candidate before a saved pick collapses the choice, so a
+	// leased FPGA is not counted beside an emulator that can play.
+	d = rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
 	if key := roomPickKey(d); key != "" && a.roomPicks != nil {
 		if id := strings.TrimSpace(a.roomPicks[key]); id != "" {
 			d = rooms.ApplyEditionPreference(d, id)
 		}
 	}
-	d = rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
 	if d.Kind == rooms.KindCore && d.CoreLaunchable && a.client != nil && a.client.paired {
 		switch {
 		case a.foreignKitLeaseLocked():
@@ -61,8 +63,8 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 	if a == nil || a.localCores == nil || a.localFeed == nil {
 		return d
 	}
-	game, ok := d.Game()
-	if !ok || !game.LocalCatalogPlayable() {
+	game, ok := kitDirectMatch(d)
+	if !ok {
 		return d
 	}
 	d.GameID = game.ID
@@ -83,6 +85,32 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 	d.Availability = rooms.AvailReady
 	d.FillCopy()
 	return d
+}
+
+func kitDirectMatch(d rooms.Destination) (hostclient.Game, bool) {
+	if game, ok := d.Game(); ok && game.LocalCatalogPlayable() {
+		return game, true
+	}
+	// Ready and Needs a choice already have a host play row. Do not scan
+	// retained siblings or a local cartridge replaces that play.
+	if d.Availability == rooms.AvailReady || d.Availability == rooms.AvailNeedsChoice {
+		return hostclient.Game{}, false
+	}
+	if game, ok := localCatalogIn(d.Matches); ok {
+		return game, true
+	}
+	// Fail-closed refresh keeps a local cartridge on Candidates when the
+	// play rows were collapsed onto some other blocked sibling.
+	return localCatalogIn(d.Candidates)
+}
+
+func localCatalogIn(games []hostclient.Game) (hostclient.Game, bool) {
+	for _, game := range games {
+		if game.LocalCatalogPlayable() {
+			return game, true
+		}
+	}
+	return hostclient.Game{}, false
 }
 
 func (a *App) pairedKitStatusUnavailableLocked() bool {
@@ -326,7 +354,7 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 	case rooms.ConfirmWait:
 		a.status = dest.Status
 		if a.status == "" {
-			a.status = "Matching this title in your library…"
+			a.status = rooms.CheckingStatus
 		}
 		return true
 	case rooms.ConfirmOpenLibrary:
@@ -429,12 +457,13 @@ func (a *App) rejectLauncherActionLocked(id string) {
 }
 
 func (a *App) openRoomChoiceLocked(dest rooms.Destination) {
-	if len(dest.Matches) == 0 {
+	rows := rooms.PlayChoices(dest)
+	if len(rows) == 0 {
 		a.status = dest.Status
 		return
 	}
 	a.closeDetailLocked()
-	a.roomChoice = append([]hostclient.Game(nil), dest.Matches...)
+	a.roomChoice = rows
 	a.roomChoiceIndex = 0
 	a.roomChoiceOpen = true
 	a.status = dest.Status

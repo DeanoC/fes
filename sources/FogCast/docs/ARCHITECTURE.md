@@ -38,6 +38,15 @@ eligibility. Catalog eligibility does not replace session or target readiness
 gates, nor the host's authoritative launch validation. Tenfoot maps those block codes to
 sofa copy. Artwork handles use `hostclient.NormalizeHandle` so host
 transport, kit disk cache, and UI retain share one 64-hex rule.
+The browser play pane resolves every listed option before enabling Play. A
+malformed option in the selected title blocks Play. A backend picked in the
+current browser session stays authoritative across an older preference read;
+confirmed choices come only from preference reads or successful saves. Saves
+for one title run in selection order. A failed save restores the latest
+confirmed choice, or leaves the title needing a choice, and Play remains
+blocked until detail is retried. Preference reads cannot replace a locally
+confirmed choice with an older response.
+
 Shared session decoding and Kit capability checks use
 `hostclient.SessionCoreInterface.IsKeyboard` for exact `fes.keyboard` 1.0
 recognition. Unsupported versions remain ineligible; input readiness,

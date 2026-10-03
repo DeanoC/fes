@@ -49,6 +49,8 @@ func TestClassifyGamesFiveStates(t *testing.T) {
 		{name: "unavailable", games: []hostclient.Game{offline}, query: "Super Mario World", want: AvailUnavailable, n: 1},
 		{name: "empty query one ready", games: []hostclient.Game{mario}, query: "", want: AvailReady, n: 1},
 		{name: "empty query many", games: []hostclient.Game{mario, marioUSA}, query: "", want: AvailNeedsChoice, n: 2},
+		{name: "one viable among blocked", games: []hostclient.Game{marioUSA, offline}, query: "", want: AvailReady, n: 1},
+		{name: "all blocked is unavailable", games: []hostclient.Game{offline, blockedGame("nes-smb-jp", "Super Mario Bros.", "nes", hostclient.LaunchBrowseOnly)}, query: "", want: AvailUnavailable, n: 2},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -75,8 +77,8 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 		{
 			name:    "checking",
 			dest:    Destination{Kind: KindGame, Availability: AvailChecking, Label: "Donkey Kong"},
-			status:  "Matching this title in your library…",
-			action:  "Wait — still checking.",
+			status:  CheckingStatus,
+			action:  CheckingAction,
 			confirm: ConfirmWait,
 		},
 		{
@@ -88,9 +90,27 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 		},
 		{
 			name:    "needs choice",
-			dest:    Destination{Kind: KindGame, Availability: AvailNeedsChoice},
-			status:  "Several editions match. Choose one.",
-			action:  "Choose an edition.",
+			dest:    Destination{Kind: KindGame, Availability: AvailNeedsChoice, Matches: []hostclient.Game{readyGame("nes-smb-usa", "Super Mario Bros.", "nes"), readyGame("nes-smb-jp", "Super Mario Bros.", "nes")}},
+			status:  EditionChoiceStatus,
+			action:  EditionChoiceAction,
+			confirm: ConfirmChoose,
+		},
+		{
+			name: "backend choice",
+			dest: Destination{Kind: KindGame, Availability: AvailNeedsChoice, Matches: []hostclient.Game{
+				func() hostclient.Game {
+					g := readyGame("fpga-data-storm", "Data Storm", "sms")
+					g.Execution = "fpga_native"
+					return g
+				}(),
+				func() hostclient.Game {
+					g := readyGame("sms-data-storm", "Data Storm", "sms")
+					g.Execution = hostclient.ExecutionHostOnly
+					return g
+				}(),
+			}},
+			status:  BackendChoiceStatus,
+			action:  BackendChoiceAction,
 			confirm: ConfirmChoose,
 		},
 		{
@@ -124,8 +144,8 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 		{
 			name:    "unresolved",
 			dest:    Destination{Kind: KindUnresolved, Availability: AvailChecking},
-			status:  "Matching this title in your library…",
-			action:  "Wait — still checking.",
+			status:  CheckingStatus,
+			action:  CheckingAction,
 			confirm: ConfirmWait,
 		},
 		{
@@ -252,6 +272,99 @@ func TestCuratorAttribution(t *testing.T) {
 	var empty Destination
 	if empty.CuratorAttribution() != "" {
 		t.Fatal("empty note must stay hidden")
+	}
+}
+
+func TestClassifyGamesOnlyViableOptionsAreAChoice(t *testing.T) {
+	t.Parallel()
+	fpga := readyGame("fpga-data-storm", "Data Storm", "sms")
+	fpga.Execution = "fpga_native"
+	emu := readyGame("sms-data-storm", "Data Storm", "sms")
+	emu.Execution = hostclient.ExecutionHostOnly
+	state, matches := ClassifyGames([]hostclient.Game{fpga, emu}, "Data Storm")
+	if state != AvailNeedsChoice || PlayChoiceKind(matches) != ChoiceBackend || len(matches) != 2 {
+		t.Fatalf("backends %s %+v kind=%s", state, matches, PlayChoiceKind(matches))
+	}
+	dest := Destination{Kind: KindGame, Availability: state, Matches: matches, Query: "Data Storm", Label: "Data Storm"}
+	dest.FillCopy()
+	if dest.Choice != ChoiceBackend || dest.Status != BackendChoiceStatus || dest.Confirm() != ConfirmChoose {
+		t.Fatalf("backend copy %+v", dest)
+	}
+
+	blocked := fpga
+	ready := false
+	blocked.ReadyHere = &ready
+	blocked.ReadyBlock = string(hostclient.LaunchVersionSkew)
+	state, matches = ClassifyGames([]hostclient.Game{blocked, emu}, "Data Storm")
+	if state != AvailReady || len(matches) != 1 || matches[0].ID != emu.ID {
+		t.Fatalf("single viable %s %+v", state, matches)
+	}
+
+	busy := emu
+	busy.ReadyHere = &ready
+	busy.ReadyBlock = string(hostclient.LaunchLeaseHeld)
+	state, matches = ClassifyGames([]hostclient.Game{blocked, busy}, "Data Storm")
+	fail := Destination{Kind: KindGame, Availability: state, Matches: matches, Query: "Data Storm"}
+	fail.FillCopy()
+	if state != AvailUnavailable || len(matches) != 2 || fail.Confirm() == ConfirmChoose || fail.Status == EditionChoiceStatus || fail.Status == BackendChoiceStatus {
+		t.Fatalf("fail closed became a choice %+v confirm=%v", fail, fail.Confirm())
+	}
+	if fail.Status != "Can't play here yet." && fail.Status != InUseStatus {
+		t.Fatalf("fail closed copy %q", fail.Status)
+	}
+
+	progress := blocked
+	progress.ReadyBlock = string(hostclient.LaunchEnsureProgress)
+	state, _ = ClassifyGames([]hostclient.Game{progress}, "Data Storm")
+	if state != AvailChecking {
+		t.Fatalf("checking %s", state)
+	}
+	if AvailMissing.Label() != "Unavailable" || AvailUnavailable.Label() != "Unavailable" || AvailReady.Label() != "Ready" || AvailNeedsChoice.Label() != "Needs a choice" || AvailChecking.Label() != "Checking" {
+		t.Fatal("four-state labels")
+	}
+	if BackendLabel(fpga) != "FPGA" || BackendLabel(emu) != "Emulator" {
+		t.Fatalf("backend labels %q %q", BackendLabel(fpga), BackendLabel(emu))
+	}
+}
+
+func TestClassifyGamesReadyHereFailsClosed(t *testing.T) {
+	t.Parallel()
+	base := readyGame("fpga-data-storm", "Data Storm", "sms")
+	base.Execution = "fpga_native"
+	cases := []struct {
+		name  string
+		block string
+		want  Availability
+	}{
+		{name: "empty", block: "", want: AvailUnavailable},
+		{name: "unknown", block: "not_a_real_block", want: AvailUnavailable},
+		{name: "ensure_in_progress", block: string(hostclient.LaunchEnsureProgress), want: AvailChecking},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			game := base
+			ready := false
+			game.ReadyHere = &ready
+			game.ReadyBlock = tc.block
+			state, matches := ClassifyGames([]hostclient.Game{game}, game.Title)
+			dest := Destination{Kind: KindGame, Availability: state, Matches: matches, Query: game.Title, Label: game.Title}
+			dest.FillCopy()
+			if state != tc.want || dest.Availability != tc.want || len(matches) != 1 {
+				t.Fatalf("state %s dest %s matches %d", state, dest.Availability, len(matches))
+			}
+			if dest.Confirm() == ConfirmLaunch || dest.Action == "Play" || dest.Status == "Ready to play." || dest.Availability.Label() == "Ready" {
+				t.Fatalf("showed Ready %+v confirm %v", dest, dest.Confirm())
+			}
+			if tc.want == AvailChecking {
+				if dest.Confirm() != ConfirmWait || dest.Availability.Label() != "Checking" || dest.Status != CheckingStatus {
+					t.Fatalf("checking %+v confirm %v", dest, dest.Confirm())
+				}
+				return
+			}
+			if dest.Confirm() != ConfirmExplain || dest.Availability.Label() != "Unavailable" {
+				t.Fatalf("unavailable %+v confirm %v", dest, dest.Confirm())
+			}
+		})
 	}
 }
 
@@ -396,5 +509,150 @@ func TestForeignLeaseIsUnavailableInUseAndOwnedLeaseStaysReady(t *testing.T) {
 	coreKept := ApplyForeignLease(core, true)
 	if coreKept.Availability != AvailReady || coreKept.LeaseHeld || coreKept.Confirm() != ConfirmLaunchCore || coreKept.Status != "Ready to play." {
 		t.Fatalf("core destination rewritten by foreign lease %+v confirm=%v", coreKept, coreKept.Confirm())
+	}
+}
+
+func TestForeignLeaseCollapsesBackendChoiceBeforeCounting(t *testing.T) {
+	t.Parallel()
+	fpga := readyGame("fpga-data-storm", "Data Storm", "sms")
+	fpga.Execution = "fpga_native"
+	emu := readyGame("sms-data-storm", "Data Storm", "sms")
+	emu.Execution = hostclient.ExecutionHostOnly
+	state, matches := ClassifyGames([]hostclient.Game{fpga, emu}, "Data Storm")
+	if state != AvailNeedsChoice || len(matches) != 2 {
+		t.Fatalf("before lease: %s %+v", state, matches)
+	}
+	dest := Destination{
+		Kind: KindGame, Query: "Data Storm", Platform: "sms",
+		Availability: state, Matches: matches, Label: "Data Storm",
+	}
+	dest.FillCopy()
+	if dest.Confirm() != ConfirmChoose || dest.Choice != ChoiceBackend {
+		t.Fatalf("choice before lease %+v confirm=%v", dest, dest.Confirm())
+	}
+
+	kept := ApplyForeignLease(dest, false)
+	if kept.Availability != AvailNeedsChoice || kept.Confirm() != ConfirmChoose || len(kept.Matches) != 2 {
+		t.Fatalf("owned lease rewrote the choice %+v", kept)
+	}
+
+	got := ApplyForeignLease(dest, true)
+	if got.Availability != AvailReady || got.LeaseHeld || got.Confirm() != ConfirmLaunch || got.Choice != ChoiceNone {
+		t.Fatalf("leased FPGA should leave the emulator %+v confirm=%v", got, got.Confirm())
+	}
+	if len(got.Matches) != 1 || got.Matches[0].ID != emu.ID || got.GameID != emu.ID {
+		t.Fatalf("sole ready match %+v game=%s", got.Matches, got.GameID)
+	}
+	if got.Status != "Ready to play." || got.Action != "Play" {
+		t.Fatalf("ready copy %+v", got)
+	}
+
+	aloneState, aloneMatches := ClassifyGames([]hostclient.Game{fpga}, "Data Storm")
+	alone := Destination{
+		Kind: KindGame, Query: "Data Storm", Availability: aloneState, Matches: aloneMatches, GameID: fpga.ID,
+	}
+	alone.FillCopy()
+	leased := ApplyForeignLease(alone, true)
+	if leased.Availability != AvailUnavailable || !leased.LeaseHeld || leased.Confirm() != ConfirmExplain {
+		t.Fatalf("lone leased option %+v confirm=%v", leased, leased.Confirm())
+	}
+	if leased.Status != InUseStatus || leased.Action != InUseDetail {
+		t.Fatalf("lone in-use copy status=%q action=%q", leased.Status, leased.Action)
+	}
+}
+
+func TestBlockedSiblingStaysUntilRefreshReclassifiesIt(t *testing.T) {
+	t.Parallel()
+	fpga := readyGame("fpga-data-storm", "Data Storm", "sms")
+	fpga.Execution = "fpga_native"
+	blockedHere := false
+	fpga.ReadyHere = &blockedHere
+	fpga.ReadyBlock = string(hostclient.LaunchVersionSkew)
+	emu := readyGame("sms-data-storm", "Data Storm", "sms")
+	emu.Execution = hostclient.ExecutionHostOnly
+
+	state, choices, candidates := playSplit([]hostclient.Game{fpga, emu}, "Data Storm")
+	if state != AvailReady || len(choices) != 1 || choices[0].ID != emu.ID {
+		t.Fatalf("ready play rows %s %+v", state, choices)
+	}
+	if len(candidates) != 2 || candidates[0].ID != fpga.ID {
+		t.Fatalf("candidates %+v", candidates)
+	}
+	if choices[0].ID == fpga.ID || fpga.LaunchEligible() || LaunchBlockCopy(fpga) != "Can't play here yet." {
+		t.Fatalf("blocked sibling offered or missing reason %+v", fpga)
+	}
+	for _, row := range PlayChoices(Destination{Availability: state, Matches: choices}) {
+		t.Fatalf("ready destination offered a choice %+v", row)
+	}
+
+	dest := Destination{
+		Kind: KindGame, Query: "Data Storm", Label: "Data Storm",
+		Availability: state, Matches: choices, Candidates: candidates,
+	}
+	dest.FillCopy()
+	kept := ApplyForeignLease(dest, true)
+	if kept.Availability != AvailReady || len(kept.Matches) != 1 || len(kept.Candidates) != 2 || kept.Confirm() != ConfirmLaunch {
+		t.Fatalf("lease dropped an already-blocked sibling %+v", kept)
+	}
+
+	viable := true
+	fpgaReady := fpga
+	fpgaReady.ReadyHere = &viable
+	fpgaReady.ReadyBlock = ""
+	dest.storePlay([]hostclient.Game{fpgaReady, emu}, true)
+	dest.FillCopy()
+	if dest.Availability != AvailNeedsChoice || dest.Confirm() != ConfirmChoose || dest.Choice != ChoiceBackend {
+		t.Fatalf("refresh to two viable %+v confirm=%v", dest, dest.Confirm())
+	}
+	if len(PlayChoices(dest)) != 2 {
+		t.Fatalf("choices %+v", PlayChoices(dest))
+	}
+
+	leased := ApplyForeignLease(dest, true)
+	if leased.Availability != AvailReady || leased.Confirm() != ConfirmLaunch || len(leased.Matches) != 1 || leased.Matches[0].ID != emu.ID {
+		t.Fatalf("leased fpga stayed a choice %+v", leased)
+	}
+	var held hostclient.Game
+	for _, g := range leased.Candidates {
+		if g.ID == fpga.ID {
+			held = g
+		}
+	}
+	if held.ID == "" || held.LaunchEligible() || LaunchBlockCopy(held) != InUseStatus {
+		t.Fatalf("leased sibling %+v", held)
+	}
+	for _, g := range leased.Matches {
+		if g.ID == fpga.ID {
+			t.Fatal("leased sibling was offered")
+		}
+	}
+
+	released := append([]hostclient.Game(nil), leased.Candidates...)
+	for i := range released {
+		if released[i].ID != fpga.ID {
+			continue
+		}
+		yes := true
+		released[i].ReadyHere = &yes
+		released[i].ReadyBlock = ""
+		released[i].NextAction = ""
+	}
+	leased.storePlay(released, true)
+	leased.FillCopy()
+	if leased.Availability != AvailNeedsChoice || leased.Confirm() != ConfirmChoose || len(PlayChoices(leased)) != 2 {
+		t.Fatalf("lease release %+v choices=%d", leased, len(PlayChoices(leased)))
+	}
+
+	emuHeld := emu
+	no := false
+	emuHeld.ReadyHere = &no
+	emuHeld.ReadyBlock = string(hostclient.LaunchLeaseHeld)
+	leased.storePlay([]hostclient.Game{fpgaReady, emuHeld}, true)
+	leased.FillCopy()
+	if leased.Availability != AvailReady || leased.Confirm() != ConfirmLaunch || leased.GameID != fpga.ID || len(leased.Matches) != 1 {
+		t.Fatalf("former sibling should be the sole ready row %+v", leased)
+	}
+	if len(leased.Candidates) != 2 {
+		t.Fatalf("emu dropped while blocked %+v", leased.Candidates)
 	}
 }
