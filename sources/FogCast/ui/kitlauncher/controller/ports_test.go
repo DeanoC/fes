@@ -20,7 +20,7 @@ func TestHubDisconnectKeepsSurvivorPortAndReusesFreeSlot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Player != 0 || got[0].Action != remoteinput.ActionRelease || got[1].Player != 1 {
+	if len(got) != 3 || got[0].Player != 0 || got[0].Action != remoteinput.ActionRelease || !remoteinput.IsLocalPlayerDeparture(got[1]) || got[1].Player != 0 || got[2].Player != 1 {
 		t.Fatalf("unplug %+v", got)
 	}
 	h.add(&fakePad{id: "c", events: []remoteinput.Event{a}})
@@ -40,11 +40,42 @@ func TestHubFinalDisconnectDeliversNeutralBeforeError(t *testing.T) {
 	_, _ = h.Poll()
 	pad.err = errors.New("unplug")
 	got, err := h.Poll()
-	if err != nil || len(got) != 1 || got[0].Player != 0 || got[0].Action != remoteinput.ActionRelease {
+	if err != nil || len(got) != 2 || got[0].Player != 0 || got[0].Action != remoteinput.ActionRelease || !remoteinput.IsLocalPlayerDeparture(got[1]) || got[1].Player != 0 {
 		t.Fatalf("last release %+v %v", got, err)
 	}
 	if _, err = h.Poll(); err == nil {
 		t.Fatal("missing disconnected state")
+	}
+}
+
+func TestHubNeutralPadDepartureStillFreesSlot(t *testing.T) {
+	pad := &fakePad{id: "a"}
+	h := NewHub(nil, []padSource{pad})
+	if _, err := h.Poll(); err != nil {
+		t.Fatal(err)
+	}
+	pad.err = errors.New("unplug")
+	got, err := h.Poll()
+	if err != nil || len(got) != 1 || got[0] != remoteinput.LocalPlayerDeparture(0) {
+		t.Fatalf("neutral pad departure: %+v %v", got, err)
+	}
+	if _, err := h.Poll(); err == nil {
+		t.Fatal("missing disconnected state")
+	}
+}
+
+func TestHubUnassignedPadDepartureDoesNotFreeSurvivors(t *testing.T) {
+	first := &fakePad{id: "a"}
+	second := &fakePad{id: "b"}
+	extra := &fakePad{id: "c"}
+	h := NewHub(nil, []padSource{first, second, extra})
+	if _, err := h.Poll(); err != nil {
+		t.Fatal(err)
+	}
+	extra.err = errors.New("unplug excess pad")
+	got, err := h.Poll()
+	if err != nil || len(got) != 0 || h.ports["a"] != 0 || h.ports["b"] != 1 {
+		t.Fatalf("unassigned departure: %+v ports=%+v %v", got, h.ports, err)
 	}
 }
 

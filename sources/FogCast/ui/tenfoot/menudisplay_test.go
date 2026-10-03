@@ -45,10 +45,12 @@ func TestMenuDisplayForces720p(t *testing.T) {
 }
 
 type recordingMenu struct {
-	mu      sync.Mutex
-	calls   int
-	lastGen uint64
-	lastLen int
+	mu             sync.Mutex
+	calls          int
+	lastGen        uint64
+	lastLen        int
+	presentEntered chan struct{}
+	presentGate    <-chan struct{}
 }
 
 func (c *recordingMenu) Status(context.Context) (menudisplay.Status, error) {
@@ -56,6 +58,15 @@ func (c *recordingMenu) Status(context.Context) (menudisplay.Status, error) {
 }
 
 func (c *recordingMenu) Present(_ context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
+	if c.presentEntered != nil {
+		select {
+		case c.presentEntered <- struct{}{}:
+		default:
+		}
+	}
+	if c.presentGate != nil {
+		<-c.presentGate
+	}
 	c.mu.Lock()
 	c.calls++
 	c.lastGen = generation

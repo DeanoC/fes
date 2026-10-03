@@ -923,6 +923,10 @@ sim-fes-apple2-board: apple2-diagnostic
 		"$(CURDIR)/cores/fes-apple2/sim/board_tb.cpp"
 	@build/sim/fes-apple2-board/Vtop $(APPLE2_DIAGNOSTIC)/disk.dsk build/sim/fes-apple2-board
 
+FES_Z80_NMOS_RTL := cores/fes-common/rtl/z80/fes_z80_alu.sv \
+	cores/fes-common/rtl/z80/fes_z80_engine.sv cores/fes-common/rtl/z80/fes_z80_bus.sv \
+	cores/fes-common/rtl/z80/fes_z80_nmos.sv
+
 SPECTRUM_DIAGNOSTIC := build/diagnostics/fes-spectrum
 SPECTRUM_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
@@ -933,16 +937,20 @@ SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rt
 	cores/fes-spectrum/rtl/spectrum_rom.v cores/fes-spectrum/rtl/spectrum_video.v \
 	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_keyboard.v \
 	cores/fes-spectrum/rtl/spectrum_audio.v cores/fes-spectrum/rtl/spectrum_slot_sockets.v \
-	cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
-	cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
-	cores/fes-common/rtl/tv80/tv80_reg.v
+	$(FES_Z80_NMOS_RTL) cores/fes-common/rtl/z80/fes_z80_fast.sv \
+	cores/fes-spectrum/rtl/spectrum_fast_bus.sv cores/fes-spectrum/rtl/spectrum_fast_audio.sv
 
 .PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
 spectrum-diagnostic:
 	@mkdir -p $(SPECTRUM_DIAGNOSTIC)
 	$(PYTHON) cores/fes-spectrum/diagnostic/firmware.py --output-dir $(SPECTRUM_DIAGNOSTIC)
 
-sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
+sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape sim-fes-spectrum-turbo
+
+.PHONY: sim-fes-spectrum-turbo
+sim-fes-spectrum-turbo:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_spectrum_turbo.py --verilator "$(VERILATOR)"
 
 sim-fes-spectrum-tape: spectrum-diagnostic
 	$(require_local_sim)
@@ -1034,19 +1042,16 @@ sim-fes-sg1000: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-machine
 	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
-		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/fes_sn76489.sv \
-		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
-		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
-		cores/fes-common/rtl/tv80/tv80_reg.v \
+		$(FES_Z80_NMOS_RTL) \
 		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
 	@build/sim/fes-sg1000-machine/Vsg1000_machine \
 		build/diagnostics/fes-sg1000/graphics-i.rom \
@@ -1056,20 +1061,18 @@ sim-fes-sg1000-oss: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-machine-oss
 	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
-		-DTV80_REFRESH=1 -DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1 \
+		-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1 \
 		-CFLAGS "-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine-oss" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/fes_sn76489.sv \
-		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
-		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
-		cores/fes-common/rtl/tv80/tv80_reg.v \
+		$(FES_Z80_NMOS_RTL) \
 		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
 	@build/sim/fes-sg1000-machine-oss/Vsg1000_machine \
 		build/diagnostics/fes-sg1000/graphics-i.rom \
@@ -1079,21 +1082,19 @@ sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-rom-link
 	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
-		-DTV80_REFRESH=1 -DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 \
+		-DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 \
 		-CFLAGS "-DFES_SG1000_ROM_LINK=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-rom-link" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-sg1000/rtl/sg1000_rom_link.v \
 		cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/fes_sn76489.sv \
-		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
-		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
-		cores/fes-common/rtl/tv80/tv80_reg.v \
+		$(FES_Z80_NMOS_RTL) \
 		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
 	@build/sim/fes-sg1000-rom-link/Vsg1000_machine \
 		build/diagnostics/fes-sg1000/graphics-i-16k.rom
@@ -1130,9 +1131,12 @@ build-fes-apple2:
 build-fes-c64:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_c64_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
-.PHONY: build-fes-spectrum
+.PHONY: build-fes-spectrum build-fes-spectrum-fast
 build-fes-spectrum:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-spectrum-fast:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --cpu fast$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sms-diagnostic
 sms-diagnostic:
@@ -1434,8 +1438,13 @@ sim-fes-z80-timing:
 		cores/fes-common/rtl/fes_z80_ce.sv "$(CURDIR)/cores/fes-coleco/sim/cpu_ce_tb.cpp"
 	@build/sim/fes-z80-timing/Vfes_z80_ce
 
+.PHONY: sim-fes-z80-pin-trace
+sim-fes-z80-pin-trace:
+	$(require_local_sim)
+	$(PYTHON) scripts/test_fes_z80_pin_trace.py --self-test --verilator "$(VERILATOR)"
+
 .PHONY: sim-fes-z80
-sim-fes-z80:
+sim-fes-z80: sim-fes-z80-pin-trace
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_z80.py --verilator "$(VERILATOR)"
 

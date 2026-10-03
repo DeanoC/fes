@@ -89,10 +89,12 @@ For an appliance activation or rollback, the agent installs independent
 backstops right before it requests a normal reboot, then never touches them
 again:
 
-- A detached fallback (ignores TERM/HUP/INT) forces `reboot -f` only when
+- A detached fallback (ignores TERM/HUP/INT) forces sysrq `b`, then falls back
+  to `reboot -nf`, only when
   shutdown has stalled: no block-device I/O progress for 30 seconds, or a hard
   deadline of 150 seconds while I/O keeps progressing. It first runs an explicit
-  sync bounded to 10 seconds; BusyBox `reboot -f` syncs again. The capped stop
+  sync bounded to 10 seconds; sysrq `b` skips device shutdown, while `reboot -nf`
+  avoids another sync if sysrq fails or returns. The capped stop
   scripts wait at most 20 seconds without I/O in total, below the 30-second stall
   trigger (`image/scripts/tests/shutdown-budget_test.sh`).
 - The Cyclone V hardware watchdog, after the warm-reset register preparation,

@@ -277,6 +277,28 @@ func (d *MenuDisplay) FramePending() bool {
 	return d.pending > 0 || d.flight != nil || d.probeQueued
 }
 
+// WaitIdle waits until every submitted menu frame has completed its runtime
+// transaction. Call before Pause when the final visible frame must survive.
+func (d *MenuDisplay) WaitIdle(ctx context.Context) error {
+	if d == nil {
+		return nil
+	}
+	t := time.NewTicker(time.Millisecond)
+	defer t.Stop()
+	for {
+		if !d.FramePending() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-d.done:
+			return errors.New("menu display closed")
+		case <-t.C:
+		}
+	}
+}
+
 // Pause prevents new submissions, discards queued frames, forgets the last
 // submitted frame, clears change-driven backoff, and waits for the current
 // runtime transaction to finish before a game mutation begins.

@@ -32,7 +32,8 @@ const (
 	localChordHold          = time.Second
 	// localStatusEvery is the fastest the running-phase status poll runs.
 	// The client's own timeout is 3s, so the poll never runs under a.mu.
-	localStatusEvery = time.Second
+	localStatusEvery      = time.Second
+	localReconcileTimeout = 30 * time.Second
 )
 
 // localPadSender is the kit-local input socket. *localfeed.Feed implements it.
@@ -135,6 +136,12 @@ func (a *App) localCoreBusyLocked() bool {
 	}
 }
 
+const localLaunchCheckingCopy = "Still checking whether the previous game started."
+
+func (a *App) localLaunchBlockedLocked() bool {
+	return a.localReconcileAfterFailure
+}
+
 // localCoreOwnsInput reports that menu commands must not see the pad.
 // Launching, running, and stopping all own it.
 func (a *App) localCoreOwnsInput() bool {
@@ -150,6 +157,10 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	if a.kitMutationBlockedLocked() {
 		return
 	}
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.localCoreBusyLocked() {
 		return
 	}
@@ -161,11 +172,14 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	gen := a.localGen
 	a.localPhase = localPhaseLaunching
 	a.localTitle = title
+	a.localStartedAt = time.Now()
 	a.localStatus = "Starting " + title + "…"
 	a.status = a.localStatus
 	a.localPresentsPaused = true
+	a.localLateAdopt = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
+	a.localStopAfterStart = false
 	block := dest.CoreBlock
 	// The room instance is only touched on this lock. Launch can take the
 	// agent's full load, so the goroutine calls the client directly with the
@@ -173,33 +187,46 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	// ActivateDestination, which writes the destination from another thread.
 	packageID := dest.PackageID
 	client := a.localCores
-	go func() {
-		var err error
-		if client == nil {
-			err = rooms.ErrNoLocalCores
-		} else {
-			err = client.Launch(context.Background(), packageID)
-		}
-		a.mu.Lock()
-		defer a.mu.Unlock()
-		if a.localGen != gen {
-			return
-		}
-		if err != nil {
-			a.failLocalCoreLocked(err, block)
-			return
-		}
-		a.localPhase = localPhaseRunning
-		if a.status == a.localStatus {
-			a.status = ""
-		}
-		a.localStatus = ""
-		// A pair already held when the core becomes current starts its
-		// second here, not during the load.
-		if a.localSelectDown && a.localStartDown {
-			a.localChordSince = time.Now()
-		}
-	}()
+	launch := func() {
+		go func() {
+			var err error
+			if client == nil {
+				err = rooms.ErrNoLocalCores
+			} else {
+				err = client.Launch(context.Background(), packageID)
+			}
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if a.localGen != gen {
+				return
+			}
+			if err != nil {
+				if errors.Is(err, localcores.ErrUnavailable) {
+					a.reconcileLocalLaunchErrorLocked(err, block)
+				} else {
+					a.failLocalCoreLocked(err, block)
+				}
+				return
+			}
+			a.localPhase = localPhaseRunning
+			a.localStartedAt = time.Time{}
+			if a.status == a.localStatus {
+				a.status = ""
+			}
+			a.localStatus = ""
+			// A pair already held when the core becomes current starts its
+			// second here, not during the load.
+			if a.localSelectDown && a.localStartDown {
+				a.localChordSince = time.Now()
+			}
+			if a.localStopAfterStart {
+				a.localStopAfterStart = false
+				a.localChordFired = true
+				a.beginLocalStopLocked()
+			}
+		}()
+	}
+	a.queueLocalLaunchLocked(launch)
 }
 
 // localTitleLauncher is an optional test double. The production client
@@ -220,6 +247,10 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	if a.kitMutationBlockedLocked() {
 		return
 	}
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.localCoreBusyLocked() {
 		return
 	}
@@ -231,33 +262,84 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	gen := a.localGen
 	a.localPhase = localPhaseLaunching
 	a.localTitle = title
+	a.localStartedAt = time.Now()
 	a.localStatus = "Starting " + title + "…"
 	a.status = a.localStatus
 	a.localPresentsPaused = true
+	a.localLateAdopt = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
+	a.localStopAfterStart = false
 	client := a.localCores
 	resolve := a.localContent
-	go func() {
-		err := launchLocalTitle(context.Background(), client, resolve, game)
-		a.mu.Lock()
-		defer a.mu.Unlock()
-		if a.localGen != gen {
-			return
-		}
-		if err != nil {
-			a.failLocalCoreLocked(err, "")
-			return
-		}
-		a.localPhase = localPhaseRunning
-		if a.status == a.localStatus {
-			a.status = ""
-		}
-		a.localStatus = ""
-		if a.localSelectDown && a.localStartDown {
-			a.localChordSince = time.Now()
-		}
-	}()
+	launch := func() {
+		go func() {
+			err := launchLocalTitle(context.Background(), client, resolve, game)
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if a.localGen != gen {
+				return
+			}
+			if err != nil {
+				if client == nil {
+					a.failLocalCoreLocked(err, "")
+				} else {
+					a.reconcileLocalLaunchErrorLocked(err, "")
+				}
+				return
+			}
+			a.localPhase = localPhaseRunning
+			a.localStartedAt = time.Time{}
+			if a.status == a.localStatus {
+				a.status = ""
+			}
+			a.localStatus = ""
+			if a.localSelectDown && a.localStartDown {
+				a.localChordSince = time.Now()
+			}
+			if a.localStopAfterStart {
+				a.localStopAfterStart = false
+				a.localChordFired = true
+				a.beginLocalStopLocked()
+			}
+		}()
+	}
+	a.queueLocalLaunchLocked(launch)
+}
+
+// Input only arms the launch. Menu-display dispatch follows a presented frame,
+// its drain, and a successful pause in the render loop.
+func (a *App) queueLocalLaunchLocked(launch func()) {
+	if a.menuDisplay == nil {
+		launch()
+		return
+	}
+	a.localLaunchPending = launch
+}
+
+func (a *App) completeLocalLaunchHandoff(err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	launch := a.localLaunchPending
+	if launch == nil || a.localPhase != localPhaseLaunching {
+		return
+	}
+	a.localLaunchPending = nil
+	if err != nil {
+		a.failLocalCoreLocked(err, "")
+		return
+	}
+	launch()
+}
+
+func (a *App) reconcileLocalLaunchErrorLocked(err error, block string) {
+	// Even a rejected response can follow a completed runtime mutation.
+	// Retain ownership until status says running or idle.
+	a.localReconcileAfterFailure = true
+	a.localReconcileDeadline = time.Now().Add(localReconcileTimeout)
+	a.localStatus = localCoreFailureCopy(err, block)
+	a.status = a.localStatus
+	a.localStatusNext = time.Time{}
 }
 
 func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func(context.Context, string) (string, error), game hostclient.Game) error {
@@ -306,10 +388,16 @@ func localCartridgeCore(system string) string {
 }
 
 func (a *App) failLocalCoreLocked(err error, block string) {
+	a.localLaunchPending = nil
+	a.localReconcileAfterFailure = false
+	a.localReconcileDeadline = time.Time{}
 	a.localPhase = ""
+	a.localStartedAt = time.Time{}
 	a.localPresentsPaused = false
+	a.localLateAdopt = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
+	a.localStopAfterStart = false
 	a.localStatus = localCoreFailureCopy(err, block)
 	a.statusLeaseRefusal = false
 	a.status = a.localStatus
@@ -378,8 +466,12 @@ func (a *App) beginLocalStopLocked() {
 }
 
 func (a *App) finishLocalCoreLocked() {
+	a.localLaunchPending = nil
+	a.localReconcileAfterFailure = false
+	a.localReconcileDeadline = time.Time{}
 	a.localPhase = ""
 	a.localPresentsPaused = false
+	a.localLateAdopt = false
 	if a.status == a.localStatus {
 		a.status = ""
 	}
@@ -388,6 +480,7 @@ func (a *App) finishLocalCoreLocked() {
 	a.localStartDown = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
+	a.localStopAfterStart = false
 	a.localSent = nil
 	a.localRedraw++
 	a.roomWasParked = true
@@ -395,21 +488,35 @@ func (a *App) finishLocalCoreLocked() {
 
 func (a *App) tickLocalCoreLocked(now time.Time) {
 	a.pollLocalStatusLocked(now)
-	if a.localPhase != localPhaseRunning || a.localChordFired || a.localChordSince.IsZero() {
+	if a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure && !a.localReconcileDeadline.IsZero() && !now.Before(a.localReconcileDeadline) {
+		a.localPhase = ""
+		a.localStartedAt = time.Time{}
+		a.localPresentsPaused = false
+		a.localLateAdopt = false
+		a.localStatus = "The core did not confirm it started."
+		a.status = a.localStatus
+		a.roomWasParked = true
+		a.localRedraw++
+	}
+	if (a.localPhase != localPhaseRunning && a.localPhase != localPhaseLaunching) || a.localChordFired || a.localChordSince.IsZero() {
 		return
 	}
 	if now.Sub(a.localChordSince) < localChordHold {
 		return
 	}
 	a.localChordFired = true
-	a.beginLocalStopLocked()
+	if a.localPhase == localPhaseLaunching {
+		a.localStopAfterStart = true
+	} else {
+		a.beginLocalStopLocked()
+	}
 }
 
 // pollLocalStatusLocked reads GET /v1/local/status while a core is running.
 // At most one poll is in flight, and it is not called under a.mu: Status can
-// take the client's 3s timeout. Idle, or running false, resumes presents.
+// take the client's 3s timeout. Only an explicit idle phase resumes presents.
 func (a *App) pollLocalStatusLocked(now time.Time) {
-	if a.localPhase != localPhaseRunning || a.localStatusBusy || a.localCores == nil {
+	if (a.localPhase != localPhaseRunning && !(a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == ""))) || a.localStatusBusy || a.localCores == nil {
 		return
 	}
 	if !a.localStatusNext.IsZero() && now.Before(a.localStatusNext) {
@@ -425,10 +532,46 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		a.localStatusBusy = false
-		if err != nil || a.localGen != gen || a.localPhase != localPhaseRunning || a.localStatusEpoch != epoch {
+		if err != nil || a.localGen != gen || a.localStatusEpoch != epoch || (a.localPhase != localPhaseRunning && !(a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == ""))) {
 			return
 		}
-		if status.Phase == "idle" || !status.Running {
+		if status.Phase == "running" && a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "") {
+			wasReturnedToMenu := a.localPhase == ""
+			a.localReconcileAfterFailure = false
+			a.localPhase = localPhaseRunning
+			if wasReturnedToMenu {
+				a.localPresentsPaused = true
+				a.localLateAdopt = true
+			}
+			a.localReconcileDeadline = time.Time{}
+			a.localStartedAt = time.Time{}
+			if a.status == a.localStatus {
+				a.status = ""
+			}
+			a.localStatus = ""
+			if a.localSelectDown && a.localStartDown {
+				a.localChordSince = time.Now()
+			}
+			if a.localStopAfterStart {
+				a.localStopAfterStart = false
+				a.localChordFired = true
+				a.beginLocalStopLocked()
+			}
+			return
+		}
+		if status.Phase == "idle" {
+			wasAmbiguous := a.localReconcileAfterFailure
+			a.localReconcileAfterFailure = false
+			a.localReconcileDeadline = time.Time{}
+			if wasAmbiguous {
+				a.localPhase = ""
+				a.localPresentsPaused = false
+				a.localLateAdopt = false
+				a.localStartedAt = time.Time{}
+				a.localRedraw++
+				a.roomWasParked = true
+				return
+			}
 			a.finishLocalCoreLocked()
 		}
 	}()
@@ -466,7 +609,7 @@ func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 		return handled
 	}
 	if a.localPhase != localPhaseRunning {
-		a.noteLocalHeldLocked(e)
+		a.noteLocalHeldLocked(e, now)
 		a.mu.Unlock()
 		return true
 	}
@@ -488,7 +631,7 @@ func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 	return true
 }
 
-func (a *App) noteLocalHeldLocked(e remoteinput.Event) {
+func (a *App) noteLocalHeldLocked(e remoteinput.Event, now time.Time) {
 	down, ok := localButtonDown(e)
 	if !ok {
 		return
@@ -498,6 +641,14 @@ func (a *App) noteLocalHeldLocked(e remoteinput.Event) {
 		a.localSelectDown = down
 	case remoteinput.ButtonStart:
 		a.localStartDown = down
+	}
+	if a.localSelectDown && a.localStartDown {
+		if a.localChordSince.IsZero() {
+			a.localChordSince = now
+		}
+	} else {
+		a.localChordSince = time.Time{}
+		a.localChordFired = false
 	}
 }
 

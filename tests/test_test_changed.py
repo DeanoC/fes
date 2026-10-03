@@ -25,15 +25,17 @@ class TestChangedTest(unittest.TestCase):
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(targets, ["sim-fes-atari-st"])
 
-    def test_standalone_z80_changes_select_cpu_simulation(self):
+    def test_original_z80_changes_select_cpu_and_machine_consumers(self):
         self.change("sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv")
         self.change("sources/misteross/cores/fes-common/sim/z80/cpu_tb.cpp")
         self.change("sources/misteross/scripts/sim_fes_z80.py")
         result = self.plan()
-        self.assertEqual(result["impact"]["cores"], ["z80"])
+        self.assertEqual(set(result["impact"]["cores"]), {"sg1000", "spectrum", "z80"})
         targets = [c["argv"][1] for c in result["commands"]
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
-        self.assertEqual(targets, ["sim-fes-z80"])
+        self.assertEqual(set(targets), {"sim-fes-z80", "sim-fes-sg1000", "sim-fes-sg1000-oss",
+                                        "sim-fes-sg1000-rom-link", "sim-fes-sg1000-gp-audio",
+                                        "sim-fes-spectrum"})
         self.assertEqual({lane for lane, enabled in result["impact"]["lanes"].items() if enabled},
                          {"parent", "fpga"})
 
@@ -73,7 +75,7 @@ class TestChangedTest(unittest.TestCase):
         host = [c for c in result["commands"] if c["lane"] == "host"]
         self.assertEqual([c["cwd"] for c in host if c["argv"][0] == "go"],
                          ["sources/FogCast", "sources/FogCast/appliance", "sources/misteross/expansion"])
-        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "./..."] for c in host if c["argv"][0] == "go"))
+        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "-timeout", "30m", "./..."] for c in host if c["argv"][0] == "go"))
         self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
 
     def test_expansion_changes_test_linker_and_downstream_host_without_rtl(self):
@@ -85,7 +87,7 @@ class TestChangedTest(unittest.TestCase):
         commands = [c for c in result["commands"] if c["lane"] == "host" and c["argv"][0] == "go"]
         self.assertEqual({c["cwd"] for c in commands},
                          {"sources/FogCast", "sources/FogCast/appliance", "sources/misteross/expansion"})
-        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "./..."] for c in commands))
+        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "-timeout", "30m", "./..."] for c in commands))
 
     def test_runtime_changes_include_host_protocol_consumers(self):
         self.change("sources/libmister-runtime/src/protocol.cpp")

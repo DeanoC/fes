@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Reduced SG-1000 machine for the FES simple-computer Quartus bring-up.
 //
-// This is a Coleco sibling, not a second console stack: TV80, the bounded
+// This is a Coleco sibling, not a second console stack: the bounded
 // TMS9918-style VDP, dual-port RAM wrappers and the 16 KiB mailbox blob are
 // the Coleco modules. The SG-1000 first slice only replaces the memory map
 // and the 8255 joystick ports. There is no BIOS shim; the cartridge occupies
@@ -47,9 +47,9 @@ module sg1000_machine (
     // copy. An immediate host RELEASE must not let the CPU fetch partly
     // copied code or let the VDP run until the final write.
 `ifdef FES_SG1000_ROM_LINK
-    wire      machine_reset = reset;
+    wire      machine_reset /* verilator public_flat_rd */ = reset;
 `else
-    wire      machine_reset = reset || !media_ready || !media_loaded;
+    wire      machine_reset /* verilator public_flat_rd */ = reset || !media_ready || !media_loaded;
 `endif
 `ifdef FES_SG1000_REGISTERED_MEDIA
     reg       media_data_valid;
@@ -60,16 +60,19 @@ module sg1000_machine (
     wire [15:0] cpu_addr;
     wire [7:0] cpu_dout;
     reg  [7:0] cpu_din;
-    wire nM1;
-    wire nMREQ;
-    wire nIORQ;
-    wire nRD;
-    wire nWR;
-    wire nRFSH;
+    wire nM1 /* verilator public_flat_rd */;
+    wire nMREQ /* verilator public_flat_rd */;
+    wire nIORQ /* verilator public_flat_rd */;
+    wire nRD /* verilator public_flat_rd */;
+    wire nWR /* verilator public_flat_rd */;
+    wire nRFSH /* verilator public_flat_rd */;
     wire nHALT;
+    wire cpu_illegal /* verilator public_flat_rd */;
 
-    wire ce_cpu_p;
-    wire ce_cpu_n;
+    wire ce_cpu_raw_p /* verilator public_flat_rd */;
+    wire ce_cpu_raw_n /* verilator public_flat_rd */;
+    reg ce_cpu_p /* verilator public_flat_rd */;
+    reg ce_cpu_n /* verilator public_flat_rd */;
     wire ce_raster;
 
     tms9918_raster_ce #(
@@ -92,7 +95,7 @@ module sg1000_machine (
     reg        vdp_write_seen;
     wire       vdp_bus_ce = ce_cpu_n && (nWR || !vdp_write_seen);
 
-    // TV80 holds an OUT bus cycle across more than one negative CPU enable.
+    // The NMOS adapter holds OUT across multiple negative CPU enables.
     // The VDP consumes a byte per strobe, so acknowledge a held write once.
     always @(posedge clk_sys) begin
         if (machine_reset || nIORQ || nWR)
@@ -135,29 +138,34 @@ module sg1000_machine (
     end
 
     fes_z80_ce cpu_timing (
-        .clk(clk_sys), .positive(ce_cpu_p), .negative(ce_cpu_n)
+        .clk(clk_sys), .positive(ce_cpu_raw_p), .negative(ce_cpu_raw_n)
     );
+    // Capture both enables on the system rising edge before distributing
+    // them. This shifts the entire CPU bus cadence by one system clock and
+    // keeps the engine/VDP enable paths within a full system-clock period.
+    always @(posedge clk_sys) begin
+        if (machine_reset) begin
+            ce_cpu_p <= 1'b0;
+            ce_cpu_n <= 1'b0;
+        end else begin
+            ce_cpu_p <= ce_cpu_raw_p;
+            ce_cpu_n <= ce_cpu_raw_n;
+        end
+    end
 
-    T80pa cpu (
-        .RESET_n(~machine_reset),
-        .CLK(clk_sys),
-        .CEN_p(ce_cpu_p),
-        .CEN_n(ce_cpu_n),
-        .WAIT_n(1'b1),
-        .INT_n(vdp_irq_n),
-        .NMI_n(1'b1),
-        .BUSRQ_n(1'b1),
-        .M1_n(nM1),
-        .MREQ_n(nMREQ),
-        .IORQ_n(nIORQ),
-        .RD_n(nRD),
-        .WR_n(nWR),
-        .RFSH_n(nRFSH),
-        .HALT_n(nHALT),
-        .BUSAK_n(),
-        .A(cpu_addr),
-        .DO(cpu_dout),
-        .DI(cpu_din)
+    fes_z80_nmos cpu (
+        .reset(machine_reset), .clk(clk_sys),
+        .ce_p(ce_cpu_p), .ce_n(ce_cpu_n),
+        .wait_n(1'b1), .int_n(vdp_irq_n),
+        .nmi_n(1'b1), .busrq_n(1'b1),
+        .m1_n(nM1), .mreq_n(nMREQ), .iorq_n(nIORQ),
+        .rd_n(nRD), .wr_n(nWR), .rfsh_n(nRFSH),
+        .halt_n(nHALT), .busak_n(),
+        .a(cpu_addr), .dout(cpu_dout), .din(cpu_din),
+        .illegal(cpu_illegal), .retired(), .retire_pc(),
+        .debug_pc(), .debug_sp(), .debug_af(), .debug_bc(),
+        .debug_de(), .debug_hl(), .debug_ix(), .debug_iy(),
+        .debug_ir(), .debug_iff()
     );
 
     coleco_vdp vdp (
@@ -215,17 +223,25 @@ module sg1000_machine (
         .clk(clk_sys), .reset(machine_reset), .ce(psg_ce),
         .write(psg_write), .data(cpu_dout), .sample(psg_sample)
     );
-    wire [7:0] cartridge_read;
+    wire [7:0] cartridge_read /* verilator public_flat_rd */;
     wire [7:0] cartridge_peek;
     wire [7:0] ram_read;
     wire [7:0] ram_peek;
 
 `ifdef FES_SG1000_ROM_LINK
     always @* media_addr = 14'd0;
+    wire [7:0] cartridge_link_read;
+    reg [7:0] cartridge_link_q;
     sg1000_rom_link rom (
-        .address(cpu_addr[13:0]), .data(cartridge_read),
+        .address(cpu_addr[13:0]), .data(cartridge_link_read),
         .peek_address(peek_addr[13:0]), .peek_data(cartridge_peek)
     );
+    // Keep the authenticated asynchronous M10K lanes and bank map unchanged.
+    // Register the selected byte to split the CPU-address/ROM/data critical
+    // path. Native half-cycles provide at least seven system clocks before
+    // the CPU samples an opcode or operand, so one clock of latency fits.
+    always @(posedge clk_sys) cartridge_link_q <= cartridge_link_read;
+    assign cartridge_read = cartridge_link_q;
 `else
 `ifdef FES_SG1000_REGISTERED_MEDIA
     wire media_load_write = !media_loaded && media_ready && media_data_valid;

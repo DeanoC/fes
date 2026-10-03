@@ -6,12 +6,15 @@
 `endif
 
 // DE10-Nano shell for the FES ZX Spectrum (fes.computer 1.0). The mailbox,
-// Z80, tape player and edge sockets run in the 52.224 MHz system domain.
+// Z80, tape player and edge sockets run at 52.224 MHz (normal) or 56 MHz
+// (FAST_CPU development). The tape/frame tick remains 3.5 MHz.
 // Video is scanned from RAM in the 74.25 MHz HDMI domain. Audio leaves
-// through the shared 12.288 MHz I2S serializer. Sockets 1-4 are physical
+// through 48 kHz I2S (normal PLL clock or fast rational system enables).
+// Sockets 1-4 are physical
 // and vacant here; a linked card replaces the vacant response.
 module top #(
-    parameter [127:0] BUILD_ID = `FES_SPECTRUM_BUILD_ID
+    parameter [127:0] BUILD_ID = `FES_SPECTRUM_BUILD_ID,
+    parameter bit FAST_CPU = 1'b0
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -29,7 +32,7 @@ module top #(
     wire [31:0] fpga_to_hps;
     wire [31:0] hps_to_fpga;
 
-    spectrum_system_pll system_clock (
+    spectrum_system_pll #(.FAST_CPU(FAST_CPU)) system_clock (
         .refclk(FPGA_CLK1_50), .rst(1'b0),
         .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
@@ -71,7 +74,7 @@ module top #(
     );
 
     wire [39:0] matrix;
-    spectrum_keyboard keyboard (
+    spectrum_keyboard #(.STABLE_CYCLES(FAST_CPU ? 56000 : 52224)) keyboard (
         .clk(clk_sys), .reset(exec_reset), .rows(keyboard_rows), .matrix(matrix)
     );
     // Kempston: bit0 right, bit1 left, bit2 down, bit3 up, bit4 fire.
@@ -88,7 +91,7 @@ module top #(
     wire signed [15:0] slot_audio;
     wire [15:0] video_addr;
     wire [7:0] video_data;
-    spectrum_machine machine (
+    spectrum_machine #(.FAST_CPU(FAST_CPU)) machine (
         .clk_sys(clk_sys), .reset(exec_reset), .matrix(matrix), .kempston(kempston),
         .unit_state(unit0_state), .unit_size(unit0_size),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
@@ -98,6 +101,7 @@ module top #(
         .response3(response3), .response4(response4),
         .border(border), .flash_on(flash_on), .speaker(speaker), .ear(ear),
         .cpu_cycle(cpu_cycle), .slot_audio(slot_audio),
+        .cpu_retired(), .cpu_illegal(), .cpu_halted(), .cpu_pc(), .frame_int_n(),
         .video_clk(pixel_clk), .video_addr(video_addr), .video_data(video_data),
         .sig8000(), .sig8001(), .sig8002(), .sig8003(), .sig8004()
     );
@@ -137,10 +141,19 @@ module top #(
         .clk(clk_sys), .reset(exec_reset), .cpu_cycle(cpu_cycle),
         .speaker(speaker), .slot_audio(slot_audio), .sample(audio_sample)
     );
-    fes_audio_output audio (
-        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked), .hold(exec_reset),
-        .left_sample(audio_sample), .right_sample(audio_sample),
-        .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
-    );
-    assign HDMI_MCLK = audio_clk;
+    generate if (FAST_CPU) begin : fast_audio
+        spectrum_fast_audio audio (
+            .clk(clk_sys), .reset(!audio_locked), .mute(exec_reset),
+            .left_sample(audio_sample), .right_sample(audio_sample),
+            .mclk(HDMI_MCLK), .sample_tick(), .sclk(HDMI_SCLK),
+            .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
+        );
+    end else begin : normal_audio
+        fes_audio_output audio (
+            .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked), .hold(exec_reset),
+            .left_sample(audio_sample), .right_sample(audio_sample),
+            .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
+        );
+        assign HDMI_MCLK = audio_clk;
+    end endgenerate
 endmodule

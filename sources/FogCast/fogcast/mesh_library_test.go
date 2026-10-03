@@ -189,6 +189,26 @@ func TestProjectMeshLibrarySG1000BrowseSystem(t *testing.T) {
 	assertNoPath(t, entry)
 }
 
+func TestProjectMeshLibraryCatchBrowseSystem(t *testing.T) {
+	pkg := strings.Repeat("ef", 32)
+	title := meshCoreTitle("Catch", "fes.catch", pkg, "", false)
+	entries, skipped := ProjectMeshLibrary(MeshLibrary{Titles: []MeshTitle{title}})
+	if len(skipped) != 0 || len(entries) != 1 {
+		t.Fatalf("entries %+v skipped %+v", entries, skipped)
+	}
+	entry := entries[0]
+	if entry.System != "catch" || !entry.Launchable || len(entry.Execute) != 1 || entry.Execute[0].Kind != meshcontent.ExecuteFPGANative {
+		t.Fatalf("catch shape %+v", entry)
+	}
+	if len(entry.Slots) != 1 || entry.Slots[0].Kind != meshcontent.SlotPackageABI {
+		t.Fatalf("ROM-less catch slots %+v", entry.Slots)
+	}
+	if got := entry.Slots[0].Package; got == nil || got.PackageID != pkg || got.ABI != "fes.application" || got.Major != 1 {
+		t.Fatalf("package %+v", got)
+	}
+	assertNoPath(t, entry)
+}
+
 func TestProjectMeshLibraryMultiExpansionOrder(t *testing.T) {
 	pkg := strings.Repeat("cd", 32)
 	bus := strings.Repeat("66", 32)

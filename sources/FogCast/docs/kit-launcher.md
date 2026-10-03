@@ -79,7 +79,11 @@ without taking over, when the lease is already held (fes#172). See [the host con
 contract](launcher-host.md) for listener configuration and the session HTTP
 schema. Play input from a pad on the kit uses the local socket described below.
 `fogcast-kit` supplies the socket path and the runtime core-bound probe.
-`fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. While that core is running, tenfoot polls `GET /v1/local/status` about once a second and resumes presents if the session is idle or stop returns in use. The default grid also plays available kit-local SMS rows through that socket from browse and detail (attract stays host-only while offline; fes#442). Select+Start stops local play; stop, failure or idle local status returns to the menu. The grid adopts a kit-local run it did not start (one already running at startup, or started later over the local-control socket): while a core is bound and no local run is known, it reads `GET /v1/local/status` at most once a second, single-flight, and a launching or running answer marks the session active, pauses the menu, and routes Select+Start to `POST /v1/local/stop`.
+`fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. For both kit grid launch paths and tenfoot local launches, the first indeterminate loading frame includes phase and elapsed time, starting at `0:00`. The launcher waits for that frame to drain, pauses menu-display, then dispatches the launch request. No frame is submitted between pause and resume. On linuxfb, the overlay continues to animate with elapsed time. Host session stage/message text appears when available; local status exposes only `launching`/`running`, so neither path invents a percentage. The default grid also plays available kit-local SMS rows through that socket from browse and detail (attract stays host-only while offline; fes#442). Local and host launches return to the menu with timeout copy after the 60 second local load bound plus five seconds grace; status polling continues so a late running/active state is adopted. A local Select+Start chord during loading is remembered and stops the core after `running` is observed. Pause failure clears the launch state and resumes the menu immediately. A failed local ROM request reconciles local status before releasing ownership, so late running remains paused and a confirmed idle returns to the menu with failure copy. If status stays ambiguous for 30 seconds, tenfoot returns to the menu with “The core did not confirm it started.” and keeps reconciling; new launches are refused (“Still checking whether the previous game started.”) until status reaches running or idle, and a late running pauses and drains the menu without submitting another frame. While a local core is running, tenfoot polls `GET /v1/local/status` about once a second and resumes presents if the session is idle or stop returns in use. Stop, failure or idle local status returns to the menu. The grid adopts a kit-local run it did not start (one already running at startup, or started later over the local-control socket): while a core is bound and no local run is known, it reads `GET /v1/local/status` at most once a second, single-flight, and a launching or running answer marks the session active, pauses the menu, and routes Select+Start to `POST /v1/local/stop`.
+The delivered loading frame remains while the launch request is pending;
+request completion alone does not resume the grid before status reconciliation.
+A failed host launch resumes the browsable menu with readable failure copy;
+Select+Start remains available to retry host cleanup before another launch.
 Host endpoint configuration is explicit; target discovery is separate.
 
 With the host up, a browse-only SMS row can still play on the kit when its cartridge bytes match a kit-local catalog entry. The kit checks the host row's ROM SHA-256 only when Play is pressed, then launches the matched local entry through local control and keeps pad input on the kit. A definitive miss says “Not on this kit”; an identity check failure is reported separately.
@@ -283,7 +287,9 @@ the host, and it does not wait for launcher.json reachability or the host
 session's input.ready. A pad on the kit still drives the core when another
 host holds the lease. For Coleco, SMS and SG-1000, mister-agent turns local
 pad directions and A into the core's keyboard joystick matrix; SMS and SG-1000
-ignore B. Select+Start remains the kit-local stop chord. While a core is bound,
+ignore B. Select+Start is the stop chord for this host's active or failed session
+and for kit-local owned play. A foreign-owned core accepts local play controls,
+including Select and Start, but this launcher cannot stop it. While a core is bound,
 those events do not leave the platform wheel, change browse selection, or
 request a launch from a stale idle host session. With no core bound, the same
 pad still browses. The player
@@ -291,8 +297,10 @@ index on the frame is the one the kit assigned. If the socket is not
 listening, the kit reports `Local input unavailable`, waits one second before
 dialing again, and does not fall back to the host input route. Hold Select +
 Start together for one second to request ordinary Stop; both must release
-before rearming. That Stop chord still posts while a core is bound. Individual
-Start and Select remain game controls while a session can stop; B does not
+before rearming. That Stop chord still posts for an owned session while a core
+is bound. Successful bound observations expire after one second without a
+refresh; persistent probe errors close the play feed and clear the input notice.
+Individual Start and Select remain game controls while a session can stop; B does not
 stop gameplay.
 Stop/save errors retain the retry operation. After the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s; 1s is allowed) with no pad input,
@@ -316,7 +324,13 @@ video-only rows) still enters a themed idle panel (`Idle` / `No attract stills`)
 so the grid is not frozen; any input returns to the grid.
 
 Closing the kit's connection to `/run/fogcast/local-input.sock` releases only
-that local source. The host input stream remains the path for a pad that is
+that local source. Unplugging one pad sends its releases, centered axes and a
+local departure event, freeing only that player's claim while the other pad
+keeps the connection. Claiming local P1 immediately moves a connected remote P1
+to P2; an excluded remote player still clears released controls, so freeing
+a local port cannot revive an old hold. The local listener serves one writer
+at a time; close the old writer before replacing it.
+The host input stream remains the path for a pad that is
 not plugged into this kit: the host delivers it to the kit that owns the
 session, and a missing stream is an error to that caller. Local play input
 does not cross the LAN and does not fall back to the host. Report
