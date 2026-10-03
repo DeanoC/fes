@@ -58,7 +58,11 @@ module st_sim_top (
     st_video video (
         .clk(clk_sys), .reset(reset), .hold(video_hold),
         .screen_base(screen_base), .resolution(resolution), .palette(palette),
-        .mem_addr(video_addr), .mem_data(video_data), .video_request(video_request)
+        .mem_addr(video_addr), .mem_data(video_data),
+        /* verilator lint_off PINCONNECTEMPTY */
+        .fetch_valid(), .fetch_row(), .fetch_column(), .raster_row(), .raster_next_row(),
+        /* verilator lint_on PINCONNECTEMPTY */
+        .video_request(video_request)
     );
     reg [31:0] video_boundary = 32'd0;
     wire [27:0] direct_response, scanline_response;

@@ -33,9 +33,13 @@ def frozen_shell() -> dict:
                          "attributes": {"NEXTPNR_BEL": "MISTRAL_FF.40.60.2"}},
     }
     socket = atari_st_slot.SOCKETS[0]
-    for name, bel in atari_st_slot.boundary_bels(socket).items():
-        cells[socket.instance + name] = {"type": "MISTRAL_FF", "connections": {"CLK": [10]},
+    for index, (name, bel) in enumerate(atari_st_slot.boundary_bels(socket).items()):
+        cells[socket.instance + name] = {"type": "MISTRAL_FF", "connections": {"CLK": [10], "DATAIN": [2000 + index]},
                                        "attributes": {"NEXTPNR_BEL": bel}}
+        cells[socket.instance + name + "$ROUTETHRU"] = {"type": "MISTRAL_BUF",
+            "connections": {"A": [1000 + index], "Q": [2000 + index]},
+            "port_directions": {"A": "input", "Q": "output"},
+            "attributes": {"NEXTPNR_BEL": card.shell_recipe.boundary_route_buffer_bel(bel)}}
     netnames = {"system_clock.pll_outclk_1": {"bits": [20]},
                 "system_clock.clocks[1]": {"bits": [21]}, "pixel_clk": {"bits": [30]},
                 card.SLOT_CLOCK: {"bits": [10], "attributes": {"ROUTING": "frozen clock branches"}}}
@@ -62,7 +66,8 @@ class BuildFixture:
                     "interfaces": [{"id": atari_st_slot.INTERFACE, "major": 1, "minor": 0, "required": False}]})
         for name, data in (("manifest.toml", b"manifest"), ("core.rbf", b"shell"),
                            ("rom-map.json", b"rom-map"),
-                           ("socket.qsf", b'FES_RESERVED_RECT "expansion 24 1 28 18"\n'),
+                           ("socket.qsf", b'FES_RESERVED_RECT "expansion 24 1 28 18"\n'
+                                          b'FES_RESERVED_RECT "ram_guard 26 19 26 19"\n'),
                            ("routed.json", json.dumps(frozen_shell()).encode())):
             (self.shell / name).write_bytes(data)
         self.tools = {name: SimpleNamespace(path=root / name, identity=name + "-authenticated")
@@ -91,7 +96,7 @@ class BuildFixture:
             kwargs["stdout"].write(self.route_text)
             self.after_route(output)
 
-    def build(self, *, final_tools=None):
+    def build(self, *, final_tools=None, **options):
         with ExitStack() as stack:
             stack.enter_context(patch.object(card, "_require_clean_source", return_value=("repo", "d" * 40)))
             stack.enter_context(patch.object(card, "read_package", return_value=self.package))
@@ -101,7 +106,7 @@ class BuildFixture:
             stack.enter_context(patch.object(card, "rbf_load", side_effect=[self.base, self.placed]))
             overlay = stack.enter_context(patch.object(card, "overlay_cram", return_value=self.placed))
             stack.enter_context(patch.object(card, "rbf_save", return_value=b"linked-card"))
-            result = card.build(self.root, self.shell, self.root / "package", 1, "probe", 0)
+            result = card.build(self.root, self.shell, self.root / "package", 1, "probe", 0, **options)
             overlay.assert_called_once()
             return result
 
@@ -123,8 +128,15 @@ class AtariSTSlotCardTests(unittest.TestCase):
         encoded = json.dumps(original).encode()
         prepared = json.loads(card.prepare_scaffold(encoded, 1))["modules"]["top"]
         cells = prepared["cells"]
-        self.assertEqual(len([n for n in cells if n.startswith("plug_addr_ff_")]), 56)
-        self.assertEqual(len([n for n in cells if n.startswith("plug_rdata_ff_")]), 32)
+        self.assertEqual(len([n for n, c in cells.items() if n.startswith("plug_addr_ff_") and c["type"] == "MISTRAL_FF"]), 56)
+        self.assertEqual(len([n for n, c in cells.items() if n.startswith("plug_rdata_ff_") and c["type"] == "MISTRAL_FF"]), 32)
+        for prefix, count in (("plug_addr_ff_", 56), ("plug_rdata_ff_", 32)):
+            for bit in range(count):
+                name = prefix + str(bit)
+                buffer = cells[name + "$ROUTETHRU"]
+                self.assertEqual(buffer["connections"]["Q"], cells[name]["connections"]["DATAIN"])
+                original_name = "expansion." + ("plug_request_ff_" if count == 56 else "plug_response_ff_") + str(bit)
+                self.assertEqual(buffer, original["modules"]["top"]["cells"][original_name + "$ROUTETHRU"])
         self.assertEqual(cells["plug_rdata_ff_31"]["attributes"]["NEXTPNR_BEL"], "MISTRAL_FF.24.5.22")
         self.assertFalse(any(n.startswith("expansion.") for n in cells))
         self.assertEqual(cells["machine.keep"], original["modules"]["top"]["cells"]["machine.keep"])
@@ -187,7 +199,48 @@ class AtariSTSlotCardTests(unittest.TestCase):
             self.assertEqual(route[route.index("--fes-cart-region") + 1], "expansion")
             self.assertEqual(route[route.index("--fes-cram-region") + 1], "1769,32,2806,1722")
             self.assertEqual(route[route.index("--fes-slot-clock") + 1], card.SLOT_CLOCK)
+            self.assertEqual(route[route.index("--seed") + 1], "4")
             self.assertIn("--no-pack", route)
+            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
+            self.assertEqual(recipe["placer_seed"], 4)
+            recipe_bytes = json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()
+            self.assertEqual(manifest["recipe_sha256"], card.digest(recipe_bytes))
+            cart_qsf = (result.parent / "cart.qsf").read_bytes()
+            self.assertEqual(cart_qsf, (fixture.shell / "socket.qsf").read_bytes())
+            self.assertEqual(cart_qsf.count(b'FES_RESERVED_RECT "ram_guard 26 19 26 19"'), 1)
+
+    def test_explicit_seed_binds_native_command_recipe_and_output_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = BuildFixture(Path(directory))
+            default = fixture.build()
+            selected = fixture.build(seed=5)
+            self.assertNotEqual(default.parent, selected.parent)
+            self.assertNotEqual(default.stem, selected.stem)
+            route = fixture.commands[-1]
+            self.assertEqual(route[route.index("--seed") + 1], "5")
+            summary = json.loads((selected.parent / "build-summary.json").read_text())
+            recipe = summary["recipe"]
+            self.assertEqual(recipe["placer_seed"], 5)
+            recipe_bytes = json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()
+            self.assertEqual(summary["manifest"]["recipe_sha256"], card.digest(recipe_bytes))
+            self.assertEqual(selected.parent.name, card.digest(recipe_bytes))
+
+    def test_invalid_seed_rejected_before_source_tools_or_artifact_writes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for seed in (0, 11, True, False, "4", 4.5, None):
+                with self.subTest(seed=seed), \
+                     patch.object(card, "_require_clean_source") as source, \
+                     patch.object(card.shell_recipe, "_authenticate_atari_st_tools") as tools, \
+                     patch.object(card.subprocess, "run") as compiler, \
+                     patch.object(card, "_prepare_output") as output:
+                    with self.assertRaisesRegex(ValueError, "integer from 1 to 10"):
+                        card.build(root, root, root, 1, "probe", 0, seed=seed)
+                    source.assert_not_called()
+                    tools.assert_not_called()
+                    compiler.assert_not_called()
+                    output.assert_not_called()
+                    self.assertEqual(list(root.iterdir()), [])
 
     def test_no_archive_on_outside_cram_header_clock_or_timing_change(self):
         for failure, message in (("outside", "outside"), ("header", "header"),
