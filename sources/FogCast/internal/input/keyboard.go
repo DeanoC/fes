@@ -112,6 +112,15 @@ func (s *KeyboardSink) releaseSourceContext(ctx context.Context, source inputSou
 	return poster(ctx, matrix)
 }
 
+// forgetSource discards a contribution after observation proves its core has
+// retired. The runtime retired that matrix; posting here would target the new core.
+func (s *KeyboardSink) forgetSource(source inputSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pressed[source] = nil
+	s.blocked[source] = nil
+}
+
 func (s *KeyboardSink) ReleaseAll() error {
 	s.mu.Lock()
 	s.focused = false

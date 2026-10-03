@@ -153,6 +153,9 @@ func TestLocalJoystickMatrixReleasesOnCoreChange(t *testing.T) {
 	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('V'): true}) {
 		t.Fatalf("press: %x", matrix)
 	}
+	// The runtime retires the old matrix during replacement. Observation only
+	// forgets that contribution; it must not post an old release into ZX81.
+	matrix = zx81keys.Neutral
 	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.zx81"})
 	if matrix != zx81keys.Matrix(nil) || len(sink.localKeys) != 0 {
 		t.Fatalf("core change kept local matrix keys: %x %v", matrix, sink.localKeys)

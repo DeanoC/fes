@@ -272,7 +272,9 @@ func (c *TargetController) ensureLocalCore(ctx context.Context) error {
 	defer cancel()
 	obs, err := observe(observeCtx)
 	if err != nil {
-		if retireErr := c.setLocalObservation(ctx, CoreObservation{}); retireErr != nil {
+		writeCtx, cancelWrite := context.WithTimeout(ctx, localCoreWriteTimeout)
+		defer cancelWrite()
+		if retireErr := c.ports.invalidateObservationContext(writeCtx); retireErr != nil {
 			return retireErr
 		}
 		return errNoCore

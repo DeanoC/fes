@@ -2148,8 +2148,11 @@ The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 060
 not another network endpoint, and there is no additional virtual-device discovery rule.
 For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
 1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
-onto that keyboard matrix. The keyboard sink unions local and remote holds;
-local pad frames do not also enter the virtual gamepad. Other cores retain the
+onto that keyboard matrix. Each physical pad retains its own buttons and axes;
+their desired matrix keys combine by OR, including opposing stick directions.
+Synthetic pad keys, the physical local keyboard and the remote keyboard retain
+separate contributions, so one release cannot clear another device's hold.
+Local pad frames do not also enter the virtual gamepad. Other cores retain the
 single virtual gamepad and keyboard sink.
 Installed-core control is a separate root-only HTTP socket at
 `/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
@@ -2209,7 +2212,12 @@ or writing. The status read that binds a local frame, and the set_keyboard or
 set_controller post that follows it, are each limited to 250ms while the lock
 is held, so a stalled runtime reply drops the frame and releases the lock.
 Idle observations and active observations without a controller-port binding
-are cached for 250ms, then refreshed. Local frame drops, including idle,
+are cached for 250ms, then refreshed. An unavailable observation retires local
+pad holds with a bounded neutral post. A failed post remains pending and keeps
+the observation cache invalid; the next frame refreshes status and retries before
+accepting input. Confirmed idle, a different core or a changed runtime generation
+discards the old contribution without posting its release into the new core.
+Local frame drops, including idle,
 replacement and delivery refusals, are counted by `LocalInputDrops()`.
 The agent logs the cumulative drop count at most once per second when it grows.
 The local listener serves one writer synchronously; that writer must close
