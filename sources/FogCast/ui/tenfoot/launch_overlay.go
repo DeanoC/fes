@@ -66,9 +66,6 @@ func launchOverlayCopy(snap Snapshot) LaunchOverlayCopy {
 }
 
 func localLaunchElapsed(snap Snapshot) string {
-	if snap.LocalCorePresentsPaused {
-		return ""
-	}
 	return formatLaunchElapsed(snap.LocalCoreStartedAt)
 }
 

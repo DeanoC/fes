@@ -558,6 +558,7 @@ type App struct {
 	localStatusBusy            bool
 	localStatusNext            time.Time
 	localStatusEpoch           uint64
+	localLaunchPending         func()
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.

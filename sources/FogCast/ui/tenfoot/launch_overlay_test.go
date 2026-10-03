@@ -65,7 +65,7 @@ func TestLaunchOverlayReusesChromeForKitLocalLoad(t *testing.T) {
 	snap := Snapshot{Room: RoomSnapshot{Open: true}, LocalCorePhase: localPhaseLaunching,
 		LocalCoreTitle: "Data Storm", LocalCoreStartedAt: time.Now().Add(-12 * time.Second), LocalCorePresentsPaused: true}
 	copy := launchOverlayCopy(snap)
-	if !copy.Visible || copy.Failed || copy.Title != "Data Storm" || copy.Phase != "Starting core" || copy.Elapsed != "" || !strings.Contains(copy.Hint, "Select+Start") {
+	if !copy.Visible || copy.Failed || copy.Title != "Data Storm" || copy.Phase != "Starting core" || !strings.Contains(copy.Elapsed, "0:12") || !strings.Contains(copy.Hint, "Select+Start") {
 		t.Fatalf("local launch overlay %+v", copy)
 	}
 	if strings.Contains(copy.Elapsed+copy.Phase, "%") {

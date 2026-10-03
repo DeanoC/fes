@@ -180,6 +180,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	menuPaused := false
 	resumeMenu := func() {
 		if c.menuDisplay && menuPaused {
+			if launcherObserve != nil {
+				launcherObserve(m)
+			}
 			c.menuResume()
 			menuPaused = false
 		}
@@ -419,10 +422,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		if c.menuDisplay {
 			if action == "launch" || action == "local-launch" {
-				m.HideLoadElapsed = true
-				m.LoadNow = time.Time{}
 				paintKitHDMI(m)
-				m.HideLoadElapsed = false
 			}
 			menuPaused = true
 			pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -430,7 +430,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			pauseCancel()
 			if err != nil {
 				m.Busy = false
-				m.Message = "Please try again"
+				m.Session.State = "idle"
+				m.LoadStarted = time.Time{}
+				m.LoadPhase = ""
+				m.Message = "Could not pause the menu. Please try again"
 				resumeMenu()
 				paintKitHDMI(m)
 				return
@@ -636,18 +639,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						}
 					}
 				}
-				if c.menuDisplay && !localRunning && !localPending && m.Session.State != "launching" {
-					resumeMenu()
-				}
 				m.Busy = false
 				if o.localAction == "" && o.session.State == "active" {
 					o.message = ""
-				} else if o.localAction == "" && o.message != "" && m.Session.State == "launching" && (o.session.State == "idle" || o.session.State == "failed") {
+				} else if o.localAction == "" && o.message != "" && m.Session.State == "launching" {
 					m.Session.State = "idle"
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
 				}
 				m.Message = o.message
+				if c.menuDisplay && !localRunning && !localPending && m.Session.State != "launching" {
+					resumeMenu()
+				}
 				nextPoll = time.Time{}
 				if o.localAction != "" {
 					continue

@@ -319,6 +319,43 @@ func TestAmbiguousLocalLaunchReconcilesLateRunning(t *testing.T) {
 	}
 }
 
+func TestROMLaunchErrorAdoptsLateRunning(t *testing.T) {
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "running", Running: true}}}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.mu.Lock()
+	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
+	app.mu.Unlock()
+	snap := waitFor(t, app, "late running ROM", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
+	if !snap.LocalCorePresentsPaused || fake.launchCount() != 1 || fake.statusCount() < 2 {
+		t.Fatalf("late running was lost: %+v", snap)
+	}
+}
+
+func TestROMLaunchErrorLateIdleClearsOnce(t *testing.T) {
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "idle"}}}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.mu.Lock()
+	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
+	app.mu.Unlock()
+	snap := waitFor(t, app, "late idle ROM", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused && fake.statusCount() >= 2
+	})
+	if !strings.Contains(snap.Status, localUnavailableCopy) {
+		t.Fatalf("missing failure copy: %+v", snap)
+	}
+	redraw, polls := snap.LocalCoreRedraw, fake.statusCount()
+	for i := 0; i < 3; i++ {
+		app.Tick(time.Now().Add(time.Duration(i+2) * localStatusEvery))
+	}
+	if next := app.Snapshot(); next.LocalCoreRedraw != redraw || fake.statusCount() != polls {
+		t.Fatalf("idle processed again: %+v polls=%d", next, fake.statusCount())
+	}
+}
+
 func TestAmbiguousLocalLaunchHonorsDeferredStopOnLateRunning(t *testing.T) {
 	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "running", Running: true}}}
 	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
@@ -552,13 +589,13 @@ func TestPresentHoldPausesAfterTheStartingFrame(t *testing.T) {
 		LocalCoreTitle: "FES Pong", LocalCoreStartedAt: time.Now().Add(-time.Second),
 		LocalCorePresentsPaused: true, Status: "Starting FES Pong…"}
 	copy := launchOverlayCopy(snap)
-	if !copy.Visible || copy.Phase != "Starting core" || copy.Elapsed != "" || !strings.Contains(copy.Hint, "Select+Start") {
+	if !copy.Visible || copy.Phase != "Starting core" || !strings.Contains(copy.Elapsed, "0:01") || !strings.Contains(copy.Hint, "Select+Start") {
 		t.Fatalf("armed loading frame lacks overlay: %+v", copy)
 	}
-	if hold.skip(context.Background(), dev, snap) {
+	if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
 		t.Fatal("the starting frame should still be presented")
 	}
-	if !hold.skip(context.Background(), dev, snap) {
+	if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
 		t.Fatal("later frames should skip")
 	}
 	dev.Present()
@@ -566,8 +603,122 @@ func TestPresentHoldPausesAfterTheStartingFrame(t *testing.T) {
 		t.Fatalf("paused present submitted %d frames", calls)
 	}
 	snap.LocalCorePresentsPaused = false
-	if hold.skip(context.Background(), dev, snap) {
+	if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
 		t.Fatal("resume should present")
+	}
+}
+
+func TestMenuLaunchWaitsForFrameDrainAndPause(t *testing.T) {
+	gate := make(chan struct{})
+	rec := &recordingMenu{presentEntered: make(chan struct{}, 1), presentGate: gate}
+	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	fake := &fakeLocalCores{hold: make(chan struct{})}
+	defer close(fake.hold)
+	app := NewApp(nil, 1280, 720, 50)
+	app.SetMenuDisplay(dev)
+	app.localCores = fake
+	app.mu.Lock()
+	app.startLocalCoreLocked(rooms.Destination{Label: "FES Pong", PackageID: tenfootPongID})
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	copy := launchOverlayCopy(Snapshot{Room: RoomSnapshot{Open: true}, LocalCorePhase: snap.LocalCorePhase, LocalCoreTitle: snap.LocalCoreTitle, LocalCoreStartedAt: snap.LocalCoreStartedAt, LocalCorePresentsPaused: true})
+	if copy.Phase == "" || copy.Elapsed == "" {
+		t.Fatalf("first frame copy %+v", copy)
+	}
+	var hold presentHold
+	if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
+		t.Fatalf("first frame skip=%v err=%v", skip, err)
+	}
+	dev.Present()
+	select {
+	case <-rec.presentEntered:
+	case <-time.After(time.Second):
+		t.Fatal("frame did not reach presenter")
+	}
+	if fake.launchCount() != 0 {
+		t.Fatal("launch dispatched before drain")
+	}
+	type result struct {
+		skip bool
+		err  error
+	}
+	finished := make(chan result, 1)
+	go func() { skip, err := hold.skip(context.Background(), dev, snap); finished <- result{skip, err} }()
+	select {
+	case <-finished:
+		t.Fatal("pause returned while frame blocked")
+	case <-time.After(20 * time.Millisecond):
+	}
+	if fake.launchCount() != 0 {
+		t.Fatal("launch dispatched during drain")
+	}
+	close(gate)
+	select {
+	case got := <-finished:
+		if !got.skip || got.err != nil {
+			t.Fatalf("handoff %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("pause did not complete")
+	}
+	app.completeLocalLaunchHandoff(nil)
+	waitFor(t, app, "launch dispatched", func(Snapshot) bool { return fake.launchCount() == 1 })
+	if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
+		t.Fatal("frame presented after pause")
+	}
+}
+
+func TestMenuPauseFailureClearsLaunchBeforeResume(t *testing.T) {
+	gate := make(chan struct{})
+	rec := &recordingMenu{presentEntered: make(chan struct{}, 1), presentGate: gate}
+	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	fake := &fakeLocalCores{}
+	app := NewApp(nil, 1280, 720, 50)
+	app.SetMenuDisplay(dev)
+	app.localCores = fake
+	app.mu.Lock()
+	app.startLocalCoreLocked(rooms.Destination{Label: "FES Pong", PackageID: tenfootPongID})
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	var hold presentHold
+	if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
+		t.Fatal("first frame skipped")
+	}
+	dev.Present()
+	select {
+	case <-rec.presentEntered:
+	case <-time.After(time.Second):
+		t.Fatal("frame did not reach presenter")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if skip, err := hold.skip(ctx, dev, snap); !skip || err == nil {
+		t.Fatalf("pause skip=%v err=%v", skip, err)
+	} else {
+		app.completeLocalLaunchHandoff(err)
+	}
+	state := app.Snapshot()
+	if state.LocalCorePhase != "" || state.LocalCorePresentsPaused || state.Status == "" || fake.launchCount() != 0 {
+		t.Fatalf("failed handoff %+v", state)
+	}
+	dev.Resume()
+	close(gate)
+	dev.Present()
+	resumeCtx, resumeCancel := context.WithTimeout(context.Background(), time.Second)
+	defer resumeCancel()
+	if err := dev.WaitIdle(resumeCtx); err != nil {
+		t.Fatalf("menu did not resume: %v", err)
+	}
+	if calls, _, _ := rec.snapshot(); calls < 2 {
+		t.Fatalf("resumed menu presented %d frames", calls)
 	}
 }
 
@@ -832,6 +983,8 @@ func (f *fakeLocalCores) Launch(_ context.Context, id string) error {
 	}
 	return err
 }
+
+func (f *fakeLocalCores) LaunchROM(ctx context.Context, id, _ string) error { return f.Launch(ctx, id) }
 
 func (f *fakeLocalCores) Stop(context.Context) error {
 	f.mu.Lock()

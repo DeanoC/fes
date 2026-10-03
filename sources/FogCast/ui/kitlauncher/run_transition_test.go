@@ -285,6 +285,84 @@ func TestRunLocalStateTransitions(t *testing.T) {
 	}
 }
 
+func TestRunHostHandoffFailureOrdering(t *testing.T) {
+	for _, pauseFails := range []bool{false, true} {
+		t.Run(map[bool]string{false: "immediate_reject", true: "pause_failure"}[pauseFails], func(t *testing.T) {
+			transitionClock(t)
+			var launches atomic.Int64
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/session":
+					_, _ = w.Write([]byte(`{"state":"idle"}`))
+				case "/api/v1/health":
+					_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+				case "/api/v1/platforms":
+					_, _ = w.Write([]byte(`{"platforms":[{"id":"pong","game_count":1}]}`))
+				case "/api/v1/games":
+					_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","system":"pong","state":"available","root_online":true,"launchable":true}]}`))
+				case "/api/v1/session/launch":
+					launches.Add(1)
+					w.WriteHeader(http.StatusConflict)
+					_, _ = w.Write([]byte(`{"error":{"code":"IN_USE","message":"busy"}}`))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			c := NewClient(Config{API: server.URL, MenuDisplay: true})
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			pad := &transitionPad{}
+			var last Model
+			var firstFrame bool
+			var paused bool
+			var resumes int
+			pad.ready = func() bool { return len(last.Games) > 0 && last.TargetReady && !firstFrame }
+			c.SetMenuDisplayHandoff(func(context.Context) error {
+				if !firstFrame {
+					t.Error("pause preceded loading frame")
+				}
+				paused = true
+				if pauseFails {
+					return errors.New("pause failed")
+				}
+				return nil
+			}, func() {
+				if last.Session.State == "launching" {
+					t.Error("resume preceded clearing launching")
+				}
+				resumes++
+				paused = false
+			})
+			launcherObserve = func(m Model) {
+				last = m
+				if m.Session.State == "idle" && resumes > 0 && m.Message != "" {
+					cancel()
+				}
+			}
+			if err := Run(ctx, c, func(m Model) {
+				if m.Session.State == "launching" {
+					chrome := m.SessionChrome()
+					if chrome.Phase == "" || chrome.Elapsed == "" || strings.Contains(chrome.Elapsed, "%") {
+						t.Errorf("first loading frame: %+v", chrome)
+					}
+					firstFrame = true
+				}
+			}, func() (Pad, error) { return pad, nil }); err != nil {
+				t.Fatal(err)
+			}
+			if !firstFrame || !pad.pressStarted() || paused || resumes != 1 || last.Session.State != "idle" || last.LoadPhase != "" || last.Message == "" {
+				t.Fatalf("handoff frame=%v paused=%v resumes=%d model=%+v", firstFrame, paused, resumes, last)
+			}
+			if pauseFails && launches.Load() != 0 || !pauseFails && launches.Load() != 1 {
+				t.Fatalf("launch calls %d", launches.Load())
+			}
+		})
+	}
+}
+
+func (p *transitionPad) pressStarted() bool { return p.presses > 0 }
+
 func TestRunHostStateTransitions(t *testing.T) {
 	for _, tc := range []struct {
 		name, phase, progress string
