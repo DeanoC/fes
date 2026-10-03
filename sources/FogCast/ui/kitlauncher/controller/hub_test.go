@@ -121,7 +121,7 @@ func TestHubReleasesHeldButtonsWhenPadDrops(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Code != remoteinput.ButtonA || got[0].Action != remoteinput.ActionRelease || got[1].Code != remoteinput.ButtonSelect || got[1].Action != remoteinput.ActionRelease {
+	if len(got) != 3 || got[0].Code != remoteinput.ButtonA || got[0].Action != remoteinput.ActionRelease || got[1].Code != remoteinput.ButtonSelect || got[1].Action != remoteinput.ActionRelease || !remoteinput.IsLocalPlayerDeparture(got[2]) || got[2].Player != 1 {
 		t.Fatalf("releases %+v", got)
 	}
 	if !held.closed {
@@ -143,7 +143,7 @@ func TestHubCentersDroppedPadAxis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Code != remoteinput.AxisLeftX || got[0].Action != remoteinput.ActionAbsolute || got[0].Value != 0 {
+	if len(got) != 2 || got[0].Code != remoteinput.AxisLeftX || got[0].Action != remoteinput.ActionAbsolute || got[0].Value != 0 || !remoteinput.IsLocalPlayerDeparture(got[1]) || got[1].Player != 1 {
 		t.Fatalf("axis %+v", got)
 	}
 }

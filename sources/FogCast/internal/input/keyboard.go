@@ -91,22 +91,40 @@ func (s *KeyboardSink) unionLocked() map[remoteinput.Code]bool {
 }
 
 func (s *KeyboardSink) ReleaseSource(source inputSource) error {
-	if source >= sourceCount {
-		source = sourceRemote
-	}
+	// Disconnect cleanup is best-effort and keeps the poster's deadline.
+	_ = s.releaseSourceContext(context.Background(), source)
+	return nil
+}
+
+func (s *KeyboardSink) releaseSourceContext(ctx context.Context, source inputSource) error {
+	return s.releaseSourcesContext(ctx, source)
+}
+
+func (s *KeyboardSink) releaseSourcesContext(ctx context.Context, sources ...inputSource) error {
 	s.mu.Lock()
-	s.pressed[source] = map[remoteinput.Code]bool{}
-	s.blocked[source] = map[remoteinput.Code]bool{}
+	for _, source := range sources {
+		if source >= sourceCount {
+			source = sourceRemote
+		}
+		s.pressed[source] = nil
+		s.blocked[source] = nil
+	}
 	matrix := zx81keys.Matrix(s.unionLocked())
 	poster := s.poster
 	s.mu.Unlock()
 	if poster == nil {
 		return nil
 	}
-	// Source release is not a local frame under the lifecycle lock. Callers
-	// that need a deadline pass one through ApplyFrom.
-	_ = poster(context.Background(), matrix)
-	return nil
+	return poster(ctx, matrix)
+}
+
+// forgetSource discards a contribution after observation proves its core has
+// retired. The runtime retired that matrix; posting here would target the new core.
+func (s *KeyboardSink) forgetSource(source inputSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pressed[source] = nil
+	s.blocked[source] = nil
 }
 
 func (s *KeyboardSink) ReleaseAll() error {

@@ -29,7 +29,7 @@ func TestObserveRuntimeInputBindsComputerKeyboardHID(t *testing.T) {
 		return r
 	}
 	obs, err := observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response("fes.computer", "fes.gamepad.ports", "fes.keyboard.hid")}, "", 0, 0))
-	if err != nil || obs.KeyboardHID == nil || obs.KeyboardHID.Generation != 4 || obs.Keyboard || obs.Binding == nil || obs.Binding.Keypad || obs.CoreID != "fes.sms" {
+	if err != nil || obs.KeyboardHID == nil || obs.KeyboardHID.Generation != 4 || obs.Generation != 4 || obs.Keyboard || obs.Binding == nil || obs.Binding.Keypad || obs.CoreID != "fes.sms" {
 		t.Fatalf("computer observation %+v %v", obs, err)
 	}
 	obs, err = observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response("fes.computer", "fes.keyboard.hid")}, "", 0, 0))

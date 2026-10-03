@@ -136,7 +136,7 @@ func TestLauncherInputNoLiveStreamReturnsError(t *testing.T) {
 	req := launcherRequest("POST", "http://192.0.2.1/api/v1/launcher/input?session_id=abc", strings.NewReader(remotePadEvent+"\n"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
-	if rec.Code/100 == 2 || !strings.Contains(rec.Body.String(), "INPUT_UNAVAILABLE") || !strings.Contains(rec.Body.String(), "no live input stream") {
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "INPUT_UNAVAILABLE") || !strings.Contains(rec.Body.String(), "no live input stream") {
 		t.Fatalf("missing stream: %d %s", rec.Code, rec.Body.String())
 	}
 	if strings.Contains(rec.Body.String(), `"ready":true`) {
@@ -151,7 +151,7 @@ func TestLauncherInputNoLiveStreamReturnsError(t *testing.T) {
 	req = launcherRequest("POST", "http://192.0.2.1/api/v1/launcher/input?session_id="+sessionID, strings.NewReader(remotePadEvent+"\n"))
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
-	if rec.Code/100 == 2 || !strings.Contains(rec.Body.String(), "no live input stream") {
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "INPUT_UNAVAILABLE") || !strings.Contains(rec.Body.String(), "no live input stream") {
 		t.Fatalf("closed listener: %d %s", rec.Code, rec.Body.String())
 	}
 	if rig.sink.count() != before {
@@ -175,7 +175,7 @@ func TestSessionInputEventNoLiveStreamReturnsError(t *testing.T) {
 	rig := newStreamRig(t)
 	handler := hostapi.New(&launcherService{}, hostapi.WithRemoteInput(rig.input))
 	rec := postSessionInput(handler, remotePadEvent)
-	if rec.Code/100 == 2 || !strings.Contains(rec.Body.String(), "INPUT_UNAVAILABLE") || !strings.Contains(rec.Body.String(), "no live input stream") {
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "INPUT_UNAVAILABLE") || !strings.Contains(rec.Body.String(), "no live input stream") {
 		t.Fatalf("missing stream: %d %s", rec.Code, rec.Body.String())
 	}
 
@@ -197,7 +197,7 @@ func TestSessionInputEventNoLiveStreamReturnsError(t *testing.T) {
 	}
 	before := rig.sink.count()
 	rec = postSessionInput(handler, remotePadEvent)
-	if rec.Code/100 == 2 || !strings.Contains(rec.Body.String(), "no live input stream") {
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "INPUT_UNAVAILABLE") || !strings.Contains(rec.Body.String(), "no live input stream") {
 		t.Fatalf("closed listener: %d %s", rec.Code, rec.Body.String())
 	}
 	if rig.sink.count() != before {

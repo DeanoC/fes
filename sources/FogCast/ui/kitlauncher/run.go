@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/DeanoC/FogCast/fogcast"
@@ -220,7 +219,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	var pad Pad
 	var feed *localFeed
-	var coreBound atomic.Bool
+	var coreBound localCorePresence
 	inputDown := false
 	inputLogged := false
 	var nextLocalDial time.Time
@@ -239,18 +238,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			_ = pad.Close()
 		}
 	}()
-	// A probe error keeps the last answer so a stalled status read does not
-	// release held buttons. The first call is synchronous, just before the
-	// loop; later calls stay off this loop and do not wait on the host.
+	// A probe error keeps the last answer for one second so a brief stalled
+	// status read does not release held buttons. The first call is synchronous,
+	// just before the loop; later calls stay off the loop and do not wait on the host.
 	refreshCore := func() {
 		next, err := c.readLocalCore(ctx)
-		if err != nil {
-			return
-		}
-		coreBound.Store(next)
+		coreBound.observe(next, err, time.Now())
 	}
 	showLocalInput := func() {
-		if inputDown && coreBound.Load() && !m.Busy {
+		if inputDown && coreBound.bound(time.Now()) && !m.Busy {
 			m.Message = localInputUnavailableMessage
 		}
 	}
@@ -546,7 +542,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		case o := <-results:
 			if o.localAction == "recover" {
 				localAdoptBusy = false
-				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) {
+				// Adopt only while the core is still observed bound (#474's one-second
+				// probe cache); a recovery answer that arrives after the probe
+				// expired must not resurrect a run the shell has already left.
+				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) && coreBound.bound(time.Now()) {
 					if c.menuDisplay {
 						if !menuPaused {
 							pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -838,7 +837,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.ControllerConnected = err == nil
 				nextPad = now.Add(time.Second)
 			}
-			bound := coreBound.Load()
+			bound := coreBound.bound(now)
 			// A kit-local run started outside this shell (for example over the
 			// local control socket, or by a shell that restarted after its own
 			// startup check) binds the core without this shell knowing. Adopt

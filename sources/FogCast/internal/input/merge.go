@@ -18,6 +18,9 @@ type inputSource uint8
 const (
 	sourceRemote inputSource = iota
 	sourceLocal
+	// Matrix keys synthesized from local pads must not release physical
+	// keyboard keys arriving through the same local socket.
+	sourceLocalMatrix
 	sourceCount
 )
 
