@@ -230,3 +230,22 @@ GPI is `{SIGNATURE, plug_addr[5:0], plug_rdata}`. GPO for 904 is
 with strobes low, then pulse. Do not apply `0x13579BDF` (it is an I/O write
 to xxDF). This is a development-RBF diagnostic, not image acceptance, and it
 does not seal `fes.zx81`.
+
+## SG-1000 route seed is a stopgap (DeanoC/fes#436)
+
+`fes.sg1000`'s OSS recipe pins `SEED` in `scripts/build_fes_sg1000_oss.py`.
+The design bakes a 128-bit `BUILD_ID` into the netlist (`chparam BUILD_ID`),
+and that ID is the functional identity of the build record. The record covers
+the whole source closure (`cores/fes-coleco`, `cores/fes-common`,
+`cores/fes-sg1000`, `scripts`, `toolchains`). As a result, **any** edit inside
+those roots, even an unrelated script or a comment, changes placement, and
+can push the 52.224 MHz system clock over or under the limit. With the same
+seed, RTL and tools, main `330c56df` routed at 48.93 MHz. The same tree with
+only this script's comment text changed routed at 52.35 MHz.
+
+The pinned seed is chosen by a sweep at the exact closure that ships. It stays
+valid only until something in those roots changes. When a later merge breaks
+it, re-sweep (see #436 for the method and sweep statistics) and re-pin. The
+real fix is tracked in DeanoC/nextpnr#112 (timing closure margin on this
+design) and in the follow-up to narrow the source closure, so that unrelated
+changes stop re-rolling sealed packages.

@@ -39,9 +39,10 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-# Seed 3 closes all three clock domains with the shared system/audio PLL.
+# Stopgap seed (DeanoC/fes#436, DeanoC/nextpnr#112): picked by a seed sweep at this
+# exact functional source closure; it closes all three clock domains there.
 # A sealed BUILD_ID changes placement, so each committed source must re-route.
-SEED = 3
+SEED = 5
 SG1000_GPU_BACKEND = "hip"
 SG1000_GPU_ROUTER = "HIP"
 SG1000_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -243,7 +244,7 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        # Seed 3 HIP-routed the shared system/audio PLL netlist. The GPU
+        # The pinned seed HIP-routed the shared system/audio PLL netlist. The GPU
         # router can report a provisional timing shortfall before its final
         # repair/signoff pass; allow that intermediate result, then require
         # the structured final timing evidence below to meet both clock
