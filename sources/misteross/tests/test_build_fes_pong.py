@@ -145,6 +145,17 @@ def publish_shared_toolchain(
 
 
 class BuildFesPongTests(unittest.TestCase):
+    def test_first_pass_ladder_requirements(self) -> None:
+        with patch.object(build_fes_pong, "route_after_synth") as route:
+            build_fes_pong._route_placement(ROOT, ROOT / build_fes_pong.OUTPUT_RELATIVE,
+                                            Path("/nextpnr"), FakeInvocation())
+        options = route.call_args.kwargs
+        self.assertEqual(options["seeds"], (1, 2, 3, 4, 5, 6, 7, 8))
+        self.assertEqual(options["mode"], "first-pass")
+        self.assertEqual(options["required"], ((None, 74.25),))
+        self.assertEqual(options["budget"], 8)
+        self.assertEqual(options["timeout"], 1800)
+
     def test_make_entrypoint_uses_the_fixed_recipe(self) -> None:
         result = subprocess.run(
             ["make", "-n", "build-fes-pong"],
@@ -280,6 +291,7 @@ class BuildFesPongTests(unittest.TestCase):
                 "reference_clock_hz": 50000000,
                 "router": "gpu",
                 "seed": 1,
+                "seed_order": "1,2,3,4,5,6,7,8",
                 "top": "top",
             },
         )
@@ -864,8 +876,9 @@ class BuildFesPongTests(unittest.TestCase):
                     self._write_passing_outputs(output)
 
             def exporter(manifest: bytes, payload: Path, destination: Path) -> Path:
-                self.assertEqual(events, ["yosys", "nextpnr-mistral"])
+                self.assertEqual(events, ["yosys", "route"])
                 self.assertEqual(validate_build_evidence(output)["status"], "pass")
+                self.assertEqual(json.loads((output / "build-summary.json").read_text())["route"]["placer_seed"], 2)
                 decoded = tomllib.loads(manifest.decode("utf-8"))
                 self.assertEqual(decoded["build"]["id"], build_identity((output / "build-inputs.json").read_bytes()))
                 self.assertEqual(decoded["core"]["version"], "1.1.0")
@@ -881,11 +894,20 @@ class BuildFesPongTests(unittest.TestCase):
                 return package_store / ("f" * 64)
 
             init_source(root)
+            def route(**kwargs):
+                self.assertEqual(kwargs["seeds"], (1, 2, 3, 4, 5, 6, 7, 8))
+                self.assertEqual(kwargs["mode"], "first-pass")
+                self.assertEqual(kwargs["required"], ((None, 74.25),))
+                self.assertEqual(kwargs["budget"], 8)
+                self.assertEqual(kwargs["timeout"], 1800)
+                events.append("route")
+                return type("Winner", (), {"seed": 2, "weight": 10})()
             with (
                 patch.object(build_fes_pong, "FunctionalInvocation", FakeInvocation),
                 patch.object(build_fes_pong, "_require_clean_source", return_value=("https://github.com/DeanoC/misteross.git", revision)),
                 patch.object(build_fes_pong, "_authenticate_tools", return_value=tools),
                 patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
+                patch.object(build_fes_pong, "route_after_synth", side_effect=route),
                 patch.object(build_fes_pong, "export_package", side_effect=exporter) as export_mock,
             ):
                 result = build(root, package_store)
@@ -922,6 +944,7 @@ class BuildFesPongTests(unittest.TestCase):
                 patch.object(build_fes_pong, "_require_clean_source", return_value=("https://github.com/DeanoC/misteross.git", "a" * 40)),
                 patch.object(build_fes_pong, "_authenticate_tools", return_value=tools),
                 patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
+                patch.object(build_fes_pong, "route_after_synth", return_value=type("Winner", (), {"seed": 1, "weight": 10})()),
                 patch.object(build_fes_pong, "export_package") as export_mock,
             ):
                 with self.assertRaises(BuildError):
