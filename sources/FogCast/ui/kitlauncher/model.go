@@ -29,6 +29,7 @@ type Model struct {
 	Message                                                         string
 	LoadStarted                                                     time.Time
 	LoadPhase                                                       string
+	LaunchFailed                                                    bool
 	LoadElapsed                                                     string
 	LoadNow                                                         time.Time
 	HideLoadElapsed                                                 bool
@@ -138,7 +139,16 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	if sessionCanStop(m.Session.State) {
+	if m.Session.State == "failed" && m.LaunchFailed {
+		m.armStopChord(e, now)
+		if e.Kind == remoteinput.KindButton && (e.Code == remoteinput.ButtonSelect || e.Code == remoteinput.ButtonStart) {
+			return ""
+		}
+		if e.Kind == remoteinput.KindButton && e.Code == remoteinput.ButtonA {
+			m.Message = "Select+Start to retry Stop"
+			return ""
+		}
+	} else if sessionCanStop(m.Session.State) {
 		m.armStopChord(e, now)
 		return ""
 	}
@@ -297,6 +307,9 @@ func sessionCanStop(state string) bool {
 // Guide stay on the existing input map; only Select+Start requests Stop.
 func (m Model) SessionChrome() fbgrid.SessionChrome {
 	state := m.Session.State
+	if state == "failed" && m.LaunchFailed {
+		state = "idle"
+	}
 	if m.Busy {
 		if strings.Contains(strings.ToLower(m.Message), "stop") {
 			state = "stopping"

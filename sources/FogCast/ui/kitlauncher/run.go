@@ -394,6 +394,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			m.Session.State = "launching"
 			m.LoadStarted = launcherNow()
+			m.LaunchFailed = false
 			hostTimedOut = false
 			localTimedOut = false
 			if action == "local-launch" {
@@ -679,6 +680,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				Purpose: o.kitLease.Purpose,
 			})
 			if !localRunning && !localPending {
+				wasLoading := m.Session.State == "launching"
 				if hostTimedOut && o.session.State == "launching" {
 					// Continue reconciling quietly after visible timeout.
 				} else {
@@ -690,6 +692,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Busy = false
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
+					m.LaunchFailed = false
 					m.Message = ""
 					if wasTimedOut && c.menuDisplay {
 						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -708,6 +711,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadPhase = m.Session.Progress
 				}
 				if m.Session.State == "failed" {
+					if wasLoading {
+						m.LaunchFailed = true
+					}
 					hostTimedOut = false
 					m.Busy = false
 					m.LoadStarted = time.Time{}

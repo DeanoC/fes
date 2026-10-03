@@ -82,7 +82,8 @@ schema. Play input from a pad on the kit uses the local socket described below.
 `fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. Tenfoot submits its armed launch overlay once before pausing menu-display presents; it resumes presents if the session becomes idle or stop returns in use. On linuxfb, the overlay continues to animate with elapsed time. Host session stage/message text appears when available; local status exposes only `launching`/`running`, so neither path invents a percentage. The default grid also plays available kit-local SMS rows through that socket from browse and detail (attract stays host-only while offline; fes#442). During menu-display launch, the grid submits one static indeterminate loading frame before presents pause; on the HPS framebuffer it keeps rendering the marquee and elapsed time. Local and host launches return to the menu with timeout copy after the 60 second local load bound plus five seconds grace; status polling continues so a late running/active state is adopted. A local Select+Start chord during loading is remembered and stops the core after `running` is observed. Stop, failure or idle local status returns to the menu.
 The delivered loading frame remains while the launch request is pending;
 request completion alone does not resume the grid before status reconciliation.
-A failed host session resumes the menu with readable failure copy.
+A failed host launch resumes the browsable menu with readable failure copy;
+Select+Start remains available to retry host cleanup before another launch.
 Host endpoint configuration is explicit; target discovery is separate.
 
 ## Physical controls

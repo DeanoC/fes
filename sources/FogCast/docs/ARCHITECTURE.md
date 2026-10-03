@@ -1014,8 +1014,10 @@ kit-local launches show an indeterminate marquee, title, elapsed time and the
 Select+Start hint while launch status is reconciled asynchronously. Host session
 stage/message text is shown when available; local status has no byte or finer
 phase data. The delivered loading frame stays on screen while either launch
-request is pending; a failed host session or confirmed local failure resumes
-the menu. `gfx.MenuDisplay` rasters RGBA8888 in software and queues only the
+request is pending; a failed host launch or confirmed local failure resumes
+the menu. A failed host launch allows browsing but retains Select+Start for
+host cleanup before another launch. `gfx.MenuDisplay` rasters RGBA8888 in
+software and queues only the
 newest complete frame. Its
 local `ui/menudisplay` client reads the runtime's menu generation and fixed
 1280×720 geometry, fills the runtime-created memfd, seals it and waits for

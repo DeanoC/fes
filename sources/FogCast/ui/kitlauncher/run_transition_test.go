@@ -257,7 +257,7 @@ func TestRunHostStateTransitions(t *testing.T) {
 				case "/api/v1/platforms":
 					_, _ = w.Write([]byte(`{"platforms":[{"id":"pong","game_count":1}]}`))
 				case "/api/v1/games":
-					_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","system":"pong","state":"available","root_online":true,"launchable":true}]}`))
+					_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","system":"pong","state":"available","root_online":true,"launchable":true},{"id":"pong2","title":"Pong 2","system":"pong","state":"available","root_online":true,"launchable":true}]}`))
 				case "/api/v1/session/launch":
 					launchCalls.Add(1)
 					state.Store("launching")
@@ -326,8 +326,21 @@ func TestRunHostStateTransitions(t *testing.T) {
 			}
 			switch tc.name {
 			case "failed":
-				if !strings.Contains(last.Message, "Couldn't start Pong") || last.LoadPhase != "" || resumes != 1 {
+				if !strings.Contains(last.Message, "Couldn't start Pong") || last.LoadPhase != "" || resumes != 1 || last.SessionChrome().State != "idle" {
 					t.Fatalf("failed model=%+v resumes=%d", last, resumes)
+				}
+				move, _ := remoteinput.NormalizeGamepad("dpad-right", true)
+				last.Input(move, time.Now())
+				if last.Focus != 1 {
+					t.Fatal("failed launch left the menu selector frozen")
+				}
+				now := time.Unix(2000, 0)
+				selectPress, _ := remoteinput.NormalizeGamepad("select", true)
+				startPress, _ := remoteinput.NormalizeGamepad("start", true)
+				last.Input(selectPress, now)
+				last.Input(startPress, now.Add(10*time.Millisecond))
+				if action := last.Tick(now.Add(1100 * time.Millisecond)); action != "stop" {
+					t.Fatalf("failed launch lost cleanup chord: %q", action)
 				}
 			case "timeout_then_active":
 				if !sawTimeout || last.Session.State != "active" || !last.LoadStarted.IsZero() || pauses != 2 || resumes != 1 {
