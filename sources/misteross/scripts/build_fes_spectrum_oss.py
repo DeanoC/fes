@@ -43,6 +43,7 @@ TOP = "top"
 ROUTER = "gpu"
 RECIPE = "scripts/build_fes_spectrum_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-spectrum-oss")
+FAST_OUTPUT_RELATIVE = Path("build/fes-spectrum-fast-oss")
 SPECTRUM_TOOLCHAIN_LOCK = "toolchains/spectrum.lock"
 SPECTRUM_TOOLCHAIN_ROOT = "build/toolchain/fes-spectrum"
 SPECTRUM_GPU_BACKEND = "hip"
@@ -92,11 +93,13 @@ RTL_SOURCES = (
     "cores/fes-spectrum/rtl/spectrum_keyboard.v",
     "cores/fes-spectrum/rtl/spectrum_audio.v",
     "cores/fes-spectrum/rtl/spectrum_slot_sockets.v",
-    "cores/fes-common/rtl/t80pa.v",
-    "cores/fes-common/rtl/tv80/tv80_core.v",
-    "cores/fes-common/rtl/tv80/tv80_alu.v",
-    "cores/fes-common/rtl/tv80/tv80_mcode.v",
-    "cores/fes-common/rtl/tv80/tv80_reg.v",
+    "cores/fes-spectrum/rtl/spectrum_fast_bus.sv",
+    "cores/fes-spectrum/rtl/spectrum_fast_audio.sv",
+    "cores/fes-common/rtl/z80/fes_z80_alu.sv",
+    "cores/fes-common/rtl/z80/fes_z80_engine.sv",
+    "cores/fes-common/rtl/z80/fes_z80_bus.sv",
+    "cores/fes-common/rtl/z80/fes_z80_nmos.sv",
+    "cores/fes-common/rtl/z80/fes_z80_fast.sv",
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/spectrum_slots.py", "scripts/compiler_read_audit.py",
@@ -127,6 +130,14 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 BEL_RE = re.compile(r"[A-Z0-9_]+\.(\d+)\.(\d+)\.")
 
 
+def _cpu_parameters(cpu: str) -> tuple[Path, float, int]:
+    if cpu == "nmos":
+        return OUTPUT_RELATIVE, 52.224, 2
+    if cpu == "fast":
+        return FAST_OUTPUT_RELATIVE, 56.0, 2
+    raise BuildError("CPU must be nmos or fast")
+
+
 def _authenticate_spectrum_tools(root: Path, cache_root: Path | None = None):
     return _authenticate_tools(
         root,
@@ -155,9 +166,11 @@ def create_build_record(
     *,
     identity_version: int = 2,
     execution: dict | None = None,
+    cpu: str = "nmos",
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
+    output_relative, sys_mhz, pll_count = _cpu_parameters(cpu)
     fields = {
         "format": 1,
         "repository": repository,
@@ -174,9 +187,21 @@ def create_build_record(
             "router": ROUTER,
             "gpu_backend": SPECTRUM_GPU_BACKEND,
             "gpu_architectures": SPECTRUM_GPU_ARCHITECTURES,
-            "sys_clock_hz": 52_224_000,
+            "sys_clock_hz": int(sys_mhz * 1_000_000),
+            "cpu": cpu,
+            "cpu_implementation": "fes_z80_nmos" if cpu == "nmos" else "fes_z80_fast",
+            "peripheral_clock_hz": 3_500_000,
+            "pll_count": pll_count,
+            "output_relative": output_relative.as_posix(),
             "pixel_clock_hz": 74_250_000,
-            "audio_clock_hz": 12_288_000,
+            "audio_clock_hz": 12_288_000 if cpu == "nmos" else 56_000_000,
+            "audio_serializer": "fes_audio_output" if cpu == "nmos" else "spectrum_fast_audio",
+            "audio_mclk_average_hz": 12_288_000,
+            "audio_mclk_source": "pll" if cpu == "nmos" else "system-clock-rational-enable",
+            "audio_mclk_toggle_numerator": 1 if cpu == "nmos" else 384,
+            "audio_mclk_toggle_denominator": 1 if cpu == "nmos" else 875,
+            "audio_mclk_half_period_min_system_ticks": 0 if cpu == "nmos" else 2,
+            "audio_mclk_half_period_max_system_ticks": 0 if cpu == "nmos" else 3,
             "audio_sample_hz": 48_000,
             "reference_clock_hz": 50_000_000,
             "seed": PLACER_SEEDS[0],
@@ -210,9 +235,10 @@ def socket_qsf(base: str) -> str:
 
 
 def build_commands(root: Path, output: Path, build_id: str,
-                   tools: Mapping[str, Path], seed: int = PLACER_SEEDS[0]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    if output != root / OUTPUT_RELATIVE:
-        raise BuildError(f"FES ZX Spectrum OSS output must be {root / OUTPUT_RELATIVE}")
+                   tools: Mapping[str, Path], seed: int = PLACER_SEEDS[0], *, cpu: str = "nmos") -> tuple[tuple[str, ...], tuple[str, ...]]:
+    output_relative, _sys_mhz, _pll_count = _cpu_parameters(cpu)
+    if output != root / output_relative:
+        raise BuildError(f"FES ZX Spectrum OSS output must be {root / output_relative}")
     if HEX32_RE.fullmatch(build_id) is None:
         raise BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
@@ -220,21 +246,21 @@ def build_commands(root: Path, output: Path, build_id: str,
     program = (
         "read_verilog -sv -I cores/fes-spectrum/rtl -I cores/fes-common/generated "
         f"{' '.join(RTL_SOURCES)}; "
-        f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
+        f"chparam -set BUILD_ID 128'h{build_id} -set FAST_CPU {int(cpu == 'fast')} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; stat; "
-        f"write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
+        f"write_json {output_relative.as_posix()}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
     route = (
-        str(tools["nextpnr-mistral"]), "--json", f"{OUTPUT_RELATIVE.as_posix()}/synth.json",
-        "--device", TARGET, "--qsf", f"{OUTPUT_RELATIVE.as_posix()}/socket.qsf",
+        str(tools["nextpnr-mistral"]), "--json", f"{output_relative.as_posix()}/synth.json",
+        "--device", TARGET, "--qsf", f"{output_relative.as_posix()}/socket.qsf",
         "--sdc", SDC, "--freq", "74.25", "--seed", str(seed),
         "--placer-heap-timingweight", str(PLACER_WEIGHT),
         "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
         "--router", ROUTER, "--timing-allow-fail",
-        "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf", "--compress-rbf",
-        "--write", f"{OUTPUT_RELATIVE.as_posix()}/routed.json",
-        "--report", f"{OUTPUT_RELATIVE.as_posix()}/timing.json", "--detailed-timing-report",
+        "--rbf", f"{output_relative.as_posix()}/core.rbf", "--compress-rbf",
+        "--write", f"{output_relative.as_posix()}/routed.json",
+        "--report", f"{output_relative.as_posix()}/timing.json", "--detailed-timing-report",
     )
     return yosys, route
 
@@ -286,11 +312,12 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
     return name, constraint, achieved
 
 
-def validate_synth_evidence(output: Path) -> dict:
+def validate_synth_evidence(output: Path, *, cpu: str = "nmos") -> dict:
+    _output, _sys_mhz, pll_count = _cpu_parameters(cpu)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
-    for name, expected in REQUIRED_RESOURCES.items():
+    for name, expected in (REQUIRED_RESOURCES | {"altera_pll": pll_count}).items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
     # Sixteen firmware lanes are explicit M10Ks. The 64 KiB CPU/video RAM and
@@ -306,24 +333,28 @@ def validate_synth_evidence(output: Path) -> dict:
     return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)}}
 
 
-def validate_build_evidence(output: Path) -> dict:
+def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
+    _output, sys_mhz, _pll_count = _cpu_parameters(cpu)
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
-    synth = validate_synth_evidence(output)
+    synth = validate_synth_evidence(output, cpu=cpu)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text)
-    if "50 MHz -> 52.224 MHz" not in route_text:
-        raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
-    if not re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text):
-        raise BuildError("route log must prove the 12.288 MHz audio PLL")
+    if f"50 MHz -> {sys_mhz:g} MHz" not in route_text:
+        raise BuildError(f"route log does not contain the 50-to-{sys_mhz:g} MHz system PLL")
+    if cpu == "nmos" and not re.search(
+            r"PLL 'system_clock.faithful.pll': second output 12\.288 MHz", route_text):
+        raise BuildError("route log must prove the selected 12.288 MHz audio PLL")
     timing = _read_json(output / "timing.json", "timing report")
-    rows = {label: _frequency_row(timing.get("fmax"), mhz, label)
-            for label, mhz in (("system", 52.224), ("pixel", 74.25), ("audio", 12.288))}
+    clocks = (("system", sys_mhz), ("pixel", 74.25))
+    if cpu == "nmos":
+        clocks += (("audio", 12.288),)
+    rows = {label: _frequency_row(timing.get("fmax"), mhz, label) for label, mhz in clocks}
     known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
     resources = validate_timing_resources(timing.get("utilization"), known)
     rbf = output / "core.rbf"
@@ -335,6 +366,9 @@ def validate_build_evidence(output: Path) -> dict:
         "timing": {label: {"clock": row[0], "constraint_mhz": row[1], "achieved_mhz": row[2],
                            "status": "pass"} for label, row in rows.items()} | {"status": "pass"},
         "resources": resources,
+        "audio": {"sample_average_hz": 48_000, "mclk_average_hz": 12_288_000,
+                  "clock_domain_mhz": 12.288 if cpu == "nmos" else 56.0,
+                  "mclk_source": "pll" if cpu == "nmos" else "system-clock-rational-enable"},
         "sockets": sockets,
         "synthesis_cells": synth["synthesis_cells"],
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
@@ -357,6 +391,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
               tools: Mapping[str, str]) -> bytes:
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
+    cpu = record_fields["parameters"]["cpu"]
+    _cpu_parameters(cpu)
     toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     required = [
         "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
@@ -367,9 +403,10 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
         "core": {
             "id": "fes.spectrum",
             "name": "FES ZX Spectrum",
-            "description": "ZX Spectrum 48K with a linked 16 KiB firmware image, "
-                           "a .tap cassette unit and four edge sockets",
-            "version": "0.1.0",
+            "description": ("ZX Spectrum 48K with native NMOS Z80" if cpu == "nmos" else
+                            "Development ZX Spectrum 48K with documented-only Z80 at 56 MHz") +
+                           ", linked 16 KiB firmware, .tap cassette and four edge sockets",
+            "version": "0.2.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
@@ -390,7 +427,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0) -> Path:
+          identity_version: int = 2, gpu_device: int = 0, cpu: str = "nmos") -> Path:
+    output_relative, sys_mhz, _pll_count = _cpu_parameters(cpu)
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
@@ -402,16 +440,16 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs)
-    output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
+                                 identity_version=identity_version, execution=invocation.inputs, cpu=cpu)
+    output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
     try:
         build_id = build_identity(record)
         yosys, _route = build_commands(root, output, build_id, {
-            name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")})
+            name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, cpu=cpu)
         _run_tool(yosys, root, output / "yosys.log", env=invocation.env,
-                  audit_source_root=root, output_relative=OUTPUT_RELATIVE)
+                  audit_source_root=root, output_relative=output_relative)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         try:
@@ -422,12 +460,13 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
                 critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
                 mode="first-pass", extra=("--router", ROUTER),
-                required=PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
+                required=((None, sys_mhz), (None, 74.25)) + (((None, 12.288),) if cpu == "nmos" else ()),
+                gpu_devices=(gpu_device,),
                 env=invocation.env, audit_source_root=root,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output)
+        evidence = validate_build_evidence(output, cpu=cpu)
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
         mapping, map_evidence = rom_map.build_rom_map(
@@ -444,7 +483,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         evidence["rom_map"] = map_evidence
         evidence["execution"] = invocation.inputs
         evidence.update({
-            "build_id": build_id, "device": TARGET, "top": TOP, "tools": identities,
+            "build_id": build_id, "cpu": cpu, "device": TARGET, "top": TOP, "tools": identities,
             "inputs": {relative: _sha256(root / relative) for relative in sorted(PINNED_INPUTS)},
         })
         _write_atomic(output / "build-summary.json",
@@ -460,7 +499,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs) != record:
+                               identity_version=identity_version, execution=invocation.inputs, cpu=cpu) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -474,20 +513,21 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
+def synth(root: Path = ROOT, *, cache_root: Path | None = None, cpu: str = "nmos") -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
+    output_relative, _sys_mhz, _pll_count = _cpu_parameters(cpu)
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
     authenticated = _authenticate_spectrum_tools(root, cache_root=cache_root)
-    output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
+    output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
     yosys, _route = build_commands(root, output, "0" * 32, {
-        name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")})
-    _run_tool(yosys, root, output / "yosys.log", output_relative=OUTPUT_RELATIVE)
+        name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, cpu=cpu)
+    _run_tool(yosys, root, output / "yosys.log", output_relative=output_relative)
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
-    evidence = validate_synth_evidence(output)
-    evidence.update({"build_id": "0" * 32, "sealed": False,
+    evidence = validate_synth_evidence(output, cpu=cpu)
+    evidence.update({"build_id": "0" * 32, "sealed": False, "cpu": cpu,
                      "tools": {name: tool.identity for name, tool in authenticated.items()}})
     _write_atomic(output / "build-summary.json",
                   (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
@@ -501,18 +541,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--cpu", choices=("nmos", "fast"), default="nmos",
+                        help="native NMOS default or documented-only 56 MHz development variant")
     parser.add_argument("--synth-only", action="store_true",
                         help="run Yosys only; skip the clean-tree seal and nextpnr")
     arguments = parser.parse_args(argv)
     try:
         if arguments.synth_only:
-            cells = synth(arguments.root, cache_root=arguments.cache_root)["synthesis_cells"]
+            cells = synth(arguments.root, cache_root=arguments.cache_root, cpu=arguments.cpu)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device))
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device, cpu=arguments.cpu))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-spectrum-oss: {exc}", file=sys.stderr)
         return 1

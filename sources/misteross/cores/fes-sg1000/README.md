@@ -7,9 +7,9 @@ This directory is the next FES emulator bring-up after ColecoVision. It is a
 reduced SG-1000-compatible console slice that uses the existing
 `fes.simple-computer` 1.0 mailbox and the DE10-Nano fixed 720p shell.
 
-SG-1000 is a Coleco sibling, not a second console stack. TV80, the bounded
-TMS9918-style VDP, dual-port RAM wrappers, the GP mailbox, video/system PLLs
-and the 720p HDMI shell are the Coleco modules. This tree supplies the
+SG-1000 uses the original shared `fes_z80_nmos` CPU. The bounded TMS9918-style
+VDP, dual-port RAM wrappers, GP mailbox, video/system PLLs and 720p HDMI shell
+are shared with Coleco. This tree supplies the
 SG-1000 memory map, the 8255 joystick ports, the board top, Quartus pins and
 the oracle recipe.
 
@@ -23,9 +23,9 @@ and `fes.sg1000` is in the factory image.
 
 ## Implemented first slice
 
-- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
+- Original clean-room NMOS Z80 RTL, clock-enabled from the 52.224 MHz FES system
   domain at exactly 3,579,545 Hz on average, with alternating fractional
-  half-cycle enables (Coleco `t80pa` / `tv80`).
+  half-cycle enables from `fes_z80_ce` and native machine-cycle timing.
 - Exact 16 KiB `cartridge-rom` linked into the RBF before FPGA download,
   mapped at `0x0000–0x3fff`. Pad shorter fixed-map images with `0xff` before
   library import. There is no BIOS or reset shim; reset fetches the cartridge.
@@ -70,6 +70,28 @@ the legacy media handshake in simulation and the Quartus oracle.
 VDP interrupt connects to the Z80 maskable INT input. Software selects IM1
 and enables interrupts with EI; DI masks delivery. The cartridge owns the
 `0x0038` interrupt vector. The separate pause NMI remains unused in this slice.
+
+The CPU consumes positive/negative enables captured together in local
+system-clock registers. This shifts their phase by one system clock while
+retaining their cadence, and avoids distributing a falling-edge enable through
+the CPU's rising-edge control path. Each half-cycle spans seven or eight system
+clocks, so the registered
+RAM and VDP memory paths settle before the CPU samples reads. Held I/O writes
+advance VDP and PSG state once per transaction; VDP reads retain the byte from
+before their side effect until the read ends. Refresh cycles do not assert
+read or write strobes. The [shared CPU contract and qualification
+limits](../fes-common/rtl/z80/README.md) apply here. Version 1.3.0 requires a
+fresh seal with passing 52.224 MHz system, 74.25 MHz pixel and 12.288 MHz audio
+timing, followed by its own exact-artifact kit checks.
+
+The linked cartridge keeps its authenticated asynchronous M10K lanes and ROM
+map encoding. An eight-bit register after the bank multiplexer adds one system
+clock of read latency and splits the ROM path for timing closure. The producer
+tries a bounded, sequential placement search on each exact BUILD_ID netlist:
+seeds `2,3,4,1,5,6,7,8,9,10` at HeAP timing weight 2000, then 1000, stopping at
+the first candidate that passes all three clocks. Its functional build record
+includes this policy; `qor-ranking.json` and `build-summary.json` retain the
+winning seed and weight. A diagnostic placement does not qualify a new seal.
 
 The VDP INT wiring and separate pause NMI follow the
 [SG-1000 hardware reconstruction and scope measurements](https://www.leadedsolder.com/2022/05/20/sg1000-clone-v1.html).
@@ -152,7 +174,7 @@ the linked cartridge does not depend on a startup media upload.
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 
 `make build-fes-sg1000-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
-for `fes.sg1000` 1.2.0. It requires a clean committed tree, writes
+for `fes.sg1000` 1.3.0. It requires a clean committed tree, writes
 `build/fes-sg1000-quartus/build-inputs.json`, embeds that build id, and seals
 a format-2 package when timing passes. It does not program hardware.
 
@@ -165,7 +187,8 @@ requires two PLLs, the four routed HDMI audio pads, and passing system,
 pixel and audio timing domains.
 It copies Coleco `constraints-oss.qsf` and `clocks-oss.sdc`, and selects
 the shared `toolchains/registered-memory.lock`. Yosys defines
-`TV80_REFRESH=1`, `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
+`FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not
 seal. A prior synth-only gap ladder is not sealed-bitstream or hardware
-acceptance. `fes.sg1000` remains outside the factory image.
+acceptance. `fes.sg1000` is in the factory image; selecting these CPU sources
+requires a fresh sealed package rather than relabeling an existing artifact.

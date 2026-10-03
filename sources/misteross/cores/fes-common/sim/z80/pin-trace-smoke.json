@@ -1,0 +1,22 @@
+{
+  "format": "fes-z80-pin-trace-v1",
+  "source": {
+    "kind": "synthetic",
+    "description": "Original NOP fetch smoke waveform from Zilog UM008011-0816 Figure 5; not a chip capture"
+  },
+  "clock_hz": 1000000,
+  "sample_delay_ns": 100,
+  "timestamp_tolerance_ns": 0,
+  "start": "first-m1-t1-after-reset",
+  "samples": [
+    {"edge_time_ns":0,"edge":"rise","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":0,"dout":null,"m1_n":0,"mreq_n":1,"iorq_n":1,"rd_n":1,"wr_n":1,"rfsh_n":1,"halt_n":1,"busak_n":1}},
+    {"edge_time_ns":500,"edge":"fall","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":0,"dout":null,"m1_n":0,"mreq_n":0,"iorq_n":1,"rd_n":0,"wr_n":1,"rfsh_n":1,"halt_n":1,"busak_n":1}},
+    {"edge_time_ns":1000,"edge":"rise","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":0,"dout":null,"m1_n":0,"mreq_n":0,"iorq_n":1,"rd_n":0,"wr_n":1,"rfsh_n":1,"halt_n":1,"busak_n":1}},
+    {"edge_time_ns":1500,"edge":"fall","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":0,"dout":null,"m1_n":0,"mreq_n":0,"iorq_n":1,"rd_n":0,"wr_n":1,"rfsh_n":1,"halt_n":1,"busak_n":1}},
+    {"edge_time_ns":2000,"edge":"rise","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":0,"dout":null,"m1_n":1,"mreq_n":1,"iorq_n":1,"rd_n":1,"wr_n":1,"rfsh_n":0,"halt_n":1,"busak_n":1}},
+    {"edge_time_ns":2500,"edge":"fall","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":0,"dout":null,"m1_n":1,"mreq_n":0,"iorq_n":1,"rd_n":1,"wr_n":1,"rfsh_n":0,"halt_n":1,"busak_n":1}},
+    {"edge_time_ns":3000,"edge":"rise","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":0,"dout":null,"m1_n":1,"mreq_n":0,"iorq_n":1,"rd_n":1,"wr_n":1,"rfsh_n":0,"halt_n":1,"busak_n":1}},
+    {"edge_time_ns":3500,"edge":"fall","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":0,"dout":null,"m1_n":1,"mreq_n":1,"iorq_n":1,"rd_n":1,"wr_n":1,"rfsh_n":0,"halt_n":1,"busak_n":1}},
+    {"edge_time_ns":4000,"edge":"rise","inputs":{"din":0,"wait_n":1,"int_n":1,"nmi_n":1,"busrq_n":1},"outputs":{"a":1,"dout":null,"m1_n":0,"mreq_n":1,"iorq_n":1,"rd_n":1,"wr_n":1,"rfsh_n":1,"halt_n":1,"busak_n":1}}
+  ]
+}

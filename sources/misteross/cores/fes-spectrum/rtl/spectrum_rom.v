@@ -5,7 +5,9 @@
 // individually placed, empty 1024x10 M10K (column 5, rows 32-47) that the
 // ROM map authenticates against the routed BELs. The data read is registered
 // twice. No Sinclair ROM bytes are in this repository or the package.
-module spectrum_rom (
+module spectrum_rom #(
+    parameter ROM_FILE = "build/diagnostics/fes-spectrum/firmware.hex"
+) (
     input  wire        clk,
     input  wire [13:0] address,
     output reg  [7:0]  data
@@ -13,7 +15,7 @@ module spectrum_rom (
     wire [7:0] source_data;
 `ifdef VERILATOR
     reg [7:0] memory [0:16383];
-    initial $readmemh("build/diagnostics/fes-spectrum/firmware.hex", memory);
+    initial $readmemh(ROM_FILE, memory);
     reg [7:0] sim_stage;
     always @(posedge clk) sim_stage <= memory[address];
     assign source_data = sim_stage;

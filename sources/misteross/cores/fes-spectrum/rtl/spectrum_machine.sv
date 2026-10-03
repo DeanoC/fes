@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // ZX Spectrum 48K pathfinder.
 //
-// Z80 at a 3.5 MHz average (875/13056 of the 52.224 MHz system clock).
+// Native NMOS Z80 at 3.5 MHz average; FAST_CPU selects the documented ISA
+// transaction engine at 56 MHz. Peripheral ticks remain 3.5 MHz in either mode.
 // 16 KiB linked ROM at $0000, 48 KiB RAM at $4000. Port $FE is the ULA
 // (border, beeper, keyboard, EAR). Port $1F is a built-in Kempston joystick.
 // Four edge sockets share one request word. There is no ULA contention and
@@ -9,7 +10,10 @@
 // for 32 T-states every 69888 T-states, independent of the 60 Hz HDMI scan.
 `include "spectrum_bus.vh"
 
-module spectrum_machine (
+module spectrum_machine #(
+    parameter bit FAST_CPU = 1'b0,
+    parameter ROM_FILE = "build/diagnostics/fes-spectrum/firmware.hex"
+) (
     input  wire        clk_sys,
     input  wire        reset,
     input  wire [39:0] matrix,
@@ -29,6 +33,8 @@ module spectrum_machine (
     output wire        speaker,
     output wire        ear,
     output wire        cpu_cycle,
+    output wire        cpu_retired, cpu_illegal, cpu_halted, frame_int_n,
+    output wire [15:0] cpu_pc,
     output wire signed [15:0] slot_audio,
     input  wire        video_clk,
     input  wire [15:0] video_addr,
@@ -52,6 +58,10 @@ module spectrum_machine (
         if (reset) begin
             phase <= 14'd0;
             tcount <= 4'd0;
+        end else if (FAST_CPU) begin
+            tcount <= tcount + 4'd1;
+            cen_p <= tcount == 4'd15;
+            cen_n <= tcount == 4'd7;
         end else if (phase + PHASE_ADD >= PHASE_MOD) begin
             phase <= phase + PHASE_ADD - PHASE_MOD;
             tcount <= 4'd0;
@@ -101,27 +111,46 @@ module spectrum_machine (
     wire card_wait = response1[`SP_BUS_WAIT] | response2[`SP_BUS_WAIT] |
                      response3[`SP_BUS_WAIT] | response4[`SP_BUS_WAIT];
 
-    T80pa cpu (
-        .RESET_n(~reset),
-        .CLK(clk_sys),
-        .CEN_p(cen_p),
-        .CEN_n(cen_n),
-        .WAIT_n(~card_wait),
-        .INT_n(int_n),
-        .NMI_n(~nmi),
-        .BUSRQ_n(1'b1),
-        .M1_n(cpu_m1_n),
-        .MREQ_n(cpu_mreq_n),
-        .IORQ_n(cpu_iorq_n),
-        .RD_n(cpu_rd_n),
-        .WR_n(cpu_wr_n),
-        .RFSH_n(cpu_rfsh_n),
-        .HALT_n(cpu_halt_n),
-        .BUSAK_n(),
-        .A(cpu_a),
-        .DO(cpu_do),
-        .DI(cpu_di)
-    );
+    wire fast_ready;
+    wire fast_strobe;
+    wire [2:0] fast_kind;
+    assign cpu_halted = ~cpu_halt_n;
+    assign frame_int_n = int_n;
+    generate if (FAST_CPU) begin : fast
+        wire req;
+        wire [15:0] addr;
+        wire [7:0] wdata;
+        wire halted;
+        fes_z80_fast cpu (
+            .clk(clk_sys), .reset(reset), .enable(1'b1), .int_n(int_n), .nmi_n(~nmi),
+            .bus_ready(fast_ready), .bus_rdata(cpu_di), .bus_req(req), .bus_kind(fast_kind),
+            .bus_extra(), .bus_delay(), .bus_addr(addr), .bus_wdata(wdata), .refresh_addr(),
+            .halted(halted), .illegal(cpu_illegal), .retired(cpu_retired), .retire_pc(),
+            .debug_pc(cpu_pc), .debug_sp(), .debug_af(), .debug_bc(), .debug_de(),
+            .debug_hl(), .debug_ix(), .debug_iy(), .debug_ir(), .debug_iff()
+        );
+        spectrum_fast_bus bus (
+            .clk(clk_sys), .reset(reset), .req(req), .kind(fast_kind), .addr(addr),
+            .wdata(wdata), .wait_n(~card_wait), .ready(fast_ready), .strobe(fast_strobe),
+            .m1_n(cpu_m1_n), .mreq_n(cpu_mreq_n), .iorq_n(cpu_iorq_n),
+            .rd_n(cpu_rd_n), .wr_n(cpu_wr_n), .a(cpu_a), .dout(cpu_do)
+        );
+        assign cpu_halt_n = ~halted;
+        assign cpu_rfsh_n = 1'b1;
+    end else begin : faithful
+        fes_z80_nmos cpu (
+            .clk(clk_sys), .reset(reset), .ce_p(cen_p), .ce_n(cen_n),
+            .wait_n(~card_wait), .int_n(int_n), .nmi_n(~nmi), .busrq_n(1'b1), .din(cpu_di),
+            .m1_n(cpu_m1_n), .mreq_n(cpu_mreq_n), .iorq_n(cpu_iorq_n), .rd_n(cpu_rd_n),
+            .wr_n(cpu_wr_n), .rfsh_n(cpu_rfsh_n), .halt_n(cpu_halt_n), .busak_n(),
+            .a(cpu_a), .dout(cpu_do), .illegal(cpu_illegal), .retired(cpu_retired),
+            .retire_pc(), .debug_pc(cpu_pc), .debug_sp(), .debug_af(), .debug_bc(), .debug_de(),
+            .debug_hl(), .debug_ix(), .debug_iy(), .debug_ir(), .debug_iff()
+        );
+        assign fast_ready = 1'b0;
+        assign fast_strobe = 1'b0;
+        assign fast_kind = 3'd0;
+    end endgenerate
 
     reg rd_q = 1'b1;
     reg wr_q = 1'b1;
@@ -129,7 +158,7 @@ module spectrum_machine (
         rd_q <= cpu_rd_n;
         wr_q <= cpu_wr_n;
     end
-    wire strobe = (rd_q & ~cpu_rd_n) | (wr_q & ~cpu_wr_n);
+    wire strobe = FAST_CPU ? fast_strobe : (rd_q & ~cpu_rd_n) | (wr_q & ~cpu_wr_n);
     assign bus_request[`SP_BUS_A] = cpu_a;
     assign bus_request[`SP_BUS_D] = cpu_do;
     assign bus_request[`SP_BUS_MREQ] = ~cpu_mreq_n;
@@ -168,7 +197,7 @@ module spectrum_machine (
                         audio_sum < -19'sd32768 ? -16'sh8000 : audio_sum[15:0];
 
     wire [7:0] rom_data;
-    spectrum_rom rom (
+    spectrum_rom #(.ROM_FILE(ROM_FILE)) rom (
         .clk(clk_sys),
         .address(cpu_a[13:0]),
         .data(rom_data)
@@ -181,7 +210,7 @@ module spectrum_machine (
     wire [7:0] ram_data;
     spectrum_ram ram (
         .clk_sys(clk_sys),
-        .cpu_we(writing & ~writing_q),
+        .cpu_we(FAST_CPU ? (writing & fast_ready) : (writing & ~writing_q)),
         .cpu_addr(cpu_a),
         .cpu_wdata(cpu_do),
         .cpu_rdata(ram_data),
@@ -219,7 +248,7 @@ module spectrum_machine (
         if (reset) begin
             border_q <= 3'd7;
             speaker_q <= 1'b0;
-        end else if (ula_write & ~ula_write_q) begin
+        end else if (FAST_CPU ? (ula_write & fast_ready) : (ula_write & ~ula_write_q)) begin
             border_q <= cpu_do[2:0];
             speaker_q <= cpu_do[4];
         end

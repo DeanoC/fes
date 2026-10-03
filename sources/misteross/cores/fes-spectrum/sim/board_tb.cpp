@@ -12,7 +12,11 @@
 
 namespace {
 
-constexpr uint64_t kSysHalfPs = 9574;
+#if SPECTRUM_FAST_CPU
+constexpr uint64_t kSysHalfPs = 8929;  // nominal 56 MHz, rounded to ps
+#else
+constexpr uint64_t kSysHalfPs = 9574;  // nominal 52.224 MHz, rounded to ps
+#endif
 
 [[noreturn]] void fail(const std::string& message) {
     std::cerr << "fes.spectrum board: " << message << '\n';
