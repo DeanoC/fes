@@ -41,7 +41,7 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d.LeaseHeld = true
 			d.Availability = rooms.AvailUnavailable
 			d.Status = rooms.InUseStatus
-			d.Action = rooms.InUseDetail
+			d.Action = ""
 		case a.pairedKitStatusUnavailableLocked():
 			d.CoreLaunchable = false
 			d.CoreBlock = machineStatusUnknown
@@ -128,6 +128,7 @@ func (a *App) kitMutationBlockedLocked() bool {
 	}
 	if a.foreignKitLeaseLocked() {
 		a.status = localInUseCopy
+		a.statusLeaseRefusal = true
 		return true
 	}
 	return false
@@ -361,6 +362,7 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		a.status = dest.Status
 		if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
 			a.status = localInUseCopy
+			a.statusLeaseRefusal = true
 		}
 		a.openRoomDetailsLocked()
 		return true
@@ -480,6 +482,7 @@ func (a *App) openRoomDetailsLocked() {
 	}
 	if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
 		a.status = localInUseCopy
+		a.statusLeaseRefusal = true
 		return
 	}
 	a.status = dest.Status

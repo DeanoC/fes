@@ -270,6 +270,7 @@ func (a *App) doDevelopmentLoad(ctx context.Context, path string) {
 	a.devLoadMessage = "DIAGNOSTIC RBF loaded · not a game session"
 	a.status = a.devLoadMessage
 	a.launch.Phase = "idle"
+	a.launchLeaseRefusal = false
 	a.launch.Message = ""
 	a.launch.GameID = ""
 	a.applySessionLocked(result)
