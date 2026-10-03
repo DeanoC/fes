@@ -369,9 +369,15 @@ func New(service Service, options ...ServerOption) http.Handler {
 			coordinatorTarget = ""
 			target = ""
 			pairedTarget = ""
-		} else if target == "" && pairedTarget == "" {
-			if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
-				coordinatorTarget = selected.SelectedTargetConfig().Name
+		} else {
+			if !configuredSessionTarget(service, target) {
+				writeError(w, http.StatusNotFound, string(protocol.CodeTargetNotFound), "target is not configured")
+				return
+			}
+			if target == "" && pairedTarget == "" {
+				if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+					coordinatorTarget = selected.SelectedTargetConfig().Name
+				}
 			}
 		}
 		coordinator := session
@@ -534,6 +540,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if target := r.URL.Query().Get("target"); target != "" {
+			if !configuredSessionTarget(service, target) {
+				writeError(w, http.StatusNotFound, string(protocol.CodeTargetNotFound), "target is not configured")
+				return
+			}
 			ctx = fogcast.WithSessionTarget(ctx, target)
 		}
 		status, err := service.Status(ctx)
