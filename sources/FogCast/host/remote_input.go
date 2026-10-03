@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/zx81keys"
+	"github.com/DeanoC/FogCast/internal/joymatrix"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -28,8 +28,6 @@ const (
 	maxBridgeAddressBytes    = 256
 	maxHandshakeBytes        = 4096
 	maxLatencySamples        = 256
-	colecoCoreID             = "fes.coleco"
-	colecoAxisDeadzone       = int16(8000)
 )
 
 var (
@@ -642,24 +640,15 @@ func (r *RemoteInput) replayStateLocked(ctx context.Context) error {
 }
 
 func (r *RemoteInput) colecoInputEnabledLocked() bool {
-	// SMS shares the Coleco P1 direction/Fire1 matrix bits. Both require
-	// the verified keyboard interface; other cores retain their input path.
-	return (r.core == colecoCoreID || r.core == "fes.sms") && r.keyboard
+	return joymatrix.Supports(r.core) && r.keyboard
 }
 
 func (r *RemoteInput) colecoDesiredStateLocked() map[remoteinput.Code]bool {
 	snapshot := r.inputState.Snapshot()
-	desired := make(map[remoteinput.Code]bool)
+	desired := joymatrix.Desired(r.core, snapshot)
 	for _, code := range snapshot.Pressed {
-		if mapped, ok := colecoButtonKey(code); ok && !(r.core == "fes.sms" && code == remoteinput.ButtonB) {
-			desired[mapped] = true
-		} else {
+		if _, ok := joymatrix.ButtonKey(code); !ok || ((r.core == "fes.sms" || r.core == "fes.sg1000") && code == remoteinput.ButtonB) {
 			desired[code] = true
-		}
-	}
-	for code, value := range snapshot.Axes {
-		if mapped, ok := colecoAxisKey(code, value); ok {
-			desired[mapped] = true
 		}
 	}
 	return desired
@@ -713,45 +702,6 @@ func (r *RemoteInput) writeColecoSnapshotLocked(ctx context.Context, desired map
 func (r *RemoteInput) writeColecoTransitionLocked(ctx context.Context, capturedAt time.Time, code remoteinput.Code, action remoteinput.Action) error {
 	event := eventForCode(code, action)
 	return r.writeFrameLocked(ctx, r.frameForEventLocked(event, capturedAt), capturedAt)
-}
-
-func colecoButtonKey(code remoteinput.Code) (remoteinput.Code, bool) {
-	switch code {
-	case remoteinput.ButtonDPadUp:
-		return zx81keys.KeyShift, true
-	case remoteinput.ButtonDPadRight:
-		return zx81keys.Letter('Z'), true
-	case remoteinput.ButtonDPadDown:
-		return zx81keys.Letter('X'), true
-	case remoteinput.ButtonDPadLeft:
-		return zx81keys.Letter('C'), true
-	case remoteinput.ButtonA:
-		return zx81keys.Letter('V'), true
-	case remoteinput.ButtonB:
-		return zx81keys.Letter('Q'), true
-	default:
-		return 0, false
-	}
-}
-
-func colecoAxisKey(code remoteinput.Code, value int16) (remoteinput.Code, bool) {
-	switch code {
-	case remoteinput.AxisLeftX:
-		switch {
-		case value < -colecoAxisDeadzone:
-			return zx81keys.Letter('C'), true
-		case value > colecoAxisDeadzone:
-			return zx81keys.Letter('Z'), true
-		}
-	case remoteinput.AxisLeftY:
-		switch {
-		case value < -colecoAxisDeadzone:
-			return zx81keys.KeyShift, true
-		case value > colecoAxisDeadzone:
-			return zx81keys.Letter('X'), true
-		}
-	}
-	return 0, false
 }
 
 func (r *RemoteInput) frameForEventLocked(event remoteinput.Event, capturedAt time.Time) protocol.InputFrame {
