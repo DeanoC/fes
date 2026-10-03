@@ -26,6 +26,10 @@ module top #(
     output wire        HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
 );
     wire clk_sys;
+`ifdef FES_COLECO_NATIVE_VIDEO_PART_DEV
+    // The frozen part loader selects this clock by its public net name.
+    (* keep *)
+`endif
     wire pixel_clk;
     wire [31:0] fpga_to_hps;
     wire [31:0] hps_to_fpga;
