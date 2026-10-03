@@ -509,7 +509,13 @@ func TestPresentHoldPausesAfterTheStartingFrame(t *testing.T) {
 	defer dev.Close()
 	dev.SetChangeDriven(true)
 	var hold presentHold
-	snap := Snapshot{LocalCorePresentsPaused: true, Status: "Starting FES Pong…"}
+	snap := Snapshot{Room: RoomSnapshot{Open: true}, LocalCorePhase: localPhaseLaunching,
+		LocalCoreTitle: "FES Pong", LocalCoreStartedAt: time.Now().Add(-time.Second),
+		LocalCorePresentsPaused: true, Status: "Starting FES Pong…"}
+	copy := launchOverlayCopy(snap)
+	if !copy.Visible || copy.Phase != "Starting core" || copy.Elapsed != "" || !strings.Contains(copy.Hint, "Select+Start") {
+		t.Fatalf("armed loading frame lacks overlay: %+v", copy)
+	}
 	if hold.skip(context.Background(), dev, snap) {
 		t.Fatal("the starting frame should still be presented")
 	}
@@ -524,6 +530,27 @@ func TestPresentHoldPausesAfterTheStartingFrame(t *testing.T) {
 	if hold.skip(context.Background(), dev, snap) {
 		t.Fatal("resume should present")
 	}
+}
+
+func TestDeferredLocalStopDispatchesAfterRunning(t *testing.T) {
+	hold := make(chan struct{})
+	fake := &fakeLocalCores{hold: hold}
+	app := startCoreRoom(t, fake, &fakePadFeed{}, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool { return s.Room.Open && s.Room.Destination.Label == "FES Pong" })
+	app.HandleCommand(CmdSelect, time.Unix(100, 0))
+	waitFor(t, app, "armed frame", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseLaunching && launchOverlayCopy(s).Visible })
+	now := time.Now()
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))
+	app.Tick(now.Add(localChordHold + time.Second))
+	app.mu.Lock()
+	deferred := app.localStopAfterStart
+	app.mu.Unlock()
+	if !deferred || fake.stopCount() != 0 {
+		t.Fatalf("stop was not deferred: deferred=%v stops=%d", deferred, fake.stopCount())
+	}
+	close(hold)
+	waitFor(t, app, "deferred stop", func(s Snapshot) bool { return fake.stopCount() == 1 && s.LocalCorePhase != localPhaseLaunching })
 }
 
 func startCoreRoom(t *testing.T, cores rooms.LocalCores, feed localPadSender, script string, paired ...bool) *App {

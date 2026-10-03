@@ -59,6 +59,12 @@ const launchTimeoutGrace = 5 * time.Second
 
 // launcherNow keeps launch deadlines deterministic in state-machine tests.
 var launcherNow = time.Now
+var launcherStatusInterval = time.Second
+var launcherPollInterval = time.Second
+
+// launcherObserve exposes post-transition snapshots to host-only Run tests.
+// It is nil in the shipped launcher and must be restored by tests.
+var launcherObserve func(Model)
 
 func localLaunchFailure(title, reason string, elapsed time.Duration) string {
 	title = strings.TrimSpace(title)
@@ -173,7 +179,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	localTimedOut := false
 	menuPaused := false
 	resumeMenu := func() {
-		if c.menuDisplay {
+		if c.menuDisplay && menuPaused {
 			c.menuResume()
 			menuPaused = false
 		}
@@ -182,6 +188,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	var localStatusNext time.Time
 	loggedSplash := false
 	paintKitHDMI := func(m Model) {
+		if launcherObserve != nil {
+			launcherObserve(m)
+		}
 		m.LoadNow = time.Now()
 		if m.Session.State == "launching" && !m.LoadStarted.IsZero() && !m.HideLoadElapsed {
 			m.LoadElapsed = formatLoadElapsed(m.LoadNow.Sub(m.LoadStarted))
@@ -517,6 +526,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					if c.menuDisplay {
 						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
 						_ = c.menuPause(pauseCtx)
+						menuPaused = true
 						pauseCancel()
 					}
 				}
@@ -548,9 +558,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						localStopRequested = false
 						mutate("stop")
 					}
+					if launcherObserve != nil {
+						launcherObserve(m)
+					}
 				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "idle" && (localPending || localTimedOut || m.Session.State == "launching") && (localSawLaunching || localRequestReturned) {
 					elapsed := launcherNow().Sub(m.LoadStarted)
 					localPending = false
+					localStopRequested = false
 					m.Busy = false
 					m.Session.State = "idle"
 					m.LoadStarted = time.Time{}
@@ -611,7 +625,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						}
 					}
 				}
-				if c.menuDisplay && !localRunning {
+				if c.menuDisplay && !localRunning && !localPending && m.Session.State != "launching" {
 					resumeMenu()
 				}
 				m.Busy = false
@@ -684,6 +698,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						}
 						pauseCancel()
 					}
+					if launcherObserve != nil {
+						launcherObserve(m)
+					}
 				} else if m.Session.State == "launching" {
 					if m.LoadStarted.IsZero() {
 						m.LoadStarted = launcherNow()
@@ -696,6 +713,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
 					m.Message = "Couldn't start " + m.SessionTitle()
+					resumeMenu()
 				}
 			}
 			if !o.mutation {
@@ -759,7 +777,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				resumeMenu()
 			}
 			if (localRunning || localPending || localTimedOut) && !localStatusBusy && now.After(localStatusNext) {
-				localStatusNext = now.Add(time.Second)
+				localStatusNext = now.Add(launcherStatusInterval)
 				localStatusBusy = true
 				go func(e uint64) {
 					status, err := c.LocalCores.Status(ctx)
@@ -768,7 +786,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if now.After(nextPoll) {
 				poll()
-				nextPoll = now.Add(time.Second)
+				nextPoll = now.Add(launcherPollInterval)
 			}
 			if pad == nil && now.After(nextPad) {
 				var err error
