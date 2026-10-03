@@ -7,7 +7,9 @@
 // DRIVE, ROMCS, NMI and WAIT are active-high as well. AUDIO is signed 16-bit
 // PCM. The shell sums it from every socket, including a socket that is not
 // driving the CPU bus. The motherboard samples the registered response well
-// before the Z80 reads data.
+// before the Z80 reads data. WAIT delays CPU completion; STROBE is a launch
+// event and is never repeated while WAIT is held. Cards must consume writes
+// once per STROBE. Fast-mode internal RAM/ULA writes commit at completion.
 `define SP_BUS_REQ          32
 `define SP_BUS_A            15:0
 `define SP_BUS_D            23:16

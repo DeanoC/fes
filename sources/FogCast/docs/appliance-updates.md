@@ -82,3 +82,30 @@ describe these controls. Kernel and U-Boot bytes remain unchanged.
 Automatic fallback assumes readable stable boot files/factory and functioning
 card/watchdog hardware. Hardware results belong to the exact FES artifact record;
 the package tests and isolated root-switch test are not physical acceptance.
+
+## Reboot backstop
+
+For an appliance activation or rollback, the agent installs independent
+backstops right before it requests a normal reboot, then never touches them
+again:
+
+- A detached fallback (ignores TERM/HUP/INT) forces sysrq `b`, then falls back
+  to `reboot -nf`, only when
+  shutdown has stalled: no block-device I/O progress for 30 seconds, or a hard
+  deadline of 150 seconds while I/O keeps progressing. It first runs an explicit
+  sync bounded to 10 seconds; sysrq `b` skips device shutdown, while `reboot -nf`
+  avoids another sync if sysrq fails or returns. The capped stop
+  scripts wait at most 20 seconds without I/O in total, below the 30-second stall
+  trigger (`image/scripts/tests/shutdown-budget_test.sh`).
+- The Cyclone V hardware watchdog, after the warm-reset register preparation,
+  set to 180 seconds and never petted. It is kept only if its read-back timeout
+  leaves room for at least a 60-second fallback deadline plus the 10-second sync
+  and a 20-second margin (90 seconds); the fallback deadline is shortened so it
+  always ends 20 seconds before the watchdog. Shorter read-backs (60-89 s) are
+  magic-closed and only the fallback remains.
+- If a just-confirmed trial's bootstrap guard still holds the watchdog, the agent
+  waits up to 12 seconds for its handover. A reboot request error disarms the
+  watchdog first, then kills the fallback.
+- On stable startup, the agent disarms a stale watchdog only when no reboot
+  marker exists. Trial boots leave the watchdog untouched because the
+  independent bootstrap trial guard owns its reset deadline.

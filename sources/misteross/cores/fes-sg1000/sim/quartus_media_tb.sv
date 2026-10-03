@@ -66,7 +66,7 @@ module quartus_media_tb;
     end
     always @(negedge clk)
         if (!machine.media_loaded &&
-            (machine.cpu.RESET_n !== 0 || machine.vdp.reset !== 1))
+            (machine.cpu.reset !== 1 || machine.vdp.reset !== 1))
             $fatal(1, "Quartus CPU/VDP escaped reset before final copy");
     initial begin #100000000; $fatal(1, "media test timeout"); end
 endmodule

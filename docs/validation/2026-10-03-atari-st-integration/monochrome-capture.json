@@ -1,0 +1,55 @@
+{
+  "classification": "host digital SDRAM/controller/dual-clock adapter simulation",
+  "source_commit": "a3a86767182bdff0d37583abdc049de06422cd41",
+  "capture_source": "shared direct video response after two pixel-domain registers",
+  "size": [
+    1280,
+    720
+  ],
+  "final_screen_base": "0x78000",
+  "final_mode": 2,
+  "native_image_size": [
+    640,
+    400
+  ],
+  "image_origin": [
+    0,
+    160
+  ],
+  "scale": [
+    2,
+    1
+  ],
+  "rendered_rgb_colors": [
+    [
+      654966,
+      "#000000"
+    ],
+    [
+      266634,
+      "#ffffff"
+    ]
+  ],
+  "visual_check": "EmuTOS GEM desktop: Desk/File/View/Options menu, Disk A icon, mouse arrow and Trash icon visible; no missing lines observed",
+  "seconds": 8,
+  "system_clocks": 417792000,
+  "pixel_clocks": 594018699,
+  "complete_frames": 479,
+  "cpu_ram_reads": 890270,
+  "cpu_ram_writes": 751973,
+  "video_reads": 7664000,
+  "refreshes": 1068525,
+  "max_cpu_latency_clocks": 64,
+  "max_video_latency_clocks": 64,
+  "video_underruns": 0,
+  "hz_200": 1580,
+  "native_vbl_count": 565,
+  "mfp_acknowledgments": 1769,
+  "bus_error_count": 4,
+  "ppm_sha256": "54c555aa9b264c6abc92d43bd12886d84442b95a45d2e6d70696836c6ddaadd2",
+  "png_sha256": "dabedc840e883de249b14fedad258ae59e5b45e30ded83ef1b7f4b3ecc765777",
+  "ram_sha256": "7f970ebce12f6cf0a1621d39b20b582713c5473a869789dbc5bf38cfb61866d1",
+  "log_sha256": "c78f42a94fe05e7bf0eeebd4f1a1061617927dc18d250d938c916b2b29824456",
+  "source_identity_sha256": "69320de43790ca66cfd1f14358fad92dd9b1ea148ac01ce97699103b8618c1ff",
+  "limitation": "Stock boot tests CPU/scanout contention with monochrome input forced in a temporary shell; no media upload or floppy DMA traffic and no physical FPGA acceptance."
+}

@@ -53,6 +53,8 @@ const {
   catalogDumpRegions,
   systemLabel,
   sourceLabel,
+  playAvailability,
+  playChoiceFor,
   launchBlockReason,
   collectionIDFromName,
   uniqueCollectionID,
@@ -137,9 +139,22 @@ function jsonResponse(payload, status = 200) {
   };
 }
 
+// Detail open loads play context beside the scripted detail response.
+// Empty documents keep that load from consuming the scenario queue.
+function defaultPlayContextResponse(requestPath, options) {
+  const pathOnly = String(requestPath || '').split('?')[0];
+  const method = String((options && options.method) || 'GET').toUpperCase();
+  if (method !== 'GET') return null;
+  if (pathOnly === '/api/v1/library/titles') return jsonResponse({ titles: [] });
+  if (pathOnly === '/api/v1/library/edition-preferences') return jsonResponse({ preferences: [] });
+  return null;
+}
+
 function queuedFetch(responses) {
   const calls = [];
   const fetchImpl = async (requestPath, options) => {
+    const playContext = defaultPlayContextResponse(requestPath, options);
+    if (playContext) return playContext;
     calls.push({ path: requestPath, options });
     const response = responses.shift();
     if (!response) throw new Error(`missing fixture response for ${requestPath}`);
@@ -471,6 +486,8 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       return jsonResponse({ favorite: (options && options.method) === 'PUT' });
     }
+    const playContext = defaultPlayContextResponse(requestPath, options);
+    if (playContext) return playContext;
     if (pathOnly === '/api/v1/library/settings') {
       return jsonResponse(librarySettings);
     }
@@ -551,6 +568,8 @@ async function runCollectionEditorApp({ collections = [], writeResponses = [], o
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       return jsonResponse({ favorite: (options && options.method) === 'PUT' });
     }
+    const playContext = defaultPlayContextResponse(requestPath, options);
+    if (playContext) return playContext;
     if (pathOnly === '/api/v1/session') return jsonResponse({ state: 'idle' });
     if (pathOnly === '/api/v1/games') return jsonResponse(readFixture('catalog-populated.json'));
     throw new Error(`unexpected collection editor fixture ${requestPath}`);
@@ -719,6 +738,8 @@ test('collectionLabels resolves rail-order names and skips unknown ids', () => {
     dump_flags: 'beta',
     collections: ['weekend-queue'],
     kind: 'zip',
+    launchable: true,
+    root_online: true,
   }), 'SNES · USA · 1991 · Ready');
 });
 
@@ -789,31 +810,32 @@ test('variantLabel and dump facts share region revision and flags', () => {
   }), 'USA · rev a · Beta');
   assert.equal(coverHoverMeta({
     system: 'snes', state: 'available', region: 'usa', year: '1991', dump_flags: 'beta',
+    launchable: true, root_online: true,
   }), 'SNES · USA · 1991 · Ready');
   assert.equal(variantLabel({ title: 'Mystery Dump' }), 'Mystery Dump');
-  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', region: 'usa' }), 'Mega Drive · USA · Ready');
-  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available' }), 'Mega Drive · Ready');
+  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', region: 'usa', launchable: true, root_online: true }), 'Mega Drive · USA · Ready');
+  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', launchable: true, root_online: true }), 'Mega Drive · Ready');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
-  }), 'Mega Drive · USA · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, launchable: true,
+  }), 'Mega Drive · USA · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992',
-  }), 'Mega Drive · USA · 1992 · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992', launchable: true,
+  }), 'Mega Drive · USA · 1992 · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992',
-  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1992 · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992', launchable: true,
+  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1992 · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
-  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1991 · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, launchable: true,
+  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1991 · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
-  }, { presentation: { isFallback: false, year: '' } }), 'Mega Drive · USA · Offline');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, launchable: true,
+  }, { presentation: { isFallback: false, year: '' } }), 'Mega Drive · USA · Unavailable');
   assert.equal(coverHoverMeta({
-    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
-  }, { presentation: { isFallback: false, year: '—' } }), 'Mega Drive · USA · Offline');
-  assert.equal(coverHoverMeta({ system: 'snes', state: 'invalid', root_online: true }), 'SNES · Unreadable');
-  assert.equal(coverStatusLabel({ state: 'available', root_online: false }), 'Offline');
-  assert.equal(coverStatusLabel({ state: 'invalid', root_online: true }), 'Unreadable');
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, launchable: true,
+  }, { presentation: { isFallback: false, year: '—' } }), 'Mega Drive · USA · Unavailable');
+  assert.equal(coverHoverMeta({ system: 'snes', state: 'invalid', root_online: true, launchable: true }), 'SNES · Unavailable');
+  assert.equal(coverStatusLabel({ state: 'available', root_online: false, launchable: true }), 'Unavailable');
+  assert.equal(coverStatusLabel({ state: 'invalid', root_online: true, launchable: true }), 'Unavailable');
   assert.equal(cardSourceOffline({ state: 'available', root_online: false }), true);
   assert.equal(cardSourceOffline({ state: 'invalid', root_online: true }), false);
   assert.equal(cardSourceUnreadable({ state: 'invalid', root_online: true }), true);
@@ -860,6 +882,164 @@ test('unmatched catalog cards stay quiet and sort/count the visible library', ()
   assert.deepEqual(sortCatalogViews(views, 'system').map(view => view.live.id), ['megadrive-b', 'megadrive-c', 'snes-a']);
   assert.equal(formatCatalogCount(3, 2138), '3 of 2,138 games');
   assert.equal(formatCatalogCount(2138, 2138), '2,138 games');
+});
+
+test('playAvailability uses Checking, Ready, Needs a choice, and Unavailable', () => {
+  const ready = { launchable: true, state: 'available', root_online: true };
+  assert.deepEqual(playAvailability(ready), { state: 'ready', label: 'Ready', reason: '' });
+  assert.equal(playAvailability(null).state, 'unavailable');
+  assert.equal(playAvailability(null, { catalogLoading: true }).state, 'checking');
+  assert.equal(playAvailability(ready, { needsChoice: true }).label, 'Needs a choice');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'ensure_in_progress' }).state, 'checking');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'ensure_in_progress' }).label, 'Checking');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: '' }).state, 'unavailable');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: '' }).label, 'Unavailable');
+  assert.equal(playAvailability({ ...ready, ready_here: false }).label, 'Unavailable');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'not_a_real_block' }).state, 'unavailable');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'not_a_real_block' }).label, 'Unavailable');
+  assert.notEqual(playAvailability({ ...ready, ready_here: false, ready_block: '' }).label, 'Ready');
+  assert.notEqual(playAvailability({ ...ready, ready_here: false, ready_block: 'not_a_real_block' }).label, 'Ready');
+  assert.equal(launchBlockReason({ ...ready, ready_here: false, ready_block: '' }), 'This game isn’t ready to launch.');
+  assert.equal(launchBlockReason({ ...ready, ready_here: false }), 'This game isn’t ready to launch.');
+  assert.equal(launchBlockReason({ ...ready, ready_here: false, ready_block: 'not_a_real_block' }), 'This game isn’t ready to launch.');
+  assert.equal(launchBlockReason({ ...ready, ready_here: false, ready_block: 'ensure_in_progress' }), 'Still resolving whether this title can play here.');
+  assert.notEqual(launchBlockReason({ ...ready, ready_here: false, ready_block: '' }), '');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'lease_held' }).label, 'Unavailable');
+  assert.equal(playAvailability({ ...ready, ready_here: false, ready_block: 'version_skew' }).reason, 'Can’t play here yet.');
+  assert.equal(coverStatusLabel({ ...ready, root_online: false }), 'Unavailable');
+  assert.notEqual(coverStatusLabel({ ...ready, state: 'available' }), 'Offline');
+});
+
+const dataStormFPGA = 'fpga-data-storm';
+const dataStormEmu = 'sms-data-storm';
+
+function dataStormPlayRow(id, execution, extra = {}) {
+  return {
+    id,
+    title: 'Data Storm',
+    system: 'sms',
+    kind: 'raw',
+    state: 'available',
+    root_online: true,
+    content_prepared: true,
+    execution,
+    launchable: true,
+    ready_here: true,
+    ...extra,
+  };
+}
+
+function dataStormTitle(available = true) {
+  return {
+    title_id: dataStormFPGA,
+    system: 'sms',
+    options: [
+      { source_game_id: dataStormFPGA, execution: 'fpga_native', available, host_local: false },
+      { source_game_id: dataStormEmu, execution: 'native_emu', available, host_local: true },
+    ],
+  };
+}
+
+function launchPosts(calls) {
+  return calls.filter(call => String(call.path || '').split('?')[0] === '/api/v1/session/launch');
+}
+
+// Production titles use a package-backed game id as title_id, and that id is
+// also one option's source_game_id. Opening that row is not a household choice.
+test('canonical title id stays a choice until the household picks a backend', () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const title = dataStormTitle(true);
+  const games = [fpga, emu];
+  assert.equal(playChoiceFor(fpga, [title], {}, games).needsChoice, true);
+  assert.equal(playChoiceFor(fpga, [title], { [dataStormFPGA]: dataStormEmu }, games).needsChoice, undefined);
+  assert.equal(playChoiceFor(fpga, [title], { 'data storm': dataStormEmu }, games).needsChoice, undefined);
+  assert.equal(playChoiceFor(fpga, [dataStormTitle(false)], {}, games).needsChoice, true);
+  const leased = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'lease_held' });
+  const skewed = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'version_skew' });
+  const checking = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'ensure_in_progress' });
+  assert.equal(playChoiceFor(leased, [title], { 'data storm': dataStormFPGA }, [leased, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(skewed, [title], {}, [skewed, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(checking, [title], {}, [checking, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(fpga, [title], {}, [fpga]).needsChoice, undefined);
+});
+
+async function openDataStorm(fpga, emu, preferences, extraRoutes = {}) {
+  const launchedID = extraRoutes.launchedID || emu.id;
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse({ games: [fpga, emu] })],
+    [`/api/v1/games/${fpga.id}`]: [jsonResponse(fpga)],
+    [`/api/v1/games/${emu.id}`]: [jsonResponse(emu)],
+    '/api/v1/library/titles': [jsonResponse({ titles: [dataStormTitle(extraRoutes.available !== false)] }),
+      jsonResponse({ titles: [dataStormTitle(extraRoutes.available !== false)] })],
+    '/api/v1/library/edition-preferences': [
+      jsonResponse({ preferences }),
+      jsonResponse({ preferences }),
+      jsonResponse({ query: 'Data Storm', platform: 'sms', game_id: launchedID }),
+    ],
+    '/api/v1/session/launch': [jsonResponse(sessionFixture({
+      state: 'active',
+      game_id: launchedID,
+      system: 'sms',
+      execution: launchedID === fpga.id ? fpga.execution : emu.execution,
+    }))],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.selectGame(fpga.id);
+  return { calls, controller };
+}
+
+test('opening the canonical source row does not launch until a backend is chosen', async () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const { calls, controller } = await openDataStorm(fpga, emu, []);
+  await controller.launchSelected();
+  assert.equal(launchPosts(calls).length, 0);
+  await controller.chooseBackend(emu.id);
+  await controller.launchSelected();
+  const posts = launchPosts(calls);
+  assert.equal(posts.length, 1);
+  assert.equal(JSON.parse(posts[0].options.body).game_id, emu.id);
+});
+
+test('a household backend pick wins when the title id equals a source id', async () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const { calls, controller } = await openDataStorm(fpga, emu, [
+    { query: 'Data Storm', platform: 'sms', game_id: emu.id },
+  ]);
+  await controller.launchSelected();
+  const posts = launchPosts(calls);
+  assert.equal(posts.length, 1);
+  assert.equal(JSON.parse(posts[0].options.body).game_id, emu.id);
+});
+
+test('browser play follows launch readiness when inventory available is stale', async () => {
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const leased = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'lease_held' });
+  const leasedOpen = await openDataStorm(leased, emu, [
+    { query: 'Data Storm', platform: 'sms', game_id: leased.id },
+  ]);
+  await leasedOpen.controller.launchSelected();
+  const leasedPosts = launchPosts(leasedOpen.calls);
+  assert.equal(leasedPosts.length, 1);
+  assert.equal(JSON.parse(leasedPosts[0].options.body).game_id, emu.id);
+
+  const skewed = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'version_skew' });
+  const skewedOpen = await openDataStorm(skewed, emu, []);
+  await skewedOpen.controller.launchSelected();
+  assert.equal(JSON.parse(launchPosts(skewedOpen.calls)[0].options.body).game_id, emu.id);
+
+  const checking = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'ensure_in_progress' });
+  const checkingOpen = await openDataStorm(checking, emu, []);
+  await checkingOpen.controller.launchSelected();
+  assert.equal(JSON.parse(launchPosts(checkingOpen.calls)[0].options.body).game_id, emu.id);
+
+  const listed = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const hidden = await openDataStorm(listed, emu, [], { available: false });
+  await hidden.controller.launchSelected();
+  assert.equal(launchPosts(hidden.calls).length, 0);
 });
 
 test('library wording shows clean titles and honest launch blocks', () => {
@@ -1155,6 +1335,8 @@ test('same-ID detail identity replacement invalidates stale presentation and ref
       throw new Error('same-ID identity replacement issued more than one replacement request');
     }
     if (requestPath === '/api/v1/session/launch') return jsonResponse({ state: 'active', game_id: gameID });
+    if (requestPath === '/api/v1/library/titles') return jsonResponse({ titles: [] });
+    if (requestPath === '/api/v1/library/edition-preferences') return jsonResponse({ preferences: [] });
     throw new Error(`unexpected request ${requestPath}`);
   };
   const controller = createAppController({ fetchImpl, presentationEnabled: true });
@@ -1988,6 +2170,12 @@ function gamesRequestKey(requestPath) {
 function routedFetch(routes) {
   const calls = [];
   const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    const explicit = routes[requestPath] || routes[pathOnly];
+    if (!explicit) {
+      const playContext = defaultPlayContextResponse(requestPath, options);
+      if (playContext) return playContext;
+    }
     calls.push({ path: requestPath, options });
     const key = gamesRequestKey(requestPath);
     const exact = routes[requestPath];
@@ -3621,6 +3809,8 @@ async function runKeyboardApp({ pages, railPages, platforms, launchResponse, glo
       const game = allGames.find(item => item.id === id) || availableGame(id, id);
       return jsonResponse(game);
     }
+    const playContext = defaultPlayContextResponse(requestPath, options);
+    if (playContext) return playContext;
     throw new Error(`unexpected keyboard fixture path ${requestPath}`);
   };
   const context = {
@@ -7461,17 +7651,17 @@ test('detail facts show dump identity and hide Version unless multiple variants'
   await settleBrowser();
   assert.equal(
     gameCards(offlineApp.document)[0].children.find(child => child.className === 'game-meta').textContent,
-    'Mega Drive · USA · Offline',
+    'Mega Drive · USA · Unavailable',
   );
   offlineApp.document.nodes.get('layout-list').click();
   await settleBrowser();
   const offlineRow = gameCards(offlineApp.document)[0];
   const offlineBody = offlineRow.children.find(child => String(child.className).includes('game-row-body'));
-  assert.match(offlineBody.children[1].textContent, /Offline/);
+  assert.match(offlineBody.children[1].textContent, /Unavailable/);
   assert.doesNotMatch(offlineBody.children[1].textContent, /Ready/);
   await offlineRow.click();
   await settleBrowser();
-  assert.ok(detailFactsFrom(offlineApp.document).some(fact => fact.label === 'Status' && fact.value === 'Offline'));
+  assert.ok(detailFactsFrom(offlineApp.document).some(fact => fact.label === 'Status' && fact.value === 'Unavailable'));
 
   const unreadable = availableGame('snes-invalid-test', 'Bad Dump', {
     state: 'invalid',
@@ -7484,18 +7674,18 @@ test('detail facts show dump identity and hide Version unless multiple variants'
   await settleBrowser();
   assert.equal(
     gameCards(unreadableApp.document)[0].children.find(child => child.className === 'game-meta').textContent,
-    'SNES · Unreadable',
+    'SNES · Unavailable',
   );
   unreadableApp.document.nodes.get('layout-list').click();
   await settleBrowser();
   const unreadableRow = gameCards(unreadableApp.document)[0];
   const unreadableBody = unreadableRow.children.find(child => String(child.className).includes('game-row-body'));
-  assert.match(unreadableBody.children[1].textContent, /Unreadable/);
+  assert.match(unreadableBody.children[1].textContent, /Unavailable/);
   assert.doesNotMatch(unreadableBody.children[1].textContent, /Offline/);
   assert.equal(cardMark(unreadableRow), null);
   await unreadableRow.click();
   await settleBrowser();
-  assert.ok(detailFactsFrom(unreadableApp.document).some(fact => fact.label === 'Status' && fact.value === 'Unreadable'));
+  assert.ok(detailFactsFrom(unreadableApp.document).some(fact => fact.label === 'Status' && fact.value === 'Unavailable'));
 
   const flagged = availableGame('snes-beta-hack-test', 'ActRaiser (USA) (Beta) (Hack)', {
     dump_flags: 'beta,hack',
@@ -7602,7 +7792,7 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
   assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
-  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
+  assert.match(app, /\[shownPlay\.label, 'Status'\]/);
   assert.match(app, /coverHoverMeta\(game, view\)/);
   assert.match(app, /\(game && game\.year\) \|\| catalogYear\(view\)/);
   assert.match(app, /dumpFlagLabels\(game\)/);
@@ -7681,9 +7871,9 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.equal(byID[unreadable.id].getAttribute('data-invalid'), 'true');
   assert.equal(byID[ready.id].getAttribute('data-unavailable'), null);
   assert.equal(byID[favorite.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Ready');
-  assert.equal(byID[offlineRoot.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Offline');
-  assert.equal(byID[offlineMega.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1992 · Offline');
-  assert.equal(byID[unreadable.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unreadable');
+  assert.equal(byID[offlineRoot.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unavailable');
+  assert.equal(byID[offlineMega.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1992 · Unavailable');
+  assert.equal(byID[unreadable.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unavailable');
   assert.equal(cardMark(byID[offlineMega.id], 'offline').textContent, 'Offline');
   assert.equal(cardMark(byID[favorite.id], 'beta'), null);
   assert.equal(cardMark(byID[ready.id], 'beta'), null);
@@ -7715,20 +7905,20 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
 
   const offlineBody = listByID[offlineRoot.id].children.find(child => String(child.className).includes('game-row-body'));
   assert.equal(offlineBody.children[1].className, 'game-meta');
-  assert.match(offlineBody.children[1].textContent, /Offline/);
+  assert.match(offlineBody.children[1].textContent, /Unavailable/);
   assert.doesNotMatch(offlineBody.children[1].textContent, /Ready/);
   assert.equal(cardMark(listByID[offlineRoot.id]), null);
   assert.equal(listByID[offlineRoot.id].children.some(child => String(child.className).includes('card-marks')), false);
 
   const megaBody = listByID[offlineMega.id].children.find(child => String(child.className).includes('game-row-body'));
-  assert.equal(megaBody.children[1].textContent, 'Mega Drive · 1992 · Beat \'em Up · Offline');
+  assert.equal(megaBody.children[1].textContent, 'Mega Drive · 1992 · Beat \'em Up · Unavailable');
   assert.doesNotMatch(megaBody.children[1].textContent, /Ready/);
   assert.doesNotMatch(megaBody.children[1].textContent, /USA/);
   assert.equal(cardMark(listByID[offlineMega.id]), null);
   assert.equal(listByID[offlineMega.id].children.some(child => String(child.className).includes('card-marks')), false);
 
   const unreadableBody = listByID[unreadable.id].children.find(child => String(child.className).includes('game-row-body'));
-  assert.equal(unreadableBody.children[1].textContent, 'SNES · Unreadable');
+  assert.equal(unreadableBody.children[1].textContent, 'SNES · Unavailable');
   assert.doesNotMatch(unreadableBody.children[1].textContent, /Offline/);
   assert.equal(cardMark(listByID[unreadable.id]), null);
   assert.equal(listByID[unreadable.id].children.some(child => String(child.className).includes('card-marks')), false);
@@ -10723,7 +10913,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   const app = readAsset('ui_app.js');
   assert.match(app, /function sourceKindLabel\(game\)/);
   assert.match(app, /\[sourceKindLabel\(liveGame \|\| game\), 'Source'\]/);
-  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
+  assert.match(app, /\[shownPlay\.label, 'Status'\]/);
   assert.doesNotMatch(app, /'Staging'/);
   assert.doesNotMatch(app, /'Prepared'/);
   assert.doesNotMatch(app, /'On demand'/);
@@ -10869,7 +11059,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   await gameCards(offlineApp.document)[0].click();
   await settleBrowser();
   const offlineFacts = detailFactsFrom(offlineApp.document);
-  assert.ok(offlineFacts.some(fact => fact.label === 'Status' && fact.value === 'Offline'));
+  assert.ok(offlineFacts.some(fact => fact.label === 'Status' && fact.value === 'Unavailable'));
   assert.ok(offlineFacts.some(fact => fact.label === 'Source' && fact.value === 'ZIP'));
   assertOmitsStagingAndExecution(offlineFacts);
 
@@ -11152,7 +11342,8 @@ test('detail dump identity Status and Collections follow the selected variant be
   const app = readAsset('ui_app.js');
   assert.match(app, /const detailGame = liveGame \|\| game/);
   assert.match(app, /dumpIdentityFacts\(detailGame\)/);
-  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
+  assert.match(app, /const shownPlay = playAvailability\(resolvedPlay\.game \|\| detailGame,[\s\S]*?resolutionError: state\.playOptionError/);
+  assert.match(app, /\[shownPlay\.label, 'Status'\]/);
   assert.match(app, /collectionLabels\(detailGame, state\.collections\)/);
   assert.match(app, /const membershipReady = Boolean\(/);
   assert.match(app, /game\.id === detailGame\.id/);
@@ -11227,8 +11418,8 @@ test('detail dump identity Status and Collections follow the selected variant be
   const grouped = { ...usa };
   assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
   assert.equal(coverStatusLabel(usa), 'Ready');
-  assert.equal(coverStatusLabel(japan), 'Offline');
-  assert.equal(coverStatusLabel(europe), 'Unreadable');
+  assert.equal(coverStatusLabel(japan), 'Unavailable');
+  assert.equal(coverStatusLabel(europe), 'Unavailable');
   assert.deepEqual(collectionLabels(usa, [WEEKEND_QUEUE, SPEEDRUNS]), ['Weekend Queue']);
   assert.deepEqual(collectionLabels(japan, [WEEKEND_QUEUE, SPEEDRUNS]), ['Speedruns']);
   assert.deepEqual(collectionLabels(europe, [WEEKEND_QUEUE, SPEEDRUNS]), []);
@@ -11240,13 +11431,13 @@ test('detail dump identity Status and Collections follow the selected variant be
     region: 'USA', revision: 'rev a', flags: 'Beta', status: 'Ready', source: 'ZIP', collections: 'Weekend Queue',
   };
   const japanFacts = {
-    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM', collections: 'Speedruns',
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Unavailable', source: 'ROM', collections: 'Speedruns',
   };
   const japanPendingFacts = {
-    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM',
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Unavailable', source: 'ROM',
   };
   const europeFacts = {
-    region: 'Europe', revision: 'rev 00', flags: 'Proto', status: 'Unreadable', source: 'ZIP',
+    region: 'Europe', revision: 'rev 00', flags: 'Proto', status: 'Unavailable', source: 'ZIP',
   };
   const publicVariant = game => {
     const next = { ...game };
@@ -11462,7 +11653,7 @@ test('Cover hover Home rails and List keep representative dump identity', async 
   select.dispatchEvent({ type: 'change' });
   await settleBrowser();
   assertDetailDumpIdentity(detailFactsFrom(coverApp.document), {
-    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM', collections: 'Speedruns',
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Unavailable', source: 'ROM', collections: 'Speedruns',
   });
   assertDetailCollectionMembership(coverApp.document, japan, [WEEKEND_QUEUE, SPEEDRUNS]);
   assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, representativeHover);
@@ -11560,6 +11751,7 @@ test('variantLabel distinguishes same-region dumps by title and ZIP/ROM', () => 
   }), 'Mystery Dump · ZIP');
   assert.equal(coverHoverMeta({
     system: 'megadrive', state: 'available', region: 'usa', year: '1991', kind: 'zip',
+    launchable: true, root_online: true,
   }), 'Mega Drive · USA · 1991 · Ready');
 
   const sonic = { id: 'megadrive-sonic', title: 'Sonic', canonical_title: 'Sonic', kind: 'raw' };
@@ -12014,10 +12206,10 @@ test('keyboard HID events reach the host in order and failed releases are retrie
 
 test('launchBlockReason requires selected ROM readiness', () => {
   const ready = { launchable: true, state: 'available', root_online: true };
-  assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'This game’s required BIOS is not ready.');
+  assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'Coleco BIOS required. Import household firmware before Play.');
   assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: true, rom_required: true, rom_ready: true }), '');
-  assert.equal(launchBlockReason({ ...ready, rom_required: true }), 'This game’s required ROM is not ready.');
-  assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: false }), 'This game’s required ROM is not ready.');
+  assert.equal(launchBlockReason({ ...ready, rom_required: true }), 'Needs a cartridge');
+  assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: false }), 'Needs a cartridge');
   assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: true }), '');
   assert.equal(launchBlockReason({ ...ready, rom_required: false, rom_ready: false }), '');
 });

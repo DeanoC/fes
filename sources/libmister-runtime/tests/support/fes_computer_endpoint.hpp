@@ -88,7 +88,8 @@ public:
 		}
 		const bool media_opcode = op >= FesComputerOpcodeMediaInfo && op <= FesComputerOpcodeMediaEject;
 		const unsigned media_bits = FesComputerCapabilityMediaApple2Floppy |
-			FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaSpectrumTape;
+			FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaSpectrumTape |
+			FesComputerCapabilityMediaAtariStFloppy;
 		if (media_opcode && !(capabilities_ & media_bits))
 			return {opcode_error, 0};
 		if (op == FesComputerOpcodeMediaInfo) {
@@ -241,6 +242,7 @@ public:
 	}
 
 	const Unit& unit(unsigned index) const { return units_.at(index); }
+	Unit& unit(unsigned index) { return units_.at(index); }
 	std::uint32_t UnitCrc(unsigned index) const
 	{
 		std::uint32_t crc = 0xffffffffu;

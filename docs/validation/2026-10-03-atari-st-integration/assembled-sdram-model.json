@@ -1,0 +1,282 @@
+{
+  "classification": "host digital command/DDIO simulation; no physical board acceptance",
+  "rom_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+  "executable_sha256": "1e16b918365f5559aba5870ee7f4476fdf892d2cd8028e4788c9af052a73d1c3",
+  "generated_model": [
+    {
+      "file": "Vst_boot_memory_sim_top.cpp",
+      "sha256": "60319b3ae49c5d5463565106115373191ccd56f4fa6071cf6ef7fc7d32e9b6d7"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top.h",
+      "sha256": "3f63d5c0ebe75fece98adecb4f43741afedf64eda8c38be2bd13532b69699008"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top.mk",
+      "sha256": "83d88bea34a1ead6d691524ff3f8e287c7aa3dac678ae4337322dbbfc44001cb"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top__ConstPool_0.cpp",
+      "sha256": "3ddc97a12d9cb527e1e0337687ceae617be2235c140bc59de3df48e200aa7fb5"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top__Syms.cpp",
+      "sha256": "021e22a4f223f123a379e693753b1bf4fe365061d03d603c19b921ab5b559461"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top__Syms.h",
+      "sha256": "1cd3cd0aa5364a4b541be0a280fd1553c65bc678b2970a29a85bb5c5b26add52"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root.h",
+      "sha256": "c95ee4eddb1f1207253fd239b7e292225efe6f79801f37b51b5c1294152aa1d5"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__0.cpp",
+      "sha256": "aa0e04139d256431107c6d22559cec524066867471b87bcc1236b18fcbf242dd"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__0__Slow.cpp",
+      "sha256": "bb9ce286adab0df404f3308efc85ea8b71d3f78b01ece1f1b98437243b39ea0c"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__1.cpp",
+      "sha256": "3c09dafa8a2155df45e7d5aff33552303eb527e658c152d0fcd6c87953f98cdf"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__1__Slow.cpp",
+      "sha256": "0a43d6b89c718806cb88c4cf3518e7e13e32671002f125589ef43de0808722d1"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__2.cpp",
+      "sha256": "823c46d103cf8b1da61e0e671826ad834a020e1bad5036fc42aa2e622db53b57"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__2__Slow.cpp",
+      "sha256": "499832050cb219a5bfacccc2d947223fae7e2ca788613092a022328fb5bc810b"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__3.cpp",
+      "sha256": "fd71fd98f2712c6511f11a9a6856f0ad4847bd34bcceda2b7ece24f1271cdf01"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h99b8b367__0.cpp",
+      "sha256": "e2e7f4c103904d9660946b52f282092b2f6e1ced3fe1cb6efb887709d920f8c0"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__DepSet_h99b8b367__0__Slow.cpp",
+      "sha256": "e495096f497d722d335787a087c944e787c0d8405206f6f0cb049c35e926b606"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024root__Slow.cpp",
+      "sha256": "b874c042e65bb6f6fa33a4001a30fb53072ea462933a383f60c7b2f12b5e6d39"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024unit.h",
+      "sha256": "8a1eb3837c1103b2bfdc364a9adbe82d52b9cd676c0d99174457c2cd3eb5e14c"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024unit__DepSet_hef7166fe__0.cpp",
+      "sha256": "15f289ef299437ae3957d087b421210f9d0a87463e47c5b45326d0822251914f"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024unit__DepSet_hef7166fe__0__Slow.cpp",
+      "sha256": "a0bbe18daed3a00c563f64e4ade1ad3c4a120e7bf2b4ca66d5717740f491e687"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top___024unit__Slow.cpp",
+      "sha256": "21992b703785cfa2e89c1bc34b52952ea188d86968f923c405d6c8bcb989606f"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top__pch.h",
+      "sha256": "78a2bd44e5c53c90617d4ce4091be9f20881e9419d6dfd41c01685e605a0c3d1"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top__verFiles.dat",
+      "sha256": "32de43ae66818a5456f5a80ce8ca0e757ed2593cf7b356e4bc2bc4be4d381707"
+    },
+    {
+      "file": "Vst_boot_memory_sim_top_classes.mk",
+      "sha256": "adf874587cebbed8c67895ed5e81de2d9947d9b839b0537238af981552654cda"
+    },
+    {
+      "file": "microrom.mem",
+      "sha256": "9d13082be0cf4b04bff887e6da23de84f9f2ee4321f3a2576b4f9540615dece6"
+    },
+    {
+      "file": "nanorom.mem",
+      "sha256": "b3998009fb10605e8468cddf22fdd799a9792ba86f449de2e30615cfcefbeece"
+    }
+  ],
+  "rtl_source_status": [
+    {
+      "path": "/usr/bin/verilator_bin",
+      "compile_size": 13920736,
+      "compile_mtime_ns": 1743199713000000000,
+      "matches_compile_metadata": true,
+      "sha256": "619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703"
+    },
+    {
+      "path": "/usr/share/verilator/include/verilated_std.sv",
+      "compile_size": 5345,
+      "compile_mtime_ns": 1743199713000000000,
+      "matches_compile_metadata": true,
+      "sha256": "c0ca0738f363220c6ede86c0b057140681e835c55cc6cb8a86d168c0e523c860"
+    },
+    {
+      "path": "/usr/share/verilator/include/verilated_std_waiver.vlt",
+      "compile_size": 2787,
+      "compile_mtime_ns": 1743199713000000000,
+      "matches_compile_metadata": true,
+      "sha256": "303a6871c6872397e75b5fc92ee9a23292e4f9047ab01c3e7fb8fc1ad8f5cc68"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_acia.sv",
+      "compile_size": 6077,
+      "compile_mtime_ns": 1791037042387189832,
+      "matches_compile_metadata": true,
+      "sha256": "c2cd7123a452cdbfa7adc0963adbe1abe0d35a55de97a6e841beefd89a8f1758"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_cpu.sv",
+      "compile_size": 3021,
+      "compile_mtime_ns": 1791037751860306994,
+      "matches_compile_metadata": true,
+      "sha256": "62217d8b01eed459050e55132b56ebd6a7d171d3bd2c9db72fb630db21d7dfbc"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_floppy.sv",
+      "compile_size": 18149,
+      "compile_mtime_ns": 1791038344050043470,
+      "matches_compile_metadata": true,
+      "sha256": "621618b1f710193aac0b5d35d80ecac8307f9bdb27485e1932815e95e12bf449"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_ikbd.sv",
+      "compile_size": 19990,
+      "compile_mtime_ns": 1791037885176894125,
+      "matches_compile_metadata": false,
+      "sha256": null
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_io.sv",
+      "compile_size": 9271,
+      "compile_mtime_ns": 1791040206716327309,
+      "matches_compile_metadata": true,
+      "sha256": "6cecb733d380fdd117f3bcb798b299f108c631784f8079429e4649df9822f5ff"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_machine.sv",
+      "compile_size": 12942,
+      "compile_mtime_ns": 1791038421937089329,
+      "matches_compile_metadata": true,
+      "sha256": "d68741a4070aa439560af384341828fdbf080dadfb79900d98df6e2bd7b5be6e"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_memory.sv",
+      "compile_size": 9152,
+      "compile_mtime_ns": 1791039881443703309,
+      "matches_compile_metadata": true,
+      "sha256": "50b1405d7bf96cf170fbba97c562cf4fa886e11cd13a28946b15c418265f6439"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_mfp.sv",
+      "compile_size": 13544,
+      "compile_mtime_ns": 1791037481230139200,
+      "matches_compile_metadata": true,
+      "sha256": "99be49fddf8abee2881a0dc7bb686f9c54b50b752b98c81e963e9d09a2205c81"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_system.sv",
+      "compile_size": 4655,
+      "compile_mtime_ns": 1791038566466806382,
+      "matches_compile_metadata": true,
+      "sha256": "046386ba64891f517a4fb9fa539cd41ca02270f2e74d5c6a03de41d66d41ebf2"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_video.sv",
+      "compile_size": 6503,
+      "compile_mtime_ns": 1791035226256318630,
+      "matches_compile_metadata": true,
+      "sha256": "5ba70690ed74c737b6bb6aafbca07dbd6e072043bfd4b74daf12b22036ab67e2"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_video_adapter.sv",
+      "compile_size": 13470,
+      "compile_mtime_ns": 1791039351526681470,
+      "matches_compile_metadata": true,
+      "sha256": "de1fe1822e8a203388b4b44266c5131ca98dc4dddfed1dadbfb72541ad38511b"
+    },
+    {
+      "path": "cores/fes-atari-st/rtl/st_ym2149.sv",
+      "compile_size": 3439,
+      "compile_mtime_ns": 1791037386374056257,
+      "matches_compile_metadata": true,
+      "sha256": "fa81ad3c51fd523a7daed244a5bf604976ee2deeee0867ba75117b614c40c3f0"
+    },
+    {
+      "path": "cores/fes-atari-st/sim/st_boot_memory_sim_top.sv",
+      "compile_size": 5320,
+      "compile_mtime_ns": 1791039859466866196,
+      "matches_compile_metadata": true,
+      "sha256": "8b856e03e937cdd625d5b1a91e77d5aa54d7b6e005a7953c259a1772e2e7933d"
+    },
+    {
+      "path": "cores/fes-atari-st/sim/st_memory_sim_top.sv",
+      "compile_size": 2704,
+      "compile_mtime_ns": 1791038039990487001,
+      "matches_compile_metadata": true,
+      "sha256": "eeb360ef76da5f6ac4016c94d1d5a2f28c402c51cbde6901e5a87e1611de6ac7"
+    },
+    {
+      "path": "cores/fes-common/generated/fes_video_part.vh",
+      "compile_size": 1568,
+      "compile_mtime_ns": 1791034689938125990,
+      "matches_compile_metadata": true,
+      "sha256": "322cf3e10fb5465deadfc68de2af1e54768eef9b7b53c6be04c9d7a3532c99ab"
+    },
+    {
+      "path": "cores/fes-common/rtl/fes_video_part_direct.v",
+      "compile_size": 1328,
+      "compile_mtime_ns": 1791034689942126155,
+      "matches_compile_metadata": true,
+      "sha256": "bf60e215456c6baf1fb1bb1f00b1a252369e16ce25e98ce0c4e91b9680d3db2a"
+    },
+    {
+      "path": "cores/fes-common/rtl/fx68k/fx68k.sv",
+      "compile_size": 79673,
+      "compile_mtime_ns": 1791034948040815349,
+      "matches_compile_metadata": true,
+      "sha256": "a718bb869a8a969dbdda89facd76f8621f655f8a84e7afa9551b2785eee5656a"
+    },
+    {
+      "path": "cores/fes-common/rtl/fx68k/fx68kAlu.sv",
+      "compile_size": 20694,
+      "compile_mtime_ns": 1791034948064816342,
+      "matches_compile_metadata": true,
+      "sha256": "3f22006cbdb8cb661e5f54cc779f79bb697b587c86d586103478703fca38bcce"
+    },
+    {
+      "path": "cores/fes-common/rtl/fx68k/uaddrPla.sv",
+      "compile_size": 130938,
+      "compile_mtime_ns": 1791034948080817006,
+      "matches_compile_metadata": true,
+      "sha256": "07ceb3b1fbbd74f255c2a909151fe5efd38a575ba4f6aa47c6208050d2e27326"
+    },
+    {
+      "path": "cores/fes-ramtest/rtl/sdram_addon_port.v",
+      "compile_size": 13383,
+      "compile_mtime_ns": 1791038486567636370,
+      "matches_compile_metadata": true,
+      "sha256": "2bd067481741aef69233d308caed8f22278b84e5d9d9cc457f2df7e96d53c776"
+    },
+    {
+      "path": "cores/fes-zx81/expansions/zonx_ay.v",
+      "compile_size": 8780,
+      "compile_mtime_ns": 1791037386374056257,
+      "matches_compile_metadata": true,
+      "sha256": "7e5e3044628cb372c4dccea780c3bf046cef68032b52bcdea736a0bfe04b91de"
+    }
+  ],
+  "cpp_test_sha256": "f4ea8194915a2ae8440ff470ca9a22cff419dbbdf8d9e452713829d715be8c5d"
+}

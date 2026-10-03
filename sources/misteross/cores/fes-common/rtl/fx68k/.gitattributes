@@ -1,0 +1,8 @@
+# Preserve the authenticated upstream bytes and their existing whitespace.
+fx68k.sv -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
+fx68kAlu.sv -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
+uaddrPla.sv -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
+microrom.mem -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
+nanorom.mem -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
+fx68k.txt -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
+LICENSE -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol

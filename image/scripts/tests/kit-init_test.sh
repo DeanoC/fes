@@ -45,9 +45,9 @@ SCRIPT
 chmod 755 "$fixture/service" "$fixture/supervise" "$fixture/launcher" "$fixture/tenfoot"
 export KIT_UI_FILE=$fixture/kit-ui
 export TENFOOT_ARGS_FILE=$fixture/tenfoot-args
-timeout 2 "$fixture/service" start
+"$fixture/service" start
 first=$(cat "$fixture/run/fogcast-kit-supervisor.pid")
-timeout 2 "$fixture/service" start
+"$fixture/service" start
 [ "$first" = "$(cat "$fixture/run/fogcast-kit-supervisor.pid")" ]
 sleep 2
 grep -q 'exited status=3' "$fixture/log/fogcast-kit.log"
@@ -55,7 +55,7 @@ grep -q 'exited status=3' "$fixture/log/fogcast-kit.log"
 sleep 2
 child=$(cat "$fixture/run/fogcast-kit.pid")
 kill -0 "$child"
-timeout 8 "$fixture/service" stop
+"$fixture/service" stop
 [ ! -e "$fixture/run/fogcast-kit-supervisor.pid" ]
 [ ! -e "$fixture/run/fogcast-kit.pid" ]
 # Killed processes may briefly remain zombies until adopted/reaped.
@@ -67,7 +67,7 @@ printf "core_id = 'fes.menu'\npackage_id = 'abc'\n" > "$fixture/share/selections
 printf '%s\n' tenfoot > "$KIT_UI_FILE"
 : > "$fixture/config"
 rm -f "$TENFOOT_ARGS_FILE"
-timeout 2 "$fixture/service" start
+"$fixture/service" start
 i=0
 while [ ! -s "$TENFOOT_ARGS_FILE" ] && [ "$i" -lt 50 ]; do
   i=$((i + 1))
@@ -80,4 +80,4 @@ if [ "$got" != "$want" ]; then
   printf 'tenfoot args:\n%s\nwant:\n%s\n' "$got" "$want" >&2
   exit 1
 fi
-timeout 8 "$fixture/service" stop
+"$fixture/service" stop

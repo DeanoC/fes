@@ -193,11 +193,12 @@ func TestAppFavoriteToggleAndErrorRevert(t *testing.T) {
 		mu.Lock()
 		n := len(methods)
 		mu.Unlock()
-		// The optimistic favorite and server receipt do not mean the PUT has completed.
+		// The handler records the method before the client applies it.
+		// The next press is ignored while that toggle is still in flight.
 		app.mu.Lock()
-		favoriteDone := !app.favoriteBusy
+		busy := app.favoriteBusy
 		app.mu.Unlock()
-		return favoriteDone && n >= 1 && len(snap.Games) == 1 && snap.Games[0].Favorite && snap.FocusDetail.Favorite && !strings.Contains(snap.Status, "favorite failed")
+		return n >= 1 && !busy && len(snap.Games) == 1 && snap.Games[0].Favorite && snap.FocusDetail.Favorite && !strings.Contains(snap.Status, "favorite failed")
 	})
 	mu.Lock()
 	fail = true

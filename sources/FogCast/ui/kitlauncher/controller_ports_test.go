@@ -37,3 +37,14 @@ func TestLocalFrameKeepsPlayerIndex(t *testing.T) {
 		t.Fatalf("keyboard frame %+v", keyFrame)
 	}
 }
+
+func TestLocalPlayerDepartureLeavesAttractAndBrowseAlone(t *testing.T) {
+	now := time.Unix(10, 0)
+	m := Model{AttractActive: true, WheelOpen: true, Shelf: "pong", Focus: 3, lastInput: now}
+	if action := m.Input(remoteinput.LocalPlayerDeparture(0), now.Add(time.Second)); action != "" {
+		t.Fatalf("departure requested %q", action)
+	}
+	if !m.AttractActive || !m.WheelOpen || m.Shelf != "pong" || m.Focus != 3 || !m.lastInput.Equal(now) {
+		t.Fatalf("topology departure changed the idle UI: %+v", m)
+	}
+}

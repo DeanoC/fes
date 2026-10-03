@@ -191,6 +191,11 @@ constants:
     value: 0
   - name: FesComputerC64DiskBytes
     value: 174848
+  # fes.media.atari-st-floppy 1.0: unit 0, read-only 80x2x9x512 .st image.
+  - name: FesComputerAtariStFloppyUnit
+    value: 0
+  - name: FesComputerAtariStFloppyBytes
+    value: 737280
 interfaces:
   - id: fes.video.fixed-720p60
     major: 1
@@ -220,3 +225,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 6
+  - id: fes.media.atari-st-floppy
+    major: 1
+    minor: 0
+    capability_bit: 7

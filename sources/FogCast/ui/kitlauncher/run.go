@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/DeanoC/FogCast/fogcast"
@@ -54,6 +53,31 @@ type observation struct {
 }
 
 const hostUnavailableMessage = "Host unavailable"
+const localLoadTimeout = 60 * time.Second // matches the runtime's bounded core-load operation
+const launchTimeoutGrace = 5 * time.Second
+
+// launcherNow keeps launch deadlines deterministic in state-machine tests.
+var launcherNow = time.Now
+var launcherStatusInterval = time.Second
+var launcherPollInterval = time.Second
+
+// launcherObserve exposes post-transition snapshots to host-only Run tests.
+// It is nil in the shipped launcher and must be restored by tests.
+var launcherObserve func(Model)
+
+func localLaunchFailure(title, reason string, elapsed time.Duration) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = "game"
+	}
+	if elapsed >= localLoadTimeout {
+		return title + " took too long to start"
+	}
+	if reason == "" {
+		reason = "the core did not become ready"
+	}
+	return "Couldn't start " + title + ": " + reason
+}
 
 // Resolve feedback from the submitted identity, never from later UI focus.
 func sessionActionLabel(m Model, action, id string) string {
@@ -140,6 +164,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	var smsHashes smsHashFill
+	defer smsHashes.stop()
 	m := Model{
 		Message: connectingMessage, Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true,
 		Session: Session{HPSFramebuffer: c.config.HPSFramebuffer},
@@ -147,12 +173,34 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	m.LocalPlayEnabled = c.LocalCores != nil
 	localRunning := false
 	localPending := false
+	localStopRequested := false
+	localSawLaunching := false
+	localRequestReturned := false
+	hostTimedOut := false
+	localTimedOut := false
+	menuPaused := false
+	resumeMenu := func() {
+		if c.menuDisplay && menuPaused {
+			if launcherObserve != nil {
+				launcherObserve(m)
+			}
+			c.menuResume()
+			menuPaused = false
+		}
+	}
 	localStatusBusy := false
 	var localStatusNext time.Time
 	loggedSplash := false
 	paintKitHDMI := func(m Model) {
+		if launcherObserve != nil {
+			launcherObserve(m)
+		}
+		m.LoadNow = time.Now()
+		if m.Session.State == "launching" && !m.LoadStarted.IsZero() && !m.HideLoadElapsed {
+			m.LoadElapsed = formatLoadElapsed(m.LoadNow.Sub(m.LoadStarted))
+		}
 		if c.menuDisplay {
-			if !m.Busy && m.Session.State != "active" && present != nil {
+			if !menuPaused && (!m.Busy || m.Session.State == "launching") && m.Session.State != "active" && present != nil {
 				present(m)
 			}
 			return
@@ -173,7 +221,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	var pad Pad
 	var feed *localFeed
-	var coreBound atomic.Bool
+	var coreBound localCorePresence
 	inputDown := false
 	inputLogged := false
 	var nextLocalDial time.Time
@@ -192,18 +240,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			_ = pad.Close()
 		}
 	}()
-	// A probe error keeps the last answer so a stalled status read does not
-	// release held buttons. The first call is synchronous, just before the
-	// loop; later calls stay off this loop and do not wait on the host.
+	// A probe error keeps the last answer for one second so a brief stalled
+	// status read does not release held buttons. The first call is synchronous,
+	// just before the loop; later calls stay off the loop and do not wait on the host.
 	refreshCore := func() {
 		next, err := c.readLocalCore(ctx)
-		if err != nil {
-			return
-		}
-		coreBound.Store(next)
+		coreBound.observe(next, err, time.Now())
 	}
 	showLocalInput := func() {
-		if inputDown && coreBound.Load() && !m.Busy {
+		if inputDown && coreBound.bound(time.Now()) && !m.Busy {
 			m.Message = localInputUnavailableMessage
 		}
 	}
@@ -221,10 +266,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	m.Cache = mergeCacheStatus(c.Cache, hostclient.LibraryCache{}, false)
 	paintKitHDMI(m)
 	localGames, localPath, closeLocal := bootLocalCatalog(ctx, c)
+	matcher := &localROMMatcher{}
 	if closeLocal != nil {
 		defer closeLocal()
 	}
 	localApplied := false
+	kitRows := map[string]bool{}
 	send := func(o observation) {
 		select {
 		case results <- o:
@@ -232,7 +279,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 	}
 	poll := func() {
-		if polling || m.Busy {
+		if polling || (m.Busy && m.Session.State != "launching") {
 			return
 		}
 		polling = true
@@ -294,6 +341,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						Recents:    o.recents,
 					})
 					if c.Library != nil {
+						smsHashes.start(ctx, c.Library.GameROMHash, c.Cache, o.games)
+					}
+					if c.Library != nil {
 						if cache, err := c.Library.LibraryCache(ctx); err == nil {
 							o.cache = cache
 							o.haveCache = true
@@ -322,13 +372,29 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}()
 	}
 	mutate := func(action string) {
-		if m.Busy {
+		// A timed-out local request still owns an unresolved runtime launch.
+		// Keep its epoch and identity until status reaches running or idle.
+		if (action == "launch" || action == "local-launch") && (localPending || localTimedOut) {
+			m.Message = "Still checking whether the previous game started"
+			paintKitHDMI(m)
+			return
+		}
+		if m.Busy && action != "stop" {
+			return
+		}
+		if action == "stop" && localPending && !localRunning {
+			// The local runtime cannot interrupt FPGA programming before it
+			// publishes a running lease. Remember the chord and reconcile status;
+			// stop only after running is observed.
+			localStopRequested = true
+			m.Message = "Will stop when the core is ready"
+			paintKitHDMI(m)
 			return
 		}
 		epoch++
 		e := epoch
 		m.Busy = true
-		local := action == "local-launch" || (action == "stop" && localRunning)
+		local := action == "local-launch" || (action == "stop" && (localRunning || localPending))
 		id := m.Session.GameID
 		if action == "launch" || action == "local-launch" {
 			id = m.consumeLaunchID()
@@ -339,6 +405,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if action == "local-launch" {
 				m.Session.GameID = id
 			}
+			m.Session.State = "launching"
+			m.LoadStarted = launcherNow()
+			m.LaunchFailed = false
+			hostTimedOut = false
+			localTimedOut = false
+			if action == "local-launch" {
+				localSawLaunching = false
+				localRequestReturned = false
+			}
+			m.LoadPhase = "Launching"
+			m.Message = "Loading game"
+			m.LoadPhase = "Loading " + strings.TrimPrefix(sessionActionLabel(m, action, id), "Launch ")
 		}
 		label := sessionActionLabel(m, action, id)
 		closeFeed(true)
@@ -346,23 +424,34 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.hideAttract()
 		}
 		if c.menuDisplay {
+			if action == "launch" || action == "local-launch" {
+				paintKitHDMI(m)
+			}
+			menuPaused = true
 			pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
 			err := c.menuPause(pauseCtx)
 			pauseCancel()
 			if err != nil {
 				m.Busy = false
-				m.Message = "Please try again"
-				c.menuResume()
+				m.Session.State = "idle"
+				m.LoadStarted = time.Time{}
+				m.LoadPhase = ""
+				m.Message = "Could not pause the menu. Please try again"
+				resumeMenu()
 				paintKitHDMI(m)
 				return
 			}
 		}
 		// Loading and stopping copy is a temporary overlay, and only when this
 		// idle still enables the HPS framebuffer. Splash has no linuxfb picture.
-		m.Message = "Loading game"
-		if action != "launch" {
+		if action != "launch" && action != "local-launch" {
+			m.Message = "Loading game"
+		}
+		if action == "stop" {
 			m.Message = "Stopping game"
 		}
+		// The launch state owns input; release Busy so Select+Start can be
+		// armed and the asynchronous status probes can update the overlay.
 		paintKitHDMI(m)
 		// Do not log credentials, raw transport errors, or response bodies.
 		if local {
@@ -372,9 +461,34 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		if local {
 			localPending = true
+			var hostGame hostclient.Game
+			online := m.Connected
+			kitRow := kitRows[id]
+			cachedDigest := ""
+			if action == "local-launch" {
+				hostGame = displayedGame(m, id)
+				if !online && c.Cache != nil {
+					cachedDigest = c.Cache.ROMHash(id)
+				}
+			}
 			go func() {
 				o := observation{epoch: e, mutation: true, localAction: action}
-				o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
+				if action == "local-launch" {
+					var fetch func(context.Context, string) (string, error)
+					if c.Library != nil {
+						fetch = c.Library.GameROMHash
+					}
+					learned, err := launchMatchedLocalGame(ctx, c.LocalCores, online, kitRow, cachedDigest, fetch, localPath, localGames, matcher, hostGame)
+					if learned != "" && c.Cache != nil {
+						_ = c.Cache.RememberROMHash(hostGame.ID, learned)
+					}
+					o.localErr = err
+					if o.localErr != nil {
+						log.Printf("kit local cartridge launch failed game_id=%q", boundedSessionText(id, 160))
+					}
+				} else {
+					o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
+				}
 				if o.localErr != nil {
 					o.message = localCoreMessage(o.localErr)
 					if action == "local-launch" {
@@ -439,32 +553,92 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	tick := time.NewTicker(16 * time.Millisecond)
 	defer tick.Stop()
 	nextPoll, nextPad := time.Time{}, time.Time{}
+	localAdoptBusy := false
+	var localAdoptNext time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case o := <-results:
 			if o.localAction == "recover" {
-				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) {
+				localAdoptBusy = false
+				// Adopt only while the core is still observed bound (#474's one-second
+				// probe cache); a recovery answer that arrives after the probe
+				// expired must not resurrect a run the shell has already left.
+				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) && coreBound.bound(time.Now()) {
+					if c.menuDisplay {
+						if !menuPaused {
+							pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+							pauseErr := c.menuPause(pauseCtx)
+							pauseCancel()
+							if pauseErr != nil {
+								// Leave the run unadopted; the next adoption poll retries.
+								continue
+							}
+						}
+						menuPaused = true
+					}
 					localRunning = true
 					m.Session.State = "active"
-					if c.menuDisplay {
-						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
-						_ = c.menuPause(pauseCtx)
-						pauseCancel()
-					}
 				}
 				continue
 			}
 			if o.localAction == "status" {
 				localStatusBusy = false
-				if o.epoch == epoch && localRunning && o.localErr == nil && o.localStatus.Phase == "idle" {
+				if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "launching" && (localPending || m.Session.State == "launching") {
+					localSawLaunching = true
+					m.LoadPhase = "Launching"
+				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "running" && (localPending || localTimedOut || m.Session.State == "launching") {
+					wasTimedOut := localTimedOut
+					if wasTimedOut && c.menuDisplay {
+						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+						pauseErr := c.menuPause(pauseCtx)
+						pauseCancel()
+						if pauseErr != nil {
+							// Keep the pending identity and retry status/pause later.
+							continue
+						}
+						menuPaused = true
+					}
+					localTimedOut = false
+					localPending = false
+					localRunning = true
+					m.Busy = false
+					m.Session.State = "active"
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					m.Message = ""
+					if localStopRequested {
+						localStopRequested = false
+						mutate("stop")
+					}
+					if launcherObserve != nil {
+						launcherObserve(m)
+					}
+				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "idle" && (localPending || localTimedOut || m.Session.State == "launching") && (localSawLaunching || localRequestReturned) {
+					elapsed := launcherNow().Sub(m.LoadStarted)
+					localPending = false
+					localStopRequested = false
+					m.Busy = false
+					m.Session.State = "idle"
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					if !localTimedOut {
+						m.Message = localLaunchFailure(m.SessionTitle(), "launch ended before the core was ready", elapsed)
+					}
+					localTimedOut = false
+					if c.menuDisplay {
+						resumeMenu()
+					}
+				} else if o.epoch == epoch && localRunning && o.localErr == nil && o.localStatus.Phase == "idle" {
 					localRunning = false
 					m.Session.State = "idle"
 					m.Session.GameID = ""
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
 					m.Message = ""
 					if c.menuDisplay {
-						c.menuResume()
+						resumeMenu()
 					}
 				}
 				continue
@@ -478,25 +652,45 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.mutation {
 				if o.localAction != "" {
 					localPending = false
+					if o.localAction == "local-launch" {
+						localRequestReturned = true
+					}
 					if o.localAction == "local-launch" && o.localErr == nil {
-						localRunning = true
-						m.Session.State = "active"
-					} else if o.localAction == "local-launch" && o.localErr != nil && o.haveLocalStatus && localRunInProgress(o.localStatus) {
+						// GET /v1/local/status, not request completion, owns
+						// the transition to running.
+						localPending = true
+					} else if o.localAction == "local-launch" && o.localErr != nil && (!o.haveLocalStatus || localRunInProgress(o.localStatus)) {
 						// The load may still be in flight after an ambiguous reply.
-						localRunning = true
-						m.Session.State = "active"
+						localPending = true
+						m.Busy = false
 						o.message = ""
 					} else if o.localAction == "stop" && (o.localErr == nil || errors.Is(o.localErr, localcores.ErrInUse)) || o.localAction == "local-launch" && o.localErr != nil {
+						elapsed := launcherNow().Sub(m.LoadStarted)
+						localTimedOut = false
 						localRunning = false
+						localPending = false
 						m.Session.State = "idle"
-						m.Session.GameID = ""
+						m.LoadStarted = time.Time{}
+						m.LoadPhase = ""
+						if o.localAction == "local-launch" {
+							o.message = localLaunchFailure(m.SessionTitle(), o.message, elapsed)
+						} else {
+							m.Session.GameID = ""
+						}
 					}
 				}
-				if c.menuDisplay && !localRunning {
-					c.menuResume()
-				}
 				m.Busy = false
+				if o.localAction == "" && o.session.State == "active" {
+					o.message = ""
+				} else if o.localAction == "" && o.message != "" && m.Session.State == "launching" {
+					m.Session.State = "idle"
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+				}
 				m.Message = o.message
+				if c.menuDisplay && !localRunning && !localPending && m.Session.State != "launching" {
+					resumeMenu()
+				}
 				nextPoll = time.Time{}
 				if o.localAction != "" {
 					continue
@@ -515,7 +709,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.Connected = false
 				m.ClearCoreStatuses(true)
 				if !localApplied && len(localGames) > 0 {
-					m.SetCatalog(localGames)
+					var merged []hostclient.Game
+					merged, kitRows = mergeKitRows(m.Catalog, localGames)
+					m.SetCatalog(merged)
 					localApplied = true
 					catalogLoaded = true
 				}
@@ -539,7 +735,51 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				Purpose: o.kitLease.Purpose,
 			})
 			if !localRunning && !localPending {
-				m.Session = applyObservedSession(m.Session, o.session)
+				wasLoading := m.Session.State == "launching"
+				if o.session.State == "active" && c.menuDisplay && !menuPaused {
+					pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+					pauseErr := c.menuPause(pauseCtx)
+					pauseCancel()
+					if pauseErr != nil {
+						// Do not expose an active game while menu scanout may continue.
+						m.Session.State = "idle"
+						m.Busy = false
+						continue
+					}
+					menuPaused = true
+				}
+				if hostTimedOut && o.session.State == "launching" {
+					// Continue reconciling quietly after visible timeout.
+				} else {
+					m.Session = applyObservedSession(m.Session, o.session)
+				}
+				if m.Session.State == "active" {
+					hostTimedOut = false
+					m.Busy = false
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					m.LaunchFailed = false
+					m.Message = ""
+					if launcherObserve != nil {
+						launcherObserve(m)
+					}
+				} else if m.Session.State == "launching" {
+					if m.LoadStarted.IsZero() {
+						m.LoadStarted = launcherNow()
+					}
+					m.LoadPhase = m.Session.Progress
+				}
+				if m.Session.State == "failed" {
+					if wasLoading {
+						m.LaunchFailed = true
+					}
+					hostTimedOut = false
+					m.Busy = false
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					m.Message = "Couldn't start " + m.SessionTitle()
+					resumeMenu()
+				}
 			}
 			if !o.mutation {
 				m.TargetReady = o.health.TargetReady
@@ -554,6 +794,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 				if o.games != nil {
 					m.ApplyCatalog(o.games)
+					kitRows = map[string]bool{}
+					localApplied = false
 					catalogLoaded = true
 					lastCatalog = time.Now()
 				}
@@ -588,8 +830,21 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 			}
 		case now := <-tick.C:
-			if localRunning && !localPending && !localStatusBusy && now.After(localStatusNext) {
-				localStatusNext = now.Add(time.Second)
+			if m.Session.State == "launching" && !m.LoadStarted.IsZero() && launcherNow().Sub(m.LoadStarted) >= localLoadTimeout+launchTimeoutGrace {
+				if localPending {
+					localTimedOut = true
+				} else {
+					hostTimedOut = true
+				}
+				m.Session.State = "idle"
+				m.Busy = false
+				m.Message = m.SessionTitle() + " took too long to start"
+				m.LoadPhase = ""
+				m.LoadStarted = time.Time{}
+				resumeMenu()
+			}
+			if (localRunning || localPending || localTimedOut) && !localStatusBusy && now.After(localStatusNext) {
+				localStatusNext = now.Add(launcherStatusInterval)
 				localStatusBusy = true
 				go func(e uint64) {
 					status, err := c.LocalCores.Status(ctx)
@@ -598,7 +853,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if now.After(nextPoll) {
 				poll()
-				nextPoll = now.Add(time.Second)
+				nextPoll = now.Add(launcherPollInterval)
 			}
 			if pad == nil && now.After(nextPad) {
 				var err error
@@ -606,7 +861,19 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.ControllerConnected = err == nil
 				nextPad = now.Add(time.Second)
 			}
-			bound := coreBound.Load()
+			bound := coreBound.bound(now)
+			// A kit-local run started outside this shell (for example over the
+			// local control socket, or by a shell that restarted after its own
+			// startup check) binds the core without this shell knowing. Adopt
+			// it so Select+Start can stop it and the menu resumes afterwards.
+			if bound && m.LocalPlayEnabled && !localRunning && !localPending && !localAdoptBusy && !m.Busy && now.After(localAdoptNext) {
+				localAdoptNext = now.Add(time.Second)
+				localAdoptBusy = true
+				go func(e uint64) {
+					status, err := c.LocalCores.Status(ctx)
+					send(observation{epoch: e, localAction: "recover", localErr: err, localStatus: status})
+				}(epoch)
+			}
 			if !bound {
 				if feed != nil {
 					closeFeed(true)
@@ -691,7 +958,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			// A live game owns HDMI. Confirmed idle without an HPS framebuffer
 			// leaves FPGA splash pixels alone instead of painting kit chrome.
-			if !m.Busy {
+			if !m.Busy || m.Session.State == "launching" {
 				paintKitHDMI(m)
 			}
 		}
@@ -775,6 +1042,52 @@ func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve fu
 
 var errSMSCoreMissing = errors.New("sms core missing")
 var errCartridgeMissing = errors.New("cartridge missing")
+var errNotOnKit = errors.New("not on this kit")
+var errNeedsHost = errors.New("needs the host")
+var errCartridgeCheck = errors.New("cartridge check failed")
+
+func containsLocalID(games []hostclient.Game, id string) bool {
+	for _, game := range games {
+		if game.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// mergeKitRows keeps a saved or live host catalog while the host is away and
+// appends kit-local rows whose ids it does not already hold, so browse-only
+// host rows stay matchable and kit-only rows stay playable (fes#442). The
+// returned set names the rows that came from the kit-local catalog; only
+// those may launch directly by id.
+func mergeKitRows(catalog, local []hostclient.Game) ([]hostclient.Game, map[string]bool) {
+	merged := append([]hostclient.Game(nil), catalog...)
+	present := make(map[string]bool, len(merged)+len(local))
+	for _, game := range merged {
+		present[game.ID] = true
+	}
+	kit := make(map[string]bool, len(local))
+	for _, game := range local {
+		if game.ID == "" || present[game.ID] {
+			continue
+		}
+		merged = append(merged, game)
+		present[game.ID] = true
+		kit[game.ID] = true
+	}
+	return merged, kit
+}
+
+func displayedGame(m Model, id string) hostclient.Game {
+	for _, pool := range [][]hostclient.Game{m.Catalog, m.Games, m.Strip, m.Recents} {
+		for _, game := range pool {
+			if game.ID == id {
+				return game
+			}
+		}
+	}
+	return hostclient.Game{ID: id}
+}
 
 func localCoreMessage(err error) string {
 	switch {
@@ -782,6 +1095,12 @@ func localCoreMessage(err error) string {
 		return "The Master System core is not installed."
 	case errors.Is(err, errCartridgeMissing), errors.Is(err, localcores.ErrNotFound):
 		return "Cartridge is missing"
+	case errors.Is(err, errNotOnKit):
+		return "Not on this kit"
+	case errors.Is(err, errNeedsHost):
+		return "Needs the host"
+	case errors.Is(err, errCartridgeCheck):
+		return "Could not check this kit's cartridges"
 	case errors.Is(err, localcores.ErrInUse):
 		return "Kit is in use"
 	case errors.Is(err, localcores.ErrBlocked):

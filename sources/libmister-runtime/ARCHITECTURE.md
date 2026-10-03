@@ -255,13 +255,14 @@ Physical controller acceptance remains pending.
 
 `fes.computer` 1.0 uses the same lifecycle and GP transport with identity
 tag 4. Admission requires fixed video; `fes.keyboard.hid`, `fes.gamepad.ports`,
-`fes.audio.pcm-s16-stereo-48k` and `fes.media.apple2-floppy` 1.0 are
-independent and must be required when declared, `fes.expansion.apple2-bus` 1.0
-must be optional, unknown optional declarations are ignored and `core.system`
+`fes.audio.pcm-s16-stereo-48k` and the Apple II, C64, Spectrum and Atari ST
+media interfaces are independent and must be required when declared. A shell
+declares at most one unit-0 medium. Recognized expansion buses must be
+optional, unknown optional declarations are ignored and `core.system`
 is rejected. Format 2 and format 3 firmware ROM packages are admitted; linked
 cartridges and format 4 are not, because nothing holds execution for them.
 
-Identity requires live capability bits 0 through 4 to equal the declared set,
+Identity requires registered live capability bits 0 through 7 to equal the declared set,
 then discovery reads MediaInfo for each declared unit, which must be present
 and empty. Audio packets follow the declaration as for applications. Start
 only releases execution: there is no media gate, no neutral write and no evdev
@@ -277,6 +278,12 @@ live exchanges. The shared golden exchanges are replayed through the driver
 against an independent reference endpoint. See
 [home-computer I/O](docs/computer-io.md) for the exact protocol shapes. This
 path has host software coverage only.
+
+`fes.media.atari-st-floppy` 1.0 uses capability bit 7 and unit 0. Discovery
+and every insertion require live minimum and maximum sizes of 737,280 bytes,
+with 512-byte chunks. A changed limit is rejected before MediaBegin. The same
+transfer, ready confirmation and failure-eject path handles the full disk
+while the machine runs.
 
 ## Described-core persistence
 
@@ -349,6 +356,12 @@ physical socket set is sealed. The composition ID uses the separate
 the payload. Every card is retained and rechecked before programming, and
 status reports the same multi-slot tuple. The two request shapes never compose
 each other's bus; single-socket ZX81 and Coleco behavior is unchanged.
+
+Optional `fes.expansion.atari-st-bus` 1.0 uses the slot-composition tuple with
+map `fes.atari-st-bus.socket/1`, exactly one physical socket (slot 1), and at
+most one card. The shared linker owns its CRAM rectangle and wide bus
+boundary; runtime admission validates the map, socket and frozen shell
+binding and retains every input through programming.
 
 The network-facing target agent owns deterministic CRAM recomposition using the
 shared misteross implementation. Runtime admission verifies that agent-owned

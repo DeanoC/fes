@@ -58,7 +58,8 @@ local function resolve(node)
       return
     end
     local result = destination.classify(games, { q = node.search })
-    node.matches = result.matches
+    -- candidates keeps a blocked sibling so a later refresh can reclassify it.
+    node.matches = result.candidates or result.matches
     node.missing = result.state == "missing"
     node.game = result.game
     if result.game then

@@ -60,3 +60,9 @@ core_id = "fes.ramtest"
 label = "RAM Tester"
 system = "ramtest"
 standing = "supported"
+
+[[cores]]
+core_id = "fes.atari-st"
+label = "Atari 520ST"
+system = "atari-st"
+standing = "experimental"

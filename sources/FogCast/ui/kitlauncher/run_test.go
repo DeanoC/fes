@@ -707,13 +707,15 @@ func TestMenuLaunchDrainsPresentationBeforeDispatch(t *testing.T) {
 	client := NewClient(Config{API: server.URL, MenuDisplay: true})
 	draining := make(chan struct{})
 	release := make(chan struct{})
+	var busyPaints atomic.Int64
+	var paintsAtPause atomic.Int64
 	client.SetMenuDisplayHandoff(func(context.Context) error {
+		paintsAtPause.Store(busyPaints.Load())
 		close(draining)
 		<-release
 		return nil
 	}, func() {})
 	ready := false
-	var busyPaints atomic.Int64
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(ctx, client, func(m Model) {
@@ -750,8 +752,8 @@ func TestMenuLaunchDrainsPresentationBeforeDispatch(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if busyPaints.Load() != 0 {
-		t.Fatalf("menu painted %d loading frames", busyPaints.Load())
+	if paintsAtPause.Load() != 1 || busyPaints.Load() != 1 {
+		t.Fatalf("menu launch paints before pause=%d total=%d, want exactly one frozen loading frame", paintsAtPause.Load(), busyPaints.Load())
 	}
 }
 
@@ -924,5 +926,35 @@ func TestRunFetchesPresentationWhileDetailOpen(t *testing.T) {
 	})
 	if !gotStudio.Load() {
 		t.Fatal("detail presentation was not applied")
+	}
+}
+
+func TestMergeKitRowsKeepsHostCatalogAndMarksOnlyKitRows(t *testing.T) {
+	host := smsRow()
+	host.ID = "sms-data-storm-5f961211d191"
+	collide := smsRow()
+	collide.ID = "sms-shared-aaaaaaaaaaaa"
+	localSame := smsRow()
+	localSame.ID = "sms-data-storm-2a1507179e25"
+	localCollide := smsRow()
+	localCollide.ID = collide.ID
+	kitOnly := smsRow()
+	kitOnly.ID = "sms-kit-only-bbbbbbbbbbbb"
+	kitOnly.Title = "Kit Only"
+	merged, kit := mergeKitRows([]hostclient.Game{host, collide}, []hostclient.Game{localSame, localCollide, kitOnly})
+	ids := []string{}
+	for _, game := range merged {
+		ids = append(ids, game.ID)
+	}
+	want := []string{host.ID, collide.ID, localSame.ID, kitOnly.ID}
+	if strings.Join(ids, ",") != strings.Join(want, ",") {
+		t.Fatalf("merged %v, want %v", ids, want)
+	}
+	if kit[host.ID] || kit[collide.ID] || !kit[localSame.ID] || !kit[kitOnly.ID] {
+		t.Fatalf("kit rows %v: host rows (including an id collision) must not be kit rows", kit)
+	}
+	alone, kitAlone := mergeKitRows(nil, []hostclient.Game{localSame, kitOnly})
+	if len(alone) != 2 || !kitAlone[localSame.ID] || !kitAlone[kitOnly.ID] {
+		t.Fatalf("local-only catalog %v kit=%v", alone, kitAlone)
 	}
 }

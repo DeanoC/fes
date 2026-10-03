@@ -32,21 +32,26 @@ from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
-from scripts import rom_map
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import rom_map
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-# Order from the #436 sweep; stopgap until DeanoC/nextpnr#112.
-PLACER_SEEDS = (12, 5, 4, 8, 10, 1, 6, 9)
+# Search the exact BUILD_ID netlist; a diagnostic winner is not a sealed seed.
+# first-pass tries each seed at one weight before the bounded fallback weight.
+PLACER_SEEDS = (2, 3, 4, 1, 5, 6, 7, 8, 9, 10)
 SEED = PLACER_SEEDS[0]
-PLACER_TIMING_WEIGHT = 10
-PLACER_CRITICALITY_EXPONENT = 2
+PLACER_TIMING_WEIGHT = 2000
+PLACER_TIMING_WEIGHTS = (2000, 1000)
+PLACER_CRITICALITY_EXPONENT = 5
 ROUTE_TIMEOUT_SECONDS = 1800
-PLACER_QOR_CLOCKS = (("system_clock.clocks[0]", 52.224), ("system_clock.clocks[1]", 12.288), (None, 74.25))
+PLACER_QOR_MODE = "first-pass"
+PLACER_QOR_BUDGET = len(PLACER_SEEDS) * len(PLACER_TIMING_WEIGHTS)
+PLACER_QOR_CLOCKS = (("system_clock.clocks[0]", 52.224), (None, 74.25),
+                     ("system_clock.clocks[1]", 12.288))
 SG1000_GPU_BACKEND = "hip"
 SG1000_GPU_ROUTER = "HIP"
 SG1000_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -84,16 +89,16 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/coleco_video_720p.v",
     "cores/fes-sg1000/rtl/sg1000_machine.sv",
     "cores/fes-sg1000/rtl/sg1000_rom_link.v",
-    "cores/fes-common/rtl/t80pa.v",
-    "cores/fes-common/rtl/tv80/tv80_core.v",
-    "cores/fes-common/rtl/tv80/tv80_alu.v",
-    "cores/fes-common/rtl/tv80/tv80_mcode.v",
-    "cores/fes-common/rtl/tv80/tv80_reg.v",
+    "cores/fes-common/rtl/z80/fes_z80_alu.sv",
+    "cores/fes-common/rtl/z80/fes_z80_engine.sv",
+    "cores/fes-common/rtl/z80/fes_z80_bus.sv",
+    "cores/fes-common/rtl/z80/fes_z80_nmos.sv",
     "cores/fes-sg1000/rtl/top.v",
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/fes_build_common.py", "scripts/rom_map.py", "scripts/cyclonev_rbf.py",
+    "scripts/search_placer_qor.py",
     ABI_DEFINITION,
     SG1000_TOOLCHAIN_LOCK,
     QSF,
@@ -108,6 +113,7 @@ BUILD_OUTPUTS = (
     "timing.json",
     "yosys.log",
     "nextpnr.log",
+    "qor-ranking.json",
     "build-summary.json",
     "manifest.toml",
     "rom-map.json",
@@ -204,6 +210,14 @@ def create_build_record(
             "reference_clock_hz": 50_000_000,
             "seed": SEED,
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
+            "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
+            "placer_heap_timingweights": ",".join(str(weight) for weight in PLACER_TIMING_WEIGHTS),
+            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
+            "placer_qor_mode": PLACER_QOR_MODE,
+            "placer_qor_budget": PLACER_QOR_BUDGET,
+            "placer_qor_workers": 1,
+            "placer_qor_clocks": ",".join(f"{name or ''}:{mhz:g}" for name, mhz in PLACER_QOR_CLOCKS),
+            "route_timeout_seconds": ROUTE_TIMEOUT_SECONDS,
             "router": ROUTER,
             "toolchain_lock": SG1000_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, SG1000_TOOLCHAIN_LOCK)),
@@ -236,7 +250,7 @@ def build_commands(
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     sources = " ".join(RTL_SOURCES)
     yosys_program = (
-        f"read_verilog -sv -DTV80_REFRESH=1 -DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 "
+        f"read_verilog -sv -DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 "
         f"-I cores/fes-sg1000/generated {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
@@ -250,8 +264,11 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        # Kept for command inspection; the build routes the bounded ladder below.
+        # Baseline command for the first search candidate. The full build
+        # selects a passing placement through _route_placement below.
         "--seed", str(SEED),
+        "--placer-heap-timingweight", str(PLACER_TIMING_WEIGHT),
+        "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
         "--router", ROUTER,
         "--timing-allow-fail",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
@@ -439,7 +456,7 @@ def _manifest(
             "id": "fes.sg1000",
             "name": "FES SG-1000",
             "description": "Fixed-map SG-1000 with a linked 16 KiB cartridge ROM",
-            "version": "1.2.0",
+            "version": "1.3.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -469,9 +486,9 @@ def _route_placement(root: Path, output: Path, nextpnr: Path, invocation, gpu_de
     return route_after_synth(
         nextpnr=nextpnr, fixture=output / "synth.json", dest=output,
         device=TARGET, qsf=root / QSF, sdc=root / SDC, freq="74.25",
-        seeds=PLACER_SEEDS, weights=(PLACER_TIMING_WEIGHT,),
-        critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
-        mode="first-pass", extra=("--router", ROUTER),
+        seeds=PLACER_SEEDS, weights=PLACER_TIMING_WEIGHTS,
+        critexp=PLACER_CRITICALITY_EXPONENT, budget=PLACER_QOR_BUDGET,
+        mode=PLACER_QOR_MODE, extra=("--router", ROUTER),
         required=PLACER_QOR_CLOCKS, timeout=ROUTE_TIMEOUT_SECONDS,
         gpu_devices=(gpu_device,), env=invocation.env, audit_source_root=root,
     )
@@ -508,8 +525,6 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, root)
-        evidence["route"]["placer_seed"] = winner.seed
-        evidence["route"]["placer_heap_timingweight"] = winner.weight
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed ROM design"),
@@ -521,6 +536,21 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                            "file": "rom-map.json", "size": len(map_bytes),
                            "sha256": _sha256(output / "rom-map.json")}
         evidence["rom_map"] = map_evidence
+        evidence["route"].update({
+            "placer_seed": winner.seed,
+            "placer_heap_timingweight": winner.weight,
+            "placer_heap_critexp": winner.critexp,
+            "placer_qor_mode": PLACER_QOR_MODE,
+            "placer_qor_budget": PLACER_QOR_BUDGET,
+            "placer_seed_order": list(PLACER_SEEDS),
+            "placer_heap_timingweights": list(PLACER_TIMING_WEIGHTS),
+            "placer_qor_workers": 1,
+            "route_timeout_seconds": ROUTE_TIMEOUT_SECONDS,
+            "placer_qor_clocks": [
+                {"name_contains": name, "constraint_mhz": mhz}
+                for name, mhz in PLACER_QOR_CLOCKS
+            ],
+        })
         evidence["execution"] = invocation.inputs
         evidence.update(
             {

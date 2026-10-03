@@ -1,0 +1,26 @@
+{
+  "capture_source": "shared direct video response after two pixel-domain registers",
+  "size": [
+    1280,
+    720
+  ],
+  "rendered_rgb_colors": [
+    [
+      16452,
+      "#000000"
+    ],
+    [
+      347580,
+      "#00ff00"
+    ],
+    [
+      557568,
+      "#ffffff"
+    ]
+  ],
+  "ppm_sha256": "f7c7d235f7aa4699928dace7f1b4be54b29eb7f170708b45b4e5119a4d3ee7d6",
+  "ram_sha256": "0c4ff0bec895f35f26a14434717dce66025039474b7d81146a725ddce292cc89",
+  "final_screen_base": "0x78000",
+  "final_mode": 0,
+  "limitation": "visible RGB colors captured; unused palette entries are not separately recorded"
+}

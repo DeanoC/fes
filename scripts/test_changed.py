@@ -12,6 +12,9 @@ import sys
 import affected
 
 
+# Same explicit per-package limit as the host CI job (#482).
+GO_RACE_TEST = ["go", "test", "-race", "-timeout", "30m", "./..."]
+
 def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args],
                                    env=dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_NO_LAZY_FETCH="1"))
@@ -59,9 +62,9 @@ def plan(root, base, head="HEAD", jobs=2):
         host = affected.MODULE_ROOTS["host"]
         for suffix in ("", "/appliance"):
             add("host", "Go tests " + (suffix or "host"), host + suffix,
-                ["go", "test", "-race", "./..."], tools=["cc"], files=["go.mod"])
+                GO_RACE_TEST, tools=["cc"], files=["go.mod"])
         add("host", "shared Go expansion linker tests", affected.EXPANSION_ROOT,
-            ["go", "test", "-race", "./..."], tools=["cc"], files=["go.mod"])
+            GO_RACE_TEST, tools=["cc"], files=["go.mod"])
         add("host", "host UI tests", host, ["make", "test-ui"], tools=["node", "sh", "rg"], files=["Makefile"])
     if impact["lanes"]["runtime"]:
         add("runtime", "runtime software tests", affected.MODULE_ROOTS["runtime"],

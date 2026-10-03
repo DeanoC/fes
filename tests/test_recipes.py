@@ -29,6 +29,17 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipe.authenticate, "_authenticate_tools")
         self.assertEqual(recipe.identity_version, 2)
 
+    def test_atari_st_registered_producer_has_bounded_selection(self):
+        recipe = recipes.recipe_for("fes.atari-st")
+        self.assertEqual(recipe.producer_module, "scripts.build_fes_atari_st_oss")
+        self.assertEqual(recipe.authenticate, "_authenticate_atari_st_tools")
+        self.assertEqual(recipe.lock_path, "toolchains/ramtest.lock")
+        self.assertEqual(recipe.selection_filename, "fes-atari-st.package-selection.toml")
+        self.assertEqual(recipe.package_dir_env, "FES_ATARI_ST_PACKAGE_DIR")
+        self.assertEqual(build.selected_packages(
+            {"fpga_packages": [{"core_id": "fes.atari-st"}]}, "native-integration-dev"),
+            ("fes.atari-st",))
+
     def assert_existing_descriptors(self):
         self.assertTrue(
             {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum"}

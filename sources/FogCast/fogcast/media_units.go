@@ -134,12 +134,13 @@ func (s *Service) retainMediaUnitSessionIdentity(status protocol.Status, b proto
 	return status
 }
 
-// diskUnitBinding binds a live disk request to unit 0. A .d64 name selects
-// the C64 disk; any other admitted disk name selects the Apple II floppy.
+// diskUnitBinding binds a supported disk image to its declared media unit.
 func diskUnitBinding(name string, b protocol.DevelopmentMediaBinding) protocol.MediaUnitBinding {
 	unit := protocol.Apple2FloppyUnit
 	if protocol.AdmitC64DiskName(name) {
 		unit = protocol.C64DiskUnit
+	} else if protocol.AdmitAtariStFloppyName(name) {
+		unit = protocol.AtariStFloppyUnit
 	}
 	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: unit, Target: b.Target, TargetID: b.TargetID}
 }
@@ -150,6 +151,8 @@ func diskImageBytes(name string) (int64, bool) {
 		return protocol.Apple2FloppyBytes, true
 	case protocol.AdmitC64DiskName(name):
 		return protocol.C64DiskBytes, true
+	case protocol.AdmitAtariStFloppyName(name):
+		return protocol.AtariStFloppyBytes, true
 	default:
 		return 0, false
 	}

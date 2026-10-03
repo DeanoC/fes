@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
@@ -46,6 +47,9 @@ type TargetController struct {
 	localConn     net.Conn
 	localPath     string
 	localClosed   bool
+	localDrops    atomic.Uint64
+	localReported uint64
+	localWarning  time.Time
 	pending       *lease
 	closeOnce     sync.Once
 	closeErr      error

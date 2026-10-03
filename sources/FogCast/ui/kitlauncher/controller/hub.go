@@ -91,6 +91,9 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 			continue
 		}
 		released = append(released, h.release(id)...)
+		if port, assigned := h.ports[id]; assigned && !p.IsKeyboard() {
+			released = append(released, remoteinput.LocalPlayerDeparture(port))
+		}
 		_ = p.Close()
 		delete(h.ports, id)
 	}

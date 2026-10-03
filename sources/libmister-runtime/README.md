@@ -19,6 +19,12 @@ and live SDR mirrors match that layout. The
 runtime contains no Main launcher, conventional game profiles, MiSTer SPI
 driver, or general framebuffer service.
 
+The Atari ST home-computer contract uses required `fes.media.atari-st-floppy`
+1.0 for exact 737,280-byte `.st` disks on media unit 0. Insert and eject keep
+execution running. Optional `fes.expansion.atari-st-bus` 1.0 composes one card
+in physical socket 1 through the existing slot-composition path. These paths
+have host test coverage; Atari ST hardware acceptance is pending.
+
 Menu-display GP, immutable staging and reserved-memory primitives have host
 test coverage. Explicit idle-menu activation and generation-bound presentation
 use the existing local socket with immutable descriptor transfer.
