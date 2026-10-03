@@ -28,7 +28,7 @@ A producer in this module does not put a package on that image.
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchains/ramtest.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
-| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco-video` (FES selects the video variant) | yes; optional Coleco bus 2.0 and RGB888 video sockets; Direct and Scanlines parts ship alongside |
+| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/fes-sms.lock` | `make build-fes-sms` | yes |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | yes |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
@@ -74,9 +74,10 @@ use the commands below with `build-fes-coleco-native-video` and
 `VIDEO_SHELL="$PWD/build/fes-coleco-native-video"`. The part producer chooses the
 native profile from that package's exact marker. Its 48 M10Ks must fit the
 wider reserved slot, meet timing and leave every CRAM bit outside the native
-fence unchanged before publication. Native packages use the developer parts
-load; normal library Play rejects an uncomposed native shell. The factory
-continues to select the raster lane below.
+fence unchanged before publication. The factory selects this native shell and
+publishes both exact-shell companions. Normal library Play links the saved
+video preference and optional CPU expansion before download; it rejects an
+uncomposed native shell. Developer parts loads remain available.
 
 The [native Kit 2 record](../../../docs/validation/2026-10-03-native-video-parts-kit2.md)
 binds routed Direct/Scanlines parts, full-CRAM composition equality and clean
@@ -86,9 +87,9 @@ artifacts; native factory selection and CPU expansion remain separate.
 The first slice is a Coleco shell with a fixed 720p60 RGB888
 pixel-clock interface. Choose a direct part or a simple scanline part;
 an independently built Coleco bus 2.0 expansion can share the same frozen
-shell. FES's factory recipe selects the video-socket variant of
-`build_fes_coleco_socket_v2.py` and builds both parts with the existing
-`build_video_part.py`. The standalone `make build-fes-coleco` default still
+shell. Select this raster variant of `build_fes_coleco_socket_v2.py` explicitly;
+both raster and native parts use `build_video_part.py`. The standalone
+`make build-fes-coleco` default still
 builds the CPU-only socket.
 The [fabric contract](../../mister-packages/docs/video-parts.md) describes
 the public RTL ports; [the architecture](architecture.md#video-parts)

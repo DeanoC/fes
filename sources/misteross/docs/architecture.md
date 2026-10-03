@@ -542,8 +542,8 @@ no placement, timing, sealed-package or hardware evidence.
 The optional `FES_COLECO_NATIVE_VIDEO_DEV` top-level branch instantiates the
 native consumer inline, with `FES_NATIVE_SCANLINES` selecting its effect.
 The inline path remains a host simulation prototype. The separate native
-developer producer and admission path use the wider closed layout below;
-factory package selection continues to use the raster layout. Native physical
+producer and admission path use the wider closed layout below;
+FES factory package selection uses that native layout. Native physical
 linking requires fresh exact-shell placement, containment and timing evidence;
 the raster reservation has only 16 M10Ks and cannot hold native frame capture. The
 [native contract](../../mister-packages/docs/video-parts.md#native-active-pixels)
@@ -556,11 +556,10 @@ socket at columns 24–28, rows 23–38. Their half-open CRAM rectangles are
 `(1769,32,2806,1800)` and `(1769,1800,2806,3442)`. The video-socket
 shell declares optional `fes.fabric.video.raster-rgb888` 1.0; it retains the
 fixed-720p60 external interface and the base package's GP capabilities and
-BUILD_ID during composition. FES selects `video_socket=True` and the matching
-`--video-socket` CLI option on the existing Coleco producer for its factory
-package. The standalone producer default remains the CPU-only socket.
+BUILD_ID during composition. Select `video_socket=True` or `--video-socket`
+for this raster lane. The standalone producer default remains the CPU-only socket.
 
-The developer native layout is `fes.coleco-native-video.parts/1`, selected by
+The native layout is `fes.coleco-native-video.parts/1`, selected by
 the optional `fes.fabric.video.native-pixels` 1.0 package marker. Its video map
 is `fes.coleco-native-video.socket/1`, at placement columns 5–38, rows 23–38,
 with the wider half-open CRAM fence `(124,1800,3906,3442)`. The CPU bus 2.0
@@ -570,8 +569,10 @@ socket. The native marker version fixes 256×192 TMS9918 Index4 source pixels.
 The shell owns the source adapter, clock crossing, clocks and HDMI/audio
 delivery; a required direct or scanline video part owns frame capture and
 720p timing/output. A vacant native socket has no built-in output. These
-developer assets use the existing archive grammar and exact-shell bindings;
-factory publication and household profile selection remain on raster.
+assets use the existing archive grammar and exact-shell bindings. FES selects
+this producer for factory publication; FogCast resolves the household preference
+against matching installed parts. A missing selected part cannot fall back to
+the vacant native shell. Older raster packages retain their existing behavior.
 
 The pinned frozen importer removes transparent cart clock buffers but does not
 reconnect an SDP M10K's second clock through their aliases. The native producer
