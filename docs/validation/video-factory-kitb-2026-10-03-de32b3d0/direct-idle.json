@@ -1,0 +1,16 @@
+{
+  "lease": {
+    "expires_at": "0001-01-01T00:00:00Z",
+    "expires_in_ms": 0,
+    "generation": "ffb42d73bf55f1995e9ffbbb0131ac39b863589bea1fbfce7be4c0cd537c294f",
+    "state": "free"
+  },
+  "status": {
+    "expected_core": null,
+    "game_id": null,
+    "last_error": null,
+    "observed_core": null,
+    "state": "idle",
+    "system": null
+  }
+}

@@ -127,8 +127,8 @@ into the host library. The historical diagnostics qualify only their named
 artifacts. The [factory-image Kit 2 record](validation/2026-10-03-video-factory-kit2.md)
 qualifies its named image's catalog Install, Direct/Scanlines library lifecycle
 and fresh HDMI video/audio captures, with the original target image restored.
-A later image needs its own acceptance. Audio parts, DDR processing and other
-raster standards remain subsequent work.
+The later Kit B image has a separate [acceptance record](validation/2026-10-03-video-factory-kitb-de32b3d0.md).
+Audio parts, DDR processing and other raster standards remain subsequent work.
 
 ## Atari 520ST integration
 
