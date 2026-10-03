@@ -25,7 +25,7 @@ type Config struct {
 	// MinTimeout is the smallest read-back watchdog timeout that is kept. It
 	// defaults to FallbackMinDeadline + FallbackSyncWait + WatchdogMargin.
 	MinTimeout time.Duration
-	// The fallback forces `reboot -f` after FallbackStall seconds without
+	// The fallback forces sysrq b, then `reboot -nf`, after FallbackStall seconds without
 	// block-device I/O progress, and at FallbackDeadline at the latest, after a
 	// bounded explicit sync of FallbackSyncWait. When the watchdog is armed the
 	// fallback deadline is shortened to end WatchdogMargin before the watchdog,
@@ -129,7 +129,7 @@ func (c Config) defaults() Config {
 	}
 	if c.MinTimeout == 0 {
 		// The watchdog is the final deadline: it must fire strictly after the
-		// shortest fallback (deadline + bounded sync) plus margin for reboot -f.
+		// shortest fallback (deadline + bounded sync) plus margin for the forced reset.
 		c.MinTimeout = c.FallbackMinDeadline + c.FallbackSyncWait + c.WatchdogMargin
 	}
 	if c.Marker == "" {
@@ -170,7 +170,7 @@ type Result struct {
 	Reason           string
 }
 
-// Armed retains the fallback helper and watchdog descriptor until reboot or Cancel.
+// Armed retains the sysrq b / reboot -nf fallback helper and watchdog descriptor until reboot or Cancel.
 type Armed struct {
 	mu       sync.Mutex
 	device   watchdog
@@ -183,7 +183,7 @@ var retained *Armed
 var retainedMu sync.Mutex
 
 // Arm installs the reboot backstops for an agent-initiated reboot. The delayed
-// reboot -f fallback is started independently of the watchdog, so it remains in
+// sysrq b / reboot -nf fallback is started independently of the watchdog, so it remains in
 // place whenever the watchdog cannot be armed. The watchdog is intentionally
 // never pet after its initial keepalive. The returned error describes only a
 // layer that could not be installed; the caller reboots regardless.
@@ -266,7 +266,7 @@ func createMarker(c Config) error {
 func startFallback(c Config, deadline time.Duration) (helper, error) {
 	seconds := func(d time.Duration) string { return strconv.FormatInt(int64(d/time.Second), 10) }
 	cmd := exec.Command("/bin/sh", "-c", fallbackScript, "fes-reboot-fallback",
-		seconds(c.FallbackStall), seconds(deadline), seconds(c.FallbackPoll), "/proc", "/sbin/reboot", seconds(c.FallbackSyncWait))
+		seconds(c.FallbackStall), seconds(deadline), seconds(c.FallbackPoll), "/proc", "/sbin/reboot", seconds(c.FallbackSyncWait), "/proc/sysrq-trigger")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	null, err := c.openNull()
 	if err != nil {

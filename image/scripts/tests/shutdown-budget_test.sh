@@ -1,5 +1,5 @@
 #!/bin/sh
-# #429 shutdown budget: the reboot -f fallback must never cut off a shutdown
+# #429 shutdown budget: the sysrq b / reboot -nf fallback must never cut off a shutdown
 # that is still making progress. Its I/O-stall trigger (FallbackStall) must be
 # longer than the worst-case no-I/O time of the capped rcK stop waits, and its
 # shortest deadline plus bounded sync plus margin must fit inside any watchdog
