@@ -296,13 +296,19 @@ func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
 }
 
 func TestAmbiguousLocalLaunchReconcilesLateRunning(t *testing.T) {
-	fake := &fakeLocalCores{err: localcores.ErrUnavailable}
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "running", Running: true}}}
 	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Open && s.Room.Destination.CoreLaunchable
 	})
 	app.HandleCommand(CmdSelect, time.Now())
-	snap := waitFor(t, app, "late running adoption", func(s Snapshot) bool {
+	snap := waitFor(t, app, "launching reconciliation", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && fake.statusCount() >= 1
+	})
+	if !snap.LocalCorePresentsPaused || !strings.Contains(snap.Status, localUnavailableCopy) {
+		t.Fatalf("launching status resumed presentation: paused=%v status=%q", snap.LocalCorePresentsPaused, snap.Status)
+	}
+	snap = waitFor(t, app, "late running adoption", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning
 	})
 	if !snap.LocalCorePresentsPaused {
@@ -311,6 +317,21 @@ func TestAmbiguousLocalLaunchReconcilesLateRunning(t *testing.T) {
 	if fake.statusCount() == 0 {
 		t.Fatal("ambiguous launch did not reconcile runtime status")
 	}
+}
+
+func TestAmbiguousLocalLaunchHonorsDeferredStopOnLateRunning(t *testing.T) {
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "running", Running: true}}}
+	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool { return s.Room.Open && s.Room.Destination.CoreLaunchable })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "ambiguous launching", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && fake.statusCount() >= 1
+	})
+	now := time.Now()
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))
+	app.Tick(now.Add(localChordHold + time.Millisecond))
+	waitFor(t, app, "late-running deferred Stop", func(Snapshot) bool { return fake.stopCount() == 1 })
 }
 
 func TestLocalStatusPollIsSingleFlight(t *testing.T) {
@@ -783,6 +804,7 @@ type fakeLocalCores struct {
 	statusErr   error
 	blockStatus chan struct{}
 	statusDone  chan struct{}
+	statusQueue []localcores.RunStatus
 }
 
 func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
@@ -822,6 +844,12 @@ func (f *fakeLocalCores) Stop(context.Context) error {
 func (f *fakeLocalCores) Status(context.Context) (localcores.RunStatus, error) {
 	f.mu.Lock()
 	f.statuses++
+	if len(f.statusQueue) > 0 {
+		status := f.statusQueue[0]
+		f.statusQueue = f.statusQueue[1:]
+		f.mu.Unlock()
+		return status, nil
+	}
 	block := f.blockStatus
 	set := f.statusSet
 	status := f.status

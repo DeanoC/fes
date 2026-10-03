@@ -70,6 +70,7 @@ type transitionCore struct {
 	mu                     sync.Mutex
 	status                 localcores.RunStatus
 	launchErr              error
+	launchGate             <-chan struct{}
 	launches, stops, reads int
 }
 
@@ -78,12 +79,17 @@ func (*transitionCore) List(context.Context) ([]localcores.Core, error) {
 }
 func (f *transitionCore) LaunchROM(context.Context, string, string) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.launches++
+	err := f.launchErr
+	gate := f.launchGate
 	if f.launchErr == nil {
 		f.status = localcores.RunStatus{Phase: "launching"}
 	}
-	return f.launchErr
+	f.mu.Unlock()
+	if gate != nil {
+		<-gate
+	}
+	return err
 }
 func (f *transitionCore) Status(context.Context) (localcores.RunStatus, error) {
 	f.mu.Lock()
@@ -134,9 +140,9 @@ func localTransitionClient(t *testing.T, f *transitionCore) *Client {
 
 func TestRunLocalStateTransitions(t *testing.T) {
 	for _, tc := range []struct {
-		name, phase             string
-		timeout, lateIdle, stop bool
-		pauseRetry, retryLaunch bool
+		name, phase                         string
+		timeout, lateIdle, stop, launchFail bool
+		pauseRetry, retryLaunch             bool
 	}{
 		{name: "running", phase: "running"}, {name: "failure", phase: "error"},
 		{name: "timeout_then_running", phase: "running", timeout: true},
@@ -144,10 +150,17 @@ func TestRunLocalStateTransitions(t *testing.T) {
 		{name: "timeout_blocks_second_launch", phase: "running", timeout: true, retryLaunch: true},
 		{name: "timeout_then_idle", phase: "idle", timeout: true, lateIdle: true},
 		{name: "deferred_stop", phase: "running", stop: true},
+		{name: "deferred_stop_launch_failure", phase: "idle", stop: true, launchFail: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			advance := transitionClock(t)
 			f := &transitionCore{status: localcores.RunStatus{Phase: "idle"}}
+			var releaseLaunch chan struct{}
+			if tc.launchFail {
+				f.launchErr = errors.New("response lost")
+				releaseLaunch = make(chan struct{})
+				f.launchGate = releaseLaunch
+			}
 			if tc.phase == "error" {
 				f.launchErr = errors.New("missing cartridge")
 			}
@@ -165,11 +178,15 @@ func TestRunLocalStateTransitions(t *testing.T) {
 			defer cancel()
 			pad := &transitionPad{}
 			var last Model
-			var sawLoading, sawTimeout bool
+			var sawLoading, sawTimeout, sawLaunchFailure bool
 			pad.retry = func() bool { return tc.retryLaunch && sawTimeout }
+			if tc.launchFail {
+				pad.retry = func() bool { return sawLaunchFailure }
+			}
 			var timeoutReads int
 			pad.ready = func() bool { return len(last.Games) > 0 && !sawLoading }
 			pad.chord = func() bool { return tc.stop && sawLoading }
+			var launchReleased bool
 			launcherObserve = func(m Model) {
 				last = m
 				if tc.pauseRetry && m.Session.State == "active" && successfulPauses < 2 {
@@ -177,6 +194,10 @@ func TestRunLocalStateTransitions(t *testing.T) {
 				}
 				if m.Session.State == "launching" {
 					sawLoading = true
+				}
+				if tc.launchFail && pad.chordSent && !launchReleased {
+					close(releaseLaunch)
+					launchReleased = true
 				}
 				launches, stops := f.counts()
 				if tc.timeout && launches > 0 && m.Session.State == "launching" && !sawTimeout {
@@ -194,6 +215,9 @@ func TestRunLocalStateTransitions(t *testing.T) {
 					} else {
 						f.set("running")
 					}
+				}
+				if tc.launchFail && strings.Contains(m.Message, "Couldn't start") {
+					sawLaunchFailure = true
 				}
 				if tc.retryLaunch && sawTimeout && pad.retrySent {
 					f.set("running")
@@ -216,12 +240,19 @@ func TestRunLocalStateTransitions(t *testing.T) {
 				if tc.stop && stops > 0 && m.Session.State == "idle" {
 					cancel()
 				}
+				if tc.launchFail && launches >= 2 {
+					cancel()
+				}
 			}
 			if err := Run(ctx, c, func(Model) {}, func() (Pad, error) { return pad, nil }); err != nil {
 				t.Fatal(err)
 			}
 			launches, stops := f.counts()
-			if launches != 1 || !sawLoading {
+			wantLaunches := 1
+			if tc.launchFail {
+				wantLaunches = 2
+			}
+			if launches != wantLaunches || !sawLoading {
 				t.Fatalf("launches=%d loading=%v final=%+v", launches, sawLoading, last)
 			}
 			switch tc.name {
@@ -244,6 +275,10 @@ func TestRunLocalStateTransitions(t *testing.T) {
 			case "deferred_stop":
 				if !pad.chordSent || stops != 1 {
 					t.Fatalf("chord=%v stops=%d model=%+v", pad.chordSent, stops, last)
+				}
+			case "deferred_stop_launch_failure":
+				if !pad.chordSent || stops != 0 || last.Session.State != "idle" || last.Busy || launches != 2 {
+					t.Fatalf("deferred stop failure blocked a later launch: chord=%v launches=%d stops=%d model=%+v", pad.chordSent, launches, stops, last)
 				}
 			}
 		})

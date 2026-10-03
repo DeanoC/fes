@@ -441,7 +441,7 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 
 // pollLocalStatusLocked reads GET /v1/local/status while a core is running.
 // At most one poll is in flight, and it is not called under a.mu: Status can
-// take the client's 3s timeout. Idle, or running false, resumes presents.
+// take the client's 3s timeout. Only an explicit idle phase resumes presents.
 func (a *App) pollLocalStatusLocked(now time.Time) {
 	if (a.localPhase != localPhaseRunning && !(a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure)) || a.localStatusBusy || a.localCores == nil {
 		return
@@ -470,9 +470,14 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 				a.status = ""
 			}
 			a.localStatus = ""
+			if a.localStopAfterStart {
+				a.localStopAfterStart = false
+				a.localChordFired = true
+				a.beginLocalStopLocked()
+			}
 			return
 		}
-		if status.Phase == "idle" || !status.Running {
+		if status.Phase == "idle" {
 			wasAmbiguous := a.localReconcileAfterFailure
 			a.localReconcileAfterFailure = false
 			if wasAmbiguous {

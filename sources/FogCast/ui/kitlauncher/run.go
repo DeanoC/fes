@@ -376,10 +376,6 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		if m.Busy && action != "stop" {
 			return
 		}
-		epoch++
-		e := epoch
-		m.Busy = true
-		local := action == "local-launch" || (action == "stop" && (localRunning || localPending))
 		if action == "stop" && localPending && !localRunning {
 			// The local runtime cannot interrupt FPGA programming before it
 			// publishes a running lease. Remember the chord and reconcile status;
@@ -389,6 +385,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			paintKitHDMI(m)
 			return
 		}
+		epoch++
+		e := epoch
+		m.Busy = true
+		local := action == "local-launch" || (action == "stop" && (localRunning || localPending))
 		id := m.Session.GameID
 		if action == "launch" || action == "local-launch" {
 			id = m.consumeLaunchID()
