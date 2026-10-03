@@ -165,6 +165,7 @@ func (a *App) dismissLaunchOverlayLocked() {
 		return
 	}
 	a.launch.Phase = "idle"
+	a.launchLeaseRefusal = false
 	a.launch.Message = ""
 	a.launch.ErrorCode = ""
 	a.launch.ErrorMessage = ""

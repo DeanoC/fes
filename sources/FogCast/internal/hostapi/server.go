@@ -277,7 +277,12 @@ func New(service Service, options ...ServerOption) http.Handler {
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
-		coordinator := requestSessionCoordinator(session, service, r, r.URL.Query().Get("target"), true)
+		target := r.URL.Query().Get("target")
+		if !configuredSessionTarget(service, target) {
+			writeError(w, http.StatusNotFound, string(protocol.CodeTargetNotFound), "target is not configured")
+			return
+		}
+		coordinator := requestSessionCoordinator(session, service, r, target, true)
 		result, err := coordinator.status(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
@@ -364,9 +369,15 @@ func New(service Service, options ...ServerOption) http.Handler {
 			coordinatorTarget = ""
 			target = ""
 			pairedTarget = ""
-		} else if target == "" && pairedTarget == "" {
-			if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
-				coordinatorTarget = selected.SelectedTargetConfig().Name
+		} else {
+			if !configuredSessionTarget(service, target) {
+				writeError(w, http.StatusNotFound, string(protocol.CodeTargetNotFound), "target is not configured")
+				return
+			}
+			if target == "" && pairedTarget == "" {
+				if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+					coordinatorTarget = selected.SelectedTargetConfig().Name
+				}
 			}
 		}
 		coordinator := session
@@ -423,6 +434,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 		pairedTarget := launcherTargetFromContext(r.Context())
 		if pairedTarget != "" && explicitTarget != "" && explicitTarget != pairedTarget {
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the paired target")
+			return
+		}
+		if !configuredSessionTarget(service, explicitTarget) {
+			writeError(w, http.StatusNotFound, string(protocol.CodeTargetNotFound), "target is not configured")
 			return
 		}
 		coordinator := requestSessionCoordinator(session, service, r, explicitTarget, true)
@@ -525,6 +540,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if target := r.URL.Query().Get("target"); target != "" {
+			if !configuredSessionTarget(service, target) {
+				writeError(w, http.StatusNotFound, string(protocol.CodeTargetNotFound), "target is not configured")
+				return
+			}
 			ctx = fogcast.WithSessionTarget(ctx, target)
 		}
 		status, err := service.Status(ctx)
@@ -765,6 +784,19 @@ func New(service Service, options ...ServerOption) http.Handler {
 		librarymediaServe(w, r, opened)
 	})
 	return &applicationHandler{browser: noStore(rejectUnexpectedHost(mux)), routes: mux, service: service, remoteInput: config.remoteInput, session: session}
+}
+
+func configuredSessionTarget(service Service, name string) bool {
+	if name == "" {
+		return true
+	}
+	resolver, ok := service.(interface {
+		TargetConfigForName(string) fogcast.TargetConfig
+	})
+	if !ok {
+		return true
+	}
+	return resolver.TargetConfigForName(name).Name != ""
 }
 
 func rejectUnexpectedHost(next http.Handler) http.Handler {

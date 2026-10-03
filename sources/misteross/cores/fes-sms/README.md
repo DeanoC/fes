@@ -20,8 +20,8 @@ top, Quartus pins and the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sms` is the OSS Yosys/nextpnr-mistral producer using the
-`toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `a93fe013`). `fes.sms`
-is registered for package-only parent builds and is not in the factory image.
+`toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `a93fe013`). The parent
+image route is package-only, and `fes.sms` is in the factory image.
 
 ## Implemented slice
 
@@ -64,8 +64,8 @@ is registered for package-only parent builds and is not in the factory image.
 
 Sega mappers, banked/48 KiB cartridges, expansion hardware, 224/240-line
 modes, PAL timing and cycle-perfect raster effects remain outside this slice.
-`fes.sms` is registered for package-only parent builds and is not in the
-factory image. Kit HDMI-audio acceptance of this bitstream is not recorded
+`fes.sms` is in the factory image. The parent image route is package-only.
+Kit HDMI-audio acceptance of this bitstream is not recorded
 here. An older parent pin or launch/Stop record does not accept it.
 
 ## Memory and host interfaces
@@ -198,8 +198,8 @@ Yosys on a dirty tree and does not seal. The producer uses `--router gpu` and
 a first-pass HIP seed/weight search (starts at seed 3 / HeAP 1000, then
 the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
 `pixel_clk` and audio rows must meet 52.224, 74.25 and 12.288 MHz. The routed
-I2S pads and shared system/audio PLL must also match. `fes.sms` is registered for
-package-only parent builds and is not in the factory image. Kit HDMI-audio
+I2S pads and shared system/audio PLL must also match. The parent image route is
+package-only, and `fes.sms` is in the factory image. Kit HDMI-audio
 acceptance of this bitstream is not recorded here. The dated gap inventory is
 `docs/validation/2026-09-17-sms-oss-gap-ladder.md`. It is not the current
 schedule.

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/ui/anim"
 	"github.com/DeanoC/FogCast/ui/audioreact"
 	"github.com/DeanoC/FogCast/ui/fbgrid"
@@ -266,6 +267,7 @@ func run() error {
 		})
 	}
 	client.SetLocalInput(localInputConfig())
+	client.SetLocalCores(localcores.NewClient(localcores.DefaultSocket))
 	covers := shared.NewCoverCache()
 	stills := shared.NewStillCache()
 	presentations := shared.NewPresentationCache()

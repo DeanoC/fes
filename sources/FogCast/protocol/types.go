@@ -64,6 +64,7 @@ const (
 	CodeCacheFull            ErrorCode = "CACHE_FULL"
 	CodeKitLeaseDenied       ErrorCode = "KIT_LEASE_DENIED"
 	CodeVersionMismatch      ErrorCode = "VERSION_MISMATCH"
+	CodeTargetNotFound       ErrorCode = "TARGET_NOT_FOUND"
 )
 
 type APIError struct {

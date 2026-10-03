@@ -101,9 +101,9 @@ The image selector supports nine core IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, using sealed
 format-2 or format-3 packages. `fes.menu` is idle display firmware, not a playable
 catalog entry. The current [FES default profile](../../../profiles/native-integration-dev.toml)
-selects menu, Pong, ZX81, Coleco and the OSS 100 MHz RAM Tester. SMS, SG-1000 and Spectrum remain
-package-only under the 128 MiB rootfs limit; C64 has no current timing-passing HIP
-seal. See [core status](../../../docs/core-status.md) for exact-artifact evidence.
+selects menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum and the OSS 100 MHz RAM Tester.
+C64 has no current timing-passing HIP seal and stays out.
+See [core status](../../../docs/core-status.md) for exact-artifact evidence.
 
 The following is the complete nine-ID input example for the selector interface;
 it requires sealed packages and sufficient image capacity before use. It does
@@ -298,11 +298,17 @@ its installed package lifecycle through the running host:
 make target-package-smoke \
   FES_PONG_PACKAGE_SELECTION=/absolute/path/fes-pong.package-selection.toml \
   FES_ZX81_PACKAGE_SELECTION=/absolute/path/fes-zx81.package-selection.toml \
-  FES_COLECO_PACKAGE_SELECTION=/absolute/path/fes-coleco.package-selection.toml
+  FES_COLECO_PACKAGE_SELECTION=/absolute/path/fes-coleco.package-selection.toml \
+  FES_RAMTEST_PACKAGE_SELECTION=/absolute/path/fes-ramtest.package-selection.toml
 ```
 
-This explicitly launches and stops the three installed packages through the
-host session API, checks their exact selected package IDs, and uses the existing
+This launches and stops Pong, ZX81 and Coleco through the host session API and
+checks their exact selected package IDs. Supplying the fourth RAM Tester
+selection enables that additional launch check. Before running it, install the
+RAM Tester host package and set up its library `CoreEntry` so the host library
+contains an entry for the installed package; installing the target package
+alone does not create that host entry. RAM Tester is a ROM-less application
+core with a library launch entry. The smoke uses the existing
 kit lease. It does not deploy an image or request a reboot. Health and inventory
 calls allow 30 seconds by default. Launch allows 90 seconds for first-time ROM
 composition; `FOGCAST_LAUNCH_TIMEOUT` overrides launch separately, while

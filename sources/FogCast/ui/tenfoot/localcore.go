@@ -311,6 +311,7 @@ func (a *App) failLocalCoreLocked(err error, block string) {
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
 	a.localStatus = localCoreFailureCopy(err, block)
+	a.statusLeaseRefusal = false
 	a.status = a.localStatus
 	a.roomWasParked = true
 }

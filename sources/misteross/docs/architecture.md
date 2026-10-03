@@ -832,9 +832,10 @@ timing domains before sealing version 1.2.0. Reset is not held for an
 application media upload. The open `sound-16k.rom` diagnostic alternates tone
 and white noise alongside the Graphics I display for a later leased kit check.
 `--synth-only` runs Yosys without a clean tree and does not seal. The selected
-HIP seed 3 must meet the structured 52.224 MHz system, 74.25 MHz pixel and
-12.288 MHz audio timing rows on the exact sealed BUILD_ID. `fes.sg1000` is registered as a
-package-only parent recipe and is not in the factory image. A historical
+The HIP first-pass ladder (12, 5, 4, 8, 10, 1, 6, 9) selects a route that must
+meet the structured 52.224 MHz system, 74.25 MHz pixel and
+12.288 MHz audio timing rows on the exact sealed BUILD_ID. `fes.sg1000` is in the
+factory image. A historical
 launch/Stop record does not accept the current bitstream.
 
 ## FES Master System Quartus oracle and OSS recipe
@@ -905,8 +906,8 @@ Yosys without a clean tree and does not seal. The producer uses `--router gpu`
 and a first-pass HIP seed/weight search (starts at seed 3 / HeAP 1000,
 then the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
 `pixel_clk` and audio rows must meet 52.224, 74.25 and 12.288 MHz; four routed
-I2S pads and the shared system/audio PLL must match. `fes.sms` is registered for
-package-only parent builds and is not in the factory image. Historical parent
+I2S pads and the shared system/audio PLL must match. `fes.sms` is in the
+factory image. Historical parent
 pins and launch/Stop records do not accept HDMI audio on a later bitstream.
 Dated notes, not current instructions:
 `docs/validation/2026-09-17-sms-oss-gap-ladder.md`,
@@ -1335,7 +1336,7 @@ standalone recipe. Its source set is `pixel_pll.v`, `top.v`, `fes_gp.v`,
 the shared `fes_video_720p.v` and existing `pong_game.sv`, with the generated ABI include
 directory. Yosys receives the build-record-derived 128-bit `BUILD_ID` and
 forbids BRAM, LUTRAM and DSP inference. nextpnr targets `5CSEBA6U23I7` with
-seed 1, `--router gpu`, the task-local QSF, the 50 MHz board SDC and an
+the first passing seed from 1 through 8, `--router gpu`, the task-local QSF, the 50 MHz board SDC and an
 explicit 74.25 MHz target; all outputs stay under `build/fes-pong/`. The route
 log must prove a live HIP backend.
 
@@ -1583,6 +1584,27 @@ move without changing that shared slot. The different repository-wide
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
+The standalone original Z80 implementation lives in
+`cores/fes-common/rtl/z80`. `fes_z80_nmos` uses the shared instruction engine
+and original pin-cycle adapter; `fes_z80_fast` selects documented instructions
+and a direct request/completion interface with timing-only cycles removed.
+The [CPU contract](../cores/fes-common/rtl/z80/README.md) describes public ports,
+behavior references, undefined-encoding policy and qualification limits.
+`make sim-fes-z80` exercises both variants and their independent ALU/bus tests.
+The opt-in external-vector runner can also exercise the complete NMOS wrapper,
+checking instruction T counts and ordered bus accesses against locked JSON
+data; its software oracle and simplified strobe observations do not establish
+physical-chip equivalence.
+The contained `scripts/benchmark_fes_z80.py` diagnostic targets Cyclone V and
+records routed timing from exact source/tool snapshots without producing an
+RBF. Its optional `--require-target` timing gate fails if any selected seed
+misses the requested clock, after preserving the reports. The CPU contract
+records the selected 56 MHz route and the limits of its 16-times clock ratio.
+Existing production CPU consumers and recipes still select TV80/T80;
+there is no CPU package, board acceptance or consumer migration in this change.
+Adding RTL to the conservative shared source closure changes future functional
+build identities even before a console selects it.
+
 The source closure includes the shared helper files and `cores/fes-common`.
 Moving these files changes authenticated source paths and therefore changes v2
 build identities even though the HDL bytes are unchanged. Old packages retain
@@ -1634,7 +1656,8 @@ system identity. FES now selects it as the native image's idle display. It selec
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
 while diagnostics retain their no-GP gate. DDR layout and inactive write/port
-checks remain mandatory in both netlists.
+checks remain mandatory in both netlists. The package routes a first-pass
+pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7, 8.
 
 The optional shared GP hook delegates menu requests to `fes_menu_control` in
 the same pixel-clock domain. Configuration selects fixed slots; sequence ACK

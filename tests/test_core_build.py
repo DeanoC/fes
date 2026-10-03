@@ -138,9 +138,11 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(repository_profile['native_image_mode'], 'package-only')
         self.assertEqual(
             [entry['core_id'] for entry in repository_profile['fpga_packages']],
-            ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.ramtest'])
+            ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
+             'fes.sg1000', 'fes.spectrum', 'fes.ramtest'])
         self.assertEqual(build.selected_packages(repository_profile, 'native-integration-dev'),
-                         ('fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.ramtest'))
+                         ('fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
+                          'fes.sg1000', 'fes.spectrum', 'fes.ramtest'))
 
     def test_selection_overrides_do_not_leak_from_shell(self):
         with patch.dict('os.environ', {'NATIVE_RUNTIME_SYSTEMS': 'pong',

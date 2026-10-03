@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1270,9 +1271,7 @@ func TestNativeDevelopmentRecoveryHonorsCanceledContextBeforeStartingCommand(t *
 	marker := filepath.Join(dir, "started")
 	reboot := filepath.Join(dir, "reboot")
 	script := "#!/bin/sh\n: > '" + marker + "'\n"
-	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	writeRecoveryScript(t, reboot, script)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
@@ -1293,9 +1292,7 @@ func TestNativeDevelopmentRecoveryStartsConfiguredCommand(t *testing.T) {
 	marker := filepath.Join(dir, "started")
 	reboot := filepath.Join(dir, "reboot")
 	script := "#!/bin/sh\n: > '" + marker + "'\n"
-	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	writeRecoveryScript(t, reboot, script)
 	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
 		misterruntime.WithRebootCommand(reboot))
 
@@ -1303,7 +1300,7 @@ func TestNativeDevelopmentRecoveryStartsConfiguredCommand(t *testing.T) {
 	if observed != "" || apiErr != nil {
 		t.Fatalf("recovery = observed:%q error:%#v", observed, apiErr)
 	}
-	deadline := time.Now().Add(250 * time.Millisecond)
+	deadline := time.Now().Add(recoveryScriptStartBudget)
 	for {
 		if _, err := os.Stat(marker); err == nil {
 			return
@@ -1321,9 +1318,7 @@ func TestNativeDevelopmentRecoverySurvivesCallerCancellationAfterStart(t *testin
 	marker := filepath.Join(dir, "finished")
 	reboot := filepath.Join(dir, "reboot")
 	script := "#!/bin/sh\nsleep 0.05\n: > '" + marker + "'\n"
-	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	writeRecoveryScript(t, reboot, script)
 	ctx, cancel := context.WithCancel(context.Background())
 	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
 		misterruntime.WithRebootCommand(reboot))
@@ -1331,7 +1326,7 @@ func TestNativeDevelopmentRecoverySurvivesCallerCancellationAfterStart(t *testin
 		t.Fatalf("recovery error = %#v", apiErr)
 	}
 	cancel()
-	deadline := time.Now().Add(500 * time.Millisecond)
+	deadline := time.Now().Add(recoveryScriptStartBudget)
 	for {
 		if _, err := os.Stat(marker); err == nil {
 			return
@@ -1554,5 +1549,27 @@ func TestStartupReconciliationUsesCallerBudgetBeyondHealthPoll(t *testing.T) {
 	defer cancel()
 	if status := runtime.Reconcile(ctx); status.State != protocol.StateIdle {
 		t.Fatalf("startup cut short by health timeout: %+v", status)
+	}
+}
+
+// recoveryScriptStartBudget bounds the wait for a recovery script's marker.
+// The wait polls and returns as soon as the marker appears. On macOS, the
+// first exec of a newly written script includes a policy scan that takes
+// about 300 ms. The old 250 ms budget therefore failed every run there.
+const recoveryScriptStartBudget = 5 * time.Second
+
+// writeRecoveryScript creates an executable script while holding
+// syscall.ForkLock, so no fork can happen while the file is open for writing.
+// Without the lock, on Linux a parallel test that forks during os.WriteFile
+// inherits the writable descriptor until its exec. Executing the script then
+// fails with ETXTBSY ("text file busy"), which RecoverDevelopment reports as
+// MISTER_UNAVAILABLE. os/exec takes ForkLock for every fork.
+func writeRecoveryScript(t *testing.T, path, script string) {
+	t.Helper()
+	syscall.ForkLock.Lock()
+	err := os.WriteFile(path, []byte(script), 0o700)
+	syscall.ForkLock.Unlock()
+	if err != nil {
+		t.Fatal(err)
 	}
 }

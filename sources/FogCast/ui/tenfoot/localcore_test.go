@@ -195,7 +195,7 @@ func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T)
 	app.kitLease = KitLeaseStatus{State: "held", Owner: "hil-355", Purpose: "hil-355-in-use"}
 	app.mu.Unlock()
 	snap := app.Snapshot()
-	if snap.Room.Destination.Status != rooms.InUseStatus || snap.Room.Destination.Action != rooms.InUseDetail {
+	if snap.Room.Destination.Status != rooms.InUseStatus || snap.Room.Destination.Action != "" {
 		t.Fatalf("foreign Pong copy: status=%q action=%q", snap.Room.Destination.Status, snap.Room.Destination.Action)
 	}
 	if strings.Contains(strings.ToLower(snap.HeaderHint()), "play") {
@@ -206,13 +206,18 @@ func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T)
 	if snap.Status != localInUseCopy {
 		t.Fatalf("A did not surface in-use copy: %q", snap.Status)
 	}
+	app.mu.Lock()
+	wasForeign := app.foreignKitLeaseLocked()
+	app.kitLease = KitLeaseStatus{State: "free"}
+	app.clearLeaseRefusalAfterTransitionLocked(wasForeign)
+	app.mu.Unlock()
+	if got := app.Snapshot().Status; got == localInUseCopy {
+		t.Fatalf("lease refusal stayed in status after lease release: %q", got)
+	}
 	if fake.launchCount() != 0 || snap.LocalCorePhase != "" {
 		t.Fatalf("foreign A launched core: launches=%d phase=%q", fake.launchCount(), snap.LocalCorePhase)
 	}
 
-	app.mu.Lock()
-	app.kitLease = KitLeaseStatus{State: "free"}
-	app.mu.Unlock()
 	snap = app.Snapshot()
 	if snap.Room.Destination.Status != "Ready to play." || snap.Room.Destination.Action != "Play" || snap.Room.Destination.Confirm() != rooms.ConfirmLaunchCore {
 		t.Fatalf("Pong did not become ready after lease free: %+v", snap.Room.Destination)
@@ -228,6 +233,18 @@ func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T)
 	app.HandleCommand(CmdSelect, time.Now())
 	if fake.launchCount() != 0 || app.Snapshot().Status != machineStatusUnknown {
 		t.Fatalf("unavailable lease A was not refused visibly: launches=%d status=%q", fake.launchCount(), app.Snapshot().Status)
+	}
+}
+
+func TestLeaseReleaseKeepsUnrelatedStatus(t *testing.T) {
+	app := &App{status: "Loading library", kitLeaseHave: true, kitLease: KitLeaseStatus{State: "held", Owner: "other"}}
+	app.mu.Lock()
+	wasForeign := app.foreignKitLeaseLocked()
+	app.kitLease = KitLeaseStatus{State: "free"}
+	app.clearLeaseRefusalAfterTransitionLocked(wasForeign)
+	app.mu.Unlock()
+	if got := app.status; got != "Loading library" {
+		t.Fatalf("unrelated status cleared on lease release: %q", got)
 	}
 }
 

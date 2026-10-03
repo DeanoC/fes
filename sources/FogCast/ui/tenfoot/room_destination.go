@@ -43,7 +43,7 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d.LeaseHeld = true
 			d.Availability = rooms.AvailUnavailable
 			d.Status = rooms.InUseStatus
-			d.Action = rooms.InUseDetail
+			d.Action = ""
 		case a.pairedKitStatusUnavailableLocked():
 			d.CoreLaunchable = false
 			d.CoreBlock = machineStatusUnknown
@@ -88,7 +88,7 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 }
 
 func kitDirectMatch(d rooms.Destination) (hostclient.Game, bool) {
-	if game, ok := d.Game(); ok && localCatalogPlayable(game) {
+	if game, ok := d.Game(); ok && game.LocalCatalogPlayable() {
 		return game, true
 	}
 	// Ready and Needs a choice already have a host play row. Do not scan
@@ -106,27 +106,11 @@ func kitDirectMatch(d rooms.Destination) (hostclient.Game, bool) {
 
 func localCatalogIn(games []hostclient.Game) (hostclient.Game, bool) {
 	for _, game := range games {
-		if localCatalogPlayable(game) {
+		if game.LocalCatalogPlayable() {
 			return game, true
 		}
 	}
 	return hostclient.Game{}, false
-}
-
-// localCatalogPlayable is a file that is on this machine and that the host
-// session will not launch. SMS is the cartridge the local socket accepts.
-// Anything the host can already launch keeps ConfirmLaunch.
-func localCatalogPlayable(game hostclient.Game) bool {
-	if game.HostOnly() || game.LaunchEligible() {
-		return false
-	}
-	if game.LaunchBlock() != hostclient.LaunchBrowseOnly {
-		return false
-	}
-	if !game.RootOnline || game.State != "available" {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(game.System), "sms")
 }
 
 func (a *App) pairedKitStatusUnavailableLocked() bool {
@@ -156,6 +140,7 @@ func (a *App) kitMutationBlockedLocked() bool {
 	}
 	if a.foreignKitLeaseLocked() {
 		a.status = localInUseCopy
+		a.statusLeaseRefusal = true
 		return true
 	}
 	return false
@@ -389,6 +374,7 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		a.status = dest.Status
 		if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
 			a.status = localInUseCopy
+			a.statusLeaseRefusal = true
 		}
 		a.openRoomDetailsLocked()
 		return true
@@ -509,6 +495,7 @@ func (a *App) openRoomDetailsLocked() {
 	}
 	if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
 		a.status = localInUseCopy
+		a.statusLeaseRefusal = true
 		return
 	}
 	a.status = dest.Status

@@ -778,8 +778,9 @@ func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
 
 func TestPairedKitLeaseIgnoresSelectedTargetBusyAndBlocksOwnForeignLease(t *testing.T) {
 	h := newRoomHost(t)
-	app := newRoomApp(t, h, rooms.NewIndex([]rooms.Pack{testRoomPack(t, "overworld", destRoomScript)}), true)
-	app.client.paired = true
+	// Pair the client before Start: the session poller reads client.paired
+	// from its own goroutine, so setting it afterwards is a data race.
+	app := newRoomApp(t, h, rooms.NewIndex([]rooms.Pack{testRoomPack(t, "overworld", destRoomScript)}), true, true)
 	app.mu.Lock()
 	app.healthHave = true
 	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "foreign-on-target-b"}

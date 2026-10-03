@@ -224,7 +224,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   kit-local control socket, shows "Starting {title}…", pauses presents so the
   core owns HDMI, and resumes them after Select+Start stop, or when that
   kit-local session is no longer running.
-  The CGO-free on-kit `fogcast-kit` shell can explicitly select the described
+  The CGO-free on-kit `fogcast-kit` grid plays available kit-local SMS rows
+  without the host through the local-control socket. A starts the cartridge;
+  Select+Start stops it and returns to the menu. The shell can select the described
   HDMI menu path with `menu_display: true` in `launcher.json` or
   `-menu-display`. It keeps the host-backed library, cached offline browsing,
   controller and session model and paints through the local runtime's sealed
@@ -243,7 +245,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   native agent backend, one locked idle RBF, and the selected Mega Drive RBF
   with optional sealed Pong, SNES and NES RBFs. FES integration can also add a
   selected set of validated format-2/3 packages (`fes.menu`, `fes.pong`,
-  `fes.zx81`, `fes.coleco`, and `fes.ramtest`) through the closed package selection described in [the
+  `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, and
+  `fes.ramtest`) through the closed package selection described in [the
   development guide](docs/DEVELOPMENT.md).
   Source-built Mega Drive selection is the native image default; use the
   explicit upstream selection for fallback. Its idle path and one-player Mega

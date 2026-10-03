@@ -9,7 +9,9 @@ import subprocess
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu')
+# Simulation families include the standalone CPU; it has no play-package recipe.
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80')
+SIMULATION_ONLY_CORES = frozenset({'z80'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 
 
@@ -79,6 +81,9 @@ def fpga_cores(path):
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
     if len(parts) >= 3 and parts[0] == 'cores':
+        if (len(parts) >= 4 and parts[1] == 'fes-common'
+                and parts[2] in ('rtl', 'sim') and parts[3] == 'z80'):
+            return ('z80',), 'standalone Z80 simulation; no production consumers'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
             return ('menu', 'zx81'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
@@ -92,12 +97,15 @@ def fpga_cores(path):
                 return SHARED_RTL[parts[3]], 'shared RTL consumers'
     if len(parts) == 2 and parts[0] == 'scripts':
         producer = any(parts[1] == f'build_fes_{core}{suffix}.py'
-                       for core in CORES for suffix in ('', '_oss'))
+                       for core in CORES if core not in SIMULATION_ONLY_CORES
+                       for suffix in ('', '_oss'))
         if producer or parts[1] in FPGA_PRODUCER_HELPERS:
             return (), 'FPGA producer/package software tests; RTL unchanged'
-        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py'):
-            core = 'menu' if parts[1] == 'sim_fes_menu.py' else 'demo'
+        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py'):
+            core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
+        if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py'):
+            return ('z80',), 'standalone Z80 diagnostic/qualification recipe'
         if parts[1] == 'sim_fes_zx81_session.py':
             return ('zx81',), 'ZX81 session-display simulation recipe'
         if parts[1] in APPLE2_SCRIPTS:

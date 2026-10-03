@@ -292,8 +292,9 @@ Tenfoot applies the paired kit-lease state to installed-core destinations as
 well as FPGA titles. On a paired kit, a foreign lease displays the shared
 in-use copy and refuses Confirm; unavailable lease status fails closed. Core
 cartridge and firmware blocks retain priority, and the destination returns to
-Ready when the lease state becomes free. Unpaired host connection state does
-not mark installed-core tiles in use.
+Ready when the lease state becomes free. A health update also clears refusal-owned
+status and library launch messages when a foreign lease ends, while preserving
+newer errors. Unpaired host connection state does not mark installed-core tiles in use.
 
 The dependency direction is host/UI/`catalog`/`internal/hostapi` -> public
 contracts and `targetclient`; the target executable -> target implementation
@@ -910,8 +911,8 @@ keys; Stop stays on the session chrome and the controller Select+Start chord.
 A `fes.keyboard` core maps those keys onto the ZX81 matrix. For exact
 `fes.coleco`, D-pad/left-stick and A/B events are mapped onto the Coleco P1
 keyboard bits while overlapping keyboard, D-pad, and axis holds remain joined.
-Exact `fes.sms` reuses that path for directions and A/Fire1 only; B does not
-provide SMS Fire2.
+Exact `fes.sms` and `fes.sg1000` reuse that path for directions and A/Fire1
+only; B does not provide Fire2.
 Native SNES/MD
 encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
 route them to `set_keyboard` and reconnect replay does not treat matrix codes
@@ -1158,10 +1159,9 @@ The only image variant is `native-dev`, which starts image-owned
 `mister-runtime` and `mister-agent`. It installs the locked splash/idle artifact
 and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
-`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest`. The selector supports nine IDs in total,
-also admitting `fes.sms`, `fes.sg1000`, `fes.c64` and `fes.spectrum`. These four
-remain package-only: the sealed additions exceed the 128 MiB rootfs limit and
-C64 has no current timing-passing HIP seal. The menu package is idle firmware,
+`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`,
+`fes.ramtest`. The selector also admits `fes.c64`, which stays out because it
+has no current timing-passing HIP seal. The menu package is idle firmware,
 not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
 exact-artifact kit evidence.
@@ -2139,7 +2139,11 @@ bits are Up, Down, Left, Right, A, B, Select, Start; keypad bits are 0–9, `*`,
 The runtime validates the complete request and owns the physical GP writes.
 The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 0600),
 not another network endpoint, and there is no additional virtual-device discovery rule.
-Other cores retain the single virtual gamepad and keyboard sink.
+For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
+1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
+onto that keyboard matrix. The keyboard sink unions local and remote holds;
+local pad frames do not also enter the virtual gamepad. Other cores retain the
+single virtual gamepad and keyboard sink.
 Installed-core control is a separate root-only HTTP socket at
 `/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
 packages and, when the kit lease is free, launches one that needs no cartridge
