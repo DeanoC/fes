@@ -92,6 +92,33 @@ func TestFallbackUsesRebootWhenSysrqPathMissing(t *testing.T) {
 	}
 }
 
+// A trigger path that passes -w but whose write fails (a directory) must
+// still fall through to reboot -nf.
+func TestFallbackUsesRebootWhenSysrqWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "rebooted")
+	reboot := filepath.Join(dir, "reboot")
+	if err := os.WriteFile(reboot, []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" > "+marker+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sysrq := filepath.Join(dir, "sysrq-dir")
+	if err := os.Mkdir(sysrq, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("/bin/sh", "-c", fallbackScript, "fes-reboot-fallback", "1", "3", "1", dir, reboot, "1", sysrq)
+	start := time.Now()
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("fallback: %v: %s", err, output)
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Fatalf("failed sysrq write delayed fallback: %s", time.Since(start))
+	}
+	got, err := os.ReadFile(marker)
+	if err != nil || strings.TrimSpace(string(got)) != "-nf" {
+		t.Fatalf("reboot args %q %v", got, err)
+	}
+}
+
 func TestFallbackWaitsForProgressingIOUntilDeadline(t *testing.T) {
 	if took := runFallback(t, 2, 5, true); took < 5*time.Second || took > 8*time.Second {
 		t.Fatalf("progressing shutdown: forced reset after %s, want the 5 s hard deadline", took)
