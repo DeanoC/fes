@@ -12,7 +12,7 @@ import (
 )
 
 func TestFetchHealthClearsOnlyLeaseRefusals(t *testing.T) {
-	for _, path := range []string{"status", "launch", "new identical status"} {
+	for _, path := range []string{"status", "launch", "launch failure", "new identical status"} {
 		t.Run(path, func(t *testing.T) {
 			var free atomic.Bool
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,13 +47,26 @@ func TestFetchHealthClearsOnlyLeaseRefusals(t *testing.T) {
 				if path == "new identical status" {
 					app.failLocalCoreLocked(localcores.ErrInUse, "")
 				}
-			case "launch":
+			case "launch", "launch failure":
 				app.startLaunchGameLocked(hostclient.Game{ID: "test-game", Title: "Test", State: "available", RootOnline: true})
-				if app.launch.Message != localInUseCopy {
-					t.Fatalf("launch refusal = %q", app.launch.Message)
+				if path == "launch" {
+					if app.launch.Message != localInUseCopy {
+						t.Fatalf("launch refusal = %q", app.launch.Message)
+					}
+				} else {
+					app.launch.Phase = "error"
+					app.launch.Message = "unrelated launch failure"
+					app.launchLeaseRefusal = false
 				}
 			}
 			app.mu.Unlock()
+			if path == "launch" {
+				before := app.Snapshot()
+				before.Room.Open = true
+				if !launchOverlayVisible(before) {
+					t.Fatal("launch refusal did not show its overlay before lease release")
+				}
+			}
 			free.Store(true)
 			app.fetchHealth(t.Context())
 			snap := app.Snapshot()
@@ -67,8 +80,17 @@ func TestFetchHealthClearsOnlyLeaseRefusals(t *testing.T) {
 			} else if snap.Status == localInUseCopy {
 				t.Fatalf("lease refusal stayed visible after health transition: %q", snap.Status)
 			}
-			if path == "launch" && snap.Launch.Message != "" {
+			if path == "launch" && (snap.Launch.Message != "" || snap.Launch.Phase != "idle") {
 				t.Fatalf("launch refusal remained: %+v", snap.Launch)
+			}
+			if path == "launch" {
+				snap.Room.Open = true
+				if launchOverlayVisible(snap) {
+					t.Fatalf("launch refusal overlay remained visible: %+v", snap.Launch)
+				}
+			}
+			if path == "launch failure" && (snap.Launch.Message != "unrelated launch failure" || snap.Launch.Phase != "error") {
+				t.Fatalf("unrelated launch failure was cleared: %+v", snap.Launch)
 			}
 		})
 	}

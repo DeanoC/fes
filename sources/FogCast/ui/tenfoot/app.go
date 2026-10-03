@@ -2621,6 +2621,7 @@ func (a *App) clearLeaseRefusalAfterTransitionLocked(wasForeign bool) {
 	a.statusLeaseRefusal = false
 	if a.launchLeaseRefusal {
 		a.launch.Message = ""
+		a.launch.Phase = "idle"
 		a.launchLeaseRefusal = false
 	}
 }
