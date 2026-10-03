@@ -4104,7 +4104,7 @@ test('attract idle hydrates from settings before the first timer is armed', asyn
   assert.equal(idleDelays.includes(12000), true, JSON.stringify(idleDelays));
 });
 
-test('stale settings GET does not overwrite typed fields', async () => {
+test('settings GET fills untouched fields without overwriting typed fields', async () => {
   let releaseGet;
   const held = new Promise(resolve => { releaseGet = resolve; });
   let settingsGets = 0;
@@ -4121,6 +4121,7 @@ test('stale settings GET does not overwrite typed fields', async () => {
   document.nodes.get('settings-attract-idle').value = '12';
   document.nodes.get('settings-preferred-regions').value = 'japan';
   document.nodes.get('settings-attract-idle').dispatchEvent({ type: 'input' });
+  document.nodes.get('settings-preferred-regions').dispatchEvent({ type: 'input' });
   releaseGet();
   await opening;
   await settleBrowser();

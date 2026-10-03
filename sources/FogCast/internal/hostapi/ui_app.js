@@ -3196,6 +3196,8 @@
   let forceKeyboardRestore = false;
   let settingsGeneration = 0;
   let settingsCleanGeneration = 0;
+  let settingsLoadToken = 0;
+  const settingsTouched = new Set();
   let settingsSelectedTargetRow = null;
   let searchTimer = null;
   let attractIdleHydrated = false;
@@ -5129,6 +5131,11 @@
     return settingsGeneration;
   }
 
+  function touchSettings(section) {
+    settingsTouched.add(section);
+    bumpSettingsGeneration();
+  }
+
   function settingsRequestExpired(generation) {
     return generation !== settingsGeneration || !settingsIsOpen();
   }
@@ -5144,7 +5151,7 @@
   function removeSettingsRow(container, row) {
     if (!container || !row) return;
     container.replaceChildren(...Array.from(container.children).filter(child => child !== row));
-    bumpSettingsGeneration();
+    touchSettings(container === nodes.settingsLibraries ? 'libraries' : 'targets');
   }
 
   function renderLibraryRow(library, systems) {
@@ -5165,8 +5172,8 @@
     const remove = element('button', 'button secondary compact settings-remove', 'Remove');
     remove.type = 'button';
     remove.addEventListener('click', () => removeSettingsRow(nodes.settingsLibraries, row));
-    system.addEventListener('change', bumpSettingsGeneration);
-    root.addEventListener('input', bumpSettingsGeneration);
+    system.addEventListener('change', () => touchSettings('libraries'));
+    root.addEventListener('input', () => touchSettings('libraries'));
     row._fogcastFields = { system, root };
     row.appendChild(settingsField('System', system));
     row.appendChild(settingsField('Folder', root));
@@ -5242,16 +5249,16 @@
       } else {
         settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
       }
-      bumpSettingsGeneration();
+      touchSettings('targets');
     });
-    address.addEventListener('input', bumpSettingsGeneration);
+    address.addEventListener('input', () => touchSettings('targets'));
     row._fogcastAgentDirty = false;
     row._fogcastAgentClear = false;
     agent.addEventListener('input', () => {
       row._fogcastAgentDirty = agent.value !== '';
       row._fogcastAgentClear = false;
       clearAgent.textContent = 'Clear agent';
-      bumpSettingsGeneration();
+      touchSettings('targets');
     });
     clearAgent.addEventListener('click', () => {
       row._fogcastAgentClear = !row._fogcastAgentClear;
@@ -5259,9 +5266,9 @@
       agent.value = '';
       agent.placeholder = row._fogcastAgentClear ? 'Will clear' : 'Stored';
       clearAgent.textContent = row._fogcastAgentClear ? 'Keep agent' : 'Clear agent';
-      bumpSettingsGeneration();
+      touchSettings('targets');
     });
-    enabled.addEventListener('change', bumpSettingsGeneration);
+    enabled.addEventListener('change', () => touchSettings('targets'));
     const prepare = element('button', 'button secondary compact settings-prepare', target && target.target_id ? 'Identity ready' : 'Prepare identity');
     prepare.type = 'button';
     prepare.disabled = Boolean(target && target.target_id);
@@ -5302,7 +5309,7 @@
     const settings = controller.getState().librarySettings;
     const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
     nodes.settingsLibraries.appendChild(renderLibraryRow({}, systems));
-    bumpSettingsGeneration();
+    touchSettings('libraries');
   }
 
   function addTargetSettingsRow() {
@@ -5318,35 +5325,40 @@
     row._fogcastOriginalName = '';
     nodes.settingsTargets.appendChild(row);
     refreshSelectedTargetOptions(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
-    bumpSettingsGeneration();
+    touchSettings('targets');
   }
 
-  function fillSettingsForm(settings) {
-    if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.value = (settings && settings.video_profile) || 'direct';
-    if (nodes.settingsAttractIdle) {
+  function fillSettingsForm(settings, preserveTouched = false) {
+    const untouched = section => !preserveTouched || !settingsTouched.has(section);
+    if (nodes.settingsVideoProfile && untouched('video')) nodes.settingsVideoProfile.value = (settings && settings.video_profile) || 'direct';
+    if (nodes.settingsAttractIdle && untouched('attract')) {
       nodes.settingsAttractIdle.value = String((settings && settings.attract_idle_seconds) || state.attractIdleSeconds || 60);
     }
-    if (nodes.settingsPreferredRegions) {
+    if (nodes.settingsPreferredRegions && untouched('regions')) {
       const regions = settings && Array.isArray(settings.preferred_regions) ? settings.preferred_regions : [];
       nodes.settingsPreferredRegions.value = regions.join(', ');
     }
     const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
-    if (nodes.settingsLibraries) {
+    if (nodes.settingsLibraries && untouched('libraries')) {
       const libraries = settings && Array.isArray(settings.libraries) ? settings.libraries : [];
       nodes.settingsLibraries.replaceChildren(...libraries.map(library => renderLibraryRow(library, systems)));
     }
-    if (nodes.settingsTargets) {
+    if (nodes.settingsTargets && untouched('targets')) {
       const targets = settings && Array.isArray(settings.targets) ? settings.targets : [];
       settingsSelectedTargetRow = null;
       nodes.settingsTargets.replaceChildren(...targets.map(renderTargetRow));
     }
-    refreshSelectedTargetOptions(settings && settings.selected_target);
+    if (untouched('targets')) {
+      const selected = untouched('selectedTarget') ? settings && settings.selected_target : nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value;
+      refreshSelectedTargetOptions(selected);
+    }
     settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
     if (nodes.settingsHostHealth) {
       nodes.settingsHostHealth.textContent = nodes.health ? nodes.health.textContent : '';
     }
     if (nodes.settingsMessage) nodes.settingsMessage.textContent = '';
-	settingsCleanGeneration = settingsGeneration;
+    if (!preserveTouched || settingsTouched.size === 0) settingsCleanGeneration = settingsGeneration;
+    if (!preserveTouched) settingsTouched.clear();
   }
 
   async function openSettings() {
@@ -5357,27 +5369,30 @@
     setSettingsChromeInert(true);
     keyboardPane = 'settings';
     writePaneAttribute();
-    const generation = bumpSettingsGeneration();
+    bumpSettingsGeneration();
+    settingsTouched.clear();
+    const loadToken = ++settingsLoadToken;
     resetAttractTimer();
     try {
       await controller.loadSettings();
-      if (settingsRequestExpired(generation)) return;
-      fillSettingsForm(controller.getState().librarySettings);
+      if (loadToken !== settingsLoadToken || !settingsIsOpen()) return;
+      fillSettingsForm(controller.getState().librarySettings, true);
       if (nodes.saveSettings) nodes.saveSettings.disabled = false;
     } catch (error) {
-      if (settingsRequestExpired(generation)) return;
-      fillSettingsForm(null);
+      if (loadToken !== settingsLoadToken || !settingsIsOpen()) return;
+      fillSettingsForm(null, true);
       if (nodes.saveSettings) nodes.saveSettings.disabled = true;
       if (nodes.settingsMessage) {
         nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');
       }
     }
-    if (settingsRequestExpired(generation)) return;
+    if (loadToken !== settingsLoadToken || !settingsIsOpen()) return;
     forceKeyboardRestore = true;
     restoreKeyboardFocus();
   }
 
   function closeSettings() {
+    settingsLoadToken += 1;
     bumpSettingsGeneration();
     if (nodes.settings) nodes.settings.hidden = true;
     setSettingsChromeInert(false);
@@ -5900,11 +5915,11 @@
   if (nodes.addTarget) nodes.addTarget.addEventListener('click', addTargetSettingsRow);
   if (nodes.settingsSelectedTarget) nodes.settingsSelectedTarget.addEventListener('change', () => {
     settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget.value);
-    bumpSettingsGeneration();
+    touchSettings('selectedTarget');
   });
-  if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', bumpSettingsGeneration);
-  if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', bumpSettingsGeneration);
-  if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.addEventListener('change', bumpSettingsGeneration);
+  if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', () => touchSettings('attract'));
+  if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', () => touchSettings('regions'));
+  if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.addEventListener('change', () => touchSettings('video'));
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keyup', event => {
       if (keyboardCapture.active) forwardCapturedKey(event, false);

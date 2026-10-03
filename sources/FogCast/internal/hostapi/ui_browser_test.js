@@ -513,6 +513,58 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
       });
     });
 
+    await t.test('editing during a held settings load keeps the edit and enables Save', async () => {
+      await runScenario(harness, 'settings-edit-during-load', basePlan({
+        settingsLoads: [
+          fixture('catalog-empty.json', 200, { override: { attract_idle_seconds: 60 } }),
+          fixture('catalog-empty.json', 200, { hold: true, override: {
+            attract_idle_seconds: 42, preferred_regions: ['usa', 'japan'], video_profile: 'scanlines',
+          } }),
+        ],
+      }), async () => {
+        await harness.click('#open-settings');
+        const load = await harness.waitForRequest({ method: 'GET', path: '/api/v1/library/settings', status: null });
+        await harness.evaluate(`(() => {
+          const regions = document.querySelector('#settings-preferred-regions');
+          regions.value = 'europe';
+          regions.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await harness.release(load.id);
+        await harness.waitForSnapshot(snapshot => !snapshot.settingsHidden
+          && snapshot.settingsAttract === '42' && snapshot.settingsRegions === 'europe');
+        assert.deepEqual(await harness.evaluate(`(() => ({
+          saveEnabled: !document.querySelector('#save-settings').disabled,
+          video: document.querySelector('#settings-video-profile').value,
+        }))()`), { saveEnabled: true, video: 'scanlines' });
+      });
+    });
+
+    await t.test('a held settings load failure remains visible after an edit', async () => {
+      await runScenario(harness, 'settings-failure-after-edit', basePlan({
+        settingsLoads: [
+          fixture('catalog-empty.json', 200),
+          fixture('catalog-empty.json', 503, { hold: true, override: {
+            error: { code: 'INTERNAL', message: 'Library settings could not be loaded.' },
+          } }),
+        ],
+      }), async () => {
+        await harness.click('#open-settings');
+        const load = await harness.waitForRequest({ method: 'GET', path: '/api/v1/library/settings', status: null });
+        await harness.evaluate(`(() => {
+          const regions = document.querySelector('#settings-preferred-regions');
+          regions.value = 'europe';
+          regions.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await harness.release(load.id);
+        await harness.waitForSnapshot(snapshot => !snapshot.settingsHidden
+          && snapshot.settingsMessage === 'Library settings could not be loaded.');
+        assert.deepEqual(await harness.evaluate(`(() => ({
+          saveDisabled: document.querySelector('#save-settings').disabled,
+          regions: document.querySelector('#settings-preferred-regions').value,
+        }))()`), { saveDisabled: true, regions: 'europe' });
+      });
+    });
+
     await t.test('settings Save stays disabled when household settings fail to load', async () => {
       await runScenario(harness, 'settings-save-disabled-after-load-failure', basePlan({
         settingsLoads: [
