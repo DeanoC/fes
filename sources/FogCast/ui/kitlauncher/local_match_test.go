@@ -379,6 +379,15 @@ func TestSMSHashFillCancellationLeavesUnattemptedRowsEligible(t *testing.T) {
 	}, store, rows)
 	<-firstDone
 	<-secondDone
+	// Wait for the last digest write: RememberROMHash holds the store lock
+	// through the atomic file write, so the value is visible only after it.
+	deadline := time.Now().Add(5 * time.Second)
+	for store.ROMHash(rows[2].ID) != strings.Repeat("cd", 32) {
+		if time.Now().After(deadline) {
+			t.Fatal("second fill did not store the last digest")
+		}
+		time.Sleep(time.Millisecond)
+	}
 	fill.stop()
 	mu.Lock()
 	defer mu.Unlock()
