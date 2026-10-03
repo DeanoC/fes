@@ -7,13 +7,14 @@ import io
 import json
 from pathlib import Path
 import re
+import shutil
 import sys
 import tarfile
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_coleco_sgm as sgm, build_fes_coleco_socket_v2 as shell_recipe
-from scripts import coleco_expansion, video_parts, native_video_parts
+from scripts import coleco_expansion, video_parts, native_video_parts, native_video_clock
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import _prepare_output, _require_clean_source, _run_tool, _write_atomic
@@ -31,8 +32,9 @@ NATIVE_SOURCES = ("cores/fes-common/rtl/fes_native_video_cart.v",
                   "cores/fes-common/rtl/fes_native_video.v",
                   "cores/fes-common/rtl/coleco_video_dpram.v")
 NATIVE_INPUTS = (*NATIVE_SOURCES, "cores/fes-common/generated/fes_native_video.vh",
-                 "scripts/build_video_part.py", "scripts/native_video_parts.py", *sgm.INPUTS)
-OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
+                 "scripts/build_video_part.py", "scripts/native_video_parts.py",
+                 "scripts/native_video_clock.py", *sgm.INPUTS)
+OUTPUTS = ("cart.json", "cart-synth.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
            "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
            "scaffold.json", "cart.qsf", "cram-diff.json")
 
@@ -173,6 +175,7 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
              "--rbf", str(output / "cart.rbf"), "--compress-rbf",
              "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")),
         )
+        clock_boundary = None
         for name, command in zip(("synthesis", "route"), commands):
             _run_tool(command, root, output / (name + ".log"), env=invocation.env,
                       audit_source_root=root, output_relative=relative)
@@ -181,6 +184,12 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
             required = ("cart.json",) if name == "synthesis" else ("cart.rbf", "cart-routed.json", "timing.json")
             for member in required:
                 require_output(output / member, 32 * 1024 * 1024 if member.endswith(".rbf") else 128 * 1024 * 1024)
+            if native and name == "synthesis":
+                # The packed importer removes transparent clock buffers. Its
+                # M10K second port needs the declared input-buffer net so both
+                # RAM clocks resolve to the same imported pixel clock.
+                shutil.copyfile(output / "cart.json", output / "cart-synth.json")
+                clock_boundary = native_video_clock.prepare_native_clock(output / "cart.json")
         route_text = (output / "route.log").read_text()
         if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
             raise ValueError("video route log does not prove a complete routed design")
@@ -230,6 +239,7 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
             {"recipe": recipe, "part_id": part_id,
                 "manifest": manifest, "cram_diff": changes, "checked_clock_pins": checked_clocks,
                 "timing": measured, "resources": resources, "synthesis_cells": synthesis_counts,
+                **({"native_clock_boundary": clock_boundary} if native else {}),
                 "route": {"complete": True, "gpu_backend": gpu_backend}}, layout=layout)
     finally:
         invocation.close()

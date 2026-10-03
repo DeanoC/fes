@@ -21,11 +21,11 @@ FPGA_SOFTWARE_TESTS = (
     'test_source_provenance.py', 'test_source_repository.py',
     'test_core_package.py', 'test_core_package_v3.py', 'test_search_placer_qor.py',
     'test_coleco_sim_shards.py', 'test_rom_map.py', 'test_video_parts_build.py',
-    'test_native_video_parts.py', 'test_native_video_build.py',
+    'test_native_video_parts.py', 'test_native_video_build.py', 'test_native_video_clock.py',
 )
 FPGA_PRODUCER_HELPERS = {
     'synth_fes_native_video.py', 'build_fes_coleco_socket_v2.py',
-    'build_video_part.py', 'video_parts.py', 'native_video_parts.py',
+    'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',

@@ -255,14 +255,14 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage& base, const CoreCompositionRequest& request,
 	OpenedCoreComposition* output) {
 	const auto& descriptor = base.descriptor;
-	bool video = false, native_video = false, cpu = false;
+	bool video = false, native_pixels = false, cpu = false;
 	unsigned video_count = 0, cpu_count = 0;
 	for (const auto& interface : descriptor.interfaces) {
 		if (interface.id == "fes.fabric.video.raster-rgb888" ||
 			interface.id == "fes.fabric.video.native-pixels") {
 			++video_count;
 			video = !interface.required && interface.major == 1 && interface.minor == 0;
-			native_video = interface.id == "fes.fabric.video.native-pixels";
+			native_pixels = interface.id == "fes.fabric.video.native-pixels";
 		}
 		if (interface.id == "fes.expansion.coleco-bus") {
 			++cpu_count;
@@ -273,9 +273,9 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 		descriptor.abi.id != "fes.application" || descriptor.abi.major != 1 ||
 		descriptor.abi.minor != 0 || !video || !cpu || video_count != 1 || cpu_count != 1)
 		return Invalid("parts require the declared Coleco video developer shell");
-	const char* video_slot = native_video ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888";
-	const char* video_map = native_video ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
-	const char* layout = native_video ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
+	const char* video_slot = native_pixels ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888";
+	const char* video_map = native_pixels ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
+	const char* layout = native_pixels ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
 	const auto& info = request.composition;
 	if (!request.expansion_path.empty() || !request.expansions.empty() ||
 		!info.expansion_id.empty() || !info.expansions.empty() ||

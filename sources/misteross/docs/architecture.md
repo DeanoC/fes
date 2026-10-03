@@ -573,6 +573,15 @@ delivery; a required direct or scanline video part owns frame capture and
 developer assets use the existing archive grammar and exact-shell bindings;
 factory publication and household profile selection remain on raster.
 
+The pinned frozen importer removes transparent cart clock buffers but does not
+reconnect an SDP M10K's second clock through their aliases. The native producer
+therefore proves every FF/RAM clock traces through only transparent buffers to
+the declared input buffer, then uses that imported net for all clock pins.
+RAM modes, write enables and data paths remain identical. `cart-synth.json`
+retains the original synthesis output; the build summary binds both netlist
+hashes and clock-pin counts. Routed validation still requires every active
+part clock pin to use `pixel_clk` before a part can be published.
+
 The [shared fabric contract](../../mister-packages/docs/video-parts.md)
 defines RGB888, DE/HS/VS, pixel enable, start-of-frame, end-of-line, HOLD
 and a required-zero reserved bit. In the raster layout all video logic uses
@@ -612,7 +621,7 @@ digest/size. Compiler evidence and the frozen routed netlist remain in host
 caches; they are not installed on the target. Reuse validates the current
 functional inputs and original provenance, then independently checks the
 configuration header, actual CRAM fence, timing and clock/resource ownership.
-Native raster capture, DDR scanout, overlays, variable modes and audio parts
+Other native geometries, DDR scanout, overlays, variable modes and audio parts
 remain subsequent work.
 
 The `expansion` Go module also provides `LinkROM` and the standalone
