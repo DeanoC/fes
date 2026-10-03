@@ -285,6 +285,121 @@ func TestRunLocalStateTransitions(t *testing.T) {
 	}
 }
 
+func TestImmediateHostLaunchErrorRepausesOnLateActive(t *testing.T) {
+	transitionClock(t)
+	var sessionReads, presents, pauses, resumes atomic.Int64
+	var launchFailed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			sessionReads.Add(1)
+			if !launchFailed.Load() {
+				_, _ = w.Write([]byte(`{"state":"idle"}`))
+			} else {
+				_, _ = w.Write([]byte(`{"state":"active","game_id":"pong"}`))
+			}
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","state":"available","root_online":true,"launchable":true}]}`))
+		case "/api/v1/session/launch":
+			launchFailed.Store(true)
+			http.Error(w, "launch failed", http.StatusBadGateway)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	c := NewClient(Config{API: server.URL, MenuDisplay: true})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	pad := &transitionPad{}
+	var last Model
+	var presentsAtSecondPause atomic.Int64
+	var recordedSecondPause atomic.Bool
+	launcherObserve = func(m Model) {
+		last = m
+		if m.Session.State == "active" {
+			cancel()
+		}
+	}
+	c.SetMenuDisplayHandoff(func(context.Context) error {
+		if pauses.Add(1) == 2 {
+			presentsAtSecondPause.Store(presents.Load())
+			recordedSecondPause.Store(true)
+		}
+		return nil
+	}, func() { resumes.Add(1) })
+	pad.ready = func() bool { return len(last.Games) > 0 && last.Session.State == "idle" }
+	if err := Run(ctx, c, func(Model) { presents.Add(1) }, func() (Pad, error) { return pad, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if last.Session.State != "active" || pauses.Load() != 2 || resumes.Load() != 1 || !recordedSecondPause.Load() {
+		t.Fatalf("late active not safely adopted: state=%q pauses=%d resumes=%d", last.Session.State, pauses.Load(), resumes.Load())
+	}
+	before := presentsAtSecondPause.Load()
+	if presents.Load() != before {
+		t.Fatalf("menu presented after second pause returned: %d -> %d", before, presents.Load())
+	}
+}
+
+func TestImmediateHostLaunchErrorRePauseFailureKeepsSessionIdle(t *testing.T) {
+	transitionClock(t)
+	var presents, pauses, resumes atomic.Int64
+	var launchFailed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			if launchFailed.Load() {
+				_, _ = w.Write([]byte(`{"state":"active","game_id":"pong"}`))
+			} else {
+				_, _ = w.Write([]byte(`{"state":"idle"}`))
+			}
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","state":"available","root_online":true,"launchable":true}]}`))
+		case "/api/v1/session/launch":
+			launchFailed.Store(true)
+			http.Error(w, "launch failed", http.StatusBadGateway)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	c := NewClient(Config{API: server.URL, MenuDisplay: true})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	pad := &transitionPad{}
+	var last Model
+	var sawRepauseFailure atomic.Bool
+	var activeObserved atomic.Bool
+	launcherObserve = func(m Model) {
+		last = m
+		if m.Session.State == "active" {
+			activeObserved.Store(true)
+		}
+	}
+	c.SetMenuDisplayHandoff(func(context.Context) error {
+		count := pauses.Add(1)
+		if count >= 2 {
+			sawRepauseFailure.Store(true)
+			if count == 3 {
+				cancel()
+			}
+			return errors.New("repause failed")
+		}
+		return nil
+	}, func() { resumes.Add(1) })
+	pad.ready = func() bool { return len(last.Games) > 0 && last.Session.State == "idle" }
+	if err := Run(ctx, c, func(Model) { presents.Add(1) }, func() (Pad, error) { return pad, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if last.Session.State != "idle" || activeObserved.Load() || resumes.Load() != 1 || pauses.Load() != 3 || !sawRepauseFailure.Load() {
+		t.Fatalf("failed repause exposed active session or did not retry: state=%q pauses=%d resumes=%d", last.Session.State, pauses.Load(), resumes.Load())
+	}
+}
+
 func TestRunHostHandoffFailureOrdering(t *testing.T) {
 	for _, pauseFails := range []bool{false, true} {
 		t.Run(map[bool]string{false: "immediate_reject", true: "pause_failure"}[pauseFails], func(t *testing.T) {

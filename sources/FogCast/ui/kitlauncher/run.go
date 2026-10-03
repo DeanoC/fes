@@ -694,25 +694,24 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			})
 			if !localRunning && !localPending {
 				wasLoading := m.Session.State == "launching"
+				if o.session.State == "active" && c.menuDisplay && !menuPaused {
+					pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+					pauseErr := c.menuPause(pauseCtx)
+					pauseCancel()
+					if pauseErr != nil {
+						// Do not expose an active game while menu scanout may continue.
+						m.Session.State = "idle"
+						m.Busy = false
+						continue
+					}
+					menuPaused = true
+				}
 				if hostTimedOut && o.session.State == "launching" {
 					// Continue reconciling quietly after visible timeout.
 				} else {
 					m.Session = applyObservedSession(m.Session, o.session)
 				}
 				if m.Session.State == "active" {
-					wasTimedOut := hostTimedOut
-					if wasTimedOut && c.menuDisplay {
-						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
-						pauseErr := c.menuPause(pauseCtx)
-						pauseCancel()
-						if pauseErr != nil {
-							// Do not expose an active game while menu scanout may continue.
-							m.Session.State = "idle"
-							m.Busy = false
-							continue
-						}
-						menuPaused = true
-					}
 					hostTimedOut = false
 					m.Busy = false
 					m.LoadStarted = time.Time{}

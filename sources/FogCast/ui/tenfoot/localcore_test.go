@@ -333,6 +333,57 @@ func TestROMLaunchErrorAdoptsLateRunning(t *testing.T) {
 	}
 }
 
+func TestAmbiguousLocalLaunchDeadlineReturnsToMenuAndKeepsReconciling(t *testing.T) {
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusErr: errors.New("status unavailable")}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.mu.Lock()
+	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
+	app.mu.Unlock()
+	waitFor(t, app, "ambiguous launch", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.localReconcileAfterFailure && !app.localReconcileDeadline.IsZero() && fake.statusCount() > 0
+	})
+	app.mu.Lock()
+	deadline := app.localReconcileDeadline
+	app.mu.Unlock()
+	app.Tick(deadline.Add(time.Nanosecond))
+	snap := app.Snapshot()
+	if snap.LocalCorePhase != "" || snap.LocalCorePresentsPaused || !strings.Contains(snap.Status, "core did not confirm it started") {
+		t.Fatalf("deadline did not return to menu with failure copy: %+v", snap)
+	}
+
+	fake.mu.Lock()
+	fake.statusErr = nil
+	fake.status = localcores.RunStatus{Phase: "running", Running: true}
+	fake.statusSet = true
+	fake.mu.Unlock()
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(deadline.Add(localStatusEvery + time.Second))
+	late := waitFor(t, app, "late running after deadline", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
+	if !late.LocalCorePresentsPaused {
+		t.Fatal("late running core was adopted without pausing menu presents")
+	}
+}
+
+func TestAmbiguousLocalLaunchRunningBeforeDeadline(t *testing.T) {
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusQueue: []localcores.RunStatus{{Phase: "running", Running: true}}}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.mu.Lock()
+	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
+	app.mu.Unlock()
+	snap := waitFor(t, app, "running before reconciliation deadline", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
+	if !snap.LocalCorePresentsPaused {
+		t.Fatal("running core was not adopted with menu presents paused")
+	}
+}
+
 func TestROMLaunchErrorLateIdleClearsOnce(t *testing.T) {
 	fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "idle"}}}
 	app := NewApp(nil, 1280, 720, 50)

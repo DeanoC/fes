@@ -543,6 +543,7 @@ type App struct {
 	localContent               func(context.Context, string) (string, error)
 	localPhase                 string
 	localReconcileAfterFailure bool
+	localReconcileDeadline     time.Time
 	localTitle                 string
 	localStartedAt             time.Time
 	localStatus                string

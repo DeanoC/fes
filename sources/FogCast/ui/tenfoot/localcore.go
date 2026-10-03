@@ -32,7 +32,8 @@ const (
 	localChordHold          = time.Second
 	// localStatusEvery is the fastest the running-phase status poll runs.
 	// The client's own timeout is 3s, so the poll never runs under a.mu.
-	localStatusEvery = time.Second
+	localStatusEvery      = time.Second
+	localReconcileTimeout = 30 * time.Second
 )
 
 // localPadSender is the kit-local input socket. *localfeed.Feed implements it.
@@ -319,6 +320,7 @@ func (a *App) reconcileLocalLaunchErrorLocked(err error, block string) {
 	// Even a rejected response can follow a completed runtime mutation.
 	// Retain ownership until status says running or idle.
 	a.localReconcileAfterFailure = true
+	a.localReconcileDeadline = time.Now().Add(localReconcileTimeout)
 	a.localStatus = localCoreFailureCopy(err, block)
 	a.status = a.localStatus
 	a.localStatusNext = time.Time{}
@@ -372,6 +374,7 @@ func localCartridgeCore(system string) string {
 func (a *App) failLocalCoreLocked(err error, block string) {
 	a.localLaunchPending = nil
 	a.localReconcileAfterFailure = false
+	a.localReconcileDeadline = time.Time{}
 	a.localPhase = ""
 	a.localStartedAt = time.Time{}
 	a.localPresentsPaused = false
@@ -448,6 +451,7 @@ func (a *App) beginLocalStopLocked() {
 func (a *App) finishLocalCoreLocked() {
 	a.localLaunchPending = nil
 	a.localReconcileAfterFailure = false
+	a.localReconcileDeadline = time.Time{}
 	a.localPhase = ""
 	a.localPresentsPaused = false
 	if a.status == a.localStatus {
@@ -466,6 +470,15 @@ func (a *App) finishLocalCoreLocked() {
 
 func (a *App) tickLocalCoreLocked(now time.Time) {
 	a.pollLocalStatusLocked(now)
+	if a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure && !a.localReconcileDeadline.IsZero() && !now.Before(a.localReconcileDeadline) {
+		a.localPhase = ""
+		a.localStartedAt = time.Time{}
+		a.localPresentsPaused = false
+		a.localStatus = "The core did not confirm it started."
+		a.status = a.localStatus
+		a.roomWasParked = true
+		a.localRedraw++
+	}
 	if (a.localPhase != localPhaseRunning && a.localPhase != localPhaseLaunching) || a.localChordFired || a.localChordSince.IsZero() {
 		return
 	}
@@ -484,7 +497,7 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 // At most one poll is in flight, and it is not called under a.mu: Status can
 // take the client's 3s timeout. Only an explicit idle phase resumes presents.
 func (a *App) pollLocalStatusLocked(now time.Time) {
-	if (a.localPhase != localPhaseRunning && !(a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure)) || a.localStatusBusy || a.localCores == nil {
+	if (a.localPhase != localPhaseRunning && !(a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == ""))) || a.localStatusBusy || a.localCores == nil {
 		return
 	}
 	if !a.localStatusNext.IsZero() && now.Before(a.localStatusNext) {
@@ -500,12 +513,19 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		a.localStatusBusy = false
-		if err != nil || a.localGen != gen || a.localStatusEpoch != epoch || (a.localPhase != localPhaseRunning && !(a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure)) {
+		if err != nil || a.localGen != gen || a.localStatusEpoch != epoch || (a.localPhase != localPhaseRunning && !(a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == ""))) {
 			return
 		}
-		if status.Phase == "running" && a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure {
+		if status.Phase == "running" && a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "") {
+			wasReturnedToMenu := a.localPhase == ""
 			a.localReconcileAfterFailure = false
 			a.localPhase = localPhaseRunning
+			if wasReturnedToMenu {
+				// The deadline released the menu for presentation. Re-establish
+				// the normal launch handoff before exposing the late running core.
+				a.localPresentsPaused = true
+			}
+			a.localReconcileDeadline = time.Time{}
 			a.localStartedAt = time.Time{}
 			if a.status == a.localStatus {
 				a.status = ""
@@ -524,6 +544,7 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 		if status.Phase == "idle" {
 			wasAmbiguous := a.localReconcileAfterFailure
 			a.localReconcileAfterFailure = false
+			a.localReconcileDeadline = time.Time{}
 			if wasAmbiguous {
 				a.localPhase = ""
 				a.localPresentsPaused = false
