@@ -321,8 +321,8 @@ NATIVE_RUNTIME_MODE=package-only \
 # the new package and refreshes its source notice only after preparation.
 old_ramtest_id=$(printf '%064d' 0 | tr 0 e)
 old_notice=$target/usr/share/mister-runtime/core-notices/fes.ramtest/$old_ramtest_id/SOURCE.md
-package_fixture ramtest f
-new_ramtest_id=$(printf '%064d' 0 | tr 0 f)
+package_fixture ramtest 3
+new_ramtest_id=$(printf '%064d' 0 | tr 0 3)
 new_manifest=$FES_RAMTEST_PACKAGE_DIR/manifest.toml
 chmod u+w "$FES_RAMTEST_PACKAGE_DIR" "$new_manifest"
 sed 's/1111111111111111111111111111111111111111/2222222222222222222222222222222222222222/' \
