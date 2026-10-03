@@ -5353,6 +5353,7 @@
     closeGameActionsMenu({ restoreFocus: false });
     if (keyboardPane !== 'settings') settingsReturnPane = keyboardPane;
     if (nodes.settings) nodes.settings.hidden = false;
+    if (nodes.saveSettings) nodes.saveSettings.disabled = true;
     setSettingsChromeInert(true);
     keyboardPane = 'settings';
     writePaneAttribute();
@@ -5362,9 +5363,11 @@
       await controller.loadSettings();
       if (settingsRequestExpired(generation)) return;
       fillSettingsForm(controller.getState().librarySettings);
+      if (nodes.saveSettings) nodes.saveSettings.disabled = false;
     } catch (error) {
       if (settingsRequestExpired(generation)) return;
       fillSettingsForm(null);
+      if (nodes.saveSettings) nodes.saveSettings.disabled = true;
       if (nodes.settingsMessage) {
         nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');
       }

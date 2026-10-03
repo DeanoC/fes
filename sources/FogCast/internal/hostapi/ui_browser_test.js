@@ -490,6 +490,48 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
       });
     }
 
+    await t.test('settings Save stays disabled while household settings load', async () => {
+      await runScenario(harness, 'settings-save-waits-for-load', basePlan({
+        settingsLoads: [
+          fixture('catalog-empty.json', 200, { override: { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' } }),
+          fixture('catalog-empty.json', 200, { hold: true, override: { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' } }),
+        ],
+      }), async () => {
+        await harness.click('#open-settings');
+        const load = await harness.waitForRequest({ method: 'GET', path: '/api/v1/library/settings', status: null });
+        const pending = await harness.evaluate(`(() => {
+          const save = document.querySelector('#save-settings');
+          save.click();
+          return { disabled: save.disabled };
+        })()`);
+        assert.equal(pending.disabled, true);
+        assert.deepEqual(harness.fixtureEvidence().filter(record =>
+          record.path === '/api/v1/library/settings' && ['PUT', 'POST'].includes(record.method)), []);
+        await harness.release(load.id);
+        await harness.waitForSnapshot(snapshot => !snapshot.settingsHidden && snapshot.settingsRegions === 'usa, world, europe, japan');
+        assert.equal(await harness.evaluate("document.querySelector('#save-settings').disabled"), false);
+      });
+    });
+
+    await t.test('settings Save stays disabled when household settings fail to load', async () => {
+      await runScenario(harness, 'settings-save-disabled-after-load-failure', basePlan({
+        settingsLoads: [
+          fixture('catalog-empty.json', 200, { override: { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' } }),
+          fixture('catalog-empty.json', 503, { override: { error: { code: 'INTERNAL', message: 'Library settings could not be loaded.' } } }),
+        ],
+      }), async () => {
+        await harness.click('#open-settings');
+        await harness.waitForSnapshot(snapshot => !snapshot.settingsHidden
+          && snapshot.settingsMessage === 'Library settings could not be loaded.');
+        const result = await harness.evaluate(`(() => ({
+          disabled: document.querySelector('#save-settings').disabled,
+          message: document.querySelector('#settings-message').textContent,
+        }))()`);
+        assert.equal(result.disabled, true);
+        assert.equal(result.message, 'Library settings could not be loaded.');
+      });
+    });
+
     await t.test('household video preference survives settings save and PATCH with visible missing-part fallback', async () => {
       const entry = coreEntry({game_id:'coleco-browser-title', title:'Browser Coleco title', core_id:'fes.coleco'});
       const pkg = {package_id:CORE_PACKAGE, descriptor:{core:{id:'fes.coleco', version:'1.0.0'}}};
