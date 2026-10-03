@@ -25,9 +25,12 @@ const (
 // SessionChrome is pause / session overlay state painted over browse or
 // detail. Empty State hides the overlay.
 type SessionChrome struct {
-	State string
-	Title string
-	Hint  string
+	State   string
+	Title   string
+	Hint    string
+	Phase   string
+	Elapsed string
+	Marquee int
 }
 
 // SessionLive reports whether chrome should paint a pause overlay.
@@ -399,6 +402,31 @@ func paintSessionChrome(d gfx.Device, w, h int, th theme.Theme, session SessionC
 		title = gfx.FitTextWeight(title, bodySize, maxW, bodyW)
 		d.DrawTextWeight(textX, y, title, bodySize, bodyW, th.Label)
 		y += gfx.TextHeightWeight(bodySize, bodyW) + 6
+	}
+	if session.State == "launching" {
+		phase := strings.TrimSpace(session.Phase)
+		if phase == "" {
+			phase = "Loading"
+		}
+		phase = gfx.FitTextWeight(phase, bodySize, maxW, bodyW)
+		d.DrawTextWeight(textX, y, phase, bodySize, bodyW, th.Status)
+		y += gfx.TextHeightWeight(bodySize, bodyW) + 6
+		barW := inner.W - 24
+		barY := float32(y + 2)
+		barH := float32(7)
+		d.FillRect(gfx.Rect{X: float32(textX), Y: barY, W: barW, H: barH}, th.Background)
+		segment := barW / 4
+		if segment < 8 {
+			segment = barW
+		}
+		travel := barW - segment
+		x := float32(textX) + float32(session.Marquee%1000)/1000*travel
+		d.FillRect(gfx.Rect{X: x, Y: barY, W: segment, H: barH}, th.Highlight)
+		y += int(barH) + 6
+		if session.Elapsed != "" {
+			d.DrawTextWeight(textX, y, session.Elapsed, capSize, capW, th.Status)
+			y += gfx.TextHeightWeight(capSize, capW) + 6
+		}
 	}
 	if hint != "" {
 		hint = gfx.FitTextWeight(hint, capSize, maxW, capW)

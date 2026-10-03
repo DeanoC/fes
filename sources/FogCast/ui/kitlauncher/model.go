@@ -27,6 +27,9 @@ type Model struct {
 	LocalPlayEnabled                                                bool
 	Connected, TargetReady, Busy, ControllerConnected, ForeignLease bool
 	Message                                                         string
+	LoadStarted                                                     time.Time
+	LoadPhase                                                       string
+	LoadElapsed                                                     string
 	AttractActive                                                   bool
 	DetailOpen                                                      bool
 	WheelOpen                                                       bool
@@ -270,7 +273,7 @@ func (m *Model) Tick(now time.Time) string {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	if sessionCanStop(m.Session.State) && !m.Busy {
+	if sessionCanStop(m.Session.State) && (!m.Busy || m.Session.State == "launching") {
 		for i := range m.chord {
 			if m.chord[i].Ready(now) {
 				return "stop"
@@ -284,7 +287,9 @@ func (m *Model) Tick(now time.Time) string {
 
 // Failed sessions retain host-side cleanup state, so they use the same
 // Select+Start recovery path as active sessions.
-func sessionCanStop(state string) bool { return state == "active" || state == "failed" }
+func sessionCanStop(state string) bool {
+	return state == "active" || state == "failed" || state == "launching"
+}
 
 // SessionChrome is pause overlay state for fbgrid paint. East/B, Start, and
 // Guide stay on the existing input map; only Select+Start requests Stop.
@@ -301,11 +306,30 @@ func (m Model) SessionChrome() fbgrid.SessionChrome {
 	if state == "failed" {
 		hint = fbgrid.SessionKitRetryHint
 	}
-	return fbgrid.SessionChrome{
-		State: state,
-		Title: m.SessionTitle(),
-		Hint:  hint,
+	phase := strings.TrimSpace(m.LoadPhase)
+	if phase == "" && state == "launching" {
+		phase = strings.TrimSpace(m.Session.Progress)
 	}
+	elapsed := m.LoadElapsed
+	if state == "launching" && !m.LoadStarted.IsZero() {
+		elapsed = formatLoadElapsed(time.Since(m.LoadStarted))
+	}
+	return fbgrid.SessionChrome{
+		State:   state,
+		Title:   m.SessionTitle(),
+		Hint:    hint,
+		Phase:   phase,
+		Elapsed: elapsed,
+		Marquee: int(time.Now().UnixMilli() % 1000),
+	}
+}
+
+func formatLoadElapsed(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	total := int(d / time.Second)
+	return fmt.Sprintf("Loading · %d:%02d", total/60, total%60)
 }
 
 // SessionTitle is the catalog title for the host session game id.

@@ -1,13 +1,53 @@
 package kitlauncher
 
 import (
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/fbgrid"
 	"github.com/DeanoC/FogCast/ui/inputmap"
-	"testing"
-	"time"
 )
+
+func TestLoadingChromeUsesRealPhaseAndIndeterminateElapsed(t *testing.T) {
+	started := time.Now().Add(-12 * time.Second)
+	m := Model{Session: Session{State: "launching", GameID: "data", Progress: "Loading ROM"}, LoadStarted: started}
+	m.Catalog = []hostclient.Game{{ID: "data", Title: "Data Storm"}}
+	chrome := m.SessionChrome()
+	if chrome.State != "launching" || chrome.Title != "Data Storm" || chrome.Phase != "Loading ROM" || !strings.Contains(chrome.Elapsed, "0:12") {
+		t.Fatalf("loading chrome %+v", chrome)
+	}
+	if strings.Contains(chrome.Phase+chrome.Elapsed, "%") || chrome.Hint != fbgrid.SessionKitHint {
+		t.Fatalf("loading chrome invented progress or lost stop hint: %+v", chrome)
+	}
+}
+
+func TestLocalLaunchFailureAndTimeoutCopy(t *testing.T) {
+	if got := localLaunchFailure("Data Storm", "Kit local control is unavailable", time.Second); got != "Couldn't start Data Storm: Kit local control is unavailable" {
+		t.Fatalf("failure copy %q", got)
+	}
+	if got := localLaunchFailure("Data Storm", "", localLoadTimeout); got != "Data Storm took too long to start" {
+		t.Fatalf("timeout copy %q", got)
+	}
+}
+
+func TestSelectStartDuringLaunchRequestsStop(t *testing.T) {
+	now := time.Unix(10, 0)
+	m := Model{Busy: true, Session: Session{State: "launching"}}
+	selectPress, _ := remoteinput.NormalizeGamepad("select", true)
+	startPress, _ := remoteinput.NormalizeGamepad("start", true)
+	if got := m.Input(selectPress, now); got != "" {
+		t.Fatalf("Select action %q", got)
+	}
+	if got := m.Input(startPress, now.Add(10*time.Millisecond)); got != "" {
+		t.Fatalf("Start action %q", got)
+	}
+	if got := m.Tick(now.Add(1100 * time.Millisecond)); got != "stop" {
+		t.Fatalf("launch chord action %q", got)
+	}
+}
 
 func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
 	m := Model{Games: []hostclient.Game{{ID: "pong", State: "available", RootOnline: true, Launchable: true}, {ID: "sonic", State: "available", RootOnline: true, Launchable: true}}, Connected: true, TargetReady: true}

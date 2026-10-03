@@ -750,8 +750,8 @@ func TestMenuLaunchDrainsPresentationBeforeDispatch(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if busyPaints.Load() != 0 {
-		t.Fatalf("menu painted %d loading frames", busyPaints.Load())
+	if busyPaints.Load() < 2 {
+		t.Fatalf("loading overlay did not keep rendering frames: %d", busyPaints.Load())
 	}
 }
 

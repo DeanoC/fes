@@ -18,6 +18,30 @@ import (
 
 const tenfootPongID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
+func TestSelectStartDuringLocalLoadDefersStopUntilRunning(t *testing.T) {
+	now := time.Unix(10, 0)
+	app := &App{localPhase: localPhaseLaunching}
+	selectPress, _ := remoteinput.NormalizeGamepad("select", true)
+	startPress, _ := remoteinput.NormalizeGamepad("start", true)
+	if !app.HandleLocalPad(selectPress, now) || !app.HandleLocalPad(startPress, now.Add(10*time.Millisecond)) {
+		t.Fatal("launching core did not consume the stop chord")
+	}
+	app.mu.Lock()
+	app.tickLocalCoreLocked(now.Add(10*time.Millisecond + localChordHold))
+	if !app.localStopAfterStart || app.localPhase != localPhaseLaunching {
+		t.Fatalf("loading chord phase=%q deferred=%v", app.localPhase, app.localStopAfterStart)
+	}
+	app.mu.Unlock()
+	selectRelease, _ := remoteinput.NormalizeGamepad("select", false)
+	app.HandleLocalPad(selectRelease, now.Add(localChordHold+time.Millisecond))
+	app.mu.Lock()
+	deferred := app.localStopAfterStart
+	app.mu.Unlock()
+	if !deferred {
+		t.Fatal("releasing the chord canceled the already-triggered stop")
+	}
+}
+
 func TestSMSPlayRequiresInstalledMasterSystemCore(t *testing.T) {
 	game := hostclient.Game{
 		ID: "sms-data-storm", Title: "Data Storm 1.00", System: "sms",

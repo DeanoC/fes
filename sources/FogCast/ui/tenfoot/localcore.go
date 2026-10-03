@@ -161,11 +161,13 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	gen := a.localGen
 	a.localPhase = localPhaseLaunching
 	a.localTitle = title
+	a.localStartedAt = time.Now()
 	a.localStatus = "Starting " + title + "…"
 	a.status = a.localStatus
 	a.localPresentsPaused = true
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
+	a.localStopAfterStart = false
 	block := dest.CoreBlock
 	// The room instance is only touched on this lock. Launch can take the
 	// agent's full load, so the goroutine calls the client directly with the
@@ -190,6 +192,7 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 			return
 		}
 		a.localPhase = localPhaseRunning
+		a.localStartedAt = time.Time{}
 		if a.status == a.localStatus {
 			a.status = ""
 		}
@@ -198,6 +201,11 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 		// second here, not during the load.
 		if a.localSelectDown && a.localStartDown {
 			a.localChordSince = time.Now()
+		}
+		if a.localStopAfterStart {
+			a.localStopAfterStart = false
+			a.localChordFired = true
+			a.beginLocalStopLocked()
 		}
 	}()
 }
@@ -231,11 +239,13 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	gen := a.localGen
 	a.localPhase = localPhaseLaunching
 	a.localTitle = title
+	a.localStartedAt = time.Now()
 	a.localStatus = "Starting " + title + "…"
 	a.status = a.localStatus
 	a.localPresentsPaused = true
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
+	a.localStopAfterStart = false
 	client := a.localCores
 	resolve := a.localContent
 	go func() {
@@ -250,12 +260,18 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 			return
 		}
 		a.localPhase = localPhaseRunning
+		a.localStartedAt = time.Time{}
 		if a.status == a.localStatus {
 			a.status = ""
 		}
 		a.localStatus = ""
 		if a.localSelectDown && a.localStartDown {
 			a.localChordSince = time.Now()
+		}
+		if a.localStopAfterStart {
+			a.localStopAfterStart = false
+			a.localChordFired = true
+			a.beginLocalStopLocked()
 		}
 	}()
 }
@@ -307,9 +323,11 @@ func localCartridgeCore(system string) string {
 
 func (a *App) failLocalCoreLocked(err error, block string) {
 	a.localPhase = ""
+	a.localStartedAt = time.Time{}
 	a.localPresentsPaused = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
+	a.localStopAfterStart = false
 	a.localStatus = localCoreFailureCopy(err, block)
 	a.statusLeaseRefusal = false
 	a.status = a.localStatus
@@ -388,6 +406,7 @@ func (a *App) finishLocalCoreLocked() {
 	a.localStartDown = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
+	a.localStopAfterStart = false
 	a.localSent = nil
 	a.localRedraw++
 	a.roomWasParked = true
@@ -395,14 +414,18 @@ func (a *App) finishLocalCoreLocked() {
 
 func (a *App) tickLocalCoreLocked(now time.Time) {
 	a.pollLocalStatusLocked(now)
-	if a.localPhase != localPhaseRunning || a.localChordFired || a.localChordSince.IsZero() {
+	if (a.localPhase != localPhaseRunning && a.localPhase != localPhaseLaunching) || a.localChordFired || a.localChordSince.IsZero() {
 		return
 	}
 	if now.Sub(a.localChordSince) < localChordHold {
 		return
 	}
 	a.localChordFired = true
-	a.beginLocalStopLocked()
+	if a.localPhase == localPhaseLaunching {
+		a.localStopAfterStart = true
+	} else {
+		a.beginLocalStopLocked()
+	}
 }
 
 // pollLocalStatusLocked reads GET /v1/local/status while a core is running.
@@ -466,7 +489,7 @@ func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 		return handled
 	}
 	if a.localPhase != localPhaseRunning {
-		a.noteLocalHeldLocked(e)
+		a.noteLocalHeldLocked(e, now)
 		a.mu.Unlock()
 		return true
 	}
@@ -488,7 +511,7 @@ func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 	return true
 }
 
-func (a *App) noteLocalHeldLocked(e remoteinput.Event) {
+func (a *App) noteLocalHeldLocked(e remoteinput.Event, now time.Time) {
 	down, ok := localButtonDown(e)
 	if !ok {
 		return
@@ -498,6 +521,14 @@ func (a *App) noteLocalHeldLocked(e remoteinput.Event) {
 		a.localSelectDown = down
 	case remoteinput.ButtonStart:
 		a.localStartDown = down
+	}
+	if a.localSelectDown && a.localStartDown {
+		if a.localChordSince.IsZero() {
+			a.localChordSince = now
+		}
+	} else {
+		a.localChordSince = time.Time{}
+		a.localChordFired = false
 	}
 }
 

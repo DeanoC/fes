@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -471,6 +472,22 @@ func drawLaunchOverlay(dev gfx.Device, snap Snapshot, labels map[string]gpuTextu
 	if phase := strings.TrimSpace(copy.Phase); phase != "" && phase != copy.Title {
 		drawLabel(dev, labels, used, "launch-ov-phase", x+20, bodyY, panelW-40, 16, phase)
 		bodyY += 24
+	}
+	if !copy.Failed {
+		barW := panelW - 40
+		barY := bodyY
+		fillRect(dev, float32(x+20), float32(barY), float32(barW), 7, 48, 52, 62, 255)
+		segment := barW / 4
+		if segment < 8 {
+			segment = barW
+		}
+		travel := barW - segment
+		barX := x + 20 + int(time.Now().UnixMilli()%1000)*travel/1000
+		fillRect(dev, float32(barX), float32(barY), float32(segment), 7, 255, 184, 48, 255)
+		bodyY += 16
+		if copy.Elapsed != "" {
+			drawLabel(dev, labels, used, "launch-ov-elapsed", x+20, bodyY, panelW-40, 14, copy.Elapsed)
+		}
 	}
 	if reason := strings.TrimSpace(copy.Reason); reason != "" && reason != copy.Phase {
 		drawLabel(dev, labels, used, "launch-ov-reason", x+20, bodyY, panelW-40, 16, reason)

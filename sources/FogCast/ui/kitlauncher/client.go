@@ -250,6 +250,7 @@ type Session struct {
 	State     string `json:"state"`
 	GameID    string `json:"game_id"`
 	Execution string `json:"execution"`
+	Progress  string `json:"-"`
 	Input     struct {
 		State     string `json:"state"`
 		Ready     bool   `json:"ready"`
@@ -304,6 +305,12 @@ func (c *Client) Session(ctx context.Context) (Session, error) {
 
 func adaptSession(result hostclient.SessionResult) Session {
 	session := Session{State: result.State, GameID: result.GameID, Execution: result.Execution}
+	if result.Progress != nil {
+		session.Progress = strings.TrimSpace(result.Progress.Message)
+		if session.Progress == "" {
+			session.Progress = strings.TrimSpace(result.Progress.Stage)
+		}
+	}
 	if result.HPSFramebuffer != nil {
 		session.HPSFramebuffer = *result.HPSFramebuffer
 		session.HPSFramebufferKnown = true

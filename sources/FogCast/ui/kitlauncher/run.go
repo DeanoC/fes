@@ -54,6 +54,21 @@ type observation struct {
 }
 
 const hostUnavailableMessage = "Host unavailable"
+const localLoadTimeout = 60 * time.Second // matches the runtime's bounded core-load operation
+
+func localLaunchFailure(title, reason string, elapsed time.Duration) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = "game"
+	}
+	if elapsed >= localLoadTimeout {
+		return title + " took too long to start"
+	}
+	if reason == "" {
+		reason = "the core did not become ready"
+	}
+	return "Couldn't start " + title + ": " + reason
+}
 
 // Resolve feedback from the submitted identity, never from later UI focus.
 func sessionActionLabel(m Model, action, id string) string {
@@ -147,12 +162,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	m.LocalPlayEnabled = c.LocalCores != nil
 	localRunning := false
 	localPending := false
+	localStopRequested := false
+	localSawLaunching := false
+	localRequestReturned := false
 	localStatusBusy := false
 	var localStatusNext time.Time
 	loggedSplash := false
 	paintKitHDMI := func(m Model) {
 		if c.menuDisplay {
-			if !m.Busy && m.Session.State != "active" && present != nil {
+			if (!m.Busy || m.Session.State == "launching") && m.Session.State != "active" && present != nil {
 				present(m)
 			}
 			return
@@ -232,7 +250,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 	}
 	poll := func() {
-		if polling || m.Busy {
+		if polling || (m.Busy && m.Session.State != "launching") {
 			return
 		}
 		polling = true
@@ -322,13 +340,22 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}()
 	}
 	mutate := func(action string) {
-		if m.Busy {
+		if m.Busy && action != "stop" {
 			return
 		}
 		epoch++
 		e := epoch
 		m.Busy = true
-		local := action == "local-launch" || (action == "stop" && localRunning)
+		local := action == "local-launch" || (action == "stop" && (localRunning || localPending))
+		if action == "stop" && localPending && !localRunning {
+			// The local runtime cannot interrupt FPGA programming before it
+			// publishes a running lease. Remember the chord and reconcile status;
+			// stop only after running is observed.
+			localStopRequested = true
+			m.Message = "Will stop when the core is ready"
+			paintKitHDMI(m)
+			return
+		}
 		id := m.Session.GameID
 		if action == "launch" || action == "local-launch" {
 			id = m.consumeLaunchID()
@@ -339,6 +366,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if action == "local-launch" {
 				m.Session.GameID = id
 			}
+			m.Session.State = "launching"
+			m.LoadStarted = time.Now()
+			if action == "local-launch" {
+				localSawLaunching = false
+				localRequestReturned = false
+			}
+			m.LoadPhase = "Launching"
+			m.Message = "Loading game"
+			m.LoadPhase = "Loading " + strings.TrimPrefix(sessionActionLabel(m, action, id), "Launch ")
 		}
 		label := sessionActionLabel(m, action, id)
 		closeFeed(true)
@@ -359,10 +395,14 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		// Loading and stopping copy is a temporary overlay, and only when this
 		// idle still enables the HPS framebuffer. Splash has no linuxfb picture.
-		m.Message = "Loading game"
-		if action != "launch" {
+		if action != "launch" && action != "local-launch" {
+			m.Message = "Loading game"
+		}
+		if action == "stop" {
 			m.Message = "Stopping game"
 		}
+		// The launch state owns input; release Busy so Select+Start can be
+		// armed and the asynchronous status probes can update the overlay.
 		paintKitHDMI(m)
 		// Do not log credentials, raw transport errors, or response bodies.
 		if local {
@@ -458,10 +498,38 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if o.localAction == "status" {
 				localStatusBusy = false
-				if o.epoch == epoch && localRunning && o.localErr == nil && o.localStatus.Phase == "idle" {
+				if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "launching" && (localPending || m.Session.State == "launching") {
+					localSawLaunching = true
+					m.LoadPhase = "Launching"
+				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "running" && (localPending || m.Session.State == "launching") {
+					localPending = false
+					localRunning = true
+					m.Busy = false
+					m.Session.State = "active"
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					m.Message = ""
+					if localStopRequested {
+						localStopRequested = false
+						mutate("stop")
+					}
+				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "idle" && (localPending || m.Session.State == "launching") && (localSawLaunching || localRequestReturned) {
+					elapsed := time.Since(m.LoadStarted)
+					localPending = false
+					m.Busy = false
+					m.Session.State = "idle"
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					m.Message = localLaunchFailure(m.SessionTitle(), "launch ended before the core was ready", elapsed)
+					if c.menuDisplay {
+						c.menuResume()
+					}
+				} else if o.epoch == epoch && localRunning && o.localErr == nil && o.localStatus.Phase == "idle" {
 					localRunning = false
 					m.Session.State = "idle"
 					m.Session.GameID = ""
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
 					m.Message = ""
 					if c.menuDisplay {
 						c.menuResume()
@@ -478,24 +546,42 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.mutation {
 				if o.localAction != "" {
 					localPending = false
+					if o.localAction == "local-launch" {
+						localRequestReturned = true
+					}
 					if o.localAction == "local-launch" && o.localErr == nil {
-						localRunning = true
-						m.Session.State = "active"
-					} else if o.localAction == "local-launch" && o.localErr != nil && o.haveLocalStatus && localRunInProgress(o.localStatus) {
+						// GET /v1/local/status, not request completion, owns
+						// the transition to running.
+					} else if o.localAction == "local-launch" && o.localErr != nil && (!o.haveLocalStatus || localRunInProgress(o.localStatus)) {
 						// The load may still be in flight after an ambiguous reply.
-						localRunning = true
-						m.Session.State = "active"
+						localPending = true
+						m.Busy = false
 						o.message = ""
 					} else if o.localAction == "stop" && (o.localErr == nil || errors.Is(o.localErr, localcores.ErrInUse)) || o.localAction == "local-launch" && o.localErr != nil {
+						elapsed := time.Since(m.LoadStarted)
 						localRunning = false
+						localPending = false
 						m.Session.State = "idle"
-						m.Session.GameID = ""
+						m.LoadStarted = time.Time{}
+						m.LoadPhase = ""
+						if o.localAction == "local-launch" {
+							o.message = localLaunchFailure(m.SessionTitle(), o.message, elapsed)
+						} else {
+							m.Session.GameID = ""
+						}
 					}
 				}
 				if c.menuDisplay && !localRunning {
 					c.menuResume()
 				}
 				m.Busy = false
+				if o.localAction == "" && o.session.State == "active" {
+					o.message = ""
+				} else if o.localAction == "" && o.message != "" && m.Session.State == "launching" && (o.session.State == "idle" || o.session.State == "failed") {
+					m.Session.State = "idle"
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+				}
 				m.Message = o.message
 				nextPoll = time.Time{}
 				if o.localAction != "" {
@@ -540,6 +626,23 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			})
 			if !localRunning && !localPending {
 				m.Session = applyObservedSession(m.Session, o.session)
+				if m.Session.State == "active" {
+					m.Busy = false
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					m.Message = ""
+				} else if m.Session.State == "launching" {
+					if m.LoadStarted.IsZero() {
+						m.LoadStarted = time.Now()
+					}
+					m.LoadPhase = m.Session.Progress
+				}
+				if m.Session.State == "failed" {
+					m.Busy = false
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					m.Message = "Couldn't start " + m.SessionTitle()
+				}
 			}
 			if !o.mutation {
 				m.TargetReady = o.health.TargetReady
@@ -588,7 +691,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 			}
 		case now := <-tick.C:
-			if localRunning && !localPending && !localStatusBusy && now.After(localStatusNext) {
+			if (localRunning || localPending) && !localStatusBusy && now.After(localStatusNext) {
 				localStatusNext = now.Add(time.Second)
 				localStatusBusy = true
 				go func(e uint64) {
@@ -691,7 +794,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			// A live game owns HDMI. Confirmed idle without an HPS framebuffer
 			// leaves FPGA splash pixels alone instead of painting kit chrome.
-			if !m.Busy {
+			if !m.Busy || m.Session.State == "launching" {
 				paintKitHDMI(m)
 			}
 		}

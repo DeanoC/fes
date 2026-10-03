@@ -14,8 +14,8 @@ func TestLaunchOverlayCopyUsesRealPhasesWithoutPercent(t *testing.T) {
 	t.Parallel()
 	grid := testDrawGrid()
 	base := Snapshot{
-		Grid:  grid,
-		Room:  RoomSnapshot{Open: true, Destination: rooms.Destination{Label: "Donkey Kong"}},
+		Grid:   grid,
+		Room:   RoomSnapshot{Open: true, Destination: rooms.Destination{Label: "Donkey Kong"}},
 		Launch: LaunchSnapshot{GameID: "coleco-dk", Phase: "launching", Message: "launching Donkey Kong"},
 	}
 	got := launchOverlayCopy(base)
@@ -58,6 +58,18 @@ func TestLaunchOverlayCopyUsesRealPhasesWithoutPercent(t *testing.T) {
 	parked.GPUParked = true
 	if launchOverlayCopy(parked).Visible {
 		t.Fatal("now-playing must own the screen once the session is parked")
+	}
+}
+
+func TestLaunchOverlayReusesChromeForKitLocalLoad(t *testing.T) {
+	snap := Snapshot{Room: RoomSnapshot{Open: true}, LocalCorePhase: localPhaseLaunching,
+		LocalCoreTitle: "Data Storm", LocalCoreStartedAt: time.Now().Add(-12 * time.Second)}
+	copy := launchOverlayCopy(snap)
+	if !copy.Visible || copy.Failed || copy.Title != "Data Storm" || copy.Phase != "Starting core" || copy.Elapsed == "" || !strings.Contains(copy.Hint, "Select+Start") {
+		t.Fatalf("local launch overlay %+v", copy)
+	}
+	if strings.Contains(copy.Elapsed+copy.Phase, "%") {
+		t.Fatalf("invented progress %+v", copy)
 	}
 }
 

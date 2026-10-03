@@ -1,7 +1,9 @@
 package tenfoot
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
@@ -17,11 +19,15 @@ type LaunchOverlayCopy struct {
 	Phase   string
 	Reason  string
 	Hint    string
+	Elapsed string
 }
 
 func launchOverlayVisible(snap Snapshot) bool {
 	if !snap.Room.Open || snap.GPUParked {
 		return false
+	}
+	if snap.LocalCorePhase == localPhaseLaunching {
+		return true
 	}
 	switch snap.Launch.Phase {
 	case "launching", "error", "host":
@@ -36,12 +42,18 @@ func launchOverlayCopy(snap Snapshot) LaunchOverlayCopy {
 		return LaunchOverlayCopy{}
 	}
 	failed := snap.Launch.Phase == "error" || snap.Launch.Phase == "host"
+	if snap.LocalCorePhase == localPhaseLaunching {
+		return LaunchOverlayCopy{Visible: true, Heading: "Launching", Title: snap.LocalCoreTitle,
+			Phase: "Starting core", Elapsed: formatLaunchElapsed(snap.LocalCoreStartedAt),
+			Hint: "Select+Start stops after the core is ready"}
+	}
 	copy := LaunchOverlayCopy{
 		Visible: true,
 		Failed:  failed,
 		Heading: "Launching",
 		Title:   launchOverlayTitle(snap),
 		Phase:   honestLaunchPhase(snap),
+		Elapsed: formatLaunchElapsed(snap.Launch.StartedAt),
 	}
 	if failed {
 		copy.Heading = "Launch failed"
@@ -51,6 +63,18 @@ func launchOverlayCopy(snap Snapshot) LaunchOverlayCopy {
 		copy.Hint = launchOverlayBusyHint(snap.Affinity)
 	}
 	return copy
+}
+
+func formatLaunchElapsed(start time.Time) string {
+	if start.IsZero() {
+		return ""
+	}
+	d := time.Since(start)
+	if d < 0 {
+		d = 0
+	}
+	seconds := int(d / time.Second)
+	return fmt.Sprintf("Loading · %d:%02d", seconds/60, seconds%60)
 }
 
 func launchOverlayTitle(snap Snapshot) string {

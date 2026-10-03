@@ -134,6 +134,7 @@ type LaunchSnapshot struct {
 	State        string
 	ErrorCode    string
 	ErrorMessage string
+	StartedAt    time.Time
 }
 
 // SessionSnapshot is the live host session from GET /api/v1/session (and launch/stop).
@@ -262,6 +263,8 @@ type Snapshot struct {
 	TapePicker              TapePickerSnapshot
 	ReducedMotion           bool
 	LocalCorePhase          string
+	LocalCoreTitle          string
+	LocalCoreStartedAt      time.Time
 	LocalCorePresentsPaused bool
 	LocalCoreRedraw         uint64
 }
@@ -540,6 +543,7 @@ type App struct {
 	localContent        func(context.Context, string) (string, error)
 	localPhase          string
 	localTitle          string
+	localStartedAt      time.Time
 	localStatus         string
 	localGen            uint64
 	localPresentsPaused bool
@@ -548,6 +552,7 @@ type App struct {
 	localStartDown      bool
 	localChordSince     time.Time
 	localChordFired     bool
+	localStopAfterStart bool
 	localSent           map[remoteinput.Code]bool
 	localStatusBusy     bool
 	localStatusNext     time.Time
@@ -1615,6 +1620,8 @@ func (a *App) Snapshot() Snapshot {
 		TapePicker:              a.tapePickerSnapshotLocked(),
 		ReducedMotion:           a.reducedMotion,
 		LocalCorePhase:          a.localPhase,
+		LocalCoreTitle:          a.localTitle,
+		LocalCoreStartedAt:      a.localStartedAt,
 		LocalCorePresentsPaused: a.localPresentsPaused,
 		LocalCoreRedraw:         a.localRedraw,
 	}
@@ -2090,9 +2097,10 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	a.cancelPlayHIDLocked()
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{
-		GameID:  game.ID,
-		Phase:   "launching",
-		Message: "launching " + game.Title,
+		GameID:    game.ID,
+		Phase:     "launching",
+		Message:   "launching " + game.Title,
+		StartedAt: time.Now(),
 	}
 	if a.room != nil {
 		a.closeRoomOverlaysLocked()
