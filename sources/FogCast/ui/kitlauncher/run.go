@@ -164,6 +164,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	var smsHashes smsHashFill
+	defer smsHashes.stop()
 	m := Model{
 		Message: connectingMessage, Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true,
 		Session: Session{HPSFramebuffer: c.config.HPSFramebuffer},
@@ -269,6 +271,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		defer closeLocal()
 	}
 	localApplied := false
+	kitRows := map[string]bool{}
 	send := func(o observation) {
 		select {
 		case results <- o:
@@ -337,6 +340,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						StripLabel: o.stripLabel,
 						Recents:    o.recents,
 					})
+					if c.Library != nil {
+						smsHashes.start(ctx, c.Library.GameROMHash, c.Cache, o.games)
+					}
 					if c.Library != nil {
 						if cache, err := c.Library.LibraryCache(ctx); err == nil {
 							o.cache = cache
@@ -455,6 +461,16 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		if local {
 			localPending = true
+			var hostGame hostclient.Game
+			online := m.Connected
+			kitRow := kitRows[id]
+			cachedDigest := ""
+			if action == "local-launch" {
+				hostGame = displayedGame(m, id)
+				if !online && c.Cache != nil {
+					cachedDigest = c.Cache.ROMHash(id)
+				}
+			}
 			go func() {
 				o := observation{epoch: e, mutation: true, localAction: action}
 				if action == "local-launch" {
@@ -462,7 +478,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					if c.Library != nil {
 						fetch = c.Library.GameROMHash
 					}
-					o.localErr = launchMatchedLocalGame(ctx, c.LocalCores, fetch, localPath, localGames, matcher, id)
+					learned, err := launchMatchedLocalGame(ctx, c.LocalCores, online, kitRow, cachedDigest, fetch, localPath, localGames, matcher, hostGame)
+					if learned != "" && c.Cache != nil {
+						_ = c.Cache.RememberROMHash(hostGame.ID, learned)
+					}
+					o.localErr = err
 					if o.localErr != nil {
 						log.Printf("kit local cartridge launch failed game_id=%q", boundedSessionText(id, 160))
 					}
@@ -689,7 +709,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.Connected = false
 				m.ClearCoreStatuses(true)
 				if !localApplied && len(localGames) > 0 {
-					m.SetCatalog(localGames)
+					var merged []hostclient.Game
+					merged, kitRows = mergeKitRows(m.Catalog, localGames)
+					m.SetCatalog(merged)
 					localApplied = true
 					catalogLoaded = true
 				}
@@ -772,6 +794,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 				if o.games != nil {
 					m.ApplyCatalog(o.games)
+					kitRows = map[string]bool{}
+					localApplied = false
 					catalogLoaded = true
 					lastCatalog = time.Now()
 				}
@@ -1019,6 +1043,7 @@ func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve fu
 var errSMSCoreMissing = errors.New("sms core missing")
 var errCartridgeMissing = errors.New("cartridge missing")
 var errNotOnKit = errors.New("not on this kit")
+var errNeedsHost = errors.New("needs the host")
 var errCartridgeCheck = errors.New("cartridge check failed")
 
 func containsLocalID(games []hostclient.Game, id string) bool {
@@ -1030,6 +1055,40 @@ func containsLocalID(games []hostclient.Game, id string) bool {
 	return false
 }
 
+// mergeKitRows keeps a saved or live host catalog while the host is away and
+// appends kit-local rows whose ids it does not already hold, so browse-only
+// host rows stay matchable and kit-only rows stay playable (fes#442). The
+// returned set names the rows that came from the kit-local catalog; only
+// those may launch directly by id.
+func mergeKitRows(catalog, local []hostclient.Game) ([]hostclient.Game, map[string]bool) {
+	merged := append([]hostclient.Game(nil), catalog...)
+	present := make(map[string]bool, len(merged)+len(local))
+	for _, game := range merged {
+		present[game.ID] = true
+	}
+	kit := make(map[string]bool, len(local))
+	for _, game := range local {
+		if game.ID == "" || present[game.ID] {
+			continue
+		}
+		merged = append(merged, game)
+		present[game.ID] = true
+		kit[game.ID] = true
+	}
+	return merged, kit
+}
+
+func displayedGame(m Model, id string) hostclient.Game {
+	for _, pool := range [][]hostclient.Game{m.Catalog, m.Games, m.Strip, m.Recents} {
+		for _, game := range pool {
+			if game.ID == id {
+				return game
+			}
+		}
+	}
+	return hostclient.Game{ID: id}
+}
+
 func localCoreMessage(err error) string {
 	switch {
 	case errors.Is(err, errSMSCoreMissing):
@@ -1038,6 +1097,8 @@ func localCoreMessage(err error) string {
 		return "Cartridge is missing"
 	case errors.Is(err, errNotOnKit):
 		return "Not on this kit"
+	case errors.Is(err, errNeedsHost):
+		return "Needs the host"
 	case errors.Is(err, errCartridgeCheck):
 		return "Could not check this kit's cartridges"
 	case errors.Is(err, localcores.ErrInUse):
