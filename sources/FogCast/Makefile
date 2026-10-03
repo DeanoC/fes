@@ -181,4 +181,4 @@ build-target-image-lock-container:
 # These targets remain FogCast inputs: agent, kit, and the lock selector.
 
 target-package-smoke:
-	scripts/package-runtime-smoke.sh $(FES_PONG_PACKAGE_SELECTION) $(FES_ZX81_PACKAGE_SELECTION) $(FES_COLECO_PACKAGE_SELECTION) $(FES_RAMTEST_PACKAGE_SELECTION)
+	scripts/package-runtime-smoke.sh

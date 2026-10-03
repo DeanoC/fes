@@ -128,6 +128,41 @@ esac
 EOF
 chmod 0755 "$fake_bin/curl"
 
+base_ids='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+FOGCAST_CURL_LOG=$fixture/curl-three.log \
+FOGCAST_ACTIVE_GAME=$fixture/active-game \
+FOGCAST_HOST_API=http://host.test \
+FES_PACKAGE_EXPECTED_IDS=$base_ids \
+FOGCAST_POLL_ATTEMPTS=2 FOGCAST_POLL_INTERVAL=0 PATH="$fake_bin:$PATH" \
+  sh "$smoke" > "$fixture/three.out"
+grep -Fq 'package runtime smoke passed: Pong, ZX81, Coleco' "$fixture/three.out"
+test "$(grep -Fc -- 'api/v1/session/launch' "$fixture/curl-three.log")" -eq 3
+
+for item in pong:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa zx81:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb coleco:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc ramtest:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee; do
+  name=${item%%:*}; id=${item#*:}
+  printf 'package_id = "%s"\n' "$id" > "$fixture/$name.selection"
+done
+FOGCAST_CURL_LOG=$fixture/curl-four.log \
+FOGCAST_ACTIVE_GAME=$fixture/active-game \
+FOGCAST_HOST_API=http://host.test \
+FOGCAST_POLL_ATTEMPTS=2 FOGCAST_POLL_INTERVAL=0 PATH="$fake_bin:$PATH" \
+  sh "$smoke" "$fixture/pong.selection" "$fixture/zx81.selection" \
+    "$fixture/coleco.selection" "$fixture/ramtest.selection" > "$fixture/four.out"
+grep -Fq 'package runtime smoke passed: Pong, ZX81, Coleco, RAM Tester' "$fixture/four.out"
+test "$(grep -Fc -- 'api/v1/session/launch' "$fixture/curl-four.log")" -eq 4
+
+FOGCAST_CURL_LOG=$fixture/curl-env.log \
+FOGCAST_ACTIVE_GAME=$fixture/active-game \
+FOGCAST_HOST_API=http://host.test \
+FES_PONG_PACKAGE_SELECTION=$fixture/pong.selection \
+FES_ZX81_PACKAGE_SELECTION=$fixture/zx81.selection \
+FES_COLECO_PACKAGE_SELECTION=$fixture/coleco.selection \
+FES_RAMTEST_PACKAGE_SELECTION=$fixture/ramtest.selection \
+FOGCAST_POLL_ATTEMPTS=2 FOGCAST_POLL_INTERVAL=0 PATH="$fake_bin:$PATH" \
+  sh "$smoke" > "$fixture/env.out"
+grep -Fq 'package runtime smoke passed: Pong, ZX81, Coleco, RAM Tester' "$fixture/env.out"
+test "$(grep -Fc -- 'api/v1/session/launch' "$fixture/curl-env.log")" -eq 4
+
 FOGCAST_CURL_LOG=$fixture/curl.log \
 FOGCAST_ACTIVE_GAME=$fixture/active-game \
 FOGCAST_HOST_API=http://host.test \

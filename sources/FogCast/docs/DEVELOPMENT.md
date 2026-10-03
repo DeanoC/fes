@@ -302,9 +302,13 @@ make target-package-smoke \
   FES_RAMTEST_PACKAGE_SELECTION=/absolute/path/fes-ramtest.package-selection.toml
 ```
 
-This explicitly launches and stops the four installed packages through the
-host session API and checks their exact selected package IDs. RAM Tester is a
-ROM-less application core with a library launch entry. The smoke uses the existing
+This launches and stops Pong, ZX81 and Coleco through the host session API and
+checks their exact selected package IDs. Supplying the fourth RAM Tester
+selection enables that additional launch check. Before running it, install the
+RAM Tester host package and set up its library `CoreEntry` so the host library
+contains an entry for the installed package; installing the target package
+alone does not create that host entry. RAM Tester is a ROM-less application
+core with a library launch entry. The smoke uses the existing
 kit lease. It does not deploy an image or request a reboot. Health and inventory
 calls allow 30 seconds by default. Launch allows 90 seconds for first-time ROM
 composition; `FOGCAST_LAUNCH_TIMEOUT` overrides launch separately, while
