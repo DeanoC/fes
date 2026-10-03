@@ -145,6 +145,27 @@ python3 scripts/benchmark_fes_z80.py --variant fast \
   --target-mhz 100 --seed 1 --seed 2 --seed 3
 ```
 
+For the selected 56 MHz fast-core route:
+
+```sh
+python3 scripts/benchmark_fes_z80.py --variant fast \
+  --yosys /absolute/path/to/yosys \
+  --nextpnr /absolute/path/to/nextpnr-mistral \
+  --target-mhz 56 --seed 6 --require-target
+```
+
+`--require-target` returns a failure if any selected seed misses the requested
+clock, after saving the complete reports. Without it the command records a
+diagnostic even when timing misses its target.
+
+56 MHz is 16 times the Spectrum 48K's nominal 3.5 MHz clock. This describes a clock ratio;
+shorter instruction cycles and memory latency make program speed workload
+dependent. Coleco/Sega's 3.579545 MHz baseline needs 57.272720 MHz for the same
+clock ratio. Seed selection is part of the contained recipe, and console
+integration needs a fresh timing check.
+The unchanged RTL was measured at seeds 1 through 30: 44.281–56.654 MHz.
+Seed 6 is the selected passing placement; 57.272720 MHz is not yet qualified.
+
 The benchmark drives the CPU with changing inputs and observes register/bus
 state through a small registered signature harness. It targets `5CSEBA6U23I7`
 with the native Yosys/nextpnr ALM flow. Its fingerprinted output records exact
@@ -153,17 +174,24 @@ are diagnostic harness estimates, not a sealed package, console timing,
 performance ceiling or hardware acceptance. No bitstream is produced or loaded.
 
 Measured with Yosys `0.69+ (1bf1ff3d7)` and nextpnr-mistral
-`0.11.1-261-gbdb24661`, router2, 100 MHz target:
+`0.11.1-261-gbdb24661`, router2:
 
-| Variant | Placement seeds | Routed Fmax (MHz) | Envelope COMB / FF |
-| --- | --- | --- | --- |
-| Fast | 1, 2, 3 | 54.996, 52.726, 55.614 | 3048 / 621 |
-| NMOS | 1 | 43.424 | 3977 / 693 |
+| Variant | Placement seeds | Target (MHz) | Routed Fmax (MHz) | Envelope COMB / FF |
+| --- | --- | --- | --- | --- |
+| Fast | 1, 2, 3 | 100 | 54.996, 52.726, 55.614 | 3048 / 621 |
+| Fast, selected route | 6 | 56 | 56.654 | 3048 / 621 |
+| NMOS | 1 | 100 | 43.424 | 3977 / 693 |
 
 These include the stimulus/signature harness and use no RAM or DSP blocks.
-All runs miss the 100 MHz target. Evidence fingerprints are `fa6e8da15530`
+The selected seed 6 passes 56 MHz; the first three seeds remain below 56 MHz.
+The 100 MHz target remains unmet. Evidence fingerprints are `fa6e8da15530`
 (fast) and `69f3c120a0d4` (NMOS); the runner records their complete identities
-in the ignored benchmark outputs. Specializing the fast H/L byte helpers
+in the ignored benchmark outputs. The 56 MHz gate uses `df0f4cada3f3`.
+The mixed seed 6/1 invocation fails the gate (`7f91696e2a97`) while recording
+both results; diagnostic mode records the same miss and exits successfully
+(`be538798ae81`). Selected seeds and gate policy are fingerprinted, so these
+receipts occupy distinct output directories.
+Specializing the fast H/L byte helpers
 improves worst Fmax by 8.9% and mean Fmax by 8.5% over the preceding engine
 (`015a823c8000`: 48.414, 51.430, 50.725 MHz), using the same three seeds and
 tools. COMB usage drops from 3174 to 3048, with 621 FF unchanged. The critical

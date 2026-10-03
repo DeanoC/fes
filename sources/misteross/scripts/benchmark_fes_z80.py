@@ -87,6 +87,8 @@ def main():
     parser.add_argument('--variant', choices=('fast', 'nmos'), default='fast')
     parser.add_argument('--seed', type=int, action='append', help='repeat to measure several routing seeds')
     parser.add_argument('--target-mhz', type=float, default=100.0)
+    parser.add_argument('--require-target', action='store_true',
+                        help='fail after recording evidence if any selected seed misses the target')
     parser.add_argument('--output', type=Path, help='optional diagnostic output directory')
     args = parser.parse_args()
     seeds = args.seed or [1]
@@ -108,6 +110,7 @@ def main():
         hashes = {path: hashlib.sha256(contents).hexdigest() for path, contents in selected.items()}
         identity = {'variant': args.variant, 'device': DEVICE, 'top': TOP,
                     'target_mhz': args.target_mhz, 'router': 'router2',
+                    'seeds': seeds, 'timing_gate_required': args.require_target,
                     'sources': hashes, 'tools': tools}
         fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         output = (args.output or ROOT / 'build/benchmark/fes-z80' / args.variant / fingerprint[:12]).resolve()
@@ -121,7 +124,7 @@ def main():
                    'hardware_acceptance': False, 'rbf_generated': False,
                    'source_fingerprint': fingerprint,
                    'created_utc': datetime.now(timezone.utc).isoformat(),
-                   **identity, 'seeds': seeds, 'runs': []}
+                   **identity, 'runs': []}
         summary_path = output / 'summary.json'
         write_json(summary_path, summary)
 
@@ -169,6 +172,9 @@ def main():
         summary['best_fmax_mhz'] = max(route['fmax_mhz'] for route in summary['runs'])
         write_json(summary_path, summary)
         print('Diagnostic evidence: ' + str(summary_path), flush=True)
+        if args.require_target and not summary['all_targets_met']:
+            print('Timing gate failed: at least one selected seed misses the target', file=sys.stderr)
+            return 1
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         print(str(error), file=sys.stderr)
