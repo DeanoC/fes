@@ -231,21 +231,19 @@ with strobes low, then pulse. Do not apply `0x13579BDF` (it is an I/O write
 to xxDF). This is a development-RBF diagnostic, not image acceptance, and it
 does not seal `fes.zx81`.
 
-## SG-1000 route seed is a stopgap (DeanoC/fes#436)
+## First-pass route ladders are a stopgap (DeanoC/fes#436)
 
-`fes.sg1000`'s OSS recipe pins `SEED` in `scripts/build_fes_sg1000_oss.py`.
-The design bakes a 128-bit `BUILD_ID` into the netlist (`chparam BUILD_ID`),
-and that ID is the functional identity of the build record. The record covers
-the whole source closure (`cores/fes-coleco`, `cores/fes-common`,
-`cores/fes-sg1000`, `scripts`, `toolchains`). As a result, an edit to **any included tracked file**
-in those roots (ordinary non-executable Markdown is excluded by the closure
-policy), even an unrelated script or a comment, changes placement, and can push the 52.224 MHz system clock over or under the limit. With the same
-seed, RTL and tools, main `330c56df` routed at 48.93 MHz. The same tree with
-only this script's comment text changed routed at 52.35 MHz.
+Each package's functional key covers the `scripts/` source closure. Its 128-bit
+`BUILD_ID` is chparam'd into the netlist, so an unrelated script edit changes
+placement. On main's #436 closure, SG-1000 seed 3 reached 48.93 MHz against
+the 52.224 MHz system constraint. At the PR closure, the 12-seed sweep passed
+10 seeds; seeds 2 and 11 failed. The SG-1000 producer now tries seeds 12, 5, 4, 8, 10, 1, 6, 9
+in order and keeps the first route meeting its system and pixel constraints.
+Pong similarly tries seeds 1 through 8 for its pixel constraint. The described
+menu package tries seed 5 first, then 1, 2, 3, 4, 6, 7, 8. Each winner still
+passes the producer's full timing, resource, and package evidence checks.
 
-The pinned seed is chosen by a sweep at the exact closure that ships. It stays
-valid only until something in those roots changes. When a later merge breaks
-it, re-sweep (see #436 for the method and sweep statistics) and re-pin. The
-real fix is tracked in DeanoC/nextpnr#112 (timing closure margin on this
-design) and in the follow-up to narrow the source closure, so that unrelated
-changes stop re-rolling sealed packages.
+The bounded ladders are a stopgap. Timing closure margin is tracked in
+[DeanoC/nextpnr#112](https://github.com/DeanoC/nextpnr/issues/112); narrowing
+the functional source closure is tracked in
+[DeanoC/fes#447](https://github.com/DeanoC/fes/issues/447).

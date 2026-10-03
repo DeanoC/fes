@@ -33,16 +33,20 @@ from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts import rom_map
+from scripts.search_placer_qor import SearchError, route_after_synth
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-# Stopgap seed (DeanoC/fes#436, DeanoC/nextpnr#112): picked by a seed sweep at this
-# exact functional source closure; it closes all three clock domains there.
-# A sealed BUILD_ID changes placement, so each committed source must re-route.
-SEED = 12
+# Order from the #436 sweep; stopgap until DeanoC/nextpnr#112.
+PLACER_SEEDS = (12, 5, 4, 8, 10, 1, 6, 9)
+SEED = PLACER_SEEDS[0]
+PLACER_TIMING_WEIGHT = 10
+PLACER_CRITICALITY_EXPONENT = 2
+ROUTE_TIMEOUT_SECONDS = 1800
+PLACER_QOR_CLOCKS = (("system_clock.clocks[0]", 52.224), (None, 74.25))
 SG1000_GPU_BACKEND = "hip"
 SG1000_GPU_ROUTER = "HIP"
 SG1000_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -198,6 +202,7 @@ def create_build_record(
             "sys_clock_hz": 52_224_000,
             "reference_clock_hz": 50_000_000,
             "seed": SEED,
+            "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "router": ROUTER,
             "toolchain_lock": SG1000_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, SG1000_TOOLCHAIN_LOCK)),
@@ -244,12 +249,7 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        # The pinned seed HIP-routed the shared system/audio PLL netlist. The GPU
-        # router can report a provisional timing shortfall before its final
-        # repair/signoff pass; allow that intermediate result, then require
-        # the structured final timing evidence below to meet both clock
-        # constraints. Timing-driven rip-up is intentionally not enabled.
-        # A sealed BUILD_ID changes placement; require final signoff each time.
+        # Kept for command inspection; the build routes the bounded ladder below.
         "--seed", str(SEED),
         "--router", ROUTER,
         "--timing-allow-fail",
@@ -464,6 +464,18 @@ def _manifest(
     return encode_manifest(fields)
 
 
+def _route_placement(root: Path, output: Path, nextpnr: Path, invocation, gpu_device: int):
+    return route_after_synth(
+        nextpnr=nextpnr, fixture=output / "synth.json", dest=output,
+        device=TARGET, qsf=root / QSF, sdc=root / SDC, freq="74.25",
+        seeds=PLACER_SEEDS, weights=(PLACER_TIMING_WEIGHT,),
+        critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
+        mode="first-pass", extra=("--router", ROUTER),
+        required=PLACER_QOR_CLOCKS, timeout=ROUTE_TIMEOUT_SECONDS,
+        gpu_devices=(gpu_device,), env=invocation.env, audit_source_root=root,
+    )
+
+
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 2, gpu_device: int = 0) -> Path:
     root = Path(root).resolve()
@@ -489,8 +501,14 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root}), output_relative=OUTPUT_RELATIVE)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
-        _run_tool(commands[1] + (("--gpu-device", str(gpu_device))), root, output / "nextpnr.log", **({"env": invocation.env, "audit_source_root": root}), output_relative=OUTPUT_RELATIVE)
+        try:
+            winner = _route_placement(root, output, authenticated["nextpnr-mistral"].path,
+                                      invocation, gpu_device)
+        except SearchError as exc:
+            raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, root)
+        evidence["route"]["placer_seed"] = winner.seed
+        evidence["route"]["placer_heap_timingweight"] = winner.weight
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed ROM design"),

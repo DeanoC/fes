@@ -23,6 +23,9 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertIn('--gpu-device',commands[1]); self.assertEqual(commands[1][commands[1].index('--gpu-device')+1],'0')
         default_route = p.build_commands('0'*32, {'yosys':Path('/yosys'),'nextpnr-mistral':Path('/nextpnr')})[1]
         self.assertEqual(default_route[default_route.index('--seed')+1], '5')
+        self.assertEqual(p.PLACER_SEEDS, (5, 1, 2, 3, 4, 6, 7, 8))
+        self.assertEqual(p.seed_order(4), (4, 5, 1, 2, 3, 6, 7, 8))
+        self.assertEqual(p.PLACER_QOR_CLOCKS, ((None, 74.25),))
         self.assertIn('cores/fes-common/generated/fes_application.vh',p.INPUTS)
         for invalid in (0,9,True):
             with self.assertRaises(ValueError): p.build_commands('0'*32,{'yosys':Path('/yosys'),'nextpnr-mistral':Path('/nextpnr')},seed=invalid)
@@ -39,6 +42,18 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertEqual(fields['target']['programming_profile'],'fes-gp-v1')
         self.assertEqual({i['id'] for i in fields['interfaces'] if i['required']},{'fes.video.fixed-720p60','fes.memory.hps-ddr','fes.video.menu-display'})
         self.assertTrue(all(i['required'] for i in fields['interfaces']))
+
+    def test_package_routes_first_pass_ladder(self):
+        p = self.producer
+        invocation = type('Invocation', (), {'env': {}})()
+        with patch.object(p, 'route_after_synth') as route:
+            p._route_placement(p.ROOT, p.ROOT/p.OUTPUT, Path('/nextpnr'), invocation, 5)
+        options = route.call_args.kwargs
+        self.assertEqual(options['seeds'], p.PLACER_SEEDS)
+        self.assertEqual(options['mode'], 'first-pass')
+        self.assertEqual(options['required'], ((None, 74.25),))
+        self.assertEqual(options['budget'], 8)
+        self.assertEqual(options['timeout'], 1800)
 
     def test_package_requires_gp_without_weakening_diagnostics(self):
         from scripts import build_fes_menu as menu

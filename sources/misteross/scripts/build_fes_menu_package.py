@@ -13,6 +13,7 @@ from scripts.compiler_read_audit import python_source_guard
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = Path('build/oss/fes-menu-package')
@@ -26,6 +27,27 @@ INPUTS = tuple(dict.fromkeys(tuple(p for p in menu.inputs_for('ddr') if p not in
     menu.RECIPE, 'cores/fes-menu/rtl/top.v')) + (RECIPE, menu.RECIPE,
     'scripts/core_package.py', 'scripts/export_core_package.py', *SOURCES)))
 OUTPUTS = (*menu.OUTPUTS, 'manifest.toml')
+PLACER_SEEDS = (5, 1, 2, 3, 4, 6, 7, 8)
+PLACER_TIMING_WEIGHT = 10
+PLACER_CRITICALITY_EXPONENT = 2
+ROUTE_TIMEOUT_SECONDS = 1800
+PLACER_QOR_CLOCKS = ((None, 74.25),)
+
+
+def seed_order(seed):
+    first = menu.seed_for('ddr', seed)
+    return (first, *(candidate for candidate in PLACER_SEEDS if candidate != first))
+
+
+def _route_placement(root, output, nextpnr, invocation, seed):
+    return route_after_synth(
+        nextpnr=nextpnr, fixture=output/'synth.json', dest=output, device=board.TARGET,
+        qsf=root/menu.QSF, sdc=root/menu.evidence.SDC, freq='74.25',
+        seeds=seed_order(seed), weights=(PLACER_TIMING_WEIGHT,),
+        critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
+        mode='first-pass', extra=('--router','gpu','--gpu-device','0'),
+        required=PLACER_QOR_CLOCKS, timeout=ROUTE_TIMEOUT_SECONDS,
+        env=invocation.env, audit_source_root=root)
 
 
 def build_commands(build_id, tools, *, seed=5):
@@ -80,6 +102,7 @@ def create_build_record(root, repository, revision, identities, *, identity_vers
             'dependencies':{},'tools':identities,
             'parameters':{'device':board.TARGET,'top':'top','gpu_backend':'hip','router':'gpu',
                 'gpu_architectures':board.FES_GPU_ARCHITECTURES,'seed':menu.seed_for('ddr',seed),
+                'seed_order':','.join(str(candidate) for candidate in seed_order(seed)),
                 'pixel_clock_hz':74250000,'reference_clock_hz':50000000,
                 'format2_package':True,'menu_display':True,'ddr':True,'diagnostic_enable':False}}
         return encode_build_record(functional_record_fields(root,fields,
@@ -105,10 +128,16 @@ def _build(root, *, cache_root, package_output, seed, identity_version):
         board._write_atomic(output/'build-inputs.json',inputs)
         commands = build_commands(build_identity(inputs),
             {name:authenticated[name].path for name in ('yosys','nextpnr-mistral')},seed=seed)
-        for command,log in zip(commands,('yosys.log','nextpnr.log')):
-            board._run_tool(command,root,output/log,output_relative=OUTPUT,
-                env=invocation.env,audit_source_root=root)
+        board._run_tool(commands[0],root,output/'yosys.log',output_relative=OUTPUT,
+            env=invocation.env,audit_source_root=root)
+        try:
+            winner = _route_placement(root, output, authenticated['nextpnr-mistral'].path,
+                                      invocation, seed)
+        except SearchError as exc:
+            raise board.BuildError(str(exc)) from exc
         result = menu.validate_build_evidence(output,root,mode='ddr',menu_gp=True)
+        result['route']['placer_seed'] = winner.seed
+        result['route']['placer_heap_timingweight'] = winner.weight
         invocation.verify()
         if {name:tool.identity for name,tool in _authenticate_tools(root,cache_root=cache_root).items()} != identities:
             raise board.BuildError('menu package tool identity changed')

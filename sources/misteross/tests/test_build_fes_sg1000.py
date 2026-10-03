@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import copy
+import json
 import tomllib
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import tempfile
 import unittest
 from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.build_fes_sg1000 import (
     OUTPUT_RELATIVE as QUARTUS_OUTPUT,
@@ -22,6 +24,8 @@ from scripts.build_fes_sg1000_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
     PINNED_INPUTS as OSS_PINNED_INPUTS,
     RTL_SOURCES as OSS_RTL_SOURCES,
+    PLACER_SEEDS,
+    PLACER_QOR_CLOCKS,
     SEED,
     SG1000_GPU_ARCHITECTURES,
     SG1000_GPU_BACKEND,
@@ -135,7 +139,9 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
-        self.assertEqual(SEED, 12)  # stopgap seed, DeanoC/fes#436
+        self.assertEqual(PLACER_SEEDS, (12, 5, 4, 8, 10, 1, 6, 9))
+        self.assertEqual(PLACER_QOR_CLOCKS, (("system_clock.clocks[0]", 52.224), (None, 74.25)))
+        self.assertEqual(SEED, PLACER_SEEDS[0])
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertIn("--timing-allow-fail", nextpnr)
@@ -164,6 +170,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
             {"yosys": "test"}, execution=EXECUTION,
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
+        self.assertEqual(json.loads(record)['parameters']['seed_order'], '12,5,4,8,10,1,6,9')
         self.assertIn(b'"router":"gpu"', record)
         self.assertIn(b'"gpu_backend":"hip"', record)
         self.assertIn(b'"package_format":3', record)
@@ -173,6 +180,18 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("cores/fes-sg1000/rtl/top.v", OSS_RTL_SOURCES)
         self.assertIn("cores/fes-sg1000/rtl/sg1000_machine.sv", OSS_RTL_SOURCES)
         self.assertIn("cores/fes-common/rtl/fes_z80_ce.sv", OSS_RTL_SOURCES)
+
+    def test_oss_routes_bounded_first_pass_ladder(self) -> None:
+        with patch.object(build_fes_sg1000_oss, 'route_after_synth') as route:
+            build_fes_sg1000_oss._route_placement(ROOT, ROOT / OSS_OUTPUT,
+                Path('/nextpnr'), FakeInvocation({}, 0), 0)
+        options = route.call_args.kwargs
+        self.assertEqual(options['seeds'], (12, 5, 4, 8, 10, 1, 6, 9))
+        self.assertEqual(options['mode'], 'first-pass')
+        self.assertEqual(options['required'], (("system_clock.clocks[0]", 52.224), (None, 74.25)))
+        self.assertEqual(options['budget'], 8)
+        self.assertEqual(options['timeout'], 1800)
+        self.assertEqual(options['extra'], ('--router', 'gpu'))
 
     def test_oss_manifest_requires_linked_cartridge_without_media_mailbox(self) -> None:
         record = b'{"recipe_sha256":"' + b"b" * 64 + b'"}'
