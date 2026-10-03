@@ -151,6 +151,18 @@ FOGCAST_POLL_ATTEMPTS=2 FOGCAST_POLL_INTERVAL=0 PATH="$fake_bin:$PATH" \
 grep -Fq 'package runtime smoke passed: Pong, ZX81, Coleco, RAM Tester' "$fixture/four.out"
 test "$(grep -Fc -- 'api/v1/session/launch' "$fixture/curl-four.log")" -eq 4
 
+# Previously supported three-positional-argument callers (#439) still work and
+# skip the RAM Tester check when no fourth selection is supplied.
+FOGCAST_CURL_LOG=$fixture/curl-three-args.log \
+FOGCAST_ACTIVE_GAME=$fixture/active-game \
+FOGCAST_HOST_API=http://host.test \
+FOGCAST_POLL_ATTEMPTS=2 FOGCAST_POLL_INTERVAL=0 PATH="$fake_bin:$PATH" \
+  sh "$smoke" "$fixture/pong.selection" "$fixture/zx81.selection" \
+    "$fixture/coleco.selection" > "$fixture/three-args.out"
+grep -Fxq 'package runtime smoke passed: Pong, ZX81, Coleco' "$fixture/three-args.out"
+test "$(grep -Fc -- 'api/v1/session/launch' "$fixture/curl-three-args.log")" -eq 3
+test "$(grep -Fc -- 'api/v1/session/stop' "$fixture/curl-three-args.log")" -eq 3
+
 FOGCAST_CURL_LOG=$fixture/curl-env.log \
 FOGCAST_ACTIVE_GAME=$fixture/active-game \
 FOGCAST_HOST_API=http://host.test \
