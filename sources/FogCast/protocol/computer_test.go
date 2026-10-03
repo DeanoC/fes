@@ -63,6 +63,47 @@ func TestDiskMediaNames(t *testing.T) {
 	}
 }
 
+func TestAtariStFloppyContract(t *testing.T) {
+	descriptor := apple2Descriptor(corepackage.Interface{ID: AtariStFloppyInterface().ID, Major: 1, Required: true})
+	got := DeclaredCoreMediaCapabilities(descriptor)
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `[{"role":"disk","format":"atari-st-floppy","min_bytes":737280,"max_bytes":737280,"interface":{"id":"fes.media.atari-st-floppy","major":1,"minor":0},"transport":"fes-computer-media-unit-v1","unit":0,"extensions":[".st"]}]`
+	if string(encoded) != want || !DeclaresDiskMedia(descriptor) {
+		t.Fatalf("Atari ST projection %s", encoded)
+	}
+	for _, name := range []string{"disk.st", "GAME.ST"} {
+		if !AdmitAtariStFloppyName(name) || !AdmitComputerDiskName(name) || !AdmitLiveMediaName(name) {
+			t.Fatalf("Atari ST name %q rejected", name)
+		}
+	}
+	for _, name := range []string{"", "disk.msa", "disk.stx", "disk.st.gz", "a/b.st", `a\b.st`, "disk.dsk"} {
+		if AdmitAtariStFloppyName(name) {
+			t.Fatalf("Atari ST name %q accepted", name)
+		}
+	}
+	unit := MediaUnitStatus{Unit: AtariStFloppyUnit, Interface: AtariStFloppyInterface(), MinBytes: 737280, MaxBytes: 737280, ChunkBytes: 512, State: MediaUnitReady}
+	status := computerStatus(unit)
+	status.CorePackage.ActiveInterfaces = []RuntimeInterface{{ID: AtariStFloppyInterface().ID, Major: 1}}
+	binding := MediaUnitBinding{PackageID: status.CorePackage.PackageID, Generation: 3}
+	if !binding.Matches(status) || !binding.AcceptsSize(status, AtariStFloppyBytes) || binding.AcceptsSize(status, AtariStFloppyBytes-1) {
+		t.Fatal("exact Atari ST binding rejected or wrong size accepted")
+	}
+	for _, change := range []func(*MediaUnitStatus){
+		func(u *MediaUnitStatus) { u.MinBytes-- }, func(u *MediaUnitStatus) { u.MaxBytes++ },
+		func(u *MediaUnitStatus) { u.Unit = 1 }, func(u *MediaUnitStatus) { u.ChunkBytes = 256 },
+		func(u *MediaUnitStatus) { u.Interface.Minor = 1 },
+	} {
+		bad := unit
+		change(&bad)
+		if bad.Valid() {
+			t.Fatalf("invalid Atari ST unit accepted %+v", bad)
+		}
+	}
+}
+
 func TestSpectrumTapeProjection(t *testing.T) {
 	got := DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true}))
 	encoded, err := json.Marshal(got)

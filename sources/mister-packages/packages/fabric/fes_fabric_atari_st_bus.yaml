@@ -1,0 +1,51 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.atari-st-bus
+description: >-
+  Internal registered Atari ST 68000 expansion socket. Stable requests include
+  a 23-bit word address, big-endian byte lanes and function code. Responses
+  provide wait-state completion, bus error, encoded IRQ and card presence.
+  This fabric contract adds no GP opcode or runtime capability bit.
+major: 1
+minor: 0
+constants:
+  - name: FesAtariStBusRequestBits
+    value: 56
+  - name: FesAtariStBusResponseBits
+    value: 32
+  - name: FesAtariStBusAddressLow
+    value: 0
+  - name: FesAtariStBusAddressBits
+    value: 23
+  - name: FesAtariStBusWriteDataLow
+    value: 23
+  - name: FesAtariStBusByteEnableLow
+    value: 39
+  - name: FesAtariStBusWriteBit
+    value: 41
+  - name: FesAtariStBusRequestBit
+    value: 42
+  - name: FesAtariStBusResetBit
+    value: 43
+  - name: FesAtariStBusFunctionCodeLow
+    value: 44
+  - name: FesAtariStBusPhi1Bit
+    value: 47
+  - name: FesAtariStBusPhi2Bit
+    value: 48
+  - name: FesAtariStBusInterruptAckBit
+    value: 49
+  - name: FesAtariStBusInterruptLevelLow
+    value: 50
+  - name: FesAtariStBusReadDataLow
+    value: 0
+  - name: FesAtariStBusAckBit
+    value: 16
+  - name: FesAtariStBusBusErrorBit
+    value: 17
+  - name: FesAtariStBusIrqLow
+    value: 18
+  - name: FesAtariStBusPresentBit
+    value: 21
+  - name: FesAtariStBusBoundaryLatencyCycles
+    value: 2

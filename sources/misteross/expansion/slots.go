@@ -35,6 +35,8 @@ func slotPolicies(slot, mapping string) map[int]socketPolicy {
 		return spectrumSockets
 	case slot == C64Slot && mapping == C64Map:
 		return c64Sockets
+	case slot == AtariStSlot && mapping == AtariStMap:
+		return atariStSockets
 	default:
 		return nil
 	}
@@ -54,6 +56,8 @@ func slotMap(slot string, major int) (string, bool) {
 		return SpectrumMap, true
 	case slot == C64Slot && major == 1:
 		return C64Map, true
+	case slot == AtariStSlot && major == 1:
+		return AtariStMap, true
 	default:
 		return "", false
 	}

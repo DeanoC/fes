@@ -241,3 +241,48 @@ func TestComposeSlotsROM(t *testing.T) {
 		t.Fatal("accepted a ROM destination inside an unselected socket")
 	}
 }
+
+func TestAtariStSocketCompositionFence(t *testing.T) {
+	sockets := SlotSockets(AtariStSlot, AtariStMap)
+	if len(sockets) != 1 || sockets[0] != 1 {
+		t.Fatalf("ST sockets = %v", sockets)
+	}
+	if mapping, ok := SlotMap(AtariStSlot, 1); !ok || mapping != AtariStMap {
+		t.Fatalf("ST map = %q %v", mapping, ok)
+	}
+	shell := apple2Shell(t)
+	shell.Slot = AtariStSlot
+	donor := apple2Card(t, shell, 2, cramCoordinate{2000, 100})
+	manifest := donor.Manifest
+	manifest.Slot = AtariStSlot
+	manifest.Map = AtariStMap
+	manifest.SlotIndex = 1
+	card, err := NewAsset(manifest, donor.Cart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	composition, linked, err := ComposeSlotsContext(context.Background(), shell, []Asset{card})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := loadRBF(linked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cramBit(decoded.cram, 2000, 100) != 0 || composition.Expansions[0].Slot != 1 {
+		t.Fatal("ST card did not link inside its socket")
+	}
+	manifest.SlotIndex = 2
+	if _, err := NewAsset(manifest, donor.Cart); err == nil {
+		t.Fatal("ST accepted nonexistent socket 2")
+	}
+	manifest.SlotIndex = 1
+	outside := apple2Card(t, shell, 4, cramCoordinate{2000, 2000})
+	manifest.CartSHA256, manifest.CartSize = outside.Manifest.CartSHA256, outside.Manifest.CartSize
+	outsideCard, err := NewAsset(manifest, outside.Cart)
+	if err == nil {
+		if _, _, err = ComposeSlotsContext(context.Background(), shell, []Asset{outsideCard}); err == nil {
+			t.Fatal("ST card escaped its CRAM rectangle")
+		}
+	}
+}

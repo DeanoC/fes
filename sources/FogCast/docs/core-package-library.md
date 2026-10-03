@@ -521,6 +521,16 @@ fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID 
 Swap or eject the running cassette with `fogcast change-cassette` and
 `fogcast eject-cassette`.
 
+Atari ST packages use role `disk`, format `atari-st-floppy`, and required
+`fes.media.atari-st-floppy` 1.0: exactly 737,280 bytes (720 KiB), `.st`, unit
+0, read only. Offline library selection rejects any other size. Launch
+inserts the selected disk after Start; `fogcast change-disk` and
+`fogcast eject-disk` replace or empty the drive while execution continues.
+The CLI accepts an exact `.st` file or a stored media ID, naming the latter
+`disk.st` from the active unit. Optional `fes.expansion.atari-st-bus` 1.0
+uses the existing slot-card selection with map `fes.atari-st-bus.socket/1`
+and socket 1 only. These paths have host tests; hardware acceptance is pending.
+
 ## Apple II slot cards
 
 A `fes.computer` 1.0 shell that declares optional `fes.expansion.apple2-bus`

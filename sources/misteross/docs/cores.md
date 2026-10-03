@@ -186,6 +186,14 @@ Copy the closest sibling. Do not start from an experiment, and do not fork a
 second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
+The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.
+`make sim-fes-atari-st` covers the full CPU, MMU aliases, peripherals,
+physical SDRAM commands, dual-clock video and complete disk upload.
+`sim-fes-atari-st-emutos` accepts an external 192 KiB EmuTOS image; the
+fetch target pins the official free ROM. Native producer qualification and
+hardware acceptance remain distinct from these host checks. The factory
+image does not select this core yet.
+
 1. Pick an existing ABI unless the task includes a new one. A new mailbox or
    transport is mister-packages plus libmister-runtime, then RTL. A producer
    alone cannot make the host accept an interface the runtime does not

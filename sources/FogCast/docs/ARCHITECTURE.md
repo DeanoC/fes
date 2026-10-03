@@ -658,7 +658,8 @@ A `fes.computer` package projects media role `disk`
 `fes-computer-media-unit-v1`, unit 0. `fes.media.apple2-floppy` 1.0 is format
 `apple2-dos-order`, exactly 143,360 bytes, names `.dsk`/`.do`.
 `fes.media.c64-disk` 1.0 is format `c64-d64`, exactly 174,848 bytes, name
-`.d64`. `fes.media.spectrum-tape` 1.0 is role `cassette`, format
+`.d64`. `fes.media.atari-st-floppy` 1.0 is format `atari-st-floppy`, exactly
+737,280 bytes, name `.st`. `fes.media.spectrum-tape` 1.0 is role `cassette`, format
 `spectrum-tap`, 1..65,536 bytes, name `.tap`, on the same unit 0. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
@@ -666,15 +667,15 @@ declares one unit-0 medium. Library selection
 empty: launch programs the package first and then inserts the selected disk
 into unit 0; a failed insert is a failed launch and follows the existing
 library-slot Stop/recovery. The same session accepts later swaps:
-`POST /api/v1/session/live-media` with a `.dsk`/`.do` or `.d64` name inserts a
+`POST /api/v1/session/live-media` with a `.dsk`/`.do`, `.d64` or `.st` name inserts a
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
-generation declares (Apple II floppy, C64 disk, or Spectrum tape). `.p` names
+generation declares (Apple II floppy, C64 disk, Atari ST floppy, or Spectrum tape). `.p` names
 keep the ZX81 tape path. A `.tap` name inserts the Spectrum cassette on unit 0.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
 `fogcast eject-cassette` for a Spectrum `.tap`. A stored
-media ID is named `disk.dsk` or `disk.d64` from the active unit, so the host
-checks 143,360 or 174,848 bytes against that generation. A path is imported
+media ID is named `disk.dsk`, `disk.d64` or `disk.st` from the active unit,
+so the host checks 143,360, 174,848 or 737,280 bytes against that generation. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.
 
 `fogcast/media_units.go` binds each request to the package, generation, target
@@ -1996,6 +1997,15 @@ play ABI. Its package declares required fixed video, `fes.keyboard.hid`,
 format 3 with one `firmware` ROM linked at download. The optional
 `fes.expansion.apple2-bus` 1.0 is a multi-socket bus (`fes.apple2-bus.slots/1`,
 physical slots 2, 4, 5 and 7), not a capability bit.
+
+Atari ST (`fes.atari-st`) uses the same home-computer launch and media paths
+with required `fes.media.atari-st-floppy` 1.0 and an exact 720 KiB raw disk.
+Optional `fes.expansion.atari-st-bus` 1.0 uses shared map
+`fes.atari-st-bus.socket/1`, with one card in socket 1 through the same
+slot-composition transport and independently checked shared linker. `.msa`,
+`.stx` and compressed images require conversion to the admitted `.st` bytes
+before upload. These new paths have host coverage; hardware acceptance is
+pending.
 
 `catalog/core_slot_expansions.go` stores one card per `(game_id, slot)` (schema
 12); `fogcast/core_slot_expansions.go` validates import against the installed

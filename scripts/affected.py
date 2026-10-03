@@ -10,7 +10,7 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 # Simulation families include the standalone CPU; it has no play-package recipe.
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80')
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest')
 SIMULATION_ONLY_CORES = frozenset({'z80'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 
@@ -23,6 +23,7 @@ FPGA_SOFTWARE_TESTS = (
     'test_source_provenance.py', 'test_source_repository.py',
     'test_core_package.py', 'test_core_package_v3.py', 'test_search_placer_qor.py',
     'test_coleco_sim_shards.py', 'test_rom_map.py', 'test_video_parts_build.py',
+    'test_atari_st_*.py',
 )
 FPGA_PRODUCER_HELPERS = {
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
@@ -38,7 +39,8 @@ CORE_DIRECTORIES = {
     'fes-demo': ('demo',), 'fes-pong': ('demo', 'pong'), 'pong': ('pong',),
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
-    'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',),
+    'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
+    'fes-ramtest': ('ramtest',),
 }
 # ZX81's in-session plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
@@ -46,26 +48,36 @@ MENU_SESSION_INPUTS = frozenset({
     'rtl/fes_menu_reader.v', 'rtl/fes_menu_control.v', 'rtl/fes_menu_video.v',
     'sim/ddr_model.v',
 })
+# ST reuses existing board clock, PSG and rate-0 SDRAM implementations.
+ATARI_ST_SHARED_INPUTS = frozenset({
+    'cores/fes-c64/rtl/c64_system_pll.v',
+    'cores/fes-zx81/expansions/zonx_ay.v',
+    'cores/fes-ramtest/rtl/sdram_addon_port.v',
+})
 SHARED_RTL = {
     'coleco_vdp.sv': COLECO_CONSUMERS,
     'coleco_dpram.v': COLECO_CONSUMERS,
     'coleco_video_dpram.v': COLECO_CONSUMERS,
     'coleco_video_720p.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
-    'fes_application_gp.v': ('demo', 'coleco', 'menu'),
-    'fes_video_720p.v': ('demo', 'pong'),
-    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum'),
+    'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest'),
+    'fes_video_720p.v': ('demo', 'pong', 'ramtest'),
+    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
     'fes_audio_pll.v': ('demo',),
-    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum'),
+    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
-    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum'),
+    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st'),
     't80pa.v': ('coleco', 'sms'),
+    'fes_video_part_direct.v': ('coleco', 'atari-st'),
+    'fes_video_part_scanlines.v': ('coleco', 'atari-st'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
 C64_SCRIPTS = frozenset({'c64_slots.py', 'build_c64_slot_card.py'})
 SPECTRUM_SCRIPTS = frozenset({'spectrum_slots.py'})
+ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
+                             'fetch_atari_st_emutos.py'})
 
 
 def fpga_cores(path):
@@ -80,6 +92,11 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
+    if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
+        return ('demo', 'pong', 'ramtest'), 'shared fixed-raster clock consumers'
+    if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
+        original = CORE_DIRECTORIES.get(parts[1], CORES)
+        return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
     if len(parts) >= 3 and parts[0] == 'cores':
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'z80'):
@@ -95,10 +112,12 @@ def fpga_cores(path):
                 return ('coleco', 'sms'), 'shared TV80 consumers'
             if len(parts) >= 5 and parts[3] == 'cpu6502':
                 return ('apple2', 'c64'), 'shared 6502 consumers'
+            if len(parts) >= 5 and parts[3] == 'fx68k':
+                return ('atari-st',), 'shared 68000 consumer'
             if len(parts) == 4 and parts[3] in SHARED_RTL:
                 return SHARED_RTL[parts[3]], 'shared RTL consumers'
     if len(parts) == 2 and parts[0] == 'scripts':
-        producer = any(parts[1] == f'build_fes_{core}{suffix}.py'
+        producer = any(parts[1] == f'build_fes_{core.replace("-", "_")}{suffix}.py'
                        for core in CORES if core not in SIMULATION_ONLY_CORES
                        for suffix in ('', '_oss'))
         if producer or parts[1] in FPGA_PRODUCER_HELPERS:
@@ -118,6 +137,8 @@ def fpga_cores(path):
             return ('spectrum',), 'Spectrum turbo simulation and performance recipe'
         if parts[1] in SPECTRUM_SCRIPTS:
             return ('spectrum',), 'Spectrum socket recipe'
+        if parts[1] in ATARI_ST_SCRIPTS:
+            return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
     if len(parts) == 2 and parts[0] == 'tests' and any(
             fnmatchcase(parts[1], pattern) for pattern in FPGA_SOFTWARE_TESTS):
         return (), 'FPGA producer/package software tests; RTL unchanged'

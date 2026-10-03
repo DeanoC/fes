@@ -45,6 +45,13 @@ The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
 `fes.sg1000`, `fes.spectrum` and `fes.ramtest`. Another
 package is not added to that set merely because its producer exists.
 
+The first 16-bit machine is the [Atari 520ST](cores/fes-atari-st/README.md):
+real 68000, physical SDRAM arbitration, pluggable 192 KiB firmware and
+expansion, peripherals, and all three ST video modes through shared
+direct/scanline parts. Stock EmuTOS reaches GEM in host simulation through
+the SDRAM and video paths. Run `make sim-fes-atari-st`; the registered HIP
+producer is `make build-fes-atari-st`. It is not selected in the factory image.
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered
