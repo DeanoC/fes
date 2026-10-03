@@ -131,6 +131,15 @@ A new `BUILD_ID` changes placement. An older sealed package, parent pin, or
 kit note does not accept the bitstream you just built. Record new evidence
 for the new bytes.
 
+## Standalone original Z80
+
+`make sim-fes-z80` validates original NMOS and documented fast CPU variants in
+`cores/fes-common/rtl/z80`. This is a shared CPU development lane, not a play
+package. The [CPU contract](../cores/fes-common/rtl/z80/README.md) lists the
+interfaces, published behavior sources, tests and contained Cyclone V timing
+diagnostic. Console producers retain their existing CPU selection until a
+separate consumer qualification changes it.
+
 ## Update an existing core
 
 1. Read that core's `README.md` if it has one, and the matching section of

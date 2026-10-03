@@ -25,6 +25,17 @@ class GateTests(unittest.TestCase):
                          {'include': [{'core': 'menu', 'target': 'sim-fes-menu'}]})
         require_success(results_for(('parent', 'fpga'), ('menu',)))
 
+    def test_z80_has_a_required_standalone_simulation_job(self):
+        self.assertEqual(simulation_matrix(['z80']),
+                         {'include': [{'core': 'z80', 'target': 'sim-fes-z80'}]})
+        baseline = results_for(('parent', 'fpga'), ('z80',))
+        require_success(baseline)
+        for job in ('simulation-tools', 'fpga-simulation'):
+            results = copy.deepcopy(baseline)
+            results[job]['result'] = 'skipped'
+            with self.subTest(job=job), self.assertRaises(ValueError):
+                require_success(results)
+
     def test_documentation_producer_and_full_plans(self):
         for selected, cores in [((), ()), (('parent', 'fpga'), ()),
                                 (('host', 'parent'), ()), (LANES, CORES)]:
