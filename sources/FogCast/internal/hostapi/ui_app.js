@@ -2211,6 +2211,7 @@
       const options = viableTitleOptions(title, choiceGameRows(game, [...state.games, ...state.playOptionRows]));
       if (options.length < 2) return;
       const localPick = { [game.id]: game.id };
+      const previousPicks = state.playPicks;
       const picks = { ...state.playPicks, ...localPick };
       if (title && title.title_id) picks[title.title_id] = game.id;
       if (game.title) picks[String(game.title).trim().toLowerCase()] = game.id;
@@ -2233,6 +2234,13 @@
           if (retained[key] === game.id) delete retained[key];
         });
         localPlayPicks = retained;
+        const restored = { ...state.playPicks };
+        Object.keys(localPick).forEach(key => {
+          if (restored[key] !== game.id) return;
+          if (previousPicks[key] && previousPicks[key] !== game.id) restored[key] = previousPicks[key];
+          else delete restored[key];
+        });
+        state.playPicks = Object.freeze(restored);
         const currentTitle = titleForGame(state.libraryTitles, state.selectedLiveGame);
         if (!currentTitle || currentTitle.title_id !== title.title_id) return;
         ++playContextGeneration;
