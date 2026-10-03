@@ -75,6 +75,34 @@ type fakeService struct {
 	playSessions           []fogcast.PlaySession
 }
 
+type smsHashService struct {
+	*fakeService
+	hash string
+	err  error
+}
+
+func (s *smsHashService) NativeSMSROMHash(context.Context, catalog.Game) (string, error) {
+	return s.hash, s.err
+}
+
+func TestGameDetailExposesOptionalSMSROMHash(t *testing.T) {
+	game := catalog.Game{ID: "sms-cart", Title: "Cart", System: protocol.SystemSMS, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true}
+	service := &smsHashService{fakeService: &fakeService{game: game}, hash: strings.Repeat("a", 64)}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/sms-cart")
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "rom_sha256") {
+		t.Fatalf("plain detail paid for the ROM hash = %d %s", response.Code, response.Body.String())
+	}
+	response = serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/sms-cart?rom_sha256=1")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"rom_sha256":"`+service.hash+`"`) {
+		t.Fatalf("detail = %d %s", response.Code, response.Body.String())
+	}
+	service.err = errors.New("source unavailable")
+	response = serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/sms-cart?rom_sha256=1")
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "rom_sha256") {
+		t.Fatalf("unavailable detail = %d %s", response.Code, response.Body.String())
+	}
+}
+
 func (s *fakeService) MeshBackendLibrary(context.Context) ([]fogcast.MeshBackendRow, []fogcast.MeshSkip) {
 	return nil, nil
 }

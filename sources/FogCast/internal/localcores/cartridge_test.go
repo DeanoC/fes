@@ -1,6 +1,7 @@
 package localcores
 
 import (
+	"archive/zip"
 	"bytes"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,59 @@ import (
 	"path/filepath"
 	"testing"
 )
+
+func TestReadCartridgeZIPUsesSMSMember(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cart.zip")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := zip.NewWriter(f)
+	member, err := w.Create("games/cart.sms")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := member.Write([]byte("ROM bytes")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := readCartridgeFile(path)
+	if err != nil || string(got) != "ROM bytes" {
+		t.Fatalf("cartridge = %q, %v", got, err)
+	}
+}
+
+func TestReadCartridgeZIPRejectsMultipleSMSROMs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "multi.zip")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := zip.NewWriter(f)
+	for _, name := range []string{"one.sms", "two.sms"} {
+		member, err := w.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := member.Write([]byte("ROM")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readCartridgeFile(path); err == nil {
+		t.Fatal("accepted ambiguous ZIP")
+	}
+}
 
 func TestLaunchCartridgeDeliversROMWithoutLoadingTheBareCore(t *testing.T) {
 	runtime := &fakeRuntime{}
