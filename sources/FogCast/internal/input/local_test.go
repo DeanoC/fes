@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
@@ -34,6 +36,16 @@ func gamepad(player uint8, code remoteinput.Code, action remoteinput.Action, val
 		Code:   uint16(code),
 		Value:  value,
 	}
+}
+
+func localSocketPath(t *testing.T, name string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "li")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, name)
 }
 
 func keyboardFrameFor(code remoteinput.Code, action remoteinput.Action) protocol.InputFrame {
@@ -179,6 +191,394 @@ func TestLocalPadsTakeLowPortsAndRemoteUsesTheNextFreePort(t *testing.T) {
 	}
 }
 
+func TestExcludedRemotePlayerReleaseDoesNotReappear(t *testing.T) {
+	sink, _ := newPortsFixture(t, true)
+	for _, frame := range []protocol.InputFrame{
+		gamepad(1, remoteinput.ButtonB, remoteinput.ActionPress, 0),
+		gamepad(1, remoteinput.KeypadHash, remoteinput.ActionPress, 0),
+		gamepad(1, remoteinput.AxisLeftX, remoteinput.ActionAbsolute, 25000),
+	} {
+		if err := sink.Apply(frame); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	for _, frame := range []protocol.InputFrame{
+		gamepad(1, remoteinput.ButtonB, remoteinput.ActionRelease, 0),
+		gamepad(1, remoteinput.KeypadHash, remoteinput.ActionRelease, 0),
+		gamepad(1, remoteinput.AxisLeftX, remoteinput.ActionAbsolute, 0),
+	} {
+		if err := sink.Apply(frame); err == nil {
+			t.Fatal("excluded remote player was accepted")
+		}
+	}
+	if err := sink.Apply(gamepad(1, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err == nil {
+		t.Fatal("excluded player's new press was accepted")
+	}
+	if err := sink.releaseSource(sourceLocal); err != nil {
+		t.Fatal(err)
+	}
+	sink.mu.Lock()
+	buttons, keypad := controllerSnapshot(sink.mergedSnapshotLocked(1), true)
+	sink.mu.Unlock()
+	if buttons != 0 || keypad != 0 {
+		t.Fatalf("excluded remote releases reappeared as buttons=%d keypad=%d", buttons, keypad)
+	}
+}
+
+func localPlayerDeparture(player uint8) protocol.InputFrame {
+	event := remoteinput.LocalPlayerDeparture(player)
+	return protocol.InputFrame{
+		Header: protocol.InputHeader{Type: protocol.InputTypeInput, Session: 1},
+		Seq:    1,
+		Player: event.Player,
+		Device: uint8(event.Device),
+		Kind:   uint8(event.Kind),
+		Action: uint8(event.Action),
+		Code:   uint16(event.Code),
+		Value:  event.Value,
+	}
+}
+
+func TestIndividualLocalDepartureReopensOnlyItsPort(t *testing.T) {
+	sink, _ := newPortsFixture(t, false)
+	for player := uint8(0); player < 2; player++ {
+		if err := sink.Apply(gamepad(player, remoteinput.ButtonStart, remoteinput.ActionPress, 0)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for player := uint8(0); player < 2; player++ {
+		if err := sink.apply(sourceLocal, gamepad(player, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, localPlayerDeparture(0)); err != nil {
+		t.Fatal(err)
+	}
+	if sink.localClaim != [2]bool{false, true} {
+		t.Fatalf("local claims=%v", sink.localClaim)
+	}
+	sink.mu.Lock()
+	buttons0, _ := controllerSnapshot(sink.mergedSnapshotLocked(0), false)
+	buttons1, _ := controllerSnapshot(sink.mergedSnapshotLocked(1), false)
+	sink.mu.Unlock()
+	if buttons0 != 128 || buttons1 != 16 {
+		t.Fatalf("departure lost remote P1 or surviving local P2: %d/%d", buttons0, buttons1)
+	}
+	if err := sink.apply(sourceLocal, gamepad(1, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, localPlayerDeparture(1)); err != nil {
+		t.Fatal(err)
+	}
+	sink.mu.Lock()
+	buttons1, _ = controllerSnapshot(sink.mergedSnapshotLocked(1), false)
+	sink.mu.Unlock()
+	if sink.localClaim != [2]bool{} || buttons1 != 128 {
+		t.Fatalf("second departure claims=%v buttons=%d", sink.localClaim, buttons1)
+	}
+}
+
+func TestLocalPadDeparturePreservesShapedKeyboardHold(t *testing.T) {
+	sink, _ := newPortsFixture(t, false)
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, keyboardFrameFor(remoteinput.KeyUp, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.apply(sourceLocal, localPlayerDeparture(0)); err != nil {
+		t.Fatal(err)
+	}
+	sink.mu.Lock()
+	buttons, _ := controllerSnapshot(sink.mergedSnapshotLocked(0), false)
+	sink.mu.Unlock()
+	if buttons != 1 || sink.localClaim[0] {
+		t.Fatalf("departure buttons=%d claim=%v, want held keyboard Up and free slot", buttons, sink.localClaim[0])
+	}
+}
+
+func TestPlayerDepartureRequiresLocalRoute(t *testing.T) {
+	fallback := &recordingSink{}
+	sink := &controllerPortsSink{fallback: fallback}
+	if err := sink.Apply(localPlayerDeparture(0)); err == nil {
+		t.Fatal("host departure marker reached unbound fallback")
+	}
+	if len(fallback.frames) != 0 {
+		t.Fatal("host marker was delivered")
+	}
+	bound, _ := newPortsFixture(t, false)
+	if err := bound.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := bound.Apply(localPlayerDeparture(0)); err == nil {
+		t.Fatal("host departure marker was accepted")
+	}
+	if !bound.localClaim[0] {
+		t.Fatal("host marker cleared the local claim")
+	}
+}
+
+func TestLocalIdleObservationIsCached(t *testing.T) {
+	sink := &controllerPortsSink{}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	observations := 0
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		observations++
+		return CoreObservation{}, nil
+	})
+	for range 10 {
+		if err := controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); !errors.Is(err, errNoCore) {
+			t.Fatalf("idle frame: %v", err)
+		}
+	}
+	if observations != 1 {
+		t.Fatalf("idle frames observed runtime %d times, want 1", observations)
+	}
+}
+
+func expireLocalObservation(sink *controllerPortsSink) {
+	sink.mu.Lock()
+	sink.observedAt = time.Now().Add(-localCoreObserveTTL - time.Millisecond)
+	sink.mu.Unlock()
+}
+
+func TestLocalIdleObservationExpiresWhenCoreStarts(t *testing.T) {
+	sink, writes := newPortsFixture(t, false)
+	if err := sink.ReleaseAll(); err != nil {
+		t.Fatal(err)
+	}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	active := false
+	observations := 0
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		observations++
+		if !active {
+			return CoreObservation{}, nil
+		}
+		return CoreObservation{Active: true, Binding: &ControllerBinding{PackageID: "coleco", Generation: 5}}, nil
+	})
+	frame := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+	if err := controller.deliverLocal(context.Background(), frame); !errors.Is(err, errNoCore) {
+		t.Fatal(err)
+	}
+	active = true
+	if err := controller.deliverLocal(context.Background(), frame); !errors.Is(err, errNoCore) {
+		t.Fatalf("fresh idle observation: %v", err)
+	}
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), frame); err != nil {
+		t.Fatal(err)
+	}
+	if observations != 2 || len(*writes) != 1 || (*writes)[0].generation != 5 {
+		t.Fatalf("observations=%d writes=%+v", observations, *writes)
+	}
+}
+
+func TestLocalActiveObservationExpiresAfterCoreStops(t *testing.T) {
+	fallback := &recordingSink{}
+	sink := &controllerPortsSink{fallback: fallback}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	active := true
+	observations := 0
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		observations++
+		return CoreObservation{Active: active}, nil
+	})
+	frame := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+	if err := controller.deliverLocal(context.Background(), frame); err != nil {
+		t.Fatal(err)
+	}
+	active = false
+	if err := controller.deliverLocal(context.Background(), frame); err != nil {
+		t.Fatalf("fresh active observation: %v", err)
+	}
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), frame); !errors.Is(err, errNoCore) {
+		t.Fatalf("expired active observation: %v", err)
+	}
+	if observations != 2 || len(fallback.frames) != 2 {
+		t.Fatalf("observations=%d delivered=%d", observations, len(fallback.frames))
+	}
+}
+
+func TestLocalObservationFailureIsCachedAndCounted(t *testing.T) {
+	sink := &controllerPortsSink{}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	observations := 0
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		observations++
+		return CoreObservation{}, errors.New("runtime unavailable")
+	})
+	for range 10 {
+		if err := controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); !errors.Is(err, errNoCore) {
+			t.Fatal(err)
+		}
+	}
+	if observations != 1 || controller.LocalInputDrops() != 10 {
+		t.Fatalf("observations=%d drops=%d", observations, controller.LocalInputDrops())
+	}
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); !errors.Is(err, errNoCore) {
+		t.Fatal(err)
+	}
+	if observations != 2 || controller.LocalInputDrops() != 11 {
+		t.Fatalf("expired failure observations=%d drops=%d", observations, controller.LocalInputDrops())
+	}
+}
+
+func TestLocalDropsCountReplacementAndInvalidPlayer(t *testing.T) {
+	sink, _ := newPortsFixture(t, false)
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	controller.lifecycle.Lock()
+	err := controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	controller.lifecycle.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.deliverLocal(context.Background(), gamepad(2, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err == nil {
+		t.Fatal("invalid player was accepted")
+	}
+	if err := controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if controller.LocalInputDrops() != 2 {
+		t.Fatalf("drops=%d, want 2", controller.LocalInputDrops())
+	}
+}
+
+func TestLocalFailedBindingDoesNotCacheAnActiveFallback(t *testing.T) {
+	fallback := &recordingSink{}
+	sink := &controllerPortsSink{fallback: fallback}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	observations := 0
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		observations++
+		return CoreObservation{Active: true, Binding: &ControllerBinding{PackageID: "pkg", Generation: 1}}, nil
+	})
+	for range 2 {
+		if err := controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)); err == nil {
+			t.Fatal("binding without a controller poster fell back to legacy input")
+		}
+	}
+	if observations != 2 || len(fallback.frames) != 0 {
+		t.Fatalf("observations=%d legacy frames=%d", observations, len(fallback.frames))
+	}
+}
+
+func TestLocalObservationExpiryBoundsMatrixRetirement(t *testing.T) {
+	keys := NewKeyboardSink()
+	stall := false
+	keys.SetPoster(func(ctx context.Context, _ uint64) error {
+		if !stall {
+			return nil
+		}
+		if _, ok := ctx.Deadline(); !ok {
+			t.Error("matrix retirement has no local write deadline")
+			return errors.New("missing deadline")
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	sink := &controllerPortsSink{keys: keys}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	active := true
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		return CoreObservation{Active: active, Keyboard: active, CoreID: "fes.coleco"}, nil
+	})
+	frame := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+	if err := controller.deliverLocal(context.Background(), frame); err != nil {
+		t.Fatal(err)
+	}
+	if len(sink.localKeys) == 0 {
+		t.Fatal("local pad did not establish a matrix hold")
+	}
+	active, stall = false, true
+	expireLocalObservation(sink)
+	started := time.Now()
+	if err := controller.deliverLocal(context.Background(), frame); !errors.Is(err, errNoCore) {
+		t.Fatal(err)
+	}
+	if time.Since(started) > time.Second {
+		t.Fatal("expired matrix retirement exceeded local write budget")
+	}
+	if !controller.lifecycle.TryLock() {
+		t.Fatal("expired matrix retirement retained lifecycle lock")
+	}
+	controller.lifecycle.Unlock()
+}
+
+func TestLocalObservationRefreshDoesNotWaitForRemoteHIDPost(t *testing.T) {
+	for _, stopped := range []bool{false, true} {
+		t.Run(fmt.Sprint("stopped=", stopped), func(t *testing.T) {
+			sink := &controllerPortsSink{fallback: &recordingSink{}, hid: &keyboardHIDSink{}}
+			controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+			controller.ports = sink
+			obs := CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: "apple2", Generation: 7}}
+			controller.ObserveCore(func(context.Context) (CoreObservation, error) { return obs, nil })
+			if err := controller.ensureLocalCore(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			var once sync.Once
+			unblock := func() { once.Do(func() { close(release) }) }
+			defer unblock()
+			sink.hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error {
+				close(entered)
+				<-release
+				return nil
+			})
+			remoteDone := make(chan error, 1)
+			code, _ := hidkeys.Code(0x04)
+			go func() { remoteDone <- sink.Apply(keyboardFrameFor(code, remoteinput.ActionPress)) }()
+			<-entered
+			if stopped {
+				obs = CoreObservation{}
+			}
+			expireLocalObservation(sink)
+			localDone := make(chan error, 1)
+			go func() {
+				localDone <- controller.deliverLocal(context.Background(), gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+			}()
+			select {
+			case err := <-localDone:
+				if !stopped && err != nil {
+					t.Fatal(err)
+				}
+				if stopped && err == nil {
+					t.Fatal("idle refresh accepted local input")
+				}
+			case <-time.After(2 * localCoreWriteTimeout):
+				t.Fatal("local observation waited for the stalled remote HID post")
+			}
+			if !controller.lifecycle.TryLock() {
+				t.Fatal("HID refresh retained lifecycle lock")
+			}
+			controller.lifecycle.Unlock()
+			unblock()
+			if err := <-remoteDone; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestLocalSourceAppliesColecoStartSelectAliases(t *testing.T) {
 	sink, writes := newPortsFixture(t, true)
 	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonStart, remoteinput.ActionPress, 0)); err != nil {
@@ -240,7 +640,7 @@ func TestKeyboardSourcesMerge(t *testing.T) {
 }
 
 func TestLocalFeedLoopbackSocketMapsStartWithoutALease(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "local-input.sock")
+	path := localSocketPath(t, "local-input.sock")
 	listener, err := listenLocalInput(path)
 	if err != nil {
 		t.Fatal(err)
@@ -324,7 +724,7 @@ func TestLocalFeedLoopbackSocketMapsStartWithoutALease(t *testing.T) {
 }
 
 func TestLocalFeedDropsFramesWhenNoCoreIsBound(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "local-input.sock")
+	path := localSocketPath(t, "local-input.sock")
 	writes := 0
 	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(context.Context, string, uint64, uint8, uint8, uint16) error {
 		writes++
@@ -601,7 +1001,7 @@ func TestLocalFrameDuringLocalLaunchDoesNotRebindRetiredGeneration(t *testing.T)
 // the socket.
 func hungStatusRuntime(t *testing.T) *misterruntime.Runtime {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "runtime.sock")
+	path := localSocketPath(t, "runtime.sock")
 	listener, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
@@ -972,7 +1372,7 @@ func TestRemoteSetControllerDoesNotStarveLocalSocket(t *testing.T) {
 	}
 	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
 	controller.ports = sink
-	path := filepath.Join(t.TempDir(), "local-input.sock")
+	path := localSocketPath(t, "local-input.sock")
 	ctx, cancel := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
 	go func() {

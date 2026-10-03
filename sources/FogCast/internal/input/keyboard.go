@@ -91,6 +91,12 @@ func (s *KeyboardSink) unionLocked() map[remoteinput.Code]bool {
 }
 
 func (s *KeyboardSink) ReleaseSource(source inputSource) error {
+	// Disconnect cleanup is best-effort and keeps the poster's deadline.
+	_ = s.releaseSourceContext(context.Background(), source)
+	return nil
+}
+
+func (s *KeyboardSink) releaseSourceContext(ctx context.Context, source inputSource) error {
 	if source >= sourceCount {
 		source = sourceRemote
 	}
@@ -103,10 +109,7 @@ func (s *KeyboardSink) ReleaseSource(source inputSource) error {
 	if poster == nil {
 		return nil
 	}
-	// Source release is not a local frame under the lifecycle lock. Callers
-	// that need a deadline pass one through ApplyFrom.
-	_ = poster(context.Background(), matrix)
-	return nil
+	return poster(ctx, matrix)
 }
 
 func (s *KeyboardSink) ReleaseAll() error {

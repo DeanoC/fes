@@ -1359,6 +1359,9 @@ expansion slot's own bytes (`expansion.Manifest.CartSHA256`). It is
 not `Asset.ID`, not the archive `media_id`, and not
 `ProgrammedSHA256`. `ExpansionSlotBytesID` names that digest. The
 projection does not hash files again and does not link expansion bytes.
+A package-backed Catch title uses the browse system `catch` while its
+catalog storage platform remains `fpga`; its ROM-less entry needs only
+the package/ABI slot.
 A title that cannot be named is skipped. A catalog entry names the
 title id (a catalog game id: lowercase ASCII slug), one execute kind,
 and the required slots. A launchable `fpga_native` entry requires a
@@ -2124,7 +2127,11 @@ directions, so centering a stick cannot release a held D-pad.
 
 `ui/kitlauncher/controller.Hub` assigns the lowest free port in stable device-ID
 order, never renumbers a surviving controller, and emits releases and zero axes
-for an unplugged pad before recycling its port. At most two pads contribute.
+for an unplugged pad before recycling its port. A final departure event on the
+local socket releases that player's claim without closing the shared feed or
+releasing the surviving pad. The departure marker is a gamepad button release
+with code and value zero; it is consumed only on the local route and rejected
+by the host stream. At most two pads contribute.
 The kit keeps Select+Start stop chords separate per controller. When the active
 core has only the legacy single-pad contract, the kit retains the prior merged
 port-0 behavior, including input from a surviving second physical pad. Browser
@@ -2201,6 +2208,12 @@ until the finish callback, an arriving frame is dropped before observation, bind
 or writing. The status read that binds a local frame, and the set_keyboard or
 set_controller post that follows it, are each limited to 250ms while the lock
 is held, so a stalled runtime reply drops the frame and releases the lock.
+Idle observations and active observations without a controller-port binding
+are cached for 250ms, then refreshed. Local frame drops, including idle,
+replacement and delivery refusals, are counted by `LocalInputDrops()`.
+The agent logs the cumulative drop count at most once per second when it grows.
+The local listener serves one writer synchronously; that writer must close
+before its successor can deliver frames.
 Host attach and the host stream keep their own deadlines.
 The host stream does not hold the controller-port mutex across
 set_controller, so a slow remote post cannot block kit-local delivery.
@@ -2209,7 +2222,11 @@ button and axis state. On one player they combine by OR for buttons and keypad b
 and by the larger stick deflection for axes, so a release or a centred stick from
 one source leaves the other source's hold in place. Local pads occupy P1 and P2
 first; a remote pad uses the next free port, and Coleco's two-port limit rejects
-a player that does not fit. Closing the local socket releases the local source
+a player that does not fit. Claiming local P1 immediately moves an already connected
+remote P1 to P2; remote players without a free port still retire released buttons
+and centered axes from retained state. Releasing the local claim therefore cannot
+replay controls the remote player has already released.
+Closing the local socket releases the local source
 only. The kit launcher writes each physical pad and USB keyboard event to this
 socket while the runtime has a core bound. `fogcast-kit` reads that bound bit
 from `/run/mister-runtime.sock` with the same running_development, active
@@ -2219,9 +2236,14 @@ runtime or input packages. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
 lease. The kit keeps the player index the pad already has. While a core is
 bound, those events are not applied to the platform wheel, browse selection,
-or launch, even when this kit's host session is still idle. Select+Start held
-for one second still posts `POST /api/v1/session/stop`. With no core bound,
-the same pad drives browse. Stop and kit menu actions stay on the kit. If the
+or launch, even when this kit's host session is still idle. A successful bound
+probe expires after one second without another successful observation, so
+persistent probe failures return the shell to browse and clear the local-input
+notice. Select+Start held for one second posts `POST /api/v1/session/stop`
+for this host's active or failed session; kit-local owned play uses local-control
+Stop. A foreign-owned core accepts local play controls, but this launcher cannot
+stop it. With no core bound, the same pad drives browse. Stop and kit menu
+actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host. Remote pads go from the host to the kit on that session's input

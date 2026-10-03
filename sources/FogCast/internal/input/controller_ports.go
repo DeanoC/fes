@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/joymatrix"
@@ -64,8 +65,10 @@ type controllerPortsSink struct {
 	localMatrix    remoteinput.State
 	localKeys      map[remoteinput.Code]bool
 	keyboardHID    bool
+	hidBinding     *KeyboardHIDBinding
 	coreActive     bool
 	observed       bool
+	observedAt     time.Time
 	displayFocused bool
 	keys           *KeyboardSink
 	hid            *keyboardHIDSink
@@ -98,25 +101,45 @@ func sameBinding(left, right *ControllerBinding) bool {
 }
 
 func (s *controllerPortsSink) setObservation(obs CoreObservation) {
+	_ = s.setObservationContext(context.Background(), obs)
+}
+
+func (s *controllerPortsSink) setObservationContext(ctx context.Context, obs CoreObservation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.hid != nil && !sameHIDBinding(s.hidBinding, obs.KeyboardHID) {
+		if err := s.hid.bindContext(ctx, obs.KeyboardHID); err != nil {
+			return err
+		}
+		s.hidBinding = nil
+		if obs.KeyboardHID != nil {
+			copy := *obs.KeyboardHID
+			s.hidBinding = &copy
+		}
+	}
 	if len(s.localKeys) != 0 && (!obs.Active || !obs.Keyboard || obs.CoreID != s.coreID) {
 		// The joystick matrix route ended under a held local control. Drop the
 		// local matrix state so a replacement core never inherits those keys.
 		s.localMatrix.ReleaseAll()
 		s.localKeys = nil
 		if s.keys != nil {
-			_ = s.keys.ReleaseSource(sourceLocal)
+			_ = s.keys.releaseSourceContext(ctx, sourceLocal)
 		}
 	}
 	s.keyboard = obs.Keyboard
 	s.coreID = obs.CoreID
 	s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
-	if s.hid != nil {
-		s.hid.bind(obs.KeyboardHID)
-	}
 	s.coreActive = obs.Active
 	s.observed = true
+	s.observedAt = time.Now()
+	return nil
+}
+
+func sameHIDBinding(left, right *KeyboardHIDBinding) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 // keyboardModeLocked selects the keyboard shaping from the observed contract.
@@ -137,10 +160,10 @@ func (s *controllerPortsSink) hasBinding() bool {
 	return s.binding != nil
 }
 
-func (s *controllerPortsSink) cachedActive() bool {
+func (s *controllerPortsSink) cachedObservation() (active, fresh bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.observed && s.coreActive && s.binding == nil
+	return s.coreActive, s.observed && time.Since(s.observedAt) < localCoreObserveTTL
 }
 
 func (s *controllerPortsSink) resetSourcesLocked() {
@@ -168,6 +191,13 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 		ctx = context.Background()
 	}
 	s.mu.Lock()
+	if remoteinput.IsLocalPlayerDeparture(frameEvent(f)) {
+		defer s.mu.Unlock()
+		if source != sourceLocal {
+			return bridge.RejectInput("player departure requires the local input socket")
+		}
+		return s.releaseLocalPlayerLocked(ctx, f.Player)
+	}
 	shaped, ok := s.shapeLocked(source, f)
 	if s.displayFocused && ok && !keyboardFrame(shaped) {
 		s.mu.Unlock()
@@ -194,6 +224,19 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 		return s.applyUnboundLocked(ctx, source, shaped)
 	}
 	return s.applyPortsLocked(ctx, source, shaped)
+}
+
+func (s *controllerPortsSink) releaseLocalPlayerLocked(ctx context.Context, player uint8) error {
+	if s.binding == nil {
+		// Legacy routes received the hub's release and centered-axis frames.
+		// Only the controller-port route reserves individual local slots.
+		return nil
+	}
+	// The hub sends this after the departed pad's releases and zero axes.
+	// Keep the remaining source state: a physical keyboard can also contribute
+	// shaped controls on this player, and it has not disconnected.
+	s.localClaim[player] = false
+	return s.publishAllLocked(ctx)
 }
 
 func (s *controllerPortsSink) applyLocalMatrixLocked(ctx context.Context, f protocol.InputFrame) error {
@@ -301,6 +344,14 @@ func (s *controllerPortsSink) applyPortsLocked(ctx context.Context, source input
 	}
 	port, ok := remotePort(event.Player, s.localClaim)
 	if !ok {
+		// A local claim can temporarily exclude a previously mapped remote
+		// player. Its releases still retire retained holds, so reopening a
+		// port cannot replay a button or stick the sender already released.
+		if event.Action == remoteinput.ActionRelease || (event.Kind == remoteinput.KindAxis && event.Value == 0) {
+			if err := s.sources[source].Apply(event); err != nil {
+				return err
+			}
+		}
 		return bridge.RejectInput("no free controller port")
 	}
 	if err := s.sources[source].Apply(event); err != nil {
@@ -489,6 +540,7 @@ func (s *controllerPortsSink) ReleaseAll() error {
 	s.initPublishLocked()
 	s.displayFocused = false
 	s.keyboardHID = false
+	s.hidBinding = nil
 	if s.binding == nil {
 		s.resetSourcesLocked()
 		s.localMatrix.ReleaseAll()

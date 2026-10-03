@@ -130,6 +130,9 @@ func (m *Model) armStopChord(e remoteinput.Event, now time.Time) {
 }
 
 func (m *Model) Input(e remoteinput.Event, now time.Time) string {
+	if remoteinput.IsLocalPlayerDeparture(e) {
+		return ""
+	}
 	if now.IsZero() {
 		now = time.Now()
 	}

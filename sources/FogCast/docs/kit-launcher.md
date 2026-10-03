@@ -281,7 +281,9 @@ the host, and it does not wait for launcher.json reachability or the host
 session's input.ready. A pad on the kit still drives the core when another
 host holds the lease. For Coleco, SMS and SG-1000, mister-agent turns local
 pad directions and A into the core's keyboard joystick matrix; SMS and SG-1000
-ignore B. Select+Start remains the kit-local stop chord. While a core is bound,
+ignore B. Select+Start is the stop chord for this host's active or failed session
+and for kit-local owned play. A foreign-owned core accepts local play controls,
+including Select and Start, but this launcher cannot stop it. While a core is bound,
 those events do not leave the platform wheel, change browse selection, or
 request a launch from a stale idle host session. With no core bound, the same
 pad still browses. The player
@@ -289,8 +291,10 @@ index on the frame is the one the kit assigned. If the socket is not
 listening, the kit reports `Local input unavailable`, waits one second before
 dialing again, and does not fall back to the host input route. Hold Select +
 Start together for one second to request ordinary Stop; both must release
-before rearming. That Stop chord still posts while a core is bound. Individual
-Start and Select remain game controls while a session can stop; B does not
+before rearming. That Stop chord still posts for an owned session while a core
+is bound. Successful bound observations expire after one second without a
+refresh; persistent probe errors close the play feed and clear the input notice.
+Individual Start and Select remain game controls while a session can stop; B does not
 stop gameplay.
 Stop/save errors retain the retry operation. After the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s; 1s is allowed) with no pad input,
@@ -314,7 +318,13 @@ video-only rows) still enters a themed idle panel (`Idle` / `No attract stills`)
 so the grid is not frozen; any input returns to the grid.
 
 Closing the kit's connection to `/run/fogcast/local-input.sock` releases only
-that local source. The host input stream remains the path for a pad that is
+that local source. Unplugging one pad sends its releases, centered axes and a
+local departure event, freeing only that player's claim while the other pad
+keeps the connection. Claiming local P1 immediately moves a connected remote P1
+to P2; an excluded remote player still clears released controls, so freeing
+a local port cannot revive an old hold. The local listener serves one writer
+at a time; close the old writer before replacing it.
+The host input stream remains the path for a pad that is
 not plugged into this kit: the host delivers it to the kit that owns the
 session, and a missing stream is an error to that caller. Local play input
 does not cross the LAN and does not fall back to the host. Report

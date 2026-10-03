@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -27,6 +28,11 @@ var errNoCore = errors.New("runtime core is not bound")
 // mister-agent uses for the same Protocol2 status read. A stalled reply
 // drops the frame and releases the lock.
 const localCoreObserveTimeout = 250 * time.Millisecond
+
+// Cache idle and unbound active observations alike. A ports binding retains
+// its exact package generation; unbound routes must recheck whether the core
+// still runs, and idle polls must not issue IPC for each input frame.
+const localCoreObserveTTL = 250 * time.Millisecond
 
 // localCoreWriteTimeout bounds set_keyboard and set_controller calls made
 // while deliverLocal still holds the lifecycle lock. It matches
@@ -63,7 +69,8 @@ func listenLocalInput(path string) (net.Listener, error) {
 // into the same sink as the host stream. It is not an HTTP route and it does
 // not consult the kit lease. The feed drops frames while no runtime core is
 // bound, and while core replacement holds the input lifecycle lock. Closing
-// the connection releases only the local source.
+// the connection releases only the local source. The listener serves one
+// writer synchronously: that writer must close before its successor can send.
 func (c *TargetController) ServeLocalInput(ctx context.Context, path string) error {
 	if c == nil {
 		return errors.New("input controller is closed")
@@ -181,6 +188,7 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 			continue
 		}
 		_ = c.deliverLocal(ctx, frame)
+		c.warnLocalDrops()
 	}
 }
 
@@ -193,11 +201,17 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 // The following set_keyboard or set_controller post uses localCoreWriteTimeout
 // for the same reason: the poster must not keep this lock with a context
 // that has no deadline.
-func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.InputFrame) error {
+func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.InputFrame) (err error) {
 	if c == nil {
 		return errNoCore
 	}
+	defer func() {
+		if err != nil {
+			c.localDrops.Add(1)
+		}
+	}()
 	if !c.lifecycle.TryLock() {
+		c.localDrops.Add(1)
 		return nil
 	}
 	defer c.lifecycle.Unlock()
@@ -212,6 +226,29 @@ func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.Inpu
 	return c.ports.applyContext(writeCtx, sourceLocal, frame)
 }
 
+// LocalInputDrops counts local frames dropped during core replacement or
+// rejected by observation or delivery, including idle and unavailable ports.
+func (c *TargetController) LocalInputDrops() uint64 {
+	if c == nil {
+		return 0
+	}
+	return c.localDrops.Load()
+}
+
+func (c *TargetController) warnLocalDrops() {
+	total := c.LocalInputDrops()
+	now := time.Now()
+	c.localMu.Lock()
+	if total == c.localReported || (!c.localWarning.IsZero() && now.Sub(c.localWarning) < time.Second) {
+		c.localMu.Unlock()
+		return
+	}
+	c.localReported = total
+	c.localWarning = now
+	c.localMu.Unlock()
+	slog.Warn("kit-local input frames dropped", "total", total)
+}
+
 func (c *TargetController) ensureLocalCore(ctx context.Context) error {
 	if c == nil || c.ports == nil {
 		return errNoCore
@@ -219,29 +256,50 @@ func (c *TargetController) ensureLocalCore(ctx context.Context) error {
 	if c.ports.hasBinding() {
 		return nil
 	}
-	c.mu.Lock()
-	observe := c.observe
-	c.mu.Unlock()
-	if observe == nil {
-		if c.ports.cachedActive() {
+	if active, fresh := c.ports.cachedObservation(); fresh {
+		if active {
 			return nil
 		}
 		return errNoCore
 	}
-	if c.ports.cachedActive() {
-		return nil
+	c.mu.Lock()
+	observe := c.observe
+	c.mu.Unlock()
+	if observe == nil {
+		return errNoCore
 	}
 	observeCtx, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
 	defer cancel()
 	obs, err := observe(observeCtx)
-	if err != nil || !obs.Active {
+	if err != nil {
+		if retireErr := c.setLocalObservation(ctx, CoreObservation{}); retireErr != nil {
+			return retireErr
+		}
 		return errNoCore
 	}
-	c.ports.setObservation(obs)
+	if err := c.setLocalObservation(ctx, obs); err != nil {
+		return err
+	}
+	if !obs.Active {
+		return errNoCore
+	}
 	if obs.Binding != nil {
 		if err := c.ports.bind(obs.Binding); err != nil {
+			// An observed ports contract whose binding failed must be retried;
+			// it cannot become a fresh active cache for the legacy route.
+			c.ports.mu.Lock()
+			c.ports.observed = false
+			c.ports.mu.Unlock()
 			return err
 		}
 	}
 	return nil
+}
+
+func (c *TargetController) setLocalObservation(ctx context.Context, obs CoreObservation) error {
+	// Refresh can retire a held joystick-to-matrix route. Its neutral post
+	// sits under the lifecycle lock too, so it needs the local write budget.
+	writeCtx, cancel := context.WithTimeout(ctx, localCoreWriteTimeout)
+	defer cancel()
+	return c.ports.setObservationContext(writeCtx, obs)
 }
