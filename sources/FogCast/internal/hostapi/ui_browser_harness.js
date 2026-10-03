@@ -191,7 +191,7 @@ function normalizePlan(plan = {}) {
     collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
     coreRoutes: new Map(Object.entries(plan.coreRoutes || {}).map(([route, responses]) => {
       if (!/^(GET|POST|PUT) \/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)
-          && !/^(GET \/api\/v1\/library\/video-parts|POST \/api\/v1\/library\/video-parts\/(direct|scanlines))$/.test(route)) {
+          && !/^(GET \/api\/v1\/library\/(video-parts|settings)|POST \/api\/v1\/library\/video-parts\/(direct|scanlines))$/.test(route)) {
         throw new TypeError(`invalid core fixture route: ${route}`);
       }
       return [route, normalizeQueue(responses, route)];

@@ -548,6 +548,29 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
       });
     });
 
+    await t.test('settings Save stays disabled until settings GET completes', async () => {
+      const settings = { attract_idle_seconds:60, preferred_regions:['usa'], video_profile:'direct' };
+      await runScenario(harness, 'settings-save-disabled-during-load', basePlan({
+        coreRoutes: {
+          'GET /api/v1/library/settings': [
+            fixture('settings.json', 200, { override:settings }),
+            fixture('settings.json', 200, { hold:true, override:settings }),
+          ],
+        },
+      }), async () => {
+        // The first settings GET is the startup load; the held one is the open.
+        await harness.waitForRequest({method:'GET', path:'/api/v1/library/settings'});
+        await harness.click('#open-settings');
+        const pending = await harness.waitForRequest({method:'GET', path:'/api/v1/library/settings'});
+        assert.equal(await harness.evaluate("document.querySelector('#save-settings').disabled"), true);
+        await harness.click('#save-settings');
+        assert.equal(harness.fixtureEvidence().filter(record => record.path === '/api/v1/library/settings' && record.method !== 'GET').length, 0);
+        await harness.release(pending.id);
+        await harness.waitForSnapshot(s => !s.settingsHidden && s.settingsRegions === 'usa');
+        assert.equal(await harness.evaluate("document.querySelector('#save-settings').disabled"), false);
+      });
+    });
+
   } finally {
     process.stdout.write(`FOGCAST_BROWSER_EVIDENCE ${JSON.stringify(harness.report())}\n`);
     await harness.close();

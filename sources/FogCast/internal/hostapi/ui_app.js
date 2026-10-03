@@ -3196,6 +3196,7 @@
   let forceKeyboardRestore = false;
   let settingsGeneration = 0;
   let settingsCleanGeneration = 0;
+  let settingsLoaded = false;
   let settingsSelectedTargetRow = null;
   let searchTimer = null;
   let attractIdleHydrated = false;
@@ -5357,13 +5358,19 @@
     keyboardPane = 'settings';
     writePaneAttribute();
     const generation = bumpSettingsGeneration();
+    settingsLoaded = false;
+    if (nodes.saveSettings) nodes.saveSettings.disabled = true;
     resetAttractTimer();
     try {
       await controller.loadSettings();
       if (settingsRequestExpired(generation)) return;
       fillSettingsForm(controller.getState().librarySettings);
+      settingsLoaded = true;
+      if (nodes.saveSettings) nodes.saveSettings.disabled = false;
     } catch (error) {
       if (settingsRequestExpired(generation)) return;
+      settingsLoaded = false;
+      if (nodes.saveSettings) nodes.saveSettings.disabled = true;
       fillSettingsForm(null);
       if (nodes.settingsMessage) {
         nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');
@@ -5390,6 +5397,7 @@
   }
 
   async function saveSettingsFromForm() {
+    if (!settingsLoaded) return;
     const generation = settingsGeneration;
     const idle = Number(nodes.settingsAttractIdle && nodes.settingsAttractIdle.value);
     const regions = parseRegionsInput(nodes.settingsPreferredRegions && nodes.settingsPreferredRegions.value);
