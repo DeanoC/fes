@@ -54,6 +54,7 @@ class AtariSTProducerTests(unittest.TestCase):
         self.assertIn('-nolutram -nodsp', command[-1])
         self.assertIn('--router', route)
         self.assertEqual(route[route.index('--router') + 1], 'gpu')
+        self.assertEqual(route[route.index('--seed') + 1], '4')
         with self.assertRaises(BuildError):
             st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32, tools, video_output='unknown')
 
@@ -160,6 +161,42 @@ class AtariSTProducerTests(unittest.TestCase):
                 invocation.close.assert_called_once()
                 for name in ('core.rbf', 'manifest.toml', 'build-summary.json', 'rom-map.json'):
                     self.assertFalse((root / st.OUTPUT_RELATIVE / name).exists())
+
+    def test_timing_search_uses_atari_bound_without_relaxing_clock_or_repair_gates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / st.QSF).parent.mkdir(parents=True)
+            (root / st.QSF).write_text('# board pins\n')
+            authenticated = {name: SimpleNamespace(identity='test', path=Path('/auth/install/bin') / name)
+                             for name in ('mistral', 'yosys', 'nextpnr-mistral')}
+            invocation = SimpleNamespace(inputs={}, env={}, close=Mock())
+            def synth(*args, **kwargs):
+                (root / st.OUTPUT_RELATIVE / 'synth.json').write_text('{}')
+            def fail_timing(**kwargs):
+                (root / st.OUTPUT_RELATIVE / 'core.rbf').write_bytes(b'unqualified')
+                raise st.SearchError('no placement met timing')
+            with patch.object(st, '_require_clean_source', return_value=('repo', 'a'*40)), \
+                 patch.object(st, '_authenticate_atari_st_tools', return_value=authenticated), \
+                 patch.object(st.rom_map, 'read_database', return_value={}), \
+                 patch.object(st, 'FunctionalInvocation', return_value=invocation), \
+                 patch.object(st, 'create_build_record', return_value=b'{}'), \
+                 patch.object(st, 'prepare_cpu_inputs'), \
+                 patch.object(st, 'build_identity', return_value='0'*32), \
+                 patch.object(st, '_run_tool', side_effect=synth), \
+                 patch.object(st, 'clock_read_only_memories', return_value=[]), \
+                 patch.object(st, 'validate_synth_evidence'), \
+                 patch.object(st, 'route_after_synth', side_effect=fail_timing) as route, \
+                 patch.object(st, 'export_package') as export:
+                with self.assertRaisesRegex(BuildError, 'no placement met timing'):
+                    st.build(root)
+                self.assertEqual(route.call_args.kwargs['timeout'], 1800)
+                self.assertEqual(route.call_args.kwargs['seeds'], (4, 5, 2, 1, 3, 6, 7, 8, 9, 10))
+                self.assertEqual(route.call_args.kwargs['required'],
+                                 ((None, 52.224), (None, 74.25), (None, 12.288)))
+                self.assertEqual(route.call_args.kwargs['extra'], ('--router', 'gpu'))
+                export.assert_not_called()
+            invocation.close.assert_called_once()
+            self.assertFalse((root / st.OUTPUT_RELATIVE / 'core.rbf').exists())
 
     @unittest.skipUnless(shutil.which('verilator'), 'Verilator required for synchronous ROM simulation')
     def test_rom_big_endian_lane_edges_reset_and_held_request(self):

@@ -55,11 +55,14 @@ ST_TOOL_COMMITS = {
     "nextpnr": "655f38334b8a1ba798cc05cf3744b6a897119b5d",
     "yosys": "886afa63953e97407153e9f4aae25fcedb639696",
 }
-# First passing route wins; the order is part of the build identity. This
-# core has not been sealed, so the search starts with the Apple II order.
-PLACER_SEEDS = (5, 4, 2, 1, 3, 6, 7, 8, 9, 10)
+# First passing route wins; the order is part of the build identity. Seed 4
+# completed the initial diagnostic route; seed 5 exceeded its old placement bound.
+PLACER_SEEDS = (4, 5, 2, 1, 3, 6, 7, 8, 9, 10)
 PLACER_WEIGHT = 2000
 PLACER_CRITICALITY_EXPONENT = 5
+# The initial 22.5k-cell route takes about nine minutes before timing repair.
+# Bound each Atari attempt separately from smaller cores' shared search default.
+PLACER_TIMEOUT_SECONDS = 1800
 PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
@@ -238,6 +241,7 @@ def create_build_record(
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "placer_heap_timingweight": PLACER_WEIGHT,
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
+            "placer_timeout_seconds": PLACER_TIMEOUT_SECONDS,
             "toolchain_lock": ST_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, ST_TOOLCHAIN_LOCK)),
             "package_format": 3,
@@ -521,6 +525,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
                 critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
                 mode="first-pass", extra=("--router", ROUTER),
+                timeout=PLACER_TIMEOUT_SECONDS,
                 required=PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
                 env=invocation.env, audit_source_root=root,
             )
