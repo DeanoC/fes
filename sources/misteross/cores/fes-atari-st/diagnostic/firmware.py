@@ -156,6 +156,7 @@ def firmware(variant: int = 1) -> tuple[bytes, dict[str, int]]:
         raise ValueError("variant must be 1..65535")
     p = Program(ENTRY)
     p.sr(0x2700)
+    p.move_imm("b", 4, 0xFF8001)  # match the physical bank before RAM setup
     for address in (RESULT, STAGE, VARIANT, ERRORS, IRQS):
         p.move_imm("w", 0, address)
     p.move_imm("l", BUS_ERROR_HANDLER, 8)
@@ -169,6 +170,17 @@ def firmware(variant: int = 1) -> tuple[bytes, dict[str, int]]:
     p.check("w", 0x68A5, ROM_SENTINEL)
     p.move_imm("b", 4, 0xFF8001)
     p.check("b", 4, 0xFF8001)
+    # ROM RAM-sizing uses the original ST's row/column aliases, not a flat
+    # address mask or the later STe wiring. Bank 1 is physically absent.
+    p.move_imm("b", 0x0A, 0xFF8001)
+    p.move_imm("w", 0x1357, 0x001008)
+    p.check("w", 0x1357, 0x001408)
+    p.check("w", 0x1357, 0x101008)
+    p.move_imm("w", 0x2468, 0x200008)
+    p.check("w", 0xFFFF, 0x200008)
+    p.check("w", 0x1357, 0x001008)
+    p.move_imm("b", 4, 0xFF8001)
+    p.check("w", 0x1357, 0x000808)
 
     p.stage(2)
     p.move_imm("w", 0x1234, 0x800)
@@ -230,7 +242,8 @@ def firmware(variant: int = 1) -> tuple[bytes, dict[str, int]]:
     p.fault(2, lambda: p.move_imm("w", 0x0BAD, ROM_SENTINEL))
     p.check("w", 0x68A5, ROM_SENTINEL)
     p.stage(8)
-    p.fault(3, lambda: p.read("w", 0x080000))
+    p.check("w", 0xFFFF, 0x080000)  # configured bank 1 has no DRAM
+    p.fault(3, lambda: p.read("w", 0x0A0000))  # beyond both configured banks
     p.stage(9)
     p.fault(4, lambda: p.read("w", 0xFF9002))
     p.stage(10)

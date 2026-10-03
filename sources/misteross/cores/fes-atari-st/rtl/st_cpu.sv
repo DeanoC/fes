@@ -20,7 +20,9 @@ module st_cpu #(
     input  wire [2:0]   ipl_n,
     output wire [2:0]   fc,
     output wire         phi1_enable,
-    output wire         phi2_enable
+    output wire         phi2_enable,
+    output wire         peripheral_reset_n,
+    output wire         halted_n
 );
     localparam integer ACCUMULATOR_BITS = $clog2(SYSTEM_CLOCK_HZ);
     localparam logic [ACCUMULATOR_BITS:0] PHASE_STEP =
@@ -51,7 +53,7 @@ module st_cpu #(
 
     // These unused outputs remain named so bus arbitration, peripheral E
     // timing and the RESET instruction are explicit boundaries of this slice.
-    wire unused_e, unused_vma_n, unused_bg_n, unused_reset_n, unused_halted_n;
+    wire unused_e, unused_vma_n, unused_bg_n;
     fx68k cpu (
         .clk(clk),
         .extReset(reset),
@@ -80,8 +82,8 @@ module st_cpu #(
         .E(unused_e),
         .VMAn(unused_vma_n),
         .BGn(unused_bg_n),
-        .oRESETn(unused_reset_n),
-        .oHALTEDn(unused_halted_n)
+        .oRESETn(peripheral_reset_n),
+        .oHALTEDn(halted_n)
     );
 
     initial begin

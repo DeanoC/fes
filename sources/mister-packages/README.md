@@ -27,6 +27,10 @@ and [stream media](docs/media-stream.md). The simple-computer
 [session display](docs/session-display.md) shares the fixed DDR framebuffer
 layout while preserving machine execution and existing ABI 1.0 packages.
 
+Atari ST adds the read-only 720 KiB unit-0 media interface to the existing
+computer ABI and a separate internal [68000 expansion fabric contract](packages/fabric/fes_fabric_atari_st_bus.yaml).
+Neither changes GP framing or establishes hardware acceptance.
+
 [Timed video parts](docs/video-parts.md) define an internal FPGA fabric socket
 using a separate `kind: fabric` package and the existing Verilog constant
 emitter. Its fixed 720p proof adds no GP ABI or runtime capability assignment.

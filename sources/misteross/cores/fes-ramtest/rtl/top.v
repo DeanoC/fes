@@ -302,6 +302,7 @@ module top #(
         .rate(rate),
         .reset(mem_reset_sync[1]),
         .start(sdram_start), .write(sdram_write), .addr(sdram_addr), .wdata(sdram_wdata),
+        .write_byte_enable(2'b11), .initialized(),
         .done(sdram_done), .rdata(sdram_rdata),
         .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE),
         .sdram_ncs(SDRAM_nCS), .sdram_nras(SDRAM_nRAS),

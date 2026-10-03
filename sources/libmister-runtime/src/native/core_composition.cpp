@@ -156,6 +156,7 @@ bool Apple2SlotSocket(std::uint64_t slot) {return slot>=1 && slot<=7;}
 bool SpectrumSlotSocket(std::uint64_t slot) {return slot>=1 && slot<=4;}
 // fes.c64-bus.sockets/1 is socket 1 (ROM window) and socket 2 (I/O window).
 bool C64SlotSocket(std::uint64_t slot) {return slot==1 || slot==2;}
+bool AtariStSlotSocket(std::uint64_t slot) {return slot==1;}
 // The target agent links cards into their own reserved socket rectangles with
 // the shared misteross implementation; this admission verifies its result.
 Error OpenSlotComposition(const std::vector<std::string>& roots,
@@ -167,12 +168,18 @@ Error OpenSlotComposition(const std::vector<std::string>& roots,
 	std::size_t max_slots=0;
 	for (const auto& interface : descriptor.interfaces) {
 		const bool multi=interface.id==kApple2ExpansionBusID ||
-			interface.id==kC64ExpansionBusID || interface.id==kSpectrumExpansionBusID;
+			interface.id==kC64ExpansionBusID || interface.id==kSpectrumExpansionBusID ||
+			interface.id==kAtariStExpansionBusID;
 		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus" && !multi)
 			continue;
 		if (bus_id || !multi || interface.major!=1 || interface.minor!=0 || interface.required)
 			return Invalid("base package has an unsupported or ambiguous expansion bus");
-		if (interface.id==kC64ExpansionBusID) {
+		if (interface.id==kAtariStExpansionBusID) {
+			bus_id=kAtariStExpansionBusID;
+			bus_map=kAtariStExpansionMapID;
+			socket_ok=AtariStSlotSocket;
+			max_slots=1;
+		} else if (interface.id==kC64ExpansionBusID) {
 			bus_id=kC64ExpansionBusID;
 			bus_map=kC64ExpansionMapID;
 			socket_ok=C64SlotSocket;

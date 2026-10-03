@@ -23,7 +23,7 @@ func runLiveMediaCommand(ctx context.Context, origin string, args []string) comm
 	switch args[0] {
 	case "change-disk":
 		if len(args) != 2 {
-			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do/.d64-path>"))
+			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do/.d64/.st-path>"))
 		}
 		return changeDiskThroughHostAPI(ctx, origin, args[1])
 	case "eject-disk":
@@ -279,14 +279,15 @@ func liveMediaCommand(name string) bool {
 }
 
 // diskCapable reports a session whose active fes.computer generation has the
-// Apple II floppy or the C64 disk on unit 0. Spectrum tapes use cassetteCapable.
+// Apple II, C64 or Atari ST disk on unit 0. Spectrum tapes use cassetteCapable.
 func diskCapable(p *protocol.CorePackageStatus) bool {
 	unit, ok := protocol.MediaUnit(p, protocol.Apple2FloppyUnit)
 	if !ok {
 		return false
 	}
 	return unit.Interface == protocol.Apple2FloppyInterface() ||
-		unit.Interface == protocol.C64DiskInterface()
+		unit.Interface == protocol.C64DiskInterface() ||
+		unit.Interface == protocol.AtariStFloppyInterface()
 }
 
 func cassetteCapable(p *protocol.CorePackageStatus) bool {
@@ -435,6 +436,8 @@ func resolveDiskArgument(ctx context.Context, origin, arg string, active *protoc
 		limit = protocol.Apple2FloppyBytes
 	case protocol.AdmitC64DiskName(base):
 		limit = protocol.C64DiskBytes
+	case protocol.AdmitAtariStFloppyName(base):
+		limit = protocol.AtariStFloppyBytes
 	}
 	if err != nil || !before.Mode().IsRegular() || limit == 0 || before.Size() != limit {
 		return "", "", protocol.DiskMediaRequestError()
@@ -457,7 +460,7 @@ func resolveDiskArgument(ctx context.Context, origin, arg string, active *protoc
 }
 
 // syntheticDiskName names a stored object after the disk the running
-// generation accepts. Both home-computer disks occupy unit 0.
+// generation accepts. All supported home-computer disks occupy unit 0.
 func syntheticDiskName(active *protocol.CorePackageStatus) (string, bool) {
 	unit, ok := protocol.MediaUnit(active, protocol.Apple2FloppyUnit)
 	if !ok {
@@ -466,6 +469,8 @@ func syntheticDiskName(active *protocol.CorePackageStatus) (string, bool) {
 	switch unit.Interface.ID {
 	case protocol.C64DiskInterface().ID:
 		return "disk.d64", true
+	case protocol.AtariStFloppyInterface().ID:
+		return "disk.st", true
 	case protocol.Apple2FloppyInterface().ID:
 		return "disk.dsk", true
 	default:

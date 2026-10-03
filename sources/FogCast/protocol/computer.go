@@ -22,7 +22,7 @@ const (
 	MaxComputerMediaBytes int64 = int64(generated.FesComputerMediaMaxBytes)
 	// ComputerMediaChunkBytes is the only chunk size the ABI admits.
 	ComputerMediaChunkBytes uint32 = generated.FesComputerMediaChunkMaxBytes
-	// DiskRole is the library media role of an Apple II floppy image.
+	// DiskRole is the library media role of a home-computer floppy image.
 	DiskRole = "disk"
 	// Apple2FloppyBytes is the exact DOS 3.3 order image size.
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
@@ -40,6 +40,10 @@ const (
 	C64DiskBytes int64 = int64(generated.FesComputerC64DiskBytes)
 	// C64DiskUnit is the media unit fes.media.c64-disk occupies.
 	C64DiskUnit uint8 = uint8(generated.FesComputerC64DiskUnit)
+	// AtariStFloppyBytes is an 80-track, two-sided, nine-sector raw ST image.
+	AtariStFloppyBytes int64 = int64(generated.FesComputerAtariStFloppyBytes)
+	// AtariStFloppyUnit is the media unit fes.media.atari-st-floppy occupies.
+	AtariStFloppyUnit uint8 = uint8(generated.FesComputerAtariStFloppyUnit)
 	// ComputerMediaTransport names the fes.computer media-unit delivery.
 	ComputerMediaTransport = "fes-computer-media-unit-v1"
 	// MediaUnitHeader carries the addressed unit on target media requests.
@@ -71,6 +75,11 @@ func SpectrumTapeInterface() RuntimeContract {
 // C64DiskInterface is the unit-0 Commodore D64 contract.
 func C64DiskInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaC64DiskID, Major: generated.FesComputerInterfaceMediaC64DiskMajor, Minor: generated.FesComputerInterfaceMediaC64DiskMinor}
+}
+
+// AtariStFloppyInterface is the unit-0 Atari ST raw floppy contract.
+func AtariStFloppyInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyID, Major: generated.FesComputerInterfaceMediaAtariStFloppyMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyMinor}
 }
 
 // ComputerABI reports the exact fes.computer 1.0 contract.
@@ -132,6 +141,9 @@ func (u MediaUnitStatus) Valid() bool {
 	case C64DiskInterface().ID:
 		return u.Interface == C64DiskInterface() && u.Unit == C64DiskUnit &&
 			int64(u.MinBytes) == C64DiskBytes && int64(u.MaxBytes) == C64DiskBytes
+	case AtariStFloppyInterface().ID:
+		return u.Interface == AtariStFloppyInterface() && u.Unit == AtariStFloppyUnit &&
+			int64(u.MinBytes) == AtariStFloppyBytes && int64(u.MaxBytes) == AtariStFloppyBytes
 	}
 	if u.Interface.ID == SpectrumTapeInterface().ID {
 		return u.Interface == SpectrumTapeInterface() && u.Unit == SpectrumTapeUnit &&
@@ -164,6 +176,7 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 	floppy := Apple2FloppyInterface()
 	tape := SpectrumTapeInterface()
 	disk := C64DiskInterface()
+	stFloppy := AtariStFloppyInterface()
 	for _, contract := range descriptor.Interfaces {
 		switch {
 		case contract.ID == floppy.ID && contract.Major == int64(floppy.Major) && contract.Minor == int64(floppy.Minor):
@@ -176,6 +189,11 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "c64-d64",
 				MinBytes: C64DiskBytes, MaxBytes: C64DiskBytes, Interface: disk,
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".d64"}})
+		case contract.ID == stFloppy.ID && contract.Major == int64(stFloppy.Major) && contract.Minor == int64(stFloppy.Minor):
+			unit := AtariStFloppyUnit
+			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "atari-st-floppy",
+				MinBytes: AtariStFloppyBytes, MaxBytes: AtariStFloppyBytes, Interface: stFloppy,
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".st"}})
 		}
 		if contract.ID == tape.ID && contract.Major == int64(tape.Major) && contract.Minor == int64(tape.Minor) {
 			unit := SpectrumTapeUnit
@@ -188,7 +206,7 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 }
 
 // DeclaresDiskMedia reports whether the descriptor has a unit-0 disk
-// (Apple II floppy or C64 D64).
+// (Apple II floppy, C64 D64 or Atari ST floppy).
 func DeclaresDiskMedia(descriptor corepackage.Descriptor) bool {
 	for _, capability := range declaredComputerMedia(descriptor) {
 		if capability.Role == DiskRole {
@@ -243,9 +261,17 @@ func AdmitC64DiskName(name string) bool {
 	return strings.ToLower(filepath.Ext(name)) == ".d64"
 }
 
-// AdmitComputerDiskName accepts either home-computer disk image name.
+// AdmitAtariStFloppyName accepts a raw Atari ST .st basename.
+func AdmitAtariStFloppyName(name string) bool {
+	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
+		return false
+	}
+	return strings.ToLower(filepath.Ext(name)) == ".st"
+}
+
+// AdmitComputerDiskName accepts a supported home-computer disk image name.
 func AdmitComputerDiskName(name string) bool {
-	return AdmitDiskMediaName(name) || AdmitC64DiskName(name)
+	return AdmitDiskMediaName(name) || AdmitC64DiskName(name) || AdmitAtariStFloppyName(name)
 }
 
 // AdmitLiveMediaName accepts the names of every live media form: ZX81 tapes,
@@ -314,9 +340,9 @@ func MediaUnitIdentityError() *APIError {
 	return &APIError{Code: CodeBusy, Message: "media unit delivery requires the current active computer package generation with that unit", Phase: "admission"}
 }
 
-// DiskMediaRequestError is the live-media refusal for Apple II floppies.
+// DiskMediaRequestError is the live-media refusal for home-computer disks.
 func DiskMediaRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live disk media requires a .dsk/.do DOS-order image of exactly 143360 bytes", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live disk media requires .dsk/.do (143360 bytes), .d64 (174848 bytes), or .st (737280 bytes)", Phase: "request"}
 }
 
 // CassetteMediaRequestError is the live-media refusal for Spectrum .tap images.

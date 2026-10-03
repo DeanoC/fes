@@ -40,6 +40,12 @@ module st_sim_top (
     output reg [27:0] video_response
 );
     wire [15:0] exp_rdata;
+    wire irq_vectored = 1'b0;
+    wire [7:0] irq_vector = 8'd0;
+    wire irq_ack, debug_halted;
+    wire [2:0] irq_level;
+    wire [23:0] video_counter = 24'd0;
+    wire [7:0] sync_mode;
     st_machine machine (.*);
     st_probe probe (
         .clk(clk_sys), .reset(exp_reset), .enable(probe_enable),

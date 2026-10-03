@@ -111,7 +111,10 @@ help:
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
-		"  sim-fes-atari-st  Test the Atari 520ST CPU, pluggable ROM/expansion and three video modes" \
+		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
+		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
+		"  fetch-fes-atari-st-emutos  Fetch the pinned free 192 KiB EmuTOS test ROM" \
+		"  sim-fes-atari-st-emutos-memory  Boot EMUTOS_ROM through SDRAM and capture HDMI RGB" \
 		"  atari-st-diagnostic  Generate two original 192 KiB 68000 firmware inputs" \
 		"  build-fes-c64  Seal FES Commodore 64 (format 3 firmware map, two cartridge sockets) with HIP (CACHE_ROOT=)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
@@ -1435,7 +1438,7 @@ sim-fes-z80:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_z80.py --verilator "$(VERILATOR)"
 
-# Atari 520ST simulation slice: no sealed producer or board-memory claim.
+# Atari 520ST motherboard, shared memory and optional stock-firmware boot.
 ST_CORE := cores/fes-atari-st
 ST_CPU := cores/fes-common/rtl/fx68k
 ST_DIAGNOSTIC := $(CURDIR)/build/diagnostics/fes-atari-st
@@ -1448,6 +1451,9 @@ ST_MACHINE_RTL := $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
 # Keep that preserved source; these suppressions match the qualified simulator.
 ST_CPU_FLAGS := -Wno-WIDTH -Wno-TIMESCALEMOD -Wno-MULTIDRIVEN -Wno-INITIALDLY \
 	-Wno-ALWCOMBORDER -Wno-UNOPTFLAT -Wno-BLKANDNBLK -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP
+ST_IO_RTL := $(ST_CORE)/rtl/st_io.sv $(ST_CORE)/rtl/st_mfp.sv \
+	$(ST_CORE)/rtl/st_acia.sv $(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv \
+	$(ST_CORE)/rtl/st_floppy.sv cores/fes-zx81/expansions/zonx_ay.v
 
 .PHONY: atari-st-sources atari-st-diagnostic sim-fes-atari-st sim-fes-atari-st-machine sim-fes-atari-st-video
 atari-st-sources:
@@ -1456,7 +1462,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video
+sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1476,3 +1482,98 @@ sim-fes-atari-st-video:
 		$(ST_CORE)/sim/st_video_sim_top.sv $(ST_VIDEO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/video_tb.cpp" -CFLAGS '-O2'
 	@build/sim/fes-atari-st-video/Vst_video_sim_top
+
+.PHONY: sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-floppy sim-fes-atari-st-emutos
+sim-fes-atari-st-mfp:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_mfp -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp" \
+		$(ST_CORE)/rtl/st_mfp.sv "$(CURDIR)/$(ST_CORE)/sim/mfp_tb.cpp" -CFLAGS '-std=c++17'
+	@build/sim/fes-atari-st-mfp/Vst_mfp
+
+sim-fes-atari-st-input-audio:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_input_audio_sim_top -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-input-audio" \
+		$(ST_CORE)/sim/st_input_audio_sim_top.sv $(ST_CORE)/rtl/st_acia.sv \
+		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv cores/fes-zx81/expansions/zonx_ay.v \
+		"$(CURDIR)/$(ST_CORE)/sim/input_audio_tb.cpp" -CFLAGS '-std=c++17'
+	@build/sim/fes-atari-st-input-audio/Vst_input_audio_sim_top
+
+sim-fes-atari-st-floppy:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_floppy -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-floppy" \
+		$(ST_CORE)/rtl/st_floppy.sv "$(CURDIR)/$(ST_CORE)/sim/floppy_tb.cpp" -CFLAGS '-std=c++17'
+	@build/sim/fes-atari-st-floppy/Vst_floppy
+
+sim-fes-atari-st-emutos: atari-st-sources
+	$(require_local_sim)
+	@test -n "$(EMUTOS_ROM)" || (echo 'Set EMUTOS_ROM to a 192 KiB ST image'; exit 1)
+	@mkdir -p build/sim/fes-atari-st-emutos
+	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-emutos/
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_sim_top $(ST_CPU_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-emutos" \
+		$(ST_CORE)/sim/st_boot_sim_top.sv $(ST_CORE)/rtl/st_system.sv \
+		$(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv $(ST_IO_RTL) $(ST_CPU_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/boot_tb.cpp" -CFLAGS '-O3 -std=c++17'
+	@cd build/sim/fes-atari-st-emutos && ./Vst_boot_sim_top "$(abspath $(EMUTOS_ROM))"
+
+.PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media
+sim-fes-atari-st-memory:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory" \
+		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
+		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-memory/Vst_memory_sim_top
+
+sim-fes-atari-st-video-adapter:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_video_adapter_sim_top -Wall \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-video-adapter" \
+		$(ST_CORE)/sim/st_video_adapter_sim_top.sv $(ST_CORE)/rtl/st_video_adapter.sv $(ST_VIDEO_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/video_adapter_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-video-adapter/Vst_video_adapter_sim_top
+
+sim-fes-atari-st-media:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media" \
+		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
+		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-media/Vst_media_sim_top
+
+.PHONY: fetch-fes-atari-st-emutos sim-fes-atari-st-io sim-fes-atari-st-emutos-memory build-fes-atari-st
+fetch-fes-atari-st-emutos:
+	$(PYTHON) scripts/fetch_atari_st_emutos.py
+
+sim-fes-atari-st-io:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-io" \
+		$(ST_CORE)/sim/st_io_sim_top.sv $(ST_IO_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/io_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-io/Vst_io_sim_top
+
+EMUTOS_SECONDS ?= 8
+EMUTOS_CAPTURE ?= $(CURDIR)/build/sim/fes-atari-st-boot-memory/emutos-sdram
+sim-fes-atari-st-emutos-memory: atari-st-sources
+	$(require_local_sim)
+	@test -n "$(EMUTOS_ROM)" || (echo 'Set EMUTOS_ROM to a 192 KiB ST image'; exit 1)
+	@mkdir -p build/sim/fes-atari-st-boot-memory
+	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-boot-memory/
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_memory_sim_top $(ST_CPU_FLAGS) \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-boot-memory" \
+		$(ST_CORE)/sim/st_boot_memory_sim_top.sv $(ST_CORE)/sim/st_memory_sim_top.sv \
+		$(ST_CORE)/rtl/st_system.sv $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
+		$(ST_CORE)/rtl/st_memory.sv cores/fes-ramtest/rtl/sdram_addon_port.v \
+		$(ST_CORE)/rtl/st_video_adapter.sv $(ST_VIDEO_RTL) $(ST_IO_RTL) $(ST_CPU_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/boot_memory_tb.cpp" -CFLAGS '-O3 -std=c++17'
+	@cd build/sim/fes-atari-st-boot-memory && ./Vst_boot_memory_sim_top \
+		"$(abspath $(EMUTOS_ROM))" "$(EMUTOS_SECONDS)" "$(abspath $(EMUTOS_CAPTURE))"
+
+ST_VIDEO_OUTPUT ?= direct
+build-fes-atari-st:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_atari_st_oss.py --root "$(CURDIR)" \
+		--video-output "$(ST_VIDEO_OUTPUT)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)

@@ -1461,39 +1461,50 @@ factory image.
 
 ## FES Atari 520ST
 
-`cores/fes-atari-st` is a simulation-only 16-bit machine slice for the
-original 520ST. Its real shared FX68K 68000 runs at an average 8 MHz from
-alternating fractional enables in the 52.224 MHz system domain. A latched
-request/ready bus presents separate external 512 KiB RAM and 192 KiB firmware
-ports, enforcing big-endian byte strobes, supervisor restrictions, the ROM
-reset-vector alias and read-only firmware/cartridge windows. The adapter
-holds completion across normal cycles and rearms between the two data-strobe
-halves of a TAS read-modify-write cycle. Expansion parts receive cartridge
-reads and unclaimed supervisor I/O, with bounded bus errors and VPA
-autovectors. The original RTL probe exercises both cartridge and MMIO paths.
+`cores/fes-atari-st` assembles the original ST's full FX68K 68000 and
+functional chipset in `st_system.sv`. Fractional alternating phase enables
+run an average 8 MHz CPU in the 52.224 MHz system domain. `st_machine.sv`
+latches big-endian bus transactions, applies supervisor protection and the
+ROM-vector alias, rearms between TAS strobes, and implements the original
+MMU's RAM-sizing address aliases. One physical 512 KiB bank is populated;
+configured bank 1 reads all ones. A disconnected cartridge is acknowledged,
+while unclaimed MMIO has a bounded bus-error timeout.
 
-Its memory-backed low/medium/high display source produces the existing fixed
-720p RGB888 video-part request. Simulation joins the real shared direct and
-scanline parts through two registered boundaries. This is source-level
-composition; no frozen physical socket or new host/runtime interface is
-declared. The exact current maps, scaling and open diagnostic are in
-[the core README](../cores/fes-atari-st/README.md).
+`st_io.sv` connects MFP IRQ6 vectors and timers, functional native VBL/HBL
+autovectors, keyboard/MIDI ACIAs, original IKBD protocol logic, shared YM2149
+sound and WD1772/ST DMA. HID rows settle for 1 ms before keyboard translation.
+CPU RESET resets the devices. The optional expansion exports a wide stable
+request and response through pinned registered boundaries in
+`fes.atari-st-bus.socket/1`; the existing Go linker admits only socket 1 and
+confines its CRAM writes to the shared rectangle.
 
-`make sim-fes-atari-st` verifies the preserved CPU file digests, generates
-two original firmware inputs, executes the machine regression, and checks
-complete frames in all three display modes. Outputs are private host
-simulations under `build/sim/fes-atari-st-{machine,video}/`, not an RBF.
-FX68K is pinned under `cores/fes-common/rtl/fx68k` with original bytes and
-licensing. Verilator warning suppressions address its unpacked structures;
-the first-party video case uses `-Wall`.
+`st_memory.sv` fairly arbitrates CPU, video, floppy DMA and both media paths
+over the existing addon SDRAM controller at 52.224 MHz. That controller now
+supports optional byte masks, initialization status and idle refresh while
+preserving the RAM tester's default behavior. Warm CPU Hold leaves memory and
+uploads running. Withdrawn requests drain without stale acknowledgements.
+The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the
+big-endian media adapter handles arbitrary odd chunk boundaries before the
+mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability
+bit 7 to the existing computer ABI, without changing its framing/opcodes.
 
-No producer, package manifest, ROM map or FES recipe exists yet. The original
-512 KiB RAM plus 192 KiB firmware requires external board memory, and the
-current one-clock video memory/configuration assembly requires a coherent
-pixel-domain adapter. FX68K's SystemVerilog frontend also needs qualification
-for the OSS synthesis flow. These are prerequisites to package sealing;
-MFP, IKBD/ACIA, YM2149, floppy/DMA and native raster interrupts are further
-machine work. No synthesis, timing or kit result is claimed.
+`st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
+owned double line caches between system and 74.25 MHz pixel clocks. Low,
+medium and monochrome displays feed the shared RGB888 direct/scanline output
+parts through two registered boundaries. The board selects its concrete
+video part at build time. Underflow blacks a whole affected line and later
+lines recover; stale fills cannot cross a frame configuration change.
+
+`make sim-fes-atari-st` runs the original CPU firmware and focused device,
+SDRAM-command, dual-clock-video and complete-media tests. Optional EmuTOS
+boot tests use a pinned official 1.4 192 KiB US image, supplied separately
+from the blank firmware socket. FX68K source bytes remain immutable; a
+compiler compatibility input may normalize its two simulation-only legacy
+translate-off/on comments without changing RTL assignments or microcode.
+The board producer must qualify the locked Slang/Yosys frontend, HIP route,
+all clocks and sealed ROM/socket maps. Host simulation does not confer kit
+or appliance hardware acceptance. See [the core README](../cores/fes-atari-st/README.md)
+for maps, commands and the remaining original-ST timing/device limits.
 
 ## Shared native kit client
 

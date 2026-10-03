@@ -4,7 +4,12 @@
 // GI data manual supplies register masks, mixer and envelope shapes. Tone
 // counters count up, including during period changes; period zero is one.
 // Envelope zero advances twice as fast as one (AY hardware behavior).
-module zonx_ay (
+// YM2149 mode shares tone/noise/mixer logic and adds its 32-step envelope,
+// both I/O register latches and nominal 1.5 dB envelope DAC steps. Default
+// zero retains the AY8912 card behavior and its existing public ports.
+// Yamaha YM2149 data sheet, level/envelope control sections:
+// https://www.ym2149.com/ym2149.pdf
+module zonx_ay #(parameter integer YM2149 = 0) (
     input wire clk, reset_n, chip_ce,
     input wire address_write, data_write,
     input wire [7:0] data,
@@ -22,7 +27,8 @@ module zonx_ay (
     reg [16:0] noise = 17'd1;
     reg [15:0] envelope_count = 1;
     reg envelope_half = 0;
-    reg [3:0] envelope_level = 0;
+    localparam [4:0] ENVELOPE_MAX = (YM2149 != 0) ? 5'd31 : 5'd15;
+    reg [4:0] envelope_level = 0;
     reg envelope_up = 0, envelope_holding = 1;
     integer i;
     initial begin
@@ -38,7 +44,7 @@ module zonx_ay (
                 6, 8, 9, 10: mask_register = value & 8'h1f;
                 // R15 has no I/O port on the 8912. R14 is an unconnected
                 // port latch; neither port contributes to sound.
-                15: mask_register = 0;
+                15: mask_register = (YM2149 != 0) ? value : 0;
                 default: mask_register = value;
             endcase
         end
@@ -98,26 +104,26 @@ module zonx_ay (
             if (restart) begin
                 envelope_count <= 1;
                 envelope_half <= 0;
-                envelope_level <= data[2] ? 0 : 15;
+                envelope_level <= data[2] ? 0 : ENVELOPE_MAX;
                 envelope_up <= data[2];
                 envelope_holding <= 0;
             end else if (tick8) begin
                 envelope_half <= ~envelope_half;
-                if (envelope_period == 0 || envelope_half) begin
+                if ((YM2149 != 0) || envelope_period == 0 || envelope_half) begin
                     if (envelope_count >= envelope_period) begin
                         envelope_count <= 1;
                         if (!envelope_holding) begin
-                            if ((envelope_up && envelope_level == 15) ||
+                            if ((envelope_up && envelope_level == ENVELOPE_MAX) ||
                                 (!envelope_up && envelope_level == 0)) begin
                                 if (!registers[13][3]) begin
                                     envelope_level <= 0;
                                     envelope_holding <= 1;
                                 end else if (registers[13][0]) begin
-                                    if (registers[13][1]) envelope_level <= ~envelope_level;
+                                    if (registers[13][1]) envelope_level <= (envelope_level ^ ENVELOPE_MAX);
                                     envelope_holding <= 1;
                                 end else if (registers[13][1]) begin
                                     envelope_up <= ~envelope_up;
-                                end else envelope_level <= envelope_up ? 0 : 15;
+                                end else envelope_level <= envelope_up ? 0 : ENVELOPE_MAX;
                             end else if (envelope_up)
                                 envelope_level <= envelope_level + 1'b1;
                             else envelope_level <= envelope_level - 1'b1;
@@ -142,11 +148,38 @@ module zonx_ay (
             endcase
         end
     endfunction
+    function [7:0] ym_amplitude;
+        input [4:0] level;
+        begin
+            case (level)
+                0: ym_amplitude=0; 1: ym_amplitude=0; 2: ym_amplitude=1;
+                3: ym_amplitude=1; 4: ym_amplitude=1; 5: ym_amplitude=1;
+                6: ym_amplitude=1; 7: ym_amplitude=1; 8: ym_amplitude=2;
+                9: ym_amplitude=2; 10: ym_amplitude=2; 11: ym_amplitude=3;
+                12: ym_amplitude=3; 13: ym_amplitude=4; 14: ym_amplitude=5;
+                15: ym_amplitude=5; 16: ym_amplitude=6; 17: ym_amplitude=8;
+                18: ym_amplitude=9; 19: ym_amplitude=11; 20: ym_amplitude=13;
+                21: ym_amplitude=15; 22: ym_amplitude=18; 23: ym_amplitude=21;
+                24: ym_amplitude=25; 25: ym_amplitude=30; 26: ym_amplitude=36;
+                27: ym_amplitude=43; 28: ym_amplitude=51; 29: ym_amplitude=60;
+                30: ym_amplitude=72; 31: ym_amplitude=85;
+            endcase
+        end
+    endfunction
+    function [7:0] channel_amplitude;
+        input [4:0] setting;
+        begin
+            if (YM2149 != 0)
+                channel_amplitude = ym_amplitude(setting[4] ? envelope_level :
+                    (setting[3:0] == 0 ? 5'd0 : {setting[3:0], 1'b1}));
+            else channel_amplitude = amplitude(setting[4] ? envelope_level[3:0] : setting[3:0]);
+        end
+    endfunction
     wire [2:0] gate = (tone | registers[7][2:0]) &
                      ({3{noise[0]}} | registers[7][5:3]);
-    wire [7:0] a = gate[0] ? amplitude(registers[8][4] ? envelope_level : registers[8][3:0]) : 0;
-    wire [7:0] b = gate[1] ? amplitude(registers[9][4] ? envelope_level : registers[9][3:0]) : 0;
-    wire [7:0] c = gate[2] ? amplitude(registers[10][4] ? envelope_level : registers[10][3:0]) : 0;
+    wire [7:0] a = gate[0] ? channel_amplitude(registers[8][4:0]) : 0;
+    wire [7:0] b = gate[1] ? channel_amplitude(registers[9][4:0]) : 0;
+    wire [7:0] c = gate[2] ? channel_amplitude(registers[10][4:0]) : 0;
     assign pcm = a + b + c;
     assign read_data = selected_valid ? registers[selected] : 8'hff;
 endmodule

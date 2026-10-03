@@ -29,22 +29,24 @@ and content selection; the MiSTer is a small, directly controlled target.
   unavailable; setup requires an online catalog. See
   [guided core setup](docs/core-package-library.md#tenfoot-guided-core-setup).
 
-- Library `fes.computer` 1.0 packages (`fes.apple2`, `fes.c64` and
-  `fes.spectrum`) launch as ordinary `fpga_native` sessions. A format-3
+- Library `fes.computer` 1.0 packages (`fes.apple2`, `fes.c64`,
+  `fes.spectrum` and `fes.atari-st`) launch as ordinary `fpga_native` sessions. A format-3
   package links its selected `firmware` ROM at download. An Apple II shell
   with optional `fes.expansion.apple2-bus` selects one card per physical slot;
   a Commodore 64 shell with optional `fes.expansion.c64-bus` selects socket 1
   (ROM) and socket 2 (I/O); a ZX Spectrum 48K shell with optional
-  `fes.expansion.spectrum-bus` selects one card per edge socket. Selection is
+  `fes.expansion.spectrum-bus` selects one card per edge socket. Atari ST
+  uses optional `fes.expansion.atari-st-bus` with one card in socket 1. Selection is
   `GET`/`PUT /api/v1/library/core-entries/{game_id}/expansions[/{slot}]`;
   launch links the ROM and cards on the host, the target relinks them
   independently and calls the runtime's multi-slot load. See
   [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
   The entry's selected medium is inserted into media unit 0 after Start:
   Apple II is an exact 143,360-byte `.dsk`/`.do` image, Commodore 64 is an
-  exact 174,848-byte `.d64`, and ZX Spectrum 48K is a 1..65,536-byte `.tap`.
+  exact 174,848-byte `.d64`, Atari ST is an exact 737,280-byte `.st`, and
+  ZX Spectrum 48K is a 1..65,536-byte `.tap`.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
-  machine runs. Apple II and Commodore 64 use `fogcast change-disk` and
+  machine runs. Apple II, Commodore 64 and Atari ST use `fogcast change-disk` and
   `fogcast eject-disk`. ZX Spectrum 48K uses `fogcast change-cassette` and
   `fogcast eject-cassette`. A stored media ID follows the active unit's
   size. See
@@ -54,7 +56,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   `set_keyboard_hid`, including Esc and Backspace; controllers use
   `set_controller` ports 0/1. See
   [keyboard HID](docs/ARCHITECTURE.md#keyboard-hid-for-home-computers).
-  Host tests only; no Apple II kit evidence exists yet.
+  Atari ST media and socket paths have host tests; hardware acceptance is pending.
 
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
   for two independent digital controllers and optional `fes.keypad.ports` 1.0

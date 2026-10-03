@@ -3,8 +3,11 @@
 // 128 MB is 64M halfwords on two chips. The MiSTer memory tester packs a
 // halfword as column[1:0], bank, row[12:0], column[9:2], and uses the top
 // bit as the chip select. A10 is auto-precharge on READ and WRITE.
-// A refresh is inserted between commands so a full-chip scan keeps its data.
-module sdram_addon_port (
+// Refresh also runs without requests so an idle client keeps its data.
+module sdram_addon_port #(
+    // Preserve the memory tester's full-word writes unless explicitly enabled.
+    parameter BYTE_MASK_ENABLED = 0
+) (
     input wire clk,
     input wire clk_pin,
     input wire [1:0] rate,
@@ -13,6 +16,8 @@ module sdram_addon_port (
     input wire write,
     input wire [25:0] addr,
     input wire [15:0] wdata,
+    input wire [1:0] write_byte_enable,
+    output reg initialized = 1'b0,
     output reg done,
     output reg [15:0] rdata,
     output wire sdram_clk,
@@ -58,6 +63,8 @@ module sdram_addon_port (
     reg writing = 1'b0;
     reg [25:0] held_addr = 26'd0;
     reg [15:0] held_data = 16'h0000;
+    reg [1:0] held_byte_enable = 2'b11;
+    reg refresh_with_request = 1'b0;
     reg [15:0] dq_out_q;
 `ifdef RAM_OSS_HIGH_SPEED
     // held_data is latched with the request, before the SDRAM write edge.
@@ -68,6 +75,7 @@ module sdram_addon_port (
 `endif
     reg init_hi = 1'b0;
     reg ref_hi = 1'b0;
+    wire unused_clock_oe;
 `ifdef RAM_OSS_HIGH_SPEED
     reg capture_due = 1'b0;
 `endif
@@ -92,7 +100,7 @@ module sdram_addon_port (
         .sclr(1'b0),
         .oe(1'b1),
         .dataout(sdram_clk),
-        .oe_out()
+        .oe_out(unused_clock_oe)
     );
 
     // 7.8 us refresh. The count is in fabric clocks, so it tracks the rate.
@@ -115,6 +123,9 @@ module sdram_addon_port (
         sdram_nras <= 1'b1;
         sdram_ncas <= 1'b1;
         sdram_nwe <= 1'b1;
+        // Rearm even during an unsolicited background refresh. A client's
+        // request-low interval can otherwise occur entirely inside tRFC.
+        if (!start) seen <= 1'b0;
         if (refresh_div == refresh_every) begin
             refresh_div <= 12'd0;
             refresh_due <= 1'b1;
@@ -125,10 +136,13 @@ module sdram_addon_port (
             state <= ST_BOOT;
             wait_count <= 14'd0;
             refresh_due <= 1'b0;
+            refresh_div <= 12'd0;
             seen <= 1'b0;
             init_hi <= 1'b0;
             ref_hi <= 1'b0;
             sdram_cke <= 1'b0;
+            initialized <= 1'b0;
+            refresh_with_request <= 1'b0;
         end else case (state)
             ST_BOOT: begin
                 sdram_cke <= 1'b0;
@@ -212,6 +226,7 @@ module sdram_addon_port (
                     else begin
                         init_hi <= 1'b0;
                         state <= ST_IDLE;
+                        initialized <= 1'b1;
                     end
                 end else begin
                     wait_count <= wait_count + 14'd1;
@@ -220,15 +235,15 @@ module sdram_addon_port (
             ST_IDLE: begin
                 sdram_cke <= 1'b1;
                 sdram_ncs <= 1'b1;
-                if (!start)
-                    seen <= 1'b0;
-                else if (!seen) begin
+                if (start && !seen) begin
                     seen <= 1'b1;
                     writing <= write;
                     held_addr <= addr;
                     held_data <= wdata;
+                    held_byte_enable <= BYTE_MASK_ENABLED ? write_byte_enable : 2'b11;
                     if (refresh_due) begin
                         state <= ST_REF;
+                        refresh_with_request <= 1'b1;
                     end else begin
                         sdram_ba <= addr[3:2];
                         sdram_a <= addr[16:4];
@@ -241,6 +256,9 @@ module sdram_addon_port (
                             dq_oe <= 1'b1;
                         end
                     end
+                end else if (refresh_due) begin
+                    state <= ST_REF;
+                    refresh_with_request <= 1'b0;
                 end
             end
             ST_REF: begin
@@ -261,7 +279,7 @@ module sdram_addon_port (
                         state <= ST_REF;
                     end else begin
                         ref_hi <= 1'b0;
-                        state <= ST_ROW;
+                        state <= refresh_with_request ? ST_ROW : ST_IDLE;
                     end
                 end else begin
                     wait_count <= wait_count + 14'd1;
@@ -295,12 +313,16 @@ module sdram_addon_port (
                 sdram_nwe <= writing ? 1'b0 : 1'b1;
                 dq_out_q <= held_data;
                 dq_oe <= writing;
+                sdram_dqml <= writing && !held_byte_enable[0];
+                sdram_dqmh <= writing && !held_byte_enable[1];
                 state <= ST_RW;
             end
             ST_RW: begin
                 sdram_cke <= 1'b1;
                 dq_out_q <= held_data;
                 dq_oe <= writing;
+                sdram_dqml <= writing && !held_byte_enable[0];
+                sdram_dqmh <= writing && !held_byte_enable[1];
                 state <= writing ? ST_HOLD : ST_CAP;
                 wait_count <= 14'd0;
             end

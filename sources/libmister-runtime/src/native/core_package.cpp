@@ -908,9 +908,11 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		for (const auto& interface : descriptor.interfaces) {
 			const bool bus = interface.id == kApple2ExpansionBusID ||
 				interface.id == kC64ExpansionBusID ||
+				interface.id == kAtariStExpansionBusID ||
 				interface.id == kSpectrumExpansionBusID;
 			const bool media = interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID ||
+				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
 				interface.id == FesComputerInterfaceKeyboardHidID ||

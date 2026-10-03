@@ -66,7 +66,7 @@ module top #(
         .exec_reset(exec_reset), .keyboard_rows(keyboard_rows),
         .controller_buttons(controller_buttons),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
-        .media_write_enable(media_write_enable),
+        .media_write_enable(media_write_enable), .media_write_ready(1'b1),
         .unit0_state(unit0_state), .unit0_size(unit0_size)
     );
 
