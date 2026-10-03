@@ -1583,6 +1583,20 @@ move without changing that shared slot. The different repository-wide
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
+The standalone original Z80 implementation lives in
+`cores/fes-common/rtl/z80`. `fes_z80_nmos` uses the shared instruction engine
+and original pin-cycle adapter; `fes_z80_fast` selects documented instructions
+and a direct request/completion interface with timing-only cycles removed.
+The [CPU contract](../cores/fes-common/rtl/z80/README.md) describes public ports,
+behavior references, undefined-encoding policy and qualification limits.
+`make sim-fes-z80` exercises both variants and their independent ALU/bus tests.
+The contained `scripts/benchmark_fes_z80.py` diagnostic targets Cyclone V and
+records routed timing from exact source/tool snapshots without producing an
+RBF. Existing production CPU consumers and recipes still select TV80/T80;
+there is no CPU package, board acceptance or consumer migration in this change.
+Adding RTL to the conservative shared source closure changes future functional
+build identities even before a console selects it.
+
 The source closure includes the shared helper files and `cores/fes-common`.
 Moving these files changes authenticated source paths and therefore changes v2
 build identities even though the HDL bytes are unchanged. Old packages retain

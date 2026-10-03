@@ -1,0 +1,9 @@
+# DE10-Nano Cyclone V diagnostic envelope. Pin assignments are from Terasic's
+# DE10-Nano User Manual: FPGA_CLK1_50, FPGA KEY[0], and FPGA LED[0].
+# https://fpgacademy.org/Downloads/DE10_Nano_User_Manual.pdf
+set_location_assignment PIN_V11 -to FPGA_CLK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK1_50
+set_location_assignment PIN_AH17 -to KEY0_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to KEY0_N
+set_location_assignment PIN_W15 -to LED0
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED0
