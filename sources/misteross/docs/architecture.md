@@ -574,6 +574,14 @@ this producer for factory publication; FogCast resolves the household preference
 against matching installed parts. A missing selected part cannot fall back to
 the vacant native shell. Older raster packages retain their existing behavior.
 
+The native shell tries the ten seeds `3,4,5,1,2,6,7,8,9,10` at HeAP timing
+weight 2000, then the same seeds at weight 1000 if needed. The bounded search
+stops at the first complete route meeting all three clock requirements, with a
+600-second limit per attempt. The CPU-only and raster variants retain their
+ten-seed, weight-2000 search. The ordered weights, mode, attempt budget and
+timeout enter the build identity; route evidence records the selected seed
+and weight. This fallback does not establish timing margin for a later build.
+
 The pinned frozen importer removes transparent cart clock buffers but does not
 reconnect an SDP M10K's second clock through their aliases. The native producer
 therefore proves every FF/RAM clock traces through only transparent buffers to

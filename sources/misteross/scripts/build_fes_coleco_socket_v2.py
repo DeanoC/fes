@@ -35,6 +35,8 @@ NATIVE_VIDEO_OUTPUT_RELATIVE = Path("build/fes-coleco-native-video")
 TOOLCHAIN_LOCK = "toolchains/coleco-sgm.lock"
 COLECO_TOOLCHAIN_LOCK = TOOLCHAIN_LOCK
 PLACER_SEEDS = (3, 4, 5, 1, 2, 6, 7, 8, 9, 10)
+PLACER_QOR_MODE = "first-pass"
+PLACER_TIMEOUT_SECONDS = 600
 TOOL_COMMITS = {
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
     "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
@@ -76,6 +78,26 @@ def video_profile(*, video_socket: bool = False, native_video: bool = False):
     return None, OUTPUT_RELATIVE, PINNED_INPUTS
 
 
+def placement_policy(*, native_video: bool = False) -> tuple[tuple[int, ...], int]:
+    weights = (2000, 1000) if native_video else (2000,)
+    return weights, len(PLACER_SEEDS) * len(weights)
+
+
+def _route_placement(root: Path, output: Path, nextpnr: Path, *,
+                     native_video: bool = False, env=None):
+    weights, budget = placement_policy(native_video=native_video)
+    return route_after_synth(
+        nextpnr=nextpnr, fixture=output / "synth.json", dest=output,
+        device=factory.TARGET, qsf=output / "socket.qsf",
+        sdc=root / factory.SDC, freq="74.25", seeds=PLACER_SEEDS,
+        weights=weights, critexp=factory.PLACER_CRITICALITY_EXPONENT,
+        budget=budget, mode=PLACER_QOR_MODE, timeout=PLACER_TIMEOUT_SECONDS,
+        extra=("--router", factory.ROUTER),
+        required=factory.PLACER_QOR_CLOCKS, gpu_devices=(0,),
+        env=env, audit_source_root=root,
+    )
+
+
 def authenticate_tools(root: Path, cache_root: Path | None):
     return _authenticate_tools(
         root, lock_path=root / TOOLCHAIN_LOCK,
@@ -102,6 +124,7 @@ def create_build_record(root: Path, repository: str, revision: str,
                         *, identity_version: int = 2, video_socket: bool = False, native_video: bool = False) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
+    weights, budget = placement_policy(native_video=native_video)
     fields = {
         "format": 1, "repository": repository, "revision": revision,
         "recipe": RECIPE, "recipe_sha256": _sha256(root / RECIPE),
@@ -118,8 +141,12 @@ def create_build_record(root: Path, repository: str, revision: str,
             "reference_clock_hz": 50_000_000,
             "seed": PLACER_SEEDS[0],
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
-            "placer_heap_timingweight": 2000,
+            "placer_heap_timingweight": weights[0],
+            "placer_heap_timingweights": ",".join(str(weight) for weight in weights),
             "placer_heap_critexp": factory.PLACER_CRITICALITY_EXPONENT,
+            "placer_qor_mode": PLACER_QOR_MODE,
+            "placer_qor_budget": budget,
+            "placer_qor_timeout_seconds": PLACER_TIMEOUT_SECONDS,
             "toolchain_lock": TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(root / TOOLCHAIN_LOCK),
             "expansion_socket": "coleco-bus-v2",
@@ -144,6 +171,7 @@ def create_build_record(root: Path, repository: str, revision: str,
 def build_commands(root: Path, output: Path, build_id: str,
                    tools: Mapping[str, Path], *, video_socket: bool = False, native_video: bool = False) -> tuple[tuple[str, ...], tuple[str, ...]]:
     profile, relative, _ = video_profile(video_socket=video_socket, native_video=native_video)
+    weights, _ = placement_policy(native_video=native_video)
     sources = (*RTL_SOURCES, *NATIVE_VIDEO_SOURCES) if native_video else (
         (*RTL_SOURCES, profile.RTL) if profile else RTL_SOURCES)
     video_define = ("-DFES_COLECO_NATIVE_VIDEO_DEV=1 -DFES_COLECO_NATIVE_VIDEO_PART_DEV=1 "
@@ -169,7 +197,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         "--device", factory.TARGET, "--qsf", f"{relative}/socket.qsf",
         "--sdc", factory.SDC, "--freq", "74.25",
         "--seed", str(PLACER_SEEDS[0]),
-        "--placer-heap-timingweight", "2000",
+        "--placer-heap-timingweight", str(weights[0]),
         "--placer-heap-critexp", str(factory.PLACER_CRITICALITY_EXPONENT),
         "--router", factory.ROUTER, "--timing-allow-fail",
         "--rbf", f"{relative}/core.rbf", "--compress-rbf",
@@ -229,18 +257,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
         if profile:
             profile.validate_boundary(json.loads((output / "synth.json").read_bytes())["modules"]["top"], routed=False)
         try:
-            winner = route_after_synth(
-                nextpnr=tools["nextpnr-mistral"].path,
-                fixture=output / "synth.json", dest=output,
-                device=factory.TARGET, qsf=output / "socket.qsf",
-                sdc=root / factory.SDC, freq="74.25",
-                seeds=PLACER_SEEDS,
-                weights=(2000,),
-                critexp=factory.PLACER_CRITICALITY_EXPONENT,
-                budget=len(PLACER_SEEDS), mode="first-pass",
-                extra=("--router", factory.ROUTER),
-                required=factory.PLACER_QOR_CLOCKS, gpu_devices=(0,),
-                env=env, audit_source_root=root,
+            winner = _route_placement(
+                root, output, tools["nextpnr-mistral"].path,
+                native_video=native_video, env=env,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
@@ -250,7 +269,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
         evidence = factory.validate_build_evidence(output, root)
         evidence["route"].update(placer_seed=winner.seed,
                                  placer_heap_timingweight=winner.weight,
-                                 placer_qor_mode="first-pass")
+                                 placer_qor_mode=PLACER_QOR_MODE)
         evidence.update({
             "build_id": build_id, "device": factory.TARGET, "top": factory.TOP,
             "inputs": {path: _sha256(root / path) for path in sorted(inputs)},
