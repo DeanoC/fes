@@ -82,3 +82,14 @@ describe these controls. Kernel and U-Boot bytes remain unchanged.
 Automatic fallback assumes readable stable boot files/factory and functioning
 card/watchdog hardware. Hardware results belong to the exact FES artifact record;
 the package tests and isolated root-switch test are not physical acceptance.
+
+## Reboot backstop
+
+For an appliance activation or rollback, the agent prepares the Cyclone V warm-reset
+registers, arms the hardware watchdog, then requests a normal reboot. A detached
+fallback requests `reboot -f` after 90 seconds if init shutdown stalls; the
+watchdog resets the board after its 180-second timeout if shutdown still hangs.
+A reboot request error cancels the fallback and disarms the watchdog. On stable
+startup, the agent disarms a stale watchdog only when no reboot marker exists.
+Trial boots leave the watchdog untouched because the independent bootstrap trial
+guard owns its reset deadline.

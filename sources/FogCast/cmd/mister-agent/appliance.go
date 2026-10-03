@@ -3,21 +3,44 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/appliance/store"
+	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
+	"github.com/DeanoC/FogCast/internal/rebootguard"
 )
 
 const applianceFactory = "/.fes-bootstrap/etc/fes/factory.json"
 
+var armReboot = rebootguard.Arm
+var disarmStaleReboot = rebootguard.DisarmStale
+var cancelReboot = func(handle *rebootguard.Armed) error { return handle.Cancel() }
+var runReboot = func(ctx context.Context) error { return exec.CommandContext(ctx, rebootCommand).Run() }
+
+func guardedReboot(ctx context.Context) error {
+	result, armErr := armReboot(ctx, rebootguard.Config{})
+	if armErr != nil {
+		slog.Warn("appliance reboot backstop not armed", "reason", result.Reason, "timeout", result.ActualTimeout, "error", armErr)
+	} else {
+		slog.Info("appliance reboot backstop", "reason", result.Reason, "timeout", result.ActualTimeout)
+	}
+	err := runReboot(ctx)
+	if err != nil && result.Armed != nil {
+		if cancelErr := cancelReboot(result.Armed); cancelErr != nil {
+			slog.Warn("appliance reboot backstop cancel failed", "error", cancelErr)
+		}
+	}
+	return err
+}
+
 func loadApplianceUpdate(coordinator *agent.Coordinator, cleanup func(context.Context) error) (*applianceupdate.Service, error) {
 	return openApplianceUpdate(applianceFactory, "/proc/self/mountinfo", appliance.DefaultRoot, bootIDFile, coordinator, cleanup,
-		func(ctx context.Context) error { return exec.CommandContext(ctx, rebootCommand).Run() })
+		guardedReboot)
 }
 
 func openApplianceUpdate(factoryPath, mountInfoPath, root, bootPath string, coordinator *agent.Coordinator, cleanup, reboot func(context.Context) error) (*applianceupdate.Service, error) {
@@ -64,5 +87,7 @@ func openApplianceUpdate(factoryPath, mountInfoPath, root, bootPath string, coor
 	if _, err = store.Verify(boot.ImageSHA256); err != nil {
 		return nil, err
 	}
-	return applianceupdate.New(store, coordinator, boot, reboot, cleanup), nil
+	service := applianceupdate.New(store, coordinator, boot, reboot, cleanup)
+	disarmStaleReboot(rebootguard.Config{}, boot.Trial)
+	return service, nil
 }

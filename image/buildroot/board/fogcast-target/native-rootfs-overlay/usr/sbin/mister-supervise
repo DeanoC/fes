@@ -28,7 +28,26 @@ terminate() {
   trap - INT TERM
   if [ -n "$child" ] && /bin/kill -0 "$child" 2>/dev/null; then
     /bin/kill "$child" 2>/dev/null || true
+    # Bounded stop (#429): wait reaps a child that exits promptly. An escalator
+    # KILLs it after 5 s; if it still has not been reaped 2 s later (stuck in
+    # D state), the escalator logs, removes the pid file and KILLs this
+    # supervisor so shutdown is never held by an unbounded wait.
+    supervisor=$$
+    (
+      /bin/sleep 5
+      /bin/kill -0 "$child" 2>/dev/null || exit 0
+      log_event "killing child=$child after TERM timeout"
+      /bin/kill -KILL "$child" 2>/dev/null || exit 0
+      /bin/sleep 2
+      if /bin/kill -0 "$child" 2>/dev/null; then
+        /bin/rm -f "$pid_file"
+        log_event "stopped child=$child unkillable"
+        /bin/kill -KILL "$supervisor" 2>/dev/null || true
+      fi
+    ) &
+    escalator=$!
     wait "$child" 2>/dev/null || true
+    { /bin/kill "$escalator"; wait "$escalator"; } 2>/dev/null || true
   fi
   /bin/rm -f "$pid_file"
   log_event stopped
