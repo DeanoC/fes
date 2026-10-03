@@ -22,14 +22,14 @@ func TestObserveRuntimeInputBindsComputerKeyboardHID(t *testing.T) {
 	generation := uint64(4)
 	response := func(abi string, interfaces ...string) misterruntime.Protocol2Response {
 		r := misterruntime.Protocol2Response{OK: true, State: "running_development", Generation: &generation,
-			ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: strings.Repeat("a", 64), Descriptor: corepackage.Descriptor{ABI: corepackage.Contract{ID: abi, Major: 1}}}}
+			ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: strings.Repeat("a", 64), Descriptor: corepackage.Descriptor{Core: corepackage.Core{ID: "fes.sms"}, ABI: corepackage.Contract{ID: abi, Major: 1}}}}
 		for _, id := range interfaces {
 			r.Capabilities.ActiveInterfaces = append(r.Capabilities.ActiveInterfaces, misterruntime.Protocol2Interface{ID: id, Major: 1})
 		}
 		return r
 	}
 	obs, err := observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response("fes.computer", "fes.gamepad.ports", "fes.keyboard.hid")}, "", 0, 0))
-	if err != nil || obs.KeyboardHID == nil || obs.KeyboardHID.Generation != 4 || obs.Keyboard || obs.Binding == nil || obs.Binding.Keypad {
+	if err != nil || obs.KeyboardHID == nil || obs.KeyboardHID.Generation != 4 || obs.Keyboard || obs.Binding == nil || obs.Binding.Keypad || obs.CoreID != "fes.sms" {
 		t.Fatalf("computer observation %+v %v", obs, err)
 	}
 	obs, err = observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response("fes.computer", "fes.keyboard.hid")}, "", 0, 0))

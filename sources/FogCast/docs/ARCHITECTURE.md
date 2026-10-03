@@ -902,8 +902,8 @@ keys; Stop stays on the session chrome and the controller Select+Start chord.
 A `fes.keyboard` core maps those keys onto the ZX81 matrix. For exact
 `fes.coleco`, D-pad/left-stick and A/B events are mapped onto the Coleco P1
 keyboard bits while overlapping keyboard, D-pad, and axis holds remain joined.
-Exact `fes.sms` reuses that path for directions and A/Fire1 only; B does not
-provide SMS Fire2.
+Exact `fes.sms` and `fes.sg1000` reuse that path for directions and A/Fire1
+only; B does not provide Fire2.
 Native SNES/MD
 encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
 route them to `set_keyboard` and reconnect replay does not treat matrix codes
@@ -2130,7 +2130,11 @@ bits are Up, Down, Left, Right, A, B, Select, Start; keypad bits are 0–9, `*`,
 The runtime validates the complete request and owns the physical GP writes.
 The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 0600),
 not another network endpoint, and there is no additional virtual-device discovery rule.
-Other cores retain the single virtual gamepad and keyboard sink.
+For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
+1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
+onto that keyboard matrix. The keyboard sink unions local and remote holds;
+local pad frames do not also enter the virtual gamepad. Other cores retain the
+single virtual gamepad and keyboard sink.
 Installed-core control is a separate root-only HTTP socket at
 `/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
 packages and, when the kit lease is free, launches one that needs no cartridge

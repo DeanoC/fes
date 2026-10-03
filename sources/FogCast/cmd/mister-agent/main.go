@@ -242,6 +242,9 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 	}
 	active := status.OK && status.State == "running_development" && status.ActivePackage != nil && status.Generation != nil && *status.Generation != 0
 	observation := input.CoreObservation{Active: active, Keyboard: keyboard}
+	if active {
+		observation.CoreID = status.ActivePackage.Descriptor.Core.ID
+	}
 	if active && keyboardHID && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
 		observation.KeyboardHID = &input.KeyboardHIDBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
 	}
