@@ -19,6 +19,12 @@ module st_video (
     input  wire [143:0] palette,
     output wire [18:1]  mem_addr,
     input  wire [15:0]  mem_data,
+    // Optional line-cache lookup coordinates for the same word-port cycle.
+    // Keeping them explicit avoids decoding the wide physical address back
+    // into a row and column in a pixel-domain cache adapter.
+    output wire         fetch_valid,
+    output wire [8:0]   fetch_row,
+    output wire [6:0]   fetch_column,
     output wire [`FES_VIDEO_PART_REQUEST_BITS-1:0] video_request
 );
     localparam [10:0] H_ACTIVE = 11'd1280;
@@ -69,6 +75,11 @@ module st_video (
         {7'd0, line_offset} + {15'd0, group_offset} + {18'd0, group_phase};
     wire address_valid = address_word < 24'h040000;
     assign mem_addr = fetching && address_valid ? address_word[17:0] : 18'd0;
+    assign fetch_valid = fetching && address_valid;
+    assign fetch_row = native_y[8:0];
+    assign fetch_column = low_resolution ? {group_number[4:0], group_phase[1:0]} :
+                          high_resolution ? {1'b0, group_number} :
+                                            {group_number, group_phase[0]};
     wire [15:0] fetched_word = address_valid ? mem_data : 16'd0;
 
     always @(posedge clk) begin

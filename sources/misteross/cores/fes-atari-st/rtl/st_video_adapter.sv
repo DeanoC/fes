@@ -260,17 +260,15 @@ module st_video_adapter (
         end
     end
 
-    wire [18:1] renderer_addr;
+    // Use the renderer's native coordinates instead of reversing its physical
+    // address through wide subtraction, division and modulo in the pixel path.
+    wire renderer_fetch_valid;
+    wire [8:0] renderer_row;
+    wire [6:0] renderer_column;
     reg [15:0] renderer_data;
-    wire [23:0] renderer_offset = {6'd0, renderer_addr} -
-                                 {1'b0, active_base[23:8], 7'd0};
-    wire [8:0] renderer_row = high_resolution ? 9'(renderer_offset / 24'd40) :
-                                                              9'(renderer_offset / 24'd80);
-    wire [6:0] renderer_column = high_resolution ? 7'(renderer_offset % 24'd40) :
-                                                                 7'(renderer_offset % 24'd80);
     always @* begin
         renderer_data = 16'd0;
-        if (renderer_offset < 24'd16000 && cache_valid[renderer_row[0]] &&
+        if (renderer_fetch_valid && cache_valid[renderer_row[0]] &&
             !cache_busy[renderer_row[0]] && job_frame[renderer_row[0]] == debug_frame &&
             job_row[renderer_row[0]] == renderer_row)
             renderer_data = renderer_row[0] ? cache1[renderer_column] : cache0[renderer_column];
@@ -279,7 +277,11 @@ module st_video_adapter (
     st_video renderer (
         .clk(clk_pixel), .reset(reset_pixel), .hold(1'b0),
         .screen_base(active_base), .resolution(active_resolution), .palette(active_palette),
-        .mem_addr(renderer_addr), .mem_data(renderer_data), .video_request(source_request)
+        /* verilator lint_off PINCONNECTEMPTY */
+        .mem_addr(),
+        /* verilator lint_on PINCONNECTEMPTY */
+        .mem_data(renderer_data), .fetch_valid(renderer_fetch_valid),
+        .fetch_row(renderer_row), .fetch_column(renderer_column), .video_request(source_request)
     );
     wire mute = hold_sync || !configured || (image_line && horizontal < 11'd1280 && !line_available);
     assign video_request = mute ?

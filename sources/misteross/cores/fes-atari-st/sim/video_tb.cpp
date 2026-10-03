@@ -66,9 +66,36 @@ class Simulation {
         return request | (high ? ((index ^ (colors[0] & 1)) ? 0xffffff : 0) : rgb(colors[index]));
     }
 
+    void check_fetch() const {
+        const bool high = dut.resolution == 2, low = dut.resolution == 0;
+        const unsigned planes = low ? 4 : high ? 1 : 2;
+        const unsigned future = (position + planes) % Frame;
+        const unsigned x = future % Width, y = future / Width;
+        const unsigned top = high ? 160 : 60, height = high ? 400 : 600;
+        const unsigned group_width = low ? 64 : 32;
+        bool valid = dut.resolution != 3 && x < 1280 && y >= top &&
+                     y < top + height && x % group_width < planes;
+        unsigned row = 0, column = 0, address = 0;
+        if (valid) {
+            row = (y - top) / (high ? 1 : 3);
+            column = (x / group_width) * planes + x % group_width;
+            address = ((dut.screen_base & 0xffff00) / 2) + row * (high ? 40 : 80) + column;
+            valid = address < ram.size();
+        }
+        if (dut.fetch_valid != valid) fail("fetch validity", dut.fetch_valid, valid);
+        if (dut.mem_addr != (valid ? address : 0))
+            fail("legacy word-port address", dut.mem_addr, valid ? address : 0);
+        if (valid) {
+            if (dut.fetch_row != row) fail("cache fetch row", dut.fetch_row, row);
+            if (dut.fetch_column != column) fail("cache fetch column", dut.fetch_column, column);
+            if (column >= (high ? 40u : 80u)) fail("cache column bounds", column, high ? 40 : 80);
+        }
+    }
+
     void step(bool verify_source = true) {
         dut.clk = 0;
         dut.eval();
+        if (verify_source) check_fetch();
         dut.mem_data = ram[dut.mem_addr];
         dut.eval();
         const uint32_t current = dut.source_request;
