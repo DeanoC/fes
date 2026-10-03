@@ -193,6 +193,16 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(options['timeout'], 1800)
         self.assertEqual(options['extra'], ('--router', 'gpu'))
 
+    def test_oss_prepare_rejects_dangling_output_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / build_fes_sg1000_oss.OUTPUT_RELATIVE
+            output.mkdir(parents=True)
+            (output / "qor-ranking.json").symlink_to(root / "missing-target.json")
+            with self.assertRaisesRegex(build_fes_sg1000_oss.BuildError, "regular file"):
+                build_fes_sg1000_oss._prepare_output(root)
+            self.assertFalse((root / "missing-target.json").exists())
+
     def test_oss_manifest_requires_linked_cartridge_without_media_mailbox(self) -> None:
         record = b'{"recipe_sha256":"' + b"b" * 64 + b'"}'
         evidence = {

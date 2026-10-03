@@ -275,9 +275,9 @@ def _prepare_output(root: Path) -> Path:
     output.mkdir(parents=True, exist_ok=True)
     for name in BUILD_OUTPUTS:
         path = output / name
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            raise BuildError(f"build output must be a regular file: {path}")
         if path.exists():
-            if path.is_symlink() or not path.is_file():
-                raise BuildError(f"build output must be a regular file: {path}")
             path.unlink()
     return output
 

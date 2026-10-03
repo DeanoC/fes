@@ -238,7 +238,8 @@ Each package's functional key covers the `scripts/` source closure. Its 128-bit
 placement. On main's #436 closure, SG-1000 seed 3 reached 48.93 MHz against
 the 52.224 MHz system constraint. At the PR closure, the 12-seed sweep passed
 10 seeds; seeds 2 and 11 failed. The SG-1000 producer now tries seeds 12, 5, 4, 8, 10, 1, 6, 9
-in order and keeps the first route meeting its system and pixel constraints.
+in order and keeps the first route meeting its 52.224 MHz system, 12.288 MHz
+audio and 74.25 MHz pixel constraints.
 Pong similarly tries seeds 1 through 8 for its pixel constraint. The described
 menu package tries seed 5 first, then 1, 2, 3, 4, 6, 7, 8. Each winner still
 passes the producer's full timing, resource, and package evidence checks.
