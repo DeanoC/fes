@@ -271,7 +271,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		defer closeLocal()
 	}
 	localApplied := false
-	hostCatalog := false
+	kitRows := map[string]bool{}
 	send := func(o observation) {
 		select {
 		case results <- o:
@@ -463,7 +463,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			localPending = true
 			var hostGame hostclient.Game
 			online := m.Connected
-			kitRow := !hostCatalog && containsLocalID(localGames, id)
+			kitRow := kitRows[id]
 			cachedDigest := ""
 			if action == "local-launch" {
 				hostGame = displayedGame(m, id)
@@ -709,8 +709,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.Connected = false
 				m.ClearCoreStatuses(true)
 				if !localApplied && len(localGames) > 0 {
-					m.SetCatalog(localGames)
-					hostCatalog = false
+					var merged []hostclient.Game
+					merged, kitRows = mergeKitRows(m.Catalog, localGames)
+					m.SetCatalog(merged)
 					localApplied = true
 					catalogLoaded = true
 				}
@@ -793,7 +794,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 				if o.games != nil {
 					m.ApplyCatalog(o.games)
-					hostCatalog = true
+					kitRows = map[string]bool{}
+					localApplied = false
 					catalogLoaded = true
 					lastCatalog = time.Now()
 				}
@@ -1051,6 +1053,29 @@ func containsLocalID(games []hostclient.Game, id string) bool {
 		}
 	}
 	return false
+}
+
+// mergeKitRows keeps a saved or live host catalog while the host is away and
+// appends kit-local rows whose ids it does not already hold, so browse-only
+// host rows stay matchable and kit-only rows stay playable (fes#442). The
+// returned set names the rows that came from the kit-local catalog; only
+// those may launch directly by id.
+func mergeKitRows(catalog, local []hostclient.Game) ([]hostclient.Game, map[string]bool) {
+	merged := append([]hostclient.Game(nil), catalog...)
+	present := make(map[string]bool, len(merged)+len(local))
+	for _, game := range merged {
+		present[game.ID] = true
+	}
+	kit := make(map[string]bool, len(local))
+	for _, game := range local {
+		if game.ID == "" || present[game.ID] {
+			continue
+		}
+		merged = append(merged, game)
+		present[game.ID] = true
+		kit[game.ID] = true
+	}
+	return merged, kit
 }
 
 func displayedGame(m Model, id string) hostclient.Game {

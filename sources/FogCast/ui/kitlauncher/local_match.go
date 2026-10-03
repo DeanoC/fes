@@ -85,7 +85,7 @@ func (m *localROMMatcher) matchDigest(ctx context.Context, want string, resolve 
 // refused instead of guessed.
 func launchMatchedLocalGame(ctx context.Context, client LocalCoreClient, online, kitRow bool, cachedDigest string, fetch func(context.Context, string) (string, error), resolve func(context.Context, string) (string, error), games []hostclient.Game, matcher *localROMMatcher, host hostclient.Game) (string, error) {
 	id := strings.TrimSpace(host.ID)
-	if containsLocalID(games, id) && (kitRow || !online) {
+	if kitRow && containsLocalID(games, id) {
 		return "", launchLocalGame(ctx, client, resolve, games, id)
 	}
 	if resolve == nil || matcher == nil {

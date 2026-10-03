@@ -88,8 +88,31 @@ func TestHostSMSMatchesLocalROMAndLaunchesLocalEntry(t *testing.T) {
 	if core.launchPath != "" {
 		t.Fatal("unexpected launch on miss or fetch failure")
 	}
-	if _, err := launchMatchedLocalGame(context.Background(), core, false, false, "", nil, resolve, []hostclient.Game{local}, matcher, hostclient.Game{ID: local.ID}); err != nil || core.launchPath != path {
+	if _, err := launchMatchedLocalGame(context.Background(), core, false, true, "", nil, resolve, []hostclient.Game{local}, matcher, hostclient.Game{ID: local.ID}); err != nil || core.launchPath != path {
 		t.Fatalf("direct local = %q, %v", core.launchPath, err)
+	}
+}
+
+func TestOfflineHostRowIDCollisionStillChecksCachedDigest(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "collision.sms")
+	if err := os.WriteFile(path, []byte("kit bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	local := smsRow()
+	local.ID = "shared-id"
+	host := hostclient.Game{ID: local.ID, Title: local.Title}
+	core := &fakeLocalCore{cores: []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}}
+	resolve := func(context.Context, string) (string, error) { return path, nil }
+	fetch := func(context.Context, string) (string, error) {
+		t.Fatal("offline launch called the host")
+		return "", errors.New("offline")
+	}
+	wrong := fmt.Sprintf("%x", sha256.Sum256([]byte("different bytes")))
+	if _, err := launchMatchedLocalGame(context.Background(), core, false, false, wrong, fetch, resolve, []hostclient.Game{local}, &localROMMatcher{}, host); !errors.Is(err, errNotOnKit) {
+		t.Fatalf("digest mismatch: %v", err)
+	}
+	if core.launchPath != "" {
+		t.Fatal("ID collision bypassed cached digest")
 	}
 }
 
@@ -126,8 +149,11 @@ func TestOnlineIDCollisionStillMatchesLiveBytesUnlessKitRow(t *testing.T) {
 		fetchCalls++
 		return "", errors.New("must not fetch a kit row")
 	}
-	if _, err := launchMatchedLocalGame(context.Background(), core, true, true, "", fetch, resolve, []hostclient.Game{local}, matcher, host); err != nil || core.launchPath != path || fetchCalls != 0 {
-		t.Fatalf("kit row launch=%q fetches=%d err=%v", core.launchPath, fetchCalls, err)
+	for _, online := range []bool{false, true} {
+		core.launchPath = ""
+		if _, err := launchMatchedLocalGame(context.Background(), core, online, true, "", fetch, resolve, []hostclient.Game{local}, matcher, host); err != nil || core.launchPath != path || fetchCalls != 0 {
+			t.Fatalf("kit row online=%t launch=%q fetches=%d err=%v", online, core.launchPath, fetchCalls, err)
+		}
 	}
 }
 
