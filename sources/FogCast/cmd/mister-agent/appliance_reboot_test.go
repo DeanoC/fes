@@ -39,3 +39,25 @@ func TestGuardedReboot(t *testing.T) {
 		})
 	}
 }
+
+// A canceled request context (client gone after the 202) must not cancel the
+// committed reboot or the watchdog handover.
+func TestGuardedRebootDetachesCancellation(t *testing.T) {
+	oldArm, oldRun, oldCancel := armReboot, runReboot, cancelReboot
+	t.Cleanup(func() { armReboot, runReboot, cancelReboot = oldArm, oldRun, oldCancel })
+	var armCtx, runCtx context.Context
+	armReboot = func(ctx context.Context, _ rebootguard.Config) (rebootguard.Result, error) {
+		armCtx = ctx
+		return rebootguard.Result{Reason: "watchdog absent"}, nil
+	}
+	runReboot = func(ctx context.Context) error { runCtx = ctx; return nil }
+	cancelReboot = func(*rebootguard.Armed) error { t.Fatal("unexpected cancel"); return nil }
+	parent, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := guardedReboot(parent); err != nil {
+		t.Fatal(err)
+	}
+	if armCtx.Err() != nil || runCtx.Err() != nil {
+		t.Fatalf("cancellation leaked: arm=%v run=%v", armCtx.Err(), runCtx.Err())
+	}
+}

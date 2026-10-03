@@ -92,8 +92,13 @@ func TestArmBusy(t *testing.T) {
 	started := false
 	c.start = func(*exec.Cmd) (helper, error) { started = true; return &fakeHelper{}, nil }
 	c.open = func(string) (watchdog, error) { return nil, unix.EBUSY }
+	var slept time.Duration
+	c.sleep = func(d time.Duration) { slept += d }
 	result, err := Arm(context.Background(), c)
-	if err != nil || result.Armed != nil || started || result.Reason != "watchdog busy: trial guard owns it" {
+	if slept < 12*time.Second || slept > 13*time.Second {
+		t.Fatalf("busy wait %s, want the bounded 12 s handover", slept)
+	}
+	if err != nil || result.Armed != nil || started || result.Reason != "watchdog busy: trial guard still owns it" {
 		t.Fatalf("%+v %v", result, err)
 	}
 	if _, err := os.Stat(c.Marker); !errors.Is(err, os.ErrNotExist) {
@@ -162,5 +167,32 @@ func TestArmFailureAfterKeepaliveDisarms(t *testing.T) {
 				t.Fatalf("marker left: %v", statErr)
 			}
 		})
+	}
+}
+
+// Activation right after trial confirmation: the guard still holds the device
+// until its next heartbeat writes 'V'. Arm must wait for it, then arm normally.
+func TestArmWaitsForTrialGuardHandover(t *testing.T) {
+	d := &fakeWatchdog{char: true, actual: 180 * time.Second}
+	c, _, _ := testConfig(t, d, &fakeHelper{})
+	attempts := 0
+	c.open = func(string) (watchdog, error) {
+		attempts++
+		if attempts <= 3 {
+			return nil, unix.EBUSY
+		}
+		return d, nil
+	}
+	var slept time.Duration
+	c.sleep = func(v time.Duration) { slept += v }
+	result, err := Arm(context.Background(), c)
+	if err != nil || result.Armed == nil || attempts != 4 || slept != 750*time.Millisecond {
+		t.Fatalf("result=%+v err=%v attempts=%d slept=%s", result, err, attempts, slept)
+	}
+	if !reflect.DeepEqual(d.writes, []byte{0}) || d.closed {
+		t.Fatalf("device: %+v", d)
+	}
+	if err := result.Armed.Cancel(); err != nil {
+		t.Fatal(err)
 	}
 }

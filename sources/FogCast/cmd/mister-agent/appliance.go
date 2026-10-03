@@ -22,7 +22,11 @@ var disarmStaleReboot = rebootguard.DisarmStale
 var cancelReboot = func(handle *rebootguard.Armed) error { return handle.Cancel() }
 var runReboot = func(ctx context.Context) error { return exec.CommandContext(ctx, rebootCommand).Run() }
 
-func guardedReboot(ctx context.Context) error {
+func guardedReboot(parent context.Context) error {
+	// finish has already committed to rebooting after flushing the response. A
+	// client disconnect during the bounded watchdog handover must not drop the
+	// reboot request (which would abort the activation), so detach cancellation.
+	ctx := context.WithoutCancel(parent)
 	result, armErr := armReboot(ctx, rebootguard.Config{})
 	if armErr != nil {
 		slog.Warn("appliance reboot backstop not armed", "reason", result.Reason, "timeout", result.ActualTimeout, "error", armErr)

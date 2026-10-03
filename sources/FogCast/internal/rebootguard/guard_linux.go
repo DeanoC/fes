@@ -25,10 +25,16 @@ type Config struct {
 	MinTimeout      time.Duration
 	FallbackDelay   time.Duration
 	Marker          string
-	prepare         func() error
-	open            func(string) (watchdog, error)
-	start           func(*exec.Cmd) (helper, error)
-	openNull        func() (*os.File, error)
+	// BusyWait bounds how long Arm waits for the fes-boot trial guard to
+	// release /dev/watchdog. Confirm reopens update admission immediately, but
+	// the guard only notices durable confirmation on its next 5 s heartbeat.
+	BusyWait time.Duration
+	BusyPoll time.Duration
+	sleep    func(time.Duration)
+	prepare  func() error
+	open     func(string) (watchdog, error)
+	start    func(*exec.Cmd) (helper, error)
+	openNull func() (*os.File, error)
 }
 
 type watchdog interface {
@@ -92,6 +98,15 @@ func (c Config) defaults() Config {
 	if c.Marker == "" {
 		c.Marker = "/run/fes-reboot-backstop"
 	}
+	if c.BusyWait == 0 {
+		c.BusyWait = 12 * time.Second
+	}
+	if c.BusyPoll == 0 {
+		c.BusyPoll = 250 * time.Millisecond
+	}
+	if c.sleep == nil {
+		c.sleep = time.Sleep
+	}
 	if c.prepare == nil {
 		c.prepare = PrepareSoCFPGAWatchdogReset
 	}
@@ -137,8 +152,14 @@ func Arm(ctx context.Context, config Config) (Result, error) {
 		return Result{Reason: "reset preparation failed"}, err
 	}
 	d, err := c.open(c.Device)
+	// A just-confirmed trial's guard writes 'V' and closes within one heartbeat.
+	// Wait for that bounded handover instead of rebooting without the backstop.
+	for waited := time.Duration(0); errors.Is(err, unix.EBUSY) && waited < c.BusyWait; waited += c.BusyPoll {
+		c.sleep(c.BusyPoll)
+		d, err = c.open(c.Device)
+	}
 	if errors.Is(err, unix.EBUSY) {
-		return Result{Reason: "watchdog busy: trial guard owns it"}, nil
+		return Result{Reason: "watchdog busy: trial guard still owns it"}, nil
 	}
 	if errors.Is(err, unix.ENOENT) {
 		return Result{Reason: "watchdog absent"}, nil
