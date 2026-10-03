@@ -75,6 +75,8 @@ module st_video #(
     wire fetching = mode_valid && fetch_x < H_ACTIVE &&
         fetch_y >= image_top && fetch_y < image_top + image_height &&
         group_phase < {3'd0, planes};
+    wire [11:0] read_ahead = ahead + (CACHED_WORD_PORT ? 12'd2 : 12'd0);
+    wire read_wrap = read_ahead >= {1'b0, H_TOTAL};
     wire address_valid;
     generate
         if (CACHED_WORD_PORT) begin : cached_coordinates
@@ -123,8 +125,6 @@ module st_video #(
     endgenerate
     // The cache reads two clocks ahead of the original plane-capture edges.
     // Default metadata remains in the same cycle as the physical word port.
-    wire [11:0] read_ahead = ahead + (CACHED_WORD_PORT ? 12'd2 : 12'd0);
-    wire read_wrap = read_ahead >= {1'b0, H_TOTAL};
     wire [10:0] read_x = read_wrap ? read_ahead[10:0] - H_TOTAL : read_ahead[10:0];
     wire [5:0] read_phase = low_resolution ? read_x[5:0] : {1'b0, read_x[4:0]};
     wire [5:0] read_group = low_resolution ? {1'b0, read_x[10:6]} : read_x[10:5];
