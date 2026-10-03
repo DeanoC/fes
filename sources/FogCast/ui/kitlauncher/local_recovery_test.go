@@ -21,13 +21,16 @@ import (
 )
 
 type recoveryCore struct {
-	mu        sync.Mutex
-	status    localcores.RunStatus
-	statusErr error
-	launchErr error
-	stopErr   error
-	launches  int
-	stops     int
+	mu           sync.Mutex
+	status       localcores.RunStatus
+	statuses     []localcores.RunStatus
+	reads        int
+	launchStatus localcores.RunStatus
+	statusErr    error
+	launchErr    error
+	stopErr      error
+	launches     int
+	stops        int
 }
 
 func (f *recoveryCore) List(context.Context) ([]localcores.Core, error) {
@@ -37,12 +40,21 @@ func (f *recoveryCore) LaunchROM(context.Context, string, string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.launches++
-	f.status = localcores.RunStatus{Phase: "running", Running: true}
+	if f.launchStatus.Phase != "" {
+		f.status = f.launchStatus
+	} else {
+		f.status = localcores.RunStatus{Phase: "running", Running: true}
+	}
 	return f.launchErr
 }
 func (f *recoveryCore) Status(context.Context) (localcores.RunStatus, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.reads++
+	if len(f.statuses) > 0 {
+		f.status = f.statuses[0]
+		f.statuses = f.statuses[1:]
+	}
 	return f.status, f.statusErr
 }
 func (f *recoveryCore) Stop(context.Context) error {
@@ -56,6 +68,12 @@ func (f *recoveryCore) counts() (int, int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.launches, f.stops
+}
+
+func (f *recoveryCore) statusReads() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.reads
 }
 
 func recoveryTestClient(t *testing.T, f *recoveryCore) (*Client, *atomic.Int64) {
@@ -87,13 +105,27 @@ func recoveryChordPad() *scriptPad {
 	return &scriptPad{events: []remoteinput.Event{selectPress, startPress}}
 }
 
+type recoveryStatusPad struct {
+	*scriptPad
+	core  *recoveryCore
+	reads int
+}
+
+func (p *recoveryStatusPad) Poll() ([]remoteinput.Event, error) {
+	if p.core.statusReads() >= p.reads {
+		p.arm.Store(true)
+	}
+	return p.scriptPad.Poll()
+}
+
 type recoveryLaunchPad struct {
-	ready     atomic.Bool
-	core      *recoveryCore
-	launched  bool
-	presses   int
-	chordSent bool
-	launchAt  time.Time
+	ready          atomic.Bool
+	core           *recoveryCore
+	launched       bool
+	presses        int
+	chordSent      bool
+	launchAt       time.Time
+	chordOnRunning bool
 }
 
 func (p *recoveryLaunchPad) Poll() ([]remoteinput.Event, error) {
@@ -112,6 +144,14 @@ func (p *recoveryLaunchPad) Poll() ([]remoteinput.Event, error) {
 	launches, _ := p.core.counts()
 	if launches == 0 {
 		return nil, nil
+	}
+	if p.chordOnRunning {
+		p.core.mu.Lock()
+		running := p.core.status.Phase == "running"
+		p.core.mu.Unlock()
+		if !running {
+			return nil, nil
+		}
 	}
 	if p.launchAt.IsZero() {
 		p.launchAt = time.Now()
@@ -155,6 +195,81 @@ func TestRunAdoptsLocalRunAtStartupAndStopsIt(t *testing.T) {
 	}
 }
 
+func TestRunAdoptsLaunchingAtStartupAndStopsAfterRunning(t *testing.T) {
+	f := &recoveryCore{statuses: []localcores.RunStatus{{Phase: "launching"}, {Phase: "running", Running: true}}}
+	client, hostStops := recoveryTestClient(t, f)
+	pad := &recoveryStatusPad{scriptPad: recoveryChordPad(), core: f, reads: 2}
+	var pauses atomic.Int64
+	var resumed atomic.Bool
+	client.SetMenuDisplayHandoff(func(context.Context) error { pauses.Add(1); return nil }, func() { resumed.Store(true) })
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	if err := Run(ctx, client, func(Model) {
+		_, stops := f.counts()
+		if stops > 0 && resumed.Load() {
+			cancel()
+		}
+	}, func() (Pad, error) { return pad, nil }); err != nil {
+		t.Fatal(err)
+	}
+	_, stops := f.counts()
+	if f.statusReads() < 2 || pauses.Load() == 0 || stops != 1 || hostStops.Load() != 0 {
+		t.Fatalf("status reads=%d pauses=%d local stops=%d host stops=%d", f.statusReads(), pauses.Load(), stops, hostStops.Load())
+	}
+}
+
+func TestRunStopsAdoptedLaunchWhileStillLaunching(t *testing.T) {
+	f := &recoveryCore{status: localcores.RunStatus{Phase: "launching"}}
+	client, hostStops := recoveryTestClient(t, f)
+	pad := recoveryChordPad()
+	var resumed atomic.Bool
+	client.SetMenuDisplayHandoff(func(context.Context) error { pad.arm.Store(true); return nil }, func() { resumed.Store(true) })
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := Run(ctx, client, func(Model) {
+		_, stops := f.counts()
+		if stops > 0 && resumed.Load() {
+			cancel()
+		}
+	}, func() (Pad, error) { return pad, nil }); err != nil {
+		t.Fatal(err)
+	}
+	_, stops := f.counts()
+	if stops != 1 || hostStops.Load() != 0 {
+		t.Fatalf("local stops=%d host stops=%d", stops, hostStops.Load())
+	}
+}
+
+func TestRunLaunchingReturnsToMenuOnlyAtIdle(t *testing.T) {
+	for _, phases := range [][]string{{"launching", "idle"}, {"launching", "stopping", "idle"}} {
+		t.Run(strings.Join(phases, "-"), func(t *testing.T) {
+			f := &recoveryCore{}
+			for _, phase := range phases {
+				f.statuses = append(f.statuses, localcores.RunStatus{Phase: phase})
+			}
+			client, hostStops := recoveryTestClient(t, f)
+			var pauses, resumes atomic.Int64
+			client.SetMenuDisplayHandoff(func(context.Context) error { pauses.Add(1); return nil }, func() { resumes.Add(1) })
+			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+			defer cancel()
+			if err := Run(ctx, client, func(m Model) {
+				if resumes.Load() > 0 {
+					if m.Session.State != "idle" {
+						t.Error("menu resumed without idle session")
+					}
+					cancel()
+				}
+			}, func() (Pad, error) { return recoveryChordPad(), nil }); err != nil {
+				t.Fatal(err)
+			}
+			_, stops := f.counts()
+			if f.statusReads() < len(phases) || pauses.Load() != 1 || resumes.Load() != 1 || stops != 0 || hostStops.Load() != 0 {
+				t.Fatalf("reads=%d pauses=%d resumes=%d local stops=%d host stops=%d", f.statusReads(), pauses.Load(), resumes.Load(), stops, hostStops.Load())
+			}
+		})
+	}
+}
+
 func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 	probe, err := net.Listen("unix", filepath.Join(t.TempDir(), "probe.sock"))
 	if errors.Is(err, syscall.EPERM) {
@@ -164,7 +279,12 @@ func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = probe.Close()
-	f := &recoveryCore{status: localcores.RunStatus{Phase: "idle"}, launchErr: errors.New("response lost")}
+	f := &recoveryCore{
+		status:       localcores.RunStatus{Phase: "idle"},
+		statuses:     []localcores.RunStatus{{Phase: "idle"}, {Phase: "launching"}, {Phase: "running", Running: true}},
+		launchStatus: localcores.RunStatus{Phase: "launching"},
+		launchErr:    errors.New("response lost"),
+	}
 	client, hostStops := recoveryTestClient(t, f)
 	dir := t.TempDir()
 	root := filepath.Join(dir, "sms")
@@ -184,9 +304,9 @@ func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 	client.localCore = func(context.Context) (bool, error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		return f.status.Running, nil
+		return f.status.Phase == "launching" || f.status.Running, nil
 	}
-	pad := &recoveryLaunchPad{core: f}
+	pad := &recoveryLaunchPad{core: f, chordOnRunning: true}
 	var pauses atomic.Int64
 	var resumed atomic.Bool
 	client.SetMenuDisplayHandoff(func(context.Context) error { pauses.Add(1); return nil }, func() { resumed.Store(true) })
