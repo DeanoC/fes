@@ -788,7 +788,7 @@
           "start_seconds": 5.5
         }
       ],
-      "path": "/home/deano/fes/out/dev/pr404-de32b3d0/fes/out/hil404/receipts/direct.wav",
+      "path": "direct.wav",
       "sample_rate_hz": 48000,
       "settled_window": {
         "duration_seconds": 3.0,
@@ -1561,7 +1561,7 @@
           "start_seconds": 5.5
         }
       ],
-      "path": "/home/deano/fes/out/dev/pr404-de32b3d0/fes/out/hil404/receipts/direct-relaunch.wav",
+      "path": "direct-relaunch.wav",
       "sample_rate_hz": 48000,
       "settled_window": {
         "duration_seconds": 3.0,
@@ -2334,7 +2334,7 @@
           "start_seconds": 5.5
         }
       ],
-      "path": "/home/deano/fes/out/dev/pr404-de32b3d0/fes/out/hil404/receipts/scanlines.wav",
+      "path": "scanlines.wav",
       "sample_rate_hz": 48000,
       "settled_window": {
         "duration_seconds": 3.0,
@@ -2795,7 +2795,7 @@
       "later_bad_frame_indexes": [],
       "leading_black_frames": 2,
       "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms.",
-      "path": "/home/deano/fes/out/dev/pr404-de32b3d0/fes/out/hil404/receipts/direct.mkv",
+      "path": "direct.mkv",
       "reference_frame_index": 120,
       "reference_png_sha256": "d6c311fc460a1d3862a209c2832e18e79d18b6005fbb5fe04b21ac449568a8f7",
       "row_luma": {
@@ -4148,7 +4148,7 @@
       "later_bad_frame_indexes": [],
       "leading_black_frames": 3,
       "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms.",
-      "path": "/home/deano/fes/out/dev/pr404-de32b3d0/fes/out/hil404/receipts/direct-relaunch.mkv",
+      "path": "direct-relaunch.mkv",
       "reference_frame_index": 120,
       "reference_png_sha256": "577626efdf39a5c693b28f5214fd05a67d8eb82add0caaee715d1acd581663b3",
       "row_luma": {
@@ -5501,7 +5501,7 @@
       "later_bad_frame_indexes": [],
       "leading_black_frames": 2,
       "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms.",
-      "path": "/home/deano/fes/out/dev/pr404-de32b3d0/fes/out/hil404/receipts/scanlines.mkv",
+      "path": "scanlines.mkv",
       "reference_frame_index": 120,
       "reference_png_sha256": "0a01a1602fa4641fbedda3f4b66d04b0c69067a465342d72c517c0b2cec0d27e",
       "row_luma": {

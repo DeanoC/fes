@@ -1,0 +1,44 @@
+{
+  "health": {
+    "api_version": "v1",
+    "artifacts": {
+      "agent_revision": "7d90519ab71cda7275b0e8614b2ea16b99f3a386",
+      "agent_sha256": "1f62c475b6b95daebc52047178936376f5a53d09083d863956793fcd5d498562",
+      "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+      "image_sha256": "7d9614c745ec3569119ddfff318c68c470ac2f0d9aee4850475b8a8372bc2eb7",
+      "kit_sha256": "ed249ba9878a2b04f1a508b1861b15e3c8917d885b12f0633418e8c99bc6042c",
+      "package_id": "90e29f7bbe2e0c88606533b3cee76e074742d5dd2ef4816fd858b239e9d6d9aa",
+      "record_sha256": "19ef704c82fee27c571f9b77aef7b9035e4d36e75537bcba0259959fbd146958",
+      "runtime_commit": "7d90519ab71cda7275b0e8614b2ea16b99f3a386"
+    },
+    "ready": true,
+    "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+  },
+  "lease": {
+    "expires_at": "0001-01-01T00:00:00Z",
+    "expires_in_ms": 0,
+    "generation": "a6e7c98b33f0e7159db2880b5614bbbfa17e84b85011cbd6e49fd77d0251b74d",
+    "state": "free"
+  },
+  "observed_at": "2026-10-03T23:51:58+03:00",
+  "status": {
+    "expected_core": null,
+    "game_id": null,
+    "last_error": null,
+    "observed_core": null,
+    "state": "idle",
+    "system": null
+  },
+  "update_status": {
+    "boot_id": "e53ba752-1ab1-4485-9866-c8644cfdb5cf",
+    "corrupt": false,
+    "good": "7d9614c745ec3569119ddfff318c68c470ac2f0d9aee4850475b8a8372bc2eb7",
+    "image_sha256": "7d9614c745ec3569119ddfff318c68c470ac2f0d9aee4850475b8a8372bc2eb7",
+    "pending": "",
+    "previous": "cbb6d172f7ef28af8d435861b4a4356888c4a21b735a09d92144ae8c39769a27",
+    "raw_idle_ready": true,
+    "trial": false,
+    "trial_boot_id": "",
+    "trial_image": ""
+  }
+}

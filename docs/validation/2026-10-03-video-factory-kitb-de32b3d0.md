@@ -18,6 +18,8 @@ On 2026-10-03, the exact `de32b3d083e98ba7f387ec16da1204cdd05f4284` native-integ
 | On-kit video index SHA-256 | `8e32a3b9584d944862265c534c57f4dd4c3c035f39f8de303ae25a20333eae73` |
 | SG-1000 timing | system 52.99 MHz vs 52.22; package rebuilt at this head via the #446 seed ladder |
 
+Build facts above are receipted in [`build-receipt.json`](video-factory-kitb-2026-10-03-de32b3d0/build-receipt.json) (log markers, package IDs, `verify-package` results, Coleco/SG-1000 timing) and [`rootfs-capacity.json`](video-factory-kitb-2026-10-03-de32b3d0/rootfs-capacity.json) (ext4 block usage and guard). The full build log stays private on the build host.
+
 The selected Coleco part mapping in [`installed.json`](video-factory-kitb-2026-10-03-de32b3d0/installed.json) is:
 
 | Profile | Part ID | Producer tar |
@@ -47,4 +49,4 @@ QEMU smoke checks packaging and does not emulate FPGA behavior. HDMI capture and
 
 ## Restoration
 
-Kit B was then updated back to its prior image `7d9614c745ec3569119ddfff318c68c470ac2f0d9aee4850475b8a8372bc2eb7` through the same `fes-update` path. The new boot was `e53ba752-1ab1-4485-9866-c8644cfdb5cf`, it was confirmed with trial=false, previous=`cbb6d172…`, and there was no pending or corrupt state. Afterwards health reported agent revision `7d90519a`, the target was physically idle and the lease was free. See the [rollback log](video-factory-kitb-2026-10-03-de32b3d0/kitb-rollback.log). There was no power cycle, no SD reflash and no boot-configuration write.
+Kit B was then updated back to its prior image `7d9614c745ec3569119ddfff318c68c470ac2f0d9aee4850475b8a8372bc2eb7` through the same `fes-update` path. The new boot was `e53ba752-1ab1-4485-9866-c8644cfdb5cf`, it was confirmed with trial=false, previous=`cbb6d172…`, and there was no pending or corrupt state. Afterwards health reported agent revision `7d90519a`, the target was physically idle and the lease was free. See the [rollback log](video-factory-kitb-2026-10-03-de32b3d0/kitb-rollback.log) and the [post-rollback observation](video-factory-kitb-2026-10-03-de32b3d0/post-rollback.json), which covers update status, health, physical status and lease. There was no power cycle, no SD reflash and no boot-configuration write.
