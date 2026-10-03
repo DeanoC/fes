@@ -337,9 +337,8 @@ func TestAmbiguousLocalLaunchDeadlineReturnsToMenuAndKeepsReconciling(t *testing
 	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusErr: errors.New("status unavailable")}
 	app := NewApp(nil, 1280, 720, 50)
 	app.localCores = fake
-	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
 	app.mu.Lock()
-	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
+	app.startLocalCoreLocked(rooms.Destination{Label: "FES Pong", PackageID: tenfootPongID})
 	app.mu.Unlock()
 	waitFor(t, app, "ambiguous launch", func(s Snapshot) bool {
 		app.mu.Lock()
@@ -368,6 +367,51 @@ func TestAmbiguousLocalLaunchDeadlineReturnsToMenuAndKeepsReconciling(t *testing
 	if !late.LocalCorePresentsPaused {
 		t.Fatal("late running core was adopted without pausing menu presents")
 	}
+}
+
+func TestAmbiguousLocalLaunchBlocksRelaunchUntilIdle(t *testing.T) {
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusErr: errors.New("status unavailable")}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.mu.Lock()
+	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
+	app.mu.Unlock()
+	waitFor(t, app, "ambiguous launch", func(Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.localReconcileAfterFailure && !app.localReconcileDeadline.IsZero() && fake.statusCount() > 0
+	})
+	app.mu.Lock()
+	deadline := app.localReconcileDeadline
+	app.mu.Unlock()
+	app.Tick(deadline.Add(time.Nanosecond))
+	before := fake.launchCount()
+	app.mu.Lock()
+	app.startLocalCoreLocked(rooms.Destination{Label: "Again", PackageID: tenfootPongID})
+	blockedCopy := app.status
+	app.mu.Unlock()
+	if fake.launchCount() != before || blockedCopy != localLaunchCheckingCopy {
+		t.Fatalf("relaunch was not refused: launches %d -> %d, copy=%q", before, fake.launchCount(), blockedCopy)
+	}
+	fake.mu.Lock()
+	fake.statusErr = nil
+	fake.status = localcores.RunStatus{Phase: "idle"}
+	fake.statusSet = true
+	fake.mu.Unlock()
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(deadline.Add(localStatusEvery + time.Second))
+	waitFor(t, app, "idle reconciliation", func(Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return !app.localReconcileAfterFailure
+	})
+	app.mu.Lock()
+	app.startLocalCoreLocked(rooms.Destination{Label: "Again", PackageID: tenfootPongID})
+	app.mu.Unlock()
+	waitFor(t, app, "relaunch after idle", func(Snapshot) bool { return fake.launchCount() == before+1 })
 }
 
 func TestAmbiguousLocalLaunchRunningBeforeDeadline(t *testing.T) {
@@ -656,6 +700,25 @@ func TestPresentHoldPausesAfterTheStartingFrame(t *testing.T) {
 	snap.LocalCorePresentsPaused = false
 	if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
 		t.Fatal("resume should present")
+	}
+}
+
+func TestPresentHoldLateAdoptionSkipsArmedFrame(t *testing.T) {
+	rec := &recordingMenu{}
+	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	dev.SetChangeDriven(true)
+	var hold presentHold
+	snap := Snapshot{LocalCorePresentsPaused: true, LocalCoreLateAdopt: true}
+	if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
+		t.Fatalf("late adoption should drain and skip immediately: skip=%v err=%v", skip, err)
+	}
+	dev.Present()
+	if calls, _, _ := rec.snapshot(); calls != 0 {
+		t.Fatalf("late adoption submitted %d menu frames", calls)
 	}
 }
 

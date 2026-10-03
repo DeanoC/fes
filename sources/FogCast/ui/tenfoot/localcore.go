@@ -136,6 +136,12 @@ func (a *App) localCoreBusyLocked() bool {
 	}
 }
 
+const localLaunchCheckingCopy = "Still checking whether the previous game started."
+
+func (a *App) localLaunchBlockedLocked() bool {
+	return a.localReconcileAfterFailure
+}
+
 // localCoreOwnsInput reports that menu commands must not see the pad.
 // Launching, running, and stopping all own it.
 func (a *App) localCoreOwnsInput() bool {
@@ -149,6 +155,10 @@ func (a *App) localCoreOwnsInput() bool {
 
 func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	if a.kitMutationBlockedLocked() {
+		return
+	}
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
 		return
 	}
 	if a.localCoreBusyLocked() {
@@ -166,6 +176,7 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	a.localStatus = "Starting " + title + "…"
 	a.status = a.localStatus
 	a.localPresentsPaused = true
+	a.localLateAdopt = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
 	a.localStopAfterStart = false
@@ -236,6 +247,10 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	if a.kitMutationBlockedLocked() {
 		return
 	}
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.localCoreBusyLocked() {
 		return
 	}
@@ -251,6 +266,7 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	a.localStatus = "Starting " + title + "…"
 	a.status = a.localStatus
 	a.localPresentsPaused = true
+	a.localLateAdopt = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
 	a.localStopAfterStart = false
@@ -378,6 +394,7 @@ func (a *App) failLocalCoreLocked(err error, block string) {
 	a.localPhase = ""
 	a.localStartedAt = time.Time{}
 	a.localPresentsPaused = false
+	a.localLateAdopt = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
 	a.localStopAfterStart = false
@@ -454,6 +471,7 @@ func (a *App) finishLocalCoreLocked() {
 	a.localReconcileDeadline = time.Time{}
 	a.localPhase = ""
 	a.localPresentsPaused = false
+	a.localLateAdopt = false
 	if a.status == a.localStatus {
 		a.status = ""
 	}
@@ -474,6 +492,7 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 		a.localPhase = ""
 		a.localStartedAt = time.Time{}
 		a.localPresentsPaused = false
+		a.localLateAdopt = false
 		a.localStatus = "The core did not confirm it started."
 		a.status = a.localStatus
 		a.roomWasParked = true
@@ -521,9 +540,8 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 			a.localReconcileAfterFailure = false
 			a.localPhase = localPhaseRunning
 			if wasReturnedToMenu {
-				// The deadline released the menu for presentation. Re-establish
-				// the normal launch handoff before exposing the late running core.
 				a.localPresentsPaused = true
+				a.localLateAdopt = true
 			}
 			a.localReconcileDeadline = time.Time{}
 			a.localStartedAt = time.Time{}
@@ -548,6 +566,7 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 			if wasAmbiguous {
 				a.localPhase = ""
 				a.localPresentsPaused = false
+				a.localLateAdopt = false
 				a.localStartedAt = time.Time{}
 				a.localRedraw++
 				a.roomWasParked = true

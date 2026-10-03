@@ -266,6 +266,7 @@ type Snapshot struct {
 	LocalCoreTitle          string
 	LocalCoreStartedAt      time.Time
 	LocalCorePresentsPaused bool
+	LocalCoreLateAdopt      bool
 	LocalCoreRedraw         uint64
 }
 
@@ -549,6 +550,7 @@ type App struct {
 	localStatus                string
 	localGen                   uint64
 	localPresentsPaused        bool
+	localLateAdopt             bool
 	localRedraw                uint64
 	localSelectDown            bool
 	localStartDown             bool
@@ -1626,6 +1628,7 @@ func (a *App) Snapshot() Snapshot {
 		LocalCoreTitle:          a.localTitle,
 		LocalCoreStartedAt:      a.localStartedAt,
 		LocalCorePresentsPaused: a.localPresentsPaused,
+		LocalCoreLateAdopt:      a.localLateAdopt,
 		LocalCoreRedraw:         a.localRedraw,
 	}
 }
@@ -2042,6 +2045,10 @@ func (a *App) focusIndexLocked(i int) bool {
 }
 
 func (a *App) startLaunchLocked() {
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
@@ -2061,6 +2068,10 @@ func (a *App) startLaunchLocked() {
 }
 
 func (a *App) startLaunchGameLocked(game hostclient.Game) {
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}

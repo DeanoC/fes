@@ -31,6 +31,27 @@ func (h *presentHold) skip(ctx context.Context, dev gfx.Device, snap Snapshot) (
 		return false, nil
 	}
 	if !h.armed {
+		if snap.LocalCoreLateAdopt {
+			if !h.paused {
+				if md, ok := dev.(*gfx.MenuDisplay); ok {
+					parent := ctx
+					if parent == nil {
+						parent = context.Background()
+					}
+					pauseCtx, cancel := context.WithTimeout(parent, 2*time.Second)
+					err := md.WaitIdle(pauseCtx)
+					if err == nil {
+						err = md.Pause(pauseCtx)
+					}
+					cancel()
+					if err != nil {
+						return true, err
+					}
+				}
+				h.paused = true
+			}
+			return true, nil
+		}
 		h.armed = true
 		return false, nil
 	}
