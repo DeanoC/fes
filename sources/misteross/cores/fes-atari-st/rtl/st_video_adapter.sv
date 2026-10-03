@@ -2,8 +2,8 @@
 `include "fes_video_part.vh"
 
 // 52.224 MHz memory/configuration to 74.25 MHz fixed-raster adapter.
-// Request/done toggles transfer held bundles; cache data is read only after
-// completion crosses to pixel, and that bank is not written during display.
+// Request/done toggles transfer held bundles; validated cache data is consumed
+// only after completion crosses to pixel. Its bank stays unwritten during display.
 // The shell supplies coordinated resets synchronized in each clock domain.
 // Pixel lookup tags and cache data each cross one registered boundary before
 // the renderer's original plane-capture edge. Memory inference and HDMI timing
@@ -161,7 +161,8 @@ module st_video_adapter (
     assign desired_rows[0] = desired_row0;
     assign desired_rows[1] = desired_row1;
 
-    wire [2:0] planes = active_resolution == 2'd0 ? 3'd4 : high_resolution ? 3'd1 : 3'd2;
+    wire first_lookup = active_resolution == 2'd0 ? horizontal == 11'd1644 :
+        high_resolution ? horizontal == 11'd1647 : horizontal == 11'd1646;
     wire [9:0] next_vertical = vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 10'd1;
     wire next_image_line = mode_valid && next_vertical >= image_top &&
                            next_vertical < image_top + image_height;
@@ -238,7 +239,7 @@ module st_video_adapter (
             // Decide at the first registered cache lookup for group0. Both
             // decisions use the bank's readiness from before this clock edge.
             // A completion later in this line cannot expose a partial picture.
-            if (horizontal == H_TOTAL - 11'(planes) - 11'd2) begin
+            if (first_lookup) begin
                 line_available <= next_image_line && next_row_ready;
                 if (configured && next_image_line && !next_row_ready)
                     debug_underruns <= debug_underruns + 32'd1;
@@ -268,6 +269,15 @@ module st_video_adapter (
     reg lookup_valid, lookup_bank;
     reg [6:0] lookup_column;
     reg [15:0] renderer_data;
+    // Unreset, unconditional per-bank read registers allow each pixel read
+    // clock to be absorbed into its own synchronous RAM port.
+    // Tags and bank data are captured together; the existing second-edge
+    // result register selects the previous edge's validated bank.
+    reg [15:0] cache0_read, cache1_read;
+    always @(posedge clk_pixel) begin
+        cache0_read <= cache0[renderer_column];
+        cache1_read <= cache1[renderer_column];
+    end
     // Capture the column/bank and validated ownership together. The final
     // current-row lookup completes well before EOL can recycle its bank;
     // lookups in the last blanking clocks use the retained next-row bank.
@@ -284,7 +294,7 @@ module st_video_adapter (
             lookup_bank <= renderer_row[0];
             lookup_column <= renderer_column;
             renderer_data <= !lookup_valid ? 16'd0 :
-                lookup_bank ? cache1[lookup_column] : cache0[lookup_column];
+                lookup_bank ? cache1_read : cache0_read;
         end
     end
     wire [31:0] source_request;

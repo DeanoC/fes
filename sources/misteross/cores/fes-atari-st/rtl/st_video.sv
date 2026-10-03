@@ -56,9 +56,6 @@ module st_video #(
     wire [9:0] image_top = high_resolution ? 10'd160 : 10'd60;
     wire [9:0] image_height = high_resolution ? 10'd400 : 10'd600;
     wire [9:0] next_vertical = vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 10'd1;
-    wire image_line = mode_valid && vertical >= image_top && vertical < image_top + image_height;
-    wire next_image_line = mode_valid && next_vertical >= image_top &&
-                           next_vertical < image_top + image_height;
     wire in_picture = horizontal < H_ACTIVE && vertical >= image_top &&
                       vertical < image_top + image_height && mode_valid;
     wire [3:0] bit_index = 4'd15 - (low_resolution ? horizontal[5:2] : horizontal[4:1]);
@@ -75,24 +72,30 @@ module st_video #(
     wire fetching = mode_valid && fetch_x < H_ACTIVE &&
         fetch_y >= image_top && fetch_y < image_top + image_height &&
         group_phase < {3'd0, planes};
-    wire [11:0] read_ahead = ahead + (CACHED_WORD_PORT ? 12'd2 : 12'd0);
-    wire read_wrap = read_ahead >= {1'b0, H_TOTAL};
     wire address_valid;
     generate
         if (CACHED_WORD_PORT) begin : cached_coordinates
             reg [8:0] native_row;
             reg [1:0] row_repeat;
+            wire color_line = vertical >= 10'd60 && vertical < 10'd660;
+            wire mono_line = vertical >= 10'd160 && vertical < 10'd560;
+            wire next_color_line = next_vertical >= 10'd60 && next_vertical < 10'd660;
+            wire next_mono_line = next_vertical >= 10'd160 && next_vertical < 10'd560;
+            wire cached_image_line = mode_valid && (high_resolution ? mono_line : color_line);
+            wire cached_next_image_line = mode_valid &&
+                (high_resolution ? next_mono_line : next_color_line);
+            wire before_image = high_resolution ? vertical < 10'd160 : vertical < 10'd60;
             wire advance_row = high_resolution || row_repeat == 2'd2;
-            assign raster_row = image_line ? native_row : 9'd0;
-            assign raster_next_row = !next_image_line ? 9'd0 :
-                vertical < image_top ? 9'd0 : native_row + {8'd0, advance_row};
+            assign raster_row = cached_image_line ? native_row : 9'd0;
+            assign raster_next_row = !cached_next_image_line ? 9'd0 :
+                before_image ? 9'd0 : native_row + {8'd0, advance_row};
             always @(posedge clk) begin
                 if (reset) begin
                     native_row <= 9'd0;
                     row_repeat <= 2'd0;
                 end else if (horizontal == H_TOTAL - 1'b1) begin
                     native_row <= raster_next_row;
-                    row_repeat <= !next_image_line || vertical < image_top || advance_row ?
+                    row_repeat <= !cached_next_image_line || before_image || advance_row ?
                         2'd0 : row_repeat + 2'd1;
                 end
             end
@@ -100,12 +103,50 @@ module st_video #(
             // cache adapter. No physical address is reconstructed in this path.
             assign address_valid = 1'b1;
             assign mem_addr = 18'd0;
+            // Fixed lookaheads are evaluated in parallel; resolution selects
+            // their results after the arithmetic. The cache captures each word
+            // two clocks before the unchanged plane-capture edge.
+            wire low_wrap = horizontal >= 11'd1644;
+            wire medium_wrap = horizontal >= 11'd1646;
+            wire mono_wrap = horizontal >= 11'd1647;
+            wire [10:0] low_ahead = horizontal + 11'd6;
+            wire [10:0] medium_ahead = horizontal + 11'd4;
+            wire [10:0] mono_ahead = horizontal + 11'd3;
+            wire [10:0] low_x = low_wrap ? horizontal - 11'd1644 : low_ahead;
+            wire [10:0] medium_x = medium_wrap ? horizontal - 11'd1646 : medium_ahead;
+            wire [10:0] mono_x = mono_wrap ? horizontal - 11'd1647 : mono_ahead;
+            // The phase windows below supply these low bits without addition.
+            wire unused_cached_phase = ^{low_x[5:2], medium_x[4:1], mono_x[4:0]};
+            // These constant windows are the corresponding x<1280 and plane
+            // phase tests, expressed before the lookahead carry chain. Group0
+            // uses the next line during the last blanking clocks.
+            wire low_fetching =
+                (color_line && horizontal < 11'd1274 &&
+                 horizontal[5:0] >= 6'd58 && horizontal[5:0] < 6'd62) ||
+                (next_color_line && horizontal >= 11'd1644 && horizontal < 11'd1648);
+            wire medium_fetching =
+                (color_line && horizontal < 11'd1276 && horizontal[4:1] == 4'd14) ||
+                (next_color_line && horizontal >= 11'd1646 && horizontal < 11'd1648);
+            wire mono_fetching =
+                (mono_line && horizontal < 11'd1277 && horizontal[4:0] == 5'd29) ||
+                (next_mono_line && horizontal == 11'd1647);
+            assign fetch_valid = low_resolution ? low_fetching :
+                high_resolution ? mono_fetching : resolution == 2'd1 && medium_fetching;
+            wire read_wrap = low_resolution ? low_wrap : high_resolution ? mono_wrap : medium_wrap;
             assign fetch_row = read_wrap ? raster_next_row : raster_row;
+            assign fetch_column = low_resolution ? {low_x[10:6], low_x[1:0]} :
+                high_resolution ? {1'b0, mono_x[10:5]} : {medium_x[10:5], medium_x[0]};
         end else begin : physical_coordinates
+            wire image_line = mode_valid && vertical >= image_top && vertical < image_top + image_height;
+            wire next_image_line = mode_valid && next_vertical >= image_top &&
+                                   next_vertical < image_top + image_height;
             wire [5:0] group_number = low_resolution ? {1'b0, fetch_x[10:6]} : fetch_x[10:5];
             wire [9:0] image_y = fetch_y - image_top;
             wire [9:0] native_y = high_resolution ? image_y : image_y / 10'd3;
+            assign fetch_valid = fetching && address_valid;
             assign fetch_row = native_y[8:0];
+            assign fetch_column = low_resolution ? {group_number[4:0], group_phase[1:0]} :
+                high_resolution ? {1'b0, group_number} : {group_number, group_phase[0]};
             wire [9:0] raster_y = vertical - image_top;
             wire [9:0] next_raster_y = next_vertical - image_top;
             assign raster_row = !image_line ? 9'd0 : high_resolution ?
@@ -123,17 +164,6 @@ module st_video #(
             assign mem_addr = fetching && address_valid ? address_word[17:0] : 18'd0;
         end
     endgenerate
-    // The cache reads two clocks ahead of the original plane-capture edges.
-    // Default metadata remains in the same cycle as the physical word port.
-    wire [10:0] read_x = read_wrap ? read_ahead[10:0] - H_TOTAL : read_ahead[10:0];
-    wire [5:0] read_phase = low_resolution ? read_x[5:0] : {1'b0, read_x[4:0]};
-    wire [5:0] read_group = low_resolution ? {1'b0, read_x[10:6]} : read_x[10:5];
-    wire read_fetching = mode_valid && read_x < H_ACTIVE &&
-        (read_wrap ? next_image_line : image_line) && read_phase < {3'd0, planes};
-    assign fetch_valid = read_fetching && address_valid;
-    assign fetch_column = low_resolution ? {read_group[4:0], read_phase[1:0]} :
-                          high_resolution ? {1'b0, read_group} :
-                                            {read_group, read_phase[0]};
     wire [15:0] fetched_word = address_valid ? mem_data : 16'd0;
 
     always @(posedge clk) begin

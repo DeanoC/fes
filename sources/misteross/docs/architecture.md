@@ -1513,8 +1513,10 @@ bit 7 to the existing computer ABI, without changing its framing/opcodes.
 `st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
 owned double line caches between system and 74.25 MHz pixel clocks. Low,
 medium and monochrome rows advance through native row/repetition counters.
-Two pixel registers separate cache ownership/index selection from data lookup
-while preserving the original plane-capture edges. Displays feed the shared RGB888 direct/scanline output
+Fixed per-mode fetch windows select coordinates after constant arithmetic.
+Synchronous cache reads and ownership tags are captured together; a second
+pixel register selects the validated bank at the original plane-capture edges.
+Displays feed the shared RGB888 direct/scanline output
 parts through two registered boundaries. The board selects its concrete
 video part at build time. Underflow blacks a whole affected line and later
 lines recover; stale fills cannot cross a frame configuration change.

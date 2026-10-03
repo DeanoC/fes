@@ -129,8 +129,10 @@ activates it only at frame boundaries. Two owned line caches cross the
 52.224/74.25 MHz domains; the system fills the next native line while the
 pixel domain displays the current one. Missing lines display black, then
 recover. It rejects out-of-range addresses and stale fills from old frames.
-Native row/repetition counters avoid division in the pixel domain; registered
-lookup coordinates and cache data arrive at the original plane-capture edges.
+Native row/repetition counters and fixed per-mode fetch windows avoid division
+and mode-dependent coordinate arithmetic in the pixel domain. Synchronous
+per-bank reads permit dual-clock M10K inference; ownership tags and cache
+words arrive at the original plane-capture edges.
 
 Video uses the existing [RGB888 part contract](../../../mister-packages/docs/video-parts.md)
 and shared direct/scanline implementations through two registered boundaries.
