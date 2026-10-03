@@ -1,0 +1,15 @@
+{
+  "recorded_at": "2026-10-03T16:05:48.622072+00:00",
+  "head_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "check_id": 111238113263,
+  "check_conclusion": "failure",
+  "incident_id": 37824324,
+  "incident_url": "https://dashboard.gitguardian.com/workspace/675047/incidents/37824324?occurrence=300680524",
+  "flagged_commit": "281c1fa1e2f75aeaf3af3febabd561d38639afe1",
+  "flagged_file": "docs/validation/native-video-factory-2026-10-03/image-inputs.json",
+  "flagged_line": 340,
+  "field": "image_recipe/image/scripts/scan-target-image-secrets.sh",
+  "value_sha256": "9f3f4305d6b42f72f98a82a8d493c48cef4b47347ad301c5b8b006b2aa8ea8d4",
+  "verification": "The reported value equals SHA-256 of the tracked secret-scanning script bytes; it is a public artifact digest, not a credential.",
+  "disposition": "No evidence alteration, scan suppression or external incident resolution was performed. GitGuardian disposition remains open."
+}

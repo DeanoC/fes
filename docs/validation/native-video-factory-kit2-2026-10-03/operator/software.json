@@ -1,0 +1,108 @@
+{
+  "build_flags": [
+    "-trimpath",
+    "-buildvcs=true"
+  ],
+  "build_module_go_version": "go version go1.26.5 linux/amd64",
+  "classification": "Host-built operator tools only; no target requests or hardware evidence. Live committed worktree verified before/after each build; no builder-owned snapshots used.",
+  "compiler_go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+  "driver_source": {
+    "origin": "Frozen ignored operator harness, additional to the selected tracked module.",
+    "path": "sources/FogCast/bin/native-video-factory-driver/main.go",
+    "sha256": "f9863af670aef3a9286608b7fc5c4ba186d6feeba7fe4b2a32b177b1cf57c408"
+  },
+  "go_environment": {
+    "CGO_ENABLED": "1",
+    "GOARCH": "amd64",
+    "GOFLAGS": "",
+    "GOMOD": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/go.mod",
+    "GOOS": "linux",
+    "GOROOT": "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64",
+    "GOTOOLCHAIN": "auto",
+    "GOVERSION": "go1.26.5",
+    "GOWORK": ""
+  },
+  "launcher_go_version_outside_module": "go version go1.24.4 linux/amd64",
+  "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "source_manifest": {
+    "path": "host-source-manifest.json",
+    "sha256": "837a106a77254e57bf48831250dc58a7ea27e90f6c83f39f0aa51e113fc8c875"
+  },
+  "subtrees": {
+    "sources/FogCast": {
+      "git_tree": "fda2ebbf53dd1cac7d5ee19a69506c1387b483fe",
+      "tracked_file_count": 1356,
+      "working_tree_manifest_sha256": "6922aafa20e9f3904cbe16b6c7cbc8401c58d89e63f8ad7ce5e0de132158229e"
+    },
+    "sources/FogCast/appliance": {
+      "git_tree": "f1845530b8d2be07368ffd9483d14a6319a8c7d7",
+      "tracked_file_count": 6,
+      "working_tree_manifest_sha256": "eabb0ba17e5d65720a1c7c6521d7566b85f28a6ec9ea656bd334871f8170f9bc"
+    },
+    "sources/misteross/expansion": {
+      "git_tree": "b3c80b0588f191116c92e6e270e4771652ebe1da",
+      "tracked_file_count": 30,
+      "working_tree_manifest_sha256": "25ea2433299bfbb743b9f4bbef2a4c1b43b926d7cc86881e99d3e4a0f4d78bc5"
+    }
+  },
+  "tools": {
+    "fes-update": {
+      "build_info_command": [
+        "go",
+        "version",
+        "-m",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fes-update"
+      ],
+      "build_info_path": "hardware/fes-update-build-info.txt",
+      "build_info_sha256": "6cde88cd78a2aed8a405d177e2722f2c5e749eaefb25c4508b1318cf4a25b915",
+      "build_log": "hardware/fes-update-build.log",
+      "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command": [
+        "go",
+        "build",
+        "-trimpath",
+        "-buildvcs=true",
+        "-o",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fes-update",
+        "./cmd/fes-update"
+      ],
+      "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast",
+      "elapsed_seconds": 0.517,
+      "embedded_vcs": false,
+      "exit_code": 0,
+      "path": "out/native-video-factory/candidate-6ed1dad4/fes-update",
+      "sha256": "1383858b4c9ef8e889221bd6c43933a7ee6a14b746604ac628effe7b754c6a78",
+      "size": 17573748,
+      "vcs_settings": {}
+    },
+    "host-driver": {
+      "build_info_command": [
+        "go",
+        "version",
+        "-m",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/host-driver"
+      ],
+      "build_info_path": "hardware/host-driver-build-info.txt",
+      "build_info_sha256": "50d52a31188a2cd78f19e84d93295db7680ed0b6cf2904e49b428d03b8fbe364",
+      "build_log": "hardware/host-driver-build.log",
+      "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command": [
+        "go",
+        "build",
+        "-trimpath",
+        "-buildvcs=true",
+        "-o",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/host-driver",
+        "./bin/native-video-factory-driver"
+      ],
+      "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast",
+      "elapsed_seconds": 0.783,
+      "embedded_vcs": false,
+      "exit_code": 0,
+      "path": "out/native-video-factory/candidate-6ed1dad4/hardware/host-driver",
+      "sha256": "224ef1c3d4c4a5992324eec1a87f8a1976850d91fad5b8c25889401f7f1026ea",
+      "size": 23390996,
+      "vcs_settings": {}
+    }
+  }
+}

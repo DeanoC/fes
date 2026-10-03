@@ -124,9 +124,12 @@ records strict CRAM containment, compiler/Go/Python byte agreement and clean
 Direct/Scanlines/relaunch captures for its developer artifacts. Neither record
 qualifies a newly selected factory image or a new native/SGM composition.
 The [native factory host record](validation/2026-10-03-native-video-factory-build.md)
-binds the `3ffe989f` shell, Direct/Scanlines and SGM parts, four independent
-composition proofs, reproducible image and verified local release. Candidate-image
-hardware acceptance remains deferred while Kit 2 is assigned to `rb429-hil`.
+binds the `3ffe989f` shell, Direct/Scanlines and SGM parts and four independent
+composition proofs. The subsequent [factory Kit 2 record](validation/2026-10-03-native-video-factory-kit2.md)
+accepts the exact `6ed1dad4` appliance image with those FPGA bytes: normal
+catalog Install, six library launches with and without SGM, saved video
+preferences, Stop/relaunch and independent HDMI video/audio checks. This
+acceptance covers the named open diagnostics, not general cartridge compatibility.
 
 ## Not implemented, or not this package
 

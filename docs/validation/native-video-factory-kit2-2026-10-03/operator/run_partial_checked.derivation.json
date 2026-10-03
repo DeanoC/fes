@@ -1,0 +1,70 @@
+{
+  "changes": [
+    "Save the full HTTP400 error body before asserting it.",
+    "Expect BAD_REQUEST with phase request; all status, lease, fallback and cleanup checks are unchanged."
+  ],
+  "checks": {
+    "frozen_original_hash": "passed",
+    "python_ast_parse": "passed",
+    "selected_source_bytes": "passed"
+  },
+  "classification": "Host-only derivation of frozen partial-inventory harness; original failed run and harness preserved. No production changes or target requests.",
+  "derived": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/hardware/run_partial_checked.py",
+    "sha256": "eef35394ff3118bc8617660dc4ff42d7727fa10cf41909d5389607d69eb49bea"
+  },
+  "diff": {
+    "path": "run_partial_checked.diff",
+    "sha256": "b5519f4bc81b80fc86b68e4f787f4a200b88ddf0337e35cb99e9455420a88000",
+    "text": "--- run_partial.py\n+++ run_partial_checked.py\n@@ -19,7 +19,8 @@\n         require(next(x for x in resolution['choices'] if x['profile']=='direct')['available'] is False, 'Vacant native Direct was advertised as available')\n         self.active=True  # A failed/lost launch reply can still leave our session active.\n         rejection=self.request('POST','/api/v1/session/launch',{'game_id':entry['game_id'],'target':self.args.target_name},400)\n-        require(rejection['error']['code']=='BAD_REQUEST' and rejection['error'].get('phase')=='admission', 'Missing Direct failed for another reason')\n+        self.save('missing-direct-reply', {'status':400,'body':rejection})\n+        require(rejection['error']['code']=='BAD_REQUEST' and rejection['error'].get('phase')=='request', 'Missing Direct failed for another reason')\n         require(self.observation()==before,'Missing Direct launch mutated target status')\n         self.idle('missing-direct')\n         self.active=False\n"
+  },
+  "original": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/hardware/run_partial.py",
+    "sha256": "ac68e156044768e7a3830246ad544733e5d0b6853e3a82660b9ac1a6fac2ab3c",
+    "unchanged": true
+  },
+  "private_state": {
+    "byte_identical_config": true,
+    "config_mode": "0600",
+    "directory_mode": "0700",
+    "only_config_toml": true,
+    "origin": "out/native-video-factory/candidate-6ed1dad4/partial-state/config.toml",
+    "path": "out/native-video-factory/candidate-6ed1dad4/partial-checked-state"
+  },
+  "reason": "Missing native output is detected by local source resolution. loadCoreLocked passes that failure to corePackageRequestFailure, which changes its phase to request before target dispatch. The original admission expectation was stale.",
+  "source_bindings": [
+    {
+      "git_blob": "bb81bd02587dfed8fdc19037f125f960d7a9646d",
+      "lines": [
+        {
+          "line": 1864,
+          "text": "\tselected, err := source(ctx)"
+        },
+        {
+          "line": 2049,
+          "text": "func corePackageRequestFailure(err error) error {"
+        },
+        {
+          "line": 2053,
+          "text": "\t\tcopy.Phase = \"request\""
+        }
+      ],
+      "path": "sources/FogCast/fogcast/service.go",
+      "sha256": "79b55a2a416b9cf956de8f107907abdef8e2ef9f2ee7c4ffe76652c3cf1094c6",
+      "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63"
+    },
+    {
+      "git_blob": "4b3e7fd2a91748d7f05f0da85569e67a4dc02480",
+      "lines": [
+        {
+          "line": 195,
+          "text": "\t\t\treturn nil, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: \"admission\", Message: \"native video shell requires a matching Direct video part for this exact core package\"}"
+        }
+      ],
+      "path": "sources/FogCast/fogcast/core_video.go",
+      "sha256": "c0cb5f698242616ca4c8bbae7364bf1b056bd465ebe73cc5df81018732478125",
+      "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63"
+    }
+  ],
+  "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63"
+}

@@ -1,0 +1,10 @@
+{
+  "body": {
+    "error": {
+      "code": "BAD_REQUEST",
+      "message": "FogCast request is invalid",
+      "phase": "request"
+    }
+  },
+  "status": 400
+}

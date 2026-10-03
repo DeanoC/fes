@@ -83,9 +83,11 @@ The [native Kit 2 record](../../../docs/validation/2026-10-03-native-video-parts
 binds routed Direct/Scanlines parts, full-CRAM composition equality and clean
 HDMI video/audio captures. Acceptance is limited to those named developer
 artifacts. The [native factory host record](../../../docs/validation/2026-10-03-native-video-factory-build.md)
-binds the later exact-shell Direct/Scanlines and SGM compositions, reproducible
-image and verified local release. Candidate-image hardware acceptance remains
-deferred.
+binds the later exact-shell Direct/Scanlines and SGM composition proofs. The
+[factory Kit 2 follow-up](../../../docs/validation/2026-10-03-native-video-factory-kit2.md)
+accepts the exact `6ed1dad4` image with those FPGA bytes through normal library
+Play, including saved preferences, optional SGM and captured video/audio from
+the named open diagnostics.
 
 The first slice is a Coleco shell with a fixed 720p60 RGB888
 pixel-clock interface. Choose a direct part or a simple scanline part;

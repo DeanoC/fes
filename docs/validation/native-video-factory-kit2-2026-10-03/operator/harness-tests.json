@@ -1,0 +1,38 @@
+{
+  "argv": [
+    "python3",
+    "-B",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/test_runner.py"
+  ],
+  "classification": "Offline frozen harness tests; target, listener, capture and subprocess boundaries mocked. No hardware access.",
+  "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes",
+  "elapsed_seconds": 0.092,
+  "exit_code": 0,
+  "harness": {
+    "capture.py": {
+      "bytes": 2337,
+      "sha256": "bea5ba704d6319bd8b2574e0e517acd3126571d7d1a46baf16db712c99e06daa"
+    },
+    "host-driver.go": {
+      "bytes": 6005,
+      "sha256": "f9863af670aef3a9286608b7fc5c4ba186d6feeba7fe4b2a32b177b1cf57c408"
+    },
+    "run_library.py": {
+      "bytes": 15991,
+      "sha256": "5019f67f6c69faa98526a2e4f351771cd54c6522f3c83519d3193557c58c100f"
+    },
+    "run_partial.py": {
+      "bytes": 4155,
+      "sha256": "ac68e156044768e7a3830246ad544733e5d0b6853e3a82660b9ac1a6fac2ab3c"
+    },
+    "test_runner.py": {
+      "bytes": 21181,
+      "sha256": "434396ac39fcb9d91615b1a1b3b45221948f7ef99ad8065296cbed416c50ed41"
+    }
+  },
+  "log": {
+    "path": "harness-tests.log",
+    "sha256": "85ca96fb207a9acf727b042ed3fd6fdb6890b8cc0d45810393b27db424a95d19"
+  },
+  "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63"
+}

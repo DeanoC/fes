@@ -1,0 +1,147 @@
+{
+  "created": {
+    "entry": {
+      "core_id": "fes.coleco",
+      "game_id": "fpga-factory-video-open-graphics-diagnostic-2d9814df8312",
+      "media_id": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+      "media_role": "blob",
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "title": "Factory video open graphics diagnostic"
+    },
+    "publication_source_id": "native-video-factory-kit2",
+    "source_id": "native-video-factory-host-state"
+  },
+  "media": {
+    "media_id": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+    "size": 1086
+  },
+  "setup": {
+    "capabilities": {
+      "compatibility": "unknown",
+      "firmware": [
+        {
+          "format": "raw",
+          "interface": {
+            "id": "fes.firmware.blob",
+            "major": 1,
+            "minor": 0
+          },
+          "max_bytes": 8192,
+          "min_bytes": 8192,
+          "role": "firmware",
+          "transport": "fes-application-mailbox-firmware-v1"
+        }
+      ],
+      "import_max_bytes": 33554432,
+      "media": [
+        {
+          "format": "raw",
+          "interface": {
+            "id": "fes.media.blob-stream",
+            "major": 1,
+            "minor": 0
+          },
+          "max_bytes": 32768,
+          "min_bytes": 1,
+          "role": "blob",
+          "transport": "fes-application-mailbox-stream-v1"
+        }
+      ],
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "source": "declared-contract"
+    },
+    "core_id": "fes.coleco",
+    "descriptor": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "build": {
+        "id": "8d97fd1c36f5c79d08af074f972f96d0",
+        "recipe_sha256": "523d577cb82c31844bb27a5cd1fa531c7c6a97d57f0a43ae348b2e13bebc4518",
+        "repository": "https://github.com/DeanoC/fes.git",
+        "revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "toolchain": "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=6a31aed4e29a7047b83e82a268bd34c7d8ab667cbf2c85dd0cc902cfa1c2809e; nextpnr-mistral commit=655f38334b8a1ba798cc05cf3744b6a897119b5d; sha256=2da4f3600ee07478dd8affbcd286a5d48082d7bf2b7a88c6bd103d80521fdd8c; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=be5ab62130c25f16a50ef356679e8b3e7a6e56a56f4d50f9719c603289f6d5a5"
+      },
+      "core": {
+        "description": "ColecoVision native-pixel shell requiring a linked video part",
+        "id": "fes.coleco",
+        "name": "FES ColecoVision",
+        "version": "1.2.0"
+      },
+      "format": 2,
+      "interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.keypad.ports",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.firmware.blob",
+          "major": 1,
+          "minor": 0,
+          "required": false
+        },
+        {
+          "id": "fes.expansion.coleco-bus",
+          "major": 2,
+          "minor": 0,
+          "required": false
+        },
+        {
+          "id": "fes.fabric.video.native-pixels",
+          "major": 1,
+          "minor": 0,
+          "required": false
+        }
+      ],
+      "payload": {
+        "file": "core.rbf",
+        "sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb",
+        "size": 2669898
+      },
+      "target": {
+        "device": "5CSEBA6U23I7",
+        "platform": "de10_nano",
+        "programming_profile": "fes-gp-v1"
+      }
+    },
+    "entries": [],
+    "library_source_id": "native-video-factory-host-state",
+    "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+    "roms": [],
+    "source_id": "native-video-factory-kit2"
+  }
+}

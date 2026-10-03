@@ -401,11 +401,14 @@ loads and CPU-only compositions reject it before quiescing or programming:
 its video part is mandatory. Both native and raster video use the explicit
 developer and normal library parts paths. Existing CPU composition operations
 reject the parts request shape.
-Admission has host software coverage and an
-[exact-artifact native Kit 2 diagnostic](../../docs/validation/2026-10-03-native-video-parts-kit2.md)
-for Direct/Scanlines, media, audio and Stop/relaunch. That record uses temporary
-diagnostic executables; it does not accept an appliance image, a native CPU
-expansion, alternate timing, DDR presentation or ROM-linked parts.
+Admission has host software coverage. The earlier
+[native Kit 2 diagnostic](../../docs/validation/2026-10-03-native-video-parts-kit2.md)
+uses temporary diagnostic executables. The subsequent
+[factory Kit 2 record](../../docs/validation/2026-10-03-native-video-factory-kit2.md)
+accepts the exact `6ed1dad4` appliance image through normal library Play with
+Direct/Scanlines, optional SGM, open media, captured audio and Stop/relaunch.
+It does not qualify alternate timing, DDR presentation, ROM-linked parts or
+general cartridge compatibility.
 
 ### Initialized bitstream
 

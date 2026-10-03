@@ -1,0 +1,29 @@
+{
+  "recorded_at": "2026-10-03T16:11:47.805128+00:00",
+  "classification": "Byte-identical reuse of the original sealed local catalog publication; not a new FPGA build.",
+  "origin": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/publication",
+  "origin_artifact_source_commit": "3ffe989fbba6857b74f149112d1965156face870",
+  "selected_executable_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "files": [
+    {
+      "path": "catalog.json",
+      "size": 1294,
+      "sha256": "a81005aceb28fa10437e7478885c51ef7dad94a90adbf4cfc5d82fe41643c2c5"
+    },
+    {
+      "path": "packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+      "size": 2674176,
+      "sha256": "12bb082a6278f02aaf796bf5bdfccff08ba55455ffc0130cc3616054fdc7c03f"
+    },
+    {
+      "path": "video-parts/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar",
+      "size": 2785280,
+      "sha256": "c552946233e294808bbfd68a80da1ada831c28135ed4bdf9100730f8d8c7d309"
+    },
+    {
+      "path": "video-parts/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c/5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624.tar",
+      "size": 2785280,
+      "sha256": "504e9bb578e1a8345c6c8057dc263dd5b1497b2e483f2bddcb6904831dd46316"
+    }
+  ]
+}

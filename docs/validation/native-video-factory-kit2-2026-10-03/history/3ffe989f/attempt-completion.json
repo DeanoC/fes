@@ -1,0 +1,51 @@
+{
+  "recorded_at": "2026-10-03T16:00:49.953961+00:00",
+  "classification": "failed exact-image native-library admission attempt; baseline restoration required user power-cycle",
+  "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+  "candidate_image": "4c2de9f3edb28d71fd920eee66157b94b56d9b2dd9cf7adfea92aabd1c8c2628",
+  "baseline_image": "e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1",
+  "failed_admission": {
+    "path": "failed-admission.json",
+    "sha256": "1fa257e0ca517de3389cd6d03f2d0ea01da83ad8639f6b358254a1c5df65075d",
+    "size": 2552
+  },
+  "rollback": {
+    "initial_result": {
+      "path": "rollback-completion.json",
+      "sha256": "c8ca7e4ad67c34f736feeebe1c39210d594169720e21253771cf3aeb2faac0e5",
+      "size": 115
+    },
+    "outcome": "Activation accepted; the client expired after 600 seconds with the target unreachable.",
+    "observations": [
+      "SSH and the target API refused TCP connections at the authorized Kit 2 address.",
+      "HDMI capture retained a launcher display; it did not establish ARM service health.",
+      "No serial console is attached to this host; the user confirmed a physical power-cycle."
+    ],
+    "recovery": "The existing fes-update confirm operation confirmed the exact baseline after the user power-cycle; no second activation was sent.",
+    "confirm": {
+      "path": "rollback-confirm-completion.json",
+      "sha256": "2a0719df60878b7d5aac474ee1d2207f08c6f02c101e032b80b5cd287e4f426c",
+      "size": 115
+    },
+    "restored": {
+      "path": "restored-baseline.json",
+      "sha256": "0097c4eced51993fb8ace592e6a0fd529abdaa39ffcb8d99a4b094bab9c22467",
+      "size": 2329
+    }
+  },
+  "backup_removal": {
+    "path": "retired-image-removal.json",
+    "sha256": "d9cc281c3da9d1fbd0db80f36271635fb6c545cec46404614a85ce96f2d5aaf4",
+    "size": 2280
+  },
+  "final_state": {
+    "boot_id": "faec4b24-5046-4dfa-a12c-b4de2dc39837",
+    "state": "idle",
+    "lease": "free",
+    "image_sha256": "e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1"
+  },
+  "limitations": [
+    "No native-library video or audio capture was produced in this attempt.",
+    "This record does not determine why the initial rollback reboot stalled."
+  ]
+}

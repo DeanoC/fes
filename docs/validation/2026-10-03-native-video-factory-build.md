@@ -3,9 +3,11 @@
 FES `3ffe989fbba6857b74f149112d1965156face870` produced the sealed native Coleco
 shell, matching Direct/Scanlines parts and optional SGM part. Independent
 composition proof passed, and two cold factory-image builds produced identical
-128 MiB root filesystems. Hardware acceptance is deferred: the user confirmed
-that `rb429-hil` owns Kit 2 and instructed this task to let that work finish.
-The candidate image has not been deployed or captured.
+128 MiB root filesystems. At this record's publication, hardware acceptance was
+deferred because the user had assigned Kit 2 to `rb429-hil`. Subsequent deployment
+exposed a runtime metadata-preflight defect. The corrected `6ed1dad4` image and
+its exact-image acceptance are recorded in the [Kit 2 follow-up](2026-10-03-native-video-factory-kit2.md);
+the original build receipts below retain their original identities.
 
 ## Selected artifacts
 
@@ -121,7 +123,7 @@ locked local boot payload. Its manifest SHA-256 is
 SHA-256 is `a84773c7207ac790e8852100b386bef95ec5579422629ea1fa3e282cc45326ad`.
 The release records hardware as `not-run`. QEMU does not emulate FPGA video or audio.
 
-## Hardware boundary and next acceptance
+## Hardware boundary at publication
 
 An [early admission diagnostic](native-video-factory-2026-10-03/existing-image-diagnostic.json)
 used the existing image `86e4692059…`, whose
@@ -134,15 +136,9 @@ captures, and cleanup recorded physical idle and a free lease. This observation
 qualifies admission behavior only. Both the selected agent and runtime are
 needed before exercising the new native artifacts.
 
-The user's later instruction to leave Kit 2 with `rb429-hil` takes precedence;
-this task performs no further target access. After that work releases the kit,
-recheck ownership, actual boot/image identity and storage headroom before
-acquiring a fresh lease and installing the exact release. Restore the baseline
-observed at that handoff. The remaining acceptance is Direct, Scanlines and
-Direct relaunch, then the same three cases with SGM, through ordinary
-Install/library Play and persisted
-settings. Capture all six outputs, check physical missing-part fallback and
-rejection, then verify Stop, lease release and restoration. Software tests
-separately cover corrupt selected-part rejection and valid Scanlines-only
-inventories; the frozen hardware harness does not exercise those two cases.
-Candidate-image hardware acceptance remains deferred.
+The user's instruction to leave Kit 2 with `rb429-hil` deferred deployment at
+this point. The [follow-up record](2026-10-03-native-video-factory-kit2.md)
+documents the later ownership check, baseline, storage cleanup, deployment,
+runtime correction and six captured library cases. Software tests separately
+cover corrupt selected-part rejection and valid Scanlines-only inventories;
+the hardware harness does not exercise those two cases.

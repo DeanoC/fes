@@ -1,0 +1,83 @@
+{
+  "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "classification": "Prepared independent binding only; corrected image proof awaits explicit parent readiness",
+  "expected_installed_files": 7,
+  "expected_metadata_change": {
+    "selection.mister_packages_revision": {
+      "after": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+      "before": "3ffe989fbba6857b74f149112d1965156face870"
+    }
+  },
+  "format": 1,
+  "hardware": "No target access or hardware acceptance by this preparation",
+  "image_binding_status": "not-run; wait for completed parent build and verify and explicit readiness",
+  "image_source_revision": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "local_publication": "Require four byte-identical reused catalog members; bind fcore and both video archives directly to original FPGA proof. No new catalog-generation claim.",
+  "optional_release_arguments": [
+    "--release-directory",
+    "<completed-exact-release-directory>",
+    "--expected-release-version",
+    "<exact-release-version>"
+  ],
+  "prior_preparation_failures": [
+    {
+      "log": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/prepare-source-attempt1.log",
+        "sha256": "d6048f9b8fbe126948aed879564ffa26b255287d5f560034d03dc12ead9e56dd",
+        "size": 1123
+      },
+      "reason": "Initial preparer derived cache under relocated snapshot; corrected by requiring explicit actual parent shared cache path."
+    },
+    {
+      "log": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/prepare-source-attempt2.log",
+        "sha256": "baceeb1097ba05873e7cc3c5b21b8142cb6decb4d7f0600b51d91fc06b4e458d",
+        "size": 1233
+      },
+      "reason": "Initial preparer compared a path-bearing identity object to prior observed_files hash/size object; bytes matched, corrected comparison to hash and size."
+    }
+  ],
+  "recorded_at": "2026-10-03T16:16:56.357146+00:00",
+  "scripts": {
+    "bind_image.py": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/bind_image.py",
+      "sha256": "b8223ccbdcd2c754483e02bcb28c3f9493cb17db379622348914e3bf1ca15fdb",
+      "size": 21554
+    },
+    "prepare_source.py": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/prepare_source.py",
+      "sha256": "8f4325137b84673be4adf3ccfaf6229fd662810c1a1bfecbfa01941c6906604b",
+      "size": 11955
+    }
+  },
+  "source_cache_binding": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/source-cache-binding.json",
+    "sha256": "78911069c5d3c30ee9cf878935e4e3de6c597fbea24f7ff0dabdf172e01b4c51",
+    "size": 53931
+  },
+  "source_cache_command": [
+    "python3",
+    "-I",
+    "-B",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/prepare_source.py",
+    "--cache-root",
+    "/home/deano/fes/out/cache"
+  ],
+  "source_cache_exit_code": 0,
+  "source_cache_log": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/prepare-source.log",
+    "sha256": "696b2c8a045d4a19e43c48880208c72a563c9a57d771ef2eaf272197fca35c08",
+    "size": 333
+  },
+  "syntax_check": "passed (ast.parse; no binder execution)",
+  "tracked_changes": false,
+  "unchanged_installed_fpga_inventory_files": 6,
+  "verification_command_template": [
+    "python3",
+    "-I",
+    "-B",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/bind_image.py",
+    "--expected-image",
+    "<root-reported-completed-image-sha256>"
+  ]
+}

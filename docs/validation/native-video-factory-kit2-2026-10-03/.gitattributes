@@ -1,0 +1,5 @@
+# These exact tool outputs retain hash-bound trailing tabs and diff context.
+operator/fes-update-build-info.txt -whitespace
+operator/host-driver-build-info.txt -whitespace
+operator/host-driver-paired-build-info.txt -whitespace
+operator/host-driver-paired.diff -whitespace

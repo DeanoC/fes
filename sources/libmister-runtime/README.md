@@ -43,11 +43,13 @@ Developer Coleco parts admission distinguishes raster RGB and native indexed
 video sockets by their sealed marker, map and layout. The native 1.0 socket
 fixes a 256 by 192 four-bit TMS9918 palette source and requires a video part;
 inspection alone does not authorize an uncomposed package load. These admission
-and lifecycle guards have host test coverage; native exact-artifact hardware
-acceptance remains pending.
+and lifecycle guards have host test coverage. The [native factory Kit 2 record](../../docs/validation/2026-10-03-native-video-factory-kit2.md)
+accepts the named `6ed1dad4` image, Direct/Scanlines parts and open ROMs through
+normal library Play, including optional SGM, captured audio and Stop/relaunch.
 
 Hardware-supported package paths: 0.
-Exact-artifact hardware acceptance is pending for this cleanup. The historical
+General package qualification remains pending; the bounded Coleco acceptance
+above covers only its named artifacts and operations. The historical
 [Mega Drive baseline](../FogCast/docs/hardware/native-megadrive-baseline.md)
 records a retired path and does not validate the current package artifacts.
 
