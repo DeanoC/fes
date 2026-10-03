@@ -78,41 +78,93 @@ func TestArmAndCancel(t *testing.T) {
 		t.Fatalf("marker remains: %v", err)
 	}
 }
-func TestArmDoesNotOpenOnPrepFailure(t *testing.T) {
-	d := &fakeWatchdog{char: true}
-	c, opened, _ := testConfig(t, d, &fakeHelper{})
-	c.prepare = func() error { return errors.New("prep") }
-	result, err := Arm(context.Background(), c)
-	if err == nil || result.Armed != nil || *opened != 0 {
-		t.Fatalf("result=%+v err=%v opened=%d", result, err, *opened)
+
+// Whenever the watchdog cannot be armed, the reboot -f fallback and marker are
+// still installed (Sol P1 round 2), any opened device is magic-closed, and
+// Cancel removes what was installed.
+func TestArmSkippedWatchdogKeepsFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		setup     func(*Config, *fakeWatchdog, *int)
+		wantOpen  int
+		wantWrite string
+		wantSlept time.Duration
+	}{
+		{"prep", func(c *Config, _ *fakeWatchdog, _ *int) { c.prepare = func() error { return errors.New("prep") } }, 0, "", 0},
+		{"busy", func(c *Config, _ *fakeWatchdog, n *int) {
+			c.open = func(string) (watchdog, error) { *n++; return nil, unix.EBUSY }
+		}, 49, "", 12 * time.Second},
+		{"absent", func(c *Config, _ *fakeWatchdog, n *int) {
+			c.open = func(string) (watchdog, error) { *n++; return nil, unix.ENOENT }
+		}, 1, "", 0},
+		{"short", func(_ *Config, d *fakeWatchdog, _ *int) { d.actual = 30 * time.Second }, 1, "V", 0},
+		{"notchar", func(_ *Config, d *fakeWatchdog, _ *int) { d.char = false }, 1, "V", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &fakeWatchdog{char: true, actual: 180 * time.Second}
+			h := &fakeHelper{}
+			c, opened, _ := testConfig(t, d, h)
+			started := 0
+			c.start = func(*exec.Cmd) (helper, error) { started++; return h, nil }
+			var slept time.Duration
+			c.sleep = func(v time.Duration) { slept += v }
+			tc.setup(&c, d, opened)
+			result, _ := Arm(context.Background(), c)
+			if result.Armed == nil || !result.Fallback || result.Watchdog || started != 1 || !strings.HasPrefix(result.Reason, "fallback only: ") {
+				t.Fatalf("result=%+v started=%d", result, started)
+			}
+			if *opened != tc.wantOpen || string(d.writes) != tc.wantWrite || (tc.wantWrite == "V") != d.closed || slept != tc.wantSlept {
+				t.Fatalf("opened=%d writes=%q closed=%v slept=%s", *opened, d.writes, d.closed, slept)
+			}
+			if _, err := os.Stat(c.Marker); err != nil {
+				t.Fatalf("marker missing: %v", err)
+			}
+			if err := result.Armed.Cancel(); err != nil {
+				t.Fatal(err)
+			}
+			if h.killed != 1 || string(d.writes) != tc.wantWrite {
+				t.Fatalf("cancel: killed=%d writes=%q", h.killed, d.writes)
+			}
+			if _, err := os.Stat(c.Marker); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("marker left: %v", err)
+			}
+		})
 	}
 }
-func TestArmBusy(t *testing.T) {
-	c, _, _ := testConfig(t, &fakeWatchdog{}, &fakeHelper{})
-	started := false
-	c.start = func(*exec.Cmd) (helper, error) { started = true; return &fakeHelper{}, nil }
-	c.open = func(string) (watchdog, error) { return nil, unix.EBUSY }
-	var slept time.Duration
-	c.sleep = func(d time.Duration) { slept += d }
-	result, err := Arm(context.Background(), c)
-	if slept < 12*time.Second || slept > 13*time.Second {
-		t.Fatalf("busy wait %s, want the bounded 12 s handover", slept)
-	}
-	if err != nil || result.Armed != nil || started || result.Reason != "watchdog busy: trial guard still owns it" {
-		t.Fatalf("%+v %v", result, err)
-	}
-	if _, err := os.Stat(c.Marker); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
+
+// Layers are independent: a fallback or marker failure still arms the watchdog.
+func TestArmWatchdogSurvivesOtherLayerFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		setup        func(*Config)
+		wantFallback bool
+	}{
+		{"marker", func(c *Config) { c.Marker = filepath.Join(t.TempDir(), "missing", "marker") }, true},
+		{"fallback", func(c *Config) {
+			c.start = func(*exec.Cmd) (helper, error) { return nil, errors.New("no shell") }
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &fakeWatchdog{char: true, actual: 180 * time.Second}
+			c, _, _ := testConfig(t, d, &fakeHelper{})
+			tc.setup(&c)
+			result, err := Arm(context.Background(), c)
+			if err == nil || result.Armed == nil || !result.Watchdog || result.Fallback != tc.wantFallback {
+				t.Fatalf("arm: %+v %v", result, err)
+			}
+			if !reflect.DeepEqual(d.writes, []byte{0}) || d.closed {
+				t.Fatalf("watchdog not armed: writes=%q closed=%v", d.writes, d.closed)
+			}
+			if err := result.Armed.Cancel(); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(d.writes, []byte{0, 'V'}) || !d.closed {
+				t.Fatalf("cancel did not disarm: writes=%q closed=%v", d.writes, d.closed)
+			}
+		})
 	}
 }
-func TestArmShortTimeoutMagicCloses(t *testing.T) {
-	d := &fakeWatchdog{char: true, actual: 30 * time.Second}
-	c, _, _ := testConfig(t, d, &fakeHelper{})
-	result, _ := Arm(context.Background(), c)
-	if result.Armed != nil || !d.closed || string(d.writes) != "V" {
-		t.Fatalf("%+v %+v", result, d)
-	}
-}
+
 func TestDisarmStale(t *testing.T) {
 	for _, tc := range []struct {
 		name                      string
@@ -135,36 +187,6 @@ func TestDisarmStale(t *testing.T) {
 			DisarmStale(c, tc.trial)
 			if (*opened != 0) != tc.open || string(d.writes) != tc.want || (tc.want != "V" && d.closed) || (tc.want == "V" && !d.closed) {
 				t.Fatalf("opened=%d device=%+v", *opened, d)
-			}
-		})
-	}
-}
-
-// A failure after the keepalive must leave the watchdog stopped (magic close),
-// never armed without a handle that a failed reboot could cancel.
-func TestArmFailureAfterKeepaliveDisarms(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		setup func(*Config)
-	}{
-		{"marker", func(c *Config) { c.Marker = filepath.Join(t.TempDir(), "missing", "marker") }},
-		{"fallback", func(c *Config) {
-			c.start = func(*exec.Cmd) (helper, error) { return nil, errors.New("no shell") }
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			d := &fakeWatchdog{char: true, actual: 180 * time.Second}
-			c, _, _ := testConfig(t, d, &fakeHelper{})
-			tc.setup(&c)
-			result, err := Arm(context.Background(), c)
-			if err == nil || result.Armed != nil {
-				t.Fatalf("arm: %+v %v", result, err)
-			}
-			if !reflect.DeepEqual(d.writes, []byte{0, 'V'}) || !d.closed {
-				t.Fatalf("device not disarmed: writes=%q closed=%v", d.writes, d.closed)
-			}
-			if _, statErr := os.Stat(c.Marker); !errors.Is(statErr, os.ErrNotExist) {
-				t.Fatalf("marker left: %v", statErr)
 			}
 		})
 	}

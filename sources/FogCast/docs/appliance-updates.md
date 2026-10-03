@@ -90,8 +90,9 @@ registers, arms the hardware watchdog, then requests a normal reboot. A detached
 fallback requests `reboot -f` after 90 seconds if init shutdown stalls; the
 watchdog resets the board after its 180-second timeout if shutdown still hangs.
 If a just-confirmed trial's bootstrap guard still holds the watchdog, the agent
-waits up to 12 seconds for its handover before arming. A reboot request error
-cancels the fallback and disarms the watchdog. On stable
+waits up to 12 seconds for its handover before arming. The fallback is
+started independently, so it stays in place when the watchdog cannot be armed.
+A reboot request error cancels the fallback and disarms the watchdog. On stable
 startup, the agent disarms a stale watchdog only when no reboot marker exists.
 Trial boots leave the watchdog untouched because the independent bootstrap trial
 guard owns its reset deadline.

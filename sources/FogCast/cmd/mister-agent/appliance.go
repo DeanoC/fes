@@ -28,10 +28,9 @@ func guardedReboot(parent context.Context) error {
 	// reboot request (which would abort the activation), so detach cancellation.
 	ctx := context.WithoutCancel(parent)
 	result, armErr := armReboot(ctx, rebootguard.Config{})
+	slog.Info("appliance reboot backstop", "reason", result.Reason, "fallback", result.Fallback, "watchdog", result.Watchdog, "timeout", result.ActualTimeout)
 	if armErr != nil {
-		slog.Warn("appliance reboot backstop not armed", "reason", result.Reason, "timeout", result.ActualTimeout, "error", armErr)
-	} else {
-		slog.Info("appliance reboot backstop", "reason", result.Reason, "timeout", result.ActualTimeout)
+		slog.Warn("appliance reboot backstop incomplete", "error", armErr)
 	}
 	err := runReboot(ctx)
 	if err != nil && result.Armed != nil {

@@ -122,14 +122,17 @@ func (c Config) defaults() Config {
 	return c
 }
 
-// Result reports whether the hardware backstop was armed and the timeout read from it.
+// Result reports which backstop layers are in place for this reboot. Armed is
+// non-nil whenever any layer (fallback or watchdog) needs Cancel on failure.
 type Result struct {
 	Armed         *Armed
+	Fallback      bool
+	Watchdog      bool
 	ActualTimeout time.Duration
 	Reason        string
 }
 
-// Armed retains the watchdog descriptor until reboot or Cancel.
+// Armed retains the fallback helper and watchdog descriptor until reboot or Cancel.
 type Armed struct {
 	mu       sync.Mutex
 	device   watchdog
@@ -141,102 +144,133 @@ type Armed struct {
 var retained *Armed
 var retainedMu sync.Mutex
 
-// Arm prepares reset and arms a watchdog for an agent-initiated reboot.
-// The watchdog is intentionally never pet after the initial keepalive.
+// Arm installs the reboot backstops for an agent-initiated reboot. The delayed
+// reboot -f fallback is started independently of the watchdog, so it remains in
+// place whenever the watchdog cannot be armed. The watchdog is intentionally
+// never pet after its initial keepalive. The returned error describes only a
+// layer that could not be installed; the caller reboots regardless.
 func Arm(ctx context.Context, config Config) (Result, error) {
 	c := config.defaults()
 	if err := ctx.Err(); err != nil {
 		return Result{Reason: "context canceled"}, err
 	}
+	handle := &Armed{}
+	var result Result
+	var errs []error
+	if err := createMarker(c); err != nil {
+		errs = append(errs, err)
+	} else {
+		handle.marker = c.Marker
+	}
+	if fallback, err := startFallback(c); err != nil {
+		errs = append(errs, fmt.Errorf("start reboot fallback: %w", err))
+	} else {
+		handle.fallback = fallback
+		result.Fallback = true
+	}
+	device, actual, reason, err := armWatchdog(c)
+	result.ActualTimeout = actual
+	if err != nil {
+		errs = append(errs, err)
+	}
+	if device != nil {
+		handle.device = device
+		result.Watchdog = true
+	}
+	switch {
+	case result.Watchdog && result.Fallback:
+		result.Reason = "armed"
+	case result.Fallback:
+		result.Reason = "fallback only: " + reason
+	case result.Watchdog:
+		result.Reason = "watchdog only: fallback failed"
+	default:
+		result.Reason = "no backstop: " + reason
+	}
+	if handle.device != nil || handle.fallback != nil || handle.marker != "" {
+		retainedMu.Lock()
+		retained = handle
+		retainedMu.Unlock()
+		result.Armed = handle
+	}
+	return result, errors.Join(errs...)
+}
+
+func createMarker(c Config) error {
+	marker, err := os.OpenFile(c.Marker, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("create reboot marker: %w", err)
+	}
+	deadline := time.Now().Add(c.FallbackDelay)
+	_, writeErr := fmt.Fprintf(marker, "pid=%d\ndeadline=%s\n", os.Getpid(), deadline.Format(time.RFC3339Nano))
+	if err = errors.Join(writeErr, marker.Close()); err != nil {
+		_ = os.Remove(c.Marker)
+		return fmt.Errorf("write reboot marker: %w", err)
+	}
+	return nil
+}
+
+func startFallback(c Config) (helper, error) {
+	cmd := exec.Command("/bin/sh", "-c", "trap '' TERM HUP INT; sleep "+strconv.FormatInt(int64(c.FallbackDelay/time.Second), 10)+"; exec /sbin/reboot -f")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	null, err := c.openNull()
+	if err != nil {
+		return nil, err
+	}
+	defer null.Close()
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = null, null, null
+	return c.start(cmd)
+}
+
+// armWatchdog returns an armed device or nil. Every path that does not return
+// a device leaves an opened watchdog magic-closed (stopped), so a skipped
+// watchdog can never become a surprise reset later.
+func armWatchdog(c Config) (watchdog, time.Duration, string, error) {
 	if err := c.prepare(); err != nil {
-		return Result{Reason: "reset preparation failed"}, err
+		return nil, 0, "reset preparation failed", err
 	}
 	d, err := c.open(c.Device)
 	// A just-confirmed trial's guard writes 'V' and closes within one heartbeat.
-	// Wait for that bounded handover instead of rebooting without the backstop.
+	// Wait for that bounded handover instead of rebooting without the watchdog.
 	for waited := time.Duration(0); errors.Is(err, unix.EBUSY) && waited < c.BusyWait; waited += c.BusyPoll {
 		c.sleep(c.BusyPoll)
 		d, err = c.open(c.Device)
 	}
 	if errors.Is(err, unix.EBUSY) {
-		return Result{Reason: "watchdog busy: trial guard still owns it"}, nil
+		return nil, 0, "watchdog busy: trial guard still owns it", nil
 	}
 	if errors.Is(err, unix.ENOENT) {
-		return Result{Reason: "watchdog absent"}, nil
+		return nil, 0, "watchdog absent", nil
 	}
 	if err != nil {
-		return Result{Reason: "watchdog open failed"}, err
+		return nil, 0, "watchdog open failed", err
 	}
-	// Every return before a successful arm leaves the watchdog stopped: a
-	// "not armed" result must never become a surprise reset later (for
-	// example if the reboot request then fails and nothing cancels it).
-	closeDevice := true
-	defer func() {
-		if closeDevice {
-			_, _ = io.WriteString(d, "V")
-			_ = d.Close()
-		}
-	}()
+	disarm := func() {
+		_, _ = io.WriteString(d, "V")
+		_ = d.Close()
+	}
 	char, err := d.CharDevice()
-	if err != nil {
-		return Result{Reason: "watchdog stat failed"}, err
-	}
-	if !char {
-		return Result{Reason: "watchdog is not a character device"}, errors.New("watchdog is not a character device")
+	if err != nil || !char {
+		disarm()
+		return nil, 0, "watchdog is not a character device", errors.Join(err, errors.New("watchdog is not a character device"))
 	}
 	actual, err := d.SetTimeout(c.WatchdogTimeout)
 	if err != nil {
-		return Result{Reason: "watchdog timeout failed"}, err
+		disarm()
+		return nil, 0, "watchdog timeout failed", err
 	}
-	result := Result{ActualTimeout: actual}
 	if actual < c.MinTimeout {
-		result.Reason = "watchdog timeout below minimum"
-		return result, fmt.Errorf("watchdog timeout %s below minimum %s", actual, c.MinTimeout)
+		disarm()
+		return nil, actual, "watchdog timeout below minimum", fmt.Errorf("watchdog timeout %s below minimum %s", actual, c.MinTimeout)
 	}
 	if n, err := d.Write([]byte{0}); err != nil || n != 1 {
-		result.Reason = "watchdog keepalive failed"
+		disarm()
 		if err == nil {
 			err = io.ErrShortWrite
 		}
-		return result, err
+		return nil, actual, "watchdog keepalive failed", err
 	}
-	marker, err := os.OpenFile(c.Marker, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		result.Reason = "reboot marker failed"
-		return result, fmt.Errorf("create reboot marker: %w", err)
-	}
-	deadline := time.Now().Add(c.FallbackDelay)
-	_, writeErr := fmt.Fprintf(marker, "pid=%d\ndeadline=%s\n", os.Getpid(), deadline.Format(time.RFC3339Nano))
-	err = errors.Join(writeErr, marker.Close())
-	if err != nil {
-		_ = os.Remove(c.Marker)
-		result.Reason = "reboot marker failed"
-		return result, err
-	}
-	cmd := exec.Command("/bin/sh", "-c", "trap '' TERM HUP INT; sleep "+strconv.FormatInt(int64(c.FallbackDelay/time.Second), 10)+"; exec /sbin/reboot -f")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	null, err := c.openNull()
-	if err != nil {
-		_ = os.Remove(c.Marker)
-		result.Reason = "fallback setup failed"
-		return result, err
-	}
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = null, null, null
-	fallback, startErr := c.start(cmd)
-	_ = null.Close()
-	if startErr != nil {
-		_ = os.Remove(c.Marker)
-		result.Reason = "fallback start failed"
-		return result, fmt.Errorf("start reboot fallback: %w", startErr)
-	}
-	handle := &Armed{device: d, fallback: fallback, marker: c.Marker}
-	retainedMu.Lock()
-	retained = handle
-	retainedMu.Unlock()
-	closeDevice = false
-	result.Armed = handle
-	result.Reason = "armed"
-	return result, nil
+	return d, actual, "armed", nil
 }
 
 // Cancel is for a failed reboot request only.
@@ -261,7 +295,9 @@ func (a *Armed) Cancel() error {
 		}
 		err = errors.Join(err, writeErr, a.device.Close())
 	}
-	err = errors.Join(err, os.Remove(a.marker))
+	if a.marker != "" {
+		err = errors.Join(err, os.Remove(a.marker))
+	}
 	retainedMu.Lock()
 	if retained == a {
 		retained = nil

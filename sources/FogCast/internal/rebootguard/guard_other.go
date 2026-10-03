@@ -14,9 +14,12 @@ type Config struct {
 	Device                                     string
 	WatchdogTimeout, MinTimeout, FallbackDelay time.Duration
 	Marker                                     string
+	BusyWait, BusyPoll                         time.Duration
 }
 type Result struct {
 	Armed         *Armed
+	Fallback      bool
+	Watchdog      bool
 	ActualTimeout time.Duration
 	Reason        string
 }
