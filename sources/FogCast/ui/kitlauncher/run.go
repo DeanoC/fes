@@ -445,7 +445,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			return nil
 		case o := <-results:
 			if o.localAction == "recover" {
-				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && o.localStatus.Running && o.localStatus.Phase == "running" {
+				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) {
 					localRunning = true
 					m.Session.State = "active"
 					if c.menuDisplay {
@@ -458,7 +458,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if o.localAction == "status" {
 				localStatusBusy = false
-				if o.epoch == epoch && localRunning && o.localErr == nil && (!o.localStatus.Running || o.localStatus.Phase == "idle") {
+				if o.epoch == epoch && localRunning && o.localErr == nil && o.localStatus.Phase == "idle" {
 					localRunning = false
 					m.Session.State = "idle"
 					m.Session.GameID = ""
@@ -481,8 +481,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					if o.localAction == "local-launch" && o.localErr == nil {
 						localRunning = true
 						m.Session.State = "active"
-					} else if o.localAction == "local-launch" && o.localErr != nil && o.haveLocalStatus && o.localStatus.Running && o.localStatus.Phase == "running" {
-						// The load finished after an ambiguous reply: adopt it, no error copy.
+					} else if o.localAction == "local-launch" && o.localErr != nil && o.haveLocalStatus && localRunInProgress(o.localStatus) {
+						// The load may still be in flight after an ambiguous reply.
 						localRunning = true
 						m.Session.State = "active"
 						o.message = ""
@@ -696,6 +696,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 		}
 	}
+}
+
+func localRunInProgress(status localcores.RunStatus) bool {
+	return status.Phase == "launching" || status.Phase == "running"
 }
 
 // bootLocalCatalog scans the configured library when the kit has a catalog
