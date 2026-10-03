@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct Test {
@@ -180,6 +181,72 @@ static void ikbd(Test &t) {
     t.require(t.dut.ik_command_ready,"draining restores command readiness");
 }
 
+static void keyboard_priority(Test &t) {
+    t.reset();
+    // These HID/ST pairs cover the standard keyboard, extended/keypad
+    // scancodes, and all shared HID aliases. One snapshot changes more
+    // keys than the FIFO holds, so selection must resume in order as it drains.
+    const std::vector<std::pair<int,int>> keys={
+        {4,0x1e},{5,0x30},{6,0x2e},{7,0x20},{8,0x12},{9,0x21},
+        {10,0x22},{11,0x23},{12,0x17},{13,0x24},{14,0x25},{15,0x26},
+        {16,0x32},{17,0x31},{18,0x18},{19,0x19},{20,0x10},{21,0x13},
+        {22,0x1f},{23,0x14},{24,0x16},{25,0x2f},{26,0x11},{27,0x2d},
+        {28,0x15},{29,0x2c},{30,0x02},{31,0x03},{32,0x04},{33,0x05},
+        {34,0x06},{35,0x07},{36,0x08},{37,0x09},{38,0x0a},{39,0x0b},
+        {40,0x1c},{41,0x01},{42,0x0e},{43,0x0f},{44,0x39},{45,0x0c},
+        {46,0x0d},{47,0x1a},{48,0x1b},{49,0x2b},{50,0x60},{51,0x27},
+        {52,0x28},{53,0x29},{54,0x33},{55,0x34},{56,0x35},{57,0x3a},
+        {58,0x3b},{59,0x3c},{60,0x3d},{61,0x3e},{62,0x3f},{63,0x40},
+        {64,0x41},{65,0x42},{66,0x43},{67,0x44},{68,0x61},{69,0x62},
+        {73,0x52},{74,0x47},{76,0x53},{79,0x4d},{80,0x4b},{81,0x50},
+        {82,0x48},{83,0x63},{84,0x65},{85,0x66},{86,0x4a},{87,0x4e},
+        {88,0x72},{89,0x6d},{90,0x6e},{91,0x6f},{92,0x6a},{93,0x6b},
+        {94,0x6c},{95,0x67},{96,0x68},{97,0x69},{98,0x70},{99,0x71},
+        {100,0x60},{117,0x62},{128,0x1d},{129,0x2a},{130,0x38},
+        {132,0x1d},{133,0x36},{134,0x38}
+    };
+    for (int usage: {0,3,70,127,131,135,143}) t.key(usage,true);
+    t.run(6); t.require(!t.dut.ik_response_valid,"unmapped HID usages never produce scancode zero");
+    std::array<bool,128> present={};
+    for (const auto &[usage,scan]: keys) { t.key(usage,true); present[scan]=true; }
+    std::vector<int> order={0x1d,0x2a,0x36,0x38};
+    for (int scan=1;scan<128;++scan)
+        if (present[scan] && scan!=0x1d && scan!=0x2a && scan!=0x36 && scan!=0x38)
+            order.push_back(scan);
+    t.require(order.size()>64,"large simultaneous keyboard fixture crosses FIFO capacity");
+    t.run(100); t.dut.ik_command_data=0x1c; t.dut.eval();
+    t.require(!t.dut.ik_command_ready,"large key snapshot reaches FIFO backpressure");
+    auto expect_batch=[&](bool pressed) {
+        for (int scan: order) {
+            const int expected=scan | (pressed ? 0 : 0x80);
+            const int actual=t.response();
+            t.require(actual==expected,"simultaneous key priority/state expected="+
+                std::to_string(expected)+" actual="+std::to_string(actual));
+        }
+        t.run(6); t.require(!t.dut.ik_response_valid,"one event per changed ST key");
+    };
+    expect_batch(true);
+    // Removing one HID alias, then swapping the surviving alias in the same
+    // snapshot, must leave its ST key pressed without spurious breaks/makes.
+    for (int usage: {50,69,128,130}) t.key(usage,false);
+    t.run(6); t.require(!t.dut.ik_response_valid,"held HID aliases suppress duplicate breaks");
+    for (int usage: {50,69,128,130}) t.key(usage,true);
+    for (int usage: {100,117,132,134}) t.key(usage,false);
+    t.run(6); t.require(!t.dut.ik_response_valid,"simultaneous HID alias replacement stays pressed");
+    for (const auto &[usage,scan]: keys) { (void)scan; t.key(usage,false); }
+    t.run(100); expect_batch(false);
+
+    // Makes and breaks in one update use the state of the selected leaf,
+    // including changes on opposite sides of the priority tree.
+    for (int usage: {41,4,68,88}) t.key(usage,true);
+    t.run(8); t.expect({0x01,0x1e,0x61,0x72},"separated tree branches make in scancode order");
+    t.key(41,false); t.key(68,false); t.key(30,true); t.key(5,true);
+    t.run(8); t.expect({0x81,0x02,0x30,0xe1},"mixed simultaneous makes and breaks retain pressed state");
+    for (int usage: {4,88,30,5}) t.key(usage,false);
+    t.run(8); t.expect({0x82,0x9e,0xb0,0xf2},"mixed update final releases");
+    t.run(6); t.require(!t.dut.ik_response_valid,"priority test leaves no extra events");
+}
+
 static void two_joysticks(Test &t) {
     t.reset();
     // Port 0 belongs to the mouse after reset, while FES controller 0
@@ -321,6 +388,6 @@ static void ym(Test &t) {
 
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv); Test test;
-    acia(test); ikbd(test); two_joysticks(test); calendar(test); ym(test);
-    std::cout << "ST input/audio: ACIA timing/errors/IRQ, IKBD packets/backpressure and shared YM2149 sound passed\n";
+    acia(test); ikbd(test); keyboard_priority(test); two_joysticks(test); calendar(test); ym(test);
+    std::cout << "ST input/audio: ACIA timing/errors/IRQ, IKBD key priority/aliases/packets/backpressure and shared YM2149 sound passed\n";
 }
