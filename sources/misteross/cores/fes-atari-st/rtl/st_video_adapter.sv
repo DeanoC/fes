@@ -5,8 +5,9 @@
 // Request/done toggles transfer held bundles; cache data is read only after
 // completion crosses to pixel, and that bank is not written during display.
 // The shell supplies coordinated resets synchronized in each clock domain.
-// The two small caches have combinational pixel reads for st_video's word port;
-// this does not establish physical FPGA memory inference or HDMI acceptance.
+// Pixel lookup tags and cache data each cross one registered boundary before
+// the renderer's original plane-capture edge. Memory inference and HDMI timing
+// require separate native compilation/qualification.
 module st_video_adapter (
     input wire clk_sys, clk_pixel,
     input wire reset_sys, reset_pixel,
@@ -149,9 +150,9 @@ module st_video_adapter (
     wire [9:0] image_height = high_resolution ? 10'd400 : 10'd600;
     wire [8:0] native_height = high_resolution ? 9'd400 : 9'd200;
     wire image_line = mode_valid && vertical >= image_top && vertical < image_top + image_height;
-    wire [9:0] raster_image_y = vertical - image_top;
-    wire [8:0] current_row = vertical < image_top ? 9'd0 :
-        high_resolution ? 9'(raster_image_y) : 9'(raster_image_y / 10'd3);
+    // The renderer tracks native row/repetition at EOL. Sharing its coordinates
+    // removes color scaling division from both lookup and scheduling paths.
+    wire [8:0] current_row, next_row;
     wire scheduling = configured && mode_valid && vertical >= image_top - 10'd8 &&
                       vertical < image_top + image_height;
     wire [8:0] desired_row0 = current_row[0] ? current_row + 9'd1 : current_row;
@@ -164,8 +165,6 @@ module st_video_adapter (
     wire [9:0] next_vertical = vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 10'd1;
     wire next_image_line = mode_valid && next_vertical >= image_top &&
                            next_vertical < image_top + image_height;
-    wire [9:0] next_image_y = next_vertical - image_top;
-    wire [8:0] next_row = high_resolution ? 9'(next_image_y) : 9'(next_image_y / 10'd3);
     wire next_row_ready = cache_valid[next_row[0]] && !cache_busy[next_row[0]] &&
         job_frame[next_row[0]] == debug_frame && job_row[next_row[0]] == next_row;
     integer bank;
@@ -236,9 +235,10 @@ module st_video_adapter (
                     cache_valid[bank] <= 1'b0;
                 end
             end
-            // Decide before the renderer captures the first plane of group0.
+            // Decide at the first registered cache lookup for group0. Both
+            // decisions use the bank's readiness from before this clock edge.
             // A completion later in this line cannot expose a partial picture.
-            if (horizontal == H_TOTAL - 11'(planes)) begin
+            if (horizontal == H_TOTAL - 11'(planes) - 11'd2) begin
                 line_available <= next_image_line && next_row_ready;
                 if (configured && next_image_line && !next_row_ready)
                     debug_underruns <= debug_underruns + 32'd1;
@@ -265,23 +265,38 @@ module st_video_adapter (
     wire renderer_fetch_valid;
     wire [8:0] renderer_row;
     wire [6:0] renderer_column;
+    reg lookup_valid, lookup_bank;
+    reg [6:0] lookup_column;
     reg [15:0] renderer_data;
-    always @* begin
-        renderer_data = 16'd0;
-        if (renderer_fetch_valid && cache_valid[renderer_row[0]] &&
-            !cache_busy[renderer_row[0]] && job_frame[renderer_row[0]] == debug_frame &&
-            job_row[renderer_row[0]] == renderer_row)
-            renderer_data = renderer_row[0] ? cache1[renderer_column] : cache0[renderer_column];
+    // Capture the column/bank and validated ownership together. The final
+    // current-row lookup completes well before EOL can recycle its bank;
+    // lookups in the last blanking clocks use the retained next-row bank.
+    always @(posedge clk_pixel) begin
+        if (reset_pixel || (horizontal == H_TOTAL - 1'b1 && vertical == V_TOTAL - 1'b1)) begin
+            lookup_valid <= 1'b0;
+            lookup_bank <= 1'b0;
+            lookup_column <= 7'd0;
+            renderer_data <= 16'd0;
+        end else begin
+            lookup_valid <= renderer_fetch_valid && cache_valid[renderer_row[0]] &&
+                !cache_busy[renderer_row[0]] && job_frame[renderer_row[0]] == debug_frame &&
+                job_row[renderer_row[0]] == renderer_row;
+            lookup_bank <= renderer_row[0];
+            lookup_column <= renderer_column;
+            renderer_data <= !lookup_valid ? 16'd0 :
+                lookup_bank ? cache1[lookup_column] : cache0[lookup_column];
+        end
     end
     wire [31:0] source_request;
-    st_video renderer (
+    st_video #(.CACHED_WORD_PORT(1'b1)) renderer (
         .clk(clk_pixel), .reset(reset_pixel), .hold(1'b0),
         .screen_base(active_base), .resolution(active_resolution), .palette(active_palette),
         /* verilator lint_off PINCONNECTEMPTY */
         .mem_addr(),
         /* verilator lint_on PINCONNECTEMPTY */
         .mem_data(renderer_data), .fetch_valid(renderer_fetch_valid),
-        .fetch_row(renderer_row), .fetch_column(renderer_column), .video_request(source_request)
+        .fetch_row(renderer_row), .fetch_column(renderer_column),
+        .raster_row(current_row), .raster_next_row(next_row), .video_request(source_request)
     );
     wire mute = hold_sync || !configured || (image_line && horizontal < 11'd1280 && !line_available);
     assign video_request = mute ?

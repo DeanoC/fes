@@ -72,7 +72,23 @@ class Simulation {
         const unsigned future = (position + planes) % Frame;
         const unsigned x = future % Width, y = future / Width;
         const unsigned top = high ? 160 : 60, height = high ? 400 : 600;
+        const unsigned raster_y = position / Width;
+        const unsigned following_y = (raster_y + 1) % Height;
+        const auto row_at = [&](unsigned line) {
+            return dut.resolution != 3 && line >= top && line < top + height ?
+                (line - top) / (high ? 1 : 3) : 0;
+        };
+        if (dut.raster_row != row_at(raster_y))
+            fail("current native raster row", dut.raster_row, row_at(raster_y));
+        if (dut.raster_next_row != row_at(following_y))
+            fail("next native raster row", dut.raster_next_row, row_at(following_y));
         const unsigned group_width = low ? 64 : 32;
+        // Retain the original raw lookup metadata even when its valid bit is
+        // clear; unsigned ten-bit image subtraction wraps before scaling.
+        const unsigned raw_row = (((y - top) & 0x3ff) / (high ? 1 : 3)) & 0x1ff;
+        const unsigned raw_column = (x / group_width) * planes + (x % group_width) % planes;
+        if (dut.fetch_row != raw_row) fail("legacy raw fetch row", dut.fetch_row, raw_row);
+        if (dut.fetch_column != raw_column) fail("legacy raw fetch column", dut.fetch_column, raw_column);
         bool valid = dut.resolution != 3 && x < 1280 && y >= top &&
                      y < top + height && x % group_width < planes;
         unsigned row = 0, column = 0, address = 0;

@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <deque>
 #include <iostream>
 #include <string>
 #include <utility>
@@ -247,6 +248,118 @@ static void keyboard_priority(Test &t) {
     t.run(6); t.require(!t.dut.ik_response_valid,"priority test leaves no extra events");
 }
 
+static void fifo_packets(Test &t) {
+    // Advance the empty FIFO through public key events. Leave one old byte
+    // queued, then pop it on the same edge that accepts a new whole packet.
+    // Each published packet size begins at every address, including wraps.
+    for (int start=0;start<64;++start) {
+        for (int length: {1,2,3,6,7,8}) {
+            t.reset(); bool down=false;
+            for (int n=0;n<(start+63)%64;++n) {
+                down=!down; t.key(4,down); t.tick();
+                t.require(t.dut.ik_response_valid,"key enqueue retains its original clock edge");
+                t.require(t.response()==(down ? 0x1e : 0x9e),"FIFO tail priming key integrity");
+            }
+            down=!down; t.key(4,down); t.tick();
+            const int old_byte=down ? 0x1e : 0x9e;
+            t.require(t.dut.ik_response_valid && t.dut.ik_response_data==old_byte,
+                "old queued byte before simultaneous pop and packet enqueue");
+            std::vector<int> packet;
+            if (length==1) {
+                down=!down; t.key(4,down); packet={down ? 0x1e : 0x9e};
+            } else if (length==2) {
+                t.dut.controller_buttons=1; packet={0xff,1};
+            } else {
+                t.dut.ik_command_valid=1;
+                if (length==3) { t.dut.ik_command_data=0x16; packet={0xfd,0,0}; }
+                if (length==6) { t.dut.ik_command_data=0x0d; packet={0xf7,0,0,0,0,0}; }
+                if (length==7) { t.dut.ik_command_data=0x1c; packet={0xfc,0,1,1,0,0,0}; }
+                if (length==8) { t.dut.ik_command_data=0x8b; packet={0xf6,0x0b,1,1,0,0,0,0}; }
+            }
+            t.dut.ik_response_ready=1; t.tick();
+            t.dut.ik_response_ready=0; t.dut.ik_command_valid=0;
+            const std::string context="packet length="+std::to_string(length)+" tail="+std::to_string(start);
+            t.require(t.dut.ik_response_valid && t.dut.ik_response_data==packet.front(),
+                context+" is atomically visible on its acceptance edge");
+            for (int n=0;n<12;++n) {
+                t.tick(); t.require(t.dut.ik_response_valid && t.dut.ik_response_data==packet.front(),
+                    context+" remains stable under receiver backpressure");
+            }
+            for (int value: packet) t.require(t.response()==value,context+" byte order/integrity");
+            t.run(3); t.require(!t.dut.ik_response_valid,context+" has its exact byte count");
+            if (length==8) {
+                // Reset a nonempty queue at each tail offset. The old byte
+                // is popped on the reset edge, and F1 immediately replaces it.
+                t.command(0x1c); t.key(4,false);
+                t.dut.ik_command_valid=1; t.dut.ik_command_data=0x80; t.tick();
+                t.require(t.dut.ik_response_valid && t.dut.ik_response_data==0xfc,
+                    "soft reset parameter does not prematurely flush the queue");
+                t.dut.ik_command_data=1; t.dut.ik_response_ready=1; t.tick();
+                t.dut.ik_command_valid=0; t.dut.ik_response_ready=0;
+                t.require(t.dut.ik_response_valid && t.dut.ik_response_data==0xf1,
+                    "soft reset F1 overrides the old FIFO head on the same clock edge");
+                t.command(0x8b);
+                t.expect({0xf1,0xf6,0x0b,1,1,0,0,0,0},"soft reset flush and subsequent packet");
+                t.run(3); t.require(!t.dut.ik_response_valid,"soft reset leaves no stale packet bytes");
+            }
+        }
+    }
+
+    t.reset(); std::deque<int> mixed;
+    auto append=[&](std::initializer_list<int> packet) {
+        for (int value: packet) mixed.push_back(value);
+        t.require(t.dut.ik_response_valid && t.dut.ik_response_data==mixed.front(),
+            "mixed packet queue keeps its oldest byte");
+    };
+    auto pop_mixed=[&]() {
+        t.require(t.response()==mixed.front(),"mixed packet lengths retain complete byte order across wraps");
+        mixed.pop_front();
+    };
+    bool down=false;
+    for (int round=0;round<8;++round) {
+        while (mixed.size()>30) pop_mixed();
+        down=!down; t.key(4,down); t.tick(); append({down ? 0x1e : 0x9e});
+        const int joystick=down ? 1 : 0;
+        t.dut.controller_buttons=joystick; t.tick(); append({0xff,joystick});
+        t.command(0x16); append({0xfd,0,joystick});
+        t.command(0x0d); append({0xf7,0,0,0,0,0});
+        t.command(0x1c); append({0xfc,0,1,1,0,0,0});
+        t.commands({0x07,0x20+round,0x87}); append({0xf6,0x07,0x20+round,0,0,0,0,0});
+        for (int n=0;n<round%5;++n) pop_mixed();
+    }
+    while (!mixed.empty()) pop_mixed();
+    t.run(3); t.require(!t.dut.ik_response_valid,"mixed packet stream has no extra or missing bytes");
+
+    // Fill every byte with distinguishable eight-byte replies. A held inquiry
+    // waits until eight bytes have drained, then accepts on the following edge
+    // while another byte is popped. Check every old and newly appended byte.
+    t.reset(); std::deque<int> queued;
+    for (int n=0;n<8;++n) {
+        t.commands({0x07,0x10+n,0x87});
+        for (int value: {0xf6,0x07,0x10+n,0,0,0,0,0}) queued.push_back(value);
+    }
+    t.dut.ik_command_data=0x87; t.dut.ik_command_valid=1; t.dut.clk=0; t.dut.eval();
+    t.require(!t.dut.ik_command_ready,"eight complete packets fill the FIFO exactly");
+    for (int n=0;n<10;++n) {
+        t.tick(); t.require(!t.dut.ik_command_ready && t.dut.ik_response_data==queued.front(),
+            "full queue holds data and rejects a held atomic inquiry");
+    }
+    for (int n=0;n<9;++n) {
+        t.require(t.dut.ik_response_valid && t.dut.ik_response_data==queued.front(),
+            "full queue simultaneous drain preserves its next byte");
+        queued.pop_front(); t.dut.ik_response_ready=1; t.tick();
+        if (n<7) t.require(!t.dut.ik_command_ready,"inquiry requires all eight free slots");
+        if (n==7) t.require(t.dut.ik_command_ready,"eighth pop restores atomic inquiry readiness");
+        if (n==8) for (int value: {0xf6,0x07,0x17,0,0,0,0,0}) queued.push_back(value);
+    }
+    t.dut.ik_command_valid=0; t.dut.ik_response_ready=0;
+    t.require(queued.size()==63,"pop and eight-byte push scoreboard count");
+    for (int value: queued) t.require(t.response()==value,"full FIFO wrap/pop-push byte integrity");
+    t.run(3); t.require(!t.dut.ik_response_valid,"held inquiry is accepted exactly once");
+    t.commands({0x87,0x87}); t.reset();
+    t.run(3); t.require(!t.dut.ik_response_valid,"hard reset discards queued packet bytes");
+}
+
 static void two_joysticks(Test &t) {
     t.reset();
     // Port 0 belongs to the mouse after reset, while FES controller 0
@@ -388,6 +501,6 @@ static void ym(Test &t) {
 
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv); Test test;
-    acia(test); ikbd(test); keyboard_priority(test); two_joysticks(test); calendar(test); ym(test);
-    std::cout << "ST input/audio: ACIA timing/errors/IRQ, IKBD key priority/aliases/packets/backpressure and shared YM2149 sound passed\n";
+    acia(test); ikbd(test); keyboard_priority(test); fifo_packets(test); two_joysticks(test); calendar(test); ym(test);
+    std::cout << "ST input/audio: ACIA timing/errors/IRQ, IKBD key priority/aliases, FIFO packets/all tails/wrap/pop-push/reset and shared YM2149 sound passed\n";
 }

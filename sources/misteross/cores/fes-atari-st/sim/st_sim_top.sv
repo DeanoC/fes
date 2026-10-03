@@ -60,7 +60,7 @@ module st_sim_top (
         .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .mem_addr(video_addr), .mem_data(video_data),
         /* verilator lint_off PINCONNECTEMPTY */
-        .fetch_valid(), .fetch_row(), .fetch_column(),
+        .fetch_valid(), .fetch_row(), .fetch_column(), .raster_row(), .raster_next_row(),
         /* verilator lint_on PINCONNECTEMPTY */
         .video_request(video_request)
     );

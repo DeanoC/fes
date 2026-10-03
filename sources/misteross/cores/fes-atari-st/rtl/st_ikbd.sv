@@ -285,6 +285,41 @@ module st_ikbd #(
         end
     end
 
+    // A packet has at most eight bytes, so every low-address bank receives
+    // at most one write. Rotate the packet once per bank, then decode its
+    // three-bit row locally instead of arbitrating eight writes at every byte.
+    // The reads and packet accounting retain their original clock edges.
+    generate
+        for (genvar bank=0;bank<8;bank=bank+1) begin : fifo_bank
+            wire [2:0] packet_index = 3'(bank)-tail[2:0];
+            wire row_carry;
+            if (bank == 7) begin : last_bank
+                assign row_carry=1'b0;
+            end else begin : wrapped_bank
+                assign row_carry=3'(bank) < tail[2:0];
+            end
+            wire [2:0] write_row = tail[5:3]+3'(row_carry);
+            wire bank_write = packet_length > {1'b0,packet_index};
+            wire [7:0] write_data = packet[packet_index];
+            for (genvar row=0;row<8;row=row+1) begin : fifo_row
+                if (bank == 0 && row == 0) begin : reset_reply
+                    always @(posedge clk) begin
+                        if (!reset) begin
+                            if (soft_reset) fifo[0]<=8'hf1;
+                            else if (bank_write && write_row == 3'(row))
+                                fifo[8*row+bank]<=write_data;
+                        end
+                    end
+                end else begin : packet_byte
+                    always @(posedge clk) begin
+                        if (!reset && bank_write && write_row == 3'(row))
+                            fifo[8*row+bank]<=write_data;
+                    end
+                end
+            end
+        end
+    endgenerate
+
     always @(posedge clk) begin
         if (reset) begin
             head<=0; tail<=0; count<=0; emitted_keys<=0;
@@ -321,8 +356,6 @@ module st_ikbd #(
                 end
             end
             if (pop) head<=head+1'b1;
-            for (i=0;i<8;i=i+1)
-                if (i < packet_length) fifo[6'(tail+i)]<=packet[i];
             tail <= tail+6'(packet_length);
             count <= count+7'(packet_length)-7'(pop);
             if (key_packet) emitted_keys[key_index]<=key_pressed;
@@ -397,7 +430,7 @@ module st_ikbd #(
             end
             if (soft_reset) begin
                 // Flush old packets and report firmware version 1. Clock stays.
-                fifo[0]<=8'hf1; head<=0; tail<=1; count<=1; emitted_keys<=0;
+                head<=0; tail<=1; count<=1; emitted_keys<=0;
                 paused<=0; mouse_enabled<=1; mouse_mode<=0; joystick_mode<=0; y_bottom<=0; port0_joystick<=0;
                 threshold_x<=1; threshold_y<=1; scale_x<=1; scale_y<=1; button_action<=0;
                 relative_x<=0; relative_y<=0; position_x<=0; position_y<=0;

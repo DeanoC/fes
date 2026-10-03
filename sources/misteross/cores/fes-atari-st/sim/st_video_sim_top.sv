@@ -7,6 +7,7 @@ module st_video_sim_top (
     output wire [18:1] mem_addr, output wire [31:0] source_request,
     output wire fetch_valid, output wire [8:0] fetch_row,
     output wire [6:0] fetch_column,
+    output wire [8:0] raster_row, raster_next_row,
     output reg [27:0] direct_response = 28'd0,
     output reg [27:0] scanlines_response = 28'd0
 );
@@ -16,7 +17,8 @@ module st_video_sim_top (
         .clk(clk), .reset(reset), .hold(hold), .screen_base(screen_base),
         .resolution(resolution), .palette(palette), .mem_data(mem_data),
         .mem_addr(mem_addr), .fetch_valid(fetch_valid), .fetch_row(fetch_row),
-        .fetch_column(fetch_column), .video_request(source_request)
+        .fetch_column(fetch_column), .raster_row(raster_row),
+        .raster_next_row(raster_next_row), .video_request(source_request)
     );
     fes_video_part_direct direct (
         .video_request(request_q), .video_response(direct_result)

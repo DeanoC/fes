@@ -76,7 +76,9 @@ The MFP UART has disconnected RX and timed TX status, without a physical serial 
 `st_acia.sv` models MC6850 registers, timed byte transport, IRQs and receive
 errors. The keyboard ACIA connects to original `st_ikbd.sv` protocol logic:
 reset acknowledgement, HID make/break, mouse commands, joystick events,
-inquiries and BCD calendar. Complete HID rows settle for 1 ms before use so
+inquiries and BCD calendar. Its 64-byte response FIFO writes packets through
+eight address banks, preserving atomic enqueue and simultaneous receive.
+Complete HID rows settle for 1 ms before use so
 keys and separately delivered modifiers form one snapshot. Controller port 0
 maps to ST joystick 1 and controller port 1 to ST joystick 0. Mouse and
 joystick commands select ownership of the shared ST port 0. Relative mouse input is an explicit internal RTL port;
@@ -127,6 +129,8 @@ activates it only at frame boundaries. Two owned line caches cross the
 52.224/74.25 MHz domains; the system fills the next native line while the
 pixel domain displays the current one. Missing lines display black, then
 recover. It rejects out-of-range addresses and stale fills from old frames.
+Native row/repetition counters avoid division in the pixel domain; registered
+lookup coordinates and cache data arrive at the original plane-capture edges.
 
 Video uses the existing [RGB888 part contract](../../../mister-packages/docs/video-parts.md)
 and shared direct/scanline implementations through two registered boundaries.
