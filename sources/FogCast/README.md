@@ -13,8 +13,10 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Household video preference selects **Direct** or **Scanlines** for the next
   library launch. Browser Settings saves the preference; **Manage FPGA library**
   imports video parts and shows the resolved choice for the exact package.
-  A missing preferred part falls back to direct output; an installed selected
-  part that fails admission requires repair. Marked format-2 Coleco shells link
+  A missing Scanlines part falls back to a matching Direct part. Native pixel
+  shells require a linked video part; raster shells retain built-in Direct as
+  their final fallback. An installed selected part that fails admission
+  requires repair. Marked format-2 Coleco shells link
   one video part with an optional CPU expansion, retaining the shell identity
   and fixed 720p output. The target independently links the selected bytes.
   The separate `go run ./cmd/fes-parts` developer path remains volatile. See

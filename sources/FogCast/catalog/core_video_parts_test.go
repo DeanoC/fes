@@ -78,6 +78,13 @@ func TestCoreVideoPartStoragePersistsWithoutCPUInventory(t *testing.T) {
 	directA := catalogVideoAsset(t, pkgA, 0x11)
 	scanlinesA := catalogVideoAsset(t, pkgA, 0x22)
 	directB := catalogVideoAsset(t, pkgB, 0x11)
+	manifest := directB.Manifest
+	manifest.Slot, manifest.Map = expansion.NativeVideoSlot, expansion.ColecoNativeVideoMap
+	var err error
+	directB, err = expansion.NewAsset(manifest, directB.Cart)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := []CoreVideoPart{
 		{PartID: directA.ID, PackageID: pkgA, Profile: "direct"},
 		{PartID: scanlinesA.ID, PackageID: pkgA, Profile: "scanlines"},

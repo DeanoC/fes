@@ -73,7 +73,7 @@ func (s *Service) ImportCoreVideoPart(ctx context.Context, size int64, body io.R
 		return catalog.CoreVideoPart{}, videoPartUnavailable()
 	}
 	asset, err := expansion.ReadAsset(bytes.NewReader(data))
-	if err != nil || asset.Manifest.Slot != expansion.VideoSlot {
+	if err != nil || (asset.Manifest.Slot != expansion.VideoSlot && asset.Manifest.Slot != expansion.NativeVideoSlot) {
 		return catalog.CoreVideoPart{}, videoPartUnavailable()
 	}
 	_, base, err := s.readInstalledCore(ctx, asset.Manifest.ShellPackageID)
@@ -100,19 +100,28 @@ func (s *Service) CoreVideoParts(ctx context.Context) ([]catalog.CoreVideoPart, 
 
 func hasVideoSocket(inspection corepackage.Inspection) bool {
 	for _, i := range inspection.Descriptor.Interfaces {
-		if i.ID == expansion.VideoSlot {
+		if i.ID == expansion.VideoSlot || i.ID == expansion.NativeVideoSlot {
 			return true
 		}
 	}
 	return false
 }
 
-// Native shells have no built-in output. Their catalog selection is not part
-// of the raster factory lane, so library launch must not choose a vacant base.
-func libraryVideoAdmission(inspection corepackage.Inspection) error {
+func requiresVideoPart(inspection corepackage.Inspection) bool {
 	for _, i := range inspection.Descriptor.Interfaces {
 		if i.ID == expansion.NativeVideoSlot {
-			return &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Phase: "admission", Message: "native video shell requires a developer parts composition; library video selection is not available"}
+			return true
+		}
+	}
+	return false
+}
+
+// Validate the closed shell contract even when no candidate is installed.
+// Unknown or mixed fabric markers must never select built-in direct output.
+func libraryVideoAdmission(inspection corepackage.Inspection) error {
+	if hasVideoSocket(inspection) {
+		if _, err := corepackage.PartsShell(inspection, nil); err != nil {
+			return videoPartUnavailable()
 		}
 	}
 	return nil
@@ -182,6 +191,9 @@ func (s *Service) composeVideoEntry(ctx context.Context, entry catalog.CoreEntry
 		candidate, found = candidates["direct"]
 	}
 	if !found {
+		if requiresVideoPart(inspection) {
+			return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: "native video shell requires a matching Direct video part for this exact core package"}
+		}
 		return nil, nil
 	}
 	return s.composeVideoCandidate(ctx, entry, base, candidate)
@@ -203,14 +215,15 @@ func (s *Service) CoreEntryVideo(ctx context.Context, gameID string) (CoreEntryV
 	if err != nil {
 		return CoreEntryVideo{}, err
 	}
+	builtin := !requiresVideoPart(inspection)
 	value := CoreEntryVideo{GameID: gameID, PackageID: entry.PackageID, PreferredProfile: s.LibrarySettings().VideoProfile,
-		EffectiveProfile: "direct", Builtin: true, Choices: []CoreVideoChoice{}}
+		EffectiveProfile: "direct", Builtin: builtin, Choices: []CoreVideoChoice{}}
 	for _, profile := range []string{"direct", "scanlines"} {
 		label := "Direct"
 		if profile == "scanlines" {
 			label = "Scanlines"
 		}
-		choice := CoreVideoChoice{Profile: profile, Label: label, Available: profile == "direct"}
+		choice := CoreVideoChoice{Profile: profile, Label: label, Available: profile == "direct" && builtin}
 		if candidate, found := candidates[profile]; found {
 			choice.PartID = candidate.PartID
 			_, err := s.composeVideoCandidate(ctx, entry, base, candidate)
@@ -218,7 +231,7 @@ func (s *Service) CoreEntryVideo(ctx context.Context, gameID string) (CoreEntryV
 			if err != nil {
 				choice.Reason = "Installed part failed compatibility or integrity checks; launch requires repair."
 			}
-		} else if profile != "direct" {
+		} else if !choice.Available {
 			choice.Reason = "No matching part is installed for this exact core package."
 			if !hasVideoSocket(inspection) {
 				choice.Reason = "This core package uses built-in direct output."
