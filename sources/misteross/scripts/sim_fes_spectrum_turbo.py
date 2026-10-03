@@ -80,6 +80,14 @@ def compile_mode(root: Path, verilator: list[str], mode: str, machine_board: boo
         jobs += [("machine", "spectrum_sim_top", "spectrum_sim_top.sv", "machine_tb.cpp"),
                  ("board", "top", "board_models.v", "board_tb.cpp")]
     if mode == "fast":
+        output = root / "build/sim/fes-spectrum-turbo/fast/bus"
+        output.mkdir(parents=True, exist_ok=True)
+        command = [*verilator, "--cc", "--exe", "--build", "-j", "2", "-O2",
+                   "--top-module", "spectrum_fast_bus", *FLAGS, "--Mdir", str(output),
+                   "cores/fes-spectrum/rtl/spectrum_fast_bus.sv",
+                   str(root / "cores/fes-spectrum/sim/fast_bus_tb.cpp")]
+        run(command, root, output / "compile.log")
+        result["bus"] = output / "Vspectrum_fast_bus"
         output = root / "build/sim/fes-spectrum-turbo/fast/audio"
         output.mkdir(parents=True, exist_ok=True)
         command = [*verilator, "--cc", "--exe", "--build", "-j", "2", "-O2",
@@ -124,7 +132,7 @@ def main() -> int:
             "cores/fes-spectrum/sim/spectrum_benchmark_top.sv", "cores/fes-spectrum/sim/benchmark_tb.cpp",
             "cores/fes-spectrum/sim/spectrum_sim_top.sv", "cores/fes-spectrum/sim/machine_tb.cpp",
             "cores/fes-spectrum/sim/board_models.v", "cores/fes-spectrum/sim/board_tb.cpp",
-            "cores/fes-spectrum/sim/fast_audio_tb.cpp",
+            "cores/fes-spectrum/sim/fast_audio_tb.cpp", "cores/fes-spectrum/sim/fast_bus_tb.cpp",
             "cores/fes-spectrum/expansions/probe.v", "cores/fes-spectrum/rtl/spectrum_bus.vh",
             "cores/fes-common/generated/fes_computer.vh"})
         def source_hashes():
@@ -137,7 +145,7 @@ def main() -> int:
                                         not args.skip_machine_board) for mode in modes}
             binaries = {mode: future.result() for mode, future in futures.items()}
         for mode in modes:
-            for label in ("machine", "board", "audio"):
+            for label in ("machine", "board", "bus", "audio"):
                 if label in binaries[mode]:
                     print(run([str(binaries[mode][label])], root,
                               binaries[mode][label].parent / "run.log").strip())

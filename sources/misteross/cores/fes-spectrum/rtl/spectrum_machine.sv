@@ -121,9 +121,10 @@ module spectrum_machine #(
         wire [15:0] addr;
         wire [7:0] wdata;
         wire halted;
+        wire [7:0] captured_rdata;
         fes_z80_fast cpu (
             .clk(clk_sys), .reset(reset), .enable(1'b1), .int_n(int_n), .nmi_n(~nmi),
-            .bus_ready(fast_ready), .bus_rdata(cpu_di), .bus_req(req), .bus_kind(fast_kind),
+            .bus_ready(fast_ready), .bus_rdata(captured_rdata), .bus_req(req), .bus_kind(fast_kind),
             .bus_extra(), .bus_delay(), .bus_addr(addr), .bus_wdata(wdata), .refresh_addr(),
             .halted(halted), .illegal(cpu_illegal), .retired(cpu_retired), .retire_pc(),
             .debug_pc(cpu_pc), .debug_sp(), .debug_af(), .debug_bc(), .debug_de(),
@@ -131,7 +132,8 @@ module spectrum_machine #(
         );
         spectrum_fast_bus bus (
             .clk(clk_sys), .reset(reset), .req(req), .kind(fast_kind), .addr(addr),
-            .wdata(wdata), .wait_n(~card_wait), .ready(fast_ready), .strobe(fast_strobe),
+            .wdata(wdata), .rdata(cpu_di), .captured_rdata(captured_rdata),
+            .wait_n(~card_wait), .ready(fast_ready), .strobe(fast_strobe),
             .m1_n(cpu_m1_n), .mreq_n(cpu_mreq_n), .iorq_n(cpu_iorq_n),
             .rd_n(cpu_rd_n), .wr_n(cpu_wr_n), .a(cpu_a), .dout(cpu_do)
         );

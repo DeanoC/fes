@@ -70,13 +70,15 @@ shell uses, so a frozen shell routes both horizontal clock segments into every
 socket row. The Go linker layout is `fes.spectrum-bus.sockets/1`.
 
 `spectrum_fast_bus.sv` holds each CPU transaction across the request register,
-card action and response register, accepts it after four active system clocks
-and inserts an inactive clock before the next transaction. WAIT extends the
-last phase with stable address, data and controls. STROBE is a single launch
-event even during WAIT, matching existing card consumers. Internal RAM and
-ULA writes in fast mode commit once at acceptance. The 32/28-bit socket ABI,
-ROM map, slot placement and expansion response priority are the same in both
-builds; an expansion receives the selected system clock.
+card action and response register. Phase 4 samples external readiness and
+read data together into a capture register; WAIT extends this phase with
+stable address, data and controls. Phase 5 delivers the captured byte to the
+CPU, then one inactive clock separates transactions. WAIT asserted after the
+phase-4 acceptance cannot retract that accepted transaction or change its
+captured byte. STROBE remains one launch event, including during WAIT.
+Internal RAM and ULA writes commit once at phase-5 CPU delivery. The 32/28-bit
+socket ABI, ROM map, slot placement and expansion response priority are the
+same in both builds; an expansion receives the selected system clock.
 
 `expansions/probe.v` is the open probe card (module `cart`). Socket N owns
 ports `$E0+(N-1)*4`: id `$F5`, a scratch register, an access counter and the
@@ -117,15 +119,17 @@ The turbo regression runs the open diagnostic machine and board mailbox in
 both modes. Its registered expansion fixture checks a write held by WAIT,
 stable controls, exactly one card and RAM write, ROMCS data, an NMI edge
 pending through WAIT, HALT wake-up, 69,888 peripheral ticks per frame and a
-32-tick interrupt pulse. It measures three manually encoded workloads of
+32-tick interrupt pulse. A separate bridge regression changes readiness and
+data after acceptance, verifies the delivered byte stays stable, and checks
+a second read returns fresh data. It measures three manually encoded workloads of
 128 loop iterations between RAM marker writes. The reported intervals include
 loop setup, result stores and markers; they are not isolated instruction CPI.
 
 | Workload | NMOS system clocks / time | Fast system clocks / time | Elapsed speedup |
 | --- | --- | --- | --- |
-| Register arithmetic and branch | 48,583 / 930.28 µs | 3,290 / 58.75 µs | 15.83× |
-| RAM write, increment, read and branch | 73,353 / 1404.58 µs | 5,845 / 104.38 µs | 13.46× |
-| Expansion OUT, IN, arithmetic and branch | 78,977 / 1512.27 µs | 5,835 / 104.20 µs | 14.51× |
+| Register arithmetic and branch | 48,583 / 930.28 µs | 3,948 / 70.50 µs | 13.20× |
+| RAM write, increment, read and branch | 73,353 / 1404.58 µs | 7,014 / 125.25 µs | 11.21× |
+| Expansion OUT, IN, arithmetic and branch | 78,977 / 1512.27 µs | 7,002 / 125.04 µs | 12.09× |
 
 These host measurements assume 52.224 and 56 MHz system clocks. The runner
 writes its counters, source hashes, tool version and derived times to
