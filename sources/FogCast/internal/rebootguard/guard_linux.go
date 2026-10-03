@@ -22,9 +22,21 @@ import (
 type Config struct {
 	Device          string
 	WatchdogTimeout time.Duration
-	MinTimeout      time.Duration
-	FallbackDelay   time.Duration
-	Marker          string
+	// MinTimeout is the smallest read-back watchdog timeout that is kept. It
+	// defaults to FallbackMinDeadline + FallbackSyncWait + WatchdogMargin.
+	MinTimeout time.Duration
+	// The fallback forces `reboot -f` after FallbackStall seconds without
+	// block-device I/O progress, and at FallbackDeadline at the latest, after a
+	// bounded explicit sync of FallbackSyncWait. When the watchdog is armed the
+	// fallback deadline is shortened to end WatchdogMargin before the watchdog,
+	// but never below FallbackMinDeadline (otherwise the watchdog is skipped).
+	FallbackStall       time.Duration
+	FallbackDeadline    time.Duration
+	FallbackMinDeadline time.Duration
+	FallbackSyncWait    time.Duration
+	FallbackPoll        time.Duration
+	WatchdogMargin      time.Duration
+	Marker              string
 	// BusyWait bounds how long Arm waits for the fes-boot trial guard to
 	// release /dev/watchdog. Confirm reopens update admission immediately, but
 	// the guard only notices durable confirmation on its next 5 s heartbeat.
@@ -71,10 +83,18 @@ func openDevice(path string) (watchdog, error) {
 
 type process struct{ *os.Process }
 
+// KillWait kills the helper and reaps it for at most two seconds, so Cancel
+// can never block on an unreapable helper.
 func (p process) KillWait() error {
 	err := p.Kill()
-	_, waitErr := p.Wait()
-	return errors.Join(err, waitErr)
+	reaped := make(chan error, 1)
+	go func() { _, waitErr := p.Wait(); reaped <- waitErr }()
+	select {
+	case waitErr := <-reaped:
+		return errors.Join(err, waitErr)
+	case <-time.After(2 * time.Second):
+		return errors.Join(err, errors.New("reboot fallback helper not reaped within 2s"))
+	}
 }
 func startHelper(cmd *exec.Cmd) (helper, error) {
 	if err := cmd.Start(); err != nil {
@@ -89,11 +109,28 @@ func (c Config) defaults() Config {
 	if c.WatchdogTimeout == 0 {
 		c.WatchdogTimeout = 180 * time.Second
 	}
-	if c.MinTimeout == 0 {
-		c.MinTimeout = 60 * time.Second
+	if c.FallbackStall == 0 {
+		c.FallbackStall = 30 * time.Second
 	}
-	if c.FallbackDelay == 0 {
-		c.FallbackDelay = 90 * time.Second
+	if c.FallbackDeadline == 0 {
+		c.FallbackDeadline = 150 * time.Second
+	}
+	if c.FallbackPoll == 0 {
+		c.FallbackPoll = 5 * time.Second
+	}
+	if c.FallbackMinDeadline == 0 {
+		c.FallbackMinDeadline = 60 * time.Second
+	}
+	if c.FallbackSyncWait == 0 {
+		c.FallbackSyncWait = 10 * time.Second
+	}
+	if c.WatchdogMargin == 0 {
+		c.WatchdogMargin = 20 * time.Second
+	}
+	if c.MinTimeout == 0 {
+		// The watchdog is the final deadline: it must fire strictly after the
+		// shortest fallback (deadline + bounded sync) plus margin for reboot -f.
+		c.MinTimeout = c.FallbackMinDeadline + c.FallbackSyncWait + c.WatchdogMargin
 	}
 	if c.Marker == "" {
 		c.Marker = "/run/fes-reboot-backstop"
@@ -125,11 +162,12 @@ func (c Config) defaults() Config {
 // Result reports which backstop layers are in place for this reboot. Armed is
 // non-nil whenever any layer (fallback or watchdog) needs Cancel on failure.
 type Result struct {
-	Armed         *Armed
-	Fallback      bool
-	Watchdog      bool
-	ActualTimeout time.Duration
-	Reason        string
+	Armed            *Armed
+	Fallback         bool
+	Watchdog         bool
+	ActualTimeout    time.Duration
+	FallbackDeadline time.Duration
+	Reason           string
 }
 
 // Armed retains the fallback helper and watchdog descriptor until reboot or Cancel.
@@ -162,12 +200,6 @@ func Arm(ctx context.Context, config Config) (Result, error) {
 	} else {
 		handle.marker = c.Marker
 	}
-	if fallback, err := startFallback(c); err != nil {
-		errs = append(errs, fmt.Errorf("start reboot fallback: %w", err))
-	} else {
-		handle.fallback = fallback
-		result.Fallback = true
-	}
 	device, actual, reason, err := armWatchdog(c)
 	result.ActualTimeout = actual
 	if err != nil {
@@ -176,6 +208,13 @@ func Arm(ctx context.Context, config Config) (Result, error) {
 	if device != nil {
 		handle.device = device
 		result.Watchdog = true
+	}
+	result.FallbackDeadline = fallbackDeadline(c, device != nil, actual)
+	if fallback, err := startFallback(c, result.FallbackDeadline); err != nil {
+		errs = append(errs, fmt.Errorf("start reboot fallback: %w", err))
+	} else {
+		handle.fallback = fallback
+		result.Fallback = true
 	}
 	switch {
 	case result.Watchdog && result.Fallback:
@@ -196,12 +235,26 @@ func Arm(ctx context.Context, config Config) (Result, error) {
 	return result, errors.Join(errs...)
 }
 
+// fallbackDeadline keeps the fallback (deadline + bounded sync) ending at least
+// WatchdogMargin before an armed watchdog. armWatchdog only keeps a watchdog
+// whose timeout leaves room for FallbackMinDeadline, so the result never drops
+// below it.
+func fallbackDeadline(c Config, watchdogArmed bool, actual time.Duration) time.Duration {
+	deadline := c.FallbackDeadline
+	if watchdogArmed {
+		if limit := actual - c.FallbackSyncWait - c.WatchdogMargin; limit < deadline {
+			deadline = limit
+		}
+	}
+	return deadline
+}
+
 func createMarker(c Config) error {
 	marker, err := os.OpenFile(c.Marker, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return fmt.Errorf("create reboot marker: %w", err)
 	}
-	deadline := time.Now().Add(c.FallbackDelay)
+	deadline := time.Now().Add(c.FallbackDeadline + c.FallbackSyncWait)
 	_, writeErr := fmt.Fprintf(marker, "pid=%d\ndeadline=%s\n", os.Getpid(), deadline.Format(time.RFC3339Nano))
 	if err = errors.Join(writeErr, marker.Close()); err != nil {
 		_ = os.Remove(c.Marker)
@@ -210,8 +263,10 @@ func createMarker(c Config) error {
 	return nil
 }
 
-func startFallback(c Config) (helper, error) {
-	cmd := exec.Command("/bin/sh", "-c", "trap '' TERM HUP INT; sleep "+strconv.FormatInt(int64(c.FallbackDelay/time.Second), 10)+"; exec /sbin/reboot -f")
+func startFallback(c Config, deadline time.Duration) (helper, error) {
+	seconds := func(d time.Duration) string { return strconv.FormatInt(int64(d/time.Second), 10) }
+	cmd := exec.Command("/bin/sh", "-c", fallbackScript, "fes-reboot-fallback",
+		seconds(c.FallbackStall), seconds(deadline), seconds(c.FallbackPoll), "/proc", "/sbin/reboot", seconds(c.FallbackSyncWait))
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	null, err := c.openNull()
 	if err != nil {
@@ -285,15 +340,16 @@ func (a *Armed) Cancel() error {
 	}
 	a.canceled = true
 	var err error
-	if a.fallback != nil {
-		err = errors.Join(err, a.fallback.KillWait())
-	}
+	// Disarm the watchdog first: nothing below may delay stopping it.
 	if a.device != nil {
 		n, writeErr := io.WriteString(a.device, "V")
 		if writeErr == nil && n != 1 {
 			writeErr = io.ErrShortWrite
 		}
 		err = errors.Join(err, writeErr, a.device.Close())
+	}
+	if a.fallback != nil {
+		err = errors.Join(err, a.fallback.KillWait())
 	}
 	if a.marker != "" {
 		err = errors.Join(err, os.Remove(a.marker))

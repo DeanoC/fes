@@ -5,6 +5,7 @@ package rebootguard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,7 +59,7 @@ func TestArmAndCancel(t *testing.T) {
 	if *opened != 1 || d.timeout != 180*time.Second || !reflect.DeepEqual(d.writes, []byte{0}) || d.closed {
 		t.Fatalf("device: %+v", d)
 	}
-	if command.Path != "/bin/sh" || !reflect.DeepEqual(command.Args, []string{"/bin/sh", "-c", "trap '' TERM HUP INT; sleep 90; exec /sbin/reboot -f"}) || command.SysProcAttr == nil || !command.SysProcAttr.Setsid || command.Stdin == nil || command.Stdout == nil || command.Stderr == nil {
+	if command.Path != "/bin/sh" || !reflect.DeepEqual(command.Args, []string{"/bin/sh", "-c", fallbackScript, "fes-reboot-fallback", "30", "150", "5", "/proc", "/sbin/reboot", "10"}) || command.SysProcAttr == nil || !command.SysProcAttr.Setsid || command.Stdin == nil || command.Stdout == nil || command.Stderr == nil {
 		t.Fatalf("fallback: %+v", command)
 	}
 	marker, err := os.ReadFile(c.Marker)
@@ -98,6 +99,8 @@ func TestArmSkippedWatchdogKeepsFallback(t *testing.T) {
 			c.open = func(string) (watchdog, error) { *n++; return nil, unix.ENOENT }
 		}, 1, "", 0},
 		{"short", func(_ *Config, d *fakeWatchdog, _ *int) { d.actual = 30 * time.Second }, 1, "V", 0},
+		// 60-89 s cannot fit the 60 s minimum fallback + 10 s sync + 20 s margin (#458).
+		{"readback-85s", func(_ *Config, d *fakeWatchdog, _ *int) { d.actual = 85 * time.Second }, 1, "V", 0},
 		{"notchar", func(_ *Config, d *fakeWatchdog, _ *int) { d.char = false }, 1, "V", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -216,5 +219,62 @@ func TestArmWaitsForTrialGuardHandover(t *testing.T) {
 	}
 	if err := result.Armed.Cancel(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+type orderHelper struct {
+	device        *fakeWatchdog
+	disarmedFirst bool
+}
+
+func (h *orderHelper) KillWait() error { h.disarmedFirst = h.device.closed; return nil }
+
+// Cancel stops the watchdog before touching the fallback helper.
+func TestCancelDisarmsWatchdogFirst(t *testing.T) {
+	d := &fakeWatchdog{char: true, actual: 180 * time.Second}
+	h := &orderHelper{device: d}
+	c, _, _ := testConfig(t, d, nil)
+	c.start = func(*exec.Cmd) (helper, error) { return h, nil }
+	result, err := Arm(context.Background(), c)
+	if err != nil || !result.Watchdog || !result.Fallback {
+		t.Fatalf("%+v %v", result, err)
+	}
+	if err := result.Armed.Cancel(); err != nil {
+		t.Fatal(err)
+	}
+	if !h.disarmedFirst || !reflect.DeepEqual(d.writes, []byte{0, 'V'}) {
+		t.Fatalf("disarmedFirst=%v writes=%q", h.disarmedFirst, d.writes)
+	}
+}
+
+// The watchdog always fires strictly after the fallback finishes (deadline +
+// bounded sync + margin), whatever the driver reads back (#458): short
+// timeouts are skipped, mid-range timeouts shorten the fallback deadline.
+func TestWatchdogAlwaysOutlastsFallback(t *testing.T) {
+	for _, secs := range []int{60, 75, 89, 90, 120, 150, 180, 240} {
+		t.Run(fmt.Sprintf("%ds", secs), func(t *testing.T) {
+			actual := time.Duration(secs) * time.Second
+			d := &fakeWatchdog{char: true, actual: actual}
+			c, _, _ := testConfig(t, d, &fakeHelper{})
+			var args []string
+			c.start = func(cmd *exec.Cmd) (helper, error) { args = cmd.Args; return &fakeHelper{}, nil }
+			result, _ := Arm(context.Background(), c)
+			if !result.Fallback || len(args) != 10 {
+				t.Fatalf("result=%+v args=%q", result, args)
+			}
+			if args[5] != fmt.Sprint(int(result.FallbackDeadline/time.Second)) || args[9] != "10" {
+				t.Fatalf("fallback args %q do not match deadline %s", args, result.FallbackDeadline)
+			}
+			if secs < 90 {
+				if result.Watchdog || string(d.writes) != "V" || result.FallbackDeadline != 150*time.Second {
+					t.Fatalf("short watchdog kept: %+v writes=%q", result, d.writes)
+				}
+				return
+			}
+			end := result.FallbackDeadline + 10*time.Second
+			if !result.Watchdog || end+20*time.Second > actual || result.FallbackDeadline < 60*time.Second || result.FallbackDeadline > 150*time.Second {
+				t.Fatalf("watchdog %s vs fallback end %s: %+v", actual, end, result)
+			}
+		})
 	}
 }

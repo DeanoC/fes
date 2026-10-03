@@ -11,17 +11,20 @@ import (
 var ErrUnsupported = errors.New("reboot backstop requires Linux")
 
 type Config struct {
-	Device                                     string
-	WatchdogTimeout, MinTimeout, FallbackDelay time.Duration
-	Marker                                     string
-	BusyWait, BusyPoll                         time.Duration
+	Device                                               string
+	WatchdogTimeout, MinTimeout                          time.Duration
+	FallbackStall, FallbackDeadline, FallbackMinDeadline time.Duration
+	FallbackSyncWait, FallbackPoll, WatchdogMargin       time.Duration
+	Marker                                               string
+	BusyWait, BusyPoll                                   time.Duration
 }
 type Result struct {
-	Armed         *Armed
-	Fallback      bool
-	Watchdog      bool
-	ActualTimeout time.Duration
-	Reason        string
+	Armed            *Armed
+	Fallback         bool
+	Watchdog         bool
+	ActualTimeout    time.Duration
+	FallbackDeadline time.Duration
+	Reason           string
 }
 type Armed struct{}
 

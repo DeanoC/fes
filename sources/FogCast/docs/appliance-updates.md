@@ -85,14 +85,25 @@ the package tests and isolated root-switch test are not physical acceptance.
 
 ## Reboot backstop
 
-For an appliance activation or rollback, the agent prepares the Cyclone V warm-reset
-registers, arms the hardware watchdog, then requests a normal reboot. A detached
-fallback requests `reboot -f` after 90 seconds if init shutdown stalls; the
-watchdog resets the board after its 180-second timeout if shutdown still hangs.
-If a just-confirmed trial's bootstrap guard still holds the watchdog, the agent
-waits up to 12 seconds for its handover before arming. The fallback is
-started independently, so it stays in place when the watchdog cannot be armed.
-A reboot request error cancels the fallback and disarms the watchdog. On stable
-startup, the agent disarms a stale watchdog only when no reboot marker exists.
-Trial boots leave the watchdog untouched because the independent bootstrap trial
-guard owns its reset deadline.
+For an appliance activation or rollback, the agent installs independent
+backstops right before it requests a normal reboot, then never touches them
+again:
+
+- A detached fallback (ignores TERM/HUP/INT) forces `reboot -f` only when
+  shutdown has stalled: no block-device I/O progress for 30 seconds, or a hard
+  deadline of 150 seconds while I/O keeps progressing. It first runs an explicit
+  sync bounded to 10 seconds; BusyBox `reboot -f` syncs again. The capped stop
+  scripts wait at most 20 seconds without I/O in total, below the 30-second stall
+  trigger (`image/scripts/tests/shutdown-budget_test.sh`).
+- The Cyclone V hardware watchdog, after the warm-reset register preparation,
+  set to 180 seconds and never petted. It is kept only if its read-back timeout
+  leaves room for at least a 60-second fallback deadline plus the 10-second sync
+  and a 20-second margin (90 seconds); the fallback deadline is shortened so it
+  always ends 20 seconds before the watchdog. Shorter read-backs (60-89 s) are
+  magic-closed and only the fallback remains.
+- If a just-confirmed trial's bootstrap guard still holds the watchdog, the agent
+  waits up to 12 seconds for its handover. A reboot request error disarms the
+  watchdog first, then kills the fallback.
+- On stable startup, the agent disarms a stale watchdog only when no reboot
+  marker exists. Trial boots leave the watchdog untouched because the
+  independent bootstrap trial guard owns its reset deadline.
