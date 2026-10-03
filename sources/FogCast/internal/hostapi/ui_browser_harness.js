@@ -187,6 +187,7 @@ function normalizePlan(plan = {}) {
     }),
     attract: plan.attract || { items: [], idle_seconds: 60 },
     settings: plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' },
+    settingsLoadQueue: plan.settingsLoads ? normalizeQueue(plan.settingsLoads, 'settingsLoads') : null,
     platforms: plan.platforms || { platforms: [] },
     collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
     coreRoutes: new Map(Object.entries(plan.coreRoutes || {}).map(([route, responses]) => {
@@ -473,8 +474,12 @@ class FixtureServer extends EventEmitter {
     }
     if (url.pathname === '/api/v1/library/settings' && (request.method === 'GET' || request.method === 'PUT' || request.method === 'PATCH')) {
       if (request.method === 'GET') {
-        await this.deliver(record, response, {
-          fixture: 'settings.json', status: 200, hold: false, delayMs: 0,
+        const queue = this.plan.settingsLoadQueue;
+        const selected = queue
+          ? (queue.length > 1 ? queue.shift() : queue[0])
+          : null;
+        await this.deliver(record, response, selected || {
+          fixture: 'catalog-empty.json', status: 200, hold: false, delayMs: 0,
           override: this.plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'], video_profile: 'direct' },
         });
         return;
@@ -1437,6 +1442,7 @@ class BrowserPage {
         settingsHidden: document.querySelector('#settings')?.hidden !== false,
         settingsAttract: document.querySelector('#settings-attract-idle')?.value || '',
         settingsRegions: document.querySelector('#settings-preferred-regions')?.value || '',
+        settingsMessage: document.querySelector('#settings-message')?.textContent || '',
         settingsVideoProfile: document.querySelector('#settings-video-profile')?.value || '',
         keyboardPane: document.querySelector('#launcher')?.getAttribute('data-keyboard-pane') || '',
         activeElementID: document.activeElement?.id || '',
