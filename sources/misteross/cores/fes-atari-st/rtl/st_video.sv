@@ -81,12 +81,14 @@ module st_video #(
             wire mono_line = vertical >= 10'd160 && vertical < 10'd560;
             wire next_color_line = next_vertical >= 10'd60 && next_vertical < 10'd660;
             wire next_mono_line = next_vertical >= 10'd160 && next_vertical < 10'd560;
-            wire cached_image_line = mode_valid && (high_resolution ? mono_line : color_line);
             wire cached_next_image_line = mode_valid &&
                 (high_resolution ? next_mono_line : next_color_line);
             wire before_image = high_resolution ? vertical < 10'd160 : vertical < 10'd60;
             wire advance_row = high_resolution || row_repeat == 2'd2;
-            assign raster_row = cached_image_line ? native_row : 9'd0;
+            // EOL clears native_row outside the image, including the frame
+            // boundary where coherent configuration can change. The row is
+            // already zero there, so no current-line geometry mask is needed.
+            assign raster_row = native_row;
             assign raster_next_row = !cached_next_image_line ? 9'd0 :
                 before_image ? 9'd0 : native_row + {8'd0, advance_row};
             always @(posedge clk) begin

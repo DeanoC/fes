@@ -153,8 +153,10 @@ module st_video_adapter (
     // The renderer tracks native row/repetition at EOL. Sharing its coordinates
     // removes color scaling division from both lookup and scheduling paths.
     wire [8:0] current_row, next_row;
-    wire scheduling = configured && mode_valid && vertical >= image_top - 10'd8 &&
-                      vertical < image_top + image_height;
+    wire color_scheduling = vertical >= 10'd52 && vertical < 10'd660;
+    wire mono_scheduling = vertical >= 10'd152 && vertical < 10'd560;
+    wire scheduling = configured && mode_valid &&
+        (high_resolution ? mono_scheduling : color_scheduling);
     wire [8:0] desired_row0 = current_row[0] ? current_row + 9'd1 : current_row;
     wire [8:0] desired_row1 = current_row[0] ? current_row : current_row + 9'd1;
     wire [8:0] desired_rows [0:1];
