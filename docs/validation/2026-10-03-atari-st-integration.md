@@ -62,19 +62,25 @@ Notable results:
 - Media: all 737,280 bytes uploaded with odd chunk boundaries, CRC and
   acknowledgement after 527,286 physical writes.
 - Floppy: register setup, geometry, exact DMA, stalls, cancellation, force
-  interrupts, motor/index behavior, write protection and RAM bounds.
+  interrupts, motor/index behavior, write protection and RAM bounds. Independent
+  review found a pending-DMA removal bug; the fix and regression immediately
+  withdraw writes on eject/deselect and ignore late completion (94,034,211 clocks).
 - Shared regressions: RAM tester SDRAM/HPS-DDR, 624 original computer-mailbox
   exchanges and existing ZX81 AY/audio diagnostics.
 - Contract schemas, fixture generation and Go tests passed. Generated
   consistency covers 17 consumers and 33 copied fixtures.
-- Producer/ROM-map/card tests passed 24 cases, including real Verilator
+- Producer/ROM-map/card tests passed 25 cases, including real Verilator
   ROM and packed-card transactions; one optional Mistral oracle was skipped.
 
 The parent regression suite's generated-consumer count changed from 16 to
 17. Its stale expected count was corrected and the affected parent suites
 passed. Runtime and FogCast focused admission, media and composition checks
-passed, and the pinned ARM target build passed. Full software and clean
-parent-check results are recorded after final integration below.
+passed. Full runtime `make -j2 test`, FogCast race tests across 74 packages,
+nested appliance race tests and shared expansion race tests passed against
+unchanged source scopes from `76e27c5a3` through `a9ad1474ac`. The pinned ARM
+target build passed on worker bytes selected into `89feb136a`; its original
+binary is no longer retained, so no current target-artifact claim follows.
+Final parent-check results are recorded after integration below.
 
 ## Native qualification
 

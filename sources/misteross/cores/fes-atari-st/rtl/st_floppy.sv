@@ -113,7 +113,11 @@ module st_floppy #(
 
     assign media_req = state == MEDIA_WAIT && !reset;
     assign media_addr = media_cursor;
-    assign dma_req = state == DMA_WAIT && dma_address_valid && !reset;
+    // Removal also withdraws a word that has not reached RAM yet. A shared
+    // memory controller may drain a command it already issued, without
+    // returning that old completion to this canceled transfer.
+    assign dma_req = state == DMA_WAIT && dma_address_valid &&
+                     media_ready && drive_a && !reset;
     assign dma_addr = dma_cursor;
     assign dma_wdata = word_buffer;
     assign dma_byte_enable = 2'b11;
@@ -249,7 +253,12 @@ module st_floppy #(
                     state <= MEDIA_WAIT;
                 end
                 DMA_WAIT: begin
-                    if (!dma_address_valid) begin
+                    if (!media_ready || !drive_a) begin
+                        state <= IDLE;
+                        record_error <= 1'b1;
+                        drq <= 1'b0;
+                        irq <= 1'b1;
+                    end else if (!dma_address_valid) begin
                         state <= IDLE;
                         dma_error <= 1'b1;
                         lost_data <= 1'b1;

@@ -310,6 +310,42 @@ static void test_absence_and_dma_bounds(Rig &r)
     }
 }
 
+static void test_removal_during_stalled_dma(Rig &r)
+{
+    for (bool eject : {true, false}) {
+        r.reset();
+        const unsigned destination = eject ? 0x7000 : 0x7200;
+        const uint8_t original_high = r.ram[destination];
+        const uint8_t original_low = r.ram[destination + 1];
+        r.setup(destination, 2); r.stall_dma = true; r.read_sector(1);
+        for (unsigned n = 0; !r.dut.dma_req && n < 1000; ++n) r.tick();
+        check(r.dut.dma_req, "removal test did not reach the first stalled RAM word");
+        const auto words = r.dma_transfers, bytes = r.media_transfers;
+        if (eject) r.dut.media_ready = 0;
+        else r.dut.drive_select = 3;
+        r.dut.eval();
+        check(!r.dut.dma_req, "removed drive can still issue a new RAM command");
+        r.tick();
+        check(r.dut.irq && !r.dut.dma_req && !r.dut.media_req,
+              "removal while DMA stalled did not immediately complete the command");
+        // An old completion may arrive after withdrawal. It cannot advance
+        // this command, and RAM becoming available cannot grant a new write.
+        r.dut.dma_ready = 1; r.dut.clk = 0; r.dut.eval();
+        r.dut.clk = 1; r.dut.eval(); ++r.cycles; r.dut.dma_ready = 0;
+        r.stall_dma = false; r.idle(30);
+        check(r.dma_transfers == words && r.media_transfers == bytes &&
+              r.ram[destination] == original_high && r.ram[destination + 1] == original_low,
+              "removal allowed an old disk word to reach RAM");
+        check(r.dma_address() == destination, "canceled DMA advanced its address");
+        r.control(0x90); check((r.mmio(4, false) & 255) == 2,
+                              "canceled DMA consumed the sector count");
+        const uint8_t status = r.fdc_read(0);
+        check((status & 0x13) == 0x10,
+              "removed DMA command lacks record-not-found or remains busy/DRQ");
+    }
+    r.reset();
+}
+
 static void test_force_index_and_motor(Rig &r)
 {
     r.restore(); r.fdc_read(0); r.fdc_write(0, 0xd4);
@@ -335,6 +371,7 @@ int main(int argc, char **argv)
         Rig r;
         test_registers_and_type_i(r); test_sectors(r);
         test_multi_and_write_protect(r); test_backpressure_and_cancel(r);
+        test_removal_during_stalled_dma(r);
         test_absence_and_dma_bounds(r);
         test_force_index_and_motor(r);
         std::printf("PASS st_floppy: EmuTOS register setup, 720KiB geometry, exact DMA, "

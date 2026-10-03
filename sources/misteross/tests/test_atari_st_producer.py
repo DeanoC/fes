@@ -7,7 +7,8 @@ import subprocess
 import tempfile
 import tomllib
 import unittest
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from scripts import atari_st_slot, build_fes_atari_st_oss as st, rom_map
 from scripts.fes_build_common import BuildError
@@ -130,6 +131,35 @@ class AtariSTProducerTests(unittest.TestCase):
             write('unrelated.memory')
             with self.assertRaisesRegex(BuildError, 'unexpected disconnected'):
                 st.clock_read_only_memories(path)
+
+    def test_failed_or_cancelled_build_withdraws_unsealed_artifacts(self):
+        for failure in (BuildError('compiler failure'), KeyboardInterrupt()):
+            with self.subTest(failure=type(failure).__name__), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / st.QSF).parent.mkdir(parents=True)
+                (root / st.QSF).write_text('# board pins\n')
+                authenticated = {name: SimpleNamespace(identity='test', path=Path('/auth/install/bin') / name)
+                                 for name in ('mistral', 'yosys', 'nextpnr-mistral')}
+                invocation = SimpleNamespace(inputs={}, env={}, close=Mock())
+                def fail_tool(*args, **kwargs):
+                    for name in ('core.rbf', 'manifest.toml', 'build-summary.json', 'rom-map.json'):
+                        (root / st.OUTPUT_RELATIVE / name).write_bytes(b'unsealed')
+                    raise failure
+                with patch.object(st, '_require_clean_source', return_value=('repo', 'a'*40)), \
+                     patch.object(st, '_authenticate_atari_st_tools', return_value=authenticated), \
+                     patch.object(st.rom_map, 'read_database', return_value={}), \
+                     patch.object(st, 'FunctionalInvocation', return_value=invocation), \
+                     patch.object(st, 'create_build_record', return_value=b'{}'), \
+                     patch.object(st, 'prepare_cpu_inputs'), \
+                     patch.object(st, 'build_identity', return_value='0'*32), \
+                     patch.object(st, '_run_tool', side_effect=fail_tool), \
+                     patch.object(st, 'export_package') as export:
+                    with self.assertRaises(type(failure)):
+                        st.build(root)
+                    export.assert_not_called()
+                invocation.close.assert_called_once()
+                for name in ('core.rbf', 'manifest.toml', 'build-summary.json', 'rom-map.json'):
+                    self.assertFalse((root / st.OUTPUT_RELATIVE / name).exists())
 
     @unittest.skipUnless(shutil.which('verilator'), 'Verilator required for synchronous ROM simulation')
     def test_rom_big_endian_lane_edges_reset_and_held_request(self):

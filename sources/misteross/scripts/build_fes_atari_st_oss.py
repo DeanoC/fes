@@ -564,7 +564,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
-    except Exception:
+    except BaseException:
         if output is not None:
             for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
                 path = output / name
