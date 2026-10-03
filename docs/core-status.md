@@ -123,6 +123,10 @@ The native [sealed-build and Kit 2 diagnostic](validation/2026-10-03-native-vide
 records strict CRAM containment, compiler/Go/Python byte agreement and clean
 Direct/Scanlines/relaunch captures for its developer artifacts. Neither record
 qualifies a newly selected factory image or a new native/SGM composition.
+The [native factory host record](validation/2026-10-03-native-video-factory-build.md)
+binds the `3ffe989f` shell, Direct/Scanlines and SGM parts, four independent
+composition proofs, reproducible image and verified local release. Candidate-image
+hardware acceptance remains deferred while Kit 2 is assigned to `rb429-hil`.
 
 ## Not implemented, or not this package
 

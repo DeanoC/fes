@@ -59,6 +59,9 @@ either as the way to build or accept the tree you have open.
 
 The [native video parts Kit 2 record](validation/2026-10-03-native-video-parts-kit2.md)
 binds its sealed shell, linked Direct/Scanlines parts and capture evidence.
+The [native factory host record](validation/2026-10-03-native-video-factory-build.md)
+binds the later native/SGM compositions and reproducible local release;
+candidate-image hardware acceptance is deferred.
 Current build and selection behavior remains documented by the component
 guides and [core status](core-status.md).
 

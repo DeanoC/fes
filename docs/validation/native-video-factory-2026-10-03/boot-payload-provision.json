@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "purpose": "Provision locked local inputs for appliance release export",
+  "repository": "https://github.com/MiSTer-devel/Linux_Image_creator_MiSTer",
+  "revision": "8aba321b2162e54b56522aa30758b22d97eec8da",
+  "kernel_sha256": "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae",
+  "derived_uboot_sha256": "21533e9903675329e3273aebced63c87dfa781f79327c121f24153ee2a11ecb9",
+  "target_access": false
+}

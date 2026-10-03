@@ -1,0 +1,47 @@
+{
+  "argv": [
+    "go",
+    "build",
+    "-mod=readonly",
+    "-buildvcs=true",
+    "-o",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+    "./cmd/fes-parts"
+  ],
+  "binary": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+    "sha256": "8a3428dff9aeb3295f591aa486e33011801776cb7e3cf297c03e92c5484a37f0",
+    "size": 5030856
+  },
+  "build_info": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cli-build-info.txt",
+    "sha256": "53b3eb8ae2cb3a30e4f1c10fffa8166357d802a16e799d56a1a4195a1cb2b967",
+    "size": 742
+  },
+  "build_log": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cli-build.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0
+  },
+  "classification": "host-only Go expansion CLI build; no FPGA/image/hardware execution or artifact proof",
+  "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/FogCast",
+  "duration_seconds": 0.3922402111347765,
+  "exit_code": 0,
+  "expected_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "format": 1,
+  "metadata_checks": {
+    "go1.26.5": true,
+    "vcs.modified=false": true,
+    "vcs.revision": true
+  },
+  "source_after": {
+    "revision": "3ffe989fbba6857b74f149112d1965156face870",
+    "status": ""
+  },
+  "source_before": {
+    "revision": "3ffe989fbba6857b74f149112d1965156face870",
+    "status": ""
+  },
+  "started_at": "2026-10-03T13:40:43.765190+00:00",
+  "status": "verified"
+}

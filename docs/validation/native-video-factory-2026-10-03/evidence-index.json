@@ -1,0 +1,187 @@
+{
+  "classification": "host build, composition, verified image and release evidence; candidate hardware acceptance deferred",
+  "files": [
+    {
+      "bytes": 13414,
+      "file": "bind_image.py",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/bind_image.py",
+      "sha256": "eae68c727310b647a47c00976993451676c941700895262d944ae8ab4934f0e7"
+    },
+    {
+      "bytes": 6825,
+      "file": "bind_prepared.py",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/bind_prepared.py",
+      "sha256": "1cc2cc085a4ddd24c9385b92af8a7fc1496f6ce6ab3f34dd40873f333305007b"
+    },
+    {
+      "bytes": 436,
+      "file": "boot-payload-provision.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/boot-payload-provision.json",
+      "sha256": "dd2f9d1df5121765c1702e4f140301f9c2dec1a0eb6b9806128db9466e26d64a"
+    },
+    {
+      "bytes": 135043,
+      "file": "build.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/build.json",
+      "sha256": "135f4445f1d2fa122c004bb1fcae4e3c692a9d5697a9bb0f92236796afe2dec0"
+    },
+    {
+      "bytes": 1875,
+      "file": "cli-build.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/cli-build.json",
+      "sha256": "c69ef377d133a2441b235f79543e88345b761ada6b15959ada5a521bda204dfb"
+    },
+    {
+      "bytes": 1907,
+      "file": "composition-verification.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/verification.json",
+      "sha256": "c0498c549ca07884e0f930c1383c8a38346d1fddba77495f53d00f0df5efdba4"
+    },
+    {
+      "bytes": 666,
+      "file": "composition-verification.log",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/verify.log",
+      "sha256": "4c9c1344bfb7ea6fdd5cac34703704021fed189e353225345318473c7a8b76c6"
+    },
+    {
+      "bytes": 2472,
+      "file": "existing-image-diagnostic.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/hardware/existing-image-diagnostic.json",
+      "sha256": "44a675e9d629443c61ab6cfaac04bb07817ed1eef8ade1ec3123bccac7c969dc"
+    },
+    {
+      "bytes": 28433,
+      "file": "image-binding.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/image-binding.json",
+      "sha256": "c82186d8afb1658da3e1006bb1ccb523b1483071f21e532c0254dd1ff0e0f45a"
+    },
+    {
+      "bytes": 27870,
+      "file": "image-inputs.json",
+      "original": "out/native-integration-dev/inputs.json",
+      "sha256": "36ec55e369b80c054f5391d9f5ee746d2a62a25ed34d41124c652aa52489f303"
+    },
+    {
+      "bytes": 53019,
+      "file": "image-manifest.tsv",
+      "original": "out/native-integration-dev/manifest.tsv",
+      "sha256": "1e5fb6a3c1e07a668261ad486569ad34d873aea7f0dcaeee0f6da66f63a807f9"
+    },
+    {
+      "bytes": 305,
+      "file": "image-verification.json",
+      "original": "out/native-integration-dev/verification.json",
+      "sha256": "a0ab26f879833e3a98b9a251b4e85f2c19594cdbfd1d1de1e502b7075effc7dc"
+    },
+    {
+      "bytes": 5449,
+      "file": "image.json",
+      "original": "out/native-integration-dev/image.json",
+      "sha256": "09aa28ce44f6532351165fed7ca2b411226699645479e4927a5ce3deeb0c5b75"
+    },
+    {
+      "bytes": 179,
+      "file": "parent-tests.log",
+      "original": "out/native-video-factory/candidate-3ffe989f/parent-tests.log",
+      "sha256": "36a4fc8813104664c6bf0d818cf31c311d51c050160bca4dcb30f4c7826f99e9"
+    },
+    {
+      "bytes": 10994,
+      "file": "prepared-binding.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/prepared-binding.json",
+      "sha256": "5049e2f50269079284c365b79996e733e287ad8d6b69a44b0e88f3be5bf13724"
+    },
+    {
+      "bytes": 177,
+      "file": "producer-tests.log",
+      "original": "out/native-video-factory/candidate-e3738b4f/retained-boundary-tests.log",
+      "sha256": "41d516398246d69dfe7b5c41e7e084e6bf1c6b43ebe0c7390205388be6746a7a"
+    },
+    {
+      "bytes": 6124,
+      "file": "proof-preparation.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/preparation.json",
+      "sha256": "12235a289f2668d03ab4496540ad922ca7b0d48f531c5481182afadda83c16c4"
+    },
+    {
+      "bytes": 857,
+      "file": "release-evidence.json",
+      "original": "out/native-integration-dev/appliance/releases/4c2de9f3edb28d71fd920eee66157b94b56d9b2dd9cf7adfea92aabd1c8c2628/79494c7ae90957a112463e33ce004c515c73e1e4888340215d8ab6c444263742/evidence.json",
+      "sha256": "a84773c7207ac790e8852100b386bef95ec5579422629ea1fa3e282cc45326ad"
+    },
+    {
+      "bytes": 477,
+      "file": "release.json",
+      "original": "out/native-integration-dev/appliance/releases/4c2de9f3edb28d71fd920eee66157b94b56d9b2dd9cf7adfea92aabd1c8c2628/79494c7ae90957a112463e33ce004c515c73e1e4888340215d8ab6c444263742/release.json",
+      "sha256": "79494c7ae90957a112463e33ce004c515c73e1e4888340215d8ab6c444263742"
+    },
+    {
+      "bytes": 185,
+      "file": "reproducibility.txt",
+      "original": "out/native-integration-dev/reproducibility.txt",
+      "sha256": "739370feecfc52bc8c93017427d1c60739185381554dfd31924945a2025e368c"
+    },
+    {
+      "bytes": 2208,
+      "file": "software-tests.json",
+      "original": "out/native-video-factory/candidate-3ffe989f/software.json",
+      "sha256": "fcf78325e42b3dc93f16824bd4e3a6eb0ec5e05be3191fcc253c5694375fe007"
+    },
+    {
+      "bytes": 137,
+      "file": "source-check.log",
+      "original": "out/native-video-factory/candidate-3ffe989f/check.log",
+      "sha256": "9456c814673061fef856931f3eb5bfb032b585918b28b44ce88d993f69b97627"
+    },
+    {
+      "bytes": 23490,
+      "file": "verify.py",
+      "original": "out/native-video-factory/candidate-3ffe989f/build-proof/verify.py",
+      "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027"
+    }
+  ],
+  "format": 1,
+  "hardware": {
+    "candidate_captures": 0,
+    "candidate_deployed": false,
+    "existing_image_diagnostic": "The earlier raster-only installed image rejected the native part before programming; its summary is separate from candidate acceptance.",
+    "status": "deferred by user while rb429-hil owns Kit 2"
+  },
+  "projections": [
+    {
+      "bytes": 16995,
+      "file": "ci-summary.json",
+      "method": "Select check name, source revision, status, conclusion, job URL and start/completion times from each of the 44 entries; verify all completed successfully at the selected source.",
+      "original": {
+        "bytes": 156653,
+        "path": "out/native-video-factory/candidate-3ffe989f/ci-latest.json",
+        "sha256": "d5d84cf9e47182951ad3ddc93019ee2c762042c76314621058df58414d3ce740"
+      },
+      "sha256": "b0ea80e058a1dc45a0a9e8bee4b6e82cb29644b258694e9bc1d11ba8af1c733e"
+    },
+    {
+      "bytes": 1160,
+      "file": "cli-build-info.json",
+      "method": "Wrap the complete original UTF-8 transcript in JSON. UTF-8 encoding the text field reconstructs the exact original bytes.",
+      "original": {
+        "bytes": 742,
+        "path": "out/native-video-factory/candidate-3ffe989f/build-proof/cli-build-info.txt",
+        "sha256": "53b3eb8ae2cb3a30e4f1c10fffa8166357d802a16e799d56a1a4195a1cb2b967"
+      },
+      "sha256": "7be726cf52a38f330c813d8f3024aa37b0467cb7ce1b5f7e42fbba4eddd6e8e5"
+    },
+    {
+      "bytes": 11927,
+      "file": "qemu-smoke-log.json",
+      "method": "Wrap the complete original UTF-8 transcript in JSON. UTF-8 encoding the text field reconstructs the exact original bytes.",
+      "original": {
+        "bytes": 11205,
+        "path": "out/native-integration-dev/qemu-smoke.log",
+        "sha256": "6112bb8f5bd508ed2394ead7e2f3bce6dc73c92cc0ae351ad4c668836475863e"
+      },
+      "sha256": "3f4a5b456ab6a6eb2f81e7026d4477493daeee52db5c594cd64e831fa70f270d"
+    }
+  ],
+  "publication": "Each file listed under files is an unchanged byte copy; original paths refer to retained operator outputs. Derived projections are listed separately. FPGA binaries, rootfs, private target receipts and credentials are not published here.",
+  "source_revision": "3ffe989fbba6857b74f149112d1965156face870"
+}

@@ -1,0 +1,69 @@
+{
+  "ci": {
+    "log": {
+      "path": "out/native-video-factory/candidate-3ffe989f/ci-latest.json",
+      "sha256": "d5d84cf9e47182951ad3ddc93019ee2c762042c76314621058df58414d3ce740",
+      "size": 156653
+    },
+    "passed": 44,
+    "source_revision": "3ffe989fbba6857b74f149112d1965156face870"
+  },
+  "classification": "host-only checks; no artifact or hardware acceptance",
+  "format": 1,
+  "independent_review": "native_library read-only review of exact buffer admission, frozen anchor topology, paired renaming and nextpnr importer compatibility: no actionable findings",
+  "source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "tests": [
+    {
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "tests.test_coleco_sgm_build",
+        "tests.test_native_video_build",
+        "tests.test_native_video_parts",
+        "tests.test_native_video_clock",
+        "tests.test_video_parts_build"
+      ],
+      "cwd": "sources/misteross",
+      "execution": "Executed before commit on the final retained-anchor diff; production and test bytes verified identical to committed source.",
+      "log": {
+        "path": "out/native-video-factory/candidate-e3738b4f/retained-boundary-tests.log",
+        "sha256": "41d516398246d69dfe7b5c41e7e084e6bf1c6b43ebe0c7390205388be6746a7a",
+        "size": 177
+      },
+      "passed": 53
+    },
+    {
+      "command": [
+        "make",
+        "check"
+      ],
+      "copied_source_pins": 0,
+      "fixture_copies": 33,
+      "generated_consumers": 17,
+      "log": {
+        "path": "out/native-video-factory/candidate-3ffe989f/check.log",
+        "sha256": "9456c814673061fef856931f3eb5bfb032b585918b28b44ce88d993f69b97627",
+        "size": 137
+      },
+      "passed": true
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_recipes",
+        "tests.test_factory_video_parts",
+        "tests.test_core_catalog"
+      ],
+      "log": {
+        "path": "out/native-video-factory/candidate-3ffe989f/parent-tests.log",
+        "sha256": "36a4fc8813104664c6bf0d818cf31c311d51c050160bca4dcb30f4c7826f99e9",
+        "size": 179
+      },
+      "passed": 78
+    }
+  ]
+}
