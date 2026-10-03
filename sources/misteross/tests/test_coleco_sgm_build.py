@@ -2,6 +2,7 @@
 
 import json
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -50,8 +51,11 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertIn("cores/fes-coleco/rtl/coleco_audio_mix.v", shell.PINNED_INPUTS)
         self.assertIn("cores/fes-coleco/rtl/coleco_expansion_socket_v2.v", shell.PINNED_INPUTS)
         self.assertEqual(shell.TOOL_COMMITS["nextpnr"],
-                         "a93fe013af841214ecb4f7be3af0de65f3de3a0f")
+                         "655f38334b8a1ba798cc05cf3744b6a897119b5d")
         self.assertEqual(shell.TOOLCHAIN_LOCK, "toolchains/coleco-sgm.lock")
+        lock = tomllib.loads((shell.ROOT / shell.TOOLCHAIN_LOCK).read_text())
+        for name, revision in shell.TOOL_COMMITS.items():
+            self.assertEqual(lock["tool"][name]["commit"], revision)
         with patch.object(shell, "functional_record_fields",
                           side_effect=lambda root, fields, *args, **kwargs: fields), \
              patch.object(shell, "encode_build_record", side_effect=lambda fields: fields):

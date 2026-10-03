@@ -582,10 +582,10 @@ ten-seed, weight-2000 search. The ordered weights, mode, attempt budget and
 timeout enter the build identity; route evidence records the selected seed
 and weight. This fallback does not establish timing margin for a later build.
 
-The pinned frozen importer removes transparent cart clock buffers but does not
-reconnect an SDP M10K's second clock through their aliases. The native producer
-therefore proves every FF/RAM clock traces through only transparent buffers to
-the declared input buffer, then uses that imported net for all clock pins.
+The native producer proves every FF/RAM clock traces through only transparent
+buffers to the declared input buffer, then normalizes all clock pins to that
+boundary before frozen import. The locked importer reconnects every traced
+clock alias, including both ports of an SDP M10K.
 RAM modes, write enables and data paths remain identical. `cart-synth.json`
 retains the original synthesis output; the build summary binds both netlist
 hashes and clock-pin counts. Routed validation still requires every active
@@ -850,8 +850,11 @@ request and 28-bit registered response. The response carries direct data,
 claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
 32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
 owns the window-enable and AY register decode. `toolchains/coleco-sgm.lock`
-pins nextpnr `a93fe013` with frozen-scaffold BEL admission and bounded slot
-placement. The v2-only socket reserves `24 1 28 19` placement and
+pins nextpnr `655f3833` with frozen-scaffold BEL admission and bounded slot
+placement. Its GPU router selects all users of congested wires before rip-up
+and preserves the initial-routing budget through small congestion plateaus.
+The shell and its matching video/SGM parts use this same locked compiler.
+The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
 The frozen v2 shell also pins a clock-only FF at `MISTRAL_FF.24.4.56` and

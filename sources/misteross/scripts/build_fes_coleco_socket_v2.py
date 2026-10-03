@@ -40,7 +40,7 @@ PLACER_TIMEOUT_SECONDS = 600
 TOOL_COMMITS = {
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
     "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
+    "nextpnr": "655f38334b8a1ba798cc05cf3744b6a897119b5d",
 }
 RTL_SOURCES = (*factory.RTL_SOURCES,
     "cores/fes-coleco/rtl/coleco_expansion_socket_v2.v",

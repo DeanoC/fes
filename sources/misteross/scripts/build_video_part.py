@@ -185,9 +185,9 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
             for member in required:
                 require_output(output / member, 32 * 1024 * 1024 if member.endswith(".rbf") else 128 * 1024 * 1024)
             if native and name == "synthesis":
-                # The packed importer removes transparent clock buffers. Its
-                # M10K second port needs the declared input-buffer net so both
-                # RAM clocks resolve to the same imported pixel clock.
+                # Prove every FF/RAM clock comes from the declared input and
+                # normalize that boundary before frozen import. Retain the
+                # original netlist so cache validation can replay the proof.
                 shutil.copyfile(output / "cart.json", output / "cart-synth.json")
                 clock_boundary = native_video_clock.prepare_native_clock(output / "cart.json")
         route_text = (output / "route.log").read_text()
