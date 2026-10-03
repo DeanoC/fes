@@ -193,7 +193,7 @@ module top #(
     (* keep *) wire [31:0] video_request = native_request;
     (* keep *) wire [31:0] video_plug_request;
     wire [27:0] video_plug_response = 28'b0;
-    wire [27:0] video_response;
+    (* keep *) wire [27:0] video_response;
     coleco_native_video_socket video_socket (
         .clock(pixel_clk), .request(video_request), .response(video_response),
         .plug_request(video_plug_request), .plug_response(video_plug_response)
