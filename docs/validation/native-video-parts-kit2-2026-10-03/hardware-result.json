@@ -1,0 +1,492 @@
+{
+  "artifact_receipt": "build.json",
+  "bare_shell": {
+    "inspect_compatible": true,
+    "rejection": {
+      "code": "UNSUPPORTED_OPERATION",
+      "http_status": 422
+    },
+    "result": {
+      "boot_unchanged": true,
+      "expected_rejection": true,
+      "limitation": "Public status observation; physical admission guard separately covered by runtime host tests.",
+      "status_unchanged": true
+    },
+    "source_receipts": {
+      "vacant-after.json": {
+        "path": "out/native-video-link/hardware/captures-strict/vacant-after.json",
+        "sha256": "3dd2e17a95fee457acdebdb1fa61048ecf0ceb9c26a33eb51ff2f8722ffa4684",
+        "size": 1368
+      },
+      "vacant-before.json": {
+        "path": "out/native-video-link/hardware/captures-strict/vacant-before.json",
+        "sha256": "7436578492990e0b787106631c94ecefd881bf5fb62d1f77505b48b16786abc8",
+        "size": 1368
+      },
+      "vacant-inspect.json": {
+        "path": "out/native-video-link/hardware/captures-strict/vacant-inspect.json",
+        "sha256": "516987125ba901329971c81a1e6169442f969e66a412648b1a9efd2747c2298c",
+        "size": 2601
+      },
+      "vacant-rejected.json": {
+        "path": "out/native-video-link/hardware/captures-strict/vacant-rejected.json",
+        "sha256": "a1753039b1af276b6177d8066abf01b2eee2a56f99bd0a010b6cb7fbaf6008dd",
+        "size": 60
+      },
+      "vacant-result.json": {
+        "path": "out/native-video-link/hardware/captures-strict/vacant-result.json",
+        "sha256": "ba63e8c498ac8d8458f8746482bc2202c37fd9a10f9c9123222b4e43612969cb",
+        "size": 200
+      }
+    }
+  },
+  "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+  "capture_verdict": "capture-verdict.json",
+  "cases": {
+    "direct": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.firmware.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keypad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "build_id": "c2cd6921235a9bfc238286aa3798382d",
+      "generation": 1,
+      "inspect_compatible_and_idle_unchanged": true,
+      "load_status_and_media_status_identical": true,
+      "media": {
+        "sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+        "size": 1086
+      },
+      "media_stream": {
+        "chunk_bytes": 512,
+        "interface": {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        "max_bytes": 32768,
+        "min_bytes": 1
+      },
+      "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+      "parts_composition": {
+        "composition_id": "d7e600ec0f825c056b091f09247da2060011245c68f2586e9626507f1f6cc970",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "parts": [
+          {
+            "part_id": "797faa29ea0c7edeb78a2a85a760cf9dfeabda3e46f9c38fd83a168b502007cc",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "ba57ffe39b29475151eab0105381d17991866f19ba78af5bf9dc8f24856691de",
+        "payload_size": 2790496,
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+      },
+      "persistence_mode": "volatile",
+      "source_receipts": {
+        "after-inspect": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-after-inspect.json",
+          "sha256": "9cd5387ebac89342a6d149d939b682287e1f8ee34fe8b0406e656b831d6492e8",
+          "size": 1368
+        },
+        "before": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-before.json",
+          "sha256": "56b40106def9a957338a1b25ec88c46fda9ece4d3b3afd76edbd60fc539fa5ba",
+          "size": 1368
+        },
+        "capture": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-capture.json",
+          "sha256": "e38b1395b92ccfcaabc45bd3a75710112077b7eb3b318e485c9f66dd8b614f6a",
+          "size": 3102
+        },
+        "inspect": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-inspect.json",
+          "sha256": "a8ea8e3abc81acddb1de4146718ef325897cf7d901cd68660dd2969e2bdf938b",
+          "size": 3435
+        },
+        "load": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-load.json",
+          "sha256": "95f25ee69d3c3d65ea0c7906f0ea1db8368165d6ecf4341f512f951797b33bde",
+          "size": 2024
+        },
+        "media": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-media.json",
+          "sha256": "aa3f1fa44d5b9b84379b9c977afc2539546a2e87ab184b11a51a60381f6a1ea1",
+          "size": 2444
+        },
+        "status": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-status.json",
+          "sha256": "95f25ee69d3c3d65ea0c7906f0ea1db8368165d6ecf4341f512f951797b33bde",
+          "size": 2024
+        },
+        "stop": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-stop.json",
+          "sha256": "2d8138a8502eae5c6b37559bdb3cf8f7f23dd148b9ba477b8a7bd7f7249eb785",
+          "size": 131
+        },
+        "stop-observation": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-stop-observation.json",
+          "sha256": "f3a6484848c283ae8afe743a6d18ed8a0a1d74294dd76f044dbb0eb6b2bf0bc5",
+          "size": 1368
+        }
+      },
+      "state": "active",
+      "stop": {
+        "lease_state": "held",
+        "ready": true,
+        "state": "idle"
+      }
+    },
+    "direct-relaunch": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.firmware.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keypad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "build_id": "c2cd6921235a9bfc238286aa3798382d",
+      "generation": 3,
+      "inspect_compatible_and_idle_unchanged": true,
+      "load_status_and_media_status_identical": true,
+      "media": {
+        "sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+        "size": 1086
+      },
+      "media_stream": {
+        "chunk_bytes": 512,
+        "interface": {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        "max_bytes": 32768,
+        "min_bytes": 1
+      },
+      "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+      "parts_composition": {
+        "composition_id": "d7e600ec0f825c056b091f09247da2060011245c68f2586e9626507f1f6cc970",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "parts": [
+          {
+            "part_id": "797faa29ea0c7edeb78a2a85a760cf9dfeabda3e46f9c38fd83a168b502007cc",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "ba57ffe39b29475151eab0105381d17991866f19ba78af5bf9dc8f24856691de",
+        "payload_size": 2790496,
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+      },
+      "persistence_mode": "volatile",
+      "source_receipts": {
+        "after-inspect": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-after-inspect.json",
+          "sha256": "d6e4addfd0557f6cbb487bc888f965f1d7827753c6ad8a9562e7187cdc1ffeef",
+          "size": 1368
+        },
+        "before": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-before.json",
+          "sha256": "c2a2f4b0ed1d2674827427d5a61c978548a3da4ade56c7e88784be3f73c96143",
+          "size": 1368
+        },
+        "capture": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-capture.json",
+          "sha256": "3e1bab96381c6199c1a4d195f8a3f072c2278fdfeb4883f58b182619d62a66de",
+          "size": 3102
+        },
+        "inspect": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-inspect.json",
+          "sha256": "a8ea8e3abc81acddb1de4146718ef325897cf7d901cd68660dd2969e2bdf938b",
+          "size": 3435
+        },
+        "load": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-load.json",
+          "sha256": "6f700bfc884c59453c665f5a4448383ece68d4b9eabb3bf02e504f3744f94451",
+          "size": 2024
+        },
+        "media": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-media.json",
+          "sha256": "277f517baacc3d64639326c0119e36b5ed7fde952a2c91515480f5cdda1771ad",
+          "size": 2444
+        },
+        "status": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-status.json",
+          "sha256": "6f700bfc884c59453c665f5a4448383ece68d4b9eabb3bf02e504f3744f94451",
+          "size": 2024
+        },
+        "stop": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-stop.json",
+          "sha256": "2d8138a8502eae5c6b37559bdb3cf8f7f23dd148b9ba477b8a7bd7f7249eb785",
+          "size": 131
+        },
+        "stop-observation": {
+          "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-stop-observation.json",
+          "sha256": "5650fe69708db16a9b86e6a50ecf50a1cb8cee164db5dc405066100a34c034d4",
+          "size": 1368
+        }
+      },
+      "state": "active",
+      "stop": {
+        "lease_state": "held",
+        "ready": true,
+        "state": "idle"
+      }
+    },
+    "scanlines": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.firmware.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keypad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "build_id": "c2cd6921235a9bfc238286aa3798382d",
+      "generation": 2,
+      "inspect_compatible_and_idle_unchanged": true,
+      "load_status_and_media_status_identical": true,
+      "media": {
+        "sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+        "size": 1086
+      },
+      "media_stream": {
+        "chunk_bytes": 512,
+        "interface": {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        "max_bytes": 32768,
+        "min_bytes": 1
+      },
+      "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+      "parts_composition": {
+        "composition_id": "41a7076b732d53feeb982a5d4037c2fcd304e6fe6bb46c48ec26cad60ea31808",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "parts": [
+          {
+            "part_id": "af2dd566691ba53a6d9d61e152bc9c85935bdf2722e2e384f965f869f4f40168",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "4b7cf5c9c14222d3781bc2b9f9bf473a28b1c5866b1c00cdb923905260b1ae8a",
+        "payload_size": 2787049,
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+      },
+      "persistence_mode": "volatile",
+      "source_receipts": {
+        "after-inspect": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-after-inspect.json",
+          "sha256": "f69dd6cece8010b341665d5fe4b2b386f544e7213771dd518030079b7d47b2e1",
+          "size": 1368
+        },
+        "before": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-before.json",
+          "sha256": "63135928b84131cabe002cd294b07f909a5661f80a96e42d6ad8fd16dcd6c427",
+          "size": 1368
+        },
+        "capture": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-capture.json",
+          "sha256": "9456d9185b8dfa221292d229d818c469b957255b70baa87fb168bd2b9baa2a43",
+          "size": 3103
+        },
+        "inspect": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-inspect.json",
+          "sha256": "8d4256fb0d0375785330c9ab8236bce573571a324eb191b08d5e837ce53e8d3f",
+          "size": 3435
+        },
+        "load": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-load.json",
+          "sha256": "cd019b10dd383668feda00b67c3319efc8d0ad6f567aff5bc26b3926578ad259",
+          "size": 2024
+        },
+        "media": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-media.json",
+          "sha256": "dbef3e1be641577a6da974eea78f72b9046ce05b78f7b2135481969bb75f2eca",
+          "size": 2444
+        },
+        "status": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-status.json",
+          "sha256": "cd019b10dd383668feda00b67c3319efc8d0ad6f567aff5bc26b3926578ad259",
+          "size": 2024
+        },
+        "stop": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-stop.json",
+          "sha256": "2d8138a8502eae5c6b37559bdb3cf8f7f23dd148b9ba477b8a7bd7f7249eb785",
+          "size": 131
+        },
+        "stop-observation": {
+          "path": "out/native-video-link/hardware/captures-strict/scanlines-stop-observation.json",
+          "sha256": "5b2a01cbeaeec6fa38b88c12b98ca8fc1208b2f6ac86730d19748d39a276134a",
+          "size": 1368
+        }
+      },
+      "state": "active",
+      "stop": {
+        "lease_state": "held",
+        "ready": true,
+        "state": "idle"
+      }
+    }
+  },
+  "classification": "Exact-artifact Kit 2 developer diagnostic with temporary agent/runtime executable overlays; no appliance or native factory-selection acceptance.",
+  "final_idle_observation": {
+    "observation": {
+      "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+      "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+      "last_error": null,
+      "lease_state": "held",
+      "ready": true,
+      "reported_agent_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+      "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+      "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+      "state": "idle",
+      "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+    },
+    "source_receipt": {
+      "path": "out/native-video-link/hardware/captures-strict/final-stop-observation.json",
+      "sha256": "81dc8849cf8d4682427a7336f99c00c32719e081b5467fb3d0637f947779ec9c",
+      "size": 1368
+    }
+  },
+  "final_lease": {
+    "source_receipt": {
+      "path": "out/native-video-link/hardware/captures-strict/final-lease.json",
+      "sha256": "de1074e5556c48ff6e0b430e1f0038001fee9d58b29988f5ae5722c3cce0c1ff",
+      "size": 168
+    },
+    "state": "free"
+  },
+  "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+  "limitations": [
+    "Only the generated 1086-byte open Graphics I/SN cartridge was exercised.",
+    "No CPU expansion was populated. Native optional CPU coexistence has no new physical acceptance here.",
+    "Existing operational video/audio interfaces remain fixed; CRT, DDR output, other standards and pluggable audio are outside this diagnostic."
+  ],
+  "operator_result": {
+    "cases": [
+      "direct",
+      "scanlines",
+      "direct-relaunch"
+    ],
+    "classification": "operator-run native developer diagnostic; not appliance acceptance",
+    "completed": true,
+    "last_generation": 3,
+    "lease_free": true
+  },
+  "original_result": {
+    "path": "out/native-video-link/hardware/captures-strict/result.json",
+    "sha256": "eb175d681283413774cdd395ae1e276f7092f8a5f72368a31edc5e273db5d536",
+    "size": 231
+  },
+  "platform_receipt": "platform.json",
+  "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+}

@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Positive and negative local-file controls; never opens a device."""
+import array
+import json
+import math
+from pathlib import Path
+import subprocess
+import sys
+import wave
+
+import analyze_native as analyzer
+import native_capture_grid as grid
+import native_capture_support as support
+import native_oracle as oracle
+
+BASE = Path(__file__).resolve().parent
+
+
+def encode(name, rgb, frames=12):
+    directory = BASE / 'controls'
+    directory.mkdir(exist_ok=True)
+    ppm, video = directory / (name + '.ppm'), directory / (name + '.mkv')
+    ppm.write_bytes(b'P6\n1280 720\n255\n' + rgb)
+    subprocess.run(['ffmpeg', '-v', 'error', '-nostdin', '-y', '-loop', '1', '-framerate', '60',
+        '-i', str(ppm), '-frames:v', str(frames), '-an', '-c:v', 'ffv1', '-level', '3',
+        '-threads', '1', '-pix_fmt', 'yuv422p', str(video)], check=True)
+    png, index = analyzer.reference(video, directory)
+    return video, png, index
+
+
+def tone(path, frequency, *, right_frequency=None, amplitude=6000):
+    values = array.array('h')
+    for n in range(48000 * 6):
+        left = round(amplitude * math.sin(2 * math.pi * frequency * n / 48000))
+        right = round(amplitude * math.sin(2 * math.pi * (right_frequency or frequency) * n / 48000))
+        values.extend((left, right))
+    if sys.byteorder != 'little': values.byteswap()
+    with wave.open(str(path), 'wb') as output:
+        output.setnchannels(2); output.setsampwidth(2); output.setframerate(48000)
+        output.writeframes(values.tobytes())
+
+
+def shade(rgb, height=1):
+    result = bytearray(rgb)
+    for y in range(720):
+        if (y // height) % 2:
+            start = y * 1280 * 3
+            result[start:start + 1280 * 3] = bytes(value >> 1 for value in result[start:start + 1280 * 3])
+    return bytes(result)
+
+
+def present(result):
+    channels = result['channels']
+    return all(channel['ac_rms_s16'] > 100 and
+        channel['spectral']['measured_peak_near_nominal'] and
+        abs(channel['spectral']['measured_peak_near_nominal']['frequency_hz'] - oracle_nominal) <= .5 and
+        channel['spectral']['measured_peak_near_nominal']['power_fraction_of_strongest_peak'] >= .5
+        for channel in channels)
+
+
+def main():
+    global oracle_nominal
+    expected, direct, provenance = oracle.expected(BASE / 'fixture/prepared.json')
+    oracle_nominal = provenance['nominal_SN_hz']
+    controls = BASE / 'controls'
+    controls.mkdir(exist_ok=True)
+    checks, videos, references = {}, {}, {}
+    images = {'direct': direct, 'scanlines': shade(direct), 'direct-relaunch': direct}
+    shifted = bytearray(len(direct))
+    for y in range(720):
+        start = y * 1280 * 3
+        shifted[start + 3:start + 1280 * 3] = direct[start:start + (1280 - 1) * 3]
+    images.update(old_raster_one_pixel_delay=bytes(shifted), wrong_scanline_period4=shade(direct, 2))
+    for name, image in images.items():
+        path, png, frame = encode(name, image, 180 if name in analyzer.CASES else 12)
+        videos[name] = analyzer.gray_geometry(path, frame, expected)
+        references[name] = support.image_bytes(png)
+        print(name, 'full_pixel_bad_frames', len(videos[name]['later_bad_frame_indexes']), flush=True)
+    checks['native_full_pixel_geometry_passes'] = not videos['direct']['later_bad_frame_indexes']
+    checks['native_scanline_full_pixel_geometry_passes'] = not videos['scanlines']['later_bad_frame_indexes']
+    checks['old_raster_horizontal_delay_rejected'] = bool(videos['old_raster_one_pixel_delay']['later_bad_frame_indexes'])
+    good = analyzer.row_comparison(references['direct'], references['scanlines'])
+    wrong = analyzer.row_comparison(references['direct'], references['wrong_scanline_period4'])
+    alternative = analyzer.row_comparison(references['direct'], references['wrong_scanline_period4'], 2)
+    checks['period2_scanlines_pass'] = max(good['bright_rows_mae_rgb'] + good['dim_rows_half_brightness_mae_rgb']) <= 2
+    checks['period4_scanlines_rejected'] = max(wrong['bright_rows_mae_rgb'] + wrong['dim_rows_half_brightness_mae_rgb']) > 20
+    checks['period4_alternative_model_passes'] = max(alternative['bright_rows_mae_rgb'] + alternative['dim_rows_half_brightness_mae_rgb']) <= 2
+    checks['direct_relaunch_equal'] = max(grid.difference(references['direct-relaunch'], references['direct'])['whole_frame_max_absolute_rgb_delta']) == 0
+    checks['shifted_relaunch_rejected'] = max(grid.difference(references['old_raster_one_pixel_delay'], references['direct'])['whole_frame_max_absolute_rgb_delta']) > 20
+    audio = {}
+    for name, frequency, amplitude, right in (
+            ('good', oracle_nominal, 6000, None), ('silent', oracle_nominal, 0, None),
+            ('wrong_tone', oracle_nominal * 2, 6000, None),
+            ('different_stereo', oracle_nominal, 6000, oracle_nominal + 1)):
+        path = controls / (name + '.wav')
+        tone(path, frequency, amplitude=amplitude, right_frequency=right)
+        audio[name] = analyzer.audio(path, 2.5, 3, oracle_nominal)
+        print(name, 'tone_gate', bool(present(audio[name])), flush=True)
+    checks['nominal_sn_tone_passes'] = bool(present(audio['good']))
+    checks['silence_rejected'] = not present(audio['silent'])
+    checks['wrong_frequency_rejected'] = not present(audio['wrong_tone'])
+    checks['different_stereo_rejected'] = audio['different_stereo']['stereo']['pearson_correlation'] < .99
+    for name in analyzer.CASES:
+        (controls / (name + '.wav')).write_bytes((controls / 'good.wav').read_bytes())
+    result = {'checks': checks, 'native_oracle': provenance,
+        'row_models': {'correct': good, 'wrong_period4': wrong, 'alternative_period4': alternative},
+        'audio': audio, 'verdict': 'pass' if all(checks.values()) else 'failed'}
+    (BASE / 'self-check.json').write_text(json.dumps(result, sort_keys=True, indent=2) + '\n')
+    print(json.dumps({'verdict': result['verdict'], 'checks': checks}, indent=2), flush=True)
+    return 0 if all(checks.values()) else 1
+
+
+if __name__ == '__main__': sys.exit(main())

@@ -1,0 +1,225 @@
+{
+  "cases": {
+    "direct": {
+      "audio": {
+        "channels": 2,
+        "decoded_pcm_bytes": 1152600,
+        "decoded_pcm_sha256": "bb03bfb365fbbdd4a537fe9de7e381d14d70e8c44a692ba26c8f7daadb6fa41f",
+        "rate_hz": 48000,
+        "sample_bits": 16,
+        "sample_frames": 288150
+      },
+      "encoding_command": [
+        "ffmpeg",
+        "-v",
+        "error",
+        "-nostdin",
+        "-n",
+        "-i",
+        "captures-strict/direct.wav",
+        "-map",
+        "0:a:0",
+        "-c:a",
+        "flac",
+        "-compression_level",
+        "8",
+        "direct.flac"
+      ],
+      "original_capture_receipt": {
+        "path": "out/native-video-link/hardware/captures-strict/direct-capture.json",
+        "sha256": "e38b1395b92ccfcaabc45bd3a75710112077b7eb3b318e485c9f66dd8b614f6a",
+        "size": 3102
+      },
+      "original_files": {
+        ".mkv": {
+          "sha256": "b05fa0a5b06dd27d1d011b426a43dda310e81ced089beb34b22e38fe5042e1ab",
+          "size": 6771929
+        },
+        ".png": {
+          "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+          "size": 9751
+        },
+        ".wav": {
+          "sha256": "226de817521b8b75bb3a6eb12be4a7b418a08ca8b288182fd197c19aee50c086",
+          "size": 1152678
+        }
+      },
+      "public_flac": {
+        "decoded_pcm_identical_to_original_wav": true,
+        "path": "direct.flac",
+        "sha256": "c640a06cdf7c99085ea7dd93fe77c514303de80fc0bc30c1f77a37b987ae5e1f",
+        "size": 459538
+      },
+      "public_png": {
+        "byte_identical_to_capture_png": true,
+        "path": "direct.png",
+        "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+        "size": 9751,
+        "source_frame": 120
+      },
+      "video": {
+        "codec": "FFV1",
+        "decoded_frames": 180,
+        "height": 720,
+        "nominal_frame_rate": "60/1",
+        "pixel_format": "yuv422p",
+        "width": 1280
+      }
+    },
+    "direct-relaunch": {
+      "audio": {
+        "channels": 2,
+        "decoded_pcm_bytes": 1152352,
+        "decoded_pcm_sha256": "e958e5917ca5ad5dbb39f85deb46ad6052c6eebe66b92e823280c3928286a524",
+        "rate_hz": 48000,
+        "sample_bits": 16,
+        "sample_frames": 288088
+      },
+      "encoding_command": [
+        "ffmpeg",
+        "-v",
+        "error",
+        "-nostdin",
+        "-n",
+        "-i",
+        "captures-strict/direct-relaunch.wav",
+        "-map",
+        "0:a:0",
+        "-c:a",
+        "flac",
+        "-compression_level",
+        "8",
+        "direct-relaunch.flac"
+      ],
+      "original_capture_receipt": {
+        "path": "out/native-video-link/hardware/captures-strict/direct-relaunch-capture.json",
+        "sha256": "3e1bab96381c6199c1a4d195f8a3f072c2278fdfeb4883f58b182619d62a66de",
+        "size": 3102
+      },
+      "original_files": {
+        ".mkv": {
+          "sha256": "aba7ac54a82765a52d841ce4c322409d706fa2c7e413579d2c0933d61f050386",
+          "size": 6771929
+        },
+        ".png": {
+          "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+          "size": 9751
+        },
+        ".wav": {
+          "sha256": "53318fc6ee564c4eb0ddc31cb9c670a3cd476aedc8f84ed95f6f31900d0f1a36",
+          "size": 1152430
+        }
+      },
+      "public_flac": {
+        "decoded_pcm_identical_to_original_wav": true,
+        "path": "direct-relaunch.flac",
+        "sha256": "84123848ad6ab30627e0d84a6ee0d7349a7518428e4ca0a9eae8dbc01424160c",
+        "size": 459962
+      },
+      "public_png": {
+        "byte_identical_to_capture_png": true,
+        "path": "direct-relaunch.png",
+        "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+        "size": 9751,
+        "source_frame": 120
+      },
+      "video": {
+        "codec": "FFV1",
+        "decoded_frames": 180,
+        "height": 720,
+        "nominal_frame_rate": "60/1",
+        "pixel_format": "yuv422p",
+        "width": 1280
+      }
+    },
+    "scanlines": {
+      "audio": {
+        "channels": 2,
+        "decoded_pcm_bytes": 1152304,
+        "decoded_pcm_sha256": "e1dd7fee92d6f75c063e976afae026ab178c8f9e4e268f2c289e40d7131e444a",
+        "rate_hz": 48000,
+        "sample_bits": 16,
+        "sample_frames": 288076
+      },
+      "encoding_command": [
+        "ffmpeg",
+        "-v",
+        "error",
+        "-nostdin",
+        "-n",
+        "-i",
+        "captures-strict/scanlines.wav",
+        "-map",
+        "0:a:0",
+        "-c:a",
+        "flac",
+        "-compression_level",
+        "8",
+        "scanlines.flac"
+      ],
+      "original_capture_receipt": {
+        "path": "out/native-video-link/hardware/captures-strict/scanlines-capture.json",
+        "sha256": "9456d9185b8dfa221292d229d818c469b957255b70baa87fb168bd2b9baa2a43",
+        "size": 3103
+      },
+      "original_files": {
+        ".mkv": {
+          "sha256": "9e73223aa007e22d8303309946d1c226a1cc7c02a2b6e6c9faff19fc4db17aec",
+          "size": 15739742
+        },
+        ".png": {
+          "sha256": "58ffbd6209c4e2de37c2494140f05597daafe38a2856477f4ba4aa12dcbd5a3d",
+          "size": 9773
+        },
+        ".wav": {
+          "sha256": "3244bc8ea6b0da2f0bff6195d8efa55edfda5f61a2eecd665c9cd81092de67b6",
+          "size": 1152382
+        }
+      },
+      "public_flac": {
+        "decoded_pcm_identical_to_original_wav": true,
+        "path": "scanlines.flac",
+        "sha256": "3c57c8a2558b4f06cee45d07a5e33e3817aed2ebd3f345494e29e992918c4bfe",
+        "size": 459944
+      },
+      "public_png": {
+        "byte_identical_to_capture_png": true,
+        "path": "scanlines.png",
+        "sha256": "58ffbd6209c4e2de37c2494140f05597daafe38a2856477f4ba4aa12dcbd5a3d",
+        "size": 9773,
+        "source_frame": 120
+      },
+      "video": {
+        "codec": "FFV1",
+        "decoded_frames": 180,
+        "height": 720,
+        "nominal_frame_rate": "60/1",
+        "pixel_format": "yuv422p",
+        "width": 1280
+      }
+    }
+  },
+  "classification": "Original corrected capture hashes plus exact PNG copies and lossless FLAC publication. Full FFV1/WAV media remain under ignored out/.",
+  "ffmpeg_version": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "independent_analysis": {
+    "capture-analysis.json": {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/analysis/results/kit2-strict/analysis.json",
+        "sha256": "8d35411a4640f1feeb9e181559ebd5f543145dc46c691d188976348b6a9fa2e3",
+        "size": 222991
+      },
+      "public_file": "capture-analysis.json"
+    },
+    "capture-verdict.json": {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/analysis/results/kit2-strict/independent-receipt.json",
+        "sha256": "3feb4f1e37d07a7123c25c2e2d5423745e45224e6606670d5421860dfabddd5d",
+        "size": 14334
+      },
+      "public_file": "capture-verdict.json"
+    }
+  },
+  "source_directory": "out/native-video-link/hardware/captures-strict"
+}

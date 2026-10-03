@@ -2452,6 +2452,10 @@ and household profile selection continue to use the raster layout. A manually
 imported native shell may be inspected, but library Play and the library video
 projection reject it with a developer-parts requirement, before target calls.
 The native shell has no built-in direct output to use as a missing-part fallback.
+The [native Kit 2 diagnostic](../../../docs/validation/2026-10-03-native-video-parts-kit2.md)
+records exact developer Direct/Scanlines compositions, fresh video/audio
+captures and Stop/relaunch. It does not qualify native factory/profile selection
+or an appliance image.
 
 Library video selection uses the separate `/v1/library/core/parts` route with
 one exact `X-FogCast-Package-ID`, a bounded octet-stream body, bearer

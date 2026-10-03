@@ -397,8 +397,11 @@ loads and CPU-only compositions reject it before quiescing or programming:
 its video part is mandatory. Native video currently uses the explicit developer
 parts path; host video profile/catalog selection still supports the raster
 layout. Existing CPU composition operations reject the parts request shape.
-Admission has host software coverage only; it adds no hardware acceptance,
-alternate output timing, DDR presentation or ROM-linked parts support.
+Admission has host software coverage and an
+[exact-artifact native Kit 2 diagnostic](../../docs/validation/2026-10-03-native-video-parts-kit2.md)
+for Direct/Scanlines, media, audio and Stop/relaunch. That record uses temporary
+diagnostic executables; it does not accept an appliance image, a native CPU
+expansion, alternate timing, DDR presentation or ROM-linked parts.
 
 ### Initialized bitstream
 

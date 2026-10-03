@@ -125,8 +125,13 @@ owns no framebuffer. The native marker, map and wider physical layout are
 distinct from the factory raster profile. Developer parts loads accept that
 closed layout; ordinary library Play rejects a vacant native shell. Host
 simulation covers the real VDP, clock crossing and physical socket wrapper.
-Routing, containment and Kit 2 observations are recorded against exact builds;
-the factory catalog still selects the raster shell above.
+The [sealed-build and Kit 2 diagnostic](validation/2026-10-03-native-video-parts-kit2.md)
+records strict CRAM containment, compiler/Go/Python byte agreement and clean
+Direct/Scanlines/relaunch HDMI video/audio captures for the named artifacts.
+The native link preserves every in-fence routing bit; legacy whole-column
+exclusions are not applied to this wider socket. Native CPU expansion and
+appliance acceptance remain separate; the factory catalog still selects the
+raster shell above.
 
 ## Not implemented, or not this package
 

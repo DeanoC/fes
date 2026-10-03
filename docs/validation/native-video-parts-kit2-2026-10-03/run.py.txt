@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+"""Operator-run native Coleco parts diagnostic; importing this file is offline."""
+import argparse
+import hashlib
+import http.client
+import io
+import json
+from pathlib import Path
+import re
+import struct
+import subprocess
+import sys
+import tarfile
+import time
+import tomllib
+
+OUT = Path(__file__).resolve().parent
+ROOT = OUT.parents[2]
+sys.path.insert(0, str(ROOT / 'sources/misteross'))
+from scripts.kit import Client, Session, KitError, error_code
+
+TARGET_ID = '67c5f4e2-d288-49bb-9049-39ecf39cf6f6'
+LAYOUT = 'fes.coleco-native-video.parts/1'
+SLOT = 'fes.fabric.video.native-pixels'
+MAP = 'fes.coleco-native-video.socket/1'
+CASES = (('direct', 'direct'), ('scanlines', 'scanlines'), ('direct-relaunch', 'direct'))
+SHA = re.compile(r'^[0-9a-f]{64}$')
+MAX_ARCHIVE = 192 << 20
+
+
+def require(condition, message):
+    if not condition:
+        raise RuntimeError(message)
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, 'Duplicate JSON field')
+        result[key] = value
+    return result
+
+
+def decode(data):
+    return json.loads(data, object_pairs_hook=json_object)
+
+
+def read_asset(ref, limit=MAX_ARCHIVE):
+    require(isinstance(ref, dict) and isinstance(ref.get('sha256'), str) and SHA.fullmatch(ref['sha256']), 'Missing asset digest')
+    path = Path(ref['path'])
+    require(path.is_absolute() and path.is_file() and not path.is_symlink(), 'Asset must be an absolute regular file')
+    require(0 < path.stat().st_size <= limit, 'Asset exceeds local bound')
+    data = path.read_bytes()
+    require(digest(data) == ref['sha256'], 'Asset digest mismatch')
+    if 'size' in ref:
+        require(len(data) == ref['size'], 'Asset size mismatch')
+    return data
+
+
+def tar_members(data, names):
+    require(len(data) <= MAX_ARCHIVE, 'Archive exceeds local bound')
+    with tarfile.open(fileobj=io.BytesIO(data), mode='r:') as archive:
+        members = archive.getmembers()
+        require(len(members) == len(names) and {m.name for m in members} == set(names), 'Unexpected archive member set')
+        require(all(m.isfile() and not m.issym() and not m.islnk() and 0 < m.size <= MAX_ARCHIVE for m in members), 'Unsafe archive member')
+        return {m.name: archive.extractfile(m).read() for m in members}
+
+
+def package_identity(manifest, payload):
+    return digest(b'FES-CORE-PACKAGE-2\n' + struct.pack('<Q', len(manifest)) + manifest + struct.pack('<Q', len(payload)) + payload)
+
+
+def load_prepared(path):
+    prepared = decode(path.read_bytes())
+    require(prepared.get('version') == 1, 'Unsupported prepared file')
+    require(prepared['target'] == {'name': 'kit2', 'target_id': TARGET_ID}, 'Prepared target is not Kit2')
+    expected = prepared['expected']
+    require(SHA.fullmatch(expected['image_sha256']) and expected['boot_id'], 'Missing expected image or boot')
+    package = prepared['package']
+    raw = read_asset(package)
+    members = tar_members(raw, ('manifest.toml', 'core.rbf'))
+    descriptor = tomllib.loads(members['manifest.toml'].decode())
+    require(descriptor['format'] == 2 and descriptor['core']['id'] == 'fes.coleco', 'Not the native format-2 Coleco shell')
+    require(descriptor['abi'] == package['abi'] == {'id': 'fes.application', 'major': 1, 'minor': 0}, 'Unexpected shell ABI')
+    require(descriptor['build']['id'] == package['build_id'], 'Unexpected shell BUILD_ID')
+    require(package_identity(members['manifest.toml'], members['core.rbf']) == package['package_id'], 'Shell package identity mismatch')
+    require(descriptor['payload']['file'] == 'core.rbf' and descriptor['payload']['size'] == len(members['core.rbf']) and descriptor['payload']['sha256'] == digest(members['core.rbf']), 'Shell payload binding mismatch')
+    markers = [i for i in descriptor['interfaces'] if i['id'] in (SLOT, 'fes.fabric.video.raster-rgb888')]
+    cpu = [i for i in descriptor['interfaces'] if i['id'] == 'fes.expansion.coleco-bus']
+    require(markers == [{'id': SLOT, 'major': 1, 'minor': 0, 'required': False}] and cpu == [{'id': 'fes.expansion.coleco-bus', 'major': 2, 'minor': 0, 'required': False}], 'Ambiguous native shell sockets')
+    require(set(prepared['variants']) == {'direct', 'scanlines'}, 'Expected Direct and Scanlines transports')
+    variants = {}
+    for profile, ref in prepared['variants'].items():
+        transport = read_asset(ref)
+        files = tar_members(transport, ('parts.json', 'package.tar', 'part-video.tar', 'linked.rbf'))
+        require(files['package.tar'] == raw, 'Transport has a different frozen shell')
+        part = tar_members(files['part-video.tar'], ('manifest.json', 'cart.rbf'))
+        manifest = decode(part['manifest.json'])
+        require(manifest['slot'] == SLOT and manifest['map'] == MAP and manifest['slot_major'] == 1 and manifest['slot_minor'] == 0, 'Wrong video socket or map')
+        require(manifest['shell_package_id'] == package['package_id'] and manifest['shell_build_id'] == package['build_id'] and manifest['shell_sha256'] == descriptor['payload']['sha256'], 'Part frozen shell binding mismatch')
+        require(manifest['cart_size'] == len(part['cart.rbf']) and manifest['cart_sha256'] == digest(part['cart.rbf']), 'Part cart digest mismatch')
+        part_id = digest(b'fes-expansion-v1\0' + part['manifest.json'])
+        composition = decode(files['parts.json'])
+        require(set(composition) == {'composition_id', 'package_id', 'layout', 'parts', 'shell_sha256', 'payload_sha256', 'payload_size'}, 'Unexpected parts tuple fields')
+        require(composition['layout'] == LAYOUT and composition['parts'] == [{'role': 'video', 'part_id': part_id}], 'Wrong native parts layout or role identity')
+        require(composition['package_id'] == package['package_id'] and composition['shell_sha256'] == descriptor['payload']['sha256'], 'Parts tuple shell mismatch')
+        require(40408 <= len(files['linked.rbf']) <= 32 << 20 and composition['payload_size'] == len(files['linked.rbf']) and composition['payload_sha256'] == digest(files['linked.rbf']), 'Linked payload digest or size mismatch')
+        identity = b'fes-parts-composition-v1\0' + package['package_id'].encode() + b'\0' + LAYOUT.encode() + b'\0video:' + part_id.encode() + b'\0' + composition['payload_sha256'].encode()
+        require(composition['composition_id'] == digest(identity), 'Parts composition ID mismatch')
+        variants[profile] = {'ref': ref, 'composition': composition}
+    require(variants['direct']['composition']['parts'] != variants['scanlines']['composition']['parts'], 'Profiles select the same part')
+    rom = read_asset(prepared['rom'], 32768)
+    diagnostic = prepared['diagnostic']
+    for kind in ('runtime', 'agent'):
+        read_asset(diagnostic[kind], 32 << 20)
+    operator = decode(read_asset(diagnostic['operator_receipt'], 1 << 20))
+    require(operator['health']['target_id'] == TARGET_ID and operator['health']['boot_id'] == expected['boot_id'] and operator['health']['artifacts']['image_sha256'] == expected['image_sha256'], 'Operator diagnostic receipt boot or image mismatch')
+    for kind, process in (('runtime', 'mister-runtime'), ('agent', 'mister-agent')):
+        require(operator['live_executables'][process]['sha256'] == diagnostic[kind]['sha256'], 'Operator live diagnostic digest mismatch')
+    prepared.update(descriptor=descriptor, variants_checked=variants, rom_bytes=rom)
+    return prepared
+
+
+def check_health(health, prepared, idle=False):
+    expected = prepared['expected']
+    require(health.get('target_id') == TARGET_ID and health.get('boot_id') == expected['boot_id'], 'Target identity or boot changed')
+    require(health.get('api_version') == 'v1', 'Unexpected target API')
+    artifacts = health.get('artifacts') or {}
+    for name in ('image_sha256', 'agent_revision', 'agent_sha256', 'runtime_commit'):
+        if name in expected:
+            require(artifacts.get(name) == expected[name], 'Target artifact identity changed: ' + name)
+    # Runtime readiness denotes a confirmed idle fabric and is false while active.
+    if idle:
+        require(health.get('ready') is True, 'Target is not ready while idle')
+
+
+def check_idle(status):
+    require(status.get('state') == 'idle' and not status.get('recovery') and status.get('last_error') is None and not status.get('core_package'), 'Target did not settle to healthy idle')
+
+
+def check_descriptor(inspection, prepared):
+    package = prepared['package']
+    require(inspection.get('compatible') is True and inspection.get('compatibility_error') is None and inspection.get('package_id') == package['package_id'], 'Core inspection rejected or changed shell')
+    descriptor = inspection['descriptor']
+    for key in ('format', 'target', 'payload', 'abi', 'interfaces', 'build'):
+        require(descriptor[key] == prepared['descriptor'][key], 'Inspected descriptor mismatch: ' + key)
+    require(descriptor['core']['id'] == 'fes.coleco', 'Inspected core changed')
+
+
+def check_active(status, prepared, composition, previous_generation=0, retained=None):
+    require(status.get('state') == 'active' and status.get('development') is True and not status.get('recovery') and status.get('last_error') is None and status.get('observed_core') == 'fes.coleco', 'Target failed native developer activation')
+    core = status['core_package']
+    package = prepared['package']
+    require(core['package_id'] == package['package_id'] and core['build_id'] == package['build_id'] and core['abi'] == package['abi'] and core['persistence_mode'] == 'volatile', 'Active shell ABI or identity mismatch')
+    require(core.get('parts_composition') == composition and not core.get('composition') and not core.get('slot_composition') and not core.get('rom_link') and not core.get('rom_links'), 'Active full parts tuple mismatch')
+    require(type(core['generation']) is int and core['generation'] > previous_generation, 'Activation generation did not advance')
+    interfaces = [{k: i[k] for k in ('id', 'major', 'minor')} for i in prepared['descriptor']['interfaces'] if not i['id'].startswith(('fes.fabric.', 'fes.expansion.'))]
+    require(core['active_interfaces'] == sorted(interfaces, key=lambda i: i['id']), 'Active operational capabilities differ from the sealed shell')
+    if retained is not None:
+        require(core == retained, 'Media or capture changed the retained package/generation/tuple')
+    return core
+
+
+class Runner:
+    def __init__(self, prepared, client, session, output=OUT, capture=None):
+        self.prepared, self.client, self.session, self.output = prepared, client, session, output
+        self.capture = capture or self.capture_case
+        self.generation = 0
+        self.stage = 'preflight'
+
+    def save(self, name, value):
+        path = self.output / (name + '.json')
+        path.write_text(json.dumps(value, indent=2) + '\n')
+        path.chmod(0o600)
+
+    def lease_guard(self):
+        require(self.session.token and not self.session.failed.is_set() and time.monotonic() < self.session.deadline, 'Lease lost; mutations disabled')
+
+    def held(self):
+        self.lease_guard()
+        lease = self.client.request('/v1/kit/lease')
+        require(lease.get('state') == 'held' and lease.get('generation') == self.session.generation, 'Diagnostic no longer owns the lease')
+        return lease
+
+    def observe(self, name, idle=False):
+        result = {'health': self.client.request('/v1/health'), 'status': self.client.request('/v1/status'), 'lease': self.held()}
+        self.save(name, result)
+        check_health(result['health'], self.prepared, idle)
+        if idle:
+            check_idle(result['status'])
+        return result
+
+    def send_file(self, path, ref, may_load=False):
+        self.lease_guard()
+        # Recheck bytes immediately before opening the upload; no mutation retry.
+        data = read_asset(ref)
+        if may_load:
+            self.session.needs_stop = True
+        return self.client.request(path, token=self.session.token, stream=io.BytesIO(data), size=len(data), timeout=90)
+
+    def media(self, core, generation=None):
+        self.lease_guard()
+        data = read_asset(self.prepared['rom'], 32768)
+        connection_type = http.client.HTTPSConnection if self.client.url.scheme == 'https' else http.client.HTTPConnection
+        connection = connection_type(self.client.url.hostname, self.client.url.port, timeout=30)
+        try:
+            connection.request('POST', '/v1/development/media-stream', body=data, headers={'Authorization': 'Bearer ' + self.client.bearer, 'X-FogCast-Kit-Lease': self.session.token, 'Content-Type': 'application/octet-stream', 'Content-Length': str(len(data)), 'X-FogCast-Package-ID': core['package_id'], 'X-FogCast-Core-Generation': str(core['generation'] if generation is None else generation)})
+            response = connection.getresponse()
+            raw = response.read(65537)
+            if response.status >= 300:
+                raise KitError('Media request rejected', response.status, error_code(raw))
+            require(len(raw) <= 65536, 'Media response exceeds bound')
+            return decode(raw)
+        finally:
+            connection.close()
+
+    def capture_case(self, name):
+        self.held()
+        subprocess.run([sys.executable, str(OUT / 'capture.py'), name, str(self.output)], check=True, timeout=50)
+        self.held()
+        require((self.output / (name + '-capture.json')).is_file(), 'Capture receipt missing')
+
+    def stop(self, name):
+        self.lease_guard()
+        result = self.client.request('/v1/stop', token=self.session.token, timeout=30)
+        self.save(name, result)
+        check_idle(result)
+        self.session.needs_stop = False
+        self.observe(name + '-observation', idle=True)
+
+    def reject_vacant(self):
+        before = self.observe('vacant-before', idle=True)
+        inspection = self.send_file('/v1/development/core/inspect', self.prepared['package'])
+        self.save('vacant-inspect', inspection)
+        check_descriptor(inspection, self.prepared)
+        try:
+            self.send_file('/v1/development/core', self.prepared['package'], may_load=True)
+        except KitError as error:
+            self.save('vacant-rejected', {'http_status': error.status, 'code': error.code})
+            require(error.status == 422 and error.code == 'UNSUPPORTED_OPERATION', 'Unexpected vacant shell load rejection')
+        else:
+            raise RuntimeError('Vacant native shell load was accepted')
+        after = self.observe('vacant-after', idle=True)
+        require(after['status'] == before['status'], 'Rejected vacant load changed session status')
+        self.session.needs_stop = False
+        self.save('vacant-result', {'expected_rejection': True, 'status_unchanged': True, 'boot_unchanged': True, 'limitation': 'Public status observation; physical admission guard separately covered by runtime host tests.'})
+
+    def run(self):
+        require(not (self.output / 'claim.json').exists(), 'Use a fresh output directory; preserve previous receipts')
+        initial = {'health': self.client.request('/v1/health'), 'status': self.client.request('/v1/status'), 'lease': self.client.request('/v1/kit/lease')}
+        self.save('initial', initial)
+        check_health(initial['health'], self.prepared, idle=True)
+        check_idle(initial['status'])
+        require(initial['lease'].get('state') == 'free', 'Kit already owned; no takeover')
+        try:
+            self.stage = 'claim'
+            self.save('claim', self.session.claim())
+            self.stage = 'vacant-shell-check'
+            self.reject_vacant()
+            for name, variant in CASES:
+                self.stage = name + '-inspect'
+                expected = self.prepared['variants_checked'][variant]
+                before = self.observe(name + '-before', idle=True)
+                inspection = self.send_file('/v1/development/core/parts/inspect', expected['ref'])
+                self.save(name + '-inspect', inspection)
+                check_descriptor(inspection['core'], self.prepared)
+                require(inspection['composition'] == expected['composition'] and inspection['persistence_mode'] == 'volatile', 'Inspection parts tuple mismatch')
+                after = self.observe(name + '-after-inspect', idle=True)
+                require(after['status'] == before['status'], 'Parts inspect changed idle state')
+                self.stage = name + '-load'
+                active = self.send_file('/v1/development/core/parts', expected['ref'], may_load=True)
+                self.save(name + '-load', active)
+                core = check_active(active, self.prepared, expected['composition'], self.generation)
+                self.generation = core['generation']
+                check_health(self.client.request('/v1/health'), self.prepared)
+                self.stage = name + '-media'
+                media = self.media(core)
+                self.save(name + '-media', {'rom': self.prepared['rom'], 'status': media})
+                check_active(media, self.prepared, expected['composition'], retained=core)
+                print(json.dumps({'stage': 'loaded-media', 'case': name, 'generation': self.generation, 'composition_id': expected['composition']['composition_id']}), flush=True)
+                self.stage = name + '-capture'
+                self.capture(name)
+                self.stage = name + '-status'
+                captured = self.observe(name + '-observation')
+                self.save(name + '-status', captured['status'])
+                check_active(captured['status'], self.prepared, expected['composition'], retained=core)
+                self.stage = name + '-stop'
+                self.stop(name + '-stop')
+                print(json.dumps({'stage': 'captured-and-stopped', 'case': name}), flush=True)
+        except BaseException as error:
+            self.save('failure', {'stage': self.stage, 'type': type(error).__name__, 'http_status': getattr(error, 'status', None), 'code': getattr(error, 'code', None), 'local_check': str(error) if isinstance(error, RuntimeError) else None})
+            raise
+        finally:
+            self.cleanup()
+        self.save('result', {'classification': 'operator-run native developer diagnostic; not appliance acceptance', 'cases': [name for name, _ in CASES], 'completed': True, 'last_generation': self.generation, 'lease_free': True})
+        print('ALL THREE CASES COMPLETE; LEASE FREE', flush=True)
+
+    def cleanup(self):
+        if not self.session.token:
+            return
+        try:
+            # Use direct Stop, never Session's diagnostic reboot recovery.
+            self.stop('final-stop')
+            self.lease_guard()
+            self.save('release', self.session.close())
+            deadline = time.monotonic() + 15
+            while True:
+                lease = self.client.request('/v1/kit/lease')
+                if lease.get('state') == 'free':
+                    break
+                require(lease.get('state') == 'revoking' and time.monotonic() < deadline, 'Lease release did not complete')
+                time.sleep(.25)
+            self.save('final-lease', lease)
+            check_health(self.client.request('/v1/health'), self.prepared, idle=True)
+            check_idle(self.client.request('/v1/status'))
+        except Exception:
+            self.session.done.set()
+            if self.session.thread:
+                self.session.thread.join(timeout=5)
+            self.save('cleanup-unconfirmed', {'operator_inspection_required': True, 'reboot_or_takeover_attempted': False})
+            raise RuntimeError('Cleanup needs operator inspection; no reboot or takeover attempted') from None
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--prepared', type=Path, default=OUT / 'prepared.json')
+    parser.add_argument('--config', type=Path, default=Path('/home/deano/.config/fogcast/config.toml'))
+    parser.add_argument('--output', type=Path, default=OUT)
+    parser.add_argument('--validate-only', action='store_true', help='Check local artifacts; never read credentials, construct client or execute capture')
+    args = parser.parse_args(argv)
+    prepared = load_prepared(args.prepared)
+    if args.validate_only:
+        print(json.dumps({'validation': 'passed', 'target_calls': 0, 'capture_executed': False, 'package_id': prepared['package']['package_id'], 'cases': [name for name, _ in CASES]}))
+        return 0
+    config = tomllib.loads(args.config.read_text())
+    targets = [t for t in config.get('targets', []) if t.get('name') == 'kit2']
+    require(len(targets) == 1 and targets[0].get('enabled') is True and targets[0].get('target_id') == TARGET_ID, 'Kit2 is not uniquely enabled in private config')
+    target = targets[0]
+    client = Client(target['address'], target['agent'], timeout=90)
+    session = Session(client, 'codex-native-video-link', 'Kit2 native Direct/Scanlines HDMI diagnostic')
+    args.output.mkdir(parents=True, exist_ok=True)
+    runner = Runner(prepared, client, session, args.output)
+    runner.save('prepared-input', {'path': str(args.prepared), 'sha256': digest(args.prepared.read_bytes())})
+    runner.run()
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (KitError, RuntimeError, OSError, ValueError, KeyError, KeyboardInterrupt) as error:
+        # Do not print arbitrary remote bodies, local config data or lease secrets.
+        print('Diagnostic failed; inspect preserved receipts. No mutation retry or automatic reboot.', file=sys.stderr)
+        sys.exit(130 if isinstance(error, KeyboardInterrupt) else 1)

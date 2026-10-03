@@ -78,6 +78,11 @@ fence unchanged before publication. Native packages use the developer parts
 load; normal library Play rejects an uncomposed native shell. The factory
 continues to select the raster lane below.
 
+The [native Kit 2 record](../../../docs/validation/2026-10-03-native-video-parts-kit2.md)
+binds routed Direct/Scanlines parts, full-CRAM composition equality and clean
+HDMI video/audio captures. Acceptance is limited to those named developer
+artifacts; native factory selection and CPU expansion remain separate.
+
 The first slice is a Coleco shell with a fixed 720p60 RGB888
 pixel-clock interface. Choose a direct part or a simple scanline part;
 an independently built Coleco bus 2.0 expansion can share the same frozen
