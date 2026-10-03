@@ -45,7 +45,9 @@ TOOL_INPUTS = (
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
                  "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
                  "scaffold.json", "cart.qsf", "cram-diff.json")
-PLACER_SEED = 3
+# Seed 4 routes the probe's internal scratch-to-read-data mux within the frozen
+# CRAM fence; seed 3 fails to route that connection in its placement.
+PLACER_SEED = 4
 SLOT_CLOCK = "system_clock.clocks[0]"
 REQUIRED_CLOCKS_MHZ = {"system_clock.clocks[0]": 52.224, "pixel_clk": 74.25,
                        "system_clock.clocks[1]": 12.288}

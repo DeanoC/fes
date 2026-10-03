@@ -199,7 +199,12 @@ class AtariSTSlotCardTests(unittest.TestCase):
             self.assertEqual(route[route.index("--fes-cart-region") + 1], "expansion")
             self.assertEqual(route[route.index("--fes-cram-region") + 1], "1769,32,2806,1722")
             self.assertEqual(route[route.index("--fes-slot-clock") + 1], card.SLOT_CLOCK)
+            self.assertEqual(route[route.index("--seed") + 1], "4")
             self.assertIn("--no-pack", route)
+            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
+            self.assertEqual(recipe["placer_seed"], 4)
+            recipe_bytes = json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()
+            self.assertEqual(manifest["recipe_sha256"], card.digest(recipe_bytes))
             cart_qsf = (result.parent / "cart.qsf").read_bytes()
             self.assertEqual(cart_qsf, (fixture.shell / "socket.qsf").read_bytes())
             self.assertEqual(cart_qsf.count(b'FES_RESERVED_RECT "ram_guard 26 19 26 19"'), 1)

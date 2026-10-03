@@ -142,8 +142,8 @@ backpressure and soft/hard resets; the pinned Slang frontend passed.
 The full FogCast race suite also passed after the merge at `52060e1d84`:
 74 tested packages, including 21 rerun packages covering the changed host
 input, launcher and reboot handling.
-The [PR CI run](https://github.com/DeanoC/fes/actions/runs/37147225779) at
-`b9711bcdf` passed consistency, producer tests, the complete Atari ST
+The [PR CI run](https://github.com/DeanoC/fes/actions/runs/37148494904) at
+`1ca8a4666` passed consistency, producer tests, the complete Atari ST
 simulation, parent tests and the required integration gate. Host, runtime
 and contract jobs were deliberately unselected for this narrower change.
 
@@ -188,9 +188,56 @@ both banks, write-enable/byte-enable polarity, independent clocks, registered
 reads, two-edge bank/tag selection and refilling the unowned bank. It does
 not establish a whole-board native boot or promise data during collisions.
 
-Fresh strict route/timing, sealed ROM-map and independent-card qualification
-are pending. No package or hardware qualification is inferred from synthesis
-or from the unsealed failed timing candidate.
+The fresh normal seed-4 build from
+`1ca8a4666b2ecb8e9381004cc529c82d0a22b936` passed all three routed timing
+gates with the original constraints and timing repair:
+
+| Domain | Required MHz | Achieved MHz |
+| --- | ---: | ---: |
+| Pixel | 74.250069 | 77.083176 |
+| System | 52.224773 | 56.980061 |
+| Audio | 12.288032 | 173.520737 |
+
+The sealed format-3 blank-ROM package is
+`2cd540a46167cf777080acb78740f50b888c48eadd0337f127c60c22d1d84e42`,
+with BUILD_ID `0215391c11bfbf1662b311865214f8e3`. Its base RBF is 2,836,762
+bytes, SHA-256
+`9d1713120f3ba28ee0ac7d6cc2e7bc319bca9361022b0a01d9854019d62fbe71`.
+The [seal record](2026-10-03-atari-st-integration/native-shell-seal.json)
+binds the manifest, timing, source, ROM-map and compiler evidence. All 201
+RAM-local configuration footprints are outside the socket; caches occupy
+M10K(26,20)/(26,21), and all 119 pinned boundary FFs and their dedicated
+buffers pass validation. The
+[actual RAM mapping bridge](2026-10-03-atari-st-integration/native-cache-primitive-v6.json)
+verifies equivalence to the separately tested primitives, including mapped
+read addresses across all 6,600 mode/raster cases per build. The
+[boot input selection](2026-10-03-atari-st-integration/boot-input-selection.json)
+verifies all 25 inputs for each executed stock boot against this native
+source checkpoint.
+
+The [exact-artifact ROM-only result](2026-10-03-atari-st-integration/native-rom-only-validation-summary.json)
+and [qualification proof](2026-10-03-atari-st-integration/native-rom-only-qualification-proof.json)
+verify admission and linking through the actual Go CLI/API and FogCast
+helpers. Their programmed outputs match SHA-256
+`547ef48f590407dfc393b516dd123a50b4cf603c93d571b01e5531028faa01d9`.
+Authenticated independent Mistral readback reconstructs all 192 firmware
+lanes, byte-exact to the stock ROM, with all padding bits zero. Exactly
+564,978 decoded firmware INIT bits change; other decoded payload bits,
+ORAM/PRAM/header, compression mode and the expansion fence are preserved.
+Derived frame CRCs are recalculated by the linker. All 258 frozen consumer
+inputs and 13 helper/binary files are verified before and after execution.
+
+The first independent probe-card route failed an internal scratch-register
+to read-mux path. A bounded unsealed placement with seed 4 passes normal
+routing, all three clocks and configuration containment: 9,155 changed CRAM
+bits inside the socket, zero outside. The card recipe now records that
+placement seed; its command and recipe hash are regression-checked. Because
+the card recipe belongs to the shell source closure, a fresh normal shell
+and real card build from the final committed checkpoint remain pending.
+The `1ca8a4666` shell and ROM-only evidence above apply to that exact source.
+
+No physical FPGA, SDRAM, HDMI, input or audio acceptance follows from these
+host-native checks.
 
 An authenticated, unsealed seed-4 diagnostic at `df0f38e2f` completed a
 zero-overuse HIP route in 511.9 seconds. Its diagnostic run disabled timing
