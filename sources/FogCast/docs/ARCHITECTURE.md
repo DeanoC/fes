@@ -2220,7 +2220,11 @@ session's input.ready, launcher.json reachability, or which host holds the
 lease. The kit keeps the player index the pad already has. While a core is
 bound, those events are not applied to the platform wheel, browse selection,
 or launch, even when this kit's host session is still idle. Select+Start held
-for one second still posts `POST /api/v1/session/stop`. With no core bound,
+for one second posts `POST /api/v1/session/stop` for a host session. For a
+kit-local run it goes to local control `POST /v1/local/stop` instead,
+including a run the grid did not start: while a core is bound and no local run
+is known, the grid reads `GET /v1/local/status` at most once a second
+(single-flight) and adopts a launching or running answer as its active session. With no core bound,
 the same pad drives browse. Stop and kit menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad

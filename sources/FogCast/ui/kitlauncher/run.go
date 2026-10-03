@@ -451,12 +451,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	tick := time.NewTicker(16 * time.Millisecond)
 	defer tick.Stop()
 	nextPoll, nextPad := time.Time{}, time.Time{}
+	localAdoptBusy := false
+	var localAdoptNext time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case o := <-results:
 			if o.localAction == "recover" {
+				localAdoptBusy = false
 				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) {
 					localRunning = true
 					m.Session.State = "active"
@@ -619,6 +622,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				nextPad = now.Add(time.Second)
 			}
 			bound := coreBound.Load()
+			// A kit-local run started outside this shell (for example over the
+			// local control socket, or by a shell that restarted after its own
+			// startup check) binds the core without this shell knowing. Adopt
+			// it so Select+Start can stop it and the menu resumes afterwards.
+			if bound && m.LocalPlayEnabled && !localRunning && !localPending && !localAdoptBusy && !m.Busy && now.After(localAdoptNext) {
+				localAdoptNext = now.Add(time.Second)
+				localAdoptBusy = true
+				go func(e uint64) {
+					status, err := c.LocalCores.Status(ctx)
+					send(observation{epoch: e, localAction: "recover", localErr: err, localStatus: status})
+				}(epoch)
+			}
 			if !bound {
 				if feed != nil {
 					closeFeed(true)
