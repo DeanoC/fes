@@ -33,9 +33,13 @@ def frozen_shell() -> dict:
                          "attributes": {"NEXTPNR_BEL": "MISTRAL_FF.40.60.2"}},
     }
     socket = atari_st_slot.SOCKETS[0]
-    for name, bel in atari_st_slot.boundary_bels(socket).items():
-        cells[socket.instance + name] = {"type": "MISTRAL_FF", "connections": {"CLK": [10]},
+    for index, (name, bel) in enumerate(atari_st_slot.boundary_bels(socket).items()):
+        cells[socket.instance + name] = {"type": "MISTRAL_FF", "connections": {"CLK": [10], "DATAIN": [2000 + index]},
                                        "attributes": {"NEXTPNR_BEL": bel}}
+        cells[socket.instance + name + "$ROUTETHRU"] = {"type": "MISTRAL_BUF",
+            "connections": {"A": [1000 + index], "Q": [2000 + index]},
+            "port_directions": {"A": "input", "Q": "output"},
+            "attributes": {"NEXTPNR_BEL": card.shell_recipe.boundary_route_buffer_bel(bel)}}
     netnames = {"system_clock.pll_outclk_1": {"bits": [20]},
                 "system_clock.clocks[1]": {"bits": [21]}, "pixel_clk": {"bits": [30]},
                 card.SLOT_CLOCK: {"bits": [10], "attributes": {"ROUTING": "frozen clock branches"}}}
@@ -123,8 +127,15 @@ class AtariSTSlotCardTests(unittest.TestCase):
         encoded = json.dumps(original).encode()
         prepared = json.loads(card.prepare_scaffold(encoded, 1))["modules"]["top"]
         cells = prepared["cells"]
-        self.assertEqual(len([n for n in cells if n.startswith("plug_addr_ff_")]), 56)
-        self.assertEqual(len([n for n in cells if n.startswith("plug_rdata_ff_")]), 32)
+        self.assertEqual(len([n for n, c in cells.items() if n.startswith("plug_addr_ff_") and c["type"] == "MISTRAL_FF"]), 56)
+        self.assertEqual(len([n for n, c in cells.items() if n.startswith("plug_rdata_ff_") and c["type"] == "MISTRAL_FF"]), 32)
+        for prefix, count in (("plug_addr_ff_", 56), ("plug_rdata_ff_", 32)):
+            for bit in range(count):
+                name = prefix + str(bit)
+                buffer = cells[name + "$ROUTETHRU"]
+                self.assertEqual(buffer["connections"]["Q"], cells[name]["connections"]["DATAIN"])
+                original_name = "expansion." + ("plug_request_ff_" if count == 56 else "plug_response_ff_") + str(bit)
+                self.assertEqual(buffer, original["modules"]["top"]["cells"][original_name + "$ROUTETHRU"])
         self.assertEqual(cells["plug_rdata_ff_31"]["attributes"]["NEXTPNR_BEL"], "MISTRAL_FF.24.5.22")
         self.assertFalse(any(n.startswith("expansion.") for n in cells))
         self.assertEqual(cells["machine.keep"], original["modules"]["top"]["cells"]["machine.keep"])

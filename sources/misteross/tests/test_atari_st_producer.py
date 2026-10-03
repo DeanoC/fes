@@ -89,10 +89,36 @@ class AtariSTProducerTests(unittest.TestCase):
 
     def test_reserved_expansion_accepts_only_its_exact_boundary(self):
         socket = atari_st_slot.SOCKETS[0]
-        cells = {socket.instance + name: {'type': 'MISTRAL_FF', 'attributes': {'NEXTPNR_BEL': bel}}
-                 for name, bel in atari_st_slot.boundary_bels().items()}
+        cells = {}
+        for index, (name, bel) in enumerate(atari_st_slot.boundary_bels().items()):
+            name = socket.instance + name
+            cells[name] = {'type': 'MISTRAL_FF', 'attributes': {'NEXTPNR_BEL': bel},
+                           'connections': {'DATAIN': [2000 + index], 'CLK': [5]}}
+            cells[name + '$ROUTETHRU'] = {'type': 'MISTRAL_BUF',
+                'attributes': {'NEXTPNR_BEL': st.boundary_route_buffer_bel(bel)},
+                'port_directions': {'A': 'input', 'Q': 'output'},
+                'connections': {'A': [1000 + index], 'Q': [2000 + index]}}
         routed = {'modules': {'top': {'cells': cells}}}
         self.assertEqual(st.validate_routed_shell(routed)['pinned_boundary_cells'], 119)
+        self.assertEqual(st.validate_routed_shell(routed)['pinned_boundary_route_buffers'], 119)
+        for mutation in ('site', 'name', 'type', 'missing', 'disconnected', 'multiple', 'wrong_ff', 'shared_output'):
+            with self.subTest(mutation=mutation):
+                changed = json.loads(json.dumps(routed))
+                altered = changed['modules']['top']['cells']
+                name = 'expansion.plug_request_ff_0$ROUTETHRU'
+                buffer = altered[name]
+                if mutation == 'site': buffer['attributes']['NEXTPNR_BEL'] = 'MISTRAL_COMB.25.1.0'
+                elif mutation == 'name': altered[name + '_fake'] = altered.pop(name)
+                elif mutation == 'type': buffer['type'] = 'MISTRAL_ALUT6'
+                elif mutation == 'missing': del altered[name]
+                elif mutation == 'disconnected': buffer['connections']['Q'] = []
+                elif mutation == 'multiple': buffer['connections']['A'].append(999)
+                elif mutation == 'wrong_ff': buffer['connections']['Q'] = [2001]
+                elif mutation == 'shared_output':
+                    altered['expansion.plug_request_ff_1$ROUTETHRU']['connections']['Q'] = [2000]
+                    altered['expansion.plug_request_ff_1']['connections']['DATAIN'] = [2000]
+                with self.assertRaisesRegex(BuildError, 'route buffer'):
+                    st.validate_routed_shell(changed)
         cells['rogue'] = {'type': 'MISTRAL_FF', 'attributes': {'NEXTPNR_BEL': 'MISTRAL_FF.25.10.2'}}
         with self.assertRaisesRegex(BuildError, 'inside the slot'):
             st.validate_routed_shell(routed)

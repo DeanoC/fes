@@ -321,8 +321,19 @@ def build_commands(root: Path, output: Path, build_id: str,
     return yosys, route
 
 
+def boundary_route_buffer_bel(flip_flop_bel: str) -> str:
+    """Dedicated input LUT beside a boundary FF in this pinned Cyclone V layout."""
+    match = re.fullmatch(r"MISTRAL_FF\.(24|28)\.(\d+)\.(\d+)", flip_flop_bel)
+    if match is None or int(match[3]) % 6 not in (2, 4):
+        raise BuildError("unsupported slot boundary flip-flop site")
+    column, row, index = map(int, match.groups())
+    family = "MISTRAL_COMB" if column == 24 else "MISTRAL_MCOMB"
+    lut_index = index // 6 * 6 + (1 if index % 6 == 4 else 0)
+    return f"{family}.{column}.{row}.{lut_index}"
+
+
 def validate_routed_shell(routed: dict) -> dict:
-    """Every socket holds only its pinned boundary flip-flops."""
+    """Every socket holds its pinned boundary FFs and dedicated input buffers."""
     cells = routed.get("modules", {}).get(TOP, {}).get("cells", {})
     expected = {}
     for socket in atari_st_slot.SOCKETS:
@@ -333,17 +344,36 @@ def validate_routed_shell(routed: dict) -> dict:
         if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or \
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
+    buffers = set()
+    outputs = set()
+    for name, bel in expected.items():
+        buffer_name = name + "$ROUTETHRU"
+        cell = cells.get(buffer_name)
+        pins = cell.get("connections", {}) if isinstance(cell, dict) else {}
+        input_bits, output_bits = pins.get("A"), pins.get("Q")
+        if (not isinstance(cell, dict) or cell.get("type") != "MISTRAL_BUF" or
+                cell.get("attributes", {}).get("NEXTPNR_BEL") != boundary_route_buffer_bel(bel) or
+                set(pins) != {"A", "Q"} or
+                cell.get("port_directions") != {"A": "input", "Q": "output"} or
+                not isinstance(input_bits, list) or len(input_bits) != 1 or type(input_bits[0]) is not int or
+                not isinstance(output_bits, list) or len(output_bits) != 1 or type(output_bits[0]) is not int or
+                input_bits == output_bits or
+                output_bits != cells[name].get("connections", {}).get("DATAIN") or
+                output_bits[0] in outputs):
+            raise BuildError(f"slot boundary route buffer {buffer_name} changed")
+        outputs.add(output_bits[0])
+        buffers.add(buffer_name)
     for name, cell in cells.items():
         bel = cell.get("attributes", {}).get("NEXTPNR_BEL", "") if isinstance(cell, dict) else ""
         match = BEL_RE.match(bel)
-        if not match or name in expected:
+        if not match or name in expected or name in buffers:
             continue
         x, y = int(match.group(1)), int(match.group(2))
         for socket in atari_st_slot.SOCKETS:
             if atari_st_slot.COLUMN <= x <= atari_st_slot.COLUMN + 4 and socket.first_row <= y <= socket.last_row:
                 raise BuildError(f"shell cell {name} is inside the slot {socket.slot} socket")
     return {"layout": atari_st_slot.LAYOUT, "sockets": [s.slot for s in atari_st_slot.SOCKETS],
-            "pinned_boundary_cells": len(expected)}
+            "pinned_boundary_cells": len(expected), "pinned_boundary_route_buffers": len(buffers)}
 
 
 def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:
