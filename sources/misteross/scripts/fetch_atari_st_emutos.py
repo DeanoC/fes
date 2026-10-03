@@ -21,7 +21,9 @@ MAX_ARCHIVE = 5 * 1024 * 1024
 def fetch(destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
     rom_path = destination / 'etos192us.img'
-    if rom_path.is_file() and hashlib.sha256(rom_path.read_bytes()).hexdigest() == ROM_SHA256:
+    if (rom_path.is_file() and hashlib.sha256(rom_path.read_bytes()).hexdigest() == ROM_SHA256
+            and (destination / 'LICENSE.EmuTOS.txt').is_file()
+            and (destination / 'README.EmuTOS.txt').is_file()):
         return rom_path
     archive_path = destination / 'emutos-192k-1.4.zip'
     archive = archive_path.read_bytes() if archive_path.is_file() else b''

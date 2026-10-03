@@ -10,7 +10,7 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 # Simulation families include the standalone CPU; it has no play-package recipe.
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st')
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest')
 SIMULATION_ONLY_CORES = frozenset({'z80'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 
@@ -40,6 +40,7 @@ CORE_DIRECTORIES = {
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
     'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
+    'fes-ramtest': ('ramtest',),
 }
 # ZX81's in-session plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
@@ -59,8 +60,8 @@ SHARED_RTL = {
     'coleco_video_dpram.v': COLECO_CONSUMERS,
     'coleco_video_720p.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
-    'fes_application_gp.v': ('demo', 'coleco', 'menu'),
-    'fes_video_720p.v': ('demo', 'pong'),
+    'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest'),
+    'fes_video_720p.v': ('demo', 'pong', 'ramtest'),
     'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
     'fes_audio_pll.v': ('demo',),
     'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
@@ -91,6 +92,8 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
+    if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
+        return ('demo', 'pong', 'ramtest'), 'shared fixed-raster clock consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'

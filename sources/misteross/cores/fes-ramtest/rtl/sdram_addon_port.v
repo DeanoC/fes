@@ -75,7 +75,6 @@ module sdram_addon_port #(
 `endif
     reg init_hi = 1'b0;
     reg ref_hi = 1'b0;
-    wire unused_clock_oe;
 `ifdef RAM_OSS_HIGH_SPEED
     reg capture_due = 1'b0;
 `endif
@@ -100,7 +99,7 @@ module sdram_addon_port #(
         .sclr(1'b0),
         .oe(1'b1),
         .dataout(sdram_clk),
-        .oe_out(unused_clock_oe)
+        .oe_out()
     );
 
     // 7.8 us refresh. The count is in fabric clocks, so it tracks the rate.

@@ -112,9 +112,11 @@ Responses contain read data, ACK/BERR, encoded IRQ and card presence.
 `fes.atari-st-bus.socket/1` rectangle. The shared linker confines slot 1 to
 that rectangle. The optional manifest interface is
 `fes.expansion.atari-st-bus` 1.0; it grants no GP capability bit.
-`expansions/st_probe.sv` exercises cartridge data, MMIO, wait states, faults,
-byte lanes and interrupts. Independent card sealing requires the qualified
-shell and card producers.
+`expansions/st_probe.sv` exercises cartridge data, MMIO, wait states, faults
+and byte lanes. `expansions/probe_cart.sv` wraps it in the registered connector.
+`scripts/build_atari_st_slot_card.py` synthesizes the card onto the frozen
+shell, checks all clock pins and timing, and rejects any change outside the
+socket CRAM rectangle before publishing an exact-shell expansion archive.
 
 `st_video.sv` reads interleaved RAM bitplanes: 320×200 four-plane low,
 640×200 two-plane medium and 640×400 monochrome. The fixed 720p60 output uses
@@ -142,6 +144,9 @@ make -C sources/misteross sim-fes-atari-st-emutos \
 make -C sources/misteross sim-fes-atari-st-emutos-memory \
   EMUTOS_ROM=build/roms/emutos-1.4/etos192us.img
 make -C sources/misteross build-fes-atari-st CACHE_ROOT=/absolute/toolchain-cache
+make -C sources/misteross build-fes-atari-st-card \
+  ST_SHELL=/absolute/frozen/build/fes-atari-st-oss \
+  ST_PACKAGE=/absolute/sealed/package CACHE_ROOT=/absolute/toolchain-cache
 ```
 
 The aggregate uses original diagnostic firmware and focused CPU, video,

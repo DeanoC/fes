@@ -113,6 +113,7 @@ help:
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
+		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
 		"  fetch-fes-atari-st-emutos  Fetch the pinned free 192 KiB EmuTOS test ROM" \
 		"  sim-fes-atari-st-emutos-memory  Boot EMUTOS_ROM through SDRAM and capture HDMI RGB" \
 		"  atari-st-diagnostic  Generate two original 192 KiB 68000 firmware inputs" \
@@ -1577,3 +1578,11 @@ ST_VIDEO_OUTPUT ?= direct
 build-fes-atari-st:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_atari_st_oss.py --root "$(CURDIR)" \
 		--video-output "$(ST_VIDEO_OUTPUT)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+.PHONY: build-fes-atari-st-card
+ST_SHELL ?= build/fes-atari-st-oss
+build-fes-atari-st-card:
+	@test -n "$(ST_PACKAGE)" || (echo 'Set ST_PACKAGE to the exact sealed shell package'; exit 1)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_atari_st_slot_card.py --root "$(CURDIR)" \
+		--shell "$(ST_SHELL)" --package "$(ST_PACKAGE)" --slot 1 --card probe \
+		$(if $(strip $(CACHE_ROOT)),--cache-root "$(CACHE_ROOT)",) $(if $(GPU_DEVICE),--gpu "$(GPU_DEVICE)",)
