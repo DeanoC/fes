@@ -45,7 +45,8 @@ command retains its CPU-only socket; `make build-fes-coleco-video` explicitly
 builds the video variant. The shared RTL contract is owned by
 [mister-packages](../mister-packages/docs/video-parts.md).
 
-The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco` and `fes.ramtest`. Another
+The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
+`fes.sg1000`, `fes.spectrum` and `fes.ramtest`. Another
 package is not added to that set merely because its producer exists.
 
 ## What builds now
@@ -75,8 +76,9 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | factory image |
 | `fes.zx81` | `make sim-fes-zx81` (includes live session display) | `make build-fes-zx81` | `make build-fes-zx81-quartus` | factory image |
 | `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | factory image |
-| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | package-only, not in the factory image |
-| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | package-only, not in the factory image |
+| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | factory image |
+| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | factory image |
+| `fes.spectrum` | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | factory image |
 | `fes.catch` | `make sim-fes-demo` | `python3 scripts/build_fes_catch.py` | no oracle | registered, not in the factory image |
 | `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | factory utility, OSS 100 MHz |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |

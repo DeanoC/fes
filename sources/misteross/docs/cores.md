@@ -17,22 +17,24 @@ they were written. They are not the schedule for this tree.
 ## Current cores
 
 Parent recipe rows live in FES `config/core-recipes.toml`. The factory image
-installs the idle display `fes.menu` and playable `fes.pong`, `fes.zx81` and
-`fes.coleco` and the OSS 100 MHz `fes.ramtest` utility. A producer in this
-module does not put a package on that image.
+installs the idle display `fes.menu`, playable `fes.pong`, `fes.zx81`,
+`fes.coleco`, `fes.sms`, `fes.sg1000` and `fes.spectrum`, and the OSS 100 MHz
+`fes.ramtest` utility: eight packages. `fes.coleco` is the video-socket
+shell, and the image also carries its sealed Direct and Scanlines video parts.
+A producer in this module does not put a package on that image.
 
 | Package | Tree | Mailbox | Lock | OSS seal | In factory image |
 | --- | --- | --- | --- | --- | --- |
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchains/ramtest.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
-| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco-video` (FES selects the video variant) | yes; optional Coleco bus 2.0 and RGB888 video sockets |
-| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/fes-sms.lock` | `make build-fes-sms` | no; package-only recipe |
-| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | package-only |
+| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco-video` (FES selects the video variant) | yes; optional Coleco bus 2.0 and RGB888 video sockets; Direct and Scanlines parts ship alongside |
+| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/fes-sms.lock` | `make build-fes-sms` | yes |
+| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | yes |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
 | `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `toolchains/apple2.lock` | `make build-fes-apple2` | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
 | `fes.c64` | `cores/fes-c64` | `fes.computer` | `toolchains/c64.lock` | `make build-fes-c64` | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
-| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | no; package-only recipe; four edge sockets |
+| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchains/ramtest.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
@@ -167,8 +169,7 @@ SG-1000's format-3 producer seals from a clean tree at seed 4. It exports a
 blank 16 KiB cartridge ROM and authenticated map for download-time linking.
 The 2026-09-16 gap ladder records a HIP route of the earlier synth-only
 netlist (`BUILD_ID` all zeros), not acceptance of the new sealed bitstream.
-The package-only recipe is registered in `config/core-recipes.toml` and is not
-in the factory image.
+The recipe is registered in `config/core-recipes.toml` and is in the factory image.
 
 5. Stop at the RBF unless the task also includes a parent change. Registering
    a recipe, preparing a package, and kit use are FES steps:
@@ -236,13 +237,11 @@ framebuffer `0x002f`. Idle handling must not send those commands.
 
 ## Status that is easy to get wrong
 
-- `fes.sms` is already a parent package-only recipe. It is not in the factory
-  image. Historical parent pins and launch/Stop records do not accept HDMI
-  audio on a bitstream built later. Kit HDMI-audio acceptance of the current
-  tree is not recorded here.
-- `fes.sg1000` has a package-only parent recipe. A historical
-  launch/Stop note does not accept the current bitstream, and it does not
-  make the package part of the factory image.
+- `fes.sms` is in the factory image. Historical parent pins and launch/Stop
+  records do not accept HDMI audio on a bitstream built later. Kit HDMI-audio
+  acceptance of the current tree is not recorded here.
+- `fes.sg1000` is in the factory image. A historical launch/Stop note does not
+  accept the current bitstream.
 - Coleco audio is in the core (`make sim-fes-coleco-audio`, shared SN76489
   and 48 kHz I2S). It is not an unimplemented slice.
 - Host simulation of a diagnostic ROM is not a photograph of HDMI and not a

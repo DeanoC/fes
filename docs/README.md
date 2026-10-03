@@ -18,12 +18,12 @@ a dated record. A dated record is not the schedule.
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
 
 The factory image is the ordered closed package set `fes.menu`, `fes.pong`,
-`fes.zx81`, `fes.coleco`, `fes.ramtest`, selected by the [default profile](../profiles/native-integration-dev.toml)
+`fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest`,
+selected by the [default profile](../profiles/native-integration-dev.toml)
 and built with HIP/nextpnr. Menu (`fes.menu`) provides the idle
 display and is not a playable library entry. Other registered packages are not
-in that image. The selector also supports `fes.sms`, `fes.sg1000`, `fes.c64`
-and `fes.spectrum`; admission does not establish a passing seal, rootfs capacity
-or hardware acceptance. The matrix is [core status](core-status.md).
+in that image. The selector also supports `fes.c64`; admission does not establish
+a passing seal or hardware acceptance. The matrix is [core status](core-status.md).
 
 Shell examples in the parent guides start at the FES repository root.
 A component Makefile is a different command set. `make` inside

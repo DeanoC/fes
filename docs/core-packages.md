@@ -14,13 +14,14 @@ bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`, `fes.catch` and `fes.ramtest` HIP/nextpnr
 producers. The default target-image selector installs the ordered closed
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest` package set.
-SMS, SG-1000 and Spectrum passed timing at the selected identity but remain
-registered for package-only use because the combined rootfs exceeds 128 MiB. `fes.apple2`
-and `fes.catch` also remain package-only. `fes.c64` is registered, but has no
-current timing-passing HIP seal.
+`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
+`fes.spectrum`, `fes.ramtest` package set.
+SMS, SG-1000 and Spectrum passed timing and are in that image. The 128 MiB
+rootfs from #347 holds them. `fes.apple2`
+and `fes.catch` remain package-only. `fes.c64` is registered, but has no
+current timing-passing HIP seal, so it stays out.
 Package IDs and payload digests are recorded in generated per-core selection
-files. Package-only preparations can produce `fes-sms.package-selection.toml`,
+files, including `fes-sms.package-selection.toml`,
 `fes-sg1000.package-selection.toml` and `fes-spectrum.package-selection.toml`.
 A successful package-only C64 preparation would use
 `fes-c64.package-selection.toml`.
@@ -36,7 +37,8 @@ An older sealed SMS package does not accept a bitstream built from a later
 tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
-the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.ramtest` package set.
+the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
+`fes.sg1000`, `fes.spectrum`, `fes.ramtest` package set.
 The FES image route is package-only. Quartus is reserved for a documented bring-up or
 oracle/check when a system is not yet supported by nextpnr; the package-only
 route does not invoke it.
@@ -188,6 +190,10 @@ fes-menu.package-selection.toml
 fes-pong.package-selection.toml
 fes-zx81.package-selection.toml
 fes-coleco.package-selection.toml
+fes-sms.package-selection.toml
+fes-sg1000.package-selection.toml
+fes-spectrum.package-selection.toml
+fes-ramtest.package-selection.toml
 core-packages/<package-id>/manifest.toml
 core-packages/<package-id>/core.rbf
 core-packages/<package-id>/rom-map.json  # format 3 only

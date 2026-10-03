@@ -843,8 +843,8 @@ application media upload. The open `sound-16k.rom` diagnostic alternates tone
 and white noise alongside the Graphics I display for a later leased kit check.
 `--synth-only` runs Yosys without a clean tree and does not seal. The selected
 HIP seed 3 must meet the structured 52.224 MHz system, 74.25 MHz pixel and
-12.288 MHz audio timing rows on the exact sealed BUILD_ID. `fes.sg1000` is registered as a
-package-only parent recipe and is not in the factory image. A historical
+12.288 MHz audio timing rows on the exact sealed BUILD_ID. `fes.sg1000` is in the
+factory image. A historical
 launch/Stop record does not accept the current bitstream.
 
 ## FES Master System Quartus oracle and OSS recipe
@@ -915,8 +915,8 @@ Yosys without a clean tree and does not seal. The producer uses `--router gpu`
 and a first-pass HIP seed/weight search (starts at seed 3 / HeAP 1000,
 then the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
 `pixel_clk` and audio rows must meet 52.224, 74.25 and 12.288 MHz; four routed
-I2S pads and the shared system/audio PLL must match. `fes.sms` is registered for
-package-only parent builds and is not in the factory image. Historical parent
+I2S pads and the shared system/audio PLL must match. `fes.sms` is in the
+factory image. Historical parent
 pins and launch/Stop records do not accept HDMI audio on a later bitstream.
 Dated notes, not current instructions:
 `docs/validation/2026-09-17-sms-oss-gap-ladder.md`,
