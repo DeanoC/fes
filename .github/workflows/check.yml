@@ -108,7 +108,9 @@ jobs:
       - run: |
           make host
           cd sources/FogCast
-          go test -race ./...
+          # Explicit per-package limit: catalog's 10k-row fixture can exceed Go's
+          # 10m default under -race on 2-core runners (#482).
+          go test -race -timeout 30m ./...
           make test-ui
           cd appliance
           go test -race ./...
