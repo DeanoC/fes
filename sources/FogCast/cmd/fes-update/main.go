@@ -40,15 +40,45 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 	flags.SetOutput(log)
 	configPath := flags.String("config", paths.Config, "existing private FogCast host configuration")
 	targetName := flags.String("target", "", "named target (defaults to selected_target)")
-	action := flags.String("action", "status", "status, update or rollback")
-	releaseDir := flags.String("release", "", "release directory containing release.json and rootfs.img")
-	timeout := flags.Duration("timeout", 6*time.Minute, "total upload/reboot/confirmation deadline")
+	action := flags.String("action", "status", "status, update, rollback or confirm")
+	releaseDir := flags.String("release", "", "release directory (release.json; rootfs.img required for update)")
+	imageSHA := flags.String("image-sha256", "", "expected image SHA-256 for confirm")
+	timeout := flags.Duration("timeout", 0, "explicit total deadline (default depends on action and image size)")
 	if err = flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *timeout <= 0 || (*action != "status" && *action != "update" && *action != "rollback") {
+	if flags.NArg() != 0 || (*action != "status" && *action != "update" && *action != "rollback" && *action != "confirm") {
 		return errors.New("invalid action, deadline or extra arguments")
 	}
+	explicitTimeout := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "timeout" {
+			explicitTimeout = true
+		}
+	})
+	if explicitTimeout && *timeout <= 0 {
+		return errors.New("--timeout must be greater than zero")
+	}
+	if err := validateActionFlags(*action, *releaseDir, *imageSHA); err != nil {
+		return err
+	}
+	var manifest appliance.Manifest
+	var image *os.File
+	if *action == "update" {
+		manifest, image, err = openRelease(*releaseDir)
+		if err != nil {
+			return err
+		}
+		defer image.Close()
+	} else if *action == "confirm" && *releaseDir != "" {
+		manifest, err = readReleaseManifest(*releaseDir)
+		if err != nil {
+			return err
+		}
+		*imageSHA = manifest.ImageSHA256
+	}
+	deadline, basis := chooseDeadline(*action, explicitTimeout, *timeout, manifest.ImageSize)
+	fmt.Fprintf(log, "%s deadline %s (%s)\n", time.Now().Local().Format(time.RFC3339), deadline, basis)
 	config, err := fogcast.LoadConfig(*configPath)
 	if err != nil {
 		return errors.New("could not read FogCast configuration")
@@ -71,36 +101,81 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 	if err != nil {
 		return errors.New("invalid target address")
 	}
-	transport := &http.Client{Timeout: 5 * time.Minute}
+	transport := &http.Client{Timeout: deadline}
 	lease := targetclient.NewKitLease(base, target.Agent, transport, "fes-update", "appliance "+*action)
-	client := targetclient.NewClient(base, target.Agent, transport).WithKitLease(lease)
+	lastPhase := "starting"
+	client := targetclient.NewClient(base, target.Agent, transport).WithKitLease(lease).WithProgress(func(phase, detail string) {
+		lastPhase = phase
+		fmt.Fprintf(log, "%s %s: %s\n", time.Now().Local().Format(time.RFC3339), phase, detail)
+	})
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = lease.Close(cleanup)
 	}()
-	ctx, cancel := context.WithTimeout(ctx, *timeout)
+	ctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
 	var result targetclient.ApplianceStatus
 	switch *action {
 	case "status":
 		result, err = client.InspectAppliance(ctx, target.TargetID, discovery.Resolve)
 	case "update":
-		manifest, image, openErr := openRelease(*releaseDir)
-		if openErr != nil {
-			return openErr
-		}
-		defer image.Close()
-		fmt.Fprintln(log, "Uploading release; activation will stop the runtime and reboot the kit.")
 		result, err = client.UpdateAppliance(ctx, target.TargetID, manifest, image, discovery.Resolve)
 	case "rollback":
-		fmt.Fprintln(log, "Selecting the previous release; waiting for its new boot and confirmation.")
 		result, err = client.RollbackAppliance(ctx, target.TargetID, discovery.Resolve)
+	case "confirm":
+		result, err = client.ConfirmApplianceTrial(ctx, target.TargetID, *imageSHA, discovery.Resolve)
 	}
 	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			fmt.Fprintf(log, "%s deadline expired; last phase: %s; run fes-update --action confirm with --release or --image-sha256\n", time.Now().Local().Format(time.RFC3339), lastPhase)
+		}
 		return err
 	}
 	return json.NewEncoder(out).Encode(result)
+}
+
+func validateActionFlags(action, releaseDir, imageSHA string) error {
+	if action == "confirm" {
+		if (releaseDir == "") == (imageSHA == "") {
+			return errors.New("confirm requires exactly one of --release or --image-sha256")
+		}
+		if imageSHA != "" && !appliance.ValidHash(imageSHA) {
+			return errors.New("--image-sha256 must be 64 lowercase hex characters")
+		}
+	} else if imageSHA != "" {
+		return errors.New("--image-sha256 requires --action confirm")
+	}
+	if action == "update" && releaseDir == "" {
+		return errors.New("update requires --release directory")
+	}
+	return nil
+}
+
+func chooseDeadline(action string, explicit bool, timeout time.Duration, imageSize int64) (time.Duration, string) {
+	if explicit {
+		return timeout, "explicit --timeout"
+	}
+	switch action {
+	case "update":
+		mib := (imageSize + (1 << 20) - 1) / (1 << 20)
+		return ((8*time.Minute + time.Duration(mib)*6*time.Second + time.Minute - 1) / time.Minute) * time.Minute, fmt.Sprintf("8m activation/reboot/confirm + 6s per MiB (%d MiB)", mib)
+	case "rollback":
+		return 10 * time.Minute, "rollback default"
+	case "confirm":
+		return 15 * time.Minute, "confirm default"
+	default:
+		return time.Minute, "status default"
+	}
+}
+
+func readReleaseManifest(dir string) (appliance.Manifest, error) {
+	f, err := os.Open(filepath.Join(dir, "release.json"))
+	if err != nil {
+		return appliance.Manifest{}, err
+	}
+	defer f.Close()
+	return appliance.DecodeManifest(f)
 }
 
 func openRelease(dir string) (appliance.Manifest, *os.File, error) {
@@ -108,12 +183,7 @@ func openRelease(dir string) (appliance.Manifest, *os.File, error) {
 	if dir == "" {
 		return manifest, nil, errors.New("update requires --release directory")
 	}
-	f, err := os.Open(filepath.Join(dir, "release.json"))
-	if err != nil {
-		return manifest, nil, err
-	}
-	manifest, err = appliance.DecodeManifest(f)
-	f.Close()
+	manifest, err := readReleaseManifest(dir)
 	if err != nil {
 		return manifest, nil, err
 	}
