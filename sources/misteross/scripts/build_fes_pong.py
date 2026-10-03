@@ -82,6 +82,7 @@ PINNED_INPUTS = (
     *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
+    "qor-ranking.json",
     "synth.json",
     "routed.json",
     "core.rbf",

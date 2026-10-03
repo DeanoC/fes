@@ -26,7 +26,7 @@ SOURCES = tuple(p for p in menu.SOURCES if not p.endswith('/top.v')) + menu.DDR_
 INPUTS = tuple(dict.fromkeys(tuple(p for p in menu.inputs_for('ddr') if p not in (
     menu.RECIPE, 'cores/fes-menu/rtl/top.v')) + (RECIPE, menu.RECIPE,
     'scripts/core_package.py', 'scripts/export_core_package.py', *SOURCES)))
-OUTPUTS = (*menu.OUTPUTS, 'manifest.toml')
+OUTPUTS = (*menu.OUTPUTS, 'manifest.toml', 'qor-ranking.json')
 PLACER_SEEDS = (5, 1, 2, 3, 4, 6, 7, 8)
 PLACER_TIMING_WEIGHT = 10
 PLACER_CRITICALITY_EXPONENT = 2

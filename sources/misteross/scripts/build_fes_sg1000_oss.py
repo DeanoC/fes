@@ -46,7 +46,7 @@ SEED = PLACER_SEEDS[0]
 PLACER_TIMING_WEIGHT = 10
 PLACER_CRITICALITY_EXPONENT = 2
 ROUTE_TIMEOUT_SECONDS = 1800
-PLACER_QOR_CLOCKS = (("system_clock.clocks[0]", 52.224), (None, 74.25))
+PLACER_QOR_CLOCKS = (("system_clock.clocks[0]", 52.224), ("system_clock.clocks[1]", 12.288), (None, 74.25))
 SG1000_GPU_BACKEND = "hip"
 SG1000_GPU_ROUTER = "HIP"
 SG1000_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -101,6 +101,7 @@ PINNED_INPUTS = (
     *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
+    "qor-ranking.json",
     "synth.json",
     "routed.json",
     "core.rbf",

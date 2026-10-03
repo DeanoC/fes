@@ -140,7 +140,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
         self.assertEqual(PLACER_SEEDS, (12, 5, 4, 8, 10, 1, 6, 9))
-        self.assertEqual(PLACER_QOR_CLOCKS, (("system_clock.clocks[0]", 52.224), (None, 74.25)))
+        self.assertEqual(PLACER_QOR_CLOCKS, (("system_clock.clocks[0]", 52.224), ("system_clock.clocks[1]", 12.288), (None, 74.25)))
         self.assertEqual(SEED, PLACER_SEEDS[0])
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
@@ -188,7 +188,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         options = route.call_args.kwargs
         self.assertEqual(options['seeds'], (12, 5, 4, 8, 10, 1, 6, 9))
         self.assertEqual(options['mode'], 'first-pass')
-        self.assertEqual(options['required'], (("system_clock.clocks[0]", 52.224), (None, 74.25)))
+        self.assertEqual(options['required'], (("system_clock.clocks[0]", 52.224), ("system_clock.clocks[1]", 12.288), (None, 74.25)))
         self.assertEqual(options['budget'], 8)
         self.assertEqual(options['timeout'], 1800)
         self.assertEqual(options['extra'], ('--router', 'gpu'))
