@@ -23,33 +23,34 @@ type Pad interface {
 	Close() error
 }
 type observation struct {
-	epoch          uint64
-	session        Session
-	health         hostclient.HealthResult
-	kitLease       kitlease.Status
-	games          []hostclient.Game
-	strip          []hostclient.Game
-	stripLabel     string
-	recents        []hostclient.Game
-	haveStrip      bool
-	attract        hostclient.AttractPlaylist
-	haveAttract    bool
-	hydrateAttract bool
-	coreStatuses   []hostclient.CoreAvailability
-	haveCoreStatus bool
-	coreStatusErr  bool
-	detailID       string
-	presentation   hostclient.Presentation
-	haveDetail     bool
-	cache          hostclient.LibraryCache
-	haveCache      bool
-	err            error
-	mutation       bool
-	message        string
-	hostAbsent     bool
-	localAction    string
-	localErr       error
-	localStatus    localcores.RunStatus
+	epoch           uint64
+	session         Session
+	health          hostclient.HealthResult
+	kitLease        kitlease.Status
+	games           []hostclient.Game
+	strip           []hostclient.Game
+	stripLabel      string
+	recents         []hostclient.Game
+	haveStrip       bool
+	attract         hostclient.AttractPlaylist
+	haveAttract     bool
+	hydrateAttract  bool
+	coreStatuses    []hostclient.CoreAvailability
+	haveCoreStatus  bool
+	coreStatusErr   bool
+	detailID        string
+	presentation    hostclient.Presentation
+	haveDetail      bool
+	cache           hostclient.LibraryCache
+	haveCache       bool
+	err             error
+	mutation        bool
+	message         string
+	hostAbsent      bool
+	localAction     string
+	localErr        error
+	localStatus     localcores.RunStatus
+	haveLocalStatus bool
 }
 
 const hostUnavailableMessage = "Host unavailable"
@@ -376,6 +377,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
 				if o.localErr != nil {
 					o.message = localCoreMessage(o.localErr)
+					if action == "local-launch" {
+						// The agent may have completed a load after our request timed out.
+						if status, err := c.LocalCores.Status(ctx); err == nil {
+							o.localStatus, o.haveLocalStatus = status, true
+						}
+					}
 				}
 				log.Printf("kit local result epoch=%d action=%s game_id=%q error=%t", e, action, boundedSessionText(id, 160), o.localErr != nil)
 				send(o)
@@ -411,6 +418,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	// shell. The loop still does not start until this sample returns, so the
 	// first pad poll already knows whether a core is bound.
 	refreshCore()
+	if m.LocalPlayEnabled {
+		go func(e uint64) {
+			status, err := c.LocalCores.Status(ctx)
+			send(observation{epoch: e, localAction: "recover", localErr: err, localStatus: status})
+		}(epoch)
+	}
 	go func() {
 		tick := time.NewTicker(200 * time.Millisecond)
 		defer tick.Stop()
@@ -431,6 +444,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		case <-ctx.Done():
 			return nil
 		case o := <-results:
+			if o.localAction == "recover" {
+				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && o.localStatus.Running && o.localStatus.Phase == "running" {
+					localRunning = true
+					m.Session.State = "active"
+					if c.menuDisplay {
+						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+						_ = c.menuPause(pauseCtx)
+						pauseCancel()
+					}
+				}
+				continue
+			}
 			if o.localAction == "status" {
 				localStatusBusy = false
 				if o.epoch == epoch && localRunning && o.localErr == nil && (!o.localStatus.Running || o.localStatus.Phase == "idle") {
@@ -456,6 +481,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					if o.localAction == "local-launch" && o.localErr == nil {
 						localRunning = true
 						m.Session.State = "active"
+					} else if o.localAction == "local-launch" && o.localErr != nil && o.haveLocalStatus && o.localStatus.Running && o.localStatus.Phase == "running" {
+						// The load finished after an ambiguous reply: adopt it, no error copy.
+						localRunning = true
+						m.Session.State = "active"
+						o.message = ""
 					} else if o.localAction == "stop" && (o.localErr == nil || errors.Is(o.localErr, localcores.ErrInUse)) || o.localAction == "local-launch" && o.localErr != nil {
 						localRunning = false
 						m.Session.State = "idle"
