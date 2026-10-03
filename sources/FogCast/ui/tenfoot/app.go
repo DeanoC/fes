@@ -533,30 +533,31 @@ type App struct {
 	previewFails       int
 	previewNext        time.Time
 
-	localCores          rooms.LocalCores
-	localFeed           localPadSender
-	localInstallKnown   bool
-	localInstalled      map[string]struct{}
-	localInstallGen     uint64
-	localInstallCancel  context.CancelFunc
-	localCatalogClose   func() error
-	localContent        func(context.Context, string) (string, error)
-	localPhase          string
-	localTitle          string
-	localStartedAt      time.Time
-	localStatus         string
-	localGen            uint64
-	localPresentsPaused bool
-	localRedraw         uint64
-	localSelectDown     bool
-	localStartDown      bool
-	localChordSince     time.Time
-	localChordFired     bool
-	localStopAfterStart bool
-	localSent           map[remoteinput.Code]bool
-	localStatusBusy     bool
-	localStatusNext     time.Time
-	localStatusEpoch    uint64
+	localCores                 rooms.LocalCores
+	localFeed                  localPadSender
+	localInstallKnown          bool
+	localInstalled             map[string]struct{}
+	localInstallGen            uint64
+	localInstallCancel         context.CancelFunc
+	localCatalogClose          func() error
+	localContent               func(context.Context, string) (string, error)
+	localPhase                 string
+	localReconcileAfterFailure bool
+	localTitle                 string
+	localStartedAt             time.Time
+	localStatus                string
+	localGen                   uint64
+	localPresentsPaused        bool
+	localRedraw                uint64
+	localSelectDown            bool
+	localStartDown             bool
+	localChordSince            time.Time
+	localChordFired            bool
+	localStopAfterStart        bool
+	localSent                  map[remoteinput.Code]bool
+	localStatusBusy            bool
+	localStatusNext            time.Time
+	localStatusEpoch           uint64
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.

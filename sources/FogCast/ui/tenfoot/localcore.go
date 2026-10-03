@@ -188,6 +188,15 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 			return
 		}
 		if err != nil {
+			if errors.Is(err, localcores.ErrUnavailable) {
+				// The request may have reached the runtime before its response
+				// timed out. Keep presentation paused and reconcile status.
+				a.localReconcileAfterFailure = true
+				a.localStatus = localUnavailableCopy
+				a.status = a.localStatus
+				a.localStatusNext = time.Time{}
+				return
+			}
 			a.failLocalCoreLocked(err, block)
 			return
 		}
@@ -322,6 +331,7 @@ func localCartridgeCore(system string) string {
 }
 
 func (a *App) failLocalCoreLocked(err error, block string) {
+	a.localReconcileAfterFailure = false
 	a.localPhase = ""
 	a.localStartedAt = time.Time{}
 	a.localPresentsPaused = false
@@ -396,6 +406,7 @@ func (a *App) beginLocalStopLocked() {
 }
 
 func (a *App) finishLocalCoreLocked() {
+	a.localReconcileAfterFailure = false
 	a.localPhase = ""
 	a.localPresentsPaused = false
 	if a.status == a.localStatus {
@@ -432,7 +443,7 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 // At most one poll is in flight, and it is not called under a.mu: Status can
 // take the client's 3s timeout. Idle, or running false, resumes presents.
 func (a *App) pollLocalStatusLocked(now time.Time) {
-	if a.localPhase != localPhaseRunning || a.localStatusBusy || a.localCores == nil {
+	if (a.localPhase != localPhaseRunning && !(a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure)) || a.localStatusBusy || a.localCores == nil {
 		return
 	}
 	if !a.localStatusNext.IsZero() && now.Before(a.localStatusNext) {
@@ -448,10 +459,30 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		a.localStatusBusy = false
-		if err != nil || a.localGen != gen || a.localPhase != localPhaseRunning || a.localStatusEpoch != epoch {
+		if err != nil || a.localGen != gen || a.localStatusEpoch != epoch || (a.localPhase != localPhaseRunning && !(a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure)) {
+			return
+		}
+		if status.Phase == "running" && a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure {
+			a.localReconcileAfterFailure = false
+			a.localPhase = localPhaseRunning
+			a.localStartedAt = time.Time{}
+			if a.status == a.localStatus {
+				a.status = ""
+			}
+			a.localStatus = ""
 			return
 		}
 		if status.Phase == "idle" || !status.Running {
+			wasAmbiguous := a.localReconcileAfterFailure
+			a.localReconcileAfterFailure = false
+			if wasAmbiguous {
+				a.localPhase = ""
+				a.localPresentsPaused = false
+				a.localStartedAt = time.Time{}
+				a.localRedraw++
+				a.roomWasParked = true
+				return
+			}
 			a.finishLocalCoreLocked()
 		}
 	}()

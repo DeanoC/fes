@@ -295,6 +295,24 @@ func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
 	}
 }
 
+func TestAmbiguousLocalLaunchReconcilesLateRunning(t *testing.T) {
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable}
+	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "pong tile", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.CoreLaunchable
+	})
+	app.HandleCommand(CmdSelect, time.Now())
+	snap := waitFor(t, app, "late running adoption", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning
+	})
+	if !snap.LocalCorePresentsPaused {
+		t.Fatal("late running core was adopted without presentation remaining paused")
+	}
+	if fake.statusCount() == 0 {
+		t.Fatal("ambiguous launch did not reconcile runtime status")
+	}
+}
+
 func TestLocalStatusPollIsSingleFlight(t *testing.T) {
 	block := make(chan struct{})
 	var once sync.Once

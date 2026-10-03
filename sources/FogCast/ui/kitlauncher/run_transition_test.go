@@ -37,11 +37,19 @@ func transitionClock(t *testing.T) func(time.Duration) {
 
 type transitionPad struct {
 	ready, chord func() bool
+	retry        func() bool
 	presses      int
 	chordSent    bool
+	retrySent    bool
 }
 
 func (p *transitionPad) Poll() ([]remoteinput.Event, error) {
+	if p.retry != nil && p.retry() && !p.retrySent {
+		p.retrySent = true
+		a, _ := remoteinput.NormalizeGamepad("a", true)
+		up, _ := remoteinput.NormalizeGamepad("a", false)
+		return []remoteinput.Event{a, up}, nil
+	}
 	if p.ready != nil && p.ready() && p.presses < 2 {
 		p.presses++
 		a, _ := remoteinput.NormalizeGamepad("a", true)
@@ -128,9 +136,12 @@ func TestRunLocalStateTransitions(t *testing.T) {
 	for _, tc := range []struct {
 		name, phase             string
 		timeout, lateIdle, stop bool
+		pauseRetry, retryLaunch bool
 	}{
 		{name: "running", phase: "running"}, {name: "failure", phase: "error"},
 		{name: "timeout_then_running", phase: "running", timeout: true},
+		{name: "timeout_pause_retry", phase: "running", timeout: true, pauseRetry: true},
+		{name: "timeout_blocks_second_launch", phase: "running", timeout: true, retryLaunch: true},
 		{name: "timeout_then_idle", phase: "idle", timeout: true, lateIdle: true},
 		{name: "deferred_stop", phase: "running", stop: true},
 	} {
@@ -141,18 +152,29 @@ func TestRunLocalStateTransitions(t *testing.T) {
 				f.launchErr = errors.New("missing cartridge")
 			}
 			c := localTransitionClient(t, f)
-			var pauses, resumes int
-			c.SetMenuDisplayHandoff(func(context.Context) error { pauses++; return nil }, func() { resumes++ })
+			var pauses, resumes, successfulPauses int
+			c.SetMenuDisplayHandoff(func(context.Context) error {
+				pauses++
+				if tc.pauseRetry && pauses == 2 {
+					return errors.New("pause failed")
+				}
+				successfulPauses++
+				return nil
+			}, func() { resumes++ })
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			pad := &transitionPad{}
 			var last Model
 			var sawLoading, sawTimeout bool
+			pad.retry = func() bool { return tc.retryLaunch && sawTimeout }
 			var timeoutReads int
 			pad.ready = func() bool { return len(last.Games) > 0 && !sawLoading }
 			pad.chord = func() bool { return tc.stop && sawLoading }
 			launcherObserve = func(m Model) {
 				last = m
+				if tc.pauseRetry && m.Session.State == "active" && successfulPauses < 2 {
+					t.Error("late running adopted before menu pause succeeded")
+				}
 				if m.Session.State == "launching" {
 					sawLoading = true
 				}
@@ -167,9 +189,14 @@ func TestRunLocalStateTransitions(t *testing.T) {
 					sawTimeout = true
 					if tc.lateIdle {
 						f.set("idle")
+					} else if tc.retryLaunch {
+						f.set("launching")
 					} else {
 						f.set("running")
 					}
+				}
+				if tc.retryLaunch && sawTimeout && pad.retrySent {
+					f.set("running")
 				}
 				if launches > 0 && !tc.timeout && tc.phase == "running" && sawLoading {
 					f.set("running")

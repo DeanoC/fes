@@ -366,6 +366,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}()
 	}
 	mutate := func(action string) {
+		// A timed-out local request still owns an unresolved runtime launch.
+		// Keep its epoch and identity until status reaches running or idle.
+		if (action == "launch" || action == "local-launch") && (localPending || localTimedOut) {
+			m.Message = "Still checking whether the previous game started"
+			paintKitHDMI(m)
+			return
+		}
 		if m.Busy && action != "stop" {
 			return
 		}
@@ -540,6 +547,16 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadPhase = "Launching"
 				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "running" && (localPending || localTimedOut || m.Session.State == "launching") {
 					wasTimedOut := localTimedOut
+					if wasTimedOut && c.menuDisplay {
+						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+						pauseErr := c.menuPause(pauseCtx)
+						pauseCancel()
+						if pauseErr != nil {
+							// Keep the pending identity and retry status/pause later.
+							continue
+						}
+						menuPaused = true
+					}
 					localTimedOut = false
 					localPending = false
 					localRunning = true
@@ -548,13 +565,6 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
 					m.Message = ""
-					if wasTimedOut && c.menuDisplay {
-						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
-						if c.menuPause(pauseCtx) == nil {
-							menuPaused = true
-						}
-						pauseCancel()
-					}
 					if localStopRequested {
 						localStopRequested = false
 						mutate("stop")
@@ -688,19 +698,24 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 				if m.Session.State == "active" {
 					wasTimedOut := hostTimedOut
+					if wasTimedOut && c.menuDisplay {
+						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+						pauseErr := c.menuPause(pauseCtx)
+						pauseCancel()
+						if pauseErr != nil {
+							// Do not expose an active game while menu scanout may continue.
+							m.Session.State = "idle"
+							m.Busy = false
+							continue
+						}
+						menuPaused = true
+					}
 					hostTimedOut = false
 					m.Busy = false
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
 					m.LaunchFailed = false
 					m.Message = ""
-					if wasTimedOut && c.menuDisplay {
-						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
-						if c.menuPause(pauseCtx) == nil {
-							menuPaused = true
-						}
-						pauseCancel()
-					}
 					if launcherObserve != nil {
 						launcherObserve(m)
 					}
