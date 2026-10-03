@@ -523,6 +523,12 @@
 
   function playAvailability(game, extra) {
     extra = extra && typeof extra === 'object' ? extra : {};
+    if (extra.resolutionState === 'loading') {
+      return { state: 'checking', label: 'Checking', reason: 'Checking every way to play this title.' };
+    }
+    if (extra.resolutionState === 'error') {
+      return { state: 'unavailable', label: 'Unavailable', reason: 'Could not check every way to play this title. Retry detail.' };
+    }
     if (extra.catalogLoading && !game) {
       return { state: 'checking', label: 'Checking', reason: 'Still resolving whether this title can play here.' };
     }
@@ -593,10 +599,10 @@
     return found;
   }
 
-  // viableTitleOptions keeps a backend only when its current game row is
+  // viableTitleOptions keeps a backend only when its resolved game row is
   // launch-eligible. Inventory `available` is not session Ready: ready_here
   // false (lease, skew, empty block) and every other launch block drop the
-  // option. A missing game row cannot prove readiness, so it is not offered.
+  // option. The caller must resolve missing rows before counting choices.
   function viableTitleOptions(title, games) {
     const rows = choiceGameRows(null, games);
     return titleOptionList(title).filter(option => {
@@ -635,7 +641,10 @@
 
   // resolvePlay classifies the viable backends. The open catalog row is chosen
   // only when the household or the user actually picked that source.
-  function resolvePlay(game, titles, picks, games) {
+  function resolvePlay(game, titles, picks, games, resolutionState) {
+    if (resolutionState && resolutionState !== 'ready') {
+      return { game, options: [], choice: { resolutionState } };
+    }
     const title = titleForGame(titles, game);
     const rows = choiceGameRows(game, games);
     const options = viableTitleOptions(title, rows);
@@ -1568,6 +1577,8 @@
       playPicks: Object.freeze({}),
       playOriginPane: '',
       playContextLoaded: false,
+      playOptionRows: [],
+      playOptionState: 'loading',
       catalogError: null,
       metadataFallbackCount: 0,
       metadataState: presentationEnabled ? 'metadata_idle' : 'metadata_fallback',
@@ -1753,6 +1764,8 @@
 
     function resetSelectionState() {
       state.selectionRevision += 1;
+      state.playOptionRows = [];
+      state.playOptionState = 'loading';
       state.detailSequence += 1;
       state.presentationSequence += 1;
       state.selectedPresentation = null;
@@ -2112,11 +2125,16 @@
     // A newer open replaces an in-flight load so a stale reply cannot win.
     async function ensurePlayContext() {
       const generation = ++playContextGeneration;
+      const selectionRevision = state.selectionRevision;
+      const selected = state.selectedLiveGame;
+      state.playOptionRows = [];
+      state.playOptionState = 'loading';
+      emit();
       const titlesPromise = request(fetchImpl, titlesPath()).catch(() => null);
       const prefsPromise = request(fetchImpl, editionPreferencesPath()).catch(() => null);
       const titlesPayload = await titlesPromise;
       const prefsPayload = await prefsPromise;
-      if (generation !== playContextGeneration) return snapshot();
+      if (generation !== playContextGeneration || selectionRevision !== state.selectionRevision) return snapshot();
       if (titlesPayload) {
         try {
           state.libraryTitles = Object.freeze(parseLibraryTitles(titlesPayload));
@@ -2134,20 +2152,41 @@
         picks[gameID] = gameID;
       });
       state.playPicks = Object.freeze(picks);
+      if (!titlesPayload) {
+        state.playOptionState = 'error';
+        return emit();
+      }
+      const title = titleForGame(state.libraryTitles, selected);
+      const knownRows = choiceGameRows(selected, state.games);
+      const missing = titleOptionList(title).filter(option => !findGameRow(knownRows, option.source_game_id));
+      try {
+        const rows = await Promise.all(missing.map(async option => {
+          const id = option.source_game_id;
+          return parseDetail(await request(fetchImpl, gameDetailPath(id)), id);
+        }));
+        if (generation !== playContextGeneration || selectionRevision !== state.selectionRevision) return snapshot();
+        state.playOptionRows = Object.freeze(rows);
+        state.playOptionState = 'ready';
+      } catch (_) {
+        if (generation !== playContextGeneration || selectionRevision !== state.selectionRevision) return snapshot();
+        state.playOptionRows = [];
+        state.playOptionState = 'error';
+      }
       state.playContextLoaded = true;
       return emit();
     }
 
     function playSelection(game) {
       if (!game) return game;
-      const resolved = resolvePlay(game, state.libraryTitles, state.playPicks, state.games);
+      const resolved = resolvePlay(game, state.libraryTitles, state.playPicks,
+        [...state.games, ...state.playOptionRows], state.playOptionState);
       return resolved.game || game;
     }
 
     function chooseBackend(sourceGameID) {
       const id = typeof sourceGameID === 'string' ? sourceGameID.trim() : '';
       if (!id) return snapshot();
-      const row = findGameRow(choiceGameRows(state.selectedLiveGame, state.games), id);
+      const row = findGameRow(choiceGameRows(state.selectedLiveGame, [...state.games, ...state.playOptionRows]), id);
       if (row) rememberPlayPick(row);
       return selectGame(id);
     }
@@ -2155,7 +2194,7 @@
     function rememberPlayPick(game) {
       if (!game || !game.id) return;
       const title = titleForGame(state.libraryTitles, game);
-      const options = viableTitleOptions(title, choiceGameRows(game, state.games));
+      const options = viableTitleOptions(title, choiceGameRows(game, [...state.games, ...state.playOptionRows]));
       if (options.length < 2) return;
       const picks = { ...state.playPicks, [game.id]: game.id };
       if (title && title.title_id) picks[title.title_id] = game.id;
@@ -2208,10 +2247,12 @@
     }
 
     async function launchSelected() {
+      if (state.playOptionState !== 'ready') return emit();
       const selected = playSelection(state.selectedLiveGame);
       if (state.activeMutation) return mutationConflict();
       if (!selected) return snapshot();
-      const choice = playChoiceFor(selected, state.libraryTitles, state.playPicks, state.games);
+      const choice = playChoiceFor(selected, state.libraryTitles, state.playPicks,
+        [...state.games, ...state.playOptionRows]);
       if (choice.needsChoice) return emit();
       if (!launchAllowed(selected)) return emit();
       state.playOriginPane = 'detail';
@@ -3283,6 +3324,7 @@
     async function selectGame(gameOrID) {
       const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
       const fresh = state.games.find(game => game.id === id)
+        || state.playOptionRows.find(game => game.id === id)
         || (state.selectedLiveGame && Array.isArray(state.selectedLiveGame.variants)
           ? state.selectedLiveGame.variants.find(game => game.id === id)
           : null);
@@ -4871,7 +4913,8 @@
   }
 
   function launchControl(game) {
-    const resolved = resolvePlay(game, state && state.libraryTitles, state && state.playPicks, state && state.games);
+    const resolved = resolvePlay(game, state.libraryTitles, state.playPicks,
+      [...state.games, ...state.playOptionRows], state.playOptionState);
     const subject = resolved.game || game;
     const play = playAvailability(subject, resolved.choice);
     const label = play.state === 'needs_choice' ? 'Choose' : 'Play';
@@ -4952,7 +4995,8 @@
     }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const detailGame = liveGame || game;
-    const resolvedPlay = resolvePlay(detailGame, state.libraryTitles, state.playPicks, state.games);
+    const resolvedPlay = resolvePlay(detailGame, state.libraryTitles, state.playPicks,
+      [...state.games, ...state.playOptionRows], state.playOptionState);
     const shownPlay = playAvailability(resolvedPlay.game || detailGame, resolvedPlay.choice);
     const facts = element('div', 'detail-facts');
     const factRows = [

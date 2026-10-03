@@ -970,8 +970,10 @@ async function openDataStorm(fpga, emu, preferences, extraRoutes = {}) {
     '/api/v1/games': [jsonResponse({ games: [fpga, emu] })],
     [`/api/v1/games/${fpga.id}`]: [jsonResponse(fpga)],
     [`/api/v1/games/${emu.id}`]: [jsonResponse(emu)],
-    '/api/v1/library/titles': [jsonResponse({ titles: [dataStormTitle(extraRoutes.available !== false)] })],
+    '/api/v1/library/titles': [jsonResponse({ titles: [dataStormTitle(extraRoutes.available !== false)] }),
+      jsonResponse({ titles: [dataStormTitle(extraRoutes.available !== false)] })],
     '/api/v1/library/edition-preferences': [
+      jsonResponse({ preferences }),
       jsonResponse({ preferences }),
       jsonResponse({ query: 'Data Storm', platform: 'sms', game_id: launchedID }),
     ],
@@ -1333,6 +1335,8 @@ test('same-ID detail identity replacement invalidates stale presentation and ref
       throw new Error('same-ID identity replacement issued more than one replacement request');
     }
     if (requestPath === '/api/v1/session/launch') return jsonResponse({ state: 'active', game_id: gameID });
+    if (requestPath === '/api/v1/library/titles') return jsonResponse({ titles: [] });
+    if (requestPath === '/api/v1/library/edition-preferences') return jsonResponse({ preferences: [] });
     throw new Error(`unexpected request ${requestPath}`);
   };
   const controller = createAppController({ fetchImpl, presentationEnabled: true });
