@@ -17,6 +17,10 @@ import (
 )
 
 func fixtureInputs(t *testing.T, archive bool) ([]string, expansion.PartsShell, expansion.Asset) {
+	return fixtureInputsLayout(t, archive, expansion.ColecoVideoLayout)
+}
+
+func fixtureInputsLayout(t *testing.T, archive bool, layout string) ([]string, expansion.PartsShell, expansion.Asset) {
 	t.Helper()
 	f, err := os.Open("../../testdata/rom/blank.rbf.gz")
 	if err != nil {
@@ -33,12 +37,16 @@ func fixtureInputs(t *testing.T, archive bool) ([]string, expansion.PartsShell, 
 		t.Fatal(err)
 	}
 	shell := expansion.PartsShell{PackageID: strings.Repeat("a", 64), BuildID: strings.Repeat("b", 32),
-		Layout: expansion.ColecoVideoLayout, Payload: payload}
+		Layout: layout, Payload: payload}
 	digest := fmt.Sprintf("%x", sha256.Sum256(payload))
+	slot, mapping := expansion.VideoSlot, expansion.ColecoVideoMap
+	if layout == expansion.ColecoNativeVideoLayout {
+		slot, mapping = expansion.NativeVideoSlot, expansion.ColecoNativeVideoMap
+	}
 	asset, err := expansion.NewAsset(expansion.Manifest{CartSHA256: digest, CartSize: int64(len(payload)),
-		Device: expansion.Device, Format: 1, Map: expansion.ColecoVideoMap, RecipeSHA256: strings.Repeat("c", 64),
+		Device: expansion.Device, Format: 1, Map: mapping, RecipeSHA256: strings.Repeat("c", 64),
 		Revision: strings.Repeat("d", 40), ShellBuildID: shell.BuildID, ShellPackageID: shell.PackageID,
-		ShellSHA256: digest, Slot: expansion.VideoSlot, SlotMajor: 1}, payload)
+		ShellSHA256: digest, Slot: slot, SlotMajor: 1}, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,6 +76,34 @@ func fixtureInputs(t *testing.T, archive bool) ([]string, expansion.PartsShell, 
 	}
 	return []string{"-shell", shellPath, "-package-id", shell.PackageID, "-build-id", shell.BuildID,
 		"-video", partPath, "-output", filepath.Join(dir, "output.rbf")}, shell, asset
+}
+
+func TestRunNativeRequiresExplicitClosedLayout(t *testing.T) {
+	args, shell, asset := fixtureInputsLayout(t, true, expansion.ColecoNativeVideoLayout)
+	original := []byte("previous output")
+	if err := os.WriteFile(args[9], original, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(context.Background(), args, io.Discard); err == nil {
+		t.Fatal("raw diagnostic silently relabeled raster shell as native")
+	}
+	got, err := os.ReadFile(args[9])
+	if err != nil || !bytes.Equal(got, original) {
+		t.Fatal("rejected layout changed output")
+	}
+	args = append(args, "-layout", expansion.ColecoNativeVideoLayout)
+	var stdout bytes.Buffer
+	if err := run(context.Background(), args, &stdout); err != nil {
+		t.Fatal(err)
+	}
+	want, linked, err := expansion.ComposePartsContext(context.Background(), shell, []expansion.Asset{asset})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = os.ReadFile(args[9])
+	if err != nil || !bytes.Equal(got, linked) || !bytes.Contains(stdout.Bytes(), []byte(want.ID)) {
+		t.Fatal("native raw diagnostic differs from closed admission")
+	}
 }
 
 func TestRunLinksArchiveAndDirectory(t *testing.T) {

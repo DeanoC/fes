@@ -320,16 +320,27 @@ void TestLinkedCartridgeRejectsResetHeldMediaContracts()
 }
 
 void TestDeveloperVideoSocketCompatibility() {
+ for (const auto* marker : {"fes.fabric.video.raster-rgb888", "fes.fabric.video.native-pixels"}) {
  mister::CoreDescriptor d;
  d.format=2;d.core.id="fes.coleco";d.target={"de10_nano","5CSEBA6U23I7","fes-gp-v1"};d.abi={"fes.application",1,0};
- d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.expansion.coleco-bus",2,0,false},{"fes.fabric.video.raster-rgb888",1,0,false}};
+ d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.expansion.coleco-bus",2,0,false},{marker,1,0,false}};
  assert(mister::native::CheckCoreCompatibility(d).ok());
  auto changed=d;changed.core.id="fes.other";assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.format=3;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().required=true;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().minor=1;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.interfaces.back().major=2;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces[1].major=1;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.interfaces[1].required=true;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.interfaces.push_back(d.interfaces.back());assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.interfaces.push_back({std::string(marker)=="fes.fabric.video.native-pixels" ?
+  "fes.fabric.video.raster-rgb888" : "fes.fabric.video.native-pixels",1,0,false});
+ assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.push_back({"unknown.operational.capability",1,0,true});assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ if (std::string(marker)=="fes.fabric.video.native-pixels") {
+  changed=d;changed.abi={"fes.simple-game",1,0};assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ }
+ }
 }
 
 void TestApplicationCompatibilityComposesInterfaces()

@@ -1,0 +1,316 @@
+{
+  "classification": "Host-only software and RTL simulation evidence; source qualifications distinguish broad pre-fix coverage from tests of the strict native correction.",
+  "physical_acceptance": "Not established by these logs; final hardware receipts are separate.",
+  "tests": [
+    {
+      "command": "python3 -m unittest tests.test_native_video_build tests.test_native_video_parts tests.test_native_video_clock tests.test_video_parts_build (sources/misteross)",
+      "log": {
+        "path": "out/native-video-link/producer-tests-strict.log",
+        "sha256": "86432cac57329ed622ae62e53ef2465ad15f987b3e14b2edcda7297597a294b4",
+        "size": 129
+      },
+      "name": "Strict native producer and clock preparation",
+      "result": {
+        "status": "pass",
+        "tests": 30
+      },
+      "source_qualification": null,
+      "source_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151"
+    },
+    {
+      "command": "Focused RBF codec regression suite (sources/misteross)",
+      "log": {
+        "path": "out/native-video-link/codec-regressions.log",
+        "sha256": "c5389f0cb32a80ff45c90f24fc3fbf1bc6b9a5617cab52b463e77c761b2a7e4d",
+        "size": 113
+      },
+      "name": "RBF codec and ROM-map regressions",
+      "result": {
+        "status": "pass",
+        "tests": 14
+      },
+      "source_qualification": null,
+      "source_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151"
+    },
+    {
+      "command": "go test ./... -count=1 (sources/misteross/expansion)",
+      "log": {
+        "path": "out/native-video-link/expansion-native-strict.log",
+        "sha256": "7acb81ac496c40e42d886241abb2acedc4c61998e532d1b9e755e9048316f6fb",
+        "size": 264
+      },
+      "name": "Expansion linker and command packages",
+      "result": {
+        "command_package_without_tests": 1,
+        "packages_passed": 3,
+        "status": "pass"
+      },
+      "source_qualification": "Run immediately before commit against the exact expansion bytes committed in d82c0f92c; no later source changes before commit.",
+      "source_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-count=1",
+        "./corepackage",
+        "./internal/misterruntime",
+        "./cmd/fes-parts"
+      ],
+      "log": {
+        "path": "out/native-video-link/arm-strict/fogcast-focused-tests.jsonl",
+        "sha256": "075305437c6d478e04a5ed0509aa17bbe98c8eaf9472b38b590a84d49316a724",
+        "size": 641720
+      },
+      "name": "FogCast strict-linker consumers",
+      "original_receipt": {
+        "path": "out/native-video-link/arm-strict/fogcast-focused-test-result.json",
+        "sha256": "709ae78928ba72cb4865c1e77644a7b08560505eab5b78d2ddde5dc50648f5d6",
+        "size": 993
+      },
+      "result": {
+        "exit_code": 0,
+        "packages": {
+          "github.com/DeanoC/FogCast/cmd/fes-parts": "skip",
+          "github.com/DeanoC/FogCast/corepackage": "pass",
+          "github.com/DeanoC/FogCast/internal/misterruntime": "pass"
+        },
+        "test_events_failed": 0,
+        "test_events_passed": 637,
+        "test_events_skipped": 1,
+        "top_level_tests_passed": 223
+      },
+      "skip_reason": "TestColecoProducerComposition requires FES_COLECO_GOLDEN_ROOT; cmd/fes-parts has no unit tests and was compiled.",
+      "source_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151"
+    },
+    {
+      "command": "make check",
+      "log": {
+        "path": "out/native-video-link/parent-check-strict.log",
+        "sha256": "9456c814673061fef856931f3eb5bfb032b585918b28b44ce88d993f69b97627",
+        "size": 137
+      },
+      "name": "Parent consistency",
+      "result": {
+        "fixture_copies": 33,
+        "generated_consumers": 17,
+        "status": "pass"
+      },
+      "source_qualification": null,
+      "source_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151"
+    },
+    {
+      "command": "make test",
+      "log": {
+        "path": "out/native-video-link/parent-tests.log",
+        "sha256": "71ce7bc2eb68605b6b7b678bd461f80a8372636716528e1d30c94d6fe5cda55d",
+        "size": 11578
+      },
+      "name": "Parent regression suite",
+      "result": {
+        "skipped": 39,
+        "status": "pass",
+        "tests": 647
+      },
+      "source_qualification": "Pre-strict-fix coverage. Invocation start revision was not recorded; this does not certify the later linker correction. Strict affected tests are recorded separately.",
+      "source_revision": null
+    },
+    {
+      "command": "make -j2 test (sources/libmister-runtime; default build directory)",
+      "log": {
+        "path": "out/native-video-link/runtime-full.log",
+        "sha256": "d6ca826453cdbdaf5b508bfea506952bcca168712251a29fd27a9d952e357280",
+        "size": 15781
+      },
+      "name": "libmister-runtime complete suite",
+      "result": {
+        "status": "pass"
+      },
+      "source_qualification": "Runtime production/test bytes match 7dbce8831. Concurrent subsequent edits were Python-only producer-preview changes; no full image or physical hardware test is implied.",
+      "source_revision": "7dbce883142a40d13320fc5bcdd4cf9db086a145"
+    },
+    {
+      "command": "go test ./... (sources/FogCast)",
+      "log": {
+        "path": "out/native-video-link/fogcast-full.log",
+        "sha256": "60168647c7c7dd1d8b82ab5ced5d0c265d1bf825437f66b662e747bcb618a4e8",
+        "size": 4349
+      },
+      "name": "FogCast complete Go suite",
+      "result": {
+        "packages_passed": 71,
+        "status": "pass"
+      },
+      "source_qualification": "Pre-strict-fix coverage. FogCast and expansion Go trees were identical at 7a4b1176b, 7dbce8831 and 9f5c09a56; exact start revision was not recorded. Strict affected consumers were rerun at d82c0f92c.",
+      "source_revision": null
+    },
+    {
+      "command": "Focused native/video producer tests",
+      "log": {
+        "path": "out/native-video-link/producer-tests.log",
+        "sha256": "2aeb19d22f880495970face8b17f2f4c6eb550e9d8ae656af2f30ad5a9b5a8e5",
+        "size": 135
+      },
+      "name": "Producer preparation before strict correction",
+      "result": {
+        "status": "pass",
+        "tests": 36
+      },
+      "source_qualification": "Pre-strict-fix coverage; 30 changed producer tests plus 14 codec tests are separately recorded for d82c0f92c.",
+      "source_revision": null
+    },
+    {
+      "command": "python3 -m unittest discover -s tests -p 'test_build_fes_*.py' (sources/misteross)",
+      "log": {
+        "path": "/tmp/fes-native-shell-regressions.log",
+        "sha256": "83ab670213ad8865377730579151f6e3e1595d2d8eff1467c032bef5b8bafc50",
+        "size": 1009
+      },
+      "name": "Shell producer regressions",
+      "result": {
+        "status": "pass",
+        "tests": 186
+      },
+      "source_qualification": "Pre-strict-fix coverage; tested shell producer/RTL bytes were not changed by the native CRAM correction.",
+      "source_revision": null
+    },
+    {
+      "command": "Focused affected.py and test_changed.py suites",
+      "log": {
+        "path": "out/native-video-link/planner-tests.log",
+        "sha256": "494ee0d0df3852f451adf2214b01c594950af9f9c92264b6b2e2bb822ace9739",
+        "size": 410
+      },
+      "name": "Parent affected/planner tests",
+      "result": {
+        "runs": 2,
+        "status": "pass",
+        "tests_each": 19
+      },
+      "source_qualification": "Pre-strict-fix coverage; exact invocation start revision was not recorded.",
+      "source_revision": null
+    },
+    {
+      "command": "make sim-fes-native-socket; registered Coleco VDP simulation; legacy/inline/native socket board elaboration",
+      "log": {
+        "path": "/tmp/fes-native-socket-sim.log",
+        "sha256": "9d477f562cdc284f2a06b86c83552b79f0cf251e82db43367d1c759a92c9e857",
+        "size": 9813
+      },
+      "name": "Native socket/cart, actual VDP and board simulations",
+      "result": {
+        "CDC_tokens": 442331,
+        "HOLD_invalidations": 1,
+        "actual_VDP_source_frames": 8,
+        "board_elaboration": [
+          "legacy",
+          "native-inline",
+          "native-socket"
+        ],
+        "checked_full_HDMI_frames": 3,
+        "checked_indexed_pixels": 360544,
+        "coordinate_age_clocks": [
+          4,
+          4
+        ],
+        "dropped_pre_SOF_pixels": 1,
+        "fractional_spacing_clocks": [
+          12,
+          13
+        ],
+        "socket_direct_exact_HDMI_cycles": 3712500,
+        "socket_scanlines_exact_HDMI_cycles": 3712500,
+        "status": "pass"
+      },
+      "source_qualification": "Pre-strict-fix simulation against unchanged RTL. Log reports Verilator 5.032 Debian package; this was not a new run using the pinned CI compiler commit.",
+      "source_revision": null
+    },
+    {
+      "command": "python3 out/native-video-link/hardware/test_run.py",
+      "log": {
+        "path": "out/native-video-link/hardware/offline-tests.log",
+        "sha256": "daa1514f7ba3734ca32fa28b6d37682824536cbdf82379986acdc95494264b5b",
+        "size": 1555
+      },
+      "name": "Diagnostic runner offline tests",
+      "original_receipt": {
+        "path": "out/native-video-link/hardware/offline-result.json",
+        "sha256": "f29ac61fdb37b5ce0c7f7ba5a389e64406673a9aa9b97bc51cf49cd0ab4277fe",
+        "size": 1678
+      },
+      "result": {
+        "status": "passed",
+        "tests": 12
+      },
+      "source_qualification": "Sealed local transport tests use the first completed Direct/Scanlines artifacts. Final prepared.json selects root-authenticated final transport paths and is validated offline again before operator execution.",
+      "source_revision": "7dbce883142a40d13320fc5bcdd4cf9db086a145"
+    },
+    {
+      "classification": "Synthetic local media only; not hardware evidence.",
+      "name": "Independent capture oracle controls",
+      "original_positive_analysis": {
+        "path": "out/native-video-link/analysis/results/positive-control/analysis.json",
+        "sha256": "4fb91128355905f8246051c52bc9e0cf1bc6b64872df88da3eb327fad2c7f56d",
+        "size": 178757
+      },
+      "original_self_checks": {
+        "path": "out/native-video-link/analysis/self-check.json",
+        "sha256": "9e71c795e5b567977419fbf34a324e10aacfa8122f8305ee6c0c4d12e0618831",
+        "size": 97273
+      },
+      "result": {
+        "positive_full_cli_gates": 30,
+        "positive_full_cli_passed": true,
+        "self_and_negative_checks": {
+          "different_stereo_rejected": true,
+          "direct_relaunch_equal": true,
+          "native_full_pixel_geometry_passes": true,
+          "native_scanline_full_pixel_geometry_passes": true,
+          "nominal_sn_tone_passes": true,
+          "old_raster_horizontal_delay_rejected": true,
+          "period2_scanlines_pass": true,
+          "period4_alternative_model_passes": true,
+          "period4_scanlines_rejected": true,
+          "shifted_relaunch_rejected": true,
+          "silence_rejected": true,
+          "wrong_frequency_rejected": true
+        },
+        "status": "pass"
+      },
+      "source_manifest": "diagnostic-sources.json"
+    },
+    {
+      "command": "Focused affected.py and test_changed.py suites",
+      "log": {
+        "path": "out/native-video-link/merge-planner-tests.log",
+        "sha256": "4243a004a92f057e413274396fe037fcf63477fe6df4c92acc05e2aec0118bf8",
+        "size": 174
+      },
+      "name": "Merged upstream affected/planner tests",
+      "result": {
+        "status": "pass",
+        "tests": 43
+      },
+      "source_qualification": "After merging current #404 base e73eb72a; this merge does not replace the artifact producer revisions recorded in build.json.",
+      "source_revision": "8e3384c4e2ad960254417517b63e4a1af1a14123"
+    },
+    {
+      "command": "make check",
+      "log": {
+        "path": "out/native-video-link/merge-check.log",
+        "sha256": "9456c814673061fef856931f3eb5bfb032b585918b28b44ce88d993f69b97627",
+        "size": 137
+      },
+      "name": "Merged upstream parent consistency",
+      "result": {
+        "fixture_copies": 33,
+        "generated_consumers": 17,
+        "status": "pass"
+      },
+      "source_qualification": "After merging current #404 base e73eb72a; this merge does not replace the artifact producer revisions recorded in build.json.",
+      "source_revision": "8e3384c4e2ad960254417517b63e4a1af1a14123"
+    }
+  ],
+  "version": 1
+}

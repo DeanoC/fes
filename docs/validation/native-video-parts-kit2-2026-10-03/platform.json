@@ -1,0 +1,240 @@
+{
+  "baseline": {
+    "disk_sha256": {
+      "/media/fat/fogcast/releases/images/5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f.img": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+      "/usr/sbin/mister-agent": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+      "/usr/sbin/mister-runtime": "3de558d3a21a12052321472fb8096970b6c42e15516920c2ec60130c0e197310"
+    },
+    "live_executables_sha256": {
+      "mister-agent": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+      "mister-runtime": "3de558d3a21a12052321472fb8096970b6c42e15516920c2ec60130c0e197310"
+    },
+    "mounted_root": {
+      "backing_file": "/media/fat/fogcast/releases/images/5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f.img",
+      "mountinfo": "21 1 7:0 / / ro,noatime - ext4 /dev/loop0 ro,norecovery"
+    },
+    "observation": {
+      "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+      "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+      "last_error": null,
+      "lease_state": "free",
+      "ready": true,
+      "reported_agent_revision": "53019ba7bad6747383c57be7cf675b1afcedf722",
+      "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+      "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+      "state": "idle",
+      "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+    },
+    "source_receipt": {
+      "path": "out/native-video-link/kit2-initial.json",
+      "sha256": "eb45aebc94e5c5d87ad177ee8cc985ef14f4f314d7d977f838e2c3e0b0b3f01d",
+      "size": 2329
+    }
+  },
+  "classification": "Operator observations of temporary executable overlays on the existing read-only image; no image update/reboot and no appliance acceptance.",
+  "cleanup": {
+    "agent_runtime_bind_mounts_absent": true,
+    "alsa_capture_status": "closed",
+    "capture_device": "/dev/video2",
+    "capture_handles": [],
+    "host_services_changed": false,
+    "own_stage_absent": true,
+    "restored_platform_receipt": "kit2-strict-restored.json",
+    "source_receipt": {
+      "path": "out/native-video-link/operator-strict-cleanup.json",
+      "sha256": "37205108560546d2309ac0253d0437563bc3d1ba41831f3dfa9db9b1cb3d497d",
+      "size": 264
+    }
+  },
+  "final_restoration": {
+    "baseline_executables_restored": true,
+    "disk_sha256": {
+      "/media/fat/fogcast/releases/images/5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f.img": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+      "/usr/sbin/mister-agent": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+      "/usr/sbin/mister-runtime": "3de558d3a21a12052321472fb8096970b6c42e15516920c2ec60130c0e197310"
+    },
+    "live_executables_sha256": {
+      "mister-agent": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+      "mister-runtime": "3de558d3a21a12052321472fb8096970b6c42e15516920c2ec60130c0e197310"
+    },
+    "mounted_root": {
+      "backing_file": "/media/fat/fogcast/releases/images/5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f.img",
+      "mountinfo": "21 1 7:0 / / ro,noatime - ext4 /dev/loop0 ro,norecovery"
+    },
+    "observation": {
+      "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+      "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+      "last_error": null,
+      "lease_state": "free",
+      "ready": true,
+      "reported_agent_revision": "53019ba7bad6747383c57be7cf675b1afcedf722",
+      "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+      "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+      "state": "idle",
+      "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+    },
+    "same_boot": true,
+    "same_image": true,
+    "source_receipt": {
+      "path": "out/native-video-link/kit2-strict-restored.json",
+      "sha256": "e9c58e2ed62ec0867c335dab589b3a423c93fbd43f647e22b9a9fe1bb716ab8c",
+      "size": 2333
+    },
+    "status": "pass"
+  },
+  "operations": [
+    {
+      "after": {
+        "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+        "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+        "last_error": null,
+        "lease_state": "free",
+        "ready": true,
+        "reported_agent_revision": "7a4b1176b1c8f04b215bbac50d1b0c06f8fc0259",
+        "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "state": "idle",
+        "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+      },
+      "before": {
+        "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+        "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+        "last_error": null,
+        "lease_state": "free",
+        "ready": true,
+        "reported_agent_revision": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "state": "idle",
+        "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+      },
+      "diagnostic_artifact_receipt_sha256": "c8d8cb96dcea99a1cb8b904e85f8595ffd511e7df87678a34c0383a76ee9b84f",
+      "disk_and_live_sha256": {
+        "mister-agent": "4bfa07c41c8e70651abcb71f6bf3457d8cecbed8ac6dea15bd91e6cf3e5f099a",
+        "mister-runtime": "762e11af5b5ab29c6ab2e374dab1e230fc14dfccc4a1020bafe0c5739f03b1d4"
+      },
+      "operation": "deployment-overlay",
+      "operator_helper_sha256": "66222be28b468b89325d36efe566aad1fa78e0a11311825ba9aeeceed4103722",
+      "source_receipt": {
+        "path": "out/native-video-link/deployment-overlay.json",
+        "sha256": "e26543f9f0ccace267cca6c165bdb5fa5dbe8e9091a289c36574b45e3b1665d9",
+        "size": 4261
+      }
+    },
+    {
+      "after": {
+        "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+        "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+        "last_error": null,
+        "lease_state": "free",
+        "ready": true,
+        "reported_agent_revision": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "state": "idle",
+        "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+      },
+      "before": {
+        "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+        "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+        "last_error": null,
+        "lease_state": "free",
+        "ready": true,
+        "reported_agent_revision": "7a4b1176b1c8f04b215bbac50d1b0c06f8fc0259",
+        "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "state": "idle",
+        "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+      },
+      "diagnostic_artifact_receipt_sha256": "c8d8cb96dcea99a1cb8b904e85f8595ffd511e7df87678a34c0383a76ee9b84f",
+      "disk_and_live_sha256": {
+        "mister-agent": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "mister-runtime": "3de558d3a21a12052321472fb8096970b6c42e15516920c2ec60130c0e197310"
+      },
+      "operation": "deployment-restore",
+      "operator_helper_sha256": "ca9c4985e510caf46b985abd40be47c51ff2b641328f33fee1006804f30da27e",
+      "source_receipt": {
+        "path": "out/native-video-link/deployment-restore.json",
+        "sha256": "824ae055afb147e070e29a645cb1d5bdaec3f37f458e25d539703d1f2ae9efb9",
+        "size": 4261
+      }
+    },
+    {
+      "after": {
+        "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+        "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+        "last_error": null,
+        "lease_state": "free",
+        "ready": true,
+        "reported_agent_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+        "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "state": "idle",
+        "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+      },
+      "before": {
+        "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+        "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+        "last_error": null,
+        "lease_state": "free",
+        "ready": true,
+        "reported_agent_revision": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "state": "idle",
+        "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+      },
+      "diagnostic_artifact_receipt_sha256": "c9ffc86bfff8a17c8c8430bd7b7a2c58f7e0d893c47213080756bdad8eac49f0",
+      "disk_and_live_sha256": {
+        "mister-agent": "71335cbd0d6a32693a5b3c7a045044afe64ed0ddf1958aa655ed0a101ccde9d0",
+        "mister-runtime": "762e11af5b5ab29c6ab2e374dab1e230fc14dfccc4a1020bafe0c5739f03b1d4"
+      },
+      "operation": "deployment-strict-overlay",
+      "operator_helper_sha256": "e8ea4d8f55e3912e6ebe1fb5b6c982315785fede003f14c6f47a1da4bc95b4f2",
+      "source_receipt": {
+        "path": "out/native-video-link/deployment-strict-overlay.json",
+        "sha256": "0506b50b8b737ff7740c69999baaf9ea76a8ab9a579ff61e564b5afb7430da17",
+        "size": 4261
+      }
+    },
+    {
+      "after": {
+        "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+        "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+        "last_error": null,
+        "lease_state": "free",
+        "ready": true,
+        "reported_agent_revision": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "state": "idle",
+        "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+      },
+      "before": {
+        "boot_id": "aaf0cc16-b03c-4b92-8252-b7cf141ddee0",
+        "image_sha256": "5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f",
+        "last_error": null,
+        "lease_state": "free",
+        "ready": true,
+        "reported_agent_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+        "sealed_image_agent_sha256": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "sealed_image_runtime_commit": "53019ba7bad6747383c57be7cf675b1afcedf722",
+        "state": "idle",
+        "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+      },
+      "diagnostic_artifact_receipt_sha256": "c9ffc86bfff8a17c8c8430bd7b7a2c58f7e0d893c47213080756bdad8eac49f0",
+      "disk_and_live_sha256": {
+        "mister-agent": "8d0622d08b8f79e35c940e0de6051fa94f4154dd335854a0a0d340b3aff00430",
+        "mister-runtime": "3de558d3a21a12052321472fb8096970b6c42e15516920c2ec60130c0e197310"
+      },
+      "operation": "deployment-strict-restore",
+      "operator_helper_sha256": "e353aa7d5c21f6759244ae2451fb1e8298ac1c8cbc37e948e1a35ce0bf9db3b7",
+      "source_receipt": {
+        "path": "out/native-video-link/deployment-strict-restore.json",
+        "sha256": "2bd1eae66fda5f5dd3bf2415ec64658429c5e2cb5034d70933d51cfc8546375c",
+        "size": 4261
+      }
+    }
+  ],
+  "sealed_receipt_qualification": "health.artifacts.agent_sha256 and runtime_commit describe the immutable installed image while executables are temporarily overlaid. Actual disk and live executable hashes above identify the diagnostic programs."
+}

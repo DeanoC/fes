@@ -1,0 +1,35 @@
+{
+  "classification": "Generated open diagnostic cartridge; no proprietary firmware or game ROM",
+  "exact_replay_receipt": {
+    "public_file": "fixture-prepared.json",
+    "replay_location": "out/native-video-link/analysis/fixture/prepared.json",
+    "sha256": "5ae56b11b22ee964c9927970ab01e5cba5afab25d4da933e71f45852339ac84b"
+  },
+  "fixture": {
+    "adapter_sha256": "80bbe6973f8dc5c2408f57c7523161bf1a267c41eb820ab15c6ed4e3671a3a18",
+    "nominal_SN_hz": 216.7844597868217,
+    "note": "Original graphics cartridge with appended DI/stack/SN tone trampoline; original absolute table addresses are preserved.",
+    "rom_sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+    "size": 1086,
+    "source_sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe"
+  },
+  "generator": {
+    "public_file": "../video-factory-kit2-2026-10-03/generate.py.txt",
+    "sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe"
+  },
+  "license": {
+    "public_file": "fixture-LICENSE.txt",
+    "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d"
+  },
+  "nominal_frequency_derivation": "3.579545 MHz / (32 * 516) = 216.7844597868217 Hz from SN writes 0x84, 0x20, 0x90.",
+  "original_receipt": {
+    "path": "out/native-video-link/analysis/fixture/prepared.json",
+    "sha256": "5ae56b11b22ee964c9927970ab01e5cba5afab25d4da933e71f45852339ac84b",
+    "size": 449
+  },
+  "rom_publication": "ROM bytes omitted; generate with the referenced exact source/adapter.",
+  "tone_adapter": {
+    "public_file": "../video-factory-kit2-2026-10-03/prepare-fixture.py.txt",
+    "sha256": "80bbe6973f8dc5c2408f57c7523161bf1a267c41eb820ab15c6ed4e3671a3a18"
+  }
+}

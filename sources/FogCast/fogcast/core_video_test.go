@@ -222,6 +222,25 @@ func TestLibraryVideoPreferenceLaunchesExactPartsWithCPUAndMedia(t *testing.T) {
 	}
 }
 
+func TestNativeVideoShellLibraryLaunchRejectsBeforeTargetCalls(t *testing.T) {
+	ctx := context.Background()
+	markers := "\n[[interfaces]]\nid = \"fes.expansion.coleco-bus\"\nmajor = 2\nminor = 0\nrequired = false\n\n[[interfaces]]\nid = \"fes.fabric.video.native-pixels\"\nmajor = 1\nminor = 0\nrequired = false\n"
+	raw := colecoLibraryPackageContractsFixture(t, "fes.application", markers)
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, raw, "Native developer shell")
+	bindVideoMedia(t, s, entry)
+	prior := coreEntryActiveStatus(inspection, 7, true)
+	client.statusResult, client.mediaStatus = prior, prior
+	if _, err := s.Launch(ctx, entry.GameID, nil); err == nil || !strings.Contains(err.Error(), "requires a developer parts composition") {
+		t.Fatalf("native base launch: %v", err)
+	}
+	if client.coreCalls != 0 || client.stopCalls != 0 || client.mediaCalls != 0 || !reflect.DeepEqual(client.statusResult, prior) {
+		t.Fatal("native vacant-shell rejection changed retained session or called target")
+	}
+	if _, err := s.CoreEntryVideo(ctx, entry.GameID); err == nil || !strings.Contains(err.Error(), "requires a developer parts composition") {
+		t.Fatalf("native vacant shell advertised built-in output: %v", err)
+	}
+}
+
 type damagedVideoCatalog struct {
 	*catalog.Store
 	damaged string

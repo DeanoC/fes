@@ -89,6 +89,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	shellPath := flags.String("shell", "", "exact frozen developer shell core.rbf")
 	packageID := flags.String("package-id", "", "sealed shell package ID")
 	buildID := flags.String("build-id", "", "sealed shell BUILD_ID")
+	layout := flags.String("layout", expansion.ColecoVideoLayout, "closed parts layout (raster or native Coleco video)")
 	videoPath := flags.String("video", "", "video part archive or two-member directory")
 	expansionPath := flags.String("expansion", "", "optional Coleco v2 CPU expansion archive or directory")
 	mapPath := flags.String("map", "", "trusted sealed producer ROM map JSON (optional)")
@@ -106,12 +107,12 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 	shell := expansion.PartsShell{PackageID: *packageID, BuildID: *buildID, Payload: payload,
-		Layout: expansion.ColecoVideoLayout}
+		Layout: *layout}
 	video, err := readPart(*videoPath)
 	if err != nil {
 		return fmt.Errorf("video: %w", err)
 	}
-	if video.Manifest.Slot != expansion.VideoSlot {
+	if video.Manifest.Slot != expansion.VideoSlot && video.Manifest.Slot != expansion.NativeVideoSlot {
 		return errors.New("-video requires a video part, not a CPU expansion")
 	}
 	assets := []expansion.Asset{video}

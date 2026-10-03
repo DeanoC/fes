@@ -16,6 +16,10 @@ import (
 )
 
 func developerPartsFixture(t *testing.T) ([]byte, []expansion.Asset) {
+	return developerPartsFixtureLayout(t, expansion.ColecoVideoLayout)
+}
+
+func developerPartsFixtureLayout(t *testing.T, layout string) ([]byte, []expansion.Asset) {
 	t.Helper()
 	packed, err := os.ReadFile("testdata/expansion-shell.rbf.gz")
 	if err != nil {
@@ -40,6 +44,9 @@ func developerPartsFixture(t *testing.T) ([]byte, []expansion.Asset) {
 	sha := fmt.Sprintf("%x", sha256.Sum256(payload))
 	text = strings.ReplaceAll(text, "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1", sha)
 	text += "\n[[interfaces]]\nid = \"fes.expansion.coleco-bus\"\nmajor = 2\nminor = 0\nrequired = false\n\n[[interfaces]]\nid = \"fes.fabric.video.raster-rgb888\"\nmajor = 1\nminor = 0\nrequired = false\n"
+	if layout == expansion.ColecoNativeVideoLayout {
+		text = strings.ReplaceAll(text, expansion.VideoSlot, expansion.NativeVideoSlot)
+	}
 	descriptor, err := decode([]byte(text), payload, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -50,6 +57,9 @@ func developerPartsFixture(t *testing.T) ([]byte, []expansion.Asset) {
 		slot, mapping, major := expansion.ColecoSlot, expansion.ColecoMapV2, 2
 		if video {
 			slot, mapping, major = expansion.VideoSlot, expansion.ColecoVideoMap, 1
+			if layout == expansion.ColecoNativeVideoLayout {
+				slot, mapping = expansion.NativeVideoSlot, expansion.ColecoNativeVideoMap
+			}
 		}
 		asset, err := expansion.NewAsset(expansion.Manifest{CartSHA256: sha, CartSize: int64(len(payload)), Device: expansion.Device, Format: 1, Map: mapping, RecipeSHA256: strings.Repeat("b", 64), Revision: strings.Repeat("c", 40), ShellBuildID: descriptor.Build.ID, ShellPackageID: id, ShellSHA256: sha, Slot: slot, SlotMajor: major}, payload)
 		if err != nil {
@@ -58,6 +68,73 @@ func developerPartsFixture(t *testing.T) ([]byte, []expansion.Asset) {
 		parts = append(parts, asset)
 	}
 	return canonicalArchive([]byte(text), payload), parts
+}
+
+func TestNativeDeveloperPartsStageAdoptAndRejectCrossedShellMarkers(t *testing.T) {
+	ctx := context.Background()
+	pkg, parts := developerPartsFixtureLayout(t, expansion.ColecoNativeVideoLayout)
+	bundle, err := ComposePartsArchive(ctx, pkg, parts)
+	if err != nil || bundle.Composition.Layout != expansion.ColecoNativeVideoLayout {
+		t.Fatalf("native composition: %+v %v", bundle.Composition, err)
+	}
+	data, err := bundle.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	staged, err := StageParts(ctx, root, int64(len(data)), bytes.NewReader(data))
+	if err != nil || !reflect.DeepEqual(staged.PartsComposition, &bundle.Composition) {
+		t.Fatalf("native staging: %+v %v", staged, err)
+	}
+	adopted, err := Adopt(root)
+	if err != nil || len(adopted) != 1 || !reflect.DeepEqual(adopted[0].PartsComposition, &bundle.Composition) {
+		t.Fatalf("native adoption: %+v %v", adopted, err)
+	}
+	if err := adopted[0].Cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	manifest, payload, _, err := readArchive(pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor, err := decode(manifest, payload, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection := Inspection{PackageID: bundle.Composition.PackageID, Descriptor: descriptor}
+	for name, change := range map[string]func(*Inspection){
+		"both fabrics": func(i *Inspection) {
+			i.Descriptor.Interfaces = append(i.Descriptor.Interfaces, Interface{ID: expansion.VideoSlot, Major: 1})
+		},
+		"duplicate native": func(i *Inspection) {
+			i.Descriptor.Interfaces = append(i.Descriptor.Interfaces, Interface{ID: expansion.NativeVideoSlot, Major: 1})
+		},
+		"required native":  func(i *Inspection) { i.Descriptor.Interfaces[len(i.Descriptor.Interfaces)-1].Required = true },
+		"unknown encoding": func(i *Inspection) { i.Descriptor.Interfaces[len(i.Descriptor.Interfaces)-1].Major = 2 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := inspection
+			candidate.Descriptor.Interfaces = append([]Interface(nil), inspection.Descriptor.Interfaces...)
+			change(&candidate)
+			if _, err := PartsShell(candidate, payload); err == nil {
+				t.Fatal("accepted ambiguous or unknown source contract")
+			}
+		})
+	}
+	// Re-sign a raster asset for this very same shell: the slot/map/layout must
+	// still match the descriptor, even when every base identity is correct.
+	wrong := parts[0].Manifest
+	wrong.Slot, wrong.Map = expansion.VideoSlot, expansion.ColecoVideoMap
+	raster, err := expansion.NewAsset(wrong, parts[0].Cart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ComposePartsArchive(ctx, pkg, []expansion.Asset{raster}); err == nil {
+		t.Fatal("native shell accepted raster part with matching shell hashes")
+	}
+	if _, err := ComposeArchive(pkg, parts[0]); err == nil {
+		t.Fatal("CPU-only composition admitted native video")
+	}
 }
 
 func TestDeveloperPartsIndependentlyStageAdoptAndClean(t *testing.T) {

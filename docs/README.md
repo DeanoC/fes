@@ -57,6 +57,11 @@ Use these when the start-here page names the job and you need the steps.
 [superpowers/](superpowers/) holds old design and task plans. Do not treat
 either as the way to build or accept the tree you have open.
 
+The [native video parts Kit 2 record](validation/2026-10-03-native-video-parts-kit2.md)
+binds its sealed shell, linked Direct/Scanlines parts and capture evidence.
+Current build and selection behavior remains documented by the component
+guides and [core status](core-status.md).
+
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only
 points at those. It is not a second roadmap.

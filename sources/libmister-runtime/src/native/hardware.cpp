@@ -71,6 +71,12 @@ bool HasSessionDisplay(const CoreDescriptor& descriptor) {
    interface.required&&interface.major==1&&interface.minor==0)return true;
  return false;
 }
+bool HasNativeVideoSocket(const CoreDescriptor& descriptor)
+{
+	for (const auto& interface : descriptor.interfaces)
+		if (interface.id == "fes.fabric.video.native-pixels") return true;
+	return false;
+}
 Error CheckMenu(const CoreDescriptor& descriptor) {
  if(descriptor.format!=2||descriptor.core.id!="fes.menu"||!descriptor.core.system.empty()||
   descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=3||!HasMenu(descriptor))
@@ -383,6 +389,13 @@ Error NativeHardware::AdmitCorePackage(const std::string& directory,
 	const std::string& expected_id,
 	std::unique_ptr<AdmittedCorePackage>* output)
 {
+	return AdmitCorePackageInternal(directory, expected_id, false, output);
+}
+
+Error NativeHardware::AdmitCorePackageInternal(const std::string& directory,
+	const std::string& expected_id, bool for_composition,
+	std::unique_ptr<AdmittedCorePackage>* output)
+{
 	if (output == nullptr)
 		return {ErrorCode::invalid_request,
 			"missing admitted package output", "request"};
@@ -393,6 +406,9 @@ Error NativeHardware::AdmitCorePackage(const std::string& directory,
 	Error error = native::OpenCorePackage(package_roots_, directory,
 		expected_id, &opened);
 	if (error.ok()) error = CheckCoreCompatibility(opened.descriptor);
+	if (error.ok() && HasNativeVideoSocket(opened.descriptor) && !for_composition)
+		error = {ErrorCode::unsupported_interface,
+			"native video shell requires a video parts composition", "admission"};
 	if (error.ok() && RequiresHpsDdr(opened.descriptor) && !fpga_.BootHpsDdrLayout())
 		error = BootHpsDdrLayoutError();
 	if (error.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_memory_))
@@ -422,7 +438,7 @@ Error NativeHardware::AdmitCoreComposition(const std::string& directory,
 {
 	if (!output) return {ErrorCode::invalid_request, "missing admitted composition output", "request"};
 	std::unique_ptr<AdmittedCorePackage> package;
-	Error error=AdmitCorePackage(directory,id,&package);
+	Error error=AdmitCorePackageInternal(directory,id,true,&package);
 	if (!error.ok()) return error;
 	auto* native=dynamic_cast<NativeAdmittedCore*>(package.get());
 	std::unique_ptr<OpenedCoreComposition> composition(new OpenedCoreComposition);
@@ -945,6 +961,11 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	if (admitted == nullptr || admitted->driver_ == nullptr)
 		return {{ErrorCode::invalid_request,
 			"invalid admitted core package", "request"}, false, ""};
+	if (HasNativeVideoSocket(admitted->opened_.descriptor) &&
+		(!admitted->composition_ ||
+		admitted->composition_->info.layout != "fes.coleco-native-video.parts/1"))
+		return {{ErrorCode::unsupported_interface,
+			"native video shell requires a video parts composition", "admission"}, false, ""};
  const bool menu=HasMenu(admitted->opened_.descriptor);
  const bool session_display=HasSessionDisplay(admitted->opened_.descriptor);
  if(menu&&!allow_menu)return {{ErrorCode::unsupported_interface,"menu packages require idle configuration","admission"},false,""};

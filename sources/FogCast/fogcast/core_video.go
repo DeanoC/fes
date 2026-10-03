@@ -107,6 +107,17 @@ func hasVideoSocket(inspection corepackage.Inspection) bool {
 	return false
 }
 
+// Native shells have no built-in output. Their catalog selection is not part
+// of the raster factory lane, so library launch must not choose a vacant base.
+func libraryVideoAdmission(inspection corepackage.Inspection) error {
+	for _, i := range inspection.Descriptor.Interfaces {
+		if i.ID == expansion.NativeVideoSlot {
+			return &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Phase: "admission", Message: "native video shell requires a developer parts composition; library video selection is not available"}
+		}
+	}
+	return nil
+}
+
 func (s *Service) videoCandidates(ctx context.Context, inspection corepackage.Inspection) (map[string]catalog.CoreVideoPart, error) {
 	candidates := make(map[string]catalog.CoreVideoPart)
 	store, ok := s.catalog.(coreVideoCatalog)
@@ -183,6 +194,9 @@ func (s *Service) CoreEntryVideo(ctx context.Context, gameID string) (CoreEntryV
 	}
 	inspection, base, err := s.readInstalledCore(ctx, entry.PackageID)
 	if err != nil {
+		return CoreEntryVideo{}, err
+	}
+	if err := libraryVideoAdmission(inspection); err != nil {
 		return CoreEntryVideo{}, err
 	}
 	candidates, err := s.videoCandidates(ctx, inspection)

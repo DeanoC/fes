@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""Analyze existing regular-file captures; never opens a device or contacts a kit.
+
+Only the stdlib and ffmpeg/ffprobe are required. Expected picture semantics come
+from the original Graphics I emitter. A nominal tone is supplied by an explicit
+fixture receipt; observed spectral frequency is measured independently.
+"""
+import argparse
+import array
+import cmath
+import collections
+import hashlib
+import json
+import math
+from pathlib import Path
+import shutil
+import statistics
+import subprocess
+import sys
+import wave
+
+import native_capture_support as support
+import native_capture_grid as grid
+import native_oracle as oracle
+
+CASES = ('direct', 'scanlines', 'direct-relaunch')
+VIEWPORT = (384, 168, 896, 552)
+RATE = 48000
+BASE = Path(__file__).resolve().parent
+
+
+def digest(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def require_file(path):
+    if path.is_symlink() or not path.is_file():
+        raise ValueError('analysis requires an existing regular file: '+str(path))
+    return path
+
+
+def reference(path, directory):
+    metadata = json.loads(subprocess.check_output([
+        'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-count_frames',
+        '-show_entries', 'stream=width,height,nb_read_frames', '-of', 'json', str(path)]))['streams'][0]
+    if (metadata['width'], metadata['height']) != (1280,720):
+        raise ValueError('analysis requires native 1280x720 capture')
+    count = int(metadata['nb_read_frames'])
+    if not 2 <= count <= 1200:
+        raise ValueError('capture frame count is outside the bounded diagnostic')
+    frame = min(120, count-1)
+    target = directory / (path.stem+'-reference.png')
+    subprocess.run(['ffmpeg','-v','error','-nostdin','-y','-i',str(path),'-vf',
+                    f'select=eq(n\\,{frame})','-frames:v','1','-update','1',str(target)],check=True)
+    return target, frame
+
+
+def row_comparison(direct, scanline, native_line_height=1):
+    black_d = support.region_means(direct,(16,16,256,144))
+    black_s = support.region_means(scanline,(16,16,256,144))
+    sums = [[0.,0.,0.],[0.,0.,0.]]
+    maxima = [[0.,0.,0.],[0.,0.,0.]]
+    counts = [0,0]
+    for y in range(VIEWPORT[1],VIEWPORT[3]):
+        dim = ((y-VIEWPORT[1])//native_line_height)%2
+        for x in range(VIEWPORT[0],VIEWPORT[2]):
+            index=3*(y*1280+x)
+            for c in range(3):
+                expected = (direct[index+c]-black_d[c])*.5+black_s[c] if dim else direct[index+c]
+                delta=abs(scanline[index+c]-expected)
+                sums[dim][c]+=delta
+                maxima[dim][c]=max(maxima[dim][c],delta)
+            counts[dim]+=1
+    return {'line_height_hdmi_pixels':native_line_height,
+            'bright_rows_mae_rgb':[v/counts[0] for v in sums[0]],
+            'dim_rows_half_brightness_mae_rgb':[v/counts[1] for v in sums[1]],
+            'bright_rows_max_rgb_delta':maxima[0], 'dim_rows_max_model_error_rgb':maxima[1]}
+
+
+def row_luma_profile(pixels):
+    # The green border contains every native/HDMI row and avoids horizontal
+    # chroma transitions. RGB luma is black-subtracted before brightness ratios.
+    black = support.region_means(pixels,(16,16,256,144))
+    black_luma=sum(v*w for v,w in zip(black,(.2126,.7152,.0722)))
+    values=[]
+    for y in range(VIEWPORT[1],VIEWPORT[3]):
+        rgb=support.region_means(pixels,(390,y,398,y+1))
+        values.append(sum(v*w for v,w in zip(rgb,(.2126,.7152,.0722)))-black_luma)
+    pairs=[values[i+1]/values[i] if values[i]>5 else None for i in range(0,len(values),2)]
+    return {'black_subtracted_green_border_luma_by_hdmi_row':values,
+            'odd_over_even_by_doubled_native_row':pairs,
+            'ratio_min':min((v for v in pairs if v is not None),default=None),
+            'ratio_max':max((v for v in pairs if v is not None),default=None),
+            'ratio_mean':statistics.mean(v for v in pairs if v is not None) if any(v is not None for v in pairs) else None}
+
+
+def gray_geometry(path, reference_frame, expected):
+    metadata=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0',
+        '-show_frames','-show_entries','frame=best_effort_timestamp_time','-of','json',str(path)]))
+    count=len(metadata['frames'])
+    target=1280*720
+    command=['ffmpeg','-v','error','-nostdin','-i',str(path),'-vsync','0','-pix_fmt','gray','-f','rawvideo','pipe:1']
+    proc=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    variants={};sequence=[]
+    try:
+        while True:
+            frame=bytearray()
+            while len(frame)<target:
+                chunk=proc.stdout.read(target-len(frame))
+                if not chunk:break
+                frame.extend(chunk)
+            if not frame:break
+            if len(frame)!=target:raise ValueError('truncated decoded luma frame')
+            sha=hashlib.sha256(frame).hexdigest();sequence.append(sha)
+            if sha not in variants:variants[sha]={'first_frame':len(sequence)-1,'bytes':bytes(frame)}
+        error=proc.stderr.read().decode()
+        if proc.wait()!=0:raise ValueError(error)
+    finally:
+        if proc.poll() is None:proc.terminate();proc.wait(timeout=10)
+    if len(sequence)!=count:raise ValueError('luma metadata/decode frame counts differ')
+    ref=variants[sequence[reference_frame]]['bytes']
+    proto=[]
+    for parity in (0,1):
+        def mean(box):
+            x0,y0,x1,y1=box
+            samples=[ref[y*1280+x] for y in range(y0,y1) if y%2==parity for x in range(x0,x1)]
+            return statistics.mean(samples)
+        proto.append({'black':mean((16,16,256,144)), 'green':mean((390,176,398,544)), 'red':mean((420,188,428,196))})
+    leading=0
+    for sha in sequence:
+        data=variants[sha]['bytes']
+        if max(data)-min(data)>1:break
+        leading+=1
+    for sha,variant in variants.items():
+        data=variant.pop('bytes'); errors=0; max_error=0.; first=[]
+        for y in range(168,552):
+            for x in range(384,896):
+                color = oracle.CLASSES[expected[y*1280+x]]
+                value=data[y*1280+x];error=abs(value-proto[y%2][color]);max_error=max(max_error,error)
+                if error>4:
+                    errors+=1
+                    if len(first)<8:first.append({'x':x,'y':y,'expected':color,'luma':value,'error':error})
+        outer_errors=0;outer_max=0.
+        for y in range(720):
+            ranges=((0,384),(896,1280)) if 168<=y<552 else ((0,1280),)
+            black=proto[y%2]['black']
+            for x0,x1 in ranges:
+                for value in data[y*1280+x0:y*1280+x1]:
+                    error=abs(value-black);outer_max=max(outer_max,error)
+                    outer_errors+=error>4
+        variant.update(pixel_samples=512*384,luma_errors_over_4=errors,max_luma_error=max_error,first_errors=first,
+                       outer_black_pixel_samples=1280*720-512*384,outer_black_luma_errors_over_4=outer_errors,
+                       outer_black_max_luma_error=outer_max,
+                       frame_count=sequence.count(sha))
+    bad=[i for i,sha in enumerate(sequence) if i>=leading and (variants[sha]['luma_errors_over_4'] or variants[sha]['outer_black_luma_errors_over_4'])]
+    return {'decoded_luma_frames':count,'leading_uniform_acquisition_frames':leading,
+            'full_viewport_pixel_samples_per_variant':512*384,'prototypes_luma_by_hdmi_parity':proto,
+            'unique_luma_variants':variants,'later_bad_frame_indexes':bad}
+
+
+def fft(values):
+    n=len(values); result=[complex(v) for v in values];j=0
+    for i in range(1,n):
+        bit=n>>1
+        while j&bit:j^=bit;bit>>=1
+        j^=bit
+        if i<j:result[i],result[j]=result[j],result[i]
+    length=2
+    while length<=n:
+        step=cmath.exp(-2j*math.pi/length);half=length//2
+        for start in range(0,n,length):
+            twiddle=1+0j
+            for k in range(half):
+                even=result[start+k];odd=twiddle*result[start+k+half]
+                result[start+k]=even+odd;result[start+k+half]=even-odd;twiddle*=step
+        length*=2
+    return result
+
+
+def spectral(values, rate, nominal):
+    if len(values)<16:raise ValueError('spectral analysis requires at least16 samples')
+    n=1<<(min(len(values),65536).bit_length()-1)
+    start=(len(values)-n)//2; segment=values[start:start+n];dc=statistics.mean(segment)
+    spectrum=fft([(v-dc)*(.5-.5*math.cos(2*math.pi*i/(n-1))) for i,v in enumerate(segment)])
+    powers=[abs(v)**2 for v in spectrum[:n//2+1]]
+    def peak(index):
+        a,b,c=[math.log(max(powers[k],1e-30)) for k in (index-1,index,index+1)]
+        adjustment=.5*(a-c)/(a-2*b+c) if a-2*b+c else 0.
+        return {'frequency_hz':(index+adjustment)*rate/n,'bin_frequency_hz':index*rate/n,'power':powers[index]}
+    candidates=[i for i in range(max(2,int(20*n/rate)),n//2-1) if powers[i]>powers[i-1] and powers[i]>=powers[i+1]]
+    strongest=sorted(candidates,key=lambda i:powers[i],reverse=True)[:8]
+    selected=max((i for i in candidates if nominal is not None and abs(i*rate/n-nominal)<5),key=lambda i:powers[i],default=None)
+    noise=statistics.median(powers[max(2,int(20*n/rate)):n//2])
+    target=peak(selected) if selected is not None else None
+    if target:
+        target['snr_over_median_bin_db']=10*math.log10(max(target['power'],1e-30)/max(noise,1e-30))
+        target['power_fraction_of_strongest_peak']=target['power']/powers[strongest[0]]
+    return {'fft_samples':n,'fft_window_offset_seconds':start/rate,'fft_window_duration_seconds':n/rate,
+            'bin_resolution_hz':rate/n,'strongest_local_spectral_peaks':[peak(i) for i in strongest],
+            'measured_peak_near_nominal':target}
+
+
+def audio(path,start,duration,nominal):
+    if start<0 or duration<=0:raise ValueError('settled audio window must have nonnegative start and positive duration')
+    with wave.open(str(path),'rb') as wav:
+        if (wav.getnchannels(),wav.getsampwidth(),wav.getframerate())!=(2,2,RATE):
+            raise ValueError('audio requires captured stereo signed16 PCM at48kHz')
+        frame_count=wav.getnframes();raw=wav.readframes(frame_count)
+    samples=array.array('h',raw)
+    if sys.byteorder!='little':samples.byteswap()
+    if (start+duration)*RATE>frame_count:raise ValueError('capture is shorter than the explicit settled audio window')
+    def metrics(values):
+        dc=statistics.mean(values);centered=[v-dc for v in values]
+        return {'dc_s16':dc,'ac_rms_s16':math.sqrt(sum(v*v for v in centered)/len(values)),
+                'min_s16':min(values),'max_s16':max(values),'peak_absolute_s16':max(abs(v) for v in values),
+                'clipped_sample_count':sum(v in (-32768,32767) for v in values)}
+    channels=[];window_values=[];timeline=[];onsets=[]
+    for c in range(2):
+        values=samples[c::2]
+        chosen=values[round(start*RATE):round((start+duration)*RATE)]
+        result=metrics(chosen);result['spectral']=spectral(chosen,RATE,nominal)
+        result['settled_one_second_spectral_windows']=[{'offset_seconds':i/RATE,
+            'ac_rms_s16':metrics(chosen[i:i+RATE])['ac_rms_s16'],
+            'spectral':spectral(chosen[i:i+RATE],RATE,nominal)} for i in range(0,len(chosen)-RATE+1,RATE)]
+        channels.append(result);window_values.append(chosen)
+        first=None
+        for i in range(0,len(values)-512,512):
+            if metrics(values[i:i+512])['ac_rms_s16']>=1000:first=i/RATE;break
+        onsets.append(first)
+    for beginning in range(0,frame_count-RATE//2+1,RATE//2):
+        timeline.append({'start_seconds':beginning/RATE,'duration_seconds':.5,
+            'channels':[metrics(samples[c::2][beginning:beginning+RATE//2]) for c in range(2)]})
+    left,right=window_values;means=[statistics.mean(v) for v in window_values]
+    covariance=sum((l-means[0])*(r-means[1]) for l,r in zip(left,right))/len(left)
+    denominator=channels[0]['ac_rms_s16']*channels[1]['ac_rms_s16']
+    stereo={'pearson_correlation':covariance/denominator if denominator else None,
+            'rms_balance_right_over_left':channels[1]['ac_rms_s16']/channels[0]['ac_rms_s16'] if channels[0]['ac_rms_s16'] else None,
+            'difference_ac_rms_s16':metrics([l-r for l,r in zip(left,right)])['ac_rms_s16']}
+    return {'path':str(path.resolve()),'sha256':digest(path),'sample_rate_hz':RATE,'channels_count':2,
+            'captured_frames':frame_count,'captured_duration_seconds':frame_count/RATE,
+            'settled_window':{'start_seconds':start,'duration_seconds':duration},'channels':channels,'stereo':stereo,
+            'acquisition_first_512_sample_window_over1000_ac_rms_seconds':onsets,'half_second_windows':timeline}
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('captures',type=Path)
+    parser.add_argument('--output',type=Path)
+    parser.add_argument('--fixture',type=Path,default=BASE/'fixture/prepared.json')
+    parser.add_argument('--audio-start',type=float,default=2.5)
+    parser.add_argument('--audio-duration',type=float,default=3.)
+    parser.add_argument('--expected-frames',type=int,default=180)
+    args=parser.parse_args()
+    output=(args.output or BASE/'results'/args.captures.name/'analysis.json').resolve()
+    if not output.is_relative_to(BASE):raise ValueError('analysis outputs must remain in ignored native-video-link/analysis')
+    output.parent.mkdir(parents=True,exist_ok=True)
+    fixture=json.loads(require_file(args.fixture).read_bytes());nominal=fixture['nominal_SN_hz']
+    expected, expected_rgb, oracle_provenance = oracle.expected(args.fixture)
+    videos={};references={};audios={}
+    for name in CASES:
+        path=require_file(args.captures/(name+'.mkv'))
+        png,frame=reference(path,output.parent);references[name]=support.image_bytes(png)
+        video=grid.video(path,png);grid.add_stability_details(video)
+        video['reference_frame_index']=frame;video['reference_png_sha256']=digest(png)
+        video['observed_palette_by_hdmi_parity']=grid.prototypes(references[name])
+        video['row_luma']=row_luma_profile(references[name]);video['full_luma_geometry']=gray_geometry(path,frame,expected)
+        videos[name]=video
+        audios[name]=audio(require_file(args.captures/(name+'.wav')),args.audio_start,args.audio_duration,nominal)
+        print(name,'frames',video['decoded_frame_count'],'leading_black',video['leading_black_frames'],
+              'later_bad_rgb',len(video['later_bad_frame_indexes']),'later_bad_luma',len(video['full_luma_geometry']['later_bad_frame_indexes']),
+              'audio_rms',[c['ac_rms_s16'] for c in audios[name]['channels']],flush=True)
+    model=row_comparison(references['direct'],references['scanlines'])
+    alternative=row_comparison(references['direct'],references['scanlines'],2)
+    relaunch=grid.difference(references['direct-relaunch'],references['direct'])
+    audio_comparison={name:{'ac_rms_ratio_to_direct':[audios[name]['channels'][c]['ac_rms_s16']/audios['direct']['channels'][c]['ac_rms_s16'] if audios['direct']['channels'][c]['ac_rms_s16'] else None for c in range(2)],
+         'measured_frequency_delta_hz':[audios[name]['channels'][c]['spectral']['measured_peak_near_nominal']['frequency_hz']-audios['direct']['channels'][c]['spectral']['measured_peak_near_nominal']['frequency_hz'] if audios[name]['channels'][c]['spectral']['measured_peak_near_nominal'] and audios['direct']['channels'][c]['spectral']['measured_peak_near_nominal'] else None for c in range(2)]} for name in CASES}
+    checks={}
+    for name in CASES:
+        v=videos[name];a=audios[name]
+        checks[name+'_all_settled_geometry']=v['decoded_frame_count']==args.expected_frames and v['settled_frame_count']>=60 and not v['later_bad_frame_indexes'] and not v['full_luma_geometry']['later_bad_frame_indexes'] and all(d['green_bbox_exclusive']==list(VIEWPORT) for d in v['unique_decoded_rgb_frames'].values() if not d['all_black'])
+        checks[name+'_all_settled_full_frame_rgb_stable']=max(v['settled_max_rgb_delta_from_png'])<=2
+        checks[name+'_black_background']=all(p['black']<=2 for p in v['full_luma_geometry']['prototypes_luma_by_hdmi_parity'])
+        checks[name+'_green_red_palette_classes_retained']=all(p['green'][1]>p['green'][0]+15 and p['green'][1]>p['green'][2]+15 and p['red'][0]>p['red'][1]+15 and p['red'][0]>p['red'][2]+15 for p in v['observed_palette_by_hdmi_parity'])
+        checks[name+'_settled_capture_cadence']=v['timestamps']['non_monotonic_count']==0 and v['timestamps']['settled_max_delta_seconds']<=.025
+        checks[name+'_sn_tone_present_at_measured_frequency']=all(c['ac_rms_s16']>100 and c['spectral']['measured_peak_near_nominal'] and abs(c['spectral']['measured_peak_near_nominal']['frequency_hz']-nominal)<=.5 and c['spectral']['measured_peak_near_nominal']['snr_over_median_bin_db']>=20 and c['spectral']['measured_peak_near_nominal']['power_fraction_of_strongest_peak']>=.5 for c in a['channels'])
+        checks[name+'_sn_tone_present_in_each_settled_second']=all(c['settled_one_second_spectral_windows'] and all(w['ac_rms_s16']>100 and w['spectral']['measured_peak_near_nominal'] and abs(w['spectral']['measured_peak_near_nominal']['frequency_hz']-nominal)<=.5 and w['spectral']['measured_peak_near_nominal']['power_fraction_of_strongest_peak']>=.5 for w in c['settled_one_second_spectral_windows']) for c in a['channels'])
+        checks[name+'_no_settled_audio_clipping']=all(c['clipped_sample_count']==0 for c in a['channels'])
+        checks[name+'_stereo_mono_tone_retained']=a['stereo']['pearson_correlation'] is not None and a['stereo']['pearson_correlation']>=.99 and abs(a['stereo']['rms_balance_right_over_left']-1)<=.02
+    checks['scanlines_half_brightness_on_odd_hdmi_rows']=max(model['bright_rows_mae_rgb'])<=2 and max(model['dim_rows_half_brightness_mae_rgb'])<=2
+    checks['direct_relaunch_equivalent_geometry_and_rgb']=max(relaunch['whole_frame_max_absolute_rgb_delta'])<=2 and all(videos[n]['row_luma']['ratio_mean'] is not None and abs(videos[n]['row_luma']['ratio_mean']-1)<=.03 for n in ('direct','direct-relaunch'))
+    checks['sn_audio_rms_retained_across_profiles']=all(r is not None and abs(r-1)<=.05 for pair in audio_comparison.values() for r in pair['ac_rms_ratio_to_direct'])
+    result={'classification':'Independent local-file analysis; analyst accessed no capture device or kit',
+            'fixture':fixture,'native_oracle':oracle_provenance,'fixture_receipt_sha256':digest(args.fixture),'checks':checks,'verdict':'pass' if all(checks.values()) else 'investigate',
+            'videos':videos,'audio':audios,'audio_comparison':audio_comparison,
+            'direct_scanline_row_model':model,'alternative_doubled_native_line_shading_model':alternative,'direct_relaunch_rgb':relaunch,
+            'analysis_tools':{p.name:digest(p) for p in (Path(__file__),Path(grid.__file__),Path(support.__file__),Path(oracle.__file__))},
+            'media_tools':{name:{'path':shutil.which(name),'sha256':digest(Path(shutil.which(name))),'version':subprocess.check_output([name,'-version'],text=True).splitlines()[0]} for name in ('ffmpeg','ffprobe')},
+            'limitations':['Native scanline RTL shades alternating HDMI rows; each native source line is doubled vertically, so its two HDMI rows have different brightness.','The full-pixel oracle executes the original open ROM VDP writes and renders Graphics I with aligned native RAM data/sync and exact2x scaling at viewport x384:896/y168:552; horizontal delay is zero.','Leading acquisition frames and half-second audio acquisition windows are reported separately; comparisons use the explicit common settled audio window.','USB frame timestamps do not measure FPGA HS/VS waveforms directly. Capture RGB conversion and audio filtering/rescaling prevent bit-exact FPGA RGB/PCM claims.','All strongest spectral peaks are measured without nominal-frequency filtering; the target peak additionally must be near the fixture nominal and have at least half the strongest peak power.']}
+    output.write_text(json.dumps(result,sort_keys=True,indent=2,allow_nan=False)+'\n')
+    print(json.dumps({'verdict':result['verdict'],'checks':checks,'output':str(output)},indent=2),flush=True)
+    return 0 if result['verdict']=='pass' else 1
+
+
+if __name__=='__main__':sys.exit(main())

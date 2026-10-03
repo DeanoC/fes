@@ -262,21 +262,31 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage& base, const CoreCompositionRequest& request,
 	OpenedCoreComposition* output) {
 	const auto& descriptor = base.descriptor;
-	bool video = false, cpu = false;
+	bool video = false, native_pixels = false, cpu = false;
+	unsigned video_count = 0, cpu_count = 0;
 	for (const auto& interface : descriptor.interfaces) {
-		if (interface.id == "fes.fabric.video.raster-rgb888")
+		if (interface.id == "fes.fabric.video.raster-rgb888" ||
+			interface.id == "fes.fabric.video.native-pixels") {
+			++video_count;
 			video = !interface.required && interface.major == 1 && interface.minor == 0;
-		if (interface.id == "fes.expansion.coleco-bus")
+			native_pixels = interface.id == "fes.fabric.video.native-pixels";
+		}
+		if (interface.id == "fes.expansion.coleco-bus") {
+			++cpu_count;
 			cpu = !interface.required && interface.major == 2 && interface.minor == 0;
+		}
 	}
 	if (descriptor.format != 2 || descriptor.core.id != "fes.coleco" ||
 		descriptor.abi.id != "fes.application" || descriptor.abi.major != 1 ||
-		descriptor.abi.minor != 0 || !video || !cpu)
+		descriptor.abi.minor != 0 || !video || !cpu || video_count != 1 || cpu_count != 1)
 		return Invalid("parts require the declared Coleco video developer shell");
+	const char* video_slot = native_pixels ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888";
+	const char* video_map = native_pixels ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
+	const char* layout = native_pixels ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
 	const auto& info = request.composition;
 	if (!request.expansion_path.empty() || !request.expansions.empty() ||
 		!info.expansion_id.empty() || !info.expansions.empty() ||
-		info.layout != "fes.coleco-video.parts/1" || !Hex(info.id, 64) ||
+		info.layout != layout || !Hex(info.id, 64) ||
 		!Hex(info.package_id, 64) || !Hex(info.shell_sha256, 64) ||
 		!Hex(info.payload_sha256, 64) || info.package_id != base.package_id ||
 		info.shell_sha256 != descriptor.payload.sha256 || info.payload_size < 40408 ||
@@ -315,8 +325,8 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 		const bool is_video = part.role == "video";
 		if (!Hex(hash, 64) || !Hex(recipe, 64) || !Hex(revision, 40) || !Hex(build, 32) ||
 			format != 1 || device != "5CSEBA6U23I7" || descriptor.target.device != device ||
-			slot != (is_video ? "fes.fabric.video.raster-rgb888" : "fes.expansion.coleco-bus") ||
-			map != (is_video ? "fes.coleco-video.socket/1" : "fes.coleco-bus.socket/2") ||
+			slot != (is_video ? video_slot : "fes.expansion.coleco-bus") ||
+			map != (is_video ? video_map : "fes.coleco-bus.socket/2") ||
 			major != (is_video ? 1u : 2u) || minor != 0 || size < 40408 ||
 			size != asset.cart.size() || package != base.package_id ||
 			build != descriptor.build.id || shell != descriptor.payload.sha256 ||
@@ -359,6 +369,9 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 	if (!output) return Invalid("missing composition output");
 	if (!request.parts.empty() || !request.composition.parts.empty())
 		return OpenPartsComposition(roots,base,request,output);
+	for (const auto& interface : base.descriptor.interfaces)
+		if (interface.id=="fes.fabric.video.native-pixels")
+			return Invalid("native video shell requires a video parts composition");
 	if (!request.expansions.empty() || !request.composition.expansions.empty())
 		return OpenSlotComposition(roots,base,request,output);
 	const auto& descriptor=base.descriptor;
