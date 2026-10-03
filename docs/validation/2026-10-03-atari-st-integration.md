@@ -29,6 +29,20 @@ palette entries were not separately logged. The separate external-memory
 boot test also ran for 15 emulated seconds with working system timers.
 Neither boot test inserts a disk or supplies host input.
 
+A second eight-second run selected the monochrome monitor input at source
+checkpoint `a3a86767182bdff0d37583abdc049de06422cd41`. Stock EmuTOS selected
+resolution 2 and reached its 640×400 desktop, scaled 2×1 in the HDMI raster.
+It completed 890,270 RAM reads, 751,973 RAM writes and 7,664,000 video reads
+with zero underruns and the same 64/64-clock maximum CPU/video latency.
+Its 200 Hz counter reached 1,580 and native VBL counter 565. The final
+output contains exactly black and white. The temporary monitor selection
+and monochrome assertions are recorded in the
+[model record](2026-10-03-atari-st-integration/monochrome-model.json), and the
+[capture record](2026-10-03-atari-st-integration/monochrome-capture.json)
+binds the retained output, RAM and log hashes.
+
+![Monochrome EmuTOS desktop captured from simulated output](2026-10-03-atari-st-integration/monochrome.png)
+
 The [capture sidecar](2026-10-03-atari-st-integration/assembled-sdram-capture.json)
 binds the PPM and RAM dump hashes. The
 [model record](2026-10-03-atari-st-integration/assembled-sdram-model.json)
@@ -80,7 +94,10 @@ nested appliance race tests and shared expansion race tests passed against
 unchanged source scopes from `76e27c5a3` through `a9ad1474ac`. The pinned ARM
 target build passed on worker bytes selected into `89feb136a`; its original
 binary is no longer retained, so no current target-artifact claim follows.
-Final parent-check results are recorded after integration below.
+The parent regression run passed 616 tests (39 deliberate skips) both at
+`a3a867671` and after the main merge at `52060e1d84`. Clean `make check`
+also passed at both checkpoints with 17 generated consumers and 33 fixture
+copies. The merge leaves the Atari RTL and shared media source bytes unchanged.
 
 ## Native qualification
 
