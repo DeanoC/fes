@@ -69,6 +69,91 @@ def raw_cell_name(name: str) -> str:
     raise ValueError(f'unknown Coleco boundary cell: {name}')
 
 
+def _connection_endpoints(top: dict) -> dict[int, set[tuple[str, str, str]]]:
+    endpoints: dict[int, set[tuple[str, str, str]]] = {}
+    for name, cell in top.get('cells', {}).items():
+        if not isinstance(cell, dict) or not isinstance(cell.get('connections', {}), dict):
+            raise ValueError(f'frozen cell connections are malformed: {name}')
+        for port, bits in cell.get('connections', {}).items():
+            if not isinstance(bits, list):
+                raise ValueError(f'frozen cell port is malformed: {name}.{port}')
+            for bit in bits:
+                if type(bit) is int:
+                    endpoints.setdefault(bit, set()).add(('cell', name, port))
+    for name, port in top.get('ports', {}).items():
+        if not isinstance(port, dict) or not isinstance(port.get('bits', []), list):
+            raise ValueError(f'frozen top-level port is malformed: {name}')
+        for bit in port.get('bits', []):
+            if type(bit) is int:
+                endpoints.setdefault(bit, set()).add(('port', name, ''))
+    return endpoints
+
+
+def boundary_route_through_cells(top: dict, boundary_bels: dict[str, str]) -> set[str]:
+    """Admit only a dedicated, physically paired buffer for a known boundary FF.
+
+    Older compiler snapshots have no explicit route-through. New snapshots
+    place one at the FF's own combinational half and serialize its physical
+    pin map. A name alone never admits another cell into a reserved socket.
+    """
+    cells = top.get('cells', {})
+    endpoints = _connection_endpoints(top)
+    result = set()
+    for name, bel in boundary_bels.items():
+        ff = cells.get(name)
+        if not isinstance(ff, dict) or ff.get('type') != 'MISTRAL_FF' or \
+                ff.get('attributes', {}).get('NEXTPNR_BEL') != bel:
+            raise ValueError(f'frozen boundary FF changed: {name}')
+        buffer_name = name + '$ROUTETHRU'
+        if buffer_name not in cells:
+            continue
+        buffer = cells[buffer_name]
+        parts = bel.split('.')
+        if len(parts) != 4 or parts[0] != 'MISTRAL_FF' or \
+                not all(part.isdigit() for part in parts[1:]) or int(parts[3]) % 6 not in (2, 4):
+            raise ValueError(f'unsupported boundary FF placement: {name}')
+        z = int(parts[3])
+        half = 0 if z % 6 == 2 else 1
+        paired = '.'.join((*parts[1:3], str((z // 6) * 6 + half)))
+        allowed_bels = {'MISTRAL_COMB.' + paired, 'MISTRAL_MCOMB.' + paired}
+        if not isinstance(buffer, dict) or buffer.get('type') != 'MISTRAL_BUF' or \
+                buffer.get('parameters') != {} or \
+                buffer.get('attributes', {}).get('NEXTPNR_BEL') not in allowed_bels or \
+                buffer.get('port_directions') != {'A': 'input', 'Q': 'output'}:
+            raise ValueError(f'boundary route-through type or placement changed: {buffer_name}')
+        connections = buffer.get('connections', {})
+        if set(connections) != {'A', 'Q'} or any(
+                not isinstance(bits, list) or len(bits) != 1 or type(bits[0]) is not int
+                for bits in connections.values()) or \
+                ff.get('connections', {}).get('DATAIN') != connections.get('Q'):
+            raise ValueError(f'boundary route-through connections changed: {buffer_name}')
+        if endpoints.get(connections['Q'][0]) != {
+                ('cell', buffer_name, 'Q'), ('cell', name, 'DATAIN')}:
+            raise ValueError(f'boundary route-through output is not dedicated: {buffer_name}')
+        try:
+            mapping = json.loads(bytes.fromhex(buffer['attributes']['FES_PINMAP_V1']))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f'boundary route-through pin map is malformed: {buffer_name}') from exc
+        expected = {'count': 2, 'pins': {'A': [0, 'C' if half == 0 else 'D'],
+                                         'Q': [0, 'COMBOUT']}}
+        if mapping != expected or type(mapping['count']) is not int or \
+                any(type(pin[0]) is not int for pin in mapping['pins'].values()):
+            raise ValueError(f'boundary route-through pin map changed: {buffer_name}')
+        result.add(buffer_name)
+    return result
+
+
+def validate_clock_anchors(top: dict, anchor_bels: dict[str, str]) -> None:
+    """Check clock-only FFs and their buffers without changing frozen routes."""
+    boundary_route_through_cells(top, anchor_bels)
+    endpoints = _connection_endpoints(top)
+    for name in anchor_bels:
+        q = top['cells'][name].get('connections', {}).get('Q', [])
+        if not isinstance(q, list) or len(q) > 1 or (q and type(q[0]) is not int) or \
+                (q and endpoints.get(q[0]) != {('cell', name, 'Q')}):
+            raise ValueError(f'clock coverage anchor output is in use or malformed: {name}')
+
+
 def validate_v2_clock_coverage_route(top: dict) -> None:
     """Require the frozen system clock route to reach the row 4 socket edge."""
     net = top.get('netnames', {}).get(SOCKET_CLOCK_COVERAGE_NET, {})
@@ -163,6 +248,7 @@ def validate_routed_shell(path: Path, *, version: int = 1) -> None:
     expected = socket_bels_v2() if version == 2 else socket_bels()
     rect = SOCKET_RECT_V2 if version == 2 else SOCKET_RECT
     allowed = set(expected)
+    boundary_bels = dict(expected)
     if version == 2:
         coverage = cells.get(SOCKET_CLOCK_COVERAGE_CELL)
         if not isinstance(coverage, dict) or coverage.get('type') != 'MISTRAL_FF' or \
@@ -170,12 +256,14 @@ def validate_routed_shell(path: Path, *, version: int = 1) -> None:
             raise ValueError(f'Coleco routed socket clock coverage anchor changed: {SOCKET_CLOCK_COVERAGE_CELL}')
         validate_v2_clock_coverage_route(top)
         allowed.add(SOCKET_CLOCK_COVERAGE_CELL)
+        boundary_bels[SOCKET_CLOCK_COVERAGE_CELL] = SOCKET_CLOCK_COVERAGE_BEL
     x0, y0, x1, y1 = map(int, rect.split())
     for name, bel in expected.items():
         cell = cells.get(name)
         if not isinstance(cell, dict) or cell.get('type') != 'MISTRAL_FF' or \
                 cell.get('attributes', {}).get('NEXTPNR_BEL') != bel:
             raise ValueError(f'Coleco routed socket boundary changed: {name}')
+    allowed.update(boundary_route_through_cells(top, boundary_bels))
     for name, cell in cells.items():
         bel = cell.get('attributes', {}).get('NEXTPNR_BEL', '')
         parts = bel.split('.')

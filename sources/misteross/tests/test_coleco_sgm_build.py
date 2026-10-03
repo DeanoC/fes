@@ -27,6 +27,132 @@ def clock_coverage_route_fixture():
     return ";".join(field for entry in entries for field in entry)
 
 
+def route_through_fixture(name="anchor", *, ff_bel="MISTRAL_FF.24.4.56",
+                          buffer_bel="MISTRAL_COMB.24.4.54", pin="C"):
+    return {"cells": {
+        name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": ff_bel},
+               "connections": {"CLK": [2107], "DATAIN": [10002], "Q": [10003]}},
+        name + "$ROUTETHRU": {
+            "type": "MISTRAL_BUF", "parameters": {},
+            "attributes": {"NEXTPNR_BEL": buffer_bel, "FES_PINMAP_V1": json.dumps({
+                "count": 2, "pins": {"A": [0, pin], "Q": [0, "COMBOUT"]}}).encode().hex()},
+            "connections": {"A": [10001], "Q": [10002]},
+            "port_directions": {"A": "input", "Q": "output"}},
+        "ground": {"type": "MISTRAL_CONST", "connections": {"Q": [10001]}},
+    }, "netnames": {
+        "system_clock.clocks[0]": {"bits": [2107], "attributes": {
+            "ROUTING": clock_coverage_route_fixture()}},
+        "ground": {"bits": [10001], "attributes": {"ROUTING": "frozen shared constant"}},
+        name + "$ROUTETHRU$conn$Q": {"bits": [10002], "attributes": {
+            "ROUTING": "WIRE.24.4.FFIN[36];WIRE.24.4.COMBOUT[18].WIRE.24.4.FFIN[36];1;"
+                       "WIRE.24.4.COMBOUT[18];;1"}},
+    }}
+
+
+class BoundaryRouteThroughTest(unittest.TestCase):
+    def test_matching_comb_halves_and_mlab_buffers(self):
+        for ff_bel, buffer_bel, pin in (
+                ("MISTRAL_FF.24.4.56", "MISTRAL_COMB.24.4.54", "C"),
+                ("MISTRAL_FF.24.4.58", "MISTRAL_COMB.24.4.55", "D"),
+                ("MISTRAL_FF.28.23.56", "MISTRAL_MCOMB.28.23.54", "C")):
+            with self.subTest(ff_bel=ff_bel):
+                top = route_through_fixture(ff_bel=ff_bel, buffer_bel=buffer_bel, pin=pin)
+                self.assertEqual(coleco_expansion.boundary_route_through_cells(
+                    top, {"anchor": ff_bel}), {"anchor$ROUTETHRU"})
+
+    def test_older_snapshot_without_buffer_is_accepted(self):
+        top = route_through_fixture()
+        del top["cells"]["anchor$ROUTETHRU"]
+        top["cells"]["anchor"]["connections"]["DATAIN"] = ["0"]
+        bels = {"anchor": "MISTRAL_FF.24.4.56"}
+        self.assertEqual(coleco_expansion.boundary_route_through_cells(top, bels), set())
+        for q in ([10003], [], None):
+            if q is None:
+                del top["cells"]["anchor"]["connections"]["Q"]
+            else:
+                top["cells"]["anchor"]["connections"]["Q"] = q
+            self.assertIsNone(coleco_expansion.validate_clock_anchors(top, bels))
+
+    def test_route_through_rejects_malformed_cell_and_connections(self):
+        mutations = (
+            (("type",), "MISTRAL_ALUT1"),
+            (("parameters",), {"LUT": "10"}),
+            (("attributes", "NEXTPNR_BEL"), "MISTRAL_COMB.25.4.54"),
+            (("attributes", "NEXTPNR_BEL"), "MISTRAL_COMB.24.5.54"),
+            (("attributes", "NEXTPNR_BEL"), "MISTRAL_COMB.24.4.55"),
+            (("port_directions", "A"), "output"),
+            (("connections", "A"), []),
+            (("connections", "A"), [True]),
+            (("connections", "A"), [10001, 10004]),
+            (("connections", "A"), [10002]),
+            (("connections", "Q"), [10004]),
+            (("connections", "Q"), 10002),
+            (("connections", "extra"), [10004]),
+            (("attributes", "FES_PINMAP_V1"), "not hex"),
+        )
+        for path, value in mutations:
+            with self.subTest(path=path, value=value):
+                top = route_through_fixture()
+                target = top["cells"]["anchor$ROUTETHRU"]
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+                with self.assertRaises(ValueError):
+                    coleco_expansion.boundary_route_through_cells(
+                        top, {"anchor": "MISTRAL_FF.24.4.56"})
+
+    def test_route_through_rejects_changed_pin_map(self):
+        for mapping in (
+                {"count": 2, "pins": {"A": [0, "D"], "Q": [0, "COMBOUT"]}},
+                {"count": 2, "pins": {"A": [False, "C"], "Q": [0, "COMBOUT"]}},
+                {"count": 2, "pins": {"A": [0, "C"], "Q": [0, "Q"]}},
+                {"count": 3, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}},
+                {"count": 2, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}, "extra": 1}):
+            with self.subTest(mapping=mapping):
+                top = route_through_fixture()
+                top["cells"]["anchor$ROUTETHRU"]["attributes"]["FES_PINMAP_V1"] = \
+                    json.dumps(mapping).encode().hex()
+                with self.assertRaisesRegex(ValueError, "pin map"):
+                    coleco_expansion.boundary_route_through_cells(
+                        top, {"anchor": "MISTRAL_FF.24.4.56"})
+
+    def test_shared_buffer_output_cannot_be_admitted(self):
+        for endpoint in ("sink", "driver", "top-input", "top-output"):
+            with self.subTest(endpoint=endpoint):
+                top = route_through_fixture()
+                if endpoint.startswith("top-"):
+                    top["ports"] = {"shared": {"direction": endpoint.removeprefix("top-"),
+                                                "bits": [10002]}}
+                else:
+                    top["cells"]["shared"] = {"connections": {
+                        "D" if endpoint == "sink" else "Q": [10002]}}
+                with self.assertRaisesRegex(ValueError, "not dedicated"):
+                    coleco_expansion.boundary_route_through_cells(
+                        top, {"anchor": "MISTRAL_FF.24.4.56"})
+
+    def test_clock_anchor_rejects_live_output(self):
+        for endpoint in ("cell", "top"):
+            with self.subTest(endpoint=endpoint):
+                top = route_through_fixture()
+                if endpoint == "cell":
+                    top["cells"]["consumer"] = {"connections": {"D": [10003]}}
+                else:
+                    top["ports"] = {"output": {"direction": "output", "bits": [10003]}}
+                before = json.loads(json.dumps(top))
+                with self.assertRaisesRegex(ValueError, "anchor output"):
+                    coleco_expansion.validate_clock_anchors(top, {"anchor": "MISTRAL_FF.24.4.56"})
+                self.assertEqual(top, before)
+
+    def test_anchor_validation_retains_pair_and_all_net_records(self):
+        top = route_through_fixture()
+        top["netnames"]["another_stub_alias"] = {"bits": [10002]}
+        top["netnames"]["packed_alias"] = {"bits": [10004, 10002]}
+        before = json.loads(json.dumps(top))
+        self.assertIsNone(coleco_expansion.validate_clock_anchors(
+            top, {"anchor": "MISTRAL_FF.24.4.56"}))
+        self.assertEqual(top, before)
+
+
 class ColecoSgmBuildTest(unittest.TestCase):
     def test_v2_shell_accepts_factory_producer_arguments(self):
         output = Path("/tmp/fes-coleco-packages")
@@ -84,6 +210,22 @@ class ColecoSgmBuildTest(unittest.TestCase):
         for name, bel in bels.items():
             raw = coleco_expansion.raw_cell_name(name)
             self.assertIn(f'`COLECO_V2_SOCKET_FF({raw.removeprefix("socket.")}, "{bel}",', rtl)
+
+    def test_v2_routed_shell_admits_only_exact_boundary_buffers(self):
+        top = route_through_fixture("clock_coverage_ff")
+        top["cells"].update({name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel}}
+                             for name, bel in coleco_expansion.socket_bels_v2().items()})
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "routed.json"
+            path.write_text(json.dumps({"modules": {"top": top}}))
+            coleco_expansion.validate_routed_shell(path, version=2)
+            intruder = json.loads(json.dumps(top["cells"]["clock_coverage_ff$ROUTETHRU"]))
+            intruder["connections"]["Q"] = [20002]
+            intruder["attributes"]["NEXTPNR_BEL"] = "MISTRAL_COMB.24.5.54"
+            top["cells"]["clock_coverage_ff$ROUTETHRU$extra"] = intruder
+            path.write_text(json.dumps({"modules": {"top": top}}))
+            with self.assertRaisesRegex(ValueError, "reserved socket contains shell cell"):
+                coleco_expansion.validate_routed_shell(path, version=2)
 
     def test_v2_netlist_rejects_wrong_response_placement(self):
         bels = coleco_expansion.socket_bels_v2()
@@ -170,7 +312,7 @@ class ColecoSgmBuildTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "plug_addr_ff_30"):
                 coleco_expansion.prepare_shell_netlist(path, version=2)
 
-    def test_sgm_scaffold_frees_clock_anchor_and_keeps_its_route(self):
+    def test_sgm_scaffold_retains_clock_anchor_and_all_routes(self):
         bels = coleco_expansion.socket_bels_v2()
         route = clock_coverage_route_fixture()
         pins = {name: [0, name] for name in ("locked", "outclk", "refclk", "rst")}
@@ -204,8 +346,19 @@ class ColecoSgmBuildTest(unittest.TestCase):
             source.write_text(json.dumps(design))
             sgm.prepare_scaffold(source, destination)
             prepared = json.loads(destination.read_text())["modules"]["top"]
-            self.assertNotIn("clock_coverage_ff", prepared["cells"])
-            self.assertEqual(prepared["netnames"]["system_clock.clocks[0]"]["attributes"]["ROUTING"], route)
+            self.assertEqual(prepared["cells"]["clock_coverage_ff"], cells["clock_coverage_ff"])
+            self.assertEqual(prepared["netnames"], design["modules"]["top"]["netnames"])
+            paired = route_through_fixture("clock_coverage_ff")
+            design["modules"]["top"]["cells"].update(paired["cells"])
+            design["modules"]["top"]["netnames"].update(paired["netnames"])
+            source.write_text(json.dumps(design))
+            sgm.prepare_scaffold(source, destination)
+            prepared = json.loads(destination.read_text())["modules"]["top"]
+            for name in ("clock_coverage_ff", "clock_coverage_ff$ROUTETHRU"):
+                self.assertEqual(prepared["cells"][name], paired["cells"][name])
+            self.assertEqual(prepared["netnames"], design["modules"]["top"]["netnames"])
+            for name in bels:
+                self.assertEqual(prepared["cells"][name], cells[name])
 
     def test_sgm_contract_rejects_unlisted_external_cram(self):
         changes = {"bits_inside_slot": 8, "bits_outside_slot": 1,

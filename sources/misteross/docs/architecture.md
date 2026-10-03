@@ -858,9 +858,16 @@ The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
 The frozen v2 shell also pins a clock-only FF at `MISTRAL_FF.24.4.56` and
-validates its row 4 global-clock route. SGM scaffold preparation removes that
-FF cell while retaining the serialized clock branch, leaving its BEL available
-to the cart without dropping clock coverage.
+validates its row 4 global-clock route. The compiler serializes boundary FF
+data buffers as separate cells. Shell validation admits only a buffer at the
+FF's paired COMB/MLAB site, with the expected pin map and an exclusive connection
+to that FF's data input. Request and response buffers remain frozen during
+composition. Clock anchors, their paired buffers and all serialized routes
+also remain frozen: removing their cells alone leaves occupied constant-input
+wires at sites the cart placer would otherwise reuse. Their LABs stay reserved
+when placing a part; the part must fit the remaining capacity and pass the
+unchanged clock and CRAM containment gates. Video preparation preserves the
+complete CPU boundary outside the video fence.
 The v2 linker admits
 only an exact optional Coleco bus 2.0 shell and map `/2` archive, with no
 outside-rectangle CRAM exception. The enlarged development shell and SGM cart

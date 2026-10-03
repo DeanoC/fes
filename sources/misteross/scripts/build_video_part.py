@@ -14,7 +14,7 @@ import tarfile
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_coleco_sgm as sgm, build_fes_coleco_socket_v2 as shell_recipe
-from scripts import coleco_expansion, video_parts, native_video_parts, native_video_clock
+from scripts import video_parts, native_video_parts, native_video_clock
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import _prepare_output, _require_clean_source, _run_tool, _write_atomic
@@ -77,12 +77,8 @@ def publish_archive(output: Path, part_id: str, encoded: bytes, cart: bytes,
 
 def prepare_scaffold(source: Path, destination: Path, *, layout=video_parts) -> bytes:
     # Reuse the qualified PLL metadata repair without removing the CPU socket's
-    # clock anchor: its configuration lies outside the video CRAM fence.
-    original = json.loads(source.read_bytes())
+    # clock anchor or paired buffer: both lie outside the video CRAM fence.
     repaired = json.loads(sgm.prepare_scaffold(source, destination))
-    cells = repaired["modules"]["top"]["cells"]
-    cells[coleco_expansion.SOCKET_CLOCK_COVERAGE_CELL] = original["modules"]["top"]["cells"][
-        coleco_expansion.SOCKET_CLOCK_COVERAGE_CELL]
     result = layout.prepare_scaffold(json.dumps(repaired).encode())
     destination.write_bytes(result)
     return result

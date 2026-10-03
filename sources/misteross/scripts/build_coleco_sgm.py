@@ -43,16 +43,17 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 def prepare_scaffold(source: Path, destination: Path) -> bytes:
-    """Drop unconnected PLL aliases and the clock anchor before cart placement.
+    """Repair PLL aliases while retaining the complete frozen clock anchor.
 
     The producer's routed JSON omits the second PLL output connection while
     retaining its physical pin map and routed net. Reattach that exact net to
     the existing physical `outclk[1]` pin. `outclk[0]` is an obsolete alias
     of `outclk` after packing and is the only pin-map entry removed.
 
-    The routed row 4 clock coverage anchor is checked before it is removed;
-    the clock net's serialized branch stays frozen while its BEL is freed for
-    the cart.
+    The row 4 clock-only FF, its dedicated route-through buffer and all net
+    records remain frozen. The buffer's input is part of a shared constant
+    route; removing the pair would leave that route occupying an apparently
+    vacant LAB. Retaining the pair keeps placement and routing consistent.
     """
     design = json.loads(source.read_text())
     top = design["modules"]["top"]
@@ -95,7 +96,8 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
             coleco_expansion.SOCKET_CLOCK_COVERAGE_BEL:
         raise ValueError("Coleco frozen clock coverage anchor changed")
     coleco_expansion.validate_v2_clock_coverage_route(top)
-    del top["cells"][coverage_name]
+    coleco_expansion.validate_clock_anchors(
+        top, {coverage_name: coleco_expansion.SOCKET_CLOCK_COVERAGE_BEL})
     encoded = (json.dumps(design, separators=(",", ":")) + "\n").encode()
     destination.write_bytes(encoded)
     return encoded
