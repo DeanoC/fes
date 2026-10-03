@@ -1,0 +1,69 @@
+{
+  "source_commit": "5e2b3e9f7cf094517d5fbf0c4661de793477877f",
+  "source_identity_sha256": "9e8d350be995420e64c52b3bc22798e90eb346cd924bd357928983c9d9129b2e",
+  "capture_source": "shared direct video response after two pixel-domain registers",
+  "size": [
+    1280,
+    720
+  ],
+  "final_screen_base": "0x78000",
+  "final_mode": 0,
+  "rendered_rgb_colors": [
+    [
+      16452,
+      "#000000"
+    ],
+    [
+      347580,
+      "#00ff00"
+    ],
+    [
+      557568,
+      "#ffffff"
+    ]
+  ],
+  "metrics": {
+    "duration_seconds": 8,
+    "system_clocks": 417792000,
+    "independent_pixel_clocks": 594018699,
+    "complete_frames": 479,
+    "rgb_colors": 3,
+    "max_cpu_latency_clocks": 64,
+    "max_video_latency_clocks": 64,
+    "max_cpu_latency_us": 1.2254901960784315,
+    "max_video_latency_us": 1.2254901960784315,
+    "cpu_reads": 927042,
+    "cpu_writes": 708161,
+    "video_reads": 7664000,
+    "refreshes": 1068525,
+    "bus_faults": 4,
+    "mfp_interrupts": 1763,
+    "vbl_interrupts": 476,
+    "underruns": 0,
+    "hz200": 1574,
+    "frame_clock": 476,
+    "initialized_after_clocks": 13153
+  },
+  "comparison_to_prior_color": {
+    "previous_ppm_sha256": "f7c7d235f7aa4699928dace7f1b4be54b29eb7f170708b45b4e5119a4d3ee7d6",
+    "ppm_identical": true,
+    "previous_ram_sha256": "0c4ff0bec895f35f26a14434717dce66025039474b7d81146a725ddce292cc89",
+    "ram_identical": true,
+    "all_status_lines_identical": true
+  },
+  "artifacts_sha256": {
+    "color.ppm": "f7c7d235f7aa4699928dace7f1b4be54b29eb7f170708b45b4e5119a4d3ee7d6",
+    "color.png": "4e981f692f5ed6af3c474f69d8ed03ba79380907068fca71278905144038b1a5",
+    "color-ram.bin": "0c4ff0bec895f35f26a14434717dce66025039474b7d81146a725ddce292cc89",
+    "boot.log": "86b3e04e5196b34e8391e4a88edc994ea2bc1575439d5d682ef35c7df379be11",
+    "color-generated-model.zip": "a19a44985c98222c302f1fc9723bd9263ee00f6d0662695860d916dedd9151b0",
+    "color-frozen-source.zip": "7241256da80b8c1e8bb14219a5167acd8b5d98ea34dcdeee2d8de1af6a0188d7"
+  },
+  "validation": "Original unmodified color top and stock boot test; all RAM, raster, contention, timer, frame and CPU assertions passed.",
+  "classification": "host-only digital physical-SDRAM-command/independent-clock video simulation; no electrical or hardware acceptance",
+  "limitations": [
+    "Stock boot has no media upload or floppy DMA traffic.",
+    "Visible RGB colors recorded; unused palette entries are not separately recorded."
+  ],
+  "visual_check": "PNG inspected: intact GEM desktop with Desk/File/View/Options menu, Disk A icon, center pointer and Trash icon; coherent green/white desktop pattern."
+}

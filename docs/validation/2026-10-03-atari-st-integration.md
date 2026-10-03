@@ -13,7 +13,7 @@ the actual shared SDRAM command controller, five-client arbiter and
 dual-clock video adapter. The output capture follows the shared direct video
 part and both registered pixel boundaries.
 
-![EmuTOS GEM desktop captured from simulated output](2026-10-03-atari-st-integration/assembled-sdram.png)
+![EmuTOS GEM desktop captured from simulated output](2026-10-03-atari-st-integration/color-current.png)
 
 The test ran 417,792,000 system clocks and 594,018,699 independent pixel
 clocks, covering eight emulated seconds and 479 complete output frames.
@@ -42,6 +42,19 @@ and monochrome assertions are recorded in the
 binds the retained output, RAM and log hashes.
 
 ![Monochrome EmuTOS desktop captured from simulated output](2026-10-03-atari-st-integration/monochrome.png)
+
+Both eight-second boots were repeated after the video and keyboard timing
+changes at `5e2b3e9f7cf094517d5fbf0c4661de793477877f`. All 25 compiled inputs
+were extracted from that commit into immutable snapshots and verified again
+after execution. Every reported counter, the complete PPM pixels and RAM
+bytes match the earlier runs exactly; both remain at zero underruns. The
+color run used the original test and top without modifications. Current
+records are [color capture](2026-10-03-atari-st-integration/color-current-capture.json),
+[color model](2026-10-03-atari-st-integration/color-current-model.json),
+[monochrome capture](2026-10-03-atari-st-integration/monochrome-current-capture.json)
+and [monochrome model](2026-10-03-atari-st-integration/monochrome-current-model.json).
+The color image above is from this later run. Neither run exercises disk DMA
+or host input, and neither establishes physical FPGA acceptance.
 
 The [capture sidecar](2026-10-03-atari-st-integration/assembled-sdram-capture.json)
 binds the PPM and RAM dump hashes. The
@@ -98,6 +111,9 @@ The parent regression run passed 616 tests (39 deliberate skips) both at
 `a3a867671` and after the main merge at `52060e1d84`. Clean `make check`
 also passed at both checkpoints with 17 generated consumers and 33 fixture
 copies. The merge leaves the Atari RTL and shared media source bytes unchanged.
+The full FogCast race suite also passed after the merge at `52060e1d84`:
+74 tested packages, including 21 rerun packages covering the changed host
+input, launcher and reboot handling.
 
 ## Native qualification
 
@@ -114,6 +130,19 @@ only normalizes its two simulation-exclusion comment directives.
 
 Final route, timing, ROM-map and independent-card qualification are pending.
 No package or hardware qualification is inferred from synthesis alone.
+
+An authenticated, unsealed seed-4 diagnostic at `df0f38e2f` completed a
+zero-overuse HIP route in 511.9 seconds. Its diagnostic run disabled timing
+repair to expose the initial paths; it achieved only 16.483 MHz pixel and
+19.822 MHz system timing, so it cannot qualify a package. The measured
+60.668 ns video path traversed the adapter's inverse address division, and
+the 50.450 ns system path traversed IKBD keyboard event selection. The fixes
+pass native row/column coordinates directly to the cache and use a balanced
+key selector carrying the selected make/break state. Strict renderer, CDC,
+CPU and keyboard tests passed; the keyboard tree also passed the pinned
+Yosys/Slang frontend. Production routing retains normal timing repair and
+all three original clock gates, with a separate 1,800-second Atari attempt
+bound. Compiler cancellation tests preserve timeouts and file-read auditing.
 
 ## Contracts and next integration
 
