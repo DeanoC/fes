@@ -237,9 +237,9 @@ does not seal `fes.zx81`.
 The design bakes a 128-bit `BUILD_ID` into the netlist (`chparam BUILD_ID`),
 and that ID is the functional identity of the build record. The record covers
 the whole source closure (`cores/fes-coleco`, `cores/fes-common`,
-`cores/fes-sg1000`, `scripts`, `toolchains`). As a result, **any** edit inside
-those roots, even an unrelated script or a comment, changes placement, and
-can push the 52.224 MHz system clock over or under the limit. With the same
+`cores/fes-sg1000`, `scripts`, `toolchains`). As a result, an edit to **any included tracked file**
+in those roots (ordinary non-executable Markdown is excluded by the closure
+policy), even an unrelated script or a comment, changes placement, and can push the 52.224 MHz system clock over or under the limit. With the same
 seed, RTL and tools, main `330c56df` routed at 48.93 MHz. The same tree with
 only this script's comment text changed routed at 52.35 MHz.
 

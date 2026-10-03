@@ -42,7 +42,7 @@ ROUTER = "gpu"
 # Stopgap seed (DeanoC/fes#436, DeanoC/nextpnr#112): picked by a seed sweep at this
 # exact functional source closure; it closes all three clock domains there.
 # A sealed BUILD_ID changes placement, so each committed source must re-route.
-SEED = 5
+SEED = 12
 SG1000_GPU_BACKEND = "hip"
 SG1000_GPU_ROUTER = "HIP"
 SG1000_GPU_ARCHITECTURES = "gfx1100;gfx1201"

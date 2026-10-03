@@ -135,7 +135,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
-        self.assertEqual(SEED, 5)  # stopgap seed, DeanoC/fes#436
+        self.assertEqual(SEED, 12)  # stopgap seed, DeanoC/fes#436
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertIn("--timing-allow-fail", nextpnr)
