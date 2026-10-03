@@ -142,10 +142,14 @@ backpressure and soft/hard resets; the pinned Slang frontend passed.
 The full FogCast race suite also passed after the merge at `52060e1d84`:
 74 tested packages, including 21 rerun packages covering the changed host
 input, launcher and reboot handling.
-The [PR CI run](https://github.com/DeanoC/fes/actions/runs/37148494904) at
-`1ca8a4666` passed consistency, producer tests, the complete Atari ST
+The [PR CI run](https://github.com/DeanoC/fes/actions/runs/37151727578) at
+`5bee8b995` passed consistency, producer tests, the complete Atari ST
 simulation, parent tests and the required integration gate. Host, runtime
 and contract jobs were deliberately unselected for this narrower change.
+The bounded card-seed follow-up also passed 11 focused tests and clean
+`make check`: defaults and overrides bind the command, canonical recipe,
+output directory and archive identity; invalid seeds fail before source,
+tool or artifact actions.
 
 ## Native qualification
 
@@ -188,34 +192,97 @@ both banks, write-enable/byte-enable polarity, independent clocks, registered
 reads, two-edge bank/tag selection and refilling the unowned bank. It does
 not establish a whole-board native boot or promise data during collisions.
 
-The fresh normal seed-4 build from
-`1ca8a4666b2ecb8e9381004cc529c82d0a22b936` passed all three routed timing
-gates with the original constraints and timing repair:
+The [selected cache mapping bridge](2026-10-03-atari-st-integration/native-cache-primitive-v8.json)
+binds the actual synthesis from `5bee8b995` to those tested primitives. It
+independently evaluates mapped read-address logic across all 6,600
+mode/raster cases, including all 80/80/40 live columns. The
+[selected boot inputs](2026-10-03-atari-st-integration/boot-input-selection-v8.json)
+verify all 25 inputs in both executed stock boot models against that commit
+and the immutable native checkout. These are mapping and source-equivalence
+checks, not another boot execution or routed timing result.
+
+The final production shell from
+`5bee8b995672d38ee4cd52a2851cfe93e608c76a` passed all three routed timing
+gates using normal HIP routing, seed 5, the original constraints and default
+timing repair. Seed 4 completed but missed pixel timing by 0.399 ns; the
+producer rejected it before publication and advanced its committed search:
 
 | Domain | Required MHz | Achieved MHz |
 | --- | ---: | ---: |
-| Pixel | 74.250069 | 77.083176 |
-| System | 52.224773 | 56.980061 |
-| Audio | 12.288032 | 173.520737 |
+| Pixel | 74.250069 | 74.610161 |
+| System | 52.224773 | 57.813492 |
+| Audio | 12.288032 | 192.604004 |
 
 The sealed format-3 blank-ROM package is
-`2cd540a46167cf777080acb78740f50b888c48eadd0337f127c60c22d1d84e42`,
-with BUILD_ID `0215391c11bfbf1662b311865214f8e3`. Its base RBF is 2,836,762
+`7642c270e3e3251badfbea0dfc30537e4818a91d3a85c2f520a60b65b4b91dcc`,
+with BUILD_ID `08e5244db9fd6800e834ee9d1ba6724e`. Its base RBF is 2,836,423
 bytes, SHA-256
-`9d1713120f3ba28ee0ac7d6cc2e7bc319bca9361022b0a01d9854019d62fbe71`.
-The [seal record](2026-10-03-atari-st-integration/native-shell-seal.json)
+`532629471d39dcc7dd5b5dd0bc86703ebe41a79c3af0372679378f05b1ecfb4a`.
+The [seal record](2026-10-03-atari-st-integration/native-shell-seal-v8.json)
 binds the manifest, timing, source, ROM-map and compiler evidence. All 201
 RAM-local configuration footprints are outside the socket; caches occupy
 M10K(26,20)/(26,21), and all 119 pinned boundary FFs and their dedicated
 buffers pass validation. The
-[actual RAM mapping bridge](2026-10-03-atari-st-integration/native-cache-primitive-v6.json)
-verifies equivalence to the separately tested primitives, including mapped
-read addresses across all 6,600 mode/raster cases per build. The
-[boot input selection](2026-10-03-atari-st-integration/boot-input-selection.json)
-verifies all 25 inputs for each executed stock boot against this native
-source checkpoint.
+[independent native audit](2026-10-03-atari-st-integration/native-evidence-audit-v8.json)
+checks all 295 selected source inputs, actual winner bytes, every firmware
+map coordinate and the authenticated compiler/runtime binding. The
+[package binding](2026-10-03-atari-st-integration/native-package-binding-v8.json)
+independently recomputes the canonical format-3 ID and verifies all three
+published members.
 
-The [exact-artifact ROM-only result](2026-10-03-atari-st-integration/native-rom-only-validation-summary.json)
+The [production card build](2026-10-03-atari-st-integration/native-card-build-summary-v8.json)
+also passes with explicit seed 5, expansion ID
+`2b8df5e5b327af742ef4b384c12ebac82b2cf65dcde0f4ea6c3c2a95b86370ed`.
+Its recipe is
+`3bfb3b06824cd21621536fef6a9f462845e61db971584693259afbc8e73ae5e5`;
+archive SHA-256 is
+`5f44b8f5f5b9ca8471273b43cf67b83bdaa90003e8ad2401edfa0f7e7d450957`.
+It retains all three clock passes and the exact shell header, with 9,174
+changed CRAM bits inside the socket and zero outside. Reproduce the card
+placement with `scripts/build_atari_st_slot_card.py --seed 5`, supplying
+that exact frozen shell and package; the regular make target uses the
+default seed 4.
+
+The [combined ROM/card result](2026-10-03-atari-st-integration/native-rom-card-validation-summary-v8.json)
+and [qualification proof](2026-10-03-atari-st-integration/native-rom-card-qualification-proof-v8.json)
+pass actual package/card admission and composition through the Go CLI/API
+and FogCast. Their programmed output is byte-identical, SHA-256
+`4f15471e3c3a8e0f54cca664ae9272d0650fdef51c02e891e6bd0d6a7edb08b7`.
+Independent authenticated Mistral readback reconstructs all 192 lanes and
+196,608 stock ROM bytes, with zero padding. ROM linking changes exactly
+564,978 firmware INIT bits and no socket or other decoded payload bits,
+preserving every card bit, ORAM/PRAM/header, compression mode and
+non-firmware bit-table values. Derived frame CRCs are recalculated.
+
+Five negative controls reject a different BUILD_ID, a different package,
+nonexistent socket 2, a card write outside the fence at `(1000,1800)` and
+a firmware destination overlapping the socket. All 262 selected Git inputs,
+18 harness/binary/command files and the actual native/card/package/compiler
+inputs are checked before and after the successful run. The retained
+281-member source/harness archive binds binary provenance explicitly.
+The first full attempt stopped because a private assertion expected
+"outside socket" instead of the actual "outside its socket" error; its
+packet remains separate. The successful rerun rebuilt only that private
+helper after correcting the assertion, preserving both production CLI
+binaries and every production source/artifact/seed.
+
+The final shell's
+[ROM-only result](2026-10-03-atari-st-integration/native-rom-only-validation-summary-v8.json)
+and [proof](2026-10-03-atari-st-integration/native-rom-only-qualification-proof-v8.json)
+verify the actual Go CLI/API and FogCast output SHA-256
+`bfaffbdf5e9cfaa594039be7c2208993d5f05e3b3621efdd498bfb148d1071c0`.
+Independent Mistral readback reconstructs all 192 lanes byte-exact, with
+zero padding and exactly 564,978 firmware INIT bits changed. All other
+decoded payload bits, the expansion fence, ORAM/PRAM/header and compression
+mode are preserved. All 262 frozen Git inputs and 17 harness files are
+checked before and after execution; binary reuse is recorded against all
+176 unchanged compiled inputs.
+
+The earlier `1ca8a4666` production qualification is preserved byte-exact in
+its [seal record](2026-10-03-atari-st-integration/native-shell-seal.json),
+[RAM mapping bridge](2026-10-03-atari-st-integration/native-cache-primitive-v6.json)
+and [boot input selection](2026-10-03-atari-st-integration/boot-input-selection.json).
+Its [exact-artifact ROM-only result](2026-10-03-atari-st-integration/native-rom-only-validation-summary.json)
 and [qualification proof](2026-10-03-atari-st-integration/native-rom-only-qualification-proof.json)
 verify admission and linking through the actual Go CLI/API and FogCast
 helpers. Their programmed outputs match SHA-256
@@ -231,10 +298,19 @@ The first independent probe-card route failed an internal scratch-register
 to read-mux path. A bounded unsealed placement with seed 4 passes normal
 routing, all three clocks and configuration containment: 9,155 changed CRAM
 bits inside the socket, zero outside. The card recipe now records that
-placement seed; its command and recipe hash are regression-checked. Because
-the card recipe belongs to the shell source closure, a fresh normal shell
-and real card build from the final committed checkpoint remain pending.
-The `1ca8a4666` shell and ROM-only evidence above apply to that exact source.
+placement seed; its command and recipe hash are regression-checked. The
+next source checkpoint, `8f108d514`, also passed a production shell route
+and exact ROM-only linking. Its seed-4 card failed a write-data input to
+ordinary probe storage. A bounded unsealed seed-5 diagnostic passed all
+three clocks with 9,387 changed CRAM bits inside the socket and zero outside.
+Neither unsealed diagnostic is a published card. At `5bee8b995`, the card
+producer accepts explicit seeds 1–10, defaulting to 4, and binds the actual
+seed into the artifact identity. This permits bounded placement retries
+against the same frozen shell without changing source or relaxing any
+timing, clock, compiler or containment checks. Because the card recipe
+belongs to the shell source closure, the final normal shell and real card
+were rebuilt at that checkpoint as recorded above. The earlier
+`1ca8a4666` shell and ROM-only evidence apply to that exact source.
 
 No physical FPGA, SDRAM, HDMI, input or audio acceptance follows from these
 host-native checks.

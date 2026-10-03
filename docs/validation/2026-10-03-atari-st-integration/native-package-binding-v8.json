@@ -1,0 +1,18 @@
+{
+  "build_id": "08e5244db9fd6800e834ee9d1ba6724e",
+  "classification": "Read-only canonical published-package/source/member identity audit; no hardware use",
+  "exact_three_members_match_sealed_producer": true,
+  "independent_format3_domain_and_length_prefix_identity_checked": true,
+  "member_sha256": {
+    "core.rbf": "532629471d39dcc7dd5b5dd0bc86703ebe41a79c3af0372679378f05b1ecfb4a",
+    "manifest.toml": "20f4d0c987b5f1d8b986984098b4066eb03452ca43739c1e9d8e7ca1f2657f3e",
+    "rom-map.json": "5dc1ae622cb081bc61c38e5b40cac9d2d49f4e657d01141c8fdcf4d0f782056c"
+  },
+  "normal_package_admission_passed": true,
+  "package_format": 3,
+  "package_id": "7642c270e3e3251badfbea0dfc30537e4818a91d3a85c2f520a60b65b4b91dcc",
+  "package_path": "/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-520st/oss-build-fes-v8/sources/misteross/build/packages/7642c270e3e3251badfbea0dfc30537e4818a91d3a85c2f520a60b65b4b91dcc",
+  "result": "PASS",
+  "source_before_after_unchanged": true,
+  "source_commit": "5bee8b995672d38ee4cd52a2851cfe93e608c76a"
+}
