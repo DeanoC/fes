@@ -71,6 +71,13 @@ def plan(root, base, head="HEAD", jobs=2):
             ["make", "test", "PYTHON=" + sys.executable], tools=["go"], files=["Makefile"])
     if impact["lanes"]["fpga"]:
         fpga = affected.MODULE_ROOTS["fpga"]
+        # Shared native contract/transport changes need their frame and CDC
+        # oracle even before the experimental path becomes a factory recipe.
+        if "coleco" in impact["cores"]:
+            for target in ("sim-fes-native-video", "sim-fes-coleco-native"):
+                add("fpga", target + " RTL simulation", fpga,
+                    ["make", target, "PYTHON=" + sys.executable],
+                    tools=["verilator", "c++"], files=["Makefile"])
         for pattern in affected.FPGA_SOFTWARE_TESTS:
             add("fpga", pattern, fpga,
                 [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", pattern, "-v"],

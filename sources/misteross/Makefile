@@ -73,6 +73,9 @@ help:
 		"  sim-fes-zx81-rom  Read the ZX81 machine ROM port for the 8 KiB BASIC image" \
 		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
+		"  sim-fes-native-video  Test native frame capture, Direct/Scanlines and clock crossing" \
+		"  sim-fes-coleco-native  Test actual registered Coleco VDP native pixels and inline board path" \
+		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-sgm-integrated  Test the v2 SGM module and shell RAM through CPU/socket cycles" \
@@ -192,6 +195,20 @@ sim-fes-demo:
 sim-fes-video-parts:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_video_parts.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-native-video
+sim-fes-native-video:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_native_video.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-coleco-native synth-fes-native-video
+sim-fes-coleco-native:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_coleco_native.py --verilator "$(VERILATOR)"
+
+synth-fes-native-video:
+	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_native_video.py --cache-root "$(CACHE_ROOT)"
 
 build-fes-coleco-video:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2.py --root "$(CURDIR)" --video-socket$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)

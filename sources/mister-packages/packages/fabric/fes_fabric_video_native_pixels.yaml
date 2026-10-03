@@ -1,0 +1,112 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.video.native-pixels
+description: >-
+  Internal native active-pixel tokens for complete-frame capture and fixed
+  720p60 presentation. The shell crosses the source clock before the socket;
+  the part runs entirely on the output pixel clock. Geometry and encoding
+  are explicit composition parameters. This is not a GP mailbox ABI or a
+  runtime video capability.
+major: 1
+minor: 0
+constants:
+  - name: FesNativeVideoMajor
+    value: 1
+  - name: FesNativeVideoMinor
+    value: 0
+  - name: FesNativeVideoRequestBits
+    value: 32
+  - name: FesNativeVideoResponseBits
+    value: 28
+  - name: FesNativeVideoRequestPayloadLow
+    value: 0
+  - name: FesNativeVideoRequestPayloadBits
+    value: 24
+  - name: FesNativeVideoRequestValidBit
+    value: 24
+  - name: FesNativeVideoRequestSofBit
+    value: 25
+  - name: FesNativeVideoRequestEolBit
+    value: 26
+  - name: FesNativeVideoRequestEofBit
+    value: 27
+  - name: FesNativeVideoRequestHoldBit
+    value: 28
+  - name: FesNativeVideoRequestControlBit
+    value: 29
+  - name: FesNativeVideoRequestReservedLow
+    value: 30
+  - name: FesNativeVideoRequestReservedBits
+    value: 2
+  - name: FesNativeVideoResponseRgbLow
+    value: 0
+  - name: FesNativeVideoResponseDeBit
+    value: 24
+  - name: FesNativeVideoResponseHsBit
+    value: 25
+  - name: FesNativeVideoResponseVsBit
+    value: 26
+  - name: FesNativeVideoResponseCeBit
+    value: 27
+  - name: FesNativeVideoEncodingIndex4Tms9918
+    value: 0
+  - name: FesNativeVideoIndex4Bits
+    value: 4
+  - name: FesNativeVideoInitialWidth
+    value: 256
+  - name: FesNativeVideoInitialHeight
+    value: 192
+  - name: FesNativeVideoFrameBanks
+    value: 2
+  - name: FesNativeVideoSourceClockHz
+    value: 52224000
+  - name: FesNativeVideoOutputPixelClockHz
+    value: 74250000
+  - name: FesNativeVideoOutputHorizontalActive
+    value: 1280
+  - name: FesNativeVideoOutputHorizontalSyncFirst
+    value: 1390
+  - name: FesNativeVideoOutputHorizontalSyncEnd
+    value: 1430
+  - name: FesNativeVideoOutputHorizontalTotal
+    value: 1650
+  - name: FesNativeVideoOutputVerticalActive
+    value: 720
+  - name: FesNativeVideoOutputVerticalSyncFirst
+    value: 725
+  - name: FesNativeVideoOutputVerticalSyncEnd
+    value: 730
+  - name: FesNativeVideoOutputVerticalTotal
+    value: 750
+  - name: FesNativeVideoTms9918Color0
+    value: 0x000000
+  - name: FesNativeVideoTms9918Color1
+    value: 0x000000
+  - name: FesNativeVideoTms9918Color2
+    value: 0x21c842
+  - name: FesNativeVideoTms9918Color3
+    value: 0x5edc78
+  - name: FesNativeVideoTms9918Color4
+    value: 0x5455ed
+  - name: FesNativeVideoTms9918Color5
+    value: 0x7d76fc
+  - name: FesNativeVideoTms9918Color6
+    value: 0xd4524d
+  - name: FesNativeVideoTms9918Color7
+    value: 0x42ebf5
+  - name: FesNativeVideoTms9918Color8
+    value: 0xfc5554
+  - name: FesNativeVideoTms9918Color9
+    value: 0xff7978
+  - name: FesNativeVideoTms9918Color10
+    value: 0xd4c154
+  - name: FesNativeVideoTms9918Color11
+    value: 0xe6ce80
+  - name: FesNativeVideoTms9918Color12
+    value: 0x21b03b
+  - name: FesNativeVideoTms9918Color13
+    value: 0xc95bba
+  - name: FesNativeVideoTms9918Color14
+    value: 0xcccccc
+  - name: FesNativeVideoTms9918Color15
+    value: 0xffffff

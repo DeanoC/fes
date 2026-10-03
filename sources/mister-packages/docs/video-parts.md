@@ -74,15 +74,124 @@ small output effect, not a CRT simulation. The dedicated
 the actual `coleco_video_socket` simulation path over full 720p frames, CE gaps, hold picture mute,
 blanking and sync, invalid requests, EOL ordering and SOF recovery.
 
+## Native active pixels
+
+[`packages/fabric/fes_fabric_video_native_pixels.yaml`](../packages/fabric/fes_fabric_video_native_pixels.yaml)
+defines the separate `fes.fabric.video.native-pixels` 1.0 contract and generates
+`fes_native_video.vh`. Its request carries native active pixels before capture
+and scaling. The selected part owns complete-frame capture and presentation;
+the shell owns the source adapter, clock crossing, clocks and physical HDMI
+output. This ABI does not change `fes.fabric.video.raster-rgb888` 1.0, its
+request meanings or its two-boundary transformation latency.
+
+The initial bounded profile has explicit width 256, height 192 and encoding
+`Index4Tms9918` (value 0). The source emits only active pixels, in row-major
+order, with no blanking pixels or input HS/VS levels. Each frame therefore has
+exactly 49,152 pixel tokens. Geometry and encoding are parameters bound by the
+producer/composition; they are not inferred from a system name, a pixel value
+or the request width. The indexed encoding uses payload bits 3..0, requires
+bits 23..4 to be zero and expands through the immutable RGB888 palette in the
+YAML. Indices 0 and 1 both present black. RGB888 and RGB666 native encodings
+are future profiles; this initial profile does not assign their encoding
+values or claim capture support for them.
+
+### Native tokens and clock crossing
+
+The native socket has `native_request[31:0]` and `video_response[27:0]`.
+Both physical socket register banks and all selected-part state run on the
+always-running 74.25 MHz output pixel clock. The initial source runs on the
+separate 52.224 MHz system clock. The shell registers and holds each entire
+token, transfers a request toggle through synchronizer registers and captures
+the held payload in the pixel domain. A synchronized acknowledgement permits
+the source payload to change. Independently synchronizing payload bits or
+sampling a changing source word does not satisfy this contract. The adapter
+must preserve every admitted token and its markers. A transfer loss or
+overflow emits an intentionally invalid token with VALID one and reserved
+bit 30 one, invalidating the incoming frame rather than hiding the loss as
+an idle cycle. The adapter separately retains the latest undelivered HOLD
+control so an overrun cannot lose the final hold/release state.
+
+| Native request bits | Meaning |
+| --- | --- |
+| 23..0 | Payload in the explicitly selected encoding |
+| 24 | VALID, qualifies one pixel or control token |
+| 25 | SOF, first active pixel at x=0, y=0 |
+| 26 | EOL, final active pixel of each row at x=255 |
+| 27 | EOF, final active pixel at x=255, y=191 |
+| 28 | HOLD value in a control token |
+| 29 | CONTROL, selects a control token instead of a pixel |
+| 31..30 | Reserved, valid tokens must send zero |
+
+VALID zero delivers no token and does not advance capture. A valid pixel token
+has CONTROL and HOLD zero. SOF appears on exactly the first pixel; EOL appears
+on exactly the last pixel of every row; EOF appears only on the final pixel
+and coincides with EOL. Markers are part of that pixel's token, rather than
+separate events. A valid control token has CONTROL one, zero payload and zero
+SOF/EOL/EOF; only HOLD carries a value. It does not count as a pixel or advance
+the capture coordinates.
+
+An accepted HOLD-one control mutes the picture, aborts an incomplete capture
+and discards a pending handoff while retaining the currently presented front
+frame. The consumer starts held and requires an accepted HOLD-zero control
+before capturing or displaying native pixels. HOLD wins over a bank swap on
+the same output-SOF edge. The output
+continues to emit black RGB with uninterrupted DE/HS/VS/CE. Pixel tokens
+received while held cannot complete a presentable frame. Releasing HOLD
+permits capture from a new valid SOF; it does not resume the aborted frame.
+HOLD crosses clocks as a control token even when the machine has stopped
+producing pixels.
+
+### Complete-frame admission and presentation
+
+Capture validates the encoding, reserved fields and exact sequential geometry
+and markers. An unexpected SOF, missing or misplaced EOL/EOF, extra pixel,
+invalid token or adapter drop cannot make an incomplete frame presentable.
+Capture recovery starts with a new correctly formed SOF. A completed back
+frame becomes pending only after its final pixel has been stored and checked.
+The part uses two frame banks and changes the front bank only at output SOF;
+RGB and sync must remain aligned through memory reads and the response
+boundary. A part drops an entire incoming frame when the other bank already
+holds a pending frame; it does not overwrite that bank or queue a partial
+frame for later presentation.
+
+The output repeats the most recent complete front frame when no new frame is
+ready, including when native delivery stops. Before any complete frame is
+available, RGB is black. Frame capture and output timing are independent:
+the initial output remains 1280 by 720 active pixels in a 1650 by 750 raster
+at 74.25 MHz, with positive HS at 1390..1429 and VS at 725..729. The response
+bit meanings match the existing raster response: RGB888 in 23..0, DE/HS/VS
+in 24..26 and CE in 27. CE remains one throughout this fixed output mode,
+including blanking, HOLD and repeated frames; it is independent of native
+VALID. Capturing a frame takes many native tokens, so native input and HDMI
+output do not have the raster ABI's per-pixel transformation relationship.
+
+The native contract and generated constants do not seal a physical socket,
+admit a native part to a factory image or establish hardware acceptance.
+A native producer must declare separate exact-shell slot/map/layout identities
+and validate its clock ownership, memory placement, timing and configuration
+containment. Existing factory raster parts retain their current identities
+and selection behavior.
+
+Device-table inspection finds 55 M10K sites in placement columns 5..38,
+rows 23..38, which is disjoint from the Coleco CPU placement rows 1..19.
+Packing two index4 pixels into each byte gives 24,576 words per frame bank;
+the current compiler's 1024-word memory mapping suggests 24 M10Ks per bank,
+or 48 for two banks. The native Direct/Scanlines diagnostic synthesis
+(`make synth-fes-native-video` in misteross) maps each consumer to 48 M10Ks
+with one RAM clock. This is synthesis evidence, not routed-part evidence.
+The wider reservation requires a fresh shell route and broader frozen-clock
+coverage before native parts can be sealed or composed.
+
 ## Other source standards
 
 Geometry, source cadence and output mode are composition metadata, not
 inferred from a core's display name or the RGB bus. The present admission
 bound is exactly the fixed 720p60 mode above. CE gaps are defined and tested
-but do not authorize variable-rate, interlaced, native low-resolution or
-high-definition output profiles. A future native profile must define its
+but do not authorize variable-rate, interlaced or high-definition output
+profiles. The separate native contract above defines its initial active-pixel
+profile; extending either contract requires explicit bounds for
 dimensions, border/blanking meaning, aspect ratio, pixel rate, frame-rate bounds
 and clock crossings, including the capture/scaling ownership. It must also
 define complete-frame delivery or repeat/drop behavior before a DDR consumer
-can provide tear-free output. These future profiles and DDR/filter consumers
-are not implemented by this contract proof.
+can provide tear-free output. Additional source encodings, output modes and
+DDR/filter consumers are not implemented by the raster contract proof.

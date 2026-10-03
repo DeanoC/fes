@@ -55,6 +55,19 @@ probe and does not seal.
 
 ## Video-parts development lane
 
+The native-pixel follow-on is a host simulation prototype. Run
+`make sim-fes-native-video` for Direct/Scanlines, complete-frame publication
+and unrelated-clock transport, and `make sim-fes-coleco-native` for the actual
+registered VDP source at its fractional raster cadence. Its optional
+`FES_COLECO_NATIVE_VIDEO_DEV` top branch moves capture/scaling into the native
+consumer inline; it has no sealed part/package producer or hardware acceptance.
+See [the architecture](architecture.md#video-parts) for that boundary and the
+new native contract. `make synth-fes-native-video CACHE_ROOT=/absolute/cache`
+checks Direct and Scanlines RAM mapping with the locked compiler and writes
+diagnostics beneath `build/synth/fes-native-video/`; it accepts working-tree
+sources and does not route, seal or program them. Use the commands below for
+the current sealed raster lane.
+
 The first slice is a Coleco shell with a fixed 720p60 RGB888
 pixel-clock interface. Choose a direct part or a simple scanline part;
 an independently built Coleco bus 2.0 expansion can share the same frozen

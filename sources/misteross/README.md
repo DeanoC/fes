@@ -38,8 +38,14 @@ selected Mistral database, routed ROM placements and blank INIT bits. Other
 normal producers retain format 2. See [functional input identity](docs/architecture.md#functional-input-identity).
 
 Coleco [video parts](docs/cores.md#video-parts-development-lane) link direct or
-scanline processing into a frozen pixel-clock socket. FES selects the existing
-producer's video-socket variant for the factory package and publishes both
+scanline processing into a frozen pixel-clock socket. A separate native-pixel
+prototype moves frame capture/scaling into a shared Direct/Scanlines consumer;
+`make sim-fes-native-video` and `make sim-fes-coleco-native` validate it on the
+host. `make synth-fes-native-video CACHE_ROOT=/absolute/cache` checks both
+native consumers with the locked compiler; it does not route or seal them.
+The native path has no sealed producer or hardware acceptance yet.
+The factory raster lane selects the existing producer's video-socket variant
+for the factory package and publishes both
 parts against that exact package. The standalone `make build-fes-coleco`
 command retains its CPU-only socket; `make build-fes-coleco-video` explicitly
 builds the video variant. The shared RTL contract is owned by
