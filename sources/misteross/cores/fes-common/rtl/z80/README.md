@@ -72,7 +72,9 @@ stalled. The responder must not repeat a stalled write.
 The fast core removes timing-only internal cycles and bus extensions. Ordinary
 register operations can complete in one enabled clock when the responder can
 supply the opcode. Operand bytes and memory/I/O transactions still require
-completion. A synchronous RAM must arrange its response latency through
+completion. Its byte-register helpers directly access real H/L: documented
+indexed byte forms use H/L, while IXH/IXL/IYH/IYL encodings trap. This removes
+index-byte muxes without adding instruction clocks. A synchronous RAM must arrange its response latency through
 `bus_ready`; tying it high before the RAM's registered data is available is
 incorrect. This interface permits the surrounding system to choose its own
 memory pipeline instead of inheriting physical Z80 wait states.
@@ -105,7 +107,7 @@ wrapper. It covers instructions, flags, prefix exceptions, stack/address wrap,
 interrupts, refresh, HALT, WAIT, DMA, warm reset and original program results.
 Output and build logs live under `build/sim/fes-z80/<case>/`.
 
-The optional external instruction-state runner consumes JSON test data from
+The optional external qualification runner consumes JSON test data from
 [SingleStepTests/z80](https://github.com/SingleStepTests/z80), fixed at revision
 `ebe1875d48f374bcfd4b505d8eb8ee751568b5f7`. It compares both register banks,
 PC/SP/I/R, WZ/Q/P, interrupt state, RAM and ordered I/O. Its default is the first
@@ -114,14 +116,23 @@ PC/SP/I/R, WZ/Q/P, interrupt state, RAM and ordered I/O. Its default is the firs
 ```sh
 python3 scripts/test_fes_z80_vectors.py --download
 python3 scripts/test_fes_z80_vectors.py --corpus /absolute/path/to/corpus
+python3 scripts/test_fes_z80_vectors.py --pins --corpus /absolute/path/to/corpus
 ```
+
+The `--pins` mode runs the complete NMOS wrapper and additionally compares
+total T states and ordered strobed memory/I/O addresses and data. It checks
+M1 count and refresh addresses against published prefix rules, because the
+corpus omits M1/RFSH observations. The corpus simplifies memory strobes to one
+T state, so it cannot establish strobe widths, half-cycle phases or unstrobed
+address behavior. Both modes pass 160,400 cases across all 1,604 opcode files
+(100 cases per file); deliberately incorrect durations and read data fail.
 
 The cached receipt records the revision, original Git blob identities and data
 hashes; an offline rerun verifies cached hashes. This MIT-licensed corpus is an
 independent software oracle, generated from a translated Ares core with fixes.
 The design work consumes test data and provenance only, without CPU/generator
-implementation sources. These state comparisons do not compare pin waveforms
-or establish physical-chip equivalence. The default offline suite has no
+implementation sources. These comparisons do not establish complete pin-waveform
+or physical-chip equivalence. The default offline suite has no
 network or external-data requirement.
 
 For a contained Cyclone V timing diagnostic, provide the existing compiler
@@ -146,16 +157,17 @@ Measured with Yosys `0.69+ (1bf1ff3d7)` and nextpnr-mistral
 
 | Variant | Placement seeds | Routed Fmax (MHz) | Envelope COMB / FF |
 | --- | --- | --- | --- |
-| Fast | 1, 2, 3 | 48.414, 51.430, 50.725 | 3174 / 621 |
+| Fast | 1, 2, 3 | 54.996, 52.726, 55.614 | 3048 / 621 |
 | NMOS | 1 | 43.424 | 3977 / 693 |
 
 These include the stimulus/signature harness and use no RAM or DSP blocks.
-All runs miss the 100 MHz target. Evidence fingerprints are `015a823c8000`
-(fast) and `a668cad67dbe` (NMOS); the runner records their complete identities
-in the ignored benchmark outputs. Default FSM extraction improves the fast
-mean Fmax by 5.7% and its worst result by 10.8% over an otherwise identical
-forced binary encoding measured with the same three seeds. The critical path
-remains register-write decode/mux routing; higher clocks require further
+All runs miss the 100 MHz target. Evidence fingerprints are `fa6e8da15530`
+(fast) and `69f3c120a0d4` (NMOS); the runner records their complete identities
+in the ignored benchmark outputs. Specializing the fast H/L byte helpers
+improves worst Fmax by 8.9% and mean Fmax by 8.5% over the preceding engine
+(`015a823c8000`: 48.414, 51.430, 50.725 MHz), using the same three seeds and
+tools. COMB usage drops from 3174 to 3048, with 621 FF unchanged. The critical
+path remains PC/register-write decode and routing; higher clocks require further
 measured datapath work and system memory integration.
 
 The implementation has host simulation and diagnostic synthesis evidence.
