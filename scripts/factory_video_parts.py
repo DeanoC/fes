@@ -31,10 +31,38 @@ SHELL_MEMBERS = ("manifest.toml", "core.rbf", "routed.json", "socket.qsf",
                  "build-summary.json")
 PART_MEMBERS = ("build-summary.json", "timing.json", "cart.json",
                 "cart-routed.json", "route.log", "cram-diff.json")
+VIDEO_OUTPUTS = {"fes.coleco-video.socket/1": "build/fes-coleco-video",
+                 "fes.coleco-native-video.socket/1": "build/fes-coleco-native-video"}
+NATIVE_MAP = "fes.coleco-native-video.socket/1"
+VIDEO_INTERFACES = {"fes.fabric.video.raster-rgb888": "fes.coleco-video.socket/1",
+                    "fes.fabric.video.native-pixels": NATIVE_MAP}
 
 
 class MissingVideoShell(ValueError):
     """The resolved package has no exact, authenticated frozen shell companion."""
+
+
+def video_shell_profile(fields):
+    """Admit the closed descriptor markers used by catalog and core-dev shells."""
+    interfaces = fields.get("interfaces", [])
+    if not isinstance(interfaces, list) or any(not isinstance(row, dict)
+            or not isinstance(row.get("id"), str) for row in interfaces):
+        raise ValueError("video shell interfaces must be an array of tables")
+    markers = [row for row in interfaces if row.get("id") in VIDEO_INTERFACES]
+    if not markers:
+        return None
+    core, abi = fields.get("core"), fields.get("abi")
+    if (len(markers) != 1 or type(fields.get("format")) is not int or fields["format"] != 2
+            or not isinstance(core, dict) or core.get("id") != "fes.coleco"
+            or abi != {"id": "fes.application", "major": 1, "minor": 0}
+            or type(abi.get("major")) is not int or type(abi.get("minor")) is not int):
+        raise ValueError("factory video requires one format-2 Coleco application shell profile")
+    marker = markers[0]
+    if (marker != {"id": marker["id"], "major": 1, "minor": 0, "required": False}
+            or type(marker.get("major")) is not int or type(marker.get("minor")) is not int
+            or marker.get("required") is not False):
+        raise ValueError("factory video requires an exact optional version-1.0 profile marker")
+    return VIDEO_INTERFACES[marker["id"]]
 
 
 def canonical(value):
@@ -209,12 +237,12 @@ import hashlib, io, json, re, sys, tarfile, tempfile
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from scripts import build_video_part as producer, build_fes_coleco_socket_v2 as shell_producer
-from scripts import video_parts, coleco_expansion
+from scripts import native_video_parts, native_video_clock, coleco_expansion
 from scripts.core_package import read_package
 from scripts.export_core_package import source_input_closure, POLICY, verify_record_source_at_revision, build_identity
 from scripts.functional_execution import execution_environment, execution_inputs, source_roots_for_inputs
 from scripts.fes_build_common import _cell_counts, validate_timing_resources
-from scripts.cyclonev_rbf import rbf_load, CramRect, classify_cram_diff
+from scripts.cyclonev_rbf import rbf_load, CramRect, classify_cram_diff, overlay_cram
 root = Path(sys.argv[1]); mode = sys.argv[2]; args = json.load(sys.stdin)
 def sha(data): return hashlib.sha256(data).hexdigest()
 def encode(value): return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False).encode()
@@ -229,37 +257,42 @@ def bounded(path, maximum=128<<20):
     if args.get('directory') and path.parent==Path(args['directory']) and path.name in args.get('evidence_sha256',{}):
         require(sha(data)==args['evidence_sha256'][path.name], 'video evidence changed after snapshot: '+path.name)
     return data
+package = read_package(Path(args['package']))
+layout = producer.package_profile(package)
+native = layout is native_video_parts
+require(package.fields['core']['id']=='fes.coleco', 'factory video requires an exact format-2 Coleco video shell')
+options = {'native_video':True} if native else {'video_socket':True}
 if mode == 'canonical':
-    _, revision = shell_producer._require_clean_source(root, video_socket=True)
+    require(args['producer_options']==options, 'resolved video profile differs from selected factory recipe')
+    _, revision = shell_producer._require_clean_source(root, **options)
     tools = shell_producer.authenticate_tools(root, Path(args['toolchain_cache']))
-    roots = source_roots_for_inputs(producer.INPUTS)
+    roots = source_roots_for_inputs(producer.NATIVE_INPUTS if native else producer.INPUTS)
     with tempfile.TemporaryDirectory(prefix='fes-video-canonical-') as home:
         paths = {name:tool.path for name,tool in tools.items()}
         execution = execution_inputs(paths, execution_environment(Path(home), paths), 0)
     result = {'inputs':source_input_closure(root, roots, policy=POLICY),
               'source_roots':roots, 'source_closure_policy':POLICY,
               'tools':{name:tool.identity for name,tool in tools.items()},
-              'execution':execution, 'revision':revision}
+              'execution':execution, 'revision':revision, 'map':layout.MAP}
 else:
-    package = read_package(Path(args['package'])); shell = Path(args['shell'])
+    shell = Path(args['shell'])
     current = args['current']
-    marker = {'id':video_parts.INTERFACE,'major':1,'minor':0,'required':False}
-    require(package.fields['format']==2 and package.fields['core']['id']=='fes.coleco' and marker in package.fields['interfaces'], 'factory video requires the exact format-2 Coleco video shell')
+    require(current['map']==layout.MAP, 'video inputs target a different shell profile')
     require(bounded(shell/'manifest.toml')==package.manifest_bytes and bounded(shell/'core.rbf',32<<20)==package.payload_bytes, 'frozen video shell differs from resolved package')
     if mode == 'shell':
         record = bounded(shell/'build-inputs.json'); fields = verify_record_source_at_revision(root, record)
         require(functional(record)==args['functional_inputs_sha256'], 'frozen shell functional inputs differ from selected package')
-        expected = shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], current['execution'], video_socket=True)
+        expected = shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], current['execution'], **options)
         require(functional(record)==functional(expected), 'frozen video shell differs from current recipe')
         coleco_expansion.validate_routed_shell(shell/'routed.json',version=2)
-        video_parts.validate_boundary(json.loads(bounded(shell/'routed.json'))['modules']['top'],routed=True)
-        require(bounded(shell/'socket.qsf') == video_parts.shell_qsf(coleco_expansion.shell_qsf((root/shell_producer.factory.QSF).read_text(),version=2)).encode(), 'frozen shell constraints differ from current recipe')
+        layout.validate_boundary(json.loads(bounded(shell/'routed.json'))['modules']['top'],routed=True)
+        require(bounded(shell/'socket.qsf') == layout.shell_qsf(coleco_expansion.shell_qsf((root/shell_producer.factory.QSF).read_text(),version=2)).encode(), 'frozen shell constraints differ from current recipe')
         evidence = shell_producer.factory.validate_build_evidence(shell,root)
         summary = json.loads(bounded(shell/'build-summary.json'))
         require(summary['build_id']==build_identity(record) and summary['tools']==current['tools'] and summary['execution']==current['execution'], 'frozen shell summary differs from authenticated inputs')
         for key in ('status','timing','resources','synthesis_cells','rbf'):
             require(summary[key]==evidence[key], 'frozen shell '+key+' evidence differs')
-        require(shell_producer.manifest(record,summary,fields['repository'],fields['revision'],fields['tools'],video_socket=True)==package.manifest_bytes, 'frozen shell manifest differs from producer evidence')
+        require(shell_producer.manifest(record,summary,fields['repository'],fields['revision'],fields['tools'],**options)==package.manifest_bytes, 'frozen shell manifest differs from producer evidence')
         result={'package_id':package.package_id,'build_record_sha256':sha(record)}
     elif mode == 'part':
         directory=Path(args['directory']); variant=args['profile']; archive=Path(args['archive'])
@@ -274,13 +307,13 @@ else:
         require(encode(manifest)==encoded, 'video manifest must be canonical JSON')
         require(set(manifest)=={'cart_sha256','cart_size','device','format','map','recipe_sha256','revision','shell_build_id','shell_package_id','shell_sha256','slot','slot_major','slot_minor'}, 'unexpected video manifest fields')
         require(all(type(manifest[name]) is int for name in ('cart_size','format','slot_major','slot_minor')), 'video manifest integer fields must be integers')
-        require(manifest['format']==1 and manifest['device']=='5CSEBA6U23I7' and manifest['map']==video_parts.MAP and manifest['slot']==video_parts.INTERFACE and manifest['slot_major']==1 and manifest['slot_minor']==0, 'video manifest has incompatible role or map')
+        require(manifest['format']==1 and manifest['device']=='5CSEBA6U23I7' and manifest['map']==layout.MAP and manifest['slot']==layout.INTERFACE and manifest['slot_major']==1 and manifest['slot_minor']==0, 'video manifest has incompatible role or map')
         require(manifest['cart_size']==len(cart) and manifest['cart_sha256']==sha(cart), 'video cart digest or size differs')
         require(manifest['shell_package_id']==package.package_id and manifest['shell_build_id']==package.fields['build']['id'] and manifest['shell_sha256']==sha(package.payload_bytes), 'video part targets a different shell')
         roots=current['source_roots']
         clocks=producer.sgm.cart_clock_constraints(root)
         recipe={key:current[key] for key in ('inputs','source_roots','source_closure_policy','tools','execution')}
-        recipe.update(shell={name:sha(bounded(shell/name)) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')},variant=variant,slot_clock=video_parts.CLOCK,map=video_parts.MAP,cram_region=list(video_parts.CRAM),required_clocks_mhz=producer.sgm.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(clocks))
+        recipe.update(shell={name:sha(bounded(shell/name)) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')},variant=variant,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=producer.sgm.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(clocks))
         recipe_sha=sha(encode(recipe)); part_id=sha(b'fes-expansion-v1\0'+encoded)
         require(manifest['recipe_sha256']==recipe_sha, 'video part differs from current build recipe')
         # Authenticate original source provenance without rewriting its revision.
@@ -297,17 +330,29 @@ else:
         factory=shell_producer.factory
         resources=validate_timing_resources(timing.get('utilization'),factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES)
         measured={name:factory._frequency_row(timing['fmax'],freq,name,name) for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()}
-        counts=_cell_counts(json.loads(bounded(directory/'cart.json')))
+        prepared=bounded(directory/'cart.json',32<<20)
+        if native:
+            synthesized=bounded(directory/'cart-synth.json',32<<20)
+            normalized, proof=native_video_clock.normalize_native_clock_inputs(json.loads(synthesized,object_pairs_hook=native_video_clock._object))
+            expected=(json.dumps(normalized,sort_keys=True,separators=(',',':'))+'\n').encode()
+            require(prepared==expected, 'native prepared cart differs from proven clock normalization')
+            proof.update(synth_sha256=sha(synthesized),prepared_sha256=sha(prepared))
+            require(summary.get('native_clock_boundary')==proof, 'native clock normalization evidence differs')
+        counts=_cell_counts(json.loads(prepared))
         require(not any(counts.get(name,0) for name in factory.FORBIDDEN_RESOURCES|set(factory.REQUIRED_RESOURCES)), 'video part owns a forbidden resource')
-        pins=producer.validate_clocks(json.loads(bounded(directory/'cart-routed.json')))
-        require(variant!='scanlines' or pins>0, 'scanline state did not survive synthesis')
+        require(not native or sum(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP'))==48, 'native part must own exactly 48 M10K frame-buffer blocks')
+        pins=producer.validate_clocks(json.loads(bounded(directory/'cart-routed.json')),layout=layout)
+        require(not (native or variant=='scanlines') or pins>0, 'video state did not survive synthesis')
         require(summary['checked_clock_pins']==pins and summary['resources']==resources and summary['synthesis_cells']==counts and summary['timing']==json.loads(json.dumps(measured)) and summary['route']=={'complete':True,'gpu_backend':backend}, 'video timing, resource or clock evidence differs')
         base,placed=rbf_load(package.payload_bytes),rbf_load(cart)
         require(base.header==placed.header, 'video part changes configuration header')
-        changes=classify_cram_diff(base,placed,CramRect(*video_parts.CRAM),include_outside_coordinates=True)
+        changes=classify_cram_diff(base,placed,CramRect(*layout.CRAM),include_outside_coordinates=True,ignore_ecc_columns=not native)
         require(changes['bits_outside_slot']==0 and summary['cram_diff']==changes, 'video part changes outside its CRAM region or containment evidence differs')
+        require(summary.get('cram_policy')==('strict-rectangle-v1' if native else 'legacy-columns-v1'), 'video containment policy differs')
+        preview_matches=overlay_cram(base,placed,CramRect(*layout.CRAM)).cram==placed.cram
+        require(summary.get('preview_matches_routed_cram') is preview_matches and (not native or preview_matches), 'video preview differs from routed CRAM')
         report=json.loads(bounded(directory/'cram-diff.json'))
-        require(report=={'archive_published':True,'cart_sha256':sha(cart),'cram_diff':changes,'cram_region':list(video_parts.CRAM),'map':video_parts.MAP,'part_id':part_id,'route_contract':'passed'}, 'video containment publication evidence differs')
+        require(report=={'archive_published':True,'cart_sha256':sha(cart),'cram_diff':changes,'cram_region':list(layout.CRAM),'map':layout.MAP,'part_id':part_id,'route_contract':'passed'}, 'video containment publication evidence differs')
         result={'profile':variant,'part_id':part_id,'recipe_sha256':recipe_sha,'revision':manifest['revision'],'archive_sha256':sha(raw),'archive_size':len(raw),'build_summary_sha256':sha(bounded(directory/'build-summary.json')),'cram_report_sha256':sha(bounded(directory/'cram-diff.json'))}
     else: raise ValueError('unknown video inspection mode')
 print(json.dumps(result,sort_keys=True,separators=(',',':')))
@@ -359,7 +404,12 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
         raise ValueError("resolved video shell functional identity is invalid")
     cache = Path(cache_root or recipes.CACHE_ROOT / "core-video-parts").absolute()
     shells = cache.parent / "core-video-shells"
-    current = _inspect(source, "canonical", {"toolchain_cache": str(recipe.cache_root)}, recipe, env)
+    canonical_arguments = {"toolchain_cache": str(recipe.cache_root), "package": str(package),
+                           "producer_options": dict(recipe.producer_options)}
+    current = _inspect(source, "canonical", canonical_arguments, recipe, env)
+    if current["map"] not in VIDEO_OUTPUTS:
+        raise ValueError("unsupported factory video profile")
+    part_members = (*PART_MEMBERS, "cart-synth.json") if current["map"] == NATIVE_MAP else PART_MEMBERS
     companion = shells / package_id
     arguments = {"package": str(package), "shell": str(companion), "current": current,
                  "functional_inputs_sha256": functional_key}
@@ -368,7 +418,7 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
             _closed(companion, SHELL_MEMBERS, sealed=True)
             shell_evidence = _inspect(source, "shell", arguments, recipe, env)
         else:
-            producer_output = source / "build/fes-coleco-video"
+            producer_output = source / VIDEO_OUTPUTS[current["map"]]
             if not producer_output.is_dir() or any(not (producer_output / name).is_file() for name in SHELL_MEMBERS):
                 raise MissingVideoShell("resolved Coleco video package has no frozen companion; force-resolve its shell and retry")
             try:
@@ -390,16 +440,16 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
         for profile in PROFILES:
             slot = store / profile
             if slot.exists() or slot.is_symlink():
-                cached = _closed(slot, (*PART_MEMBERS, "archive.tar"), sealed=True)
+                cached = _closed(slot, (*part_members, "archive.tar"), sealed=True)
                 archive, directory = slot / "archive.tar", slot
             else:
                 archive = _build_part(source, companion, package, profile, recipe, env)
                 directory = archive.parent
-                cached = {name: _read(directory / name) for name in PART_MEMBERS}
+                cached = {name: _read(directory / name) for name in part_members}
                 cached["archive.tar"] = _read(archive, limit=MAX_ARCHIVE_BYTES)
             inspected = _inspect(source, "part", dict(arguments, profile=profile,
                                   archive=str(archive), directory=str(directory),
-                                  evidence_sha256={name: _sha(cached[name]) for name in PART_MEMBERS}), recipe, env)
+                                  evidence_sha256={name: _sha(cached[name]) for name in part_members}), recipe, env)
             if not HEX64.fullmatch(inspected["part_id"]) or inspected["profile"] != profile:
                 raise ValueError("video inspector returned a mismatched part identity")
             if (_sha(cached["archive.tar"]) != inspected["archive_sha256"]
@@ -414,7 +464,7 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
             evidence.append(inspected)
     index = {"version": 1, "packages": [{"package_id": package_id, "parts": entries}]}
     files["index.json"] = canonical(index)
-    if _inspect(source, "canonical", {"toolchain_cache": str(recipe.cache_root)}, recipe, env) != current:
+    if _inspect(source, "canonical", canonical_arguments, recipe, env) != current:
         raise ValueError("authenticated video inputs changed during resolution")
     destination = _publish(destination, files)
     read_index(destination)

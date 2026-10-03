@@ -234,8 +234,8 @@ class RecipeDataTest(unittest.TestCase):
 
     def test_video_recipe_selects_same_variant_for_record_and_build(self):
         recipe = recipes.recipe_for("fes.coleco")
-        self.assertEqual(recipe.producer_arguments, ("--video-socket",))
-        self.assertEqual(dict(recipe.producer_options), {"video_socket": True})
+        self.assertEqual(recipe.producer_arguments, ("--native-video-socket",))
+        self.assertEqual(dict(recipe.producer_options), {"native_video": True})
         self.assertEqual(recipe.video_profiles, ("direct", "scanlines"))
         for field, value in (("producer_options", {"execution": "override"}),
                              ("producer_options", {"video_socket": []}),
