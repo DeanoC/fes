@@ -541,12 +541,11 @@ clock, and records source hashes/tool identity beneath
 no placement, timing, sealed-package or hardware evidence.
 The optional `FES_COLECO_NATIVE_VIDEO_DEV` top-level branch instantiates the
 native consumer inline, with `FES_NATIVE_SCANLINES` selecting its effect.
-These are host simulation prototypes: no native physical socket, sealed
-producer, package admission or factory recipe exists yet. The current factory
-uses the raster layout below. Native physical linking requires a fresh wider
-reservation, frozen clock coverage, new layout/slot identities and exact-shell
-containment/timing evidence; the current small video reservation has only
-16 M10Ks and cannot hold native frame capture. The
+The inline path remains a host simulation prototype. The separate native
+developer producer and admission path use the wider closed layout below;
+factory package selection continues to use the raster layout. Native physical
+linking requires fresh exact-shell placement, containment and timing evidence;
+the raster reservation has only 16 M10Ks and cannot hold native frame capture. The
 [native contract](../../mister-packages/docs/video-parts.md#native-active-pixels)
 defines token validation and the initial geometry/encoding. Future RGB, SMS,
 overlay, CRT and DDR profiles require separate implementation and evidence.
@@ -561,9 +560,22 @@ BUILD_ID during composition. FES selects `video_socket=True` and the matching
 `--video-socket` CLI option on the existing Coleco producer for its factory
 package. The standalone producer default remains the CPU-only socket.
 
+The developer native layout is `fes.coleco-native-video.parts/1`, selected by
+the optional `fes.fabric.video.native-pixels` 1.0 package marker. Its video map
+is `fes.coleco-native-video.socket/1`, at placement columns 5–38, rows 23–38,
+with the wider half-open CRAM fence `(124,1800,3906,3442)`. The CPU bus 2.0
+socket retains `(1769,32,2806,1800)`. The sealed native producer is selected by
+`native_video=True` or `--native-video-socket`; it cannot also select the raster
+socket. The native marker version fixes 256×192 TMS9918 Index4 source pixels.
+The shell owns the source adapter, clock crossing, clocks and HDMI/audio
+delivery; a required direct or scanline video part owns frame capture and
+720p timing/output. A vacant native socket has no built-in output. These
+developer assets use the existing archive grammar and exact-shell bindings;
+factory publication and household profile selection remain on raster.
+
 The [shared fabric contract](../../mister-packages/docs/video-parts.md)
 defines RGB888, DE/HS/VS, pixel enable, start-of-frame, end-of-line, HOLD
-and a required-zero reserved bit. In this layout all video logic uses
+and a required-zero reserved bit. In the raster layout all video logic uses
 `pixel_clk` at 74.25 MHz. The shell owns clocks, HDMI, HPS and I2S.
 Request and response registers add two pixel clocks of latency to the
 entire raster word. A vacant socket selects the equally delayed machine
@@ -586,6 +598,11 @@ regions in canonical role order. Its identity binds the base package ID,
 layout, selected part IDs and resulting payload digest. Legacy single-socket
 composition rejects video parts. The target independently recomposes the
 developer transfer and retains separate part status alongside base identity.
+Native and raster slot/map pairs are admitted only in their matching closed
+layout; mixing them cannot relabel a shell or enlarge the old raster fence.
+The host-only raw `fes-parts-link` diagnostic defaults to the raster layout;
+native inputs require `-layout fes.coleco-native-video.parts/1`. The sealed
+FogCast `fes-parts` command selects the layout from the exact package marker.
 This is full-chip download-time composition; changing a selection requires
 another load. FogCast owns library/profile selection and its installed part
 inventory. FES builds the direct and scanline profiles against the selected

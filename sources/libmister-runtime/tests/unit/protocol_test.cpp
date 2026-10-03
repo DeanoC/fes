@@ -1094,6 +1094,18 @@ void TestDeveloperPartsProtocol() {
  const std::string encoded=mister::daemon::EncodeResponse(2,true,status,"test");
  assert(encoded.find("\"parts\":[{\"role\":\"video\",\"part_id\":")!=std::string::npos);
  assert(encoded.find("\"expansion_id\":")==std::string::npos);
+ for (const auto& operation:{"load_parts_core","inspect_parts_core","load_parts_library_core"}) {
+  std::string native=request(operation);
+  native.replace(native.find("fes.coleco-video.parts/1"),24,"fes.coleco-native-video.parts/1");
+  if (std::string(operation)=="load_parts_library_core") native.insert(1,"\"data_root\":\"/tmp/data\",");
+  assert(Parse(native,&parsed).ok());
+  assert(parsed.composition_request.composition.layout=="fes.coleco-native-video.parts/1");
+  native.replace(native.find("native-video.parts/1"),20,"native-video.parts/2");
+  assert(!Parse(native,&parsed).ok());
+ }
+ status.active_package.composition.layout="fes.coleco-native-video.parts/1";
+ const std::string native_encoded=mister::daemon::EncodeResponse(2,true,status,"test");
+ assert(native_encoded.find("\"layout\":\"fes.coleco-native-video.parts/1\"")!=std::string::npos);
 }
 
 int main(int argc, char** argv)

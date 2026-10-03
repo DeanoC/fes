@@ -815,6 +815,22 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			descriptor.target.programming_profile);
 	if (!paired) return CompatibilityError(ErrorCode::unsupported_abi,
 		"unsupported profile and ABI pairing");
+	unsigned video_socket_count = 0;
+	bool native_video_socket = false;
+	for (const auto& interface : descriptor.interfaces) {
+		if (interface.id == "fes.fabric.video.raster-rgb888" ||
+			interface.id == "fes.fabric.video.native-pixels") {
+			++video_socket_count;
+			native_video_socket |= interface.id == "fes.fabric.video.native-pixels";
+		}
+	}
+	if (video_socket_count > 1)
+		return CompatibilityError(ErrorCode::unsupported_interface,
+			"video fabric socket declarations must be unique");
+	if (native_video_socket && (descriptor.abi.id != FesApplicationABIID ||
+		descriptor.abi.major != 1 || descriptor.format != 2 || descriptor.core.id != "fes.coleco"))
+		return CompatibilityError(ErrorCode::unsupported_interface,
+			"native video fabric socket requires the format-2 Coleco application shell");
 	// Linked cartridges arrive in CRAM and have no later media commit. These
 	// mailbox contracts keep Start reset-held, so accepting them would publish
 	// a running session whose core never executes. Firmware delivery also holds
@@ -841,7 +857,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		bool gamepad = false, ports = false, keypad = false;
 		bool video_socket = false, coleco_bus = false;
 		for (const auto& interface : descriptor.interfaces) {
-			if (interface.id == "fes.fabric.video.raster-rgb888") {
+			if (interface.id == "fes.fabric.video.raster-rgb888" ||
+				interface.id == "fes.fabric.video.native-pixels") {
 				if (interface.required || interface.major != 1 || interface.minor != 0)
 					return CompatibilityError(ErrorCode::unsupported_interface, "video fabric socket must be optional at version 1.0");
 				video_socket = true;

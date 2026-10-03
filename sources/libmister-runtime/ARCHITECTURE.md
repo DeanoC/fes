@@ -364,10 +364,15 @@ paths clear it together with package identity.
 Protocol-2 `inspect_parts_core` and `load_parts_core` accept a closed role list
 (`video`, plus optional `expansion`) and a separate typed parts composition.
 Only a format-2 Coleco application shell that explicitly declares optional
-`fes.fabric.video.raster-rgb888` 1.0 and Coleco bus 2.0 qualifies. The fabric
-marker has no GP capability and does not enter the runtime interface registry.
-The recognized layout is `fes.coleco-video.parts/1`; its video socket map is
-`fes.coleco-video.socket/1`. A CPU part uses `fes.coleco-bus.socket/2`.
+`fes.fabric.video.raster-rgb888` 1.0 or `fes.fabric.video.native-pixels` 1.0,
+and optional Coleco bus 2.0 qualifies. Duplicate or simultaneous video markers
+are rejected. Fabric markers have no GP capability and do not enter the runtime
+interface registry. The raster marker selects layout `fes.coleco-video.parts/1`
+and map `fes.coleco-video.socket/1`. The native marker selects the separate
+`fes.coleco-native-video.parts/1` layout and `fes.coleco-native-video.socket/1`
+map; version 1.0 fixes a 256 by 192 indexed source with four-bit TMS9918 palette
+values. Parts from the two layouts cannot be interchanged. A CPU part uses
+`fes.coleco-bus.socket/2` in either layout.
 
 Native admission checks the exact shell package, payload, BUILD_ID, canonical
 part manifests, role ordering, part IDs, composed digest and the
@@ -387,10 +392,13 @@ selecting video cannot silently discard a previous persistence requirement.
 FogCast fixes the root locally and supplies explicit library identity.
 
 Developer inspect/load operations have no data-root field and remain
-explicitly volatile. Existing CPU composition operations reject the parts
-request shape. Library admission has host software coverage only; it adds no
-hardware acceptance, alternate output timing, DDR presentation or ROM-linked
-parts support.
+explicitly volatile. A native shell may be inspected, but ordinary package
+loads and CPU-only compositions reject it before quiescing or programming:
+its video part is mandatory. Native video currently uses the explicit developer
+parts path; host video profile/catalog selection still supports the raster
+layout. Existing CPU composition operations reject the parts request shape.
+Admission has host software coverage only; it adds no hardware acceptance,
+alternate output timing, DDR presentation or ROM-linked parts support.
 
 ### Initialized bitstream
 

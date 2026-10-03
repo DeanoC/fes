@@ -81,6 +81,16 @@ void ColecoV2BusAdmission() {
 	const auto at=f.manifest.find("socket/2");assert(at!=std::string::npos);
 	f.manifest.replace(at,8,"socket/1");f.Seal();assert(!f.Open(&out).ok());
 }
+void NativeVideoRejectsCpuOnlyComposition() {
+	Fixture f(true,2);OpenedCoreComposition out;
+	f.base.descriptor.format=2;f.base.descriptor.core.id="fes.coleco";
+	f.base.descriptor.interfaces.push_back({"fes.fabric.video.raster-rgb888",1,0,false});
+	assert(f.Open(&out).ok());
+	f.base.descriptor.interfaces.back().id="fes.fabric.video.native-pixels";
+	const auto error=f.Open(&out);
+	assert(error.code==ErrorCode::invalid_package);
+	assert(error.message=="native video shell requires a video parts composition");
+}
 void ZX81V2BusAdmission() {
 	Fixture f(false,2);OpenedCoreComposition out;assert(f.Open(&out).ok());
 	assert(RecheckCoreComposition(out).ok());
@@ -341,20 +351,24 @@ void RejectSlotCompositionVariants() {
 	assert(!OpenCoreComposition({zx81.root},zx81.base,slots,&out).ok());
 	assert(zx81.Open(&out).ok()); // single-socket ZX81 admission is unchanged
 }
-void DeveloperVideoPartsAdmission() {
+void DeveloperVideoPartsAdmission(bool native=false) {
  Fixture f(true,2);
  f.base.descriptor.format=2;f.base.descriptor.core.id="fes.coleco";
- f.base.descriptor.interfaces.push_back({"fes.fabric.video.raster-rgb888",1,0,false});
- const std::string video_slot="fes.fabric.video.raster-rgb888";
+ const std::string video_slot=native ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888";
+ const std::string video_map=native ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
+ const std::string layout=native ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
+ f.base.descriptor.interfaces.push_back({video_slot,1,0,false});
  const std::string old_map="fes.coleco-bus.socket/2",old_slot="fes.expansion.coleco-bus";
- f.manifest.replace(f.manifest.find(old_map),old_map.size(),"fes.coleco-video.socket/1");
+ const std::string cpu_manifest=f.manifest;
+ f.manifest.replace(f.manifest.find(old_map),old_map.size(),video_map);
  f.manifest.replace(f.manifest.find(old_slot),old_slot.size(),video_slot);
  f.manifest.replace(f.manifest.find("\"slot_major\":2"),14,"\"slot_major\":1");
+ f.request.composition.layout=layout;
  auto seal=[&]() {
   Write(f.root+"/expansion/manifest.json",f.manifest);
   f.request.expansion_path.clear();f.request.composition.expansion_id.clear();
   f.request.parts={{"video",f.root+"/expansion"}};
-  auto& c=f.request.composition;c.layout="fes.coleco-video.parts/1";
+  auto& c=f.request.composition;
   c.parts={{"video",Hash(std::string("fes-expansion-v1\0",17)+f.manifest)}};
   const std::string canonical="fes-parts-composition-v1"+std::string(1,'\0')+c.package_id+std::string(1,'\0')+
    c.layout+std::string(1,'\0')+"video:"+c.parts[0].part_id+std::string(1,'\0')+c.payload_sha256;
@@ -365,15 +379,42 @@ void DeveloperVideoPartsAdmission() {
  f.base.descriptor.interfaces.pop_back();assert(!f.Open(&out).ok());
  f.base.descriptor.interfaces.push_back({video_slot,1,0,true});assert(!f.Open(&out).ok());
  f.base.descriptor.interfaces.back().required=false;
+ f.base.descriptor.interfaces.back().minor=1;assert(!f.Open(&out).ok());f.base.descriptor.interfaces.back().minor=0;
+ f.base.descriptor.interfaces.push_back({native ? "fes.fabric.video.raster-rgb888" : "fes.fabric.video.native-pixels",1,0,false});
+ assert(!f.Open(&out).ok());f.base.descriptor.interfaces.pop_back();
+ f.base.descriptor.interfaces.push_back(f.base.descriptor.interfaces.back());assert(!f.Open(&out).ok());f.base.descriptor.interfaces.pop_back();
  f.base.descriptor.format=3;assert(!f.Open(&out).ok());f.base.descriptor.format=2;
+ f.request.composition.layout=native ? "fes.coleco-video.parts/1" : "fes.coleco-native-video.parts/1";
+ seal();assert(!f.Open(&out).ok());f.request.composition.layout=layout;seal();
+ const std::string crossed_map=native ? "fes.coleco-video.socket/1" : "fes.coleco-native-video.socket/1";
+ f.manifest.replace(f.manifest.find(video_map),video_map.size(),crossed_map);seal();assert(!f.Open(&out).ok());
+ f.manifest.replace(f.manifest.find(crossed_map),crossed_map.size(),video_map);seal();
+ const std::string crossed_slot=native ? "fes.fabric.video.raster-rgb888" : "fes.fabric.video.native-pixels";
+ f.manifest.replace(f.manifest.find(video_slot),video_slot.size(),crossed_slot);seal();assert(!f.Open(&out).ok());
+ f.manifest.replace(f.manifest.find(crossed_slot),crossed_slot.size(),video_slot);seal();
  f.request.composition.parts[0].role="unregistered";assert(!f.Open(&out).ok());seal();
  f.request.composition.id[0]='0';assert(!f.Open(&out).ok());seal();
  f.manifest.insert(1,"\"unknown\":0,");seal();assert(!f.Open(&out).ok());
  f.manifest.erase(1,12);seal();assert(f.Open(&out).ok());
+ // The native video layout can retain the existing, independently bound bus-2
+ // CPU part. Roles, manifests and IDs stay distinct in the composition.
+ const std::string cpu_path=f.root+"/cpu";
+ assert(mkdir(cpu_path.c_str(),0700)==0);
+ Write(cpu_path+"/manifest.json",cpu_manifest);Write(cpu_path+"/cart.rbf",f.cart);
+ f.request.parts.insert(f.request.parts.begin(),{"expansion",cpu_path});
+ auto& c=f.request.composition;
+ c.parts.insert(c.parts.begin(),{"expansion",Hash(std::string("fes-expansion-v1\0",17)+cpu_manifest)});
+ std::string canonical="fes-parts-composition-v1"+std::string(1,'\0')+c.package_id+std::string(1,'\0')+c.layout+std::string(1,'\0');
+ for (const auto& part:c.parts) canonical+=part.role+":"+part.part_id+std::string(1,'\0');
+ c.id=Hash(canonical+c.payload_sha256);
+ assert(f.Open(&out).ok()&&out.info.parts.size()==2&&RecheckCoreComposition(out).ok());
+ assert(unlink((cpu_path+"/manifest.json").c_str())==0);
+ assert(unlink((cpu_path+"/cart.rbf").c_str())==0);
+ assert(rmdir(cpu_path.c_str())==0);
  Write(f.root+"/expansion/cart.rbf",std::string(40408,'x'));assert(!RecheckCoreComposition(out).ok());
 }
 
 }
-int main() {DeveloperVideoPartsAdmission();SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
+int main() {DeveloperVideoPartsAdmission();DeveloperVideoPartsAdmission(true);NativeVideoRejectsCpuOnlyComposition();SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
 	SlotIdentityVector();SlotCompositionAdmission();RejectSlotCompositionVariants();
 	puts("core_composition_test: single-socket and multi-slot admission passed");}

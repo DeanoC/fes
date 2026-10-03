@@ -74,6 +74,8 @@ help:
 		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-native-video  Test native frame capture, Direct/Scanlines and clock crossing" \
+		"  sim-fes-native-socket  Test both native parts through their physical socket wrapper" \
+		"  build-fes-coleco-native-video  Seal the native-pixel shell requiring a linked video part" \
 		"  sim-fes-coleco-native  Test actual registered Coleco VDP native pixels and inline board path" \
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
@@ -212,6 +214,14 @@ synth-fes-native-video:
 
 build-fes-coleco-video:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2.py --root "$(CURDIR)" --video-socket$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+.PHONY: build-fes-coleco-native-video sim-fes-native-socket
+build-fes-coleco-native-video:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_socket_v2.py --root "$(CURDIR)" --native-video-socket$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+sim-fes-native-socket:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_native_socket.py --verilator "$(VERILATOR)"
 
 VIDEO_VARIANT ?= direct
 build-fes-video-part:

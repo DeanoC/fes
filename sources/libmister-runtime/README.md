@@ -39,6 +39,13 @@ sealed package id stays the admitted package. Library loads
 explicitly bind durable core data; development loads remain volatile. Failed
 save publication retains session ownership and captured data for retry.
 
+Developer Coleco parts admission distinguishes raster RGB and native indexed
+video sockets by their sealed marker, map and layout. The native 1.0 socket
+fixes a 256 by 192 four-bit TMS9918 palette source and requires a video part;
+inspection alone does not authorize an uncomposed package load. These admission
+and lifecycle guards have host test coverage; native exact-artifact hardware
+acceptance remains pending.
+
 Hardware-supported package paths: 0.
 Exact-artifact hardware acceptance is pending for this cleanup. The historical
 [Mega Drive baseline](../FogCast/docs/hardware/native-megadrive-baseline.md)

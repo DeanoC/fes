@@ -1934,7 +1934,8 @@ void TestHpsDdrReleaseFailureRecoversBeforeExecution()
 
 void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 {
-	for (const bool parts : {false, true}) for (const bool mutate : {false, true}) {
+	for (const unsigned layout : {0u, 1u, 2u}) for (const bool mutate : {false, true}) {
+		const bool parts=layout!=0, native=layout==2;
 		std::vector<std::string> driver_events;
 		RecordingDriver driver(driver_events);
 		Fixture fixture(&driver);
@@ -1943,7 +1944,7 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 		if(parts) {
 			ReplaceAll(&manifest,"fes.simple-game","fes.application");ReplaceAll(&manifest,"fes.pong","fes.coleco");
 			manifest += "\n[[interfaces]]\nid = \"fes.expansion.coleco-bus\"\nmajor = 2\nminor = 0\nrequired = false\n";
-			manifest += "\n[[interfaces]]\nid = \"fes.fabric.video.raster-rgb888\"\nmajor = 1\nminor = 0\nrequired = false\n";
+			manifest += "\n[[interfaces]]\nid = \"" + std::string(native ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888") + "\"\nmajor = 1\nminor = 0\nrequired = false\n";
 		} else {
 		ReplaceAll(&manifest, "fes.simple-game", "fes.simple-computer");
 		ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard");
@@ -1964,7 +1965,7 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 			"\"map\":\"fes.zx81-bus.socket/1\",\"recipe_sha256\":\"" + std::string(64,'c') + "\",\"revision\":\"" + std::string(40,'d') +
 			"\",\"shell_build_id\":\"" + base.descriptor.build.id + "\",\"shell_package_id\":\"" + base.package_id +
 			"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 + "\",\"slot\":\"fes.expansion.zx81-bus\",\"slot_major\":1,\"slot_minor\":0}";
-		if(parts) {ReplaceAll(&manifest,"fes.zx81-bus.socket/1","fes.coleco-video.socket/1");ReplaceAll(&manifest,"fes.expansion.zx81-bus","fes.fabric.video.raster-rgb888");}
+		if(parts) {ReplaceAll(&manifest,"fes.zx81-bus.socket/1",native ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1");ReplaceAll(&manifest,"fes.expansion.zx81-bus",native ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888");}
 		expansion.File("manifest.json", manifest);
 		mister::CoreCompositionRequest request;
 		request.expansion_path = expansion.path;
@@ -1976,7 +1977,7 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 		info.payload_sha256 = hash(linked); info.payload_size = linked.size();
 		info.id = hash(std::string("fes-composition-v1\0",19) + info.package_id + std::string(1,'\0') + info.expansion_id + std::string(1,'\0') + info.payload_sha256);
 		if(parts) {
-			request.parts={{"video",request.expansion_path}};request.expansion_path.clear();info.layout="fes.coleco-video.parts/1";
+			request.parts={{"video",request.expansion_path}};request.expansion_path.clear();info.layout=native ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
 			info.parts={{"video",info.expansion_id}};info.expansion_id.clear();
 			info.id=hash("fes-parts-composition-v1"+std::string(1,'\0')+info.package_id+std::string(1,'\0')+info.layout+std::string(1,'\0')+"video:"+info.parts[0].part_id+std::string(1,'\0')+info.payload_sha256);
 		}
@@ -2007,7 +2008,7 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 	}
 }
 
-void TestLibraryPartsChecksCoreNamespaceBeforeProgramming()
+void TestLibraryPartsChecksCoreNamespaceBeforeProgramming(bool native=false)
 {
 	std::vector<std::string> driver_events;
 	RecordingDriver driver(driver_events);
@@ -2018,7 +2019,7 @@ void TestLibraryPartsChecksCoreNamespaceBeforeProgramming()
 	ReplaceAll(&manifest, "fes.simple-game", "fes.application");
 	ReplaceAll(&manifest, "fes.pong", "fes.coleco");
 	manifest += "\n[[interfaces]]\nid = \"fes.expansion.coleco-bus\"\nmajor = 2\nminor = 0\nrequired = false\n";
-	manifest += "\n[[interfaces]]\nid = \"fes.fabric.video.raster-rgb888\"\nmajor = 1\nminor = 0\nrequired = false\n";
+	manifest += "\n[[interfaces]]\nid = \"" + std::string(native ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888") + "\"\nmajor = 1\nminor = 0\nrequired = false\n";
 	package.File("manifest.toml", manifest);
 	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
 	mister::native::OpenedCorePackage base;
@@ -2030,9 +2031,9 @@ void TestLibraryPartsChecksCoreNamespaceBeforeProgramming()
 	const std::string cart(40408, 'c'), linked(40408, 'l');
 	expansion.File("cart.rbf", cart);
 	manifest = "{\"cart_sha256\":\"" + hash(cart) + "\",\"cart_size\":40408,\"device\":\"5CSEBA6U23I7\",\"format\":1,"
-		"\"map\":\"fes.coleco-video.socket/1\",\"recipe_sha256\":\"" + std::string(64,'c') + "\",\"revision\":\"" + std::string(40,'d') +
+		"\"map\":\"" + std::string(native ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1") + "\",\"recipe_sha256\":\"" + std::string(64,'c') + "\",\"revision\":\"" + std::string(40,'d') +
 		"\",\"shell_build_id\":\"" + base.descriptor.build.id + "\",\"shell_package_id\":\"" + base.package_id +
-		"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 + "\",\"slot\":\"fes.fabric.video.raster-rgb888\",\"slot_major\":1,\"slot_minor\":0}";
+		"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 + "\",\"slot\":\"" + std::string(native ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888") + "\",\"slot_major\":1,\"slot_minor\":0}";
 	expansion.File("manifest.json", manifest);
 	mister::CoreCompositionRequest request;
 	request.parts = {{"video", expansion.path}};
@@ -2042,12 +2043,34 @@ void TestLibraryPartsChecksCoreNamespaceBeforeProgramming()
 	info.shell_sha256 = base.descriptor.payload.sha256;
 	info.payload_sha256 = hash(linked);
 	info.payload_size = linked.size();
-	info.layout = "fes.coleco-video.parts/1";
+	info.layout = native ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
 	info.parts = {{"video", hash(std::string("fes-expansion-v1\0", 17) + manifest)}};
 	info.id = hash("fes-parts-composition-v1" + std::string(1, '\0') + info.package_id +
 		std::string(1, '\0') + info.layout + std::string(1, '\0') + "video:" +
 		info.parts[0].part_id + std::string(1, '\0') + info.payload_sha256);
 	const auto programs = fixture.native.fpga.calls;
+	auto reject_plain_native = [&]() {
+		if (!native) return;
+		const auto before=fixture.runtime.status();
+		const auto calls=fixture.native.fpga.calls;
+		fixture.native.events.clear();driver_events.clear();
+		for (const bool library : {false,true}) {
+			const auto error=library ? fixture.runtime.LoadLibraryCore(package.path,base.package_id,data.path) :
+				fixture.runtime.LoadCore(package.path,base.package_id);
+			assert(error.code==mister::ErrorCode::unsupported_interface && error.phase=="admission");
+			assert(error.message=="native video shell requires a video parts composition");
+			const auto after=fixture.runtime.status();
+			assert(after.state==before.state && after.generation==before.generation);
+			assert(after.active_package.package_id==before.active_package.package_id &&
+				after.active_package.composition.id==before.active_package.composition.id);
+			assert(fixture.native.fpga.calls==calls && fixture.native.events.empty() && driver_events.empty());
+		}
+	};
+	if (native) {
+		mister::CorePackageInspection inspection;
+		assert(fixture.runtime.InspectCore(package.path,base.package_id,&inspection).ok() && inspection.compatible);
+		reject_plain_native();
+	}
 	assert(fixture.runtime.LoadLibraryPartsCore(package.path, base.package_id, "", request).code == mister::ErrorCode::invalid_request);
 	assert(fixture.native.fpga.calls == programs);
 	std::unique_ptr<mister::native::CoreDataFile> file;
@@ -2066,6 +2089,7 @@ void TestLibraryPartsChecksCoreNamespaceBeforeProgramming()
 	// Developer loads intentionally stay volatile, even with an existing namespace.
 	assert(fixture.runtime.LoadComposedCore(package.path, base.package_id, request).ok());
 	assert(fixture.runtime.status().core_data.mode == "volatile");
+	reject_plain_native();
 	assert(fixture.runtime.Stop().ok());
 	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.coleco");
 	file.reset();
@@ -2878,6 +2902,7 @@ void TestComputerSlotCompositionActivatesLinkedPayload()
 int main()
 {
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();
+	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
  TestNativeMenuActivationAndCompletion();
  TestMenuUnderflowPolicyReactivatesThenSplashes();

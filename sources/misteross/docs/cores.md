@@ -55,18 +55,28 @@ probe and does not seal.
 
 ## Video-parts development lane
 
-The native-pixel follow-on is a host simulation prototype. Run
+The native-pixel development lane moves framebuffer and HDMI timing into the
+linked part. Run
 `make sim-fes-native-video` for Direct/Scanlines, complete-frame publication
 and unrelated-clock transport, and `make sim-fes-coleco-native` for the actual
 registered VDP source at its fractional raster cadence. Its optional
-`FES_COLECO_NATIVE_VIDEO_DEV` top branch moves capture/scaling into the native
-consumer inline; it has no sealed part/package producer or hardware acceptance.
+`FES_COLECO_NATIVE_VIDEO_DEV` top branch supports an inline consumer for simulation;
+`make build-fes-coleco-native-video` also selects
+`FES_COLECO_NATIVE_VIDEO_PART_DEV` to seal the source adapter, clock crossing and
+vacant physical socket. The shell needs one native video part to produce HDMI.
+`make sim-fes-native-socket` tests Direct and Scanlines through that socket.
 See [the architecture](architecture.md#video-parts) for that boundary and the
 new native contract. `make synth-fes-native-video CACHE_ROOT=/absolute/cache`
 checks Direct and Scanlines RAM mapping with the locked compiler and writes
 diagnostics beneath `build/synth/fes-native-video/`; it accepts working-tree
-sources and does not route, seal or program them. Use the commands below for
-the current sealed raster lane.
+sources and does not route, seal or program them. For a sealed native build,
+use the commands below with `build-fes-coleco-native-video` and
+`VIDEO_SHELL="$PWD/build/fes-coleco-native-video"`. The part producer chooses the
+native profile from that package's exact marker. Its 48 M10Ks must fit the
+wider reserved slot, meet timing and leave every CRAM bit outside the native
+fence unchanged before publication. Native packages use the developer parts
+load; normal library Play rejects an uncomposed native shell. The factory
+continues to select the raster lane below.
 
 The first slice is a Coleco shell with a fixed 720p60 RGB888
 pixel-clock interface. Choose a direct part or a simple scanline part;

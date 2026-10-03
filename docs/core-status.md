@@ -118,6 +118,16 @@ and fresh HDMI video/audio captures, with the original target image restored.
 A later image needs its own acceptance. Audio parts, DDR processing and other
 raster standards remain subsequent work.
 
+The separate native-pixel developer shell emits the TMS9918's active indexed
+256×192 pixels through a checked clock crossing. Its mandatory linked Direct
+or Scanlines part owns both frame banks and 720p HDMI timing; the system shell
+owns no framebuffer. The native marker, map and wider physical layout are
+distinct from the factory raster profile. Developer parts loads accept that
+closed layout; ordinary library Play rejects a vacant native shell. Host
+simulation covers the real VDP, clock crossing and physical socket wrapper.
+Routing, containment and Kit 2 observations are recorded against exact builds;
+the factory catalog still selects the raster shell above.
+
 ## Not implemented, or not this package
 
 - ZX81 mid-session tape replace and eject use the same `fes.media.blob`

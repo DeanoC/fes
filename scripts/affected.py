@@ -21,9 +21,11 @@ FPGA_SOFTWARE_TESTS = (
     'test_source_provenance.py', 'test_source_repository.py',
     'test_core_package.py', 'test_core_package_v3.py', 'test_search_placer_qor.py',
     'test_coleco_sim_shards.py', 'test_rom_map.py', 'test_video_parts_build.py',
+    'test_native_video_parts.py', 'test_native_video_build.py',
 )
 FPGA_PRODUCER_HELPERS = {
-    'synth_fes_native_video.py',
+    'synth_fes_native_video.py', 'build_fes_coleco_socket_v2.py',
+    'build_video_part.py', 'video_parts.py', 'native_video_parts.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',
@@ -49,6 +51,7 @@ SHARED_RTL = {
     'coleco_native_video.v': ('coleco',),
     'fes_native_cdc.v': ('coleco',),
     'fes_native_video.v': ('coleco',),
+    'fes_native_video_cart.v': ('coleco',),
     'coleco_vdp.sv': COLECO_CONSUMERS,
     'coleco_dpram.v': COLECO_CONSUMERS,
     'coleco_video_dpram.v': COLECO_CONSUMERS,
@@ -85,8 +88,9 @@ def fpga_cores(path):
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
+                'sim/native_socket_top.v', 'sim/native_socket_tb.cpp',
                 'generated/fes_native_video.vh'):
-            return ('coleco',), 'native video prototype consumers'
+            return ('coleco',), 'native video consumers'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
             return ('menu', 'zx81'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
@@ -99,7 +103,7 @@ def fpga_cores(path):
             if len(parts) == 4 and parts[3] in SHARED_RTL:
                 return SHARED_RTL[parts[3]], 'shared RTL consumers'
     if len(parts) == 2 and parts[0] == 'scripts':
-        if parts[1] in ('sim_fes_native_video.py', 'sim_fes_coleco_native.py'):
+        if parts[1] in ('sim_fes_native_video.py', 'sim_fes_coleco_native.py', 'sim_fes_native_socket.py'):
             return ('coleco',), 'native pixel/frame and Coleco source simulation recipes'
         producer = any(parts[1] == f'build_fes_{core}{suffix}.py'
                        for core in CORES for suffix in ('', '_oss'))

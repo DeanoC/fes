@@ -36,15 +36,21 @@ def main():
     # Keep warnings fatal for the real VDP/native test above.
     board_flags = ["-Wno-BLKSEQ", "-Wno-SYNCASYNCNET", "-Wno-DECLFILENAME"]
     # Lint the unchanged default branch as well as both optional prototypes.
-    for profile in ("legacy", "direct", "scanlines"):
+    for profile in ("legacy", "direct", "scanlines", "socket"):
         selected = ["-DFES_COLECO_NATIVE_VIDEO_DEV=1"] if profile != "legacy" else []
+        socket = []
+        if profile == "socket":
+            selected += ["-DFES_COLECO_NATIVE_VIDEO_PART_DEV=1", "-DFES_COLECO_EXPANSION_V2_DEV=1"]
+            socket = [COLECO / "rtl" / name for name in ["coleco_native_video_socket.v",
+                      "coleco_expansion_socket_v2.v", "coleco_expansion_ram.v", "coleco_audio_mix.v"]]
         if profile == "scanlines":
             selected += ["-DFES_NATIVE_SCANLINES=1"]
         subprocess.run([args.verilator, "--lint-only", "--top-module", "top", *flags, *board_flags,
                         "-Wno-PINCONNECTEMPTY", "-DTV80_REFRESH=1", *selected,
-                        *map(str, native + board + [COMMON / "rtl/coleco_video_720p.v"])],
+                        "-I" + str(COLECO / "rtl"),
+                        *map(str, native + board + socket + [COMMON / "rtl/coleco_video_720p.v"])],
                        cwd=ROOT, check=True)
-    print("Coleco legacy and native inline Direct/Scanlines board elaboration passed; no sealed producer or hardware exercised")
+    print("Coleco legacy, native inline and native socket board elaboration passed; no hardware exercised")
 
 
 if __name__ == "__main__":

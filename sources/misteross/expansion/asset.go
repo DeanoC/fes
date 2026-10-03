@@ -285,7 +285,7 @@ func Admit(shell Shell, asset Asset) error {
 	if err := asset.Validate(); err != nil {
 		return err
 	}
-	if asset.Manifest.Slot == VideoSlot {
+	if supportedVideoPart(asset.Manifest) {
 		return errors.New("video part requires explicit parts composition")
 	}
 	if slotPolicies(asset.Manifest.Slot, asset.Manifest.Map) != nil {

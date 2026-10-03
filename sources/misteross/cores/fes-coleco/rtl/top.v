@@ -182,6 +182,20 @@ module top #(
         .source_clk(clk_sys), .pixel_clk(pixel_clk),
         .source_request(native_source_request), .request(native_request)
     );
+`ifdef FES_COLECO_NATIVE_VIDEO_PART_DEV
+    // This empty shell owns only the native transport. The selected part
+    // supplies frame RAM and continuous HDMI timing; it must be composed
+    // before the package is run.
+    (* keep *) wire [31:0] video_request = native_request;
+    (* keep *) wire [31:0] video_plug_request;
+    wire [27:0] video_plug_response = 28'b0;
+    wire [27:0] video_response;
+    coleco_native_video_socket video_socket (
+        .clock(pixel_clk), .request(video_request), .response(video_response),
+        .plug_request(video_plug_request), .plug_response(video_plug_response)
+    );
+    assign native_response = video_response;
+`else
     fes_native_video #(
 `ifdef FES_NATIVE_SCANLINES
         .SCANLINES(1),
@@ -192,6 +206,7 @@ module top #(
     ) native_output (
         .clock(pixel_clk), .request(native_request), .response(native_response)
     );
+`endif
     assign {HDMI_TX_VS, HDMI_TX_HS, HDMI_TX_DE, HDMI_TX_D} = native_response[26:0];
 `else
     wire [23:0] machine_rgb;
