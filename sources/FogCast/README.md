@@ -224,7 +224,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   kit-local control socket, shows "Starting {title}…", pauses presents so the
   core owns HDMI, and resumes them after Select+Start stop, or when that
   kit-local session is no longer running.
-  The CGO-free on-kit `fogcast-kit` shell can explicitly select the described
+  The CGO-free on-kit `fogcast-kit` grid plays available kit-local SMS rows
+  without the host through the local-control socket. A starts the cartridge;
+  Select+Start stops it and returns to the menu. The shell can select the described
   HDMI menu path with `menu_display: true` in `launcher.json` or
   `-menu-display`. It keeps the host-backed library, cached offline browsing,
   controller and session model and paints through the local runtime's sealed
