@@ -581,6 +581,9 @@ RAM modes, write enables and data paths remain identical. `cart-synth.json`
 retains the original synthesis output; the build summary binds both netlist
 hashes and clock-pin counts. Routed validation still requires every active
 part clock pin to use `pixel_clk` before a part can be published.
+The preview overlay also preserves the exact checksum-companion column ranges
+used by the target Go linker; the wider native fence crosses one of them.
+It does not use the diff classifier's broader ECC-column list to select bytes.
 
 The [shared fabric contract](../../mister-packages/docs/video-parts.md)
 defines RGB888, DE/HS/VS, pixel enable, start-of-frame, end-of-line, HOLD

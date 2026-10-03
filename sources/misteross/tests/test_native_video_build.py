@@ -10,9 +10,32 @@ import unittest
 from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_video_part as part
 from scripts import native_video_parts as native, video_parts as raster
+from scripts.cyclonev_rbf import SX120F, CramRect, LoadedRbf, cram_get, cram_set, overlay_cram
 
 
 class NativeVideoProducerTest(unittest.TestCase):
+    def test_wide_preview_preserves_exact_target_checksum_companions(self):
+        size = (SX120F.cram_sx * SX120F.cram_sy + 7) // 8
+        base = LoadedRbf(SX120F, b"header", bytearray(size), True)
+        cart = LoadedRbf(SX120F, b"header", bytearray(size), True)
+        self.assertEqual(part.PARTS_CRC_COMPANION_RANGES,
+                         ((3488, 3847), (3921, 3980), (4171, 4471)))
+        # Both range boundaries matter. Do not widen the exclusions to the
+        # independent classifier's ECC list (which also lists tile column43).
+        for start, end in part.PARTS_CRC_COMPANION_RANGES:
+            for x in (start - 1, start, end - 1, end):
+                cram_set(cart.cram, SX120F, x, 2000, 1)
+            cram_set(base.cram, SX120F, start, 2001, 1)
+        linked = overlay_cram(base, cart, CramRect(3400, 2000, 4500, 2002),
+                              preserve_x_ranges=part.PARTS_CRC_COMPANION_RANGES)
+        for start, end in part.PARTS_CRC_COMPANION_RANGES:
+            for x in (start - 1, end):
+                self.assertEqual(cram_get(linked.cram, SX120F, x, 2000), 1)
+            for x in (start, end - 1):
+                self.assertEqual(cram_get(linked.cram, SX120F, x, 2000), 0)
+            self.assertEqual(cram_get(linked.cram, SX120F, start, 2001), 1)
+        self.assertEqual(base.cram.count(0), size - 3)
+
     def test_shell_compiles_source_and_cdc_without_inline_framebuffer(self):
         tools = {name: Path("/tool") / name for name in ("yosys", "nextpnr-mistral")}
         commands = shell.build_commands(shell.ROOT, shell.ROOT / shell.NATIVE_VIDEO_OUTPUT_RELATIVE,

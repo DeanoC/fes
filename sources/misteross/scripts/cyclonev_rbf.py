@@ -382,16 +382,23 @@ def rbf_save(loaded: LoadedRbf, *, compressed: bool | None = None) -> bytes:
     return bytes(out)
 
 
-def overlay_cram(base: LoadedRbf, cart: LoadedRbf, rect: CramRect) -> LoadedRbf:
+def overlay_cram(base: LoadedRbf, cart: LoadedRbf, rect: CramRect, *,
+                 preserve_x_ranges: tuple[tuple[int, int], ...] = ()) -> LoadedRbf:
     if base.die != cart.die:
         raise ValueError("base and cart dies do not match")
     if rect.x0 < 0 or rect.y0 < 0 or rect.x1 > base.die.cram_sx or rect.y1 > base.die.cram_sy:
         raise ValueError("CRAM rectangle is outside the die")
     if rect.x1 <= rect.x0 or rect.y1 <= rect.y0:
         raise ValueError("CRAM rectangle is empty")
+    # Some consumers retain the base's non-routing checksum companion columns
+    # even when a wide rectangle crosses them. Frame CRCs are still rewritten
+    # by rbf_save. Keep this explicit; the broader diff-classification ECC list
+    # is not the target linker's composition policy.
+    columns = [x for x in range(rect.x0, rect.x1)
+               if not any(start <= x < end for start, end in preserve_x_ranges)]
     cram = bytearray(base.cram)
     for y in range(rect.y0, rect.y1):
-        for x in range(rect.x0, rect.x1):
+        for x in columns:
             cram_set(cram, base.die, x, y, cram_get(cart.cram, cart.die, x, y))
     return LoadedRbf(die=base.die, header=base.header, cram=cram, compressed=base.compressed)
 

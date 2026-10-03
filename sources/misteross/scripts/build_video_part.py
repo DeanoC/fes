@@ -37,6 +37,9 @@ NATIVE_INPUTS = (*NATIVE_SOURCES, "cores/fes-common/generated/fes_native_video.v
 OUTPUTS = ("cart.json", "cart-synth.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
            "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
            "scaffold.json", "cart.qsf", "cram-diff.json")
+# Match expansion/rbf.go crcCompanionColumn, used by ComposePartsContext.
+# The native fence crosses the first range; the small raster fence does not.
+PARTS_CRC_COMPANION_RANGES = ((3488, 3847), (3921, 3980), (4171, 4471))
 
 
 def write_cram_report(output: Path, cart: bytes, changes: dict, *, part_id: str | None = None, layout=video_parts) -> Path:
@@ -217,7 +220,8 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         changes = classify_cram_diff(base, placed, CramRect(*layout.CRAM), include_outside_coordinates=True)
         report = write_cram_report(output, cart, changes, layout=layout)
         sgm.enforce_cram_region(changes, report)
-        (output / "linked.rbf").write_bytes(rbf_save(overlay_cram(base, placed, CramRect(*layout.CRAM)), compressed=True))
+        (output / "linked.rbf").write_bytes(rbf_save(overlay_cram(base, placed, CramRect(*layout.CRAM),
+            preserve_x_ranges=PARTS_CRC_COMPANION_RANGES), compressed=True))
         manifest = {"cart_sha256": sgm.digest(cart), "cart_size": len(cart), "device": "5CSEBA6U23I7", "format": 1,
                     "map": layout.MAP, "recipe_sha256": recipe_sha, "revision": revision,
                     "shell_build_id": package.fields["build"]["id"], "shell_package_id": package.package_id,
