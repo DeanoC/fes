@@ -282,6 +282,18 @@ func (c *Client) Game(ctx context.Context, id string) (Game, error) {
 	return preferLaunchable(game), nil
 }
 
+// GameROMHash reads the exact detail row, without grouped variant substitution.
+func (c *Client) GameROMHash(ctx context.Context, id string) (string, error) {
+	var game Game
+	if err := c.getJSON(ctx, "/api/v1/games/"+url.PathEscape(id)+"?rom_sha256=1", &game); err != nil {
+		return "", err
+	}
+	if game.ID != id {
+		return "", fmt.Errorf("hostclient: game identity changed")
+	}
+	return game.ROMSHA256, nil
+}
+
 // CoreLibrary loads the selected core entries and the installed package
 // inventory. Both reads are required for a truthful selected-package status.
 func (c *Client) CoreLibrary(ctx context.Context) (CoreLibrary, error) {

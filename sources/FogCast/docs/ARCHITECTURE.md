@@ -2248,10 +2248,13 @@ or launch, even when this kit's host session is still idle. A successful bound
 probe expires after one second without another successful observation, so
 persistent probe failures return the shell to browse and clear the local-input
 notice. Select+Start held for one second posts `POST /api/v1/session/stop`
-for this host's active or failed session; kit-local owned play uses local-control
-Stop. A foreign-owned core accepts local play controls, but this launcher cannot
-stop it. With no core bound, the same pad drives browse. Stop and kit menu
-actions stay on the kit. If the
+for this host's active or failed session. For a kit-local run it goes to
+local-control `POST /v1/local/stop`, including a run the grid did not start:
+while a core is bound and no local run is known, the grid reads
+`GET /v1/local/status` at most once a second (single-flight) and adopts a
+launching or running answer as its active session. A foreign-owned core accepts
+local play controls, but this launcher cannot stop it. With no core bound,
+the same pad drives browse. Stop and kit menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host. Remote pads go from the host to the kit on that session's input
