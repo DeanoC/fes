@@ -283,8 +283,9 @@ Tenfoot applies the paired kit-lease state to installed-core destinations as
 well as FPGA titles. On a paired kit, a foreign lease displays the shared
 in-use copy and refuses Confirm; unavailable lease status fails closed. Core
 cartridge and firmware blocks retain priority, and the destination returns to
-Ready when the lease state becomes free. Unpaired host connection state does
-not mark installed-core tiles in use.
+Ready when the lease state becomes free. A health update also clears refusal-owned
+status and library launch messages when a foreign lease ends, while preserving
+newer errors. Unpaired host connection state does not mark installed-core tiles in use.
 
 The dependency direction is host/UI/`catalog`/`internal/hostapi` -> public
 contracts and `targetclient`; the target executable -> target implementation
