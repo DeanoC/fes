@@ -526,6 +526,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					localSawLaunching = true
 					m.LoadPhase = "Launching"
 				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "running" && (localPending || m.Session.State == "launching") {
+					wasTimedOut := m.Message == m.SessionTitle()+" took too long to start"
 					localPending = false
 					localRunning = true
 					m.Busy = false
@@ -533,6 +534,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
 					m.Message = ""
+					if wasTimedOut && c.menuDisplay {
+						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+						if c.menuPause(pauseCtx) == nil {
+							menuPaused = true
+						}
+						pauseCancel()
+					}
 					if localStopRequested {
 						localStopRequested = false
 						mutate("stop")
@@ -656,11 +664,19 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Session = applyObservedSession(m.Session, o.session)
 				}
 				if m.Session.State == "active" {
+					wasTimedOut := hostTimedOut
 					hostTimedOut = false
 					m.Busy = false
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
 					m.Message = ""
+					if wasTimedOut && c.menuDisplay {
+						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+						if c.menuPause(pauseCtx) == nil {
+							menuPaused = true
+						}
+						pauseCancel()
+					}
 				} else if m.Session.State == "launching" {
 					if m.LoadStarted.IsZero() {
 						m.LoadStarted = launcherNow()
@@ -730,6 +746,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.Busy = false
 				m.Message = m.SessionTitle() + " took too long to start"
 				m.LoadPhase = ""
+				resumeMenu()
 			}
 			if (localRunning || localPending) && !localStatusBusy && now.After(localStatusNext) {
 				localStatusNext = now.Add(time.Second)
