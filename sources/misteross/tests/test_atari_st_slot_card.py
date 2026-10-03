@@ -96,7 +96,7 @@ class BuildFixture:
             kwargs["stdout"].write(self.route_text)
             self.after_route(output)
 
-    def build(self, *, final_tools=None):
+    def build(self, *, final_tools=None, **options):
         with ExitStack() as stack:
             stack.enter_context(patch.object(card, "_require_clean_source", return_value=("repo", "d" * 40)))
             stack.enter_context(patch.object(card, "read_package", return_value=self.package))
@@ -106,7 +106,7 @@ class BuildFixture:
             stack.enter_context(patch.object(card, "rbf_load", side_effect=[self.base, self.placed]))
             overlay = stack.enter_context(patch.object(card, "overlay_cram", return_value=self.placed))
             stack.enter_context(patch.object(card, "rbf_save", return_value=b"linked-card"))
-            result = card.build(self.root, self.shell, self.root / "package", 1, "probe", 0)
+            result = card.build(self.root, self.shell, self.root / "package", 1, "probe", 0, **options)
             overlay.assert_called_once()
             return result
 
@@ -208,6 +208,39 @@ class AtariSTSlotCardTests(unittest.TestCase):
             cart_qsf = (result.parent / "cart.qsf").read_bytes()
             self.assertEqual(cart_qsf, (fixture.shell / "socket.qsf").read_bytes())
             self.assertEqual(cart_qsf.count(b'FES_RESERVED_RECT "ram_guard 26 19 26 19"'), 1)
+
+    def test_explicit_seed_binds_native_command_recipe_and_output_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = BuildFixture(Path(directory))
+            default = fixture.build()
+            selected = fixture.build(seed=5)
+            self.assertNotEqual(default.parent, selected.parent)
+            self.assertNotEqual(default.stem, selected.stem)
+            route = fixture.commands[-1]
+            self.assertEqual(route[route.index("--seed") + 1], "5")
+            summary = json.loads((selected.parent / "build-summary.json").read_text())
+            recipe = summary["recipe"]
+            self.assertEqual(recipe["placer_seed"], 5)
+            recipe_bytes = json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()
+            self.assertEqual(summary["manifest"]["recipe_sha256"], card.digest(recipe_bytes))
+            self.assertEqual(selected.parent.name, card.digest(recipe_bytes))
+
+    def test_invalid_seed_rejected_before_source_tools_or_artifact_writes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for seed in (0, 11, True, False, "4", 4.5, None):
+                with self.subTest(seed=seed), \
+                     patch.object(card, "_require_clean_source") as source, \
+                     patch.object(card.shell_recipe, "_authenticate_atari_st_tools") as tools, \
+                     patch.object(card.subprocess, "run") as compiler, \
+                     patch.object(card, "_prepare_output") as output:
+                    with self.assertRaisesRegex(ValueError, "integer from 1 to 10"):
+                        card.build(root, root, root, 1, "probe", 0, seed=seed)
+                    source.assert_not_called()
+                    tools.assert_not_called()
+                    compiler.assert_not_called()
+                    output.assert_not_called()
+                    self.assertEqual(list(root.iterdir()), [])
 
     def test_no_archive_on_outside_cram_header_clock_or_timing_change(self):
         for failure, message in (("outside", "outside"), ("header", "header"),
