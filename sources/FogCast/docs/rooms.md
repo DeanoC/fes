@@ -259,7 +259,11 @@ client that activation returns an error and does not panic. `in_use` and
 room. Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. The compact strip uses the same "Installed cores are not available here." line as the room body when no client is present.
 
 `destination.classify(games, {q=})` returns that result without changing
-focus. `destination.play_history(game_or_facts)`
+focus. `matches` is the viable play rows when any can play. `candidates`
+is the full set: a blocked sibling stays Unavailable with its `reason`
+and is not a choice. Rooms that keep the classify result should publish
+`candidates` (see Mushroom Kingdom) so a refresh can reclassify a sibling
+that becomes viable. `destination.play_history(game_or_facts)`
 returns `{played, completed, line}` from play facts; `completed` is true
 only when the facts include an explicit completion record. Published
 destinations expose the same `played` / `completed` / `history` fields.
@@ -270,8 +274,10 @@ and an allowlisted action runs or explains why it cannot. Needs a choice
 opens an edition list unless a household edition preference
 is saved for that query and platform, Missing opens the library, Checking
 and Unavailable show honest copy (Unavailable also opens Details). A kit
-lease held by another session turns a Ready title into Unavailable with
-the copy "In use" / "Someone else is playing on this machine. You can play
+lease held by another session is applied to each candidate before viable
+choices are counted. A leased FPGA beside a playable host emulator leaves
+that emulator Ready, with no choice. A lone leased option is Unavailable
+with the copy "In use" / "Someone else is playing on this machine. You can play
 when they're done." (or "{name} is playing {title}" when a friendly name
 exists). There is no take-over option. (The "executor in use" wording is
 only for logs and host diagnostics.) Confirm explains and does not launch

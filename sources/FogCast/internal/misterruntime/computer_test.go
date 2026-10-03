@@ -46,6 +46,56 @@ func computerResponse(t *testing.T) Protocol2Response {
 	return r
 }
 
+func atariStComputerResponse(t *testing.T) Protocol2Response {
+	t.Helper()
+	r := computerResponse(t)
+	r.ActivePackage.Descriptor.Core.ID = "fes.atari-st"
+	for i := range r.ActivePackage.Descriptor.Interfaces {
+		switch r.ActivePackage.Descriptor.Interfaces[i].ID {
+		case "fes.media.apple2-floppy":
+			r.ActivePackage.Descriptor.Interfaces[i].ID = protocol.AtariStFloppyInterface().ID
+		case "fes.expansion.apple2-bus":
+			r.ActivePackage.Descriptor.Interfaces[i].ID = "fes.expansion.atari-st-bus"
+		}
+	}
+	for _, interfaces := range [][]Protocol2Interface{r.Capabilities.ActiveInterfaces, r.Capabilities.ABIs[0].Interfaces} {
+		for i := range interfaces {
+			switch interfaces[i].ID {
+			case "fes.media.apple2-floppy":
+				interfaces[i].ID = protocol.AtariStFloppyInterface().ID
+			case "fes.expansion.apple2-bus":
+				interfaces[i].ID = "fes.expansion.atari-st-bus"
+			}
+		}
+	}
+	r.Capabilities.MediaUnits[0] = protocol.MediaUnitStatus{Interface: protocol.AtariStFloppyInterface(),
+		MinBytes: uint32(protocol.AtariStFloppyBytes), MaxBytes: uint32(protocol.AtariStFloppyBytes), ChunkBytes: 512, State: "empty"}
+	*r.Core = "fes.atari-st"
+	return r
+}
+
+func TestAtariStStatusRequiresExactUniqueActiveMediaUnit(t *testing.T) {
+	r := atariStComputerResponse(t)
+	if _, err := decodeProtocol2Response([]byte(responseLine(t, r))); err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func(*Protocol2Response){
+		func(r *Protocol2Response) { r.Capabilities.MediaUnits[0].MinBytes-- },
+		func(r *Protocol2Response) { r.Capabilities.MediaUnits[0].MaxBytes++ },
+		func(r *Protocol2Response) {
+			r.Capabilities.MediaUnits = append(r.Capabilities.MediaUnits,
+				protocol.MediaUnitStatus{Interface: protocol.C64DiskInterface(), MinBytes: uint32(protocol.C64DiskBytes), MaxBytes: uint32(protocol.C64DiskBytes), ChunkBytes: 512, State: "empty"})
+		},
+		func(r *Protocol2Response) { r.Capabilities.ActiveInterfaces[4].ID = "fes.media.c64-disk" },
+	} {
+		bad := atariStComputerResponse(t)
+		mutate(&bad)
+		if _, err := decodeProtocol2Response([]byte(responseLine(t, bad))); err == nil {
+			t.Fatal("invalid Atari ST media status accepted")
+		}
+	}
+}
+
 func responseLine(t *testing.T, r Protocol2Response) string {
 	t.Helper()
 	line, err := json.Marshal(r)
@@ -201,12 +251,25 @@ func (c *computerMediaControl) EjectMedia(ctx context.Context, id string, genera
 }
 
 func TestRuntimeInsertMediaStagesOnceAndRequiresReady(t *testing.T) {
-	disk := bytes.Repeat([]byte{0xa5}, 143360)
+	for _, media := range []struct {
+		iface protocol.RuntimeContract
+		bytes int64
+	}{{protocol.Apple2FloppyInterface(), protocol.Apple2FloppyBytes}, {protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes}} {
+		t.Run(media.iface.ID, func(t *testing.T) { testRuntimeInsertMediaStagesOnceAndRequiresReady(t, media.iface, media.bytes) })
+	}
+}
+
+func testRuntimeInsertMediaStagesOnceAndRequiresReady(t *testing.T, iface protocol.RuntimeContract, sizeBytes int64) {
+	t.Helper()
+	disk := bytes.Repeat([]byte{0xa5}, int(sizeBytes))
 	for _, name := range []string{"success", "lost reply", "not ready", "runtime error", "short", "wrong size", "stale generation", "absent unit"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			t.Setenv("TMPDIR", root)
 			before, after := computerResponse(t), computerResponse(t)
+			if iface == protocol.AtariStFloppyInterface() {
+				before, after = atariStComputerResponse(t), atariStComputerResponse(t)
+			}
 			after.Capabilities.MediaUnits[0].State = "ready"
 			size := int64(len(disk))
 			var body io.Reader = bytes.NewReader(disk)
@@ -231,7 +294,7 @@ func TestRuntimeInsertMediaStagesOnceAndRequiresReady(t *testing.T) {
 					t.Fatal("insert has no operation deadline")
 				}
 				got, err := os.ReadFile(path)
-				if err != nil || !bytes.Equal(got, disk) || id != binding.PackageID || generation != 7 || unit != 0 || count != 143360 {
+				if err != nil || !bytes.Equal(got, disk) || id != binding.PackageID || generation != 7 || unit != 0 || count != uint32(sizeBytes) {
 					t.Fatalf("staged insert %v", err)
 				}
 				switch name {

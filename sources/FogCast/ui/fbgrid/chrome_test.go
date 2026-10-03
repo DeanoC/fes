@@ -291,3 +291,27 @@ func TestSessionBadgeAndLive(t *testing.T) {
 func colorToGFX(c color.RGBA) gfx.Color {
 	return gfx.RGB(c.R, c.G, c.B)
 }
+
+func TestIndeterminateSessionChromePaintHasNoPercentageOrFill(t *testing.T) {
+	rec := gfx.NewRecorder()
+	th := theme.Default()
+	paintSessionChrome(rec, 640, 480, th, SessionChrome{State: "launching", Title: "Data Storm", Phase: "Loading core", Hint: SessionKitHint, Marquee: 0})
+	var track float32
+	var segments int
+	for _, call := range rec.Calls {
+		if call.Op == "DrawText" && strings.Contains(call.Text, "%") {
+			t.Fatalf("invented percentage %q", call.Text)
+		}
+		if call.Op != "FillRect" || call.Dst.H != 7 {
+			continue
+		}
+		if call.Dst.W > track {
+			track = call.Dst.W
+		} else if call.Dst.W > 0 {
+			segments++
+		}
+	}
+	if track < 100 || segments != 8 {
+		t.Fatalf("indeterminate track=%v segments=%d", track, segments)
+	}
+}

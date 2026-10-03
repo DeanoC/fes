@@ -91,14 +91,21 @@ func TestChangeTapePathRequiresPExtension(t *testing.T) {
 // stay accepted.
 func TestChangeDiskImportsExactImageAndEjectDiskClears(t *testing.T) {
 	for _, execution := range []string{"fpga_native", "fpga_development"} {
-		t.Run(execution, func(t *testing.T) { testChangeAndEjectDisk(t, execution) })
+		for _, disk := range []struct {
+			iface, name string
+			size        int64
+		}{{protocol.Apple2FloppyInterface().ID, "dos33.dsk", protocol.Apple2FloppyBytes},
+			{protocol.AtariStFloppyInterface().ID, "desktop.st", protocol.AtariStFloppyBytes}} {
+			t.Run(execution+"/"+disk.name, func(t *testing.T) { testChangeAndEjectDisk(t, execution, disk.iface, disk.size, disk.name) })
+		}
 	}
 	if hostMutationClient().Timeout != 0 {
 		t.Fatal("disk mutations must not use the short host client timeout")
 	}
 }
 
-func testChangeAndEjectDisk(t *testing.T, execution string) {
+func testChangeAndEjectDisk(t *testing.T, execution, iface string, size int64, name string) {
+	t.Helper()
 	pkg := strings.Repeat("a", 64)
 	mediaID := strings.Repeat("c", 64)
 	session := func() map[string]any {
@@ -107,9 +114,9 @@ func testChangeAndEjectDisk(t *testing.T, execution string) {
 			"core_package": map[string]any{
 				"package_id": pkg, "generation": 3,
 				"abi":               map[string]any{"id": "fes.computer", "major": 1, "minor": 0},
-				"active_interfaces": []map[string]any{{"id": "fes.keyboard.hid", "major": 1, "minor": 0}, {"id": "fes.media.apple2-floppy", "major": 1, "minor": 0}},
-				"media_units": []map[string]any{{"unit": 0, "interface": map[string]any{"id": "fes.media.apple2-floppy", "major": 1, "minor": 0},
-					"min_bytes": 143360, "max_bytes": 143360, "chunk_bytes": 512, "state": "empty"}},
+				"active_interfaces": []map[string]any{{"id": "fes.keyboard.hid", "major": 1, "minor": 0}, {"id": iface, "major": 1, "minor": 0}},
+				"media_units": []map[string]any{{"unit": 0, "interface": map[string]any{"id": iface, "major": 1, "minor": 0},
+					"min_bytes": size, "max_bytes": size, "chunk_bytes": 512, "state": "empty"}},
 			},
 		}
 	}
@@ -117,17 +124,17 @@ func testChangeAndEjectDisk(t *testing.T, execution string) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/core-media":
-			if r.ContentLength != 143360 {
+			if r.ContentLength != size {
 				t.Fatalf("import size %d", r.ContentLength)
 			}
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"media_id": mediaID, "size": 143360})
+			_ = json.NewEncoder(w).Encode(map[string]any{"media_id": mediaID, "size": size})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			_ = json.NewEncoder(w).Encode(session())
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media":
 			posts = append(posts, "change")
 			var body map[string]string
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["media_id"] != mediaID || body["name"] != "dos33.dsk" ||
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["media_id"] != mediaID || body["name"] != name ||
 				r.Header.Get("X-FogCast-Core-Generation") != "3" {
 				t.Fatalf("body=%v err=%v headers=%v", body, err, r.Header)
 			}
@@ -141,8 +148,8 @@ func testChangeAndEjectDisk(t *testing.T, execution string) {
 	}))
 	defer server.Close()
 	dir := t.TempDir()
-	disk := filepath.Join(dir, "dos33.dsk")
-	if err := os.WriteFile(disk, make([]byte, 143360), 0600); err != nil {
+	disk := filepath.Join(dir, name)
+	if err := os.WriteFile(disk, make([]byte, int(size)), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"change-disk", disk}); result.err != nil {
@@ -154,7 +161,7 @@ func testChangeAndEjectDisk(t *testing.T, execution string) {
 	if len(posts) != 2 || posts[0] != "change" || posts[1] != "clear" {
 		t.Fatalf("posts=%v", posts)
 	}
-	short := filepath.Join(dir, "short.dsk")
+	short := filepath.Join(dir, "short"+filepath.Ext(name))
 	if err := os.WriteFile(short, make([]byte, 1024), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -176,6 +183,7 @@ func TestChangeDiskDigestUsesTheActiveDisk(t *testing.T) {
 	}{
 		{"fes.media.apple2-floppy", "disk.dsk", protocol.Apple2FloppyBytes},
 		{"fes.media.c64-disk", "disk.d64", protocol.C64DiskBytes},
+		{"fes.media.atari-st-floppy", "disk.st", protocol.AtariStFloppyBytes},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mediaID := strings.Repeat("d", 64)

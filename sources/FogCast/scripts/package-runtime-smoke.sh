@@ -9,14 +9,23 @@ call_timeout=${FOGCAST_CALL_TIMEOUT:-30}
 launch_timeout=${FOGCAST_LAUNCH_TIMEOUT:-${FOGCAST_CALL_TIMEOUT:-90}}
 
 usage() {
-  printf '%s\n' 'usage: package-runtime-smoke.sh [PONG_SELECTION] [ZX81_SELECTION] [COLECO_SELECTION]' >&2
+  printf '%s\n' 'usage: package-runtime-smoke.sh [PONG_SELECTION] [ZX81_SELECTION] [COLECO_SELECTION] [RAMTEST_SELECTION]' >&2
   exit 2
 }
 
-[ "$#" -le 3 ] || usage
+[ "$#" -le 4 ] || usage
 pong_selection=${1:-${FES_PONG_PACKAGE_SELECTION:-}}
 zx81_selection=${2:-${FES_ZX81_PACKAGE_SELECTION:-}}
 coleco_selection=${3:-${FES_COLECO_PACKAGE_SELECTION:-}}
+ramtest_selection=${4:-${FES_RAMTEST_PACKAGE_SELECTION:-}}
+ramtest_expected=
+case ",${FES_PACKAGE_EXPECTED_IDS:-}," in
+  *,fes.ramtest=*,*) ramtest_expected=1 ;;
+esac
+ramtest_enabled=0
+if [ -n "$ramtest_selection" ] || [ -n "$ramtest_expected" ]; then
+  ramtest_enabled=1
+fi
 
 fail() {
   printf 'package-runtime-smoke: %s\n' "$1" >&2
@@ -153,9 +162,15 @@ validate_package_id() {
 pong_package_id=$(expected_package_id fes.pong "$pong_selection")
 zx81_package_id=$(expected_package_id fes.zx81 "$zx81_selection")
 coleco_package_id=$(expected_package_id fes.coleco "$coleco_selection")
+if [ "$ramtest_enabled" -eq 1 ]; then
+  ramtest_package_id=$(expected_package_id fes.ramtest "$ramtest_selection")
+fi
 validate_package_id "$pong_package_id" fes.pong
 validate_package_id "$zx81_package_id" fes.zx81
 validate_package_id "$coleco_package_id" fes.coleco
+if [ "$ramtest_enabled" -eq 1 ]; then
+  validate_package_id "$ramtest_package_id" fes.ramtest
+fi
 
 curl --fail --silent --show-error \
   --connect-timeout "$call_timeout" --max-time "$call_timeout" \
@@ -301,9 +316,18 @@ zx81_game_id=$(game_id_for fes.zx81 "$zx81_package_id") ||
   fail 'ZX81 package is not installed and selected in the host library'
 coleco_game_id=$(game_id_for fes.coleco "$coleco_package_id") ||
   fail 'Coleco package is not installed and selected in the host library'
+if [ "$ramtest_enabled" -eq 1 ]; then
+  ramtest_game_id=$(game_id_for fes.ramtest "$ramtest_package_id") ||
+    fail 'RAM Tester entry is missing. Install the RAM Tester host package and set up its library CoreEntry; see docs/DEVELOPMENT.md under target-package-smoke.'
+fi
 
 wait_for_session idle '' ''
 launch_and_stop fes.pong "$pong_package_id" "$pong_game_id"
 launch_and_stop fes.zx81 "$zx81_package_id" "$zx81_game_id"
 launch_and_stop fes.coleco "$coleco_package_id" "$coleco_game_id"
-printf '%s\n' 'package runtime smoke passed: Pong, ZX81, Coleco'
+covered='Pong, ZX81, Coleco'
+if [ "$ramtest_enabled" -eq 1 ]; then
+  launch_and_stop fes.ramtest "$ramtest_package_id" "$ramtest_game_id"
+  covered="$covered, RAM Tester"
+fi
+printf 'package runtime smoke passed: %s\n' "$covered"

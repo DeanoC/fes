@@ -34,7 +34,7 @@ module cyclonev_hps_interface_peripheral_i2c (
     end
 endmodule
 
-module spectrum_system_pll (
+module spectrum_system_pll #(parameter bit FAST_CPU = 1'b0) (
     input wire refclk,
     input wire rst,
     output reg outclk_0,

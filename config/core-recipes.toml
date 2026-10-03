@@ -157,3 +157,17 @@ selection_filename = "fes-ramtest.package-selection.toml"
 package_dir_env = "FES_RAMTEST_PACKAGE_DIR"
 package_selection_env = "FES_RAMTEST_PACKAGE_SELECTION"
 quartus_role = "bring-up/check oracle"
+
+[[recipes]]
+core_id = "fes.atari-st"
+identity_version = 2
+producer_script = "scripts/build_fes_atari_st_oss.py"
+producer_module = "scripts.build_fes_atari_st_oss"
+authenticate = "_authenticate_atari_st_tools"
+lock_path = "toolchains/ramtest.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-atari-st.package-selection.toml"
+package_dir_env = "FES_ATARI_ST_PACKAGE_DIR"
+package_selection_env = "FES_ATARI_ST_PACKAGE_SELECTION"
+quartus_role = "no oracle required"

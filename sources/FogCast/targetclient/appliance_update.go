@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance"
@@ -40,6 +41,13 @@ func (c *Client) StageAppliance(ctx context.Context, m appliance.Manifest, conte
 	if content == nil {
 		return errors.New("missing release image")
 	}
+	c.reportProgress("upload start", fmt.Sprintf("%d bytes", m.ImageSize))
+	upload := &applianceUploadProgress{reader: content, size: m.ImageSize, report: c.reportProgress, last: time.Now()}
+	// The transport may still read the body after Do returns (an early reply).
+	// Closing the wrapper first keeps every progress call on this goroutine's
+	// side of the return, so hooks never race later phases or the caller.
+	defer upload.finish()
+	content = upload
 	raw, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -56,12 +64,58 @@ func (c *Client) StageAppliance(ctx context.Context, m appliance.Manifest, conte
 		return err
 	}
 	response, err := c.httpClient.Do(req)
+	upload.finish()
 	if err != nil {
 		return err
 	}
 	defer response.Body.Close()
 	var result ApplianceStatus
-	return decodeResponse(response, &result)
+	if err := decodeResponse(response, &result); err != nil {
+		return err
+	}
+	c.reportProgress("staged", m.ImageSHA256)
+	return nil
+}
+
+type applianceUploadProgress struct {
+	mu          sync.Mutex
+	done        bool
+	reader      io.Reader
+	size, sent  int64
+	last        time.Time
+	lastPercent int64
+	report      func(string, string)
+}
+
+// finish stops further reads and progress reports. It is idempotent.
+func (p *applianceUploadProgress) finish() {
+	p.mu.Lock()
+	p.done = true
+	p.mu.Unlock()
+}
+
+func (p *applianceUploadProgress) Read(b []byte) (int, error) {
+	p.mu.Lock()
+	done := p.done
+	p.mu.Unlock()
+	if done {
+		return 0, io.ErrClosedPipe
+	}
+	// The source read is not under the lock, so a blocked read cannot stall finish.
+	n, err := p.reader.Read(b)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.done {
+		return n, err
+	}
+	p.sent += int64(n)
+	percent := p.sent * 100 / p.size
+	if p.sent == p.size || (p.sent > 0 && (time.Since(p.last) >= 10*time.Second || percent-p.lastPercent >= 10)) {
+		p.report("upload", fmt.Sprintf("%d/%d bytes (%d%%)", p.sent, p.size, percent))
+		p.last = time.Now()
+		p.lastPercent = percent
+	}
+	return n, err
 }
 func (c *Client) ConfirmAppliance(ctx context.Context, bootID, image string) error {
 	var ack struct {
@@ -108,6 +162,11 @@ func (c *Client) UpdateAppliance(ctx context.Context, targetID string, m applian
 	}
 	var accepted ApplianceStatus
 	err = c.doJSON(ctx, http.MethodPost, "/v1/update/activate", map[string]string{"image_sha256": m.ImageSHA256}, &accepted)
+	if err == nil {
+		c.reportProgress("activation accepted", m.ImageSHA256)
+	} else {
+		c.reportProgress("activation response lost", err.Error())
+	}
 	return c.finishAppliance(ctx, targetID, before, m.ImageSHA256, err, resolve)
 }
 
@@ -121,6 +180,11 @@ func (c *Client) RollbackAppliance(ctx context.Context, targetID string, resolve
 	}
 	var accepted ApplianceStatus
 	err = c.doJSON(ctx, http.MethodPost, "/v1/update/rollback", nil, &accepted)
+	if err == nil {
+		c.reportProgress("activation accepted", before.Previous)
+	} else {
+		c.reportProgress("activation response lost", err.Error())
+	}
 	return c.finishAppliance(ctx, targetID, before, before.Previous, err, resolve)
 }
 
@@ -129,6 +193,7 @@ func (c *Client) applianceBefore(ctx context.Context, targetID string, resolve R
 	if err != nil {
 		return status, err
 	}
+	c.reportProgress("inspect/before", fmt.Sprintf("boot=%s image=%s good=%s", status.BootID, status.ImageSHA256, status.Good))
 	if status.Trial || status.Corrupt || status.Pending != "" {
 		return status, errors.New("target release is not in a stable update state")
 	}
@@ -144,57 +209,112 @@ func (c *Client) finishAppliance(ctx context.Context, targetID string, before Ap
 	// The activation may have committed even if its response was lost. Stop the
 	// pre-reboot renewal loop immediately; observation below makes no mutations.
 	c.InvalidateKitSession()
+	return c.waitApplianceConfirmation(ctx, targetID, expected, before.BootID, false, activationErr, resolve)
+}
+
+// ConfirmApplianceTrial resumes confirmation of an expected release without staging or activation.
+func (c *Client) ConfirmApplianceTrial(ctx context.Context, targetID, expected string, resolve ResolveAppliance) (ApplianceStatus, error) {
+	if !appliance.ValidHash(expected) {
+		return ApplianceStatus{}, errors.New("expected image must be a 64-character lowercase SHA-256")
+	}
+	return c.waitApplianceConfirmation(ctx, targetID, expected, "", true, nil, resolve)
+}
+
+func (c *Client) waitApplianceConfirmation(ctx context.Context, targetID, expected, beforeBoot string, resume bool, initialErr error, resolve ResolveAppliance) (ApplianceStatus, error) {
 	var (
-		lastErr                 = activationErr
+		lastErr                 = initialErr
 		candidateBootID         string
 		confirmationEndpoint    string
 		confirmationBootID      string
 		confirmationReady       bool
 		confirmationAttempted   bool
 		nextConfirmationAttempt time.Time
+		lastStatus              ApplianceStatus
+		lastPhase               string
+		lastWait                time.Time
+		seenBoot                string
+		started                 = time.Now()
 	)
+	event := func(phase, detail string) {
+		c.reportProgress(phase, detail)
+		lastPhase = phase
+		lastWait = time.Now()
+	}
+	progress := func(phase, detail string) {
+		if phase != lastPhase {
+			event(phase, detail)
+		} else if time.Since(lastWait) >= 30*time.Second {
+			event(phase, fmt.Sprintf("still waiting after %s; %s", time.Since(started).Round(time.Second), detail))
+		}
+	}
+	expired := func() (ApplianceStatus, error) {
+		return lastStatus, fmt.Errorf("update outcome unconfirmed (last phase: %s); run fes-update --action confirm: %w", lastPhase, errors.Join(ctx.Err(), lastErr))
+	}
 	for {
 		if err := ctx.Err(); err != nil {
-			return before, fmt.Errorf("update outcome unconfirmed; inspect target status: %w", errors.Join(err, lastErr))
+			return expired()
 		}
 		endpoint, status, err := c.findApplianceBoot(ctx, targetID, resolve)
 		if err != nil {
 			lastErr = err
+			progress("old boot gone", "target unreachable")
 			if !waitAppliancePoll(ctx) {
-				return before, fmt.Errorf("update outcome unconfirmed; inspect target status: %w", errors.Join(ctx.Err(), lastErr))
+				return expired()
 			}
 			continue
 		}
-		if status.BootID == before.BootID {
+		lastStatus = status
+		if !resume && status.BootID == beforeBoot {
+			progress("waiting for new boot", "activation may still be pending")
 			if !waitAppliancePoll(ctx) {
-				return before, fmt.Errorf("update outcome unconfirmed; inspect target status: %w", errors.Join(ctx.Err(), lastErr))
+				return expired()
 			}
 			continue
 		}
-		if status.ImageSHA256 != expected {
-			return status, errors.New("target booted a fallback or unexpected image; candidate was not confirmed")
+		if resume && status.BootID != candidateBootID {
+			candidateBootID = status.BootID
+			confirmationReady = false
+		}
+		if seenBoot != status.BootID {
+			event("new boot seen", fmt.Sprintf("boot=%s image=%s trial=%t", status.BootID, status.ImageSHA256, status.Trial))
+			seenBoot = status.BootID
 		}
 		if status.Corrupt {
 			return status, errors.New("target boot selection state is corrupt")
 		}
-		if candidateBootID == "" {
-			candidateBootID = status.BootID
-		} else if status.BootID != candidateBootID {
-			return status, errors.New("target boot identity changed before confirmation")
-		}
-		// A status read may race a successful confirmation, so accept the exact
-		// expected image once it is durably known-good without requiring a second
-		// confirmation request.
-		if status.RawIdleReady && !status.Trial && status.Good == expected && status.Pending == "" {
+		if status.ImageSHA256 == expected && !status.Trial && status.Good == expected && status.Pending == "" && (resume || status.RawIdleReady) {
+			event("confirmed", fmt.Sprintf("boot=%s image=%s", status.BootID, expected))
 			return status, nil
 		}
-		if status.Trial && status.RawIdleReady {
+		if resume && !status.Trial && status.Pending == expected && status.ImageSHA256 != expected && status.Good == status.ImageSHA256 {
+			progress("waiting for new boot", "expected image pending activation")
+			if !waitAppliancePoll(ctx) {
+				return expired()
+			}
+			continue
+		}
+		if status.ImageSHA256 != expected {
+			return status, fmt.Errorf("target booted unexpected image %s; expected %s; candidate was not confirmed", status.ImageSHA256, expected)
+		}
+		if !resume && candidateBootID == "" {
+			candidateBootID = status.BootID
+		} else if !resume && status.BootID != candidateBootID {
+			return status, errors.New("target boot identity changed before confirmation")
+		}
+		if !status.Trial {
+			return status, errors.New("expected image is running without a confirmable trial or durable good state")
+		}
+		if !status.RawIdleReady {
+			progress("waiting for raw_idle_ready", fmt.Sprintf("boot=%s", status.BootID))
+		} else {
 			if !confirmationReady || confirmationEndpoint != endpoint.String() || confirmationBootID != status.BootID {
 				ownership, adoptErr := c.AdoptEndpoint(ctx, endpoint, true)
 				if adoptErr != nil {
 					lastErr = adoptErr
+					progress("waiting for lease", adoptErr.Error())
 				} else if ownership.State != "free" {
 					lastErr = fmt.Errorf("target ownership is %s", ownership.State)
+					progress("waiting for lease", lastErr.Error())
 				} else {
 					confirmationEndpoint = endpoint.String()
 					confirmationBootID = status.BootID
@@ -205,15 +325,22 @@ func (c *Client) finishAppliance(ctx context.Context, targetID string, before Ap
 			}
 			if confirmationReady && confirmationEndpoint == endpoint.String() && confirmationBootID == status.BootID && (!confirmationAttempted || !time.Now().Before(nextConfirmationAttempt)) {
 				confirmErr := c.ConfirmAppliance(ctx, status.BootID, expected)
+				if c.kitLease != nil && c.kitLease.Held() && !confirmationAttempted {
+					event("lease claimed", fmt.Sprintf("boot=%s", status.BootID))
+				}
+				event("confirm sent", fmt.Sprintf("boot=%s image=%s", status.BootID, expected))
 				confirmationAttempted = true
 				nextConfirmationAttempt = time.Now().Add(time.Second)
 				if confirmErr != nil {
 					lastErr = confirmErr
+					event("confirm result", confirmErr.Error())
+				} else {
+					event("confirm result", "acknowledged; verifying durable state")
 				}
 			}
 		}
 		if !waitAppliancePoll(ctx) {
-			return before, fmt.Errorf("update outcome unconfirmed; inspect target status: %w", errors.Join(ctx.Err(), lastErr))
+			return expired()
 		}
 	}
 }

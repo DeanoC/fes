@@ -26,6 +26,19 @@ type Client struct {
 	baseURL    *url.URL
 	token      string
 	httpClient *http.Client
+	progress   func(phase, detail string)
+}
+
+// WithProgress reports appliance update phases. A nil hook leaves the client silent.
+func (c *Client) WithProgress(hook func(phase, detail string)) *Client {
+	c.progress = hook
+	return c
+}
+
+func (c *Client) reportProgress(phase, detail string) {
+	if c.progress != nil {
+		c.progress(phase, detail)
+	}
 }
 
 func NewClient(baseURL *url.URL, token string, httpClient *http.Client) *Client {

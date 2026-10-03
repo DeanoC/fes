@@ -55,6 +55,13 @@ The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
 `fes.sg1000`, `fes.spectrum` and `fes.ramtest`. Another
 package is not added to that set merely because its producer exists.
 
+The first 16-bit machine is the [Atari 520ST](cores/fes-atari-st/README.md):
+real 68000, physical SDRAM arbitration, pluggable 192 KiB firmware and
+expansion, peripherals, and all three ST video modes through shared
+direct/scanline parts. Stock EmuTOS reaches GEM in host simulation through
+the SDRAM and video paths. Run `make sim-fes-atari-st`; the registered HIP
+producer is `make build-fes-atari-st`. It is not selected in the factory image.
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered
@@ -64,8 +71,10 @@ package without an image rebuild is the FES
 The original shared Z80 CPU has NMOS and documented fast variants. Run
 `make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
 [the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
-Cyclone V timing diagnostic. Current console packages retain TV80/T80 while
-this implementation is qualified.
+Cyclone V timing diagnostic. SG-1000 and Spectrum select the NMOS variant.
+Spectrum also has an explicit documented-only 56 MHz development build;
+`make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
+Coleco, SMS and ZX81 retain their existing CPU implementations.
 
 ### OSS experiments
 

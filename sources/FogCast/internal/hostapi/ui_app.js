@@ -341,6 +341,17 @@
       if (collections.length) record.collections = Object.freeze(collections);
     }
     if (source.launchable === true || source.launchable === false) record.launchable = source.launchable;
+    if (source.firmware_required === true || source.firmware_required === false) record.firmware_required = source.firmware_required;
+    if (source.firmware_ready === true || source.firmware_ready === false) record.firmware_ready = source.firmware_ready;
+    if (source.rom_required === true || source.rom_required === false) record.rom_required = source.rom_required;
+    if (source.rom_ready === true || source.rom_ready === false) record.rom_ready = source.rom_ready;
+    if (source.ready_here === true || source.ready_here === false) record.ready_here = source.ready_here;
+    const readyBlock = optionalCatalogText(source.ready_block);
+    if (readyBlock) record.ready_block = readyBlock;
+    const nextAction = optionalCatalogText(source.next_action);
+    if (nextAction) record.next_action = nextAction;
+    const placement = optionalCatalogText(source.placement);
+    if (placement) record.placement = placement;
     const cover = primitiveSnapshotValue(source.cover);
     if (typeof cover === 'string' && ARTWORK_HANDLE_PATTERN.test(cover)) record.cover = cover;
     const platform = optionalCatalogText(source.platform);
@@ -491,6 +502,173 @@
     return String(state || '');
   }
 
+  function meshUnavailableReason(game) {
+    switch (game && game.ready_block) {
+      case 'distant': return 'This title is not on this machine.';
+      case 'lease_held': return 'In use. Someone else is playing on this machine. You can play when they’re done.';
+      case 'version_skew': return 'Can’t play here yet.';
+      case 'content_missing': return 'A required part of this title is missing.';
+      case 'no_capable_executor':
+      case 'invalid':
+      case 'placement_unresolved':
+      case 'placement_fail_closed': return 'This title cannot play on the current setup.';
+      case 'ensure_in_progress': return 'Still resolving whether this title can play here.';
+      default: return '';
+    }
+  }
+
+  function readyBlockCode(game) {
+    return game && typeof game.ready_block === 'string' ? game.ready_block.trim() : '';
+  }
+
+  function playAvailability(game, extra) {
+    extra = extra && typeof extra === 'object' ? extra : {};
+    if (extra.resolutionState === 'loading') {
+      return { state: 'checking', label: 'Checking', reason: 'Checking every way to play this title.' };
+    }
+    if (extra.resolutionState === 'error') {
+      return { state: 'unavailable', label: 'Unavailable', reason: extra.resolutionError || 'Could not check every way to play this title. Retry detail.' };
+    }
+    if (extra.catalogLoading && !game) {
+      return { state: 'checking', label: 'Checking', reason: 'Still resolving whether this title can play here.' };
+    }
+    if (extra.needsChoice) {
+      return {
+        state: 'needs_choice',
+        label: 'Needs a choice',
+        reason: extra.choiceReason || 'This title can play in more than one way. Choose one.',
+      };
+    }
+    if (!game) {
+      return { state: 'unavailable', label: 'Unavailable', reason: 'Select a game first.' };
+    }
+    // Only an in-progress ensure is Checking. Every other false ready_here,
+    // including an empty or unknown block, is Unavailable.
+    if (game.ready_here === false && readyBlockCode(game) === 'ensure_in_progress') {
+      return { state: 'checking', label: 'Checking', reason: 'Still resolving whether this title can play here.' };
+    }
+    const blocked = launchBlockReason(game);
+    if (blocked) {
+      return { state: 'unavailable', label: 'Unavailable', reason: blocked };
+    }
+    return { state: 'ready', label: 'Ready', reason: '' };
+  }
+
+  function titlesPath() {
+    return '/api/v1/library/titles';
+  }
+
+  function editionPreferencesPath() {
+    return '/api/v1/library/edition-preferences';
+  }
+
+  function parseLibraryTitles(payload) {
+    if (!payload || !Array.isArray(payload.titles)) return [];
+    return payload.titles.filter(title => title && typeof title.title_id === 'string' && title.title_id.trim());
+  }
+
+  function titleOptionList(title) {
+    if (!title || !Array.isArray(title.options)) return [];
+    return title.options.filter(option => option && typeof option.source_game_id === 'string' && option.source_game_id.trim());
+  }
+
+  // choiceGameRows is the catalog plus the open game, including edition variants.
+  // A later row for the same id wins so a detail refresh beats a stale card.
+  function choiceGameRows(game, games) {
+    const rows = [];
+    const push = item => {
+      if (!item || typeof item !== 'object') return;
+      rows.push(item);
+      if (Array.isArray(item.variants)) {
+        item.variants.forEach(variant => {
+          if (variant && typeof variant === 'object') rows.push(variant);
+        });
+      }
+    };
+    if (Array.isArray(games)) games.forEach(push);
+    push(game);
+    return rows;
+  }
+
+  function findGameRow(rows, id) {
+    if (!id || !Array.isArray(rows)) return null;
+    let found = null;
+    for (const game of rows) {
+      if (game && game.id === id) found = game;
+    }
+    return found;
+  }
+
+  // viableTitleOptions keeps a backend only when its resolved game row is
+  // launch-eligible. Inventory `available` is not session Ready: ready_here
+  // false (lease, skew, empty block) and every other launch block drop the
+  // option. The caller must resolve missing rows before counting choices.
+  function viableTitleOptions(title, games) {
+    const rows = choiceGameRows(null, games);
+    return titleOptionList(title).filter(option => {
+      const row = findGameRow(rows, option.source_game_id);
+      return Boolean(row) && launchBlockReason(row) === '';
+    });
+  }
+
+  function titleForGame(titles, game) {
+    if (!game || !Array.isArray(titles)) return null;
+    for (const title of titles) {
+      if (title.title_id === game.id) return title;
+      const options = Array.isArray(title.options) ? title.options : [];
+      if (options.some(option => option && option.source_game_id === game.id)) return title;
+    }
+    return null;
+  }
+
+  function backendOptionLabel(option) {
+    if (!option) return 'Play';
+    if (option.execution === 'fpga_native' || option.execution === 'fpga_development') return 'FPGA';
+    if (option.execution === 'native_emu' || option.host_local === true) return 'Emulator';
+    return option.execution || option.source_game_id;
+  }
+
+  function savedSourceGameID(title, game, picks, options) {
+    if (!title || !picks || !Array.isArray(options)) return '';
+    const known = id => typeof id === 'string' && options.some(option => option.source_game_id === id);
+    // Household pick against the canonical title first, then the title query.
+    // A catalog id that happens to equal a source id is not a choice.
+    if (known(picks[title.title_id])) return picks[title.title_id];
+    const query = game && typeof game.title === 'string' ? game.title.trim().toLowerCase() : '';
+    if (query && known(picks[query])) return picks[query];
+    return '';
+  }
+
+  // resolvePlay classifies the viable backends. The open catalog row is chosen
+  // only when the household or the user actually picked that source.
+  function resolvePlay(game, titles, picks, games, resolutionState) {
+    if (resolutionState && resolutionState !== 'ready') {
+      return { game, options: [], choice: { resolutionState } };
+    }
+    const title = titleForGame(titles, game);
+    const rows = choiceGameRows(game, games);
+    const options = viableTitleOptions(title, rows);
+    if (options.length > 1) {
+      const saved = savedSourceGameID(title, game, picks, options);
+      if (!saved) {
+        return {
+          game,
+          options,
+          choice: { needsChoice: true, choiceReason: 'This title can play in more than one way. Choose one.' },
+        };
+      }
+      return { game: findGameRow(rows, saved) || game, options, choice: {} };
+    }
+    if (options.length === 1) {
+      return { game: findGameRow(rows, options[0].source_game_id) || game, options, choice: {} };
+    }
+    return { game, options, choice: {} };
+  }
+
+  function playChoiceFor(game, titles, picks, games) {
+    return resolvePlay(game, titles, picks, games).choice;
+  }
+
   function cardSourceOffline(game) {
     return Boolean(game) && (game.state === 'missing' || game.root_online === false);
   }
@@ -500,8 +678,7 @@
   }
 
   function coverStatusLabel(game) {
-    if (cardSourceOffline(game)) return 'Offline';
-    return sourceLabel(game && game.state);
+    return playAvailability(game).label;
   }
 
   function isSessionPlayingCard(session, game, sessionLive, sessionAuthority) {
@@ -647,12 +824,22 @@
 
   function launchBlockReason(game) {
     if (!game) return 'Select a game first.';
+    if (game.ready_here === false) {
+      const block = readyBlockCode(game);
+      if (block === 'ensure_in_progress') return 'Still resolving whether this title can play here.';
+      const mesh = meshUnavailableReason({ ready_block: block });
+      if (mesh) return mesh;
+      return 'This game isn’t ready to launch.';
+    }
     if (game.launchable !== true) return 'This platform is browse-only on this host.';
     if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
-    if (game.firmware_required === true && game.firmware_ready !== true) return 'This game’s required BIOS is not ready.';
-    if (game.rom_required === true && game.rom_ready !== true) return 'This game’s required ROM is not ready.';
+    if (game.firmware_required === true && game.firmware_ready !== true) return 'Coleco BIOS required. Import household firmware before Play.';
+    if (game.rom_required === true && game.rom_ready !== true) return 'Needs a cartridge';
+    if (game.placement === 'unresolved' || game.placement === 'fail_closed') {
+      return 'This title cannot play on the current setup.';
+    }
     return '';
   }
 
@@ -1386,6 +1573,13 @@
       activeMutation: null,
       mutationMessage: '',
       catalogState: 'loading',
+      libraryTitles: [],
+      playPicks: Object.freeze({}),
+      playOptionError: '',
+      playOriginPane: '',
+      playContextLoaded: false,
+      playOptionRows: [],
+      playOptionState: 'loading',
       catalogError: null,
       metadataFallbackCount: 0,
       metadataState: presentationEnabled ? 'metadata_idle' : 'metadata_fallback',
@@ -1401,6 +1595,17 @@
 
     let retainedSessionTitleID = '';
     let retainedSessionTitle = '';
+    let playContextGeneration = 0;
+    let confirmedPicks = {};
+    let localPlayPicks = {};
+    let playPickRevision = 0;
+    const confirmedLocalKeys = new Set();
+    const pendingPickRevisions = new Map();
+    const playPickSaves = new Map();
+
+    function publishPlayPicks() {
+      state.playPicks = Object.freeze({ ...confirmedPicks, ...localPlayPicks });
+    }
 
     function liveSessionTitle(id) {
       const selected = state.selectedLiveGame && state.selectedLiveGame.id === id
@@ -1570,6 +1775,9 @@
 
     function resetSelectionState() {
       state.selectionRevision += 1;
+      state.playOptionRows = [];
+      state.playOptionState = 'loading';
+      state.playOptionError = '';
       state.detailSequence += 1;
       state.presentationSequence += 1;
       state.selectedPresentation = null;
@@ -1925,6 +2133,141 @@
       return emit();
     }
 
+    // The play pane calls this when it opens and again when that pane refreshes.
+    // A newer open replaces an in-flight load so a stale reply cannot win.
+    async function ensurePlayContext() {
+      const generation = ++playContextGeneration;
+      const selectionRevision = state.selectionRevision;
+      const selected = state.selectedLiveGame;
+      state.playOptionRows = [];
+      state.playOptionState = 'loading';
+      emit();
+      const titlesPromise = request(fetchImpl, titlesPath()).catch(() => null);
+      const prefsPromise = request(fetchImpl, editionPreferencesPath()).catch(() => null);
+      const titlesPayload = await titlesPromise;
+      const prefsPayload = await prefsPromise;
+      if (generation !== playContextGeneration || selectionRevision !== state.selectionRevision) return snapshot();
+      if (titlesPayload) {
+        try {
+          state.libraryTitles = Object.freeze(parseLibraryTitles(titlesPayload));
+        } catch (_) {
+          state.libraryTitles = [];
+        }
+      }
+      if (prefsPayload && Array.isArray(prefsPayload.preferences)) {
+        const fetched = {};
+        prefsPayload.preferences.forEach(pref => {
+          if (!pref || typeof pref.game_id !== 'string' || !pref.game_id.trim()) return;
+          const gameID = pref.game_id.trim();
+          const key = typeof pref.query === 'string' ? pref.query.trim().toLowerCase() : '';
+          if (key) fetched[key] = gameID;
+          fetched[gameID] = gameID;
+        });
+        confirmedPicks = Object.fromEntries(Object.entries(confirmedPicks)
+          .filter(([key]) => confirmedLocalKeys.has(key)));
+        for (const [key, id] of Object.entries(fetched)) {
+          if (!confirmedLocalKeys.has(key)) confirmedPicks[key] = id;
+        }
+      }
+      publishPlayPicks();
+      if (!titlesPayload || !Array.isArray(titlesPayload.titles)) {
+        state.playOptionState = 'error';
+        return emit();
+      }
+      const rawTitle = titleForGame(titlesPayload.titles.filter(Boolean), selected);
+      if (rawTitle && (
+        typeof rawTitle.title_id !== 'string' || !rawTitle.title_id.trim()
+        || !Array.isArray(rawTitle.options) || rawTitle.options.length === 0
+        || rawTitle.options.some(option => !option || typeof option.source_game_id !== 'string' || !option.source_game_id.trim())
+      )) {
+        state.playOptionState = 'error';
+        state.playContextLoaded = true;
+        return emit();
+      }
+      const title = titleForGame(state.libraryTitles, selected);
+      const knownRows = choiceGameRows(selected, state.games);
+      const missing = titleOptionList(title).filter(option => !findGameRow(knownRows, option.source_game_id));
+      try {
+        const rows = await Promise.all(missing.map(async option => {
+          const id = option.source_game_id;
+          return parseDetail(await request(fetchImpl, gameDetailPath(id)), id);
+        }));
+        if (generation !== playContextGeneration || selectionRevision !== state.selectionRevision) return snapshot();
+        state.playOptionRows = Object.freeze(rows);
+        state.playOptionState = 'ready';
+      } catch (_) {
+        if (generation !== playContextGeneration || selectionRevision !== state.selectionRevision) return snapshot();
+        state.playOptionRows = [];
+        state.playOptionState = 'error';
+      }
+      state.playContextLoaded = true;
+      return emit();
+    }
+
+    function playSelection(game) {
+      if (!game) return game;
+      const resolved = resolvePlay(game, state.libraryTitles, state.playPicks,
+        [...state.games, ...state.playOptionRows], state.playOptionState);
+      return resolved.game || game;
+    }
+
+    function chooseBackend(sourceGameID) {
+      const id = typeof sourceGameID === 'string' ? sourceGameID.trim() : '';
+      if (!id) return snapshot();
+      const row = findGameRow(choiceGameRows(state.selectedLiveGame, [...state.games, ...state.playOptionRows]), id);
+      if (row) rememberPlayPick(row);
+      return selectGame(id);
+    }
+
+    function rememberPlayPick(game) {
+      if (!game || !game.id) return;
+      const title = titleForGame(state.libraryTitles, game);
+      const options = viableTitleOptions(title, choiceGameRows(game, [...state.games, ...state.playOptionRows]));
+      if (options.length < 2) return;
+      const query = game.title || '';
+      const platform = game.system || '';
+      if (!query) return;
+      const localPick = { [game.id]: game.id };
+      if (title && title.title_id) localPick[title.title_id] = game.id;
+      localPick[String(query).trim().toLowerCase()] = game.id;
+      const titleKey = title.title_id;
+      const revision = ++playPickRevision;
+      pendingPickRevisions.set(titleKey, revision);
+      localPlayPicks = { ...localPlayPicks, ...localPick };
+      publishPlayPicks();
+      // Keep writes for one title in user order. A later pending choice remains
+      // visible while an earlier save resolves, but rollback uses confirmed data.
+      const priorSave = playPickSaves.get(titleKey) || Promise.resolve();
+      const save = priorSave.then(() => request(fetchImpl, editionPreferencesPath(), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, platform, game_id: game.id }),
+      })).then(() => {
+        confirmedPicks = { ...confirmedPicks, ...localPick };
+        Object.keys(localPick).forEach(key => confirmedLocalKeys.add(key));
+        if (pendingPickRevisions.get(titleKey) !== revision) return;
+        for (const key of Object.keys(localPick)) delete localPlayPicks[key];
+        pendingPickRevisions.delete(titleKey);
+        publishPlayPicks();
+      }, () => {
+        if (pendingPickRevisions.get(titleKey) !== revision) return;
+        for (const key of Object.keys(localPick)) delete localPlayPicks[key];
+        pendingPickRevisions.delete(titleKey);
+        publishPlayPicks();
+        const currentTitle = titleForGame(state.libraryTitles, state.selectedLiveGame);
+        if (!currentTitle || currentTitle.title_id !== title.title_id) return;
+        ++playContextGeneration;
+        state.playOptionRows = [];
+        state.playOptionState = 'error';
+        state.playOptionError = 'Could not save the backend choice. Retry detail.';
+        emit();
+      });
+      playPickSaves.set(titleKey, save);
+      void save.then(() => {
+        if (playPickSaves.get(titleKey) === save) playPickSaves.delete(titleKey);
+      });
+    }
+
     function launchAllowed(selected) {
       if (launchBlockReason(selected)) return false;
       if (!state.sessionStarted) return true;
@@ -1936,6 +2279,8 @@
     async function launchLegacy(selected) {
       const selectionRevision = state.selectionRevision;
       const sequence = ++state.launchSequence;
+      state.playOriginPane = state.playOriginPane || 'detail';
+      rememberPlayPick(selected);
       state.launchState = 'launching';
       state.launchError = null;
       state.launchMessage = '';
@@ -1960,10 +2305,16 @@
     }
 
     async function launchSelected() {
-      const selected = state.selectedLiveGame;
+      if (state.playOptionState !== 'ready') return emit();
+      const selected = playSelection(state.selectedLiveGame);
       if (state.activeMutation) return mutationConflict();
       if (!selected) return snapshot();
+      const choice = playChoiceFor(selected, state.libraryTitles, state.playPicks,
+        [...state.games, ...state.playOptionRows]);
+      if (choice.needsChoice) return emit();
       if (!launchAllowed(selected)) return emit();
+      state.playOriginPane = 'detail';
+      rememberPlayPick(selected);
       if (!state.sessionStarted) return launchLegacy(selected);
       const mutation = {
         kind: 'launch',
@@ -2919,6 +3270,12 @@
     async function refreshDetail(gameOrID) {
       const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
       if (!state.selectedLiveGame || state.selectedLiveGame.id !== id) return snapshot();
+      const playContext = ensurePlayContext();
+      const settle = async followup => {
+        if (typeof followup === 'function') await followup();
+        await playContext;
+        return snapshot();
+      };
       const previousIdentity = presentationIdentity(state.selectedLiveGame);
       const selectionRevision = state.selectionRevision;
       const sequence = ++state.detailSequence;
@@ -2932,7 +3289,7 @@
           || selectionRevision !== state.selectionRevision
           || !state.selectedLiveGame
           || state.selectedLiveGame.id !== id
-        ) return snapshot();
+        ) return settle();
         const detail = parseDetail(result, id);
         const identityChanged = !samePresentationIdentity(previousIdentity, presentationIdentity(detail));
         if (identityChanged) {
@@ -2950,24 +3307,25 @@
           || selectionRevision !== state.selectionRevision
           || !state.selectedLiveGame
           || state.selectedLiveGame.id !== id
-        ) return snapshot();
+        ) return settle();
         state.selectedLiveGame = detail;
         state.selectedGameView = view;
         state.detailState = 'populated';
         state.detailError = null;
-        const next = emit();
-        if (identityChanged && presentationEnabled) return refreshPresentation(detail);
-        return next;
+        emit();
+        if (identityChanged && presentationEnabled) return settle(() => refreshPresentation(detail));
+        return settle();
       } catch (error) {
         if (
           sequence !== state.detailSequence
           || selectionRevision !== state.selectionRevision
           || !state.selectedLiveGame
           || state.selectedLiveGame.id !== id
-        ) return snapshot();
+        ) return settle();
         state.detailState = 'detail_error';
         state.detailError = errorSnapshot(error, 'The live detail could not be refreshed.');
-        return emit();
+        emit();
+        return settle();
       }
     }
 
@@ -3024,6 +3382,7 @@
     async function selectGame(gameOrID) {
       const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
       const fresh = state.games.find(game => game.id === id)
+        || state.playOptionRows.find(game => game.id === id)
         || (state.selectedLiveGame && Array.isArray(state.selectedLiveGame.variants)
           ? state.selectedLiveGame.variants.find(game => game.id === id)
           : null);
@@ -3094,6 +3453,8 @@
       saveSettings,
       prepareTarget,
       loadSession,
+      ensurePlayContext,
+      chooseBackend,
       selectGame,
       refreshDetail,
       refreshPresentation,
@@ -3171,7 +3532,11 @@
     catalogDumpRegions,
     systemLabel,
     sourceLabel,
+    playAvailability,
     launchBlockReason,
+    titlesPath,
+    parseLibraryTitles,
+    playChoiceFor,
     collectionIDFromName,
     uniqueCollectionID,
     parseCollection,
@@ -3196,6 +3561,8 @@
   let forceKeyboardRestore = false;
   let settingsGeneration = 0;
   let settingsCleanGeneration = 0;
+  let settingsLoadToken = 0;
+  const settingsTouched = new Set();
   let settingsSelectedTargetRow = null;
   let searchTimer = null;
   let attractIdleHydrated = false;
@@ -4606,10 +4973,23 @@
   }
 
   function launchControl(game) {
-    const label = 'Play';
-    if (!game) return { label, reason: launchBlockReason(game), enabled: false };
-    const blocked = launchBlockReason(game);
-    if (blocked) return { label, reason: blocked, enabled: false };
+    const resolved = resolvePlay(game, state.libraryTitles, state.playPicks,
+      [...state.games, ...state.playOptionRows], state.playOptionState);
+    const subject = resolved.game || game;
+    const play = playAvailability(subject, { ...resolved.choice, resolutionError: state.playOptionError });
+    const label = play.state === 'needs_choice' ? 'Choose' : 'Play';
+    if (play.state === 'checking') {
+      return { label, reason: play.reason, enabled: false };
+    }
+    if (play.state === 'needs_choice') {
+      return { label, reason: play.reason, enabled: true };
+    }
+    if (play.state !== 'ready') {
+      return { label: 'Play', reason: play.reason, enabled: false };
+    }
+    if (!subject) return { label: 'Play', reason: launchBlockReason(subject), enabled: false };
+    const blocked = launchBlockReason(subject);
+    if (blocked) return { label: 'Play', reason: blocked, enabled: false };
     if (state.activeMutation) {
       return { label, reason: 'A session transition is already in progress.', enabled: false };
     }
@@ -4631,7 +5011,7 @@
         enabled: false,
       };
     }
-    if (state.session && state.session.state === 'active' && state.session.game_id === game.id) {
+    if (state.session && state.session.state === 'active' && state.session.game_id === subject.id) {
       return { label, reason: 'Already playing.', enabled: false };
     }
     if (state.session && state.session.state === 'active') {
@@ -4675,10 +5055,14 @@
     }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const detailGame = liveGame || game;
+    const resolvedPlay = resolvePlay(detailGame, state.libraryTitles, state.playPicks,
+      [...state.games, ...state.playOptionRows], state.playOptionState);
+    const shownPlay = playAvailability(resolvedPlay.game || detailGame,
+      { ...resolvedPlay.choice, resolutionError: state.playOptionError });
     const facts = element('div', 'detail-facts');
     const factRows = [
       [systemLabel(game.system), 'System'],
-      [coverStatusLabel(detailGame), 'Status'],
+      [shownPlay.label, 'Status'],
       [sourceKindLabel(liveGame || game), 'Source'],
       [catalogYear(gameView), 'Year'],
       [catalogGenre(gameView), 'Genre'],
@@ -4736,6 +5120,33 @@
       nodes.detailContent.appendChild(toggle);
     });
     const variants = Array.isArray(game.variants) ? game.variants : [];
+    const backendOptions = resolvedPlay.options;
+    if (backendOptions.length > 1) {
+      const label = element('label', 'filter-label', 'How to play');
+      const select = element('select');
+      select.id = 'play-backend';
+      const pickedID = resolvedPlay.choice.needsChoice ? '' : (resolvedPlay.game && resolvedPlay.game.id) || '';
+      const chosen = backendOptions.some(option => option.source_game_id === pickedID) ? pickedID : '';
+      if (!chosen) {
+        const placeholder = element('option', '', 'Choose how to play');
+        placeholder.value = '';
+        placeholder.selected = true;
+        select.appendChild(placeholder);
+      }
+      backendOptions.forEach(option => {
+        const optionEl = element('option', '', backendOptionLabel(option));
+        optionEl.value = option.source_game_id;
+        if (option.source_game_id === chosen) optionEl.selected = true;
+        select.appendChild(optionEl);
+      });
+      select.value = chosen;
+      select.addEventListener('change', () => {
+        if (!select.value) return;
+        return controller.chooseBackend(select.value);
+      });
+      label.appendChild(select);
+      nodes.detailContent.appendChild(label);
+    }
     if (variants.length > 1) {
       const label = element('label', 'filter-label', 'Version');
       const select = element('select');
@@ -4796,6 +5207,11 @@
     if (control.reason) launch.setAttribute('aria-describedby', reason.id);
     launch.addEventListener('click', () => {
       keyboardPane = 'detail';
+      if (control.label === 'Choose') {
+        const picker = nodes.detailContent.querySelector && nodes.detailContent.querySelector('#play-backend');
+        if (picker) focusWithoutScroll(picker);
+        return;
+      }
       return launchSelected();
     });
     nodes.launchActions.appendChild(launch);
@@ -4924,7 +5340,12 @@
       focusWithoutScroll(nodes.sessionPanel);
     }
     if (previous && previous.activeMutation === 'stop' && next.sessionPhase === 'stopped') {
-      focusWithoutScroll(refreshSessionButton);
+      if (next.playOriginPane === 'home' || next.playOriginPane === 'grid' || next.playOriginPane === 'detail') {
+        keyboardPane = next.playOriginPane;
+        forceKeyboardRestore = true;
+      } else {
+        focusWithoutScroll(refreshSessionButton);
+      }
     }
     if ((keyboardPane === 'grid' || keyboardPane === 'home') && !next.selectedLiveGame && next.catalogState === 'populated' && next.gameViews && next.gameViews.length) {
       forceKeyboardRestore = true;
@@ -5129,6 +5550,11 @@
     return settingsGeneration;
   }
 
+  function touchSettings(section) {
+    settingsTouched.add(section);
+    bumpSettingsGeneration();
+  }
+
   function settingsRequestExpired(generation) {
     return generation !== settingsGeneration || !settingsIsOpen();
   }
@@ -5144,7 +5570,7 @@
   function removeSettingsRow(container, row) {
     if (!container || !row) return;
     container.replaceChildren(...Array.from(container.children).filter(child => child !== row));
-    bumpSettingsGeneration();
+    touchSettings(container === nodes.settingsLibraries ? 'libraries' : 'targets');
   }
 
   function renderLibraryRow(library, systems) {
@@ -5165,8 +5591,8 @@
     const remove = element('button', 'button secondary compact settings-remove', 'Remove');
     remove.type = 'button';
     remove.addEventListener('click', () => removeSettingsRow(nodes.settingsLibraries, row));
-    system.addEventListener('change', bumpSettingsGeneration);
-    root.addEventListener('input', bumpSettingsGeneration);
+    system.addEventListener('change', () => touchSettings('libraries'));
+    root.addEventListener('input', () => touchSettings('libraries'));
     row._fogcastFields = { system, root };
     row.appendChild(settingsField('System', system));
     row.appendChild(settingsField('Folder', root));
@@ -5242,16 +5668,16 @@
       } else {
         settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
       }
-      bumpSettingsGeneration();
+      touchSettings('targets');
     });
-    address.addEventListener('input', bumpSettingsGeneration);
+    address.addEventListener('input', () => touchSettings('targets'));
     row._fogcastAgentDirty = false;
     row._fogcastAgentClear = false;
     agent.addEventListener('input', () => {
       row._fogcastAgentDirty = agent.value !== '';
       row._fogcastAgentClear = false;
       clearAgent.textContent = 'Clear agent';
-      bumpSettingsGeneration();
+      touchSettings('targets');
     });
     clearAgent.addEventListener('click', () => {
       row._fogcastAgentClear = !row._fogcastAgentClear;
@@ -5259,9 +5685,9 @@
       agent.value = '';
       agent.placeholder = row._fogcastAgentClear ? 'Will clear' : 'Stored';
       clearAgent.textContent = row._fogcastAgentClear ? 'Keep agent' : 'Clear agent';
-      bumpSettingsGeneration();
+      touchSettings('targets');
     });
-    enabled.addEventListener('change', bumpSettingsGeneration);
+    enabled.addEventListener('change', () => touchSettings('targets'));
     const prepare = element('button', 'button secondary compact settings-prepare', target && target.target_id ? 'Identity ready' : 'Prepare identity');
     prepare.type = 'button';
     prepare.disabled = Boolean(target && target.target_id);
@@ -5302,7 +5728,7 @@
     const settings = controller.getState().librarySettings;
     const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
     nodes.settingsLibraries.appendChild(renderLibraryRow({}, systems));
-    bumpSettingsGeneration();
+    touchSettings('libraries');
   }
 
   function addTargetSettingsRow() {
@@ -5318,63 +5744,74 @@
     row._fogcastOriginalName = '';
     nodes.settingsTargets.appendChild(row);
     refreshSelectedTargetOptions(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
-    bumpSettingsGeneration();
+    touchSettings('targets');
   }
 
-  function fillSettingsForm(settings) {
-    if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.value = (settings && settings.video_profile) || 'direct';
-    if (nodes.settingsAttractIdle) {
+  function fillSettingsForm(settings, preserveTouched = false) {
+    const untouched = section => !preserveTouched || !settingsTouched.has(section);
+    if (nodes.settingsVideoProfile && untouched('video')) nodes.settingsVideoProfile.value = (settings && settings.video_profile) || 'direct';
+    if (nodes.settingsAttractIdle && untouched('attract')) {
       nodes.settingsAttractIdle.value = String((settings && settings.attract_idle_seconds) || state.attractIdleSeconds || 60);
     }
-    if (nodes.settingsPreferredRegions) {
+    if (nodes.settingsPreferredRegions && untouched('regions')) {
       const regions = settings && Array.isArray(settings.preferred_regions) ? settings.preferred_regions : [];
       nodes.settingsPreferredRegions.value = regions.join(', ');
     }
     const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
-    if (nodes.settingsLibraries) {
+    if (nodes.settingsLibraries && untouched('libraries')) {
       const libraries = settings && Array.isArray(settings.libraries) ? settings.libraries : [];
       nodes.settingsLibraries.replaceChildren(...libraries.map(library => renderLibraryRow(library, systems)));
     }
-    if (nodes.settingsTargets) {
+    if (nodes.settingsTargets && untouched('targets')) {
       const targets = settings && Array.isArray(settings.targets) ? settings.targets : [];
       settingsSelectedTargetRow = null;
       nodes.settingsTargets.replaceChildren(...targets.map(renderTargetRow));
     }
-    refreshSelectedTargetOptions(settings && settings.selected_target);
+    if (untouched('targets')) {
+      const selected = untouched('selectedTarget') ? settings && settings.selected_target : nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value;
+      refreshSelectedTargetOptions(selected);
+    }
     settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
     if (nodes.settingsHostHealth) {
       nodes.settingsHostHealth.textContent = nodes.health ? nodes.health.textContent : '';
     }
     if (nodes.settingsMessage) nodes.settingsMessage.textContent = '';
-	settingsCleanGeneration = settingsGeneration;
+    if (!preserveTouched || settingsTouched.size === 0) settingsCleanGeneration = settingsGeneration;
+    if (!preserveTouched) settingsTouched.clear();
   }
 
   async function openSettings() {
     closeGameActionsMenu({ restoreFocus: false });
     if (keyboardPane !== 'settings') settingsReturnPane = keyboardPane;
     if (nodes.settings) nodes.settings.hidden = false;
+    if (nodes.saveSettings) nodes.saveSettings.disabled = true;
     setSettingsChromeInert(true);
     keyboardPane = 'settings';
     writePaneAttribute();
-    const generation = bumpSettingsGeneration();
+    bumpSettingsGeneration();
+    settingsTouched.clear();
+    const loadToken = ++settingsLoadToken;
     resetAttractTimer();
     try {
       await controller.loadSettings();
-      if (settingsRequestExpired(generation)) return;
-      fillSettingsForm(controller.getState().librarySettings);
+      if (loadToken !== settingsLoadToken || !settingsIsOpen()) return;
+      fillSettingsForm(controller.getState().librarySettings, true);
+      if (nodes.saveSettings) nodes.saveSettings.disabled = false;
     } catch (error) {
-      if (settingsRequestExpired(generation)) return;
-      fillSettingsForm(null);
+      if (loadToken !== settingsLoadToken || !settingsIsOpen()) return;
+      fillSettingsForm(null, true);
+      if (nodes.saveSettings) nodes.saveSettings.disabled = true;
       if (nodes.settingsMessage) {
         nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');
       }
     }
-    if (settingsRequestExpired(generation)) return;
+    if (loadToken !== settingsLoadToken || !settingsIsOpen()) return;
     forceKeyboardRestore = true;
     restoreKeyboardFocus();
   }
 
   function closeSettings() {
+    settingsLoadToken += 1;
     bumpSettingsGeneration();
     if (nodes.settings) nodes.settings.hidden = true;
     setSettingsChromeInert(false);
@@ -5897,11 +6334,11 @@
   if (nodes.addTarget) nodes.addTarget.addEventListener('click', addTargetSettingsRow);
   if (nodes.settingsSelectedTarget) nodes.settingsSelectedTarget.addEventListener('change', () => {
     settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget.value);
-    bumpSettingsGeneration();
+    touchSettings('selectedTarget');
   });
-  if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', bumpSettingsGeneration);
-  if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', bumpSettingsGeneration);
-  if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.addEventListener('change', bumpSettingsGeneration);
+  if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', () => touchSettings('attract'));
+  if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', () => touchSettings('regions'));
+  if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.addEventListener('change', () => touchSettings('video'));
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keyup', event => {
       if (keyboardCapture.active) forwardCapturedKey(event, false);

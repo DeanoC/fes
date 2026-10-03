@@ -51,13 +51,25 @@ func computerSessionStatus(id string, generation uint64, state string) protocol.
 }
 
 func TestLiveDiskInsertAndEjectUseTheFloppyUnit(t *testing.T) {
+	for _, disk := range []struct {
+		iface protocol.RuntimeContract
+		size  int64
+		name  string
+	}{{protocol.Apple2FloppyInterface(), protocol.Apple2FloppyBytes, "DOS33.DSK"},
+		{protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes, "GAME.ST"}} {
+		t.Run(disk.name, func(t *testing.T) { testLiveDiskInsertAndEject(t, disk.iface, disk.size, disk.name) })
+	}
+}
+
+func testLiveDiskInsertAndEject(t *testing.T, iface protocol.RuntimeContract, size int64, name string) {
+	t.Helper()
 	ctx := context.Background()
 	store, err := catalog.Open(t.TempDir() + "/catalog.db")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	disk := bytes.Repeat([]byte{0x96}, 143360)
+	disk := bytes.Repeat([]byte{0x96}, int(size))
 	media, _, err := store.ImportCoreMediaStream(ctx, int64(len(disk)), bytes.NewReader(disk))
 	if err != nil {
 		t.Fatal(err)
@@ -67,12 +79,19 @@ func TestLiveDiskInsertAndEjectUseTheFloppyUnit(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := strings.Repeat("a", 64)
-	client := &mediaUnitServiceClient{fakeServiceClient: fakeServiceClient{statusResult: computerSessionStatus(id, 4, "empty")},
-		after: func(state string) protocol.Status { return computerSessionStatus(id, 4, state) }}
+	statusForState := func(state string) protocol.Status {
+		status := computerSessionStatus(id, 4, state)
+		status.CorePackage.ActiveInterfaces[1] = protocol.RuntimeInterface{ID: iface.ID, Major: iface.Major, Minor: iface.Minor}
+		status.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Interface: iface,
+			MinBytes: uint32(size), MaxBytes: uint32(size), ChunkBytes: 512, State: state}
+		return status
+	}
+	client := &mediaUnitServiceClient{fakeServiceClient: fakeServiceClient{statusResult: statusForState("empty")},
+		after: statusForState}
 	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	s.activeExecution = ExecutionFPGANative
 	b := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 4, Target: "dev"}
-	got, err := s.ReplaceLiveMedia(ctx, media.MediaID, "DOS33.DSK", b)
+	got, err := s.ReplaceLiveMedia(ctx, media.MediaID, name, b)
 	if err != nil || client.inserts != 1 || !bytes.Equal(client.inserted, disk) || client.binding.Unit != 0 || client.binding.Generation != 4 {
 		t.Fatalf("insert err=%v calls=%d binding=%+v", err, client.inserts, client.binding)
 	}
@@ -80,10 +99,10 @@ func TestLiveDiskInsertAndEjectUseTheFloppyUnit(t *testing.T) {
 		t.Fatalf("status %+v", got.CorePackage)
 	}
 	for name, call := range map[string]func() error{
-		"wrong size": func() error { _, err := s.ReplaceLiveMedia(ctx, short.MediaID, "short.dsk", b); return err },
+		"wrong size": func() error { _, err := s.ReplaceLiveMedia(ctx, short.MediaID, name, b); return err },
 		"prodos":     func() error { _, err := s.ReplaceLiveMedia(ctx, media.MediaID, "game.po", b); return err },
 		"stale generation": func() error {
-			_, err := s.ReplaceLiveMedia(ctx, media.MediaID, "game.do", protocol.DevelopmentMediaBinding{PackageID: id, Generation: 3, Target: "dev"})
+			_, err := s.ReplaceLiveMedia(ctx, media.MediaID, name, protocol.DevelopmentMediaBinding{PackageID: id, Generation: 3, Target: "dev"})
 			return err
 		},
 	} {
@@ -135,9 +154,19 @@ func TestScopedDiskInsertAndEjectReachBoundKitWhenForegroundKitUnavailable(t *te
 }
 
 func apple2DiskLaunchFixture(t *testing.T) (*Service, *mediaUnitLaunchClient, catalog.CoreEntry, []byte) {
+	return diskLaunchFixture(t, protocol.Apple2FloppyInterface(), protocol.Apple2FloppyBytes)
+}
+
+func diskLaunchFixture(t *testing.T, iface protocol.RuntimeContract, size int64) (*Service, *mediaUnitLaunchClient, catalog.CoreEntry, []byte) {
 	t.Helper()
 	ctx := context.Background()
-	archive, firmware := apple2LibraryPackageFixture(t, true)
+	archive, firmware := apple2LibraryPackageFixture(t, true, func(s string) string {
+		if iface == protocol.AtariStFloppyInterface() {
+			return strings.NewReplacer("fes.apple2", "fes.atari-st", "apple2-firmware", "atari-st-firmware",
+				"fes.media.apple2-floppy", iface.ID, "fes.expansion.apple2-bus", "fes.expansion.atari-st-bus").Replace(s)
+		}
+		return s
+	})
 	s, base, entry, inspection := newCoreEntryLaunchFixture(t, archive, "Apple II", time.Minute)
 	client := &mediaUnitLaunchClient{defaultMediaPackageClient: base}
 	s.targetClients[s.selectedTarget] = client
@@ -145,22 +174,27 @@ func apple2DiskLaunchFixture(t *testing.T) (*Service, *mediaUnitLaunchClient, ca
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "apple2-firmware", "", rom.MediaID); err != nil {
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, inspection.Descriptor.ROM.ID, "", rom.MediaID); err != nil {
 		t.Fatal(err)
 	}
 	root := t.TempDir()
-	base.coreLoad = func(ctx context.Context, size int64, body io.Reader) (protocol.Status, error) {
-		staged, err := corepackage.StageROMInput(ctx, root, size, body)
+	base.coreLoad = func(ctx context.Context, inputSize int64, body io.Reader) (protocol.Status, error) {
+		staged, err := corepackage.StageROMInput(ctx, root, inputSize, body)
 		if err != nil {
 			return protocol.Status{}, err
 		}
 		defer staged.Cleanup()
 		status := apple2ActiveStatus(inspection, 9)
+		if iface == protocol.AtariStFloppyInterface() {
+			status.CorePackage.ActiveInterfaces[1].ID = "fes.expansion.atari-st-bus"
+			status.CorePackage.ActiveInterfaces[4] = protocol.RuntimeInterface{ID: iface.ID, Major: iface.Major, Minor: iface.Minor}
+			status.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Interface: iface, MinBytes: uint32(size), MaxBytes: uint32(size), ChunkBytes: 512, State: "empty"}
+		}
 		status.CorePackage.ROMLink = staged.ROMLink
 		base.statusResult = status
 		return status, nil
 	}
-	return s, client, entry, bytes.Repeat([]byte{0x5a}, 143360)
+	return s, client, entry, bytes.Repeat([]byte{0x5a}, int(size))
 }
 
 type mediaUnitLaunchClient struct {
@@ -178,7 +212,8 @@ func (c *mediaUnitLaunchClient) InsertMedia(_ context.Context, size int64, body 
 	}
 	status := c.statusResult
 	pkg := *status.CorePackage
-	pkg.MediaUnits = []protocol.MediaUnitStatus{{Unit: b.Unit, Interface: protocol.Apple2FloppyInterface(), MinBytes: 143360, MaxBytes: 143360, ChunkBytes: 512, State: "ready"}}
+	pkg.MediaUnits = append([]protocol.MediaUnitStatus(nil), pkg.MediaUnits...)
+	pkg.MediaUnits[0].State = "ready"
 	status.CorePackage = &pkg
 	c.statusResult = status
 	return status, nil
@@ -189,8 +224,18 @@ func (c *mediaUnitLaunchClient) EjectMedia(context.Context, protocol.MediaUnitBi
 }
 
 func TestLibraryDiskIsSelectedExactlyAndInsertedAfterStart(t *testing.T) {
+	for _, disk := range []struct {
+		iface protocol.RuntimeContract
+		size  int64
+	}{{protocol.Apple2FloppyInterface(), protocol.Apple2FloppyBytes}, {protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes}} {
+		t.Run(disk.iface.ID, func(t *testing.T) { testLibraryDiskIsSelectedExactlyAndInsertedAfterStart(t, disk.iface, disk.size) })
+	}
+}
+
+func testLibraryDiskIsSelectedExactlyAndInsertedAfterStart(t *testing.T, iface protocol.RuntimeContract, size int64) {
+	t.Helper()
 	ctx := context.Background()
-	s, client, entry, disk := apple2DiskLaunchFixture(t)
+	s, client, entry, disk := diskLaunchFixture(t, iface, size)
 	short, _, err := s.ImportCoreMedia(ctx, 1024, bytes.NewReader(disk[:1024]))
 	if err != nil {
 		t.Fatal(err)

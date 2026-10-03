@@ -68,6 +68,24 @@ func TestSlotCompositionWireFormRoundTrips(t *testing.T) {
 	}
 }
 
+func TestAtariStSlotCompositionRoundTripAndSocketAdmission(t *testing.T) {
+	r := atariStComputerResponse(t)
+	c := expansion.SlotComposition{PackageID: r.ActivePackage.PackageID, ShellSHA256: r.ActivePackage.Descriptor.Payload.SHA256,
+		Expansions:    []expansion.SlotExpansion{{Slot: 1, ExpansionID: strings.Repeat("c", 64)}},
+		PayloadSHA256: strings.Repeat("e", 64), PayloadSize: 40408}
+	c.ID, _ = expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
+	r.ActivePackage.SlotComposition = &c
+	decoded, err := decodeProtocol2Response([]byte(responseLine(t, r)))
+	if err != nil || decoded.ActivePackage.SlotComposition == nil || decoded.ActivePackage.SlotComposition.ID != c.ID {
+		t.Fatalf("Atari ST composition %v", err)
+	}
+	c.Expansions[0].Slot = 2
+	c.ID, _ = expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
+	if validProtocol2Response(r) {
+		t.Fatal("nonexistent Atari ST socket accepted")
+	}
+}
+
 func TestSlotComposedLoadRequestShapes(t *testing.T) {
 	r, c := slotResponse(t)
 	id := c.PackageID

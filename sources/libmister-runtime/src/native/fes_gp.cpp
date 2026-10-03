@@ -129,7 +129,7 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
 	FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
 	FesComputerCapabilityMediaApple2Floppy | FesComputerCapabilityMediaSpectrumTape |
-	FesComputerCapabilityMediaC64Disk);
+	FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaAtariStFloppy);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -422,6 +422,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityMediaSpectrumTape;
 			else if (interface.id == FesComputerInterfaceMediaC64DiskID)
 				capabilities |= FesComputerCapabilityMediaC64Disk;
+			else if (interface.id == FesComputerInterfaceMediaAtariStFloppyID)
+				capabilities |= FesComputerCapabilityMediaAtariStFloppy;
 			continue;
 		}
 		if (application) {
@@ -643,13 +645,16 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
+				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID) {
 				MediaUnitCapability unit;
 				unit.unit = static_cast<std::uint8_t>(
 					interface.id == FesComputerInterfaceMediaSpectrumTapeID ?
 					FesComputerSpectrumTapeUnit :
 					interface.id == FesComputerInterfaceMediaC64DiskID ?
-					FesComputerC64DiskUnit : FesComputerApple2FloppyUnit);
+					FesComputerC64DiskUnit :
+					interface.id == FesComputerInterfaceMediaAtariStFloppyID ?
+					FesComputerAtariStFloppyUnit : FesComputerApple2FloppyUnit);
 				unit.interface = {interface.id, interface.major, interface.minor};
 				media_units_.push_back(unit);
 			}
@@ -658,7 +663,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			[](const MediaUnitCapability& a, const MediaUnitCapability& b) { return a.unit < b.unit; });
 		if (media_units_.size() > 1 && media_units_[0].unit == media_units_[1].unit)
 			error = Mismatch("a core declares one media unit 0",
-				"one of fes.media.apple2-floppy, fes.media.c64-disk, fes.media.spectrum-tape",
+				"one of fes.media.apple2-floppy, fes.media.c64-disk, fes.media.atari-st-floppy, fes.media.spectrum-tape",
 				"both");
 		// Discovery reads each declared unit's live limits. A freshly programmed
 		// endpoint leaves every implemented unit empty; limits come from Info.
@@ -675,6 +680,11 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 					"unit=" + std::to_string(unit.unit) + " state=" + std::to_string(info.state) +
 						" chunk=" + std::to_string(info.chunk_bytes) + " minimum=" +
 						std::to_string(info.minimum) + " maximum=" + std::to_string(info.maximum));
+			if (error.ok() && unit.interface.id == FesComputerInterfaceMediaAtariStFloppyID &&
+				(info.minimum != FesComputerAtariStFloppyBytes || info.maximum != FesComputerAtariStFloppyBytes))
+				error = Mismatch("Atari ST floppy live limits differ from its contract",
+					"minimum=737280 maximum=737280", "minimum=" + std::to_string(info.minimum) +
+					" maximum=" + std::to_string(info.maximum));
 			if (!error.ok()) break;
 			unit.min_bytes = info.minimum;
 			unit.max_bytes = info.maximum;
@@ -1274,6 +1284,11 @@ Error FesGpCoreDriver::TransferMediaUnit(MediaUnitCapability& unit,
 		info.minimum < FesComputerMediaMinBytes || info.minimum > info.maximum ||
 		info.maximum > FesComputerMediaMaxBytes)
 		return Io("invalid live FES computer media unit limits");
+	if (unit.interface.id == FesComputerInterfaceMediaAtariStFloppyID &&
+		(info.minimum != FesComputerAtariStFloppyBytes || info.maximum != FesComputerAtariStFloppyBytes))
+		return Mismatch("Atari ST floppy live limits differ from its contract",
+			"minimum=737280 maximum=737280", "minimum=" + std::to_string(info.minimum) +
+			" maximum=" + std::to_string(info.maximum));
 	unit.min_bytes = info.minimum;
 	unit.max_bytes = info.maximum;
 	unit.chunk_bytes = info.chunk_bytes;

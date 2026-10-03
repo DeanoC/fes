@@ -42,14 +42,14 @@ class AffectedTests(unittest.TestCase):
             'scripts/sim_fes_native_video.py': {'coleco'},
             'scripts/sim_fes_coleco_native.py': {'coleco'},
             'cores/fes-common/rtl/coleco_vdp.sv': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sg1000', 'sms', 'spectrum'},
+            'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu'},
-            'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong'},
-            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum'},
+            'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu', 'ramtest'},
+            'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong', 'ramtest'},
+            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'},
             'cores/fes-common/rtl/fes_audio_pll.v': {'demo'},
-            'cores/fes-common/rtl/fes_audio_output.v': {'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum'},
+            'cores/fes-common/rtl/fes_audio_output.v': {'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'},
             'cores/fes-common/rtl/fes_sn76489.sv': {'coleco', 'sg1000'},
             'cores/fes-common/rtl/fes_z80_ce.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-pong/sim/board_models.v': {'demo', 'pong'},
@@ -69,22 +69,37 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
-            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum'},
-            'cores/fes-common/rtl/t80pa.v': {'coleco', 'sg1000', 'sms', 'spectrum'},
+            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st'},
+            'cores/fes-common/rtl/t80pa.v': {'coleco', 'sms'},
             'scripts/apple2_slots.py': {'apple2'},
             'scripts/build_apple2_slot_card.py': {'apple2'},
             'scripts/c64_slots.py': {'c64'},
             'scripts/build_c64_slot_card.py': {'c64'},
             'cores/fes-spectrum/rtl/spectrum_machine.sv': {'spectrum'},
             'scripts/spectrum_slots.py': {'spectrum'},
-            'cores/fes-common/rtl/z80/fes_z80_alu.sv': {'z80'},
-            'cores/fes-common/rtl/z80/fes_z80_engine.sv': {'z80'},
-            'cores/fes-common/rtl/z80/new_unit.sv': {'z80'},
+            'cores/fes-common/rtl/z80/fes_z80_alu.sv': {'z80', 'sg1000', 'spectrum'},
+            'cores/fes-common/rtl/z80/fes_z80_engine.sv': {'z80', 'sg1000', 'spectrum'},
+            'cores/fes-common/rtl/z80/new_unit.sv': {'z80', 'sg1000', 'spectrum'},
             'cores/fes-common/sim/z80/cpu_tb.cpp': {'z80'},
             'cores/fes-common/sim/z80/new_fixture.bin': {'z80'},
             'scripts/sim_fes_z80.py': {'z80'},
             'scripts/benchmark_fes_z80.py': {'z80'},
             'scripts/test_fes_z80_vectors.py': {'z80'},
+            'cores/fes-atari-st/rtl/st_machine.sv': {'atari-st'},
+            'cores/fes-atari-st/sim/machine_tb.cpp': {'atari-st'},
+            'cores/fes-c64/rtl/c64_system_pll.v': {'c64', 'atari-st'},
+            'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st'},
+            'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st'},
+            'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest'},
+            'scripts/atari_st_slot.py': {'atari-st'},
+            'scripts/build_atari_st_slot_card.py': {'atari-st'},
+            'scripts/fetch_atari_st_emutos.py': {'atari-st'},
+            'cores/fes-common/rtl/fx68k/fx68k.sv': {'atari-st'},
+            'cores/fes-common/rtl/fx68k/microrom.mem': {'atari-st'},
+            'cores/fes-common/rtl/fes_video_part_direct.v': {'coleco', 'atari-st'},
+            'cores/fes-common/rtl/fes_video_part_scanlines.v': {'coleco', 'atari-st'},
+            'scripts/test_fes_z80_pin_trace.py': {'z80'},
+            'scripts/sim_fes_spectrum_turbo.py': {'spectrum'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):
@@ -99,7 +114,8 @@ class AffectedTests(unittest.TestCase):
                      'scripts/compiler_read_audit.py', 'tests/test_build_fes_sms.py',
                      'tests/test_export_core_package.py', 'tests/test_coleco_sim_shards.py',
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
-                     'tests/test_core_package_v3.py'):
+                     'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
+                     'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])
@@ -144,8 +160,9 @@ class AffectedTests(unittest.TestCase):
             # Demo's recipe delegates to Python. Inspect that script as well as
             # each producer's literal source/include references; never import
             # producer modules (which could have execution side effects).
-            sources = [root / 'scripts' / ('build_fes_' + core + '.py'),
-                       root / 'scripts' / ('build_fes_' + core + '_oss.py')]
+            producer_name = core.replace('-', '_')
+            sources = [root / 'scripts' / ('build_fes_' + producer_name + '.py'),
+                       root / 'scripts' / ('build_fes_' + producer_name + '_oss.py')]
             if core in ('demo', 'menu', 'z80'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':

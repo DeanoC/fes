@@ -829,7 +829,8 @@ the v2 producer and requires fresh selection and image evidence.
 ## FES SG-1000 Quartus oracle and OSS recipe
 
 `cores/fes-sg1000` is the Coleco sibling bring-up for package `fes.sg1000`.
-It reuses Coleco TV80 and the shared TMS9918-style VDP, which renders Graphics
+It selects the first-party original NMOS Z80 and the shared TMS9918-style VDP,
+which renders Graphics
 I, Graphics II, Text and Multicolor on a fixed 256×192 logical raster. Text
 suppresses sprites, Multicolor keeps them active, and unsupported selectors
 render the backdrop. Its 256×262 logical raster shares Coleco's nominal 60 Hz
@@ -846,7 +847,7 @@ The VDP asserts the Z80's maskable INT input; NMI is inactive.
 each machine's simulation includes it.
 
 `make sim-fes-sg1000` is the diagnostic Verilator machine check
-(`-DTV80_REFRESH=1` only). `make sim-fes-sg1000-oss` compiles the same
+(behavioral memory). `make sim-fes-sg1000-oss` compiles the same
 machine with `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` so registered media,
 `coleco_dpram` M10K TDP, and the registered four-copy VDP are the shapes
 Yosys maps. `FES_SG1000_OSS` alone does not select those Coleco wrappers.
@@ -861,19 +862,24 @@ and timing evidence without sealing.
 `make build-fes-sg1000` is the OSS producer
 (`scripts/build_fes_sg1000_oss.py`). It uses `toolchains/registered-memory.lock`
 (Coleco compatibility pin), `constraints-oss.qsf`, and `clocks-oss.sdc`.
-Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`,
-`FES_SG1000_ROM_LINK=1`, and `FES_COLECO_OSS=1`. The product RBF contains a
+Yosys defines `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
+`FES_COLECO_OSS=1`. The cartridge bank-mux output is registered in the system
+domain; its extra system-clock latency fits the native CPU read windows. Both
+fractional CPU half-cycle enables are captured on the rising system edge before
+the CPU and VDP consume them, preserving cadence while giving control paths a
+full system-clock period. The product RBF contains a
 blank 16-lane M10K cartridge, and the format-3 package carries a validated
 `rom-map.json`, exact 16 KiB `cartridge-rom` requirement and required
 `fes.audio.pcm-s16-stereo-48k` 1.0. The ROM-linked build reports GP mask
 `0x13` (keyboard, video, audio), with no media-blob bit. The producer checks
 two PLLs, four routed 3.3 V I2S outputs and passing system, pixel and audio
-timing domains before sealing version 1.2.0. Reset is not held for an
+timing domains before sealing version 1.3.0. Reset is not held for an
 application media upload. The open `sound-16k.rom` diagnostic alternates tone
 and white noise alongside the Graphics I display for a later leased kit check.
-`--synth-only` runs Yosys without a clean tree and does not seal. The selected
-HIP seed 3 must meet the structured 52.224 MHz system, 74.25 MHz pixel and
-12.288 MHz audio timing rows on the exact sealed BUILD_ID. `fes.sg1000` is in the
+`--synth-only` runs Yosys without a clean tree and does not seal. The HIP
+first-pass search tries seeds 2, 3, 4, 1, 5–10 at weight 2000, then weight
+1000, with at most 20 candidates and 1800 seconds per route. It must meet the structured 52.224 MHz system, 74.25 MHz
+pixel and 12.288 MHz audio timing rows on the exact sealed BUILD_ID. `fes.sg1000` is in the
 factory image. A historical
 launch/Stop record does not accept the current bitstream.
 
@@ -1375,7 +1381,7 @@ standalone recipe. Its source set is `pixel_pll.v`, `top.v`, `fes_gp.v`,
 the shared `fes_video_720p.v` and existing `pong_game.sv`, with the generated ABI include
 directory. Yosys receives the build-record-derived 128-bit `BUILD_ID` and
 forbids BRAM, LUTRAM and DSP inference. nextpnr targets `5CSEBA6U23I7` with
-seed 1, `--router gpu`, the task-local QSF, the 50 MHz board SDC and an
+the first passing seed from 1 through 8, `--router gpu`, the task-local QSF, the 50 MHz board SDC and an
 explicit 74.25 MHz target; all outputs stay under `build/fes-pong/`. The route
 log must prove a live HIP backend.
 
@@ -1453,12 +1459,26 @@ of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## FES ZX Spectrum
 
-`cores/fes-spectrum` is `fes.spectrum` 0.1.0, a 48K ZX Spectrum on the same
+`cores/fes-spectrum` is `fes.spectrum` 0.2.0, a 48K ZX Spectrum on the same
 `fes.computer` 1.0 mailbox as the Apple II. The machine, ULA port `$FE`,
 built-in Kempston port, `.tap` player and four edge sockets are described in
 [its README](../cores/fes-spectrum/README.md). It reuses
-`rtl/fes_computer_mailbox.v` with `ENABLE_SPECTRUM_TAPE` and the TV80 already
-used by Coleco, SMS and SG-1000. No Sinclair ROM bytes are in the tree.
+`rtl/fes_computer_mailbox.v` with `ENABLE_SPECTRUM_TAPE` and selects the
+first-party NMOS CPU at native 3.5 MHz cadence by default. The explicit
+`--cpu fast` producer / `make build-fes-spectrum-fast` development lane uses
+the documented-only transaction CPU at 56 MHz, a registered memory/socket
+bridge and independent 3.5 MHz peripheral ticks. WAIT holds phase four until
+readiness and selected read data are captured together; phase five delivers
+the captured byte to the CPU. Internal writes commit once at that delivery,
+while socket STROBE launches once. One inactive clock rearms edge consumers.
+Both modes retain the ROM map and frozen 32/28-bit socket ABI. Normal mode
+uses system/audio and video PLLs. Fast mode uses system and video PLLs, with
+the audio serializer running on the 56 MHz system clock. Rational enables
+produce 48 kHz stereo frames and an average 12.288 MHz MCLK pin waveform;
+MCLK half-periods are two or three system clocks, and BCLK half-periods are
+nine or ten. These outputs do not clock fabric logic. The fast timing gate
+checks the actual 56 and 74.25 MHz domains. CPU mode, clocks, audio schedule
+and resource expectations enter build identity. No Sinclair ROM bytes are in the tree.
 The cassette player selects its pilot length from flag bit 7 and prefetches
 the next byte so each encoded half-pulse keeps its standard ROM width.
 `make sim-fes-spectrum-tape`, included in the aggregate, decodes all pilot,
@@ -1470,7 +1490,10 @@ partial tails and live eject/replacement.
 seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
-Simulation is `make sim-fes-spectrum`. The shell seal is recorded in
+Simulation is `make sim-fes-spectrum`; its turbo regression measures register,
+RAM and expansion-I/O workloads and tests WAIT, ROMCS, pending NMI and native
+frame timing in both modes. Every clock must close before either shell seals.
+The previous TV80 shell seal is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. A kit link of the
 48K BASIC ROM is recorded in
 `docs/validation/2026-09-28-spectrum-basic-kit.md`. Probe cards, keyboard
@@ -1497,6 +1520,53 @@ pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. No Commodore ROM is in the tree, and the core is not in the
 factory image.
+
+## FES Atari 520ST
+
+`cores/fes-atari-st` assembles the original ST's full FX68K 68000 and
+functional chipset in `st_system.sv`. Fractional alternating phase enables
+run an average 8 MHz CPU in the 52.224 MHz system domain. `st_machine.sv`
+latches big-endian bus transactions, applies supervisor protection and the
+ROM-vector alias, rearms between TAS strobes, and implements the original
+MMU's RAM-sizing address aliases. One physical 512 KiB bank is populated;
+configured bank 1 reads all ones. A disconnected cartridge is acknowledged,
+while unclaimed MMIO has a bounded bus-error timeout.
+
+`st_io.sv` connects MFP IRQ6 vectors and timers, functional native VBL/HBL
+autovectors, keyboard/MIDI ACIAs, original IKBD protocol logic, shared YM2149
+sound and WD1772/ST DMA. HID rows settle for 1 ms before keyboard translation.
+CPU RESET resets the devices. The optional expansion exports a wide stable
+request and response through pinned registered boundaries in
+`fes.atari-st-bus.socket/1`; the existing Go linker admits only socket 1 and
+confines its CRAM writes to the shared rectangle.
+
+`st_memory.sv` fairly arbitrates CPU, video, floppy DMA and both media paths
+over the existing addon SDRAM controller at 52.224 MHz. That controller now
+supports optional byte masks, initialization status and idle refresh while
+preserving the RAM tester's default behavior. Warm CPU Hold leaves memory and
+uploads running. Withdrawn requests drain without stale acknowledgements.
+The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the
+big-endian media adapter handles arbitrary odd chunk boundaries before the
+mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability
+bit 7 to the existing computer ABI, without changing its framing/opcodes.
+
+`st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
+owned double line caches between system and 74.25 MHz pixel clocks. Low,
+medium and monochrome displays feed the shared RGB888 direct/scanline output
+parts through two registered boundaries. The board selects its concrete
+video part at build time. Underflow blacks a whole affected line and later
+lines recover; stale fills cannot cross a frame configuration change.
+
+`make sim-fes-atari-st` runs the original CPU firmware and focused device,
+SDRAM-command, dual-clock-video and complete-media tests. Optional EmuTOS
+boot tests use a pinned official 1.4 192 KiB US image, supplied separately
+from the blank firmware socket. FX68K source bytes remain immutable; a
+compiler compatibility input may normalize its two simulation-only legacy
+translate-off/on comments without changing RTL assignments or microcode.
+The board producer must qualify the locked Slang/Yosys frontend, HIP route,
+all clocks and sealed ROM/socket maps. Host simulation does not confer kit
+or appliance hardware acceptance. See [the core README](../cores/fes-atari-st/README.md)
+for maps, commands and the remaining original-ST timing/device limits.
 
 ## Shared native kit client
 
@@ -1623,19 +1693,29 @@ move without changing that shared slot. The different repository-wide
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
-The standalone original Z80 implementation lives in
+The original shared Z80 implementation lives in
 `cores/fes-common/rtl/z80`. `fes_z80_nmos` uses the shared instruction engine
 and original pin-cycle adapter; `fes_z80_fast` selects documented instructions
 and a direct request/completion interface with timing-only cycles removed.
 The [CPU contract](../cores/fes-common/rtl/z80/README.md) describes public ports,
 behavior references, undefined-encoding policy and qualification limits.
 `make sim-fes-z80` exercises both variants and their independent ALU/bus tests.
+The opt-in external-vector runner can also exercise the complete NMOS wrapper,
+checking instruction T counts and ordered bus accesses against locked JSON
+data; its software oracle and simplified strobe observations do not establish
+physical-chip equivalence.
 The contained `scripts/benchmark_fes_z80.py` diagnostic targets Cyclone V and
 records routed timing from exact source/tool snapshots without producing an
-RBF. Existing production CPU consumers and recipes still select TV80/T80;
-there is no CPU package, board acceptance or consumer migration in this change.
-Adding RTL to the conservative shared source closure changes future functional
-build identities even before a console selects it.
+RBF. Its optional `--require-target` timing gate fails if any selected seed
+misses the requested clock, after preserving the reports. The CPU contract
+records the selected 56 MHz route and the limits of its 16-times clock ratio.
+SG-1000 and Spectrum now select the NMOS variant; Spectrum has a separate
+documented-fast development producer. Coleco, SMS and ZX81 retain their existing
+CPU selections. The synthetic raw-pin replay self-test is included in
+`make sim-fes-z80`; operator-supplied genuine-chip captures use the same
+strict half-edge comparator. No physical-chip equivalence is inferred from
+software vectors, synthetic waveforms or a timing-passing FPGA build.
+Shared RTL and producer changes enter the conservative functional source closure.
 
 The source closure includes the shared helper files and `cores/fes-common`.
 Moving these files changes authenticated source paths and therefore changes v2
@@ -1688,7 +1768,8 @@ system identity. FES now selects it as the native image's idle display. It selec
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
 while diagnostics retain their no-GP gate. DDR layout and inactive write/port
-checks remain mandatory in both netlists.
+checks remain mandatory in both netlists. The package routes a first-pass
+pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7, 8.
 
 The optional shared GP hook delegates menu requests to `fes_menu_control` in
 the same pixel-clock domain. Configuration selects fixed slots; sequence ACK

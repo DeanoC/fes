@@ -3,6 +3,7 @@ package input
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/protocol"
@@ -42,10 +43,34 @@ func (s *keyboardHIDSink) setPoster(poster KeyboardHIDPoster) {
 // bind adopts a new generation with every key released. Rebinding the same
 // generation keeps the held state.
 func (s *keyboardHIDSink) bind(binding *KeyboardHIDBinding) {
-	s.mu.Lock()
+	_ = s.bindContext(context.Background(), binding)
+}
+
+func (s *keyboardHIDSink) bindContext(ctx context.Context, binding *KeyboardHIDBinding) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Done() == nil {
+		s.mu.Lock()
+	} else {
+		// A remote HID post holds mu across its runtime write. Observation
+		// refresh under the local lifecycle lock must honor its own budget.
+		tick := time.NewTicker(5 * time.Millisecond)
+		defer tick.Stop()
+		for !s.mu.TryLock() {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-tick.C:
+			}
+		}
+	}
 	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if binding != nil && s.binding != nil && *binding == *s.binding {
-		return
+		return nil
 	}
 	s.binding = nil
 	if binding != nil {
@@ -55,6 +80,7 @@ func (s *keyboardHIDSink) bind(binding *KeyboardHIDBinding) {
 	s.pressed = [sourceCount]map[uint8]bool{}
 	s.dirty = false
 	s.unconfirmed = false
+	return nil
 }
 
 func (s *keyboardHIDSink) bound() bool {

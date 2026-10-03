@@ -3,9 +3,12 @@ package input
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
+	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/joymatrix"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
@@ -26,6 +29,9 @@ type ControllerBinding struct {
 type CoreObservation struct {
 	Active   bool
 	Keyboard bool
+	CoreID   string
+	// Generation distinguishes a reload of the same matrix core.
+	Generation uint64
 	// KeyboardHID names the generation when fes.keyboard.hid 1.0 is active.
 	KeyboardHID *KeyboardHIDBinding
 	Binding     *ControllerBinding
@@ -53,17 +59,24 @@ type controllerPortsSink struct {
 	// publishSeq is the newest set_controller decision for a port.
 	// inflight counts poster calls that have not rejoined mu.
 	// haltPublish rejects new posts while ReleaseAll neutralizes.
-	publishSeq     [controllerPortCount]uint64
-	inflight       [controllerPortCount]int
-	haltPublish    bool
-	keyboard       bool
-	keyboardHID    bool
-	coreActive     bool
-	observed       bool
-	displayFocused bool
-	keys           *KeyboardSink
-	hid            *keyboardHIDSink
-	pads           *padMerge
+	publishSeq           [controllerPortCount]uint64
+	inflight             [controllerPortCount]int
+	haltPublish          bool
+	keyboard             bool
+	coreID               string
+	localMatrix          remoteinput.State
+	localKeys            map[remoteinput.Code]bool
+	pendingMatrixNeutral bool
+	coreGeneration       uint64
+	keyboardHID          bool
+	hidBinding           *KeyboardHIDBinding
+	coreActive           bool
+	observed             bool
+	observedAt           time.Time
+	displayFocused       bool
+	keys                 *KeyboardSink
+	hid                  *keyboardHIDSink
+	pads                 *padMerge
 }
 
 func (s *controllerPortsSink) bind(binding *ControllerBinding) error {
@@ -92,15 +105,71 @@ func sameBinding(left, right *ControllerBinding) bool {
 }
 
 func (s *controllerPortsSink) setObservation(obs CoreObservation) {
+	_ = s.setObservationContext(context.Background(), obs)
+}
+
+func (s *controllerPortsSink) setObservationContext(ctx context.Context, obs CoreObservation) error {
+	return s.updateObservationContext(ctx, obs, true)
+}
+
+func (s *controllerPortsSink) invalidateObservationContext(ctx context.Context) error {
+	return s.updateObservationContext(ctx, CoreObservation{}, false)
+}
+
+func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs CoreObservation, confirmed bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.keyboard = obs.Keyboard
-	s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
-	if s.hid != nil {
-		s.hid.bind(obs.KeyboardHID)
+	if s.hid != nil && !sameHIDBinding(s.hidBinding, obs.KeyboardHID) {
+		if err := s.hid.bindContext(ctx, obs.KeyboardHID); err != nil {
+			return err
+		}
+		s.hidBinding = nil
+		if obs.KeyboardHID != nil {
+			copy := *obs.KeyboardHID
+			s.hidBinding = &copy
+		}
 	}
+	sameMatrixCore := obs.Active && obs.Keyboard && obs.CoreID == s.coreID && obs.Generation == s.coreGeneration
+	if confirmed && !sameMatrixCore && s.keys != nil {
+		// Physical keyboard holds belong to that core too. Observation proves
+		// its matrix has retired; discard both local contributions without a post.
+		s.keys.forgetSource(sourceLocal)
+		s.keys.forgetSource(sourceLocalMatrix)
+	}
+	if (len(s.localKeys) != 0 || len(s.localMatrixKeysLocked()) != 0 || s.pendingMatrixNeutral) &&
+		(!confirmed || !sameMatrixCore || s.pendingMatrixNeutral) {
+		// Stop replaying old pad holds as soon as observation becomes uncertain.
+		// A failed neutral post still needs retry on the same observed core.
+		s.localMatrix.ReleaseAll()
+		if (!confirmed || sameMatrixCore) && s.keys != nil {
+			s.pendingMatrixNeutral = true
+			if err := s.keys.releaseSourceContext(ctx, sourceLocalMatrix); err != nil {
+				s.observed = false
+				return err
+			}
+		}
+		s.localKeys = nil
+		s.pendingMatrixNeutral = false
+	}
+	if confirmed {
+		s.keyboard = obs.Keyboard
+		s.coreID = obs.CoreID
+		s.coreGeneration = obs.Generation
+	}
+	s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
 	s.coreActive = obs.Active
+	// A negative result can still be cached once no neutral write is pending.
+	// Failed neutral writes return above with the cache invalidated.
 	s.observed = true
+	s.observedAt = time.Now()
+	return nil
+}
+
+func sameHIDBinding(left, right *KeyboardHIDBinding) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 // keyboardModeLocked selects the keyboard shaping from the observed contract.
@@ -121,10 +190,10 @@ func (s *controllerPortsSink) hasBinding() bool {
 	return s.binding != nil
 }
 
-func (s *controllerPortsSink) cachedActive() bool {
+func (s *controllerPortsSink) cachedObservation() (active, fresh bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.observed && s.coreActive && s.binding == nil
+	return s.coreActive, s.observed && time.Since(s.observedAt) < localCoreObserveTTL
 }
 
 func (s *controllerPortsSink) resetSourcesLocked() {
@@ -152,6 +221,13 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 		ctx = context.Background()
 	}
 	s.mu.Lock()
+	if remoteinput.IsLocalPlayerDeparture(frameEvent(f)) {
+		defer s.mu.Unlock()
+		if source != sourceLocal {
+			return bridge.RejectInput("player departure requires the local input socket")
+		}
+		return s.releaseLocalPlayerLocked(ctx, f.Player)
+	}
 	shaped, ok := s.shapeLocked(source, f)
 	if s.displayFocused && ok && !keyboardFrame(shaped) {
 		s.mu.Unlock()
@@ -172,9 +248,87 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 		return nil
 	}
 	if s.binding == nil {
+		if source == sourceLocal && s.localMatrixRouteLocked() && shaped.Device == uint8(remoteinput.DeviceGamepad) {
+			return s.applyLocalMatrixLocked(ctx, shaped)
+		}
 		return s.applyUnboundLocked(ctx, source, shaped)
 	}
 	return s.applyPortsLocked(ctx, source, shaped)
+}
+
+func (s *controllerPortsSink) releaseLocalPlayerLocked(ctx context.Context, player uint8) error {
+	if s.binding == nil {
+		if s.localMatrixRouteLocked() {
+			// Releases preceding the marker normally emptied this player's state.
+			// Clear any remaining contribution without touching the other pad.
+			for _, code := range s.localMatrix.SnapshotForPlayer(player).Pressed {
+				_ = s.localMatrix.Apply(remoteinput.Event{Player: player, Device: remoteinput.DeviceGamepad,
+					Kind: remoteinput.KindButton, Action: remoteinput.ActionRelease, Code: code})
+			}
+			for _, code := range []remoteinput.Code{remoteinput.AxisLeftX, remoteinput.AxisLeftY} {
+				_ = s.localMatrix.Apply(remoteinput.Event{Player: player, Device: remoteinput.DeviceGamepad,
+					Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: code})
+			}
+			return s.publishLocalMatrixLocked(ctx)
+		}
+		return nil
+	}
+	// The hub sends this after the departed pad's releases and zero axes.
+	// Keep the remaining source state: a physical keyboard can also contribute
+	// shaped controls on this player, and it has not disconnected.
+	s.localClaim[player] = false
+	return s.publishAllLocked(ctx)
+}
+
+func (s *controllerPortsSink) applyLocalMatrixLocked(ctx context.Context, f protocol.InputFrame) error {
+	if err := s.localMatrix.Apply(frameEvent(f)); err != nil {
+		return err
+	}
+	return s.publishLocalMatrixLocked(ctx)
+}
+
+func (s *controllerPortsSink) localMatrixRouteLocked() bool {
+	return s.binding == nil && s.coreActive && s.keyboard && joymatrix.Supports(s.coreID) && s.keys != nil
+}
+
+func (s *controllerPortsSink) localMatrixKeysLocked() map[remoteinput.Code]bool {
+	desired := make(map[remoteinput.Code]bool)
+	for player := uint8(0); player < controllerPortCount; player++ {
+		for code := range joymatrix.Desired(s.coreID, s.localMatrix.SnapshotForPlayer(player)) {
+			desired[code] = true
+		}
+	}
+	return desired
+}
+
+func (s *controllerPortsSink) publishLocalMatrixLocked(ctx context.Context) error {
+	desired := s.localMatrixKeysLocked()
+	var removed, added []remoteinput.Code
+	for code := range s.localKeys {
+		if !desired[code] {
+			removed = append(removed, code)
+		}
+	}
+	for code := range desired {
+		if !s.localKeys[code] {
+			added = append(added, code)
+		}
+	}
+	sort.Slice(removed, func(i, j int) bool { return removed[i] < removed[j] })
+	sort.Slice(added, func(i, j int) bool { return added[i] < added[j] })
+	for _, transition := range []struct {
+		codes  []remoteinput.Code
+		action remoteinput.Action
+	}{{removed, remoteinput.ActionRelease}, {added, remoteinput.ActionPress}} {
+		for _, code := range transition.codes {
+			frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey), Action: uint8(transition.action), Code: uint16(code)}
+			if err := s.keys.ApplyFrom(ctx, sourceLocalMatrix, frame); err != nil {
+				return err
+			}
+		}
+	}
+	s.localKeys = desired
+	return nil
 }
 
 // shapeLocked rewrites raw frames with the same playhid mapping the host used
@@ -186,7 +340,7 @@ func (s *controllerPortsSink) shapeLocked(source inputSource, f protocol.InputFr
 		return f, true
 	}
 	event := frameEvent(f)
-	if source == sourceLocal && s.binding == nil {
+	if source == sourceLocal && s.binding == nil && !(s.localMatrixRouteLocked() && event.Device == remoteinput.DeviceGamepad) {
 		event.Player = 0
 	}
 	shaped, ok := playhid.StreamEvent(event, s.keyboardModeLocked())
@@ -249,6 +403,14 @@ func (s *controllerPortsSink) applyPortsLocked(ctx context.Context, source input
 	}
 	port, ok := remotePort(event.Player, s.localClaim)
 	if !ok {
+		// A local claim can temporarily exclude a previously mapped remote
+		// player. Its releases still retire retained holds, so reopening a
+		// port cannot replay a button or stick the sender already released.
+		if event.Action == remoteinput.ActionRelease || (event.Kind == remoteinput.KindAxis && event.Value == 0) {
+			if err := s.sources[source].Apply(event); err != nil {
+				return err
+			}
+		}
 		return bridge.RejectInput("no free controller port")
 	}
 	if err := s.sources[source].Apply(event); err != nil {
@@ -407,19 +569,39 @@ func (s *controllerPortsSink) releaseSource(source inputSource) error {
 	}
 	s.sources[source].ReleaseAll()
 	if source == sourceLocal {
+		s.localMatrix.ReleaseAll()
 		s.localClaim = [controllerPortCount]bool{}
+		if s.binding != nil || s.keys == nil {
+			s.localKeys = nil
+			s.pendingMatrixNeutral = false
+		}
 	}
 	if s.binding == nil {
+		var result error
 		if s.keys != nil {
-			_ = s.keys.ReleaseSource(source)
+			if source == sourceLocal {
+				// One full matrix post retires pad and physical-keyboard holds.
+				// Disconnect does not prove the core retired, so failure still
+				// needs the same observation-driven retry as a local timeout.
+				s.pendingMatrixNeutral = true
+				result = s.keys.releaseSourcesContext(context.Background(), sourceLocal, sourceLocalMatrix)
+				if result == nil {
+					s.localKeys = nil
+					s.pendingMatrixNeutral = false
+				} else {
+					s.observed = false
+				}
+			} else {
+				_ = s.keys.ReleaseSource(source)
+			}
 		}
 		if s.pads != nil {
-			return s.pads.ReleaseSource(source)
+			return errors.Join(result, s.pads.ReleaseSource(source))
 		}
 		if s.fallback != nil && s.keys == nil && s.pads == nil {
 			return s.fallback.ReleaseAll()
 		}
-		return nil
+		return result
 	}
 	// Disconnect and local-socket close are not a frame held under the
 	// lifecycle lock. The host poster keeps its own deadline.
@@ -435,11 +617,23 @@ func (s *controllerPortsSink) ReleaseAll() error {
 	s.initPublishLocked()
 	s.displayFocused = false
 	s.keyboardHID = false
+	s.hidBinding = nil
 	if s.binding == nil {
 		s.resetSourcesLocked()
+		s.localMatrix.ReleaseAll()
+		s.localKeys = nil
+		s.pendingMatrixNeutral = false
 		s.coreActive = false
 		s.observed = false
 		s.keyboard = false
+		s.coreID = ""
+		s.coreGeneration = 0
+		if s.keys != nil {
+			_ = s.keys.ReleaseAll()
+		}
+		if s.pads != nil {
+			_ = s.pads.ReleaseAll()
+		}
 		if s.fallback == nil {
 			return nil
 		}
@@ -472,10 +666,15 @@ func (s *controllerPortsSink) ReleaseAll() error {
 	}
 	if result == nil {
 		s.resetSourcesLocked()
+		s.localMatrix.ReleaseAll()
+		s.localKeys = nil
+		s.pendingMatrixNeutral = false
 		s.binding = nil
 		s.coreActive = false
 		s.observed = false
 		s.keyboard = false
+		s.coreID = ""
+		s.coreGeneration = 0
 	}
 	if s.keys != nil {
 		_ = s.keys.ReleaseAll()

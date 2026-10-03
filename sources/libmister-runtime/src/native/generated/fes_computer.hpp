@@ -100,6 +100,8 @@ constexpr std::uint32_t FesComputerSpectrumTapeMinBytes = 0x1u;
 constexpr std::uint32_t FesComputerSpectrumTapeMaxBytes = 0x10000u;
 constexpr std::uint32_t FesComputerC64DiskUnit = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskBytes = 0x2ab00u;
+constexpr std::uint32_t FesComputerAtariStFloppyUnit = 0x0u;
+constexpr std::uint32_t FesComputerAtariStFloppyBytes = 0xb4000u;
 constexpr const char* FesComputerInterfaceVideoFixed720p60ID = "fes.video.fixed-720p60";
 constexpr std::uint16_t FesComputerInterfaceVideoFixed720p60Major = 1u;
 constexpr std::uint16_t FesComputerInterfaceVideoFixed720p60Minor = 0u;
@@ -128,6 +130,10 @@ constexpr const char* FesComputerInterfaceMediaC64DiskID = "fes.media.c64-disk";
 constexpr std::uint16_t FesComputerInterfaceMediaC64DiskMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaC64DiskMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaC64Disk = 0x40u;
+constexpr const char* FesComputerInterfaceMediaAtariStFloppyID = "fes.media.atari-st-floppy";
+constexpr std::uint16_t FesComputerInterfaceMediaAtariStFloppyMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaAtariStFloppyMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaAtariStFloppy = 0x80u;
 
 } // namespace generated
 } // namespace native

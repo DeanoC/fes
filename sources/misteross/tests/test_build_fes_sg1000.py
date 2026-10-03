@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import copy
+import json
 import tomllib
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 
@@ -22,6 +24,8 @@ from scripts.build_fes_sg1000_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
     PINNED_INPUTS as OSS_PINNED_INPUTS,
     RTL_SOURCES as OSS_RTL_SOURCES,
+    PLACER_SEEDS,
+    PLACER_QOR_CLOCKS,
     SEED,
     SG1000_GPU_ARCHITECTURES,
     SG1000_GPU_BACKEND,
@@ -124,19 +128,25 @@ class BuildFesSg1000Tests(unittest.TestCase):
         program = yosys[2]
         self.assertIn("sg1000_machine.sv", program)
         self.assertIn("cores/fes-sg1000/rtl/top.v", program)
-        self.assertIn("tv80_core.v", program)
+        self.assertIn("z80/fes_z80_nmos.sv", program)
+        self.assertNotIn("tv80", program)
+        self.assertNotIn("t80pa", program)
         self.assertIn("coleco_vdp.sv", program)
         self.assertIn("coleco_dpram.v", program)
         self.assertIn("-DFES_SG1000_OSS=1", program)
         self.assertIn("-DFES_SG1000_ROM_LINK=1", program)
         self.assertIn("cores/fes-sg1000/rtl/sg1000_rom_link.v", OSS_RTL_SOURCES)
         self.assertIn("-DFES_COLECO_OSS=1", program)
-        self.assertIn("-DTV80_REFRESH=1", program)
+        self.assertNotIn("TV80_REFRESH", program)
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
-        self.assertEqual(SEED, 3)
+        self.assertEqual(PLACER_SEEDS, (2, 3, 4, 1, 5, 6, 7, 8, 9, 10))
+        self.assertEqual(PLACER_QOR_CLOCKS, (("system_clock.clocks[0]", 52.224), (None, 74.25), ("system_clock.clocks[1]", 12.288)))
+        self.assertEqual(SEED, PLACER_SEEDS[0])
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
+        self.assertEqual(nextpnr[nextpnr.index("--placer-heap-timingweight") + 1], "2000")
+        self.assertEqual(nextpnr[nextpnr.index("--placer-heap-critexp") + 1], "5")
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertIn("--timing-allow-fail", nextpnr)
         self.assertNotIn("--tmg-ripup", nextpnr)
@@ -147,6 +157,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(SG1000_TOOLCHAIN_LOCK, "toolchains/registered-memory.lock")
         self.assertEqual(SG1000_TOOLCHAIN_ROOT, "build/toolchain/fes-sg1000")
         self.assertIn(SG1000_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
+        self.assertIn("scripts/search_placer_qor.py", OSS_PINNED_INPUTS)
         self.assertEqual(SG1000_TOOL_COMMITS["yosys"], "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
         self.assertEqual(SG1000_TOOL_COMMITS["nextpnr"], "a93fe013af841214ecb4f7be3af0de65f3de3a0f")
         pins = load_lock(ROOT / SG1000_TOOLCHAIN_LOCK)
@@ -164,6 +175,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
             {"yosys": "test"}, execution=EXECUTION,
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
+        self.assertEqual(json.loads(record)['parameters']['seed_order'], '2,3,4,1,5,6,7,8,9,10')
         self.assertIn(b'"router":"gpu"', record)
         self.assertIn(b'"gpu_backend":"hip"', record)
         self.assertIn(b'"package_format":3', record)
@@ -173,6 +185,88 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("cores/fes-sg1000/rtl/top.v", OSS_RTL_SOURCES)
         self.assertIn("cores/fes-sg1000/rtl/sg1000_machine.sv", OSS_RTL_SOURCES)
         self.assertIn("cores/fes-common/rtl/fes_z80_ce.sv", OSS_RTL_SOURCES)
+
+    def test_oss_routes_bounded_first_pass_ladder(self) -> None:
+        invocation = FakeInvocation({}, 1)
+        with patch.object(build_fes_sg1000_oss, 'route_after_synth') as route:
+            build_fes_sg1000_oss._route_placement(ROOT, ROOT / OSS_OUTPUT,
+                Path('/nextpnr'), invocation, 1)
+        options = route.call_args.kwargs
+        self.assertEqual(options['seeds'], (2, 3, 4, 1, 5, 6, 7, 8, 9, 10))
+        self.assertEqual(options['weights'], (2000, 1000))
+        self.assertEqual(options['critexp'], 5)
+        self.assertEqual(options['mode'], 'first-pass')
+        self.assertEqual(options['required'], (("system_clock.clocks[0]", 52.224), (None, 74.25), ("system_clock.clocks[1]", 12.288)))
+        self.assertEqual(options['budget'], 20)
+        self.assertEqual(options['timeout'], 1800)
+        self.assertEqual(options['extra'], ('--router', 'gpu'))
+        self.assertEqual(options['gpu_devices'], (1,))
+        self.assertEqual(options['env'], invocation.env)
+        self.assertEqual(options['audit_source_root'], ROOT)
+
+    def test_oss_prepare_rejects_dangling_output_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / build_fes_sg1000_oss.OUTPUT_RELATIVE
+            output.mkdir(parents=True)
+            (output / "qor-ranking.json").symlink_to(root / "missing-target.json")
+            with self.assertRaisesRegex(build_fes_sg1000_oss.BuildError, "regular file"):
+                build_fes_sg1000_oss._prepare_output(root)
+            self.assertFalse((root / "missing-target.json").exists())
+
+    def test_bounded_search_policy_is_in_functional_build_identity(self) -> None:
+        producer = build_fes_sg1000_oss
+        with patch.object(producer, "functional_record_fields",
+                          side_effect=lambda root, fields, *a, **k: fields):
+            record = producer.create_build_record(ROOT, "https://example.invalid/fes",
+                "a" * 40, {"yosys": "y", "nextpnr": "n", "mistral": "m"})
+            with patch.object(producer, "PLACER_TIMING_WEIGHTS", (1000, 2000)):
+                other = producer.create_build_record(ROOT, "https://example.invalid/fes",
+                    "a" * 40, {"yosys": "y", "nextpnr": "n", "mistral": "m"})
+            with patch.object(producer, "ROUTE_TIMEOUT_SECONDS", 600):
+                shorter = producer.create_build_record(ROOT, "https://example.invalid/fes",
+                    "a" * 40, {"yosys": "y", "nextpnr": "n", "mistral": "m"})
+        self.assertNotEqual(producer.build_identity(record), producer.build_identity(other))
+        self.assertNotEqual(producer.build_identity(record), producer.build_identity(shorter))
+        params = json.loads(record)["parameters"]
+        self.assertEqual(params["seed_order"], "2,3,4,1,5,6,7,8,9,10")
+        self.assertEqual(params["placer_heap_timingweights"], "2000,1000")
+        self.assertEqual(params["placer_qor_budget"], 20)
+        self.assertEqual(params["placer_qor_mode"], "first-pass")
+        self.assertEqual(params["placer_qor_workers"], 1)
+        self.assertEqual(params["route_timeout_seconds"], 1800)
+        self.assertEqual(params["placer_qor_clocks"],
+            "system_clock.clocks[0]:52.224,:74.25,system_clock.clocks[1]:12.288")
+
+    def test_final_clock_gate_rejects_each_missing_or_failing_domain(self) -> None:
+        producer = build_fes_sg1000_oss
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / "routed.json").write_text('{"modules":{"top":{"cells":{}}}}')
+            (output / "core.rbf").write_bytes(b"rbf")
+            (output / "nextpnr.log").write_text(
+                "Info: Program finished normally.\n50 MHz -> 52.224 MHz\n")
+            clocks = {name: {"constraint": mhz, "achieved": mhz + 1}
+                for name, mhz in (("system_clock.clocks[0]", 52.224),
+                                 ("pixel", 74.25), ("system_clock.clocks[1]", 12.288))}
+            def save(fmax):
+                (output / "timing.json").write_text(json.dumps({"fmax": fmax,
+                    "utilization": {"MISTRAL_FF": {"used": 10, "available": 100}}}))
+            with patch.object(producer, "validate_synth_evidence", return_value={"synthesis_cells": {}}), \
+                 patch.object(producer, "_i2c_evidence"), \
+                 patch.object(producer, "_audio_evidence"), \
+                 patch.object(producer, "_require_gpu_backend", return_value="hip"):
+                save(clocks)
+                self.assertEqual(producer.validate_build_evidence(output)["status"], "pass")
+                for name in clocks:
+                    wrong = copy.deepcopy(clocks)
+                    wrong.pop(name)
+                    save(wrong)
+                    with self.assertRaises(BuildError): producer.validate_build_evidence(output)
+                    wrong = copy.deepcopy(clocks)
+                    wrong[name]["achieved"] = wrong[name]["constraint"] - 0.001
+                    save(wrong)
+                    with self.assertRaises(BuildError): producer.validate_build_evidence(output)
 
     def test_oss_manifest_requires_linked_cartridge_without_media_mailbox(self) -> None:
         record = b'{"recipe_sha256":"' + b"b" * 64 + b'"}'
@@ -184,7 +278,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         }
         manifest = tomllib.loads(_oss_manifest(record, evidence, "https://example.invalid", "a" * 40, {"yosys": "test"}).decode())
         self.assertEqual(manifest["format"], 3)
-        self.assertEqual(manifest["core"]["version"], "1.2.0")
+        self.assertEqual(manifest["core"]["version"], "1.3.0")
         self.assertEqual(manifest["rom"]["source_size"], 16384)
         self.assertEqual({item["id"] for item in manifest["interfaces"]},
                          {"fes.keyboard", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"})
@@ -239,7 +333,9 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("cores/fes-sg1000/rtl/sg1000_machine.sv", qsf)
         self.assertIn("cores/fes-common/rtl/fes_z80_ce.sv", qsf)
         self.assertIn("cores/fes-sg1000/rtl/top.v", qsf)
-        self.assertIn("cores/fes-common/rtl/tv80/tv80_core.v", qsf)
+        self.assertIn("cores/fes-common/rtl/z80/fes_z80_nmos.sv", qsf)
+        self.assertNotIn("tv80", qsf)
+        self.assertNotIn("t80pa", qsf)
         self.assertIn("cores/fes-common/rtl/coleco_vdp.sv", qsf)
         self.assertIn("cores/fes-common/rtl/fes_computer_gp.v", qsf)
         self.assertNotIn("VHDL_FILE", qsf)
