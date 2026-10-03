@@ -82,6 +82,8 @@ schema. Play input from a pad on the kit uses the local socket described below.
 `fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. While that core is running, tenfoot polls `GET /v1/local/status` about once a second and resumes presents if the session is idle or stop returns in use. The default grid also plays available kit-local SMS rows through that socket from browse and detail (attract stays host-only while offline; fes#442). Select+Start stops local play; stop, failure or idle local status returns to the menu.
 Host endpoint configuration is explicit; target discovery is separate.
 
+With the host up, a browse-only SMS row can still play on the kit when its cartridge bytes match a kit-local catalog entry. The kit checks the host row's ROM SHA-256 only when Play is pressed, then launches the matched local entry through local control and keeps pad input on the kit. A definitive miss says “Not on this kit”; an identity check failure is reported separately.
+
 ## Physical controls
 
 Every eligible physical evdev gamepad is opened; polls merge in stable device

@@ -221,6 +221,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	m.Cache = mergeCacheStatus(c.Cache, hostclient.LibraryCache{}, false)
 	paintKitHDMI(m)
 	localGames, localPath, closeLocal := bootLocalCatalog(ctx, c)
+	matcher := &localROMMatcher{}
 	if closeLocal != nil {
 		defer closeLocal()
 	}
@@ -374,7 +375,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			localPending = true
 			go func() {
 				o := observation{epoch: e, mutation: true, localAction: action}
-				o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
+				if action == "local-launch" {
+					var fetch func(context.Context, string) (string, error)
+					if c.Library != nil {
+						fetch = c.Library.GameROMHash
+					}
+					o.localErr = launchMatchedLocalGame(ctx, c.LocalCores, fetch, localPath, localGames, matcher, id)
+					if o.localErr != nil {
+						log.Printf("kit local cartridge launch failed game_id=%q", boundedSessionText(id, 160))
+					}
+				} else {
+					o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
+				}
 				if o.localErr != nil {
 					o.message = localCoreMessage(o.localErr)
 					if action == "local-launch" {
@@ -775,6 +787,17 @@ func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve fu
 
 var errSMSCoreMissing = errors.New("sms core missing")
 var errCartridgeMissing = errors.New("cartridge missing")
+var errNotOnKit = errors.New("not on this kit")
+var errCartridgeCheck = errors.New("cartridge check failed")
+
+func containsLocalID(games []hostclient.Game, id string) bool {
+	for _, game := range games {
+		if game.ID == id {
+			return true
+		}
+	}
+	return false
+}
 
 func localCoreMessage(err error) string {
 	switch {
@@ -782,6 +805,10 @@ func localCoreMessage(err error) string {
 		return "The Master System core is not installed."
 	case errors.Is(err, errCartridgeMissing), errors.Is(err, localcores.ErrNotFound):
 		return "Cartridge is missing"
+	case errors.Is(err, errNotOnKit):
+		return "Not on this kit"
+	case errors.Is(err, errCartridgeCheck):
+		return "Could not check this kit's cartridges"
 	case errors.Is(err, localcores.ErrInUse):
 		return "Kit is in use"
 	case errors.Is(err, localcores.ErrBlocked):
