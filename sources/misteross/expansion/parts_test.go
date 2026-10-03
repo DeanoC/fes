@@ -121,6 +121,57 @@ func TestNativePartsClosedLayoutAndFence(t *testing.T) {
 	}
 }
 
+func TestNativePartsRetainAllRoutedBits(t *testing.T) {
+	shell := partsShell(t)
+	shell.Layout = ColecoNativeVideoLayout
+	// These exact in-fence bits were present in the routed Direct/Scanlines
+	// artifacts but were discarded by the legacy column-wide exclusions.
+	for name, points := range map[string][]cramCoordinate{
+		"direct": {{3772, 2390}, {3773, 2392}, {3764, 2476}, {3764, 2478}},
+		"scanlines": {{3772, 2562}, {3773, 2564}, {3764, 2648}, {3764, 2650},
+			{3764, 2701}, {3764, 2703}, {3772, 2812}, {3773, 2814}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			video := fixturePart(t, shell, PartRoleVideo, points...)
+			_, linked, err := ComposePartsContext(context.Background(), shell, []Asset{video})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(linked, video.Cart) {
+				t.Fatal("native overlay differs from the fully confined routed artifact")
+			}
+		})
+	}
+	for _, point := range []cramCoordinate{{3764, 1799}, {3772, 3442}, {3921, 2000}, {4171, 2000}} {
+		t.Run(fmt.Sprintf("outside-%d-%d", point.x, point.y), func(t *testing.T) {
+			video := fixturePart(t, shell, PartRoleVideo, point)
+			if _, _, err := ComposePartsContext(context.Background(), shell, []Asset{video}); err == nil {
+				t.Fatal("native overlay ignored an outside write in a legacy-excluded column")
+			}
+		})
+	}
+}
+
+func TestRasterPartsKeepLegacyCompanionPolicy(t *testing.T) {
+	shell := partsShell(t)
+	video := fixturePart(t, shell, PartRoleVideo, cramCoordinate{2000, 2000})
+	card := fixturePart(t, shell, PartRoleExpansion, cramCoordinate{2000, 100})
+	_, expected, err := ComposePartsContext(context.Background(), shell, []Asset{video, card})
+	if err != nil {
+		t.Fatal(err)
+	}
+	companions := []cramCoordinate{{3764, 2476}, {3772, 2562}, {3921, 2000}, {4171, 2000}}
+	dirtyVideo := fixturePart(t, shell, PartRoleVideo, append([]cramCoordinate{{2000, 2000}}, companions...)...)
+	dirtyCard := fixturePart(t, shell, PartRoleExpansion, append([]cramCoordinate{{2000, 100}}, companions...)...)
+	_, linked, err := ComposePartsContext(context.Background(), shell, []Asset{dirtyVideo, dirtyCard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(linked, expected) {
+		t.Fatal("native strict policy changed legacy raster/CPU overlay bytes")
+	}
+}
+
 func TestNativePartsROMExcludesWiderVideoFence(t *testing.T) {
 	base, mapping := romFixture()
 	shell := partsShell(t)

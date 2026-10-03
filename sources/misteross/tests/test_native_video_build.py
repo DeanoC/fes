@@ -10,31 +10,39 @@ import unittest
 from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_video_part as part
 from scripts import native_video_parts as native, video_parts as raster
-from scripts.cyclonev_rbf import SX120F, CramRect, LoadedRbf, cram_get, cram_set, overlay_cram
+from scripts.cyclonev_rbf import SX120F, CramRect, LoadedRbf, classify_cram_diff, cram_set, overlay_cram
 
 
 class NativeVideoProducerTest(unittest.TestCase):
-    def test_wide_preview_preserves_exact_target_checksum_companions(self):
+    def test_native_preview_preserves_real_routing_in_legacy_excluded_column(self):
         size = (SX120F.cram_sx * SX120F.cram_sy + 7) // 8
         base = LoadedRbf(SX120F, b"header", bytearray(size), True)
         cart = LoadedRbf(SX120F, b"header", bytearray(size), True)
-        self.assertEqual(part.PARTS_CRC_COMPANION_RANGES,
-                         ((3488, 3847), (3921, 3980), (4171, 4471)))
-        # Both range boundaries matter. Do not widen the exclusions to the
-        # independent classifier's ECC list (which also lists tile column43).
-        for start, end in part.PARTS_CRC_COMPANION_RANGES:
-            for x in (start - 1, start, end - 1, end):
-                cram_set(cart.cram, SX120F, x, 2000, 1)
-            cram_set(base.cram, SX120F, start, 2001, 1)
-        linked = overlay_cram(base, cart, CramRect(3400, 2000, 4500, 2002),
-                              preserve_x_ranges=part.PARTS_CRC_COMPANION_RANGES)
-        for start, end in part.PARTS_CRC_COMPANION_RANGES:
-            for x in (start - 1, end):
-                self.assertEqual(cram_get(linked.cram, SX120F, x, 2000), 1)
-            for x in (start, end - 1):
-                self.assertEqual(cram_get(linked.cram, SX120F, x, 2000), 0)
-            self.assertEqual(cram_get(linked.cram, SX120F, start, 2001), 1)
-        self.assertEqual(base.cram.count(0), size - 3)
+        # Exact Direct route bits discarded by the old whole-column policy;
+        # physical capture showed framebuffer data bit3 stuck high as a result.
+        for x, y in ((3772, 2390), (3773, 2392), (3764, 2476), (3764, 2478)):
+            cram_set(cart.cram, SX120F, x, y, 1)
+        rect = CramRect(*native.CRAM)
+        strict = classify_cram_diff(base, cart, rect, ignore_ecc_columns=False)
+        self.assertEqual((strict["bits_inside_slot"], strict["bits_outside_slot"]), (4, 0))
+        linked = overlay_cram(base, cart, rect)
+        self.assertEqual(linked.cram, cart.cram)
+        self.assertEqual(base.cram, bytearray(size))
+        # Preserve the old classifier default for unrelated legacy producers.
+        self.assertTrue(classify_cram_diff(base, cart, rect)["identical"])
+
+    def test_native_rejects_outside_bits_even_in_legacy_excluded_columns(self):
+        size = (SX120F.cram_sx * SX120F.cram_sy + 7) // 8
+        base = LoadedRbf(SX120F, b"header", bytearray(size), True)
+        cart = LoadedRbf(SX120F, b"header", bytearray(size), True)
+        coordinates = ((3772, 3442), (3921, 2390), (4174, 2390))
+        for x, y in coordinates:
+            cram_set(cart.cram, SX120F, x, y, 1)
+        strict = classify_cram_diff(base, cart, CramRect(*native.CRAM),
+            ignore_ecc_columns=False, include_outside_coordinates=True)
+        self.assertEqual(strict["bits_outside_slot"], len(coordinates))
+        self.assertEqual({tuple(point) for point in strict["outside_slot_coordinates"]}, set(coordinates))
+        self.assertTrue(classify_cram_diff(base, cart, CramRect(*native.CRAM))["identical"])
 
     def test_shell_compiles_source_and_cdc_without_inline_framebuffer(self):
         tools = {name: Path("/tool") / name for name in ("yosys", "nextpnr-mistral")}

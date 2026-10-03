@@ -37,9 +37,6 @@ NATIVE_INPUTS = (*NATIVE_SOURCES, "cores/fes-common/generated/fes_native_video.v
 OUTPUTS = ("cart.json", "cart-synth.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
            "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
            "scaffold.json", "cart.qsf", "cram-diff.json")
-# Match expansion/rbf.go crcCompanionColumn, used by ComposePartsContext.
-# The native fence crosses the first range; the small raster fence does not.
-PARTS_CRC_COMPANION_RANGES = ((3488, 3847), (3921, 3980), (4171, 4471))
 
 
 def write_cram_report(output: Path, cart: bytes, changes: dict, *, part_id: str | None = None, layout=video_parts) -> Path:
@@ -217,11 +214,17 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         base, placed = rbf_load(package.payload_bytes), rbf_load(cart)
         if base.header != placed.header:
             raise ValueError("video part changes shell ORAM/PRAM header")
-        changes = classify_cram_diff(base, placed, CramRect(*layout.CRAM), include_outside_coordinates=True)
+        changes = classify_cram_diff(base, placed, CramRect(*layout.CRAM),
+            include_outside_coordinates=True, ignore_ecc_columns=not native)
         report = write_cram_report(output, cart, changes, layout=layout)
         sgm.enforce_cram_region(changes, report)
-        (output / "linked.rbf").write_bytes(rbf_save(overlay_cram(base, placed, CramRect(*layout.CRAM),
-            preserve_x_ranges=PARTS_CRC_COMPANION_RANGES), compressed=True))
+        preview = overlay_cram(base, placed, CramRect(*layout.CRAM))
+        # Wide native routing uses bits in columns excluded by the legacy
+        # socket policy. Prove the composition retains the entire routed CRAM,
+        # rather than only agreeing with another implementation's exclusions.
+        if native and preview.cram != placed.cram:
+            raise ValueError("native preview does not preserve every routed CRAM bit")
+        (output / "linked.rbf").write_bytes(rbf_save(preview, compressed=True))
         manifest = {"cart_sha256": sgm.digest(cart), "cart_size": len(cart), "device": "5CSEBA6U23I7", "format": 1,
                     "map": layout.MAP, "recipe_sha256": recipe_sha, "revision": revision,
                     "shell_build_id": package.fields["build"]["id"], "shell_package_id": package.package_id,
@@ -242,6 +245,8 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         return publish_archive(output, part_id, encoded, cart, changes,
             {"recipe": recipe, "part_id": part_id,
                 "manifest": manifest, "cram_diff": changes, "checked_clock_pins": checked_clocks,
+                "cram_policy": "strict-rectangle-v1" if native else "legacy-columns-v1",
+                "preview_matches_routed_cram": preview.cram == placed.cram,
                 "timing": measured, "resources": resources, "synthesis_cells": synthesis_counts,
                 **({"native_clock_boundary": clock_boundary} if native else {}),
                 "route": {"complete": True, "gpu_backend": gpu_backend}}, layout=layout)

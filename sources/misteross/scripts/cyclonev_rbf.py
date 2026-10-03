@@ -35,12 +35,11 @@ class DieInfo:
     ecc_columns: tuple[int, ...] = ()
 
 
-    # Pinned Mistral b28e30a sx120f constants from libmistral/cvd-sx120f.cc.
-    # Column 42 is the documented ECC strip. Columns 41/45/49 sit on
-    # noedcrc_zones (3491, ~3920, 4174) and only change as ~1024-row CRC
-    # companions of socket CRAM; they are not routing. A taller 16-cell
-    # occupancy also flips the neighbouring CRC strips 43/47/50 on the same
-    # ~1024-row cadence; those bits are rewritten when the RBF is saved.
+# Pinned Mistral sx120f constants from libmistral/cvd-sx120f.cc. The legacy
+# ecc_columns list is a historical comparison policy, not a declaration that
+# these whole columns contain no routing. In particular column41 is M10K and
+# carries real mux bits used by wide native video parts. New strict rectangles
+# compare every decoded CRAM bit; frame checksums are handled by the codec.
 SX120F = DieInfo(
     name="sx120f",
     cram_sx=7605,
@@ -382,23 +381,16 @@ def rbf_save(loaded: LoadedRbf, *, compressed: bool | None = None) -> bytes:
     return bytes(out)
 
 
-def overlay_cram(base: LoadedRbf, cart: LoadedRbf, rect: CramRect, *,
-                 preserve_x_ranges: tuple[tuple[int, int], ...] = ()) -> LoadedRbf:
+def overlay_cram(base: LoadedRbf, cart: LoadedRbf, rect: CramRect) -> LoadedRbf:
     if base.die != cart.die:
         raise ValueError("base and cart dies do not match")
     if rect.x0 < 0 or rect.y0 < 0 or rect.x1 > base.die.cram_sx or rect.y1 > base.die.cram_sy:
         raise ValueError("CRAM rectangle is outside the die")
     if rect.x1 <= rect.x0 or rect.y1 <= rect.y0:
         raise ValueError("CRAM rectangle is empty")
-    # Some consumers retain the base's non-routing checksum companion columns
-    # even when a wide rectangle crosses them. Frame CRCs are still rewritten
-    # by rbf_save. Keep this explicit; the broader diff-classification ECC list
-    # is not the target linker's composition policy.
-    columns = [x for x in range(rect.x0, rect.x1)
-               if not any(start <= x < end for start, end in preserve_x_ranges)]
     cram = bytearray(base.cram)
     for y in range(rect.y0, rect.y1):
-        for x in columns:
+        for x in range(rect.x0, rect.x1):
             cram_set(cram, base.die, x, y, cram_get(cart.cram, cart.die, x, y))
     return LoadedRbf(die=base.die, header=base.header, cram=cram, compressed=base.compressed)
 
@@ -445,8 +437,9 @@ def classify_cram_diff(
     *,
     include_outside_coordinates: bool = False,
     coordinate_limit: int = MAX_CRAM_DIFF_COORDINATES,
+    ignore_ecc_columns: bool = True,
 ) -> dict[str, object]:
-    """Bucket CRAM diffs by column, optionally listing outside-slot bits."""
+    """Bucket CRAM diffs; strict callers disable legacy column exclusions."""
     if coordinate_limit < 0:
         raise ValueError("CRAM diff coordinate limit must be nonnegative")
     die = left.die
@@ -473,7 +466,7 @@ def classify_cram_diff(
                 column = index
                 break
         column_bits[column] = column_bits.get(column, 0) + 1
-        if column in die.ecc_columns:
+        if ignore_ecc_columns and column in die.ecc_columns:
             continue
         if slot.contains(x, y):
             inside += 1
