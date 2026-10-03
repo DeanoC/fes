@@ -1596,8 +1596,16 @@
     let retainedSessionTitleID = '';
     let retainedSessionTitle = '';
     let playContextGeneration = 0;
+    let confirmedPicks = {};
     let localPlayPicks = {};
     let playPickRevision = 0;
+    const confirmedLocalKeys = new Set();
+    const pendingPickRevisions = new Map();
+    const playPickSaves = new Map();
+
+    function publishPlayPicks() {
+      state.playPicks = Object.freeze({ ...confirmedPicks, ...localPlayPicks });
+    }
 
     function liveSessionTitle(id) {
       const selected = state.selectedLiveGame && state.selectedLiveGame.id === id
@@ -2146,16 +2154,22 @@
           state.libraryTitles = [];
         }
       }
-      const picks = { ...state.playPicks };
-      const listed = prefsPayload && Array.isArray(prefsPayload.preferences) ? prefsPayload.preferences : [];
-      listed.forEach(pref => {
-        if (!pref || typeof pref.game_id !== 'string' || !pref.game_id.trim()) return;
-        const gameID = pref.game_id.trim();
-        const key = typeof pref.query === 'string' ? pref.query.trim().toLowerCase() : '';
-        if (key) picks[key] = gameID;
-        picks[gameID] = gameID;
-      });
-      state.playPicks = Object.freeze({ ...picks, ...localPlayPicks });
+      if (prefsPayload && Array.isArray(prefsPayload.preferences)) {
+        const fetched = {};
+        prefsPayload.preferences.forEach(pref => {
+          if (!pref || typeof pref.game_id !== 'string' || !pref.game_id.trim()) return;
+          const gameID = pref.game_id.trim();
+          const key = typeof pref.query === 'string' ? pref.query.trim().toLowerCase() : '';
+          if (key) fetched[key] = gameID;
+          fetched[gameID] = gameID;
+        });
+        confirmedPicks = Object.fromEntries(Object.entries(confirmedPicks)
+          .filter(([key]) => confirmedLocalKeys.has(key)));
+        for (const [key, id] of Object.entries(fetched)) {
+          if (!confirmedLocalKeys.has(key)) confirmedPicks[key] = id;
+        }
+      }
+      publishPlayPicks();
       if (!titlesPayload || !Array.isArray(titlesPayload.titles)) {
         state.playOptionState = 'error';
         return emit();
@@ -2210,37 +2224,36 @@
       const title = titleForGame(state.libraryTitles, game);
       const options = viableTitleOptions(title, choiceGameRows(game, [...state.games, ...state.playOptionRows]));
       if (options.length < 2) return;
-      const localPick = { [game.id]: game.id };
-      const previousPicks = state.playPicks;
-      const picks = { ...state.playPicks, ...localPick };
-      if (title && title.title_id) picks[title.title_id] = game.id;
-      if (game.title) picks[String(game.title).trim().toLowerCase()] = game.id;
-      if (title && title.title_id) localPick[title.title_id] = game.id;
-      if (game.title) localPick[String(game.title).trim().toLowerCase()] = game.id;
-      localPlayPicks = { ...localPlayPicks, ...localPick };
-      state.playPicks = Object.freeze(picks);
       const query = game.title || '';
       const platform = game.system || '';
       if (!query) return;
+      const localPick = { [game.id]: game.id };
+      if (title && title.title_id) localPick[title.title_id] = game.id;
+      localPick[String(query).trim().toLowerCase()] = game.id;
+      const titleKey = title.title_id;
       const revision = ++playPickRevision;
-      void request(fetchImpl, editionPreferencesPath(), {
+      pendingPickRevisions.set(titleKey, revision);
+      localPlayPicks = { ...localPlayPicks, ...localPick };
+      publishPlayPicks();
+      // Keep writes for one title in user order. A later pending choice remains
+      // visible while an earlier save resolves, but rollback uses confirmed data.
+      const priorSave = playPickSaves.get(titleKey) || Promise.resolve();
+      const save = priorSave.then(() => request(fetchImpl, editionPreferencesPath(), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, platform, game_id: game.id }),
-      }).catch(() => {
-        if (revision !== playPickRevision) return;
-        const retained = { ...localPlayPicks };
-        Object.keys(localPick).forEach(key => {
-          if (retained[key] === game.id) delete retained[key];
-        });
-        localPlayPicks = retained;
-        const restored = { ...state.playPicks };
-        Object.keys(localPick).forEach(key => {
-          if (restored[key] !== game.id) return;
-          if (previousPicks[key] && previousPicks[key] !== game.id) restored[key] = previousPicks[key];
-          else delete restored[key];
-        });
-        state.playPicks = Object.freeze(restored);
+      })).then(() => {
+        confirmedPicks = { ...confirmedPicks, ...localPick };
+        Object.keys(localPick).forEach(key => confirmedLocalKeys.add(key));
+        if (pendingPickRevisions.get(titleKey) !== revision) return;
+        for (const key of Object.keys(localPick)) delete localPlayPicks[key];
+        pendingPickRevisions.delete(titleKey);
+        publishPlayPicks();
+      }, () => {
+        if (pendingPickRevisions.get(titleKey) !== revision) return;
+        for (const key of Object.keys(localPick)) delete localPlayPicks[key];
+        pendingPickRevisions.delete(titleKey);
+        publishPlayPicks();
         const currentTitle = titleForGame(state.libraryTitles, state.selectedLiveGame);
         if (!currentTitle || currentTitle.title_id !== title.title_id) return;
         ++playContextGeneration;
@@ -2248,6 +2261,10 @@
         state.playOptionState = 'error';
         state.playOptionError = 'Could not save the backend choice. Retry detail.';
         emit();
+      });
+      playPickSaves.set(titleKey, save);
+      void save.then(() => {
+        if (playPickSaves.get(titleKey) === save) playPickSaves.delete(titleKey);
       });
     }
 
