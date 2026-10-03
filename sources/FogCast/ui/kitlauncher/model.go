@@ -30,6 +30,8 @@ type Model struct {
 	LoadStarted                                                     time.Time
 	LoadPhase                                                       string
 	LoadElapsed                                                     string
+	LoadNow                                                         time.Time
+	HideLoadElapsed                                                 bool
 	AttractActive                                                   bool
 	DetailOpen                                                      bool
 	WheelOpen                                                       bool
@@ -311,8 +313,8 @@ func (m Model) SessionChrome() fbgrid.SessionChrome {
 		phase = strings.TrimSpace(m.Session.Progress)
 	}
 	elapsed := m.LoadElapsed
-	if state == "launching" && !m.LoadStarted.IsZero() {
-		elapsed = formatLoadElapsed(time.Since(m.LoadStarted))
+	if state == "launching" && !m.HideLoadElapsed && !m.LoadStarted.IsZero() && !m.LoadNow.IsZero() {
+		elapsed = formatLoadElapsed(m.LoadNow.Sub(m.LoadStarted))
 	}
 	return fbgrid.SessionChrome{
 		State:   state,
@@ -320,7 +322,7 @@ func (m Model) SessionChrome() fbgrid.SessionChrome {
 		Hint:    hint,
 		Phase:   phase,
 		Elapsed: elapsed,
-		Marquee: int(time.Now().UnixMilli() % 1000),
+		Marquee: int(m.LoadNow.UnixMilli() % 1000),
 	}
 }
 

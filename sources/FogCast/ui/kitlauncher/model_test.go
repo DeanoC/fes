@@ -13,7 +13,7 @@ import (
 
 func TestLoadingChromeUsesRealPhaseAndIndeterminateElapsed(t *testing.T) {
 	started := time.Now().Add(-12 * time.Second)
-	m := Model{Session: Session{State: "launching", GameID: "data", Progress: "Loading ROM"}, LoadStarted: started}
+	m := Model{Session: Session{State: "launching", GameID: "data", Progress: "Loading ROM"}, LoadStarted: started, LoadNow: started.Add(12 * time.Second)}
 	m.Catalog = []hostclient.Game{{ID: "data", Title: "Data Storm"}}
 	chrome := m.SessionChrome()
 	if chrome.State != "launching" || chrome.Title != "Data Storm" || chrome.Phase != "Loading ROM" || !strings.Contains(chrome.Elapsed, "0:12") {

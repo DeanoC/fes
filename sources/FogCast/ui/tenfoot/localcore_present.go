@@ -30,11 +30,6 @@ func (h *presentHold) skip(ctx context.Context, dev gfx.Device, snap Snapshot) b
 		h.armed = false
 		return false
 	}
-	// Keep presenting the existing launch overlay until the runtime publishes
-	// running; after that the core owns HDMI and the menu may pause.
-	if snap.LocalCorePhase == localPhaseLaunching {
-		return false
-	}
 	if !h.armed {
 		h.armed = true
 		return false

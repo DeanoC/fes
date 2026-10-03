@@ -55,6 +55,10 @@ type observation struct {
 
 const hostUnavailableMessage = "Host unavailable"
 const localLoadTimeout = 60 * time.Second // matches the runtime's bounded core-load operation
+const launchTimeoutGrace = 5 * time.Second
+
+// launcherNow keeps launch deadlines deterministic in state-machine tests.
+var launcherNow = time.Now
 
 func localLaunchFailure(title, reason string, elapsed time.Duration) string {
 	title = strings.TrimSpace(title)
@@ -165,12 +169,24 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	localStopRequested := false
 	localSawLaunching := false
 	localRequestReturned := false
+	hostTimedOut := false
+	menuPaused := false
+	resumeMenu := func() {
+		if c.menuDisplay {
+			c.menuResume()
+			menuPaused = false
+		}
+	}
 	localStatusBusy := false
 	var localStatusNext time.Time
 	loggedSplash := false
 	paintKitHDMI := func(m Model) {
+		m.LoadNow = time.Now()
+		if m.Session.State == "launching" && !m.LoadStarted.IsZero() && !m.HideLoadElapsed {
+			m.LoadElapsed = formatLoadElapsed(m.LoadNow.Sub(m.LoadStarted))
+		}
 		if c.menuDisplay {
-			if (!m.Busy || m.Session.State == "launching") && m.Session.State != "active" && present != nil {
+			if !menuPaused && (!m.Busy || m.Session.State == "launching") && m.Session.State != "active" && present != nil {
 				present(m)
 			}
 			return
@@ -367,7 +383,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.Session.GameID = id
 			}
 			m.Session.State = "launching"
-			m.LoadStarted = time.Now()
+			m.LoadStarted = launcherNow()
+			hostTimedOut = false
 			if action == "local-launch" {
 				localSawLaunching = false
 				localRequestReturned = false
@@ -382,13 +399,20 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.hideAttract()
 		}
 		if c.menuDisplay {
+			if action == "launch" || action == "local-launch" {
+				m.HideLoadElapsed = true
+				m.LoadNow = time.Time{}
+				paintKitHDMI(m)
+				m.HideLoadElapsed = false
+			}
+			menuPaused = true
 			pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
 			err := c.menuPause(pauseCtx)
 			pauseCancel()
 			if err != nil {
 				m.Busy = false
 				m.Message = "Please try again"
-				c.menuResume()
+				resumeMenu()
 				paintKitHDMI(m)
 				return
 			}
@@ -514,7 +538,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						mutate("stop")
 					}
 				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "idle" && (localPending || m.Session.State == "launching") && (localSawLaunching || localRequestReturned) {
-					elapsed := time.Since(m.LoadStarted)
+					elapsed := launcherNow().Sub(m.LoadStarted)
 					localPending = false
 					m.Busy = false
 					m.Session.State = "idle"
@@ -522,7 +546,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadPhase = ""
 					m.Message = localLaunchFailure(m.SessionTitle(), "launch ended before the core was ready", elapsed)
 					if c.menuDisplay {
-						c.menuResume()
+						resumeMenu()
 					}
 				} else if o.epoch == epoch && localRunning && o.localErr == nil && o.localStatus.Phase == "idle" {
 					localRunning = false
@@ -532,7 +556,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadPhase = ""
 					m.Message = ""
 					if c.menuDisplay {
-						c.menuResume()
+						resumeMenu()
 					}
 				}
 				continue
@@ -552,13 +576,14 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					if o.localAction == "local-launch" && o.localErr == nil {
 						// GET /v1/local/status, not request completion, owns
 						// the transition to running.
+						localPending = true
 					} else if o.localAction == "local-launch" && o.localErr != nil && (!o.haveLocalStatus || localRunInProgress(o.localStatus)) {
 						// The load may still be in flight after an ambiguous reply.
 						localPending = true
 						m.Busy = false
 						o.message = ""
 					} else if o.localAction == "stop" && (o.localErr == nil || errors.Is(o.localErr, localcores.ErrInUse)) || o.localAction == "local-launch" && o.localErr != nil {
-						elapsed := time.Since(m.LoadStarted)
+						elapsed := launcherNow().Sub(m.LoadStarted)
 						localRunning = false
 						localPending = false
 						m.Session.State = "idle"
@@ -572,7 +597,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					}
 				}
 				if c.menuDisplay && !localRunning {
-					c.menuResume()
+					resumeMenu()
 				}
 				m.Busy = false
 				if o.localAction == "" && o.session.State == "active" {
@@ -625,19 +650,25 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				Purpose: o.kitLease.Purpose,
 			})
 			if !localRunning && !localPending {
-				m.Session = applyObservedSession(m.Session, o.session)
+				if hostTimedOut && o.session.State == "launching" {
+					// Continue reconciling quietly after visible timeout.
+				} else {
+					m.Session = applyObservedSession(m.Session, o.session)
+				}
 				if m.Session.State == "active" {
+					hostTimedOut = false
 					m.Busy = false
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
 					m.Message = ""
 				} else if m.Session.State == "launching" {
 					if m.LoadStarted.IsZero() {
-						m.LoadStarted = time.Now()
+						m.LoadStarted = launcherNow()
 					}
 					m.LoadPhase = m.Session.Progress
 				}
 				if m.Session.State == "failed" {
+					hostTimedOut = false
 					m.Busy = false
 					m.LoadStarted = time.Time{}
 					m.LoadPhase = ""
@@ -691,6 +722,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 			}
 		case now := <-tick.C:
+			if m.Session.State == "launching" && !m.LoadStarted.IsZero() && launcherNow().Sub(m.LoadStarted) >= localLoadTimeout+launchTimeoutGrace {
+				if !localPending {
+					hostTimedOut = true
+				}
+				m.Session.State = "idle"
+				m.Busy = false
+				m.Message = m.SessionTitle() + " took too long to start"
+				m.LoadPhase = ""
+			}
 			if (localRunning || localPending) && !localStatusBusy && now.After(localStatusNext) {
 				localStatusNext = now.Add(time.Second)
 				localStatusBusy = true

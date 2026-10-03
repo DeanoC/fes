@@ -707,13 +707,15 @@ func TestMenuLaunchDrainsPresentationBeforeDispatch(t *testing.T) {
 	client := NewClient(Config{API: server.URL, MenuDisplay: true})
 	draining := make(chan struct{})
 	release := make(chan struct{})
+	var busyPaints atomic.Int64
+	var paintsAtPause atomic.Int64
 	client.SetMenuDisplayHandoff(func(context.Context) error {
+		paintsAtPause.Store(busyPaints.Load())
 		close(draining)
 		<-release
 		return nil
 	}, func() {})
 	ready := false
-	var busyPaints atomic.Int64
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(ctx, client, func(m Model) {
@@ -750,8 +752,8 @@ func TestMenuLaunchDrainsPresentationBeforeDispatch(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if busyPaints.Load() < 2 {
-		t.Fatalf("loading overlay did not keep rendering frames: %d", busyPaints.Load())
+	if paintsAtPause.Load() != 1 || busyPaints.Load() != 1 {
+		t.Fatalf("menu launch paints before pause=%d total=%d, want exactly one frozen loading frame", paintsAtPause.Load(), busyPaints.Load())
 	}
 }
 

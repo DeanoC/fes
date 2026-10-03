@@ -421,7 +421,16 @@ func paintSessionChrome(d gfx.Device, w, h int, th theme.Theme, session SessionC
 		}
 		travel := barW - segment
 		x := float32(textX) + float32(session.Marquee%1000)/1000*travel
-		d.FillRect(gfx.Rect{X: x, Y: barY, W: segment, H: barH}, th.Highlight)
+		if session.Marquee == 0 {
+			// A zero clock is the frozen menu-display loading frame: show the
+			// whole track as segmented indeterminate treatment, never a fill.
+			for i := 0; i < 8; i++ {
+				segX := float32(textX) + float32(i)*barW/8
+				d.FillRect(gfx.Rect{X: segX, Y: barY, W: barW / 10, H: barH}, th.Highlight)
+			}
+		} else {
+			d.FillRect(gfx.Rect{X: x, Y: barY, W: segment, H: barH}, th.Highlight)
+		}
 		y += int(barH) + 6
 		if session.Elapsed != "" {
 			d.DrawTextWeight(textX, y, session.Elapsed, capSize, capW, th.Status)

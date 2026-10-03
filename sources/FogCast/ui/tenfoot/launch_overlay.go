@@ -44,7 +44,7 @@ func launchOverlayCopy(snap Snapshot) LaunchOverlayCopy {
 	failed := snap.Launch.Phase == "error" || snap.Launch.Phase == "host"
 	if snap.LocalCorePhase == localPhaseLaunching {
 		return LaunchOverlayCopy{Visible: true, Heading: "Launching", Title: snap.LocalCoreTitle,
-			Phase: "Starting core", Elapsed: formatLaunchElapsed(snap.LocalCoreStartedAt),
+			Phase: "Starting core", Elapsed: localLaunchElapsed(snap),
 			Hint: "Select+Start stops after the core is ready"}
 	}
 	copy := LaunchOverlayCopy{
@@ -63,6 +63,13 @@ func launchOverlayCopy(snap Snapshot) LaunchOverlayCopy {
 		copy.Hint = launchOverlayBusyHint(snap.Affinity)
 	}
 	return copy
+}
+
+func localLaunchElapsed(snap Snapshot) string {
+	if snap.LocalCorePresentsPaused {
+		return ""
+	}
+	return formatLaunchElapsed(snap.LocalCoreStartedAt)
 }
 
 func formatLaunchElapsed(start time.Time) string {
