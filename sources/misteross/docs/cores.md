@@ -160,7 +160,8 @@ SMS place-and-route is a first-pass search: it starts at seed 3 / HeAP 1000,
 then the remaining `PLACER_SEEDS` and weight 300. Final structured `clk_sys`
 and `pixel_clk` rows must meet 52 MHz and 74.25 MHz.
 
-SG-1000's format-3 producer seals from a clean tree at seed 4. It exports a
+SG-1000's format-3 producer seals from a clean tree after a first-pass route
+ladder (seeds 12, 5, 4, 8, 10, 1, 6, 9). It exports a
 blank 16 KiB cartridge ROM and authenticated map for download-time linking.
 The 2026-09-16 gap ladder records a HIP route of the earlier synth-only
 netlist (`BUILD_ID` all zeros), not acceptance of the new sealed bitstream.

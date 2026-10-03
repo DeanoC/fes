@@ -832,7 +832,8 @@ timing domains before sealing version 1.2.0. Reset is not held for an
 application media upload. The open `sound-16k.rom` diagnostic alternates tone
 and white noise alongside the Graphics I display for a later leased kit check.
 `--synth-only` runs Yosys without a clean tree and does not seal. The selected
-HIP seed 3 must meet the structured 52.224 MHz system, 74.25 MHz pixel and
+The HIP first-pass ladder (12, 5, 4, 8, 10, 1, 6, 9) selects a route that must
+meet the structured 52.224 MHz system, 74.25 MHz pixel and
 12.288 MHz audio timing rows on the exact sealed BUILD_ID. `fes.sg1000` is in the
 factory image. A historical
 launch/Stop record does not accept the current bitstream.
@@ -1335,7 +1336,7 @@ standalone recipe. Its source set is `pixel_pll.v`, `top.v`, `fes_gp.v`,
 the shared `fes_video_720p.v` and existing `pong_game.sv`, with the generated ABI include
 directory. Yosys receives the build-record-derived 128-bit `BUILD_ID` and
 forbids BRAM, LUTRAM and DSP inference. nextpnr targets `5CSEBA6U23I7` with
-seed 1, `--router gpu`, the task-local QSF, the 50 MHz board SDC and an
+the first passing seed from 1 through 8, `--router gpu`, the task-local QSF, the 50 MHz board SDC and an
 explicit 74.25 MHz target; all outputs stay under `build/fes-pong/`. The route
 log must prove a live HIP backend.
 
@@ -1655,7 +1656,8 @@ system identity. FES now selects it as the native image's idle display. It selec
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
 while diagnostics retain their no-GP gate. DDR layout and inactive write/port
-checks remain mandatory in both netlists.
+checks remain mandatory in both netlists. The package routes a first-pass
+pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7, 8.
 
 The optional shared GP hook delegates menu requests to `fes_menu_control` in
 the same pixel-clock domain. Configuration selects fixed slots; sequence ACK

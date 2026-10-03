@@ -268,7 +268,11 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
 	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
 	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
-	drawLabel(dev, labels, used, "rchoice-title", x+16, y+12, panelW-32, 18, "Choose an edition")
+	title := rooms.EditionChoiceAction
+	if snap.Room.Destination.Choice == rooms.ChoiceBackend {
+		title = rooms.BackendChoiceAction
+	}
+	drawLabel(dev, labels, used, "rchoice-title", x+16, y+12, panelW-32, 18, title)
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
 		if idx >= len(rows) {
@@ -284,8 +288,11 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		if label == "" {
 			label = rows[idx].ID
 		}
-		sys := strings.ToUpper(strings.TrimSpace(rows[idx].System))
-		if sys != "" {
+		if snap.Room.Destination.Choice == rooms.ChoiceBackend {
+			if backend := rooms.BackendLabel(rows[idx]); backend != "" && backend != label {
+				label = label + "  ·  " + backend
+			}
+		} else if sys := strings.ToUpper(strings.TrimSpace(rows[idx].System)); sys != "" {
 			label = label + "  ·  " + sys
 		}
 		if !rows[idx].LaunchEligible() {

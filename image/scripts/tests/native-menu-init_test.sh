@@ -19,7 +19,9 @@ sed -e "s|/run/|$fixture/run/|g" \
   -e "s|/usr/sbin/fogcast-tenfoot|$fixture/fogcast-tenfoot|g" \
   -e "s|/usr/sbin/fogcast-kit|$fixture/fogcast-kit|g" \
   "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S60fogcast-kit" >"$fixture/kit"
-chmod +x "$fixture/runtime" "$fixture/kit"
+sed -e "s|/run/|$fixture/run/|g" \
+  "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S50mister-agent" >"$fixture/agent"
+chmod +x "$fixture/runtime" "$fixture/kit" "$fixture/agent"
 cat >"$fixture/fogcast-kit" <<'EOF'
 #!/bin/sh
 mode=grid
@@ -127,3 +129,30 @@ if "$fixture/runtime" start >/dev/null 2>&1; then
   echo 'runtime init accepted an invalid menu selection' >&2
   exit 1
 fi
+
+# A supervisor that ignores TERM exercises the bounded fallback in both
+# native services. Keep the child stuck too; stop must KILL both and clean IDs.
+for service in runtime agent; do
+  case "$service" in
+    runtime) supfile=mister-runtime-supervisor.pid; childfile=mister-runtime.pid ;;
+    agent) supfile=mister-agent-supervisor.pid; childfile=mister-agent.pid ;;
+  esac
+  sh -c 'trap "" TERM; while :; do sleep 1; done' &
+  supervisor=$!
+  sh -c 'trap "" TERM; while :; do sleep 1; done' &
+  child=$!
+  printf '%s\n' "$supervisor" >"$fixture/run/$supfile"
+  printf '%s\n' "$child" >"$fixture/run/$childfile"
+  start=$(date +%s)
+  "$fixture/$service" stop
+  elapsed=$(($(date +%s) - start))
+  test "$elapsed" -lt 8
+  test ! -e "$fixture/run/$supfile"
+  test ! -e "$fixture/run/$childfile"
+  if kill -0 "$supervisor" 2>/dev/null; then
+    test "$(ps -o stat= -p "$supervisor" | cut -c1)" = Z
+  fi
+  if kill -0 "$child" 2>/dev/null; then
+    test "$(ps -o stat= -p "$child" | cut -c1)" = Z
+  fi
+done

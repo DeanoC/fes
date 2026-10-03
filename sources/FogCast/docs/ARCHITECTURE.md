@@ -38,6 +38,15 @@ eligibility. Catalog eligibility does not replace session or target readiness
 gates, nor the host's authoritative launch validation. Tenfoot maps those block codes to
 sofa copy. Artwork handles use `hostclient.NormalizeHandle` so host
 transport, kit disk cache, and UI retain share one 64-hex rule.
+The browser play pane resolves every listed option before enabling Play. A
+malformed option in the selected title blocks Play. A backend picked in the
+current browser session stays authoritative across an older preference read;
+confirmed choices come only from preference reads or successful saves. Saves
+for one title run in selection order. A failed save restores the latest
+confirmed choice, or leaves the title needing a choice, and Play remains
+blocked until detail is retried. Preference reads cannot replace a locally
+confirmed choice with an older response.
+
 Shared session decoding and Kit capability checks use
 `hostclient.SessionCoreInterface.IsKeyboard` for exact `fes.keyboard` 1.0
 recognition. Unsupported versions remain ineligible; input readiness,
@@ -902,8 +911,8 @@ keys; Stop stays on the session chrome and the controller Select+Start chord.
 A `fes.keyboard` core maps those keys onto the ZX81 matrix. For exact
 `fes.coleco`, D-pad/left-stick and A/B events are mapped onto the Coleco P1
 keyboard bits while overlapping keyboard, D-pad, and axis holds remain joined.
-Exact `fes.sms` reuses that path for directions and A/Fire1 only; B does not
-provide SMS Fire2.
+Exact `fes.sms` and `fes.sg1000` reuse that path for directions and A/Fire1
+only; B does not provide Fire2.
 Native SNES/MD
 encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
 route them to `set_keyboard` and reconnect replay does not treat matrix codes
@@ -2145,7 +2154,11 @@ bits are Up, Down, Left, Right, A, B, Select, Start; keypad bits are 0–9, `*`,
 The runtime validates the complete request and owns the physical GP writes.
 The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 0600),
 not another network endpoint, and there is no additional virtual-device discovery rule.
-Other cores retain the single virtual gamepad and keyboard sink.
+For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
+1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
+onto that keyboard matrix. The keyboard sink unions local and remote holds;
+local pad frames do not also enter the virtual gamepad. Other cores retain the
+single virtual gamepad and keyboard sink.
 Installed-core control is a separate root-only HTTP socket at
 `/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
 packages and, when the kit lease is free, launches one that needs no cartridge
@@ -2222,7 +2235,11 @@ session's input.ready, launcher.json reachability, or which host holds the
 lease. The kit keeps the player index the pad already has. While a core is
 bound, those events are not applied to the platform wheel, browse selection,
 or launch, even when this kit's host session is still idle. Select+Start held
-for one second still posts `POST /api/v1/session/stop`. With no core bound,
+for one second posts `POST /api/v1/session/stop` for a host session. For a
+kit-local run it goes to local control `POST /v1/local/stop` instead,
+including a run the grid did not start: while a core is bound and no local run
+is known, the grid reads `GET /v1/local/status` at most once a second
+(single-flight) and adopts a launching or running answer as its active session. With no core bound,
 the same pad drives browse. Stop and kit menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad

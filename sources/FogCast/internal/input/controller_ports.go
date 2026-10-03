@@ -3,9 +3,11 @@ package input
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/joymatrix"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
@@ -26,6 +28,7 @@ type ControllerBinding struct {
 type CoreObservation struct {
 	Active   bool
 	Keyboard bool
+	CoreID   string
 	// KeyboardHID names the generation when fes.keyboard.hid 1.0 is active.
 	KeyboardHID *KeyboardHIDBinding
 	Binding     *ControllerBinding
@@ -57,6 +60,9 @@ type controllerPortsSink struct {
 	inflight       [controllerPortCount]int
 	haltPublish    bool
 	keyboard       bool
+	coreID         string
+	localMatrix    remoteinput.State
+	localKeys      map[remoteinput.Code]bool
 	keyboardHID    bool
 	coreActive     bool
 	observed       bool
@@ -94,7 +100,17 @@ func sameBinding(left, right *ControllerBinding) bool {
 func (s *controllerPortsSink) setObservation(obs CoreObservation) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if len(s.localKeys) != 0 && (!obs.Active || !obs.Keyboard || obs.CoreID != s.coreID) {
+		// The joystick matrix route ended under a held local control. Drop the
+		// local matrix state so a replacement core never inherits those keys.
+		s.localMatrix.ReleaseAll()
+		s.localKeys = nil
+		if s.keys != nil {
+			_ = s.keys.ReleaseSource(sourceLocal)
+		}
+	}
 	s.keyboard = obs.Keyboard
+	s.coreID = obs.CoreID
 	s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
 	if s.hid != nil {
 		s.hid.bind(obs.KeyboardHID)
@@ -172,9 +188,45 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 		return nil
 	}
 	if s.binding == nil {
+		if source == sourceLocal && s.coreActive && s.keyboard && joymatrix.Supports(s.coreID) && s.keys != nil && shaped.Device == uint8(remoteinput.DeviceGamepad) {
+			return s.applyLocalMatrixLocked(ctx, shaped)
+		}
 		return s.applyUnboundLocked(ctx, source, shaped)
 	}
 	return s.applyPortsLocked(ctx, source, shaped)
+}
+
+func (s *controllerPortsSink) applyLocalMatrixLocked(ctx context.Context, f protocol.InputFrame) error {
+	if err := s.localMatrix.Apply(frameEvent(f)); err != nil {
+		return err
+	}
+	desired := joymatrix.Desired(s.coreID, s.localMatrix.Snapshot())
+	var removed, added []remoteinput.Code
+	for code := range s.localKeys {
+		if !desired[code] {
+			removed = append(removed, code)
+		}
+	}
+	for code := range desired {
+		if !s.localKeys[code] {
+			added = append(added, code)
+		}
+	}
+	sort.Slice(removed, func(i, j int) bool { return removed[i] < removed[j] })
+	sort.Slice(added, func(i, j int) bool { return added[i] < added[j] })
+	for _, transition := range []struct {
+		codes  []remoteinput.Code
+		action remoteinput.Action
+	}{{removed, remoteinput.ActionRelease}, {added, remoteinput.ActionPress}} {
+		for _, code := range transition.codes {
+			frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey), Action: uint8(transition.action), Code: uint16(code)}
+			if err := s.keys.ApplyFrom(ctx, sourceLocal, frame); err != nil {
+				return err
+			}
+		}
+	}
+	s.localKeys = desired
+	return nil
 }
 
 // shapeLocked rewrites raw frames with the same playhid mapping the host used
@@ -407,6 +459,8 @@ func (s *controllerPortsSink) releaseSource(source inputSource) error {
 	}
 	s.sources[source].ReleaseAll()
 	if source == sourceLocal {
+		s.localMatrix.ReleaseAll()
+		s.localKeys = nil
 		s.localClaim = [controllerPortCount]bool{}
 	}
 	if s.binding == nil {
@@ -437,9 +491,18 @@ func (s *controllerPortsSink) ReleaseAll() error {
 	s.keyboardHID = false
 	if s.binding == nil {
 		s.resetSourcesLocked()
+		s.localMatrix.ReleaseAll()
+		s.localKeys = nil
 		s.coreActive = false
 		s.observed = false
 		s.keyboard = false
+		s.coreID = ""
+		if s.keys != nil {
+			_ = s.keys.ReleaseAll()
+		}
+		if s.pads != nil {
+			_ = s.pads.ReleaseAll()
+		}
 		if s.fallback == nil {
 			return nil
 		}
@@ -472,10 +535,13 @@ func (s *controllerPortsSink) ReleaseAll() error {
 	}
 	if result == nil {
 		s.resetSourcesLocked()
+		s.localMatrix.ReleaseAll()
+		s.localKeys = nil
 		s.binding = nil
 		s.coreActive = false
 		s.observed = false
 		s.keyboard = false
+		s.coreID = ""
 	}
 	if s.keys != nil {
 		_ = s.keys.ReleaseAll()
