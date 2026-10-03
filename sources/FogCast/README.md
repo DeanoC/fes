@@ -611,7 +611,8 @@ The independent `appliance/` Go module owns release manifests and image storage.
 The root module uses its local source through `go.mod`; no extra checkout is
 required. Use `make test` and `make vet` to check both modules. Direct root
 `go test ./...` excludes the nested module; check it with
-`(cd appliance && go test -race ./...)` when running Go commands manually.
+`(cd appliance && go test -race -timeout 30m ./...)` when running Go commands manually
+(the explicit per-package limit matches CI; see #482).
 
 ```sh
 make build
