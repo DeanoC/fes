@@ -175,9 +175,18 @@ the final second exactly zero, and each lease was released. These are
 exact-package development diagnostics; MCLK pulse timing, jitter and automatic
 CTS behavior were not instrumented. They do not establish assembled-image or
 general software compatibility. Genuine NMOS pin captures remain a separate
-CPU qualification requirement. The legacy router's plateau fixture and
-compatible compiler qualification are tracked in
-[nextpnr issue 114](https://github.com/DeanoC/nextpnr/issues/114).
+CPU qualification requirement.
+
+[nextpnr PR 115](https://github.com/DeanoC/nextpnr/pull/115) closes the legacy
+router plateau qualification in issue 114. Both native Spectrum fixtures
+complete twice with matching final RBF hashes after the `53e1ad42` fix is
+backported onto `0259c6dc`. The retained fixture passes all three clock gates;
+the reconstructed fixture routes legally but still misses the system target.
+These are compiler replay results, not new sealed packages or kit diagnostics.
+The maintained packer still rejects the existing `CFG_ASYNC_READ=1` ROM lanes,
+and the compatible backport remains a local qualification commit. The producer
+retains its qualified `0259c6dc` pin; adopting the fix requires a published
+compatible compiler revision or a separately qualified ROM migration.
 
 ## Not implemented
 
