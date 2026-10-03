@@ -9,14 +9,15 @@ call_timeout=${FOGCAST_CALL_TIMEOUT:-30}
 launch_timeout=${FOGCAST_LAUNCH_TIMEOUT:-${FOGCAST_CALL_TIMEOUT:-90}}
 
 usage() {
-  printf '%s\n' 'usage: package-runtime-smoke.sh [PONG_SELECTION] [ZX81_SELECTION] [COLECO_SELECTION]' >&2
+  printf '%s\n' 'usage: package-runtime-smoke.sh [PONG_SELECTION] [ZX81_SELECTION] [COLECO_SELECTION] [RAMTEST_SELECTION]' >&2
   exit 2
 }
 
-[ "$#" -le 3 ] || usage
+[ "$#" -le 4 ] || usage
 pong_selection=${1:-${FES_PONG_PACKAGE_SELECTION:-}}
 zx81_selection=${2:-${FES_ZX81_PACKAGE_SELECTION:-}}
 coleco_selection=${3:-${FES_COLECO_PACKAGE_SELECTION:-}}
+ramtest_selection=${4:-${FES_RAMTEST_PACKAGE_SELECTION:-}}
 
 fail() {
   printf 'package-runtime-smoke: %s\n' "$1" >&2
@@ -153,9 +154,11 @@ validate_package_id() {
 pong_package_id=$(expected_package_id fes.pong "$pong_selection")
 zx81_package_id=$(expected_package_id fes.zx81 "$zx81_selection")
 coleco_package_id=$(expected_package_id fes.coleco "$coleco_selection")
+ramtest_package_id=$(expected_package_id fes.ramtest "$ramtest_selection")
 validate_package_id "$pong_package_id" fes.pong
 validate_package_id "$zx81_package_id" fes.zx81
 validate_package_id "$coleco_package_id" fes.coleco
+validate_package_id "$ramtest_package_id" fes.ramtest
 
 curl --fail --silent --show-error \
   --connect-timeout "$call_timeout" --max-time "$call_timeout" \
@@ -301,9 +304,12 @@ zx81_game_id=$(game_id_for fes.zx81 "$zx81_package_id") ||
   fail 'ZX81 package is not installed and selected in the host library'
 coleco_game_id=$(game_id_for fes.coleco "$coleco_package_id") ||
   fail 'Coleco package is not installed and selected in the host library'
+ramtest_game_id=$(game_id_for fes.ramtest "$ramtest_package_id") ||
+  fail 'RAM Tester package is not installed and selected in the host library'
 
 wait_for_session idle '' ''
 launch_and_stop fes.pong "$pong_package_id" "$pong_game_id"
 launch_and_stop fes.zx81 "$zx81_package_id" "$zx81_game_id"
 launch_and_stop fes.coleco "$coleco_package_id" "$coleco_game_id"
-printf '%s\n' 'package runtime smoke passed: Pong, ZX81, Coleco'
+launch_and_stop fes.ramtest "$ramtest_package_id" "$ramtest_game_id"
+printf '%s\n' 'package runtime smoke passed: Pong, ZX81, Coleco, RAM Tester'

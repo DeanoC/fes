@@ -298,11 +298,13 @@ its installed package lifecycle through the running host:
 make target-package-smoke \
   FES_PONG_PACKAGE_SELECTION=/absolute/path/fes-pong.package-selection.toml \
   FES_ZX81_PACKAGE_SELECTION=/absolute/path/fes-zx81.package-selection.toml \
-  FES_COLECO_PACKAGE_SELECTION=/absolute/path/fes-coleco.package-selection.toml
+  FES_COLECO_PACKAGE_SELECTION=/absolute/path/fes-coleco.package-selection.toml \
+  FES_RAMTEST_PACKAGE_SELECTION=/absolute/path/fes-ramtest.package-selection.toml
 ```
 
-This explicitly launches and stops the three installed packages through the
-host session API, checks their exact selected package IDs, and uses the existing
+This explicitly launches and stops the four installed packages through the
+host session API and checks their exact selected package IDs. RAM Tester is a
+ROM-less application core with a library launch entry. The smoke uses the existing
 kit lease. It does not deploy an image or request a reboot. Health and inventory
 calls allow 30 seconds by default. Launch allows 90 seconds for first-time ROM
 composition; `FOGCAST_LAUNCH_TIMEOUT` overrides launch separately, while

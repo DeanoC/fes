@@ -39,14 +39,16 @@ case "$url" in
     printf '%s\n' '{"packages":[
       {"package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","descriptor":{"core":{"id":"fes.pong"}},"entries":[{"game_id":"pong-game","core_id":"fes.pong","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},
       {"package_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","descriptor":{"core":{"id":"fes.zx81"}},"entries":[{"game_id":"zx81-game","core_id":"fes.zx81","package_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]},
-      {"package_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","descriptor":{"core":{"id":"fes.coleco"}},"entries":[{"game_id":"coleco-game","core_id":"fes.coleco","package_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}]}
+      {"package_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","descriptor":{"core":{"id":"fes.coleco"}},"entries":[{"game_id":"coleco-game","core_id":"fes.coleco","package_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}]},
+      {"package_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","descriptor":{"core":{"id":"fes.ramtest"}},"entries":[{"game_id":"ramtest-app","core_id":"fes.ramtest","package_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}]}
     ]}'
     ;;
   */api/v1/library/core-entries)
     printf '%s\n' '{"entries":[
       {"game_id":"pong-game","core_id":"fes.pong","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
       {"game_id":"zx81-game","core_id":"fes.zx81","package_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-      {"game_id":"coleco-game","core_id":"fes.coleco","package_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+      {"game_id":"coleco-game","core_id":"fes.coleco","package_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+      {"game_id":"ramtest-app","core_id":"fes.ramtest","package_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
     ]}'
     ;;
   */api/v1/session/launch)
@@ -54,6 +56,7 @@ case "$url" in
       *pong-game*) game_id=pong-game; package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
       *zx81-game*) game_id=zx81-game; package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
       *coleco-game*) game_id=coleco-game; package_id=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc ;;
+      *ramtest-app*) game_id=ramtest-app; package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
       *) exit 22 ;;
     esac
     if [ "$game_id" = zx81-game ] && [ "${FOGCAST_TIMEOUT_ZX81:-0}" = 1 ]; then
@@ -100,6 +103,7 @@ case "$url" in
         pong-game) package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
         zx81-game) package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
         coleco-game) package_id=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc ;;
+        ramtest-app) package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
         foreign-game) package_id=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd ;;
       esac
       if [ "$game_id" = zx81-game ] && [ "${FOGCAST_TIMEOUT_ZX81:-0}" = 1 ]; then
@@ -127,7 +131,7 @@ chmod 0755 "$fake_bin/curl"
 FOGCAST_CURL_LOG=$fixture/curl.log \
 FOGCAST_ACTIVE_GAME=$fixture/active-game \
 FOGCAST_HOST_API=http://host.test \
-FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
+FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,fes.ramtest=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' \
 FOGCAST_POLL_ATTEMPTS=2 \
 FOGCAST_POLL_INTERVAL=0 \
 PATH="$fake_bin:$PATH" \
@@ -136,15 +140,15 @@ PATH="$fake_bin:$PATH" \
 grep -Fq -- 'http://host.test/api/v1/health' "$fixture/curl.log"
 grep -Fq -- 'http://host.test/api/v1/core-packages' "$fixture/curl.log"
 grep -Fq -- 'http://host.test/api/v1/library/core-entries' "$fixture/curl.log"
-test "$(grep -Fc -- 'api/v1/session/launch' "$fixture/curl.log")" -eq 3
-test "$(grep -Fc -- 'api/v1/session/stop' "$fixture/curl.log")" -eq 3
+test "$(grep -Fc -- 'api/v1/session/launch' "$fixture/curl.log")" -eq 4
+test "$(grep -Fc -- 'api/v1/session/stop' "$fixture/curl.log")" -eq 4
 
 rm -f "$fixture/curl.log"
 FOGCAST_CURL_LOG=$fixture/curl.log \
 FOGCAST_ACTIVE_GAME=$fixture/active-game \
 FOGCAST_SLOW_ZX81=1 \
 FOGCAST_HOST_API=http://host.test \
-FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
+FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,fes.ramtest=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' \
 FOGCAST_POLL_ATTEMPTS=2 \
 FOGCAST_POLL_INTERVAL=0 \
 PATH="$fake_bin:$PATH" \
@@ -158,7 +162,7 @@ if FOGCAST_CURL_LOG=$fixture/curl.log \
   FOGCAST_SESSION_POLL_COUNT=$fixture/session-polls \
   FOGCAST_TIMEOUT_ZX81=1 \
   FOGCAST_HOST_API=http://host.test \
-  FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
+  FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,fes.ramtest=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' \
   FOGCAST_POLL_ATTEMPTS=3 \
   FOGCAST_POLL_INTERVAL=0 \
   PATH="$fake_bin:$PATH" \
@@ -178,7 +182,7 @@ if FOGCAST_CURL_LOG=$fixture/curl.log \
   FOGCAST_TIMEOUT_ZX81=1 \
   FOGCAST_IDLE_ON_TIMEOUT=1 \
   FOGCAST_HOST_API=http://host.test \
-  FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
+  FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,fes.ramtest=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' \
   FOGCAST_POLL_ATTEMPTS=2 \
   FOGCAST_POLL_INTERVAL=0 \
   PATH="$fake_bin:$PATH" \
@@ -197,7 +201,7 @@ if FOGCAST_CURL_LOG=$fixture/curl.log \
   FOGCAST_TIMEOUT_ZX81=1 \
   FOGCAST_FOREIGN_ON_TIMEOUT=1 \
   FOGCAST_HOST_API=http://host.test \
-  FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
+  FES_PACKAGE_EXPECTED_IDS='fes.pong=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fes.zx81=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fes.coleco=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,fes.ramtest=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' \
   FOGCAST_POLL_ATTEMPTS=3 \
   FOGCAST_POLL_INTERVAL=0 \
   PATH="$fake_bin:$PATH" \
