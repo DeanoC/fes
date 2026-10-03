@@ -60,11 +60,14 @@ module fes_z80_engine #(
     logic [7:0] alu_a, alu_b, alu_xy, alu_result, alu_flags;
     logic [2:0] alu_bit;
 
+    // Documented indexed byte forms access real H/L; index-byte register
+    // encodings trap before writeback. Specializing these helpers removes the
+    // IX/IY byte mux from the fast datapath while preserving the NMOS paths.
     function automatic logic [7:0] reg8(input logic [2:0] sel, input logic real_hl);
         case(sel)
             0: reg8=b_reg; 1: reg8=c_reg; 2: reg8=d_reg; 3: reg8=e_reg;
-            4: reg8=real_hl ? h_reg : index_hl[15:8];
-            5: reg8=real_hl ? l_reg : index_hl[7:0];
+            4: reg8=(!NMOS || real_hl) ? h_reg : index_hl[15:8];
+            5: reg8=(!NMOS || real_hl) ? l_reg : index_hl[7:0];
             7: reg8=a_reg; default: reg8=0;
         endcase
     endfunction
@@ -86,9 +89,9 @@ module fes_z80_engine #(
                             input logic real_hl);
         case(sel)
             0: b_reg<=value; 1: c_reg<=value; 2: d_reg<=value; 3: e_reg<=value;
-            4: if (real_hl || index_sel==0) h_reg<=value;
+            4: if (!NMOS || real_hl || index_sel==0) h_reg<=value;
                else if(index_sel==1) ix[15:8]<=value; else iy[15:8]<=value;
-            5: if (real_hl || index_sel==0) l_reg<=value;
+            5: if (!NMOS || real_hl || index_sel==0) l_reg<=value;
                else if(index_sel==1) ix[7:0]<=value; else iy[7:0]<=value;
             7: a_reg<=value;
             default: ;

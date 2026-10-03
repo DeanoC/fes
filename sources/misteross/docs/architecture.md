@@ -1590,9 +1590,16 @@ and a direct request/completion interface with timing-only cycles removed.
 The [CPU contract](../cores/fes-common/rtl/z80/README.md) describes public ports,
 behavior references, undefined-encoding policy and qualification limits.
 `make sim-fes-z80` exercises both variants and their independent ALU/bus tests.
+The opt-in external-vector runner can also exercise the complete NMOS wrapper,
+checking instruction T counts and ordered bus accesses against locked JSON
+data; its software oracle and simplified strobe observations do not establish
+physical-chip equivalence.
 The contained `scripts/benchmark_fes_z80.py` diagnostic targets Cyclone V and
 records routed timing from exact source/tool snapshots without producing an
-RBF. Existing production CPU consumers and recipes still select TV80/T80;
+RBF. Its optional `--require-target` timing gate fails if any selected seed
+misses the requested clock, after preserving the reports. The CPU contract
+records the selected 56 MHz route and the limits of its 16-times clock ratio.
+Existing production CPU consumers and recipes still select TV80/T80;
 there is no CPU package, board acceptance or consumer migration in this change.
 Adding RTL to the conservative shared source closure changes future functional
 build identities even before a console selects it.
