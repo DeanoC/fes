@@ -193,7 +193,11 @@ func TestAppFavoriteToggleAndErrorRevert(t *testing.T) {
 		mu.Lock()
 		n := len(methods)
 		mu.Unlock()
-		return n >= 1 && len(snap.Games) == 1 && snap.Games[0].Favorite && snap.FocusDetail.Favorite && !strings.Contains(snap.Status, "favorite failed")
+		// The optimistic favorite and server receipt do not mean the PUT has completed.
+		app.mu.Lock()
+		favoriteDone := !app.favoriteBusy
+		app.mu.Unlock()
+		return favoriteDone && n >= 1 && len(snap.Games) == 1 && snap.Games[0].Favorite && snap.FocusDetail.Favorite && !strings.Contains(snap.Status, "favorite failed")
 	})
 	mu.Lock()
 	fail = true
