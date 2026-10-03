@@ -527,7 +527,7 @@
       return { state: 'checking', label: 'Checking', reason: 'Checking every way to play this title.' };
     }
     if (extra.resolutionState === 'error') {
-      return { state: 'unavailable', label: 'Unavailable', reason: 'Could not check every way to play this title. Retry detail.' };
+      return { state: 'unavailable', label: 'Unavailable', reason: extra.resolutionError || 'Could not check every way to play this title. Retry detail.' };
     }
     if (extra.catalogLoading && !game) {
       return { state: 'checking', label: 'Checking', reason: 'Still resolving whether this title can play here.' };
@@ -1575,6 +1575,7 @@
       catalogState: 'loading',
       libraryTitles: [],
       playPicks: Object.freeze({}),
+      playOptionError: '',
       playOriginPane: '',
       playContextLoaded: false,
       playOptionRows: [],
@@ -1595,6 +1596,8 @@
     let retainedSessionTitleID = '';
     let retainedSessionTitle = '';
     let playContextGeneration = 0;
+    let localPlayPicks = {};
+    let playPickRevision = 0;
 
     function liveSessionTitle(id) {
       const selected = state.selectedLiveGame && state.selectedLiveGame.id === id
@@ -1766,6 +1769,7 @@
       state.selectionRevision += 1;
       state.playOptionRows = [];
       state.playOptionState = 'loading';
+      state.playOptionError = '';
       state.detailSequence += 1;
       state.presentationSequence += 1;
       state.selectedPresentation = null;
@@ -2151,9 +2155,19 @@
         if (key) picks[key] = gameID;
         picks[gameID] = gameID;
       });
-      state.playPicks = Object.freeze(picks);
+      state.playPicks = Object.freeze({ ...picks, ...localPlayPicks });
       if (!titlesPayload || !Array.isArray(titlesPayload.titles)) {
         state.playOptionState = 'error';
+        return emit();
+      }
+      const rawTitle = titleForGame(titlesPayload.titles.filter(Boolean), selected);
+      if (rawTitle && (
+        typeof rawTitle.title_id !== 'string' || !rawTitle.title_id.trim()
+        || !Array.isArray(rawTitle.options) || rawTitle.options.length === 0
+        || rawTitle.options.some(option => !option || typeof option.source_game_id !== 'string' || !option.source_game_id.trim())
+      )) {
+        state.playOptionState = 'error';
+        state.playContextLoaded = true;
         return emit();
       }
       const title = titleForGame(state.libraryTitles, selected);
@@ -2196,18 +2210,37 @@
       const title = titleForGame(state.libraryTitles, game);
       const options = viableTitleOptions(title, choiceGameRows(game, [...state.games, ...state.playOptionRows]));
       if (options.length < 2) return;
-      const picks = { ...state.playPicks, [game.id]: game.id };
+      const localPick = { [game.id]: game.id };
+      const picks = { ...state.playPicks, ...localPick };
       if (title && title.title_id) picks[title.title_id] = game.id;
       if (game.title) picks[String(game.title).trim().toLowerCase()] = game.id;
+      if (title && title.title_id) localPick[title.title_id] = game.id;
+      if (game.title) localPick[String(game.title).trim().toLowerCase()] = game.id;
+      localPlayPicks = { ...localPlayPicks, ...localPick };
       state.playPicks = Object.freeze(picks);
       const query = game.title || '';
       const platform = game.system || '';
       if (!query) return;
+      const revision = ++playPickRevision;
       void request(fetchImpl, editionPreferencesPath(), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, platform, game_id: game.id }),
-      }).catch(() => {});
+      }).catch(() => {
+        if (revision !== playPickRevision) return;
+        const retained = { ...localPlayPicks };
+        Object.keys(localPick).forEach(key => {
+          if (retained[key] === game.id) delete retained[key];
+        });
+        localPlayPicks = retained;
+        const currentTitle = titleForGame(state.libraryTitles, state.selectedLiveGame);
+        if (!currentTitle || currentTitle.title_id !== title.title_id) return;
+        ++playContextGeneration;
+        state.playOptionRows = [];
+        state.playOptionState = 'error';
+        state.playOptionError = 'Could not save the backend choice. Retry detail.';
+        emit();
+      });
     }
 
     function launchAllowed(selected) {
@@ -4916,7 +4949,7 @@
     const resolved = resolvePlay(game, state.libraryTitles, state.playPicks,
       [...state.games, ...state.playOptionRows], state.playOptionState);
     const subject = resolved.game || game;
-    const play = playAvailability(subject, resolved.choice);
+    const play = playAvailability(subject, { ...resolved.choice, resolutionError: state.playOptionError });
     const label = play.state === 'needs_choice' ? 'Choose' : 'Play';
     if (play.state === 'checking') {
       return { label, reason: play.reason, enabled: false };
@@ -4997,7 +5030,8 @@
     const detailGame = liveGame || game;
     const resolvedPlay = resolvePlay(detailGame, state.libraryTitles, state.playPicks,
       [...state.games, ...state.playOptionRows], state.playOptionState);
-    const shownPlay = playAvailability(resolvedPlay.game || detailGame, resolvedPlay.choice);
+    const shownPlay = playAvailability(resolvedPlay.game || detailGame,
+      { ...resolvedPlay.choice, resolutionError: state.playOptionError });
     const facts = element('div', 'detail-facts');
     const factRows = [
       [systemLabel(game.system), 'System'],

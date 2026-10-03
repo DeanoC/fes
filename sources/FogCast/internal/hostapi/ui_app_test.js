@@ -11341,7 +11341,7 @@ test('detail dump identity Status and Collections follow the selected variant be
   const app = readAsset('ui_app.js');
   assert.match(app, /const detailGame = liveGame \|\| game/);
   assert.match(app, /dumpIdentityFacts\(detailGame\)/);
-  assert.match(app, /const shownPlay = playAvailability\(resolvedPlay\.game \|\| detailGame, resolvedPlay\.choice\)/);
+  assert.match(app, /const shownPlay = playAvailability\(resolvedPlay\.game \|\| detailGame,[\s\S]*?resolutionError: state\.playOptionError/);
   assert.match(app, /\[shownPlay\.label, 'Status'\]/);
   assert.match(app, /collectionLabels\(detailGame, state\.collections\)/);
   assert.match(app, /const membershipReady = Boolean\(/);
