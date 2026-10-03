@@ -547,14 +547,20 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.localAction == "recover" {
 				localAdoptBusy = false
 				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) {
+					if c.menuDisplay {
+						if !menuPaused {
+							pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+							pauseErr := c.menuPause(pauseCtx)
+							pauseCancel()
+							if pauseErr != nil {
+								// Leave the run unadopted; the next adoption poll retries.
+								continue
+							}
+						}
+						menuPaused = true
+					}
 					localRunning = true
 					m.Session.State = "active"
-					if c.menuDisplay {
-						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
-						_ = c.menuPause(pauseCtx)
-						menuPaused = true
-						pauseCancel()
-					}
 				}
 				continue
 			}
