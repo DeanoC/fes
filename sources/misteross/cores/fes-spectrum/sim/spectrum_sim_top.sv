@@ -2,7 +2,7 @@
 // Machine simulation: Z80, ULA, tape, video and probe cards in sockets 1 and 3.
 `include "spectrum_bus.vh"
 
-module spectrum_sim_top (
+module spectrum_sim_top #(parameter bit FAST_CPU = 1'b0) (
     input  wire        clk_sys,
     input  wire        pixel_clk,
     input  wire        reset,
@@ -32,7 +32,7 @@ module spectrum_sim_top (
     wire [7:0] video_data;
     wire signed [15:0] slot_audio;
 
-    spectrum_machine machine (
+    spectrum_machine #(.FAST_CPU(FAST_CPU)) machine (
         .clk_sys(clk_sys), .reset(reset), .matrix(matrix), .kempston(kempston),
         .unit_state(unit_state), .unit_size(unit_size),
         .media_write_addr(16'h0000), .media_write_data(16'h0000), .media_write_enable(2'b00),
@@ -41,6 +41,7 @@ module spectrum_sim_top (
         .response3(response3), .response4(response4),
         .border(border), .flash_on(flash_on), .speaker(speaker), .ear(ear),
         .cpu_cycle(cpu_cycle), .slot_audio(slot_audio),
+        .cpu_retired(), .cpu_illegal(), .cpu_halted(), .cpu_pc(), .frame_int_n(),
         .video_clk(pixel_clk), .video_addr(video_addr), .video_data(video_data),
         .sig8000(sig8000), .sig8001(sig8001), .sig8002(sig8002),
         .sig8003(sig8003), .sig8004(sig8004)

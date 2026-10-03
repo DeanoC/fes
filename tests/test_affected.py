@@ -34,7 +34,7 @@ class AffectedTests(unittest.TestCase):
     def test_core_families_include_cross_core_consumers(self):
         cases = {
             'cores/fes-common/rtl/coleco_vdp.sv': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sg1000', 'sms', 'spectrum'},
+            'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
             'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu'},
@@ -62,21 +62,23 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
             'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum'},
-            'cores/fes-common/rtl/t80pa.v': {'coleco', 'sg1000', 'sms', 'spectrum'},
+            'cores/fes-common/rtl/t80pa.v': {'coleco', 'sms'},
             'scripts/apple2_slots.py': {'apple2'},
             'scripts/build_apple2_slot_card.py': {'apple2'},
             'scripts/c64_slots.py': {'c64'},
             'scripts/build_c64_slot_card.py': {'c64'},
             'cores/fes-spectrum/rtl/spectrum_machine.sv': {'spectrum'},
             'scripts/spectrum_slots.py': {'spectrum'},
-            'cores/fes-common/rtl/z80/fes_z80_alu.sv': {'z80'},
-            'cores/fes-common/rtl/z80/fes_z80_engine.sv': {'z80'},
-            'cores/fes-common/rtl/z80/new_unit.sv': {'z80'},
+            'cores/fes-common/rtl/z80/fes_z80_alu.sv': {'z80', 'sg1000', 'spectrum'},
+            'cores/fes-common/rtl/z80/fes_z80_engine.sv': {'z80', 'sg1000', 'spectrum'},
+            'cores/fes-common/rtl/z80/new_unit.sv': {'z80', 'sg1000', 'spectrum'},
             'cores/fes-common/sim/z80/cpu_tb.cpp': {'z80'},
             'cores/fes-common/sim/z80/new_fixture.bin': {'z80'},
             'scripts/sim_fes_z80.py': {'z80'},
             'scripts/benchmark_fes_z80.py': {'z80'},
             'scripts/test_fes_z80_vectors.py': {'z80'},
+            'scripts/test_fes_z80_pin_trace.py': {'z80'},
+            'scripts/sim_fes_spectrum_turbo.py': {'spectrum'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):
