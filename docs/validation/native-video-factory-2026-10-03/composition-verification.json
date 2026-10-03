@@ -1,0 +1,38 @@
+{
+  "build_proof": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/build.json",
+    "sha256": "135f4445f1d2fa122c004bb1fcae4e3c692a9d5697a9bb0f92236796afe2dec0",
+    "size": 135043
+  },
+  "classification": "CPU-only exact-artifact host proof; no FPGA build/image/hardware execution",
+  "duration_seconds": 149.23061387497,
+  "exit_code": 0,
+  "expected_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "finished_at": "2026-10-03T13:46:12.326015+00:00",
+  "format": 1,
+  "invocation": {
+    "argv": [
+      "python3",
+      "-I",
+      "-B",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/verify.py",
+      "--source",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross",
+      "--output",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof",
+      "--parts-cli",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+      "--expected-revision",
+      "3ffe989fbba6857b74f149112d1965156face870"
+    ],
+    "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes"
+  },
+  "log": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/verify.log",
+    "sha256": "4c9c1344bfb7ea6fdd5cac34703704021fed189e353225345318473c7a8b76c6",
+    "size": 666
+  },
+  "prepared_inventory_expected_sha256": "2c5cacb765a1afd71837dbba0f6344473a3c35ac600325128b4a14f9fe82f66a",
+  "started_at": "2026-10-03T13:43:43.095422+00:00",
+  "status": "passed"
+}

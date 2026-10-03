@@ -1,0 +1,265 @@
+{
+  "actual_read_paths": {
+    "fixture_receipt": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/analysis/fixture-input.json",
+    "fixture_roms": [
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/fixture/graphics-sn.rom",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/fixture/sgm-probe.rom"
+    ],
+    "graphics_oracle_input": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/analysis/graphics-oracle-input.json",
+    "graphics_oracle_rom_copy": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/analysis/graphics-sn.rom",
+    "production_sources": [
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/misteross/cores/fes-coleco/diagnostic/LICENSE",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/misteross/cores/fes-coleco/diagnostic/generate.py",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/misteross/cores/fes-coleco/diagnostic/sgm_probe.py"
+    ]
+  },
+  "candidate_source_revision": "91c5d241394dab6c5269ae9897cd4bbbbfc3c963",
+  "classification": "Offline phase preparation and byte binding only; no current hardware or image acceptance.",
+  "command": "python3 out/native-video-factory/candidate-91c5d241/analysis/run_analysis.py <capture-directory> --include-sgm-relaunch --output out/native-video-factory/candidate-91c5d241/analysis/results/<set>/analysis.json",
+  "copied_files": [
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/analyze_factory.py",
+      "phase_path": "analyze_factory.py",
+      "sha256": "6253f06229358ac5a871440266a330f842e861ea3dd8ee974eaa98a024af6171",
+      "size": 10407
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/analyze_native.py",
+      "phase_path": "analyze_native.py",
+      "sha256": "68a4260e650b79121e4b0b54494cb15b0bdafbef72ceb37e0d3dc100fdc017e3",
+      "size": 20237
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/fixture_oracle.py",
+      "phase_path": "fixture_oracle.py",
+      "sha256": "83e6fb46303a97d79fa2698dd145507c78118f9379a1c4bc23896cfe7266a57f",
+      "size": 8315
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/native_capture_grid.py",
+      "phase_path": "native_capture_grid.py",
+      "sha256": "07b4c46d5822c7bca6ca2679462fa426169d5a535e4fd0384801ede61caeb0e0",
+      "size": 15052
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/native_capture_support.py",
+      "phase_path": "native_capture_support.py",
+      "sha256": "de3789c357b5647c5d4f5f22c78a8841511ae34c8d7e688c2e2ec4de4a3b8bd5",
+      "size": 10591
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/native_oracle.py",
+      "phase_path": "native_oracle.py",
+      "sha256": "1b9bd0e57454484f12d8bf826a27df8a4bf7a711bdc605b373f27145b16fcc85",
+      "size": 6887
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/self_controls.py",
+      "phase_path": "self_controls.py",
+      "sha256": "e76a55edb99657ebfcaba9c930e6907e439ccfea3b9e37efcab7b5fef538c07c",
+      "size": 5807
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/graphics-oracle-input.json",
+      "phase_path": "graphics-oracle-input.json",
+      "sha256": "4436f7f03306d72c0b1a878267fddee7fa818a337076dcbf0114691e56c2a5a4",
+      "size": 204
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/graphics-sn.rom",
+      "phase_path": "graphics-sn.rom",
+      "sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+      "size": 1086
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/fixture-oracle-controls.json",
+      "phase_path": "fixture-oracle-controls.json",
+      "sha256": "433181a5e30b47899b524e509431f2aeb0bd54b680826e8ee628f6cd0f129e66",
+      "size": 6446
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/self-controls.json",
+      "phase_path": "self-controls.json",
+      "sha256": "01fb1a455729cd2110f81d38f7394f930952f088736657ce0e11932035fbd86d",
+      "size": 2671
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/README.txt",
+      "phase_path": "README.txt",
+      "sha256": "d1e8c163ae30218cc499c43254f655e9b39fe2943a9a7ac72b64d009fb44541e",
+      "size": 1658
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/analysis/prepared.json",
+      "phase_path": "original-prepared.json",
+      "sha256": "05e5e03cfbcf1d8e971335380e8db151b8edf5cb1de3b132b3b808f53d2b06e4",
+      "size": 6649
+    },
+    {
+      "byte_identical": true,
+      "original_path": "out/native-video-factory/candidate-91c5d241/fixture/LICENSE",
+      "phase_path": "fixture-LICENSE.txt",
+      "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d",
+      "size": 1151
+    }
+  ],
+  "copy_verification": "All copied bytes, original ROM identities and original/candidate committed fixture source bytes matched.",
+  "derived_fixture_input": {
+    "path": "fixture-input.json",
+    "sha256": "b77bcd3302f8e4bb1d50262ef1a5af355ac619058687459c0c4fb3068b1f83c2",
+    "size": 3056
+  },
+  "fixture_files": [
+    {
+      "byte_identical": true,
+      "name": "graphics-sn.rom",
+      "original_path": "out/native-video-factory/fixture/graphics-sn.rom",
+      "sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+      "size": 1086
+    },
+    {
+      "byte_identical": true,
+      "name": "sgm-probe.rom",
+      "original_path": "out/native-video-factory/fixture/sgm-probe.rom",
+      "sha256": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317",
+      "size": 1261
+    },
+    {
+      "byte_identical": true,
+      "name": "LICENSE",
+      "original_path": "out/native-video-factory/fixture/LICENSE",
+      "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d",
+      "size": 1151
+    },
+    {
+      "byte_identical": true,
+      "name": "prepare.py",
+      "original_path": "out/native-video-factory/fixture/prepare.py",
+      "sha256": "67b28a1685e2398f55116ab17cef20bb2ea06305ed519f41ff4fcf7adc98d4cf",
+      "size": 3391
+    },
+    {
+      "byte_identical": true,
+      "name": "prepared.json",
+      "original_path": "out/native-video-factory/fixture/prepared.json",
+      "sha256": "3dccb940f26e2349ec69c4c586cf1fcb0648ddabc9eb7e860f947444ab76e40a",
+      "size": 2632
+    }
+  ],
+  "hardware_access_performed": false,
+  "hardware_capture_analysis": "Pending explicit root capture-ready message.",
+  "license": {
+    "path": "fixture-LICENSE.txt",
+    "scope": "Existing open Coleco diagnostic emitter and fixture license; SGM source carries SPDX MIT.",
+    "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d",
+    "size": 1151
+  },
+  "limitations": {
+    "ay_register_readbacks": 4,
+    "memory_reads": 8,
+    "memory_writes": 7,
+    "scope": "RAM-window boundary sentinels and console-RAM isolation; not an exhaustive SRAM test.",
+    "visual_pass": "The checkerboard is enabled only after all existing SGM checks pass."
+  },
+  "original_analysis_preparation": {
+    "path": "original-prepared.json",
+    "sha256": "05e5e03cfbcf1d8e971335380e8db151b8edf5cb1de3b132b3b808f53d2b06e4",
+    "size": 6649
+  },
+  "original_source_revisions": [
+    "eaaac77fa656607253ebf0877906bf4b338fc647"
+  ],
+  "phase_launcher": {
+    "path": "run_analysis.py",
+    "purpose": "Resolve the deeper phase directory to its source checkout and copied fixtures, then run unchanged analysis with unchanged thresholds.",
+    "sha256": "77bea6a0efd364b5fecf836c797b3d3c84f7355a09d3723df49012f5a5ce1378",
+    "size": 1689
+  },
+  "prior_controls": {
+    "classification": "Retained original offline evidence, not rerun by copy/syntax verification.",
+    "positive_CLI": {
+      "analysis_sha256": "3f59bb6bd6961ee6f95566de29d3406064ca987be822cded215156fc842dc7c9",
+      "cases": 6,
+      "command": [
+        "/usr/bin/python3",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/analyze_factory.py",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/controls",
+        "--include-sgm-relaunch",
+        "--expected-frames",
+        "60",
+        "--output",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/results/positive-control/analysis.json"
+      ],
+      "exit_code": 0,
+      "frames_each": 60,
+      "gates": 79,
+      "passed": 79
+    },
+    "self_control_count": 15,
+    "self_controls": {
+      "path": "out/native-video-factory/analysis/self-controls.json",
+      "sha256": "01fb1a455729cd2110f81d38f7394f930952f088736657ce0e11932035fbd86d",
+      "size": 2671
+    }
+  },
+  "relocation_controls": "New positive and representative negative control runs are recorded separately in relocation-controls.json.",
+  "source_bindings": [
+    {
+      "candidate_git_blob": "82bbae07a18b96a4b8ebefadbf59379dd0625795",
+      "candidate_source_revision": "91c5d241394dab6c5269ae9897cd4bbbbfc3c963",
+      "original_and_candidate_committed_bytes_equal": true,
+      "path": "sources/misteross/cores/fes-coleco/diagnostic/LICENSE",
+      "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d",
+      "size": 1151,
+      "source_revision": "eaaac77fa656607253ebf0877906bf4b338fc647",
+      "working_tree_bytes_equal": true
+    },
+    {
+      "candidate_git_blob": "74ebf154f7194691af36e7723d18b586c3839560",
+      "candidate_source_revision": "91c5d241394dab6c5269ae9897cd4bbbbfc3c963",
+      "original_and_candidate_committed_bytes_equal": true,
+      "path": "sources/misteross/cores/fes-coleco/diagnostic/generate.py",
+      "sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe",
+      "size": 12872,
+      "source_revision": "eaaac77fa656607253ebf0877906bf4b338fc647",
+      "working_tree_bytes_equal": true
+    },
+    {
+      "candidate_git_blob": "b329b0f1d2a3544db306bd76fad236b74ffaa6a4",
+      "candidate_source_revision": "91c5d241394dab6c5269ae9897cd4bbbbfc3c963",
+      "original_and_candidate_committed_bytes_equal": true,
+      "path": "sources/misteross/cores/fes-coleco/diagnostic/sgm_probe.py",
+      "sha256": "e7eed442df8232de3c8bc7be96b8bc1a757017a1f6fbb3f75044b261259cda46",
+      "size": 3265,
+      "source_revision": "eaaac77fa656607253ebf0877906bf4b338fc647",
+      "working_tree_bytes_equal": true
+    }
+  ],
+  "syntax_verification": {
+    "files": [
+      "analyze_factory.py",
+      "analyze_native.py",
+      "fixture_oracle.py",
+      "native_capture_grid.py",
+      "native_capture_support.py",
+      "native_oracle.py",
+      "run_analysis.py",
+      "self_controls.py"
+    ],
+    "method": "Python ast.parse; no source execution or emitted bytecode",
+    "passed": true
+  }
+}

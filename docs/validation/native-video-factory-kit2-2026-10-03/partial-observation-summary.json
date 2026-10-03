@@ -1,0 +1,121 @@
+{
+  "attempts": {
+    "original": {
+      "completion": {
+        "path": "hardware/kit2-20261003/partial-completion.json",
+        "sha256": "c0cd2226f8fc4287ed6113c717ac45e892d451ce8ae3802c40934b276c5ff482"
+      },
+      "duration_seconds": 3.7369600450620055,
+      "exit_code": 1,
+      "finding": "The frozen runner expected BAD_REQUEST/admission. The host rejected missing Direct with BAD_REQUEST/request. Its failed assertion triggered cleanup Stop, which returned HTTP500; the attempt failed and remains retained.",
+      "invocation": {
+        "path": "hardware/kit2-20261003/partial-invocation.json",
+        "sha256": "4519294be4cef38a4169f09f472dad0b4fa21d0578559f81544c4e2188d8ab7d"
+      },
+      "log": {
+        "path": "hardware/kit2-20261003/partial-run.log",
+        "sha256": "7c14bbaf19a833c41ead92919cffb9a83fc22fbfb899c7715f298f74ad380fa7"
+      }
+    },
+    "paired_observation": {
+      "active_fallback": {
+        "path": "hardware/kit2-20261003/partial-paired/scanlines-fallback-direct.json",
+        "sha256": "7b5efccf5a95ab6abc2e417c6178cdda3c2bbb62bcfdbbacb8ede41ad06be494"
+      },
+      "after_negative": {
+        "path": "hardware/kit2-20261003/partial-paired/missing-direct.json",
+        "sha256": "624316d4bcbf23f7c4d377cda0672fac70630043812c328dfa5f56e816c76fb3"
+      },
+      "after_stop": {
+        "path": "hardware/kit2-20261003/partial-paired/fallback-idle.json",
+        "sha256": "1a151f57cbccf38d79010b181c8d652bfe5ac64032d34e790c1e5b718938d7b9"
+      },
+      "before": {
+        "path": "hardware/kit2-20261003/partial-paired/initial-idle.json",
+        "sha256": "624316d4bcbf23f7c4d377cda0672fac70630043812c328dfa5f56e816c76fb3"
+      },
+      "completion": {
+        "path": "hardware/kit2-20261003/partial-paired-completion.json",
+        "sha256": "0df0601614a5fd9ed203a5298786d5b2ce0bf5eada036cf4bb09c46ff319a6f7"
+      },
+      "duration_seconds": 22.757275161799043,
+      "exit_code": 0,
+      "finding": "The checked runner and fixed-UUID observation helper completed missing-Direct rejection, imported Direct, selected unavailable Scanlines, launched the exact linked Direct fallback on the same host process, and stopped to idle with a free lease.",
+      "invocation": {
+        "path": "hardware/kit2-20261003/partial-paired-invocation.json",
+        "sha256": "3a11d8ddaafe506bfa0fb413f1380a27ab4224984b47729436a998efe0bf3b00"
+      },
+      "log": {
+        "path": "hardware/kit2-20261003/partial-paired-run.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "negative_reply": {
+        "path": "hardware/kit2-20261003/partial-paired/missing-direct-reply.json",
+        "sha256": "8537ec682373e3fc1b3208872bc0f776eecffcc817a9f43c9d43fb981112f58d"
+      },
+      "result": {
+        "path": "hardware/kit2-20261003/partial-paired/result.json",
+        "sha256": "e27f69fd5cbf1e4674242759383cd3cf18957cf9cbca41b3a34c72f6bc60c8a8"
+      }
+    },
+    "phase_checked": {
+      "completion": {
+        "path": "hardware/kit2-20261003/partial-checked-completion.json",
+        "sha256": "8e876a2398282616b949a7a8f054982a28c7348c96e1e3d3a40024d50bee1e57"
+      },
+      "duration_seconds": 3.7604971770197153,
+      "exit_code": 1,
+      "finding": "The phase-corrected runner accepted and retained BAD_REQUEST/request, then failed when the unscoped diagnostic health endpoint returned HTTP503. Cleanup Stop returned HTTP500. This attempt also remains failed.",
+      "invocation": {
+        "path": "hardware/kit2-20261003/partial-checked-invocation.json",
+        "sha256": "c97fa1811b924642063369b17b67cda342df1503a6ca570d24979894944918f4"
+      },
+      "log": {
+        "path": "hardware/kit2-20261003/partial-checked-run.log",
+        "sha256": "29feca33a06cdfc6291c49c41f09f88ef133fa3c15fec5b37f0a360571061755"
+      },
+      "negative_reply": {
+        "path": "hardware/kit2-20261003/partial-checked/missing-direct-reply.json",
+        "sha256": "8537ec682373e3fc1b3208872bc0f776eecffcc817a9f43c9d43fb981112f58d"
+      }
+    }
+  },
+  "classification": "Operator-harness limitation and retained correction evidence; no production fix or new hardware action was performed to prepare this summary.",
+  "corrections": {
+    "observation": {
+      "binary_sha256": "57d061e8b9e6f0416f3f79d29878a67e1152db27a33cb825f5ddbcfe72f66d93",
+      "diff": {
+        "path": "hardware/host-driver-paired.diff",
+        "sha256": "0002f4ccfd66497aba2fb345af93ae8417cdf7ea0e2652fcc0995ecec128b769"
+      },
+      "explanation": "The derived Go helper scopes diagnostic Health and Status through WithPairedTarget to the operator-fixed UUID, matching its existing lease observation scope. Normal launch/Stop routes and Python target/image/readiness, exact-status and lease checks are unchanged. Frozen sources/binary remain retained.",
+      "receipt": {
+        "path": "hardware/host-driver-paired.derivation.json",
+        "sha256": "50f67b7ddabc03180ab69ac9e077a9e0b0624cc6db3f25b725775068998d1fbf"
+      }
+    },
+    "phase": {
+      "diff": {
+        "path": "hardware/run_partial_checked.diff",
+        "sha256": "b5519f4bc81b80fc86b68e4f787f4a200b88ddf0337e35cb99e9455420a88000"
+      },
+      "explanation": "Local composeVideoEntry reports the missing mandatory output. loadCoreLocked passes source-resolution errors to corePackageRequestFailure, which sets phase=request before dispatch. The derived runner changes only this phase expectation and saves the complete negative response before asserting.",
+      "receipt": {
+        "path": "hardware/run_partial_checked.derivation.json",
+        "sha256": "9e37eb0e2a5ba6cc4f657fb729c163a5dc6438b2d88fe535fcad468e37ddfeaa"
+      }
+    }
+  },
+  "image_sha256": "3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496",
+  "paths_relative_to": "candidate-6ed1dad4",
+  "scope": "The passing partial run covers missing mandatory Direct and missing Scanlines falling back to linked Direct. It does not add corrupt-part or Scanlines-only physical coverage.",
+  "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "unresolved_limitation": "The cause of the original unscoped Health HTTP503 and cleanup Stop HTTP500 is unresolved. The frozen helper hides the underlying observation error and discards unexpected response bodies. Paired-read success does not establish that the original failures were intentional, fixed, or generally harmless.",
+  "verified_negative_boundary": {
+    "lease_equal_before_after": true,
+    "lease_generation": "738b2480933b37ac21a0c47d95ddeebb7be6aae92d5626cba431a50be2929a08",
+    "lease_state": "free",
+    "same_host_continued_to_successful_fallback": true,
+    "target_status_equal_before_after": true
+  }
+}

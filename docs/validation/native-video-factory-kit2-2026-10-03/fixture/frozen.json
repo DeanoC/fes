@@ -1,0 +1,51 @@
+{
+  "classification": "Byte-identical copied MIT fixtures and original receipt; no regeneration or hardware access.",
+  "license": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fixture/LICENSE",
+    "sgm_probe_source_notice": "SPDX-License-Identifier: MIT; Copyright (c) 2026 FES contributors",
+    "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d"
+  },
+  "origin_candidate": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f",
+  "origin_receipt": {
+    "path": "prepared.json",
+    "sha256": "3dccb940f26e2349ec69c4c586cf1fcb0648ddabc9eb7e860f947444ab76e40a",
+    "unchanged": true
+  },
+  "preparation_sha256": "67b28a1685e2398f55116ab17cef20bb2ea06305ed519f41ff4fcf7adc98d4cf",
+  "roms": {
+    "graphics-sn": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fixture/graphics-sn.rom",
+      "sgm_required": false,
+      "sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+      "size": 1086
+    },
+    "sgm-probe": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fixture/sgm-probe.rom",
+      "sgm_required": true,
+      "sha256": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317",
+      "size": 1261
+    }
+  },
+  "selected_source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "sn_adapter_source": {
+    "path": "out/native-video-factory/analysis/native_oracle.py",
+    "sha256": "1b9bd0e57454484f12d8bf826a27df8a4bf7a711bdc605b373f27145b16fcc85"
+  },
+  "sources": {
+    "LICENSE": {
+      "path": "sources/misteross/cores/fes-coleco/diagnostic/LICENSE",
+      "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d",
+      "source_revision": "eaaac77fa656607253ebf0877906bf4b338fc647"
+    },
+    "generate.py": {
+      "path": "sources/misteross/cores/fes-coleco/diagnostic/generate.py",
+      "sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe",
+      "source_revision": "eaaac77fa656607253ebf0877906bf4b338fc647"
+    },
+    "sgm_probe.py": {
+      "path": "sources/misteross/cores/fes-coleco/diagnostic/sgm_probe.py",
+      "sha256": "e7eed442df8232de3c8bc7be96b8bc1a757017a1f6fbb3f75044b261259cda46",
+      "source_revision": "eaaac77fa656607253ebf0877906bf4b338fc647"
+    }
+  }
+}

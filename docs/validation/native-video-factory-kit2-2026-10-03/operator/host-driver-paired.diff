@@ -1,0 +1,19 @@
+--- host-driver.go
++++ host-driver-paired.go
+@@ -143,14 +143,14 @@
+ 	}
+ 	mux.HandleFunc("GET /diagnostic/expectations", func(w http.ResponseWriter, r *http.Request) { write(w, expected, nil) })
+ 	mux.HandleFunc("GET /diagnostic/health", func(w http.ResponseWriter, r *http.Request) {
+-		value, err := service.Health(r.Context())
++		value, err := service.Health(fogcast.WithPairedTarget(r.Context(), *targetID))
+ 		if err == nil && value.TargetID != *targetID {
+ 			err = fmt.Errorf("target identity mismatch")
+ 		}
+ 		write(w, value, err)
+ 	})
+ 	mux.HandleFunc("GET /diagnostic/status", func(w http.ResponseWriter, r *http.Request) {
+-		value, err := service.StatusTarget(r.Context(), selected.Name)
++		value, err := service.Status(fogcast.WithPairedTarget(r.Context(), *targetID))
+ 		write(w, value, err)
+ 	})
+ 	mux.HandleFunc("GET /diagnostic/lease", func(w http.ResponseWriter, r *http.Request) {

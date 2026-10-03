@@ -1,0 +1,258 @@
+"""Operator-run Kit 2 diagnostic. No credentials, SSH, capture or device writes.
+
+Only the root operator runs this against its prepared private host/config.
+Launch and Stop use the existing ordinary library/session API and kit lease.
+"""
+import argparse
+import hashlib
+import http.client
+import json
+from pathlib import Path
+import subprocess
+import time
+
+
+def require(condition, message):
+    if not condition:
+        raise RuntimeError(message)
+
+
+class Driver:
+    def __init__(self, args):
+        self.args = args
+        self.output = args.output.resolve()
+        require(not (self.output / "result.json").exists(), "Use a fresh output directory; a prior result already exists")
+        self.output.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.process = None
+        self.generation = 0
+        self.results = []
+        self.active = False
+
+    def save(self, name, value):
+        path = self.output / (name + ".json")
+        path.write_text(json.dumps(value, sort_keys=True, indent=2) + "\n")
+        path.chmod(0o600)
+
+    def request(self, method, path, value=None, expected=200):
+        conn = http.client.HTTPConnection("127.0.0.1", self.args.port, timeout=180)
+        headers = {}
+        if isinstance(value, dict):
+            value = json.dumps(value).encode()
+            headers["Content-Type"] = "application/json"
+        elif value is not None:
+            headers["Content-Type"] = "application/octet-stream"
+        try:
+            conn.request(method, path, body=value, headers=headers)
+            response = conn.getresponse()
+            data = response.read()
+            require(response.status == expected, f"{method} {path}: HTTP {response.status}")
+            return json.loads(data) if data else None
+        finally:
+            conn.close()
+
+    def start(self):
+        log = (self.output / "host.log").open("a")
+        argv = [str(self.args.host_binary.resolve()), "--state", str(self.args.state.resolve()),
+                                        "--catalog", str(self.args.catalog.resolve()), "--target-id", self.args.target_id,
+                                        "--listen", f"127.0.0.1:{self.args.port}"]
+        if getattr(self.args, "sgm", None):
+            argv += ["--sgm", str(self.args.sgm.resolve())]
+        self.process = subprocess.Popen(argv, stdout=log, stderr=log)
+        log.close()
+        for _ in range(150):
+            require(self.process.poll() is None, "Diagnostic host exited; inspect host.log")
+            try:
+                self.request("GET", "/diagnostic/expectations")
+                return
+            except (OSError, http.client.HTTPException):
+                time.sleep(.1)
+        raise RuntimeError("Diagnostic host did not start")
+
+    def shutdown(self):
+        if self.process:
+            self.process.terminate()
+            require(self.process.wait(timeout=35) == 0, "Diagnostic host shutdown failed")
+            self.process = None
+
+    def observation(self):
+        health = self.request("GET", "/diagnostic/health")
+        require(health["target_id"] == self.args.target_id, "Target identity mismatch")
+        if self.args.image_sha256:
+            require(health.get("artifacts", {}).get("image_sha256") == self.args.image_sha256, "Target image identity mismatch")
+        status = self.request("GET", "/diagnostic/status")
+        require(not status.get("last_error") and not status.get("recovery"), "Target reports an error/recovery")
+        require(status["state"] in ("idle", "active"), "Target is not in a settled idle/active state")
+        # Native Health.ready admits a new load only from physical idle.
+        # An exact active package is observed through status, not readiness.
+        if status["state"] == "idle":
+            require(health["ready"], "Idle target is not ready")
+        return status
+
+    def idle(self, name):
+        status = self.observation()
+        require(status["state"] == "idle", "Target is not idle; operator recovery is required")
+        for _ in range(150):
+            lease = self.request("GET", "/diagnostic/lease")
+            if lease["state"] == "free":
+                self.save(name, {"status": status, "lease": lease})
+                return status
+            time.sleep(.1)
+        raise RuntimeError("Lease was not released; operator recovery is required")
+
+    def stop(self, name):
+        response = self.request("POST", "/api/v1/session/stop", {"target": self.args.target_name})
+        self.save(name + "-stop", response)
+        self.idle(name + "-idle")
+        self.active = False
+
+    def profile(self, profile):
+        self.request("PATCH", "/api/v1/library/settings", {"video_profile": profile})
+        require(self.request("GET", "/api/v1/library/settings")["video_profile"] == profile, "Preference did not persist")
+
+    def launch(self, name, profile, entry, expected, *, sgm=False):
+        self.profile(profile)
+        resolution = self.request("GET", f'/api/v1/library/core-entries/{entry["game_id"]}/video')
+        composition = expected["sgm_compositions" if sgm else "compositions"][profile]
+        video_id = next(part["part_id"] for part in composition["parts"] if part["role"] == "video")
+        require(resolution["preferred_profile"] == profile and resolution["effective_profile"] == profile and
+                not resolution["builtin"] and not resolution.get("fallback_reason") and resolution["part_id"] == video_id,
+                "Resolved factory profile is not the exact installed part")
+        self.active = True
+        response = self.request("POST", "/api/v1/session/launch", {"game_id": entry["game_id"], "target": self.args.target_name})
+        require(response["game_id"] == entry["game_id"], "Launch returned another entry")
+        status = self.observation()
+        require(status["state"] == "active", "Launch did not reach active")
+        cp = status["core_package"]
+        require(cp["package_id"] == expected["package_id"] and cp["build_id"] == expected["build_id"] and
+                cp["abi"] == expected["abi"] and cp["persistence_mode"] == "volatile" and
+                cp["parts_composition"] == composition, "Runtime tuple differs from independently composed sealed parts")
+        require(cp["generation"] > self.generation, "Runtime generation did not advance")
+        self.generation = cp["generation"]
+        self.save(name, {"resolution": resolution, "launch": response, "runtime": status})
+        self.results.append({"case": name, "generation": self.generation, "composition_id": composition["composition_id"]})
+        print(json.dumps({"stage": "active", **self.results[-1]}), flush=True)
+        if self.args.active_command:
+            subprocess.run(self.args.active_command + [name, str(self.output)], check=True)
+        return status
+
+    def run(self):
+        self.start()
+        expected = self.request("GET", "/diagnostic/expectations")
+        self.save("expectations", expected)
+        before = self.idle("initial-idle")
+        require(self.request("GET", "/api/v1/core-packages")["packages"] == [], "Use an empty private package store")
+        require(self.request("GET", "/api/v1/library/video-parts") == [], "Use an empty private video mapping store")
+        rows = self.request("GET", "/api/v1/core-catalog")["cores"]
+        row = next(value for value in rows if value["core_id"] == "fes.coleco")
+        require(row["package_id"] == expected["package_id"] and row["source_id"] == expected["source_id"] and
+                row["video_parts"] == expected["entry"]["video_parts"], "Configured catalog differs from selected publication")
+        ref = {key: row[key] for key in ("source_id", "core_id", "package_id")}
+        installed = self.request("POST", "/api/v1/core-catalog/install", ref)
+        require(installed["package_id"] == expected["package_id"], "Install returned another package")
+        mappings = sorted(self.request("GET", "/api/v1/library/video-parts"), key=lambda part: part["profile"])
+        expected_mappings = sorted([{"package_id": expected["package_id"], "profile": part["profile"], "part_id": part["part_id"]}
+                                    for part in row["video_parts"]], key=lambda part: part["profile"])
+        require(mappings == expected_mappings, "Normal catalog install did not automatically import both profiles")
+        self.request("POST", "/api/v1/core-catalog/install", ref)
+        require(self.request("GET", "/api/v1/library/video-parts") == mappings, "Repeated install changed mappings")
+        require(self.observation() == before, "Installing a catalog core altered physical target status")
+        self.save("installed", {"package": installed, "video_parts": mappings})
+        setup = self.request("GET", f'/api/v1/core-catalog/fes.coleco/setup?source_id={row["source_id"]}&package_id={row["package_id"]}')
+        require(setup["roms"] == [], "This diagnostic requires the factory blob-media Coleco application")
+        rom = self.args.rom.read_bytes()
+        require(any(cap["role"] == "blob" and cap["min_bytes"] <= len(rom) <= cap["max_bytes"] for cap in setup["capabilities"]["media"]), "Open diagnostic ROM does not fit declared media limits")
+        media = self.request("POST", "/api/v1/core-media", rom, 201)
+        require(media["media_id"] == hashlib.sha256(rom).hexdigest() and media["size"] == len(rom), "Media identity mismatch")
+        created = self.request("POST", "/api/v1/core-catalog/entries", dict(ref, library_source_id=row["library_source_id"],
+                                title="Factory video open graphics diagnostic", media_role="blob", media_id=media["media_id"]))
+        entry = created["entry"]
+        require(entry["package_id"] == expected["package_id"] and entry["media_id"] == media["media_id"], "Entry identity mismatch")
+        self.save("entry", {"setup": setup, "media": media, "created": created})
+        active = self.launch("direct", "direct", entry, expected)
+        self.profile("scanlines")
+        require(self.observation() == active, "Changing next-launch preference altered the active FPGA")
+        self.save("active-preference-preserved", {"unchanged": True, "generation": self.generation})
+        self.stop("direct")
+        self.launch("scanlines", "scanlines", entry, expected)
+        self.stop("scanlines")
+        self.shutdown()
+        self.start()
+        require(self.request("GET", "/api/v1/library/settings")["video_profile"] == "scanlines", "Preference lost across host restart")
+        require(self.request("GET", "/api/v1/library/video-parts") == mappings, "Factory mappings lost across host restart")
+        retained = self.request("GET", f'/api/v1/library/core-entries/{entry["game_id"]}')
+        require(retained == entry, "Entry/media selection lost across host restart")
+        self.request("POST", "/api/v1/core-catalog/install", ref)
+        require(self.request("GET", f'/api/v1/library/core-entries/{entry["game_id"]}') == entry, "Repeated install after restart changed entry/media")
+        self.save("restart-persistence", {"profile": "scanlines", "mappings": mappings, "entry": retained})
+        self.launch("direct-relaunch", "direct", entry, expected)
+        self.stop("direct-relaunch")
+        if getattr(self.args, "sgm", None):
+            sgm = self.request("POST", "/api/v1/core-expansions", self.args.sgm.read_bytes())
+            require(sgm["expansion_id"] == expected["sgm_id"] and sgm["package_id"] == expected["package_id"],
+                    "SGM import is not bound to the exact native shell")
+            sgm_rom = self.args.sgm_rom.read_bytes()
+            media = self.request("POST", "/api/v1/core-media", sgm_rom, 201)
+            require(media["media_id"] == hashlib.sha256(sgm_rom).hexdigest() and media["size"] == len(sgm_rom), "SGM media identity mismatch")
+            sgm_created = self.request("POST", "/api/v1/core-catalog/entries", dict(ref, library_source_id=row["library_source_id"],
+                                     title="Native video SGM open memory and audio diagnostic", media_role="blob", media_id=media["media_id"]))
+            sgm_entry = sgm_created["entry"]
+            require(sgm_entry["package_id"] == expected["package_id"] and sgm_entry["media_id"] == media["media_id"] and
+                    sgm_entry["media_role"] == "blob" and sgm_entry["game_id"] != entry["game_id"], "SGM entry identity mismatch")
+            expansion_route = f'/api/v1/library/core-entries/{sgm_entry["game_id"]}/expansion'
+            selection = self.request("PUT", expansion_route,
+                                     {"package_id": expected["package_id"], "expected_expansion_id": "", "expansion_id": expected["sgm_id"]})
+            require(selection["expansion_id"] == expected["sgm_id"] and selection["game_id"] == sgm_entry["game_id"], "SGM selection mismatch")
+            self.save("sgm-entry", {"entry": sgm_entry, "media": media, "expansion": selection})
+            active = self.launch("direct-sgm", "direct", sgm_entry, expected, sgm=True)
+            self.profile("scanlines")
+            require(self.observation() == active, "Changing profile mutated active SGM composition")
+            self.stop("direct-sgm")
+            self.launch("scanlines-sgm", "scanlines", sgm_entry, expected, sgm=True)
+            self.stop("scanlines-sgm")
+            self.shutdown()
+            self.start()
+            require(self.request("GET", "/api/v1/library/settings")["video_profile"] == "scanlines", "SGM preference lost on restart")
+            require(self.request("GET", expansion_route) == selection, "SGM selection lost on restart")
+            require(self.request("GET", f'/api/v1/library/core-entries/{sgm_entry["game_id"]}') == sgm_entry,
+                    "SGM title/media changed on restart")
+            require(self.request("GET", "/api/v1/library/video-parts") == mappings, "SGM restart changed video mappings")
+            self.save("sgm-restart-persistence", {"profile": "scanlines", "entry": sgm_entry, "expansion": selection, "mappings": mappings})
+            self.launch("direct-sgm-relaunch", "direct", sgm_entry, expected, sgm=True)
+            self.stop("direct-sgm-relaunch")
+        self.save("result", {"passed": True, "classification": "operator-run hardware diagnostic", "cases": self.results,
+                             "automatic_catalog_parts": True, "restart_persistence": True, "sgm": bool(getattr(self.args, "sgm", None)), "final_idle": True})
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host-binary", type=Path, required=True)
+    parser.add_argument("--state", type=Path, required=True)
+    parser.add_argument("--catalog", type=Path, required=True)
+    parser.add_argument("--sgm", type=Path)
+    parser.add_argument("--sgm-rom", type=Path)
+    parser.add_argument("--rom", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--target-id", required=True)
+    parser.add_argument("--target-name", default="kit2")
+    parser.add_argument("--port", type=int, default=18788)
+    parser.add_argument("--image-sha256", default="")
+    parser.add_argument("--active-command", type=json.loads, default=None,
+                        help="optional operator-owned JSON argv; case name/output directory are appended for captures")
+    args = parser.parse_args()
+    if args.active_command is not None:
+        require(isinstance(args.active_command, list) and args.active_command and all(isinstance(x, str) for x in args.active_command), "active command must be a nonempty JSON argv")
+    require(bool(args.sgm) == bool(args.sgm_rom), "SGM archive and ROM must be supplied together")
+    driver = Driver(args)
+    try:
+        driver.run()
+    finally:
+        if driver.process:
+            try:
+                if driver.active:
+                    driver.stop("cleanup")
+            finally:
+                driver.shutdown()
+
+
+if __name__ == "__main__":
+    main()

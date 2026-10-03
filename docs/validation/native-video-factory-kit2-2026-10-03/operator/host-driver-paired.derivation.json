@@ -1,0 +1,133 @@
+{
+  "binary": {
+    "build_info_command": [
+      "go",
+      "version",
+      "-m",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/host-driver-paired"
+    ],
+    "build_info_path": "host-driver-paired-build-info.txt",
+    "build_info_sha256": "f29384a2f7f92377086c71fdf9f99326918acc7285f0dad7e8881df95c0cf8fe",
+    "embedded_vcs": false,
+    "path": "out/native-video-factory/candidate-6ed1dad4/hardware/host-driver-paired",
+    "sha256": "57d061e8b9e6f0416f3f79d29878a67e1152db27a33cb825f5ddbcfe72f66d93",
+    "size": 23391956,
+    "vcs_settings": {}
+  },
+  "build": {
+    "additional_ignored_main": "sources/FogCast/bin/native-video-factory-driver-paired/main.go",
+    "argv": [
+      "go",
+      "build",
+      "-trimpath",
+      "-buildvcs=true",
+      "-o",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/host-driver-paired",
+      "./bin/native-video-factory-driver-paired"
+    ],
+    "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast",
+    "elapsed_seconds": 0.744,
+    "exit_code": 0,
+    "go_version": "go version go1.26.5 linux/amd64",
+    "log_path": "host-driver-paired-build.log",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "classification": "Derived operator observation helper only. No production changes, target access or acceptance claim from this build.",
+  "derived": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/hardware/host-driver-paired.go",
+    "sha256": "7680189e0506635290760fb9a33a7c937330db36cb80ba419082948d669a3f98"
+  },
+  "diff": {
+    "path": "host-driver-paired.diff",
+    "sha256": "0002f4ccfd66497aba2fb345af93ae8417cdf7ea0e2652fcc0995ecec128b769",
+    "text": "--- host-driver.go\n+++ host-driver-paired.go\n@@ -143,14 +143,14 @@\n \t}\n \tmux.HandleFunc(\"GET /diagnostic/expectations\", func(w http.ResponseWriter, r *http.Request) { write(w, expected, nil) })\n \tmux.HandleFunc(\"GET /diagnostic/health\", func(w http.ResponseWriter, r *http.Request) {\n-\t\tvalue, err := service.Health(r.Context())\n+\t\tvalue, err := service.Health(fogcast.WithPairedTarget(r.Context(), *targetID))\n \t\tif err == nil && value.TargetID != *targetID {\n \t\t\terr = fmt.Errorf(\"target identity mismatch\")\n \t\t}\n \t\twrite(w, value, err)\n \t})\n \tmux.HandleFunc(\"GET /diagnostic/status\", func(w http.ResponseWriter, r *http.Request) {\n-\t\tvalue, err := service.StatusTarget(r.Context(), selected.Name)\n+\t\tvalue, err := service.Status(fogcast.WithPairedTarget(r.Context(), *targetID))\n \t\twrite(w, value, err)\n \t})\n \tmux.HandleFunc(\"GET /diagnostic/lease\", func(w http.ResponseWriter, r *http.Request) {\n"
+  },
+  "limitation": "The original unscoped-helper HTTP503 and cleanup HTTP500 remain unexplained retained failures; this change does not establish that those failures were intentional or repaired.",
+  "original": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/hardware/host-driver.go",
+    "sha256": "f9863af670aef3a9286608b7fc5c4ba186d6feeba7fe4b2a32b177b1cf57c408",
+    "unchanged": true
+  },
+  "reason": "Both diagnostic health and status read the operator-fixed paired Kit 2 UUID, matching the existing lease observation scope. All production launch/Stop routes and Python identity/readiness/status/lease checks remain unchanged.",
+  "source_bindings": [
+    {
+      "git_blob": "bb81bd02587dfed8fdc19037f125f960d7a9646d",
+      "lines": [
+        {
+          "line": 641,
+          "text": "func (s *Service) sessionTargetNameLocked() string {"
+        },
+        {
+          "line": 844,
+          "text": "func (s *Service) clearUnstartedSessionTarget() {"
+        },
+        {
+          "line": 1711,
+          "text": "func (s *Service) Health(parent context.Context) (protocol.Health, error) {"
+        },
+        {
+          "line": 2246,
+          "text": "func (s *Service) Status(parent context.Context) (protocol.Status, error) {"
+        },
+        {
+          "line": 2256,
+          "text": "func (s *Service) statusPairedTarget(parent context.Context, targetID string) (protocol.Status, error) {"
+        },
+        {
+          "line": 3308,
+          "text": "func (s *Service) PairedTargetKitLeaseStatus(ctx context.Context, targetID string) (kitlease.Status, error) {"
+        }
+      ],
+      "path": "sources/FogCast/fogcast/service.go",
+      "sha256": "79b55a2a416b9cf956de8f107907abdef8e2ef9f2ee7c4ffe76652c3cf1094c6",
+      "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63"
+    },
+    {
+      "git_blob": "a2867a423677298a51aa68217591eadff0c9477f",
+      "lines": [
+        {
+          "line": 132,
+          "text": "func WithPairedTarget(ctx context.Context, targetID string) context.Context {"
+        }
+      ],
+      "path": "sources/FogCast/fogcast/library_cache.go",
+      "sha256": "9c9d4dc33e89af0f9b11cc7921a7ae495219e769d5e8af642de9e03d500b6406",
+      "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63"
+    }
+  ],
+  "source_commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "source_manifest": {
+    "path": "host-source-manifest.json",
+    "sha256": "837a106a77254e57bf48831250dc58a7ea27e90f6c83f39f0aa51e113fc8c875"
+  },
+  "subtrees": {
+    "sources/FogCast": {
+      "git_tree": "fda2ebbf53dd1cac7d5ee19a69506c1387b483fe",
+      "tracked_file_count": 1356,
+      "working_tree_manifest_sha256": "6922aafa20e9f3904cbe16b6c7cbc8401c58d89e63f8ad7ce5e0de132158229e"
+    },
+    "sources/FogCast/appliance": {
+      "git_tree": "f1845530b8d2be07368ffd9483d14a6319a8c7d7",
+      "tracked_file_count": 6,
+      "working_tree_manifest_sha256": "eabb0ba17e5d65720a1c7c6521d7566b85f28a6ec9ea656bd334871f8170f9bc"
+    },
+    "sources/misteross/expansion": {
+      "git_tree": "b3c80b0588f191116c92e6e270e4771652ebe1da",
+      "tracked_file_count": 30,
+      "working_tree_manifest_sha256": "25ea2433299bfbb743b9f4bbef2a4c1b43b926d7cc86881e99d3e4a0f4d78bc5"
+    }
+  },
+  "working_source_verification": "All 1386 tracked FogCast/appliance/expansion files and modes matched the original selected-6ed Git blobs before and after compilation. Concurrent documentation/evidence edits outside these module trees were not compiled.",
+  "worktree_head_after": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "worktree_head_before": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "worktree_status_before": [
+    " M docs/README.md",
+    " M docs/core-status.md",
+    " M docs/validation/2026-10-03-native-video-factory-build.md",
+    " M sources/libmister-runtime/ARCHITECTURE.md",
+    " M sources/libmister-runtime/README.md",
+    " M sources/libmister-runtime/docs/support-matrix.md",
+    " M sources/misteross/docs/cores.md",
+    "?? docs/validation/native-video-factory-kit2-2026-10-03/"
+  ]
+}

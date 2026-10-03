@@ -1,4 +1,4 @@
-"""Keep the native shell/part producer separate from the factory raster lane."""
+"""Validate the native shell/part producer and its distinct physical profile."""
 import copy
 import json
 from pathlib import Path
@@ -6,6 +6,7 @@ import tempfile
 import tomllib
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_video_part as part
@@ -14,6 +15,38 @@ from scripts.cyclonev_rbf import SX120F, CramRect, LoadedRbf, classify_cram_diff
 
 
 class NativeVideoProducerTest(unittest.TestCase):
+    def test_record_binds_native_fallback_and_actual_router_policy(self):
+        for flags, expected_weights in (({}, (2000,)),
+                ({"video_socket": True}, (2000,)),
+                ({"native_video": True}, (2000, 1000))):
+            with self.subTest(flags=flags), \
+                    patch.object(shell, "functional_record_fields",
+                                 side_effect=lambda root, fields, *args, **kwargs: fields), \
+                    patch.object(shell, "encode_build_record", side_effect=lambda fields: fields), \
+                    patch.object(shell, "route_after_synth") as route:
+                record = shell.create_build_record(shell.ROOT, "repository", "a" * 40,
+                                                   {}, execution={}, **flags)
+                _, relative, _ = shell.video_profile(**flags)
+                env = {"FES_CONTROLLED_FIXTURE": "1"}
+                shell._route_placement(shell.ROOT, shell.ROOT / relative, Path("/nextpnr"),
+                    native_video=flags.get("native_video", False), env=env)
+            parameters, options = record["parameters"], route.call_args.kwargs
+            self.assertEqual(options["weights"], expected_weights)
+            self.assertEqual(tuple(map(int, parameters["placer_heap_timingweights"].split(","))),
+                             options["weights"])
+            self.assertEqual(tuple(map(int, parameters["seed_order"].split(","))),
+                             options["seeds"])
+            self.assertEqual(parameters["placer_qor_budget"], options["budget"])
+            self.assertEqual(options["budget"], 10 * len(expected_weights))
+            self.assertEqual(parameters["placer_qor_mode"], options["mode"])
+            self.assertEqual(options["mode"], "first-pass")
+            self.assertEqual(parameters["placer_qor_timeout_seconds"], options["timeout"])
+            self.assertEqual(options["timeout"], 600)
+            self.assertEqual(options["required"], ((None, 52.224), (None, 74.25), (None, 12.288)))
+            self.assertEqual(options["gpu_devices"], (0,))
+            self.assertIs(options["env"], env)
+            self.assertEqual(options["audit_source_root"], shell.ROOT)
+
     def test_native_preview_preserves_real_routing_in_legacy_excluded_column(self):
         size = (SX120F.cram_sx * SX120F.cram_sy + 7) // 8
         base = LoadedRbf(SX120F, b"header", bytearray(size), True)

@@ -542,8 +542,8 @@ no placement, timing, sealed-package or hardware evidence.
 The optional `FES_COLECO_NATIVE_VIDEO_DEV` top-level branch instantiates the
 native consumer inline, with `FES_NATIVE_SCANLINES` selecting its effect.
 The inline path remains a host simulation prototype. The separate native
-developer producer and admission path use the wider closed layout below;
-factory package selection continues to use the raster layout. Native physical
+producer and admission path use the wider closed layout below;
+FES factory package selection uses that native layout. Native physical
 linking requires fresh exact-shell placement, containment and timing evidence;
 the raster reservation has only 16 M10Ks and cannot hold native frame capture. The
 [native contract](../../mister-packages/docs/video-parts.md#native-active-pixels)
@@ -556,11 +556,10 @@ socket at columns 24–28, rows 23–38. Their half-open CRAM rectangles are
 `(1769,32,2806,1800)` and `(1769,1800,2806,3442)`. The video-socket
 shell declares optional `fes.fabric.video.raster-rgb888` 1.0; it retains the
 fixed-720p60 external interface and the base package's GP capabilities and
-BUILD_ID during composition. FES selects `video_socket=True` and the matching
-`--video-socket` CLI option on the existing Coleco producer for its factory
-package. The standalone producer default remains the CPU-only socket.
+BUILD_ID during composition. Select `video_socket=True` or `--video-socket`
+for this raster lane. The standalone producer default remains the CPU-only socket.
 
-The developer native layout is `fes.coleco-native-video.parts/1`, selected by
+The native layout is `fes.coleco-native-video.parts/1`, selected by
 the optional `fes.fabric.video.native-pixels` 1.0 package marker. Its video map
 is `fes.coleco-native-video.socket/1`, at placement columns 5–38, rows 23–38,
 with the wider half-open CRAM fence `(124,1800,3906,3442)`. The CPU bus 2.0
@@ -570,13 +569,23 @@ socket. The native marker version fixes 256×192 TMS9918 Index4 source pixels.
 The shell owns the source adapter, clock crossing, clocks and HDMI/audio
 delivery; a required direct or scanline video part owns frame capture and
 720p timing/output. A vacant native socket has no built-in output. These
-developer assets use the existing archive grammar and exact-shell bindings;
-factory publication and household profile selection remain on raster.
+assets use the existing archive grammar and exact-shell bindings. FES selects
+this producer for factory publication; FogCast resolves the household preference
+against matching installed parts. A missing selected part cannot fall back to
+the vacant native shell. Older raster packages retain their existing behavior.
 
-The pinned frozen importer removes transparent cart clock buffers but does not
-reconnect an SDP M10K's second clock through their aliases. The native producer
-therefore proves every FF/RAM clock traces through only transparent buffers to
-the declared input buffer, then uses that imported net for all clock pins.
+The native shell tries the ten seeds `3,4,5,1,2,6,7,8,9,10` at HeAP timing
+weight 2000, then the same seeds at weight 1000 if needed. The bounded search
+stops at the first complete route meeting all three clock requirements, with a
+600-second limit per attempt. The CPU-only and raster variants retain their
+ten-seed, weight-2000 search. The ordered weights, mode, attempt budget and
+timeout enter the build identity; route evidence records the selected seed
+and weight. This fallback does not establish timing margin for a later build.
+
+The native producer proves every FF/RAM clock traces through only transparent
+buffers to the declared input buffer, then normalizes all clock pins to that
+boundary before frozen import. The locked importer reconnects every traced
+clock alias, including both ports of an SDP M10K.
 RAM modes, write enables and data paths remain identical. `cart-synth.json`
 retains the original synthesis output; the build summary binds both netlist
 hashes and clock-pin counts. Routed validation still requires every active
@@ -841,14 +850,24 @@ request and 28-bit registered response. The response carries direct data,
 claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
 32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
 owns the window-enable and AY register decode. `toolchains/coleco-sgm.lock`
-pins nextpnr `a93fe013` with frozen-scaffold BEL admission and bounded slot
-placement. The v2-only socket reserves `24 1 28 19` placement and
+pins nextpnr `655f3833` with frozen-scaffold BEL admission and bounded slot
+placement. Its GPU router selects all users of congested wires before rip-up
+and preserves the initial-routing budget through small congestion plateaus.
+The shell and its matching video/SGM parts use this same locked compiler.
+The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
 The frozen v2 shell also pins a clock-only FF at `MISTRAL_FF.24.4.56` and
-validates its row 4 global-clock route. SGM scaffold preparation removes that
-FF cell while retaining the serialized clock branch, leaving its BEL available
-to the cart without dropping clock coverage.
+validates its row 4 global-clock route. The compiler serializes boundary FF
+data buffers as separate cells. Shell validation admits only a buffer at the
+FF's paired COMB/MLAB site, with the expected pin map and an exclusive connection
+to that FF's data input. Request and response buffers remain frozen during
+composition. Clock anchors, their paired buffers and all serialized routes
+also remain frozen: removing their cells alone leaves occupied constant-input
+wires at sites the cart placer would otherwise reuse. Their LABs stay reserved
+when placing a part; the part must fit the remaining capacity and pass the
+unchanged clock and CRAM containment gates. Video preparation preserves the
+complete CPU boundary outside the video fence.
 The v2 linker admits
 only an exact optional Coleco bus 2.0 shell and map `/2` archive, with no
 outside-rectangle CRAM exception. The enlarged development shell and SGM cart

@@ -19,6 +19,10 @@ import (
 )
 
 func factoryVideoSelectionFixture(t *testing.T) (string, string) {
+	return factoryVideoSelectionFixtureLayout(t, expansion.ColecoVideoLayout)
+}
+
+func factoryVideoSelectionFixtureLayout(t *testing.T, layout string) (string, string) {
 	t.Helper()
 	base, _, _ := packageSelectionFixtureForCore(t, "fes.coleco")
 	packed, err := os.Open("../../corepackage/testdata/expansion-shell.rbf.gz")
@@ -44,6 +48,11 @@ func factoryVideoSelectionFixture(t *testing.T) (string, string) {
 	digest := fmt.Sprintf("%x", sha256.Sum256(payload))
 	text = strings.ReplaceAll(text, "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1", digest)
 	text += "\n[[interfaces]]\nid = 'fes.expansion.coleco-bus'\nmajor = 2\nminor = 0\nrequired = false\n\n[[interfaces]]\nid = 'fes.fabric.video.raster-rgb888'\nmajor = 1\nminor = 0\nrequired = false\n"
+	slot, mapping := expansion.VideoSlot, expansion.ColecoVideoMap
+	if layout == expansion.ColecoNativeVideoLayout {
+		text = strings.ReplaceAll(text, expansion.VideoSlot, expansion.NativeVideoSlot)
+		slot, mapping = expansion.NativeVideoSlot, expansion.ColecoNativeVideoMap
+	}
 	for name, data := range map[string][]byte{"manifest.toml": []byte(text), "core.rbf": payload} {
 		_ = os.Chmod(filepath.Join(base, name), 0o644)
 		if err := os.WriteFile(filepath.Join(base, name), data, 0o444); err != nil {
@@ -71,7 +80,7 @@ func factoryVideoSelectionFixture(t *testing.T) (string, string) {
 	}
 	index := corepackage.FactoryVideoIndex{Version: 1, Packages: []corepackage.FactoryVideoPackage{{PackageID: inspection.PackageID}}}
 	for i, profile := range []string{"direct", "scanlines"} {
-		asset, err := expansion.NewAsset(expansion.Manifest{CartSHA256: digest, CartSize: int64(len(payload)), Device: expansion.Device, Format: 1, Map: expansion.ColecoVideoMap, RecipeSHA256: strings.Repeat(fmt.Sprintf("%x", i+1), 64), Revision: strings.Repeat("c", 40), ShellBuildID: inspection.Descriptor.Build.ID, ShellPackageID: inspection.PackageID, ShellSHA256: digest, Slot: expansion.VideoSlot, SlotMajor: 1}, payload)
+		asset, err := expansion.NewAsset(expansion.Manifest{CartSHA256: digest, CartSize: int64(len(payload)), Device: expansion.Device, Format: 1, Map: mapping, RecipeSHA256: strings.Repeat(fmt.Sprintf("%x", i+1), 64), Revision: strings.Repeat("c", 40), ShellBuildID: inspection.Descriptor.Build.ID, ShellPackageID: inspection.PackageID, ShellSHA256: digest, Slot: slot, SlotMajor: 1}, payload)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,8 +105,15 @@ func factoryVideoSelectionFixture(t *testing.T) (string, string) {
 }
 
 func TestFactoryVideoSelectionCoverageAndCachePair(t *testing.T) {
+	for _, layout := range []string{expansion.ColecoVideoLayout, expansion.ColecoNativeVideoLayout} {
+		t.Run(layout, func(t *testing.T) { testFactoryVideoSelectionCoverageAndCachePair(t, layout) })
+	}
+}
+
+func testFactoryVideoSelectionCoverageAndCachePair(t *testing.T, layout string) {
+	t.Helper()
 	ctx := context.Background()
-	root, packages := factoryVideoSelectionFixture(t)
+	root, packages := factoryVideoSelectionFixtureLayout(t, layout)
 	if _, err := InspectFactoryVideoParts(ctx, "", packages); err == nil {
 		t.Fatal("marked shell admitted without video parts")
 	}

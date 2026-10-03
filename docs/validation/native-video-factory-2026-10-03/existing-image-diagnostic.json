@@ -1,0 +1,51 @@
+{
+  "classification": "sealed-part compatibility diagnostic on a pre-native installed image; no capture or new-image hardware acceptance",
+  "evidence": {
+    "baseline": {
+      "path": "out/native-video-factory/candidate-3ffe989f/pre-diagnostic-kit2.json",
+      "sha256": "2cfcf9e56e183aa844f4eef879df2e23d4bed7e9d492424ea46f0d225467706a",
+      "size": 2329
+    },
+    "cleanup": {
+      "path": "out/native-video-factory/candidate-3ffe989f/hardware/captures-existing-image/cleanup-idle.json",
+      "sha256": "bf1def49cafe9c0c6908b378c3ff8f2f151935c449b04c728673e6ad91aa779b",
+      "size": 351
+    },
+    "completion": {
+      "path": "out/native-video-factory/candidate-3ffe989f/hardware/diagnostic-library-completion.json",
+      "sha256": "b8e1ae85d7dcd3506df23f1e1b0562f5ceaacfd1484c68c6ea951413a4d0b452",
+      "size": 2233
+    },
+    "invocation": {
+      "path": "out/native-video-factory/candidate-3ffe989f/hardware/diagnostic-library-invocation.json",
+      "sha256": "7436504dd4e0f90d9929cec5da5224d05321a0593dccb010f7ad90320a6a4c16",
+      "size": 2121
+    }
+  },
+  "installed_image_sha256": "86e4692059388068cad18040ce2077e2b81f91e2e6ac9659fb6633d6e1804473",
+  "installed_source": "b1207189947625d7df145dab6345ae6e109cf224",
+  "observed": {
+    "agent_error_code": "INVALID_ARCHIVE",
+    "agent_upload_http_status": 422,
+    "captures": 0,
+    "catalog_install": "passed",
+    "final_lease": "free",
+    "final_runtime": "idle",
+    "first_direct_play_http_status": 500,
+    "new_fpga_programming": false
+  },
+  "selected_source": "3ffe989fbba6857b74f149112d1965156face870",
+  "source_diagnosis": {
+    "deterministic_internal_error": "unsupported expansion target, socket or version",
+    "path": [
+      "b120 internal/misterruntime/runtime.go:304 calls StageParts",
+      "b120 corepackage/parts.go:220 calls ReadPartsBundle",
+      "b120 corepackage/parts.go:182 reads part-video.tar using expansion.ReadAsset",
+      "b120 expansion/asset.go:87 validates against raster-only supportedVideoPart in expansion/parts.go:24",
+      "b120 internal/misterruntime/runtime.go:340 wraps the admission error as INVALID_ARCHIVE"
+    ],
+    "physical_runtime": "b120 OpenPartsComposition also admits only raster layout/slot/map; the coherent selected agent/runtime image is required",
+    "reviewer": "native_library independent read-only source comparison",
+    "selected_source": "3ffe contains both native extensions; no new-artifact defect identified"
+  }
+}

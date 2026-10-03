@@ -1,0 +1,6 @@
+{
+  "final_idle": true,
+  "missing_direct_rejected_without_mutation": true,
+  "missing_scanlines_falls_back_to_linked_direct": true,
+  "passed": true
+}

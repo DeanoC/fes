@@ -1,0 +1,33 @@
+/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fes-update: go1.26.5
+	path	github.com/DeanoC/FogCast/cmd/fes-update
+	mod	github.com/DeanoC/FogCast	(devel)	
+	dep	github.com/DeanoC/FogCast/appliance	v0.0.0
+	=>	./appliance	(devel)	
+	
+	dep	github.com/DeanoC/misteross/expansion	v0.0.0
+	=>	../misteross/expansion	(devel)	
+	
+	dep	github.com/brutella/dnssd	v1.2.14	h1:qLpTnRTm5peo2jA30hqMIbCuWn8x3sFg3e9o9ODOobw=
+	dep	github.com/dustin/go-humanize	v1.0.1	h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
+	dep	github.com/google/uuid	v1.6.0	h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+	dep	github.com/hashicorp/mdns	v1.0.6	h1:SV8UcjnQ/+C7KeJ/QeVD/mdN2EmzYfcGfufcuzxfCLQ=
+	dep	github.com/miekg/dns	v1.1.61	h1:nLxbwF3XxhwVSm8g9Dghm9MHPaUZuqhPiGL+675ZmEs=
+	dep	github.com/pelletier/go-toml/v2	v2.4.3	h1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=
+	dep	github.com/remyoudompheng/bigfft	v0.0.0-20230129092748-24d4a6f8daec	h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
+	dep	github.com/vishvananda/netlink	v1.2.1-beta.2	h1:Llsql0lnQEbHj0I1OuKyp8otXp0r3q0mPkuhwHfStVs=
+	dep	github.com/vishvananda/netns	v0.0.0-20200728191858-db3c7e526aae	h1:4hwBBUfQCFe3Cym0ZtKyq7L16eZUtYKs+BaHDN6mAns=
+	dep	golang.org/x/net	v0.56.0	h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+	dep	golang.org/x/sys	v0.46.0	h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=
+	dep	golang.org/x/text	v0.40.0	h1:Ub2Z6/xjgF1WrYQz2nuITOEegKFtiIy+rieRJ5lHZKs=
+	dep	gosqlite.org	v0.14.0	h1:au2oEdf2FEKmNmUELdjX5SnxiCfZHNMRKYH1nG7XL28=
+	dep	modernc.org/libc	v1.74.1	h1:bdR4VTKFMC4966QSNZ05XLGI/VwzVa2kTUX51Dm0riQ=
+	dep	modernc.org/mathutil	v1.7.1	h1:GCZVGXdaN8gTqB1Mf/usp1Y/hSqgI2vAGGP4jZMCxOU=
+	dep	modernc.org/memory	v1.11.0	h1:o4QC8aMQzmcwCK3t3Ux/ZHmwFPzE6hf2Y5LbkRs+hbI=
+	dep	modernc.org/sqlite	v1.55.0	h1:hIFh0MCH0rGinQ/4KYb5/UbCkRkb+UP+OkLCVWa5MTM=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=amd64
+	build	GOOS=linux
+	build	GOAMD64=v1

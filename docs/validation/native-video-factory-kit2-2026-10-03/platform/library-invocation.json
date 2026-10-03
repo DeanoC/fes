@@ -1,0 +1,31 @@
+{
+  "argv": [
+    "python3",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/run_library.py",
+    "--host-binary",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/host-driver",
+    "--state",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/host-state",
+    "--catalog",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/publication/catalog.json",
+    "--sgm",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf.tar",
+    "--sgm-rom",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fixture/sgm-probe.rom",
+    "--rom",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fixture/graphics-sn.rom",
+    "--output",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures",
+    "--target-id",
+    "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+    "--target-name",
+    "kit2",
+    "--port",
+    "18788",
+    "--image-sha256",
+    "3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496",
+    "--active-command",
+    "[\"python3\", \"/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/capture.py\"]"
+  ],
+  "started_at": "2026-10-03T16:46:11.793935+00:00"
+}

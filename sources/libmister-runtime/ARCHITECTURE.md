@@ -403,18 +403,25 @@ this format-2 Coleco layout has no persistence contract and remains volatile.
 An existing durable namespace rejects the candidate with `incompatible_data`;
 selecting video cannot silently discard a previous persistence requirement.
 FogCast fixes the root locally and supplies explicit library identity.
+Its preceding `inspect_core_data` operation validates the sealed base package
+and namespace without requiring a video composition or changing hardware.
+This metadata admission also accepts native shells; it grants no activation
+permission and preserves package compatibility and persistence checks.
 
 Developer inspect/load operations have no data-root field and remain
 explicitly volatile. A native shell may be inspected, but ordinary package
 loads and CPU-only compositions reject it before quiescing or programming:
-its video part is mandatory. Native video currently uses the explicit developer
-parts path; host video profile/catalog selection still supports the raster
-layout. Existing CPU composition operations reject the parts request shape.
-Admission has host software coverage and an
-[exact-artifact native Kit 2 diagnostic](../../docs/validation/2026-10-03-native-video-parts-kit2.md)
-for Direct/Scanlines, media, audio and Stop/relaunch. That record uses temporary
-diagnostic executables; it does not accept an appliance image, a native CPU
-expansion, alternate timing, DDR presentation or ROM-linked parts.
+its video part is mandatory. Both native and raster video use the explicit
+developer and normal library parts paths. Existing CPU composition operations
+reject the parts request shape.
+Admission has host software coverage. The earlier
+[native Kit 2 diagnostic](../../docs/validation/2026-10-03-native-video-parts-kit2.md)
+uses temporary diagnostic executables. The subsequent
+[factory Kit 2 record](../../docs/validation/2026-10-03-native-video-factory-kit2.md)
+accepts the exact `6ed1dad4` appliance image through normal library Play with
+Direct/Scanlines, optional SGM, open media, captured audio and Stop/relaunch.
+It does not qualify alternate timing, DDR presentation, ROM-linked parts or
+general cartridge compatibility.
 
 ### Initialized bitstream
 

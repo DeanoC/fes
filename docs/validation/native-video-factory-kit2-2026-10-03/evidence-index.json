@@ -1,0 +1,373 @@
+{
+  "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "checks": {
+    "byte_count": 273489,
+    "gitguardian": "failure recorded separately; open public-script-digest false positive verified against Git objects",
+    "github_actions_successful_jobs": 43,
+    "installed_files_bound": 7,
+    "reused_catalog_files_bound": 4,
+    "source_closure_inputs": 220,
+    "unchanged_cache_members": 27,
+    "unchanged_copies": 22,
+    "unchanged_installed_fpga_inventory_files": 6
+  },
+  "classification": "Host-only corrected image, source/cache, reused catalog and release evidence; hardware evidence is separate",
+  "committed_proof_references": [
+    {
+      "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+      "bytes": 8882,
+      "copy_identity": "referenced committed bytes; not copied",
+      "git_blob": "d91d7f487f0e6067078b7c2bea8535f1f8800f5d",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/docs/validation/2026-10-03-native-video-factory-build.md",
+      "publication_revision": "281c1fa1e2f75aeaf3af3febabd561d38639afe1",
+      "repository_path": "docs/validation/2026-10-03-native-video-factory-build.md",
+      "sha256": "50e052ad5b61c7c9d15cf27b5b19d3c51c5e73bbd4316679497c658b2c7f00e3",
+      "url": "https://github.com/DeanoC/fes/blob/281c1fa1e2f75aeaf3af3febabd561d38639afe1/docs/validation/2026-10-03-native-video-factory-build.md"
+    },
+    {
+      "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+      "bytes": 8120,
+      "copy_identity": "referenced committed bytes; not copied",
+      "git_blob": "b4d2fa7acd8732d3b84866c6f3d69dc7a5872f0c",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/docs/validation/native-video-factory-2026-10-03/evidence-index.json",
+      "publication_revision": "281c1fa1e2f75aeaf3af3febabd561d38639afe1",
+      "repository_path": "docs/validation/native-video-factory-2026-10-03/evidence-index.json",
+      "sha256": "1887de346c35fb2ba9097cbfa67e6f8f9ebd4d34cff42cca9ae2df8abb5fa8de",
+      "url": "https://github.com/DeanoC/fes/blob/281c1fa1e2f75aeaf3af3febabd561d38639afe1/docs/validation/native-video-factory-2026-10-03/evidence-index.json"
+    },
+    {
+      "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+      "bytes": 135043,
+      "copy_identity": "referenced committed bytes; not copied",
+      "git_blob": "405d59f5eb53fd3fa75c8893adb029f5722406b5",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/docs/validation/native-video-factory-2026-10-03/build.json",
+      "publication_revision": "281c1fa1e2f75aeaf3af3febabd561d38639afe1",
+      "repository_path": "docs/validation/native-video-factory-2026-10-03/build.json",
+      "sha256": "135f4445f1d2fa122c004bb1fcae4e3c692a9d5697a9bb0f92236796afe2dec0",
+      "url": "https://github.com/DeanoC/fes/blob/281c1fa1e2f75aeaf3af3febabd561d38639afe1/docs/validation/native-video-factory-2026-10-03/build.json"
+    },
+    {
+      "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+      "bytes": 1907,
+      "copy_identity": "referenced committed bytes; not copied",
+      "git_blob": "7f32cd54f5bd46910b5e565f5ae40ac123e68fa0",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/docs/validation/native-video-factory-2026-10-03/composition-verification.json",
+      "publication_revision": "281c1fa1e2f75aeaf3af3febabd561d38639afe1",
+      "repository_path": "docs/validation/native-video-factory-2026-10-03/composition-verification.json",
+      "sha256": "c0498c549ca07884e0f930c1383c8a38346d1fddba77495f53d00f0df5efdba4",
+      "url": "https://github.com/DeanoC/fes/blob/281c1fa1e2f75aeaf3af3febabd561d38639afe1/docs/validation/native-video-factory-2026-10-03/composition-verification.json"
+    },
+    {
+      "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+      "bytes": 10994,
+      "copy_identity": "referenced committed bytes; not copied",
+      "git_blob": "21b91d75a4d2281d94cfb2f7f6b4e72a5b1336d5",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/docs/validation/native-video-factory-2026-10-03/prepared-binding.json",
+      "publication_revision": "281c1fa1e2f75aeaf3af3febabd561d38639afe1",
+      "repository_path": "docs/validation/native-video-factory-2026-10-03/prepared-binding.json",
+      "sha256": "5049e2f50269079284c365b79996e733e287ad8d6b69a44b0e88f3be5bf13724",
+      "url": "https://github.com/DeanoC/fes/blob/281c1fa1e2f75aeaf3af3febabd561d38639afe1/docs/validation/native-video-factory-2026-10-03/prepared-binding.json"
+    },
+    {
+      "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+      "bytes": 28433,
+      "copy_identity": "referenced committed bytes; not copied",
+      "git_blob": "eb93f2533606b1d635ab19110c8574a31ddc46c3",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/docs/validation/native-video-factory-2026-10-03/image-binding.json",
+      "publication_revision": "281c1fa1e2f75aeaf3af3febabd561d38639afe1",
+      "repository_path": "docs/validation/native-video-factory-2026-10-03/image-binding.json",
+      "sha256": "c82186d8afb1658da3e1006bb1ccb523b1483071f21e532c0254dd1ff0e0f45a",
+      "url": "https://github.com/DeanoC/fes/blob/281c1fa1e2f75aeaf3af3febabd561d38639afe1/docs/validation/native-video-factory-2026-10-03/image-binding.json"
+    },
+    {
+      "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+      "bytes": 23490,
+      "copy_identity": "referenced committed bytes; not copied",
+      "git_blob": "e1fff0933470235dfe7478006ed3f747f251fece",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/docs/validation/native-video-factory-2026-10-03/verify.py",
+      "publication_revision": "281c1fa1e2f75aeaf3af3febabd561d38639afe1",
+      "repository_path": "docs/validation/native-video-factory-2026-10-03/verify.py",
+      "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027",
+      "url": "https://github.com/DeanoC/fes/blob/281c1fa1e2f75aeaf3af3febabd561d38639afe1/docs/validation/native-video-factory-2026-10-03/verify.py"
+    }
+  ],
+  "files": [
+    {
+      "bytes": 21752,
+      "copy_identity": {
+        "bytes": 21752,
+        "equals_original": true,
+        "sha256": "2d93e9bcb0d5111dea5cd92c0144ead658fc691fb4db591ed034730d7b7fd0a3"
+      },
+      "file": "bind_image.py",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/bind_image.py",
+      "sha256": "2d93e9bcb0d5111dea5cd92c0144ead658fc691fb4db591ed034730d7b7fd0a3"
+    },
+    {
+      "bytes": 4350,
+      "copy_identity": {
+        "bytes": 4350,
+        "equals_original": true,
+        "sha256": "9525d0b3c63705731984ff175ddc433bf55f76506d63da36d97e4e1ae4d1194b"
+      },
+      "file": "binding-verification.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/verification.json",
+      "sha256": "9525d0b3c63705731984ff175ddc433bf55f76506d63da36d97e4e1ae4d1194b"
+    },
+    {
+      "bytes": 264,
+      "copy_identity": {
+        "bytes": 264,
+        "equals_original": true,
+        "sha256": "b8b1863c0b56b3ad16e5080acc5f17bda5c983db3e064bfbc461420495cc8479"
+      },
+      "file": "build-completion.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-completion.json",
+      "sha256": "b8b1863c0b56b3ad16e5080acc5f17bda5c983db3e064bfbc461420495cc8479"
+    },
+    {
+      "bytes": 14693,
+      "copy_identity": {
+        "bytes": 14693,
+        "equals_original": true,
+        "sha256": "949246e9bed035dd09a602af9d37c13625b1f14f5dddcae7a6d75308bd33042a"
+      },
+      "file": "ci-summary.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/ci-summary.json",
+      "sha256": "949246e9bed035dd09a602af9d37c13625b1f14f5dddcae7a6d75308bd33042a"
+    },
+    {
+      "bytes": 943,
+      "copy_identity": {
+        "bytes": 943,
+        "equals_original": true,
+        "sha256": "e7b5dc903f6407e326dcc440ef2f63ede72a466327adac70cd7ae9b83ed270d6"
+      },
+      "file": "gitguardian-false-positive.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/gitguardian-false-positive.json",
+      "sha256": "e7b5dc903f6407e326dcc440ef2f63ede72a466327adac70cd7ae9b83ed270d6"
+    },
+    {
+      "bytes": 68822,
+      "copy_identity": {
+        "bytes": 68822,
+        "equals_original": true,
+        "sha256": "2e36e51f5c65e4cc16b984aaed86f8eefc758a4a42f46eb5c75b064d4350abea"
+      },
+      "file": "image-binding.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/image-binding.json",
+      "sha256": "2e36e51f5c65e4cc16b984aaed86f8eefc758a4a42f46eb5c75b064d4350abea"
+    },
+    {
+      "bytes": 27870,
+      "copy_identity": {
+        "bytes": 27870,
+        "equals_original": true,
+        "sha256": "aecdb6a5a9f77dd9d5c819de90943fa9e90afe038122129594aeeb6781c573e2"
+      },
+      "file": "image-inputs.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-integration-dev/inputs.json",
+      "sha256": "aecdb6a5a9f77dd9d5c819de90943fa9e90afe038122129594aeeb6781c573e2"
+    },
+    {
+      "bytes": 53019,
+      "copy_identity": {
+        "bytes": 53019,
+        "equals_original": true,
+        "sha256": "8ddf843769bef4b8912e709c5d0f4825ca81cbdf66f043d0cf3f223192bc7bd1"
+      },
+      "file": "image-manifest.tsv",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-integration-dev/manifest.tsv",
+      "sha256": "8ddf843769bef4b8912e709c5d0f4825ca81cbdf66f043d0cf3f223192bc7bd1"
+    },
+    {
+      "bytes": 305,
+      "copy_identity": {
+        "bytes": 305,
+        "equals_original": true,
+        "sha256": "178b51c039096fb240045dad0c13dd8a8c37da2219a83b4d2c9e78b9f5f80ded"
+      },
+      "file": "image-verification.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-integration-dev/verification.json",
+      "sha256": "178b51c039096fb240045dad0c13dd8a8c37da2219a83b4d2c9e78b9f5f80ded"
+    },
+    {
+      "bytes": 5449,
+      "copy_identity": {
+        "bytes": 5449,
+        "equals_original": true,
+        "sha256": "c455d579d887a84597fe4ba650586bb4e449f41a5f2d969c4067e207d8233b52"
+      },
+      "file": "image.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-integration-dev/image.json",
+      "sha256": "c455d579d887a84597fe4ba650586bb4e449f41a5f2d969c4067e207d8233b52"
+    },
+    {
+      "bytes": 1294,
+      "copy_identity": {
+        "bytes": 1294,
+        "equals_original": true,
+        "sha256": "a81005aceb28fa10437e7478885c51ef7dad94a90adbf4cfc5d82fe41643c2c5"
+      },
+      "file": "local-catalog.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/publication/catalog.json",
+      "sha256": "a81005aceb28fa10437e7478885c51ef7dad94a90adbf4cfc5d82fe41643c2c5"
+    },
+    {
+      "bytes": 740,
+      "copy_identity": {
+        "bytes": 740,
+        "equals_original": true,
+        "sha256": "5a25e2373485784cecb8abf1ac36722871cad056e570b7ef4fee2d36e81030a9"
+      },
+      "file": "parent-checks.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/parent-checks.json",
+      "sha256": "5a25e2373485784cecb8abf1ac36722871cad056e570b7ef4fee2d36e81030a9"
+    },
+    {
+      "bytes": 11955,
+      "copy_identity": {
+        "bytes": 11955,
+        "equals_original": true,
+        "sha256": "8f4325137b84673be4adf3ccfaf6229fd662810c1a1bfecbfa01941c6906604b"
+      },
+      "file": "prepare_source.py",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/prepare_source.py",
+      "sha256": "8f4325137b84673be4adf3ccfaf6229fd662810c1a1bfecbfa01941c6906604b"
+    },
+    {
+      "bytes": 4020,
+      "copy_identity": {
+        "bytes": 4020,
+        "equals_original": true,
+        "sha256": "93c50d84d023c207c070d845be7db64e7fa0f6cd32fb8bc83cf5d0b583cd2567"
+      },
+      "file": "proof-preparation.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/preparation.json",
+      "sha256": "93c50d84d023c207c070d845be7db64e7fa0f6cd32fb8bc83cf5d0b583cd2567"
+    },
+    {
+      "bytes": 1412,
+      "copy_identity": {
+        "bytes": 1412,
+        "equals_original": true,
+        "sha256": "b8061a5552115dc02ca5f59d32ca233875fa0cc936490769060b71b1467ff20c"
+      },
+      "file": "publication-reuse.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/publication-reuse.json",
+      "sha256": "b8061a5552115dc02ca5f59d32ca233875fa0cc936490769060b71b1467ff20c"
+    },
+    {
+      "bytes": 406,
+      "copy_identity": {
+        "bytes": 406,
+        "equals_original": true,
+        "sha256": "a3d8de5924b3ca998023d29158a556dd03b4dd28045170870af4e74ac1b1203a"
+      },
+      "file": "release-completion.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/release-completion.json",
+      "sha256": "a3d8de5924b3ca998023d29158a556dd03b4dd28045170870af4e74ac1b1203a"
+    },
+    {
+      "bytes": 857,
+      "copy_identity": {
+        "bytes": 857,
+        "equals_original": true,
+        "sha256": "01ef883ca4e84f665eaeff0fedfe7bafb2464e3ea02b8f3f98f77a74060a1162"
+      },
+      "file": "release-evidence.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-integration-dev/appliance/releases/3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496/d48c5c00ccd105e73dd0396ad50d4c4da1416ec9604af7f3614669a1b9395241/evidence.json",
+      "sha256": "01ef883ca4e84f665eaeff0fedfe7bafb2464e3ea02b8f3f98f77a74060a1162"
+    },
+    {
+      "bytes": 477,
+      "copy_identity": {
+        "bytes": 477,
+        "equals_original": true,
+        "sha256": "d48c5c00ccd105e73dd0396ad50d4c4da1416ec9604af7f3614669a1b9395241"
+      },
+      "file": "release.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-integration-dev/appliance/releases/3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496/d48c5c00ccd105e73dd0396ad50d4c4da1416ec9604af7f3614669a1b9395241/release.json",
+      "sha256": "d48c5c00ccd105e73dd0396ad50d4c4da1416ec9604af7f3614669a1b9395241"
+    },
+    {
+      "bytes": 185,
+      "copy_identity": {
+        "bytes": 185,
+        "equals_original": true,
+        "sha256": "ac6bdd8d685392682c0869e8341c50608c8973860fc729c1a483c4cb94242249"
+      },
+      "file": "reproducibility.txt",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-integration-dev/reproducibility.txt",
+      "sha256": "ac6bdd8d685392682c0869e8341c50608c8973860fc729c1a483c4cb94242249"
+    },
+    {
+      "bytes": 396,
+      "copy_identity": {
+        "bytes": 396,
+        "equals_original": true,
+        "sha256": "69a073c8e666dffb9c37c207088c5e6d874baace36fce8d8683cfcc29c6576cd"
+      },
+      "file": "runtime-tests.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/runtime-tests.json",
+      "sha256": "69a073c8e666dffb9c37c207088c5e6d874baace36fce8d8683cfcc29c6576cd"
+    },
+    {
+      "bytes": 53931,
+      "copy_identity": {
+        "bytes": 53931,
+        "equals_original": true,
+        "sha256": "78911069c5d3c30ee9cf878935e4e3de6c597fbea24f7ff0dabdf172e01b4c51"
+      },
+      "file": "source-cache-binding.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/source-cache-binding.json",
+      "sha256": "78911069c5d3c30ee9cf878935e4e3de6c597fbea24f7ff0dabdf172e01b4c51"
+    },
+    {
+      "bytes": 349,
+      "copy_identity": {
+        "bytes": 349,
+        "equals_original": true,
+        "sha256": "3949dcdcd8fe175ce4727a81662d90fcc1938e24159edc98bc7a832de7b19f05"
+      },
+      "file": "verify-completion.json",
+      "original": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/verify-completion.json",
+      "sha256": "3949dcdcd8fe175ce4727a81662d90fcc1938e24159edc98bc7a832de7b19f05"
+    }
+  ],
+  "format": 1,
+  "hardware": {
+    "claims_included": false,
+    "status": "not assessed by this host-only publication; root owns separate hardware evidence",
+    "target_access_for_this_publication": false
+  },
+  "image_sha256": "3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496",
+  "image_source_revision": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "limitations": [
+    "FPGA binaries, rootfs and compiler caches remain retained locally and are identified by the linked receipts.",
+    "Current preparation/binding scripts are copied exactly and retain their recorded directory/input requirements. Original proof scripts and source snapshots remain linked; no new FPGA proof is claimed.",
+    "Prior binder/preparer failures remain preserved locally and are described by the copied receipts; obsolete attempt scripts and raw logs are not duplicated.",
+    "No hardware records, target logs, host service logs, SSH helpers, private configuration or credentials are included."
+  ],
+  "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+  "projections": [],
+  "publication": "Every file under files is an unchanged byte copy. The original absolute path, SHA-256, size and copy identity are recorded. The original 3ffe FPGA proof is linked at its immutable 281c publication commit, not duplicated or relabelled.",
+  "recorded_at": "2026-10-03T16:52:11.692468+00:00",
+  "retained_test_logs_not_published": [
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/parent-check.log",
+      "sha256": "9456c814673061fef856931f3eb5bfb032b585918b28b44ce88d993f69b97627",
+      "size": 137
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/runtime-tests.log",
+      "sha256": "02eebfe083c4eb38f168952cca4f1bdccc033c38fffee64ec2197c509c5c7e06",
+      "size": 15796
+    }
+  ]
+}

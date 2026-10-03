@@ -96,16 +96,21 @@ equivalents are `fogcast video-profile scanlines`,
 `fogcast video-part-install scanlines /absolute/path/part.tar`, and
 `fogcast core-video GAME_ID` to inspect the resolved choice.
 
-The factory Coleco recipe and the explicit video developer build emit format-2
-video shells. A part binds to that exact package and its frozen socket, rather than
-every package with the same core name. Import and launch run the real FPGA
+The factory Coleco recipe emits a format-2 native-pixel video shell. Its
+256×192 indexed source feeds a linked part that owns frame capture and 720p
+output. The earlier raster video shell remains supported with its own
+slot/map/layout. A part binds to one exact package and its frozen socket.
+Import and launch run the real FPGA
 linker. Play combines the video part with the title's selected CPU expansion;
 the target independently recomposes the transport and admits its library data
 namespace before programming. Existing cartridge/firmware delivery follows
 the activated package generation.
 
-If the preferred profile has no installed matching part, Play uses direct
-output and the library panel explains why. An installed selected part that
+If Scanlines has no installed matching part, Play selects a valid matching
+Direct part and the library panel explains why. Native shells have no built-in
+output: a missing selected Direct part blocks launch before target calls.
+A valid selected Scanlines part does not require Direct to be installed.
+Older raster shells retain their built-in Direct fallback. An installed selected part that
 fails integrity or compatibility checks rejects the launch before hardware
 mutation. Missing parts do not prove insufficient FPGA capacity. A rebuilt
 shell needs its own sealed parts. The factory recipe builds matching Direct and
