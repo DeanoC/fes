@@ -164,6 +164,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	var smsHashes smsHashFill
+	defer smsHashes.stop()
 	m := Model{
 		Message: connectingMessage, Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true,
 		Session: Session{HPSFramebuffer: c.config.HPSFramebuffer},
@@ -338,6 +340,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						Recents:    o.recents,
 					})
 					if c.Library != nil {
+						smsHashes.start(ctx, c.Library.GameROMHash, c.Cache, o.games)
+					}
+					if c.Library != nil {
 						if cache, err := c.Library.LibraryCache(ctx); err == nil {
 							o.cache = cache
 							o.haveCache = true
@@ -455,6 +460,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		if local {
 			localPending = true
+			var hostGame hostclient.Game
+			if action == "local-launch" {
+				hostGame = displayedGame(m, id)
+				if c.Cache != nil && normalizeROMHash(hostGame.ROMSHA256) == "" {
+					hostGame.ROMSHA256 = c.Cache.ROMHash(id)
+				}
+			}
 			go func() {
 				o := observation{epoch: e, mutation: true, localAction: action}
 				if action == "local-launch" {
@@ -462,7 +474,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					if c.Library != nil {
 						fetch = c.Library.GameROMHash
 					}
-					o.localErr = launchMatchedLocalGame(ctx, c.LocalCores, fetch, localPath, localGames, matcher, id)
+					learned, err := launchMatchedLocalGame(ctx, c.LocalCores, fetch, localPath, localGames, matcher, hostGame)
+					if learned != "" && c.Cache != nil {
+						_ = c.Cache.RememberROMHash(hostGame.ID, learned)
+					}
+					o.localErr = err
 					if o.localErr != nil {
 						log.Printf("kit local cartridge launch failed game_id=%q", boundedSessionText(id, 160))
 					}
@@ -1019,6 +1035,7 @@ func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve fu
 var errSMSCoreMissing = errors.New("sms core missing")
 var errCartridgeMissing = errors.New("cartridge missing")
 var errNotOnKit = errors.New("not on this kit")
+var errNeedsHost = errors.New("needs the host")
 var errCartridgeCheck = errors.New("cartridge check failed")
 
 func containsLocalID(games []hostclient.Game, id string) bool {
@@ -1030,6 +1047,17 @@ func containsLocalID(games []hostclient.Game, id string) bool {
 	return false
 }
 
+func displayedGame(m Model, id string) hostclient.Game {
+	for _, pool := range [][]hostclient.Game{m.Catalog, m.Games, m.Strip, m.Recents} {
+		for _, game := range pool {
+			if game.ID == id {
+				return game
+			}
+		}
+	}
+	return hostclient.Game{ID: id}
+}
+
 func localCoreMessage(err error) string {
 	switch {
 	case errors.Is(err, errSMSCoreMissing):
@@ -1038,6 +1066,8 @@ func localCoreMessage(err error) string {
 		return "Cartridge is missing"
 	case errors.Is(err, errNotOnKit):
 		return "Not on this kit"
+	case errors.Is(err, errNeedsHost):
+		return "Needs the host"
 	case errors.Is(err, errCartridgeCheck):
 		return "Could not check this kit's cartridges"
 	case errors.Is(err, localcores.ErrInUse):

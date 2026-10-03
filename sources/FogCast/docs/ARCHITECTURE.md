@@ -1785,11 +1785,15 @@ first and labels an absent host `Offline, showing your saved list`. Confirmed id
 without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
 splash pixels stay on HDMI, and a missing linuxfb device does not stop the
 service.
-Local D-pad/A still browse that snapshot. When the host is unreachable, launch
-and Stop remain unavailable until the configured host API reconnects. The kit
-launcher does not claim a target lease or call `/v2/launch` directly; lifecycle
-mutations continue through the persistent host session API. Cache and artwork
-browse state remains local and lease-free.
+Local D-pad/A still browse that snapshot. When the host is unreachable, host
+session launch and Stop remain unavailable until the configured host API
+reconnects. A browse-only SMS row from that saved list can still play when the
+kit matches it to a local cartridge: a cached ROM SHA-256 when the row has one,
+otherwise a single local SMS row with the same title. The pad stays on the
+kit-local control socket. The kit launcher does not claim a target lease or
+call `/v2/launch` directly; host lifecycle mutations continue through the
+persistent host session API. Cache and artwork browse state remains local and
+lease-free.
 Kit launch admission uses full catalog state for grid, detail, strip, and
 attract entries. An attract-only item without a known catalog row can still
 be displayed and dismissed, but cannot launch: its platform-support flag

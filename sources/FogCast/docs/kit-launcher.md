@@ -86,7 +86,9 @@ A failed host launch resumes the browsable menu with readable failure copy;
 Select+Start remains available to retry host cleanup before another launch.
 Host endpoint configuration is explicit; target discovery is separate.
 
-With the host up, a browse-only SMS row can still play on the kit when its cartridge bytes match a kit-local catalog entry. The kit checks the host row's ROM SHA-256 only when Play is pressed, then launches the matched local entry through local control and keeps pad input on the kit. A definitive miss says “Not on this kit”; an identity check failure is reported separately.
+With the host up, a browse-only SMS row can still play on the kit when its cartridge bytes match a kit-local catalog entry. The kit checks the host row's ROM SHA-256 only when Play is pressed, remembers that digest beside the saved catalog, then launches the matched local entry through local control and keeps pad input on the kit. While that catalog is up, missing digests for other browse-only SMS rows are filled the same way so a later offline launch does not ask the host. A definitive miss says “Not on this kit”; an identity check failure is reported separately.
+
+Offline, with the saved host list still on screen, Play uses the remembered digest and does not call the host. The pad still drives the core through the kit-local socket. If the row has no digest, Play accepts a single local SMS cartridge with the same title slug in the game id (`sms-datastorm-…`) or the same letters and digits in the title (`Data Storm` and `datastorm`). That title match is weaker than a hash: a saved host row does not carry a cartridge size, so size is not compared, and two local rows that share the title are refused with “Needs the host” instead of guessing. No local row says “Not on this kit”.
 
 ## Physical controls
 
