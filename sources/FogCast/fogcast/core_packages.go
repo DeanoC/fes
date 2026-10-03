@@ -347,6 +347,9 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if inspection.Descriptor.Core.ID != entry.CoreID {
 			return coreLoadSource{}, canonicalError(protocol.CodeInvalidArchive, nil)
 		}
+		if err := libraryVideoAdmission(inspection); err != nil {
+			return coreLoadSource{}, err
+		}
 		if err := validateROMMediaContract(inspection.Descriptor); err != nil {
 			return coreLoadSource{}, err
 		}

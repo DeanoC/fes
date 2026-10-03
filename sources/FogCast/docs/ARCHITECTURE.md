@@ -2404,12 +2404,16 @@ hardware acceptance claim.
 
 The separate developer parts path admits only a format-2 `fes.coleco`
 `fes.application` 1.0 package with optional `fes.expansion.coleco-bus` 2.0 and
-optional `fes.fabric.video.raster-rgb888` 1.0 markers. The fabric marker has no
-GP capability bit. The shell keeps its fixed 720p video and declared audio/input
-interfaces, GP BUILD_ID and package identity. The closed
-`fes.coleco-video.parts/1` layout requires one video part; one Coleco bus-2
+exactly one optional video marker: `fes.fabric.video.raster-rgb888` 1.0 selects
+`fes.coleco-video.parts/1`, while `fes.fabric.video.native-pixels` 1.0 selects
+`fes.coleco-native-video.parts/1`. Native version 1 fixes the source at
+256×192 TMS9918 palette indices; it requires a linked part to capture frames
+and generate output. The fabric markers have no GP capability bit. The shell
+keeps its fixed 720p video and declared audio/input interfaces, GP BUILD_ID and
+package identity. Both closed layouts require one video part; one Coleco bus-2
 expansion may also occupy its separate socket. Each asset binds the exact
-sealed shell package, payload hash and BUILD_ID.
+sealed shell package, payload hash and BUILD_ID. Admission rejects simultaneous
+source markers, raster/native part mixing and mismatched receipt layouts.
 
 From `sources/FogCast`, prepare the operator's selected parts offline:
 
@@ -2420,7 +2424,8 @@ go run ./cmd/fes-parts -package /absolute/path/shell.fcore \
 ```
 
 The command creates a private file and prints its composition identity. It
-never contacts or claims a kit. The file contains canonical `parts.json`,
+selects the layout from the sealed package marker and never contacts or claims
+a kit. The file contains canonical `parts.json`,
 `package.tar`, ascending `part-expansion.tar` when present, `part-video.tar`,
 and `linked.rbf`. The target recomputes all linked bytes and the typed
 composition identity; uploaded linked bytes are comparison evidence.
@@ -2441,6 +2446,12 @@ adoption independently recomposes their bytes before recognizing an active
 parts tuple. Generation reconciliation compares the complete parts tuple, so a
 lost response cannot confirm a different video selection. The production CPU
 expansion route does not accept this transport.
+
+Native video is available through this developer parts path. Factory assets
+and household profile selection continue to use the raster layout. A manually
+imported native shell may be inspected, but library Play and the library video
+projection reject it with a developer-parts requirement, before target calls.
+The native shell has no built-in direct output to use as a missing-part fallback.
 
 Library video selection uses the separate `/v1/library/core/parts` route with
 one exact `X-FogCast-Package-ID`, a bounded octet-stream body, bearer

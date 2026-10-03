@@ -1182,11 +1182,16 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
+	for _, i := range active.Descriptor.Interfaces {
+		if i.ID == expansion.NativeVideoSlot && active.PartsComposition == nil {
+			return false
+		}
+	}
 	if c := active.PartsComposition; c != nil {
 		if active.Composition != nil || active.SlotComposition != nil || active.PersistenceMode != "volatile" || !validPartsComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 {
 			return false
 		}
-		if _, err := corepackage.PartsShell(corepackage.Inspection{PackageID: active.PackageID, Descriptor: active.Descriptor}, nil); err != nil {
+		if shell, err := corepackage.PartsShell(corepackage.Inspection{PackageID: active.PackageID, Descriptor: active.Descriptor}, nil); err != nil || shell.Layout != c.Layout {
 			return false
 		}
 	}
