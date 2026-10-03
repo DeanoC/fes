@@ -146,14 +146,16 @@ A new `BUILD_ID` changes placement. An older sealed package, parent pin, or
 kit note does not accept the bitstream you just built. Record new evidence
 for the new bytes.
 
-## Standalone original Z80
+## Original Z80
 
 `make sim-fes-z80` validates original NMOS and documented fast CPU variants in
 `cores/fes-common/rtl/z80`. This is a shared CPU development lane, not a play
 package. The [CPU contract](../cores/fes-common/rtl/z80/README.md) lists the
 interfaces, published behavior sources, tests and contained Cyclone V timing
-diagnostic. Console producers retain their existing CPU selection until a
-separate consumer qualification changes it.
+diagnostic. SG-1000 and the default Spectrum producer select the NMOS CPU.
+`make build-fes-spectrum-fast` selects the documented-only 56 MHz development
+shell, with separate native peripheral timing. Each full shell must pass its
+clock constraints before sealing; CPU-only timing does not establish that.
 
 ## Update an existing core
 
@@ -202,7 +204,8 @@ SMS place-and-route is a first-pass search: it starts at seed 3 / HeAP 1000,
 then the remaining `PLACER_SEEDS` and weight 300. Final structured `clk_sys`
 and `pixel_clk` rows must meet 52 MHz and 74.25 MHz.
 
-SG-1000's format-3 producer seals from a clean tree at seed 4. It exports a
+SG-1000's format-3 producer uses a bounded 20-candidate first-pass placement
+search from a clean tree. It exports a
 blank 16 KiB cartridge ROM and authenticated map for download-time linking.
 The 2026-09-16 gap ladder records a HIP route of the earlier synth-only
 netlist (`BUILD_ID` all zeros), not acceptance of the new sealed bitstream.
@@ -224,6 +227,14 @@ are exported under `build/packages/<package-id>/`. The external
 Copy the closest sibling. Do not start from an experiment, and do not fork a
 second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
+
+The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.
+`make sim-fes-atari-st` covers the full CPU, MMU aliases, peripherals,
+physical SDRAM commands, dual-clock video and complete disk upload.
+`sim-fes-atari-st-emutos` accepts an external 192 KiB EmuTOS image; the
+fetch target pins the official free ROM. Native producer qualification and
+hardware acceptance remain distinct from these host checks. The factory
+image does not select this core yet.
 
 1. Pick an existing ABI unless the task includes a new one. A new mailbox or
    transport is mister-packages plus libmister-runtime, then RTL. A producer

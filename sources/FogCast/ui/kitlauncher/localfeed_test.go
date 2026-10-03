@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -19,7 +20,7 @@ import (
 
 func listenLocalInput(t *testing.T, frames chan<- protocol.InputFrame) (net.Listener, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "local-input.sock")
+	path := localInputTestPath(t, "local-input.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
@@ -45,6 +46,18 @@ func listenLocalInput(t *testing.T, frames chan<- protocol.InputFrame) (net.List
 	return ln, path
 }
 
+// Unix socket paths must fit macOS's sun_path even when TMPDIR or the test
+// name is long. Only this short directory holds the socket, not test data.
+func localInputTestPath(t *testing.T, name string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "fc-li-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, name)
+}
+
 func TestLocalFeedKeepsPlayerAndRawKeyboard(t *testing.T) {
 	frames := make(chan protocol.InputFrame, 4)
 	ln, path := listenLocalInput(t, frames)
@@ -67,6 +80,14 @@ func TestLocalFeedKeepsPlayerAndRawKeyboard(t *testing.T) {
 	}
 	if gotKey.Device != uint8(remoteinput.DeviceKeyboard) || gotKey.Kind != uint8(remoteinput.KindKey) || gotKey.Code != uint16(zx81keys.Letter('J')) {
 		t.Fatalf("keyboard frame %+v", gotKey)
+	}
+	departure := remoteinput.LocalPlayerDeparture(1)
+	if err := feed.send(departure, now); err != nil {
+		t.Fatal(err)
+	}
+	gotDeparture := awaitFrame(t, frames)
+	if gotDeparture.Player != 1 || gotDeparture.Device != uint8(departure.Device) || gotDeparture.Kind != uint8(departure.Kind) || gotDeparture.Action != uint8(departure.Action) || gotDeparture.Code != 0 || gotDeparture.Value != 0 {
+		t.Fatalf("local departure changed on the socket: %+v", gotDeparture)
 	}
 }
 
@@ -264,9 +285,100 @@ func TestRunBoundCoreStopChordStillPosts(t *testing.T) {
 	}
 }
 
+func TestRunForeignBoundCoreStopChordPreservesOwner(t *testing.T) {
+	frames := make(chan protocol.InputFrame, 8)
+	ln, path := listenLocalInput(t, frames)
+	defer ln.Close()
+	stopped := make(chan struct{}, 1)
+	var launches, hostInput atomic.Int64
+	server := launcherCatalogServer(t, &launches, &hostInput, stopped,
+		`{"state":"idle","input":{"state":"detached","ready":false}}`,
+		`{"ready":true,"target":{"reachable":true,"ready":true,"connection":{"state":"busy","owner":"other"}}}`)
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
+	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localInputPath = path
+	pad := &scriptPad{events: []remoteinput.Event{
+		buttonPress(remoteinput.ButtonSelect),
+		buttonPress(remoteinput.ButtonStart),
+	}}
+	var heldSince time.Time
+	completedHold := false
+	_ = Run(ctx, client, func(m Model) {
+		if m.ForeignLease {
+			pad.arm.Store(true)
+		}
+		if pad.sent.Load() {
+			if heldSince.IsZero() {
+				heldSince = time.Now()
+			}
+			if time.Since(heldSince) > 1200*time.Millisecond {
+				completedHold = true
+				cancel()
+			}
+		}
+	}, func() (Pad, error) { return pad, nil })
+	if !completedHold {
+		t.Fatal("foreign-bound Stop chord was not held past the Stop threshold")
+	}
+	select {
+	case <-stopped:
+		t.Fatal("foreign-owned core dispatched a host Stop")
+	default:
+	}
+	if launches.Load() != 0 || hostInput.Load() != 0 {
+		t.Fatalf("host mutations: launches=%d input=%d", launches.Load(), hostInput.Load())
+	}
+	got := collectFrames(t, frames, 2)
+	if !frameHas(got, uint16(remoteinput.ButtonSelect)) || !frameHas(got, uint16(remoteinput.ButtonStart)) {
+		t.Fatalf("foreign-bound core missed its local play controls: %+v", got)
+	}
+}
+
+func TestRunProbeErrorsExpireLocalInputUnavailable(t *testing.T) {
+	var probes, dials atomic.Int64
+	var launches, hostInput atomic.Int64
+	server := launcherCatalogServer(t, &launches, &hostInput, nil,
+		`{"state":"idle","input":{"state":"detached","ready":false}}`,
+		`{"ready":true,"target":{"reachable":true,"ready":true}}`)
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
+	client.localCore = func(context.Context) (bool, error) {
+		if probes.Add(1) == 1 {
+			return true, nil
+		}
+		return false, errors.New("runtime unavailable")
+	}
+	client.localInputPath = localInputTestPath(t, "missing.sock")
+	client.localDial = func(string, string, time.Duration) (net.Conn, error) {
+		dials.Add(1)
+		return nil, errors.New("missing")
+	}
+	pad := &oncePad{event: buttonPress(remoteinput.ButtonA)}
+	sawUnavailable, cleared := false, false
+	_ = Run(ctx, client, func(m Model) {
+		if m.Message == localInputUnavailableMessage {
+			sawUnavailable = true
+		} else if sawUnavailable {
+			cleared = true
+			cancel()
+		}
+	}, func() (Pad, error) { return pad, nil })
+	if !sawUnavailable || !cleared || probes.Load() < 2 {
+		t.Fatalf("unavailable=%t cleared=%t probes=%d", sawUnavailable, cleared, probes.Load())
+	}
+	if dials.Load() != 1 || launches.Load() != 0 || hostInput.Load() != 0 {
+		t.Fatalf("dials=%d launches=%d host input=%d", dials.Load(), launches.Load(), hostInput.Load())
+	}
+}
+
 func TestRunUnboundCoreStillBrowses(t *testing.T) {
 	accepted := make(chan struct{}, 1)
-	path := filepath.Join(t.TempDir(), "local-input.sock")
+	path := localInputTestPath(t, "local-input.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
@@ -425,7 +537,7 @@ func TestRunMissingLocalSocketDoesNotFallBackToHost(t *testing.T) {
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
 	client.localCore = func(context.Context) (bool, error) { return true, nil }
-	client.localInputPath = filepath.Join(t.TempDir(), "missing-local-input.sock")
+	client.localInputPath = localInputTestPath(t, "missing-local-input.sock")
 	var saw atomic.Bool
 	_ = Run(ctx, client, func(m Model) {
 		if m.Message == localInputUnavailableMessage {
@@ -445,7 +557,7 @@ func TestRunMissingLocalSocketDoesNotFallBackToHost(t *testing.T) {
 
 func TestRunIdleCoreDoesNotOpenLocalSocket(t *testing.T) {
 	accepted := make(chan struct{}, 1)
-	path := filepath.Join(t.TempDir(), "local-input.sock")
+	path := localInputTestPath(t, "local-input.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
@@ -507,7 +619,7 @@ func TestSetLocalInputInstallsProbeAndSocket(t *testing.T) {
 
 func TestLocalFeedUnavailableDialsOnceUntilCooldown(t *testing.T) {
 	var dials atomic.Int64
-	feed := newLocalFeed(filepath.Join(t.TempDir(), "missing.sock"), func(network, address string, timeout time.Duration) (net.Conn, error) {
+	feed := newLocalFeed(localInputTestPath(t, "missing.sock"), func(network, address string, timeout time.Duration) (net.Conn, error) {
 		if network != "unix" || timeout != localInputDial {
 			t.Errorf("dial %s %s", network, timeout)
 		}
@@ -546,7 +658,7 @@ func TestRunMissingSocketDialsOncePerCooldown(t *testing.T) {
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
 	client.localCore = func(context.Context) (bool, error) { return true, nil }
-	client.localInputPath = filepath.Join(t.TempDir(), "missing-local-input.sock")
+	client.localInputPath = localInputTestPath(t, "missing-local-input.sock")
 	client.localDial = func(network, address string, timeout time.Duration) (net.Conn, error) {
 		if network != "unix" || timeout != localInputDial {
 			t.Errorf("dial %s %s", network, timeout)

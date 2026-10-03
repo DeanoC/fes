@@ -801,6 +801,21 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	auto video = descriptor;
 	video.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
 	assert(check(video).ok());
+	// Atari ST uses the same computer ABI with one exact floppy interface.
+	auto atari = descriptor;
+	atari.interfaces[4].id = "fes.media.atari-st-floppy";
+	atari.interfaces[5].id = "fes.expansion.atari-st-bus";
+	assert(check(atari).ok());
+	for (const char* medium : {"fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape"}) {
+		auto mixed = atari;
+		mixed.interfaces.push_back({medium, 1, 0, true});
+		assert(check(mixed).code == mister::ErrorCode::unsupported_interface);
+	}
+	auto atari_optional = atari;
+	atari_optional.interfaces[4].required = false;
+	assert(check(atari_optional).code == mister::ErrorCode::unsupported_interface);
+	atari.interfaces[5].required = true;
+	assert(check(atari).code == mister::ErrorCode::unsupported_interface);
 	auto missing = descriptor;
 	missing.interfaces.erase(missing.interfaces.begin());
 	assert(check(missing).code == mister::ErrorCode::unsupported_interface);

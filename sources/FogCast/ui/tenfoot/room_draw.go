@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -267,7 +268,11 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
 	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
 	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
-	drawLabel(dev, labels, used, "rchoice-title", x+16, y+12, panelW-32, 18, "Choose an edition")
+	title := rooms.EditionChoiceAction
+	if snap.Room.Destination.Choice == rooms.ChoiceBackend {
+		title = rooms.BackendChoiceAction
+	}
+	drawLabel(dev, labels, used, "rchoice-title", x+16, y+12, panelW-32, 18, title)
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
 		if idx >= len(rows) {
@@ -283,8 +288,11 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		if label == "" {
 			label = rows[idx].ID
 		}
-		sys := strings.ToUpper(strings.TrimSpace(rows[idx].System))
-		if sys != "" {
+		if snap.Room.Destination.Choice == rooms.ChoiceBackend {
+			if backend := rooms.BackendLabel(rows[idx]); backend != "" && backend != label {
+				label = label + "  ·  " + backend
+			}
+		} else if sys := strings.ToUpper(strings.TrimSpace(rows[idx].System)); sys != "" {
 			label = label + "  ·  " + sys
 		}
 		if !rows[idx].LaunchEligible() {
@@ -471,6 +479,22 @@ func drawLaunchOverlay(dev gfx.Device, snap Snapshot, labels map[string]gpuTextu
 	if phase := strings.TrimSpace(copy.Phase); phase != "" && phase != copy.Title {
 		drawLabel(dev, labels, used, "launch-ov-phase", x+20, bodyY, panelW-40, 16, phase)
 		bodyY += 24
+	}
+	if !copy.Failed {
+		barW := panelW - 40
+		barY := bodyY
+		fillRect(dev, float32(x+20), float32(barY), float32(barW), 7, 48, 52, 62, 255)
+		segment := barW / 4
+		if segment < 8 {
+			segment = barW
+		}
+		travel := barW - segment
+		barX := x + 20 + int(time.Now().UnixMilli()%1000)*travel/1000
+		fillRect(dev, float32(barX), float32(barY), float32(segment), 7, 255, 184, 48, 255)
+		bodyY += 16
+		if copy.Elapsed != "" {
+			drawLabel(dev, labels, used, "launch-ov-elapsed", x+20, bodyY, panelW-40, 14, copy.Elapsed)
+		}
 	}
 	if reason := strings.TrimSpace(copy.Reason); reason != "" && reason != copy.Phase {
 		drawLabel(dev, labels, used, "launch-ov-reason", x+20, bodyY, panelW-40, 16, reason)

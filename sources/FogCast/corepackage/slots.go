@@ -26,7 +26,7 @@ type SlotDirectory struct {
 	Directory string `json:"directory"`
 }
 
-// SlotCompositionBundle retains the original sealed multi-socket shell and
+// SlotCompositionBundle retains the original sealed slot-bus shell and
 // its independent cards in ascending slot order. The linked overlay and the
 // composition tuple are transport evidence; each consumer recomputes them.
 type SlotCompositionBundle struct {
@@ -36,7 +36,7 @@ type SlotCompositionBundle struct {
 	Payload     []byte
 }
 
-// slotCompositionShell admits the multi-socket bus of an exact fes.computer
+// slotCompositionShell admits the indexed slot bus of an exact fes.computer
 // 1.0 shell. The single-socket ZX81 and Coleco buses never qualify.
 func slotCompositionShell(inspection Inspection, payload []byte) (expansion.Shell, error) {
 	d := inspection.Descriptor
@@ -46,9 +46,9 @@ func slotCompositionShell(inspection Inspection, payload []byte) (expansion.Shel
 	var found string
 	for _, i := range d.Interfaces {
 		switch i.ID {
-		case expansion.Apple2Slot, expansion.C64Slot, expansion.SpectrumSlot:
+		case expansion.Apple2Slot, expansion.C64Slot, expansion.SpectrumSlot, expansion.AtariStSlot:
 			if found != "" || i.Required || i.Major != 1 || i.Minor != 0 {
-				return expansion.Shell{}, errors.New("slot composition requires one optional multi-socket bus 1.0")
+				return expansion.Shell{}, errors.New("slot composition requires one optional slot bus 1.0")
 			}
 			found = i.ID
 		case expansion.Slot, expansion.ColecoSlot:
@@ -56,12 +56,12 @@ func slotCompositionShell(inspection Inspection, payload []byte) (expansion.Shel
 		}
 	}
 	if found == "" {
-		return expansion.Shell{}, errors.New("slot composition requires one optional multi-socket bus 1.0")
+		return expansion.Shell{}, errors.New("slot composition requires one optional slot bus 1.0")
 	}
 	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: found, SlotMajor: 1}, nil
 }
 
-// SlotLayout reports the bus, map and physical sockets of a multi-socket shell.
+// SlotLayout reports the bus, map and physical sockets of a slot-bus shell.
 // Packages without that bus report ok false.
 func SlotLayout(d Descriptor) (bus, mapping string, sockets []int, ok bool) {
 	shell, err := slotCompositionShell(Inspection{Descriptor: d}, nil)
@@ -75,7 +75,7 @@ func SlotLayout(d Descriptor) (bus, mapping string, sockets []int, ok bool) {
 	return shell.Slot, mapping, expansion.SlotSockets(shell.Slot, mapping), true
 }
 
-// SlotSockets lists the physical sockets of a descriptor's multi-socket bus in
+// SlotSockets lists the physical sockets of a descriptor's slot bus in
 // ascending order, or nil when the package has none.
 func SlotSockets(d Descriptor) []int {
 	_, _, sockets, ok := SlotLayout(d)
@@ -111,7 +111,7 @@ func inspectBase(base []byte) (Inspection, []byte, []byte, error) {
 	return Inspection{PackageID: packageIdentity(manifest, payload, romMap), Descriptor: descriptor}, payload, romMap, nil
 }
 
-// ValidateSlotExpansions binds cards to the exact sealed multi-socket shell,
+// ValidateSlotExpansions binds cards to the exact sealed slot-bus shell,
 // one per physical slot, without producing a bitstream.
 func ValidateSlotExpansions(base []byte, assets []expansion.Asset) error {
 	if len(assets) > MaxSlotCards {
@@ -146,7 +146,7 @@ func ValidateSlotCards(ctx context.Context, base []byte, assets []expansion.Asse
 	return err
 }
 
-// ComposeSlotArchive links cards into a ROM-less multi-socket shell.
+// ComposeSlotArchive links cards into a ROM-less slot-bus shell.
 func ComposeSlotArchive(ctx context.Context, base []byte, assets []expansion.Asset) (SlotCompositionBundle, error) {
 	if len(assets) == 0 || len(assets) > MaxSlotCards {
 		return SlotCompositionBundle{}, errors.New("slot composition requires 1..4 cards")

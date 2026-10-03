@@ -1968,13 +1968,13 @@ struct ComputerFixture {
 		context.descriptor = &descriptor;
 	}
 	mister::Error Insert(const std::string& bytes, unsigned unit = 0,
-		std::uint32_t maximum = 1030)
+		std::uint32_t maximum = 1030, std::uint64_t budget = 10000)
 	{
 		ComputerMediaFile file(bytes);
 		mister::native::ComputerMediaSnapshot snapshot;
 		assert(snapshot.Prepare(file.path, 1, maximum, clock, kComputerDeadline).ok());
 		return driver.InsertMedia(static_cast<std::uint8_t>(unit), snapshot, clock,
-			kComputerDeadline, 10000);
+			kComputerDeadline, budget);
 	}
 	std::vector<mister_test::ComputerEndpoint::Request> Since(std::size_t start) const
 	{
@@ -2213,8 +2213,9 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 	const unsigned registered = FesComputerCapabilityVideoFixed720p60 |
 		FesComputerCapabilityKeyboardHid | FesComputerCapabilityGamepadPorts |
 		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMediaApple2Floppy |
-		FesComputerCapabilityMediaSpectrumTape | FesComputerCapabilityMediaC64Disk;
-	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu, 31u | 64u}) {
+		FesComputerCapabilityMediaSpectrumTape | FesComputerCapabilityMediaC64Disk |
+		FesComputerCapabilityMediaAtariStFloppy;
+	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu, 31u | 64u, 31u | 128u}) {
 		ComputerFixture f(static_cast<std::uint16_t>(live), {{0, {143360, 143360}}}, full);
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
 		const bool expected = (live & registered) == 31u;
@@ -2298,6 +2299,56 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 			assert(driver.media_units().empty());
 		}
 	}
+}
+
+void TestAtariStFloppyDiscoveryAndLiveInsert()
+{
+	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceMediaAtariStFloppyID});
+	descriptor.core.id = "fes.atari-st";
+	descriptor.interfaces[3].id = "fes.expansion.atari-st-bus";
+	const unsigned live = FesComputerCapabilityVideoFixed720p60 |
+		FesComputerCapabilityKeyboardHid | FesComputerCapabilityMediaAtariStFloppy;
+	for (const auto& limits : {std::make_pair(737280u, 737280u), std::make_pair(1u, 737280u),
+		std::make_pair(737279u, 737279u), std::make_pair(737281u, 737281u)}) {
+		ComputerFixture f(live, {{0, limits}}, descriptor);
+		const auto identified = f.driver.Identify(f.context, kComputerDeadline);
+		assert(identified.error.ok() == (limits.first == 737280 && limits.second == 737280));
+		if (!identified.error.ok()) {
+			assert(identified.error.code == mister::ErrorCode::core_mismatch);
+			assert(f.driver.media_units().empty());
+		}
+	}
+	ComputerFixture f(live, {{0, {737280, 737280}}}, descriptor);
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	assert(!f.endpoint.held);
+	const auto image = ComputerPayload(FesComputerAtariStFloppyBytes);
+	const auto begin = f.endpoint.requests.size();
+	assert(f.Insert(image, 0, FesComputerAtariStFloppyBytes, 10000000).ok());
+	assert(!f.endpoint.held && f.endpoint.unit(0).state == FesComputerMediaStateReady);
+	assert(f.endpoint.unit(0).data == std::vector<std::uint8_t>(image.begin(), image.end()));
+	assert(f.driver.media_units()[0].interface.id == FesComputerInterfaceMediaAtariStFloppyID);
+	assert(f.driver.media_units()[0].state == mister::MediaUnitState::ready);
+	for (const auto& request : f.Since(begin)) assert(request.opcode != FesComputerOpcodeExecution);
+	const auto before = f.endpoint.requests.size();
+	assert(f.Insert(image.substr(1), 0, FesComputerAtariStFloppyBytes, 10000000).code ==
+		mister::ErrorCode::invalid_request);
+	for (const auto& request : f.Since(before)) assert(request.opcode != FesComputerOpcodeExecution);
+	assert(!f.endpoint.held);
+	// Recheck the exact contract before beginning a transfer if live limits drift.
+	auto& unit = f.endpoint.unit(0);
+	unit.minimum = 1;
+	const auto changed = f.endpoint.requests.size();
+	assert(f.Insert(image, 0, FesComputerAtariStFloppyBytes, 10000000).code ==
+		mister::ErrorCode::core_mismatch);
+	for (const auto& request : f.Since(changed)) {
+		assert(request.opcode != FesComputerOpcodeMediaBegin);
+		assert(request.opcode != FesComputerOpcodeExecution);
+	}
+	unit.minimum = FesComputerAtariStFloppyBytes;
+	assert(f.driver.EjectMedia(0, kComputerDeadline).ok());
+	assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
 }
 
 void TestComputerInputValidationAndPartialRows()
@@ -2480,6 +2531,7 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 
 int main()
 {
+ TestAtariStFloppyDiscoveryAndLiveInsert();
  TestSimpleComputerDisplayRequiresExactLiveCapability();
 	TestControllerPortsValidateAndNeutralize();
 	TestControllerPartialDeliveryNeverRetries();

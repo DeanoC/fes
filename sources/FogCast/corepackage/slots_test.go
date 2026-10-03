@@ -121,6 +121,64 @@ func TestSlotSocketsFollowTheDeclaredBus(t *testing.T) {
 	}
 }
 
+func TestAtariStSocketCompositionUsesTheSharedMap(t *testing.T) {
+	ctx := context.Background()
+	archive, payload, _, inspection := apple2Fixture(t, false, func(s string) string {
+		return strings.NewReplacer("fes.apple2", "fes.atari-st", "fes.media.apple2-floppy", "fes.media.atari-st-floppy",
+			"fes.expansion.apple2-bus", expansion.AtariStSlot).Replace(s)
+	})
+	bus, mapping, sockets, ok := SlotLayout(inspection.Descriptor)
+	if !ok || bus != expansion.AtariStSlot || mapping != expansion.AtariStMap || !reflect.DeepEqual(sockets, []int{1}) {
+		t.Fatalf("Atari ST layout %q %q %v %v", bus, mapping, sockets, ok)
+	}
+	manifest := expansion.Manifest{CartSHA256: romDigest(payload), CartSize: int64(len(payload)), Device: expansion.Device, Format: 1,
+		Map: expansion.AtariStMap, RecipeSHA256: strings.Repeat("b", 64), Revision: strings.Repeat("c", 40),
+		ShellBuildID: inspection.Descriptor.Build.ID, ShellPackageID: inspection.PackageID, ShellSHA256: romDigest(payload),
+		Slot: expansion.AtariStSlot, SlotIndex: 1, SlotMajor: 1}
+	card, err := expansion.NewAsset(manifest, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateSlotCards(ctx, archive, []expansion.Asset{card}); err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := ComposeSlotArchive(ctx, archive, []expansion.Asset{card})
+	if err != nil || len(bundle.Composition.Expansions) != 1 || bundle.Composition.Expansions[0].Slot != 1 || !bytes.Equal(bundle.Payload, payload) {
+		t.Fatalf("Atari ST composition %+v %v", bundle, err)
+	}
+	transport, err := bundle.Write()
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged, err := StageComposition(ctx, t.TempDir(), int64(len(transport)), bytes.NewReader(transport))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer staged.Cleanup()
+	if staged.SlotComposition == nil || staged.SlotComposition.ID != bundle.Composition.ID || len(staged.SlotDirectories) != 1 || staged.SlotDirectories[0].Slot != 1 {
+		t.Fatalf("Atari ST staged composition %+v", staged)
+	}
+	manifest.SlotIndex = 2
+	if _, err := expansion.NewAsset(manifest, payload); err == nil {
+		t.Fatal("nonexistent Atari ST socket accepted")
+	}
+	if ValidateSlotExpansions(archive, []expansion.Asset{card, card}) == nil {
+		t.Fatal("two Atari ST cards accepted")
+	}
+	for _, invalid := range []func(*Descriptor){
+		func(d *Descriptor) { d.Interfaces[len(d.Interfaces)-1].Required = true },
+		func(d *Descriptor) { d.Interfaces[len(d.Interfaces)-1].Minor = 1 },
+		func(d *Descriptor) { d.Interfaces = append(d.Interfaces, Interface{ID: expansion.C64Slot, Major: 1}) },
+	} {
+		descriptor := inspection.Descriptor
+		descriptor.Interfaces = append([]Interface(nil), descriptor.Interfaces...)
+		invalid(&descriptor)
+		if SlotSockets(descriptor) != nil {
+			t.Fatal("invalid Atari ST socket declaration accepted")
+		}
+	}
+}
+
 func TestSlotCompositionBundleStagesAdoptsAndCleansUp(t *testing.T) {
 	ctx := context.Background()
 	archive, payload, _, inspection := apple2Fixture(t, false)

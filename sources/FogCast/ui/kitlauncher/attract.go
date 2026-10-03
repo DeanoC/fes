@@ -404,20 +404,41 @@ func (m *Model) inputAttract(e remoteinput.Event, dx, dy int, now time.Time) str
 	}
 	item, ok := m.currentAttractItem()
 	m.noteActivity(now)
-	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress && e.Code == remoteinput.ButtonA && ok && m.attractLaunchEligible(item) && m.canLaunch() {
+	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress && e.Code == remoteinput.ButtonA && ok {
+		if !m.attractLaunchEligible(item) {
+			m.Message = "Needs the host to play"
+			return ""
+		}
 		// focusedGame prefers the strip while it is active; attract A launches the still.
 		m.leaveStrip()
 		if !m.focusGame(item.GameID) {
 			m.launchID = strings.TrimSpace(item.GameID)
 		}
-		return "launch"
+		if game, found := m.attractGame(item.GameID); found {
+			return m.launchAction(game)
+		}
+		m.Message = "Needs the host to play"
 	}
 	return ""
 }
 
+// attractGame finds the catalog row for an attract still, preferring the
+// full catalog over the filtered grid and strip like attractLaunchEligible.
+func (m Model) attractGame(id string) (hostclient.Game, bool) {
+	id = strings.TrimSpace(id)
+	for _, pool := range [][]hostclient.Game{m.Catalog, m.Games, m.Strip} {
+		for _, game := range pool {
+			if game.ID == id {
+				return game, true
+			}
+		}
+	}
+	return hostclient.Game{}, false
+}
+
 func (m Model) attractLaunchEligible(item hostclient.AttractItem) bool {
 	id := strings.TrimSpace(item.GameID)
-	if !item.Launchable || id == "" {
+	if id == "" {
 		return false
 	}
 	// Attract Launchable describes platform support only. Prefer the full
@@ -425,7 +446,7 @@ func (m Model) attractLaunchEligible(item hostclient.AttractItem) bool {
 	for _, pool := range [][]hostclient.Game{m.Catalog, m.Games, m.Strip} {
 		for _, game := range pool {
 			if game.ID == id {
-				return game.LaunchEligible()
+				return (item.Launchable && game.LaunchEligible()) || (m.LocalPlayEnabled && game.LocalCatalogPlayable())
 			}
 		}
 	}

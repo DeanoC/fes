@@ -257,6 +257,13 @@ func drawListRows(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 				meta = year
 			}
 		}
+		if play := libraryPlayDestination(game).Availability.Label(); play != "" {
+			if meta != "" {
+				meta += "  ·  " + play
+			} else {
+				meta = play
+			}
+		}
 		drawLabel(dev, labels, used, "lm:"+game.ID, textX, y+40, textW, 16, meta)
 	}
 }

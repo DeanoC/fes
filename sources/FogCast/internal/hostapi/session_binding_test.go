@@ -2,6 +2,7 @@ package hostapi_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -63,6 +64,42 @@ func TestSessionLaunchBindsOptionalTarget(t *testing.T) {
 	}
 	if result.Target != "spare" || result.State != protocol.StateActive {
 		t.Fatalf("launch session = %+v", result)
+	}
+}
+
+type namedTargetService struct {
+	*fakeService
+	targets map[string]fogcast.TargetConfig
+}
+
+func (s *namedTargetService) TargetConfigForName(name string) fogcast.TargetConfig {
+	return s.targets[name]
+}
+
+func TestExplicitStatusTargetMustBeConfigured(t *testing.T) {
+	service := &namedTargetService{
+		fakeService: &fakeService{statusErr: errors.New("target offline")},
+		targets:     map[string]fogcast.TargetConfig{"offline": {Name: "offline", Enabled: true}},
+	}
+	handler := hostapi.New(service)
+	unknown := serve(t, handler, http.MethodGet, "/api/v1/status?target=missing")
+	if unknown.Code != http.StatusNotFound || !strings.Contains(unknown.Body.String(), `"code":"TARGET_NOT_FOUND"`) {
+		t.Fatalf("unknown status target = %d %s, want 404 TARGET_NOT_FOUND", unknown.Code, unknown.Body.String())
+	}
+	offline := serve(t, handler, http.MethodGet, "/api/v1/status?target=offline")
+	if offline.Code != http.StatusServiceUnavailable || !strings.Contains(offline.Body.String(), `"code":"TARGET_UNAVAILABLE"`) {
+		t.Fatalf("configured offline status target = %d %s, want 503 TARGET_UNAVAILABLE", offline.Code, offline.Body.String())
+	}
+}
+
+func TestLaunchUnknownExplicitTargetReturnsNotFound(t *testing.T) {
+	service := &namedTargetService{fakeService: &fakeService{}, targets: map[string]fogcast.TargetConfig{}}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"megadrive-sonic-test","target":"missing"}`))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	hostapi.New(service).ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), `"code":"TARGET_NOT_FOUND"`) {
+		t.Fatalf("unknown launch target = %d %s, want 404 TARGET_NOT_FOUND", response.Code, response.Body.String())
 	}
 }
 

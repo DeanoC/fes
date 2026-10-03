@@ -353,6 +353,10 @@ var c64Sockets = map[int]socketPolicy{
 	2: {C64Slot, C64Map, 1769, 1722, 2806, 3442},
 }
 
+var atariStSockets = map[int]socketPolicy{
+	1: {AtariStSlot, AtariStMap, 1769, 32, 2806, 1722},
+}
+
 func policyFor(slot, mapping string) (socketPolicy, error) {
 	switch {
 	case slot == Slot && mapping == Map:
@@ -375,7 +379,8 @@ func supportedSocketVersion(slot, mapping string, major int) bool {
 		(slot == ColecoSlot && mapping == ColecoMapV2 && major == 2) ||
 		(slot == Apple2Slot && mapping == Apple2Map && major == 1) ||
 		(slot == SpectrumSlot && mapping == SpectrumMap && major == 1) ||
-		(slot == C64Slot && mapping == C64Map && major == 1)
+		(slot == C64Slot && mapping == C64Map && major == 1) ||
+		(slot == AtariStSlot && mapping == AtariStMap && major == 1)
 }
 
 func (p socketPolicy) inside(x, y int) bool {

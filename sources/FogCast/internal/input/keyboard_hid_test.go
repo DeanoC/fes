@@ -102,6 +102,21 @@ func TestHIDKeyboardFramesPostUsageRowsForTheGeneration(t *testing.T) {
 	}
 }
 
+func TestHIDObservationRebindsSameIdentityAfterReleaseAll(t *testing.T) {
+	sink, posts, _ := newHIDPortsFixture(t, false)
+	if err := sink.ReleaseAll(); err != nil {
+		t.Fatal(err)
+	}
+	sink.setObservation(CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: "apple2", Generation: 7}})
+	code, _ := hidkeys.Code(0x04)
+	if err := sink.Apply(keyboardFrameFor(code, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	if !sink.hid.bound() || len(*posts) != 1 || (*posts)[0].rows[0] != 1<<4 {
+		t.Fatalf("same identity after cleanup: bound=%v posts=%+v", sink.hid.bound(), *posts)
+	}
+}
+
 func TestHIDKeyboardWithoutControllerPorts(t *testing.T) {
 	sink, posts, _ := newHIDPortsFixture(t, false)
 	backspace, _ := hidkeys.Code(0x2a)

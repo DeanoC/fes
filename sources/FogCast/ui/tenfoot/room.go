@@ -518,6 +518,7 @@ func (a *App) launchFromRoomLocked(gameID string) {
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
 		return
 	}
+	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{GameID: gameID, Phase: "launching", Message: "resolving " + gameID}
 	ctx := a.ctx
 	if ctx == nil {
@@ -534,9 +535,11 @@ func (a *App) resolveRoomLaunch(ctx context.Context, gameID string) {
 		return
 	}
 	if err != nil {
+		a.launchLeaseRefusal = false
 		a.launch = LaunchSnapshot{GameID: gameID, Phase: "error", Message: "launch failed: " + err.Error(), ErrorMessage: err.Error()}
 		return
 	}
+	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{Phase: "idle"}
 	a.startLaunchGameLocked(game)
 }

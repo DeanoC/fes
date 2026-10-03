@@ -196,6 +196,19 @@ core = %q
 	if status, stillActive := get(); status != 200 || stillActive["id"] != id || stillActive["execution"] != fogcast.ExecutionHostOnly {
 		t.Fatalf("unscoped status after target observation: %d %+v, want root host-only session %v", status, stillActive, id)
 	}
+	resp, missing := request(http.MethodGet, "/api/v1/session?target=missing", "")
+	missingError, _ := missing["error"].(map[string]any)
+	if resp.StatusCode != http.StatusNotFound || missingError["code"] != string(protocol.CodeTargetNotFound) || missingError["message"] != "target is not configured" {
+		t.Fatalf("unknown target status=%d %+v, want typed target-not-found", resp.StatusCode, missing)
+	}
+	resp, missing = request(http.MethodPost, "/api/v1/session/stop", `{"target":"missing"}`)
+	missingError, _ = missing["error"].(map[string]any)
+	if resp.StatusCode != http.StatusNotFound || missingError["code"] != string(protocol.CodeTargetNotFound) || missingError["message"] != "target is not configured" {
+		t.Fatalf("unknown target Stop=%d %+v, want typed target-not-found", resp.StatusCode, missing)
+	}
+	if status, stillActive := get(); status != 200 || stillActive["id"] != id || stillActive["execution"] != fogcast.ExecutionHostOnly {
+		t.Fatalf("unscoped status after unknown target requests: %d %+v, want root host-only session %v", status, stillActive, id)
+	}
 	resp, explicit = request(http.MethodPost, "/api/v1/session/stop", `{"target":"kit"}`)
 	stopError, _ := explicit["error"].(map[string]any)
 	if resp.StatusCode == http.StatusOK || stopError["stop_stage"] != "target_stop" {

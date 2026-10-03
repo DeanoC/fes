@@ -108,23 +108,13 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 	case d.Kind == KindRoom, d.Kind == KindLibrary:
 		// Confirm is enter / open library; availability is unused.
 	case len(d.Matches) > 0:
-		state, matches := ClassifyGames(d.Matches, d.Query)
-		d.Availability = state
-		d.Matches = matches
+		d.storePlay(d.Matches, false)
 		if d.Kind == "" {
 			d.Kind = KindGame
 		}
-		if d.GameID == "" && state == AvailReady && len(matches) == 1 {
-			d.GameID = matches[0].ID
-		}
-		if d.System == "" && len(matches) == 1 {
-			d.System = matches[0].System
-		}
 	case d.GameID != "":
 		if g, ok := r.games[d.GameID]; ok {
-			state, matches := ClassifyGames([]hostclient.Game{g}, "")
-			d.Availability = state
-			d.Matches = matches
+			d.storePlay([]hostclient.Game{g}, false)
 		} else {
 			d.Availability = AvailChecking
 		}
@@ -179,17 +169,51 @@ func (r *Instance) destinationClassify(L *lua.LState) int {
 	if query == "" {
 		query = optString(opts, "query")
 	}
-	state, matches := ClassifyGames(games, query)
-	d := Destination{Kind: KindGame, Availability: state, Matches: matches, Query: query}
-	if state == AvailReady && len(matches) == 1 {
-		d.GameID = matches[0].ID
-		d.System = matches[0].System
-		d.Label = matches[0].Title
+	d := Destination{Kind: KindGame, Query: query}
+	d.storePlay(games, false)
+	if d.Availability == AvailReady && len(d.Matches) == 1 {
+		d.GameID = d.Matches[0].ID
+		d.System = d.Matches[0].System
+		d.Label = d.Matches[0].Title
 	}
 	d.FillCopy()
 	d.FillHistory()
 	L.Push(r.destinationTable(d))
 	return 1
+}
+
+// candidateTable is the retained sibling set. A blocked row is Unavailable
+// with its reason and is not marked as a play choice.
+func (r *Instance) candidateTable(d Destination) *lua.LTable {
+	if r == nil || len(d.Candidates) == 0 {
+		return nil
+	}
+	chosen := map[string]struct{}{}
+	if d.Availability == AvailReady || d.Availability == AvailNeedsChoice {
+		for _, g := range d.Matches {
+			if g.LaunchEligible() {
+				if id := strings.TrimSpace(g.ID); id != "" {
+					chosen[id] = struct{}{}
+				}
+			}
+		}
+	}
+	candidates := r.L.NewTable()
+	for _, g := range d.Candidates {
+		row := r.gameTable(g)
+		if _, ok := chosen[strings.TrimSpace(g.ID)]; !ok && !g.LaunchEligible() {
+			if g.LaunchBlock() == hostclient.LaunchEnsureProgress {
+				row.RawSetString("availability", lua.LString(string(AvailChecking)))
+			} else {
+				row.RawSetString("availability", lua.LString(string(AvailUnavailable)))
+				if reason := LaunchBlockCopy(g); reason != "" {
+					row.RawSetString("reason", lua.LString(reason))
+				}
+			}
+		}
+		candidates.Append(row)
+	}
+	return candidates
 }
 
 func (r *Instance) destinationTable(d Destination) *lua.LTable {
@@ -209,6 +233,9 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 	}
 	t.RawSetString("availability", lua.LString(d.Availability))
 	t.RawSetString("state", lua.LString(d.Availability))
+	if d.Choice != ChoiceNone {
+		t.RawSetString("choice", lua.LString(d.Choice))
+	}
 	t.RawSetString("status", lua.LString(d.Status))
 	t.RawSetString("action", lua.LString(d.Action))
 	t.RawSetString("note", lua.LString(d.Note))
@@ -225,6 +252,9 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 		matches.Append(r.gameTable(g))
 	}
 	t.RawSetString("matches", matches)
+	if candidates := r.candidateTable(d); candidates != nil {
+		t.RawSetString("candidates", candidates)
+	}
 	if g, ok := d.Game(); ok {
 		t.RawSetString("game", r.gameTable(g))
 	}

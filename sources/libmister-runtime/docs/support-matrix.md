@@ -23,6 +23,7 @@ Hardware-supported package paths: 0.
 | `fes.computer` admission, identity and firmware ROM activation | covered | none |
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
+| Atari ST exact 720 KiB `.st` unit-0 disks, live insertion/ejection and single socket bus composition | covered by host tests | none |
 | Multi-slot Apple II slot-bus composition (socket set provisional) | covered | none |
 | Multi-slot Spectrum edge-bus composition and `.tap` unit | covered | [48K BASIC ROM-link diagnostic](../../../docs/validation/2026-09-28-spectrum-basic-kit.md); keyboard, tape and cards pending |
 | Initialized machine-ROM bitstream | covered | pending |

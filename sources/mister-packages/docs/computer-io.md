@@ -5,7 +5,7 @@
 `FesComputer*` and `FES_COMPUTER_*` Verilog macros. It is a separate ABI from
 `fes.simple-computer` (tag 2) and `fes.application` (tag 3); both remain
 unchanged. The consumers are the FES Apple II, the FES ZX Spectrum and the
-FES Commodore 64. These definitions and the synthetic fixtures do not
+FES Commodore 64 and Atari 520ST. These definitions and the synthetic fixtures do not
 establish consumer or hardware acceptance.
 
 A home computer differs from the existing ABIs in three ways: it has a full
@@ -25,6 +25,7 @@ removable media by unit.
 | fes.media.apple2-floppy | 4 | Media unit 0: one Apple II 5.25-inch DOS 3.3 order disk image |
 | fes.media.spectrum-tape | 5 | Media unit 0: one ZX Spectrum `.tap` image, 1..65536 bytes |
 | fes.media.c64-disk | 6 | Media unit 0: one Commodore 1541 D64 disk image |
+| fes.media.atari-st-floppy | 7 | Media unit 0: one read-only 720 KiB raw ST disk image |
 
 Admission requires video. Every other interface is independently composable.
 Each recognized operational interface a core implements must be declared
@@ -33,7 +34,8 @@ must equal the declared registered set. Unknown required interfaces and
 unsupported versions fail admission; unknown optional interfaces are ignored
 and grant nothing. A shell declares at most one unit-0 media interface.
 Expansion interfaces such as `fes.expansion.apple2-bus`,
-`fes.expansion.spectrum-bus` and `fes.expansion.c64-bus` are manifest-only
+`fes.expansion.spectrum-bus`, `fes.expansion.c64-bus` and
+`fes.expansion.atari-st-bus` are manifest-only
 optional declarations, not capability bits. Launch-time firmware is supplied
 by package ROM linking (format 3), not by this mailbox.
 
@@ -196,7 +198,7 @@ machine runs (header pilot 8063 edges, data pilot 3223, sync 667/735, bit
 pulses 855 or 1710 T-states, then a one-second pause). A trailing partial
 block is not played. Version 1.0 does not return MIC writes to the host.
 A shell declares this unit, the Apple II floppy, or the C64 disk, and only
-one of those unit-0 media interfaces.
+one unit-0 media interface, including the Atari ST floppy below.
 
 ### fes.media.c64-disk 1.0
 
@@ -208,6 +210,23 @@ sectors). Byte offset of track 1 sector 0 is 0. Version 1.0 is read only:
 the built-in 1541-compatible device serves LOAD and does not return writes
 to the host. G64, D71 and D81 images are different formats. Capability bit 6
 (`0x40`) is this disk. Bit 5 (`0x20`) is the Spectrum tape.
+
+### fes.media.atari-st-floppy 1.0
+
+Unit 0. The unit accepts exactly 737,280 bytes (Info minimum = maximum =
+737,280): 80 cylinders, two sides, nine sectors per track and 512 bytes per
+sector, with the plain `.st` sector layout. Byte offset is
+`((cylinder * 2 + side) * 9 + sector - 1) * 512`; cylinders are 0..79,
+sides 0..1, and sectors 1..9. Drive A is read only and reports write protect;
+version 1.0 does not return machine writes to the host. Drive B is absent.
+MSA/STX flux images, alternate geometry and hard disks are different formats.
+Capability bit 7 (`0x80`) identifies this interface. It shares unit 0 with
+Apple II, Spectrum and C64 media, so a shell declares exactly one such medium.
+
+Backend wait states do not alter mailbox framing: a successful MediaData
+acknowledgement follows its complete storage write, including a byte pair
+split across two memory words at an odd chunk boundary. Rejected requests
+acknowledge normally without writing. CPU Hold does not cancel media traffic.
 
 ## Audio
 

@@ -134,6 +134,7 @@ type LaunchSnapshot struct {
 	State        string
 	ErrorCode    string
 	ErrorMessage string
+	StartedAt    time.Time
 }
 
 // SessionSnapshot is the live host session from GET /api/v1/session (and launch/stop).
@@ -262,7 +263,10 @@ type Snapshot struct {
 	TapePicker              TapePickerSnapshot
 	ReducedMotion           bool
 	LocalCorePhase          string
+	LocalCoreTitle          string
+	LocalCoreStartedAt      time.Time
 	LocalCorePresentsPaused bool
+	LocalCoreLateAdopt      bool
 	LocalCoreRedraw         uint64
 }
 
@@ -279,26 +283,28 @@ type App struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 
-	mu        sync.Mutex
-	games     []hostclient.Game
-	grid      Grid
-	covers    map[string]*coverSlot
-	inflight  map[string]workKind
-	status    string
-	loadErr   string
-	loading   bool
-	launch    LaunchSnapshot
-	gamepads  int
-	keyboards int
-	mice      int
-	affinity  affinityTracker
-	repeat    Repeater
-	remap     *inputmap.Remapper
-	theme     theme.Theme
-	jobs      chan workItem
-	results   chan workResult
-	maxGames  int
-	pageLimit int
+	mu                 sync.Mutex
+	games              []hostclient.Game
+	grid               Grid
+	covers             map[string]*coverSlot
+	inflight           map[string]workKind
+	status             string
+	statusLeaseRefusal bool
+	launchLeaseRefusal bool
+	loadErr            string
+	loading            bool
+	launch             LaunchSnapshot
+	gamepads           int
+	keyboards          int
+	mice               int
+	affinity           affinityTracker
+	repeat             Repeater
+	remap              *inputmap.Remapper
+	theme              theme.Theme
+	jobs               chan workItem
+	results            chan workResult
+	maxGames           int
+	pageLimit          int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -528,28 +534,34 @@ type App struct {
 	previewFails       int
 	previewNext        time.Time
 
-	localCores          rooms.LocalCores
-	localFeed           localPadSender
-	localInstallKnown   bool
-	localInstalled      map[string]struct{}
-	localInstallGen     uint64
-	localInstallCancel  context.CancelFunc
-	localCatalogClose   func() error
-	localContent        func(context.Context, string) (string, error)
-	localPhase          string
-	localTitle          string
-	localStatus         string
-	localGen            uint64
-	localPresentsPaused bool
-	localRedraw         uint64
-	localSelectDown     bool
-	localStartDown      bool
-	localChordSince     time.Time
-	localChordFired     bool
-	localSent           map[remoteinput.Code]bool
-	localStatusBusy     bool
-	localStatusNext     time.Time
-	localStatusEpoch    uint64
+	localCores                 rooms.LocalCores
+	localFeed                  localPadSender
+	localInstallKnown          bool
+	localInstalled             map[string]struct{}
+	localInstallGen            uint64
+	localInstallCancel         context.CancelFunc
+	localCatalogClose          func() error
+	localContent               func(context.Context, string) (string, error)
+	localPhase                 string
+	localReconcileAfterFailure bool
+	localReconcileDeadline     time.Time
+	localTitle                 string
+	localStartedAt             time.Time
+	localStatus                string
+	localGen                   uint64
+	localPresentsPaused        bool
+	localLateAdopt             bool
+	localRedraw                uint64
+	localSelectDown            bool
+	localStartDown             bool
+	localChordSince            time.Time
+	localChordFired            bool
+	localStopAfterStart        bool
+	localSent                  map[remoteinput.Code]bool
+	localStatusBusy            bool
+	localStatusNext            time.Time
+	localStatusEpoch           uint64
+	localLaunchPending         func()
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.
@@ -1613,7 +1625,10 @@ func (a *App) Snapshot() Snapshot {
 		TapePicker:              a.tapePickerSnapshotLocked(),
 		ReducedMotion:           a.reducedMotion,
 		LocalCorePhase:          a.localPhase,
+		LocalCoreTitle:          a.localTitle,
+		LocalCoreStartedAt:      a.localStartedAt,
 		LocalCorePresentsPaused: a.localPresentsPaused,
+		LocalCoreLateAdopt:      a.localLateAdopt,
 		LocalCoreRedraw:         a.localRedraw,
 	}
 }
@@ -1838,6 +1853,12 @@ func (s Snapshot) chromeBody() string {
 	parts := []string{view, platform, sortLabel(s.Collection, s.Sort)}
 	parts = append(parts, filterSummaryParts(s.Genre, s.Year, s.Region, s.HidePrerelease, s.HideHacks)...)
 	parts = append(parts, search)
+	if s.Grid.Focus >= 0 && s.Grid.Focus < len(s.Games) {
+		play := libraryPlayDestination(s.Games[s.Grid.Focus])
+		if label := play.Availability.Label(); label != "" {
+			parts = append(parts, label)
+		}
+	}
 	status := s.Status
 	if health := strings.TrimSpace(s.Health.Line); health != "" && status == health {
 		return strings.Join(parts, "  ·  ")
@@ -2030,6 +2051,10 @@ func (a *App) focusIndexLocked(i int) bool {
 }
 
 func (a *App) startLaunchLocked() {
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
@@ -2041,13 +2066,23 @@ func (a *App) startLaunchLocked() {
 		return
 	}
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+		a.launchLeaseRefusal = false
 		a.launch = LaunchSnapshot{Phase: "error", Message: "no title selected"}
 		return
 	}
-	a.startLaunchGameLocked(a.games[a.grid.Focus])
+	game := a.games[a.grid.Focus]
+	if libraryPlayDestination(game).Confirm() == rooms.ConfirmWait {
+		a.status = rooms.CheckingStatus
+		return
+	}
+	a.startLaunchGameLocked(game)
 }
 
 func (a *App) startLaunchGameLocked(game hostclient.Game) {
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
@@ -2061,12 +2096,14 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	if a.client != nil && a.client.paired && a.kitMutationBlockedLocked() {
 		message := a.status
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: message}
+		a.launchLeaseRefusal = a.statusLeaseRefusal
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
 		}
 		return
 	}
 	if reason := launchBlockReason(game); reason != "" {
+		a.launchLeaseRefusal = false
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
@@ -2075,6 +2112,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	}
 	if a.foreignKitLeaseLocked() && !game.HostOnly() {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: localInUseCopy}
+		a.launchLeaseRefusal = true
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
 		}
@@ -2082,10 +2120,12 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	}
 	a.sessionTitle = game.Title
 	a.cancelPlayHIDLocked()
+	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{
-		GameID:  game.ID,
-		Phase:   "launching",
-		Message: "launching " + game.Title,
+		GameID:    game.ID,
+		Phase:     "launching",
+		Message:   "launching " + game.Title,
+		StartedAt: time.Now(),
 	}
 	if a.room != nil {
 		a.closeRoomOverlaysLocked()
@@ -2109,24 +2149,17 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 // Admission rules live on hostclient.Game; unavailable titles must not
 // POST /api/v1/session/launch.
 func launchBlockReason(game hostclient.Game) string {
-	switch game.LaunchBlock() {
-	case hostclient.LaunchBrowseOnly:
-		return "This platform is browse-only on this host."
-	case hostclient.LaunchSourceOffline:
-		return "This game's source is offline."
-	case hostclient.LaunchUnreadable:
-		return "This ROM can't be read."
-	case hostclient.LaunchNotReady:
-		return "This game isn't ready to launch."
-	case hostclient.LaunchMissingFirmware:
-		return "Coleco BIOS required. Import household firmware before Play."
-	case hostclient.LaunchMissingROM:
-		return "Needs a cartridge"
-	case "":
+	if game.LaunchBlock() == "" {
 		return ""
-	default:
-		return "This game isn't ready to launch."
 	}
+	return rooms.LaunchBlockCopy(game)
+}
+
+func libraryPlayDestination(game hostclient.Game) rooms.Destination {
+	state, matches := rooms.ClassifyGames([]hostclient.Game{game}, "")
+	d := rooms.Destination{Kind: rooms.KindGame, Availability: state, Matches: matches, GameID: game.ID, Label: game.Title, System: game.System}
+	d.FillCopy()
+	return d
 }
 
 func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientStamp) {
@@ -2139,6 +2172,7 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	a.bumpSessionGenLocked()
 	if err != nil {
 		a.launch.Phase = "error"
+		a.launchLeaseRefusal = false
 		a.launch.Message = "launch failed: " + err.Error()
 		a.launch.ErrorMessage = err.Error()
 		return
@@ -2149,10 +2183,12 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	a.launch.State = result.State
 	if result.ErrorCode != "" {
 		a.launch.Phase = "host"
+		a.launchLeaseRefusal = false
 		a.launch.Message = fmt.Sprintf("host launch %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
 		return
 	}
 	a.launch.Phase = "ok"
+	a.launchLeaseRefusal = false
 	a.launch.Message = fmt.Sprintf("host accepted launch for %s", game.ID)
 	a.applySessionLocked(result)
 	if a.session.State == "active" && a.session.GameID == "" {
@@ -2550,11 +2586,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 			}
 		}
 		a.mu.Lock()
+		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = result
 		a.kitLeaseHave = true
 		a.kitLease = lease
+		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
 		return
 	}
@@ -2562,11 +2600,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 		// Paired target status remains useful when the host's selected target
 		// cannot be observed. The authenticated projection belongs to this kit.
 		a.mu.Lock()
+		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
 		a.kitLeaseHave = true
 		a.kitLease = paired
+		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
 		return
 	}
@@ -2594,6 +2634,21 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = hostclient.HealthResult{Ready: true, TargetReachable: false, TargetReady: false}
+	}
+}
+
+func (a *App) clearLeaseRefusalAfterTransitionLocked(wasForeign bool) {
+	if !wasForeign || a.foreignKitLeaseLocked() {
+		return
+	}
+	if a.statusLeaseRefusal && a.status == localInUseCopy {
+		a.status = ""
+	}
+	a.statusLeaseRefusal = false
+	if a.launchLeaseRefusal {
+		a.launch.Message = ""
+		a.launch.Phase = "idle"
+		a.launchLeaseRefusal = false
 	}
 }
 

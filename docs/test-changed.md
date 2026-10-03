@@ -50,6 +50,14 @@ cross-family references need explicit review. When adding a consumer, update
 its rule and coverage test together. A new supported core also needs its
 simulation target registered in `scripts/ci_simulations.py`.
 
+The Atari 520ST family and shared FX68K files select `make sim-fes-atari-st`,
+covering CPU/MMU, SDRAM, peripherals, media upload, expansion and all video
+modes. Shared direct/scanline parts select Coleco and Atari ST; the shared
+computer mailbox and audio units include ST. Its reused C64 system PLL and
+ZX81 AY engine select their original consumers plus ST. The addon-SDRAM
+controller selects RAM tester and ST simulations. The ST producer is
+registered, with no factory image entry; CI still runs host checks only.
+
 The local runner includes the default and OSS
 SMS/SG-1000 simulations; Coleco's aggregate includes its OSS unit/board cases,
 the CPU-bus probe and registered diagnostic-through-socket test. It

@@ -130,6 +130,33 @@ func TestMenuDisplayPauseDrainsInflightAndDropsQueuedFrames(t *testing.T) {
 	}
 }
 
+func TestMenuDisplayWaitIdleWaitsForInflightAndHonorsDeadline(t *testing.T) {
+	block := make(chan struct{})
+	client := &testMenuClient{generation: 3, ready: make(chan struct{}, 1), presentBlock: block}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.Present()
+	select {
+	case <-client.ready:
+	case <-time.After(time.Second):
+		t.Fatal("frame did not begin")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := d.WaitIdle(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitIdle error = %v, want deadline", err)
+	}
+	close(block)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
+	defer cancel2()
+	if err := d.WaitIdle(ctx2); err != nil {
+		t.Fatalf("WaitIdle after completion: %v", err)
+	}
+}
+
 func TestMenuDisplayRendersAndRetriesAfterFailure(t *testing.T) {
 	client := &testMenuClient{generation: 3, fail: true, ready: make(chan struct{}, 3)}
 	d, err := newMenuDisplayWithClient(client)

@@ -108,14 +108,15 @@ jobs:
       - run: |
           make host
           cd sources/FogCast
-          # SQLite-heavy packages exceed Go's default ten-minute budget on CI.
-          go test -race -timeout=20m ./...
+          # Explicit per-package limit: catalog's 10k-row fixture can exceed Go's
+          # 10m default under -race on 2-core runners (#482).
+          go test -race -timeout 30m ./...
           make test-ui
           cd appliance
-          go test -race ./...
+          go test -race -timeout 30m ./...
       - name: Shared expansion linker tests
         working-directory: sources/misteross/expansion
-        run: go test -race ./...
+        run: go test -race -timeout 30m ./...
   runtime:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).runtime

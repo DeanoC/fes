@@ -42,6 +42,9 @@ const (
 	// socket 2 is the I/O window.
 	C64Slot = "fes.expansion.c64-bus"
 	C64Map  = "fes.c64-bus.sockets/1"
+	// AtariStSlot carries the original ST's 16-bit 68000 bus in socket 1.
+	AtariStSlot = "fes.expansion.atari-st-bus"
+	AtariStMap  = "fes.atari-st-bus.socket/1"
 )
 
 var hex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)

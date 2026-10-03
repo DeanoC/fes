@@ -106,7 +106,18 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			}
 			app.Tick(now)
 			snap := app.Snapshot()
-			if !hold.skip(ctx, dev, snap) {
+			skip, pauseErr := hold.skip(ctx, dev, snap)
+			if pauseErr != nil {
+				app.completeLocalLaunchHandoff(pauseErr)
+				if display, ok := dev.(*gfx.MenuDisplay); ok {
+					display.Resume()
+				}
+				hold.armed = false
+				hold.paused = false
+			} else if hold.paused {
+				app.completeLocalLaunchHandoff(nil)
+			}
+			if !skip {
 				parked = presentFrame(painter, snap, textures, labels, parked)
 			}
 			frames++

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/ui/anim"
 	"github.com/DeanoC/FogCast/ui/audioreact"
 	"github.com/DeanoC/FogCast/ui/fbgrid"
@@ -256,6 +257,9 @@ func run() error {
 	if activeMenuDisplay {
 		client.SetMenuDisplayHandoff(func(ctx context.Context) error {
 			if menu, ok := d.(*gfx.MenuDisplay); ok {
+				if err := menu.WaitIdle(ctx); err != nil {
+					return err
+				}
 				return menu.Pause(ctx)
 			}
 			return nil
@@ -266,6 +270,7 @@ func run() error {
 		})
 	}
 	client.SetLocalInput(localInputConfig())
+	client.SetLocalCores(localcores.NewClient(localcores.DefaultSocket))
 	covers := shared.NewCoverCache()
 	stills := shared.NewStillCache()
 	presentations := shared.NewPresentationCache()
@@ -610,7 +615,7 @@ func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
 type renderKey struct {
 	Focus, GameCount, AttractIndex, AttractFade, Shot, StripFocus, SeriesFocus int
 	FocusID, Message, Shelf, AttractHandle, Preview, StripID, SeriesID         string
-	SessionState, Execution, GameID, Query, OSKFocus                           string
+	SessionState, Execution, GameID, Query, OSKFocus, LoadPhase, LoadElapsed   string
 	Busy, Connected, TargetReady, ControllerConnected                          bool
 	Attract, Detail, Wheel, Video, Strip, Series, Search                       bool
 	Covers, Stills, Presentations, CoreStatusRevision                          uint64
@@ -637,6 +642,7 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		Focus: m.Focus, GameCount: len(m.Games), FocusID: focusID,
 		Message: m.Message, Shelf: m.Shelf, SessionState: m.Session.State, Execution: m.Session.Execution,
 		GameID: m.Session.GameID, Busy: m.Busy, Connected: m.Connected,
+		LoadPhase: m.LoadPhase, LoadElapsed: m.LoadElapsed,
 		TargetReady: m.TargetReady, ControllerConnected: m.ControllerConnected,
 		Detail: m.DetailOpen, Wheel: m.WheelOpen, Shot: m.ShotIndex(),
 		Preview: m.ShotHandle(), Video: m.HasVideoPreview(),

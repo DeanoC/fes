@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+"""Build the probe card for socket 1 of a sealed native FES Atari ST shell.
+
+The shell is never placed or routed here. A copy of its frozen routed netlist
+becomes the scaffold: the socket boundary flip-flops are renamed to the
+canonical plug cells nextpnr merges a cart onto, so the card is placed in the
+named expansion region and routed inside its CRAM rectangle. The result is a
+two-member expansion archive (canonical `manifest.json` with `slot_index`, and
+the placed `cart.rbf`) bound to the exact shell. Launch-time composition of
+the card uses the misteross Go slot linker.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import io
+import json
+import os
+import re
+import subprocess
+import sys
+import tarfile
+from pathlib import Path
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts import atari_st_slot
+from scripts import build_fes_atari_st_oss as shell_recipe
+from scripts.core_package import read_package
+from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
+from scripts.fes_build_common import _prepare_output, _require_clean_source, _require_gpu_backend
+
+ROOT = Path(__file__).resolve().parents[1]
+CARDS = {
+    "probe": ("cores/fes-atari-st/expansions/probe_cart.sv", "cores/fes-atari-st/expansions/st_probe.sv"),
+}
+CARD_INCLUDES = ("cores/fes-common/generated/fes_atari_st_bus.vh",)
+TOOL_INPUTS = (
+    "scripts/build_atari_st_slot_card.py", "scripts/atari_st_slot.py", "scripts/build_fes_atari_st_oss.py",
+    "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py",
+    "scripts/lockfile.py", "scripts/source_repository.py", "scripts/source_provenance.py",
+    "scripts/rfc3986_validator.py",
+    shell_recipe.ST_TOOLCHAIN_LOCK, shell_recipe.SDC,
+)
+BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
+                 "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
+                 "scaffold.json", "cart.qsf", "cram-diff.json")
+PLACER_SEED = 3
+SLOT_CLOCK = "system_clock.clocks[0]"
+REQUIRED_CLOCKS_MHZ = {"system_clock.clocks[0]": 52.224, "pixel_clk": 74.25,
+                       "system_clock.clocks[1]": 12.288}
+
+
+def digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def socket_for(slot: int) -> atari_st_slot.Socket:
+    for socket in atari_st_slot.SOCKETS:
+        if socket.slot == slot:
+            return socket
+    raise ValueError(f"slot {slot} is not a physical socket of {atari_st_slot.LAYOUT}")
+
+
+def card_inputs(card: str) -> tuple[str, ...]:
+    if card not in CARDS:
+        raise ValueError(f"unknown Atari ST card {card!r}")
+    return CARDS[card] + CARD_INCLUDES + TOOL_INPUTS
+
+
+def prepare_scaffold(source: bytes, slot: int) -> bytes:
+    """Frozen shell netlist with the chosen socket exposed as the cart plugs.
+
+    The routed JSON omits the system PLL's second output connection while
+    keeping its physical pin map and routed net: reattach that net to the
+    physical `outclk[1]` pin and drop the obsolete `outclk[0]` alias. The
+    socket's boundary must still be at its pinned BEL. The socket's
+    request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
+    and its clock-coverage flip-flops are removed (their routed clock
+    branches stay frozen for the card to extend inside its fence).
+    """
+    design = json.loads(source)
+    top = design["modules"]["top"]
+    cells = top["cells"]
+    pll = cells["system_clock.pll"]
+    if pll["type"] != "altera_pll" or set(pll["connections"]) != {"outclk", "refclk", "locked"}:
+        raise ValueError("Atari ST system PLL connection contract changed")
+    mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
+    aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
+    if mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
+        raise ValueError("Atari ST system PLL frozen pin map changed")
+    output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
+    clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
+    buffers = [c for c in cells.values() if c.get("type") == "MISTRAL_CLKBUF" and
+               c.get("connections", {}).get("Q") == clock1]
+    if not isinstance(output1, list) or len(output1) != 1 or len(buffers) != 1 or \
+            buffers[0]["connections"].get("A") != output1:
+        raise ValueError("Atari ST frozen audio PLL net changed")
+    pll["connections"]["outclk[1]"] = output1
+    pll["port_directions"]["outclk[1]"] = "output"
+    del mapping["pins"]["outclk[0]"]
+    mapping["count"] = len(mapping["pins"])
+    pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+
+    if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
+        raise ValueError("frozen shell already exposes canonical plug cells")
+    target = socket_for(slot)
+    clock_bits = top["netnames"].get(SLOT_CLOCK, {}).get("bits")
+    if not isinstance(clock_bits, list) or len(clock_bits) != 1 or type(clock_bits[0]) is not int:
+        raise ValueError("Atari ST frozen socket clock net changed")
+    for socket in atari_st_slot.SOCKETS:
+        for name, bel in atari_st_slot.boundary_bels(socket).items():
+            cell = cells.get(socket.instance + name)
+            if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or \
+                    cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
+                raise ValueError(f"frozen slot boundary changed: {socket.instance}{name}")
+            if cell.get("connections", {}).get("CLK") != clock_bits:
+                raise ValueError(f"frozen slot boundary clock changed: {socket.instance}{name}")
+    for bit in range(atari_st_slot.REQUEST_BITS):
+        cells[f"plug_addr_ff_{bit}"] = cells.pop(f"{target.instance}plug_request_ff_{bit}")
+    for bit in range(atari_st_slot.RESPONSE_BITS):
+        cells[f"plug_rdata_ff_{bit}"] = cells.pop(f"{target.instance}plug_response_ff_{bit}")
+    for name in [n for n in cells if n.startswith(f"{target.instance}clock_coverage_ff_")]:
+        del cells[name]
+    return (json.dumps(design, separators=(",", ":")) + "\n").encode()
+
+
+def cart_clock_constraints(root: Path) -> bytes:
+    # --no-pack restores routed nets but does not derive PLL constraints. These
+    # are the declared shell frequencies, never its achieved Fmax.
+    text = (root / shell_recipe.SDC).read_text() + "\n# Frozen Atari ST shell clocks.\n"
+    for name, frequency in REQUIRED_CLOCKS_MHZ.items():
+        text += f"create_clock -name {{{name}}} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
+    return text.encode()
+
+
+def validate_cart_timing(timing: dict) -> dict:
+    fmax = timing.get("fmax")
+    if not isinstance(fmax, dict) or set(fmax) != set(REQUIRED_CLOCKS_MHZ):
+        raise ValueError("cart timing must report exactly the system, pixel and audio clocks")
+    result = {}
+    for name, expected in REQUIRED_CLOCKS_MHZ.items():
+        _, _, achieved = shell_recipe._frequency_row({name: fmax[name]}, expected, name)
+        result[name] = achieved
+    return result
+
+
+CARD_CLOCK_PORTS = {"MISTRAL_FF": ("CLK",), "MISTRAL_M10K": ("CLK1", "CLK2"),
+                    "MISTRAL_M10K_TDP": ("CLK1", "CLK2")}
+
+
+def validate_cart_clocks(routed: dict) -> int:
+    """Every connected clock pin of a merged card cell must be the shell socket clock.
+
+    The cart merge drops the card's clock buffer and reconnects the pins it
+    knows; a pin it misses (for example the read clock of a dual-clock M10K)
+    is left on an undriven net, which timing and CRAM checks cannot see.
+    """
+    top = routed["modules"]["top"]
+    clock_bits = set(top["netnames"][SLOT_CLOCK]["bits"])
+    checked = 0
+    for name, cell in top["cells"].items():
+        if not name.startswith("fes_cart$"):
+            continue
+        for port in CARD_CLOCK_PORTS.get(cell["type"], ()):
+            bits = cell.get("connections", {}).get(port)
+            if not bits:
+                continue
+            if any(bit not in clock_bits for bit in bits):
+                raise ValueError(f"card cell {name} pin {port} is not on the socket clock {SLOT_CLOCK}")
+            checked += 1
+    if not checked:
+        raise ValueError("routed card has no clocked cells on the socket clock")
+    return checked
+
+
+def card_manifest(package, slot: int, cart: bytes, recipe_sha: str, revision: str) -> bytes:
+    manifest = {
+        "cart_sha256": digest(cart), "cart_size": len(cart), "device": "5CSEBA6U23I7", "format": 1,
+        "map": atari_st_slot.LAYOUT, "recipe_sha256": recipe_sha, "revision": revision,
+        "shell_build_id": package.fields["build"]["id"], "shell_package_id": package.package_id,
+        "shell_sha256": digest(package.payload_bytes), "slot": atari_st_slot.INTERFACE,
+        "slot_index": slot, "slot_major": 1, "slot_minor": 0,
+    }
+    return json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+
+
+def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu: int, *,
+          cache_root: Path | None = None) -> Path:
+    root, shell = root.resolve(), shell.resolve()
+    inputs = card_inputs(card)
+    socket = socket_for(slot)
+    _, revision = _require_clean_source(root, pinned_inputs=inputs, identity_version=2)
+    package = read_package(package_path)
+    if package.fields["core"]["id"] != "fes.atari-st":
+        raise ValueError("card requires the native FES Atari ST shell")
+    if (shell / "manifest.toml").read_bytes() != package.manifest_bytes or \
+            (shell / "core.rbf").read_bytes() != package.payload_bytes or \
+            (shell / "rom-map.json").read_bytes() != package.rom_map_bytes:
+        raise ValueError("frozen producer output differs from the sealed shell package")
+    bus = [i for i in package.fields["interfaces"] if i["id"] == atari_st_slot.INTERFACE]
+    if len(bus) != 1 or (bus[0]["major"], bus[0]["minor"], bus[0]["required"]) != (1, 0, False):
+        raise ValueError("shell must declare the optional Atari ST cartridge bus 1.0")
+    shell_members = ("routed.json", "socket.qsf", "manifest.toml", "core.rbf", "rom-map.json")
+    tools = shell_recipe._authenticate_atari_st_tools(root, cache_root)
+    identities = {name: tool.identity for name, tool in tools.items()}
+    closure = {path: digest((root / path).read_bytes()) for path in inputs}
+    closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
+    clocks = cart_clock_constraints(root)
+    recipe = {"inputs": closure, "tools": identities, "card": card, "slot": slot,
+              "region": socket.region, "cram_region": list(socket.cram), "map": atari_st_slot.LAYOUT,
+              "slot_clock": SLOT_CLOCK, "placer_seed": PLACER_SEED,
+              "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
+    recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
+    output = root / "build/atari-st-cards" / recipe_sha
+    publications = tuple(path.name for path in output.glob("*.tar"))
+    _prepare_output(root, relative=output.relative_to(root), build_outputs=BUILD_OUTPUTS + publications)
+    (output / "clocks.sdc").write_bytes(clocks)
+    qsf = (shell / "socket.qsf").read_bytes()
+    if qsf.count(f'FES_RESERVED_RECT "{socket.placement}"'.encode()) != 1:
+        raise ValueError(f"shell QSF does not reserve {socket.region}")
+    (output / "cart.qsf").write_bytes(qsf)
+    scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
+    (output / "scaffold.json").write_bytes(scaffold)
+    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    sources = " ".join(CARDS[card])
+    commands = [
+        [str(tools["yosys"].path), "-p",
+         f"read_verilog -sv -I cores/fes-common/generated -I cores/fes-atari-st/expansions {sources}; "
+         f"synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
+        [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"),
+         "--device", "5CSEBA6U23I7", "--qsf", str(output / "cart.qsf"), "--sdc", str(output / "clocks.sdc"),
+         "--freq", "52.224", "--fes-scaffold", "--fes-cart", str(output / "cart.json"),
+         "--fes-cart-region", socket.region, "--fes-slot-clock", SLOT_CLOCK,
+         "--fes-cram-region", ",".join(str(v) for v in socket.cram),
+         "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu", "--placer-heap-timingweight", "300",
+         "--rbf", str(output / "cart.rbf"), "--compress-rbf",
+         "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
+    ]
+    for name, command in zip(("synthesis", "route"), commands):
+        log_path = output / (name + ".log")
+        with log_path.open("w") as log:
+            try:
+                subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT,
+                               check=True, timeout=900)
+            except subprocess.TimeoutExpired as exc:
+                raise ValueError(f"{name} timed out; see {log_path}") from exc
+            except subprocess.CalledProcessError as exc:
+                raise ValueError(f"{name} failed; see {log_path}") from exc
+        if re.search(r"^\s*(?:ERROR|FATAL)\b", log_path.read_text(errors="replace"), re.MULTILINE | re.IGNORECASE):
+            raise ValueError(f"{name} reported an error; see {log_path}")
+        required = ("cart.json",) if name == "synthesis" else ("cart.rbf", "cart-routed.json", "timing.json")
+        for artifact in required:
+            path = output / artifact
+            if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+                raise ValueError(f"{name} did not produce nonempty {artifact}")
+    route_text = (output / "route.log").read_text(errors="replace")
+    if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
+        raise ValueError("card route log does not prove a complete routed design")
+    _require_gpu_backend(route_text)
+    achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
+    validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()))
+    if (output / "scaffold.json").read_bytes() != scaffold or (output / "cart.qsf").read_bytes() != qsf:
+        raise ValueError("card scaffold or placement constraints changed during build")
+    cart = (output / "cart.rbf").read_bytes()
+    base, placed = rbf_load(package.payload_bytes), rbf_load(cart)
+    if base.header != placed.header:
+        raise ValueError("card changes shell ORAM/PRAM header")
+    rect = CramRect(*socket.cram)
+    changes = classify_cram_diff(base, placed, rect, include_outside_coordinates=True)
+    report = {"cart_sha256": digest(cart), "cram_diff": changes, "cram_region": list(socket.cram),
+              "slot": slot, "format": 1}
+    (output / "cram-diff.json").write_text(json.dumps(report, sort_keys=True, indent=2) + "\n")
+    if int(changes.get("bits_outside_slot", 0)):
+        raise ValueError(f"card changes {changes['bits_outside_slot']} CRAM bits outside the slot {slot} "
+                         f"socket; see {output / 'cram-diff.json'}")
+    (output / "linked.rbf").write_bytes(rbf_save(overlay_cram(base, placed, rect), compressed=True))
+    encoded = card_manifest(package, slot, cart, recipe_sha, revision)
+    expansion_id = digest(b"fes-expansion-v1\0" + encoded)
+    _, final_revision = _require_clean_source(root, pinned_inputs=inputs, identity_version=2)
+    if final_revision != revision or any(digest((root / path).read_bytes()) != closure[path] for path in inputs):
+        raise ValueError("source changed during card build")
+    if any(digest((shell / name).read_bytes()) != closure["shell/" + name] for name in shell_members):
+        raise ValueError("frozen shell changed during card build")
+    if {n: t.identity for n, t in shell_recipe._authenticate_atari_st_tools(root, cache_root).items()} != identities:
+        raise ValueError("authenticated compiler changed during card build")
+    destination = output / (expansion_id + ".tar")
+    with tarfile.open(destination, "w", format=tarfile.USTAR_FORMAT) as archive:
+        for name, data in (("manifest.json", encoded), ("cart.rbf", cart)):
+            info = tarfile.TarInfo(name)
+            info.size, info.mode = len(data), 0o600
+            archive.addfile(info, io.BytesIO(data))
+    (output / "build-summary.json").write_text(json.dumps(
+        {"recipe": recipe, "expansion_id": expansion_id, "manifest": json.loads(encoded),
+         "timing_mhz": achieved, "cram_diff": changes}, sort_keys=True, indent=2) + "\n")
+    return destination
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--shell", type=Path, required=True, help="Atari ST producer output (build/fes-atari-st-oss)")
+    parser.add_argument("--package", type=Path, required=True, help="exact sealed shell package directory")
+    parser.add_argument("--slot", type=int, required=True, choices=[s.slot for s in atari_st_slot.SOCKETS])
+    parser.add_argument("--card", default="probe", choices=sorted(CARDS))
+    parser.add_argument("--cache-root", type=Path)
+    parser.add_argument("--gpu", type=int, default=0)
+    args = parser.parse_args()
+    try:
+        print(build(args.root, args.shell, args.package, args.slot, args.card, args.gpu,
+                    cache_root=args.cache_root))
+    except (ValueError, OSError) as exc:
+        print(f"build-atari-st-slot-card: {exc}", file=sys.stderr)
+        raise SystemExit(1)

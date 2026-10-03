@@ -9,6 +9,7 @@ __pycache__/
 *.fst
 *.log
 *.json
+!cores/fes-common/rtl/fx68k/source.json
 !cores/fes-common/generated/exchanges.json
 !cores/fes-common/generated/computer-exchanges.json
 !cores/fes-pong/generated/exchanges.json

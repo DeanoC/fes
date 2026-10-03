@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "Vsg1000_machine.h"
+#include "Vsg1000_machine___024root.h"
 #include "verilated.h"
 
 #include <algorithm>
@@ -9,6 +10,43 @@
 #include <iostream>
 #include <string>
 #include <vector>
+
+namespace {
+
+[[noreturn]] void fail(const char *message) {
+    std::cerr << "FES SG-1000 machine: " << message << '\n';
+    std::exit(EXIT_FAILURE);
+}
+
+void require(bool condition, const char *message) {
+    if (!condition) fail(message);
+}
+
+void check_cpu_pins(const Vsg1000_machine &dut) {
+    const auto &pins = *dut.rootp;
+    require(!(pins.sg1000_machine__DOT__ce_cpu_p &&
+              pins.sg1000_machine__DOT__ce_cpu_n), "overlapping CPU enables");
+    require(!pins.sg1000_machine__DOT__cpu_illegal, "CPU illegal-state signal");
+    if (!pins.sg1000_machine__DOT__nRFSH) {
+        require(pins.sg1000_machine__DOT__nRD &&
+                pins.sg1000_machine__DOT__nWR &&
+                pins.sg1000_machine__DOT__nIORQ,
+                "refresh must not access memory data or I/O devices");
+    }
+    require(pins.sg1000_machine__DOT__nMREQ ||
+            pins.sg1000_machine__DOT__nIORQ,
+            "memory and I/O requests overlap");
+}
+
+void check_captured_enables(const Vsg1000_machine &dut, bool raw_p,
+                            bool raw_n, bool machine_reset) {
+    const auto &pins = *dut.rootp;
+    require(pins.sg1000_machine__DOT__ce_cpu_p == (!machine_reset && raw_p) &&
+            pins.sg1000_machine__DOT__ce_cpu_n == (!machine_reset && raw_n),
+            "CPU enables must capture both polarities on the system edge");
+}
+
+}  // namespace
 
 #ifdef FES_SG1000_ROM_LINK
 int main(int argc, char **argv) {
@@ -35,7 +73,17 @@ int main(int argc, char **argv) {
     dut.peek_addr = 0;
     dut.eval();
     auto tick = [&]() {
+        dut.eval();
+        const unsigned cartridge_address = dut.cpu_addr_debug & 0x3fff;
+        const bool raw_p = dut.rootp->sg1000_machine__DOT__ce_cpu_raw_p;
+        const bool raw_n = dut.rootp->sg1000_machine__DOT__ce_cpu_raw_n;
+        const bool machine_reset = dut.rootp->sg1000_machine__DOT__machine_reset;
         dut.clk_sys = 1; dut.eval();
+        check_captured_enables(dut, raw_p, raw_n, machine_reset);
+        require(dut.rootp->sg1000_machine__DOT__cartridge_read ==
+                    expected[cartridge_address],
+                "linked cartridge byte must follow the sampled ROM address");
+        check_cpu_pins(dut);
         dut.clk_sys = 0; dut.eval();
     };
     for (unsigned i = 0; i < 8; ++i) tick();
@@ -63,20 +111,24 @@ int main(int argc, char **argv) {
         std::cerr << "FES SG-1000 linked ROM: RAM signature missing\n";
         return EXIT_FAILURE;
     }
+    dut.peek_addr = 0xc001;
+    tick();
+    require(uint8_t(dut.peek_data) == 0xff,
+            "linked cartridge did not capture neutral controller port");
+    unsigned colors_seen = 0;
+    for (unsigned i = 0; i < 1000000; ++i) {
+        tick();
+        if (!dut.logical_blank)
+            colors_seen |= 1u << dut.logical_pixel;
+    }
+    require((colors_seen & (colors_seen - 1)) != 0,
+            "linked cartridge VDP writes did not produce multiple colors");
+    require(dut.media_addr == 0, "linked cartridge issued a media request");
     std::cout << "FES SG-1000 linked-ROM machine checks passed\n";
     return EXIT_SUCCESS;
 }
 #else
 namespace {
-
-[[noreturn]] void fail(const char *message) {
-    std::cerr << "FES SG-1000 machine: " << message << '\n';
-    std::exit(EXIT_FAILURE);
-}
-
-void require(bool condition, const char *message) {
-    if (!condition) fail(message);
-}
 
 void tick(Vsg1000_machine &dut, const std::vector<uint8_t> &cartridge,
           uint8_t &registered_media_data, unsigned *psg_writes = nullptr,
@@ -90,10 +142,16 @@ void tick(Vsg1000_machine &dut, const std::vector<uint8_t> &cartridge,
     else
         dut.media_data = 0xff;
 #endif
+    dut.eval();
     if (psg_writes != nullptr && dut.psg_write_debug) ++*psg_writes;
     if (psg_ticks != nullptr && dut.psg_ce_debug) ++*psg_ticks;
+    const bool raw_p = dut.rootp->sg1000_machine__DOT__ce_cpu_raw_p;
+    const bool raw_n = dut.rootp->sg1000_machine__DOT__ce_cpu_raw_n;
+    const bool machine_reset = dut.rootp->sg1000_machine__DOT__machine_reset;
     dut.clk_sys = 1;
     dut.eval();
+    check_captured_enables(dut, raw_p, raw_n, machine_reset);
+    check_cpu_pins(dut);
     dut.clk_sys = 0;
     dut.eval();
 #ifdef FES_SG1000_OSS
@@ -182,6 +240,144 @@ int main(int argc, char **argv) {
     require(peek(dut, 0xffff, registered_media_data) != 0x5a,
             "FFFF aliases C3FF, not C000");
 
+    // The physical CPU RAM has registered reads. Exercise read-modify-write,
+    // mirrored operands, indexed operands and both stack-byte reads.
+    const std::vector<uint8_t> ram_readback_prog{
+        0xf3, 0x31, 0x00, 0xc4,    // DI; LD SP,C400
+        0x01, 0x34, 0x12, 0xc5,    // LD BC,1234; PUSH BC
+        0x01, 0x00, 0x00, 0xc1,    // LD BC,0000; POP BC
+        0x78, 0x32, 0x10, 0xc0,    // save recovered B
+        0x79, 0x32, 0x11, 0xc0,    // save recovered C
+        0x21, 0x00, 0xc0,          // LD HL,C000
+        0x36, 0x5a, 0x34,          // LD (HL),5A; INC (HL)
+        0x3a, 0x00, 0xc4,          // LD A,(C400), mirrored C000
+        0x32, 0x12, 0xc0,
+        0xdd, 0x21, 0x02, 0xc0,    // LD IX,C002
+        0xdd, 0xcb, 0xfe, 0x06,    // RLC (IX-2)
+        0xdd, 0x7e, 0xfe,          // LD A,(IX-2)
+        0x32, 0x13, 0xc0, 0x76
+    };
+    load_blob(dut, ram_readback_prog, registered_media_data);
+    dut.reset = 0;
+    cycles = 0;
+    for (; cycles < 100000 && dut.cpu_halt_n; ++cycles)
+        tick(dut, ram_readback_prog, registered_media_data);
+    require(cycles < 100000, "RAM readback probe did not HALT");
+    require(peek(dut, 0xc010, registered_media_data) == 0x12 &&
+            peek(dut, 0xc011, registered_media_data) == 0x34,
+            "stack reads returned stale registered RAM data");
+    require(peek(dut, 0xc012, registered_media_data) == 0x5b,
+            "mirrored RAM read-modify-write mismatch");
+    require(peek(dut, 0xc013, registered_media_data) == 0xb6,
+            "indexed RAM readback mismatch");
+
+    // A held OUT must write one VRAM byte; each held IN must return its
+    // pre-side-effect byte and advance the registered read-ahead exactly once.
+    const std::vector<uint8_t> vdp_readback_prog{
+        0xf3,
+        0x3e, 0x00, 0xd3, 0xbf,  // write address 0100
+        0x3e, 0x41, 0xd3, 0xbf,
+        0x3e, 0xa6, 0xd3, 0xbe,
+        0x3e, 0xb7, 0xd3, 0xbe,
+        0x3e, 0xc8, 0xd3, 0xbe,
+        0x3e, 0x00, 0xd3, 0xbf,  // read address 0100, prime read-ahead
+        0x3e, 0x01, 0xd3, 0xbf,
+        0xdb, 0xbe, 0x32, 0x20, 0xc0,
+        0xdb, 0xbe, 0x32, 0x21, 0xc0,
+        0xdb, 0xbe, 0x32, 0x22, 0xc0,
+        0x76
+    };
+    load_blob(dut, vdp_readback_prog, registered_media_data);
+    dut.reset = 0;
+    cycles = 0;
+    for (; cycles < 100000 && dut.cpu_halt_n; ++cycles)
+        tick(dut, vdp_readback_prog, registered_media_data);
+    require(cycles < 100000, "VDP readback probe did not HALT");
+    require(peek(dut, 0xc020, registered_media_data) == 0xa6 &&
+            peek(dut, 0xc021, registered_media_data) == 0xb7 &&
+            peek(dut, 0xc022, registered_media_data) == 0xc8,
+            "VDP held-read byte or single-advance mismatch");
+
+    // Check that the integrated clock generator retains native cadence and
+    // that three successive M1 cycles expose the pre-increment refresh R.
+    const std::vector<uint8_t> cadence_prog{0x00, 0x00, 0x76};
+    load_blob(dut, cadence_prog, registered_media_data);
+    dut.reset = 0;
+    int last_positive = -1;
+    unsigned positive_edges = 0, refreshes = 0;
+    bool refresh_active = false;
+    cycles = 0;
+    for (; cycles < 100000 && dut.cpu_halt_n; ++cycles) {
+        const auto &pins = *dut.rootp;
+        if (pins.sg1000_machine__DOT__ce_cpu_p) {
+            if (last_positive >= 0)
+                require(cycles - unsigned(last_positive) == 14 ||
+                        cycles - unsigned(last_positive) == 15,
+                        "CPU positive-enable cadence changed");
+            last_positive = int(cycles);
+            ++positive_edges;
+        }
+        if (!pins.sg1000_machine__DOT__nRFSH && !refresh_active) {
+            require(uint16_t(dut.cpu_addr_debug) == refreshes,
+                    "M1 refresh did not expose pre-increment R");
+            ++refreshes;
+        }
+        refresh_active = !pins.sg1000_machine__DOT__nRFSH;
+        tick(dut, cadence_prog, registered_media_data);
+    }
+    require(cycles < 100000 && refreshes == 3 && positive_edges >= 12,
+            "native NOP/NOP/HALT cadence or refresh count");
+
+    // Release reset at different running oscillator phases. Both first-enable
+    // polarities must work, and every following half-cycle must alternate
+    // with the same seven/eight-clock spacing.
+    bool first_positive_seen = false, first_negative_seen = false;
+    for (unsigned offset = 0; offset < 30; ++offset) {
+        load_blob(dut, cadence_prog, registered_media_data);
+        for (unsigned i = 0; i < offset; ++i)
+            tick(dut, cadence_prog, registered_media_data);
+        require(!dut.rootp->sg1000_machine__DOT__ce_cpu_p &&
+                !dut.rootp->sg1000_machine__DOT__ce_cpu_n,
+                "reset must clear both captured enables");
+        dut.reset = 0;
+        dut.eval();
+        int last_half = -1;
+        bool last_polarity = false;
+        refresh_active = false;
+        refreshes = 0;
+        cycles = 0;
+        for (; cycles < 10000 && dut.cpu_halt_n; ++cycles) {
+            const auto &pins = *dut.rootp;
+            if (pins.sg1000_machine__DOT__ce_cpu_p ||
+                pins.sg1000_machine__DOT__ce_cpu_n) {
+                const bool positive = pins.sg1000_machine__DOT__ce_cpu_p;
+                if (last_half >= 0) {
+                    require(cycles - unsigned(last_half) == 7 ||
+                            cycles - unsigned(last_half) == 8,
+                            "reset release changed half-cycle spacing");
+                    require(positive != last_polarity,
+                            "reset release repeated an enable polarity");
+                } else {
+                    first_positive_seen |= positive;
+                    first_negative_seen |= !positive;
+                }
+                last_half = int(cycles);
+                last_polarity = positive;
+            }
+            if (!pins.sg1000_machine__DOT__nRFSH && !refresh_active) {
+                require(uint16_t(dut.cpu_addr_debug) == refreshes,
+                        "warm release refresh sequence");
+                ++refreshes;
+            }
+            refresh_active = !pins.sg1000_machine__DOT__nRFSH;
+            tick(dut, cadence_prog, registered_media_data);
+        }
+        require(cycles < 10000 && refreshes == 3,
+                "reset phase probe did not execute NOP/NOP/HALT");
+    }
+    require(first_positive_seen && first_negative_seen,
+            "reset phase probe did not cover both first-enable polarities");
+
     std::vector<uint8_t> joy_prog{0xf3, 0xdb, 0xdc, 0x32, 0x01, 0xc0,
                                   0xdb, 0xdd, 0x32, 0x02, 0xc0, 0x76};
     dut.keyboard = 0xffffffffffull ^ 0x01ull;  // P1 Up
@@ -251,7 +447,7 @@ int main(int argc, char **argv) {
         tick(dut, noise_prog, registered_media_data);
     require(int16_t(dut.psg_sample) == 0, "PSG reset did not mute PCM");
 
-    // Execute original test code through TV80: DI must mask VDP VBlank,
+    // Execute original test code through the NMOS CPU: DI must mask VDP VBlank,
     // while EI/IM1 dispatches to 0038. 0066 is a distinct NMI failure trap.
     for (bool interrupts_enabled : {false, true}) {
         std::vector<uint8_t> interrupt_rom(256, 0x00);

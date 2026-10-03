@@ -7,6 +7,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/fbgrid"
 	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
 	"github.com/DeanoC/FogCast/ui/shared"
+	"log"
 	"strings"
 	"time"
 )
@@ -23,8 +24,15 @@ type Model struct {
 	Shelf                                                           string
 	Focus                                                           int
 	Session                                                         Session
+	LocalPlayEnabled                                                bool
 	Connected, TargetReady, Busy, ControllerConnected, ForeignLease bool
 	Message                                                         string
+	LoadStarted                                                     time.Time
+	LoadPhase                                                       string
+	LaunchFailed                                                    bool
+	LoadElapsed                                                     string
+	LoadNow                                                         time.Time
+	HideLoadElapsed                                                 bool
 	AttractActive                                                   bool
 	DetailOpen                                                      bool
 	WheelOpen                                                       bool
@@ -128,10 +136,22 @@ func (m *Model) armStopChord(e remoteinput.Event, now time.Time) {
 }
 
 func (m *Model) Input(e remoteinput.Event, now time.Time) string {
+	if remoteinput.IsLocalPlayerDeparture(e) {
+		return ""
+	}
 	if now.IsZero() {
 		now = time.Now()
 	}
-	if sessionCanStop(m.Session.State) {
+	if m.Session.State == "failed" && m.LaunchFailed {
+		m.armStopChord(e, now)
+		if e.Kind == remoteinput.KindButton && (e.Code == remoteinput.ButtonSelect || e.Code == remoteinput.ButtonStart) {
+			return ""
+		}
+		if e.Kind == remoteinput.KindButton && e.Code == remoteinput.ButtonA {
+			m.Message = "Select+Start to retry Stop"
+			return ""
+		}
+	} else if sessionCanStop(m.Session.State) {
 		m.armStopChord(e, now)
 		return ""
 	}
@@ -185,8 +205,8 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 				m.openDetail(now)
 				return ""
 			}
-			if len(m.Games) > 0 && m.Focus >= 0 && m.Focus < len(m.Games) && m.Games[m.Focus].LaunchEligible() && m.canLaunch() {
-				return "launch"
+			if game, ok := m.focusedGame(); ok {
+				return m.launchAction(game)
 			}
 		case remoteinput.ButtonB:
 			if m.StripActive {
@@ -249,11 +269,26 @@ func (m Model) canLaunch() bool {
 	return m.Connected && m.TargetReady
 }
 
+func (m *Model) launchAction(game hostclient.Game) string {
+	if m.LocalPlayEnabled && game.LocalCatalogPlayable() {
+		return "local-launch"
+	}
+	if game.LaunchEligible() && m.canLaunch() {
+		return "launch"
+	}
+	m.Message = "Needs the host to play"
+	if m.Connected && game.LaunchEligible() {
+		m.Message = "Kit is not ready to play"
+	}
+	log.Printf("kit launch rejected game_id=%q reason=%q", boundedSessionText(game.ID, 160), m.Message)
+	return ""
+}
+
 func (m *Model) Tick(now time.Time) string {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	if sessionCanStop(m.Session.State) && !m.Busy {
+	if sessionCanStop(m.Session.State) && (!m.Busy || m.Session.State == "launching") {
 		for i := range m.chord {
 			if m.chord[i].Ready(now) {
 				return "stop"
@@ -267,12 +302,17 @@ func (m *Model) Tick(now time.Time) string {
 
 // Failed sessions retain host-side cleanup state, so they use the same
 // Select+Start recovery path as active sessions.
-func sessionCanStop(state string) bool { return state == "active" || state == "failed" }
+func sessionCanStop(state string) bool {
+	return state == "active" || state == "failed" || state == "launching"
+}
 
 // SessionChrome is pause overlay state for fbgrid paint. East/B, Start, and
 // Guide stay on the existing input map; only Select+Start requests Stop.
 func (m Model) SessionChrome() fbgrid.SessionChrome {
 	state := m.Session.State
+	if state == "failed" && m.LaunchFailed {
+		state = "idle"
+	}
 	if m.Busy {
 		if strings.Contains(strings.ToLower(m.Message), "stop") {
 			state = "stopping"
@@ -284,11 +324,30 @@ func (m Model) SessionChrome() fbgrid.SessionChrome {
 	if state == "failed" {
 		hint = fbgrid.SessionKitRetryHint
 	}
-	return fbgrid.SessionChrome{
-		State: state,
-		Title: m.SessionTitle(),
-		Hint:  hint,
+	phase := strings.TrimSpace(m.LoadPhase)
+	if phase == "" && state == "launching" {
+		phase = strings.TrimSpace(m.Session.Progress)
 	}
+	elapsed := m.LoadElapsed
+	if state == "launching" && !m.HideLoadElapsed && !m.LoadStarted.IsZero() && !m.LoadNow.IsZero() {
+		elapsed = formatLoadElapsed(m.LoadNow.Sub(m.LoadStarted))
+	}
+	return fbgrid.SessionChrome{
+		State:   state,
+		Title:   m.SessionTitle(),
+		Hint:    hint,
+		Phase:   phase,
+		Elapsed: elapsed,
+		Marquee: int(m.LoadNow.UnixMilli() % 1000),
+	}
+}
+
+func formatLoadElapsed(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	total := int(d / time.Second)
+	return fmt.Sprintf("Loading · %d:%02d", total/60, total%60)
 }
 
 // SessionTitle is the catalog title for the host session game id.

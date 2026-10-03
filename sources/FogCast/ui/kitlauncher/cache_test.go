@@ -31,6 +31,38 @@ func TestTransientStatusLabeledTransportFailure(t *testing.T) {
 	}
 }
 
+func TestDiskStoreRemembersSMSROMHash(t *testing.T) {
+	t.Parallel()
+	store := mustOpenStore(t)
+	id := "sms-datastorm-5f961211d191"
+	hash := strings.Repeat("ab", 32)
+	if store.ROMHash(id) != "" {
+		t.Fatal("empty cache returned a hash")
+	}
+	if err := store.RememberROMHash(id, strings.ToUpper(hash)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RememberROMHash("not a game", hash); err == nil {
+		t.Fatal("invalid id stored")
+	}
+	if err := store.RememberROMHash(id, "abcd"); err == nil {
+		t.Fatal("short digest stored")
+	}
+	reopened, err := OpenDiskStore(store.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopened.ROMHash(id) != hash {
+		t.Fatalf("reopened hash %q", reopened.ROMHash(id))
+	}
+	if err := store.SaveCatalog(CatalogSnapshot{Games: []hostclient.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	if store.ROMHash(id) != hash {
+		t.Fatal("catalog replace dropped the ROM hash")
+	}
+}
+
 func TestDiskStoreCatalogRoundTrip(t *testing.T) {
 	t.Parallel()
 	store := mustOpenStore(t)

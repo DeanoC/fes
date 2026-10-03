@@ -8,6 +8,7 @@ import (
 	"errors"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/atomicwrite"
+	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,6 +35,13 @@ const (
 	catalogFormat   = 1
 	maxCatalogBytes = 32 << 20
 	maxCoverBytes   = 8 << 20
+	// romHashFileName stores host SMS ROM SHA-256 values beside the catalog.
+	// The games list does not include the digest, and a catalog refresh must
+	// not drop digests already learned for offline local launch.
+	romHashFileName = "sms-rom-hashes.json"
+	romHashFormat   = 1
+	maxROMHashBytes = 1 << 20
+	maxROMHashes    = 8192
 	// DefaultCoverMaxBytes is the FAT cover budget under launcher-cache.
 	// It is separate from ROM cache_max_bytes (2GiB) and never uses targetcache.
 	DefaultCoverMaxBytes int64 = 512 << 20
@@ -62,13 +70,20 @@ type catalogFile struct {
 // atomic; cover blobs are keyed by 64-hex artwork handle. It is not the ROM
 // cache and never evicts `/media/fat/fogcast/cache`.
 type DiskStore struct {
-	root         string
-	mu           sync.Mutex
-	catalogKey   string
-	lastSyncUnix int64
-	coverMax     int64
-	coverUsed    int64
-	clock        func() time.Time
+	root            string
+	mu              sync.Mutex
+	catalogKey      string
+	lastSyncUnix    int64
+	coverMax        int64
+	coverUsed       int64
+	clock           func() time.Time
+	romHashes       map[string]string
+	romHashesLoaded bool
+}
+
+type romHashFile struct {
+	Format int               `json:"format"`
+	Hashes map[string]string `json:"hashes"`
 }
 
 // StoreStatus is kit-local cover used/free plus last catalog publish time.
@@ -192,6 +207,104 @@ func (s *DiskStore) SaveCatalog(snap CatalogSnapshot) error {
 	s.catalogKey = key
 	s.lastSyncUnix = nowUnix
 	return nil
+}
+
+// ROMHash is the host SMS digest remembered for id. Missing and invalid
+// entries are empty. The kit computes the same digest from a local cartridge
+// without asking the host again.
+func (s *DiskStore) ROMHash(id string) string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadROMHashesLocked()
+	return s.romHashes[strings.TrimSpace(id)]
+}
+
+// RememberROMHash stores one validated game id and lowercase SHA-256.
+// Unchanged values are not rewritten. The catalog snapshot stays separate so
+// a host list refresh does not drop digests.
+func (s *DiskStore) RememberROMHash(id, hash string) error {
+	if s == nil {
+		return errors.New("launcher cache unavailable")
+	}
+	id = strings.TrimSpace(id)
+	hash = strings.ToLower(strings.TrimSpace(hash))
+	if protocol.ValidateGameID(id) != nil || protocol.ValidateDigest(hash) != nil {
+		return errors.New("ROM hash is invalid")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadROMHashesLocked()
+	if s.romHashes[id] == hash {
+		return nil
+	}
+	if _, ok := s.romHashes[id]; !ok && len(s.romHashes) >= maxROMHashes {
+		return errors.New("ROM hash cache is full")
+	}
+	if s.romHashes == nil {
+		s.romHashes = map[string]string{}
+	}
+	prev, had := s.romHashes[id]
+	s.romHashes[id] = hash
+	if err := s.writeROMHashesLocked(); err != nil {
+		if had {
+			s.romHashes[id] = prev
+		} else {
+			delete(s.romHashes, id)
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *DiskStore) loadROMHashesLocked() {
+	if s.romHashesLoaded {
+		return
+	}
+	s.romHashes = map[string]string{}
+	path := filepath.Join(s.root, romHashFileName)
+	fi, err := os.Lstat(path)
+	if err != nil {
+		s.romHashesLoaded = true
+		return
+	}
+	if !fi.Mode().IsRegular() || fi.Size() <= 0 || fi.Size() > maxROMHashBytes {
+		s.romHashesLoaded = true
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	s.romHashesLoaded = true
+	var file romHashFile
+	if json.Unmarshal(data, &file) != nil || file.Format != romHashFormat {
+		return
+	}
+	for id, hash := range file.Hashes {
+		hash = strings.ToLower(strings.TrimSpace(hash))
+		if protocol.ValidateGameID(id) != nil || protocol.ValidateDigest(hash) != nil {
+			continue
+		}
+		if len(s.romHashes) >= maxROMHashes {
+			break
+		}
+		s.romHashes[id] = hash
+	}
+}
+
+func (s *DiskStore) writeROMHashesLocked() error {
+	file := romHashFile{Format: romHashFormat, Hashes: s.romHashes}
+	data, err := json.Marshal(file)
+	if err != nil {
+		return err
+	}
+	if len(data) > maxROMHashBytes {
+		return errors.New("ROM hash cache is too large")
+	}
+	return writeAtomic(filepath.Join(s.root, romHashFileName), data)
 }
 
 // LoadArtwork returns the raw cover bytes for a 64-hex handle.

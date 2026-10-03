@@ -38,6 +38,15 @@ eligibility. Catalog eligibility does not replace session or target readiness
 gates, nor the host's authoritative launch validation. Tenfoot maps those block codes to
 sofa copy. Artwork handles use `hostclient.NormalizeHandle` so host
 transport, kit disk cache, and UI retain share one 64-hex rule.
+The browser play pane resolves every listed option before enabling Play. A
+malformed option in the selected title blocks Play. A backend picked in the
+current browser session stays authoritative across an older preference read;
+confirmed choices come only from preference reads or successful saves. Saves
+for one title run in selection order. A failed save restores the latest
+confirmed choice, or leaves the title needing a choice, and Play remains
+blocked until detail is retried. Preference reads cannot replace a locally
+confirmed choice with an older response.
+
 Shared session decoding and Kit capability checks use
 `hostclient.SessionCoreInterface.IsKeyboard` for exact `fes.keyboard` 1.0
 recognition. Unsupported versions remain ineligible; input readiness,
@@ -283,8 +292,9 @@ Tenfoot applies the paired kit-lease state to installed-core destinations as
 well as FPGA titles. On a paired kit, a foreign lease displays the shared
 in-use copy and refuses Confirm; unavailable lease status fails closed. Core
 cartridge and firmware blocks retain priority, and the destination returns to
-Ready when the lease state becomes free. Unpaired host connection state does
-not mark installed-core tiles in use.
+Ready when the lease state becomes free. A health update also clears refusal-owned
+status and library launch messages when a foreign lease ends, while preserving
+newer errors. Unpaired host connection state does not mark installed-core tiles in use.
 
 The dependency direction is host/UI/`catalog`/`internal/hostapi` -> public
 contracts and `targetclient`; the target executable -> target implementation
@@ -648,7 +658,8 @@ A `fes.computer` package projects media role `disk`
 `fes-computer-media-unit-v1`, unit 0. `fes.media.apple2-floppy` 1.0 is format
 `apple2-dos-order`, exactly 143,360 bytes, names `.dsk`/`.do`.
 `fes.media.c64-disk` 1.0 is format `c64-d64`, exactly 174,848 bytes, name
-`.d64`. `fes.media.spectrum-tape` 1.0 is role `cassette`, format
+`.d64`. `fes.media.atari-st-floppy` 1.0 is format `atari-st-floppy`, exactly
+737,280 bytes, name `.st`. `fes.media.spectrum-tape` 1.0 is role `cassette`, format
 `spectrum-tap`, 1..65,536 bytes, name `.tap`, on the same unit 0. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
@@ -656,15 +667,15 @@ declares one unit-0 medium. Library selection
 empty: launch programs the package first and then inserts the selected disk
 into unit 0; a failed insert is a failed launch and follows the existing
 library-slot Stop/recovery. The same session accepts later swaps:
-`POST /api/v1/session/live-media` with a `.dsk`/`.do` or `.d64` name inserts a
+`POST /api/v1/session/live-media` with a `.dsk`/`.do`, `.d64` or `.st` name inserts a
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
-generation declares (Apple II floppy, C64 disk, or Spectrum tape). `.p` names
+generation declares (Apple II floppy, C64 disk, Atari ST floppy, or Spectrum tape). `.p` names
 keep the ZX81 tape path. A `.tap` name inserts the Spectrum cassette on unit 0.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
 `fogcast eject-cassette` for a Spectrum `.tap`. A stored
-media ID is named `disk.dsk` or `disk.d64` from the active unit, so the host
-checks 143,360 or 174,848 bytes against that generation. A path is imported
+media ID is named `disk.dsk`, `disk.d64` or `disk.st` from the active unit,
+so the host checks 143,360, 174,848 or 737,280 bytes against that generation. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.
 
 `fogcast/media_units.go` binds each request to the package, generation, target
@@ -901,8 +912,8 @@ keys; Stop stays on the session chrome and the controller Select+Start chord.
 A `fes.keyboard` core maps those keys onto the ZX81 matrix. For exact
 `fes.coleco`, D-pad/left-stick and A/B events are mapped onto the Coleco P1
 keyboard bits while overlapping keyboard, D-pad, and axis holds remain joined.
-Exact `fes.sms` reuses that path for directions and A/Fire1 only; B does not
-provide SMS Fire2.
+Exact `fes.sms` and `fes.sg1000` reuse that path for directions and A/Fire1
+only; B does not provide Fire2.
 Native SNES/MD
 encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
 route them to `set_keyboard` and reconnect replay does not treat matrix codes
@@ -1001,15 +1012,27 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` uses rendered revisions and change-driven presents: known scene changes and animations redraw immediately, while an unchanged render key skips rasterization until a one-second fallback refresh. Idle ticks still service menu generation probes, retries and Resume with the existing revision; linuxfb idle ticks skip presentation. The fallback refresh captures presentation fields outside the render key, and the final settled animation frame always redraws. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` uses rendered revisions and change-driven presents: known scene changes and animations redraw immediately, while an unchanged render key skips rasterization until a one-second fallback refresh. Idle ticks still service menu generation probes, retries and Resume with the existing revision; linuxfb idle ticks skip presentation. The fallback refresh captures presentation fields outside the render key, and the final settled animation frame always redraws. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend each launcher submits one indeterminate loading frame with phase and elapsed time, waits for its runtime transaction, pauses presents, then dispatches the launch so the core owns HDMI. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, while status reconciliation continues for late adoption. Select+Start during local loading defers stop until the runtime publishes the running lease. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
 The on-kit `fogcast-kit` may explicitly select `menu_display: true` (or
 `-menu-display`) instead of the temporary linuxfb painter. It reuses the
-existing `kitlauncher` browse/session model and `fbgrid` renderer. `gfx.MenuDisplay`
-rasters RGBA8888 in software and queues only the newest complete frame. Its
+existing `kitlauncher` browse/session model and `fbgrid` renderer. Host and
+kit-local launches show an indeterminate marquee, title, elapsed time and the
+Select+Start hint while launch status is reconciled asynchronously. The first
+loading frame shows phase and elapsed time from `0:00`; the launcher drains it,
+pauses menu-display, then starts the launch request. No frame is submitted
+between pause and resume. Host session
+stage/message text is shown when available; local status has no byte or finer
+phase data. The delivered loading frame stays on screen while either launch
+request is pending; a failed host launch or confirmed local failure clears
+launching before resuming the menu. A failed local ROM request first reconciles
+runtime status so a late running core retains ownership. A failed host launch allows browsing but retains Select+Start for
+host cleanup before another launch. `gfx.MenuDisplay` rasters RGBA8888 in
+software and queues only the
+newest complete frame. Its
 local `ui/menudisplay` client reads the runtime's menu generation and fixed
 1280×720 geometry, fills the runtime-created memfd, seals it and waits for
 displayed-sequence completion through protocol 2. The UI receives no DDR
@@ -1024,8 +1047,11 @@ redraws within about a second. A generation mismatch does not start a new
 wait. The kit image starts that client only when `launcher.json` `kit_ui`
 is `tenfoot` and the menu selection and `fogcast-tenfoot` binary are both
 present. Otherwise boot still runs `fogcast-kit`. On this backend tenfoot opens
-the kit-local control socket, shows "Starting {title}…", pauses presents so the
-core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running.
+the kit-local control socket and submits one room launch overlay frame with
+phase and elapsed time, drains it, pauses presents, then dispatches the local
+launch. On the HPS framebuffer the overlay keeps animating and shows
+elapsed time. A loading Select+Start chord stops after the runtime reports
+`running`.
 The configured FogCast service still supplies library/setup operations and
 the host session path still launches games. Cached offline titles remain
 browse-only. This option does not install or select menu firmware in an image.
@@ -1365,6 +1391,9 @@ expansion slot's own bytes (`expansion.Manifest.CartSHA256`). It is
 not `Asset.ID`, not the archive `media_id`, and not
 `ProgrammedSHA256`. `ExpansionSlotBytesID` names that digest. The
 projection does not hash files again and does not link expansion bytes.
+A package-backed Catch title uses the browse system `catch` while its
+catalog storage platform remains `fpga`; its ROM-less entry needs only
+the package/ABI slot.
 A title that cannot be named is skipped. A catalog entry names the
 title id (a catalog game id: lowercase ASCII slug), one execute kind,
 and the required slots. A launchable `fpga_native` entry requires a
@@ -1772,11 +1801,15 @@ first and labels an absent host `Offline, showing your saved list`. Confirmed id
 without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
 splash pixels stay on HDMI, and a missing linuxfb device does not stop the
 service.
-Local D-pad/A still browse that snapshot. When the host is unreachable, launch
-and Stop remain unavailable until the configured host API reconnects. The kit
-launcher does not claim a target lease or call `/v2/launch` directly; lifecycle
-mutations continue through the persistent host session API. Cache and artwork
-browse state remains local and lease-free.
+Local D-pad/A still browse that snapshot. When the host is unreachable, host
+session launch and Stop remain unavailable until the configured host API
+reconnects. A browse-only SMS row from that saved list can still play when the
+kit matches it to a local cartridge: a cached ROM SHA-256 when the row has one,
+otherwise a single local SMS row with the same title. The pad stays on the
+kit-local control socket. The kit launcher does not claim a target lease or
+call `/v2/launch` directly; host lifecycle mutations continue through the
+persistent host session API. Cache and artwork browse state remains local and
+lease-free.
 Kit launch admission uses full catalog state for grid, detail, strip, and
 attract entries. An attract-only item without a known catalog row can still
 be displayed and dismissed, but cannot launch: its platform-support flag
@@ -1985,6 +2018,15 @@ format 3 with one `firmware` ROM linked at download. The optional
 `fes.expansion.apple2-bus` 1.0 is a multi-socket bus (`fes.apple2-bus.slots/1`,
 physical slots 2, 4, 5 and 7), not a capability bit.
 
+Atari ST (`fes.atari-st`) uses the same home-computer launch and media paths
+with required `fes.media.atari-st-floppy` 1.0 and an exact 720 KiB raw disk.
+Optional `fes.expansion.atari-st-bus` 1.0 uses shared map
+`fes.atari-st-bus.socket/1`, with one card in socket 1 through the same
+slot-composition transport and independently checked shared linker. `.msa`,
+`.stx` and compressed images require conversion to the admitted `.st` bytes
+before upload. These new paths have host coverage; hardware acceptance is
+pending.
+
 `catalog/core_slot_expansions.go` stores one card per `(game_id, slot)` (schema
 12); `fogcast/core_slot_expansions.go` validates import against the installed
 shell (`corepackage.ValidateSlotCards`: shell binding, physical socket and one
@@ -2130,7 +2172,11 @@ directions, so centering a stick cannot release a held D-pad.
 
 `ui/kitlauncher/controller.Hub` assigns the lowest free port in stable device-ID
 order, never renumbers a surviving controller, and emits releases and zero axes
-for an unplugged pad before recycling its port. At most two pads contribute.
+for an unplugged pad before recycling its port. A final departure event on the
+local socket releases that player's claim without closing the shared feed or
+releasing the surviving pad. The departure marker is a gamepad button release
+with code and value zero; it is consumed only on the local route and rejected
+by the host stream. At most two pads contribute.
 The kit keeps Select+Start stop chords separate per controller. When the active
 core has only the legacy single-pad contract, the kit retains the prior merged
 port-0 behavior, including input from a surviving second physical pad. Browser
@@ -2145,7 +2191,14 @@ bits are Up, Down, Left, Right, A, B, Select, Start; keypad bits are 0–9, `*`,
 The runtime validates the complete request and owns the physical GP writes.
 The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 0600),
 not another network endpoint, and there is no additional virtual-device discovery rule.
-Other cores retain the single virtual gamepad and keyboard sink.
+For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
+1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
+onto that keyboard matrix. Each physical pad retains its own buttons and axes;
+their desired matrix keys combine by OR, including opposing stick directions.
+Synthetic pad keys, the physical local keyboard and the remote keyboard retain
+separate contributions, so one release cannot clear another device's hold.
+Local pad frames do not also enter the virtual gamepad. Other cores retain the
+single virtual gamepad and keyboard sink.
 Installed-core control is a separate root-only HTTP socket at
 `/run/fogcast/local-control.sock` (mode 0600, no bearer). It lists installed
 packages and, when the kit lease is free, launches one that needs no cartridge
@@ -2154,8 +2207,8 @@ engine can list and launch through that socket when a `localcores` client is
 injected (`kit.cores`, destination kind `core`). `fogcast-tenfoot -gfx menu-display`
 connects that socket and, while the core runs, writes pad frames through the
 shared `ui/localfeed` socket. A host session, and any other tenfoot gfx backend,
-leaves `kit` unset. Confirm shows "Starting {title}…", then pauses menu presents
-so the core owns HDMI. "In use. Someone else is playing on this machine. You can
+leaves `kit` unset. Confirm shows the room launch overlay while loading, then
+pauses menu presents when the core owns HDMI. "In use. Someone else is playing on this machine. You can
 play when they're done." is the busy lease. A blocked tile keeps its block line
 ("Needs a cartridge", "Needs firmware") and does not call the runtime. Anything
 else the socket cannot launch says "This core isn't available right now."
@@ -2203,6 +2256,19 @@ until the finish callback, an arriving frame is dropped before observation, bind
 or writing. The status read that binds a local frame, and the set_keyboard or
 set_controller post that follows it, are each limited to 250ms while the lock
 is held, so a stalled runtime reply drops the frame and releases the lock.
+Idle observations and active observations without a controller-port binding
+are cached for 250ms, then refreshed. An unavailable observation retires local
+pad holds with a bounded neutral post. A failed post remains pending and keeps
+the observation cache invalid; the next frame refreshes status and retries before
+accepting input. Failed socket-disconnect cleanup preserves that pending neutral
+too, including physical keyboard releases. Confirmed idle, a different core or a
+changed runtime generation
+discards the old contribution without posting its release into the new core.
+Local frame drops, including idle,
+replacement and delivery refusals, are counted by `LocalInputDrops()`.
+The agent logs the cumulative drop count at most once per second when it grows.
+The local listener serves one writer synchronously; that writer must close
+before its successor can deliver frames.
 Host attach and the host stream keep their own deadlines.
 The host stream does not hold the controller-port mutex across
 set_controller, so a slow remote post cannot block kit-local delivery.
@@ -2211,7 +2277,11 @@ button and axis state. On one player they combine by OR for buttons and keypad b
 and by the larger stick deflection for axes, so a release or a centred stick from
 one source leaves the other source's hold in place. Local pads occupy P1 and P2
 first; a remote pad uses the next free port, and Coleco's two-port limit rejects
-a player that does not fit. Closing the local socket releases the local source
+a player that does not fit. Claiming local P1 immediately moves an already connected
+remote P1 to P2; remote players without a free port still retire released buttons
+and centered axes from retained state. Releasing the local claim therefore cannot
+replay controls the remote player has already released.
+Closing the local socket releases the local source
 only. The kit launcher writes each physical pad and USB keyboard event to this
 socket while the runtime has a core bound. `fogcast-kit` reads that bound bit
 from `/run/mister-runtime.sock` with the same running_development, active
@@ -2221,9 +2291,17 @@ runtime or input packages. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
 lease. The kit keeps the player index the pad already has. While a core is
 bound, those events are not applied to the platform wheel, browse selection,
-or launch, even when this kit's host session is still idle. Select+Start held
-for one second still posts `POST /api/v1/session/stop`. With no core bound,
-the same pad drives browse. Stop and kit menu actions stay on the kit. If the
+or launch, even when this kit's host session is still idle. A successful bound
+probe expires after one second without another successful observation, so
+persistent probe failures return the shell to browse and clear the local-input
+notice. Select+Start held for one second posts `POST /api/v1/session/stop`
+for this host's active or failed session. For a kit-local run it goes to local
+control `POST /v1/local/stop` instead, including a run the grid did not start:
+while a core is bound and no local run is known, the grid reads
+`GET /v1/local/status` at most once a second (single-flight) and adopts a
+launching or running answer as its active session. A foreign-owned core accepts
+local play controls, but this launcher cannot stop it. With no core bound, the
+same pad drives browse. Stop and kit menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host. Remote pads go from the host to the kit on that session's input

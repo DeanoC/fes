@@ -70,7 +70,7 @@ func tarMembers(members ...[2][]byte) []byte {
 // apple2LibraryPackageFixture is a synthetic fes.computer 1.0 Apple II shell:
 // required video, HID keyboard, controller ports, audio and floppy, plus the
 // optional slot bus. With rom it is format 3 with an apple2-firmware ROM.
-func apple2LibraryPackageFixture(t *testing.T, rom bool) (archive, firmware []byte) {
+func apple2LibraryPackageFixture(t *testing.T, rom bool, transforms ...func(string) string) (archive, firmware []byte) {
 	t.Helper()
 	base := misterossROMFixture(t, "blank.rbf")
 	manifest, err := os.ReadFile("../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml")
@@ -97,6 +97,9 @@ func apple2LibraryPackageFixture(t *testing.T, rom bool) (archive, firmware []by
 		text = strings.Replace(text, "format = 2", "format = 3", 1)
 		text += fmt.Sprintf("\n[rom]\nid = \"apple2-firmware\"\nrole = \"firmware\"\nsource_size = %d\nfile = \"rom-map.json\"\nsize = %d\nsha256 = \"%x\"\n", len(firmware), len(mapping), sha256.Sum256(mapping))
 		members = append(members, [2][]byte{[]byte("rom-map.json"), mapping})
+	}
+	for _, transform := range transforms {
+		text = transform(text)
 	}
 	members[0][1] = []byte(text)
 	return tarMembers(members...), firmware

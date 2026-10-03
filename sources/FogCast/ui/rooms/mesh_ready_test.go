@@ -138,11 +138,10 @@ func TestPlacementSelectionStaysQuietAndBlockedRowsDoNotLaunch(t *testing.T) {
 	state, matches := ClassifyGames([]hostclient.Game{usa, jp}, "Super Mario Bros.")
 	choice := Destination{Kind: KindGame, Availability: state, Matches: matches, Query: "Super Mario Bros.", Label: "Super Mario Bros."}
 	choice.FillCopy()
-	if state != AvailNeedsChoice || choice.Confirm() != ConfirmChoose || choice.Status != "Several editions match. Choose one." {
-		t.Fatalf("editions %+v confirm %v", choice, choice.Confirm())
+	if state != AvailUnavailable || choice.Confirm() == ConfirmChoose || choice.Status == EditionChoiceStatus {
+		t.Fatalf("blocked editions must not be a choice %+v confirm %v", choice, choice.Confirm())
 	}
-	applied := ApplyEditionPreference(choice, usa.ID)
-	assertPlacementNotPlayable(t, applied, "chosen edition")
+	assertPlacementNotPlayable(t, choice, "blocked editions")
 
 	skew := placementReadyRow(false, hostclient.PlacementFailClosed, hostclient.LaunchVersionSkew)
 	skew.NextAction = "resolve_version"

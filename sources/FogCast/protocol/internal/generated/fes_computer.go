@@ -92,6 +92,8 @@ const (
 	FesComputerSpectrumTapeMaxBytes               uint32 = 0x10000
 	FesComputerC64DiskUnit                        uint32 = 0x0
 	FesComputerC64DiskBytes                       uint32 = 0x2ab00
+	FesComputerAtariStFloppyUnit                  uint32 = 0x0
+	FesComputerAtariStFloppyBytes                 uint32 = 0xb4000
 	FesComputerInterfaceVideoFixed720p60ID               = "fes.video.fixed-720p60"
 	FesComputerInterfaceVideoFixed720p60Major     uint16 = 1
 	FesComputerInterfaceVideoFixed720p60Minor     uint16 = 0
@@ -120,4 +122,8 @@ const (
 	FesComputerInterfaceMediaC64DiskMajor         uint16 = 1
 	FesComputerInterfaceMediaC64DiskMinor         uint16 = 0
 	FesComputerCapabilityMediaC64Disk             uint32 = 0x40
+	FesComputerInterfaceMediaAtariStFloppyID             = "fes.media.atari-st-floppy"
+	FesComputerInterfaceMediaAtariStFloppyMajor   uint16 = 1
+	FesComputerInterfaceMediaAtariStFloppyMinor   uint16 = 0
+	FesComputerCapabilityMediaAtariStFloppy       uint32 = 0x80
 )
