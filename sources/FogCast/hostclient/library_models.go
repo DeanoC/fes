@@ -8,6 +8,7 @@ import (
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
 	ID               string   `json:"id"`
+	ROMSHA256        string   `json:"rom_sha256,omitempty"`
 	Title            string   `json:"title"`
 	System           string   `json:"system"`
 	Cover            string   `json:"cover,omitempty"`

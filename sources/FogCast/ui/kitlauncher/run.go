@@ -217,6 +217,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	m.Cache = mergeCacheStatus(c.Cache, hostclient.LibraryCache{}, false)
 	paintKitHDMI(m)
 	localGames, localPath, closeLocal := bootLocalCatalog(ctx, c)
+	matcher := &localROMMatcher{}
 	if closeLocal != nil {
 		defer closeLocal()
 	}
@@ -370,7 +371,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			localPending = true
 			go func() {
 				o := observation{epoch: e, mutation: true, localAction: action}
-				o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
+				if action == "local-launch" {
+					var fetch func(context.Context, string) (string, error)
+					if c.Library != nil {
+						fetch = c.Library.GameROMHash
+					}
+					o.localErr = launchMatchedLocalGame(ctx, c.LocalCores, fetch, localPath, localGames, matcher, id)
+					if o.localErr != nil {
+						log.Printf("kit local cartridge launch failed game_id=%q", boundedSessionText(id, 160))
+					}
+				} else {
+					o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
+				}
 				if o.localErr != nil {
 					o.message = localCoreMessage(o.localErr)
 					if action == "local-launch" {
@@ -435,12 +447,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	tick := time.NewTicker(16 * time.Millisecond)
 	defer tick.Stop()
 	nextPoll, nextPad := time.Time{}, time.Time{}
+	localAdoptBusy := false
+	var localAdoptNext time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case o := <-results:
 			if o.localAction == "recover" {
+				localAdoptBusy = false
 				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) {
 					localRunning = true
 					m.Session.State = "active"
@@ -603,6 +618,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				nextPad = now.Add(time.Second)
 			}
 			bound := coreBound.bound(now)
+			// A kit-local run started outside this shell (for example over the
+			// local control socket, or by a shell that restarted after its own
+			// startup check) binds the core without this shell knowing. Adopt
+			// it so Select+Start can stop it and the menu resumes afterwards.
+			if bound && m.LocalPlayEnabled && !localRunning && !localPending && !localAdoptBusy && !m.Busy && now.After(localAdoptNext) {
+				localAdoptNext = now.Add(time.Second)
+				localAdoptBusy = true
+				go func(e uint64) {
+					status, err := c.LocalCores.Status(ctx)
+					send(observation{epoch: e, localAction: "recover", localErr: err, localStatus: status})
+				}(epoch)
+			}
 			if !bound {
 				if feed != nil {
 					closeFeed(true)
@@ -771,6 +798,17 @@ func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve fu
 
 var errSMSCoreMissing = errors.New("sms core missing")
 var errCartridgeMissing = errors.New("cartridge missing")
+var errNotOnKit = errors.New("not on this kit")
+var errCartridgeCheck = errors.New("cartridge check failed")
+
+func containsLocalID(games []hostclient.Game, id string) bool {
+	for _, game := range games {
+		if game.ID == id {
+			return true
+		}
+	}
+	return false
+}
 
 func localCoreMessage(err error) string {
 	switch {
@@ -778,6 +816,10 @@ func localCoreMessage(err error) string {
 		return "The Master System core is not installed."
 	case errors.Is(err, errCartridgeMissing), errors.Is(err, localcores.ErrNotFound):
 		return "Cartridge is missing"
+	case errors.Is(err, errNotOnKit):
+		return "Not on this kit"
+	case errors.Is(err, errCartridgeCheck):
+		return "Could not check this kit's cartridges"
 	case errors.Is(err, localcores.ErrInUse):
 		return "Kit is in use"
 	case errors.Is(err, localcores.ErrBlocked):
