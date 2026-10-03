@@ -19,6 +19,7 @@ TARGETS = {
     'c64': ('sim-fes-c64',),
     'spectrum': ('sim-fes-spectrum',),
     'menu': ('sim-fes-menu',),
+    'z80': ('sim-fes-z80',),
 }
 
 
