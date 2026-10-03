@@ -181,7 +181,9 @@ class RecipeDataTest(unittest.TestCase):
         for entry in document["recipes"]:
             text += "\n[[recipes]]\n"
             for key, value in entry.items():
-                text += key + " = " + json.dumps(value) + "\n"
+                encoded = ("{ " + ", ".join(k + " = " + json.dumps(v) for k, v in value.items()) + " }"
+                           if isinstance(value, dict) else json.dumps(value))
+                text += key + " = " + encoded + "\n"
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "recipes.toml"
             path.write_text(text)
@@ -239,6 +241,25 @@ class RecipeDataTest(unittest.TestCase):
             else:
                 document["recipes"][0]["identity_version"] = value
             with self.subTest(value=value), self.assertRaises(ValueError):
+                self.load_document(document)
+
+    def test_video_recipe_selects_same_variant_for_record_and_build(self):
+        recipe = recipes.recipe_for("fes.coleco")
+        self.assertEqual(recipe.producer_arguments, ("--video-socket",))
+        self.assertEqual(dict(recipe.producer_options), {"video_socket": True})
+        self.assertEqual(recipe.video_profiles, ("direct", "scanlines"))
+        for field, value in (("producer_options", {"execution": "override"}),
+                             ("producer_options", {"video_socket": []}),
+                             ("producer_arguments", "--video-socket"),
+                             ("producer_arguments", ["--root=/other"]),
+                             ("producer_arguments", ["--roo=/other"]),
+                             ("producer_arguments", ["--package-out=/other"]),
+                             ("producer_arguments", ["--cache-ro=/other"]),
+                             ("producer_arguments", ["--identity-ver=1"]),
+                             ("video_profiles", ["scanlines", "direct"])):
+            document = self.document()
+            document["recipes"][0][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                 self.load_document(document)
 
     def test_invalid_field_values_rejected(self):
@@ -328,6 +349,8 @@ class RecipeResolverTest(unittest.TestCase):
                 args = [str(part) for part in run.call_args.args[0]]
                 env = run.call_args.kwargs["env"]
                 self.assertIn(recipe.producer_script, args)
+                for argument in recipe.producer_arguments:
+                    self.assertIn(argument, args)
                 self.assertIn("--cache-root", args)
                 self.assertEqual(args[args.index("--cache-root") + 1], str(module.TOOLCHAIN_CACHE_ROOT))
                 self.assertNotIn("FES_TOOLCHAIN_CACHE_ROOT", env)

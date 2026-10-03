@@ -66,6 +66,7 @@ def canonical_package_record(source, env=None, recipe=None):
     authenticate_misteross_origin(source)
     program = r'''
 import sys
+import json
 from pathlib import Path
 import importlib
 root = Path.cwd().resolve()
@@ -74,7 +75,7 @@ authenticate = getattr(producer, sys.argv[2])
 cache_root = Path(sys.argv[sys.argv.index("--cache-root") + 1])
 identity_version = int(sys.argv[sys.argv.index("--identity-version") + 1])
 assert identity_version == 2
-options = {"identity_version": 2}
+options = dict(json.loads(sys.argv[3]), identity_version=2)
 repository, revision = producer._require_clean_source(root, **options)
 tools = authenticate(root, cache_root=cache_root)
 identities = {name: tool.identity for name, tool in tools.items()}
@@ -88,6 +89,7 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
 '''
     cache_root = str(recipe.cache_root)
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
+               json.dumps(dict(recipe.producer_options), sort_keys=True),
                "--cache-root", cache_root, "--identity-version", str(recipe.identity_version)]
     try:
         record = subprocess.check_output(
@@ -207,7 +209,7 @@ def _build_package(source, recipe=None, env=None):
             [sys.executable, recipe.producer_script, "--root", str(source),
              "--package-output", str(Path(source) / "build/packages"),
              "--cache-root", str(recipe.cache_root),
-             "--identity-version", "2"],
+             "--identity-version", "2", *recipe.producer_arguments],
             cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
     except (OSError, subprocess.CalledProcessError) as error:
         raise ValueError(f"selected {recipe.core_id} recipe failed") from error

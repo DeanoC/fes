@@ -1,0 +1,14 @@
+{
+  "core_rbf_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27",
+  "format": 1,
+  "functional_inputs_sha256": "1c095e79e992327d4a8e09187ec2fb1d75c90bffd63ebd55c3cc26cc1423656b",
+  "original_record_sha256": "56ea0fb08f764c259f67589beb5a291a05e179abff2fa8d7598b1a7025175860",
+  "original_repository": "https://github.com/DeanoC/fes.git",
+  "original_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+  "original_source_path": "sources/misteross",
+  "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+  "selected_record_sha256": "a61b125a9bcdd23754cf71e1a6c237e2279d7d15082fc4b6f79e02b5a6f877f1",
+  "selected_repository": "https://github.com/DeanoC/fes.git",
+  "selected_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+  "selected_source_path": "sources/misteross"
+}

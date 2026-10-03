@@ -42,7 +42,7 @@ case "$mode" in
 esac
 
 
-if [ -n "${FES_PACKAGE_IDS:-}" ] ||
+if [ -n "${FES_VIDEO_PARTS_DIR:-}" ] || [ -n "${FES_PACKAGE_IDS:-}" ] ||
   [ -n "${FES_MENU_PACKAGE_DIR:-}" ] || [ -n "${FES_MENU_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_PONG_PACKAGE_DIR:-}" ] || [ -n "${FES_PONG_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_ZX81_PACKAGE_DIR:-}" ] || [ -n "${FES_ZX81_PACKAGE_SELECTION:-}" ] ||
@@ -119,6 +119,12 @@ docker_run() {
     fi
   fi
   set -- --env "FES_PACKAGE_IDS=${FES_PACKAGE_IDS:-}" "$@"
+  if [ -n "${FES_VIDEO_PARTS_DIR:-}" ]; then
+    set -- --volume "$FES_VIDEO_PARTS_DIR:/fes-core-video-parts:ro" \
+      --env FES_VIDEO_PARTS_DIR=/fes-core-video-parts "$@"
+  else
+    set -- --env FES_VIDEO_PARTS_DIR= "$@"
+  fi
   for package_core in $package_ids_reverse; do
     case "$package_core" in
       menu)

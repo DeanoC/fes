@@ -96,8 +96,8 @@ equivalents are `fogcast video-profile scanlines`,
 `fogcast video-part-install scanlines /absolute/path/part.tar`, and
 `fogcast core-video GAME_ID` to inspect the resolved choice.
 
-The first supported shell is the separate format-2 Coleco video development
-package. A part binds to that exact package and its frozen socket, rather than
+The factory Coleco recipe and the explicit video developer build emit format-2
+video shells. A part binds to that exact package and its frozen socket, rather than
 every package with the same core name. Import and launch run the real FPGA
 linker. Play combines the video part with the title's selected CPU expansion;
 the target independently recomposes the transport and admits its library data
@@ -108,8 +108,9 @@ If the preferred profile has no installed matching part, Play uses direct
 output and the library panel explains why. An installed selected part that
 fails integrity or compatibility checks rejects the launch before hardware
 mutation. Missing parts do not prove insufficient FPGA capacity. A rebuilt
-shell needs its own sealed parts; the factory package still uses built-in
-direct output. Settings do not alter a running session. ROM-linked format-3/4
+shell needs its own sealed parts. The factory recipe builds matching Direct and
+Scanlines archives and retains them separately from the canonical core package.
+Settings do not alter a running session. ROM-linked format-3/4
 parts, other video standards, CRT/DDR/overlay processors and audio parts are
 not supported by this initial library path.
 
@@ -196,6 +197,9 @@ fes-ramtest.package-selection.toml
 core-packages/<package-id>/manifest.toml
 core-packages/<package-id>/core.rbf
 core-packages/<package-id>/rom-map.json  # format 3 only
+fes-core-video-parts.json                # selected video inventory
+core-video-parts/index.json
+core-video-parts/<shell-package-id>/<part-id>.tar
 ```
 
 The installed directory is
@@ -393,3 +397,11 @@ FogCast optionally reads this local publication for browser installation and
 manifest-derived guided ROM setup. See its `docs/core-package-library.md` for
 configuration. The factory image's package set is independent of this catalog.
 Publication bundles no private ROMs and performs no compiler or kit operation.
+
+Preparing `fes.coleco` also freezes its selected Direct/Scanlines inventory and
+archives into the source-bound receipt. `core-catalog` publishes those companions
+with the shell, and the existing browser Install action validates all selected
+archives before importing the package and video mappings. Reinstallation is
+idempotent; a conflicting existing mapping requires explicit repair. Manual
+`core-install` imports only its `.fcore`; use the catalog publication to install
+the factory video choices together.

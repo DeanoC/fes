@@ -16,6 +16,13 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
+    def test_native_video_changes_run_frame_cdc_and_actual_vdp_oracles(self):
+        self.change("sources/misteross/cores/fes-common/rtl/fes_native_video.v")
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], ["coleco"])
+        for target in ("sim-fes-native-video", "sim-fes-coleco-native"):
+            self.assertTrue(any(target in c["argv"] for c in result["commands"]))
+
     def test_atari_st_and_68000_changes_select_machine_and_video_simulation(self):
         self.change("sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv")
         self.change("sources/misteross/cores/fes-atari-st/rtl/st_machine.sv")
@@ -132,6 +139,7 @@ class TestChangedTest(unittest.TestCase):
         targets = [c["argv"][1] for c in result["commands"]
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(set(targets), {"sim-fes-coleco", "sim-fes-sg1000",
+                                      "sim-fes-native-video", "sim-fes-coleco-native",
                                       "sim-fes-sg1000-oss", "sim-fes-sg1000-rom-link",
                                       "sim-fes-sg1000-gp-audio",
                                       "sim-fes-sms", "sim-fes-sms-oss"})

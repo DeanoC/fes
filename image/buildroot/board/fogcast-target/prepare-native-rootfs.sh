@@ -6,6 +6,8 @@ script_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
 repo=$(CDPATH='' cd -- "$script_dir/../../.." && pwd)
 fogcast=${FOGCAST_DIR:?FOGCAST_DIR is required}
 agent=$fogcast/bin/mister-agent-linux-armv7
+launcher=$fogcast/bin/fogcast-kit-linux-armv7
+tenfoot=$fogcast/bin/fogcast-tenfoot-linux-armv7
 
 required_libraries() {
   printf '%s\n' \
@@ -37,9 +39,43 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
   printf 'post-build: freshly built agent is missing: %s\n' "$agent" >&2
   exit 1
 }
+[ -f "$launcher" ] && [ ! -L "$launcher" ] && [ -x "$launcher" ] || {
+  printf '%s\n' 'post-build: run make build-fogcast-kit before image assembly' >&2
+  exit 1
+}
+[ -f "$tenfoot" ] && [ ! -L "$tenfoot" ] && [ -x "$tenfoot" ] || {
+  printf '%s\n' 'post-build: run make build-fogcast-tenfoot-kit before image assembly' >&2
+  exit 1
+}
+
+# Retained notices belong to the previous installed selection, which the native
+# post-build step refreshes later. Validate that old closed package/record pair
+# and its exact notice before allowing this one Markdown path during scanning.
+verified_notice=$(/usr/bin/python3 "$repo/scripts/ramtest-notices.py" verify-retained "$target")
+if [ -n "$verified_notice" ]; then
+  selector=${TARGET_IMAGE_LOCK_BIN:-}
+  if [ -z "$selector" ]; then
+    case "$(uname -s)" in
+      Darwin) selector=$fogcast/bin/target-image-lock ;;
+      *) selector=$fogcast/bin/target-image-lock-linux-amd64 ;;
+    esac
+  fi
+  [ -f "$selector" ] && [ ! -L "$selector" ] && [ -x "$selector" ] || {
+    printf '%s\n' 'post-build: target-image-lock is missing or unsafe' >&2
+    exit 1
+  }
+  retained_id=$(basename "$(dirname "$verified_notice")")
+  "$selector" verify-package --core-id fes.ramtest \
+    --package "$target/usr/share/mister-runtime/core-packages/$retained_id" \
+    --selection "$target/usr/share/mister-runtime/selections/fes-ramtest.package.toml" >/dev/null
+fi
 
 /bin/mkdir -p "$target/usr/sbin"
 /usr/bin/install -m 0755 "$agent" "$target/usr/sbin/mister-agent"
+# Warm Buildroot trees retain the previous launchers. Replace every selected
+# FogCast executable before scanning the tree that this build will ship.
+/usr/bin/install -m 0755 "$launcher" "$target/usr/sbin/fogcast-kit"
+/usr/bin/install -m 0755 "$tenfoot" "$target/usr/sbin/fogcast-tenfoot"
 
 # Buildroot's default skeleton aliases /var/log to /tmp. It must be its own
 # mount point so the noexec tmpfs policy in fstab is observable and enforced.
@@ -75,7 +111,9 @@ if [ -e "$target/media/fat/fogcast/cache" ]; then
   exit 1
 fi
 
-if find "$target" -type f \( \
+# All Markdown/game payloads except that exact verified source notice remain
+# forbidden, including additional Markdown in or beside the notice directory.
+if find "$target" -type f ! -path "$verified_notice" \( \
   -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
   -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o -iname '*.bin' -o \
   -iname '*.sqlite' -o -iname '*.sqlite-*' -o \

@@ -1,0 +1,452 @@
+{
+  "fpga_packages": [
+    {
+      "core_rbf_sha256": "64976a84c7782f962b3eb3bfdccc80271cac93784952d9f4e8c98ca4433ab89d",
+      "manifest_sha256": "214ac228e12195415c8905cf9184b08480d8c30ef8668af663fb8797b01c8871",
+      "selection": {
+        "core_id": "fes.menu",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/410069366c6eb42491a232262e5932d78224d221071ed46561249e3ecaeae8ce",
+        "kind": "core-package",
+        "mister_packages_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "misteross_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "package_id": "410069366c6eb42491a232262e5932d78224d221071ed46561249e3ecaeae8ce",
+        "payload_sha256": "64976a84c7782f962b3eb3bfdccc80271cac93784952d9f4e8c98ca4433ab89d"
+      },
+      "selection_sha256": "3f7ef2766039de95b14e8e54813d569e5c6b5e1ba7a0fade03b10b6267905bf6",
+      "source_selection": {
+        "core_rbf_sha256": "64976a84c7782f962b3eb3bfdccc80271cac93784952d9f4e8c98ca4433ab89d",
+        "format": 1,
+        "functional_inputs_sha256": "e2ad4ff57c50ded918850253e2af280d210868d98b1d6ea4bee41065bc3a942a",
+        "original_record_sha256": "dfcedd6ac9364bef0138cf8d1c594bd8c6451e059b7cd1b98ee80286038c2c2c",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "original_source_path": "sources/misteross",
+        "package_id": "410069366c6eb42491a232262e5932d78224d221071ed46561249e3ecaeae8ce",
+        "selected_record_sha256": "a3ef8710ca94ed2485ec7bd3a478ab96c4ca71b2ab06dfed6f71d64a8d2702ff",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "00aa6a98ddb301815110438073268c4873c297d4f1706ecb30ddf005151af555",
+      "manifest_sha256": "bb34b89d098edd22f4ac9ab435ad2089e21f1152c5ddeab28e0cc32ec8a9a4e4",
+      "selection": {
+        "core_id": "fes.pong",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/722762f192f56ca1d01bdaf5a7a6e5af2399ee16fefb1d1066bd9706b8847380",
+        "kind": "core-package",
+        "mister_packages_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "misteross_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "package_id": "722762f192f56ca1d01bdaf5a7a6e5af2399ee16fefb1d1066bd9706b8847380",
+        "payload_sha256": "00aa6a98ddb301815110438073268c4873c297d4f1706ecb30ddf005151af555"
+      },
+      "selection_sha256": "28936d9c10f1a526e0fc35025562ce0f6a18b4dca5a46560546304da7d780728",
+      "source_selection": {
+        "core_rbf_sha256": "00aa6a98ddb301815110438073268c4873c297d4f1706ecb30ddf005151af555",
+        "format": 1,
+        "functional_inputs_sha256": "7ab14302a3565d1fe48de92f52c7a6dc7437589ca945184bb2f74adbefe250e6",
+        "original_record_sha256": "2cd352966bd6c2c75edfbe8d8ead5a1ddd7872b96a40424e105e30980510c2d4",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "original_source_path": "sources/misteross",
+        "package_id": "722762f192f56ca1d01bdaf5a7a6e5af2399ee16fefb1d1066bd9706b8847380",
+        "selected_record_sha256": "4f59296343b2f65230f1113034ae06dcf2956ff63007a159fd80258e30b44071",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "1a867aa3bbbce49fdfdf210be42999b0a21fa89d209ea6ad58bf8c0ca37abe38",
+      "manifest_sha256": "8cfda5574ed2824ce1d206ae75d86aee5b1aa888d55a8ccf030dc121ae5fcbb0",
+      "rom_map_sha256": "79b7adca4641e2b1973b7c6724783b3f3935fe0b33ff198e5c3f0020be571e77",
+      "selection": {
+        "core_id": "fes.zx81",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/ddb7c9182b0406ffb85ef1ec8bd0fcfeeccb0c17723c1a568d2e18e4cc1ea0d4",
+        "kind": "core-package",
+        "mister_packages_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "misteross_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "package_id": "ddb7c9182b0406ffb85ef1ec8bd0fcfeeccb0c17723c1a568d2e18e4cc1ea0d4",
+        "payload_sha256": "1a867aa3bbbce49fdfdf210be42999b0a21fa89d209ea6ad58bf8c0ca37abe38"
+      },
+      "selection_sha256": "0fbe8b26b24a69477db891d51043fb576e825d9525eaeb3770dcd69a83a502c6",
+      "source_selection": {
+        "core_rbf_sha256": "1a867aa3bbbce49fdfdf210be42999b0a21fa89d209ea6ad58bf8c0ca37abe38",
+        "format": 1,
+        "functional_inputs_sha256": "b31eded629b176e94fef95e2429469d33246b0d5993b931944850166d2b7bb22",
+        "original_record_sha256": "9d1abf0d04a69a4cc9c4b73a979337ee5f52355612ea7dcec708f90eacdeddd0",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "original_source_path": "sources/misteross",
+        "package_id": "ddb7c9182b0406ffb85ef1ec8bd0fcfeeccb0c17723c1a568d2e18e4cc1ea0d4",
+        "selected_record_sha256": "50dc8091a86eee6afa9d7675d099ad60e8abf88a0108519f0a0f129b48f3afa0",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27",
+      "manifest_sha256": "574aea0435869804c5b17e2a294b3a875f400c7250770cd437659a896924b843",
+      "selection": {
+        "core_id": "fes.coleco",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+        "kind": "core-package",
+        "mister_packages_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "misteross_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+        "payload_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27"
+      },
+      "selection_sha256": "d697d12f305ebc58cab40de36088b2b2d19fbe5666cda4eb149238ebdd172ee4",
+      "source_selection": {
+        "core_rbf_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27",
+        "format": 1,
+        "functional_inputs_sha256": "1c095e79e992327d4a8e09187ec2fb1d75c90bffd63ebd55c3cc26cc1423656b",
+        "original_record_sha256": "56ea0fb08f764c259f67589beb5a291a05e179abff2fa8d7598b1a7025175860",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "original_source_path": "sources/misteross",
+        "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+        "selected_record_sha256": "a61b125a9bcdd23754cf71e1a6c237e2279d7d15082fc4b6f79e02b5a6f877f1",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "selected_source_path": "sources/misteross"
+      },
+      "video_parts": {
+        "functional_inputs_sha256": "92490a13ea1a58496b2c7518b55d89cc9349ff904fb2e663063eb9da80acafc3",
+        "index": {
+          "packages": [
+            {
+              "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+              "parts": [
+                {
+                  "archive_path": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar",
+                  "archive_sha256": "79d1742fadbe9c0bc4c04cf80693b158ffc0d7f5e768144277d1939ccc7e1fb8",
+                  "archive_size": 2846720,
+                  "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+                  "profile": "direct"
+                },
+                {
+                  "archive_path": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar",
+                  "archive_sha256": "70c95e146ec934241ce576454bf4190a7ffd8de8cc18a46ad38e4527df4f3c02",
+                  "archive_size": 2846720,
+                  "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+                  "profile": "scanlines"
+                }
+              ]
+            }
+          ],
+          "version": 1
+        },
+        "index_sha256": "f01ef1cfce3203355af3469300eefa4cbdb4c27780a32e951b6d0ad7d2164247",
+        "index_size": 834,
+        "parts": [
+          {
+            "archive_sha256": "79d1742fadbe9c0bc4c04cf80693b158ffc0d7f5e768144277d1939ccc7e1fb8",
+            "archive_size": 2846720,
+            "build_summary_sha256": "95567bcd997542f43c5dbce55f6f439d3f2ddf1e594c2b438fb2b04d34b80da1",
+            "cram_report_sha256": "c3aa87fa5f6ab62e5d7ee87179f98c5399cce2850be09b40227ed6ad971d0c72",
+            "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+            "profile": "direct",
+            "recipe_sha256": "9f879cb01b77e2cf90be1c507eeeae4a632d71c96886419d991c3f12c35e15c5",
+            "revision": "576cdbc7046eee25803d6063487554c2cb01cc99"
+          },
+          {
+            "archive_sha256": "70c95e146ec934241ce576454bf4190a7ffd8de8cc18a46ad38e4527df4f3c02",
+            "archive_size": 2846720,
+            "build_summary_sha256": "21dfa0373073bad85e4b333fb995793f15f5107aeb530c385aa45e9cb5b7228d",
+            "cram_report_sha256": "9cd1bc586ebd95d61163e6a7b904ddb132c486db5b81134914e4bd64ceff3cf7",
+            "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+            "profile": "scanlines",
+            "recipe_sha256": "0c3751a2f6d5ef1cf9efb725b0a3dd9b5bc7f275aeac2615836937ab013e6392",
+            "revision": "576cdbc7046eee25803d6063487554c2cb01cc99"
+          }
+        ],
+        "shell": {
+          "build_record_sha256": "56ea0fb08f764c259f67589beb5a291a05e179abff2fa8d7598b1a7025175860",
+          "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1"
+        }
+      }
+    },
+    {
+      "core_rbf_sha256": "cc4ea668af10f837becdaec491a437a18e81d7c11314fe0a34cac60c851db028",
+      "manifest_sha256": "935ad0311318f790f4788a571c186f262e47d64b7b659a3de32af012a3fa2c37",
+      "selection": {
+        "core_id": "fes.ramtest",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/06e74777111b46ff0a1cbb55a56ed2a3ea0066f2ce168bab9c91ea776a32f5a7",
+        "kind": "core-package",
+        "mister_packages_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "misteross_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "package_id": "06e74777111b46ff0a1cbb55a56ed2a3ea0066f2ce168bab9c91ea776a32f5a7",
+        "payload_sha256": "cc4ea668af10f837becdaec491a437a18e81d7c11314fe0a34cac60c851db028"
+      },
+      "selection_sha256": "72aa9df28ac86178e968da2c8b688ea1f023533d6ce2b169a0231d16351caeee",
+      "source_selection": {
+        "core_rbf_sha256": "cc4ea668af10f837becdaec491a437a18e81d7c11314fe0a34cac60c851db028",
+        "format": 1,
+        "functional_inputs_sha256": "e1bd32557720c0f90296a3186b16dd9c4cdd3f930c77d5e49bccad54b9a130fd",
+        "original_record_sha256": "3017ada6565aec4d485612a676c569c1489ee1aa5b52df510ab6d17624cd6e36",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "original_source_path": "sources/misteross",
+        "package_id": "06e74777111b46ff0a1cbb55a56ed2a3ea0066f2ce168bab9c91ea776a32f5a7",
+        "selected_record_sha256": "403e104c3caa8e0504be4bb14107f02a7ffc70b252da331288924e8f27c597b5",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+        "selected_source_path": "sources/misteross"
+      }
+    }
+  ],
+  "go": "go version go1.26.5 linux/amd64",
+  "image_base_fingerprint": "fe10d235f5881eb69561c30dc60fa6ebe2284d2798d2b3caa4b67ee75253e1dc",
+  "image_fingerprint": "fb942123c3f601f4157d49fc505cac813e5062ed32e0186d1aad1e9d52fad8b0",
+  "image_recipe": [
+    {
+      "path": "image/Makefile",
+      "sha256": "32b018d92bb6559be43c39e3dd865e2899165234e12c6f315fdbf4366fa22a1e"
+    },
+    {
+      "path": "image/build/native-inputs.toml",
+      "sha256": "74f228e6b652b83d9ad33fada22074dd1e278e322695f104c6578e297039612c"
+    },
+    {
+      "path": "image/build/target-image-container-packages.sha256",
+      "sha256": "5834b6b2c846c7adb84190d6023bef3f7e9c01524831ef91f584541d9ee1c19f"
+    },
+    {
+      "path": "image/build/target-image-kernel-defconfig.sha256",
+      "sha256": "5768deb80362ac5798b45b2d28cc2cb05d7fed48fe9590ecb048dc2ed9761ec3"
+    },
+    {
+      "path": "image/build/target-image.sources.lock.toml",
+      "sha256": "d132d9cc97cb7f8b3488bb2303c257a39300c7dbf6161c0c9c4316cdd63d0596"
+    },
+    {
+      "path": "image/buildroot/Config.in",
+      "sha256": "a617f183de6968d1763480658f230d76b44cad8fcd7ea953493dcfb556707e18"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-post-build.sh",
+      "sha256": "e1f023de568bc553ca478cbf772d9661626dd0ddb1096e850bc74e78b5b9c0a2"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/fstab",
+      "sha256": "e653330f736eda6387a68dfd42fc744463ba1cc97355a9ed7d23708de6727904"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S15fes-ethaddr",
+      "sha256": "99917a1fdddcebd2b09503777b2d8c608c1e5712d11339e7e8fe8b25dcdd3473"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S20mister-network",
+      "sha256": "578b5558b3bed81282fafae73d036c353b01a7a9e40c9e5bfa4c8bcfbc02dc78"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S30mister-dropbear",
+      "sha256": "b199818d23700c7312745214e818efbf2bfc668def408d0e4c6a82e4d6b0a45d"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40mister-runtime",
+      "sha256": "55dc6c3a5f38ad50eeada3c4f266870ebfc16d92e3b9f4353594f07186a80db5"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S49fogcast-target-smoke",
+      "sha256": "d5b15d558ce87493ee419d99bc3b0ff6aa1932235f925a3143b63ef26f672d8c"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S50mister-agent",
+      "sha256": "6c6f2de05dca0215712057285f24da462ebccdd8945db4b8ebf63ca52eaca768"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S60fogcast-kit",
+      "sha256": "9cd74b43d0d126ee6b1d15414b63f6c97936dfc73a5a7928b54fe4b9472e639b"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/inittab",
+      "sha256": "b5b67031f58634886932e9d3a7c7e6fd27199e2219f33e834fed2c683c92055a"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/media/fat/.keep",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/usr/sbin/mister-supervise",
+      "sha256": "e91275683f5f277d2faa87f93692bf4ef81b16ab2d65f6f4b85bc6b6d21d7fc3"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast/config.toml",
+      "sha256": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/patches/e2fsprogs/0001-create_inode-honor-fake-time-for-ctime.patch",
+      "sha256": "0ac822ed6c1e6ee70bd99db2d21a55fb38adf5b55bbde68f3f90e61cd85599c1"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/prepare-native-rootfs.sh",
+      "sha256": "f3e92af9c0bbca31c081210b64f32d16521ae555b595338ed30f79b4976adadf"
+    },
+    {
+      "path": "image/buildroot/board/fogcast-target/rootfs-package-cleanup.sh",
+      "sha256": "f533d94831dc48a2f7f7c3b887534b9c423c1a199b9f0d2f69174120842e8837"
+    },
+    {
+      "path": "image/buildroot/configs/fogcast_target_native_dev_defconfig",
+      "sha256": "d66e70cc46b0bc70d63de36ecc820dc384aed6075a85f02c5081bdc8de2797c6"
+    },
+    {
+      "path": "image/buildroot/external.desc",
+      "sha256": "99fba9de244813705291f1398879bfb012bfbb83cbb2ed42ffc714da349642c3"
+    },
+    {
+      "path": "image/buildroot/external.mk",
+      "sha256": "24fb242af664c3072db6caa56bff385dc47603d43e38fbb6097425f977b7eb09"
+    },
+    {
+      "path": "image/buildroot/package/mister-runtime/Config.in",
+      "sha256": "6a6392fc73f47f94c2397c25e980280725a92c944a23f0016684d48bbd4a9e16"
+    },
+    {
+      "path": "image/buildroot/package/mister-runtime/mister-runtime.mk",
+      "sha256": "7ded006187e15afb0b53ea5dbf7fe80040a07ab2214833b6ac50c9a2a8e7b368"
+    },
+    {
+      "path": "image/containers/target-image/Dockerfile",
+      "sha256": "3e690821e8cc6ff62794a1cce2d81cab5e458ab0d1424598e36e74a2f4ed41eb"
+    },
+    {
+      "path": "image/containers/target-image/create-builder-user.sh",
+      "sha256": "7061b7eda1bb8ba4f4d0fdec40d340c458085a6d71df0e824b4487c98917bb5b"
+    },
+    {
+      "path": "image/licenses/fes.ramtest/COPYING",
+      "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+    },
+    {
+      "path": "image/licenses/fes.ramtest/SOURCE.md",
+      "sha256": "e544dd3580f3597de025260f5d7b7e816cd6a5c7dd8f3ba33e43803933857157"
+    },
+    {
+      "path": "image/scripts/__pycache__/ramtest-notices.cpython-313.pyc",
+      "sha256": "ca43e225f919906bc6c8993a004175da1c241d4265d24e1b27f20036799d5939"
+    },
+    {
+      "path": "image/scripts/build-target-image.sh",
+      "sha256": "e5adb9ca8c54a48b538bbff8a5e13141a48fae04a6dd9717c86baedfeafa5938"
+    },
+    {
+      "path": "image/scripts/build-target-kernel.sh",
+      "sha256": "3e0e77fb80fa357ecc2836535d5aca1a8cb8c864ffa256f6f0928cde11309a9f"
+    },
+    {
+      "path": "image/scripts/check-native-payloads.sh",
+      "sha256": "8fbd0ae0bb9da1243a0b1bc64039a9a35627ed336615a83cc75947f8a7dd5463"
+    },
+    {
+      "path": "image/scripts/check-rootfs-headroom.sh",
+      "sha256": "a590cb7ba5c03ac1ca700dec0bbb3ef4e90ee9469c3758186b5b4c28df06b4a0"
+    },
+    {
+      "path": "image/scripts/fetch-native-runtime-inputs.sh",
+      "sha256": "a4e283fcf8a303b8c5aa9f7f59ae60219ea83a89d372347c5025b63a8153d3e1"
+    },
+    {
+      "path": "image/scripts/fetch-target-image-sources.sh",
+      "sha256": "24530b9cd7693a84522a4fba385576be5d67bd5fc9a39e0ce4db8efacc49d70f"
+    },
+    {
+      "path": "image/scripts/native-extra-cores.sh",
+      "sha256": "b07f075ecb10528d3fdea26b29b413a4945030006ee9f580c8819542ffdba3df"
+    },
+    {
+      "path": "image/scripts/native-video-parts.sh",
+      "sha256": "8a2347c9f9e257c758b3c53d0a1d9d3b029346c226cd69ee8aab35c2277e5f11"
+    },
+    {
+      "path": "image/scripts/qemu-smoke-target-image.sh",
+      "sha256": "60f645b2cc23fee51822e8124ef58a9d0891a8e810e4c1e8c793cf07533ecf47"
+    },
+    {
+      "path": "image/scripts/ramtest-notices.py",
+      "sha256": "81d155daa2a441ef655dfd73e2dd7aebe583b4d2a460bd52f752673a1ae255f6"
+    },
+    {
+      "path": "image/scripts/scan-target-image-secrets.sh",
+      "sha256": "9f3f4305d6b42f72f98a82a8d493c48cef4b47347ad301c5b8b006b2aa8ea8d4"
+    },
+    {
+      "path": "image/scripts/target-image-container.sh",
+      "sha256": "36cde4a2547babfb6f42f6130ac2a2d1cba5a6e7e6d9fd31ee7ababba81a9252"
+    },
+    {
+      "path": "image/scripts/validate-native-init-services.sh",
+      "sha256": "dd1cf5e18eed85fb7e5c7a043dc33c832e2cfd85d5db427048c58a58ba7740ec"
+    },
+    {
+      "path": "image/scripts/verify-native-runtime-inputs.sh",
+      "sha256": "9deb527a0274d1a233ea6ffe2e80b920442de62463d257ad8cd69888d7bd023a"
+    },
+    {
+      "path": "image/scripts/verify-target-image-source-cache.sh",
+      "sha256": "4c7794da5a01016d5055086f82a8ac43b4d5bbc703fddec27d4cdf058f6675de"
+    },
+    {
+      "path": "image/scripts/verify-target-image.sh",
+      "sha256": "b557d21c0bd517e299912da01051e4f67ff172f55c5713cf04bb24cc1f34a47d"
+    },
+    {
+      "path": "image/scripts/verify-target-kernel.sh",
+      "sha256": "a18c75e578bcfeb032421caecee6ed917fb7792ff03a9c0daaa8ef2556a51f1f"
+    }
+  ],
+  "profile": {
+    "check_packages": true,
+    "host_arch": "amd64",
+    "host_os": "linux",
+    "image_variant": "native-dev",
+    "native_image_mode": "package-only",
+    "version": "0.1.0"
+  },
+  "recipe": {
+    "config/core-recipes.toml": "be5134635df156df81cf9290cd309e9f217586cf4ac80f033311877fa4778cb7",
+    "scripts/affected.py": "46a71c88b9eb439384f72d13d9549d36d4376dbc4f007fc16eacbbbed89a586f",
+    "scripts/appliance_expand_dry_run.py": "93d20e955176b17b9a65113ff3cf853a005959fd01b101badfcfc546765b6800",
+    "scripts/artifact_cache.py": "1c91791e9c18e7664939bc804db48e8d3485f04560ee289070e808700f8c536c",
+    "scripts/build.py": "9e59536339e4f2a16ddf91b544865b58745b2ac970be9b2f6e7f7e2346ccf9c9",
+    "scripts/bundle.py": "e68446e01c46e098773cd4b4b2662027dfbbf747e1038f0a6b7669763338d915",
+    "scripts/check_diff.py": "6f9f8b3669325368c4ad9df7b17308e9fe5a3f7e7fa096344fc1e1c9212fd314",
+    "scripts/ci_gate.py": "a4d4a0bbe50cdb941259fcb203c328c4fc50dcd04b04f1664a9daebc4bac9c1e",
+    "scripts/ci_simulations.py": "527e8baec288307d25008c953524f7b86af37bd82e82ecd9a1a0b08fefb2a06b",
+    "scripts/consistency.py": "66220a465dbf2715937c6c35a26c8f45dac1b0fd63535ac68a5c509150afe03d",
+    "scripts/coordination.py": "3b7126bec12a20007e377b28e3247a1b1b0317d23b028df73761733dfc710ff9",
+    "scripts/core_catalog.py": "ad9cafecfd116fb9c687f0241fbcd0682cba7382f834fe7eb9ca8f3b7a88e37f",
+    "scripts/core_dev.py": "15cc5ae199b3870a08406848d4a5476649d8ebe0bf9748bd19cd8d8f2f2e7470",
+    "scripts/core_dev_accept.py": "84c29b9fde91d0d55e2004ee3b59dba7c1afb44360fa01f8b536fc30a3893af0",
+    "scripts/dev_snapshot.py": "25b1ef0b32adec212c2583ef5d214d7606d080a0e6bb92b7f7bc8e265797e731",
+    "scripts/environment.py": "45c8e68d0f4fa45d69fa4676a6951d696e7711fc0550804c176008a19a8a014a",
+    "scripts/factory_video_parts.py": "2cc193621ef11c26749dadce370250217408d5ab56fb82526b9d1699b67e6088",
+    "scripts/generate.py": "e2c5566f43857603237cbb020bcc52dc71ea30ab1dd4eadcf22ea6d18ae10f9e",
+    "scripts/import_modules.py": "b30103fce352b754f2f27f7c11fb6771496d3aea38cc3a4c623eb61ee7b35000",
+    "scripts/input_diagnostic.py": "dcf3f6e4d61d97bde0d58f021468ccc3ecf0f964c13beac2de6fcebd06719cae",
+    "scripts/inputs.py": "c470d8adff727fac9e0a6998e856d195098d0bbb99e3eabb4feec7600a171187",
+    "scripts/module_sources.py": "b3708f92dcecfe863ff78116a0f9159c4ea21d0849cd270db86d2bab244087ab",
+    "scripts/native_dev.py": "f7f3b72ca561e88273cc6a280e32879feb6ccef0f9d034b5f2f9e4929557e717",
+    "scripts/package_acceptance.py": "4194898e37f47e9ddddc031e365f289b57f7e979fdffe85f5b1f46380b5c865a",
+    "scripts/package_acceptance_isolated.py": "18ea3e0f7ca720c84622bb04ee10dedeff2c8227be1a8022e00e3424c6942255",
+    "scripts/recipes.py": "64bfebb6c10bd0b6859347f1423687b513f9070cc0cd9c0653fb612ea9b70edc",
+    "scripts/source_status.py": "8e0a4edfba8ef693896b4dd430fdd88f0ba10431edbcb1835adbbf7e601687a4",
+    "scripts/status.py": "757a5c6e6d70e251b24b2e65077aeeb0e3c29d2583bf144865c364b70b2c03a0",
+    "scripts/target_acceptance.py": "f1b1bfe940c2a191335c248e6968b7db8f9e323e1a513981d3056e8a41cb840f",
+    "scripts/test_changed.py": "96621474ca31df062000d6aa1741871d895aa49fa046277697a4e716abccb553"
+  },
+  "sources": {
+    "FogCast": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+    "libmister-runtime": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+    "mister-packages": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+    "misteross": "2ce9047f8a9e91900ac46e6b961e054370b55855"
+  }
+}

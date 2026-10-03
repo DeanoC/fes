@@ -59,6 +59,10 @@ set -eu
 [ "$1" = copy-records ]
 mkdir -p "$3"
 printf 'format = 2\n' > "$3/fes-pong.package-selection.toml"
+if [ -n "${FES_VIDEO_PARTS_DIR:-}" ]; then
+  printf 'exact-factory-index\n' > "$3/fes-core-video-parts.json"
+  case "$3:${DIFFER_VIDEO_INDEX:-0}" in *work-2-native-dev:1) printf changed >> "$3/fes-core-video-parts.json" ;; esac
+fi
 HELPER
 chmod +x "$fixture/recipe/scripts/native-extra-cores.sh"
 cat > "$fixture/fake-build" <<'BUILD'
@@ -73,6 +77,13 @@ export TARGET_IMAGE_TEST_MODE=1 TARGET_IMAGE_BUILD_ONCE="$fixture/fake-build"
 export TARGET_IMAGE_OUTPUT_ROOT="$fixture/output" FES_PACKAGE_IDS=fes.pong
 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
 test "$(cat "$fixture/output/native-dev/linux.img")" = native-image
+FES_VIDEO_PARTS_DIR="$fixture" sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
+test "$(cat "$fixture/output/native-dev/fes-core-video-parts.json")" = exact-factory-index
+if FES_VIDEO_PARTS_DIR="$fixture" DIFFER_VIDEO_INDEX=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fixture/video-differ.log" 2>&1; then
+  echo 'native image accepted differing factory video indexes' >&2; exit 1
+fi
+grep -Fq 'factory video index differs between reproducible outputs' "$fixture/video-differ.log"
+test "$(cat "$fixture/output/native-dev/fes-core-video-parts.json")" = exact-factory-index
 sh "$fixture/recipe/scripts/build-target-image.sh" --promote-existing native-dev
 if DIFFER=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fixture/differ.log" 2>&1; then
   echo 'native image accepted differing two-pass bytes' >&2; exit 1

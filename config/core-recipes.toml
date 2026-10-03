@@ -62,6 +62,9 @@ core_id = "fes.coleco"
 identity_version = 2
 producer_script = "scripts/build_fes_coleco_socket_v2.py"
 producer_module = "scripts.build_fes_coleco_socket_v2"
+producer_arguments = ["--video-socket"]
+producer_options = { video_socket = true }
+video_profiles = ["direct", "scanlines"]
 authenticate = "authenticate_tools"
 lock_path = "toolchains/coleco-sgm.lock"
 gpu_router = "HIP"

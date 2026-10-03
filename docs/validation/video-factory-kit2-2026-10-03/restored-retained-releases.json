@@ -1,0 +1,34 @@
+{
+  "boot_ticket": {
+    "boot_id": "453e9b34-454e-409d-b523-d1db9b5dd716",
+    "image_sha256": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+    "trial": true
+  },
+  "state": {
+    "payload": {
+      "format": 1,
+      "good": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e",
+      "previous": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+      "pending": "",
+      "boot_id": "453e9b34-454e-409d-b523-d1db9b5dd716",
+      "trial_image": "",
+      "confirmed_image": "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e"
+    },
+    "sha256": "8b525c492015413146debc3ef97cde535211fbbfb29eb93fce55edb9637c9d29"
+  },
+  "factory": {
+    "board": "de10-nano",
+    "boot_abi": "fes-bootstrap-v1",
+    "fes_revision": "6bf46d84b3d9d7a325c14aa604b81e0a10ddda53",
+    "fogcast_revision": "6bf46d84b3d9d7a325c14aa604b81e0a10ddda53",
+    "format": 1,
+    "image_sha256": "e1b687ea77a3a87115530d2c27fd8373f732dba881c5d5676443e5bc8550e6b9",
+    "image_size": 67108864,
+    "kernel_sha256": "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae",
+    "runtime_revision": "6bf46d84b3d9d7a325c14aa604b81e0a10ddda53",
+    "version": "0.2.0-kit-mac.1"
+  },
+  "retained_images": "total 262144\n-rwxr-xr-x    1 root     root     134217728 Jan  1  1980 b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.img\n-rwxr-xr-x    1 root     root      67108864 Jul  2  2025 e1b687ea77a3a87115530d2c27fd8373f732dba881c5d5676443e5bc8550e6b9.img\n-rwxr-xr-x    1 root     root      67108864 Jan  1  1980 f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e.img",
+  "bootstrap_backing": "/root2/linux/linux.img",
+  "bootstrap_init_sha256": "77221c1c83b94598bc1a27091fb7dc3231fe57a0aa612016448a15cc25b042c3"
+}

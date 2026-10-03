@@ -447,6 +447,12 @@ def package_arguments(packages):
     for package, recipe, _ in details:
         arguments.extend((recipe.package_dir_env + "=" + str(package["directory"]),
                           recipe.package_selection_env + "=" + str(package["selection_path"])))
+    roots = {str(package['video_parts']['selected_directory'])
+             for package in normalized if 'video_parts' in package}
+    if len(roots) > 1:
+        raise ValueError('factory video parts must use one merged selection')
+    if roots:
+        arguments.append('FES_VIDEO_PARTS_DIR=' + roots.pop())
     return arguments
 
 
@@ -516,7 +522,97 @@ def package_output_names(package):
 def package_selection_names(packages):
     """Return selected child record names in package order."""
     _, details = _package_details(packages)
-    return tuple(recipe.selection_filename for _, recipe, _ in details)
+    names = tuple(recipe.selection_filename for _, recipe, _ in details)
+    if any('video_parts' in package for package, _, _ in details):
+        names += (_VIDEO_SELECTION,)
+    return names
+
+
+_VIDEO_SELECTION = 'fes-core-video-parts.json'
+_PACKAGE_TREES = ('core-packages', 'core-video-parts')
+
+
+def _video_index_bytes(packages):
+    from factory_video_parts import read_index
+    entries = []
+    for package in _package_tuple(packages):
+        if 'video_parts' not in package:
+            continue
+        video = package['video_parts']
+        index = read_index(video['directory'])
+        encoded = (Path(video['directory']) / 'index.json').read_bytes()
+        if (hashlib.sha256(encoded).hexdigest() != video['inputs']['index_sha256']
+                or index != video['inputs']['index']):
+            raise ValueError('video parts inventory changed after producer validation')
+        expected_id = package['inputs']['selection']['package_id']
+        if len(index['packages']) != 1 or index['packages'][0]['package_id'] != expected_id:
+            raise ValueError('video parts differ from the selected shell')
+        entries.extend(index['packages'])
+    if not entries:
+        return None
+    entries.sort(key=lambda entry: entry['package_id'])
+    return (json.dumps({'version': 1, 'packages': entries}, ensure_ascii=False,
+                       sort_keys=True, separators=(',', ':')) + '\n').encode()
+
+
+def prepare_video_selection(packages, destination):
+    """Merge independently sealed exact-shell parts for the image selector."""
+    raw = _video_index_bytes(packages)
+    if raw is None:
+        return
+    from factory_video_parts import read_index
+    destination = Path(destination) / hashlib.sha256(raw).hexdigest()
+    if not destination.exists():
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = Path(tempfile.mkdtemp(prefix='.selected-video-', dir=destination.parent))
+        try:
+            for package in _package_tuple(packages):
+                if 'video_parts' not in package:
+                    continue
+                source = Path(package['video_parts']['directory'])
+                entry = read_index(source)['packages'][0]
+                shell = temporary / entry['package_id']
+                shell.mkdir()
+                for part in entry['parts']:
+                    shutil.copy2(source / part['archive_path'], temporary / part['archive_path'])
+            (temporary / 'index.json').write_bytes(raw)
+            _seal_package_tree(temporary)
+            read_index(temporary)
+            temporary.replace(destination)
+        finally:
+            if temporary.exists():
+                _remove_sealed_tree(temporary)
+    read_index(destination)
+    if (destination / 'index.json').read_bytes() != raw:
+        raise ValueError('merged video selection differs from selected parts')
+    for package in _package_tuple(packages):
+        if 'video_parts' in package:
+            package['video_parts']['selected_directory'] = destination
+
+
+def video_output_names(packages):
+    raw = _video_index_bytes(packages)
+    if raw is None:
+        return []
+    index = json.loads(raw)
+    return [_VIDEO_SELECTION, 'core-video-parts/index.json'] + [
+        'core-video-parts/' + part['archive_path']
+        for entry in index['packages'] for part in entry['parts']]
+
+
+def _verify_video_outputs(output, packages):
+    raw = _video_index_bytes(packages)
+    root = Path(output) / 'core-video-parts'
+    selection = Path(output) / _VIDEO_SELECTION
+    if raw is None:
+        if root.exists() or root.is_symlink() or selection.exists() or selection.is_symlink():
+            raise ValueError('package output contains stale video parts')
+        return []
+    from factory_video_parts import read_index
+    read_index(root)
+    if not stat.S_ISREG(selection.lstat().st_mode) or selection.read_bytes() != raw or (root / 'index.json').read_bytes() != raw:
+        raise ValueError('published video parts differ from selection')
+    return video_output_names(packages)
 
 
 _PACKAGE_GENERATION_MARKER = '.package-generation.complete'
@@ -556,7 +652,7 @@ def verify_package_only_outputs(output, packages):
 def _format2_selection_paths(output):
     output = Path(output)
     return tuple(path for path in output.iterdir()
-                 if path.name.endswith('.package-selection.toml'))
+                 if path.name.endswith('.package-selection.toml') or path.name == _VIDEO_SELECTION)
 
 
 def verify_package_outputs(output, packages):
@@ -565,7 +661,7 @@ def verify_package_outputs(output, packages):
     normalized, details = _package_details(packages)
     if not normalized:
         try:
-            for path in list(_format2_selection_paths(output)) + [output / "core-packages"]:
+            for path in list(_format2_selection_paths(output)) + [output / name for name in _PACKAGE_TREES]:
                 try:
                     path.lstat()
                 except FileNotFoundError:
@@ -575,7 +671,7 @@ def verify_package_outputs(output, packages):
             raise ValueError("package-free output contains stale FES package files") from None
         return []
     names = []
-    expected_selection_names = {recipe.selection_filename for _, recipe, _ in details}
+    expected_selection_names = set(package_selection_names(packages))
     for path in _format2_selection_paths(output):
         try:
             metadata = path.lstat()
@@ -613,6 +709,7 @@ def verify_package_outputs(output, packages):
             names.extend(package_names)
     except (OSError, ValueError):
         raise ValueError("published FES package changed or differs from its selection") from None
+    names.extend(_verify_video_outputs(output, packages))
     return names
 
 
@@ -654,6 +751,14 @@ def _package_tree_inventory(root, prefix='core-packages', *, closed=False):
         raise ValueError("package output tree must be a non-symlink directory")
     directories = [prefix]
     files = []
+
+    if closed and prefix == 'core-video-parts':
+        from factory_video_parts import read_index
+        index = read_index(root, sealed=False)
+        directories.extend(prefix + '/' + entry['package_id'] for entry in index['packages'])
+        files = [prefix + '/index.json'] + [prefix + '/' + part['archive_path']
+                 for entry in index['packages'] for part in entry['parts']]
+        return tuple(sorted(directories)), tuple(sorted(files))
 
     if not closed:
         def visit(directory, relative):
@@ -709,10 +814,13 @@ def _package_output_inventory(output, *, closed=False):
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
             raise ValueError("package selection destination must be a non-symlink regular file")
         files.append(selection.name)
-    directories, package_files = _package_tree_inventory(
-        output / 'core-packages', closed=closed)
-    files.extend(package_files)
-    return directories, tuple(sorted(files))
+    directories = []
+    for tree in _PACKAGE_TREES:
+        tree_directories, package_files = _package_tree_inventory(
+            output / tree, prefix=tree, closed=closed)
+        directories.extend(tree_directories)
+        files.extend(package_files)
+    return tuple(sorted(directories)), tuple(sorted(files))
 
 
 def _package_generation_inventory(generation):
@@ -732,12 +840,12 @@ def _package_generation_inventory(generation):
             if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
                 raise ValueError("package generation marker must be a regular file")
             continue
-        if child.name == 'core-packages':
+        if child.name in _PACKAGE_TREES:
             package_directories, package_files = _package_tree_inventory(
-                child, closed=True)
+                child, prefix=child.name, closed=True)
             directories.extend(package_directories)
             files.extend(package_files)
-        elif child.name.endswith(_PACKAGE_SELECTION_SUFFIX):
+        elif child.name.endswith(_PACKAGE_SELECTION_SUFFIX) or child.name == _VIDEO_SELECTION:
             if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
                 raise ValueError("package generation selection must be a regular file")
             files.append(child.name)
@@ -761,6 +869,18 @@ def _validate_package_generation_shape(generation, directories, files):
             len(package_directories) != len(selection_files)):
         raise ValueError(
             f"{generation} is not an empty or complete package generation")
+    video_present = 'core-video-parts' in directories
+    if video_present != (_VIDEO_SELECTION in files):
+        raise ValueError('video parts tree and external selection must be retained together')
+    if video_present:
+        from factory_video_parts import read_index
+        root = Path(generation) / 'core-video-parts'
+        index = read_index(root, sealed=False)
+        if (Path(generation) / _VIDEO_SELECTION).read_bytes() != (root / 'index.json').read_bytes():
+            raise ValueError('video parts selection differs from retained tree')
+        shells = {relative.split('/')[1] for relative in package_directories}
+        if any(entry['package_id'] not in shells for entry in index['packages']):
+            raise ValueError('video parts refer to an unselected shell')
 
 
 def _manifest_path(value, field):
@@ -801,7 +921,7 @@ def _normalize_package_generation_manifest(data):
     directories = []
     for value in raw_directories:
         value = _manifest_path(value, 'directory')
-        if value != 'core-packages' and not value.startswith('core-packages/'):
+        if not any(value == tree or value.startswith(tree + '/') for tree in _PACKAGE_TREES):
             raise ValueError("package backup marker contains an unexpected directory")
         if value in directories:
             raise ValueError("package backup marker contains duplicate directories")
@@ -1040,13 +1160,14 @@ def _copy_package_outputs(output, destination):
     metadata = destination.lstat()
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
         raise ValueError("package backup path must be a non-symlink directory")
-    root = output / 'core-packages'
-    try:
-        root.lstat()
-    except FileNotFoundError:
-        pass
-    else:
-        _copy_package_tree(root, destination / 'core-packages')
+    for tree in _PACKAGE_TREES:
+        root = output / tree
+        try:
+            root.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            _copy_package_tree(root, destination / tree)
     for selection in sorted(_format2_selection_paths(output), key=lambda path: path.name):
         shutil.copy2(selection, destination / selection.name, follow_symlinks=False)
 
@@ -1056,13 +1177,14 @@ def _copy_package_generation(source, destination):
     source = Path(source)
     destination = Path(destination)
     destination.mkdir()
-    root = source / 'core-packages'
-    try:
-        root.lstat()
-    except FileNotFoundError:
-        pass
-    else:
-        _copy_package_tree(root, destination / 'core-packages')
+    for tree in _PACKAGE_TREES:
+        root = source / tree
+        try:
+            root.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            _copy_package_tree(root, destination / tree)
     for selection in sorted(_format2_selection_paths(source), key=lambda path: path.name):
         shutil.copy2(selection, destination / selection.name, follow_symlinks=False)
     shutil.copy2(source / _PACKAGE_GENERATION_MARKER,
@@ -1166,14 +1288,15 @@ def _restore_package_backup(output, backup, clear_current=True):
             _remove_package_outputs(output)
         elif _package_output_inventory(output) != ((), ()):
             raise ValueError("current package output must be empty before restore")
-        restore_root = restore / 'core-packages'
-        try:
-            restore_root.lstat()
-        except FileNotFoundError:
-            pass
-        else:
-            restore_root.replace(output / 'core-packages')
-            _seal_package_tree(output / 'core-packages')
+        for tree in _PACKAGE_TREES:
+            restore_root = restore / tree
+            try:
+                restore_root.lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                restore_root.replace(output / tree)
+                _seal_package_tree(output / tree)
         for selection in sorted(_format2_selection_paths(restore), key=lambda path: path.name):
             selection.replace(output / selection.name)
         _validate_package_output_manifest(output, manifest)
@@ -1224,9 +1347,9 @@ def _remove_package_outputs(output):
     output = Path(output)
     _package_output_inventory(output)
     selections = list(_format2_selection_paths(output))
-    root = output / "core-packages"
+    roots = [output / name for name in _PACKAGE_TREES]
     present = []
-    for path, expected in [(path, stat.S_ISREG) for path in selections] + [(root, stat.S_ISDIR)]:
+    for path, expected in [(path, stat.S_ISREG) for path in selections] + [(root, stat.S_ISDIR) for root in roots]:
         try:
             metadata = path.lstat()
         except FileNotFoundError:
@@ -1237,8 +1360,9 @@ def _remove_package_outputs(output):
     for path in selections:
         if path in present:
             path.unlink()
-    if root in present:
-        _remove_sealed_tree(root)
+    for root in roots:
+        if root in present:
+            _remove_sealed_tree(root)
 
 
 def publish_package_state(packages, built_selections, output):
@@ -1264,7 +1388,7 @@ def publish_package_outputs(packages, built_selections, output):
     """Publish the child-emitted record and an exact closed package directory."""
     output = Path(output)
     normalized, details = _package_details(packages)
-    expected_selection_names = [recipe.selection_filename for _, recipe, _ in details]
+    expected_selection_names = list(package_selection_names(packages))
     if isinstance(built_selections, dict) and len(normalized) > 1:
         selections = built_selections
     elif len(normalized) == 1 and not isinstance(built_selections, dict):
@@ -1293,6 +1417,11 @@ def publish_package_outputs(packages, built_selections, output):
                     raise ValueError
                 if digest(Path(package["directory"]) / name) != package["inputs"][field]:
                     raise ValueError
+        video_raw = _video_index_bytes(packages)
+        if video_raw is not None:
+            built_video = Path(selections[_VIDEO_SELECTION])
+            if not stat.S_ISREG(built_video.lstat().st_mode) or built_video.read_bytes() != video_raw:
+                raise ValueError
     except (OSError, KeyError, TypeError, ValueError):
         raise ValueError("child FES package selection differs from selected inputs") from None
     _recover_package_backup(output, normalized)
@@ -1316,6 +1445,16 @@ def publish_package_outputs(packages, built_selections, output):
             selection_stage = staged_selections / recipe.selection_filename
             shutil.copy2(selections[recipe.selection_filename], selection_stage)
             selection_stage.chmod(0o444)
+        if video_raw is not None:
+            roots = {str(package['video_parts']['selected_directory'])
+                     for package in normalized if 'video_parts' in package}
+            if len(roots) != 1:
+                raise ValueError('video parts require one merged selected tree')
+            _copy_package_tree(Path(roots.pop()), staged_generation / 'core-video-parts')
+            _seal_package_tree(staged_generation / 'core-video-parts')
+            selection_stage = staged_selections / _VIDEO_SELECTION
+            selection_stage.write_bytes(video_raw)
+            selection_stage.chmod(0o444)
         staged_root.chmod(0o555)
         staged_generation.chmod(0o755)
         verify_package_outputs(staged_generation, normalized)
@@ -1325,8 +1464,9 @@ def publish_package_outputs(packages, built_selections, output):
         backup_created = True
         backup.chmod(0o755)
         _copy_package_outputs(output, backup)
-        if (backup / 'core-packages').exists():
-            _seal_package_tree(backup / 'core-packages')
+        for tree in _PACKAGE_TREES:
+            if (backup / tree).exists():
+                _seal_package_tree(backup / tree)
         for selection in _format2_selection_paths(backup):
             selection.chmod(0o444)
         manifest = _package_generation_manifest(backup)
@@ -1345,11 +1485,17 @@ def publish_package_outputs(packages, built_selections, output):
         _remove_package_outputs(output)
         staged_root.replace(old_root)
         old_root.chmod(0o555)
+        if video_raw is not None:
+            staged_video = staged_generation / 'core-video-parts'
+            staged_video.chmod(0o755)
+            staged_video.replace(output / 'core-video-parts')
+            (output / 'core-video-parts').chmod(0o555)
         for selection_name in expected_selection_names:
             (staged_selections / selection_name).replace(output / selection_name)
         names = []
         for package, recipe, identity in details:
             names.extend(package_output_names(package))
+        names.extend(video_output_names(packages))
         verify_package_outputs(output, normalized)
         _fsync_package_output(output)
         backup_complete = False
@@ -1397,11 +1543,28 @@ def locked_diagnostics(root, output, action):
             yield lock, diagnostics
 
 
-def resolve_selected_package(revisions, selection_path, env, force=False, recipe=None):
-    recipe_source = source_checkout("misteross", revisions["misteross"])
-    return core_bundle.resolve_core_package(
+def resolve_selected_package(revisions, selection_path, env, force=False, recipe=None, source=None):
+    recipe_source = source_checkout("misteross", revisions["misteross"]) if source is None else source
+    package = core_bundle.resolve_core_package(
         recipe_source, revisions["mister-packages"], selection_path,
         force=force, env=env, recipe=recipe)
+    recipe = recipe_for('fes.pong') if recipe is None else recipe
+    if recipe.video_profiles:
+        from factory_video_parts import resolve_video_parts, MissingVideoShell
+        destination = Path(selection_path).parent / 'resolved-video-parts' / package['inputs']['selection']['package_id']
+        try:
+            video = resolve_video_parts(recipe_source, package, destination, recipe=recipe, env=env)
+        except MissingVideoShell:
+            if force:
+                raise
+            package = core_bundle.resolve_core_package(
+                recipe_source, revisions['mister-packages'], selection_path,
+                force=True, env=env, recipe=recipe)
+            destination = Path(selection_path).parent / 'resolved-video-parts' / package['inputs']['selection']['package_id']
+            video = resolve_video_parts(recipe_source, package, destination, recipe=recipe, env=env)
+        package['video_parts'] = video
+        package['inputs']['video_parts'] = video['inputs']
+    return package
 
 
 def resolve_package_for_action(revisions, output, env, action, recipe):
@@ -1413,9 +1576,11 @@ def resolve_package_for_action(revisions, output, env, action, recipe):
 
 def resolve_packages_for_action(revisions, output, env, action, package_ids):
     """Resolve every selected format-2 recipe in profile order."""
-    return tuple(resolve_package_for_action(
+    packages = tuple(resolve_package_for_action(
         revisions, output, env, action, recipe_for(package_id))
         for package_id in package_ids)
+    prepare_video_selection(packages, Path(output) / 'selected-video-parts')
+    return packages
 
 
 def main():
@@ -1553,6 +1718,8 @@ def main():
                     recipe_for(package["inputs"]["selection"]["core_id"]).selection_filename:
                     built / recipe_for(package["inputs"]["selection"]["core_id"]).selection_filename
                     for package in packages}
+                if video_output_names(packages):
+                    built_selections[_VIDEO_SELECTION] = built / _VIDEO_SELECTION
                 names.extend(publish_package_state(
                     packages, built_selections if packages else None, output))
                 remove_stale_parent_outputs(output)

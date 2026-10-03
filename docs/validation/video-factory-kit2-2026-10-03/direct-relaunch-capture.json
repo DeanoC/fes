@@ -1,0 +1,119 @@
+{
+  "settle_seconds": 3,
+  "device": "ASUS 4KPRO",
+  "files": {
+    ".mkv": {
+      "sha256": "611109245609c6ef872ca2c6a0b7d0d69635ca4034d2215bb971a20806589ad5",
+      "size": 6706742
+    },
+    ".wav": {
+      "sha256": "84bb580f666b81a365fb5c14e95e63c0d2362c844b1d01becdc2a49248d9ff72",
+      "size": 1152394
+    },
+    ".png": {
+      "sha256": "577626efdf39a5c693b28f5214fd05a67d8eb82add0caaee715d1acd581663b3",
+      "size": 9345
+    }
+  },
+  "video": {
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "ffv1",
+        "codec_long_name": "FFmpeg video codec #1",
+        "codec_type": "video",
+        "codec_tag_string": "FFV1",
+        "codec_tag": "0x31564646",
+        "width": 1280,
+        "height": 720,
+        "coded_width": 1280,
+        "coded_height": 720,
+        "closed_captions": 0,
+        "film_grain": 0,
+        "has_b_frames": 0,
+        "pix_fmt": "yuv422p",
+        "level": -99,
+        "color_range": "tv",
+        "field_order": "progressive",
+        "refs": 1,
+        "r_frame_rate": "60/1",
+        "avg_frame_rate": "60/1",
+        "time_base": "1/1000",
+        "start_pts": 0,
+        "start_time": "0.000000",
+        "bits_per_raw_sample": "8",
+        "nb_read_frames": "180",
+        "extradata_size": 42,
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc61.19.101 ffv1",
+          "DURATION": "00:00:03.034000000"
+        }
+      }
+    ]
+  },
+  "audio": {
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "pcm_s16le",
+        "codec_long_name": "PCM signed 16-bit little-endian",
+        "codec_type": "audio",
+        "codec_tag_string": "[1][0][0][0]",
+        "codec_tag": "0x0001",
+        "sample_fmt": "s16",
+        "sample_rate": "48000",
+        "channels": 2,
+        "bits_per_sample": 16,
+        "initial_padding": 0,
+        "r_frame_rate": "0/0",
+        "avg_frame_rate": "0/0",
+        "time_base": "1/48000",
+        "duration_ts": 288079,
+        "duration": "6.001646",
+        "bit_rate": "1536000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ]
+  }
+}

@@ -155,6 +155,12 @@ validate_package_set() {
   done
 }
 validate_package_set
+if [ -n "${FES_VIDEO_PARTS_DIR:-}" ]; then
+  case "$FES_VIDEO_PARTS_DIR" in /*) : ;; *) echo 'native-extra-cores: video parts directory must be absolute' >&2; exit 2 ;; esac
+  [ -d "$FES_VIDEO_PARTS_DIR" ] && [ ! -L "$FES_VIDEO_PARTS_DIR" ] || {
+    echo 'native-extra-cores: video parts must be a non-symlink directory' >&2; exit 2;
+  }
+fi
 # Host preflight also calls this helper before entering the Linux container.
 action=${1:-validate}
 selector=${TARGET_IMAGE_LOCK_BIN:-}
@@ -178,6 +184,9 @@ esac
 cache=$2
 target=${3:-}
 package_cache=$cache/core-packages
+video_parts() {
+  TARGET_IMAGE_LOCK_BIN=$selector sh "$repo/scripts/native-video-parts.sh" "$1" "$cache" "$target"
+}
 package_record_path_for() {
   package_record_name_for "$1"
   package_record=$cache/$package_record_name
@@ -443,13 +452,16 @@ if [ "$native_mode" = package-only ]; then
           --package "$package_dir" --selection "$package_selection" \
           --cache "$cache" --output "$package_record"
       done
+      video_parts fetch
       verify_cached_packages
       ;;
     verify)
       verify_cached_packages
+      video_parts verify
       ;;
     install)
       verify_cached_packages
+      video_parts verify
       installed_root=$target/usr/share/mister-runtime/core-packages
       if [ -e "$installed_root" ] || [ -L "$installed_root" ]; then
         [ -d "$installed_root" ] && [ ! -L "$installed_root" ] || {
@@ -494,10 +506,12 @@ if [ "$native_mode" = package-only ]; then
       done
       ramtest_notices install
       validate_installed_package_set
+      video_parts install
       ;;
     verify-image)
       verify_cached_packages
       validate_installed_package_set
+      video_parts verify-image
       ;;
     build-inputs)
       verify_cached_packages >&2
@@ -509,6 +523,7 @@ if [ "$native_mode" = package-only ]; then
         "$selector" verify-package --core-id "$selected_id" \
           --package "$cached_package" --selection "$package_record" --print-inputs
       done
+      video_parts build-inputs
       ;;
     copy-records)
       validate_package_records
@@ -529,6 +544,7 @@ if [ "$native_mode" = package-only ]; then
             ;;
         esac
       done
+      video_parts copy-records
       for selected_id in $selected_packages; do
         package_record_path_for "$selected_id"
         package_core_for "$selected_id"

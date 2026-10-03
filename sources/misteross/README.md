@@ -37,9 +37,19 @@ SMS requires an exact 32768-byte cartridge input; SG-1000 requires an exact
 selected Mistral database, routed ROM placements and blank INIT bits. Other
 normal producers retain format 2. See [functional input identity](docs/architecture.md#functional-input-identity).
 
-The separate Coleco [video-parts development lane](docs/cores.md#video-parts-development-lane)
-links direct or scanline processing into a frozen pixel-clock socket. Its shared
-RTL contract is owned by [mister-packages](../mister-packages/docs/video-parts.md).
+Coleco [video parts](docs/cores.md#video-parts-development-lane) link direct or
+scanline processing into a frozen pixel-clock socket. A separate native-pixel
+prototype moves frame capture/scaling into a shared Direct/Scanlines consumer;
+`make sim-fes-native-video` and `make sim-fes-coleco-native` validate it on the
+host. `make synth-fes-native-video CACHE_ROOT=/absolute/cache` checks both
+native consumers with the locked compiler; it does not route or seal them.
+The native path has no sealed producer or hardware acceptance yet.
+The factory raster lane selects the existing producer's video-socket variant
+for the factory package and publishes both
+parts against that exact package. The standalone `make build-fes-coleco`
+command retains its CPU-only socket; `make build-fes-coleco-video` explicitly
+builds the video variant. The shared RTL contract is owned by
+[mister-packages](../mister-packages/docs/video-parts.md).
 
 The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
 `fes.sg1000`, `fes.spectrum` and `fes.ramtest`. Another

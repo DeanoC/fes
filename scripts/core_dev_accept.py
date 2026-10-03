@@ -13,6 +13,7 @@ import re
 import stat
 import sys
 import tomllib
+import tarfile
 from urllib.parse import urlsplit
 
 from core_dev import snapshot
@@ -104,7 +105,7 @@ def candidate_arguments(receipt_path, provenance=None):
         raise ValueError("prepared receipt exceeds its size bound")
     data = _object(json.loads(raw),
                    {"format", "core_id", "package_id", "archive", "sources", "selection"},
-                   {"library_media", "source_selection"})
+                   {"library_media", "source_selection", "video_parts"})
     if type(data["format"]) is not int or data["format"] not in (1, 2):
         raise ValueError("unsupported prepared receipt format")
     if (data["format"] == 2) != ("source_selection" in data):
@@ -116,6 +117,22 @@ def candidate_arguments(receipt_path, provenance=None):
         raise ValueError("invalid prepared source revisions")
     archive = _object(data["archive"], {"path", "sha256", "size"})
     archive_path = _file(path.parent, archive, "archive", 65 * 1024 * 1024, fixed="core.fcore")
+    if data['format'] == 2:
+        from recipes import recipe_for
+        if recipe_for(core).video_profiles:
+            try:
+                with tarfile.open(archive_path, 'r:') as package_archive:
+                    member = package_archive.getmember('manifest.toml')
+                    if not member.isfile() or not 0 < member.size <= 65536:
+                        raise ValueError('invalid prepared package manifest')
+                    with package_archive.extractfile(member) as stream:
+                        descriptor = tomllib.loads(stream.read(65537).decode('utf-8'))
+                marked = any(interface.get('id') == 'fes.fabric.video.raster-rgb888' and interface.get('major') == 1
+                             for interface in descriptor.get('interfaces', []))
+            except (tarfile.TarError, KeyError, OSError, UnicodeDecodeError) as error:
+                raise ValueError('invalid prepared package archive') from error
+            if marked and 'video_parts' not in data:
+                raise ValueError('prepared factory video shell requires its selected parts inventory')
     selection = _object(data["selection"], {"path", "sha256", "manifest_sha256", "payload_sha256"})
     for key in ("manifest_sha256", "payload_sha256"):
         if not isinstance(selection[key], str) or not re.fullmatch(r"[0-9a-f]{64}", selection[key]):
@@ -131,6 +148,17 @@ def candidate_arguments(receipt_path, provenance=None):
     if data["format"] == 2:
         source_selection(path.parent, data["source_selection"], sources,
                          {**selected, "path": selection["path"]}, package, selection["payload_sha256"])
+    if 'video_parts' in data:
+        if data['format'] != 2:
+            raise ValueError('video parts require a source-bound preparation')
+        from factory_video_parts import read_index
+        record = _object(data['video_parts'], {'path', 'sha256', 'size'})
+        filename = _file(path.parent, record, 'video parts selection', 65536,
+                         fixed='fes-core-video-parts.json')
+        inventory = read_index(path.parent / 'core-video-parts')
+        if (Path(filename).read_bytes() != (path.parent / 'core-video-parts/index.json').read_bytes()
+                or len(inventory['packages']) != 1 or inventory['packages'][0]['package_id'] != package):
+            raise ValueError('prepared video parts differ from selected package')
     result = ["--archive", archive_path, "--expected-archive-sha256", archive["sha256"],
               "--expected-package-id", package, "--expected-core-id", core]
     if "library_media" in data:
@@ -143,6 +171,8 @@ def candidate_arguments(receipt_path, provenance=None):
                           archive_sha256=archive["sha256"])
         if data["format"] == 2:
             provenance["source_selection_sha256"] = data["source_selection"]["sha256"]
+        if 'video_parts' in data:
+            provenance['video_parts'] = inventory['packages'][0]['parts']
     return result
 
 

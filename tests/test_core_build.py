@@ -58,6 +58,34 @@ def package_file_snapshot(output):
     return files
 
 
+def add_video_generation(root, packages, built, label):
+    package = packages[0]
+    package_id = package['inputs']['selection']['package_id']
+    directory = root / ('video-' + label)
+    shell = directory / package_id
+    shell.mkdir(parents=True)
+    parts = []
+    for profile in ('direct', 'scanlines'):
+        data = (label + '-' + profile).encode()
+        identity = hashlib.sha256(data).hexdigest()
+        relative = package_id + '/' + identity + '.tar'
+        (directory / relative).write_bytes(data)
+        parts.append(dict(profile=profile, part_id=identity, archive_path=relative,
+                          archive_sha256=identity, archive_size=len(data)))
+    index = dict(version=1, packages=[dict(package_id=package_id, parts=parts)])
+    encoded = (json.dumps(index, sort_keys=True, separators=(',', ':')) + '\n').encode()
+    (directory / 'index.json').write_bytes(encoded)
+    build._seal_package_tree(directory)
+    package['video_parts'] = dict(directory=directory, index_path=directory / 'index.json',
+                                 inputs=dict(index=index, index_sha256=hashlib.sha256(encoded).hexdigest()))
+    package['inputs']['video_parts'] = package['video_parts']['inputs']
+    build.prepare_video_selection(packages, root / ('merged-' + label))
+    external = root / ('external-' + label + '.json')
+    external.write_bytes(encoded)
+    built['fes-core-video-parts.json'] = external
+    return directory
+
+
 def write_complete_backup_fixture(output, package_id):
     backup = output / '.package-generation.previous'
     backup.mkdir()
@@ -92,6 +120,56 @@ def write_complete_backup_fixture(output, package_id):
 
 
 class CoreBuildTest(unittest.TestCase):
+    def test_video_generation_replacement_failure_restores_both_artifact_trees(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            old, old_built = make_package_generation(root, 'old-video', ('a' * 64,))
+            add_video_generation(root, old, old_built, 'old')
+            names = build.publish_package_outputs(old, old_built, output)
+            before = {name: (output / name).read_bytes() for name in names}
+            new, new_built = make_package_generation(root, 'new-video', ('b' * 64,))
+            add_video_generation(root, new, new_built, 'new')
+            original = Path.replace
+            failed = False
+
+            def fail_video_selection(path, destination):
+                nonlocal failed
+                result = original(path, destination)
+                if Path(destination) == output / 'fes-core-video-parts.json' and not failed:
+                    failed = True
+                    raise OSError('injected video selection replacement failure')
+                return result
+
+            with patch.object(Path, 'replace', fail_video_selection), self.assertRaisesRegex(OSError, 'injected'):
+                build.publish_package_outputs(new, new_built, output)
+            self.assertEqual(build.verify_package_outputs(output, old), names)
+            self.assertEqual({name: (output / name).read_bytes() for name in names}, before)
+            build.publish_package_outputs(new, new_built, output)
+            self.assertEqual(build.verify_package_outputs(output, new), build.package_output_names(new[0]) + build.video_output_names(new))
+
+    def test_video_files_and_selection_are_closed_and_removed_with_the_package_set(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            packages, built = make_package_generation(root, 'video', ('a' * 64,))
+            add_video_generation(root, packages, built, 'one')
+            build.publish_package_outputs(packages, built, output)
+            self.assertIn('FES_VIDEO_PARTS_DIR=', ' '.join(build.package_arguments(packages)))
+            archive = next((output / 'core-video-parts' / ('a' * 64)).glob('*.tar'))
+            archive.chmod(0o644)
+            archive.write_bytes(b'changed')
+            archive.chmod(0o444)
+            with self.assertRaisesRegex(ValueError, 'digest|size'):
+                build.verify_package_outputs(output, packages)
+            # A verified fresh publication repairs the incomplete old generation.
+            build.publish_package_outputs(packages, built, output)
+            build.publish_package_state(None, None, output)
+            self.assertFalse((output / 'core-video-parts').exists())
+            self.assertFalse((output / 'fes-core-video-parts.json').exists())
+
     def test_native_image_mode_is_package_only(self):
         root = Path(__file__).resolve().parents[1]
         integration = tomllib.loads(

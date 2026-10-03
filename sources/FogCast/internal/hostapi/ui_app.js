@@ -418,8 +418,8 @@
   }
 
   function regionLabel(region) {
-    const key = String(region || '').trim();
-    return DUMP_REGION_LABELS[key] || key;
+    const normalizedRegion = String(region || '').trim();
+    return DUMP_REGION_LABELS[normalizedRegion] || normalizedRegion;
   }
 
   function catalogRegion(title) {

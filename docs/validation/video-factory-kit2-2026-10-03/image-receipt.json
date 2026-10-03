@@ -1,0 +1,31 @@
+{
+  "fes_revision": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+  "files": {
+    "core-packages/06e74777111b46ff0a1cbb55a56ed2a3ea0066f2ce168bab9c91ea776a32f5a7/core.rbf": "cc4ea668af10f837becdaec491a437a18e81d7c11314fe0a34cac60c851db028",
+    "core-packages/06e74777111b46ff0a1cbb55a56ed2a3ea0066f2ce168bab9c91ea776a32f5a7/manifest.toml": "935ad0311318f790f4788a571c186f262e47d64b7b659a3de32af012a3fa2c37",
+    "core-packages/410069366c6eb42491a232262e5932d78224d221071ed46561249e3ecaeae8ce/core.rbf": "64976a84c7782f962b3eb3bfdccc80271cac93784952d9f4e8c98ca4433ab89d",
+    "core-packages/410069366c6eb42491a232262e5932d78224d221071ed46561249e3ecaeae8ce/manifest.toml": "214ac228e12195415c8905cf9184b08480d8c30ef8668af663fb8797b01c8871",
+    "core-packages/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/core.rbf": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27",
+    "core-packages/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/manifest.toml": "574aea0435869804c5b17e2a294b3a875f400c7250770cd437659a896924b843",
+    "core-packages/722762f192f56ca1d01bdaf5a7a6e5af2399ee16fefb1d1066bd9706b8847380/core.rbf": "00aa6a98ddb301815110438073268c4873c297d4f1706ecb30ddf005151af555",
+    "core-packages/722762f192f56ca1d01bdaf5a7a6e5af2399ee16fefb1d1066bd9706b8847380/manifest.toml": "bb34b89d098edd22f4ac9ab435ad2089e21f1152c5ddeab28e0cc32ec8a9a4e4",
+    "core-packages/ddb7c9182b0406ffb85ef1ec8bd0fcfeeccb0c17723c1a568d2e18e4cc1ea0d4/core.rbf": "1a867aa3bbbce49fdfdf210be42999b0a21fa89d209ea6ad58bf8c0ca37abe38",
+    "core-packages/ddb7c9182b0406ffb85ef1ec8bd0fcfeeccb0c17723c1a568d2e18e4cc1ea0d4/manifest.toml": "8cfda5574ed2824ce1d206ae75d86aee5b1aa888d55a8ccf030dc121ae5fcbb0",
+    "core-packages/ddb7c9182b0406ffb85ef1ec8bd0fcfeeccb0c17723c1a568d2e18e4cc1ea0d4/rom-map.json": "79b7adca4641e2b1973b7c6724783b3f3935fe0b33ff198e5c3f0020be571e77",
+    "core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4.tar": "79d1742fadbe9c0bc4c04cf80693b158ffc0d7f5e768144277d1939ccc7e1fb8",
+    "core-video-parts/6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1/e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382.tar": "70c95e146ec934241ce576454bf4190a7ffd8de8cc18a46ad38e4527df4f3c02",
+    "core-video-parts/index.json": "f01ef1cfce3203355af3469300eefa4cbdb4c27780a32e951b6d0ad7d2164247",
+    "fes-coleco.package-selection.toml": "d697d12f305ebc58cab40de36088b2b2d19fbe5666cda4eb149238ebdd172ee4",
+    "fes-core-video-parts.json": "f01ef1cfce3203355af3469300eefa4cbdb4c27780a32e951b6d0ad7d2164247",
+    "fes-menu.package-selection.toml": "3f7ef2766039de95b14e8e54813d569e5c6b5e1ba7a0fade03b10b6267905bf6",
+    "fes-pong.package-selection.toml": "28936d9c10f1a526e0fc35025562ce0f6a18b4dca5a46560546304da7d780728",
+    "fes-ramtest.package-selection.toml": "72aa9df28ac86178e968da2c8b688ea1f023533d6ce2b169a0231d16351caeee",
+    "fes-zx81.package-selection.toml": "0fbe8b26b24a69477db891d51043fb576e825d9525eaeb3770dcd69a83a502c6",
+    "inputs.json": "4b38b381f80814aec204c510fa6d2e1f6bb611f17cbd4181a3c6762bf7c767b6",
+    "library-report.tsv": "85b3ddf6aebd25a58a8ea736d081e028fd7bdab35a4567be67f01a07848dd926",
+    "linux.img": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+    "manifest.tsv": "ec229510ba151c435b8634a358cdd4fab1245ac0f6aa0f3ac54d910d5b1877dd",
+    "reproducibility.txt": "bd78f0d9a8bd7463e6c9b0cc4e64bb4def717bea65bdd86e2e12bf99ba58f15e"
+  },
+  "inputs": "fb942123c3f601f4157d49fc505cac813e5062ed32e0186d1aad1e9d52fad8b0"
+}

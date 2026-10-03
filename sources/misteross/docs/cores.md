@@ -19,15 +19,16 @@ they were written. They are not the schedule for this tree.
 Parent recipe rows live in FES `config/core-recipes.toml`. The factory image
 installs the idle display `fes.menu`, playable `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000` and `fes.spectrum`, and the OSS 100 MHz
-`fes.ramtest` utility. A producer in this
-module does not put a package on that image.
+`fes.ramtest` utility: eight packages. `fes.coleco` is the video-socket
+shell, and the image also carries its sealed Direct and Scanlines video parts.
+A producer in this module does not put a package on that image.
 
 | Package | Tree | Mailbox | Lock | OSS seal | In factory image |
 | --- | --- | --- | --- | --- | --- |
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchains/ramtest.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
-| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco` | yes; optional Coleco bus 2.0 socket |
+| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco-video` (FES selects the video variant) | yes; optional Coleco bus 2.0 and RGB888 video sockets; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/fes-sms.lock` | `make build-fes-sms` | yes |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | yes |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
@@ -54,10 +55,26 @@ probe and does not seal.
 
 ## Video-parts development lane
 
-The first slice is a separate Coleco shell with a fixed 720p60 RGB888
+The native-pixel follow-on is a host simulation prototype. Run
+`make sim-fes-native-video` for Direct/Scanlines, complete-frame publication
+and unrelated-clock transport, and `make sim-fes-coleco-native` for the actual
+registered VDP source at its fractional raster cadence. Its optional
+`FES_COLECO_NATIVE_VIDEO_DEV` top branch moves capture/scaling into the native
+consumer inline; it has no sealed part/package producer or hardware acceptance.
+See [the architecture](architecture.md#video-parts) for that boundary and the
+new native contract. `make synth-fes-native-video CACHE_ROOT=/absolute/cache`
+checks Direct and Scanlines RAM mapping with the locked compiler and writes
+diagnostics beneath `build/synth/fes-native-video/`; it accepts working-tree
+sources and does not route, seal or program them. Use the commands below for
+the current sealed raster lane.
+
+The first slice is a Coleco shell with a fixed 720p60 RGB888
 pixel-clock interface. Choose a direct part or a simple scanline part;
 an independently built Coleco bus 2.0 expansion can share the same frozen
-shell. The factory producer and image selection retain their existing path.
+shell. FES's factory recipe selects the video-socket variant of
+`build_fes_coleco_socket_v2.py` and builds both parts with the existing
+`build_video_part.py`. The standalone `make build-fes-coleco` default still
+builds the CPU-only socket.
 The [fabric contract](../../mister-packages/docs/video-parts.md) describes
 the public RTL ports; [the architecture](architecture.md#video-parts)
 describes physical containment and composition.
@@ -81,13 +98,23 @@ that directory also contains timing, clock and CRAM containment evidence.
 Both parts bind the exact base package. Rebuilding the shell requires
 rebuilding its parts and any selected CPU expansion.
 
+FES keeps authenticated frozen shell and part evidence in its host cache,
+separate from the ordinary core-package cache. Its exported
+`core-video-parts/index.json` binds the exact package ID, profile, part ID,
+archive path, size and digest. The installed tree contains only that index
+and the two sealed archives per selected shell. A cache hit rechecks the
+current source/tool/execution recipe, timing, clock ownership and actual RBF
+containment; older source revisions are retained as original provenance.
+
 For offline composition, run `expansion/cmd/fes-parts-link` with `-shell`,
 `-package-id`, `-build-id`, `-video`, optional `-expansion`, and `-output`.
 For a contained developer transfer, FogCast's `cmd/fes-parts` packages the
 base and selected parts for the target's parts inspect/load routes. See
 [FogCast development](../../FogCast/docs/DEVELOPMENT.md). An inspect does
 not program hardware; a load follows the existing designated-kit lease and
-physical lifecycle. This lane has no library selection UI or audio parts.
+physical lifecycle. FogCast's library video preference selects the installed
+direct or scanline part for its exact package and can combine it with a matching
+CPU expansion. Audio follows the shell's existing machine path.
 
 ## Three results you must not collapse
 

@@ -33,6 +33,14 @@ class AffectedTests(unittest.TestCase):
 
     def test_core_families_include_cross_core_consumers(self):
         cases = {
+            'cores/fes-common/rtl/coleco_native_video.v': {'coleco'},
+            'cores/fes-common/rtl/fes_native_cdc.v': {'coleco'},
+            'cores/fes-common/rtl/fes_native_video.v': {'coleco'},
+            'cores/fes-common/sim/native_video_top.v': {'coleco'},
+            'cores/fes-common/sim/native_video_tb.cpp': {'coleco'},
+            'cores/fes-common/generated/fes_native_video.vh': {'coleco'},
+            'scripts/sim_fes_native_video.py': {'coleco'},
+            'scripts/sim_fes_coleco_native.py': {'coleco'},
             'cores/fes-common/rtl/coleco_vdp.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},

@@ -47,7 +47,7 @@ make host
 ```
 
 `make check` verifies clean selected modules, package YAML,
-sixteen generated consumers and thirty-three shared fixture copies. It needs Go,
+eighteen generated consumers and thirty-three shared fixture copies. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
 when preparing for container/image builds. See [getting started](docs/getting-started.md)
 for Git authentication and a minimal host configuration.
@@ -81,6 +81,13 @@ package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
 missing, extra or misidentified packages. The FES image has no legacy bundle
 lane.
+
+The Coleco factory recipe selects its pixel-domain video shell and builds
+matching Direct and Scanlines parts. A separate sealed `core-video-parts/`
+tree retains the archives and exact-shell inventory; `fes-core-video-parts.json`
+binds that inventory in development and cold image receipts. The normal core
+catalog Install operation admits the published companions into the host library,
+so the household video preference applies to the next Play.
 
 The normal package-only build uses the authenticated HIP/nextpnr producers and
 their shared compiler cache beneath the primary FES checkout’s `out/cache`

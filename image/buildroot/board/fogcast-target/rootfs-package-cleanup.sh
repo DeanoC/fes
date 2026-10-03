@@ -86,7 +86,38 @@ done
 
 # Unlink permission belongs to directories. Keep manifest and RBF at 0444 so
 # the filesystem image and the copied tree retain the same sealed file modes.
+video_root=$target/usr/share/mister-runtime/core-video-parts
+video_ids=
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in
+    factory_video_*_package_id=*)
+      identity=${line#*=}
+      [ "${#identity}" -eq 64 ] || exit 1
+      case "$identity" in *[!0-9a-f]*) exit 1 ;; esac
+      case " $video_ids " in *" $identity "*) : ;; *) video_ids="$video_ids $identity" ;; esac
+      ;;
+  esac
+done < "$build_inputs"
+if [ -e "$video_root" ] || [ -L "$video_root" ]; then
+  [ -n "$video_ids" ] && [ -d "$video_root" ] && [ ! -L "$video_root" ] || {
+    echo 'rootfs-package-cleanup: video tree differs from selected identity' >&2; exit 1;
+  }
+  [ -f "$video_root/index.json" ] && [ ! -L "$video_root/index.json" ] || exit 1
+  video_count=1
+  for identity in $video_ids; do
+    [ -d "$video_root/$identity" ] && [ ! -L "$video_root/$identity" ] || exit 1
+    video_count=$((video_count + 1))
+  done
+  [ "$(find -P "$video_root" -type d | wc -l | tr -d ' ')" -eq "$video_count" ] || exit 1
+  [ "$(find -P "$video_root" -type l | wc -l | tr -d ' ')" -eq 0 ] || exit 1
+elif [ -n "$video_ids" ]; then
+  echo 'rootfs-package-cleanup: selected video tree is missing' >&2; exit 1
+fi
 for identity in $identities; do
   chmod u+w "$root/$identity"
 done
 chmod u+w "$root"
+if [ -n "$video_ids" ]; then
+  for identity in $video_ids; do chmod u+w "$video_root/$identity"; done
+  chmod u+w "$video_root"
+fi

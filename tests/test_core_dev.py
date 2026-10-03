@@ -56,7 +56,7 @@ class PrepareTest(unittest.TestCase):
         self.addCleanup(p.stop)
         return p.start()
 
-    def resolver(self, source, revision, selection, *, recipe):
+    def resolver(self, source, revision, selection, *, recipe, force=False, env=None):
         self.assertEqual(source, self.source)
         self.assertEqual(revision, self.pins["mister-packages"])
         self.assertEqual(recipe, core_dev.recipes.recipe_for(self.identity["core_id"]))

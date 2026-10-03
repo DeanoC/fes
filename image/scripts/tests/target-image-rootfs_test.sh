@@ -28,7 +28,7 @@ fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-target-image-rootfs.XXXXXX")
 trap 'chmod -R u+rwX "$fixture" 2>/dev/null || true; rm -rf "$fixture"' EXIT INT TERM
 
 target=$fixture/target
-mkdir -p "$target/usr/sbin" "$target/etc/init.d"
+mkdir -p "$target/usr/sbin" "$target/etc/init.d" "$target/root"
 cp -R "$native_rootfs/." "$target/"
 printf '%s\n' runtime >"$target/usr/sbin/mister-runtime"
 printf '%s\n' agent >"$target/usr/sbin/mister-agent"
@@ -111,9 +111,10 @@ selection=
 cache=
 output=
 print_inputs=0
+expected_core=
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --package|--selection|--cache|--output)
+    --package|--selection|--cache|--output|--core-id)
       key=$1
       value=$2
       shift 2
@@ -122,6 +123,7 @@ while [ "$#" -gt 0 ]; do
         --selection) selection=$value ;;
         --cache) cache=$value ;;
         --output) output=$value ;;
+        --core-id) expected_core=$value ;;
       esac
       ;;
     --print-inputs) print_inputs=1; shift ;;
@@ -133,6 +135,7 @@ read_value() {
     '$1 ~ "^[[:space:]]*" wanted "[[:space:]]*=" { print $2; exit }' "$selection"
 }
 case "$command" in
+  verify-video-coverage) : ;;
   select-package)
     package_id=$(read_value package_id)
     core_id=$(read_value core_id)
@@ -153,7 +156,11 @@ case "$command" in
     test -d "$package"
     test "$(basename "$package")" = "$package_id"
     test -f "$selection"
+    test "$expected_core" = "$core_id"
     grep -Fqx "core_id = '$core_id'" "$selection"
+    if [ -n "${SELECTOR_LOG:-}" ]; then
+      printf '%s %s %s\n' "$core_id" "$package" "$selection" >>"$SELECTOR_LOG"
+    fi
     if [ "$print_inputs" -eq 1 ]; then
       printf '%s_package_id=%s\n' "$core_id" "$package_id"
     fi
@@ -167,8 +174,8 @@ package_fixture() {
   package_core=$1
   package_letter=$2
   package_id=$(printf '%064d' 0 | tr '0' "$package_letter")
-  package_dir=$fixture/$package_core-package
-  package_selection=$fixture/$package_core.package-selection.toml
+  package_dir=$fixture/$package_core-$package_letter-package
+  package_selection=$fixture/$package_core-$package_letter.package-selection.toml
   mkdir "$package_dir"
   printf "core_id = 'fes.%s'\npackage_id = '%s'\n" \
     "$package_core" "$package_id" >"$package_dir/manifest.toml"
@@ -307,6 +314,114 @@ grep -Fq 'fes.ramtest_package_id=' \
 NATIVE_RUNTIME_MODE=package-only \
   TARGET_IMAGE_LOCK_BIN="$selector" \
   "$native_extra" verify-image "$cache" "$target"
+
+# Reuse the completed target while selecting a newer RAM Tester. Preparation
+# must validate the old installed package/record and notice, then replace stale
+# launchers before its unchanged whole-tree secret scan. Post-build installs
+# the new package and refreshes its source notice only after preparation.
+old_ramtest_id=$(printf '%064d' 0 | tr 0 e)
+old_notice=$target/usr/share/mister-runtime/core-notices/fes.ramtest/$old_ramtest_id/SOURCE.md
+package_fixture ramtest 3
+new_ramtest_id=$(printf '%064d' 0 | tr 0 3)
+new_manifest=$FES_RAMTEST_PACKAGE_DIR/manifest.toml
+chmod u+w "$FES_RAMTEST_PACKAGE_DIR" "$new_manifest"
+sed 's/1111111111111111111111111111111111111111/2222222222222222222222222222222222222222/' \
+  "$new_manifest" >"$fixture/new-manifest"
+cat "$fixture/new-manifest" >"$new_manifest"
+chmod 0444 "$new_manifest"
+chmod 0555 "$FES_RAMTEST_PACKAGE_DIR"
+warm_cache=$fixture/warm-cache
+mkdir "$warm_cache"
+cp "$idle" "$warm_cache/idle.rbf"
+chmod 0444 "$warm_cache/idle.rbf"
+NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" \
+  "$native_extra" fetch "$warm_cache"
+
+prepare=$repo/buildroot/board/fogcast-target/prepare-native-rootfs.sh
+prepare_reject() {
+  reason=$1
+  if TARGET_IMAGE_LOCK_BIN="$selector" "$prepare" "$target" >"$fixture/prepare-reject.log" 2>&1; then
+    echo "warm native preparation accepted $reason" >&2
+    exit 1
+  fi
+}
+stale_launchers() {
+  printf '%s\n' 'const token = ++epoch;' >"$target/usr/sbin/fogcast-kit"
+  printf '%s\n' 'const token = String(region);' >"$target/usr/sbin/fogcast-tenfoot"
+}
+stale_launchers
+if "$repo/scripts/scan-target-image-secrets.sh" "$target" >"$fixture/stale-scan.log" 2>&1; then
+  echo 'stale launcher fixture did not trigger the unchanged secret scan' >&2
+  exit 1
+fi
+
+cp "$old_notice" "$fixture/old-source"
+chmod u+w "$old_notice"
+printf '%s\n' 'wrong notice' >"$old_notice"
+chmod 0444 "$old_notice"
+prepare_reject 'changed source notice'
+grep -Fq 'RAM Tester notice missing, changed or unsealed' "$fixture/prepare-reject.log"
+grep -Fqx 'const token = ++epoch;' "$target/usr/sbin/fogcast-kit"
+chmod u+w "$old_notice"
+cat "$fixture/old-source" >"$old_notice"
+chmod 0444 "$old_notice"
+
+printf '%s\n' extra >"$(dirname "$old_notice")/EXTRA.md"
+prepare_reject 'extra notice Markdown'
+grep -Fq 'RAM Tester notices members differ' "$fixture/prepare-reject.log"
+rm "$(dirname "$old_notice")/EXTRA.md"
+printf '%s\n' extra >"$target/usr/share/EXTRA.md"
+prepare_reject 'unrelated Markdown'
+grep -Fq 'ROM, archive, database, staging, cache, or runtime configuration payload found' "$fixture/prepare-reject.log"
+rm "$target/usr/share/EXTRA.md"
+
+old_record=$target/usr/share/mister-runtime/selections/fes-ramtest.package.toml
+cp "$old_record" "$fixture/old-record"
+chmod u+w "$old_record"
+sed "s/$old_ramtest_id/$new_ramtest_id/" "$fixture/old-record" >"$old_record"
+chmod 0444 "$old_record"
+prepare_reject 'a retained record for a different package'
+chmod u+w "$old_record"
+cat "$fixture/old-record" >"$old_record"
+chmod 0444 "$old_record"
+
+mv "$fogcast/bin/fogcast-kit-linux-armv7" "$fixture/selected-kit"
+ln -s "$fixture/selected-kit" "$fogcast/bin/fogcast-kit-linux-armv7"
+prepare_reject 'a symlinked selected launcher'
+grep -Fq 'run make build-fogcast-kit' "$fixture/prepare-reject.log"
+rm "$fogcast/bin/fogcast-kit-linux-armv7"
+mv "$fixture/selected-kit" "$fogcast/bin/fogcast-kit-linux-armv7"
+chmod 0644 "$fogcast/bin/fogcast-tenfoot-linux-armv7"
+prepare_reject 'a non-executable selected tenfoot launcher'
+grep -Fq 'run make build-fogcast-tenfoot-kit' "$fixture/prepare-reject.log"
+chmod 0755 "$fogcast/bin/fogcast-tenfoot-linux-armv7"
+
+stale_launchers
+SELECTOR_LOG=$fixture/retained-selector.log TARGET_IMAGE_LOCK_BIN="$selector" \
+  "$prepare" "$target"
+grep -Fqx "fes.ramtest $target/usr/share/mister-runtime/core-packages/$old_ramtest_id $old_record" \
+  "$fixture/retained-selector.log"
+cmp "$fogcast/bin/fogcast-kit-linux-armv7" "$target/usr/sbin/fogcast-kit"
+cmp "$fogcast/bin/fogcast-tenfoot-linux-armv7" "$target/usr/sbin/fogcast-tenfoot"
+test "$(stat -c %a "$target/usr/sbin/fogcast-kit")" = 755
+test "$(stat -c %a "$target/usr/sbin/fogcast-tenfoot")" = 755
+cmp "$fixture/old-source" "$old_notice"
+# Exercise the normal container selector basename without an override too.
+case "$(uname -s)" in
+  Darwin) default_selector=$fogcast/bin/target-image-lock ;;
+  *) default_selector=$fogcast/bin/target-image-lock-linux-amd64 ;;
+esac
+cp "$selector" "$default_selector"
+"$prepare" "$target"
+NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" \
+  NATIVE_RUNTIME_INPUT_LOCK="$lock" NATIVE_RUNTIME_IDLE_FILE="$warm_cache/idle.rbf" \
+  "$native_post_build" "$target"
+test ! -e "$old_notice"
+new_notice=$target/usr/share/mister-runtime/core-notices/fes.ramtest/$new_ramtest_id/SOURCE.md
+grep -Fqx 'Exact producing commit: 2222222222222222222222222222222222222222' "$new_notice"
+NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" \
+  "$native_extra" verify-image "$warm_cache" "$target"
+TARGET_IMAGE_LOCK_BIN="$selector" "$prepare" "$target"
 
 if NATIVE_RUNTIME_MODE=format1 \
   TARGET_IMAGE_LOCK_BIN="$selector" \

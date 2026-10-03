@@ -1,0 +1,625 @@
+{
+  "all_checks_passed": true,
+  "alternate_period4_model": {
+    "bright_rows_mae_rgb": [
+      17.370279947916668,
+      25.986490885416668,
+      12.422648111979166
+    ],
+    "bright_rows_max_rgb_delta": [
+      101,
+      114,
+      78
+    ],
+    "dim_rows_half_brightness_mae_rgb": [
+      17.365590413411457,
+      26.098429361979168,
+      12.417958577473959
+    ],
+    "dim_rows_max_model_error_rgb": [
+      99.5,
+      112.5,
+      77.0
+    ],
+    "line_height_hdmi_pixels": 2
+  },
+  "analysis": {
+    "path": "out/video-factory-build/independent-analysis/results/video-factory-kit2-20261003/analysis.json",
+    "sha256": "f7464f31da71bfb5f5b59f1080bbea80db2963e7733877e1a53ba042484af8cc",
+    "size": 219561
+  },
+  "analyzer_and_media_tools": {
+    "analysis_tools": {
+      "analyze_factory.py": "6ba4bc191b6712c6a9e103daf121365c49c3b9a2791d388bff6df8a275231ed6",
+      "factory_capture_grid.py": "f97e873564502bb87ed4da6b23fcc224a83d0d0c2a4a0e00a761e78a0edbead1",
+      "factory_capture_support.py": "de3789c357b5647c5d4f5f22c78a8841511ae34c8d7e688c2e2ec4de4a3b8bd5"
+    },
+    "media_tools": {
+      "ffmpeg": {
+        "path": "/usr/bin/ffmpeg",
+        "sha256": "e8a8d46f5225f3062cec7c07fb145d58ae73c603cb740dcd5bad34bfb54e455a",
+        "version": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers"
+      },
+      "ffprobe": {
+        "path": "/usr/bin/ffprobe",
+        "sha256": "cefc5f81c0b18429cdbf8fa5a89e1e9c759235e10f93f9b329ff1b2fdff26f46",
+        "version": "ffprobe version 7.1.5-0+deb13u1 Copyright (c) 2007-2026 the FFmpeg developers"
+      }
+    }
+  },
+  "cases": [
+    {
+      "audio": {
+        "captured_duration_seconds": 6.003166666666667,
+        "captured_frames": 288152,
+        "comparison_to_direct": {
+          "ac_rms_ratio_to_direct": [
+            1.0,
+            1.0
+          ],
+          "measured_frequency_delta_hz": [
+            0.0,
+            0.0
+          ]
+        },
+        "settled_ac_rms_s16": [
+          7593.417576953262,
+          7593.4186090947815
+        ],
+        "settled_clipped_samples": [
+          0,
+          0
+        ],
+        "settled_each_second_measured_sn_hz": [
+          [
+            216.79176255329864,
+            216.79158117806668,
+            216.79139017109514
+          ],
+          [
+            216.7917632469507,
+            216.7915802850951,
+            216.7913896972488
+          ]
+        ],
+        "settled_measured_sn_hz": [
+          216.79155505682098,
+          216.7915547293025
+        ],
+        "settled_min_max_s16": [
+          [
+            -9956,
+            9621
+          ],
+          [
+            -9779,
+            9798
+          ]
+        ],
+        "settled_sn_snr_over_median_bin_db": [
+          83.65415404026216,
+          83.65164823149065
+        ],
+        "settled_window": {
+          "duration_seconds": 3.0,
+          "start_seconds": 2.5
+        },
+        "stereo": {
+          "difference_ac_rms_s16": 0.47412913589021294,
+          "pearson_correlation": 0.9999999980506644,
+          "rms_balance_right_over_left": 1.000000135925821
+        }
+      },
+      "capture_files": {
+        ".mkv": {
+          "path": "out/hardware/video-factory-kit2-20261003/direct.mkv",
+          "sha256": "dcd68624507bd5d084b6d92411ae966e656ff1abd705715d82b5ad97d2e50170",
+          "size": 6668883
+        },
+        ".png": {
+          "path": "out/hardware/video-factory-kit2-20261003/direct.png",
+          "sha256": "577626efdf39a5c693b28f5214fd05a67d8eb82add0caaee715d1acd581663b3",
+          "size": 9345
+        },
+        ".wav": {
+          "path": "out/hardware/video-factory-kit2-20261003/direct.wav",
+          "sha256": "2c5ec2f501b418fc8e219ffce6f9759050154717748c4fb1ca9d07dbf0761f45",
+          "size": 1152686
+        }
+      },
+      "capture_receipt": {
+        "path": "out/hardware/video-factory-kit2-20261003/direct-capture.json",
+        "sha256": "ad095a726a202c899f3f912778c52038b3d371efb6cef1a7412c5a5398cf399c",
+        "size": 3102
+      },
+      "case": "direct",
+      "composition": {
+        "composition_id": "0d268a60f937274f0210932aa8d23c2d8c6f08ba240ca35e8e6723142a723c05",
+        "layout": "fes.coleco-video.parts/1",
+        "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+        "parts": [
+          {
+            "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "85b87829a3681c7e2a74d63bbaf9edfe2aa37d677d5891fa345c68a153832cf8",
+        "payload_size": 2834242,
+        "shell_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27"
+      },
+      "generation": 2,
+      "runtime_receipt": {
+        "path": "out/hardware/video-factory-kit2-20261003/direct.json",
+        "sha256": "133b24be4ec6f77d340cc616c543933a38fc6f0f64748fbc7488d12bd1a49753",
+        "size": 5366
+      },
+      "video": {
+        "acquisition_intervals_over25ms": [
+          {
+            "at_acquisition_boundary": true,
+            "from_frame": 2,
+            "seconds": 0.05,
+            "to_frame": 3
+          }
+        ],
+        "decoded_frames": 180,
+        "fixed_viewport_exclusive": [
+          384,
+          168,
+          896,
+          552
+        ],
+        "full_frame_luma_samples_per_unique_variant": 921600,
+        "green_border_odd_over_even_luma_ratio": 1.0,
+        "later_bad_luma_frames": [],
+        "later_bad_rgb_frames": [],
+        "leading_black_acquisition_frames": 3,
+        "native_raster": [
+          256,
+          192
+        ],
+        "native_scale": [
+          2,
+          2
+        ],
+        "settled_frames": 177,
+        "settled_interval_seconds": [
+          0.01599999999999996,
+          0.017000000000000348
+        ],
+        "settled_max_luma_error": 1,
+        "settled_max_rgb_difference_from_reference": [
+          1,
+          1,
+          1
+        ],
+        "settled_outer_black_max_luma_error": 0.0,
+        "settled_unique_rgb_variants": 4
+      }
+    },
+    {
+      "audio": {
+        "captured_duration_seconds": 6.001604166666667,
+        "captured_frames": 288077,
+        "comparison_to_direct": {
+          "ac_rms_ratio_to_direct": [
+            0.9999982286570019,
+            0.9999981047362767
+          ],
+          "measured_frequency_delta_hz": [
+            -0.0001397409687626805,
+            -0.0001391300117177252
+          ]
+        },
+        "settled_ac_rms_s16": [
+          7593.404126406206,
+          7593.404217563956
+        ],
+        "settled_clipped_samples": [
+          0,
+          0
+        ],
+        "settled_each_second_measured_sn_hz": [
+          [
+            216.79147495970665,
+            216.79137311368646,
+            216.79142440029443
+          ],
+          [
+            216.79147501707465,
+            216.7913743131206,
+            216.79142424383875
+          ]
+        ],
+        "settled_measured_sn_hz": [
+          216.79141531585222,
+          216.7914155992908
+        ],
+        "settled_min_max_s16": [
+          [
+            -9958,
+            9620
+          ],
+          [
+            -9780,
+            9797
+          ]
+        ],
+        "settled_sn_snr_over_median_bin_db": [
+          89.13197823779628,
+          89.12611875872807
+        ],
+        "settled_window": {
+          "duration_seconds": 3.0,
+          "start_seconds": 2.5
+        },
+        "stereo": {
+          "difference_ac_rms_s16": 0.47525492164504674,
+          "pearson_correlation": 0.9999999980413801,
+          "rms_balance_right_over_left": 1.0000000120048596
+        }
+      },
+      "capture_files": {
+        ".mkv": {
+          "path": "out/hardware/video-factory-kit2-20261003/scanlines.mkv",
+          "sha256": "1e1d6490bab6add23bc224e669e648809e1fb295204a1ccbd80175831333afb6",
+          "size": 15822299
+        },
+        ".png": {
+          "path": "out/hardware/video-factory-kit2-20261003/scanlines.png",
+          "sha256": "1ce459f8e69941c26d534912f697304ab76eee6f659a8f5a830c55f51c71cd5f",
+          "size": 9616
+        },
+        ".wav": {
+          "path": "out/hardware/video-factory-kit2-20261003/scanlines.wav",
+          "sha256": "64b311aa2e5a105df85a9edf945a04d64cb8b63cd83733beb67f74384ea4bfd6",
+          "size": 1152386
+        }
+      },
+      "capture_receipt": {
+        "path": "out/hardware/video-factory-kit2-20261003/scanlines-capture.json",
+        "sha256": "d1c7dfb65f669c846cf9a681e4244b6d5baebb635aaa843c43813a7da85ccacb",
+        "size": 3103
+      },
+      "case": "scanlines",
+      "composition": {
+        "composition_id": "ad26bfe9cb372aa3c45c67499b884fac1c895e694f7977cd3fa143d1b38043a1",
+        "layout": "fes.coleco-video.parts/1",
+        "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+        "parts": [
+          {
+            "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "dccdf4b4999db0b96a2fcfa0773408da2d720e2ec4e7b1836b3732378b5ef9cc",
+        "payload_size": 2834949,
+        "shell_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27"
+      },
+      "generation": 3,
+      "runtime_receipt": {
+        "path": "out/hardware/video-factory-kit2-20261003/scanlines.json",
+        "sha256": "ef6a4d8aa977371ca7c622a06bc17db2175ddd6d85acd9cdbcab4c252d643e47",
+        "size": 5372
+      },
+      "video": {
+        "acquisition_intervals_over25ms": [
+          {
+            "at_acquisition_boundary": true,
+            "from_frame": 2,
+            "seconds": 0.05,
+            "to_frame": 3
+          }
+        ],
+        "decoded_frames": 180,
+        "fixed_viewport_exclusive": [
+          384,
+          168,
+          896,
+          552
+        ],
+        "full_frame_luma_samples_per_unique_variant": 921600,
+        "green_border_odd_over_even_luma_ratio": 0.4914514717146296,
+        "later_bad_luma_frames": [],
+        "later_bad_rgb_frames": [],
+        "leading_black_acquisition_frames": 3,
+        "native_raster": [
+          256,
+          192
+        ],
+        "native_scale": [
+          2,
+          2
+        ],
+        "settled_frames": 177,
+        "settled_interval_seconds": [
+          0.01599999999999996,
+          0.017000000000000348
+        ],
+        "settled_max_luma_error": 1,
+        "settled_max_rgb_difference_from_reference": [
+          1,
+          1,
+          1
+        ],
+        "settled_outer_black_max_luma_error": 0.0,
+        "settled_unique_rgb_variants": 4
+      }
+    },
+    {
+      "audio": {
+        "captured_duration_seconds": 6.001645833333333,
+        "captured_frames": 288079,
+        "comparison_to_direct": {
+          "ac_rms_ratio_to_direct": [
+            0.9999974199951412,
+            0.9999972219708839
+          ],
+          "measured_frequency_delta_hz": [
+            -0.00021873736361044394,
+            -0.00021875077061395132
+          ]
+        },
+        "settled_ac_rms_s16": [
+          7593.397985899019,
+          7593.397514356795
+        ],
+        "settled_clipped_samples": [
+          0,
+          0
+        ],
+        "settled_each_second_measured_sn_hz": [
+          [
+            216.79141594937076,
+            216.79130668690908,
+            216.7913844452361
+          ],
+          [
+            216.7914167334314,
+            216.79130599167175,
+            216.79138453503137
+          ]
+        ],
+        "settled_measured_sn_hz": [
+          216.79133631945737,
+          216.7913359785319
+        ],
+        "settled_min_max_s16": [
+          [
+            -9960,
+            9620
+          ],
+          [
+            -9782,
+            9798
+          ]
+        ],
+        "settled_sn_snr_over_median_bin_db": [
+          93.33067285962906,
+          93.34377047180693
+        ],
+        "settled_window": {
+          "duration_seconds": 3.0,
+          "start_seconds": 2.5
+        },
+        "stereo": {
+          "difference_ac_rms_s16": 0.47487427424599826,
+          "pearson_correlation": 0.9999999980445146,
+          "rms_balance_right_over_left": 0.999999937901026
+        }
+      },
+      "capture_files": {
+        ".mkv": {
+          "path": "out/hardware/video-factory-kit2-20261003/direct-relaunch.mkv",
+          "sha256": "611109245609c6ef872ca2c6a0b7d0d69635ca4034d2215bb971a20806589ad5",
+          "size": 6706742
+        },
+        ".png": {
+          "path": "out/hardware/video-factory-kit2-20261003/direct-relaunch.png",
+          "sha256": "577626efdf39a5c693b28f5214fd05a67d8eb82add0caaee715d1acd581663b3",
+          "size": 9345
+        },
+        ".wav": {
+          "path": "out/hardware/video-factory-kit2-20261003/direct-relaunch.wav",
+          "sha256": "84bb580f666b81a365fb5c14e95e63c0d2362c844b1d01becdc2a49248d9ff72",
+          "size": 1152394
+        }
+      },
+      "capture_receipt": {
+        "path": "out/hardware/video-factory-kit2-20261003/direct-relaunch-capture.json",
+        "sha256": "5ef4faf79e2fce3af032bb0ce3898c6a309184513a0a61433fee47087b5dd140",
+        "size": 3102
+      },
+      "case": "direct-relaunch",
+      "composition": {
+        "composition_id": "0d268a60f937274f0210932aa8d23c2d8c6f08ba240ca35e8e6723142a723c05",
+        "layout": "fes.coleco-video.parts/1",
+        "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+        "parts": [
+          {
+            "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "85b87829a3681c7e2a74d63bbaf9edfe2aa37d677d5891fa345c68a153832cf8",
+        "payload_size": 2834242,
+        "shell_sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27"
+      },
+      "generation": 4,
+      "runtime_receipt": {
+        "path": "out/hardware/video-factory-kit2-20261003/direct-relaunch.json",
+        "sha256": "6974af20b2fe0b02dbabb84df4d7169d96826cd7be20a21900b43adeecf7fdaf",
+        "size": 5366
+      },
+      "video": {
+        "acquisition_intervals_over25ms": [
+          {
+            "at_acquisition_boundary": true,
+            "from_frame": 1,
+            "seconds": 0.05,
+            "to_frame": 2
+          }
+        ],
+        "decoded_frames": 180,
+        "fixed_viewport_exclusive": [
+          384,
+          168,
+          896,
+          552
+        ],
+        "full_frame_luma_samples_per_unique_variant": 921600,
+        "green_border_odd_over_even_luma_ratio": 1.0,
+        "later_bad_luma_frames": [],
+        "later_bad_rgb_frames": [],
+        "leading_black_acquisition_frames": 2,
+        "native_raster": [
+          256,
+          192
+        ],
+        "native_scale": [
+          2,
+          2
+        ],
+        "settled_frames": 178,
+        "settled_interval_seconds": [
+          0.01599999999999996,
+          0.017000000000000348
+        ],
+        "settled_max_luma_error": 1,
+        "settled_max_rgb_difference_from_reference": [
+          1,
+          1,
+          1
+        ],
+        "settled_outer_black_max_luma_error": 0.0,
+        "settled_unique_rgb_variants": 4
+      }
+    }
+  ],
+  "check_count": 27,
+  "checks": {
+    "direct-relaunch_all_settled_full_frame_rgb_stable": true,
+    "direct-relaunch_all_settled_geometry": true,
+    "direct-relaunch_black_background": true,
+    "direct-relaunch_no_settled_audio_clipping": true,
+    "direct-relaunch_settled_capture_cadence": true,
+    "direct-relaunch_sn_tone_present_at_measured_frequency": true,
+    "direct-relaunch_sn_tone_present_in_each_settled_second": true,
+    "direct-relaunch_stereo_mono_tone_retained": true,
+    "direct_all_settled_full_frame_rgb_stable": true,
+    "direct_all_settled_geometry": true,
+    "direct_black_background": true,
+    "direct_no_settled_audio_clipping": true,
+    "direct_relaunch_equivalent_geometry_and_rgb": true,
+    "direct_settled_capture_cadence": true,
+    "direct_sn_tone_present_at_measured_frequency": true,
+    "direct_sn_tone_present_in_each_settled_second": true,
+    "direct_stereo_mono_tone_retained": true,
+    "scanlines_all_settled_full_frame_rgb_stable": true,
+    "scanlines_all_settled_geometry": true,
+    "scanlines_black_background": true,
+    "scanlines_half_brightness_on_odd_hdmi_rows": true,
+    "scanlines_no_settled_audio_clipping": true,
+    "scanlines_settled_capture_cadence": true,
+    "scanlines_sn_tone_present_at_measured_frequency": true,
+    "scanlines_sn_tone_present_in_each_settled_second": true,
+    "scanlines_stereo_mono_tone_retained": true,
+    "sn_audio_rms_retained_across_profiles": true
+  },
+  "classification": "Independent analysis of existing local captures; analyst accessed no kit, SSH, FPGA programmer, capture device or ALSA input.",
+  "direct_relaunch_reference_rgb_comparison": {
+    "changed_pixels": 0,
+    "whole_frame_max_absolute_rgb_delta": [
+      0,
+      0,
+      0
+    ],
+    "whole_frame_mean_absolute_rgb_delta": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "fixture": {
+    "adapter_sha256": "80bbe6973f8dc5c2408f57c7523161bf1a267c41eb820ab15c6ed4e3671a3a18",
+    "nominal_SN_hz": 216.7844597868217,
+    "note": "Original graphics cartridge with appended DI/stack/SN tone trampoline; original absolute table addresses are preserved.",
+    "rom_sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+    "size": 1086,
+    "source_sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe"
+  },
+  "fixture_receipt_sha256": "5ae56b11b22ee964c9927970ab01e5cba5afab25d4da933e71f45852339ac84b",
+  "format": 1,
+  "limitations": [
+    "Full-raster scanline RTL shades alternating HDMI rows; each native source line is doubled vertically, so its two HDMI rows have different brightness.",
+    "The full-pixel grid oracle includes the existing shell framebuffer read latency of one HDMI pixel horizontally, while retaining viewport x384:896/y168:552.",
+    "Leading acquisition frames and half-second audio acquisition windows are reported separately; comparisons use the explicit common settled audio window.",
+    "USB frame timestamps do not measure FPGA HS/VS waveforms directly. Capture RGB conversion and audio filtering/rescaling prevent bit-exact FPGA RGB/PCM claims.",
+    "All strongest spectral peaks are measured without nominal-frequency filtering; the target peak additionally must be near the fixture nominal and have at least half the strongest peak power."
+  ],
+  "operator_evidence": {
+    "boot_id": "d89dc3a2-e73f-4c67-8c86-789a970bc67b",
+    "cpu_sgm_part_included": false,
+    "expectations": {
+      "path": "out/hardware/video-factory-kit2-20261003/expectations.json",
+      "sha256": "73aeea5fd3c05ab7a58f264f6bdd0db460efb1d9f87c6acc4a2502d2b1f3f669",
+      "size": 2932
+    },
+    "image_sha256": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+    "installed_image": {
+      "path": "out/hardware/video-factory-kit2-20261003/installed-image.json",
+      "sha256": "8a0dd1adade650efe53095155146935d82baa99dd579b13dca728380f767ae67",
+      "size": 5177
+    },
+    "live_executables": {
+      "mister-agent": {
+        "pid": 780,
+        "sha256": "5cc13278b86ac0b16c905e42d902039a0cd5d341ee4ae80ec6647318b175d4be"
+      },
+      "mister-runtime": {
+        "pid": 759,
+        "sha256": "7bea4ac89ee79a2b9631daa96284dec55df14af93f42ff22dde0b660eb034412"
+      }
+    },
+    "mounted_root": {
+      "backing_file": "/media/fat/fogcast/releases/images/b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.img",
+      "mountinfo": "21 1 7:0 / / ro,noatime - ext4 /dev/loop0 ro,norecovery"
+    },
+    "preliminary_generation1_included": false,
+    "result": {
+      "path": "out/hardware/video-factory-kit2-20261003/result.json",
+      "sha256": "ed2609fbb5d20a5252cf03b7625d64748e113e3289e2b35726b81922aa9f3e2c",
+      "size": 647
+    },
+    "selected_source_revisions": {
+      "FogCast": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+      "libmister-runtime": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+      "mister-packages": "2ce9047f8a9e91900ac46e6b961e054370b55855",
+      "misteross": "2ce9047f8a9e91900ac46e6b961e054370b55855"
+    }
+  },
+  "scanlines_period2_model": {
+    "bright_rows_mae_rgb": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "bright_rows_max_rgb_delta": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "dim_rows_half_brightness_mae_rgb": [
+      0.9203592936197916,
+      0.7030029296875,
+      1.0109965006510417
+    ],
+    "dim_rows_max_model_error_rgb": [
+      2.0,
+      1.5,
+      2.5
+    ],
+    "line_height_hdmi_pixels": 1
+  },
+  "verdict": "pass"
+}

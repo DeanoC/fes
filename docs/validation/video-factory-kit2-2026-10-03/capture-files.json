@@ -1,0 +1,96 @@
+{
+  "cases": {
+    "direct": {
+      ".mkv": {
+        "sha256": "dcd68624507bd5d084b6d92411ae966e656ff1abd705715d82b5ad97d2e50170",
+        "size": 6668883
+      },
+      ".png": {
+        "sha256": "577626efdf39a5c693b28f5214fd05a67d8eb82add0caaee715d1acd581663b3",
+        "size": 9345
+      },
+      ".wav": {
+        "sha256": "2c5ec2f501b418fc8e219ffce6f9759050154717748c4fb1ca9d07dbf0761f45",
+        "size": 1152686
+      },
+      "public_audio": {
+        "decoded_samples_identical_to_original_wav": true,
+        "encoding": "lossless FLAC; container metadata removed",
+        "file": "direct.flac",
+        "frames": 288152,
+        "pcm_format": "s16le stereo 48000 Hz",
+        "pcm_sha256": "4679570cd999563e643603ad7cab5b94ae0f6b9340a711e377c62b765a157caf",
+        "sha256": "1a4f6b0a5d63eee008ec41593d5abcc6480bede11c4849aa10fef25c09e49281",
+        "size": 460047
+      },
+      "public_png": {
+        "file": "direct.png",
+        "publication": "exact original frame 120 PNG",
+        "sha256": "577626efdf39a5c693b28f5214fd05a67d8eb82add0caaee715d1acd581663b3",
+        "size": 9345
+      }
+    },
+    "direct-relaunch": {
+      ".mkv": {
+        "sha256": "611109245609c6ef872ca2c6a0b7d0d69635ca4034d2215bb971a20806589ad5",
+        "size": 6706742
+      },
+      ".png": {
+        "sha256": "577626efdf39a5c693b28f5214fd05a67d8eb82add0caaee715d1acd581663b3",
+        "size": 9345
+      },
+      ".wav": {
+        "sha256": "84bb580f666b81a365fb5c14e95e63c0d2362c844b1d01becdc2a49248d9ff72",
+        "size": 1152394
+      },
+      "public_audio": {
+        "decoded_samples_identical_to_original_wav": true,
+        "encoding": "lossless FLAC; container metadata removed",
+        "file": "direct-relaunch.flac",
+        "frames": 288079,
+        "pcm_format": "s16le stereo 48000 Hz",
+        "pcm_sha256": "4b62a2a1fcffeaa2cff41f783c8b3a371f6caec79ecf054f18cc58a4a2cf440a",
+        "sha256": "7aa6cc94644660a4cef666263798a15a1b8060d096672f8493335d05e2efc6a4",
+        "size": 460098
+      },
+      "public_png": {
+        "file": "direct-relaunch.png",
+        "publication": "exact original frame 120 PNG",
+        "sha256": "577626efdf39a5c693b28f5214fd05a67d8eb82add0caaee715d1acd581663b3",
+        "size": 9345
+      }
+    },
+    "scanlines": {
+      ".mkv": {
+        "sha256": "1e1d6490bab6add23bc224e669e648809e1fb295204a1ccbd80175831333afb6",
+        "size": 15822299
+      },
+      ".png": {
+        "sha256": "1ce459f8e69941c26d534912f697304ab76eee6f659a8f5a830c55f51c71cd5f",
+        "size": 9616
+      },
+      ".wav": {
+        "sha256": "64b311aa2e5a105df85a9edf945a04d64cb8b63cd83733beb67f74384ea4bfd6",
+        "size": 1152386
+      },
+      "public_audio": {
+        "decoded_samples_identical_to_original_wav": true,
+        "encoding": "lossless FLAC; container metadata removed",
+        "file": "scanlines.flac",
+        "frames": 288077,
+        "pcm_format": "s16le stereo 48000 Hz",
+        "pcm_sha256": "ef5a34d3db5418f55586d6dd4f02ee2465e6b7508d18711d9405278df1d78c86",
+        "sha256": "6bec35208012fae070532f5d67b47f11afe6af57084a6c5dea91637e89afc30f",
+        "size": 460190
+      },
+      "public_png": {
+        "file": "scanlines.png",
+        "publication": "exact original frame 120 PNG",
+        "sha256": "1ce459f8e69941c26d534912f697304ab76eee6f659a8f5a830c55f51c71cd5f",
+        "size": 9616
+      }
+    }
+  },
+  "format": 1,
+  "publication": "Original FFV1/WAV files retained in ignored operator output; exact PNG and sample-equivalent FLAC are public"
+}

@@ -1,0 +1,106 @@
+{
+  "package": {
+    "compatibility": "unknown",
+    "descriptor": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "build": {
+        "id": "1c095e79e992327d4a8e09187ec2fb1d",
+        "recipe_sha256": "289dcd913ab49fbbeb6cf29327efba929dcea09b3d77304c53c757e8578b797b",
+        "repository": "https://github.com/DeanoC/fes.git",
+        "revision": "576cdbc7046eee25803d6063487554c2cb01cc99",
+        "toolchain": "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=d3d6792c42850526b1a30361cd0ec97b3bb8243916a0195b4a7c96655d9b8502; nextpnr-mistral commit=a93fe013af841214ecb4f7be3af0de65f3de3a0f; sha256=f629e5a15c9087a242941823f2e0d23cf440d3501905d070ebd1e4c09c871e70; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=bf6c6111e60689ce889b01178abb76c772625c00976b43c88f6acd4fa8c29436"
+      },
+      "core": {
+        "description": "ColecoVision development shell with CPU and pixel-domain video sockets",
+        "id": "fes.coleco",
+        "name": "FES ColecoVision",
+        "version": "1.2.0"
+      },
+      "format": 2,
+      "interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.keypad.ports",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.firmware.blob",
+          "major": 1,
+          "minor": 0,
+          "required": false
+        },
+        {
+          "id": "fes.expansion.coleco-bus",
+          "major": 2,
+          "minor": 0,
+          "required": false
+        },
+        {
+          "id": "fes.fabric.video.raster-rgb888",
+          "major": 1,
+          "minor": 0,
+          "required": false
+        }
+      ],
+      "payload": {
+        "file": "core.rbf",
+        "sha256": "df4c26b17e916a7b3db86fb831d2f2a828938dbb1d6f33b818922a2fa5850d27",
+        "size": 2834336
+      },
+      "target": {
+        "device": "5CSEBA6U23I7",
+        "platform": "de10_nano",
+        "programming_profile": "fes-gp-v1"
+      }
+    },
+    "entries": [],
+    "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1"
+  },
+  "video_parts": [
+    {
+      "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+      "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+      "profile": "direct"
+    },
+    {
+      "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+      "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+      "profile": "scanlines"
+    }
+  ]
+}

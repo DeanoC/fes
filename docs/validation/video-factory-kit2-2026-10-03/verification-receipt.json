@@ -1,0 +1,8 @@
+{
+  "historical_baseline_match": null,
+  "image_sha256": "b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd",
+  "qemu_log_sha256": "4615e4797a1e1de9251f50d34ac9046e6e61b617aeeb8226c8eb0943703efb01",
+  "qemu_packaging": "pass",
+  "structural": "pass",
+  "two_pass_reproducibility": "pass"
+}

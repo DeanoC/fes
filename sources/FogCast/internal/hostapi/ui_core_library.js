@@ -66,14 +66,14 @@
       return match ? match.role : '';
     }
     function mediaAllowed() { return mediaRole() !== ''; }
-    async function inventories(generation) {
+    async function inventories(requestEpoch) {
       const [packages, entries] = await Promise.all([
         request('/api/v1/core-packages'), request('/api/v1/library/core-entries')]);
       if (packages && packages.packages === null) packages.packages = [];
       if (entries && entries.entries === null) entries.entries = [];
       if (!packages || !entries || !Array.isArray(packages.packages) || !Array.isArray(entries.entries) ||
           !packages.packages.every(validPackage) || !entries.entries.every(validEntry)) throw new Error('Invalid library inventory.');
-      if (generation !== epoch) return false;
+      if (requestEpoch !== epoch) return false;
       state.packages = packages.packages;
       state.entries = entries.entries;
       if (!selectedEntry()) state.entryId = '';
@@ -87,17 +87,17 @@
     function validVideoPart(value) {
       return value && digest(value.part_id) && digest(value.package_id) && videoProfile(value.profile);
     }
-    async function videoInventory(generation) {
+    async function videoInventory(requestEpoch) {
       try {
         const value = await request('/api/v1/library/video-parts');
         if (!Array.isArray(value) || !value.every(validVideoPart)) throw new Error('Invalid video-part inventory.');
-        if (generation === epoch) { state.videoParts = value; state.videoPartsMessage = ''; }
+        if (requestEpoch === epoch) { state.videoParts = value; state.videoPartsMessage = ''; }
       } catch (_) {
-        if (generation === epoch) { state.videoParts = []; state.videoPartsMessage = 'Video-part inventory unavailable. Refresh to confirm saved imports.'; }
+        if (requestEpoch === epoch) { state.videoParts = []; state.videoPartsMessage = 'Video-part inventory unavailable. Refresh to confirm saved imports.'; }
       }
     }
-    async function videoResolution(generation) {
-      if (generation !== epoch) return;
+    async function videoResolution(requestEpoch) {
+      if (requestEpoch !== epoch) return;
       const entry = selectedEntry();
       state.video = null; state.videoMessage = '';
       if (!entry) return;
@@ -113,15 +113,15 @@
             !value.choices.every(c => c && videoProfile(c.profile) && typeof c.label === 'string' &&
               typeof c.available === 'boolean' && (!c.part_id || digest(c.part_id)) && (!c.reason || typeof c.reason === 'string')) ||
             (value.fallback_reason && typeof value.fallback_reason !== 'string')) throw new Error('Invalid resolved video output.');
-        if (generation === epoch) state.video = value;
+        if (requestEpoch === epoch) state.video = value;
       } catch (_) {
-        if (generation === epoch) state.videoMessage = 'Next-launch video output could not be confirmed. Refresh before launching.';
+        if (requestEpoch === epoch) state.videoMessage = 'Next-launch video output could not be confirmed. Refresh before launching.';
       }
     }
-    async function capabilities(generation) {
-      if (generation !== epoch) return;
-      await videoResolution(generation);
-      if (generation !== epoch) return;
+    async function capabilities(requestEpoch) {
+      if (requestEpoch !== epoch) return;
+      await videoResolution(requestEpoch);
+      if (requestEpoch !== epoch) return;
       const id = state.packageId;
       if (!id) return;
       const value = await request('/api/v1/core-packages/' + id + '/media-capabilities');
@@ -131,9 +131,9 @@
             Number.isSafeInteger(m.max_bytes) && m.min_bytes >= 1 && m.max_bytes >= m.min_bytes)) {
         throw new Error('Invalid declared media capabilities.');
       }
-      if (generation === epoch) state.capabilities = value;
+      if (requestEpoch === epoch) state.capabilities = value;
     }
-    async function catalogInventory(generation) {
+    async function catalogInventory(requestEpoch) {
       try {
         const value = await request('/api/v1/core-catalog');
         if (!value || !Array.isArray(value.cores) || !value.cores.every(c =>
@@ -141,9 +141,9 @@
             typeof c.library_source_id === 'string' && c.library_source_id && ['supported','demo','experimental'].includes(c.standing) &&
             ['unproduced','available','installed','unavailable'].includes(c.artifact_state) &&
             (!c.package_id || digest(c.package_id)))) throw new Error('Invalid systems catalog.');
-        if (generation === epoch) { state.cores = value.cores; state.catalogOnline = true; state.catalogMessage = ''; }
+        if (requestEpoch === epoch) { state.cores = value.cores; state.catalogOnline = true; state.catalogMessage = ''; }
       } catch (_) {
-        if (generation === epoch) { state.catalogOnline = false; state.catalogMessage = 'Systems catalog unavailable. Cached systems are browse-only; setup is disabled. Manual package import remains available.'; }
+        if (requestEpoch === epoch) { state.catalogOnline = false; state.catalogMessage = 'Systems catalog unavailable. Cached systems are browse-only; setup is disabled. Manual package import remains available.'; }
       }
     }
     function requireCore() {
@@ -152,7 +152,7 @@
       if (!row || row.package_id !== state.coreRef.package_id) throw new Error('System changed. Refresh and choose again.');
       return row;
     }
-    async function loadSetup(generation) {
+    async function loadSetup(requestEpoch) {
       const row = requireCore();
       if (row.artifact_state !== 'installed') throw new Error('Install this core before setup.');
       const query = new URLSearchParams({source_id:row.source_id, package_id:row.package_id});
@@ -160,26 +160,26 @@
       if (!value || value.library_source_id !== row.library_source_id || value.source_id !== row.source_id || value.core_id !== row.core_id || value.package_id !== row.package_id ||
           !Array.isArray(value.roms) || !value.roms.every(r => typeof r.id === 'string' && r.id && Number.isSafeInteger(r.source_size) &&
             r.source_size > 0 && r.source_size <= MAX_MEDIA_BYTES && ['entry','household-firmware'].includes(r.binding))) throw new Error('Invalid setup requirements.');
-      if (generation === epoch) state.setup = value;
+      if (requestEpoch === epoch) state.setup = value;
     }
     async function refresh() {
       if (state.busy) return emit();
-      const generation = ++epoch;
+      const requestEpoch = ++epoch;
       state.loading = true;
       state.catalogOnline = false;
       state.message = '';
       emit();
-      try { if (await inventories(generation)) { await capabilities(generation); await videoInventory(generation); await catalogInventory(generation); if (state.coreRef && state.catalogOnline) {
+      try { if (await inventories(requestEpoch)) { await capabilities(requestEpoch); await videoInventory(requestEpoch); await catalogInventory(requestEpoch); if (state.coreRef && state.catalogOnline) {
           const row = state.cores.find(c => c.source_id === state.coreRef.source_id && c.core_id === state.coreRef.core_id);
           if (!row || row.library_source_id !== state.coreRef.library_source_id || (row.package_id || '') !== state.coreRef.package_id) {
             state.coreRef = state.setup = state.setupGame = null; state.setupROMs = {}; state.media = null; state.packageId = '';
           } else if (row.artifact_state === 'installed') {
             state.setup = null;
-            try { await loadSetup(generation); } catch (error) { if (generation === epoch) state.message = error.message; }
+            try { await loadSetup(requestEpoch); } catch (error) { if (requestEpoch === epoch) state.message = error.message; }
           } else { state.setup = null; state.setupROMs = {}; }
         } } }
-      catch (error) { if (generation === epoch) { state.message = error.message; state.catalogOnline = false; state.catalogMessage = 'Source unavailable. Cached systems are browse-only; refresh to enable setup.'; } }
-      finally { if (generation === epoch) { state.loading = false; emit(); } }
+      catch (error) { if (requestEpoch === epoch) { state.message = error.message; state.catalogOnline = false; state.catalogMessage = 'Source unavailable. Cached systems are browse-only; refresh to enable setup.'; } }
+      finally { if (requestEpoch === epoch) { state.loading = false; emit(); } }
       return clone(state);
     }
     async function selectPackage(id) {
@@ -187,44 +187,44 @@
       const item = state.packages.find(p => p.package_id === id);
       const entry = selectedEntry();
       if (id && (!item || (entry && core(item) !== entry.core_id))) return fail(new Error('Choose a package for the same core.'));
-      const generation = ++epoch;
+      const requestEpoch = ++epoch;
       state.coreRef = state.setup = null; state.setupROMs = {};
       state.packageId = id;
       state.capabilities = state.compatibility = state.media = null;
       state.message = '';
       state.loading = Boolean(id);
       emit();
-      try { await capabilities(generation); }
-      catch (error) { if (generation === epoch) state.message = error.message; }
-      finally { if (generation === epoch) { state.loading = false; emit(); } }
+      try { await capabilities(requestEpoch); }
+      catch (error) { if (requestEpoch === epoch) state.message = error.message; }
+      finally { if (requestEpoch === epoch) { state.loading = false; emit(); } }
       return clone(state);
     }
     async function mutate(operation, success, catalogChange = false) {
       if (state.busy || state.loading) return emit();
       state.busy = true;
-      const generation = ++epoch;
+      const requestEpoch = ++epoch;
       state.message = '';
       emit();
       try {
         await operation();
-        if (generation !== epoch) return clone(state);
+        if (requestEpoch !== epoch) return clone(state);
         state.message = success;
         if (catalogChange) onCatalogChange();
       } catch (error) {
-        if (generation === epoch) {
+        if (requestEpoch === epoch) {
           state.message = error.conflict ? 'Selection conflict. Refreshing current selections; operation was not replayed.' : error.message;
           if (error.conflict) {
             try {
-              if (await inventories(generation)) {
+              if (await inventories(requestEpoch)) {
                 const entry = selectedEntry();
                 if (entry) state.packageId = entry.package_id;
-                await capabilities(generation);
+                await capabilities(requestEpoch);
               }
             }
             catch (_) { state.message += ' Refresh failed; use Refresh before trying again.'; }
           }
         }
-      } finally { if (generation === epoch) { state.busy = false; emit(); } }
+      } finally { if (requestEpoch === epoch) { state.busy = false; emit(); } }
       return clone(state);
     }
     function boundedFile(file, maximum, extension) {
@@ -255,10 +255,10 @@
         state.coreRef = {library_source_id:row.library_source_id,source_id:row.source_id,core_id:row.core_id,package_id:row.package_id || ''};
         state.setup = null; state.setupROMs = {}; state.setupGame = null; state.media = null;
         state.packageId = row.artifact_state === 'installed' ? row.package_id : ''; state.entryId = '';
-        const generation = ++epoch; state.loading = true; emit();
-        try { if (state.catalogOnline && row.artifact_state === 'installed') { await loadSetup(generation); await capabilities(generation); } }
-        catch (error) { if (generation === epoch) state.message = error.message; }
-        finally { if (generation === epoch) { state.loading = false; emit(); } }
+        const requestEpoch = ++epoch; state.loading = true; emit();
+        try { if (state.catalogOnline && row.artifact_state === 'installed') { await loadSetup(requestEpoch); await capabilities(requestEpoch); } }
+        catch (error) { if (requestEpoch === epoch) state.message = error.message; }
+        finally { if (requestEpoch === epoch) { state.loading = false; emit(); } }
         return clone(state);
       },
       installCore() {

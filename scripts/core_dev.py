@@ -159,9 +159,8 @@ def prepare(core_id, output, library_media=None, expected_media_sha256=None):
                     expected=expected_media_sha256)}
             source = build.source_checkout("misteross", revisions["misteross"])
             selection_path = output / recipe.selection_filename
-            resolved = bundle.resolve_core_package(
-                source, revisions["mister-packages"], selection_path,
-                recipe=recipe)
+            resolved = build.resolve_selected_package(revisions, selection_path,
+                                                     recipes.producer_environment(recipe=recipe), recipe=recipe, source=source)
             record = resolved["inputs"]
             package_id = record["selection"]["package_id"]
             if re.fullmatch(r"[0-9a-f]{64}", package_id) is None:
@@ -197,6 +196,16 @@ def prepare(core_id, output, library_media=None, expected_media_sha256=None):
                 receipt["source_selection"] = {"path": sidecar.name, "sha256": observed["sha256"]}
             if media is not None:
                 receipt["library_media"] = media
+            if 'video_parts' in resolved:
+                from factory_video_parts import read_index
+                video = resolved['video_parts']
+                build._copy_package_tree(video['directory'], output / 'core-video-parts')
+                build._seal_package_tree(output / 'core-video-parts')
+                read_index(output / 'core-video-parts')
+                index = output / build._VIDEO_SELECTION
+                index.write_bytes(Path(video['index_path']).read_bytes())
+                index.chmod(0o444)
+                receipt['video_parts'] = {'path': index.name, **snapshot(index, limit=65536, sealed=True)}
             for name in ("core.fcore", recipe.selection_filename, "media.bin"):
                 if (output / name).exists():
                     (output / name).chmod(0o444)

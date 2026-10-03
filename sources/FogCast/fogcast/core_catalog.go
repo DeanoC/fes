@@ -1,6 +1,7 @@
 package fogcast
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"github.com/DeanoC/FogCast/catalog"
@@ -42,6 +43,20 @@ func (s *Service) AvailableCores(ctx context.Context) ([]AvailableCore, error) {
 	if err != nil {
 		return nil, err
 	}
+	installedVideo := map[catalog.CoreVideoPart]bool{}
+	for _, entry := range c.Entries {
+		if len(entry.VideoParts) == 0 {
+			continue
+		}
+		parts, err := s.CoreVideoParts(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, part := range parts {
+			installedVideo[part] = true
+		}
+		break
+	}
 	values := make([]AvailableCore, 0, len(c.Entries))
 	for _, e := range c.Entries {
 		state := "unproduced"
@@ -56,9 +71,18 @@ func (s *Service) AvailableCores(ctx context.Context) ([]AvailableCore, error) {
 		item := AvailableCore{Entry: e, SourceID: c.SourceID, LibrarySourceID: s.coreLibrarySourceID, ArtifactState: state}
 		for _, p := range installed {
 			if p.PackageID == e.PackageID && p.Descriptor.Core.ID == e.CoreID {
-				item.ArtifactState = "installed"
 				d := p.Descriptor
 				item.Descriptor = &d
+				complete := true
+				for _, part := range e.VideoParts {
+					if !installedVideo[catalog.CoreVideoPart{PackageID: e.PackageID, Profile: part.Profile, PartID: part.PartID}] {
+						complete = false
+						break
+					}
+				}
+				if complete {
+					item.ArtifactState = "installed"
+				}
 				break
 			}
 		}
@@ -99,14 +123,44 @@ func (s *Service) InstallAvailableCore(ctx context.Context, sourceID, coreID, pa
 	if staged.PackageID != packageID || staged.Descriptor.Core.ID != coreID {
 		return InstalledCorePackage{}, canonicalError(protocol.CodeInvalidArchive, nil)
 	}
-	bytesReader, _, err := c.OpenPackage(coreID)
+	archive, err := corepackage.CanonicalArchive(staged.Directory)
+	if err != nil {
+		return InstalledCorePackage{}, canonicalError(protocol.CodeInvalidArchive, nil)
+	}
+	parts, err := c.ReadVideoParts(ctx, e, archive)
+	if err != nil {
+		return InstalledCorePackage{}, canonicalError(protocol.CodeInvalidArchive, safeContextError(err))
+	}
+	if len(parts) != 0 {
+		store, ok := s.catalog.(coreVideoCatalog)
+		if !ok {
+			return InstalledCorePackage{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
+		existing, err := store.CoreVideoParts(ctx)
+		if err != nil {
+			return InstalledCorePackage{}, videoPartError(err)
+		}
+		for _, part := range parts {
+			for _, row := range existing {
+				if (row.PackageID == packageID && row.Profile == part.Reference.Profile) || row.PartID == part.Reference.PartID {
+					if row.PackageID != packageID || row.Profile != part.Reference.Profile || row.PartID != part.Reference.PartID {
+						return InstalledCorePackage{}, videoPartError(catalog.ErrCoreVideoProfileConflict)
+					}
+					if _, err := store.ReadCoreVideoPart(ctx, row.PartID); err != nil {
+						return InstalledCorePackage{}, videoPartError(err)
+					}
+				}
+			}
+		}
+	}
+	p, _, err := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
 	if err != nil {
 		return InstalledCorePackage{}, err
 	}
-	defer bytesReader.Close()
-	p, _, err := s.ImportCorePackage(ctx, e.ArchiveSize, bytesReader)
-	if err != nil {
-		return InstalledCorePackage{}, err
+	for _, part := range parts {
+		if _, err := s.ImportCoreVideoPart(ctx, int64(len(part.Archive)), bytes.NewReader(part.Archive), part.Reference.Profile); err != nil {
+			return InstalledCorePackage{}, err
+		}
 	}
 	return InstalledCorePackage{Inspection: p, Entries: []catalog.CoreEntry{}, Compatibility: "unknown"}, nil
 }

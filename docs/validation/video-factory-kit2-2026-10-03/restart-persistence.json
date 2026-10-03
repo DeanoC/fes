@@ -1,0 +1,23 @@
+{
+  "entry": {
+    "core_id": "fes.coleco",
+    "game_id": "fpga-factory-video-open-graphics-diagnostic-2d9814df8312",
+    "media_id": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+    "media_role": "blob",
+    "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+    "title": "Factory video open graphics diagnostic"
+  },
+  "mappings": [
+    {
+      "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+      "part_id": "e53eb3b4dace0a51924de46908fb321eaa65b4465c824a68267183e5ea46a2b4",
+      "profile": "direct"
+    },
+    {
+      "package_id": "6f4c219db7927b6a93b9e95055f7689f19087e919aba45b3b09a7d067d04fdb1",
+      "part_id": "e9b6a7a75c972cb58857d33f91aac82529b7ab012b3b9c66abbd328acfad0382",
+      "profile": "scanlines"
+    }
+  ],
+  "profile": "scanlines"
+}

@@ -1,0 +1,44 @@
+package main
+
+import (
+ "context"
+ "encoding/json"
+ "fmt"
+ "net/http"
+ "net/url"
+ "os"
+ "time"
+
+ "github.com/DeanoC/FogCast/fogcast"
+ "github.com/DeanoC/FogCast/targetclient"
+)
+
+func main() {
+ if err := run(); err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
+}
+
+func run() error {
+ const kit = "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+ const boot = "453e9b34-454e-409d-b523-d1db9b5dd716"
+ const image = "f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e"
+ conf, err := fogcast.LoadConfig(os.Args[1]); if err != nil { return err }
+ var target fogcast.TargetConfig
+ for _, t := range conf.Targets { if t.Name == "kit2" { target = t } }
+ if !target.Enabled || target.TargetID != kit || target.Address != "http://fes-kit-b:8182" { return fmt.Errorf("target designation mismatch") }
+ base, err := url.Parse(target.Address); if err != nil { return err }
+ transport := &http.Client{Timeout: 10*time.Second}
+ lease := targetclient.NewKitLease(base, target.Agent, transport, "fes-update", "confirm observed Kit 2 rollback")
+ client := targetclient.NewClient(base, target.Agent, transport).WithKitLease(lease)
+ ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second); defer cancel()
+ health, err := client.Health(ctx); if err != nil { return err }
+ if health.TargetID != kit || health.BootID != boot { return fmt.Errorf("authenticated boot mismatch") }
+ before, err := client.ApplianceStatus(ctx); if err != nil { return err }
+ if before.BootID != boot || before.ImageSHA256 != image || !before.Trial || !before.RawIdleReady || before.Corrupt || before.Pending != "" { return fmt.Errorf("trial is not the exact observed idle rollback") }
+ ownership, err := client.AdoptEndpoint(ctx, base, true); if err != nil { return err }
+ if ownership.State != "free" { return fmt.Errorf("kit is owned: %s", ownership.State) }
+ if err = client.ConfirmAppliance(ctx, boot, image); err != nil { return err }
+ after, err := client.ApplianceStatus(ctx); if err != nil { return err }
+ if after.BootID != boot || after.ImageSHA256 != image || after.Trial || !after.RawIdleReady || after.Corrupt || after.Pending != "" || after.Good != image { return fmt.Errorf("confirmation did not stabilize exact rollback") }
+ if err = lease.Close(ctx); err != nil { return err }
+ return json.NewEncoder(os.Stdout).Encode(after)
+}
