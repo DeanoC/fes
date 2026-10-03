@@ -1,0 +1,36 @@
+{
+  "repository": "https://github.com/ijor/fx68k",
+  "commit": "0602ee4627b10f301298f2673d826cdd6baa9327",
+  "license": "GPL-3.0-or-later",
+  "local_changes": [],
+  "files": [
+    {
+      "path": "fx68k.sv",
+      "sha256": "a718bb869a8a969dbdda89facd76f8621f655f8a84e7afa9551b2785eee5656a"
+    },
+    {
+      "path": "fx68kAlu.sv",
+      "sha256": "3f22006cbdb8cb661e5f54cc779f79bb697b587c86d586103478703fca38bcce"
+    },
+    {
+      "path": "uaddrPla.sv",
+      "sha256": "07ceb3b1fbbd74f255c2a909151fe5efd38a575ba4f6aa47c6208050d2e27326"
+    },
+    {
+      "path": "microrom.mem",
+      "sha256": "9d13082be0cf4b04bff887e6da23de84f9f2ee4321f3a2576b4f9540615dece6"
+    },
+    {
+      "path": "nanorom.mem",
+      "sha256": "b3998009fb10605e8468cddf22fdd799a9792ba86f449de2e30615cfcefbeece"
+    },
+    {
+      "path": "fx68k.txt",
+      "sha256": "2a7d451e8f7ae8683e4ec4f40a9b3adf91fb5c8b5d569c0f4cdb2b5de090811d"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    }
+  ]
+}

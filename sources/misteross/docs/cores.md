@@ -184,6 +184,15 @@ Copy the closest sibling. Do not start from an experiment, and do not fork a
 second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
+The [Atari 520ST](../cores/fes-atari-st/README.md) currently provides a
+simulation slice, before the described-package milestone below.
+`make sim-fes-atari-st` runs its real 68000 diagnostic, ROM substitution,
+expansion wait/error/interrupt checks and all three display modes through
+shared video parts. `sim-fes-atari-st-machine` and `sim-fes-atari-st-video`
+run the two focused cases. It has no `build-fes-atari-st`, board shell,
+parent recipe or factory entry; external memory and CPU frontend
+qualification are prerequisites to its producer.
+
 1. Pick an existing ABI unless the task includes a new one. A new mailbox or
    transport is mister-packages plus libmister-runtime, then RTL. A producer
    alone cannot make the host accept an interface the runtime does not

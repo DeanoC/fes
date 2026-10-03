@@ -77,6 +77,12 @@ class AffectedTests(unittest.TestCase):
             'scripts/sim_fes_z80.py': {'z80'},
             'scripts/benchmark_fes_z80.py': {'z80'},
             'scripts/test_fes_z80_vectors.py': {'z80'},
+            'cores/fes-atari-st/rtl/st_machine.sv': {'atari-st'},
+            'cores/fes-atari-st/sim/machine_tb.cpp': {'atari-st'},
+            'cores/fes-common/rtl/fx68k/fx68k.sv': {'atari-st'},
+            'cores/fes-common/rtl/fx68k/microrom.mem': {'atari-st'},
+            'cores/fes-common/rtl/fes_video_part_direct.v': {'coleco', 'atari-st'},
+            'cores/fes-common/rtl/fes_video_part_scanlines.v': {'coleco', 'atari-st'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):

@@ -16,6 +16,15 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
+    def test_atari_st_and_68000_changes_select_machine_and_video_simulation(self):
+        self.change("sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv")
+        self.change("sources/misteross/cores/fes-atari-st/rtl/st_machine.sv")
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], ["atari-st"])
+        targets = [c["argv"][1] for c in result["commands"]
+                   if c["lane"] == "fpga" and c["argv"][0] == "make"]
+        self.assertEqual(targets, ["sim-fes-atari-st"])
+
     def test_standalone_z80_changes_select_cpu_simulation(self):
         self.change("sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv")
         self.change("sources/misteross/cores/fes-common/sim/z80/cpu_tb.cpp")

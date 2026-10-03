@@ -20,6 +20,7 @@ TARGETS = {
     'spectrum': ('sim-fes-spectrum',),
     'menu': ('sim-fes-menu',),
     'z80': ('sim-fes-z80',),
+    'atari-st': ('sim-fes-atari-st',),
 }
 
 

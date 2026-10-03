@@ -111,6 +111,8 @@ help:
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
+		"  sim-fes-atari-st  Test the Atari 520ST CPU, pluggable ROM/expansion and three video modes" \
+		"  atari-st-diagnostic  Generate two original 192 KiB 68000 firmware inputs" \
 		"  build-fes-c64  Seal FES Commodore 64 (format 3 firmware map, two cartridge sockets) with HIP (CACHE_ROOT=)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  export-core-package  Seal a format-2 package directory and .fcore archive" \
@@ -153,7 +155,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -1432,3 +1434,45 @@ sim-fes-z80-timing:
 sim-fes-z80:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_z80.py --verilator "$(VERILATOR)"
+
+# Atari 520ST simulation slice: no sealed producer or board-memory claim.
+ST_CORE := cores/fes-atari-st
+ST_CPU := cores/fes-common/rtl/fx68k
+ST_DIAGNOSTIC := $(CURDIR)/build/diagnostics/fes-atari-st
+ST_CPU_RTL := $(ST_CPU)/fx68k.sv $(ST_CPU)/fx68kAlu.sv $(ST_CPU)/uaddrPla.sv
+ST_VIDEO_RTL := $(ST_CORE)/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v \
+	cores/fes-common/rtl/fes_video_part_scanlines.v
+ST_MACHINE_RTL := $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
+	$(ST_CORE)/expansions/st_probe.sv $(ST_VIDEO_RTL) $(ST_CPU_RTL)
+# Upstream FX68K uses unpacked structures with independently assigned fields.
+# Keep that preserved source; these suppressions match the qualified simulator.
+ST_CPU_FLAGS := -Wno-WIDTH -Wno-TIMESCALEMOD -Wno-MULTIDRIVEN -Wno-INITIALDLY \
+	-Wno-ALWCOMBORDER -Wno-UNOPTFLAT -Wno-BLKANDNBLK -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP
+
+.PHONY: atari-st-sources atari-st-diagnostic sim-fes-atari-st sim-fes-atari-st-machine sim-fes-atari-st-video
+atari-st-sources:
+	$(PYTHON) $(ST_CORE)/sim/check_sources.py
+
+atari-st-diagnostic: atari-st-sources
+	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
+
+sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video
+
+sim-fes-atari-st-machine: atari-st-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-machine
+	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-machine/
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_sim_top $(ST_CPU_FLAGS) \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-machine" \
+		$(ST_CORE)/sim/st_sim_top.sv $(ST_MACHINE_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/machine_tb.cpp" -CFLAGS '-O2'
+	@cd build/sim/fes-atari-st-machine && ./Vst_sim_top "$(ST_DIAGNOSTIC)"
+
+sim-fes-atari-st-video:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-video
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_video_sim_top -Wall \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-video" \
+		$(ST_CORE)/sim/st_video_sim_top.sv $(ST_VIDEO_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/video_tb.cpp" -CFLAGS '-O2'
+	@build/sim/fes-atari-st-video/Vst_video_sim_top

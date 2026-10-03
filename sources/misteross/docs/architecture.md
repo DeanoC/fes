@@ -1459,6 +1459,42 @@ pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 frozen shell. No Commodore ROM is in the tree, and the core is not in the
 factory image.
 
+## FES Atari 520ST
+
+`cores/fes-atari-st` is a simulation-only 16-bit machine slice for the
+original 520ST. Its real shared FX68K 68000 runs at an average 8 MHz from
+alternating fractional enables in the 52.224 MHz system domain. A latched
+request/ready bus presents separate external 512 KiB RAM and 192 KiB firmware
+ports, enforcing big-endian byte strobes, supervisor restrictions, the ROM
+reset-vector alias and read-only firmware/cartridge windows. The adapter
+holds completion across normal cycles and rearms between the two data-strobe
+halves of a TAS read-modify-write cycle. Expansion parts receive cartridge
+reads and unclaimed supervisor I/O, with bounded bus errors and VPA
+autovectors. The original RTL probe exercises both cartridge and MMIO paths.
+
+Its memory-backed low/medium/high display source produces the existing fixed
+720p RGB888 video-part request. Simulation joins the real shared direct and
+scanline parts through two registered boundaries. This is source-level
+composition; no frozen physical socket or new host/runtime interface is
+declared. The exact current maps, scaling and open diagnostic are in
+[the core README](../cores/fes-atari-st/README.md).
+
+`make sim-fes-atari-st` verifies the preserved CPU file digests, generates
+two original firmware inputs, executes the machine regression, and checks
+complete frames in all three display modes. Outputs are private host
+simulations under `build/sim/fes-atari-st-{machine,video}/`, not an RBF.
+FX68K is pinned under `cores/fes-common/rtl/fx68k` with original bytes and
+licensing. Verilator warning suppressions address its unpacked structures;
+the first-party video case uses `-Wall`.
+
+No producer, package manifest, ROM map or FES recipe exists yet. The original
+512 KiB RAM plus 192 KiB firmware requires external board memory, and the
+current one-clock video memory/configuration assembly requires a coherent
+pixel-domain adapter. FX68K's SystemVerilog frontend also needs qualification
+for the OSS synthesis flow. These are prerequisites to package sealing;
+MFP, IKBD/ACIA, YM2149, floppy/DMA and native raster interrupts are further
+machine work. No synthesis, timing or kit result is claimed.
+
 ## Shared native kit client
 
 `scripts/kit.py` is a thin operator client of FogCast's target lease and native

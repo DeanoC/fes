@@ -45,6 +45,12 @@ The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
 `fes.sg1000`, `fes.spectrum` and `fes.ramtest`. Another
 package is not added to that set merely because its producer exists.
 
+The first 16-bit machine is the [Atari 520ST simulation slice](cores/fes-atari-st/README.md):
+real 68000, external 512 KiB RAM and 192 KiB ROM ports, an expansion probe,
+and all three ST video modes through shared direct/scanline parts. Run
+`make sim-fes-atari-st`. Its board memory shell and OSS producer are still
+required; it is not a sealed or registered package.
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered

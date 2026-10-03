@@ -10,8 +10,8 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 # Simulation families include the standalone CPU; it has no play-package recipe.
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80')
-SIMULATION_ONLY_CORES = frozenset({'z80'})
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st')
+SIMULATION_ONLY_CORES = frozenset({'z80', 'atari-st'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 
 
@@ -38,7 +38,7 @@ CORE_DIRECTORIES = {
     'fes-demo': ('demo',), 'fes-pong': ('demo', 'pong'), 'pong': ('pong',),
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
-    'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',),
+    'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
 }
 # ZX81's in-session plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
@@ -61,6 +61,8 @@ SHARED_RTL = {
     'fes_z80_ce.sv': COLECO_CONSUMERS,
     'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum'),
     't80pa.v': ('coleco', 'sg1000', 'sms', 'spectrum'),
+    'fes_video_part_direct.v': ('coleco', 'atari-st'),
+    'fes_video_part_scanlines.v': ('coleco', 'atari-st'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -93,6 +95,8 @@ def fpga_cores(path):
                 return COLECO_CONSUMERS + ('spectrum',), 'shared TV80 consumers'
             if len(parts) >= 5 and parts[3] == 'cpu6502':
                 return ('apple2', 'c64'), 'shared 6502 consumers'
+            if len(parts) >= 5 and parts[3] == 'fx68k':
+                return ('atari-st',), 'shared 68000 consumer; simulation only'
             if len(parts) == 4 and parts[3] in SHARED_RTL:
                 return SHARED_RTL[parts[3]], 'shared RTL consumers'
     if len(parts) == 2 and parts[0] == 'scripts':

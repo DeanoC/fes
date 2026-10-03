@@ -111,6 +111,17 @@ the named format-2 Coleco video shell only;
 the factory package has built-in direct output. Audio parts, DDR processing,
 other raster standards and factory video-part builds remain subsequent work.
 
+## Atari 520ST simulation slice
+
+The first 16-bit machine is [the `fes.atari-st` slice](../sources/misteross/cores/fes-atari-st/README.md).
+`make -C sources/misteross sim-fes-atari-st` boots original diagnostic
+firmware through a real 68000, with 512 KiB RAM, a pluggable 192 KiB ROM,
+cartridge/MMIO expansion and all three ST video modes feeding shared direct
+or scanline output parts. It is a simulation family, not a described package
+or factory entry. There is no RBF, package seal, TOS compatibility or hardware
+acceptance. Board memory, coherent video access and OSS CPU frontend
+qualification are the next integration step before a producer can be added.
+
 ## Not implemented, or not this package
 
 - ZX81 mid-session tape replace and eject use the same `fes.media.blob`
