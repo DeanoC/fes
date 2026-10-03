@@ -346,3 +346,30 @@ func TestRunStartupStatusErrorDoesNotArmLocalStop(t *testing.T) {
 		t.Fatalf("local stops=%d pauses=%d host stops=%d", stops, pauses.Load(), hostStops.Load())
 	}
 }
+
+// A local run started outside the shell after its startup check (for example
+// over the local control socket) is adopted once the core binds, so
+// Select+Start still stops it and the menu resumes.
+func TestRunAdoptsExternallyStartedLocalRunAndStopsIt(t *testing.T) {
+	f := &recoveryCore{statuses: []localcores.RunStatus{{Phase: "idle"}, {Phase: "running", Running: true}}}
+	client, hostStops := recoveryTestClient(t, f)
+	pad := &recoveryStatusPad{scriptPad: recoveryChordPad(), core: f, reads: 2}
+	var paused, resumed atomic.Bool
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		paused.Store(true)
+		return nil
+	}, func() { resumed.Store(true) })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := Run(ctx, client, func(Model) {
+		if _, stops := f.counts(); stops > 0 && resumed.Load() {
+			cancel()
+		}
+	}, func() (Pad, error) { return pad, nil }); err != nil {
+		t.Fatal(err)
+	}
+	launches, stops := f.counts()
+	if launches != 0 || !paused.Load() || stops != 1 || !resumed.Load() || hostStops.Load() != 0 {
+		t.Fatalf("launches=%d paused=%t local stops=%d resumed=%t host stops=%d", launches, paused.Load(), stops, resumed.Load(), hostStops.Load())
+	}
+}
