@@ -32,7 +32,7 @@ from scripts.fes_build_common import _prepare_output, _require_clean_source, _re
 
 ROOT = Path(__file__).resolve().parents[1]
 CARDS = {
-    "probe": ("cores/fes-atari-st/expansions/probe_cart.sv", "cores/fes-atari-st/expansions/st_probe.sv",),
+    "probe": ("cores/fes-atari-st/expansions/probe_cart.sv", "cores/fes-atari-st/expansions/st_probe.sv"),
 }
 CARD_INCLUDES = ("cores/fes-common/generated/fes_atari_st_bus.vh",)
 TOOL_INPUTS = (
@@ -73,12 +73,11 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
 
     The routed JSON omits the system PLL's second output connection while
     keeping its physical pin map and routed net: reattach that net to the
-    physical `outclk[1]` pin and drop the obsolete `outclk[0]` alias. Every
-    socket's boundary must still be at its pinned BEL. The chosen socket's
+    physical `outclk[1]` pin and drop the obsolete `outclk[0]` alias. The
+    socket's boundary must still be at its pinned BEL. The socket's
     request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
     and its clock-coverage flip-flops are removed (their routed clock
-    branches stay frozen for the card to extend inside its fence); the other
-    sockets keep their instance names.
+    branches stay frozen for the card to extend inside its fence).
     """
     design = json.loads(source)
     top = design["modules"]["top"]

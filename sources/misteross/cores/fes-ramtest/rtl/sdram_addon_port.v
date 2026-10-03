@@ -99,7 +99,11 @@ module sdram_addon_port #(
         .sclr(1'b0),
         .oe(1'b1),
         .dataout(sdram_clk),
+        // Clock output is always driven; the primitive's optional enable
+        // output must stay unconnected for native DDR-output packing.
+        /* verilator lint_off PINCONNECTEMPTY */
         .oe_out()
+        /* verilator lint_on PINCONNECTEMPTY */
     );
 
     // 7.8 us refresh. The count is in fabric clocks, so it tracks the rate.

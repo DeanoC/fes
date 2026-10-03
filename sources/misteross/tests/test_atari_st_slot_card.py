@@ -284,7 +284,8 @@ module probe_cart_tb;
 endmodule
 ''')
             build = subprocess.run(["verilator", "--binary", "--timing", "--top-module", "probe_cart_tb",
-                "-Wno-fatal", "-I" + str(ROOT / "cores/fes-common/generated"), "--Mdir", str(directory / "obj"),
+                "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL", "-Wno-BLKSEQ",
+                "-I" + str(ROOT / "cores/fes-common/generated"), "--Mdir", str(directory / "obj"),
                 str(ROOT / card.CARDS["probe"][0]), str(ROOT / card.CARDS["probe"][1]), str(tb)],
                 capture_output=True, text=True, timeout=120)
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
