@@ -12,6 +12,7 @@ make build-fes-update
 bin/fes-update --action status
 bin/fes-update --action update --release /absolute/path/to/release-directory
 bin/fes-update --action rollback
+bin/fes-update --action confirm --release /absolute/path/to/release-directory
 ```
 
 The client reads `~/.config/fogcast/config.toml`. `--config` selects another private
@@ -19,7 +20,14 @@ host configuration; `--target` selects a named enabled target with recorded
 `target_id`. Tokens are never command-line arguments. A release directory contains
 `release.json` and `rootfs.img`; the client verifies the complete local digest
 before claiming the kit or uploading. Keep the client running through reboot and
-confirmation. Its default six-minute deadline includes transfer and reconnection.
+confirmation. The default update deadline is eight minutes plus six seconds per
+MiB of the release image, rounded up to a minute (21 minutes for 128 MiB).
+`--timeout` overrides it. The client logs transfer and confirmation progress to
+stderr. If it exits during reboot or trial, rerun with `--action confirm` and
+either `--release` (only `release.json` is read) or `--image-sha256` to confirm
+that exact image. Confirm waits for a pending reboot or raw idle trial and does
+not upload or activate a release. Rollback defaults to 10 minutes, confirm to
+15 minutes, and status to one minute.
 
 Updates stop the running game before reboot; successful Stop persists supported
 SNES battery saves. The client acquires the existing kit lease and renews during

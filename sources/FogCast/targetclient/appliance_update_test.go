@@ -104,7 +104,10 @@ func TestUpdateObservesLostActivationAndConfirmationRepliesUsingFreshLease(t *te
 	defer srv.Close()
 	u, _ := url.Parse(srv.URL)
 	lease := NewKitLease(u, "secret", srv.Client(), "test", "update")
-	c := NewClient(u, "secret", srv.Client()).WithKitLease(lease)
+	var phases []string
+	c := NewClient(u, "secret", srv.Client()).WithKitLease(lease).WithProgress(func(phase, detail string) {
+		phases = append(phases, phase)
+	})
 	defer c.InvalidateKitSession()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -114,6 +117,17 @@ func TestUpdateObservesLostActivationAndConfirmationRepliesUsingFreshLease(t *te
 	}
 	if claims.Load() != 2 || activations.Load() != 1 || confirms.Load() != 1 {
 		t.Fatalf("claims=%d activate=%d confirm=%d", claims.Load(), activations.Load(), confirms.Load())
+	}
+	for _, want := range []string{"inspect/before", "upload start", "upload", "staged", "activation response lost", "new boot seen", "lease claimed", "confirm sent", "confirm result", "confirmed"} {
+		found := false
+		for _, phase := range phases {
+			if phase == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("missing phase %s: %v", want, phases)
+		}
 	}
 }
 
@@ -211,5 +225,137 @@ func TestInspectApplianceRediscoversRecordedIdentityWithoutMutation(t *testing.T
 	status, err := c.InspectAppliance(context.Background(), "kit", func(context.Context, string) ([]string, error) { return []string{srv.URL}, nil })
 	if err != nil || !status.Trial || c.EndpointURL().String() != srv.URL || mutations != 0 {
 		t.Fatalf("status=%+v err=%v mutations=%d", status, err, mutations)
+	}
+}
+
+func TestConfirmApplianceTrialStates(t *testing.T) {
+	expected := strings.Repeat("a", 64)
+	other := strings.Repeat("b", 64)
+	cases := []struct {
+		name      string
+		states    []string
+		wantError bool
+		wantPosts int32
+		deadline  time.Duration
+	}{
+		{name: "already confirmed", states: []string{"good"}},
+		{name: "unreachable then trial", states: []string{"unreachable", "trial"}, wantPosts: 1},
+		{name: "pending then trial", states: []string{"pending", "trial"}, wantPosts: 1},
+		{name: "wrong image", states: []string{"wrong"}, wantError: true},
+		{name: "trial waits for raw idle", states: []string{"not-ready", "trial"}, wantPosts: 1},
+		{name: "conflict until deadline", states: []string{"conflict"}, wantError: true, deadline: 1200 * time.Millisecond},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var reads, posts atomic.Int32
+			confirmed := atomic.Bool{}
+			var phases []string
+			state := func() string {
+				n := int(reads.Load())
+				if n >= len(tc.states) {
+					n = len(tc.states) - 1
+				}
+				return tc.states[n]
+			}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer secret" {
+					t.Error("missing bearer")
+				}
+				current := state()
+				switch r.URL.Path {
+				case "/v1/health":
+					if current == "unreachable" {
+						reads.Add(1)
+						http.Error(w, "offline", 503)
+						return
+					}
+					fmt.Fprint(w, `{"target_id":"kit","boot_id":"boot"}`)
+				case "/v1/update":
+					image, good, pending := expected, other, ""
+					trial, ready := true, true
+					switch current {
+					case "good":
+						trial = false
+						good = expected
+					case "pending":
+						image = other
+						pending = expected
+						trial = false
+					case "wrong":
+						image = other
+						trial = false
+					case "not-ready":
+						ready = false
+					}
+					if confirmed.Load() {
+						trial = false
+						good = expected
+					}
+					fmt.Fprintf(w, `{"boot_id":"boot","image_sha256":%q,"good":%q,"pending":%q,"trial":%t,"raw_idle_ready":%t}`, image, good, pending, trial, ready)
+					reads.Add(1)
+				case "/v1/kit/lease":
+					fmt.Fprint(w, `{"state":"free"}`)
+				case "/v1/kit/claim":
+					fmt.Fprint(w, `{"token":"lease","status":{"state":"held","generation":"g","expires_in_ms":90000}}`)
+				case "/v1/kit/release":
+					fmt.Fprint(w, `{"state":"free"}`)
+				case "/v1/update/confirm":
+					posts.Add(1)
+					if r.Header.Get(KitLeaseHeader) != "lease" || r.Header.Get("Content-Type") != "application/json" {
+						t.Error("confirm headers differ from contract")
+					}
+					raw, _ := io.ReadAll(r.Body)
+					if string(raw) != fmt.Sprintf(`{"boot_id":"boot","image_sha256":%q}`, expected) {
+						t.Errorf("confirm body: %s", raw)
+					}
+					if current == "conflict" {
+						w.WriteHeader(409)
+						fmt.Fprint(w, `{"error":{"code":"UPDATE_CONFLICT","message":"retry"}}`)
+						return
+					}
+					confirmed.Store(true)
+					fmt.Fprint(w, `{"confirmed":true}`)
+				default:
+					t.Errorf("unexpected path %s", r.URL.Path)
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+			lease := NewKitLease(u, "secret", srv.Client(), "test", "confirm")
+			c := NewClient(u, "secret", srv.Client()).WithKitLease(lease).WithProgress(func(phase, detail string) { phases = append(phases, phase) })
+			defer lease.Close(context.Background())
+			limit := tc.deadline
+			if limit == 0 {
+				limit = 3 * time.Second
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), limit)
+			defer cancel()
+			got, err := c.ConfirmApplianceTrial(ctx, "kit", expected, nil)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("status=%+v err=%v", got, err)
+			}
+			if tc.name == "conflict until deadline" && posts.Load() > 0 && posts.Load() <= 2 {
+				// The one-second retry interval permits a second attempt near the deadline.
+			} else if posts.Load() != tc.wantPosts {
+				t.Errorf("posts=%d want=%d", posts.Load(), tc.wantPosts)
+			}
+			if !tc.wantError && (got.Trial || got.Good != expected) {
+				t.Errorf("not durable: %+v", got)
+			}
+			if tc.name == "unreachable then trial" {
+				for _, want := range []string{"old boot gone", "new boot seen", "confirm sent", "confirmed"} {
+					found := false
+					for _, phase := range phases {
+						if phase == want {
+							found = true
+						}
+					}
+					if !found {
+						t.Errorf("missing progress phase %s: %v", want, phases)
+					}
+				}
+			}
+		})
 	}
 }
