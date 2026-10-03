@@ -59,7 +59,7 @@ func TestArmAndCancel(t *testing.T) {
 	if *opened != 1 || d.timeout != 180*time.Second || !reflect.DeepEqual(d.writes, []byte{0}) || d.closed {
 		t.Fatalf("device: %+v", d)
 	}
-	if command.Path != "/bin/sh" || !reflect.DeepEqual(command.Args, []string{"/bin/sh", "-c", fallbackScript, "fes-reboot-fallback", "30", "150", "5", "/proc", "/sbin/reboot", "10"}) || command.SysProcAttr == nil || !command.SysProcAttr.Setsid || command.Stdin == nil || command.Stdout == nil || command.Stderr == nil {
+	if command.Path != "/bin/sh" || !reflect.DeepEqual(command.Args, []string{"/bin/sh", "-c", fallbackScript, "fes-reboot-fallback", "30", "150", "5", "/proc", "/sbin/reboot", "10", "/proc/sysrq-trigger"}) || command.SysProcAttr == nil || !command.SysProcAttr.Setsid || command.Stdin == nil || command.Stdout == nil || command.Stderr == nil {
 		t.Fatalf("fallback: %+v", command)
 	}
 	marker, err := os.ReadFile(c.Marker)
@@ -80,7 +80,7 @@ func TestArmAndCancel(t *testing.T) {
 	}
 }
 
-// Whenever the watchdog cannot be armed, the reboot -f fallback and marker are
+// Whenever the watchdog cannot be armed, the sysrq b / reboot -nf fallback and marker are
 // still installed (Sol P1 round 2), any opened device is magic-closed, and
 // Cancel removes what was installed.
 func TestArmSkippedWatchdogKeepsFallback(t *testing.T) {
@@ -259,7 +259,7 @@ func TestWatchdogAlwaysOutlastsFallback(t *testing.T) {
 			var args []string
 			c.start = func(cmd *exec.Cmd) (helper, error) { args = cmd.Args; return &fakeHelper{}, nil }
 			result, _ := Arm(context.Background(), c)
-			if !result.Fallback || len(args) != 10 {
+			if !result.Fallback || len(args) != 11 || args[10] != "/proc/sysrq-trigger" {
 				t.Fatalf("result=%+v args=%q", result, args)
 			}
 			if args[5] != fmt.Sprint(int(result.FallbackDeadline/time.Second)) || args[9] != "10" {
