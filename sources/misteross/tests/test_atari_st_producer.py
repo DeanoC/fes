@@ -69,6 +69,16 @@ class AtariSTProducerTests(unittest.TestCase):
             for i, (x, y) in enumerate(st.FIRMWARE_LANE_ROWS)}
         routed = {'modules': {'top': {'cells': cells}}}
         rom_map.validate_routed_rom(routed, st.FIRMWARE_LANE_ROWS, expected_async_read=0)
+        for cell in cells.values():
+            cell['connections'] = {'CLK1': [5], 'A1EN': ['1'], 'B1EN': ['1']}
+        st.validate_firmware_ports(cells)
+        cells['machine.rom.lane0']['connections']['A1BE'] = ['0', '0']
+        with self.assertRaisesRegex(BuildError, 'no optional ports'):
+            st.validate_firmware_ports(cells)
+        del cells['machine.rom.lane0']['connections']['A1BE']
+        cells['machine.rom.lane0']['connections']['A1EN'] = ['0']
+        with self.assertRaisesRegex(BuildError, 'disabled writes'):
+            st.validate_firmware_ports(cells)
         with self.assertRaisesRegex(ValueError, 'CFG_ASYNC_READ'):
             rom_map.validate_routed_rom(routed, st.FIRMWARE_LANE_ROWS)
         cells['machine.rom.lane0']['parameters']['CFG_ASYNC_READ'] = 1

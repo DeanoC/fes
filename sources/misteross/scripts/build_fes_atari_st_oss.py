@@ -377,11 +377,28 @@ def validate_synth_evidence(output: Path) -> dict:
         if "BEL" in attributes:
             attributes["NEXTPNR_BEL"] = attributes["BEL"]
     rom_map.validate_routed_rom(placement, FIRMWARE_LANE_ROWS, expected_async_read=0)
+    validate_firmware_ports(synthesis["modules"][TOP]["cells"])
     # Microcode and video-cache memories are counted from real synthesis.
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
             raise BuildError(f"forbidden synthesis cell {name} is in use")
     return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)}}
+
+
+def validate_firmware_ports(cells: dict) -> None:
+    """The linked ROM has one live read clock and permanently disabled writes."""
+    clocks = set()
+    for lane in range(len(FIRMWARE_LANE_ROWS)):
+        name = f"machine.rom.lane{lane}"
+        pins = cells.get(name, {}).get("connections", {})
+        clock = pins.get("CLK1", [])
+        if (len(clock) != 1 or type(clock[0]) is not int or
+                pins.get("A1EN") != ["1"] or pins.get("B1EN") != ["1"] or
+                pins.get("A1BE") or pins.get("CLK2")):
+            raise BuildError(f"firmware lane {name} must have one live clock, disabled writes and no optional ports")
+        clocks.add(clock[0])
+    if len(clocks) != 1:
+        raise BuildError("firmware lanes must share the system read clock")
 
 
 def validate_build_evidence(output: Path) -> dict:
@@ -479,13 +496,14 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     invocation = FunctionalInvocation(authenticated, gpu_device)
-    record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs, video_output=video_output)
-    output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
-    prepare_cpu_inputs(root, output)
-    _write_atomic(output / "build-inputs.json", record)
-    _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
+    output = None
     try:
+        record = create_build_record(root, repository, revision, identities,
+                                     identity_version=identity_version, execution=invocation.inputs, video_output=video_output)
+        output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
+        prepare_cpu_inputs(root, output)
+        _write_atomic(output / "build-inputs.json", record)
+        _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
         build_id = build_identity(record)
         yosys, _route = build_commands(root, output, build_id, {
             name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, video_output=video_output)
@@ -494,6 +512,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         repaired = clock_read_only_memories(output / "synth.json")
+        validate_synth_evidence(output)
         try:
             winner = route_after_synth(
                 nextpnr=authenticated["nextpnr-mistral"].path,
@@ -546,10 +565,11 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
     except Exception:
-        for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
-            path = output / name
-            if path.is_file() or path.is_symlink():
-                path.unlink()
+        if output is not None:
+            for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
+                path = output / name
+                if path.is_file() or path.is_symlink():
+                    path.unlink()
         raise
     finally:
         invocation.close()
