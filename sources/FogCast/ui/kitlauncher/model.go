@@ -7,6 +7,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/fbgrid"
 	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
 	"github.com/DeanoC/FogCast/ui/shared"
+	"log"
 	"strings"
 	"time"
 )
@@ -23,6 +24,7 @@ type Model struct {
 	Shelf                                                           string
 	Focus                                                           int
 	Session                                                         Session
+	LocalPlayEnabled                                                bool
 	Connected, TargetReady, Busy, ControllerConnected, ForeignLease bool
 	Message                                                         string
 	AttractActive                                                   bool
@@ -185,8 +187,8 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 				m.openDetail(now)
 				return ""
 			}
-			if len(m.Games) > 0 && m.Focus >= 0 && m.Focus < len(m.Games) && m.Games[m.Focus].LaunchEligible() && m.canLaunch() {
-				return "launch"
+			if game, ok := m.focusedGame(); ok {
+				return m.launchAction(game)
 			}
 		case remoteinput.ButtonB:
 			if m.StripActive {
@@ -247,6 +249,21 @@ func (m *Model) axisStep(hold *int, value int32) int {
 // currently ready. Cached catalog rows remain browseable while disconnected.
 func (m Model) canLaunch() bool {
 	return m.Connected && m.TargetReady
+}
+
+func (m *Model) launchAction(game hostclient.Game) string {
+	if m.LocalPlayEnabled && game.LocalCatalogPlayable() {
+		return "local-launch"
+	}
+	if game.LaunchEligible() && m.canLaunch() {
+		return "launch"
+	}
+	m.Message = "Needs the host to play"
+	if m.Connected && game.LaunchEligible() {
+		m.Message = "Kit is not ready to play"
+	}
+	log.Printf("kit launch rejected game_id=%q reason=%q", boundedSessionText(game.ID, 160), m.Message)
+	return ""
 }
 
 func (m *Model) Tick(now time.Time) string {

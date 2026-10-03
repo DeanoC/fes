@@ -79,7 +79,7 @@ without taking over, when the lease is already held (fes#172). See [the host con
 contract](launcher-host.md) for listener configuration and the session HTTP
 schema. Play input from a pad on the kit uses the local socket described below.
 `fogcast-kit` supplies the socket path and the runtime core-bound probe.
-`fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. While that core is running, tenfoot polls `GET /v1/local/status` about once a second and resumes presents if the session is idle or stop returns in use. The grid launcher is unchanged.
+`fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. While that core is running, tenfoot polls `GET /v1/local/status` about once a second and resumes presents if the session is idle or stop returns in use. The default grid also plays available kit-local SMS rows through that socket from browse, detail and attract. Select+Start stops local play; stop, failure or idle local status returns to the menu.
 Host endpoint configuration is explicit; target discovery is separate.
 
 ## Physical controls

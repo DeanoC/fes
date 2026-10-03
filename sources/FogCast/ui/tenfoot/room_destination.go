@@ -62,7 +62,7 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 		return d
 	}
 	game, ok := d.Game()
-	if !ok || !localCatalogPlayable(game) {
+	if !ok || !game.LocalCatalogPlayable() {
 		return d
 	}
 	d.GameID = game.ID
@@ -83,22 +83,6 @@ func (a *App) applyKitDirectLocked(d rooms.Destination) rooms.Destination {
 	d.Availability = rooms.AvailReady
 	d.FillCopy()
 	return d
-}
-
-// localCatalogPlayable is a file that is on this machine and that the host
-// session will not launch. SMS is the cartridge the local socket accepts.
-// Anything the host can already launch keeps ConfirmLaunch.
-func localCatalogPlayable(game hostclient.Game) bool {
-	if game.HostOnly() || game.LaunchEligible() {
-		return false
-	}
-	if game.LaunchBlock() != hostclient.LaunchBrowseOnly {
-		return false
-	}
-	if !game.RootOnline || game.State != "available" {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(game.System), "sms")
 }
 
 func (a *App) pairedKitStatusUnavailableLocked() bool {
