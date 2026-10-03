@@ -1011,15 +1011,27 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` uses rendered revisions and change-driven presents: known scene changes and animations redraw immediately, while an unchanged render key skips rasterization until a one-second fallback refresh. Idle ticks still service menu generation probes, retries and Resume with the existing revision; linuxfb idle ticks skip presentation. The fallback refresh captures presentation fields outside the render key, and the final settled animation frame always redraws. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` uses rendered revisions and change-driven presents: known scene changes and animations redraw immediately, while an unchanged render key skips rasterization until a one-second fallback refresh. Idle ticks still service menu generation probes, retries and Resume with the existing revision; linuxfb idle ticks skip presentation. The fallback refresh captures presentation fields outside the render key, and the final settled animation frame always redraws. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend each launcher submits one indeterminate loading frame with phase and elapsed time, waits for its runtime transaction, pauses presents, then dispatches the launch so the core owns HDMI. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, while status reconciliation continues for late adoption. Select+Start during local loading defers stop until the runtime publishes the running lease. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
 The on-kit `fogcast-kit` may explicitly select `menu_display: true` (or
 `-menu-display`) instead of the temporary linuxfb painter. It reuses the
-existing `kitlauncher` browse/session model and `fbgrid` renderer. `gfx.MenuDisplay`
-rasters RGBA8888 in software and queues only the newest complete frame. Its
+existing `kitlauncher` browse/session model and `fbgrid` renderer. Host and
+kit-local launches show an indeterminate marquee, title, elapsed time and the
+Select+Start hint while launch status is reconciled asynchronously. The first
+loading frame shows phase and elapsed time from `0:00`; the launcher drains it,
+pauses menu-display, then starts the launch request. No frame is submitted
+between pause and resume. Host session
+stage/message text is shown when available; local status has no byte or finer
+phase data. The delivered loading frame stays on screen while either launch
+request is pending; a failed host launch or confirmed local failure clears
+launching before resuming the menu. A failed local ROM request first reconciles
+runtime status so a late running core retains ownership. A failed host launch allows browsing but retains Select+Start for
+host cleanup before another launch. `gfx.MenuDisplay` rasters RGBA8888 in
+software and queues only the
+newest complete frame. Its
 local `ui/menudisplay` client reads the runtime's menu generation and fixed
 1280×720 geometry, fills the runtime-created memfd, seals it and waits for
 displayed-sequence completion through protocol 2. The UI receives no DDR
@@ -1034,8 +1046,11 @@ redraws within about a second. A generation mismatch does not start a new
 wait. The kit image starts that client only when `launcher.json` `kit_ui`
 is `tenfoot` and the menu selection and `fogcast-tenfoot` binary are both
 present. Otherwise boot still runs `fogcast-kit`. On this backend tenfoot opens
-the kit-local control socket, shows "Starting {title}…", pauses presents so the
-core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running.
+the kit-local control socket and submits one room launch overlay frame with
+phase and elapsed time, drains it, pauses presents, then dispatches the local
+launch. On the HPS framebuffer the overlay keeps animating and shows
+elapsed time. A loading Select+Start chord stops after the runtime reports
+`running`.
 The configured FogCast service still supplies library/setup operations and
 the host session path still launches games. Cached offline titles remain
 browse-only. This option does not install or select menu firmware in an image.
@@ -2152,8 +2167,8 @@ engine can list and launch through that socket when a `localcores` client is
 injected (`kit.cores`, destination kind `core`). `fogcast-tenfoot -gfx menu-display`
 connects that socket and, while the core runs, writes pad frames through the
 shared `ui/localfeed` socket. A host session, and any other tenfoot gfx backend,
-leaves `kit` unset. Confirm shows "Starting {title}…", then pauses menu presents
-so the core owns HDMI. "In use. Someone else is playing on this machine. You can
+leaves `kit` unset. Confirm shows the room launch overlay while loading, then
+pauses menu presents when the core owns HDMI. "In use. Someone else is playing on this machine. You can
 play when they're done." is the busy lease. A blocked tile keeps its block line
 ("Needs a cartridge", "Needs firmware") and does not call the runtime. Anything
 else the socket cannot launch says "This core isn't available right now."

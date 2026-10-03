@@ -134,6 +134,7 @@ type LaunchSnapshot struct {
 	State        string
 	ErrorCode    string
 	ErrorMessage string
+	StartedAt    time.Time
 }
 
 // SessionSnapshot is the live host session from GET /api/v1/session (and launch/stop).
@@ -262,7 +263,10 @@ type Snapshot struct {
 	TapePicker              TapePickerSnapshot
 	ReducedMotion           bool
 	LocalCorePhase          string
+	LocalCoreTitle          string
+	LocalCoreStartedAt      time.Time
 	LocalCorePresentsPaused bool
+	LocalCoreLateAdopt      bool
 	LocalCoreRedraw         uint64
 }
 
@@ -530,28 +534,34 @@ type App struct {
 	previewFails       int
 	previewNext        time.Time
 
-	localCores          rooms.LocalCores
-	localFeed           localPadSender
-	localInstallKnown   bool
-	localInstalled      map[string]struct{}
-	localInstallGen     uint64
-	localInstallCancel  context.CancelFunc
-	localCatalogClose   func() error
-	localContent        func(context.Context, string) (string, error)
-	localPhase          string
-	localTitle          string
-	localStatus         string
-	localGen            uint64
-	localPresentsPaused bool
-	localRedraw         uint64
-	localSelectDown     bool
-	localStartDown      bool
-	localChordSince     time.Time
-	localChordFired     bool
-	localSent           map[remoteinput.Code]bool
-	localStatusBusy     bool
-	localStatusNext     time.Time
-	localStatusEpoch    uint64
+	localCores                 rooms.LocalCores
+	localFeed                  localPadSender
+	localInstallKnown          bool
+	localInstalled             map[string]struct{}
+	localInstallGen            uint64
+	localInstallCancel         context.CancelFunc
+	localCatalogClose          func() error
+	localContent               func(context.Context, string) (string, error)
+	localPhase                 string
+	localReconcileAfterFailure bool
+	localReconcileDeadline     time.Time
+	localTitle                 string
+	localStartedAt             time.Time
+	localStatus                string
+	localGen                   uint64
+	localPresentsPaused        bool
+	localLateAdopt             bool
+	localRedraw                uint64
+	localSelectDown            bool
+	localStartDown             bool
+	localChordSince            time.Time
+	localChordFired            bool
+	localStopAfterStart        bool
+	localSent                  map[remoteinput.Code]bool
+	localStatusBusy            bool
+	localStatusNext            time.Time
+	localStatusEpoch           uint64
+	localLaunchPending         func()
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.
@@ -1615,7 +1625,10 @@ func (a *App) Snapshot() Snapshot {
 		TapePicker:              a.tapePickerSnapshotLocked(),
 		ReducedMotion:           a.reducedMotion,
 		LocalCorePhase:          a.localPhase,
+		LocalCoreTitle:          a.localTitle,
+		LocalCoreStartedAt:      a.localStartedAt,
 		LocalCorePresentsPaused: a.localPresentsPaused,
+		LocalCoreLateAdopt:      a.localLateAdopt,
 		LocalCoreRedraw:         a.localRedraw,
 	}
 }
@@ -2038,6 +2051,10 @@ func (a *App) focusIndexLocked(i int) bool {
 }
 
 func (a *App) startLaunchLocked() {
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
@@ -2062,6 +2079,10 @@ func (a *App) startLaunchLocked() {
 }
 
 func (a *App) startLaunchGameLocked(game hostclient.Game) {
+	if a.localLaunchBlockedLocked() {
+		a.status = localLaunchCheckingCopy
+		return
+	}
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
@@ -2101,9 +2122,10 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	a.cancelPlayHIDLocked()
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{
-		GameID:  game.ID,
-		Phase:   "launching",
-		Message: "launching " + game.Title,
+		GameID:    game.ID,
+		Phase:     "launching",
+		Message:   "launching " + game.Title,
+		StartedAt: time.Now(),
 	}
 	if a.room != nil {
 		a.closeRoomOverlaysLocked()
