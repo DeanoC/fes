@@ -93,6 +93,18 @@ the first candidate that passes all three clocks. Its functional build record
 includes this policy; `qor-ranking.json` and `build-summary.json` retain the
 winning seed and weight. A diagnostic placement does not qualify a new seal.
 
+On 2026-10-03, package
+`d6914aedd470815144308c85f456d56c9c69902b9cdc9c28df0007a63fd21ebe`
+sealed from `deb0f18d` with reported Fmax of 53.064 MHz system, 100.523 MHz
+pixel and 178.859 MHz audio, passing all three clock gates. Every pinned input
+still matches `792b24805`. A leased, volatile load on the designated kit
+linked the original open 16 KiB sound diagnostic and verified the admitted
+package, BUILD_ID and ROM identity. The capture showed the checkerboard and a
+steady 437 Hz FFT peak; Stop left the final second of both audio channels
+exactly zero, and the lease was released. This is an exact-package development
+diagnostic. It does not establish assembled-image acceptance, commercial-game
+compatibility or equivalence to a physical NMOS chip.
+
 The VDP INT wiring and separate pause NMI follow the
 [SG-1000 hardware reconstruction and scope measurements](https://www.leadedsolder.com/2022/05/20/sg1000-clone-v1.html).
 The shared NTSC CPU cadence is checked by `make sim-fes-z80-timing`;

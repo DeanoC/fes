@@ -1427,8 +1427,10 @@ built-in Kempston port, `.tap` player and four edge sockets are described in
 first-party NMOS CPU at native 3.5 MHz cadence by default. The explicit
 `--cpu fast` producer / `make build-fes-spectrum-fast` development lane uses
 the documented-only transaction CPU at 56 MHz, a registered memory/socket
-bridge and independent 3.5 MHz peripheral ticks. WAIT holds a transaction;
-internal writes commit once at acceptance, while socket STROBE launches once.
+bridge and independent 3.5 MHz peripheral ticks. WAIT holds phase four until
+readiness and selected read data are captured together; phase five delivers
+the captured byte to the CPU. Internal writes commit once at that delivery,
+while socket STROBE launches once. One inactive clock rearms edge consumers.
 Both modes retain the ROM map and frozen 32/28-bit socket ABI. Normal mode
 uses system/audio and video PLLs. Fast mode uses system and video PLLs, with
 the audio serializer running on the 56 MHz system clock. Rational enables

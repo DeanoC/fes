@@ -66,6 +66,17 @@ The named `fes.sg1000` 1.2.0 package, open sound ROM and installed image have
 captured tone/noise, checkerboard, Stop mute and silent Pong transition. This
 does not qualify a later artifact or commercial cartridge.
 
+The current native-Z80 SG-1000 1.3.0 and both Spectrum 0.2.0 variants have
+separate sealed packages and exact-package development diagnostics from
+2026-10-03. Their package identities and clock results are recorded in the
+[SG-1000 README](../sources/misteross/cores/fes-sg1000/README.md#memory-and-host-interfaces)
+and [Spectrum README](../sources/misteross/cores/fes-spectrum/README.md#build-variants).
+All three packages pass their actual system, video and audio-domain gates;
+the fast Spectrum runs its system domain at 56 MHz. Leased volatile loads
+verified video, diagnostic audio and Stop silence on the designated kit.
+These checks did not assemble or replace the appliance image. Physical NMOS
+pin equivalence and instrumented fast MCLK/CTS qualification remain open.
+
 The named `fes.sms` 1.4.0 package, open Mode 4 ROM and installed image have
 [exact-artifact kit 1 audio diagnostic acceptance](validation/2026-09-29-sms-shared-audio-hil.md):
 captured checkerboard, approximately 399 Hz tone and Stop mute. This does not

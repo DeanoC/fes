@@ -158,6 +158,27 @@ same media/expansion contracts. The seal gates every actual clock domain:
 Fast audio timing belongs to the 56 MHz domain; its pin rates are measured by
 the audio regression. The producer cannot publish a below-target route.
 
+Both variants sealed from `792b24805` on 2026-10-03 with these reported Fmax
+values. The configured system clocks remain 52.224 MHz and 56 MHz respectively.
+
+| Mode | Sealed package ID | System / pixel / audio Fmax, MHz |
+| --- | --- | --- |
+| Native NMOS | `8de30934b534a22d5c1a3ee003c019d2348dd32367cbed1e2222c43e50494cd4` | 53.048 / 84.911 / 160.746 |
+| Documented fast | `632ef162039ae3fa025249b27d16713ef45497707673eeb169e7ea0d3bb015a4` | 56.796 / 86.896 / system domain |
+
+Each package passed a separate leased, volatile development load on the
+designated kit with an original open 16 KiB stripe/beeper ROM. The admitted
+package, BUILD_ID and linked ROM identities matched. Captures showed the
+expected stripes and red border, with the native tone near 16.43 Hz and fast
+tone at 227.76 Hz. Both captures had stable audio without clipping, Stop left
+the final second exactly zero, and each lease was released. These are
+exact-package development diagnostics; MCLK pulse timing, jitter and automatic
+CTS behavior were not instrumented. They do not establish assembled-image or
+general software compatibility. Genuine NMOS pin captures remain a separate
+CPU qualification requirement. The legacy router's plateau fixture and
+compatible compiler qualification are tracked in
+[nextpnr issue 114](https://github.com/DeanoC/nextpnr/issues/114).
+
 ## Not implemented
 
 ULA contention, a floating bus, 128K paging, AY sound, Interface 1 / DivMMC,
