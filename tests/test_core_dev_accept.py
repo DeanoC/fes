@@ -1,8 +1,10 @@
 import hashlib
+import io
 import json
 from pathlib import Path
 import sys
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -131,6 +133,32 @@ class PreparedAcceptanceTest(unittest.TestCase):
         self.assertEqual(args[args.index("--library-media") + 1], str(self.root / "media.bin"))
         self.assertNotIn("--execute", args)
         self.assertNotIn("--expected-target-id", args)
+
+    def test_forwards_prepared_exact_shell_video_inventory_and_rejects_changed_part(self):
+        from test_package_acceptance import _write_video_parts
+        self.make_v2()
+        self.data["core_id"] = "fes.coleco"
+        selection = self.selection.replace('"fes.pong"', '"fes.coleco"').encode()
+        selected = self.file("fes-pong.package-selection.toml", selection)
+        self.data["selection"]["sha256"] = selected["sha256"]
+        manifest = b'format = 2\n[core]\nid = "fes.coleco"\n[abi]\nid = "fes.application"\nmajor = 1\nminor = 0\n[[interfaces]]\nid = "fes.fabric.video.native-pixels"\nmajor = 1\nminor = 0\nrequired = false\n'
+        archive = io.BytesIO()
+        with tarfile.open(fileobj=archive, mode="w") as stream:
+            member = tarfile.TarInfo("manifest.toml"); member.size = len(manifest)
+            stream.addfile(member, io.BytesIO(manifest))
+        self.data["archive"] = self.file("core.fcore", archive.getvalue())
+        tree, digest = _write_video_parts(self.root, self.package)
+        tree = tree.rename(self.root / "core-video-parts")
+        self.data["video_parts"] = self.file("fes-core-video-parts.json", (tree / "index.json").read_bytes())
+        self.write()
+        args = accept.candidate_arguments(self.receipt)
+        self.assertEqual(args[args.index("--video-parts") + 1], str(tree))
+        self.assertEqual(args[args.index("--expected-video-parts-sha256") + 1], digest)
+        archive = next((tree / self.package).glob("*.tar"))
+        archive.chmod(0o644); archive.write_bytes(b"changed"); archive.chmod(0o444)
+        with patch.object(accept.isolated, "main") as runner:
+            self.assertEqual(accept.main(["--prepared", str(self.receipt)]), 1)
+            runner.assert_not_called()
 
     def test_changed_bytes_fail_before_runner(self):
         (self.root / "core.fcore").write_bytes(b"changed")

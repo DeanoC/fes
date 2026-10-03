@@ -20,7 +20,8 @@ from core_dev import snapshot
 import package_acceptance_isolated as isolated
 
 OWNED = frozenset({"--archive", "--expected-archive-sha256", "--expected-package-id",
-                   "--expected-core-id", "--library-media", "--expected-media-sha256"})
+                   "--expected-core-id", "--library-media", "--expected-media-sha256",
+                   "--video-parts", "--expected-video-parts-sha256"})
 
 
 def _object(value, required, optional=()):
@@ -163,6 +164,9 @@ def candidate_arguments(receipt_path, provenance=None):
             raise ValueError('prepared video parts differ from selected package')
     result = ["--archive", archive_path, "--expected-archive-sha256", archive["sha256"],
               "--expected-package-id", package, "--expected-core-id", core]
+    if 'video_parts' in data:
+        result += ["--video-parts", str(path.parent / "core-video-parts"),
+                   "--expected-video-parts-sha256", data['video_parts']['sha256']]
     if "library_media" in data:
         media = _object(data["library_media"], {"path", "sha256", "size"})
         media_path = _file(path.parent, media, "media", 32 * 1024 * 1024, fixed="media.bin")
