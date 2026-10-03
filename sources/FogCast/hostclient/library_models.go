@@ -154,6 +154,13 @@ func (g Game) LaunchEligible() bool {
 	return g.LaunchBlock() == ""
 }
 
+// LocalCatalogPlayable admits a present SMS cartridge to the kit-local core.
+// Host-eligible rows keep their ordinary session route.
+func (g Game) LocalCatalogPlayable() bool {
+	return !g.HostOnly() && !g.LaunchEligible() && g.LaunchBlock() == LaunchBrowseOnly &&
+		g.RootOnline && g.State == "available" && strings.EqualFold(strings.TrimSpace(g.System), "sms")
+}
+
 // ExecutionHostOnly is a title that plays on the host executor and does not
 // claim a kit lease.
 const ExecutionHostOnly = "host_only"

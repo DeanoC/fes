@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/theme"
@@ -22,30 +23,34 @@ type Pad interface {
 	Close() error
 }
 type observation struct {
-	epoch          uint64
-	session        Session
-	health         hostclient.HealthResult
-	kitLease       kitlease.Status
-	games          []hostclient.Game
-	strip          []hostclient.Game
-	stripLabel     string
-	recents        []hostclient.Game
-	haveStrip      bool
-	attract        hostclient.AttractPlaylist
-	haveAttract    bool
-	hydrateAttract bool
-	coreStatuses   []hostclient.CoreAvailability
-	haveCoreStatus bool
-	coreStatusErr  bool
-	detailID       string
-	presentation   hostclient.Presentation
-	haveDetail     bool
-	cache          hostclient.LibraryCache
-	haveCache      bool
-	err            error
-	mutation       bool
-	message        string
-	hostAbsent     bool
+	epoch           uint64
+	session         Session
+	health          hostclient.HealthResult
+	kitLease        kitlease.Status
+	games           []hostclient.Game
+	strip           []hostclient.Game
+	stripLabel      string
+	recents         []hostclient.Game
+	haveStrip       bool
+	attract         hostclient.AttractPlaylist
+	haveAttract     bool
+	hydrateAttract  bool
+	coreStatuses    []hostclient.CoreAvailability
+	haveCoreStatus  bool
+	coreStatusErr   bool
+	detailID        string
+	presentation    hostclient.Presentation
+	haveDetail      bool
+	cache           hostclient.LibraryCache
+	haveCache       bool
+	err             error
+	mutation        bool
+	message         string
+	hostAbsent      bool
+	localAction     string
+	localErr        error
+	localStatus     localcores.RunStatus
+	haveLocalStatus bool
 }
 
 const hostUnavailableMessage = "Host unavailable"
@@ -139,6 +144,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		Message: connectingMessage, Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true,
 		Session: Session{HPSFramebuffer: c.config.HPSFramebuffer},
 	}
+	m.LocalPlayEnabled = c.LocalCores != nil
+	localRunning := false
+	localPending := false
+	localStatusBusy := false
+	var localStatusNext time.Time
 	loggedSplash := false
 	paintKitHDMI := func(m Model) {
 		if c.menuDisplay {
@@ -210,7 +220,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	m.Cache = mergeCacheStatus(c.Cache, hostclient.LibraryCache{}, false)
 	paintKitHDMI(m)
-	localGames, closeLocal := bootLocalCatalog(ctx, c)
+	localGames, localPath, closeLocal := bootLocalCatalog(ctx, c)
 	if closeLocal != nil {
 		defer closeLocal()
 	}
@@ -318,12 +328,16 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		epoch++
 		e := epoch
 		m.Busy = true
+		local := action == "local-launch" || (action == "stop" && localRunning)
 		id := m.Session.GameID
-		if action == "launch" {
+		if action == "launch" || action == "local-launch" {
 			id = m.consumeLaunchID()
 			if id == "" {
 				m.Busy = false
 				return
+			}
+			if action == "local-launch" {
+				m.Session.GameID = id
 			}
 		}
 		label := sessionActionLabel(m, action, id)
@@ -351,7 +365,30 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		paintKitHDMI(m)
 		// Do not log credentials, raw transport errors, or response bodies.
-		log.Printf("kit session dispatch epoch=%d action=%s game_id=%q", e, action, boundedSessionText(id, 160))
+		if local {
+			log.Printf("kit local dispatch epoch=%d action=%s game_id=%q", e, action, boundedSessionText(id, 160))
+		} else {
+			log.Printf("kit session dispatch epoch=%d action=%s game_id=%q", e, action, boundedSessionText(id, 160))
+		}
+		if local {
+			localPending = true
+			go func() {
+				o := observation{epoch: e, mutation: true, localAction: action}
+				o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
+				if o.localErr != nil {
+					o.message = localCoreMessage(o.localErr)
+					if action == "local-launch" {
+						// The agent may have completed a load after our request timed out.
+						if status, err := c.LocalCores.Status(ctx); err == nil {
+							o.localStatus, o.haveLocalStatus = status, true
+						}
+					}
+				}
+				log.Printf("kit local result epoch=%d action=%s game_id=%q error=%t", e, action, boundedSessionText(id, 160), o.localErr != nil)
+				send(o)
+			}()
+			return
+		}
 		go func() {
 			o := observation{epoch: e, mutation: true}
 			var r hostclient.SessionResult
@@ -381,6 +418,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	// shell. The loop still does not start until this sample returns, so the
 	// first pad poll already knows whether a core is bound.
 	refreshCore()
+	if m.LocalPlayEnabled {
+		go func(e uint64) {
+			status, err := c.LocalCores.Status(ctx)
+			send(observation{epoch: e, localAction: "recover", localErr: err, localStatus: status})
+		}(epoch)
+	}
 	go func() {
 		tick := time.NewTicker(200 * time.Millisecond)
 		defer tick.Stop()
@@ -401,6 +444,31 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		case <-ctx.Done():
 			return nil
 		case o := <-results:
+			if o.localAction == "recover" {
+				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) {
+					localRunning = true
+					m.Session.State = "active"
+					if c.menuDisplay {
+						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
+						_ = c.menuPause(pauseCtx)
+						pauseCancel()
+					}
+				}
+				continue
+			}
+			if o.localAction == "status" {
+				localStatusBusy = false
+				if o.epoch == epoch && localRunning && o.localErr == nil && o.localStatus.Phase == "idle" {
+					localRunning = false
+					m.Session.State = "idle"
+					m.Session.GameID = ""
+					m.Message = ""
+					if c.menuDisplay {
+						c.menuResume()
+					}
+				}
+				continue
+			}
 			if !o.mutation {
 				polling = false
 			}
@@ -408,12 +476,31 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			if o.mutation {
-				if c.menuDisplay {
+				if o.localAction != "" {
+					localPending = false
+					if o.localAction == "local-launch" && o.localErr == nil {
+						localRunning = true
+						m.Session.State = "active"
+					} else if o.localAction == "local-launch" && o.localErr != nil && o.haveLocalStatus && localRunInProgress(o.localStatus) {
+						// The load may still be in flight after an ambiguous reply.
+						localRunning = true
+						m.Session.State = "active"
+						o.message = ""
+					} else if o.localAction == "stop" && (o.localErr == nil || errors.Is(o.localErr, localcores.ErrInUse)) || o.localAction == "local-launch" && o.localErr != nil {
+						localRunning = false
+						m.Session.State = "idle"
+						m.Session.GameID = ""
+					}
+				}
+				if c.menuDisplay && !localRunning {
 					c.menuResume()
 				}
 				m.Busy = false
 				m.Message = o.message
 				nextPoll = time.Time{}
+				if o.localAction != "" {
+					continue
+				}
 			}
 			if o.err != nil {
 				m.Connected = false
@@ -432,10 +519,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					localApplied = true
 					catalogLoaded = true
 				}
-				if o.session.State != "" {
+				if o.session.State != "" && !localRunning && !localPending {
 					m.Session = applyObservedSession(m.Session, o.session)
 				}
-				if !m.Busy && o.session.State != "active" && o.session.State != "failed" {
+				if !m.Busy && !localRunning && o.session.State != "active" && o.session.State != "failed" && (m.Message == "" || m.Message == connectingMessage || m.Message == OfflineMessage) {
 					if m.Message != hostUnavailableMessage && !strings.HasPrefix(m.Message, hostUnavailableMessage+" (") && m.Message != localInputUnavailableMessage {
 						m.Message = OfflineMessage
 					}
@@ -451,7 +538,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				Owner:   o.kitLease.Owner,
 				Purpose: o.kitLease.Purpose,
 			})
-			m.Session = applyObservedSession(m.Session, o.session)
+			if !localRunning && !localPending {
+				m.Session = applyObservedSession(m.Session, o.session)
+			}
 			if !o.mutation {
 				m.TargetReady = o.health.TargetReady
 				if kitlease.ForeignHID(o.kitLease) {
@@ -499,6 +588,14 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 			}
 		case now := <-tick.C:
+			if localRunning && !localPending && !localStatusBusy && now.After(localStatusNext) {
+				localStatusNext = now.Add(time.Second)
+				localStatusBusy = true
+				go func(e uint64) {
+					status, err := c.LocalCores.Status(ctx)
+					send(observation{epoch: e, localAction: "status", localErr: err, localStatus: status})
+				}(epoch)
+			}
 			if now.After(nextPoll) {
 				poll()
 				nextPoll = now.Add(time.Second)
@@ -601,27 +698,97 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 }
 
+func localRunInProgress(status localcores.RunStatus) bool {
+	return status.Phase == "launching" || status.Phase == "running"
+}
+
 // bootLocalCatalog scans the configured library when the kit has a catalog
 // file. The remote launcher API is not required. A missing file or a failed
 // boot leaves the disk snapshot in place.
-func bootLocalCatalog(ctx context.Context, c *Client) ([]hostclient.Game, func() error) {
+func bootLocalCatalog(ctx context.Context, c *Client) ([]hostclient.Game, func(context.Context, string) (string, error), func() error) {
 	if c == nil || strings.TrimSpace(c.catalogConfig) == "" || ctx.Err() != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	paths, err := fogcast.PathsForConfig(c.catalogConfig)
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	served, err := hostapi.ServeLocal(ctx, paths)
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	games, err := listLocalCatalog(ctx, served.Base)
 	if err != nil {
 		_ = served.Close()
-		return nil, nil
+		return nil, nil, nil
 	}
-	return games, served.Close
+	return games, served.ContentPath, served.Close
+}
+
+func launchLocalGame(ctx context.Context, client LocalCoreClient, resolve func(context.Context, string) (string, error), games []hostclient.Game, id string) error {
+	if client == nil || resolve == nil {
+		return localcores.ErrUnavailable
+	}
+	var game hostclient.Game
+	for _, row := range games {
+		if row.ID == id {
+			game = row
+			break
+		}
+	}
+	if !game.LocalCatalogPlayable() {
+		return localcores.ErrUnavailable
+	}
+	cores, err := client.List(ctx)
+	if err != nil {
+		return err
+	}
+	packageID := ""
+	for _, core := range cores {
+		if core.CoreID == "fes.sms" {
+			packageID = core.PackageID
+			break
+		}
+	}
+	if packageID == "" {
+		return errSMSCoreMissing
+	}
+	path, err := resolve(ctx, id)
+	if err != nil || !strings.HasPrefix(path, "/") {
+		return errCartridgeMissing
+	}
+	return client.LaunchROM(ctx, packageID, path)
+}
+
+func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve func(context.Context, string) (string, error), games []hostclient.Game, action, id string) error {
+	if client == nil {
+		return localcores.ErrUnavailable
+	}
+	if action == "local-launch" {
+		return launchLocalGame(ctx, client, resolve, games, id)
+	}
+	if action == "stop" {
+		return client.Stop(ctx)
+	}
+	return localcores.ErrUnavailable
+}
+
+var errSMSCoreMissing = errors.New("sms core missing")
+var errCartridgeMissing = errors.New("cartridge missing")
+
+func localCoreMessage(err error) string {
+	switch {
+	case errors.Is(err, errSMSCoreMissing):
+		return "The Master System core is not installed."
+	case errors.Is(err, errCartridgeMissing), errors.Is(err, localcores.ErrNotFound):
+		return "Cartridge is missing"
+	case errors.Is(err, localcores.ErrInUse):
+		return "Kit is in use"
+	case errors.Is(err, localcores.ErrBlocked):
+		return "Kit cannot launch this game"
+	default:
+		return "Kit local control is unavailable"
+	}
 }
 
 func listLocalCatalog(ctx context.Context, base string) ([]hostclient.Game, error) {
