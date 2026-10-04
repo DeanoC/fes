@@ -1,0 +1,27 @@
+{
+  "entry": {
+    "core_id": "fes.coleco",
+    "game_id": "fpga-native-video-sgm-open-memory-and-audio-diagnosti-a79f852d86a4",
+    "media_id": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317",
+    "media_role": "blob",
+    "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+    "title": "Native video SGM open memory and audio diagnostic"
+  },
+  "expansion": {
+    "expansion_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+    "game_id": "fpga-native-video-sgm-open-memory-and-audio-diagnosti-a79f852d86a4"
+  },
+  "mappings": [
+    {
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+      "profile": "direct"
+    },
+    {
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+      "profile": "scanlines"
+    }
+  ],
+  "profile": "scanlines"
+}

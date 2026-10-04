@@ -1,0 +1,9 @@
+Verified designated shell source, physical boundaries and timing
+Verified direct source binding, route, clocks and containment
+Verified scanlines source binding, route, clocks and containment
+Verified sgm source binding, route, clocks and containment
+Verified Go/Python full RBF and decoded CRAM: direct
+Verified Go/Python full RBF and decoded CRAM: direct-sgm
+Verified Go/Python full RBF and decoded CRAM: scanlines
+Verified Go/Python full RBF and decoded CRAM: scanlines-sgm
+All four exact-artifact composition checks passed: /home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/build.json

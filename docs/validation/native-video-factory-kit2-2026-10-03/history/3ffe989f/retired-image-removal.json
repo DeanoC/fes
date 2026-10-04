@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "removed": [
+    "/media/fat/fogcast/releases/images/1e7485f24ff33af3651fd92bc3cac92ad4a9fc84aae902c26aef3201d9958037.img",
+    "/media/fat/fogcast/releases/manifests/1e7485f24ff33af3651fd92bc3cac92ad4a9fc84aae902c26aef3201d9958037.json",
+    "/media/fat/fogcast/releases/images/5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f.img",
+    "/media/fat/fogcast/releases/manifests/5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f.json",
+    "/media/fat/fogcast/releases/images/b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.img",
+    "/media/fat/fogcast/releases/manifests/b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.json",
+    "/media/fat/fogcast/releases/images/f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e.img",
+    "/media/fat/fogcast/releases/manifests/f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e.json"
+  ],
+  "reclaimed_image_bytes": 469762048,
+  "protected_images": [
+    "86e4692059388068cad18040ce2077e2b81f91e2e6ac9659fb6633d6e1804473",
+    "e1b687ea77a3a87115530d2c27fd8373f732dba881c5d5676443e5bc8550e6b9",
+    "e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1"
+  ],
+  "protected_hashes_match": true,
+  "boot_id": "e69ae187-528f-4f17-bd05-9b69734fb66f",
+  "lease_generation": "98e2a551bf213b2aae3d6825f7040b36c12dc5968112d7f82f7f2a14b60e0789",
+  "free_space": "Filesystem           1K-blocks      Used Available Use% Mounted on\n/dev/root              1032428    460831    571598  45% /media/fat\n",
+  "image_hashes_before_removal": "1e7485f24ff33af3651fd92bc3cac92ad4a9fc84aae902c26aef3201d9958037  /media/fat/fogcast/releases/images/1e7485f24ff33af3651fd92bc3cac92ad4a9fc84aae902c26aef3201d9958037.img\n5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f  /media/fat/fogcast/releases/images/5af410626ae3c241b2d30009d6c9f384dc44c2be3ffaf2388d53beec31fe775f.img\nb2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd  /media/fat/fogcast/releases/images/b2b38270ee4a548bd139341af56f3c3f72ff6f933cf440f549a1527f5f5be5dd.img\nf449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e  /media/fat/fogcast/releases/images/f449886fc026dbf678e7ab22ac14dd6d54c924485658e1015835f8fd3c9a127e.img\n"
+}

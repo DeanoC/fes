@@ -1,0 +1,106 @@
+{
+  "abi": {
+    "id": "fes.application",
+    "major": 1,
+    "minor": 0
+  },
+  "build_id": "8d97fd1c36f5c79d08af074f972f96d0",
+  "catalog_sha256": "f6e9f517fb916b5bbb405605285891bc8f5d6be5835071659165088ac9640893",
+  "compositions": {
+    "direct": {
+      "composition_id": "bc7b88cb3cdf28c6f949c6abd4f32b1b6c9de82a3aa30b96194fb3a63933b3be",
+      "layout": "fes.coleco-native-video.parts/1",
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "parts": [
+        {
+          "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+      "payload_size": 2777778,
+      "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+    },
+    "scanlines": {
+      "composition_id": "16e5fb76c1f958e9efefa04973efccc38ec4cd1873de2634f86a3247115c9533",
+      "layout": "fes.coleco-native-video.parts/1",
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "parts": [
+        {
+          "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+      "payload_size": 2777363,
+      "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+    }
+  },
+  "entry": {
+    "archive_path": "packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+    "archive_sha256": "12bb082a6278f02aaf796bf5bdfccff08ba55455ffc0130cc3616054fdc7c03f",
+    "archive_size": 2674176,
+    "core_id": "fes.coleco",
+    "label": "ColecoVision native video",
+    "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+    "standing": "experimental",
+    "system": "coleco",
+    "video_parts": [
+      {
+        "archive_path": "video-parts/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar",
+        "archive_sha256": "c552946233e294808bbfd68a80da1ada831c28135ed4bdf9100730f8d8c7d309",
+        "archive_size": 2785280,
+        "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+        "profile": "direct"
+      },
+      {
+        "archive_path": "video-parts/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c/5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624.tar",
+        "archive_sha256": "504e9bb578e1a8345c6c8057dc263dd5b1497b2e483f2bddcb6904831dd46316",
+        "archive_size": 2785280,
+        "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+        "profile": "scanlines"
+      }
+    ]
+  },
+  "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+  "sgm_compositions": {
+    "direct": {
+      "composition_id": "00a732e23a52c03cdd21e39092b8ff4d615d5d0f8dfe62dfa1966a2c5581f08b",
+      "layout": "fes.coleco-native-video.parts/1",
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "parts": [
+        {
+          "part_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+          "role": "expansion"
+        },
+        {
+          "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "db718347ff97271b152b44b38d2b6ffcfb5df710fc3b9718b1f5a189cda3cb0b",
+      "payload_size": 2791563,
+      "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+    },
+    "scanlines": {
+      "composition_id": "d04bb677f219ba7c26ffccdc8ff1fd43347634557bfad12cf4e3dbb8a41fea0a",
+      "layout": "fes.coleco-native-video.parts/1",
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "parts": [
+        {
+          "part_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+          "role": "expansion"
+        },
+        {
+          "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "e0717dcd92fe347c88cc3bab874b26d43a01202975ff2ecda1a992e3cab274c9",
+      "payload_size": 2791147,
+      "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+    }
+  },
+  "sgm_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+  "source_id": "native-video-factory-kit2"
+}

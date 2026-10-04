@@ -198,6 +198,8 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
         if "diagnostic_input" in self.state:
             response["input"] = self.state["diagnostic_input"]
             response["core_package"]["active_interfaces"] = self.state.get("diagnostic_interfaces", [])
+        if "video_composition" in self.state:
+            response["core_package"]["parts_composition"] = self.state.get("video_drift", self.state["video_composition"])
         self._write(response)
 
     def do_GET(self):
@@ -208,6 +210,15 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             self._session()
         elif path == "/api/v1/core-packages":
             self._write({"packages": self.state["packages"]})
+        elif path == "/api/v1/library/video-parts":
+            self._write(self.state.get("video_inventory", []))
+        elif path.startswith("/api/v1/library/core-entries/") and path.endswith("/video"):
+            rows = self.state.get("video_inventory", [])
+            value = {"game_id": path.split("/")[-2], "package_id": PACKAGE_ID,
+                     "preferred_profile": "direct", "effective_profile": "direct", "builtin": False,
+                     "part_id": "1" * 64, "choices": [dict(row, label=row["profile"], available=True) for row in rows]}
+            value.update(self.state.get("video_resolution_override", {}))
+            self._write(value)
         elif path.startswith("/api/v1/core-media/"):
             media_id = path.rsplit("/", 1)[-1]
             media = self.state.get("media_store", {}).get(media_id)
@@ -255,6 +266,14 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 self.connection.close()
                 return
             self._write(self.state.get("input_response", {"ok": True}))
+        elif path.startswith("/api/v1/library/video-parts/"):
+            profile = path.rsplit("/", 1)[-1]
+            body = self._body()
+            self.state.setdefault("video_uploads", []).append((profile, body))
+            row = {"package_id": PACKAGE_ID, "profile": profile,
+                   "part_id": ("1" if profile == "direct" else "2") * 64}
+            self.state.setdefault("video_inventory", []).append(row)
+            self._write(self.state.get("video_import_override", row))
         elif path == "/api/v1/core-media":
             body = self._body()
             self.state.setdefault("media_uploads", []).append(body)
@@ -273,6 +292,11 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
         elif path == "/api/v1/core-packages":
             body = self._body()
             self.state["upload_bodies"].append(body)
+            if len(self.state["upload_bodies"]) > 1:
+                if self.state.get("forget_video_on_reimport"):
+                    self.state["video_inventory"] = []
+                if "video_restart_composition" in self.state:
+                    self.state["video_composition"] = self.state["video_restart_composition"]
             self.state["uploaded"] = True
             if self.state.get("upload_disconnect"):
                 self.close_connection = True
@@ -312,6 +336,8 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             body = json.loads(self._body())
             self.state["create_bodies"].append(body)
             entry = _entry(NEW_GAME_ID, body["package_id"])
+            if "video_core_id" in self.state:
+                entry["core_id"] = self.state["video_core_id"]
             entry["title"] = body["title"]
             for field in ("media_id", "media_role"):
                 if field in body:
@@ -353,6 +379,8 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             }
             if identity.get("target_id") is not None:
                 response["target_id"] = identity["target_id"]
+            if "video_composition" in self.state:
+                response["core_package"]["parts_composition"] = self.state["video_composition"]
             self._write(response)
         elif path == "/api/v1/session/stop":
             self.state["stops"] += 1
@@ -479,6 +507,144 @@ def _run_command(server, directory, *extra):
         capture_output=True,
     )
     return result, receipt
+
+
+def _write_video_parts(directory, package_id=PACKAGE_ID):
+    # Transport fixture only: production Go readers validate actual FPGA archives.
+    from factory_video_parts import canonical
+    root = Path(directory) / "video-source"
+    package = root / package_id
+    package.mkdir(parents=True)
+    parts = []
+    for profile, part_id in (("direct", "1" * 64), ("scanlines", "2" * 64)):
+        raw = ("transport video archive " + profile).encode()
+        archive = package / (part_id + ".tar")
+        archive.write_bytes(raw)
+        archive.chmod(0o444)
+        parts.append(dict(profile=profile, part_id=part_id, archive_path=f"{package_id}/{part_id}.tar",
+                          archive_sha256=hashlib.sha256(raw).hexdigest(), archive_size=len(raw)))
+    index = canonical({"version": 1, "packages": [{"package_id": package_id, "parts": parts}]})
+    (root / "index.json").write_bytes(index)
+    (root / "index.json").chmod(0o444)
+    package.chmod(0o555)
+    root.chmod(0o555)
+    return root, hashlib.sha256(index).hexdigest()
+
+
+def _video_state():
+    state = _state()
+    descriptor = {"format": 2, "core": {"id": "fes.coleco"}, "payload": {"sha256": "c" * 64},
+                  "abi": {"id": "fes.application", "major": 1, "minor": 0},
+                  "interfaces": [{"id": "fes.fabric.video.native-pixels", "major": 1, "minor": 0, "required": False}]}
+    state.update(video_core_id="fes.coleco", import_response={"package_id": PACKAGE_ID, "descriptor": descriptor},
+                 compatibility_response={"package_id": PACKAGE_ID, "descriptor": descriptor, "target_id": TARGET_ID,
+                                         "compatible": True, "state": "compatible", "compatibility_error": None})
+    composition = {"package_id": PACKAGE_ID, "layout": "fes.coleco-native-video.parts/1",
+                   "parts": [{"role": "video", "part_id": "1" * 64}],
+                   "shell_sha256": "c" * 64, "payload_sha256": "d" * 64, "payload_size": 100}
+    material = "fes-parts-composition-v1\0" + PACKAGE_ID + "\0" + composition["layout"] + "\0video:" + "1" * 64 + "\0" + "d" * 64
+    composition["composition_id"] = hashlib.sha256(material.encode()).hexdigest()
+    state["video_composition"] = composition
+    return state
+
+
+class VideoPartsAcceptanceTests(unittest.TestCase):
+    def run_video(self, state, directory, server, *, retained=False, extra=()):
+        root, digest = _write_video_parts(directory)
+        archive = _write_archive(directory)
+        receipt = Path(directory) / "receipt.json"
+        selected = (["--game-id", NEW_GAME_ID, "--expected-selected-package", PACKAGE_ID, "--reuse-video-parts"]
+                    if retained else ["--new-entry-title", "Native Coleco"])
+        command = _command(server, archive, receipt, *selected, "--expected-core-id", "fes.coleco",
+                           "--video-parts", str(root), "--expected-video-parts-sha256", digest, *extra)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        return result, receipt
+
+    def test_imports_both_parts_and_launches_normal_direct_composition(self):
+        state = _video_state()
+        with tempfile.TemporaryDirectory() as directory, fixture(state) as server:
+            result, path = self.run_video(state, directory, server)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            receipt = json.loads(path.read_text())
+            self.assertEqual(receipt["video_admission"], "imported")
+            self.assertEqual(receipt["video_composition"], state["video_composition"])
+            self.assertEqual([x[0] for x in state["video_uploads"]], ["direct", "scanlines"])
+            self.assertEqual(state["launch_bodies"], [{"game_id": NEW_GAME_ID}])
+            self.assertEqual(state["stops"], 1)
+
+    def test_retained_inventory_relaunch_does_not_reimport_or_repair(self):
+        for missing in (False, True):
+            state = _video_state()
+            state["entries"][NEW_GAME_ID] = dict(_entry(NEW_GAME_ID, PACKAGE_ID), core_id="fes.coleco")
+            state["video_inventory"] = [{"package_id": PACKAGE_ID, "profile": profile, "part_id": char * 64}
+                                         for profile, char in (("direct", "1"), ("scanlines", "2"))]
+            if missing:
+                state["video_inventory"].pop()
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as directory, fixture(state) as server:
+                result, receipt = self.run_video(state, directory, server, retained=True)
+                self.assertEqual(result.returncode, 1 if missing else 0, result.stderr)
+                self.assertEqual(state.get("video_uploads", []), [])
+                if missing:
+                    self.assertFalse(state["launch_bodies"])
+                    self.assertFalse(receipt.exists())
+                else:
+                    self.assertEqual(json.loads(receipt.read_text())["video_admission"], "retained")
+
+    def test_changed_archive_rejected_before_any_api_mutation(self):
+        state = _video_state()
+        with tempfile.TemporaryDirectory() as directory, fixture(state) as server:
+            root, digest = _write_video_parts(directory)
+            part = next((root / PACKAGE_ID).glob("*.tar"))
+            part.chmod(0o644)
+            part.write_bytes(b"changed")
+            part.chmod(0o444)
+            command = _command(server, _write_archive(directory), Path(directory)/"receipt.json",
+                               "--new-entry-title", "Native", "--video-parts", str(root),
+                               "--expected-video-parts-sha256", digest)
+            result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(state["upload_bodies"])
+            self.assertEqual(state["health_calls"], 0)
+
+    def test_import_identity_and_resolution_mismatch_block_launch(self):
+        mutations = [dict(video_import_override={"package_id": WRONG_PACKAGE_ID}),
+                     dict(video_resolution_override={"part_id": "e" * 64}),
+                     dict(video_resolution_override={"effective_profile": "scanlines"}),
+                     dict(video_resolution_override={"builtin": True})]
+        for mutation in mutations:
+            state = _video_state(); state.update(mutation)
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory, fixture(state) as server:
+                result, receipt = self.run_video(state, directory, server)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(state["launch_bodies"])
+                self.assertFalse(receipt.exists())
+
+    def test_invalid_launch_composition_fails_and_cleans_same_owned_flight(self):
+        state = _video_state(); state["video_composition"]["composition_id"] = "e" * 64
+        with tempfile.TemporaryDirectory() as directory, fixture(state) as server:
+            result, receipt = self.run_video(state, directory, server)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(state["stops"], 1)
+            self.assertFalse(receipt.exists())
+
+    def test_composition_change_refuses_unconditional_stop(self):
+        state = _video_state(); state["video_drift"] = dict(state["video_composition"], composition_id="e" * 64)
+        with tempfile.TemporaryDirectory() as directory, fixture(state) as server:
+            result, receipt = self.run_video(state, directory, server)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(state["stops"], 0)
+            self.assertFalse(receipt.exists())
+
+    def test_composition_digest_matches_retained_real_go_composition(self):
+        # Exact 7c9f04f68 Go producer receipt, independently recorded before this test.
+        package = "2044a90475fb6a0c5a2bdcaa3c1e6bfaa3b79894ff13105b9dd68bc026905a44"
+        direct = "516fa9cc05f85361842b56c5a913313a26994a203493a0cd254ea7f12cc97c7b"
+        value = dict(package_id=package, layout="fes.coleco-native-video.parts/1",
+                     parts=[dict(role="video", part_id=direct)], payload_size=2775995,
+                     shell_sha256="f4b0eb1f34c6d710f2c7dd40276424917eb81532af7a907433c2576ec06cd7a4",
+                     payload_sha256="296701cd132baac2e58d070be575e3e8ba9e40b8c70a370c87e18b66af3974e0",
+                     composition_id="6736e2875c5d876ec545816a961e80e4fe5d25a8cb7e819f39f5e857e8203a2f")
+        self.assertEqual(package_acceptance.validate_video_composition(value, package, direct), value)
 
 
 class LibraryMediaAcceptanceTests(unittest.TestCase):

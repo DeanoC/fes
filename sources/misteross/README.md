@@ -43,14 +43,14 @@ lane moves frame capture/scaling into a shared Direct/Scanlines consumer;
 `make sim-fes-native-video` and `make sim-fes-coleco-native` validate it on the
 host. `make synth-fes-native-video CACHE_ROOT=/absolute/cache` checks both
 native consumers with the locked compiler; it does not route or seal them.
-`make build-fes-coleco-native-video` seals a developer shell with a wider socket;
+`make build-fes-coleco-native-video` seals a shell with a wider socket;
 the existing part producer selects the matching native Direct/Scanlines backend
 from its sealed marker. `make sim-fes-native-socket` checks the socket and both
-parts together. Native shells require a linked part before launch; this lane
-does not change factory selection. Hardware acceptance is recorded separately.
-The factory raster lane selects the existing producer's video-socket variant
-for the factory package and publishes both
-parts against that exact package. The standalone `make build-fes-coleco`
+parts together. FES selects this native shell for the factory package and
+publishes both parts against that exact package. Native shells require a linked
+part before launch. The raster lane remains available through
+`make build-fes-coleco-video`, with separate slot/map/layout identities.
+Hardware acceptance is recorded separately. The standalone `make build-fes-coleco`
 command retains its CPU-only socket; `make build-fes-coleco-video` explicitly
 builds the video variant. The shared RTL contract is owned by
 [mister-packages](../mister-packages/docs/video-parts.md).

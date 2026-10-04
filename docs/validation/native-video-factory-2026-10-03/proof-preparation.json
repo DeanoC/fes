@@ -1,0 +1,111 @@
+{
+  "artifact_discovery": "Derive package/build IDs from the frozen native shell, then require exactly one completed original-source and exact-shell Direct, Scanlines and SGM publication. Optional explicit archive paths disambiguate multiple valid candidates; they retain all identity and evidence checks.",
+  "checks_performed": [
+    "Python AST syntax parse only",
+    "no hardcoded prior revision/package identity",
+    "selected worktree and source snapshot HEAD match expected revision and report clean tracked/untracked status",
+    "prior proof, preparations and verifier hashes unchanged"
+  ],
+  "cli_build": {
+    "argv": [
+      "go",
+      "build",
+      "-mod=readonly",
+      "-buildvcs=true",
+      "-o",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+      "./cmd/fes-parts"
+    ],
+    "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/FogCast",
+    "receipt": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cli-build.json",
+    "required_metadata": {
+      "go_version": "go1.26.5",
+      "vcs.modified": "false",
+      "vcs.revision": "3ffe989fbba6857b74f149112d1965156face870"
+    }
+  },
+  "expected_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "format": 1,
+  "prepared_inventory": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/prepared/core-video-parts/index.json",
+  "preserved_earlier_files": [
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/build-proof/build.json",
+      "sha256": "e184e91f135673e3e781c5843a917c58fadcd1bb94f56de670af010f7fcb1322",
+      "size": 131276
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/build-proof/verify.py",
+      "sha256": "d110fde8287bdc24069d3f5b6ab7913826bce964eca4caf631125a2e3f15994b",
+      "size": 20451
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/build-proof/preparation.json",
+      "sha256": "ab0b790253be2b1f026f58a4922567cefb54569e9d9ddbfaa9ec84a828d31f5f",
+      "size": 2615
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/build-proof/verify.py",
+      "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027",
+      "size": 23490
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3a9784f3/build-proof/preparation.json",
+      "sha256": "32fb3155a46761c136e1d85e0ae7d534e2d5de95c5e8bfc21fcd87d8b6a7bb6d",
+      "size": 3390
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3a9784f3/build-proof/verify.py",
+      "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027",
+      "size": 23490
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-e3738b4f/build-proof/preparation.json",
+      "sha256": "423c72539303eeda821190c2a3a2995529d6d93d256dcca114e0595640e91e0a",
+      "size": 5109
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-e3738b4f/build-proof/verify.py",
+      "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027",
+      "size": 23490
+    }
+  ],
+  "preserved_prior_proof": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/build-proof/build.json",
+    "sha256": "e184e91f135673e3e781c5843a917c58fadcd1bb94f56de670af010f7fcb1322",
+    "size": 131276
+  },
+  "preserved_prior_verifier": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-e3738b4f/build-proof/verify.py",
+    "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027",
+    "size": 23490
+  },
+  "prior_preparation": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-e3738b4f/build-proof/preparation.json",
+    "sha256": "423c72539303eeda821190c2a3a2995529d6d93d256dcca114e0595640e91e0a",
+    "size": 5109
+  },
+  "readiness_gate": "Wait for root to confirm the native shell, Direct, Scanlines, SGM and prepared inventory are ready before running artifact verification. The host-only Go CLI build is separately authorized and its execution receipt is cli-build.json.",
+  "status": "prepared-proof-not-run",
+  "verification": {
+    "argv": [
+      "python3",
+      "-I",
+      "-B",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/verify.py",
+      "--source",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross",
+      "--output",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof",
+      "--parts-cli",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+      "--expected-revision",
+      "3ffe989fbba6857b74f149112d1965156face870"
+    ],
+    "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes"
+  },
+  "verifier": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/verify.py",
+    "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027",
+    "size": 23490
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "entry": {
+    "core_id": "fes.coleco",
+    "game_id": "fpga-native-video-sgm-open-memory-and-audio-diagnosti-a79f852d86a4",
+    "media_id": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317",
+    "media_role": "blob",
+    "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+    "title": "Native video SGM open memory and audio diagnostic"
+  },
+  "expansion": {
+    "expansion_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+    "game_id": "fpga-native-video-sgm-open-memory-and-audio-diagnosti-a79f852d86a4"
+  },
+  "media": {
+    "media_id": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317",
+    "size": 1261
+  }
+}

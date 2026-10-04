@@ -1,0 +1,91 @@
+{
+  "checks": {
+    "SGM_pass_gate_checks_memory_and_AY": true,
+    "SN_and_AY_independently_present": true,
+    "ay_readback_wrong_prevents_video": true,
+    "console_mirror_prevents_video": true,
+    "full_six_case_CLI_passes": true,
+    "lower_window_absent_prevents_video": true,
+    "missing_AY_rejected": true,
+    "missing_SN_rejected": true,
+    "old_raster_horizontal_offset_rejected": true,
+    "period4_scanlines_rejected": true,
+    "ram_stuck_zero_prevents_video": true,
+    "sgm_absent_prevents_video": true,
+    "silence_rejected": true,
+    "unexpected_AY_detected_in_baseline": true,
+    "wrong_AY_frequency_rejected": true
+  },
+  "classification": "Synthetic and modeled offline controls only; no current hardware evidence.",
+  "positive_cli": {
+    "analysis_sha256": "3f59bb6bd6961ee6f95566de29d3406064ca987be822cded215156fc842dc7c9",
+    "cases": 6,
+    "command": [
+      "/usr/bin/python3",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/analyze_factory.py",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/controls",
+      "--include-sgm-relaunch",
+      "--expected-frames",
+      "60",
+      "--output",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/results/positive-control/analysis.json"
+    ],
+    "exit_code": 0,
+    "frames_each": 60,
+    "gates": 79,
+    "passed": 79
+  },
+  "probe_negative_details": {
+    "ay_readback_wrong": {
+      "comparison": {
+        "expected": 254,
+        "observed": 255
+      },
+      "executed_instructions": 56,
+      "fault": "ay_readback_wrong",
+      "pc": 33966,
+      "video_writes": 0
+    },
+    "console_mirror": {
+      "comparison": {
+        "expected": 102,
+        "observed": 195
+      },
+      "executed_instructions": 35,
+      "fault": "console_mirror",
+      "pc": 33917,
+      "video_writes": 0
+    },
+    "lower_window_absent": {
+      "comparison": {
+        "expected": 17,
+        "observed": 255
+      },
+      "executed_instructions": 42,
+      "fault": "lower_window_absent",
+      "pc": 33934,
+      "video_writes": 0
+    },
+    "ram_stuck_zero": {
+      "comparison": {
+        "expected": 165,
+        "observed": 0
+      },
+      "executed_instructions": 15,
+      "fault": "ram_stuck_zero",
+      "pc": 33866,
+      "video_writes": 0
+    },
+    "sgm_absent": {
+      "comparison": {
+        "expected": 165,
+        "observed": 255
+      },
+      "executed_instructions": 15,
+      "fault": "sgm_absent",
+      "pc": 33866,
+      "video_writes": 0
+    }
+  },
+  "verdict": "pass"
+}

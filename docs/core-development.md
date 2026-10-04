@@ -42,6 +42,7 @@ The output contains a frozen `.fcore`, its selection and `prepared.json`.
 The archive is checked against the resolved manifest/payload identity before
 publishing that receipt. Partial failures have no success receipt. Do not edit
 the frozen candidate to follow a newer branch; prepare a new candidate instead.
+Video-socket candidates also retain their sealed Direct/Scanlines inventory.
 
 For format-3 SMS or SG-1000, prepare the package without a startup media blob:
 
@@ -76,7 +77,8 @@ make core-dev-accept CORE_DEV_ACCEPT_ARGS='--prepared out/core-dev/pong-001/prep
 
 Replace placeholders with independently established identities. The adapter
 rehashes the candidate files and supplies their exact identities to the existing
-runner. You cannot override the candidate's archive/package/core/media fields.
+runner. You cannot override the candidate's archive/package/core/media fields
+or its video inventory and digest.
 Successful runs add `preparation.json` to the evidence directory, binding the
 exact preparation receipt digest to that run. Source revisions and manifest
 digests in the preparation record describe the earlier preparation checks;
@@ -94,6 +96,10 @@ Acceptance imports the package/media into a private host catalog, performs
 compatibility and selection checks, launches and stops, restarts the private
 host, then relaunches and stops the same selection. It does not modify the live
 host library. Imported media must survive that restart without reimport.
+For a prepared video socket, acceptance imports both exact-shell companions
+through the normal video-part API, requires Direct selection, and records the
+observed composition. Both profiles must remain usable after the private host
+restart without reimport, and the second launch must report the same composition.
 
 ## Optional input diagnostic
 

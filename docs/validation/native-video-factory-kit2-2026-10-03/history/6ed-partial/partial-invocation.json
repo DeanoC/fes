@@ -1,0 +1,29 @@
+{
+  "argv": [
+    "python3",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/run_partial.py",
+    "--host-binary",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/host-driver",
+    "--state",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/partial-state",
+    "--catalog",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/publication/catalog.json",
+    "--rom",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fixture/graphics-sn.rom",
+    "--output",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/partial",
+    "--package",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/publication/packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+    "--direct",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/publication/video-parts/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar",
+    "--target-id",
+    "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+    "--target-name",
+    "kit2",
+    "--port",
+    "18789",
+    "--image-sha256",
+    "3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496"
+  ],
+  "started_at": "2026-10-03T16:50:11.310730+00:00"
+}

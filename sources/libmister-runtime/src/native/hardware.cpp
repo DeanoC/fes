@@ -548,7 +548,9 @@ Error NativeHardware::InspectCoreData(
 	const std::string& path, const std::string& id, const std::string& root, CoreData* output)
 {
 	std::unique_ptr<AdmittedCorePackage> admitted;
-	Error error = AdmitCorePackage(path, id, &admitted);
+	// Library parts preflight inspects a native shell's namespace without
+	// activating it. Composition remains mandatory on every native load path.
+	Error error = AdmitCorePackageInternal(path, id, true, &admitted);
 	if (error.ok())
 		error = PrepareCoreDataInternal(admitted.get(), root, output, false);
 	return error;

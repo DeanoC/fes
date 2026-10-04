@@ -1,0 +1,12 @@
+--- run_partial.py
++++ run_partial_checked.py
+@@ -19,7 +19,8 @@
+         require(next(x for x in resolution['choices'] if x['profile']=='direct')['available'] is False, 'Vacant native Direct was advertised as available')
+         self.active=True  # A failed/lost launch reply can still leave our session active.
+         rejection=self.request('POST','/api/v1/session/launch',{'game_id':entry['game_id'],'target':self.args.target_name},400)
+-        require(rejection['error']['code']=='BAD_REQUEST' and rejection['error'].get('phase')=='admission', 'Missing Direct failed for another reason')
++        self.save('missing-direct-reply', {'status':400,'body':rejection})
++        require(rejection['error']['code']=='BAD_REQUEST' and rejection['error'].get('phase')=='request', 'Missing Direct failed for another reason')
+         require(self.observation()==before,'Missing Direct launch mutated target status')
+         self.idle('missing-direct')
+         self.active=False

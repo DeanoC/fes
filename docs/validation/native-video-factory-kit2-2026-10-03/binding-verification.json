@@ -1,0 +1,89 @@
+{
+  "artifact_source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "checks": {
+    "installed_files": 7,
+    "parent_verification": [
+      "two_pass_reproducibility",
+      "structural",
+      "qemu_packaging"
+    ],
+    "release_bound": true,
+    "reused_catalog_files": 4,
+    "selection_metadata_changes": [
+      "mister_packages_revision:3ffe989fbba6857b74f149112d1965156face870 -> 6ed1dad495b0c836b611e4e7b331c3a7d4801c63"
+    ],
+    "unchanged_fpga_inventory_files": 6
+  },
+  "classification": "CPU-only read-only corrected image/catalog/release binding; no hardware acceptance",
+  "exit_code": 0,
+  "format": 1,
+  "hardware": {
+    "acceptance": "not established by this host-only verification",
+    "target_access": false
+  },
+  "image_binding": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/image-binding.json",
+    "sha256": "2e36e51f5c65e4cc16b984aaed86f8eefc758a4a42f46eb5c75b064d4350abea",
+    "size": 68822
+  },
+  "image_sha256": "3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496",
+  "image_source_revision": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "invocation": {
+    "argv": [
+      "python3",
+      "-I",
+      "-B",
+      "out/native-video-factory/candidate-6ed1dad4/build-proof/bind_image.py",
+      "--expected-image",
+      "3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496",
+      "--release-directory",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-integration-dev/appliance/releases/3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496/d48c5c00ccd105e73dd0396ad50d4c4da1416ec9604af7f3614669a1b9395241",
+      "--expected-release-version",
+      "0.2.0-dev.native-video-6ed1dad4"
+    ],
+    "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes"
+  },
+  "preparation": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/preparation.json",
+    "sha256": "93c50d84d023c207c070d845be7db64e7fa0f6cd32fb8bc83cf5d0b583cd2567",
+    "size": 4020
+  },
+  "preserved_failed_attempt": {
+    "cause": "Catalog check incorrectly used factory_video_parts.canonical, which appends a newline. core_catalog.canonical omits that newline for the catalog digest; the file then carries exactly one newline.",
+    "classification": "Binder serializer error, not an artifact failure",
+    "correction": "Use the selected production core_catalog.canonical for both digest and file checks. No catalog, archive, cache record, original proof or selected source was changed.",
+    "exit_code": 1,
+    "log": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/bind-image-attempt1.log",
+      "sha256": "17cb280b038ed2e63c371c18a83256e92e62eb1f732131d8a16f7097d8bd0787",
+      "size": 910
+    },
+    "number": 1,
+    "script": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/bind_image-attempt1.py",
+      "sha256": "b8223ccbdcd2c754483e02bcb28c3f9493cb17db379622348914e3bf1ca15fdb",
+      "size": 21554
+    }
+  },
+  "recorded_at": "2026-10-03T16:43:01.943857+00:00",
+  "source_cache_binding": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/source-cache-binding.json",
+    "sha256": "78911069c5d3c30ee9cf878935e4e3de6c597fbea24f7ff0dabdf172e01b4c51",
+    "size": 53931
+  },
+  "status": "passed",
+  "successful_attempt": {
+    "log": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/bind-image.log",
+      "sha256": "358fcea62df4d0c8f1b04c26cc5a022ac3a529d6d4cd9febd55054e28b5039a4",
+      "size": 125
+    },
+    "number": 2,
+    "script": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/build-proof/bind_image.py",
+      "sha256": "2d93e9bcb0d5111dea5cd92c0144ead658fc691fb4db591ed034730d7b7fd0a3",
+      "size": 21752
+    },
+    "tool_reported_wall_seconds": 0.890228419
+  }
+}

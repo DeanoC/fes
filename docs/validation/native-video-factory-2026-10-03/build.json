@@ -1,0 +1,2371 @@
+{
+  "classification": "exact-artifact host build and composition evidence; no hardware acceptance",
+  "compositions": [
+    {
+      "case": "direct",
+      "command": [
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+        "-package",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+        "-video",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar",
+        "-out",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/go.parts.tar"
+      ],
+      "composition": {
+        "composition_id": "bc7b88cb3cdf28c6f949c6abd4f32b1b6c9de82a3aa30b96194fb3a63933b3be",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "parts": [
+          {
+            "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+        "payload_size": 2777778,
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+      },
+      "cram_sha256": "f28669c5db89d739ef22f7781966166887d4dd38fd45bffa83647073618ad302",
+      "decoded_cram_equal": true,
+      "exit_code": 0,
+      "go_payload": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/go-linked.rbf",
+        "sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+        "size": 2777778
+      },
+      "header_preserved": true,
+      "matches_combined_compiler_previews": true,
+      "matches_exact_native_compiler_rbf": true,
+      "python_payload": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/python-linked.rbf",
+        "sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+        "size": 2777778
+      },
+      "rbf_bytes_equal": true,
+      "strict_region_changes": {
+        "cpu_expansion": 0,
+        "native_video": 542408,
+        "outside_declared_regions": 0
+      },
+      "transport": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/go.parts.tar",
+        "sha256": "06781f7118a53d97a6120fd43a528cd64c0c8f1cc317e3c55f13139fc0d03c8c",
+        "size": 8237056
+      }
+    },
+    {
+      "case": "direct-sgm",
+      "command": [
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+        "-package",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+        "-video",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar",
+        "-expansion",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf.tar",
+        "-out",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/go.parts.tar"
+      ],
+      "composition": {
+        "composition_id": "00a732e23a52c03cdd21e39092b8ff4d615d5d0f8dfe62dfa1966a2c5581f08b",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "parts": [
+          {
+            "part_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+            "role": "expansion"
+          },
+          {
+            "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "db718347ff97271b152b44b38d2b6ffcfb5df710fc3b9718b1f5a189cda3cb0b",
+        "payload_size": 2791563,
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+      },
+      "cram_sha256": "a324909d5cbba81bdda78552256963b2616008f353fd5dcd2d612991a2fab0ae",
+      "decoded_cram_equal": true,
+      "exit_code": 0,
+      "go_payload": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/go-linked.rbf",
+        "sha256": "db718347ff97271b152b44b38d2b6ffcfb5df710fc3b9718b1f5a189cda3cb0b",
+        "size": 2791563
+      },
+      "header_preserved": true,
+      "matches_combined_compiler_previews": true,
+      "matches_exact_native_compiler_rbf": false,
+      "python_payload": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/python-linked.rbf",
+        "sha256": "db718347ff97271b152b44b38d2b6ffcfb5df710fc3b9718b1f5a189cda3cb0b",
+        "size": 2791563
+      },
+      "rbf_bytes_equal": true,
+      "strict_region_changes": {
+        "cpu_expansion": 37427,
+        "native_video": 542408,
+        "outside_declared_regions": 0
+      },
+      "transport": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/go.parts.tar",
+        "sha256": "3b037786c1512b14ac625eed7c74b5b0b3fdd6697246512c4a3382cb6a55dd52",
+        "size": 10938880
+      }
+    },
+    {
+      "case": "scanlines",
+      "command": [
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+        "-package",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+        "-video",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624.tar",
+        "-out",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/go.parts.tar"
+      ],
+      "composition": {
+        "composition_id": "16e5fb76c1f958e9efefa04973efccc38ec4cd1873de2634f86a3247115c9533",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "parts": [
+          {
+            "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+        "payload_size": 2777363,
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+      },
+      "cram_sha256": "648fd70538f297107f59a64bf0f8749f50001dd5bf46642f49b09f37c28fc100",
+      "decoded_cram_equal": true,
+      "exit_code": 0,
+      "go_payload": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/go-linked.rbf",
+        "sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+        "size": 2777363
+      },
+      "header_preserved": true,
+      "matches_combined_compiler_previews": true,
+      "matches_exact_native_compiler_rbf": true,
+      "python_payload": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/python-linked.rbf",
+        "sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+        "size": 2777363
+      },
+      "rbf_bytes_equal": true,
+      "strict_region_changes": {
+        "cpu_expansion": 0,
+        "native_video": 542076,
+        "outside_declared_regions": 0
+      },
+      "transport": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/go.parts.tar",
+        "sha256": "22a1ae908b3dbb048102cc27b936fda8adc8c19153828a32d0e2d1d889b4dd7f",
+        "size": 8236032
+      }
+    },
+    {
+      "case": "scanlines-sgm",
+      "command": [
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+        "-package",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+        "-video",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624.tar",
+        "-expansion",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf.tar",
+        "-out",
+        "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/go.parts.tar"
+      ],
+      "composition": {
+        "composition_id": "d04bb677f219ba7c26ffccdc8ff1fd43347634557bfad12cf4e3dbb8a41fea0a",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "parts": [
+          {
+            "part_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+            "role": "expansion"
+          },
+          {
+            "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "e0717dcd92fe347c88cc3bab874b26d43a01202975ff2ecda1a992e3cab274c9",
+        "payload_size": 2791147,
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+      },
+      "cram_sha256": "31d0568cb1f26429963c842cfc8f1eca434fd96f50415a84ade9be95caac67f4",
+      "decoded_cram_equal": true,
+      "exit_code": 0,
+      "go_payload": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/go-linked.rbf",
+        "sha256": "e0717dcd92fe347c88cc3bab874b26d43a01202975ff2ecda1a992e3cab274c9",
+        "size": 2791147
+      },
+      "header_preserved": true,
+      "matches_combined_compiler_previews": true,
+      "matches_exact_native_compiler_rbf": false,
+      "python_payload": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/python-linked.rbf",
+        "sha256": "e0717dcd92fe347c88cc3bab874b26d43a01202975ff2ecda1a992e3cab274c9",
+        "size": 2791147
+      },
+      "rbf_bytes_equal": true,
+      "strict_region_changes": {
+        "cpu_expansion": 37427,
+        "native_video": 542076,
+        "outside_declared_regions": 0
+      },
+      "transport": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/go.parts.tar",
+        "sha256": "5bf2d25caf494c90aaa3bf890a13a095b806681d0e13d4d20cfe254cd51a44a8",
+        "size": 10937856
+      }
+    }
+  ],
+  "discovered_artifacts": {
+    "package_archive": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+    "parts": {
+      "direct": {
+        "archive": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar",
+        "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+        "recipe_sha256": "0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a"
+      },
+      "scanlines": {
+        "archive": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624.tar",
+        "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+        "recipe_sha256": "7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a"
+      },
+      "sgm": {
+        "archive": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf.tar",
+        "part_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+        "recipe_sha256": "87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459"
+      }
+    },
+    "shell_directory": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video"
+  },
+  "format": 1,
+  "go_build_info": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/go-build-info.txt",
+    "sha256": "53b3eb8ae2cb3a30e4f1c10fffa8166357d802a16e799d56a1a4195a1cb2b967",
+    "size": 742
+  },
+  "go_linker": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+    "sha256": "8a3428dff9aeb3295f591aa486e33011801776cb7e3cf297c03e92c5484a37f0",
+    "size": 5030856
+  },
+  "invocation": {
+    "argv": [
+      "python3",
+      "-I",
+      "-B",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/verify.py",
+      "--source",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross",
+      "--output",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof",
+      "--parts-cli",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f",
+      "--expected-revision",
+      "3ffe989fbba6857b74f149112d1965156face870"
+    ],
+    "cwd": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes"
+  },
+  "limitations": [
+    "Static timing is separately routed shell+video and shell+SGM evidence; the merged video+SGM image is not re-routed here.",
+    "SGM admission retains its existing legacy column policy. These particular SGM bytes additionally have zero strict outside-region differences.",
+    "These checks compose and compare the recorded artifacts on the host; they do not program a kit or qualify HDMI/audio behavior."
+  ],
+  "observed_files": {
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/go-linked.rbf": {
+      "sha256": "db718347ff97271b152b44b38d2b6ffcfb5df710fc3b9718b1f5a189cda3cb0b",
+      "size": 2791563
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/go.parts.tar": {
+      "sha256": "3b037786c1512b14ac625eed7c74b5b0b3fdd6697246512c4a3382cb6a55dd52",
+      "size": 10938880
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/go.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/go.stdout.json": {
+      "sha256": "046094fb0150776d119712ac76ea28a2372ef2de9d509239962539a6759d77f6",
+      "size": 600
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct-sgm/python-linked.rbf": {
+      "sha256": "db718347ff97271b152b44b38d2b6ffcfb5df710fc3b9718b1f5a189cda3cb0b",
+      "size": 2791563
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/go-linked.rbf": {
+      "sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+      "size": 2777778
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/go.parts.tar": {
+      "sha256": "06781f7118a53d97a6120fd43a528cd64c0c8f1cc317e3c55f13139fc0d03c8c",
+      "size": 8237056
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/go.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/go.stdout.json": {
+      "sha256": "e312bf42a675f1d29fd34087c70b327c077e946522340d1d0289c9fd757beade",
+      "size": 502
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/direct/python-linked.rbf": {
+      "sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+      "size": 2777778
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/go-linked.rbf": {
+      "sha256": "e0717dcd92fe347c88cc3bab874b26d43a01202975ff2ecda1a992e3cab274c9",
+      "size": 2791147
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/go.parts.tar": {
+      "sha256": "5bf2d25caf494c90aaa3bf890a13a095b806681d0e13d4d20cfe254cd51a44a8",
+      "size": 10937856
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/go.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/go.stdout.json": {
+      "sha256": "3b05da85640fbab6b84039a9a6a948df075ef901f0f841e1ce5259d4476eabf6",
+      "size": 600
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines-sgm/python-linked.rbf": {
+      "sha256": "e0717dcd92fe347c88cc3bab874b26d43a01202975ff2ecda1a992e3cab274c9",
+      "size": 2791147
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/go-linked.rbf": {
+      "sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+      "size": 2777363
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/go.parts.tar": {
+      "sha256": "22a1ae908b3dbb048102cc27b936fda8adc8c19153828a32d0e2d1d889b4dd7f",
+      "size": 8236032
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/go.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/go.stdout.json": {
+      "sha256": "a01a7070222d7041d8ed906cb4b19887fe220eb8e739df661260fe59edd2b430",
+      "size": 502
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/cases/scanlines/python-linked.rbf": {
+      "sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+      "size": 2777363
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/go-build-info.txt": {
+      "sha256": "53b3eb8ae2cb3a30e4f1c10fffa8166357d802a16e799d56a1a4195a1cb2b967",
+      "size": 742
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/verify.py": {
+      "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027",
+      "size": 23490
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf.tar": {
+      "sha256": "f57b28f29e660386bc2f044f0317df47980f26d710ffc4dfd7e2b51c7ca75937",
+      "size": 2693120
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/build-summary.json": {
+      "sha256": "6af7d486bd4ca13453b3d23fc1c0b8b2c525440e94a476a77687eedf03e7c0c1",
+      "size": 4171
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/cart-routed.json": {
+      "sha256": "a9b13f02e1125da9186367882f4aabeb989e7ce34d0213f9de4733d5e08da581",
+      "size": 26945891
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/cart.json": {
+      "sha256": "13bd099566f80c54ca47da6928cd0a8635952d31112923d50e39c604c60942a1",
+      "size": 1760363
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/cart.rbf": {
+      "sha256": "8c134a3fdb8bfc27c6bdeea1c198b491a040a575f82467423e45cd807d4c4641",
+      "size": 2683688
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/cram-diff.json": {
+      "sha256": "397cb28d93907b9d7cd4b28231e644b100533125253c46ec81d2df7d2f049e73",
+      "size": 894
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/linked.rbf": {
+      "sha256": "8c134a3fdb8bfc27c6bdeea1c198b491a040a575f82467423e45cd807d4c4641",
+      "size": 2683688
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/route.log": {
+      "sha256": "d785189360f35a7a2538e43504f4da389f402cb87791ee5fb0981eb80b9c753f",
+      "size": 32519
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/timing.json": {
+      "sha256": "849bc078ea82a8bd1dc53b9ec60647c0c99214baeb7385a33239024c55d418a5",
+      "size": 15067
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/build-inputs.json": {
+      "sha256": "c08fbc8e495d56ce5ab443dad80d4e5d380855515ceb89f28a9bcdeb656e4ce5",
+      "size": 24918
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/build-summary.json": {
+      "sha256": "fba55035cf8b9ddcd0f58e5fc9736a8dd6cceaee0c4d27a2b522e87f25649cde",
+      "size": 151500
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/core.rbf": {
+      "sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb",
+      "size": 2669898
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/manifest.toml": {
+      "sha256": "2f0d93d953e45e5273615a2fc19986a70511a65f5915d7b74abebb1ed10596fb",
+      "size": 1847
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/nextpnr.log": {
+      "sha256": "06afa65233a01b3b6dccc5a36dc24e568ac594ca783b7ae4b0e39f8711273574",
+      "size": 50671
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/routed.json": {
+      "sha256": "5c8cb4e4575a667c17a3598aced30c87ede24270d61cc286a6ace000404ceaf0",
+      "size": 25149778
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/socket.qsf": {
+      "sha256": "35f48121aa1559c2cd2524c4c0d525d2e92eb90d445b81837b62b438dfd87155",
+      "size": 2976
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/synth.json": {
+      "sha256": "d0cc95bf3c114e0a088bfbf684747584cff9ddab0b9f0804516a8defea7c24ba",
+      "size": 14171467
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/timing.json": {
+      "sha256": "1652e7736a7a743f307543f61165f76e3c37b9a14bc61959a374c9cc371f0260",
+      "size": 2314263
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore": {
+      "sha256": "12bb082a6278f02aaf796bf5bdfccff08ba55455ffc0130cc3616054fdc7c03f",
+      "size": 2674176
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar": {
+      "sha256": "c552946233e294808bbfd68a80da1ada831c28135ed4bdf9100730f8d8c7d309",
+      "size": 2785280
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/build-summary.json": {
+      "sha256": "5b74eba947abc30e24cbeb8797f281c128e232bd9a864559a0ccd8139d2ad712",
+      "size": 175653
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/cart-routed.json": {
+      "sha256": "d4c3954e0fb9f3a66b1769a4c2019570771c9a2ab4e2243b009aecfa2af3d2be",
+      "size": 27252975
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/cart-synth.json": {
+      "sha256": "73d1995f98fbccbc72557a505afb39f9f9e81a6c9336135d1a3987dc22d97f4e",
+      "size": 1850126
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/cart.json": {
+      "sha256": "6edae0c14f3fe086840a45e777e842eea3e87fad153727f8c61592083c7b7f7c",
+      "size": 1447712
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/cart.rbf": {
+      "sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+      "size": 2777778
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/cram-diff.json": {
+      "sha256": "82f7ebc2a511edbcdd61e6231a1b56906644cfbbf4d4e26460c58a393fa3154b",
+      "size": 1382
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/linked.rbf": {
+      "sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+      "size": 2777778
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/route.log": {
+      "sha256": "5814379c773c0461977106755227925aa98636daeb2e000993569e80fcf4b98d",
+      "size": 71658
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/timing.json": {
+      "sha256": "c757135e0855a0f45f9739d2f63ee3fc274d4804b8a39c297fdb47489ea7ac82",
+      "size": 19566
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624.tar": {
+      "sha256": "504e9bb578e1a8345c6c8057dc263dd5b1497b2e483f2bddcb6904831dd46316",
+      "size": 2785280
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/build-summary.json": {
+      "sha256": "e2380bfce0578b73bd7588b47eca2afb0b0fb8bbf22cfe550f13772311f2a9a1",
+      "size": 175640
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/cart-routed.json": {
+      "sha256": "d95e84e48fea1bd898173eadb504db6dee4841e81cbce6971ae840be33fc1b1f",
+      "size": 27320453
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/cart-synth.json": {
+      "sha256": "f97417c49170d9a6f1745053f6f1270449a03d95b3de2a0fbc96adceb730ff57",
+      "size": 1883617
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/cart.json": {
+      "sha256": "640756e432356773e86a6e246caf22ae1ae505b8294e5ec6b33097fb8ad51526",
+      "size": 1469580
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/cart.rbf": {
+      "sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+      "size": 2777363
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/cram-diff.json": {
+      "sha256": "18600128d82a9c7f2b2292124161a3aaf691fe97439c2f96e4dbbf72d1f4f07c",
+      "size": 1366
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/linked.rbf": {
+      "sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+      "size": 2777363
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/route.log": {
+      "sha256": "d9190aaf9698f72435ef6fcf54d56e289c4490fafba91cef3f9b32d2d9dccf80",
+      "size": 72913
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/timing.json": {
+      "sha256": "309f04e6b80ffee6237f5d1cd369b6c8b2d0905de0685960899d099da61f5f26",
+      "size": 18360
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/clocks-oss.sdc": {
+      "sha256": "a0f6cf1636d4bf91643477d923761872edddeb64f70b9432298b1cc4c88f14bc",
+      "size": 212
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/clocks.sdc": {
+      "sha256": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+      "size": 290
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/constraints-oss.qsf": {
+      "sha256": "34078de682277fad57e83dd22856dc28a73626b9c93d11adefe2e5eebef5e3c6",
+      "size": 2852
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/constraints.qsf": {
+      "sha256": "339c861544e889ced244ee944320e6df67feca155bb57760e49d6b0ec9f45e0d",
+      "size": 2846
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/diagnostic/LICENSE": {
+      "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d",
+      "size": 1151
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/diagnostic/generate.py": {
+      "sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe",
+      "size": 12872
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/diagnostic/sgm_probe.py": {
+      "sha256": "e7eed442df8232de3c8bc7be96b8bc1a757017a1f6fbb3f75044b261259cda46",
+      "size": 3265
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/diagnostic/sprite_io.py": {
+      "sha256": "d2fa4defac7cd8993d806c8f9735955a9b702c3212b24daf9994293084911cf0",
+      "size": 7317
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/diagnostic/vdp_io.py": {
+      "sha256": "20f289cdc0d06b6989fa22dea4cc2cb19aff80fab2f50abecb10f498a1b6d3e4",
+      "size": 7178
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/expansions/diagnostic.v": {
+      "sha256": "1af57706549100b729a75030b3a7d82f088e55fb1f00a304004719edf014885f",
+      "size": 2870
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/expansions/sgm.v": {
+      "sha256": "0024fed1b978c26e17ac3c704c99a9a9fab3fa2081780788891173e4badeab6d",
+      "size": 1117
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/expansions/sgm_ay.v": {
+      "sha256": "88eec1286b0a3aef05239735f163baa44b0f09f7253cc0a7a780e8373498b3e5",
+      "size": 7604
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/expansions/sgm_control.v": {
+      "sha256": "4ee2466a1005f33db8a133e8fa787c94da0a48d5db0cb31a02ec0b9690f8ebdc",
+      "size": 1987
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/generated/fes_simple_computer.vh": {
+      "sha256": "e6828a75c8edcfa947ee55e33e0223a629b0ad9b0463b2f584f20d8224c77ab2",
+      "size": 9850
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_application_gp.v": {
+      "sha256": "1c28a4ba5c17f6ce4581ef1b408c51c7859f38ae57b96923116385482b4df974",
+      "size": 2388
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_audio_mix.v": {
+      "sha256": "eda18b251cd0684f696cd66bbe5525aaf76b14158852f3c71c1304e356bf46b4",
+      "size": 448
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_bus_pack.vh": {
+      "sha256": "18d76342e3f7ca7c663a2eca7fbd06fe8d3322b38cdcd2bf0a826a669d8b435d",
+      "size": 656
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_bus_v2_pack.vh": {
+      "sha256": "eaf8460706d214132fa74e8e4826f683f1e1d8aa9c7939d8adf31cfe8ceebd14",
+      "size": 706
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_expansion_ram.v": {
+      "sha256": "cbcc6c4767e7cf4e67361fe8f3b25489f79d4a5f0f0d90afb0a2f9f9bf5a0921",
+      "size": 548
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_expansion_socket.v": {
+      "sha256": "3f5727031b2eb57ed4fedc3a27f5db0be85b87317bdbdb15142ef6e57eb73e98",
+      "size": 4981
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_expansion_socket_v2.v": {
+      "sha256": "4d333ff1058f17bd921e44ff919439d373ae32afe77226fab7cab36228f5415c",
+      "size": 6935
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_machine.sv": {
+      "sha256": "256627b155ef95e3efc715453a7736612019962e82aaa054143d74eec5410ebe",
+      "size": 18933
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_megacart_rom.v": {
+      "sha256": "7e845d116575178b6a1cd5207d3f750d3816d48a88f95a559131278a74d858d1",
+      "size": 51447
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_native_video_socket.v": {
+      "sha256": "a5cfa2025bfa6d184af17092b273548076bb48d949212664e40b5bea67809eb0",
+      "size": 34145
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_reset_rom.hex": {
+      "sha256": "90192cff60dd5ca50e7bfaaeea62f3996baed1a729f09322bc62e4e0fe7e3bb0",
+      "size": 24576
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_reset_rom.mif": {
+      "sha256": "9352638de83bdff099da58144004c5f20ef6f3e996bb7f6e59ef3fb496606d3e",
+      "size": 293
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_system_pll.v": {
+      "sha256": "3ee89d3059a99ee5711edf7e61e28585900a3e9185b0d8fdf520c9fbd5dfb874",
+      "size": 816
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/coleco_video_socket.v": {
+      "sha256": "4a1a48294d18d62155cb6fe6fc84d08780d4a39e9c1709b53709931260079a2c",
+      "size": 19967
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/rtl/top.v": {
+      "sha256": "1c8c8b29d8c7393ae348a2de243af8f8e180371321e8dedd8f2651c2d612302d",
+      "size": 9279
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/audio_output_tb.cpp": {
+      "sha256": "7754ac89e3d70ea1ef8ee6cd0fa6ac1b2350b04898a10a003fe07f173a270d78",
+      "size": 1581
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/board_models.v": {
+      "sha256": "72c1cb03fc2d9976693523ee95fcd76f89406c734d2850cbbf84d5aa1542b2bf",
+      "size": 1648
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/board_tb.cpp": {
+      "sha256": "804499ade364c66ae7af76ffeb36dee762bd44f6cb03ec7a9ce3c82cf94d7a42",
+      "size": 31941
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/cpu_ce_tb.cpp": {
+      "sha256": "626712f3ff9426a9415a3c232f05d441afca5659eb6a5f47bb58a31377cbc58f",
+      "size": 1525
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/diagnostic_machine.sv": {
+      "sha256": "3872f956f9d72244706ebbe2a50c9ccf9987e5b7bfcf86707a28dd565da592e6",
+      "size": 1581
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/diagnostic_machine_tb.cpp": {
+      "sha256": "1650ff4432481abef73681f59ea9262b1d4ecef7dcb7a292bfa6e1909fafa89a",
+      "size": 2079
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/diagnostic_tb.cpp": {
+      "sha256": "0d6dcf7adc98ce46e1a8c8bef7f1a9b719092b016bf369b44a0b503670c7ef5d",
+      "size": 2220
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/expansion_tb.cpp": {
+      "sha256": "58a74ebab2109bdfab1b4c627b4349f4112787fb54fd1b822b88d030ce83626e",
+      "size": 4171
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/firmware_model.sv": {
+      "sha256": "2b7814b360f722a02c38ef1f52cfff5b0bd87d66283f9ef927b9214a51a42c5d",
+      "size": 1698
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/firmware_tb.cpp": {
+      "sha256": "e240b7429fd4c55f25d787e0635de160288675c6fef533bde8559a4b2c726c74",
+      "size": 3228
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/gp_tb.cpp": {
+      "sha256": "645cf235996cd7d93235e1fc314969dca42123e1a7e2b8341954aa0a2af04596",
+      "size": 4064
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/graphics_tb.cpp": {
+      "sha256": "2ea115d3bb46f7b29c10dd457c710bf04eb96af405a4d036a1f3f7be2a4a1952",
+      "size": 5761
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/machine_tb.cpp": {
+      "sha256": "09bb11907e094b77a94dd6ddf8013f1d61a575b73619aaaabaabad4c639e45e7",
+      "size": 9878
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/megacart_machine_tb.cpp": {
+      "sha256": "1ea20aa95e9a5fcb8e9a213134dba2ca1844d6dd35545317ca7bad3564054d4f",
+      "size": 4231
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/megacart_tb.cpp": {
+      "sha256": "f2cf23c193ab13b5cfb7eb9bffe435db1f71873abdd93ffaa0e0ae2bae550b18",
+      "size": 2353
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/native_vdp_tb.cpp": {
+      "sha256": "713d5f8d6d7b8f3b37402be6aafd28872d4190b3d79e6e162e2ec4c540b48f22",
+      "size": 13996
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/native_vdp_top.sv": {
+      "sha256": "acb81253beab1c311f0d19100a100d7236592be8c8f9570efa633f55f3dc56d6",
+      "size": 2056
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/psg_tb.cpp": {
+      "sha256": "82a2b1c264962dcb64bc06d9e59cb502b0d25df56edb20de70cb63d26e1fe460",
+      "size": 3342
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/quartus_media_tb.sv": {
+      "sha256": "683e65bd5a762bf2dea13bfa1fa391fe18ea5e7ab42f477c863bdada957984f2",
+      "size": 3156
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/quartus_ram_tb.sv": {
+      "sha256": "8949a59b1c7f52089c9a615a19cf09a27cec887f1cc27920b2c195554065be65",
+      "size": 1911
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/raster_ce_tb.cpp": {
+      "sha256": "5261301d18aba30cdf84443a84487f6f578e13e92494fdfc7dbd9fea26c70b2b",
+      "size": 2678
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/raster_ce_tb.sv": {
+      "sha256": "3c81b787f65c32d5c3f25e10f1f8c0174d8797734d95f9e38a58fc87595da125",
+      "size": 478
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/sgm_audio_path.sv": {
+      "sha256": "6caa9dd28a965843169bf04bc1f64ffab6738854aa5f507238c0294536e6f559",
+      "size": 968
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/sgm_audio_tb.cpp": {
+      "sha256": "b4445d3e803dc80ad9d790688c3a9e388d4be50adfad87ee23237f34cdee0b6a",
+      "size": 2208
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/sgm_ay_tb.cpp": {
+      "sha256": "768abae22f119451c7bfdc1e113853462810fa98896a0a44dbd0455a06468459",
+      "size": 3850
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/sgm_module_tb.cpp": {
+      "sha256": "f260042afd60e2fbf8c1df9a1a844cc0e4f2dd15c6656fda577d367374d19f00",
+      "size": 3029
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/sgm_shell_machine.sv": {
+      "sha256": "4d270d8303e2f6f8ac6a281f4e1e80a1b8992d3aeb4c6579c0d0baf03555536b",
+      "size": 1664
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/sgm_shell_ram_tb.cpp": {
+      "sha256": "83907ddefe0b4d6e1e82ecfc4e8085750ba609005bf7bcc16afa7a5bb17b05bf",
+      "size": 5697
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/sgm_socket_tb.cpp": {
+      "sha256": "cdb39ce7d2ac78d32423afe642813394535c7338287d737c0aa594223cf6e235",
+      "size": 1372
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/stream_tb.cpp": {
+      "sha256": "4c36bca7ab6a4af119787276baefe00453420ae6c71c065467e5dbd03e1aab16",
+      "size": 21824
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/vdp_machine_tb.cpp": {
+      "sha256": "94809ee1db088a7151aa388ea685866c5c465535d8ff3157ab7c25c3ad92dd74",
+      "size": 4306
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/vdp_tb.cpp": {
+      "sha256": "a7466e9ded18171a0a699b3aeead2bd9ed165021249669e54620d0aef9fffbdd",
+      "size": 23774
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-coleco/sim/video_tb.cpp": {
+      "sha256": "0f6deeedbcb88211b3a5d215da4b483e4434f6df4138d2df016b1efb04afb16f",
+      "size": 2819
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/computer-exchanges.json": {
+      "sha256": "a5085b27c3a9a593d09459051d8411394f8058d071a62dda9e62fe3a96217736",
+      "size": 143949
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/controller-exchanges.json": {
+      "sha256": "dceeba1b07ae4e0a98f105a631c943962e54cc719c24bfaeeb3e03c483f42c8e",
+      "size": 2974
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/exchanges.json": {
+      "sha256": "792124e466d2762521c4cfa073f1b11e5b417489ea3cac75a4a7e95187d56c46",
+      "size": 12060
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/fes_application.vh": {
+      "sha256": "3c62b421fe14b23599a7ee3f91ab1107cdce7a05bfc34dc7890da64289447d9f",
+      "size": 10964
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/fes_computer.vh": {
+      "sha256": "f9023c08690471148cf0e313ce5d18265241ebb3a3e05e15bb33c403cdc21b9a",
+      "size": 6774
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/fes_native_video.vh": {
+      "sha256": "85347b413ec92a100b1d105cc02caae1179f63c2992af9d0de1d60fd5b7d94ce",
+      "size": 3038
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/fes_video_part.vh": {
+      "sha256": "322cf3e10fb5465deadfc68de2af1e54768eef9b7b53c6be04c9d7a3532c99ab",
+      "size": 1568
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/menu-exchanges.json": {
+      "sha256": "f1ea02a1907688b84d3a4c4a54c28ccfd10a0bc8f1db849f2e8e898b5a71c31f",
+      "size": 8031
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/generated/stream-exchanges.json": {
+      "sha256": "3b186ea15c6cbed8c682f09c7a17824a03afaefae12d264ae17282461d8e854f",
+      "size": 23811
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/coleco_dpram.v": {
+      "sha256": "28352a1223a4c93b93e64306eb2566e4b70e8d40c462b6b9adfd2771e40116db",
+      "size": 4171
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/coleco_native_video.v": {
+      "sha256": "5d71b5cd15352eb218a5af75cf47307917753ffb1668d8e332548bc6532a5f41",
+      "size": 1774
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/coleco_vdp.sv": {
+      "sha256": "c3a56a5792231dc44e432091bce15535e8000f63844625ba3b1be1baca45fbe2",
+      "size": 51499
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/coleco_video_720p.v": {
+      "sha256": "a8d6bb452ee62b583058fc734d637078f918250fa79296a6646643bf00ea4f8c",
+      "size": 4370
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/coleco_video_dpram.v": {
+      "sha256": "334f1fe4978586f9c106fceafc08efba1621574446736d7f3296a0a6808cea44",
+      "size": 4161
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/cpu6502/cpu6502.v": {
+      "sha256": "4261e0b611965d8966a6dd305822adc6768a9dc9a3fbb322d9ac58e2521d94e5",
+      "size": 32830
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/cpu6502/cpu6502_alu.v": {
+      "sha256": "331b540b5943b3974faefa197f94bf1ea769eec7c13f1e0fe5f7f7cbfa92c577",
+      "size": 2233
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_application_gp.v": {
+      "sha256": "93c98cd236b19b1e745d7d2c257d76aaf2c3ed6a0eb3d2ce120d94293f9af920",
+      "size": 37796
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_audio_i2s.v": {
+      "sha256": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4",
+      "size": 1498
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_audio_output.v": {
+      "sha256": "e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd",
+      "size": 2028
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_audio_pll.v": {
+      "sha256": "79ab1af0ac7d3d7d21d250bc88311b18ef3ee4e7f1c17d99c849c13d7bbf7251",
+      "size": 460
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_computer_gp.v": {
+      "sha256": "3062239b6548397d6f5662b2f759f2b9d5e93e288c50f23a9c3213c474ba785c",
+      "size": 31020
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v": {
+      "sha256": "5485296c1e37c66348295f8dda3baa3a31499e09592982549b152a6a7558bcef",
+      "size": 15964
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_hps_ddr.v": {
+      "sha256": "89411a2f0a75306accdba550a492559f4d65a8e8ddd3132c3e98eb99a5500406",
+      "size": 9854
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_hps_ddr_atom.v": {
+      "sha256": "9bafec903ca9c0826d3d8600330208b297d6832ad9abafee3a59e3f5d922c76c",
+      "size": 3038
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v": {
+      "sha256": "246df020b761922e0692f014552f5806467e5817be6e9e540886fd2d1f74ce09",
+      "size": 6401
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_native_cdc.v": {
+      "sha256": "2a314396dcc2af2790e7a793f80b301448e4c3b14200e8411738ddc9fbbc6ec6",
+      "size": 2499
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_native_video.v": {
+      "sha256": "12f8ba5fb722b92857c1ccac3911a885768e9f392eec0937c338dd9083f689ef",
+      "size": 6234
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_native_video_cart.v": {
+      "sha256": "027105099f8212278b5401dd93b0a78daff379b532948b86c73722118edc5b49",
+      "size": 553
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_sn76489.sv": {
+      "sha256": "08a654ab4e1407c54ed7e107be3a464d621fc123be1722b5cab3be3ace3809ee",
+      "size": 4225
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_video_720p.v": {
+      "sha256": "86442976c2d7d6851e631ded48bf51071ea4eecb7e291ba2a774c8c1cfe0d3df",
+      "size": 2643
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_video_part_cart.v": {
+      "sha256": "43ce0998751fa72696485bb9339ba683718b7b365ec32409a90f3ec5fd0f2c2f",
+      "size": 588
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v": {
+      "sha256": "bf60e215456c6baf1fb1bb1f00b1a252369e16ce25e98ce0c4e91b9680d3db2a",
+      "size": 1328
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_video_part_scanlines.v": {
+      "sha256": "590f8bda2da327e4c533506acca5bcfce2374d27ce2d0a4aa1a8d67dd8bb978c",
+      "size": 1649
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/fes_z80_ce.sv": {
+      "sha256": "929b78e9f0683ac189de2a670fb263a3711bbc05b1c0b3490f6467281259b6bf",
+      "size": 1392
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/pixel_pll.v": {
+      "sha256": "968e716e518d98735fac4ae98bf877de078e049b689cbe9ab06a362938deb2c4",
+      "size": 629
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/sys_pll.v": {
+      "sha256": "20a35b915b91f1aed336da8c04e4982b02345619fdafa1838db479d79b57b228",
+      "size": 627
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/t80pa.v": {
+      "sha256": "a7a992ee8c94719ee2a9f50c3f6b0cb2eb6a993d3ab77cd57d5dcfdf3c36dc05",
+      "size": 3789
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/tv80/tv80_alu.v": {
+      "sha256": "2655c29020fcb97cbf12839711a4b06e71c17214580333388db51e29926384db",
+      "size": 11097
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/tv80/tv80_core.v": {
+      "sha256": "77bbc13422c2ed3c9491c3f99f4c1f475bb2ac52e3f43e6718272f90ba592024",
+      "size": 47185
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/tv80/tv80_mcode.v": {
+      "sha256": "88d0739035b3fe058e7cb6e1148017015153711b55dfc824f558ae902c22b05d",
+      "size": 97760
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/tv80/tv80_reg.v": {
+      "sha256": "b45247b4a0670f9398219d6a386ffa8ee27170d450c54e03d4cdbfc60bf95ef7",
+      "size": 2600
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/z80/fes_z80_alu.sv": {
+      "sha256": "bc26e87e40d625d9e45a2d72d64d94f92b82271106aada1853545a0211800ff1",
+      "size": 8728
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/z80/fes_z80_bus.sv": {
+      "sha256": "f58e1428cdecf799a232c830f301cc9156fb48119b082cce9e5c8b36161c6069",
+      "size": 10870
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv": {
+      "sha256": "55bd7ac3580acf83a5284f7f6fdffbc82e8bac4442162ae96f03a2dbb48de0f9",
+      "size": 37928
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/z80/fes_z80_fast.sv": {
+      "sha256": "b44fa78d6161b4b952a4ae52608e9ec8c9272693d907848a9527003e1dcbfa78",
+      "size": 912
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/rtl/z80/fes_z80_nmos.sv": {
+      "sha256": "8ce941c86e55b1ac3604e6f505dd9fbce40fe3a8b3f612989177f4f64ff31c9b",
+      "size": 2271
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/computer_mailbox_tb.cpp": {
+      "sha256": "2b67bb2df0233ae9d4e3afce1cde25a417f8af9b7a7d12f00c2abde59fc0dd94",
+      "size": 5421
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/native_socket_tb.cpp": {
+      "sha256": "2a977a749d352fe922013240deac10db80501eec0646604e28be4c16e414bbfa",
+      "size": 2569
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/native_socket_top.v": {
+      "sha256": "5dd1922a654f8ca8cde405adc4ac3d4f31a0fb5064f04bd703ef3d8745218adc",
+      "size": 514
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/native_video_tb.cpp": {
+      "sha256": "6b448a139f0449ca6bfadbd0473a3885b5aff1a10078406af6a078dcdc5cf9e3",
+      "size": 22134
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/native_video_top.v": {
+      "sha256": "3cefbd7fce0cbaeceee1179b8e8aa3edea574bc46a3399939bbbf7e5d17a3731",
+      "size": 1445
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/video_part_tb.cpp": {
+      "sha256": "e1164ec92684e9b240138bbce10fbcd041eb5aecbdb2171b3d42fc0a0eefecdc",
+      "size": 4576
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/video_part_top.v": {
+      "sha256": "13ec0c94006e08904436effd5d584356b85a1fe413f78dc29e985105010d3d26",
+      "size": 1212
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/z80/alu_tb.cpp": {
+      "sha256": "ae5432f2cdbc213b2a6cff491951698342762d61385d837cabec042dfa0d1538",
+      "size": 11807
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/z80/benchmark.qsf": {
+      "sha256": "4cd7dc29e25115838d25bc67290b9312f77a62788f579b1d206fe06be79be620",
+      "size": 547
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/z80/benchmark_top.sv": {
+      "sha256": "ea958109f887e8e0e3db25718c9cf402660fa98cc01c8f992d440242133993b2",
+      "size": 5329
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/z80/bus_tb.cpp": {
+      "sha256": "6b6baafe528fa758e6f6b425e0291c8e80a43a81e2af4d654e596037c4b60c92",
+      "size": 19648
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/z80/cpu_tb.cpp": {
+      "sha256": "0ef2ced7823a66e6ae3dd29ba7806d5fdde9f2ce619d6d4388e0f31025c96b84",
+      "size": 60339
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/z80/nmos_tb.cpp": {
+      "sha256": "b21c0c87ed219e592b30e78cafe500f9e114dff9ec880c4e8f384bd10a6973ed",
+      "size": 33417
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/cores/fes-common/sim/z80/vectors_tb.cpp": {
+      "sha256": "800db5d5186d19cc19921443d5472e945de0ff845d4773a0301aea32571e1a56",
+      "size": 16879
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/apple2_slots.py": {
+      "sha256": "c7dd92d53dedcef2acaac91a756ea5209af607a4cf058842b2a050859ca5b454",
+      "size": 5759
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/benchmark_fes_z80.py": {
+      "sha256": "9268c50ed79d6a47223fc23ac80ddbc94edd24d582573e082e30ab20a2012c14",
+      "size": 9729
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/bootstrap.sh": {
+      "sha256": "042daf4c8647ae72aefe7dee7f6fde53d15e84984bb19deac074d2ec534957d1",
+      "size": 29283
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_apple2_slot_card.py": {
+      "sha256": "f3e61749fae189c12bfe7e37e33269a55d9e3537821b9bea74d48f3c206c3dd0",
+      "size": 16938
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_c64_slot_card.py": {
+      "sha256": "decd212f4758b847586e948b30c7d3e8646a15eaf656e819d2f097f562296141",
+      "size": 16845
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_coleco_bus_diagnostic.py": {
+      "sha256": "42a09c1862acd8b5d23a898f075881e29d581b005f4178d338bb15964c9bcc29",
+      "size": 18960
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_coleco_sgm.py": {
+      "sha256": "c59e8ea2b6bea183051242e9f409a232ea81943eaa999cced379f277dd8c9867",
+      "size": 17077
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_apple2_oss.py": {
+      "sha256": "baf269ba403ae29f816535569fcc78a0fad25e9263306a35ab496535c1177342",
+      "size": 25617
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_c64_oss.py": {
+      "sha256": "9dabb80f1f061b08ddb0792349cfd9422e83089d911d804a5b03570523fb4ceb",
+      "size": 26685
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_catch.py": {
+      "sha256": "47f3bcfea0b696ecd3be172a76230c41a8c8265a2f4f9b18f8d9e606373cfee5",
+      "size": 6497
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_coleco.py": {
+      "sha256": "45acb69b433e6da7d1728f7281ceaf5ac3d150a27de2e17cf58f929636b0e535",
+      "size": 17530
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_coleco_megacart.py": {
+      "sha256": "9b80c4c20fc536cbad5bfa1f70a41f85393200807853942406f460568710167c",
+      "size": 11383
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_coleco_oss.py": {
+      "sha256": "cd6846c0315131e5a3ff14efa9bfe0b5009525a20d545f27337410c873d940c2",
+      "size": 31808
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_coleco_socket_dev.py": {
+      "sha256": "d3cd17e03ebc8efd2fa510f0dc78b3c2159bc2b3a1f8b6c042a92e856bf28514",
+      "size": 10649
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_coleco_socket_v2.py": {
+      "sha256": "523d577cb82c31844bb27a5cd1fa531c7c6a97d57f0a43ae348b2e13bebc4518",
+      "size": 16540
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_demo.py": {
+      "sha256": "86b65015922b446d57629c94c5bc455265c419bce77104215a55e2c86a434ed1",
+      "size": 14611
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_menu.py": {
+      "sha256": "692872d6cea11bf7e0312afda325b18f6ddfc0d88a613fb9f9e62791cd888961",
+      "size": 13718
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_menu_package.py": {
+      "sha256": "cfa4aaa580f8aa778bb95b27feb7deaff6a39824c6ca1fa62154b6af117aa037",
+      "size": 9946
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_pong.py": {
+      "sha256": "45c52e59a4ac355e53fdb79744a691cc5d23d441f4a1f787ab61144f9de7e161",
+      "size": 13824
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_ramtest.py": {
+      "sha256": "b9b8817a8ee634c1b275e2b80d6a22de4e71053d741076404dd944a805776ddb",
+      "size": 14812
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_ramtest_quartus.py": {
+      "sha256": "89ad2369c121359a2067c7912135f5ddb26a68a6e2a9826266a2923c4460a425",
+      "size": 10338
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_sg1000.py": {
+      "sha256": "a0036cdf53a54d40f6a528a160efebef705b2bcd9c1034a8c0c2b5371b1d8a0c",
+      "size": 19598
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_sg1000_oss.py": {
+      "sha256": "6b748beb91852fbb28639f73f5f0714d7b408b45f42565c04b168ca3f0319625",
+      "size": 27757
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_slot.py": {
+      "sha256": "65737aeb8ef259cd450a3467522fb7c9f04acc09227e376de6fc931a4e840305",
+      "size": 6402
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_sms.py": {
+      "sha256": "b67be78de8eb15603b420ba24c2723b3365e671087508f1b6d67f2029e6fc087",
+      "size": 19882
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_sms_oss.py": {
+      "sha256": "86c25bb13f85a8f7f1979702a8c02988b7260c432bec0ff84575bca0cf98e2a1",
+      "size": 28677
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_spectrum_oss.py": {
+      "sha256": "e0abc0ff560d93d16f5aadaf77bd334718d47cb74a6898bbe8d68b52f77d7128",
+      "size": 25948
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_splash.py": {
+      "sha256": "c07cda4beb7c29470ba605f5ad6bcb1844a5de748838adfeaf39922ae1f10ef3",
+      "size": 15047
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_zx81.py": {
+      "sha256": "0889f0a6fe6b912addd8b6f9c20acec0e06d916da7a64b4c832546eb27a19d0e",
+      "size": 17618
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_fes_zx81_oss.py": {
+      "sha256": "c25b2e6bd5070fc5080581bb585641b6418d985a68c9fb56fcbfc50d050191e8",
+      "size": 31079
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_oss.sh": {
+      "sha256": "5f6d70d125ca132fef47432dacb28a4ee3902462eb5388f50690f8feba8ab0e3",
+      "size": 18165
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_video_part.py": {
+      "sha256": "623f6bcc51d8f45e68cd97e5a564eecd407c0d0f25db400b22f1ef2b6d70f2ef",
+      "size": 16008
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/build_zx81_bus_validation_cart.py": {
+      "sha256": "34bb5aaa435a64e33c7d32294cd5f36b329176db66501ffc3fb2016947cb1c6c",
+      "size": 13698
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/c64_slots.py": {
+      "sha256": "2d62dc74a3d692b080b5a07dac84fe1e3dd957a2e3a7962cce1e925370557755",
+      "size": 5832
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/coleco_expansion.py": {
+      "sha256": "ed47efb877da361f5d1b1686516b97480860883c33ce88d54f91b15ed64fd2f1",
+      "size": 14023
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/collect_manifest.py": {
+      "sha256": "5ed12a43de16fb383fbee2edc95fa56eaf3e1653488a6a6e49dd416c85add879",
+      "size": 61124
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/compiler_read_audit.py": {
+      "sha256": "276254d178ee3371d056e0278251648196ab566329eeb70ad810d7562147d437",
+      "size": 10131
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/core_package.py": {
+      "sha256": "63afff6526b1be6895fd84f51802fdadf9048181d6e93dd37289b821eeb39e8b",
+      "size": 25111
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/cyclonev_rbf.py": {
+      "sha256": "613bacbeedd4f51842dacd92b60c169e9fd7708bb3323b92eceedb4a64be63a3",
+      "size": 15848
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/diagnose_fes_ramtest_timing.py": {
+      "sha256": "149373858163b823644114412a521ae416a459928299ed2c513f1ace0b5928a1",
+      "size": 7729
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/doctor.py": {
+      "sha256": "cee284dada2559f7cc0447f045c8a256a9c6359da84f915822333ac7b7d6920d",
+      "size": 34002
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/env.sh": {
+      "sha256": "6b92448000047f467ce3b430e2aa676505c49e5f1dd14dc5cc342d688a0f3386",
+      "size": 1744
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/experiment_policy.py": {
+      "sha256": "92fd473a0d07aab3d1d06a460f7171cc8a6ff8ec7dd3d04c03076a10688c5a54",
+      "size": 292026
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/export_core_package.py": {
+      "sha256": "afdf0b21f7e95c26b4d334b25eac0e66bf576c2dd221f327957027e78577dadd",
+      "size": 31290
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/fes_build_common.py": {
+      "sha256": "6c8f73431c84949a5c8486145a2f5f64067a38534460539b4bb6435ce3425f9a",
+      "size": 22757
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/fes_de10nano_evidence.py": {
+      "sha256": "1437ee3c632d68fb58da871dab207cc3006eabfe3a01bf157d1385009bff2b58",
+      "size": 14499
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/functional_execution.py": {
+      "sha256": "095843d0ba243056489e058f40b768b30f7613bd7087797c210549da4013ae50",
+      "size": 6241
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/hip_zx81_bus_carts.py": {
+      "sha256": "67e572a22bd7636f8b5174f1038a9b90152e8144e709694233ed886212d10500",
+      "size": 5374
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/hip_zx81_bus_socket.py": {
+      "sha256": "51fead2c3d313c2a8baf66aeb56c9b3287cd720c2458356b79a83025bb213d53",
+      "size": 7513
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/kit.py": {
+      "sha256": "b900b7a1b9e51771bc357fc6b83a8b3a0a90d0f6dc5436767117fb04f0334d55",
+      "size": 15325
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/link_static_rbf.py": {
+      "sha256": "24e0f8909c443f661c3c4baa7497561cf5b65a37cb43cc62d91ac2b3f48601f0",
+      "size": 28023
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/lockfile.py": {
+      "sha256": "742d5b39c3780b4bb2b6b8b212cb90b1c617b8db285dd51624dbe8c694d2976a",
+      "size": 6932
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/make_zx81_zonx_tone_rom.py": {
+      "sha256": "e1b34ee21051a19a60b1afb1491c728722fa0ccc10a1193ae1eb66ed3176c7f3",
+      "size": 3860
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/native_video_clock.py": {
+      "sha256": "09d3e8e87ebb033d14c3bff2ad751b09a211eecb0f9b2dafea41fc17c04d07be",
+      "size": 9323
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/native_video_parts.py": {
+      "sha256": "09c1fe1d21701626db4dbce3b8855e1366d6bf5c28d8bebe7c517a7c22feea13",
+      "size": 7423
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/oss_summary.py": {
+      "sha256": "b3ad1cf6c54837cfba5e4a0dadbcaaa4af50f149a72d77fc83370822ade13413",
+      "size": 25277
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/program.py": {
+      "sha256": "91301a5e5d09459f416deaa56e924bf75665f69b70b2d43dcdbdbcb2124f6fac",
+      "size": 33820
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/quartus_tools.py": {
+      "sha256": "d84ccb9b2dbcd519c565b2bcd886ed7bce48d6d274a537d7a9358ca6c8ca56b2",
+      "size": 2700
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/ramtest_timing_compare.py": {
+      "sha256": "9c7142f77b4e1cafae2ccfeda81ab45f927ddf48efa15644296146cccbd3de6a",
+      "size": 4048
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/ramtest_timing_paths.tcl": {
+      "sha256": "581bc004cb0b0030004dfeea34ee452d2908d0f0c6ccb33b95f64966277a86f7",
+      "size": 2001
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/rfc3986_validator.LICENSE": {
+      "sha256": "94e53eb4b94a5d33a7e66b0abb143ee95f4ec96f36ea4c54794ae6a46e624f04",
+      "size": 1073
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/rfc3986_validator.py": {
+      "sha256": "95fc6d48642f111952b25c040947765bccba669210c8c140b7ed9647fd7e470c",
+      "size": 4395
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/rom_map.py": {
+      "sha256": "5183cff198878cc47e37e0739fed4d4192e7b435ed82c6d8bf78535f430c22e7",
+      "size": 9682
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/rom_map_oracle.py": {
+      "sha256": "eb10b94fb92f16e164355cc7ba0b1622f5237cdd279b7c6920375197ce7648ea",
+      "size": 5464
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/run_logged.sh": {
+      "sha256": "973550b688e8af3641135d1a56dfdd10d2543fe8242426b57815cc7ffdc67aa3",
+      "size": 2028
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/run_sim.sh": {
+      "sha256": "1f8aa167ba2c77aed286c965aa7b3237bd6381d76f468d05726fa958fe27b1b5",
+      "size": 4453
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/search_placer_qor.py": {
+      "sha256": "63d2112db9082b64b8a45c36f858d4f521caf9b61acea8c60f923e8c3c749fde",
+      "size": 20867
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_coleco_native.py": {
+      "sha256": "ed91be75d228fb188ca8b97d0a4e3542c43aa1342deb6304f7d9ba9c82105df0",
+      "size": 3348
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_coleco_quartus.py": {
+      "sha256": "56f9fe8c7e11fe11c726392a1013d23f6c849b4c368e04413a7e89b87dc6682e",
+      "size": 4371
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_demo.py": {
+      "sha256": "5dd06caa25a6682d96d21a51f8541cb5c61f47d8bef1c666836ce7aec37c8228",
+      "size": 6743
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_menu.py": {
+      "sha256": "214e4f0c486fb4374e0ee1a52bfb60bed8eb7736fdb2043cf01ba7c98594cb2a",
+      "size": 3778
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_native_socket.py": {
+      "sha256": "2729addff0db96226110e62f0f7bdd1fc5e08c37a6e8fb9f97ad4ff9482cee18",
+      "size": 1713
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_native_video.py": {
+      "sha256": "cdd3351f3f63bd88db7cd50c3d9c6d29b67ff36c4b91987ac3a94aa363846507",
+      "size": 1426
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_ramtest.py": {
+      "sha256": "faac07a06b7672d551f8f15565f60b20ad32fd58d9be9100c41778bf140f5168",
+      "size": 1775
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_sg1000_quartus.py": {
+      "sha256": "e820eaafc9711fbafbde81fb1ee2fe7f91e90c42af7a4d3e8c0ae630b53f1443",
+      "size": 2992
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_sms_quartus.py": {
+      "sha256": "ad600d39089a95ddb06ef0d2d14d5293d9515de27f97f5710d138972c79ddf9f",
+      "size": 2976
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_splash.py": {
+      "sha256": "e87dd1003b9356efbcf61cb55dd1d8b17803e1ca8c483fef9f98d53d14b2c6da",
+      "size": 2604
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_video_parts.py": {
+      "sha256": "68b633be2e34988806e8f5fa0d8aef387a76ea1ecf3ab65e8ba73cf517469ade",
+      "size": 1340
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_z80.py": {
+      "sha256": "b025586d27695496ea63c4ea0373ae40bcecfa5451e80302463786383d4a2a57",
+      "size": 3047
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/sim_fes_zx81_session.py": {
+      "sha256": "a6c075928d9592fb262aa7d8a10b19b9457a0914b11e2a13263517c68f7cee3b",
+      "size": 2465
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/source_provenance.py": {
+      "sha256": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155",
+      "size": 2929
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/source_repository.py": {
+      "sha256": "29ab5ad573767ebe32c171a391e675852b968a4c570365ad3a2ec9637c0ca003",
+      "size": 790
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/spectrum_slots.py": {
+      "sha256": "6ce11432463b5edbc43162213f0b3e917363caf0e67f8cd59d6f578e5f5d4e97",
+      "size": 5902
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/synth_fes_native_video.py": {
+      "sha256": "c9c946358c9ab1e6ce7d1ac2cc5795fe2d5837991e5f6ec3f814d0a1f0145a0e",
+      "size": 3031
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/test_fes_z80_vectors.py": {
+      "sha256": "dc6899cde66ffa706e5785e565f9a4bc808df8aa938e26fa16883c36d3e9cdb5",
+      "size": 16224
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/toolchain_cache.py": {
+      "sha256": "dab74e9c9e25c3e33b2bcdef55937b53f295c05d2a127b70b6d88429cf36f311",
+      "size": 67936
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/video_parts.py": {
+      "sha256": "170c6d3567acf9cebffe8c56c59ae060735fdc55eb333b49241bebf571cec2d5",
+      "size": 5734
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/scripts/zx81_expansion.py": {
+      "sha256": "c3ad30c85332c8f3e231cc2c47d5fc18ae7f145eb4bb801b3fc2066b83c781b1",
+      "size": 4259
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/apple2.lock": {
+      "sha256": "5e635672ebeaa90022ce4c41c6726c643969b0820021f3cb64096cc264539a6e",
+      "size": 1747
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/c64.lock": {
+      "sha256": "70b525d0e22c43b25e2e360c7a02bca9bb48eb7a71ff0117645cae7793d9ba2a",
+      "size": 1533
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/coleco-expansion.lock": {
+      "sha256": "97f20dca5db6037a9a62f60cb61adaf9bbe714c24215127d54054bbb9a7eb4cc",
+      "size": 5021
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/coleco-sgm.lock": {
+      "sha256": "37f30a9da7325169385c01b15be1b8ffdbf82ae6c991b82d39aab4f17257616e",
+      "size": 1690
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/fes-sms.lock": {
+      "sha256": "c52025267316dd9a24cb2d5513a994399164613c9158866a43dc45b317ec4931",
+      "size": 2133
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/ramtest-timing.lock": {
+      "sha256": "ad43b85d9cd1c4a99bb38852da957c6a5a99ffded7d18c693da87baa14fdcd14",
+      "size": 1452
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/ramtest.lock": {
+      "sha256": "dff65622e621d1e6b0951bedb894cc605e82e9049dc0d650a54d1db853648013",
+      "size": 1238
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/registered-memory.lock": {
+      "sha256": "d27eb7661a891cc0f4fef02ea236bd1b0de4481d3c4d40fa9ea611ce8c3c9677",
+      "size": 2444
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/spectrum.lock": {
+      "sha256": "cae5188ae5af8dadc6ff3dfaff6bffa6c170c409c8be84d1d50c5f1706f9bb0e",
+      "size": 1768
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/toolchains/zx81-expansion.lock": {
+      "sha256": "648587a897900836aaa0e1eade0abb62d7141fe93f7ea028c024baa09af2d3df",
+      "size": 3071
+    },
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f": {
+      "sha256": "8a3428dff9aeb3295f591aa486e33011801776cb7e3cf297c03e92c5484a37f0",
+      "size": 5030856
+    }
+  },
+  "parts": {
+    "direct": {
+      "admission_policy": "strict-rectangle-v1",
+      "archive": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar",
+        "sha256": "c552946233e294808bbfd68a80da1ada831c28135ed4bdf9100730f8d8c7d309",
+        "size": 2785280
+      },
+      "build_summary": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/build-summary.json",
+        "sha256": "5b74eba947abc30e24cbeb8797f281c128e232bd9a864559a0ccd8139d2ad712",
+        "size": 175653
+      },
+      "compiler_preview": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/linked.rbf",
+        "sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+        "size": 2777778
+      },
+      "compiler_preview_matches_recomposed_rbf": true,
+      "compiler_preview_matches_routed_cram": true,
+      "cram_diff": {
+        "bits_inside_slot": 542408,
+        "bits_outside_slot": 0,
+        "column_bits": {
+          "10": 194,
+          "11": 201,
+          "12": 84,
+          "13": 1653,
+          "14": 145360,
+          "15": 1729,
+          "16": 701,
+          "17": 1183,
+          "18": 671,
+          "19": 2170,
+          "2": 2,
+          "20": 774,
+          "21": 3528,
+          "22": 4100,
+          "23": 4310,
+          "24": 1677,
+          "25": 6166,
+          "26": 135753,
+          "27": 4135,
+          "28": 877,
+          "29": 3025,
+          "3": 10,
+          "30": 1670,
+          "31": 720,
+          "32": 433,
+          "33": 526,
+          "34": 274,
+          "35": 292,
+          "36": 152,
+          "37": 1654,
+          "38": 165750,
+          "39": 58,
+          "4": 486,
+          "40": 10,
+          "41": 2,
+          "5": 51748,
+          "6": 44,
+          "7": 98,
+          "8": 64,
+          "9": 124
+        },
+        "diff": {
+          "bits": 542408,
+          "x0": 163,
+          "x1": 3772,
+          "y0": 1859,
+          "y1": 3355
+        },
+        "identical": false,
+        "inside_slot_column": true,
+        "outside_slot_coordinates": [],
+        "outside_slot_coordinates_truncated": false
+      },
+      "evidence": {
+        "checked_clock_pins": 153,
+        "native_clock_boundary": {
+          "clock_cells": {
+            "MISTRAL_FF": 57,
+            "MISTRAL_M10K": 48
+          },
+          "clock_pins": 153,
+          "clock_port": "FPGA_CLK1_50",
+          "imported_bit": 63,
+          "input_buffer": "FPGA_CLK1_50_MISTRAL_IB_PAD",
+          "prepared_sha256": "6edae0c14f3fe086840a45e777e842eea3e87fad153727f8c61592083c7b7f7c",
+          "ram_blocks": 48,
+          "rewritten_clock_pins": 153,
+          "synth_sha256": "73d1995f98fbccbc72557a505afb39f9f9e81a6c9336135d1a3987dc22d97f4e",
+          "transparent_buffers": 1,
+          "version": 1
+        },
+        "resources": {
+          "MISTRAL_BUF": {
+            "available": 0,
+            "used": 803
+          },
+          "MISTRAL_CLKENA": {
+            "available": 8,
+            "used": 3
+          },
+          "MISTRAL_COMB": {
+            "available": 83820,
+            "used": 5534
+          },
+          "MISTRAL_FF": {
+            "available": 167640,
+            "used": 1813
+          },
+          "MISTRAL_IO": {
+            "available": 472,
+            "used": 35
+          },
+          "MISTRAL_M10K": {
+            "available": 553,
+            "used": 219
+          },
+          "MISTRAL_MUL18X18": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL18X19": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL18X19_COMBINED": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL27X27": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL9X9": {
+            "available": 336,
+            "used": 0
+          },
+          "altera_pll": {
+            "available": 6,
+            "used": 2
+          },
+          "cyclonev_hps_interface_fpga2sdram": {
+            "available": 1,
+            "used": 0
+          },
+          "cyclonev_hps_interface_mpu_general_purpose": {
+            "available": 1,
+            "used": 1
+          },
+          "cyclonev_hps_interface_peripheral_i2c": {
+            "available": 4,
+            "used": 1
+          },
+          "cyclonev_oscillator": {
+            "available": 1,
+            "used": 0
+          }
+        },
+        "route": {
+          "complete": true,
+          "gpu_backend": "hip"
+        },
+        "synthesis_cells": {
+          "$logic_and": 2,
+          "$specify2": 11,
+          "$specify3": 2,
+          "$specrule": 7,
+          "MISTRAL_ALUT2": 44,
+          "MISTRAL_ALUT3": 31,
+          "MISTRAL_ALUT4": 94,
+          "MISTRAL_ALUT5": 143,
+          "MISTRAL_ALUT6": 59,
+          "MISTRAL_ALUT_ARITH": 189,
+          "MISTRAL_CLKBUF": 1,
+          "MISTRAL_FF": 57,
+          "MISTRAL_IB": 33,
+          "MISTRAL_M10K": 48,
+          "MISTRAL_NOT": 8,
+          "MISTRAL_OB": 28
+        },
+        "timing": {
+          "pixel_clk": [
+            "pixel_clk",
+            74.25006866455078,
+            80.88652038574219
+          ],
+          "system_clock.clocks[0]": [
+            "system_clock.clocks[0]",
+            52.22477340698242,
+            52.377960205078125
+          ],
+          "system_clock.clocks[1]": [
+            "system_clock.clocks[1]",
+            12.288031578063965,
+            197.31649780273438
+          ]
+        }
+      },
+      "legacy_excluded_column_bits": 2,
+      "manifest": {
+        "cart_sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+        "cart_size": 2777778,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.coleco-native-video.socket/1",
+        "recipe_sha256": "0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a",
+        "revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "shell_build_id": "8d97fd1c36f5c79d08af074f972f96d0",
+        "shell_package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb",
+        "slot": "fes.fabric.video.native-pixels",
+        "slot_major": 1,
+        "slot_minor": 0
+      },
+      "observed_strict_cram_diff": {
+        "bits_inside_slot": 542408,
+        "bits_outside_slot": 0,
+        "column_bits": {
+          "10": 194,
+          "11": 201,
+          "12": 84,
+          "13": 1653,
+          "14": 145360,
+          "15": 1729,
+          "16": 701,
+          "17": 1183,
+          "18": 671,
+          "19": 2170,
+          "2": 2,
+          "20": 774,
+          "21": 3528,
+          "22": 4100,
+          "23": 4310,
+          "24": 1677,
+          "25": 6166,
+          "26": 135753,
+          "27": 4135,
+          "28": 877,
+          "29": 3025,
+          "3": 10,
+          "30": 1670,
+          "31": 720,
+          "32": 433,
+          "33": 526,
+          "34": 274,
+          "35": 292,
+          "36": 152,
+          "37": 1654,
+          "38": 165750,
+          "39": 58,
+          "4": 486,
+          "40": 10,
+          "41": 2,
+          "5": 51748,
+          "6": 44,
+          "7": 98,
+          "8": 64,
+          "9": 124
+        },
+        "diff": {
+          "bits": 542408,
+          "x0": 163,
+          "x1": 3772,
+          "y0": 1859,
+          "y1": 3355
+        },
+        "identical": false,
+        "inside_slot_column": true,
+        "outside_slot_coordinates": [],
+        "outside_slot_coordinates_truncated": false
+      },
+      "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+      "timing_report": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/direct/0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a/timing.json",
+        "sha256": "c757135e0855a0f45f9739d2f63ee3fc274d4804b8a39c297fdb47489ea7ac82",
+        "size": 19566
+      }
+    },
+    "scanlines": {
+      "admission_policy": "strict-rectangle-v1",
+      "archive": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624.tar",
+        "sha256": "504e9bb578e1a8345c6c8057dc263dd5b1497b2e483f2bddcb6904831dd46316",
+        "size": 2785280
+      },
+      "build_summary": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/build-summary.json",
+        "sha256": "e2380bfce0578b73bd7588b47eca2afb0b0fb8bbf22cfe550f13772311f2a9a1",
+        "size": 175640
+      },
+      "compiler_preview": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/linked.rbf",
+        "sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+        "size": 2777363
+      },
+      "compiler_preview_matches_recomposed_rbf": true,
+      "compiler_preview_matches_routed_cram": true,
+      "cram_diff": {
+        "bits_inside_slot": 542076,
+        "bits_outside_slot": 0,
+        "column_bits": {
+          "10": 124,
+          "11": 90,
+          "12": 90,
+          "13": 1532,
+          "14": 145151,
+          "15": 825,
+          "16": 1124,
+          "17": 1727,
+          "18": 924,
+          "19": 3236,
+          "2": 8,
+          "20": 830,
+          "21": 3848,
+          "22": 4478,
+          "23": 3808,
+          "24": 1410,
+          "25": 5676,
+          "26": 135601,
+          "27": 3867,
+          "28": 1075,
+          "29": 3064,
+          "3": 22,
+          "30": 1173,
+          "31": 562,
+          "32": 414,
+          "33": 659,
+          "34": 311,
+          "35": 290,
+          "36": 168,
+          "37": 1636,
+          "38": 165755,
+          "39": 42,
+          "4": 506,
+          "40": 16,
+          "5": 51754,
+          "6": 46,
+          "7": 72,
+          "8": 76,
+          "9": 86
+        },
+        "diff": {
+          "bits": 542076,
+          "x0": 163,
+          "x1": 3476,
+          "y0": 1808,
+          "y1": 3430
+        },
+        "identical": false,
+        "inside_slot_column": true,
+        "outside_slot_coordinates": [],
+        "outside_slot_coordinates_truncated": false
+      },
+      "evidence": {
+        "checked_clock_pins": 154,
+        "native_clock_boundary": {
+          "clock_cells": {
+            "MISTRAL_FF": 58,
+            "MISTRAL_M10K": 48
+          },
+          "clock_pins": 154,
+          "clock_port": "FPGA_CLK1_50",
+          "imported_bit": 63,
+          "input_buffer": "FPGA_CLK1_50_MISTRAL_IB_PAD",
+          "prepared_sha256": "640756e432356773e86a6e246caf22ae1ae505b8294e5ec6b33097fb8ad51526",
+          "ram_blocks": 48,
+          "rewritten_clock_pins": 154,
+          "synth_sha256": "f97417c49170d9a6f1745053f6f1270449a03d95b3de2a0fbc96adceb730ff57",
+          "transparent_buffers": 1,
+          "version": 1
+        },
+        "resources": {
+          "MISTRAL_BUF": {
+            "available": 0,
+            "used": 817
+          },
+          "MISTRAL_CLKENA": {
+            "available": 8,
+            "used": 3
+          },
+          "MISTRAL_COMB": {
+            "available": 83820,
+            "used": 5560
+          },
+          "MISTRAL_FF": {
+            "available": 167640,
+            "used": 1814
+          },
+          "MISTRAL_IO": {
+            "available": 472,
+            "used": 35
+          },
+          "MISTRAL_M10K": {
+            "available": 553,
+            "used": 219
+          },
+          "MISTRAL_MUL18X18": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL18X19": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL18X19_COMBINED": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL27X27": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL9X9": {
+            "available": 336,
+            "used": 0
+          },
+          "altera_pll": {
+            "available": 6,
+            "used": 2
+          },
+          "cyclonev_hps_interface_fpga2sdram": {
+            "available": 1,
+            "used": 0
+          },
+          "cyclonev_hps_interface_mpu_general_purpose": {
+            "available": 1,
+            "used": 1
+          },
+          "cyclonev_hps_interface_peripheral_i2c": {
+            "available": 4,
+            "used": 1
+          },
+          "cyclonev_oscillator": {
+            "available": 1,
+            "used": 0
+          }
+        },
+        "route": {
+          "complete": true,
+          "gpu_backend": "hip"
+        },
+        "synthesis_cells": {
+          "$logic_and": 2,
+          "$specify2": 11,
+          "$specify3": 2,
+          "$specrule": 7,
+          "MISTRAL_ALUT2": 54,
+          "MISTRAL_ALUT3": 22,
+          "MISTRAL_ALUT4": 93,
+          "MISTRAL_ALUT5": 140,
+          "MISTRAL_ALUT6": 88,
+          "MISTRAL_ALUT_ARITH": 189,
+          "MISTRAL_CLKBUF": 1,
+          "MISTRAL_FF": 58,
+          "MISTRAL_IB": 33,
+          "MISTRAL_M10K": 48,
+          "MISTRAL_NOT": 8,
+          "MISTRAL_OB": 28
+        },
+        "timing": {
+          "pixel_clk": [
+            "pixel_clk",
+            74.25006866455078,
+            91.38262176513672
+          ],
+          "system_clock.clocks[0]": [
+            "system_clock.clocks[0]",
+            52.22477340698242,
+            52.377960205078125
+          ],
+          "system_clock.clocks[1]": [
+            "system_clock.clocks[1]",
+            12.288031578063965,
+            197.31649780273438
+          ]
+        }
+      },
+      "legacy_excluded_column_bits": 0,
+      "manifest": {
+        "cart_sha256": "12eb9e5857478324af9d651e71ed76984e3781dc85c62ce40dc3d67486f793ab",
+        "cart_size": 2777363,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.coleco-native-video.socket/1",
+        "recipe_sha256": "7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a",
+        "revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "shell_build_id": "8d97fd1c36f5c79d08af074f972f96d0",
+        "shell_package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb",
+        "slot": "fes.fabric.video.native-pixels",
+        "slot_major": 1,
+        "slot_minor": 0
+      },
+      "observed_strict_cram_diff": {
+        "bits_inside_slot": 542076,
+        "bits_outside_slot": 0,
+        "column_bits": {
+          "10": 124,
+          "11": 90,
+          "12": 90,
+          "13": 1532,
+          "14": 145151,
+          "15": 825,
+          "16": 1124,
+          "17": 1727,
+          "18": 924,
+          "19": 3236,
+          "2": 8,
+          "20": 830,
+          "21": 3848,
+          "22": 4478,
+          "23": 3808,
+          "24": 1410,
+          "25": 5676,
+          "26": 135601,
+          "27": 3867,
+          "28": 1075,
+          "29": 3064,
+          "3": 22,
+          "30": 1173,
+          "31": 562,
+          "32": 414,
+          "33": 659,
+          "34": 311,
+          "35": 290,
+          "36": 168,
+          "37": 1636,
+          "38": 165755,
+          "39": 42,
+          "4": 506,
+          "40": 16,
+          "5": 51754,
+          "6": 46,
+          "7": 72,
+          "8": 76,
+          "9": 86
+        },
+        "diff": {
+          "bits": 542076,
+          "x0": 163,
+          "x1": 3476,
+          "y0": 1808,
+          "y1": 3430
+        },
+        "identical": false,
+        "inside_slot_column": true,
+        "outside_slot_coordinates": [],
+        "outside_slot_coordinates_truncated": false
+      },
+      "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+      "timing_report": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/video-parts/scanlines/7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a/timing.json",
+        "sha256": "309f04e6b80ffee6237f5d1cd369b6c8b2d0905de0685960899d099da61f5f26",
+        "size": 18360
+      }
+    },
+    "sgm": {
+      "admission_policy": "legacy-columns-v1",
+      "archive": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf.tar",
+        "sha256": "f57b28f29e660386bc2f044f0317df47980f26d710ffc4dfd7e2b51c7ca75937",
+        "size": 2693120
+      },
+      "build_summary": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/build-summary.json",
+        "sha256": "6af7d486bd4ca13453b3d23fc1c0b8b2c525440e94a476a77687eedf03e7c0c1",
+        "size": 4171
+      },
+      "compiler_preview": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/linked.rbf",
+        "sha256": "8c134a3fdb8bfc27c6bdeea1c198b491a040a575f82467423e45cd807d4c4641",
+        "size": 2683688
+      },
+      "compiler_preview_matches_recomposed_rbf": true,
+      "compiler_preview_matches_routed_cram": true,
+      "cram_diff": {
+        "bits_inside_slot": 37427,
+        "bits_outside_slot": 0,
+        "column_bits": {
+          "21": 114,
+          "22": 226,
+          "23": 1494,
+          "24": 6880,
+          "25": 8009,
+          "26": 2359,
+          "27": 9484,
+          "28": 7417,
+          "29": 452,
+          "30": 382,
+          "31": 330,
+          "32": 196,
+          "33": 84
+        },
+        "diff": {
+          "bits": 37427,
+          "x0": 1817,
+          "x1": 2792,
+          "y0": 88,
+          "y1": 1546
+        },
+        "identical": false,
+        "inside_slot_column": true,
+        "outside_slot_coordinates": [],
+        "outside_slot_coordinates_truncated": false
+      },
+      "evidence": {
+        "checked_clock_pins": 271,
+        "imported_clock": "system_clock.clocks[0]",
+        "resources": {
+          "MISTRAL_BUF": {
+            "available": 0,
+            "used": 883
+          },
+          "MISTRAL_CLKENA": {
+            "available": 8,
+            "used": 3
+          },
+          "MISTRAL_COMB": {
+            "available": 83820,
+            "used": 5584
+          },
+          "MISTRAL_FF": {
+            "available": 167640,
+            "used": 2027
+          },
+          "MISTRAL_IO": {
+            "available": 472,
+            "used": 35
+          },
+          "MISTRAL_M10K": {
+            "available": 553,
+            "used": 171
+          },
+          "MISTRAL_MUL18X18": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL18X19": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL18X19_COMBINED": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL27X27": {
+            "available": 112,
+            "used": 0
+          },
+          "MISTRAL_MUL9X9": {
+            "available": 336,
+            "used": 0
+          },
+          "altera_pll": {
+            "available": 6,
+            "used": 2
+          },
+          "cyclonev_hps_interface_fpga2sdram": {
+            "available": 1,
+            "used": 0
+          },
+          "cyclonev_hps_interface_mpu_general_purpose": {
+            "available": 1,
+            "used": 1
+          },
+          "cyclonev_hps_interface_peripheral_i2c": {
+            "available": 4,
+            "used": 1
+          },
+          "cyclonev_oscillator": {
+            "available": 1,
+            "used": 0
+          }
+        },
+        "route": {
+          "complete": true,
+          "gpu_backend": "hip"
+        },
+        "synthesis_cells": {
+          "$logic_and": 2,
+          "$specify2": 7,
+          "$specify3": 2,
+          "$specrule": 7,
+          "MISTRAL_ALUT2": 64,
+          "MISTRAL_ALUT3": 60,
+          "MISTRAL_ALUT4": 137,
+          "MISTRAL_ALUT5": 63,
+          "MISTRAL_ALUT6": 53,
+          "MISTRAL_ALUT_ARITH": 231,
+          "MISTRAL_CLKBUF": 1,
+          "MISTRAL_FF": 271,
+          "MISTRAL_IB": 32,
+          "MISTRAL_NOT": 13,
+          "MISTRAL_OB": 28
+        },
+        "timing": {
+          "pixel_clk": [
+            "pixel_clk",
+            74.25006866455078,
+            381.24285888671875
+          ],
+          "system_clock.clocks[0]": [
+            "system_clock.clocks[0]",
+            52.22477340698242,
+            52.377960205078125
+          ],
+          "system_clock.clocks[1]": [
+            "system_clock.clocks[1]",
+            12.288031578063965,
+            197.31649780273438
+          ]
+        }
+      },
+      "legacy_excluded_column_bits": 0,
+      "manifest": {
+        "cart_sha256": "8c134a3fdb8bfc27c6bdeea1c198b491a040a575f82467423e45cd807d4c4641",
+        "cart_size": 2683688,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.coleco-bus.socket/2",
+        "recipe_sha256": "87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459",
+        "revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "shell_build_id": "8d97fd1c36f5c79d08af074f972f96d0",
+        "shell_package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb",
+        "slot": "fes.expansion.coleco-bus",
+        "slot_major": 2,
+        "slot_minor": 0
+      },
+      "observed_strict_cram_diff": {
+        "bits_inside_slot": 37427,
+        "bits_outside_slot": 0,
+        "column_bits": {
+          "21": 114,
+          "22": 226,
+          "23": 1494,
+          "24": 6880,
+          "25": 8009,
+          "26": 2359,
+          "27": 9484,
+          "28": 7417,
+          "29": 452,
+          "30": 382,
+          "31": 330,
+          "32": 196,
+          "33": 84
+        },
+        "diff": {
+          "bits": 37427,
+          "x0": 1817,
+          "x1": 2792,
+          "y0": 88,
+          "y1": 1546
+        },
+        "identical": false,
+        "inside_slot_column": true,
+        "outside_slot_coordinates": [],
+        "outside_slot_coordinates_truncated": false
+      },
+      "part_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+      "timing_report": {
+        "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/coleco-sgm/87b540b9eb3716bb56bfc40250f6d48d87a4731867572e3c41bde19a94317459/timing.json",
+        "sha256": "849bc078ea82a8bd1dc53b9ec60647c0c99214baeb7385a33239024c55d418a5",
+        "size": 15067
+      }
+    }
+  },
+  "regions": {
+    "cpu_expansion": [
+      1769,
+      32,
+      2806,
+      1800
+    ],
+    "disjoint": true,
+    "native_video": [
+      124,
+      1800,
+      3906,
+      3442
+    ]
+  },
+  "shell": {
+    "archive": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c.fcore",
+      "sha256": "12bb082a6278f02aaf796bf5bdfccff08ba55455ffc0130cc3616054fdc7c03f",
+      "size": 2674176
+    },
+    "build_id": "8d97fd1c36f5c79d08af074f972f96d0",
+    "build_record": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/build-inputs.json",
+      "sha256": "c08fbc8e495d56ce5ab443dad80d4e5d380855515ceb89f28a9bcdeb656e4ce5",
+      "size": 24918
+    },
+    "build_summary": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/build-summary.json",
+      "sha256": "fba55035cf8b9ddcd0f58e5fc9736a8dd6cceaee0c4d27a2b522e87f25649cde",
+      "size": 151500
+    },
+    "execution": {
+      "gpu_device": 0,
+      "kernel": "6.12.101-p2pdma-p2pdma",
+      "machine": "x86_64",
+      "sha256": "77024e3f799c2fb59a1a10ee8aeed5cbf1733eea4671c7fbd29ff11ea1167b18",
+      "system": "Linux",
+      "version": 1
+    },
+    "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+    "payload": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross/build/fes-coleco-native-video/core.rbf",
+      "sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb",
+      "size": 2669898
+    },
+    "resources": {
+      "MISTRAL_BUF": {
+        "available": 0,
+        "used": 797
+      },
+      "MISTRAL_CLKENA": {
+        "available": 8,
+        "used": 3
+      },
+      "MISTRAL_COMB": {
+        "available": 83820,
+        "used": 4967
+      },
+      "MISTRAL_FF": {
+        "available": 167640,
+        "used": 1756
+      },
+      "MISTRAL_IO": {
+        "available": 472,
+        "used": 35
+      },
+      "MISTRAL_M10K": {
+        "available": 553,
+        "used": 171
+      },
+      "MISTRAL_MUL18X18": {
+        "available": 112,
+        "used": 0
+      },
+      "MISTRAL_MUL18X19": {
+        "available": 112,
+        "used": 0
+      },
+      "MISTRAL_MUL18X19_COMBINED": {
+        "available": 112,
+        "used": 0
+      },
+      "MISTRAL_MUL27X27": {
+        "available": 112,
+        "used": 0
+      },
+      "MISTRAL_MUL9X9": {
+        "available": 336,
+        "used": 0
+      },
+      "altera_pll": {
+        "available": 6,
+        "used": 2
+      },
+      "cyclonev_hps_interface_fpga2sdram": {
+        "available": 1,
+        "used": 0
+      },
+      "cyclonev_hps_interface_mpu_general_purpose": {
+        "available": 1,
+        "used": 1
+      },
+      "cyclonev_hps_interface_peripheral_i2c": {
+        "available": 4,
+        "used": 1
+      },
+      "cyclonev_oscillator": {
+        "available": 1,
+        "used": 0
+      }
+    },
+    "route": {
+      "gpu_backend": "hip",
+      "placer_heap_timingweight": 2000,
+      "placer_qor_mode": "first-pass",
+      "placer_seed": 3,
+      "status": "pass",
+      "unrouted": false
+    },
+    "source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+    "synthesis_cells": {
+      "$logic_and": 2,
+      "$specify2": 11,
+      "$specify3": 2,
+      "$specrule": 7,
+      "MISTRAL_ALUT2": 518,
+      "MISTRAL_ALUT3": 811,
+      "MISTRAL_ALUT4": 800,
+      "MISTRAL_ALUT5": 1126,
+      "MISTRAL_ALUT6": 535,
+      "MISTRAL_ALUT_ARITH": 1115,
+      "MISTRAL_CLKBUF": 4,
+      "MISTRAL_FF": 1756,
+      "MISTRAL_IB": 1,
+      "MISTRAL_IO": 2,
+      "MISTRAL_M10K": 32,
+      "MISTRAL_M10K_TDP": 139,
+      "MISTRAL_NOT": 74,
+      "MISTRAL_OB": 32,
+      "altera_pll": 2,
+      "cyclonev_hps_interface_mpu_general_purpose": 1,
+      "cyclonev_hps_interface_peripheral_i2c": 1
+    },
+    "timing": {
+      "audio": {
+        "achieved_mhz": 197.31649780273438,
+        "clock": "system_clock.clocks[1]",
+        "constraint_mhz": 12.288031578063965,
+        "requested_mhz": 12.288,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 381.24285888671875,
+        "clock": "pixel_clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 52.377960205078125,
+        "clock": "system_clock.clocks[0]",
+        "constraint_mhz": 52.22477340698242,
+        "requested_mhz": 52.224,
+        "status": "pass"
+      }
+    },
+    "tools": {
+      "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=6a31aed4e29a7047b83e82a268bd34c7d8ab667cbf2c85dd0cc902cfa1c2809e",
+      "nextpnr-mistral": "commit=655f38334b8a1ba798cc05cf3744b6a897119b5d; sha256=2da4f3600ee07478dd8affbcd286a5d48082d7bf2b7a88c6bd103d80521fdd8c; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=be5ab62130c25f16a50ef356679e8b3e7a6e56a56f4d50f9719c603289f6d5a5"
+    }
+  },
+  "source": {
+    "clean_before_and_after": true,
+    "directory": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/work/misteross-3ffe989fbba6857b74f149112d1965156face870/sources/misteross",
+    "expansion_tree": "b3c80b0588f191116c92e6e270e4771652ebe1da",
+    "fogcast_tree": "fda2ebbf53dd1cac7d5ee19a69506c1387b483fe",
+    "repository": "https://github.com/DeanoC/fes.git",
+    "revision": "3ffe989fbba6857b74f149112d1965156face870",
+    "source_path": "sources/misteross"
+  },
+  "verifier": {
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-3ffe989f/build-proof/verify.py",
+    "sha256": "e54831a591b7e890186830c506adab6cc57a30aa81f552b2aeb8f587d92a2027",
+    "size": 23490
+  }
+}

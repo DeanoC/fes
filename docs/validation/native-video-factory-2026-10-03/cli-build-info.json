@@ -1,0 +1,10 @@
+{
+  "classification": "Reversible UTF-8 transcript wrapper; raw line endings and tabs are preserved in text.",
+  "format": 1,
+  "original": {
+    "bytes": 742,
+    "path": "out/native-video-factory/candidate-3ffe989f/build-proof/cli-build-info.txt",
+    "sha256": "53b3eb8ae2cb3a30e4f1c10fffa8166357d802a16e799d56a1a4195a1cb2b967"
+  },
+  "text": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/FogCast/bin/native-factory-proof-parts-3ffe989f: go1.26.5\n\tpath\tgithub.com/DeanoC/FogCast/cmd/fes-parts\n\tmod\tgithub.com/DeanoC/FogCast\t(devel)\t\n\tdep\tgithub.com/DeanoC/misteross/expansion\tv0.0.0\n\t=>\t../misteross/expansion\t(devel)\t\n\t\n\tdep\tgithub.com/pelletier/go-toml/v2\tv2.4.3\th1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n\tbuild\tGOAMD64=v1\n\tbuild\tvcs=git\n\tbuild\tvcs.revision=3ffe989fbba6857b74f149112d1965156face870\n\tbuild\tvcs.time=2026-10-03T13:36:44Z\n\tbuild\tvcs.modified=false\n"
+}

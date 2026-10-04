@@ -20,7 +20,8 @@ from core_dev import snapshot
 import package_acceptance_isolated as isolated
 
 OWNED = frozenset({"--archive", "--expected-archive-sha256", "--expected-package-id",
-                   "--expected-core-id", "--library-media", "--expected-media-sha256"})
+                   "--expected-core-id", "--library-media", "--expected-media-sha256",
+                   "--video-parts", "--expected-video-parts-sha256"})
 
 
 def _object(value, required, optional=()):
@@ -127,12 +128,14 @@ def candidate_arguments(receipt_path, provenance=None):
                         raise ValueError('invalid prepared package manifest')
                     with package_archive.extractfile(member) as stream:
                         descriptor = tomllib.loads(stream.read(65537).decode('utf-8'))
-                marked = any(interface.get('id') == 'fes.fabric.video.raster-rgb888' and interface.get('major') == 1
-                             for interface in descriptor.get('interfaces', []))
+                from factory_video_parts import video_shell_profile
+                marked = video_shell_profile(descriptor) is not None
             except (tarfile.TarError, KeyError, OSError, UnicodeDecodeError) as error:
                 raise ValueError('invalid prepared package archive') from error
             if marked and 'video_parts' not in data:
                 raise ValueError('prepared factory video shell requires its selected parts inventory')
+            if not marked and 'video_parts' in data:
+                raise ValueError('prepared video parts require an exact factory video shell profile')
     selection = _object(data["selection"], {"path", "sha256", "manifest_sha256", "payload_sha256"})
     for key in ("manifest_sha256", "payload_sha256"):
         if not isinstance(selection[key], str) or not re.fullmatch(r"[0-9a-f]{64}", selection[key]):
@@ -161,6 +164,9 @@ def candidate_arguments(receipt_path, provenance=None):
             raise ValueError('prepared video parts differ from selected package')
     result = ["--archive", archive_path, "--expected-archive-sha256", archive["sha256"],
               "--expected-package-id", package, "--expected-core-id", core]
+    if 'video_parts' in data:
+        result += ["--video-parts", str(path.parent / "core-video-parts"),
+                   "--expected-video-parts-sha256", data['video_parts']['sha256']]
     if "library_media" in data:
         media = _object(data["library_media"], {"path", "sha256", "size"})
         media_path = _file(path.parent, media, "media", 32 * 1024 * 1024, fixed="media.bin")

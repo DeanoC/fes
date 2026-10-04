@@ -21,10 +21,10 @@ import (
 	"github.com/DeanoC/misteross/expansion"
 )
 
-func publishedVideoFixture(t *testing.T) (*Service, *defaultMediaPackageClient, corepackage.Inspection, []byte, []expansion.Asset, Paths) {
+func publishedVideoFixture(t *testing.T, layout string) (*Service, *defaultMediaPackageClient, corepackage.Inspection, []byte, []expansion.Asset, Paths) {
 	t.Helper()
 	ctx := context.Background()
-	raw, assets := libraryVideoFixture(t)
+	raw, assets := libraryVideoFixtureLayout(t, layout)
 	staged, err := corepackage.Stage(ctx, t.TempDir(), int64(len(raw)), bytes.NewReader(raw))
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +46,7 @@ func publishedVideoFixture(t *testing.T) (*Service, *defaultMediaPackageClient, 
 		inspection:        protocol.CoreInspection{PackageID: inspection.PackageID, Descriptor: inspection.Descriptor, Compatible: true},
 	}}
 	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: 30 * time.Second}, paths, store,
-		&fakeServiceScanner{}, &fakeServicePreparer{}, client)
+		&fakeServiceScanner{}, &fakeServicePreparer{}, client, WithLibraryOverlayPath(filepath.Join(root, "library-settings.json")))
 	s.corePackages = packages
 	t.Cleanup(func() { _ = s.catalog.Close() })
 	publication := t.TempDir()
@@ -122,8 +122,15 @@ func editPublishedVideoDocument(t *testing.T, file string, edit func(map[string]
 }
 
 func TestCoreCatalogVideoInstallFeedsOrdinaryPlay(t *testing.T) {
+	for _, layout := range []string{expansion.ColecoVideoLayout, expansion.ColecoNativeVideoLayout} {
+		t.Run(layout, func(t *testing.T) { testCoreCatalogVideoInstallFeedsOrdinaryPlay(t, layout) })
+	}
+}
+
+func testCoreCatalogVideoInstallFeedsOrdinaryPlay(t *testing.T, layout string) {
+	t.Helper()
 	ctx := context.Background()
-	s, base, inspection, raw, assets, _ := publishedVideoFixture(t)
+	s, base, inspection, raw, assets, _ := publishedVideoFixture(t, layout)
 	installed, err := s.InstallAvailableCore(ctx, "fes-first-party", "fes.coleco", inspection.PackageID)
 	if err != nil || installed.PackageID != inspection.PackageID {
 		t.Fatalf("install=%+v err=%v", installed, err)
@@ -140,9 +147,7 @@ func TestCoreCatalogVideoInstallFeedsOrdinaryPlay(t *testing.T) {
 		t.Fatal(err)
 	}
 	bindVideoMedia(t, s, entry)
-	if _, err := s.catalog.(coreExpansionCatalog).ImportCoreExpansion(ctx, assets[2]); err != nil {
-		t.Fatal(err)
-	}
+	importVideoCPUFixture(t, s, assets[2])
 	if _, err := s.SelectCoreEntryExpansion(ctx, entry.GameID, entry.PackageID, "", assets[2].ID); err != nil {
 		t.Fatal(err)
 	}
@@ -180,10 +185,17 @@ func TestCoreCatalogVideoInstallFeedsOrdinaryPlay(t *testing.T) {
 }
 
 func TestCoreCatalogVideoExistingBaseRemainsInstallableUntilCompanionsMatch(t *testing.T) {
+	for _, layout := range []string{expansion.ColecoVideoLayout, expansion.ColecoNativeVideoLayout} {
+		t.Run(layout, func(t *testing.T) { testCoreCatalogVideoExistingBaseRemainsInstallableUntilCompanionsMatch(t, layout) })
+	}
+}
+
+func testCoreCatalogVideoExistingBaseRemainsInstallableUntilCompanionsMatch(t *testing.T, layout string) {
+	t.Helper()
 	for _, partial := range []bool{false, true} {
 		t.Run(fmt.Sprintf("partial=%t", partial), func(t *testing.T) {
 			ctx := context.Background()
-			s, client, inspection, raw, assets, _ := publishedVideoFixture(t)
+			s, client, inspection, raw, assets, _ := publishedVideoFixture(t, layout)
 			if _, _, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw)); err != nil {
 				t.Fatal(err)
 			}
@@ -223,10 +235,17 @@ func TestCoreCatalogVideoExistingBaseRemainsInstallableUntilCompanionsMatch(t *t
 }
 
 func TestCoreCatalogVideoRejectsCompanionsBeforeImport(t *testing.T) {
+	for _, layout := range []string{expansion.ColecoVideoLayout, expansion.ColecoNativeVideoLayout} {
+		t.Run(layout, func(t *testing.T) { testCoreCatalogVideoRejectsCompanionsBeforeImport(t, layout) })
+	}
+}
+
+func testCoreCatalogVideoRejectsCompanionsBeforeImport(t *testing.T, layout string) {
+	t.Helper()
 	for _, mode := range []string{"changed second archive", "wrong second part id", "CPU part", "incompatible shell", "symlink"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
-			s, client, inspection, _, assets, _ := publishedVideoFixture(t)
+			s, client, inspection, _, assets, _ := publishedVideoFixture(t, layout)
 			editPublishedVideoDocument(t, s.coreCatalogPath, func(entry map[string]any) {
 				part := entry["video_parts"].([]any)[1].(map[string]any)
 				file := filepath.Join(filepath.Dir(s.coreCatalogPath), part["archive_path"].(string))
@@ -294,8 +313,15 @@ func TestCoreCatalogVideoRejectsCompanionsBeforeImport(t *testing.T) {
 }
 
 func TestCoreCatalogVideoReopenAndIdempotencePreserveSelections(t *testing.T) {
+	for _, layout := range []string{expansion.ColecoVideoLayout, expansion.ColecoNativeVideoLayout} {
+		t.Run(layout, func(t *testing.T) { testCoreCatalogVideoReopenAndIdempotencePreserveSelections(t, layout) })
+	}
+}
+
+func testCoreCatalogVideoReopenAndIdempotencePreserveSelections(t *testing.T, layout string) {
+	t.Helper()
 	ctx := context.Background()
-	s, _, inspection, _, assets, paths := publishedVideoFixture(t)
+	s, _, inspection, _, assets, paths := publishedVideoFixture(t, layout)
 	if _, err := s.InstallAvailableCore(ctx, "fes-first-party", "fes.coleco", inspection.PackageID); err != nil {
 		t.Fatal(err)
 	}
@@ -304,6 +330,14 @@ func TestCoreCatalogVideoReopenAndIdempotencePreserveSelections(t *testing.T) {
 		t.Fatal(err)
 	}
 	bindVideoMedia(t, s, entry)
+	profile := "scanlines"
+	if err := s.PatchLibrarySettings(ctx, LibraryConfigPatch{VideoProfile: &profile}); err != nil {
+		t.Fatal(err)
+	}
+	importVideoCPUFixture(t, s, assets[2])
+	if _, err := s.SelectCoreEntryExpansion(ctx, entry.GameID, entry.PackageID, "", assets[2].ID); err != nil {
+		t.Fatal(err)
+	}
 	wantEntry, err := s.CoreEntry(ctx, entry.GameID)
 	if err != nil {
 		t.Fatal(err)
@@ -315,7 +349,11 @@ func TestCoreCatalogVideoReopenAndIdempotencePreserveSelections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.catalog = reopened
+	fresh := newService(Config{RequestTimeout: time.Second, UploadTimeout: 30 * time.Second}, paths, reopened,
+		&fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{}, WithLibraryOverlayPath(s.libraryOverlayPath))
+	fresh.coreCatalogPath, fresh.coreLibrarySourceID = s.coreCatalogPath, s.coreLibrarySourceID
+	s = fresh
+	t.Cleanup(func() { _ = s.catalog.Close() })
 	s.corePackages, err = corepackage.NewStore(paths.CorePackages)
 	if err != nil {
 		t.Fatal(err)
@@ -333,11 +371,22 @@ func TestCoreCatalogVideoReopenAndIdempotencePreserveSelections(t *testing.T) {
 	if err != nil || got != wantEntry {
 		t.Fatalf("entry=%+v want=%+v err=%v", got, wantEntry, err)
 	}
+	video, err := s.CoreEntryVideo(ctx, entry.GameID)
+	if err != nil || video.PreferredProfile != profile || video.EffectiveProfile != profile || video.PartID != assets[1].ID || !video.Choices[1].Available {
+		t.Fatalf("restart lost saved preference or compatible CPU/video selection: %+v %v", video, err)
+	}
 }
 
 func TestCoreCatalogVideoConflictPreservesImportedProfile(t *testing.T) {
+	for _, layout := range []string{expansion.ColecoVideoLayout, expansion.ColecoNativeVideoLayout} {
+		t.Run(layout, func(t *testing.T) { testCoreCatalogVideoConflictPreservesImportedProfile(t, layout) })
+	}
+}
+
+func testCoreCatalogVideoConflictPreservesImportedProfile(t *testing.T, layout string) {
+	t.Helper()
 	ctx := context.Background()
-	s, _, inspection, raw, assets, _ := publishedVideoFixture(t)
+	s, _, inspection, raw, assets, _ := publishedVideoFixture(t, layout)
 	if _, _, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw)); err != nil {
 		t.Fatal(err)
 	}
