@@ -311,6 +311,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         "cores/fes-common/rtl/fes_video_part_direct.v",
         "cores/fes-common/rtl/fes_video_part_scanlines.v",
         "cores/fes-atari-st/rtl/st_rom.v", "cores/fes-atari-st/rtl/st_expansion_socket.sv",
+        "cores/fes-atari-st/rtl/st_video_socket.sv", "cores/fes-atari-st/rtl/st_media_port.sv",
     }
     legacy = " ".join(f"../../{name}" for name in RTL_SOURCES if name in verilog_sources)
     sources = " ".join("fx68k-slang.sv" if name == f"{CPU_VENDOR}/fx68k.sv"
@@ -319,9 +320,9 @@ def build_commands(root: Path, output: Path, build_id: str,
     cache_constraints = " ".join(f'setattr -set BEL "{bel}" {TOP}/{name};'
                                   for name, bel in CACHE_BELS.items())
     program = (
-        f"read_verilog -sv -I ../../cores/fes-common/generated {legacy}; "
+        f"read_verilog -sv -DFES_ST_SLANG_IMPORT=1 -I ../../cores/fes-common/generated {legacy}; "
         "read_slang --single-unit --ignore-timing --empty-blackboxes "
-        "-I ../../cores/fes-common/generated --top st_system --top st_memory "
+        "-I ../../cores/fes-common/generated --top st_system -G ENABLE_FLOPPY_WRITE=1 --top st_memory "
         f"--top st_video_adapter --top st_media_writer {megafunctions} {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} -set VIDEO_SCANLINES {int(video_output == 'scanlines')} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; {cache_constraints} stat; write_json synth.json"

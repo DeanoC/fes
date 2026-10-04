@@ -127,7 +127,13 @@ module top #(
     generate begin : machine
         st_rom rom (.clk(clk_sys), .reset(machine_reset), .req(rom_req), .address(rom_addr),
                     .rdata(rom_rdata), .ready(rom_ready));
+        // Slang imports this root already specialized with writable media.
+        // Its RTLIL module is no longer parametric; other readers elaborate it.
+`ifdef FES_ST_SLANG_IMPORT
+        st_system system (
+`else
         st_system #(.ENABLE_FLOPPY_WRITE(1)) system (
+`endif
             .clk_sys(clk_sys), .reset(machine_reset), .cold_reset(cold_reset),
             .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
             .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),

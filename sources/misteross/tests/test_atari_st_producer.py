@@ -77,6 +77,10 @@ class AtariSTProducerTests(unittest.TestCase):
         command, route = st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32,
                                            tools, video_output='direct')
         self.assertIn('--single-unit', command[-1])
+        self.assertIn('-DFES_ST_SLANG_IMPORT=1', command[-1])
+        self.assertIn('-G ENABLE_FLOPPY_WRITE=1', command[-1])
+        self.assertIn('st_video_socket.sv', command[-1].split('read_slang')[0])
+        self.assertIn('st_media_port.sv', command[-1].split('read_slang')[0])
         self.assertIn('-set VIDEO_SCANLINES 0', command[-1])
         with self.assertRaisesRegex(BuildError, 'sealed video part'):
             st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32, tools, video_output='scanlines')
