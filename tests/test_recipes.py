@@ -515,3 +515,16 @@ class CacheLocationTest(unittest.TestCase):
         from unittest.mock import patch
         with patch.dict(os.environ, {'FES_CACHE_ROOT': '/shared/fes-cache'}), patch.object(recipes.subprocess, 'run', side_effect=AssertionError):
             self.assertEqual(recipes.shared_cache_root(), Path('/shared/fes-cache'))
+
+
+class RamtestToolchainTargetTest(unittest.TestCase):
+    def test_toolchain_fes_ramtest_pins_shared_lock_against_env_overrides(self):
+        misteross = Path(__file__).resolve().parents[1] / 'sources/misteross'
+        env = dict(os.environ, FES_TOOLCHAIN_LOCKFILE='/elsewhere.lock',
+                   FES_TOOLCHAIN_ROOT='/elsewhere-root')
+        env.pop('MAKEFLAGS', None)
+        out = subprocess.run(['make', '-n', '-s', 'toolchain-fes-ramtest'], cwd=misteross,
+                             env=env, check=True, capture_output=True, text=True).stdout
+        self.assertIn(f'FES_TOOLCHAIN_LOCKFILE="{misteross}/toolchain.lock"', out)
+        self.assertIn(f'FES_TOOLCHAIN_ROOT="{misteross}/build/toolchain"', out)
+        self.assertNotIn('elsewhere', out)

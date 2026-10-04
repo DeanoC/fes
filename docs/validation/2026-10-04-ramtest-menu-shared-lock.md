@@ -35,8 +35,9 @@ RAM test 130 MHz is a known OSS timing miss on the old pin as well. In
 `sources/misteross/docs/validation/2026-09-27-ramtest-timing.md`, nextpnr
 `655f3833` seed 2 reached memory 101.94 and pixel 69.68 MHz, missing both.
 To keep the sweep bounded, the new 130 search was stopped after seeds 2 and 6 and
-part of seed 1, and the old 130 search was not repeated. The new pin is no worse:
-seed 2 memory is 104.08 against 101.94, and pixel now passes at 96.96. The image
+part of seed 1, and the old 130 search was not repeated. At the one seed measured on both pins (seed 2), the new pin is no worse: memory is
+104.08 against 101.94 MHz, and pixel now passes at 96.96 MHz. The old figure comes from an earlier
+source revision, so it is indicative only. The image
 recipe ships the 100 MHz package.
 
 ## Menu seed sweep (seeds 1–8, both pins)
