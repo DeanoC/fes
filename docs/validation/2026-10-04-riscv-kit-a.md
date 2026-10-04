@@ -1,6 +1,6 @@
 # 2026-10-04: fes.riscv 0.1.0 kit A development load
 
-Exact-artifact development diagnostic of the sealed package in the
+Exact-artifact development diagnostic of the resealed package in the
 [host seal record](2026-10-04-riscv-seal.md). It shows that bitstream running
 on kit A. It does not accept an appliance image, a later build, or any other
 kit.
@@ -9,13 +9,16 @@ kit.
 
 | Item | Value |
 | --- | --- |
-| Package | `46c140ee0a9efdd1bb3a1d2a3e350897082029ef6650c590b28858e1aabb4c5e` (`.fcore` sha256 `865af298a59decf74f762c29cacb0b798f7b4bf2bb1f95df7b9138bcf46c053f`) |
-| Build ID | `3547ac28dcaacae0f5bbcf3969e72230` |
+| Package | `e5c4bd79c0ebf627563eea1040a846626d9bc3ca72fec9966d680e168f1839f4` (`.fcore` sha256 `17feb5ae7ad537a1c3fc9512c232592fd6abc970e7e2483ad14e032b16d35fe2`) |
+| Build ID | `55de600f44d9b309472ce998d4e298f4` |
 | Kit | A (`dev` target, `http://fes-kit-a:8182`), lease free before and after |
-| Path | the running Powerboat host, `fogcast core-load` (volatile development load, generation 4), HDMI by ShadowCast 3 at 1920x1080 |
+| Path | the running Powerboat host, `fogcast core-load` (volatile development load, generation 5), HDMI by ShadowCast 3 at 1920x1080 |
 
 Kit B rejected the configured credential (HTTP 401) and was not used. No
-second host was started.
+second host was started. The same checks were first run on the pre-review
+package `46c140ee…` (build `3547ac28…`, generation 4); review then found two
+defects and the package was resealed, so this record covers the resealed
+bytes and repeats every observation below on them.
 
 ## Observed
 
@@ -25,9 +28,9 @@ second host was started.
 - HDMI showed the firmware's picture at the correct 4:3 playfield: white
   border, the horizontal-blue to vertical-green gradient, the banner
   `FES RV32I` and a centred 12x12 box.
-- The box colour changed between stills taken one second apart, alternating
-  between two palette entries four steps apart, which matches the firmware's
-  four timer-interrupt ticks per second.
+- The box colour changed between stills taken 1.4 s apart, alternating
+  between the magenta and yellow palette entries four steps apart, which
+  matches the firmware's four timer-interrupt ticks per second.
 - Host input `dpad-right` held for half a second and released moved the box
   from the centre to 31 framebuffer pixels right (279 captured pixels at
   9 per framebuffer pixel), one pixel per 60 Hz frame as the firmware does.
