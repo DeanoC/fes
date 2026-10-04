@@ -1669,7 +1669,7 @@ ST_VIDEO_PART ?= direct
 ST_VIDEO_PART_SEED ?= 4
 build-fes-atari-st-video-part:
 	@test -n "$(ST_PACKAGE)" || (echo 'Set ST_PACKAGE to the exact sealed ST shell package'; exit 1)
-	$(PYTHON) scripts/build_atari_st_video_part.py --shell "$(ST_SHELL)" --package "$(ST_PACKAGE)" \
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_atari_st_video_part.py --shell "$(ST_SHELL)" --package "$(ST_PACKAGE)" \
 		--variant "$(ST_VIDEO_PART)" --seed "$(ST_VIDEO_PART_SEED)" \
 		$(if $(strip $(CACHE_ROOT)),--cache-root "$(CACHE_ROOT)",) $(if $(GPU_DEVICE),--gpu "$(GPU_DEVICE)",)
 
