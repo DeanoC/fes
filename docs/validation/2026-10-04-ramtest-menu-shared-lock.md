@@ -1,6 +1,17 @@
 # RAM test and menu on the shared toolchain.lock: rebuilds and timing (2026-10-04)
 
-DeanoC/fes#502, stacked on #501, moves `fes.ramtest` and `fes.menu` off
+> **Split after kit B HIL (2026-10-04 14:00 EEST).** The rebuilt ramtest-100 package
+> `01948465` (nextpnr `3d4a5b35`) **fails SDRAM on hardware**: about 0x01F9xxxx errors per
+> pattern, reading `FFFF`, on 2 runs. The old `655f3833` package `3593d7e0` passed 6/6 on the
+> same boot (https://github.com/DeanoC/fes/pull/502#issuecomment-5979280762). Timing passed
+> on both, but the SDRAM pad paths are not constrained in the SDC, so the timing pass does
+> not cover them. This is tracked as DeanoC/nextpnr#135. As a result, #502 now moves **only
+> `fes.menu`** onto `toolchain.lock`. `fes.ramtest` stays on `toolchains/ramtest.lock`
+> (nextpnr `655f3833`) with inputs unchanged from main. The ramtest rows below are the
+> evidence behind that decision, not a shipped change. The menu input closure is unchanged
+> from the `dfc3fb4d` build timed here.
+
+DeanoC/fes#502 originally moved (stacked on #501) `fes.ramtest` and `fes.menu` off
 `toolchains/ramtest.lock` and onto `sources/misteross/toolchain.lock`.
 
 | Tool | Old (`ramtest.lock`, main `7953bf0f`) | New (`toolchain.lock`, `dfc3fb4d`) |
@@ -57,8 +68,9 @@ RAM test ramtest-100 at seed 2: pixel +10.9%, memory −1.2%, capture −2.8%.
 A full RAM test seed sweep (about 10–20 minutes per route) was not run, to keep
 this bounded.
 
-## Not validated here: kit B image check required
+## Hardware status
 
-There was no hardware run in this lane. Before release, an image built from this stack
-needs a kit B check: menu/launcher package `3d80acdc…` and the RAM test (100 MHz)
-package. RAM test and menu identities and package IDs change.
+The kit B check of the combined #501/#502 image is described above: menu renders, and
+ramtest SDRAM fails at `3d4a5b35`. After the split, the remaining check is the
+menu-only kit B check of a split-#502 image. It is still pending, scheduled after #364.
+The menu package identity changes. The ramtest identity is unchanged from main.

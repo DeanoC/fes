@@ -187,8 +187,8 @@ The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
 OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
 because the pinned OSS packer cannot put DDR input registers on those pads.
 `make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
-`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the shared
-`toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
+`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with
+`toolchains/ramtest.lock`, whose Yosys declares every fpga2sdram port. Their
 timing gate covers the memory, capture and video domains, and the recipe checks
 the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects

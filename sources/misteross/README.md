@@ -150,10 +150,10 @@ make toolchain
 ```
 
 `make toolchain` is the generic OSS lane (GPU router off), including splash.
-`make toolchain-fes` is the shared HIP lane for FES Pong, menu, RAM Tester and
-freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
-`toolchain.lock` HIP compiler slot (also provisioned by
-`make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
+`make toolchain-fes` is the shared HIP lane for FES Pong, menu and
+freeze-scaffold pass 2. RAM Tester uses `make toolchain-fes-ramtest` against
+`toolchains/ramtest.lock` (nextpnr `655f3833`, held there until
+DeanoC/nextpnr#135 is resolved). Coleco uses `make toolchain-fes-coleco` against
 `toolchains/coleco-sgm.lock`. SG-1000 uses `make toolchain-fes-sg1000`
 against `toolchains/registered-memory.lock`. SMS uses
 `make toolchain-fes-sms` against `toolchains/fes-sms.lock`. ZX81 uses

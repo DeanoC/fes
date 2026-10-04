@@ -97,8 +97,9 @@ their shared compiler cache beneath the primary FES checkout’s `out/cache`
 (or the absolute `FES_CACHE_ROOT` override), reused across FES worktrees. A
 matching package is reused only after its locked inputs, manifest, payload and
 sealed selection are checked; a miss runs that package's registered producer.
-Menu and both RAM Tester rates use the current shared `sources/misteross/toolchain.lock`
-HIP lane; RAM Tester timing experiments retain their separate opt-in lock.
+The menu uses the current shared `sources/misteross/toolchain.lock` HIP lane.
+RAM Tester stays on `toolchains/ramtest.lock` (nextpnr `655f3833`) until
+DeanoC/nextpnr#135 is resolved; its timing experiments keep a separate opt-in lock.
 Quartus Lite 17.0.2 remains available only as an explicit bring-up/oracle check
 where a recipe documents one. It is not run by the default FES path, and a
 failed HIP route never falls back to Quartus.

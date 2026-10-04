@@ -62,9 +62,15 @@ RTL_SOURCES = (
     "cores/fes-ramtest/rtl/top.v",
 )
 RAM_PLL = "cores/fes-ramtest/rtl/ram_pll.v"
-# Both rates share toolchain.lock and the common HIP compiler slot. Yosys
-# declares every fpga2sdram port and nextpnr times the HPS port paths.
-TOOLCHAIN_LOCK = "toolchain.lock"
+# Both rates use toolchains/ramtest.lock: Yosys declares every fpga2sdram
+# port and nextpnr times the HPS port paths.
+TOOLCHAIN_LOCK = "toolchains/ramtest.lock"
+TOOLCHAIN_ROOT = Path("build/toolchain-ramtest")
+TOOL_COMMITS = {
+    **board.EXPECTED_TOOL_COMMITS,
+    "yosys": "886afa63953e97407153e9f4aae25fcedb639696",
+    "nextpnr": "655f38334b8a1ba798cc05cf3744b6a897119b5d",
+}
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/functional_execution.py", "scripts/fes_build_common.py",
@@ -112,7 +118,8 @@ def inputs_for(memory_mhz: int) -> tuple[str, ...]:
 
 def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
     return board._authenticate_tools(
-        root, lock_path=root / TOOLCHAIN_LOCK, cache_root=cache_root,
+        root, lock_path=root / TOOLCHAIN_LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
+        expected_commits=TOOL_COMMITS, cache_root=cache_root,
     )
 
 

@@ -42,7 +42,7 @@ class RamTestAbiTest(unittest.TestCase):
         self.assertIn("fes.gamepad", recipe)
         self.assertIn("fes-gp-v1", recipe)
         self.assertIn('{"id": "fes.memory.hps-ddr", "major": 1, "minor": 0, "required": True}', recipe)
-        self.assertIn('TOOLCHAIN_LOCK = "toolchain.lock"', recipe)
+        self.assertIn('"toolchains/ramtest.lock"', recipe)
         qsf = (CORE / "constraints.qsf").read_text()
         self.assertIn("HDMI_TX_CLK", qsf)
         self.assertIn("SDRAM_DQ[15]", qsf)
