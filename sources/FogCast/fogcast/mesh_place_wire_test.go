@@ -298,8 +298,8 @@ func TestProductionPlacementSelectsTheBoundKitWithTheSeamOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if boundName != "dev" || s.selectedTarget != "dev" || s.activeExecution != ExecutionFPGANative {
-		t.Fatalf("bound %q selected %q execution %q", boundName, s.selectedTarget, s.activeExecution)
+	if boundName != "dev" || s.selectedTarget != "dev" || s.plays["dev"].execution != ExecutionFPGANative {
+		t.Fatalf("bound %q selected %q kit play %+v", boundName, s.selectedTarget, s.plays["dev"])
 	}
 	want := MeshPlacement{Execute: wireKitA, DisplaySink: wireKitA, InputSource: wireKitA}
 	if got := s.MeshSessionPlacement(); got != want {
@@ -375,8 +375,8 @@ func TestProductionPlacementRebindsAnotherKitWithTheSeamOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if boundName != "living" || s.selectedTarget != "living" || s.activeExecution != ExecutionFPGANative {
-		t.Fatalf("bound %q selected %q execution %q", boundName, s.selectedTarget, s.activeExecution)
+	if boundName != "living" || s.selectedTarget != "living" || s.plays["living"].execution != ExecutionFPGANative {
+		t.Fatalf("bound %q selected %q kit play %+v", boundName, s.selectedTarget, s.plays["living"])
 	}
 	owned, _ := keeper.MeshKitLease()
 	if keeper.claims != 1 || keeper.releases != 0 || !owned {

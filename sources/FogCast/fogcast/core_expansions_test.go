@@ -329,7 +329,7 @@ func TestMissingOrMismatchedExpansionRejectsBeforeRecoveryStop(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			service.packageRejection = &protocol.APIError{Code: protocol.CodeInternal, Message: "pending recovery"}
+			service.plays[service.selectedTarget] = targetPlay{packageRejection: &protocol.APIError{Code: protocol.CodeInternal, Message: "pending recovery"}}
 			if _, err = service.Launch(ctx, entry.GameID, nil); err == nil {
 				t.Fatal("accepted unavailable expansion")
 			}

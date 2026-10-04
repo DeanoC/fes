@@ -37,7 +37,7 @@ func (s *Service) loadDevelopmentMediaLocked(ctx context.Context, data []byte, b
 
 func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	s.executionMu.Lock()
-	blocked := s.activeExecution == ExecutionHostOnly || s.packageRejection != nil
+	blocked := s.plays[b.Target].packageRejection != nil || (s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly)
 	s.executionMu.Unlock()
 	if blocked {
 		return protocol.Status{}, protocol.DevelopmentMediaIdentityError()
@@ -91,9 +91,9 @@ func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	s.executionMu.Lock()
-	if s.activePackageID == b.PackageID && s.activePackageGeneration == b.Generation && s.activeGameID != "" {
-		status.GameID = stringPtr(s.activeGameID)
-		status.System = systemPtr(s.activeSystem)
+	if play := s.plays[b.Target]; play.packageID == b.PackageID && play.packageGeneration == b.Generation && play.gameID != "" {
+		status.GameID = stringPtr(play.gameID)
+		status.System = systemPtr(play.system)
 	}
 	s.executionMu.Unlock()
 	return status, nil

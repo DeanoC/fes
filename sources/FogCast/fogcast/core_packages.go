@@ -13,6 +13,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 	"github.com/DeanoC/misteross/expansion"
 )
 
@@ -465,7 +466,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if fwErr != nil {
 			return s.recoverLibrarySlot(parent, fwStatus, fwErr)
 		}
-		status = retainImageSHA(fwStatus, imageSHA)
+		status = retainImageSHA(s.retainKitSessionIdentity(fwBinding.Target, fwStatus), imageSHA)
 		response.Status = status
 	}
 	if media == nil {
@@ -484,7 +485,8 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if unitErr != nil {
 			return s.recoverLibrarySlot(parent, unitStatus, unitErr)
 		}
-		return protocol.CachedLaunchResponse{Status: retainImageSHA(s.retainMediaUnitSessionIdentity(unitStatus, unitBinding), imageSHA)}, nil
+		unitStatus = s.retainKitSessionIdentity(unitBinding.Target, s.retainMediaUnitSessionIdentity(unitStatus, unitBinding))
+		return protocol.CachedLaunchResponse{Status: retainImageSHA(unitStatus, imageSHA)}, nil
 	}
 	binding := s.libraryDevelopmentMediaBinding(*status.CorePackage)
 	binding.Stream = media.stream
@@ -502,7 +504,26 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	if mediaErr != nil {
 		return s.recoverLibrarySlot(parent, mediaStatus, mediaErr)
 	}
-	return protocol.CachedLaunchResponse{Status: retainImageSHA(mediaStatus, imageSHA)}, nil
+	return protocol.CachedLaunchResponse{Status: retainImageSHA(s.retainKitSessionIdentity(binding.Target, mediaStatus), imageSHA)}, nil
+}
+
+func (s *Service) retainKitSessionIdentity(target string, status protocol.Status) protocol.Status {
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	play, ok := s.plays[target]
+	if !ok || status.CorePackage == nil || play.packageID != status.CorePackage.PackageID || play.packageGeneration != status.CorePackage.Generation {
+		return status
+	}
+	if status.GameID == nil && play.gameID != "" {
+		status.GameID = stringPtr(play.gameID)
+	}
+	if status.System == nil && play.system != "" {
+		status.System = systemPtr(play.system)
+	}
+	if status.LastError == nil {
+		status.LastError = play.packageRejection
+	}
+	return status
 }
 
 func initializedLaunchSource(entry catalog.CoreEntry, body []byte, bundle *corepackage.CompositionBundle) coreLoadSource {
@@ -528,9 +549,12 @@ func (s *Service) recoverLibrarySlot(parent context.Context, mediaStatus protoco
 	if stopErr != nil {
 		recoveryErr := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "library core media cleanup is not confirmed", Phase: "recovery"}
 		s.executionMu.Lock()
-		s.packageRejection = recoveryErr
-		s.activeGameID, s.activeSystem = "", ""
-		s.activePackageID, s.activePackageGeneration = "", 0
+		target, play := s.selectedKitPlayLocked()
+		play.packageRejection = recoveryErr
+		if play.execution == "" {
+			play.execution = ExecutionFPGADevelopment
+		}
+		s.plays[target] = play
 		s.executionMu.Unlock()
 		if stopStatus.State != "" {
 			mediaStatus = stopStatus
@@ -599,9 +623,31 @@ func (s *Service) stopRejectedCore(ctx context.Context) (protocol.Status, error)
 // Activation cleanup retains ordinary admission; only explicit Stop ignores the
 // observation backoff timer. All target validation and recovery steps are shared.
 func (s *Service) stopRejectedCoreWithAdmission(ctx context.Context, explicitStop bool) (protocol.Status, error) {
-	if s.protocolAdmissionEnabled() {
+	return s.stopRejectedKitCoreWithAdmission(ctx, explicitStop, "")
+}
+
+// stopRejectedKitCoreWithAdmission resolves only the named kit's retained
+// rejection. It never cleans up the independent host-only executor.
+func (s *Service) stopRejectedKitCore(ctx context.Context, target string) (protocol.Status, error) {
+	return s.stopRejectedKitCoreWithAdmission(ctx, false, target)
+}
+
+func (s *Service) stopRejectedKitCoreWithAdmission(ctx context.Context, explicitStop bool, target string) (protocol.Status, error) {
+	if target == "" {
+		s.executionMu.Lock()
+		target, _ = s.selectedKitPlayLocked()
+		s.executionMu.Unlock()
+	}
+	scopedOtherKit := target != s.SessionTargetName()
+	if scopedOtherKit {
+		ctx = WithSessionTarget(ctx, target)
+	}
+	s.targetMu.RLock()
+	_, protocolClient := s.targetClients[target].(*targetclient.Client)
+	s.targetMu.RUnlock()
+	if protocolClient {
 		admit := s.refreshTargetAdmission
-		if explicitStop {
+		if explicitStop && !scopedOtherKit {
 			admit = s.refreshStopAdmission
 		}
 		if _, err := admit(ctx); err != nil {
@@ -613,8 +659,8 @@ func (s *Service) stopRejectedCoreWithAdmission(ctx context.Context, explicitSto
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	client, ok := s.selectedClientLocked()
-	if !ok {
+	client := s.targetClients[target]
+	if client == nil {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	status, err := client.Status(ctx)
@@ -625,22 +671,19 @@ func (s *Service) stopRejectedCoreWithAdmission(ctx context.Context, explicitSto
 		}
 	}
 	s.executionMu.Lock()
-	rejection := s.packageRejection
+	play := s.plays[target]
+	rejection := play.packageRejection
 	s.executionMu.Unlock()
 	if err != nil || !validRecoveredDevelopmentStatus(status) || status.CorePackage != nil {
 		status.LastError = rejection
 		return status, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core package recovery is not confirmed", Phase: "recovery"}
 	}
-	if err := s.stopHostOnlyIfActive(ctx); err != nil {
-		status.LastError = rejection
-		return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package rejection", Phase: "recovery"}
-	}
 	s.executionMu.Lock()
-	s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
-	s.activePackageID, s.activePackageGeneration = "", 0
-	s.packageRejection = nil
-	s.selectedTargetReconciled = true
-	s.selectedTargetRepairAllowed = false
+	delete(s.plays, target)
+	if target == s.selectedTarget {
+		s.selectedTargetReconciled = true
+		s.selectedTargetRepairAllowed = false
+	}
 	s.executionMu.Unlock()
 	return status, nil
 }
