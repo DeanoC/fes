@@ -73,4 +73,13 @@ this bounded.
 The kit B check of the combined #501/#502 image is described above: menu renders, and
 ramtest SDRAM fails at `3d4a5b35`. After the split, the remaining check is the
 menu-only kit B check of a split-#502 image. It is still pending, scheduled after #364.
-The menu package identity changes. The ramtest identity is unchanged from main.
+The menu package identity changes. The ramtest *inputs* match main: same lock
+(`toolchains/ramtest.lock`, nextpnr `655f3833`), recipe, producer, RTL and
+`inputs_for` list. But its functional build record hashes the whole shared
+`sources/misteross/scripts` source root (`source_roots_for_inputs`), and this PR
+changes menu producer scripts there. So the ramtest **build identity and package
+cache key change**, and ramtest will rebuild on `655f3833`. It won't reuse main's
+artifact. Any scripts/ change on main has the same effect. That rebuilt ramtest
+artifact has no exact-artifact hardware evidence yet. The toolchain-level evidence
+is the `655f3833` package `3593d7e0`, which passed 6/6 on kit B. The post-#364 kit B
+check of the split image should also run ramtest on the rebuilt package.

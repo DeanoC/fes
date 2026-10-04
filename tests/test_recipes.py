@@ -524,7 +524,9 @@ class RamtestToolchainTargetTest(unittest.TestCase):
         misteross = Path(__file__).resolve().parents[1] / 'sources/misteross'
         env = dict(os.environ, FES_TOOLCHAIN_LOCKFILE='/elsewhere.lock',
                    FES_TOOLCHAIN_ROOT='/elsewhere-root')
-        env.pop('MAKEFLAGS', None)
+        # Exercise the private-root path; shared-cache mode intentionally omits FES_TOOLCHAIN_ROOT.
+        for key in ('MAKEFLAGS', 'FES_TOOLCHAIN_CACHE_ROOT', 'CACHE_ROOT'):
+            env.pop(key, None)
         out = subprocess.run(['make', '-n', '-s', 'toolchain-fes-ramtest'], cwd=misteross,
                              env=env, check=True, capture_output=True, text=True).stdout
         self.assertIn(f'FES_TOOLCHAIN_LOCKFILE="{misteross}/toolchains/ramtest.lock"', out)
