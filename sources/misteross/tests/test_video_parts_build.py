@@ -78,6 +78,71 @@ def routed_shell_fixture():
     return {"modules": {"top": top}}
 
 
+def add_boundary_route_throughs(top):
+    """Add the compiler's paired buffers, including private routed aliases."""
+    ground = 19000
+    top["cells"]["$PACKER_GND"] = {
+        "type": "MISTRAL_CONST", "connections": {"Q": [ground]}}
+    top["netnames"]["$PACKER_GND"] = {
+        "bits": [ground], "attributes": {"ROUTING": "frozen shared constant route"}}
+    top["netnames"][video_parts.CLOCK]["attributes"] = {
+        "ROUTING": "frozen pixel clock including retained anchor branches"}
+    boundaries = [(name, cell) for name, cell in top["cells"].items()
+                  if cell.get("type") == "MISTRAL_FF"]
+    for index, (name, ff) in enumerate(boundaries):
+        _, column, row, z = ff["attributes"]["NEXTPNR_BEL"].split(".")
+        alm, half = int(z) // 6, int(z) % 6 == 4
+        half = int(half)
+        comb = "MISTRAL_MCOMB" if column == "28" else "MISTRAL_COMB"
+        datain = ff["connections"]["DATAIN"]
+        source = [ground] if datain == ["0"] else datain[:]
+        stub = 20000 + index
+        buffer_name = name + "$ROUTETHRU"
+        top["cells"][buffer_name] = {
+            "type": "MISTRAL_BUF", "parameters": {},
+            "attributes": {
+                "NEXTPNR_BEL": f"{comb}.{column}.{row}.{6 * alm + half}",
+                "FES_PINMAP_V1": json.dumps({"count": 2, "pins": {
+                    "A": [0, "D" if half else "C"], "Q": [0, "COMBOUT"]}}).encode().hex()},
+            "port_directions": {"A": "input", "Q": "output"},
+            "connections": {"A": source, "Q": [stub]},
+        }
+        ff["connections"]["DATAIN"] = [stub]
+        combout = f"WIRE.{column}.{row}.COMBOUT[{2 * alm + half}]"
+        ffin = f"WIRE.{column}.{row}.FFIN[{4 * alm + 2 * half}]"
+        route = f"{ffin};{combout}.{ffin};1;{combout};;1"
+        for alias in (buffer_name + "$conn$Q", name + "$stub_alias"):
+            top["netnames"][alias] = {
+                "bits": [stub], "attributes": {"ROUTING": route}}
+        # Shared input routes and the anchor's private stubs must remain
+        # consistent with the complete, frozen FF/buffer pair.
+        top["netnames"][name + "$source"] = {"bits": source}
+        top["netnames"][name + "$conn$Q"] = {"bits": ff["connections"]["Q"][:]}
+
+
+def assert_video_scaffold_pairs(test, original, prepared, layout):
+    anchors = {layout.PREFIX + name for name in layout.boundary_bels()
+               if name.startswith("clock_coverage_ff_")}
+    test.assertEqual(prepared["netnames"], original["netnames"])
+    cpu_anchor = coleco_expansion.SOCKET_CLOCK_COVERAGE_CELL
+    for name in (*coleco_expansion.socket_bels_v2(), cpu_anchor):
+        target = name if name == cpu_anchor else "cpu_" + name
+        for suffix in ("", "$ROUTETHRU"):
+            test.assertEqual(prepared["cells"][target + suffix], original["cells"][name + suffix])
+    for name in anchors:
+        for suffix in ("", "$ROUTETHRU"):
+            test.assertEqual(prepared["cells"][name + suffix], original["cells"][name + suffix])
+    for source_kind, target_kind, count in (("request", "addr", 32), ("response", "rdata", 28)):
+        for bit in range(count):
+            source = layout.PREFIX + f"plug_{source_kind}_ff_{bit}"
+            target = f"plug_{target_kind}_ff_{bit}"
+            for suffix in ("", "$ROUTETHRU"):
+                test.assertEqual(prepared["cells"][target + suffix], original["cells"][source + suffix])
+    test.assertEqual({name for name in prepared["cells"] if name.startswith(layout.PREFIX)},
+                     {name + suffix for name in anchors for suffix in ("", "$ROUTETHRU")})
+    test.assertEqual(len(prepared["cells"]), len(original["cells"]))
+
+
 class VideoPartsBoundaryTest(unittest.TestCase):
     def test_synthesis_and_routed_boundary_accept_loss_of_net_aliases(self):
         video_parts.validate_boundary(video_boundary_fixture(), routed=False)
@@ -120,6 +185,32 @@ class VideoPartsBoundaryTest(unittest.TestCase):
         top["cells"]["machine.intruder"]["attributes"]["NEXTPNR_BEL"] = "MISTRAL_COMB.29.38.0"
         video_parts.validate_boundary(top, routed=True)
 
+    def test_routed_reservation_admits_only_associated_buffer_pairs(self):
+        top = video_boundary_fixture(routed=True, aliases=False)
+        add_boundary_route_throughs(top)
+        video_parts.validate_boundary(top, routed=True)
+        # A plausible name and BUF shape must not broaden the socket allowlist.
+        intruder = copy.deepcopy(top["cells"][video_parts.PREFIX + "plug_request_ff_0$ROUTETHRU"])
+        intruder["connections"]["Q"] = [30000]
+        intruder["attributes"]["NEXTPNR_BEL"] = "MISTRAL_COMB.25.38.0"
+        top["cells"][video_parts.PREFIX + "unrelated$ROUTETHRU"] = intruder
+        with self.assertRaisesRegex(ValueError, "reservation contains shell cell"):
+            video_parts.validate_boundary(top, routed=True)
+
+    def test_scaffold_retains_all_anchor_pairs_and_frozen_routes(self):
+        design = routed_shell_fixture()
+        original = design["modules"]["top"]
+        add_boundary_route_throughs(original)
+        source_bytes = json.dumps(design).encode()
+        with tempfile.TemporaryDirectory() as temporary:
+            source, destination = Path(temporary) / "routed.json", Path(temporary) / "scaffold.json"
+            source.write_bytes(source_bytes)
+            result = part.prepare_scaffold(source, destination)
+            self.assertEqual(source.read_bytes(), source_bytes)
+            self.assertEqual(result, destination.read_bytes())
+        prepared = json.loads(result)["modules"]["top"]
+        assert_video_scaffold_pairs(self, original, prepared, video_parts)
+
     def test_scaffold_preserves_cpu_clock_route_and_exposes_only_video(self):
         original = routed_shell_fixture()
         original_bytes = json.dumps(original).encode()
@@ -137,7 +228,11 @@ class VideoPartsBoundaryTest(unittest.TestCase):
                          old["cells"][coleco_expansion.SOCKET_CLOCK_COVERAGE_CELL])
         for name in coleco_expansion.socket_bels_v2():
             self.assertEqual(top["cells"]["cpu_" + name], old["cells"][name])
-        self.assertFalse(any(name.startswith(video_parts.PREFIX) for name in top["cells"]))
+        anchors = {video_parts.PREFIX + name for name in video_parts.boundary_bels()
+                   if name.startswith("clock_coverage_ff_")}
+        self.assertEqual({name for name in top["cells"] if name.startswith(video_parts.PREFIX)}, anchors)
+        for name in anchors:
+            self.assertEqual(top["cells"][name], old["cells"][name])
         self.assertEqual(sum(name.startswith("plug_addr_ff_") for name in top["cells"]), 32)
         self.assertEqual(sum(name.startswith("plug_rdata_ff_") for name in top["cells"]), 28)
         self.assertFalse(any(name.startswith("clock_coverage_ff_") for name in top["cells"]))
@@ -151,6 +246,15 @@ class VideoPartsBoundaryTest(unittest.TestCase):
         design = routed_shell_fixture()
         cells = design["modules"]["top"]["cells"]
         cells["cpu_plug_addr_ff_0"] = copy.deepcopy(cells["plug_addr_ff_0"])
+        with self.assertRaisesRegex(ValueError, "CPU boundary alias collision"):
+            video_parts.prepare_scaffold(json.dumps(design).encode())
+
+    def test_scaffold_rejects_cpu_buffer_alias_collision(self):
+        design = routed_shell_fixture()
+        top = design["modules"]["top"]
+        add_boundary_route_throughs(top)
+        name = "plug_addr_ff_0$ROUTETHRU"
+        top["cells"]["cpu_" + name] = copy.deepcopy(top["cells"][name])
         with self.assertRaisesRegex(ValueError, "CPU boundary alias collision"):
             video_parts.prepare_scaffold(json.dumps(design).encode())
 

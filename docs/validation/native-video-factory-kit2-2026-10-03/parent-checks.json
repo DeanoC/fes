@@ -1,0 +1,27 @@
+{
+  "commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "started_at": "2026-10-03T15:57:29.266575+00:00",
+  "checks": [
+    {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 2.485960183897987,
+      "log": "out/native-video-factory/candidate-6ed1dad4/parent-check.log",
+      "sha256": "9456c814673061fef856931f3eb5bfb032b585918b28b44ce88d993f69b97627"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.01020042598247528,
+      "log": "out/native-video-factory/candidate-6ed1dad4/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

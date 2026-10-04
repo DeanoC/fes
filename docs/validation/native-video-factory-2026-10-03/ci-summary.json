@@ -1,0 +1,410 @@
+{
+  "checks": [
+    {
+      "completed_at": "2026-10-03T13:59:07Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111217284865",
+      "name": "integration",
+      "started_at": "2026-10-03T13:59:00Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:49:14Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890641",
+      "name": "fpga-simulation (zx81, sim-fes-zx81)",
+      "started_at": "2026-10-03T13:44:32Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:45:23Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890487",
+      "name": "fpga-simulation (z80, sim-fes-z80)",
+      "started_at": "2026-10-03T13:44:24Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:44:51Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890456",
+      "name": "fpga-simulation (spectrum, sim-fes-spectrum)",
+      "started_at": "2026-10-03T13:43:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:44:30Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890445",
+      "name": "fpga-simulation (sg1000, sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000...",
+      "started_at": "2026-10-03T13:43:28Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:45:19Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890417",
+      "name": "fpga-simulation (sms, sim-fes-sms sim-fes-sms-oss)",
+      "started_at": "2026-10-03T13:43:28Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:43:51Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890350",
+      "name": "fpga-simulation (pong, sim-fes-pong)",
+      "started_at": "2026-10-03T13:43:09Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:44:22Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890065",
+      "name": "fpga-simulation (demo, sim-fes-demo)",
+      "started_at": "2026-10-03T13:42:55Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:43:26Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890052",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-integrated)",
+      "started_at": "2026-10-03T13:42:57Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:43:26Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890028",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-probe)",
+      "started_at": "2026-10-03T13:42:52Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:45:10Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213890025",
+      "name": "fpga-simulation (menu, sim-fes-menu)",
+      "started_at": "2026-10-03T13:43:03Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:43:01Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889934",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-audio)",
+      "started_at": "2026-10-03T13:42:35Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:51Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889851",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-module)",
+      "started_at": "2026-10-03T13:42:33Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:50Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889828",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-ay)",
+      "started_at": "2026-10-03T13:42:28Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:33Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889820",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-socket)",
+      "started_at": "2026-10-03T13:42:13Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:54Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889795",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-shell-ram)",
+      "started_at": "2026-10-03T13:42:27Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:43:07Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889709",
+      "name": "fpga-simulation (coleco, sim-fes-video-parts)",
+      "started_at": "2026-10-03T13:42:44Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:25Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889125",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-sprites-oss)",
+      "started_at": "2026-10-03T13:41:27Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:11Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889098",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-stream-oss)",
+      "started_at": "2026-10-03T13:40:35Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:39:31Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889066",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-vdp-io)",
+      "started_at": "2026-10-03T13:38:58Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:39:28Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889063",
+      "name": "fpga-simulation (c64, sim-fes-c64)",
+      "started_at": "2026-10-03T13:38:57Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:41:20Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889057",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-unit-oss)",
+      "started_at": "2026-10-03T13:39:32Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:50:18Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889056",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-interactive-oss)",
+      "started_at": "2026-10-03T13:41:09Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:03Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889050",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-expansion)",
+      "started_at": "2026-10-03T13:41:38Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:40:19Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889029",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-graphics)",
+      "started_at": "2026-10-03T13:38:58Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:41:07Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889011",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-unit)",
+      "started_at": "2026-10-03T13:38:58Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:25Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889009",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-controllers)",
+      "started_at": "2026-10-03T13:38:58Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:40:33Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889007",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-sprites)",
+      "started_at": "2026-10-03T13:39:30Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:31Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889006",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-diagnostic)",
+      "started_at": "2026-10-03T13:42:05Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:47:12Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213889000",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-interactive)",
+      "started_at": "2026-10-03T13:39:00Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:44:56Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213888994",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-controllers-oss)",
+      "started_at": "2026-10-03T13:41:09Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:41:06Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213888991",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-stream)",
+      "started_at": "2026-10-03T13:39:33Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:42:07Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213888981",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-vdp-io-oss)",
+      "started_at": "2026-10-03T13:41:22Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:41:36Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213888980",
+      "name": "fpga-simulation (apple2, sim-fes-apple2)",
+      "started_at": "2026-10-03T13:38:58Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:41:26Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213888951",
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-graphics-oss)",
+      "started_at": "2026-10-03T13:40:22Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:38:52Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213815980",
+      "name": "consistency",
+      "started_at": "2026-10-03T13:38:32Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:38:55Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213815940",
+      "name": "simulation-tools",
+      "started_at": "2026-10-03T13:38:32Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:39:02Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213815915",
+      "name": "contracts",
+      "started_at": "2026-10-03T13:38:32Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:56:28Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213815907",
+      "name": "parent-tests",
+      "started_at": "2026-10-03T13:38:32Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:44:34Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213815901",
+      "name": "runtime",
+      "started_at": "2026-10-03T13:38:32Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:58:58Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213815894",
+      "name": "host",
+      "started_at": "2026-10-03T13:38:32Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:39:16Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213815886",
+      "name": "fpga-producer",
+      "started_at": "2026-10-03T13:38:33Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:38:30Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/37126851435/job/111213785187",
+      "name": "plan",
+      "started_at": "2026-10-03T13:38:22Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-03T13:38:22Z",
+      "conclusion": "success",
+      "head_sha": "3ffe989fbba6857b74f149112d1965156face870",
+      "html_url": "https://github.com/DeanoC/fes/runs/111213778993",
+      "name": "GitGuardian Security Checks",
+      "started_at": "2026-10-03T13:38:18Z",
+      "status": "completed"
+    }
+  ],
+  "classification": "Projection of retained GitHub check-runs response; not the original response bytes",
+  "format": 1,
+  "original": {
+    "bytes": 156653,
+    "path": "out/native-video-factory/candidate-3ffe989f/ci-latest.json",
+    "sha256": "d5d84cf9e47182951ad3ddc93019ee2c762042c76314621058df58414d3ce740"
+  },
+  "passed": 44,
+  "source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "total": 44
+}

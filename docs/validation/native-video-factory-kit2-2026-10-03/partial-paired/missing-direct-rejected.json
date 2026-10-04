@@ -1,0 +1,31 @@
+{
+  "error": {
+    "error": {
+      "code": "BAD_REQUEST",
+      "message": "FogCast request is invalid",
+      "phase": "request"
+    }
+  },
+  "resolution": {
+    "builtin": false,
+    "choices": [
+      {
+        "available": false,
+        "label": "Direct",
+        "profile": "direct",
+        "reason": "No matching part is installed for this exact core package."
+      },
+      {
+        "available": false,
+        "label": "Scanlines",
+        "profile": "scanlines",
+        "reason": "No matching part is installed for this exact core package."
+      }
+    ],
+    "effective_profile": "direct",
+    "game_id": "fpga-native-missing-output-admission-24e512fbffcd",
+    "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+    "preferred_profile": "direct"
+  },
+  "status_unchanged": true
+}

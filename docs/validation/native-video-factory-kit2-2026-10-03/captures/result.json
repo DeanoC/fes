@@ -1,0 +1,40 @@
+{
+  "automatic_catalog_parts": true,
+  "cases": [
+    {
+      "case": "direct",
+      "composition_id": "bc7b88cb3cdf28c6f949c6abd4f32b1b6c9de82a3aa30b96194fb3a63933b3be",
+      "generation": 1
+    },
+    {
+      "case": "scanlines",
+      "composition_id": "16e5fb76c1f958e9efefa04973efccc38ec4cd1873de2634f86a3247115c9533",
+      "generation": 2
+    },
+    {
+      "case": "direct-relaunch",
+      "composition_id": "bc7b88cb3cdf28c6f949c6abd4f32b1b6c9de82a3aa30b96194fb3a63933b3be",
+      "generation": 3
+    },
+    {
+      "case": "direct-sgm",
+      "composition_id": "00a732e23a52c03cdd21e39092b8ff4d615d5d0f8dfe62dfa1966a2c5581f08b",
+      "generation": 4
+    },
+    {
+      "case": "scanlines-sgm",
+      "composition_id": "d04bb677f219ba7c26ffccdc8ff1fd43347634557bfad12cf4e3dbb8a41fea0a",
+      "generation": 5
+    },
+    {
+      "case": "direct-sgm-relaunch",
+      "composition_id": "00a732e23a52c03cdd21e39092b8ff4d615d5d0f8dfe62dfa1966a2c5581f08b",
+      "generation": 6
+    }
+  ],
+  "classification": "operator-run hardware diagnostic",
+  "final_idle": true,
+  "passed": true,
+  "restart_persistence": true,
+  "sgm": true
+}

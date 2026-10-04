@@ -1,0 +1,2 @@
+python3 scripts/consistency.py
+consistency: package YAML valid; 17 generated consumers, 33 fixture copies and 0 copied source pins match

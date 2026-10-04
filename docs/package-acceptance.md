@@ -19,6 +19,35 @@ Optional explicit input recipes are documented in the
 They add bounded event acknowledgements and transport-counter evidence to the
 existing lifecycle; they do not establish physical controller or FPGA behavior.
 
+## Optional prepared video parts
+
+Both runners accept `--video-parts /absolute/path/core-video-parts` with
+`--expected-video-parts-sha256 SHA256`, the digest of its canonical `index.json`.
+Use the sealed inventory produced by core preparation: exactly one matching
+package with Direct and Scanlines archives, each bounded to 32 MiB and bound by
+size and SHA-256. `core-dev-accept` supplies these options from `prepared.json`
+and rejects caller overrides. All files are checked before API/container
+operations; isolation freezes the checked bytes in its private evidence tree.
+
+The first cycle imports both companions through the production
+`POST /api/v1/library/video-parts/{profile}` API. Entry resolution must select
+the expected Direct part and show both prepared profiles as available. Launch
+uses the normal game-ID Play path. The runner binds the observed composition to
+the shell and Direct part, checks its identity through confirmation and Stop,
+and records its payload identity. A changed composition prevents unconditional
+Stop of a potentially different session.
+
+After host restart, cycle 2 adds `--reuse-video-parts`: it requires the retained
+inventory and usable profiles without importing or repairing either part. Both
+launches must report the same complete composition. A standalone retained check
+requires an existing entry. The single-run command requires the host's current
+preference to be Direct; the private host starts with that default.
+
+Receipts include `video_parts`, `video_admission` (`imported` or `retained`),
+and `video_composition`. These are library admission and observed lifecycle
+checks; independent Go/Python CRAM comparison and HDMI/audio acceptance remain
+separate. Omitting the video options preserves the existing flow and receipt.
+
 ## Optional immutable library media
 
 Both runners accept `--library-media /absolute/path/title.bin` together with

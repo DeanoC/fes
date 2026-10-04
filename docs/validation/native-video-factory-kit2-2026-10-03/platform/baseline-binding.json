@@ -1,0 +1,9 @@
+{
+  "classification": "Restoration baseline verified by SSH/disk/live-image checks after user power-cycle; fresh API observation confirms the same boot and artifact identities.",
+  "verified_receipt_origin": "out/native-video-factory/candidate-3ffe989f/hardware/resume-20261003/restored-baseline.json",
+  "verified_receipt_sha256": "0097c4eced51993fb8ace592e6a0fd529abdaa39ffcb8d99a4b094bab9c22467",
+  "fresh_api_receipt": "pre-release-preflight.json",
+  "fresh_api_sha256": "4c946fe7fe5603db924f3062a0e9c1d977d83c408d034aef5194565bff0a482e",
+  "image_sha256": "e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1",
+  "boot_id": "faec4b24-5046-4dfa-a12c-b4de2dc39837"
+}

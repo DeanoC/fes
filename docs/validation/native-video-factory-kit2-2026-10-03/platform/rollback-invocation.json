@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/fes-update",
+    "--config",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/host-state/config.toml",
+    "--target",
+    "kit2",
+    "--action",
+    "rollback"
+  ],
+  "started_at": "2026-10-03T17:15:33.381325+00:00",
+  "expected_image_sha256": "e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1",
+  "previous_boot_id": "f8ebdbe9-27f1-4b3f-85da-8970ffb12ebe"
+}

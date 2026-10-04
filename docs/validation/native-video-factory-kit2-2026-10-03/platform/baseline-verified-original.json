@@ -1,0 +1,53 @@
+{
+  "disk_sha256": {
+    "/media/fat/fogcast/releases/images/e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1.img": "e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1",
+    "/usr/sbin/mister-agent": "bf2c566580a4acb96d6408d772a397a7062e519abd8e5ff3897aed44e9a99145",
+    "/usr/sbin/mister-runtime": "a8991392d32da9fdd7ce441f5e2e42f3104a5a685a99b8adef9fc28611cbe3e6"
+  },
+  "free_space": "Filesystem           1K-blocks      Used Available Use% Mounted on\n/dev/root              1032428    591907    440521  57% /media/fat\n",
+  "health": {
+    "agent_version": "0.1.0",
+    "api_version": "v1",
+    "artifacts": {
+      "agent_revision": "23decdbeed37ec52e04e7250914aba9abe4b0da0",
+      "agent_sha256": "bf2c566580a4acb96d6408d772a397a7062e519abd8e5ff3897aed44e9a99145",
+      "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+      "image_sha256": "e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1",
+      "kit_sha256": "bfd31defa9f85e635a5d8d1a023b161c60a5e3e6cc9ed86f18629b645f133da9",
+      "package_id": "da6d353a9673907aabdf760b6006e8f8ced2cc0856f44c2d40a49e895f7a7f39",
+      "record_sha256": "f490f0db0fdb168939f75df54e27e83c8005695bd44be69ead307b36b069795c",
+      "runtime_commit": "23decdbeed37ec52e04e7250914aba9abe4b0da0"
+    },
+    "boot_id": "faec4b24-5046-4dfa-a12c-b4de2dc39837",
+    "ready": true,
+    "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+  },
+  "kit/lease": {
+    "expires_at": "0001-01-01T00:00:00Z",
+    "expires_in_ms": 0,
+    "generation": "e91654c7396268ce2ef20c0310f86242437f850a0fa08b81c75f9269b909382b",
+    "state": "free"
+  },
+  "live_executables": {
+    "mister-agent": {
+      "pid": 783,
+      "sha256": "bf2c566580a4acb96d6408d772a397a7062e519abd8e5ff3897aed44e9a99145"
+    },
+    "mister-runtime": {
+      "pid": 760,
+      "sha256": "a8991392d32da9fdd7ce441f5e2e42f3104a5a685a99b8adef9fc28611cbe3e6"
+    }
+  },
+  "mounted_root": {
+    "backing_file": "/media/fat/fogcast/releases/images/e3600f2df010bbc455c69a231e44234bac0c02470d33b611d478ea1d244c0ff1.img",
+    "mountinfo": "21 1 7:0 / / ro,noatime - ext4 /dev/loop0 ro,norecovery"
+  },
+  "status": {
+    "expected_core": null,
+    "game_id": null,
+    "last_error": null,
+    "observed_core": null,
+    "state": "idle",
+    "system": null
+  }
+}

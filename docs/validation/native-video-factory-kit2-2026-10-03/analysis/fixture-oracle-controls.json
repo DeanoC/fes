@@ -1,0 +1,296 @@
+{
+  "classification": "Offline intent model only; no hardware access.",
+  "negative_controls": {
+    "ay_readback_wrong": {
+      "comparison": {
+        "expected": 254,
+        "observed": 255
+      },
+      "executed_instructions": 56,
+      "fault": "ay_readback_wrong",
+      "pc": 33966,
+      "video_writes": 0
+    },
+    "console_mirror": {
+      "comparison": {
+        "expected": 102,
+        "observed": 195
+      },
+      "executed_instructions": 35,
+      "fault": "console_mirror",
+      "pc": 33917,
+      "video_writes": 0
+    },
+    "lower_window_absent": {
+      "comparison": {
+        "expected": 17,
+        "observed": 255
+      },
+      "executed_instructions": 42,
+      "fault": "lower_window_absent",
+      "pc": 33934,
+      "video_writes": 0
+    },
+    "ram_stuck_zero": {
+      "comparison": {
+        "expected": 165,
+        "observed": 0
+      },
+      "executed_instructions": 15,
+      "fault": "ram_stuck_zero",
+      "pc": 33866,
+      "video_writes": 0
+    },
+    "sgm_absent": {
+      "comparison": {
+        "expected": 165,
+        "observed": 255
+      },
+      "executed_instructions": 15,
+      "fault": "sgm_absent",
+      "pc": 33866,
+      "video_writes": 0
+    }
+  },
+  "pass": true,
+  "positive": {
+    "classification": "Independent offline fixture intent; not physical SGM acceptance.",
+    "graphics_oracle": {
+      "executed_instructions": 104034,
+      "full_class_sha256": "dc1de4f1ab24bfde76f5de4f51774f293bf66b5405ed3e5c1d92bf33d382205c",
+      "full_rgb_sha256": "cde4a77fab10b87eab607849fd62ad256d8d07e4feb5cd34de56544813951818",
+      "horizontal_delay_pixels": 0,
+      "native_index_counts": {
+        "1": 18480,
+        "2": 18792,
+        "6": 11880
+      },
+      "native_index_sha256": "55ba64fef0670bee293331b0243963cccb23f771ca25539910213f88b6483242",
+      "nominal_SN_hz": 216.7844597868217,
+      "rendered_from": "emulated original ROM VDP writes; Graphics I VRAM decode; exact2x scaling",
+      "rom_sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+      "rom_size": 1086,
+      "sn_period": 516,
+      "sn_writes": [
+        132,
+        32,
+        144
+      ],
+      "source_path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/misteross/cores/fes-coleco/diagnostic/generate.py",
+      "source_sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe",
+      "vdp_registers": [
+        0,
+        192,
+        0,
+        128,
+        1,
+        54,
+        3,
+        1
+      ],
+      "viewport": [
+        384,
+        168,
+        896,
+        552
+      ],
+      "vram_sha256": "efb3e8ec932c6798c8df8bd96943f2878956a081a41810e8239ea0d0792520d4",
+      "vram_write_count": 17189
+    },
+    "nominal_tones_hz": {
+      "AY": 440.39677657480314,
+      "SN": 216.7844597868217
+    },
+    "prepared_sha256": "3dccb940f26e2349ec69c4c586cf1fcb0648ddabc9eb7e860f947444ab76e40a",
+    "sgm_graphics_body_unchanged": true,
+    "sgm_probe_gate": {
+      "ay_readbacks": [
+        {
+          "register": 0,
+          "value": 254
+        },
+        {
+          "register": 1,
+          "value": 0
+        },
+        {
+          "register": 7,
+          "value": 62
+        },
+        {
+          "register": 8,
+          "value": 15
+        }
+      ],
+      "ay_registers": [
+        254,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        62,
+        15,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "executed_instructions": 84,
+      "io_writes": [
+        {
+          "port": 83,
+          "value": 1
+        },
+        {
+          "port": 83,
+          "value": 0
+        },
+        {
+          "port": 127,
+          "value": 0
+        },
+        {
+          "port": 127,
+          "value": 2
+        },
+        {
+          "port": 80,
+          "value": 0
+        },
+        {
+          "port": 81,
+          "value": 254
+        },
+        {
+          "port": 80,
+          "value": 1
+        },
+        {
+          "port": 81,
+          "value": 0
+        },
+        {
+          "port": 80,
+          "value": 7
+        },
+        {
+          "port": 81,
+          "value": 62
+        },
+        {
+          "port": 80,
+          "value": 8
+        },
+        {
+          "port": 81,
+          "value": 15
+        },
+        {
+          "port": 224,
+          "value": 132
+        },
+        {
+          "port": 224,
+          "value": 32
+        },
+        {
+          "port": 224,
+          "value": 144
+        }
+      ],
+      "memory_reads": [
+        {
+          "address": 24576,
+          "mapping": "console",
+          "value": 102
+        },
+        {
+          "address": 8192,
+          "mapping": "sgm",
+          "value": 165
+        },
+        {
+          "address": 24575,
+          "mapping": "sgm",
+          "value": 90
+        },
+        {
+          "address": 24576,
+          "mapping": "sgm",
+          "value": 195
+        },
+        {
+          "address": 32767,
+          "mapping": "sgm",
+          "value": 60
+        },
+        {
+          "address": 24576,
+          "mapping": "console",
+          "value": 102
+        },
+        {
+          "address": 0,
+          "mapping": "sgm",
+          "value": 17
+        },
+        {
+          "address": 8191,
+          "mapping": "sgm",
+          "value": 34
+        }
+      ],
+      "memory_writes": [
+        {
+          "address": 24576,
+          "mapping": "console",
+          "value": 102
+        },
+        {
+          "address": 8192,
+          "mapping": "sgm",
+          "value": 165
+        },
+        {
+          "address": 24575,
+          "mapping": "sgm",
+          "value": 90
+        },
+        {
+          "address": 24576,
+          "mapping": "sgm",
+          "value": 195
+        },
+        {
+          "address": 32767,
+          "mapping": "sgm",
+          "value": 60
+        },
+        {
+          "address": 0,
+          "mapping": "sgm",
+          "value": 17
+        },
+        {
+          "address": 8191,
+          "mapping": "sgm",
+          "value": 34
+        }
+      ],
+      "returned_to_graphics": true,
+      "scope": "Boundary sentinels and console-RAM isolation only; not an exhaustive SRAM test.",
+      "sn_writes": [
+        132,
+        32,
+        144
+      ],
+      "video_writes_before_gate": 0
+    },
+    "sgm_rom_sha256": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317"
+  }
+}

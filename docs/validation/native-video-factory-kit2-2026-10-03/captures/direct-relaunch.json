@@ -1,0 +1,189 @@
+{
+  "launch": {
+    "core_package": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.firmware.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keypad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "build_id": "8d97fd1c36f5c79d08af074f972f96d0",
+      "gamepad": true,
+      "generation": 3,
+      "media_stream": {
+        "chunk_bytes": 512,
+        "interface": {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        "max_bytes": 32768,
+        "min_bytes": 1
+      },
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "parts_composition": {
+        "composition_id": "bc7b88cb3cdf28c6f949c6abd4f32b1b6c9de82a3aa30b96194fb3a63933b3be",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "parts": [
+          {
+            "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+        "payload_size": 2777778,
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+      },
+      "persistence_mode": "volatile"
+    },
+    "execution": "fpga_native",
+    "flight_id": "6de82826-857d-4d2f-ae4c-0ff37e3f6ea8",
+    "game_id": "fpga-factory-video-open-graphics-diagnostic-2d9814df8312",
+    "id": "3b9223bc-d42d-4055-b1cb-9f4fe9f5a31a",
+    "state": "active",
+    "system": "fpga",
+    "target": "kit2",
+    "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+  },
+  "resolution": {
+    "builtin": false,
+    "choices": [
+      {
+        "available": true,
+        "label": "Direct",
+        "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+        "profile": "direct"
+      },
+      {
+        "available": true,
+        "label": "Scanlines",
+        "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+        "profile": "scanlines"
+      }
+    ],
+    "effective_profile": "direct",
+    "game_id": "fpga-factory-video-open-graphics-diagnostic-2d9814df8312",
+    "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+    "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+    "preferred_profile": "direct"
+  },
+  "runtime": {
+    "core_package": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.firmware.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keypad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "build_id": "8d97fd1c36f5c79d08af074f972f96d0",
+      "gamepad": true,
+      "generation": 3,
+      "media_stream": {
+        "chunk_bytes": 512,
+        "interface": {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0
+        },
+        "max_bytes": 32768,
+        "min_bytes": 1
+      },
+      "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+      "parts_composition": {
+        "composition_id": "bc7b88cb3cdf28c6f949c6abd4f32b1b6c9de82a3aa30b96194fb3a63933b3be",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "parts": [
+          {
+            "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "2d31b1744766b4e3a30e5c6e04da0460865715256489eccd179c9b572723ce9e",
+        "payload_size": 2777778,
+        "shell_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+      },
+      "persistence_mode": "volatile"
+    },
+    "development": true,
+    "expected_core": null,
+    "game_id": "fpga-factory-video-open-graphics-diagnostic-2d9814df8312",
+    "last_error": null,
+    "observed_core": "fes.coleco",
+    "state": "active",
+    "system": "fpga"
+  }
+}

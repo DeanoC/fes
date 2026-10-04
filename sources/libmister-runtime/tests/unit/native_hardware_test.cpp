@@ -2071,6 +2071,44 @@ void TestLibraryPartsChecksCoreNamespaceBeforeProgramming(bool native=false)
 		assert(fixture.runtime.InspectCore(package.path,base.package_id,&inspection).ok() && inspection.compatible);
 		reject_plain_native();
 	}
+	// Normal library Play inspects the base namespace before loading its parts.
+	// This metadata operation must not activate even a valid native shell.
+	auto inspect_data = [&](const std::string& path, const std::string& id,
+		mister::CoreData* output) {
+		const auto before = fixture.runtime.status();
+		const auto calls = fixture.native.fpga.calls;
+		fixture.native.events.clear();
+		driver_events.clear();
+		const auto error = fixture.runtime.InspectCoreData(path, id, data.path, output);
+		const auto after = fixture.runtime.status();
+		assert(after.state == before.state && after.generation == before.generation);
+		assert(after.active_package.package_id == before.active_package.package_id &&
+			after.active_package.composition.id == before.active_package.composition.id);
+		assert(fixture.native.fpga.calls == calls && fixture.native.events.empty() &&
+			driver_events.empty());
+		return error;
+	};
+	mister::CoreData preflight;
+	assert(inspect_data(package.path, base.package_id, &preflight).ok());
+	assert(preflight.package_id == base.package_id && preflight.core_id == "fes.coleco");
+	assert(preflight.mode == "volatile" && preflight.layout.id.empty() &&
+		preflight.revision == "absent");
+	reject_plain_native();
+	assert(inspect_data(package.path, std::string(64, '0'), &preflight).code ==
+		mister::ErrorCode::invalid_package);
+	TempDirectory malformed, incompatible;
+	const auto shell_manifest = ReadText(package.path + "/manifest.toml");
+	malformed.File("manifest.toml", shell_manifest);
+	malformed.File("core.rbf", "invalid-data");
+	assert(inspect_data(malformed.path, base.package_id, &preflight).code ==
+		mister::ErrorCode::invalid_package);
+	incompatible.File("manifest.toml", shell_manifest +
+		"\n[[interfaces]]\nid = \"fes.unsupported\"\nmajor = 1\nminor = 0\nrequired = true\n");
+	incompatible.File("core.rbf", ReadText(package.path + "/core.rbf"));
+	mister::native::OpenedCorePackage incompatible_base;
+	assert(mister::native::OpenCorePackage(incompatible.path, "", &incompatible_base).ok());
+	const auto unsupported = inspect_data(incompatible.path, incompatible_base.package_id, &preflight);
+	assert(unsupported.code == mister::ErrorCode::unsupported_interface);
 	assert(fixture.runtime.LoadLibraryPartsCore(package.path, base.package_id, "", request).code == mister::ErrorCode::invalid_request);
 	assert(fixture.native.fpga.calls == programs);
 	std::unique_ptr<mister::native::CoreDataFile> file;
@@ -2080,6 +2118,12 @@ void TestLibraryPartsChecksCoreNamespaceBeforeProgramming(bool native=false)
 	saved.layout = {"fes.pong.progress", 1, 0};
 	saved.paddle_speed = 1;
 	assert(file->Persist(saved, "absent", &saved).ok());
+	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.coleco");
+	const auto record = ReadText(dir + "/record.bin");
+	const auto inspection_rejected = inspect_data(package.path, base.package_id, &preflight);
+	assert(inspection_rejected.code == mister::ErrorCode::incompatible_data &&
+		inspection_rejected.phase == "core_data");
+	assert(ReadText(dir + "/record.bin") == record);
 	fixture.native.events.clear();
 	driver_events.clear();
 	const auto rejected = fixture.runtime.LoadLibraryPartsCore(package.path, base.package_id, data.path, request);
@@ -2091,7 +2135,6 @@ void TestLibraryPartsChecksCoreNamespaceBeforeProgramming(bool native=false)
 	assert(fixture.runtime.status().core_data.mode == "volatile");
 	reject_plain_native();
 	assert(fixture.runtime.Stop().ok());
-	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.coleco");
 	file.reset();
 	assert(unlink((dir + "/record.bin").c_str()) == 0);
 	assert(fixture.runtime.LoadLibraryPartsCore(package.path, base.package_id, data.path, request).ok());

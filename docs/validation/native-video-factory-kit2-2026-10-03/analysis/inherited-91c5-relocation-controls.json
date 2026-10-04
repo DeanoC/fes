@@ -1,0 +1,178 @@
+{
+  "actual_read_paths": {
+    "fixture_receipt": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/analysis/fixture-input.json",
+    "fixture_roms": [
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/fixture/graphics-sn.rom",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/fixture/sgm-probe.rom"
+    ],
+    "graphics_oracle_input": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/analysis/graphics-oracle-input.json",
+    "graphics_oracle_rom_copy": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-91c5d241/analysis/graphics-sn.rom",
+    "production_sources": [
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/misteross/cores/fes-coleco/diagnostic/LICENSE",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/misteross/cores/fes-coleco/diagnostic/generate.py",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/misteross/cores/fes-coleco/diagnostic/sgm_probe.py"
+    ]
+  },
+  "candidate_source_revision": "91c5d241394dab6c5269ae9897cd4bbbbfc3c963",
+  "classification": "Offline synthetic control verification of the new path-binding launcher only; no hardware, capture-device, network, image or factory acceptance.",
+  "derived_fixture_input": {
+    "path": "out/native-video-factory/candidate-91c5d241/analysis/fixture-input.json",
+    "sha256": "b77bcd3302f8e4bb1d50262ef1a5af355ac619058687459c0c4fb3068b1f83c2",
+    "size": 3056
+  },
+  "frozen_copies_and_originals_unchanged_after_controls": true,
+  "hardware_analysis_pending_root_capture_ready": true,
+  "initial_short_negative_probe": {
+    "analysis": {
+      "path": "out/native-video-factory/candidate-91c5d241/analysis/results/negative-offset/analysis.json",
+      "sha256": "b5640705a4fbf91502a49971f2a9e306271bb8bf13888bddbdf43abde21a6b41",
+      "size": 487547
+    },
+    "exit_code": 1,
+    "reason_for_followup": "The retained negative clip has 12 frames. Its geometry was rejected, then packet repetition isolated the final 60-frame geometry check from the expected-frame-count check."
+  },
+  "negative": {
+    "analysis": {
+      "path": "out/native-video-factory/candidate-91c5d241/analysis/results/negative-offset-60frames/analysis.json",
+      "sha256": "3158f0fad0e1f7f26f81c707ee204b2ddba84d3ac3be36b091224ac9a05e0b0b",
+      "size": 492029
+    },
+    "bad_geometry_frames_by_case": {
+      "direct": 60,
+      "direct-relaunch": 0,
+      "direct-sgm": 0,
+      "direct-sgm-relaunch": 0,
+      "scanlines": 0,
+      "scanlines-sgm": 0
+    },
+    "command": [
+      "python3",
+      "out/native-video-factory/candidate-91c5d241/analysis/run_analysis.py",
+      "out/native-video-factory/candidate-91c5d241/analysis/negative-control-60-frame-inputs",
+      "--include-sgm-relaunch",
+      "--expected-frames",
+      "60",
+      "--output",
+      "out/native-video-factory/candidate-91c5d241/analysis/results/negative-offset-60frames/analysis.json"
+    ],
+    "exit_code": 1,
+    "failed_gates": [
+      "direct-relaunch_same_native_picture_as_direct",
+      "direct-sgm-relaunch_same_native_picture_as_direct",
+      "direct-sgm_same_native_picture_as_direct",
+      "direct_all_settled_geometry",
+      "scanlines_half_brightness_on_odd_HDMI_rows"
+    ],
+    "frames_by_case": {
+      "direct": 60,
+      "direct-relaunch": 60,
+      "direct-sgm": 60,
+      "direct-sgm-relaunch": 60,
+      "scanlines": 60,
+      "scanlines-sgm": 60
+    },
+    "gate_count": 79,
+    "log": {
+      "path": "out/native-video-factory/candidate-91c5d241/analysis/negative-offset-60frames.log",
+      "sha256": "c2c32f9105632cc080a0d69fcb6db5569def805375ab41e3e0b37d445ad98c7c",
+      "size": 894
+    },
+    "passed_gates": 74,
+    "verdict": "investigate"
+  },
+  "negative_input": {
+    "all_60_direct_frames_have_bad_geometry": true,
+    "audio_control_retained": true,
+    "change": "Repeat the existing 12-frame one-pixel-offset negative clip five times using codec copy. Other five videos and all six PCM files remain original positive control bytes.",
+    "command": [
+      "ffmpeg",
+      "-hide_banner",
+      "-nostdin",
+      "-v",
+      "error",
+      "-stream_loop",
+      "4",
+      "-i",
+      "out/native-video-factory/analysis/controls/old-raster-offset.mkv",
+      "-frames:v",
+      "60",
+      "-c:v",
+      "copy",
+      "-an",
+      "out/native-video-factory/candidate-91c5d241/analysis/negative-offset-60frames.mkv"
+    ],
+    "frame_count_and_cadence_match": true,
+    "original": {
+      "path": "out/native-video-factory/analysis/controls/old-raster-offset.mkv",
+      "sha256": "16d46a50ac5603447dacdb0b1bf1aed0e1cff201f6bd644c85b8eeb9ed940a1f",
+      "size": 338198
+    },
+    "reason": "Match the positive control frame count so the negative verdict proves geometry rejection independently of frame count.",
+    "repeated_packet_copy": {
+      "path": "out/native-video-factory/candidate-91c5d241/analysis/negative-offset-60frames.mkv",
+      "sha256": "1dd63b01b90484ed3eb68c17cfa5b82457e89413fee352a9b7c1cfd2ef238ae8",
+      "size": 1688464
+    }
+  },
+  "no_hardware_access": true,
+  "observed_fixture_receipt_sha256": "b77bcd3302f8e4bb1d50262ef1a5af355ac619058687459c0c4fb3068b1f83c2",
+  "observed_graphics_emitter_path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/sources/misteross/cores/fes-coleco/diagnostic/generate.py",
+  "observed_graphics_emitter_sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe",
+  "original_fixture_source_revisions": [
+    "eaaac77fa656607253ebf0877906bf4b338fc647"
+  ],
+  "phase_launcher": {
+    "path": "out/native-video-factory/candidate-91c5d241/analysis/run_analysis.py",
+    "sha256": "77bea6a0efd364b5fecf836c797b3d3c84f7355a09d3723df49012f5a5ce1378",
+    "size": 1689
+  },
+  "phase_preparation": {
+    "path": "out/native-video-factory/candidate-91c5d241/analysis/phase-preparation.json",
+    "sha256": "916eaceaee0892b0bce4092f665ceaff363c8778c152ce9c57ecc7a742fb4b55",
+    "size": 11557
+  },
+  "positive": {
+    "analysis": {
+      "path": "out/native-video-factory/candidate-91c5d241/analysis/results/positive-control/analysis.json",
+      "sha256": "330b20a251780fad0ff3c46be194a1dec0176a9202d96e51297d985e682a61ca",
+      "size": 488724
+    },
+    "bad_geometry_frames_by_case": {
+      "direct": 0,
+      "direct-relaunch": 0,
+      "direct-sgm": 0,
+      "direct-sgm-relaunch": 0,
+      "scanlines": 0,
+      "scanlines-sgm": 0
+    },
+    "command": [
+      "python3",
+      "out/native-video-factory/candidate-91c5d241/analysis/run_analysis.py",
+      "out/native-video-factory/analysis/controls",
+      "--include-sgm-relaunch",
+      "--expected-frames",
+      "60",
+      "--output",
+      "out/native-video-factory/candidate-91c5d241/analysis/results/positive-control/analysis.json"
+    ],
+    "exit_code": 0,
+    "failed_gates": [],
+    "frames_by_case": {
+      "direct": 60,
+      "direct-relaunch": 60,
+      "direct-sgm": 60,
+      "direct-sgm-relaunch": 60,
+      "scanlines": 60,
+      "scanlines-sgm": 60
+    },
+    "gate_count": 79,
+    "log": {
+      "path": "out/native-video-factory/candidate-91c5d241/analysis/positive-control.log",
+      "sha256": "7f8742dcff87008cde52ea99971ac546305d2dcd4829be95dae9d592e58f2cd1",
+      "size": 633
+    },
+    "passed_gates": 79,
+    "verdict": "pass"
+  },
+  "python": "3.13.5"
+}

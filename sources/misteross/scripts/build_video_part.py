@@ -14,7 +14,7 @@ import tarfile
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_coleco_sgm as sgm, build_fes_coleco_socket_v2 as shell_recipe
-from scripts import coleco_expansion, video_parts, native_video_parts, native_video_clock
+from scripts import video_parts, native_video_parts, native_video_clock
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import _prepare_output, _require_clean_source, _run_tool, _write_atomic
@@ -77,12 +77,8 @@ def publish_archive(output: Path, part_id: str, encoded: bytes, cart: bytes,
 
 def prepare_scaffold(source: Path, destination: Path, *, layout=video_parts) -> bytes:
     # Reuse the qualified PLL metadata repair without removing the CPU socket's
-    # clock anchor: its configuration lies outside the video CRAM fence.
-    original = json.loads(source.read_bytes())
+    # clock anchor or paired buffer: both lie outside the video CRAM fence.
     repaired = json.loads(sgm.prepare_scaffold(source, destination))
-    cells = repaired["modules"]["top"]["cells"]
-    cells[coleco_expansion.SOCKET_CLOCK_COVERAGE_CELL] = original["modules"]["top"]["cells"][
-        coleco_expansion.SOCKET_CLOCK_COVERAGE_CELL]
     result = layout.prepare_scaffold(json.dumps(repaired).encode())
     destination.write_bytes(result)
     return result
@@ -185,9 +181,9 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
             for member in required:
                 require_output(output / member, 32 * 1024 * 1024 if member.endswith(".rbf") else 128 * 1024 * 1024)
             if native and name == "synthesis":
-                # The packed importer removes transparent clock buffers. Its
-                # M10K second port needs the declared input-buffer net so both
-                # RAM clocks resolve to the same imported pixel clock.
+                # Prove every FF/RAM clock comes from the declared input and
+                # normalize that boundary before frozen import. Retain the
+                # original netlist so cache validation can replay the proof.
                 shutil.copyfile(output / "cart.json", output / "cart-synth.json")
                 clock_boundary = native_video_clock.prepare_native_clock(output / "cart.json")
         route_text = (output / "route.log").read_text()
