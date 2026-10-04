@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"net/http"
 	"strings"

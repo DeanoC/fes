@@ -98,6 +98,15 @@ The runs are deliberately reported by their actual selection:
 | `517a285c089153dc3701fd02dd366c0286a3efd2` bytes | Runtime first-Begin rejection regression | Passed; the old driver control fails by cleanup-ejecting the retained disk after the writer clears busy. |
 | `6fd86ac7de5d8bdd67b51913dd9a04cdcd3a724b` | Actual C64 board-top elaboration | Passed with the real producer RTL and primitive boundary stand-ins. Original source fails on 12 invalid port bindings. |
 
+Integration with upstream `31ba38465` selects merge `b1236121a` plus the
+recorded single-import correction in `hostclient/session.go`. Focused race
+tests pass for hostclient, CLI, target agent, host/HTTP APIs, local cores,
+kit launcher/controller and ten-foot UI. Independent overlap review finds
+the durable Stop budgets, observation fences and kit-local ownership rules
+intact. This combined host selection has no physical acceptance claim;
+the native artifacts retain source `517a285c0`. Exact selected bytes and
+the command/log digest are recorded in the evidence sidecar.
+
 The runtime run includes lifecycle, mouse, snapshot, durable-record, fault,
 composition, protocol and daemon tests; representative completion counts are
 56 runtime tests, 23 GP groups, 32 native-hardware tests, 27 protocol tests,
@@ -194,8 +203,9 @@ Fabric clock and seal checks do not establish physical SDRAM or HDMI acceptance.
 The seed-5 CPU expansion probe also has a producer-sealed archive,
 `a53d635f7d0bda3ebc0994a901f40df7d06f9638b1eaecd56a41ef1d2d73a3b4`.
 Its build record reports 9,130 changed bits inside the bus rectangle, zero
-outside and unchanged clock results. Independent probe review remains pending;
-no physical probe execution is claimed here.
+outside and unchanged clock results. Independent canonical archive, recipe,
+source, scaffold, clock and complete bit-containment review passes; no physical
+probe execution is claimed here.
 
 ## Physical predecessor and DQM correction
 

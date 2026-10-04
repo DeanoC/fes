@@ -277,7 +277,7 @@
     "placer_seed": 5,
     "producer_summary_sha256": "e3ae36792d667d81b04d730f5c33f1af9fb7c55b5672756f2a823c2dd96c81ef",
     "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
-    "status": "producer sealed; independent review pending",
+    "status": "producer sealed; independent review passed; no physical probe acceptance",
     "timing": {
       "pixel_clk": 79.80846405029297,
       "system_clock.clocks[0]": 53.30206298828125,
@@ -470,6 +470,39 @@
     "Sector atomicity does not provide multi-sector FAT transaction or power-loss guarantees.",
     "ROM bytes, device addresses, tokens and private paths are omitted."
   ],
+  "main_integration": {
+    "independent_overlap_review": "pass: all four overlapping files; durable Stop budgets, observation fences, kit-local ownership/admission preserved",
+    "limits": "combined host-only source tests; native artifacts and physical runs retain their original recorded selections",
+    "merge_revision": "b1236121a710b922dd7407ff1f401abaaa382d2e",
+    "race_test_command": [
+      "go",
+      "test",
+      "-race",
+      "-p",
+      "2",
+      "-timeout",
+      "30m",
+      "./hostclient",
+      "./internal/fogcastcli",
+      "./cmd/mister-agent",
+      "./internal/hostapi",
+      "./internal/httpapi",
+      "./internal/localcores",
+      "./ui/kitlauncher/...",
+      "./ui/tenfoot"
+    ],
+    "race_test_directory": "sources/FogCast",
+    "race_test_log_sha256": "a76e5630b520ec8a80ca11c02a75c84fdd149fa4e23a888a898ca9385fee3f84",
+    "race_test_result": "pass: all nine package results",
+    "source_overrides": [
+      {
+        "change": "remove duplicate protocol import produced by semantic merge",
+        "path": "sources/FogCast/hostclient/session.go",
+        "sha256": "9ebb7615ab87836e7f9ee5c16fbc2636129f5590b742f807267112fcc3457a0a"
+      }
+    ],
+    "upstream_revision": "31ba384656ba3f5cefecc9ee089561058f8a0918"
+  },
   "media_lifecycle": {
     "collection_base_revision": "d4892592cd2c0e29910e83a72229e457821688d5",
     "compiled_inputs_match_native_source": true,
