@@ -1,0 +1,223 @@
+{
+  "classification": "Host native synthesis/routing/seal qualification; no physical FPGA acceptance",
+  "source_commit": "5bee8b995672d38ee4cd52a2851cfe93e608c76a",
+  "build_id": "08e5244db9fd6800e834ee9d1ba6724e",
+  "package_sha256": "7642c270e3e3251badfbea0dfc30537e4818a91d3a85c2f520a60b65b4b91dcc",
+  "manifest": {
+    "format": 3,
+    "core": {
+      "id": "fes.atari-st",
+      "name": "FES Atari 520ST",
+      "description": "Atari 520ST with linked 192 KiB firmware, 512 KiB SDRAM, a read-only 720 KiB floppy and an ST expansion socket",
+      "version": "0.1.0"
+    },
+    "target": {
+      "platform": "de10_nano",
+      "device": "5CSEBA6U23I7",
+      "programming_profile": "fes-gp-v1"
+    },
+    "payload": {
+      "file": "core.rbf",
+      "size": 2836423,
+      "sha256": "532629471d39dcc7dd5b5dd0bc86703ebe41a79c3af0372679378f05b1ecfb4a"
+    },
+    "abi": {
+      "id": "fes.computer",
+      "major": 1,
+      "minor": 0
+    },
+    "interfaces": [
+      {
+        "id": "fes.video.fixed-720p60",
+        "major": 1,
+        "minor": 0,
+        "required": true
+      },
+      {
+        "id": "fes.keyboard.hid",
+        "major": 1,
+        "minor": 0,
+        "required": true
+      },
+      {
+        "id": "fes.gamepad.ports",
+        "major": 1,
+        "minor": 0,
+        "required": true
+      },
+      {
+        "id": "fes.audio.pcm-s16-stereo-48k",
+        "major": 1,
+        "minor": 0,
+        "required": true
+      },
+      {
+        "id": "fes.media.atari-st-floppy",
+        "major": 1,
+        "minor": 0,
+        "required": true
+      },
+      {
+        "id": "fes.expansion.atari-st-bus",
+        "major": 1,
+        "minor": 0,
+        "required": false
+      }
+    ],
+    "build": {
+      "id": "08e5244db9fd6800e834ee9d1ba6724e",
+      "repository": "https://github.com/DeanoC/fes",
+      "revision": "5bee8b995672d38ee4cd52a2851cfe93e608c76a",
+      "recipe_sha256": "904ab375ee2fa3a04b7616071e06ce45020646e5a61af3fbd50fd64d97004693",
+      "toolchain": "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=f126e1e0594b8451af2ffb8774ad43281851bab748a8809c1fba79f504db7b89; nextpnr-mistral commit=655f38334b8a1ba798cc05cf3744b6a897119b5d; sha256=8f2a93c75ebdc7de141a6344dbf3174bf6c950c3cd4c41a4632578aa5f7d8121; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=886afa63953e97407153e9f4aae25fcedb639696; sha256=899c4e8c9fddb163bccaee8d40acbc65da77479d8f5efcc258142e563ef876fc"
+    },
+    "rom": {
+      "id": "atari-st-firmware",
+      "role": "firmware",
+      "source_size": 196608,
+      "file": "rom-map.json",
+      "size": 17357124,
+      "sha256": "5dc1ae622cb081bc61c38e5b40cac9d2d49f4e657d01141c8fdcf4d0f782056c"
+    }
+  },
+  "status": "pass",
+  "timing": {
+    "audio": {
+      "achieved_mhz": 192.60400390625,
+      "clock": "system_clock.clocks[1]",
+      "constraint_mhz": 12.288031578063965,
+      "status": "pass"
+    },
+    "pixel": {
+      "achieved_mhz": 74.61016082763672,
+      "clock": "pixel_clk",
+      "constraint_mhz": 74.25006866455078,
+      "status": "pass"
+    },
+    "status": "pass",
+    "system": {
+      "achieved_mhz": 57.81349182128906,
+      "clock": "system_clock.clocks[0]",
+      "constraint_mhz": 52.22477340698242,
+      "status": "pass"
+    }
+  },
+  "route": {
+    "gpu_backend": "hip",
+    "placer_heap_timingweight": 2000,
+    "placer_qor_mode": "first-pass",
+    "placer_seed": 5,
+    "status": "pass",
+    "unrouted": false
+  },
+  "resources": {
+    "MISTRAL_BUF": {
+      "available": 0,
+      "used": 2507
+    },
+    "MISTRAL_CLKENA": {
+      "available": 8,
+      "used": 3
+    },
+    "MISTRAL_COMB": {
+      "available": 83820,
+      "used": 12764
+    },
+    "MISTRAL_FF": {
+      "available": 167640,
+      "used": 6082
+    },
+    "MISTRAL_IO": {
+      "available": 472,
+      "used": 74
+    },
+    "MISTRAL_M10K": {
+      "available": 553,
+      "used": 201
+    },
+    "MISTRAL_MUL18X18": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL18X19": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL18X19_COMBINED": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL27X27": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL9X9": {
+      "available": 336,
+      "used": 0
+    },
+    "altera_pll": {
+      "available": 6,
+      "used": 2
+    },
+    "cyclonev_hps_interface_fpga2sdram": {
+      "available": 1,
+      "used": 0
+    },
+    "cyclonev_hps_interface_mpu_general_purpose": {
+      "available": 1,
+      "used": 1
+    },
+    "cyclonev_hps_interface_peripheral_i2c": {
+      "available": 4,
+      "used": 1
+    },
+    "cyclonev_oscillator": {
+      "available": 1,
+      "used": 0
+    }
+  },
+  "sockets": {
+    "layout": "fes.atari-st-bus.socket/1",
+    "pinned_boundary_cells": 119,
+    "pinned_boundary_route_buffers": 119,
+    "sockets": [
+      1
+    ]
+  },
+  "video_cache_placements": {
+    "video.cache0.0.0.0": "MISTRAL_M10K.26.20.0",
+    "video.cache1.0.0.0": "MISTRAL_M10K.26.21.0"
+  },
+  "ram_socket_configuration": {
+    "checked_cells": 201,
+    "configuration_bounds_offsets": [
+      0,
+      0,
+      259,
+      86
+    ],
+    "init_bits_per_cell": 10240,
+    "mode_control_bits_per_cell": 126,
+    "policy": "m10k-bmux-configuration-bounds-v1",
+    "routing_coverage": "RAM-local BM_CRAM only; routing PIPs use the frozen shell/card containment contract",
+    "status": "pass"
+  },
+  "rom_map_database": {
+    "database_sha256": {
+      "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
+      "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
+      "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21"
+    },
+    "format": 1
+  },
+  "evidence_sha256": {
+    "manifest.toml": "20f4d0c987b5f1d8b986984098b4066eb03452ca43739c1e9d8e7ca1f2657f3e",
+    "build-summary.json": "78d07a3e700dda964126a91637c735abca35294c78ce045b29835b4edb0b59de",
+    "timing.json": "6fe1ab9dc146e907990a688d520eda77205a9f9302a00ca3eaf80b7c55630950",
+    "nextpnr.log": "69a87b9ee29a92a1541fdbbc678775325bd7edbd302bfc23bb2a0c4229415725",
+    "cache-primitive-checks.json": "553ebc5e3ce8b40385a82ca1463d3b1e0c8137006ff332366e46103a54db7774",
+    "socket.qsf": "79159cd0618cfc90980897462e7fc9f17349d4484291f932b1bec1fdacb3185e",
+    "build-inputs.json": "c4a8da6298a05b1b93ce65bb73a1ad0c68445901aafe82273e93b170c103f93c"
+  },
+  "private_shell_output": "/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-520st/oss-build-fes-v8/sources/misteross/build/fes-atari-st-oss"
+}

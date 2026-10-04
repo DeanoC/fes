@@ -6,7 +6,13 @@
 // section 3. The word port is combinational and shares this clock in simulation;
 // a hardware shell must supply coherent configuration and a RAM/CDC adapter.
 // This is fixed 720p scanout, not the original GLUE/MMU/Shifter bus timing.
-module st_video (
+module st_video #(
+    // The default retains the original combinational physical word port.
+    // A cache adapter may validate whole lines in its memory domain and return
+    // words two clocks after these lookup coordinates. Configuration in this
+    // mode must remain coherent for the complete raster frame.
+    parameter bit CACHED_WORD_PORT = 1'b0
+) (
     input  wire         clk,
     input  wire         reset,
     input  wire         hold,
@@ -19,6 +25,14 @@ module st_video (
     input  wire [143:0] palette,
     output wire [18:1]  mem_addr,
     input  wire [15:0]  mem_data,
+    // Optional line-cache lookup coordinates for the same word-port cycle.
+    // Keeping them explicit avoids decoding the wide physical address back
+    // into a row and column in a pixel-domain cache adapter.
+    output wire         fetch_valid,
+    output wire [8:0]   fetch_row,
+    output wire [6:0]   fetch_column,
+    output wire [8:0]   raster_row,
+    output wire [8:0]   raster_next_row,
     output wire [`FES_VIDEO_PART_REQUEST_BITS-1:0] video_request
 );
     localparam [10:0] H_ACTIVE = 11'd1280;
@@ -41,6 +55,7 @@ module st_video (
     // This first slice uses nearest-neighbor integer scaling, not aspect correction.
     wire [9:0] image_top = high_resolution ? 10'd160 : 10'd60;
     wire [9:0] image_height = high_resolution ? 10'd400 : 10'd600;
+    wire [9:0] next_vertical = vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 10'd1;
     wire in_picture = horizontal < H_ACTIVE && vertical >= image_top &&
                       vertical < image_top + image_height && mode_valid;
     wire [3:0] bit_index = 4'd15 - (low_resolution ? horizontal[5:2] : horizontal[4:1]);
@@ -54,21 +69,103 @@ module st_video (
     wire [9:0] fetch_y = wrap_line ?
         (vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 1'b1) : vertical;
     wire [5:0] group_phase = low_resolution ? fetch_x[5:0] : {1'b0, fetch_x[4:0]};
-    wire [5:0] group_number = low_resolution ? {1'b0, fetch_x[10:6]} : fetch_x[10:5];
     wire fetching = mode_valid && fetch_x < H_ACTIVE &&
         fetch_y >= image_top && fetch_y < image_top + image_height &&
         group_phase < {3'd0, planes};
-    wire [9:0] image_y = fetch_y - image_top;
-    wire [9:0] native_y = high_resolution ? image_y : image_y / 10'd3;
-    wire [6:0] stride_words = high_resolution ? 7'd40 : 7'd80;
-    wire [16:0] line_offset = {7'd0, native_y} * {10'd0, stride_words};
-    wire [8:0] group_offset = {3'd0, group_number} * {6'd0, planes};
-    // ST base registers only provide bits23:8. Keep the addition wide enough
-    // to reject out-of-range scanout without wrapping into the 512KiB RAM.
-    wire [23:0] address_word = {1'b0, screen_base[23:8], 7'd0} +
-        {7'd0, line_offset} + {15'd0, group_offset} + {18'd0, group_phase};
-    wire address_valid = address_word < 24'h040000;
-    assign mem_addr = fetching && address_valid ? address_word[17:0] : 18'd0;
+    wire address_valid;
+    generate
+        if (CACHED_WORD_PORT) begin : cached_coordinates
+            reg [8:0] native_row;
+            reg [1:0] row_repeat;
+            wire color_line = vertical >= 10'd60 && vertical < 10'd660;
+            wire mono_line = vertical >= 10'd160 && vertical < 10'd560;
+            wire next_color_line = next_vertical >= 10'd60 && next_vertical < 10'd660;
+            wire next_mono_line = next_vertical >= 10'd160 && next_vertical < 10'd560;
+            wire cached_next_image_line = mode_valid &&
+                (high_resolution ? next_mono_line : next_color_line);
+            wire before_image = high_resolution ? vertical < 10'd160 : vertical < 10'd60;
+            wire advance_row = high_resolution || row_repeat == 2'd2;
+            // EOL clears native_row outside the image, including the frame
+            // boundary where coherent configuration can change. The row is
+            // already zero there, so no current-line geometry mask is needed.
+            assign raster_row = native_row;
+            assign raster_next_row = !cached_next_image_line ? 9'd0 :
+                before_image ? 9'd0 : native_row + {8'd0, advance_row};
+            always @(posedge clk) begin
+                if (reset) begin
+                    native_row <= 9'd0;
+                    row_repeat <= 2'd0;
+                end else if (horizontal == H_TOTAL - 1'b1) begin
+                    native_row <= raster_next_row;
+                    row_repeat <= !cached_next_image_line || before_image || advance_row ?
+                        2'd0 : row_repeat + 2'd1;
+                end
+            end
+            // Complete-line bounds, ownership and readiness are checked by the
+            // cache adapter. No physical address is reconstructed in this path.
+            assign address_valid = 1'b1;
+            assign mem_addr = 18'd0;
+            // Fixed lookaheads are evaluated in parallel; resolution selects
+            // their results after the arithmetic. The cache captures each word
+            // two clocks before the unchanged plane-capture edge.
+            wire low_wrap = horizontal >= 11'd1644;
+            wire medium_wrap = horizontal >= 11'd1646;
+            wire mono_wrap = horizontal >= 11'd1647;
+            wire [10:0] low_ahead = horizontal + 11'd6;
+            wire [10:0] medium_ahead = horizontal + 11'd4;
+            wire [10:0] mono_ahead = horizontal + 11'd3;
+            wire [10:0] low_x = low_wrap ? horizontal - 11'd1644 : low_ahead;
+            wire [10:0] medium_x = medium_wrap ? horizontal - 11'd1646 : medium_ahead;
+            wire [10:0] mono_x = mono_wrap ? horizontal - 11'd1647 : mono_ahead;
+            // The phase windows below supply these low bits without addition.
+            wire unused_cached_phase = ^{low_x[5:2], medium_x[4:1], mono_x[4:0]};
+            // These constant windows are the corresponding x<1280 and plane
+            // phase tests, expressed before the lookahead carry chain. Group0
+            // uses the next line during the last blanking clocks.
+            wire low_fetching =
+                (color_line && horizontal < 11'd1274 &&
+                 horizontal[5:0] >= 6'd58 && horizontal[5:0] < 6'd62) ||
+                (next_color_line && horizontal >= 11'd1644 && horizontal < 11'd1648);
+            wire medium_fetching =
+                (color_line && horizontal < 11'd1276 && horizontal[4:1] == 4'd14) ||
+                (next_color_line && horizontal >= 11'd1646 && horizontal < 11'd1648);
+            wire mono_fetching =
+                (mono_line && horizontal < 11'd1277 && horizontal[4:0] == 5'd29) ||
+                (next_mono_line && horizontal == 11'd1647);
+            assign fetch_valid = low_resolution ? low_fetching :
+                high_resolution ? mono_fetching : resolution == 2'd1 && medium_fetching;
+            wire read_wrap = low_resolution ? low_wrap : high_resolution ? mono_wrap : medium_wrap;
+            assign fetch_row = read_wrap ? raster_next_row : raster_row;
+            assign fetch_column = low_resolution ? {low_x[10:6], low_x[1:0]} :
+                high_resolution ? {1'b0, mono_x[10:5]} : {medium_x[10:5], medium_x[0]};
+        end else begin : physical_coordinates
+            wire image_line = mode_valid && vertical >= image_top && vertical < image_top + image_height;
+            wire next_image_line = mode_valid && next_vertical >= image_top &&
+                                   next_vertical < image_top + image_height;
+            wire [5:0] group_number = low_resolution ? {1'b0, fetch_x[10:6]} : fetch_x[10:5];
+            wire [9:0] image_y = fetch_y - image_top;
+            wire [9:0] native_y = high_resolution ? image_y : image_y / 10'd3;
+            assign fetch_valid = fetching && address_valid;
+            assign fetch_row = native_y[8:0];
+            assign fetch_column = low_resolution ? {group_number[4:0], group_phase[1:0]} :
+                high_resolution ? {1'b0, group_number} : {group_number, group_phase[0]};
+            wire [9:0] raster_y = vertical - image_top;
+            wire [9:0] next_raster_y = next_vertical - image_top;
+            assign raster_row = !image_line ? 9'd0 : high_resolution ?
+                raster_y[8:0] : 9'(raster_y / 10'd3);
+            assign raster_next_row = !next_image_line ? 9'd0 : high_resolution ?
+                next_raster_y[8:0] : 9'(next_raster_y / 10'd3);
+            wire [6:0] stride_words = high_resolution ? 7'd40 : 7'd80;
+            wire [16:0] line_offset = {7'd0, native_y} * {10'd0, stride_words};
+            wire [8:0] group_offset = {3'd0, group_number} * {6'd0, planes};
+            // ST base registers only provide bits23:8. Keep the addition wide
+            // enough to reject bad scanout without wrapping into 512KiB RAM.
+            wire [23:0] address_word = {1'b0, screen_base[23:8], 7'd0} +
+                {7'd0, line_offset} + {15'd0, group_offset} + {18'd0, group_phase};
+            assign address_valid = address_word < 24'h040000;
+            assign mem_addr = fetching && address_valid ? address_word[17:0] : 18'd0;
+        end
+    endgenerate
     wire [15:0] fetched_word = address_valid ? mem_data : 16'd0;
 
     always @(posedge clk) begin

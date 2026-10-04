@@ -1,4 +1,5 @@
 """ST compiler boundary, physical connector and synchronous firmware checks."""
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -14,6 +15,34 @@ from scripts import atari_st_slot, build_fes_atari_st_oss as st, rom_map
 from scripts.fes_build_common import BuildError
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def ram_database():
+    # Same documented SX120F coordinate space and table cardinalities; include
+    # controls at y0/y85 so an INIT-only check cannot satisfy this fixture.
+    controls = [(0, y) for y in range(86)] + [(1, y) for y in range(40)]
+    text = ''.join(f'g control{i} b- {x}.{y}\n' for i, (x, y) in enumerate(controls[:74]))
+    text += 'g control74 r-:52 ' + ' '.join(f'{x}.{y}' for x, y in controls[74:]) + '\n'
+    text += 'm ram r-:40\n' + ''.join(
+        '  * ' + ' '.join(f'{word+3}.{bit+19}' for bit in range(40)) + '\n'
+        for word in range(256))
+    kinds = ['T_M10K' if x in (5, 14, 26, 38) else 'T_EMPTY'
+             for x in range(len(rom_map.SX120F.x_to_bx))]
+    die = ('7605, 7024, // cram size\n// x to bit x\n{' +
+           ','.join(map(str, rom_map.SX120F.x_to_bx)) + '}\n// column types\n{' +
+           ','.join(kinds) + '}\n')
+    return {'data/m10k-mux.txt': text.encode(), 'libmistral/cvd-sx120f.cc': die.encode(),
+            'libmistral/cyclonev.h': b'y = 2 + 86 * pos.y();'}
+
+
+def database_pins(database):
+    return {name: hashlib.sha256(data).hexdigest() for name, data in database.items()}
+
+
+def pinned_cache_cells(*, routed=True):
+    attribute = 'NEXTPNR_BEL' if routed else 'BEL'
+    return {name: {'type': 'MISTRAL_M10K', 'attributes': {attribute: bel}}
+            for name, bel in st.CACHE_BELS.items()}
 
 
 class AtariSTProducerTests(unittest.TestCase):
@@ -52,8 +81,14 @@ class AtariSTProducerTests(unittest.TestCase):
         self.assertIn('fx68k-slang.sv', command[-1])
         self.assertNotIn('--ignore-initial', command[-1])
         self.assertIn('-nolutram -nodsp', command[-1])
+        for name, bel in st.CACHE_BELS.items():
+            self.assertIn(f'setattr -set BEL "{bel}" top/{name};', command[-1])
+        qsf = st.socket_qsf('# physical board pins\n')
+        self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{atari_st_slot.SOCKETS[0].placement}"'), 1)
+        self.assertEqual(qsf.count('FES_RESERVED_RECT "ram_guard 26 19 26 19"'), 1)
         self.assertIn('--router', route)
         self.assertEqual(route[route.index('--router') + 1], 'gpu')
+        self.assertEqual(route[route.index('--seed') + 1], '4')
         with self.assertRaises(BuildError):
             st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32, tools, video_output='unknown')
 
@@ -88,10 +123,46 @@ class AtariSTProducerTests(unittest.TestCase):
 
     def test_reserved_expansion_accepts_only_its_exact_boundary(self):
         socket = atari_st_slot.SOCKETS[0]
-        cells = {socket.instance + name: {'type': 'MISTRAL_FF', 'attributes': {'NEXTPNR_BEL': bel}}
-                 for name, bel in atari_st_slot.boundary_bels().items()}
+        cells = {}
+        for index, (name, bel) in enumerate(atari_st_slot.boundary_bels().items()):
+            name = socket.instance + name
+            cells[name] = {'type': 'MISTRAL_FF', 'attributes': {'NEXTPNR_BEL': bel},
+                           'connections': {'DATAIN': [2000 + index], 'CLK': [5]}}
+            cells[name + '$ROUTETHRU'] = {'type': 'MISTRAL_BUF',
+                'attributes': {'NEXTPNR_BEL': st.boundary_route_buffer_bel(bel)},
+                'port_directions': {'A': 'input', 'Q': 'output'},
+                'connections': {'A': [1000 + index], 'Q': [2000 + index]}}
         routed = {'modules': {'top': {'cells': cells}}}
         self.assertEqual(st.validate_routed_shell(routed)['pinned_boundary_cells'], 119)
+        self.assertEqual(st.validate_routed_shell(routed)['pinned_boundary_route_buffers'], 119)
+        for mutation in ('site', 'name', 'type', 'missing', 'disconnected', 'multiple', 'wrong_ff', 'shared_output'):
+            with self.subTest(mutation=mutation):
+                changed = json.loads(json.dumps(routed))
+                altered = changed['modules']['top']['cells']
+                name = 'expansion.plug_request_ff_0$ROUTETHRU'
+                buffer = altered[name]
+                if mutation == 'site': buffer['attributes']['NEXTPNR_BEL'] = 'MISTRAL_COMB.25.1.0'
+                elif mutation == 'name': altered[name + '_fake'] = altered.pop(name)
+                elif mutation == 'type': buffer['type'] = 'MISTRAL_ALUT6'
+                elif mutation == 'missing': del altered[name]
+                elif mutation == 'disconnected': buffer['connections']['Q'] = []
+                elif mutation == 'multiple': buffer['connections']['A'].append(999)
+                elif mutation == 'wrong_ff': buffer['connections']['Q'] = [2001]
+                elif mutation == 'shared_output':
+                    altered['expansion.plug_request_ff_1$ROUTETHRU']['connections']['Q'] = [2000]
+                    altered['expansion.plug_request_ff_1']['connections']['DATAIN'] = [2000]
+                with self.assertRaisesRegex(BuildError, 'route buffer'):
+                    st.validate_routed_shell(changed)
+        # This real mismatch is invisible to the existing LAB/BEL exclusion:
+        # row19 is outside the reserved LABs, yet all of its RAM bits are inside.
+        cells['cache'] = {'type': 'MISTRAL_M10K',
+                          'attributes': {'NEXTPNR_BEL': 'MISTRAL_M10K.26.19.0'}}
+        st.validate_routed_shell(routed)
+        database = ram_database()
+        with patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)), \
+             self.assertRaisesRegex(BuildError, 'configuration footprint.*overlaps slot'):
+            st.validate_m10k_configurations(routed, database)
+        del cells['cache']
         cells['rogue'] = {'type': 'MISTRAL_FF', 'attributes': {'NEXTPNR_BEL': 'MISTRAL_FF.25.10.2'}}
         with self.assertRaisesRegex(BuildError, 'inside the slot'):
             st.validate_routed_shell(routed)
@@ -110,6 +181,79 @@ class AtariSTProducerTests(unittest.TestCase):
         fmax['duplicate'] = fmax['clk']
         with self.assertRaises(BuildError):
             st._frequency_row(fmax, 52.224, 'system')
+
+    def test_cache_constraints_require_both_real_mapped_ram_cells(self):
+        for routed in (False, True):
+            with self.subTest(routed=routed):
+                cells = pinned_cache_cells(routed=routed)
+                self.assertEqual(st.validate_cache_placements(cells, routed=routed), st.CACHE_BELS)
+                cells['video.cache0.0.0.0']['attributes']['NEXTPNR_BEL' if routed else 'BEL'] = 'MISTRAL_M10K.26.19.0'
+                with self.assertRaisesRegex(BuildError, 'must occupy'):
+                    st.validate_cache_placements(cells, routed=routed)
+                cells = pinned_cache_cells(routed=routed)
+                cells['video.cache0.0.0.0']['type'] = 'MISTRAL_FF'
+                with self.assertRaisesRegex(BuildError, 'exactly the two'):
+                    st.validate_cache_placements(cells, routed=routed)
+
+    def test_all_ram_configuration_guard_catches_ram_outside_lab_reservation(self):
+        database = ram_database()
+        cells = pinned_cache_cells()
+        for i, (x, y) in enumerate(st.FIRMWARE_LANE_ROWS):
+            cells[f'machine.rom.lane{i}'] = {'type': 'MISTRAL_M10K',
+                'attributes': {'NEXTPNR_BEL': f'MISTRAL_M10K.{x}.{y}.0'}}
+        for i in range(7):
+            cells[f'cpu.rom{i}'] = {'type': 'MISTRAL_M10K',
+                'attributes': {'NEXTPNR_BEL': f'MISTRAL_M10K.5.{15+i}.0'}}
+        routed = {'modules': {'top': {'cells': cells}}}
+        with patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)):
+            self.assertEqual(st.m10k_configuration_bounds(database), (0, 0, 259, 86))
+            evidence = st.validate_m10k_configurations(routed, database)
+            self.assertEqual(evidence['checked_cells'], 201)
+            self.assertEqual(evidence['mode_control_bits_per_cell'], 126)
+            # The lower safe site's minimum Y is exactly the exclusive fence edge.
+            self.assertEqual(evidence['cells']['video.cache0.0.0.0']['configuration_bounds'][1], 1722)
+            for name in ('cpu.rom0', 'machine.rom.lane0', 'video.cache0.0.0.0'):
+                with self.subTest(name=name):
+                    changed = json.loads(json.dumps(routed))
+                    changed['modules']['top']['cells'][name]['attributes']['NEXTPNR_BEL'] = 'MISTRAL_M10K.26.19.0'
+                    with self.assertRaisesRegex(BuildError, 'configuration footprint.*overlaps slot'):
+                        st.validate_m10k_configurations(changed, database)
+            # An inferred TDP uses the same hardware RAM configuration footprint.
+            cells['cpu.rom0']['type'] = 'MISTRAL_M10K_TDP'
+            st.validate_m10k_configurations(routed, database)
+            cells['cpu.rom0']['attributes']['NEXTPNR_BEL'] = 'MISTRAL_M10K.26.19.0'
+            with self.assertRaisesRegex(BuildError, 'configuration footprint.*overlaps slot'):
+                st.validate_m10k_configurations(routed, database)
+
+    def test_control_configuration_bits_are_guarded_separately_from_init(self):
+        database = ram_database()
+        x, y = rom_map.SX120F.x_to_bx[26], 2 + 86 * 20
+        socket = SimpleNamespace(slot=1, cram=(x, y, x+3, y+1))
+        init = rom_map.rom_blocks(rom_map.parse_ram_offsets(database['data/m10k-mux.txt'].decode()), ((26, 20),))
+        self.assertTrue(all(bit % 7605 >= x+3 for word in init[0]['word_bits'] for bit in word))
+        routed = {'modules': {'top': {'cells': pinned_cache_cells()}}}
+        with patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)), \
+             patch.object(atari_st_slot, 'SOCKETS', (socket,)):
+            with self.assertRaisesRegex(BuildError, 'configuration footprint.*overlaps slot'):
+                st.validate_m10k_configurations(routed, database)
+
+    def test_ram_geometry_rejects_unpinned_missing_controls_and_bad_sites(self):
+        database = ram_database()
+        with self.assertRaisesRegex(BuildError, 'pinned Mistral'):
+            st.m10k_configuration_bounds(database)
+        for mutation in ('missing_control', 'outside_tile'):
+            changed = dict(database)
+            text = changed['data/m10k-mux.txt'].decode()
+            if mutation == 'missing_control': text = text.replace('g control0 b- 0.0\n', '')
+            else: text = text.replace('0.85', '0.86')
+            changed['data/m10k-mux.txt'] = text.encode()
+            with patch.object(st, 'ROM_DATABASE_SHA256', database_pins(changed)), self.assertRaises(BuildError):
+                st.m10k_configuration_bounds(changed)
+        for bel in ('', 'MISTRAL_M10K.26.20.1', 'MISTRAL_M10K.26.81.0', 'MISTRAL_M10K.25.20.0'):
+            routed = {'modules': {'top': {'cells': {'ram': {'type': 'MISTRAL_M10K',
+                'attributes': {'NEXTPNR_BEL': bel}}}}}}
+            with patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)), self.assertRaises(BuildError):
+                st.validate_m10k_configurations(routed, database)
 
     def test_unused_memory_clock_repair_rejects_writable_or_unrelated_memory(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -160,6 +304,83 @@ class AtariSTProducerTests(unittest.TestCase):
                 invocation.close.assert_called_once()
                 for name in ('core.rbf', 'manifest.toml', 'build-summary.json', 'rom-map.json'):
                     self.assertFalse((root / st.OUTPUT_RELATIVE / name).exists())
+
+    def test_timing_search_uses_atari_bound_without_relaxing_clock_or_repair_gates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / st.QSF).parent.mkdir(parents=True)
+            (root / st.QSF).write_text('# board pins\n')
+            authenticated = {name: SimpleNamespace(identity='test', path=Path('/auth/install/bin') / name)
+                             for name in ('mistral', 'yosys', 'nextpnr-mistral')}
+            invocation = SimpleNamespace(inputs={}, env={}, close=Mock())
+            def synth(*args, **kwargs):
+                (root / st.OUTPUT_RELATIVE / 'synth.json').write_text('{}')
+            def fail_timing(**kwargs):
+                (root / st.OUTPUT_RELATIVE / 'core.rbf').write_bytes(b'unqualified')
+                raise st.SearchError('no placement met timing')
+            with patch.object(st, '_require_clean_source', return_value=('repo', 'a'*40)), \
+                 patch.object(st, '_authenticate_atari_st_tools', return_value=authenticated), \
+                 patch.object(st.rom_map, 'read_database', return_value={}), \
+                 patch.object(st, 'FunctionalInvocation', return_value=invocation), \
+                 patch.object(st, 'create_build_record', return_value=b'{}'), \
+                 patch.object(st, 'prepare_cpu_inputs'), \
+                 patch.object(st, 'build_identity', return_value='0'*32), \
+                 patch.object(st, '_run_tool', side_effect=synth), \
+                 patch.object(st, 'clock_read_only_memories', return_value=[]), \
+                 patch.object(st, 'validate_synth_evidence'), \
+                 patch.object(st, 'route_after_synth', side_effect=fail_timing) as route, \
+                 patch.object(st, 'export_package') as export:
+                with self.assertRaisesRegex(BuildError, 'no placement met timing'):
+                    st.build(root)
+                self.assertEqual(route.call_args.kwargs['timeout'], 1800)
+                self.assertEqual(route.call_args.kwargs['seeds'], (4, 5, 2, 1, 3, 6, 7, 8, 9, 10))
+                self.assertEqual(route.call_args.kwargs['required'],
+                                 ((None, 52.224), (None, 74.25), (None, 12.288)))
+                self.assertEqual(route.call_args.kwargs['extra'], ('--router', 'gpu'))
+                export.assert_not_called()
+            invocation.close.assert_called_once()
+            self.assertFalse((root / st.OUTPUT_RELATIVE / 'core.rbf').exists())
+
+    def test_ram_overlap_rejects_seal_even_after_a_timing_winner(self):
+        database = ram_database()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / st.QSF).parent.mkdir(parents=True)
+            (root / st.QSF).write_text('# board pins\n')
+            authenticated = {name: SimpleNamespace(identity='test', path=Path('/auth/install/bin') / name)
+                             for name in ('mistral', 'yosys', 'nextpnr-mistral')}
+            invocation = SimpleNamespace(inputs={}, env={}, close=Mock())
+            def synth(*args, **kwargs):
+                (root / st.OUTPUT_RELATIVE / 'synth.json').write_text('{}')
+            def timing_winner(**kwargs):
+                output = root / st.OUTPUT_RELATIVE
+                cells = pinned_cache_cells()
+                cells['cpu.rom'] = {'type': 'MISTRAL_M10K',
+                    'attributes': {'NEXTPNR_BEL': 'MISTRAL_M10K.26.19.0'}}
+                (output / 'routed.json').write_text(json.dumps({'modules': {'top': {'cells': cells}}}))
+                (output / 'core.rbf').write_bytes(b'unqualified')
+                return SimpleNamespace(seed=4, weight=2000)
+            with patch.object(st, '_require_clean_source', return_value=('repo', 'a'*40)), \
+                 patch.object(st, '_authenticate_atari_st_tools', return_value=authenticated), \
+                 patch.object(st.rom_map, 'read_database', return_value=database), \
+                 patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)), \
+                 patch.object(st, 'FunctionalInvocation', return_value=invocation), \
+                 patch.object(st, 'create_build_record', return_value=b'{}'), \
+                 patch.object(st, 'prepare_cpu_inputs'), \
+                 patch.object(st, 'build_identity', return_value='0'*32), \
+                 patch.object(st, '_run_tool', side_effect=synth), \
+                 patch.object(st, 'clock_read_only_memories', return_value=[]), \
+                 patch.object(st, 'validate_synth_evidence'), \
+                 patch.object(st, '_i2c_evidence'), \
+                 patch.object(st, 'validate_routed_shell'), \
+                 patch.object(st, 'route_after_synth', side_effect=timing_winner), \
+                 patch.object(st, 'export_package') as export:
+                with self.assertRaisesRegex(BuildError, 'configuration footprint.*overlaps slot'):
+                    st.build(root)
+                export.assert_not_called()
+            invocation.close.assert_called_once()
+            for name in ('core.rbf', 'manifest.toml', 'rom-map.json', 'build-summary.json'):
+                self.assertFalse((root / st.OUTPUT_RELATIVE / name).exists())
 
     @unittest.skipUnless(shutil.which('verilator'), 'Verilator required for synchronous ROM simulation')
     def test_rom_big_endian_lane_edges_reset_and_held_request(self):

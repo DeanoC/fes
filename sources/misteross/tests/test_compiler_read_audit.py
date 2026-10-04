@@ -144,6 +144,36 @@ class ReadAuditTests(unittest.TestCase):
             pid = int(pidfile.read_text())
             with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
 
+    def test_sigstop_group_notification_keeps_completion_and_read_checks(self):
+        trace = self.root / 'open.1'
+        stop = '--- stopped by SIGSTOP ---\n'
+        trace.write_text(stop + '+++ killed by SIGKILL +++\n')
+        audit.verify_traces(self.root, self.root)
+        for invalid in (stop, '--- stopped by SIGUNKNOWN ---\n+++ killed by SIGKILL +++\n',
+                        stop + 'openat( <unfinished ...>\n+++ killed by SIGKILL +++\n'):
+            trace.write_text(invalid)
+            with self.assertRaises(audit.ReadAuditError):
+                audit.verify_traces(self.root, self.root)
+        doc = self.root / 'README.md'; doc.write_text('input')
+        access = 'openat(AT_FDCWD, "README.md", O_RDONLY) = 3<' + str(doc) + '>\n'
+        for lines in (stop + access, access + stop):
+            trace.write_text(lines + '+++ killed by SIGKILL +++\n')
+            with self.assertRaisesRegex(audit.ReadAuditError, 'read excluded Markdown'):
+                audit.verify_traces(self.root, self.root)
+
+    def test_timeout_cancels_multithreaded_child_group_without_masking_timeout(self):
+        pidfile = self.root / 'group-pids'
+        code = ('import os,subprocess,sys,threading,time;from pathlib import Path;'
+                'child=subprocess.Popen([sys.executable,"-c","import time;time.sleep(30)"]);'
+                'threading.Thread(target=lambda:time.sleep(30)).start();'
+                'Path(sys.argv[1]).write_text(str(os.getpid())+" "+str(child.pid));time.sleep(30)')
+        with self.assertRaises(subprocess.TimeoutExpired) as raised:
+            audit.audited_run([sys.executable, '-c', code, str(pidfile)], source_root=self.root,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=0.5, check=False)
+        self.assertEqual(raised.exception.timeout, 0.5)
+        for pid in map(int, pidfile.read_text().split()):
+            with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
+
     def test_python_guard_propagates_to_parallel_search_workers(self):
         from scripts.search_placer_qor import evaluate_pairs
         doc = self.root / 'README.md'; doc.write_text('input')
