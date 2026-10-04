@@ -3,17 +3,23 @@ package fogcast
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 type packageLibraryClient struct {
@@ -128,6 +134,63 @@ func TestUpdateConflictReleasesOnlyNewLaunchLease(t *testing.T) {
 			t.Fatalf("error=%v lease=%+v", got, lease)
 		}
 	})
+}
+
+func TestFailedCoreLaunchCleanupDoesNotReenterTargetMu(t *testing.T) {
+	statusEntered := make(chan struct{})
+	finishStatus := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/status":
+			close(statusEntered)
+			<-finishStatus
+			http.Error(w, "status unavailable", http.StatusServiceUnavailable)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test"))
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.loadCoreLocked(context.Background(), context.Background(), func(context.Context) (coreLoadSource, error) {
+			return coreLoadSource{size: 1, body: bytes.NewReader([]byte{1})}, nil
+		})
+		done <- err
+	}()
+	select {
+	case <-statusEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("launch did not reach status")
+	}
+	writerDone := make(chan struct{})
+	go func() { s.targetMu.Lock(); s.targetMu.Unlock(); close(writerDone) }()
+	deadline := time.Now().Add(time.Second)
+	for s.targetMu.TryRLock() {
+		s.targetMu.RUnlock()
+		if time.Now().After(deadline) {
+			t.Fatal("target writer did not queue")
+		}
+		runtime.Gosched()
+	}
+	close(finishStatus)
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("launch unexpectedly succeeded")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("failed launch cleanup blocked behind queued target writer")
+	}
+	select {
+	case <-writerDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("target writer did not complete")
+	}
 }
 
 func TestInstalledPackageSelectionAndLibraryLaunch(t *testing.T) {

@@ -741,6 +741,26 @@ func TestHealthRecoversAfterStartupReconcileRaceWhenRuntimeIsIdle(t *testing.T) 
 	}
 }
 
+func TestHealthConfirmedIdleRespectsUpdateBlock(t *testing.T) {
+	runtime := &recoverableIdleRuntime{fakeRuntime: fakeRuntime{
+		health:     protocol.Health{Ready: true},
+		reconciled: protocol.Status{State: protocol.StateFailed, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable}},
+	}}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+	coordinator.SetUpdateBlocked(true)
+	if health := coordinator.Health("0.1.0"); health.Ready {
+		t.Fatalf("blocked coordinator advertised ready after ConfirmIdle: %#v", health)
+	}
+	if status := coordinator.Status(); status.State != protocol.StateIdle {
+		t.Fatalf("physical idle was not reconciled: %#v", status)
+	}
+	coordinator.SetUpdateBlocked(false)
+	if health := coordinator.Health("0.1.0"); !health.Ready {
+		t.Fatalf("readiness did not recover after update block cleared: %#v", health)
+	}
+}
+
 type nativeIdleControl struct {
 	statusCalls int
 	launchCalls int

@@ -1381,9 +1381,11 @@ across reboots.
 The host's selected-target monitor probes authenticated health, adopts the
 advertised endpoint, reads kit lease ownership, then reads status before it
 publishes `ready`. A kernel `boot_id` alone cannot identify a restarted agent
-process. If a previously owned lease disappears or changes generation, the
-host drops that target's cached play record and reconciles against the returned
-status. A fresh host follows the same bounded admission path without assuming
+process. If a previously observed or locally held lease disappears or changes
+generation, the host drops that target's cached play record and reconciles
+against the returned status. This also covers a launch after an idle monitor
+snapshot, followed by an agent restart before the next probe. A fresh host
+follows the same bounded admission path without assuming
 the agent's old process state.
 
 Host-side content identity lives in `internal/meshcontent`.

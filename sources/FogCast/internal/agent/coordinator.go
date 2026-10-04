@@ -184,11 +184,11 @@ func (c *Coordinator) Health(version string) protocol.Health {
 			idle := runtime.ConfirmIdle(ctx)
 			cancel()
 			if idle {
-				health.Ready = true
 				c.mu.Lock()
 				if c.status.State == protocol.StateFailed {
 					c.status = protocol.Status{State: protocol.StateIdle}
 				}
+				health.Ready = !c.updateBlocked
 				c.mu.Unlock()
 			} else {
 				health.Ready = false

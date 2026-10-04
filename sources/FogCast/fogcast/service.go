@@ -1931,7 +1931,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	lease := kitLeaseOf(client)
 	leaseWasHeld := lease != nil && lease.Held()
 	defer func() {
-		resultErr = releaseFailedLaunchLease(resultErr, leaseWasHeld, lease, s.kitLeaseBacksPlay(lease))
+		resultErr = releaseFailedLaunchLease(resultErr, leaseWasHeld, lease, s.kitLeaseBacksPlayLocked(lease))
 	}()
 	prior, err := client.Status(ctx)
 	if err != nil {
@@ -3554,6 +3554,15 @@ func (s *Service) kitLeaseBacksPlay(lease *targetclient.KitLease) bool {
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
+	return s.kitLeaseBacksPlayLocked(lease)
+}
+
+// kitLeaseBacksPlayLocked uses the target binding already held by the caller.
+// Caller holds targetMu and must not hold executionMu.
+func (s *Service) kitLeaseBacksPlayLocked(lease *targetclient.KitLease) bool {
+	if lease == nil {
+		return false
+	}
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
 	for name := range s.plays {

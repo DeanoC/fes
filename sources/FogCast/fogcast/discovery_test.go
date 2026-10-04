@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/DeanoC/FogCast/catalog"
 	"io"
 	"net"
 	"net/http"
@@ -16,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
@@ -104,6 +105,50 @@ func TestAgentRestartReconcilesLostLeaseAndConnectsReady(t *testing.T) {
 	}
 	if plays := s.PlaySessions(); len(plays) != 0 {
 		t.Fatalf("stale play sessions after idle restart: %+v", plays)
+	}
+}
+
+func TestAgentRestartAfterIdleSnapshotDropsNewPlay(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
+		case "/v1/kit/lease":
+			_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/kit/claim":
+			_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "launch-token", Status: kitlease.Status{State: "held", Generation: "launch-generation", ExpiresInMS: 60000}})
+		case "/v1/status":
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	lease := targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test")
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if s.TargetConnection().leaseOwned {
+		t.Fatal("initial idle snapshot unexpectedly owned a lease")
+	}
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	if err := lease.Authorize(req, true); err != nil {
+		t.Fatal(err)
+	}
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "old-game", system: "fpga_native"}
+	// The agent restarts before the monitor takes another ownership snapshot.
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.TargetConnection().State; got != "ready" {
+		t.Fatalf("connection state = %q", got)
+	}
+	if plays := s.PlaySessions(); len(plays) != 0 {
+		t.Fatalf("stale play after agent restart: %+v", plays)
 	}
 }
 
