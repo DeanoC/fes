@@ -37,6 +37,7 @@ A producer in this module does not put a package on that image.
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchains/ramtest.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
+| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` | `make build-fes-atari-st` | no; native Atari 520ST producer |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
@@ -227,6 +228,10 @@ are exported under `build/packages/<package-id>/`. The external
 Copy the closest sibling. Do not start from an experiment, and do not fork a
 second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
+
+The Atari ST producer now pins DeanoC/nextpnr head `3d4a5b35` in its own
+`toolchains/atari-st.lock`; RAM test and menu retain `toolchains/ramtest.lock`.
+Requalification is recorded in the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.
 `make sim-fes-atari-st` covers the full CPU, MMU aliases, peripherals,

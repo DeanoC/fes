@@ -42,7 +42,7 @@ ROUTER = "gpu"
 RECIPE = "scripts/build_fes_atari_st_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-atari-st-oss")
 DIAGNOSTIC_OUTPUT = Path("build/fes-atari-st-oss-diagnostic")
-ST_TOOLCHAIN_LOCK = "toolchains/ramtest.lock"
+ST_TOOLCHAIN_LOCK = "toolchains/atari-st.lock"
 ST_TOOLCHAIN_ROOT = "build/toolchain/fes-atari-st"
 ST_GPU_BACKEND = "hip"
 ST_GPU_ROUTER = "HIP"
@@ -52,7 +52,7 @@ ST_TOOLCHAIN_CONFIGURATION = (
 )
 ST_TOOL_COMMITS = {
     "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "655f38334b8a1ba798cc05cf3744b6a897119b5d",
+    "nextpnr": "3d4a5b352b4edb478b744b82cc61333353751a80",
     "yosys": "886afa63953e97407153e9f4aae25fcedb639696",
 }
 # First passing route wins; the order is part of the build identity. Seed 4
