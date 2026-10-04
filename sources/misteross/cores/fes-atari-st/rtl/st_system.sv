@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Reusable 520ST system: storage and video/audio sockets remain external.
-module st_system (
-    input wire clk_sys, reset,
+module st_system #(parameter integer ENABLE_FLOPPY_WRITE = 0) (
+    input wire clk_sys, reset, cold_reset,
     output wire rom_req,
     output wire [17:1] rom_addr,
     input wire [15:0] rom_rdata,
@@ -35,16 +35,22 @@ module st_system (
     output wire mouse_ready,
     output wire signed [15:0] audio_pcm,
     output wire audio_valid,
-    input wire media_ready,
+    input wire media_ready, media_frozen,
+    output wire media_write_req,
+    output wire [19:1] media_write_addr,
+    output wire [15:0] media_write_data,
+    input wire media_write_ready,
+    output wire media_write_busy, media_changed,
     output wire media_req,
     output wire [19:0] media_addr,
     input wire [7:0] media_data,
     input wire media_valid,
-    output wire dma_req,
+    output wire dma_req, dma_write,
     output wire [23:0] dma_addr,
     output wire [15:0] dma_wdata,
     output wire [1:0] dma_byte_enable,
     input wire dma_ready,
+    input wire [15:0] dma_rdata,
     output wire [23:0] screen_base,
     output wire [1:0] resolution,
     output wire [143:0] palette,
@@ -81,8 +87,8 @@ module st_system (
         .palette(palette), .sync_mode(sync_mode), .debug_addr(debug_addr),
         .debug_bus_error(debug_bus_error), .debug_overlay(debug_overlay), .debug_halted(debug_halted)
     );
-    st_io io (
-        .clk(clk_sys), .reset(exp_reset), .req(bus_req), .addr(exp_addr),
+    st_io #(.ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE)) io (
+        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .req(bus_req), .addr(exp_addr),
         .write(exp_write), .wdata(exp_wdata), .byte_enable(exp_byte_enable),
         .selected(io_selected), .ack(io_ack), .rdata(io_rdata),
         .irq(io_irq), .irq_vectored(io_vectored), .irq_vector(irq_vector),
@@ -92,8 +98,11 @@ module st_system (
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
         .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready),
         .audio_pcm(audio_pcm), .audio_valid(audio_valid), .media_ready(media_ready),
+        .media_frozen(media_frozen), .media_write_req(media_write_req), .media_write_addr(media_write_addr),
+        .media_write_data(media_write_data), .media_write_ready(media_write_ready),
+        .media_write_busy(media_write_busy), .media_changed(media_changed),
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
-        .dma_req(dma_req), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
+        .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .vblank(vblank), .hblank(hblank)
     );
 endmodule

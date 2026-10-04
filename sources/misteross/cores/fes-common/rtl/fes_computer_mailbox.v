@@ -13,11 +13,13 @@
 module fes_computer_mailbox #(
     parameter bit ENABLE_KEYBOARD = 0,
     parameter bit ENABLE_PORTS = 0,
+    parameter bit ENABLE_MOUSE = 0,
     parameter bit ENABLE_AUDIO = 0,
     parameter bit ENABLE_APPLE2_FLOPPY = 0,
     parameter bit ENABLE_C64_DISK = 0,
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
+    parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_MEDIA_BACKPRESSURE = 0,
     parameter integer MEDIA_AW = 18,
     parameter [31:0] UNIT0_MIN = `FES_COMPUTER_APPLE2_FLOPPY_BYTES,
@@ -30,24 +32,39 @@ module fes_computer_mailbox #(
     output reg          exec_reset,
     output reg  [143:0] keyboard_rows,
     output reg  [15:0]  controller_buttons,
+    output wire         mouse_valid,
+    output wire signed [15:0] mouse_dx,
+    output wire signed [15:0] mouse_dy,
+    output wire [1:0]    mouse_buttons,
+    input  wire         mouse_ready,
     output wire [MEDIA_AW-1:0] media_write_addr,
     output wire [15:0]  media_write_data,
     output wire [1:0]   media_write_enable,
     input  wire        media_write_ready,
+    input  wire        media_write_busy,
+    input  wire        media_changed,
+    output reg         media_frozen,
+    output wire        media_read_req,
+    output wire [19:0] media_read_addr,
+    input  wire        media_read_ready,
+    input  wire [7:0]  media_read_data,
     output reg  [1:0]   unit0_state,
     output reg  [31:0]  unit0_size
 );
     // Unit 0 is one drive. A shell enables one of the three media parameters.
     localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ATARI_ST_FLOPPY;
+    localparam bit WRITABLE = ENABLE_ATARI_ST_FLOPPY_WRITE && ENABLE_ATARI_ST_FLOPPY;
     localparam [15:0] CAPABILITIES =
         16'(`FES_COMPUTER_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK) |
         (ENABLE_KEYBOARD ? 16'(`FES_COMPUTER_INTERFACE_KEYBOARD_HID_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_PORTS ? 16'(`FES_COMPUTER_INTERFACE_GAMEPAD_PORTS_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_MOUSE ? 16'(`FES_COMPUTER_INTERFACE_MOUSE_RELATIVE_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_AUDIO ? 16'(`FES_COMPUTER_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_APPLE2_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_APPLE2_FLOPPY_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_C64_DISK ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_C64_DISK_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SPECTRUM_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_TAPE_CAPABILITY_MASK) : 16'd0) |
-        (ENABLE_ATARI_ST_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_CAPABILITY_MASK) : 16'd0);
+        (ENABLE_ATARI_ST_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_CAPABILITY_MASK) : 16'd0) |
+        (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0);
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
     localparam [15:0] E_INDEX = 16'(`FES_COMPUTER_ERROR_INVALID_INDEX);
     localparam [15:0] E_ARGUMENT = 16'(`FES_COMPUTER_ERROR_INVALID_ARGUMENT);
@@ -71,11 +88,40 @@ module fes_computer_mailbox #(
     wire [7:0] index = gpo[23:16];
     wire [15:0] argument = gpo[15:0];
     wire request = request_sync != acknowledged_toggle;
+    wire mouse_ok = request && ENABLE_MOUSE && !exec_reset &&
+                    opcode == 7'(`FES_COMPUTER_OPCODE_MOUSE_RELATIVE) && index[7:2] == 6'd0;
+    // GPO remains stable until ACK. The consumer and mailbox accept on the
+    // same edge; keeping GPO held afterwards cannot repeat relative motion.
+    assign mouse_valid = mouse_ok;
+    assign mouse_dx = {{8{argument[7]}}, argument[7:0]};
+    assign mouse_dy = {{8{argument[15]}}, argument[15:8]};
+    assign mouse_buttons = index[1:0];
 
     assign gpi = `FES_COMPUTER_SIGNATURE |
                  (acknowledged_toggle ? `FES_COMPUTER_ACK_MASK : 32'h00000000) |
                  (response_error ? `FES_COMPUTER_ERROR_MASK : 32'h00000000) |
                  {16'h0000, response_data};
+
+    // Snapshot ownership persists through Saved and its destructive Begin/Eject.
+    // A failed save resumes explicitly; warm execution Hold never clears it.
+    reg snapshot_dirty, saved_authorized;
+    reg [15:0] snapshot_epoch;
+    reg [1:0] snapshot_next, read_phase;
+    reg [15:0] snapshot0, snapshot1;
+    reg [31:0] snapshot_received;
+    reg [9:0] snapshot_length, snapshot_cursor;
+    reg [7:0] snapshot_ordinal, read_low;
+    wire freeze_ok = request && WRITABLE && opcode == 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CONTROL) &&
+                     index == 8'd0 && argument == 16'd0 && unit0_state == READY;
+    wire snapshot_data_ok = request && WRITABLE && opcode == 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_DATA) &&
+                            argument == 16'd0 && index == snapshot_ordinal && media_frozen &&
+                            unit0_state == READY && snapshot_length != 10'd0;
+    wire snapshot_complete = snapshot_data_ok && read_phase == 2'd1 && media_read_ready;
+    assign media_read_req = snapshot_data_ok && read_phase != 2'd2;
+    wire [19:0] snapshot_address = snapshot_received[19:0] + {10'd0,snapshot_cursor} + (read_phase == 2'd1 ? 20'd1 : 20'd0);
+    assign media_read_addr = snapshot_address;
+    wire [31:0] snapshot_offset = {snapshot1,snapshot0};
+    wire [15:0] snapshot_flags = {12'd0,media_write_busy,media_frozen,snapshot_dirty,unit0_state == READY};
 
     // Unit 0 transfer state.
     reg begin_staged;
@@ -172,6 +218,19 @@ module fes_computer_mailbox #(
         response_error = 1'b0;
         response_data = 16'h0000;
         exec_reset = 1'b1;
+        media_frozen = 1'b0;
+        snapshot_dirty = 1'b0;
+        saved_authorized = 1'b0;
+        snapshot_epoch = 16'd0;
+        snapshot_next = 2'd0;
+        snapshot0 = 16'd0;
+        snapshot1 = 16'd0;
+        snapshot_received = 32'd0;
+        snapshot_length = 10'd0;
+        snapshot_cursor = 10'd0;
+        snapshot_ordinal = 8'd0;
+        read_phase = 2'd0;
+        read_low = 8'd0;
         keyboard_rows = 144'd0;
         controller_buttons = 16'd0;
         unit0_state = EMPTY;
@@ -197,7 +256,19 @@ module fes_computer_mailbox #(
     always @(posedge clk) begin
         request_meta <= request_toggle;
         request_sync <= request_meta;
-        if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready)) begin
+        if (WRITABLE && media_changed) begin
+            snapshot_dirty <= 1'b1;
+            saved_authorized <= 1'b0;
+            snapshot_epoch <= snapshot_epoch + 16'd1;
+        end
+        if (freeze_ok) media_frozen <= 1'b1;
+        if (snapshot_data_ok && read_phase == 2'd0 && media_read_ready) begin
+            read_low <= media_read_data;
+            read_phase <= 2'd2; // electrical gap before the second byte request
+        end else if (snapshot_data_ok && read_phase == 2'd2) read_phase <= 2'd1;
+        if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready) &&
+            (!mouse_ok || mouse_ready) && (!freeze_ok || (media_frozen && !media_write_busy)) &&
+            (!snapshot_data_ok || snapshot_complete)) begin
             acknowledged_toggle <= request_sync;
             response_error <= 1'b0;
             response_data <= 16'h0000;
@@ -232,6 +303,11 @@ module fes_computer_mailbox #(
                     else if (index == 8'd0) controller_buttons[7:0] <= argument[7:0];
                     else controller_buttons[15:8] <= argument[7:0];
                 end
+                7'(`FES_COMPUTER_OPCODE_MOUSE_RELATIVE): begin
+                    if (!ENABLE_MOUSE) reject(E_OPCODE);
+                    else if (index[7:2] != 6'd0) reject(E_INDEX);
+                    else if (exec_reset) reject(E_STATE);
+                end
                 7'(`FES_COMPUTER_OPCODE_MEDIA_INFO): begin
                     if (!MEDIA) reject(E_OPCODE);
                     else if (unit8 >= 5'd8 || field > 3'd5) reject(E_INDEX);
@@ -250,6 +326,7 @@ module fes_computer_mailbox #(
                 7'(`FES_COMPUTER_OPCODE_MEDIA_BEGIN): begin
                     if (!MEDIA) reject(E_OPCODE);
                     else if (unit4 != 6'd0) reject(E_INDEX);
+                    else if (media_frozen && (!saved_authorized || media_write_busy)) reject(E_STATE);
                     else if (active) reject(E_STATE);
                     else if (!begin_staged ? word != 2'd0 : word != begin_next) reject(E_INDEX);
                     else if (word == 2'd3) begin
@@ -274,6 +351,10 @@ module fes_computer_mailbox #(
                                 begin0 <= argument;
                                 begin_staged <= 1'b1;
                                 unit0_state <= LOADING;
+                                media_frozen <= 1'b0;
+                                saved_authorized <= 1'b0;
+                                snapshot_dirty <= 1'b0;
+                                snapshot_length <= 10'd0;
                             end
                             2'd1: begin1 <= argument;
                             default: begin2 <= argument;
@@ -342,10 +423,96 @@ module fes_computer_mailbox #(
                     if (!MEDIA) reject(E_OPCODE);
                     else if (index != 8'd0) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
+                    else if (media_frozen && (!saved_authorized || media_write_busy)) reject(E_STATE);
                     else begin
                         cancel_transfer;
                         unit0_state <= EMPTY;
+                        media_frozen <= 1'b0;
+                        saved_authorized <= 1'b0;
+                        snapshot_dirty <= 1'b0;
+                        snapshot_length <= 10'd0;
                         unit0_size <= 32'd0;
+                    end
+                end
+                7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_INFO): begin
+                    if (!WRITABLE) reject(E_OPCODE);
+                    else if (unit8 != 5'd0) reject(E_INDEX);
+                    else if (argument != 16'd0) reject(E_ARGUMENT);
+                    else case (field)
+                        3'd0: response_data <= snapshot_flags;
+                        3'd1, 3'd2: response_data <= 16'd1;
+                        3'd3: response_data <= 16'd0;
+                        3'd4: response_data <= unit0_size[15:0];
+                        3'd5: response_data <= unit0_size[31:16];
+                        3'd6: response_data <= 16'd512;
+                        default: response_data <= snapshot_epoch;
+                    endcase
+                end
+                7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CONTROL): begin
+                    if (!WRITABLE) reject(E_OPCODE);
+                    else if (index != 8'd0) reject(E_INDEX);
+                    else if (argument > 16'd2) reject(E_ARGUMENT);
+                    else if (argument == 16'd0) begin
+                        if (unit0_state != READY) reject(E_STATE);
+                        else begin
+                            media_frozen <= 1'b1;
+                            saved_authorized <= 1'b0;
+                            snapshot_received <= 32'd0;
+                            snapshot_next <= 2'd0;
+                            snapshot_length <= 10'd0;
+                            snapshot_cursor <= 10'd0;
+                            snapshot_ordinal <= 8'd0;
+                            read_phase <= 2'd0;
+                        end
+                    end else if (argument == 16'd1) begin
+                        media_frozen <= 1'b0;
+                        saved_authorized <= 1'b0;
+                        snapshot_length <= 10'd0;
+                        snapshot_next <= 2'd0;
+                        read_phase <= 2'd0;
+                    end else if (!media_frozen || media_write_busy || media_changed) reject(E_STATE);
+                    else begin
+                        snapshot_dirty <= 1'b0;
+                        saved_authorized <= 1'b1;
+                    end
+                end
+                7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CHUNK): begin
+                    if (!WRITABLE) reject(E_OPCODE);
+                    else if (!media_frozen || unit0_state != READY || snapshot_length != 10'd0) reject(E_STATE);
+                    else if (unit4 != 6'd0 || word != snapshot_next || word == 2'd3) reject(E_INDEX);
+                    else if (word == 2'd2) begin
+                        if (snapshot_offset != snapshot_received || argument == 16'd0 || argument[0] ||
+                            argument > 16'd512 || {16'd0,argument} > unit0_size - snapshot_received) reject(E_ARGUMENT);
+                        else begin
+                            snapshot_length <= argument[9:0];
+                            snapshot_cursor <= 10'd0;
+                            snapshot_ordinal <= 8'd0;
+                            snapshot_next <= 2'd0;
+                            read_phase <= 2'd0;
+                        end
+                    end else begin
+                        snapshot_next <= snapshot_next + 2'd1;
+                        if (word == 2'd0) snapshot0 <= argument;
+                        else snapshot1 <= argument;
+                    end
+                end
+                7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_DATA): begin
+                    if (!WRITABLE) reject(E_OPCODE);
+                    else if (!media_frozen || unit0_state != READY || snapshot_length == 10'd0) reject(E_STATE);
+                    else if (index != snapshot_ordinal) reject(E_INDEX);
+                    else if (argument != 16'd0) reject(E_ARGUMENT);
+                    else begin
+                        response_data <= {media_read_data,read_low};
+                        read_phase <= 2'd0;
+                        if (snapshot_cursor + 10'd2 == snapshot_length) begin
+                            snapshot_received <= snapshot_received + {22'd0,snapshot_length};
+                            snapshot_length <= 10'd0;
+                            snapshot_cursor <= 10'd0;
+                            snapshot_ordinal <= 8'd0;
+                        end else begin
+                            snapshot_cursor <= snapshot_cursor + 10'd2;
+                            snapshot_ordinal <= snapshot_ordinal + 8'd1;
+                        end
                     end
                 end
                 default: reject(E_OPCODE);

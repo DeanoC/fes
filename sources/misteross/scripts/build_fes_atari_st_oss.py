@@ -20,7 +20,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import atari_st_slot, rom_map
+from scripts import atari_st_slot, atari_st_video_parts, rom_map
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
@@ -79,6 +79,7 @@ FIRMWARE_BYTES = 196608
 CACHE_BELS = {"video.cache0.0.0.0": "MISTRAL_M10K.26.20.0",
               "video.cache1.0.0.0": "MISTRAL_M10K.26.21.0"}
 RAM_GUARD_RESERVATION = "ram_guard 26 19 26 19"
+VIDEO_RAM_GUARD_RESERVATIONS = ("video_ram_low 26 40 26 40", "video_ram_high 26 59 26 59")
 RAM_CONFIG_POLICY = "m10k-bmux-configuration-bounds-v1"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF = "cores/fes-atari-st/constraints/constraints-oss.qsf"
@@ -100,11 +101,11 @@ RTL_SOURCES = (
     *(f"cores/fes-atari-st/rtl/{name}" for name in (
         "st_cpu.sv", "st_machine.sv", "st_system.sv", "st_io.sv", "st_memory.sv",
         "st_rom.v", "st_video.sv", "st_video_adapter.sv", "st_media_writer.sv", "st_mfp.sv",
-        "st_floppy.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_expansion_socket.sv")),
+        "st_floppy.sv", "st_floppy_writer.sv", "st_media_port.sv", "st_video_socket.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_expansion_socket.sv")),
     "cores/fes-zx81/expansions/zonx_ay.v", "cores/fes-ramtest/rtl/sdram_addon_port.v",
 )
 PINNED_INPUTS = (
-    RECIPE, "scripts/atari_st_slot.py", "scripts/compiler_read_audit.py",
+    RECIPE, "scripts/atari_st_slot.py", "scripts/atari_st_video_parts.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
     ABI_DEFINITION, ST_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
@@ -220,8 +221,8 @@ def create_build_record(
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
-    if video_output not in ("direct", "scanlines"):
-        raise BuildError("video output must be direct or scanlines")
+    if video_output != "direct":
+        raise BuildError("ST shell uses built-in Direct; select Scanlines through a sealed video part")
     fields = {
         "format": 1,
         "repository": repository,
@@ -257,12 +258,16 @@ def create_build_record(
             "rom_encoding": "m10k-1024x10-v1",
             "rom_database_sha256": json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(",", ":")),
             "video_output": video_output,
+            "video_layout": atari_st_video_parts.LAYOUT,
+            "video_map": atari_st_video_parts.MAP,
+            "video_socket": atari_st_video_parts.PLACEMENT,
             "rom_async_read": 0,
             "cpu_adapter_policy": CPU_ADAPTER_POLICY,
             "cpu_adapter_sha256": hashlib.sha256(adapted_cpu_source(root)).hexdigest(),
             "cpu_rom_clock_policy": "disabled-write-port-clock-v1",
             "video_cache_bels": json.dumps(CACHE_BELS, sort_keys=True, separators=(",", ":")),
             "ram_guard_reservation": RAM_GUARD_RESERVATION,
+            "video_ram_guard_reservations": ",".join(VIDEO_RAM_GUARD_RESERVATIONS),
             "ram_socket_configuration_policy": RAM_CONFIG_POLICY,
             "expansion_layout": atari_st_slot.LAYOUT,
             "expansion_sockets": ",".join(s.placement for s in atari_st_slot.SOCKETS),
@@ -280,7 +285,9 @@ def socket_qsf(base: str) -> str:
     for socket in atari_st_slot.SOCKETS:
         lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{socket.placement}"')
     lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{RAM_GUARD_RESERVATION}"')
-    return "\n".join(lines) + "\n"
+    for rectangle in VIDEO_RAM_GUARD_RESERVATIONS:
+        lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{rectangle}"')
+    return atari_st_video_parts.shell_qsf("\n".join(lines) + "\n")
 
 
 def build_commands(root: Path, output: Path, build_id: str,
@@ -290,8 +297,8 @@ def build_commands(root: Path, output: Path, build_id: str,
         raise BuildError("Atari ST output must be the selected private build directory")
     if HEX32_RE.fullmatch(build_id) is None:
         raise BuildError("build ID must be 32 lowercase hexadecimal characters")
-    if video_output not in ("direct", "scanlines"):
-        raise BuildError("video output must be direct or scanlines")
+    if video_output != "direct":
+        raise BuildError("ST shell uses built-in Direct; select Scanlines through a sealed video part")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     # Slang reads the unchanged vendor declarations in one unit. The private
@@ -425,6 +432,7 @@ def validate_synth_evidence(output: Path) -> dict:
     rom_map.validate_routed_rom(placement, FIRMWARE_LANE_ROWS, expected_async_read=0)
     validate_firmware_ports(synthesis["modules"][TOP]["cells"])
     validate_cache_placements(synthesis["modules"][TOP]["cells"], routed=False)
+    atari_st_video_parts.validate_boundary(synthesis["modules"][TOP], routed=False)
     # Microcode and video-cache memories are counted from real synthesis.
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
@@ -530,6 +538,9 @@ def validate_m10k_configurations(routed: dict, database: Mapping[str, bytes]) ->
             sx0, sy0, sx1, sy1 = socket.cram
             if bounds[0] < sx1 and sx0 < bounds[2] and bounds[1] < sy1 and sy0 < bounds[3]:
                 raise BuildError(f"M10K configuration footprint {name} at {bel} overlaps slot {socket.slot} CRAM")
+        vx0, vy0, vx1, vy1 = atari_st_video_parts.CRAM
+        if bounds[0] < vx1 and vx0 < bounds[2] and bounds[1] < vy1 and vy0 < bounds[3]:
+            raise BuildError(f"M10K configuration footprint {name} at {bel} overlaps video CRAM")
         checked[name] = {"bel": bel, "configuration_bounds": list(bounds)}
     if not checked:
         raise BuildError("routed ST design has no M10K configuration evidence")
@@ -548,6 +559,7 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) 
     sockets = validate_routed_shell(routed)
     cache_placements = validate_cache_placements(routed["modules"][TOP]["cells"], routed=True)
     ram_configuration = validate_m10k_configurations(routed, ram_database)
+    atari_st_video_parts.validate_boundary(routed["modules"][TOP], routed=True)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
@@ -571,6 +583,9 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) 
                            "status": "pass"} for label, row in rows.items()} | {"status": "pass"},
         "resources": resources,
         "sockets": sockets,
+        "video_socket": {"status": "pass", "layout": atari_st_video_parts.LAYOUT,
+                         "map": atari_st_video_parts.MAP, "cram": list(atari_st_video_parts.CRAM),
+                         "pinned_boundary_cells": len(atari_st_video_parts.boundary_bels())},
         "video_cache_placements": cache_placements,
         "ram_socket_configuration": ram_configuration,
         "synthesis_cells": synth["synthesis_cells"],
@@ -588,6 +603,9 @@ def check_firmware_outside_sockets(mapping: dict) -> None:
                     x0, y0, x1, y1 = socket.cram
                     if x0 <= x < x1 and y0 <= y < y1:
                         raise BuildError(f"firmware lane {block['bel']} writes CRAM in slot {socket.slot}")
+                vx0, vy0, vx1, vy1 = atari_st_video_parts.CRAM
+                if vx0 <= x < vx1 and vy0 <= y < vy1:
+                    raise BuildError(f"firmware lane {block['bel']} writes video CRAM")
 
 
 def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
@@ -598,6 +616,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
     required = [
         "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
         "fes.audio.pcm-s16-stereo-48k", "fes.media.atari-st-floppy",
+        "fes.mouse.relative", "fes.media.atari-st-floppy-write",
     ]
     fields = {
         "format": 3,
@@ -605,14 +624,15 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
             "id": "fes.atari-st",
             "name": "FES Atari 520ST",
             "description": "Atari 520ST with linked 192 KiB firmware, 512 KiB SDRAM, "
-                           "a read-only 720 KiB floppy and an ST expansion socket",
+                           "a writable 720 KiB floppy, relative mouse, and ST expansion/video sockets",
             "version": "0.1.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
         "abi": {"id": "fes.computer", "major": 1, "minor": 0},
         "interfaces": [{"id": interface, "major": 1, "minor": 0, "required": True} for interface in required] +
-                      [{"id": atari_st_slot.INTERFACE, "major": 1, "minor": 0, "required": False}],
+                      [{"id": interface, "major": 1, "minor": 0, "required": False}
+                       for interface in (atari_st_slot.INTERFACE, atari_st_video_parts.INTERFACE)],
         "build": {
             "id": evidence["build_id"],
             "repository": repository,
@@ -738,6 +758,9 @@ def synth(root: Path = ROOT, *, cache_root: Path | None = None,
         evidence = validate_synth_evidence(output)
         evidence["cpu_rom_clock_repairs"] = repaired
         evidence.update({"build_id": "0" * 32, "sealed": False, "video_output": video_output,
+            "video_layout": atari_st_video_parts.LAYOUT,
+            "video_map": atari_st_video_parts.MAP,
+            "video_socket": atari_st_video_parts.PLACEMENT,
                          "tools": {name: tool.identity for name, tool in authenticated.items()}})
         invocation.verify()
         _write_atomic(output / "build-summary.json",

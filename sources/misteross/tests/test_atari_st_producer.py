@@ -11,7 +11,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from scripts import atari_st_slot, build_fes_atari_st_oss as st, rom_map
+from scripts import atari_st_slot, atari_st_video_parts, build_fes_atari_st_oss as st, rom_map
 from scripts.fes_build_common import BuildError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,9 +75,11 @@ class AtariSTProducerTests(unittest.TestCase):
         tools = {'yosys': Path('/authenticated/install/bin/yosys'),
                  'nextpnr-mistral': Path('/authenticated/install/bin/nextpnr-mistral')}
         command, route = st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32,
-                                           tools, video_output='scanlines')
+                                           tools, video_output='direct')
         self.assertIn('--single-unit', command[-1])
-        self.assertIn('-set VIDEO_SCANLINES 1', command[-1])
+        self.assertIn('-set VIDEO_SCANLINES 0', command[-1])
+        with self.assertRaisesRegex(BuildError, 'sealed video part'):
+            st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32, tools, video_output='scanlines')
         self.assertIn('fx68k-slang.sv', command[-1])
         self.assertNotIn('--ignore-initial', command[-1])
         self.assertIn('-nolutram -nodsp', command[-1])
@@ -86,6 +88,9 @@ class AtariSTProducerTests(unittest.TestCase):
         qsf = st.socket_qsf('# physical board pins\n')
         self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{atari_st_slot.SOCKETS[0].placement}"'), 1)
         self.assertEqual(qsf.count('FES_RESERVED_RECT "ram_guard 26 19 26 19"'), 1)
+        for rectangle in st.VIDEO_RAM_GUARD_RESERVATIONS:
+            self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{rectangle}"'), 1)
+        self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{atari_st_video_parts.PLACEMENT}"'), 1)
         self.assertIn('--router', route)
         self.assertEqual(route[route.index('--router') + 1], 'gpu')
         self.assertEqual(route[route.index('--seed') + 1], '4')
@@ -170,6 +175,20 @@ class AtariSTProducerTests(unittest.TestCase):
         cells['expansion.plug_response_ff_0']['attributes']['NEXTPNR_BEL'] = 'MISTRAL_FF.24.4.2'
         with self.assertRaisesRegex(BuildError, 'boundary cell'):
             st.validate_routed_shell(routed)
+
+    def test_ram_bel_outside_video_still_rejects_overlapping_configuration(self):
+        database = ram_database()
+        for row in (40, 41, 58, 59):
+            routed = {'modules': {'top': {'cells': {'sector': {
+                'type': 'MISTRAL_M10K', 'attributes': {'NEXTPNR_BEL': f'MISTRAL_M10K.26.{row}.0'}}}}}}
+            with self.subTest(row=row), patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)), \
+                 self.assertRaisesRegex(BuildError, 'overlaps video CRAM'):
+                st.validate_m10k_configurations(routed, database)
+        for row in (22, 39, 60):
+            routed = {'modules': {'top': {'cells': {'sector': {
+                'type': 'MISTRAL_M10K', 'attributes': {'NEXTPNR_BEL': f'MISTRAL_M10K.26.{row}.0'}}}}}}
+            with patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)):
+                self.assertEqual(st.validate_m10k_configurations(routed, database)['status'], 'pass')
 
     def test_failed_or_ambiguous_clock_never_qualifies(self):
         fmax = {'clk': {'constraint': 52.224, 'achieved': 52.3}}

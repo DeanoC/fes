@@ -26,8 +26,12 @@ removable media by unit.
 | fes.media.spectrum-tape | 5 | Media unit 0: one ZX Spectrum `.tap` image, 1..65536 bytes |
 | fes.media.c64-disk | 6 | Media unit 0: one Commodore 1541 D64 disk image |
 | fes.media.atari-st-floppy | 7 | Media unit 0: one read-only 720 KiB raw ST disk image |
+| fes.mouse.relative | 8 | Relative signed movement and two mouse buttons |
+| fes.media.atari-st-floppy-write | 9 | Writable extension to the ST disk interface, with frozen image capture |
 
 Admission requires video. Every other interface is independently composable.
+The writable extension requires the base ST floppy interface; it changes its
+write-protection behavior while preserving its size and upload contract.
 Each recognized operational interface a core implements must be declared
 required by the manifest and advertised in live identity; live capabilities
 must equal the declared registered set. Unknown required interfaces and
@@ -69,12 +73,17 @@ in the order written below; the first failing check determines the error.
 | 8 | MediaData | word ordinal 0..255 | byte pair, low byte first |
 | 9 | MediaCommit | unit | 0 |
 | 10 | MediaEject | unit | 0 |
+| 11 | MouseRelative | button state 0..3 | signed 8-bit dx in low byte, dy in high byte |
+| 12 | MediaSnapshotInfo | unit*8+field | 0 |
+| 13 | MediaSnapshotControl | unit | 0 Freeze, 1 Resume, 2 Saved |
+| 14 | MediaSnapshotChunk | unit*4+word | offset low, offset high, even byte length |
+| 15 | MediaSnapshotData | word ordinal 0..255 | 0; response is a byte pair |
 
 ## Execution
 
 Execution opcode 2 uses index 0 (else invalid index); an argument above 1 is
 invalid. Argument 0 holds execution reset and neutralizes all keyboard rows and
-both controller ports. Argument 1 releases execution. Release is always valid:
+both controller ports and mouse buttons. Argument 1 releases execution. Release is always valid:
 a home computer starts with its drives empty, and media is inserted and
 removed while it runs. Hold does not touch media units, transfers or staged
 headers. Programming starts held with neutral input and every implemented unit
@@ -110,6 +119,24 @@ The index is port 0 or 1 (else invalid index) and the argument the complete
 active-high Up/Down/Left/Right/A/B/Select/Start mask (above 0xff is invalid).
 Each write replaces one port and is valid while held or released. Initial
 reset and Hold clear both ports. There is no keypad on this ABI.
+
+## Relative mouse
+
+`fes.mouse.relative` 1.0 uses opcode 11. Index bits 0 and 1 are complete
+active-high left and right button state; all other index bits must be zero.
+The argument contains signed two's-complement 8-bit dx and dy. It delivers
+one atomic movement/button packet. A zero movement packet can change buttons.
+The endpoint checks index, then held execution (invalid state), before waiting
+for its machine consumer. ACK means that consumer accepted the packet once;
+held GPO fields cannot deliver it again. An absent interface rejects the opcode.
+
+Hosts split larger signed deltas into ordered bounded packets, preserving the
+exact sum. Never replay a movement after an ambiguous ACK, disconnection or
+reconnection. Duplicate remote sequence numbers do not repeat movement. Button
+state is merged across input sources and may be restored with zero deltas;
+removing a source releases only its buttons. Mouse events have no controller
+port or player assignment. The existing 48-byte remote frame appends mouse as
+a device and relative as an event kind without changing earlier values.
 
 ## Media units
 
@@ -247,3 +274,44 @@ fit in a small file. Consumers own their implementations and must replay these
 requests against their own code; the endpoint capacity is a synthetic fixture
 parameter, not the Apple II floppy size. FES selects reviewed component
 revisions before integration or exact-artifact hardware acceptance.
+
+## Writable ST image capture
+
+`fes.media.atari-st-floppy-write` 1.0 occupies unit 0 and extends the base
+80-track, two-side, nine-sector, 512-byte `.st` geometry (737280 bytes).
+Without the extension the drive remains read-only. The machine owns normal
+sector writes; this interface captures the whole raw image for durable storage.
+It does not describe flux, formatting, deleted sectors or a FAT transaction.
+
+SnapshotInfo (12) requires unit 0 and argument 0. Fields 0..7 are flags,
+layout tag (1), layout major (1), minor (0), current byte size low/high,
+maximum chunk bytes (512), and a wrapping 16-bit change epoch. Flags bits
+0..3 mean ready, dirty, frozen, writer busy; other bits are zero. The epoch
+advances when a complete accepted sector commits. Dirty clears on replacement,
+eject or Saved. Reading Info cannot establish a consistent image by itself.
+
+SnapshotControl (13) requires index 0 and argument 0..2. Freeze requires a
+ready image, fences new writers, and waits until the machine has observed the
+fence and an already accepted writer has drained. ACK leaves the image frozen
+without holding or resetting the CPU. Capture restarts at byte offset zero.
+Resume is idempotent, abandons capture and releases the writer fence. Saved
+requires frozen storage with no busy writer or simultaneous change; it clears
+dirty and authorizes replacement/eject while keeping the fence. The runtime
+sends Saved only after publishing and syncing the complete disk record.
+
+SnapshotChunk (14) requires a frozen ready image and no unfinished chunk.
+The unit is index>>2; words 0, 1, 2 stage offset low, offset high and length
+in that order. Unit 0 only; word 3 or out-of-order words reject. The offset
+must equal the bytes already captured and the length must be even, 2..512,
+and fit the remaining image. SnapshotData (15) requires argument 0 and the
+next ordinal. ACK waits for both physical byte reads and returns the first
+byte low, second high. A low-request rearm edge separates reads. Ordinals
+restart at zero for each chunk; capture continues through all 737280 bytes.
+
+While frozen, ordinary Begin/Eject reject unless Saved authorized destruction
+and the writer is idle. A failed save retains the frozen captured generation
+and its runtime owner. Resume may explicitly recover that same generation;
+an unconfirmed Resume does not authorize stopping, replacing or reprogramming.
+Raw development inserts remain volatile. Library inserts explicitly bind core,
+game, unit and immutable base-media identity to the durable record defined in
+[media data](media-data.md); a display name or package path grants no binding.

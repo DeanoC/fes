@@ -42,8 +42,11 @@ module st_io_sim_top (
     output wire timer_b_level, timer_ce_level,
     output wire [7:0] floppy_port_a
 );
+    wire [38:0] unused_write;
     st_io #(.SYSTEM_CLOCK_HZ(5_222_400)) io (
-        .clk(clk), .reset(reset), .req(req), .addr(addr), .write(write),
+        .clk(clk), .reset(reset), .cold_reset(reset), .req(req), .addr(addr), .write(write),
+        .media_frozen(1'b0), .media_write_req(unused_write[0]), .media_write_addr(unused_write[19:1]), .media_write_data(unused_write[35:20]),
+        .media_write_ready(1'b0), .media_write_busy(unused_write[36]), .media_changed(unused_write[37]), .dma_write(unused_write[38]), .dma_rdata(16'd0),
         .wdata(wdata), .byte_enable(byte_enable), .selected(selected),
         .ack(ack), .rdata(rdata), .irq(irq), .irq_vectored(irq_vectored),
         .irq_vector(irq_vector), .irq_ack(irq_ack), .irq_level(irq_level),
