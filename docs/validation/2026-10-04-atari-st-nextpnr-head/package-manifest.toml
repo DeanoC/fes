@@ -1,0 +1,73 @@
+format = 3
+
+[core]
+id = "fes.atari-st"
+name = "FES Atari 520ST"
+description = "Atari 520ST with linked 192 KiB firmware, 512 KiB SDRAM, a read-only 720 KiB floppy and an ST expansion socket"
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 2824759
+sha256 = "d9ec1614430ca144ab72ea1bdbdf2caa9907d69ad14a429706bc34d55ef82e78"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.atari-st-floppy"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.expansion.atari-st-bus"
+major = 1
+minor = 0
+required = false
+
+[build]
+id = "43ece831982c1e6e416cbf9bc4a6e2e9"
+repository = "https://github.com/DeanoC/fes"
+revision = "fd45b2be7db01d5f9b6f56b2ed86f6dfb338d7a2"
+recipe_sha256 = "248965da757abc975cec9d0787e159fdaeebdb128f67475865849467534b45cc"
+toolchain = "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=99a5eb917eed354e9f29a5765797fc5c5ebac86473e6e09b806f2a4ec2cb5cef; nextpnr-mistral commit=3d4a5b352b4edb478b744b82cc61333353751a80; sha256=916534646dc64087e70ab43ccbf88581850146051eaa0f721667fbe1a0db863f; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=886afa63953e97407153e9f4aae25fcedb639696; sha256=af25cd2493a4df52d6a1441a2bf06b450834691de00847ff167ffd6469e07ab0"
+
+[rom]
+id = "atari-st-firmware"
+role = "firmware"
+source_size = 196608
+file = "rom-map.json"
+size = 17357124
+sha256 = "007682c7f97de313dca92ab62c4d7250790bd47f61dcbedb8636d6ab2361442b"

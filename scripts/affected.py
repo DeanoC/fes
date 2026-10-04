@@ -99,6 +99,8 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
+    if relative.as_posix() == 'toolchains/atari-st.lock':
+        return ('atari-st',), 'Atari ST producer toolchain pin'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest'), 'shared fixed-raster clock consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:

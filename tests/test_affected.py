@@ -138,6 +138,10 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(set(result['cores']), set(CORES))
                 self.assertTrue(result['lanes']['fpga'])
 
+    def test_atari_toolchain_lock_selects_only_atari_st(self):
+        result = plan(['sources/misteross/toolchains/atari-st.lock'])
+        self.assertEqual(result['cores'], ['atari-st'])
+
     def test_mixed_changes_union_consumers_and_keep_software_lane(self):
         result = plan(['sources/misteross/scripts/build_fes_sms.py',
                        'sources/misteross/cores/fes-sms/rtl/sms_vdp.sv',

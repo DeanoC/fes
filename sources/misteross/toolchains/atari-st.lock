@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "886afa63953e97407153e9f4aae25fcedb639696"
+order = 10
+rationale = "Toolchain head investigation for menu routing and C64 placement; paired with nextpnr 655f3833."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
+order = 20
+rationale = "DeanoC master with the indexed-node routing API, rnode_unlink, corrected timing target-position mask and hashed node lookups (PRs #9-10). Same pin as toolchain.lock; pair with nextpnr a93fe013."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "3d4a5b352b4edb478b744b82cc61333353751a80"
+order = 30
+rationale = "Atari ST HIP producer pin at DeanoC/nextpnr main 3d4a5b35 (merge of #115); includes #97-#111 Mistral placement/remap/router work, #98 plateau fix, and #108 placer timeout fix. Paired with current DeanoC Yosys 886afa63 and Mistral 7ed06e21 heads. Previous pin 655f3833 via ramtest.lock (DeanoC/fes#490, DeanoC/nextpnr#116 seed-4 pixel miss)."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."
