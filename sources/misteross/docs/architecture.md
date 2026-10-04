@@ -402,7 +402,7 @@ configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
 slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
 SG-1000 selects `toolchains/registered-memory.lock` (Yosys `e2d425de`,
-nextpnr `3d4a5b35`, Mistral `7ed06e21`). SMS selects
+nextpnr `a93fe013`, Mistral `7ed06e21`). SMS selects
 `toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `a93fe013`, Mistral
 `7ed06e21`), which keeps its own synthesis notes and ROM digests. Those two locks are different bytes and different HIP cache slots.
 Local HIP tools
