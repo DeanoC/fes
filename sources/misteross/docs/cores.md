@@ -25,7 +25,7 @@ A producer in this module does not put a package on that image.
 
 | Package | Tree | Mailbox | Lock | OSS seal | In factory image |
 | --- | --- | --- | --- | --- | --- |
-| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchains/ramtest.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
+| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchain.lock` (shared FES HIP lane) | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
@@ -236,7 +236,11 @@ second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
 The Atari ST producer now pins DeanoC/nextpnr head `3d4a5b35` in its own
-`toolchains/atari-st.lock`; RAM test and menu retain `toolchains/ramtest.lock`.
+`toolchains/atari-st.lock`. The menu uses the shared `toolchain.lock` and its HIP
+compiler slot. RAM test stays on `toolchains/ramtest.lock` (nextpnr `655f3833`)
+because its rebuilt SDRAM test fails on hardware at `3d4a5b35`
+(DeanoC/nextpnr#135). `toolchains/ramtest-timing.lock` remains a separate
+opt-in experimental stack for the 130 MHz timing comparison.
 Requalification is recorded in the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.

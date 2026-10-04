@@ -89,7 +89,7 @@ python3 scripts/sim_fes_menu.py --case ddr
 ```
 
 Its output is `build/oss/fes-menu/core.rbf`. It selects the qualified DDR
-Yosys/nextpnr pins in `toolchains/ramtest.lock`, connects shared port 0 at
+Yosys/nextpnr pins from the shared `toolchain.lock` HIP slot, connects shared port 0 at
 74.25 MHz, supplies the generated core-window base and reads slot 0 only.
 The synthesized enable is fixed on after PLL lock and recorded in the
 diagnostic contract. There is no GP identity or framebuffer upload API.

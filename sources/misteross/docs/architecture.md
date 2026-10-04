@@ -1811,7 +1811,7 @@ Both are diagnostics, without a GP menu identity or a described launch package.
 
 `build-fes-menu-pattern` and `build-fes-menu-ddr` use the authenticated HIP
 producer with GPU 0, closed functional inputs and separate output directories.
-The DDR mode uses the qualified `toolchains/ramtest.lock`; its artifact gates
+The DDR mode uses the shared `toolchain.lock` HIP compiler slot; its artifact gates
 check layout constants in both netlists, fixed pixel timing and inactive
 writes/unused ports. Neither producer programs hardware or changes image inputs.
 The runtime presenter and exact DDR scanout acceptance remain later work.
@@ -1820,7 +1820,7 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
 with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
-system identity. FES now selects it as the native image's idle display. It selects `toolchains/ramtest.lock`
+system identity. FES now selects it as the native image's idle display. It selects `toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
 while diagnostics retain their no-GP gate. DDR layout and inactive write/port

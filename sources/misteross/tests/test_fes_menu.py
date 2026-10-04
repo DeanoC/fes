@@ -11,7 +11,7 @@ ROOT=Path(__file__).resolve().parents[1]
 class MenuDDRProducerTests(unittest.TestCase):
     def test_selects_shared_ddr_and_generated_window_with_qualified_tools(self):
         inputs=menu.inputs_for('ddr')
-        for path in ('cores/fes-common/rtl/fes_hps_ddr.v','cores/fes-common/rtl/fes_hps_ddr_guard.v','cores/fes-common/generated/fes_application.vh','toolchains/ramtest.lock'):
+        for path in ('cores/fes-common/rtl/fes_hps_ddr.v','cores/fes-common/rtl/fes_hps_ddr_guard.v','cores/fes-common/generated/fes_application.vh','toolchain.lock'):
             self.assertIn(path,inputs)
         synth,route=menu.build_commands({'yosys':Path('/auth/yosys'),'nextpnr-mistral':Path('/auth/nextpnr')},mode='ddr')
         self.assertIn('TEST_PATTERN 0',synth[-1])

@@ -150,8 +150,10 @@ make toolchain
 ```
 
 `make toolchain` is the generic OSS lane (GPU router off), including splash.
-`make toolchain-fes` is the HIP lane for FES Pong and for freeze-scaffold
-pass 2. Coleco uses `make toolchain-fes-coleco` against
+`make toolchain-fes` is the shared HIP lane for FES Pong, menu and
+freeze-scaffold pass 2. RAM Tester uses `make toolchain-fes-ramtest` against
+`toolchains/ramtest.lock` (nextpnr `655f3833`, held there until
+DeanoC/nextpnr#135 is resolved). Coleco uses `make toolchain-fes-coleco` against
 `toolchains/coleco-sgm.lock`. SG-1000 uses `make toolchain-fes-sg1000`
 against `toolchains/registered-memory.lock`. SMS uses
 `make toolchain-fes-sms` against `toolchains/fes-sms.lock`. ZX81 uses
@@ -191,7 +193,7 @@ This path does not seal `fes.zx81`.
 | `cores/fes-common/` | RTL shared by more than one core |
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
-| `toolchain.lock` | Generic OSS tools and the Pong HIP slot |
+| `toolchain.lock` | Generic OSS tools and the shared FES HIP slot |
 | `toolchains/` | ZX81 and registered-memory locks |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
