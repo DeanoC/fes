@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -31,12 +32,166 @@ func fixturePart(t *testing.T, shell PartsShell, role string, points ...cramCoor
 		Slot: VideoSlot, SlotMajor: 1}
 	if role == PartRoleExpansion {
 		m.Slot, m.Map, m.SlotMajor = ColecoSlot, ColecoMapV2, 2
+	} else if shell.Layout == ColecoNativeVideoLayout {
+		m.Slot, m.Map = NativeVideoSlot, ColecoNativeVideoMap
 	}
 	asset, err := NewAsset(m, cart)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return asset
+}
+
+func TestNativePartsClosedLayoutAndFence(t *testing.T) {
+	shell := partsShell(t)
+	shell.Layout = ColecoNativeVideoLayout
+	video := fixturePart(t, shell, PartRoleVideo, cramCoordinate{124, 1800}, cramCoordinate{3905, 3441})
+	card := fixturePart(t, shell, PartRoleExpansion, cramCoordinate{1769, 32}, cramCoordinate{2805, 1799})
+	result, linked, err := ComposePartsContext(context.Background(), shell, []Asset{video, card})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ordered, repeated, err := ComposePartsContext(context.Background(), shell, []Asset{card, video})
+	if err != nil || result.ID != ordered.ID || !bytes.Equal(linked, repeated) || result.Layout != ColecoNativeVideoLayout {
+		t.Fatal("native composition lost its closed layout or canonical ordering")
+	}
+	decoded, err := loadRBF(linked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := loadRBF(shell.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []cramCoordinate{{124, 1800}, {3905, 3441}, {1769, 32}, {2805, 1799}} {
+		if cramBit(decoded.cram, p.x, p.y) != cramBit(original.cram, p.x, p.y)^1 {
+			t.Fatalf("selected boundary bit lost at %v", p)
+		}
+	}
+	for _, p := range []cramCoordinate{{123, 1800}, {3906, 1800}, {124, 1799}, {124, 3442}} {
+		t.Run(fmt.Sprintf("outside-%d-%d", p.x, p.y), func(t *testing.T) {
+			outside := fixturePart(t, shell, PartRoleVideo, p)
+			if _, _, err := ComposePartsContext(context.Background(), shell, []Asset{outside}); err == nil {
+				t.Fatal("accepted native write outside exact fence")
+			}
+		})
+	}
+	rasterShell := shell
+	rasterShell.Layout = ColecoVideoLayout
+	raster := fixturePart(t, rasterShell, PartRoleVideo)
+	for name, input := range map[string]struct {
+		shell PartsShell
+		asset Asset
+	}{"native-in-raster": {rasterShell, video}, "raster-in-native": {shell, raster}} {
+		t.Run(name, func(t *testing.T) {
+			if err := AdmitParts(input.shell, []Asset{input.asset}); err == nil {
+				t.Fatal("accepted video from another closed layout")
+			}
+		})
+	}
+	manifest := video.Manifest
+	manifest.Map = ColecoVideoMap
+	if _, err := NewAsset(manifest, video.Cart); err == nil {
+		t.Fatal("accepted crossed native slot and raster map")
+	}
+	manifest = video.Manifest
+	manifest.SlotMajor = 2
+	if _, err := NewAsset(manifest, video.Cart); err == nil {
+		t.Fatal("accepted unknown native geometry version")
+	}
+	var archive bytes.Buffer
+	if err := video.Write(&archive); err != nil {
+		t.Fatal(err)
+	}
+	read, err := ReadAsset(&archive)
+	if err != nil || read.ID != video.ID {
+		t.Fatal("native archive roundtrip changed immutable identity")
+	}
+	old := Shell{PackageID: shell.PackageID, BuildID: shell.BuildID, Payload: shell.Payload, Slot: NativeVideoSlot, SlotMajor: 1}
+	if err := Admit(old, video); err == nil || !strings.Contains(err.Error(), "parts composition") {
+		t.Fatal("legacy single-socket API admitted native video")
+	}
+	if colecoSocketV2.y1 > colecoNativeVideoSocket.y0 {
+		t.Fatal("native video and CPU fences overlap")
+	}
+	// Even identical selections and payload bytes have distinct layout identity.
+	rasterID, _ := PartsCompositionID(shell.PackageID, ColecoVideoLayout, result.Parts, result.PayloadSHA256)
+	if rasterID == result.ID {
+		t.Fatal("native layout omitted from composition identity")
+	}
+}
+
+func TestNativePartsRetainAllRoutedBits(t *testing.T) {
+	shell := partsShell(t)
+	shell.Layout = ColecoNativeVideoLayout
+	// These exact in-fence bits were present in the routed Direct/Scanlines
+	// artifacts but were discarded by the legacy column-wide exclusions.
+	for name, points := range map[string][]cramCoordinate{
+		"direct": {{3772, 2390}, {3773, 2392}, {3764, 2476}, {3764, 2478}},
+		"scanlines": {{3772, 2562}, {3773, 2564}, {3764, 2648}, {3764, 2650},
+			{3764, 2701}, {3764, 2703}, {3772, 2812}, {3773, 2814}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			video := fixturePart(t, shell, PartRoleVideo, points...)
+			_, linked, err := ComposePartsContext(context.Background(), shell, []Asset{video})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(linked, video.Cart) {
+				t.Fatal("native overlay differs from the fully confined routed artifact")
+			}
+		})
+	}
+	for _, point := range []cramCoordinate{{3764, 1799}, {3772, 3442}, {3921, 2000}, {4171, 2000}} {
+		t.Run(fmt.Sprintf("outside-%d-%d", point.x, point.y), func(t *testing.T) {
+			video := fixturePart(t, shell, PartRoleVideo, point)
+			if _, _, err := ComposePartsContext(context.Background(), shell, []Asset{video}); err == nil {
+				t.Fatal("native overlay ignored an outside write in a legacy-excluded column")
+			}
+		})
+	}
+}
+
+func TestRasterPartsKeepLegacyCompanionPolicy(t *testing.T) {
+	shell := partsShell(t)
+	video := fixturePart(t, shell, PartRoleVideo, cramCoordinate{2000, 2000})
+	card := fixturePart(t, shell, PartRoleExpansion, cramCoordinate{2000, 100})
+	_, expected, err := ComposePartsContext(context.Background(), shell, []Asset{video, card})
+	if err != nil {
+		t.Fatal(err)
+	}
+	companions := []cramCoordinate{{3764, 2476}, {3772, 2562}, {3921, 2000}, {4171, 2000}}
+	dirtyVideo := fixturePart(t, shell, PartRoleVideo, append([]cramCoordinate{{2000, 2000}}, companions...)...)
+	dirtyCard := fixturePart(t, shell, PartRoleExpansion, append([]cramCoordinate{{2000, 100}}, companions...)...)
+	_, linked, err := ComposePartsContext(context.Background(), shell, []Asset{dirtyVideo, dirtyCard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(linked, expected) {
+		t.Fatal("native strict policy changed legacy raster/CPU overlay bytes")
+	}
+}
+
+func TestNativePartsROMExcludesWiderVideoFence(t *testing.T) {
+	base, mapping := romFixture()
+	shell := partsShell(t)
+	shell.Payload, shell.Layout = base, ColecoNativeVideoLayout
+	video := fixturePart(t, shell, PartRoleVideo)
+	rom := bytes.Repeat([]byte{0xa5}, 1024)
+	if _, _, _, err := ComposePartsROM(context.Background(), shell, []Asset{video}, mapping, rom); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []cramCoordinate{{124, 1800}, {3905, 3441}, {2000, 100}} {
+		var changed ROMMap
+		raw, _ := json.Marshal(mapping)
+		if err := json.Unmarshal(raw, &changed); err != nil {
+			t.Fatal(err)
+		}
+		changed.Blocks[0].WordBits[0][0] = uint32(p.y*cramWidth + p.x)
+		if _, _, _, err := ComposePartsROM(context.Background(), shell, []Asset{video}, changed, rom); err == nil || !strings.Contains(err.Error(), "reserved parts socket") {
+			t.Fatalf("accepted ROM bit in native/CPU reservation %v: %v", p, err)
+		}
+	}
 }
 
 func TestComposePartsUsesOriginalBaseAndSortedIdentity(t *testing.T) {

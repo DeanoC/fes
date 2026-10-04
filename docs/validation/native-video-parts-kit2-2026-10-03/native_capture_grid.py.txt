@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""Analyze existing local video/audio captures. Never accesses a kit or capture device."""
+import argparse
+import collections
+import hashlib
+import json
+import math
+from pathlib import Path
+import subprocess
+
+import native_capture_support as analyze
+
+W, H = analyze.W, analyze.H
+FRAME_BYTES = W * H * 3
+
+
+def prototypes(reference):
+    result = []
+    for parity in (0, 1):
+        result.append({
+            "black": analyze.region_means(reference, (16, 16, 256, 144)),
+            "green": analyze.region_means(reference, (390, 176, 398, 544), parity),
+            "red": analyze.region_means(reference, (420, 188, 428, 196), parity),
+        })
+    return result
+
+
+def sample_points():
+    points = []
+    # Every one of the original 32x24 Graphics I name cells, at both HDMI row
+    # parities. The cell-center samples avoid doubled-pixel/chroma boundaries.
+    for row in range(24):
+        for col in range(32):
+            expected = "green" if row in (0, 23) or col in (0, 31) or (row + col) % 2 == 0 else "red"
+            for parity in (0, 1):
+                points.append((384 + 16*col + 8, 168 + 16*row + 8 + parity,
+                               expected, "cell", row, col))
+    # Both row parities of the black top line within every interior 6x6 square.
+    # The emitter's pattern is 00,7E,7E,7E,7E,7E,7E,00, so these gaps are an
+    # independent check that cells are squares rather than a solid checkerboard.
+    for row in range(1, 23):
+        for col in range(1, 31):
+            for parity in (0, 1):
+                points.append((384 + 16*col + 8, 168 + 16*row + parity,
+                               "black", "square_gap", row, col))
+    return points
+
+
+POINTS = sample_points()
+
+
+def grid_check(pixels, colors):
+    class_errors = []
+    distance_errors = []
+    maximum_distance = 0
+    for x, y, expected, kind, row, col in POINTS:
+        # Five consecutive horizontal pixels, all safely inside the expected
+        # uniform sample. Color prototypes accommodate the observed YUV->RGB
+        # conversion; expected cell order and black gaps come from ROM layout.
+        rgb = [sum(pixels[(y*W + xx)*3 + c] for xx in range(x-2, x+3)) / 5 for c in range(3)]
+        distances = {name: math.sqrt(sum((rgb[c] - value[c])**2 for c in range(3)))
+                     for name, value in colors[y % 2].items()}
+        observed = min(distances, key=distances.get)
+        distance = distances[expected]
+        maximum_distance = max(maximum_distance, distance)
+        detail = {"kind": kind, "row": row, "col": col, "hdmi_y": y, "expected": expected,
+                  "observed": observed, "rgb": rgb, "expected_rgb_distance": distance}
+        if observed != expected:
+            class_errors.append(detail)
+        if distance > 20:
+            distance_errors.append(detail)
+    return {"sample_count": len(POINTS), "cell_center_samples": 1536, "black_square_gap_samples": 1320,
+            "color_class_mismatches": len(class_errors), "distance_over_20_rgb_mismatches": len(distance_errors),
+            "max_rgb_distance_to_expected_class": maximum_distance,
+            "first_class_mismatches": class_errors[:8], "first_distance_mismatches": distance_errors[:8]}
+
+
+def difference(pixels, reference):
+    sums = [0, 0, 0]
+    maxima = [0, 0, 0]
+    changed_pixels = 0
+    for i in range(0, len(pixels), 3):
+        changed = False
+        for channel in range(3):
+            delta = abs(pixels[i+channel] - reference[i+channel])
+            sums[channel] += delta
+            maxima[channel] = max(maxima[channel], delta)
+            changed |= delta != 0
+        changed_pixels += changed
+    return {"whole_frame_mean_absolute_rgb_delta": [v / (W*H) for v in sums],
+            "whole_frame_max_absolute_rgb_delta": maxima, "changed_pixels": changed_pixels}
+
+
+def video(path, reference_path):
+    reference = analyze.image_bytes(reference_path)
+    colors = prototypes(reference)
+    metadata = json.loads(subprocess.check_output([
+        "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_frames",
+        "-show_entries", "frame=best_effort_timestamp_time,pkt_duration_time,width,height",
+        "-show_entries", "stream=width,height,pix_fmt,r_frame_rate,avg_frame_rate",
+        "-of", "json", str(path)], text=True))
+    frames = metadata["frames"]
+    timestamps = [float(frame["best_effort_timestamp_time"]) for frame in frames]
+    deltas = [b-a for a, b in zip(timestamps, timestamps[1:])]
+    stream = metadata["streams"][0]
+    if (stream["width"], stream["height"]) != (W, H):
+        raise ValueError("capture was scaled")
+    command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
+               "-vsync", "0", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1"]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    unique = {}
+    sequence = []
+    black_digest = hashlib.sha256(bytes(FRAME_BYTES)).hexdigest()
+    while True:
+        data = bytearray()
+        while len(data) < FRAME_BYTES:
+            chunk = process.stdout.read(FRAME_BYTES - len(data))
+            if not chunk:
+                break
+            data.extend(chunk)
+        if not data:
+            break
+        if len(data) != FRAME_BYTES:
+            raise ValueError("truncated decoded frame")
+        sha = hashlib.sha256(data).hexdigest()
+        sequence.append(sha)
+        if sha not in unique:
+            check = grid_check(data, colors)
+            unique[sha] = {"first_frame": len(sequence)-1, "all_black": sha == black_digest,
+                           "grid": check, "green_bbox_exclusive": analyze.bbox(data, colors[0]["black"]),
+                           "delta_from_reference_png": difference(data, reference)}
+    error = process.stderr.read().decode()
+    if process.wait() != 0:
+        raise ValueError(error)
+    if len(sequence) != len(frames):
+        raise ValueError("metadata/decode frame counts disagree")
+    counts = collections.Counter(sequence)
+    for sha, detail in unique.items():
+        detail["frame_count"] = counts[sha]
+    leading_black = 0
+    for sha in sequence:
+        if sha != black_digest:
+            break
+        leading_black += 1
+    bad_after_acquisition = []
+    for i, sha in enumerate(sequence[leading_black:], leading_black):
+        check = unique[sha]["grid"]
+        if unique[sha]["all_black"] or check["color_class_mismatches"] or check["distance_over_20_rgb_mismatches"]:
+            bad_after_acquisition.append(i)
+    settled = [detail for detail in unique.values() if not detail["all_black"]]
+    return {"path": str(path.resolve()), "sha256": analyze.digest(path.read_bytes()),
+            "stream": stream, "decoded_frame_count": len(sequence), "leading_black_frames": leading_black,
+            "settled_frame_count": len(sequence)-leading_black, "later_bad_frame_indexes": bad_after_acquisition,
+            "timestamps": {"first_seconds": timestamps[0], "last_seconds": timestamps[-1],
+                           "min_delta_seconds": min(deltas), "max_delta_seconds": max(deltas),
+                           "non_monotonic_count": sum(d <= 0 for d in deltas),
+                           "delta_histogram_rounded_ms": dict(collections.Counter(round(d*1000) for d in deltas))},
+            "unique_decoded_rgb_frames": unique,
+            "settled_max_rgb_delta_from_png": [max(d["delta_from_reference_png"]["whole_frame_max_absolute_rgb_delta"][c]
+                                                    for d in settled) for c in range(3)],
+            "frame_hash_sequence": sequence,
+            "limitation": "Leading black frames are recorded acquisition observations. USB frame timestamps and decoded geometry show capture stability; they do not directly measure FPGA HS/VS waveforms."}
+
+
+def audio_comparison(results):
+    comparisons = {}
+    for baseline, active in (("direct", "direct-sgm"), ("scanlines", "scanlines-sgm")):
+        channels = []
+        for quiet, tone in zip(results[baseline]["channels"], results[active]["channels"]):
+            peaks = {}
+            for name in ("SN", "AY"):
+                amplitude = tone["tones"][name]["fundamental_peak_amplitude_s16"]
+                noise = quiet["tones"][name]["fundamental_peak_amplitude_s16"]
+                error = abs(tone["tones"][name]["peak_near_nominal_hz"] - tone["tones"][name]["nominal_hz"])
+                # Require a real signal far above a conservative quantization
+                # floor, and independently require its frequency proximity.
+                threshold = max(100, 20 * noise)
+                peaks[name] = {"active_amplitude_s16": amplitude, "quiet_baseline_amplitude_s16": noise,
+                               "minimum_required_amplitude_s16": threshold, "frequency_error_hz": error,
+                               "frequency_tolerance_hz": 0.5, "observed_above_baseline_and_at_expected_frequency": amplitude > threshold and error <= 0.5}
+            channels.append({"quiet_ac_rms_s16": quiet["ac_rms_s16"], "active_ac_rms_s16": tone["ac_rms_s16"], "tones": peaks})
+        comparisons[active + "_versus_" + baseline] = channels
+    comparisons["sgm_audio_ac_rms_relative_change_scanlines_versus_direct"] = [
+        results["scanlines-sgm"]["channels"][c]["ac_rms_s16"] / results["direct-sgm"]["channels"][c]["ac_rms_s16"] - 1
+        for c in range(2)]
+    return comparisons
+
+
+def add_stability_details(result):
+    path = result["path"]
+    metadata = json.loads(subprocess.check_output([
+        "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_frames",
+        "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", path], text=True))
+    timestamps = [float(frame["best_effort_timestamp_time"]) for frame in metadata["frames"]]
+    leading = result["leading_black_frames"]
+    settled_deltas = [b-a for a, b in zip(timestamps[leading:], timestamps[leading+1:])]
+    result["timestamps"]["intervals_over_25ms"] = [
+        {"from_frame": i, "to_frame": i+1, "seconds": b-a,
+         "at_acquisition_boundary": i+1 == leading}
+        for i, (a, b) in enumerate(zip(timestamps, timestamps[1:])) if b-a > 0.025]
+    result["timestamps"]["settled_min_delta_seconds"] = min(settled_deltas)
+    result["timestamps"]["settled_max_delta_seconds"] = max(settled_deltas)
+    # Decode the prefix through the first occurrence of each unique variant.
+    # Bind this subset to the hashes already checked over the full video.
+    wanted_frames = 1 + max(detail["first_frame"] for detail in result["unique_decoded_rgb_frames"].values())
+    raw = subprocess.check_output([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-i", path,
+        "-frames:v", str(wanted_frames), "-vsync", "0", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1"])
+    for start in range(0, len(raw), FRAME_BYTES):
+        frame = raw[start:start + FRAME_BYTES]
+        sha = hashlib.sha256(frame).hexdigest()
+        detail = result["unique_decoded_rgb_frames"][sha]
+        if not detail["all_black"]:
+            even = b"".join(frame[(y*W+384)*3:(y*W+896)*3] for y in range(168,552,2))
+            detail["even_image_rows_sha256"] = hashlib.sha256(even).hexdigest()
+    settled = [detail for detail in result["unique_decoded_rgb_frames"].values() if not detail["all_black"]]
+    if not all("even_image_rows_sha256" in detail for detail in settled):
+        raise ValueError("decoded prefix did not cover all settled variants")
+    result["settled_rgb_frame_hash_set"] = sorted(sha for sha, detail in result["unique_decoded_rgb_frames"].items() if not detail["all_black"])
+    result["settled_even_image_row_hash_set"] = sorted(set(detail["even_image_rows_sha256"] for detail in settled))
+
+
+def temporal_comparison(videos):
+    return {
+        "direct_equals_direct_sgm_settled_rgb_hash_set": videos["direct"]["settled_rgb_frame_hash_set"] == videos["direct-sgm"]["settled_rgb_frame_hash_set"],
+        "direct_equals_relaunch_settled_rgb_hash_set": videos["direct"]["settled_rgb_frame_hash_set"] == videos["direct-relaunch"]["settled_rgb_frame_hash_set"],
+        "scanlines_equals_scanlines_sgm_settled_rgb_hash_set": videos["scanlines"]["settled_rgb_frame_hash_set"] == videos["scanlines-sgm"]["settled_rgb_frame_hash_set"],
+        "direct_scanline_even_image_rows_hash_sets_equal": videos["direct"]["settled_even_image_row_hash_set"] == videos["scanlines"]["settled_even_image_row_hash_set"],
+        "sgm_direct_scanline_even_image_rows_hash_sets_equal": videos["direct-sgm"]["settled_even_image_row_hash_set"] == videos["scanlines-sgm"]["settled_even_image_row_hash_set"],
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("capture_dir", type=Path)
+    args = parser.parse_args()
+    root = args.capture_dir
+    videos, audios = {}, {}
+    for name in ("direct", "scanlines", "direct-sgm", "scanlines-sgm", "direct-relaunch"):
+        videos[name] = video(root / (name + ".mkv"), root / (name + ".png"))
+        add_stability_details(videos[name])
+        (root / ("independent-" + name + "-temporal-grid.json")).write_text(json.dumps(videos[name], indent=2) + "\n")
+        audios[name] = analyze.audio(root / (name + ".wav"))
+        (root / ("independent-" + name + "-audio.json")).write_text(json.dumps(audios[name], indent=2) + "\n")
+        print(name, "frames", videos[name]["decoded_frame_count"], "leading_black", videos[name]["leading_black_frames"],
+              "later_bad", videos[name]["later_bad_frame_indexes"], "max_delta", videos[name]["settled_max_rgb_delta_from_png"], flush=True)
+    summary = {
+        "method": "Every decoded frame was hashed; all unique RGB frames were checked against all 768 ROM-defined tile cells at both row parities and 1320 black square-gap samples, fixed spatial bounds, plus baseline-referenced audio frequency/amplitude checks.",
+        "videos": {name: {key: value for key, value in result.items() if key not in ("unique_decoded_rgb_frames", "frame_hash_sequence")}
+                   for name, result in videos.items()},
+        "direct_scanlines": analyze.compare(root / "direct.png", root / "scanlines.png"),
+        "sgm_direct_scanlines": analyze.compare(root / "direct-sgm.png", root / "scanlines-sgm.png"),
+        "settled_png_identity": {"direct_equals_direct_sgm": (root/"direct.png").read_bytes() == (root/"direct-sgm.png").read_bytes(),
+                                 "scanlines_equals_scanlines_sgm": (root/"scanlines.png").read_bytes() == (root/"scanlines-sgm.png").read_bytes(),
+                                 "direct_equals_relaunch": (root/"direct.png").read_bytes() == (root/"direct-relaunch.png").read_bytes()},
+        "audio": audios, "audio_comparison": audio_comparison(audios),
+        "temporal_comparison": temporal_comparison(videos),
+    }
+    (root / "independent-capture-analysis.json").write_text(json.dumps(summary, indent=2) + "\n")
+    print(json.dumps({"png_identity": summary["settled_png_identity"], "audio_comparison": summary["audio_comparison"]}, indent=2))
+
+
+if __name__ == "__main__":
+    main()

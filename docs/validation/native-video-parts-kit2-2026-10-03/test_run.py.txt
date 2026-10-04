@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""Offline assertions only: no HTTP, credentials, capture device or FPGA access."""
+import contextlib
+import copy
+import importlib.util
+import io
+import json
+from pathlib import Path
+import tempfile
+import threading
+import time
+import tomllib
+import unittest
+from unittest.mock import patch
+
+HERE = Path(__file__).resolve().parent
+spec = importlib.util.spec_from_file_location('native_hardware_runner', HERE / 'run.py')
+runner = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(runner)
+
+
+def reference(path):
+    return {'path': str(path), 'sha256': runner.digest(path.read_bytes()), 'size': path.stat().st_size}
+
+
+def prepared_fixture(directory):
+    root = runner.ROOT
+    package_path = root / 'sources/misteross/build/packages/9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e.fcore'
+    files = runner.tar_members(package_path.read_bytes(), ('manifest.toml', 'core.rbf'))
+    descriptor = tomllib.loads(files['manifest.toml'].decode())
+    initial = json.loads((root / 'out/native-video-link/kit2-initial.json').read_text())
+    expected = {'image_sha256': initial['health']['artifacts']['image_sha256'], 'boot_id': initial['health']['boot_id'], 'agent_revision': '7a4b1176b1c8f04b215bbac50d1b0c06f8fc0259', 'agent_sha256': initial['health']['artifacts']['agent_sha256'], 'runtime_commit': initial['health']['artifacts']['runtime_commit']}
+    diagnostic = {key: reference(root / 'out/native-video-link/arm' / file) for key, file in [('runtime', 'mister-runtime'), ('agent', 'mister-agent-linux-armv7')]}
+    fake_operator = {'classification': 'OFFLINE MOCK; NOT AN OPERATOR OR HARDWARE RECEIPT', 'health': {'target_id': runner.TARGET_ID, 'boot_id': expected['boot_id'], 'artifacts': {'image_sha256': expected['image_sha256']}}, 'live_executables': {name: {'sha256': diagnostic[key]['sha256']} for key, name in [('runtime', 'mister-runtime'), ('agent', 'mister-agent')]}}
+    operator = directory / 'fake-overlay.json'
+    operator.write_text(json.dumps(fake_operator))
+    diagnostic['operator_receipt'] = reference(operator)
+    value = {'version': 1, 'target': {'name': 'kit2', 'target_id': runner.TARGET_ID}, 'expected': expected,
+             'package': dict(reference(package_path), package_id=runner.package_identity(files['manifest.toml'], files['core.rbf']), build_id=descriptor['build']['id'], abi=descriptor['abi']),
+             'variants': {name: reference(HERE / (name + '.parts.tar')) for name in ('direct', 'scanlines')},
+             'rom': reference(Path('/home/deano/.codex/worktrees/6f13/fes/out/dev/video-factory/fes/out/video-factory-build/fixture/graphics-sn.rom')),
+             'diagnostic': diagnostic}
+    path = directory / 'prepared.json';path.write_text(json.dumps(value))
+    return path, value
+
+
+def active(prepared, composition, generation=1):
+    interfaces = [{key: item[key] for key in ('id', 'major', 'minor')} for item in prepared['descriptor']['interfaces'] if not item['id'].startswith(('fes.fabric.', 'fes.expansion.'))]
+    return {'state': 'active', 'development': True, 'last_error': None, 'observed_core': 'fes.coleco', 'core_package': {'package_id': prepared['package']['package_id'], 'build_id': prepared['package']['build_id'], 'abi': prepared['package']['abi'], 'persistence_mode': 'volatile', 'parts_composition': composition, 'generation': generation, 'active_interfaces': sorted(interfaces, key=lambda item: item['id'])}}
+
+
+class FakeClient:
+    def __init__(self, prepared):
+        self.prepared = prepared
+        self.state = {'state': 'idle', 'last_error': None}
+        self.lease = {'state': 'free'}
+        self.calls = [];self.generation = 0;self.session = None
+        self.lose_on_load = False;self.corrupt_inspect = False;self.accept_vacant = False
+
+    def request(self, path, **kwargs):
+        self.calls.append(path)
+        if path == '/v1/health':
+            return {'target_id': runner.TARGET_ID, 'api_version': 'v1', 'boot_id': self.prepared['expected']['boot_id'], 'ready': self.state['state'] == 'idle', 'artifacts': {k: v for k, v in self.prepared['expected'].items() if k != 'boot_id'}}
+        if path == '/v1/status':
+            return copy.deepcopy(self.state)
+        if path == '/v1/kit/lease':
+            return copy.deepcopy(self.lease)
+        if path == '/v1/stop':
+            self.state = {'state': 'idle', 'last_error': None}
+            return copy.deepcopy(self.state)
+        if path == '/v1/development/core':
+            if self.accept_vacant:
+                self.state = {'state': 'active'}
+                return copy.deepcopy(self.state)
+            raise runner.KitError('expected rejection', 422, 'UNSUPPORTED_OPERATION')
+        inspection = {'package_id': self.prepared['package']['package_id'], 'descriptor': self.prepared['descriptor'], 'compatible': True, 'compatibility_error': None}
+        if path == '/v1/development/core/inspect':
+            return copy.deepcopy(inspection)
+        data = kwargs['stream'].read()
+        profile = next(name for name, item in self.prepared['variants_checked'].items() if Path(item['ref']['path']).read_bytes() == data)
+        composition = self.prepared['variants_checked'][profile]['composition']
+        if path.endswith('/inspect'):
+            value = {'core': inspection, 'composition': copy.deepcopy(composition), 'persistence_mode': 'volatile'}
+            if self.corrupt_inspect:
+                value['composition']['payload_sha256'] = '0' * 64
+            return value
+        if path == '/v1/development/core/parts':
+            self.generation += 1
+            self.state = active(self.prepared, composition, self.generation)
+            if self.lose_on_load:
+                self.session.failed.set()
+            return copy.deepcopy(self.state)
+        raise AssertionError('Unexpected fake request ' + path)
+
+
+class FakeSession:
+    def __init__(self, client):
+        self.client = client;client.session = self
+        self.token = None;self.generation = 'a' * 64
+        self.deadline = 0;self.failed = threading.Event();self.done = threading.Event();self.thread = None;self.needs_stop = False
+        self.close_calls = 0
+
+    def claim(self):
+        self.token = 'offline-token-never-logged';self.deadline = time.monotonic() + 90
+        self.client.lease = {'state': 'held', 'generation': self.generation}
+        return copy.deepcopy(self.client.lease)
+
+    def close(self):
+        assert not self.needs_stop
+        self.close_calls += 1;self.token = None;self.client.lease = {'state': 'free'}
+        return {'state': 'revoking', 'generation': self.generation}
+
+
+class OfflineRunner(runner.Runner):
+    def media(self, core, generation=None):
+        self.lease_guard()
+        self.client.calls.append('offline-media')
+        return self.client.request('/v1/status')
+
+
+class Tests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='native-video-runner-offline-')
+        self.directory = Path(self.temp.name)
+        self.path, self.input = prepared_fixture(self.directory)
+        self.prepared = runner.load_prepared(self.path)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def make_runner(self, capture=None):
+        client = FakeClient(self.prepared);session = FakeSession(client)
+        capture = capture or (lambda name: None)
+        return OfflineRunner(self.prepared, client, session, self.directory, capture)
+
+    def test_actual_sealed_local_transports_and_validation_only(self):
+        with patch.object(runner, 'Client', side_effect=AssertionError('network constructor forbidden')), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(runner.main(['--prepared', str(self.path), '--config', '/nonexistent', '--validate-only']), 0)
+        self.assertEqual(self.prepared['package']['build_id'], 'c2cd6921235a9bfc238286aa3798382d')
+
+    def test_wrong_build_and_digest_reject_offline(self):
+        for section, key, value in [('package', 'build_id', '0' * 32), ('package', 'sha256', '0' * 64)]:
+            data = copy.deepcopy(self.input);data[section][key] = value;self.path.write_text(json.dumps(data))
+            with self.assertRaises(RuntimeError):
+                runner.load_prepared(self.path)
+
+    def test_operator_live_hash_must_match_diagnostic(self):
+        data = json.loads(Path(self.input['diagnostic']['operator_receipt']['path']).read_text());data['live_executables']['mister-runtime']['sha256'] = '0' * 64
+        path = Path(self.input['diagnostic']['operator_receipt']['path']);path.write_text(json.dumps(data))
+        self.input['diagnostic']['operator_receipt'] = reference(path);self.path.write_text(json.dumps(self.input))
+        with self.assertRaises(RuntimeError):runner.load_prepared(self.path)
+
+    def test_idle_readiness_and_active_identity_guards(self):
+        health = FakeClient(self.prepared).request('/v1/health');health['ready'] = False
+        runner.check_health(health, self.prepared, idle=False)
+        with self.assertRaises(RuntimeError):runner.check_health(health, self.prepared, idle=True)
+        for field in ('image_sha256', 'agent_revision'):
+            changed = copy.deepcopy(health);changed['artifacts'][field] = 'wrong'
+            with self.assertRaises(RuntimeError):runner.check_health(changed, self.prepared)
+        health['boot_id'] = 'wrong'
+        with self.assertRaises(RuntimeError):runner.check_health(health, self.prepared)
+
+    def test_active_complete_tuple_generation_and_build(self):
+        composition = self.prepared['variants_checked']['direct']['composition'];value = active(self.prepared, composition)
+        core = runner.check_active(value, self.prepared, composition)
+        with self.assertRaises(RuntimeError):runner.check_active(value, self.prepared, composition, previous_generation=1)
+        for key, replacement in [('build_id', '0' * 32), ('generation', True), ('parts_composition', {})]:
+            changed = copy.deepcopy(value);changed['core_package'][key] = replacement
+            with self.assertRaises(RuntimeError):runner.check_active(changed, self.prepared, composition, retained=core)
+
+    def test_three_cases_inspect_stop_release_and_no_mutation_replay(self):
+        captured = [];r = self.make_runner(captured.append)
+        with contextlib.redirect_stdout(io.StringIO()):r.run()
+        self.assertEqual(captured, ['direct', 'scanlines', 'direct-relaunch'])
+        self.assertEqual(r.client.calls.count('/v1/development/core'), 1)
+        self.assertEqual(r.client.calls.count('/v1/development/core/parts'), 3)
+        self.assertEqual(r.client.calls.count('/v1/stop'), 4)
+        self.assertEqual(r.session.close_calls, 1)
+        self.assertEqual(json.loads((self.directory/'result.json').read_text())['last_generation'], 3)
+
+    def test_capture_failure_stops_and_releases_without_next_load(self):
+        def fail(name):raise RuntimeError('offline capture failure')
+        r = self.make_runner(fail)
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError):r.run()
+        self.assertEqual(r.client.calls.count('/v1/development/core/parts'), 1)
+        self.assertEqual(r.client.lease['state'], 'free')
+        self.assertFalse((self.directory/'result.json').exists())
+
+    def test_lease_loss_prevents_stop_release_and_records_operator_need(self):
+        r = self.make_runner();r.client.lose_on_load = True
+        with self.assertRaises(RuntimeError):r.run()
+        self.assertEqual(r.client.calls.count('/v1/stop'), 0)
+        self.assertEqual(r.session.close_calls, 0)
+        self.assertTrue(r.session.done.is_set())
+        self.assertTrue((self.directory/'cleanup-unconfirmed.json').exists())
+
+    def test_bad_inspection_does_not_load(self):
+        r = self.make_runner();r.client.corrupt_inspect = True
+        with self.assertRaises(RuntimeError):r.run()
+        self.assertEqual(r.client.calls.count('/v1/development/core/parts'), 0)
+        self.assertEqual(r.client.lease['state'], 'free')
+
+    def test_vacant_acceptance_fails_and_stops(self):
+        r = self.make_runner();r.client.accept_vacant = True
+        with self.assertRaises(RuntimeError):r.run()
+        self.assertEqual(r.client.calls.count('/v1/development/core/parts'), 0)
+        self.assertEqual(r.client.lease['state'], 'free')
+
+    def test_claim_receipt_failure_still_cleans_up(self):
+        r = self.make_runner();save = r.save
+        def fail_claim(name, value):
+            if name == 'claim':raise OSError('offline receipt failure')
+            save(name, value)
+        r.save = fail_claim
+        with self.assertRaises(OSError):r.run()
+        self.assertEqual(r.client.lease['state'], 'free')
+        self.assertEqual(r.session.close_calls, 1)
+
+    def test_script_syntax_without_capture_execution(self):
+        for name in ('run.py', 'capture.py'):
+            compile((HERE/name).read_text(), str(HERE/name), 'exec')
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

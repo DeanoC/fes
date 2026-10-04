@@ -50,7 +50,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		if asset.Manifest.Slot != selected.slot {
+		if asset.Manifest.Slot != selected.slot && !(selected.slot == expansion.VideoSlot && asset.Manifest.Slot == expansion.NativeVideoSlot) {
 			fmt.Fprintf(stderr, "selected part must provide %s\n", selected.slot)
 			return 1
 		}

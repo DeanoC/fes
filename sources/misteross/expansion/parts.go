@@ -10,19 +10,38 @@ import (
 // These contracts describe the developer Coleco video-part proof. They do not
 // extend the production expansion buses or any runtime capability registry.
 const (
-	VideoSlot         = "fes.fabric.video.raster-rgb888"
-	ColecoVideoMap    = "fes.coleco-video.socket/1"
-	ColecoVideoLayout = "fes.coleco-video.parts/1"
-	PartRoleExpansion = "expansion"
-	PartRoleVideo     = "video"
+	VideoSlot               = "fes.fabric.video.raster-rgb888"
+	ColecoVideoMap          = "fes.coleco-video.socket/1"
+	ColecoVideoLayout       = "fes.coleco-video.parts/1"
+	NativeVideoSlot         = "fes.fabric.video.native-pixels"
+	ColecoNativeVideoMap    = "fes.coleco-native-video.socket/1"
+	ColecoNativeVideoLayout = "fes.coleco-native-video.parts/1"
+	PartRoleExpansion       = "expansion"
+	PartRoleVideo           = "video"
 )
 
 // The CPU socket ends at row 1800. Starting at the Apple II slot-4 boundary
 // (1722) would overlap it, so this video rectangle deliberately begins later.
 var colecoVideoSocket = socketPolicy{VideoSlot, ColecoVideoMap, 1769, 1800, 2806, 3442}
 
+// Native frame capture needs the wider placement columns 5..38, rows 23..38.
+// These authenticated CRAM bounds include the M10K data and local mux bits.
+var colecoNativeVideoSocket = socketPolicy{NativeVideoSlot, ColecoNativeVideoMap, 124, 1800, 3906, 3442}
+
 func supportedVideoPart(m Manifest) bool {
-	return m.Slot == VideoSlot && m.Map == ColecoVideoMap && m.SlotMajor == 1
+	return m.SlotMajor == 1 && ((m.Slot == VideoSlot && m.Map == ColecoVideoMap) ||
+		(m.Slot == NativeVideoSlot && m.Map == ColecoNativeVideoMap))
+}
+
+func partsVideoPolicy(layout string) (socketPolicy, bool) {
+	switch layout {
+	case ColecoVideoLayout:
+		return colecoVideoSocket, true
+	case ColecoNativeVideoLayout:
+		return colecoNativeVideoSocket, true
+	default:
+		return socketPolicy{}, false
+	}
 }
 
 // PartsShell names an explicitly selected developer shell with both sockets.
@@ -51,14 +70,18 @@ type PartsComposition struct {
 	PayloadSize   int64           `json:"payload_size"`
 }
 
-func roleForPart(m Manifest) (string, socketPolicy, error) {
+func roleForPart(layout string, m Manifest) (string, socketPolicy, error) {
+	video, ok := partsVideoPolicy(layout)
+	if !ok {
+		return "", socketPolicy{}, errors.New("unsupported parts layout")
+	}
 	switch {
-	case supportedVideoPart(m):
-		return PartRoleVideo, colecoVideoSocket, nil
+	case supportedVideoPart(m) && m.Slot == video.slot && m.Map == video.mapping:
+		return PartRoleVideo, video, nil
 	case m.Slot == ColecoSlot && m.Map == ColecoMapV2 && m.SlotMajor == 2:
 		return PartRoleExpansion, colecoSocketV2, nil
 	default:
-		return "", socketPolicy{}, errors.New("parts layout accepts video 1.0 and Coleco CPU expansion 2.0 only")
+		return "", socketPolicy{}, errors.New("parts layout accepts only its matching video 1.0 and Coleco CPU expansion 2.0")
 	}
 }
 
@@ -66,7 +89,7 @@ func roleForPart(m Manifest) (string, socketPolicy, error) {
 // without decoding frames. Composition additionally verifies frame checksums,
 // header preservation and each part's changes against the original shell.
 func AdmitParts(shell PartsShell, assets []Asset) error {
-	if shell.Layout != ColecoVideoLayout || !hex64.MatchString(shell.PackageID) || !hex32.MatchString(shell.BuildID) {
+	if _, ok := partsVideoPolicy(shell.Layout); !ok || !hex64.MatchString(shell.PackageID) || !hex32.MatchString(shell.BuildID) {
 		return errors.New("unsupported parts shell layout or identity")
 	}
 	if len(assets) < 1 || len(assets) > 2 {
@@ -79,7 +102,7 @@ func AdmitParts(shell PartsShell, assets []Asset) error {
 			return err
 		}
 		m := asset.Manifest
-		role, _, err := roleForPart(m)
+		role, _, err := roleForPart(shell.Layout, m)
 		if err != nil {
 			return err
 		}
@@ -100,7 +123,8 @@ func AdmitParts(shell PartsShell, assets []Asset) error {
 // PartsCompositionID uses sorted role names so argument order never changes
 // identity. This separate domain leaves all existing composition IDs unchanged.
 func PartsCompositionID(packageID, layout string, parts []PartSelection, payloadSHA256 string) (string, error) {
-	if !hex64.MatchString(packageID) || layout != ColecoVideoLayout || !hex64.MatchString(payloadSHA256) ||
+	_, knownLayout := partsVideoPolicy(layout)
+	if !hex64.MatchString(packageID) || !knownLayout || !hex64.MatchString(payloadSHA256) ||
 		len(parts) < 1 || len(parts) > 2 {
 		return "", errors.New("invalid parts composition identity")
 	}
@@ -126,7 +150,7 @@ func identifyParts(shell PartsShell, assets []Asset, linked []byte) (PartsCompos
 	result := PartsComposition{PackageID: shell.PackageID, Layout: shell.Layout, ShellSHA256: hash(shell.Payload),
 		PayloadSHA256: hash(linked), PayloadSize: int64(len(linked))}
 	for _, asset := range assets {
-		role, _, _ := roleForPart(asset.Manifest) // already checked by AdmitParts
+		role, _, _ := roleForPart(shell.Layout, asset.Manifest) // already checked by AdmitParts
 		result.Parts = append(result.Parts, PartSelection{Role: role, PartID: asset.ID})
 	}
 	sort.Slice(result.Parts, func(i, j int) bool { return result.Parts[i].Role < result.Parts[j].Role })
@@ -146,7 +170,7 @@ func ComposePartsContext(ctx context.Context, shell PartsShell, assets []Asset) 
 	}
 	overlays := make([]regionOverlay, 0, len(assets))
 	for _, asset := range assets {
-		role, policy, _ := roleForPart(asset.Manifest)
+		role, policy, _ := roleForPart(shell.Layout, asset.Manifest)
 		overlays = append(overlays, regionOverlay{label: role, cart: asset.Cart, policy: policy})
 	}
 	linked, err := linkRegionOverlaysContext(ctx, shell.Payload, overlays)
@@ -170,11 +194,12 @@ func ComposePartsROM(ctx context.Context, shell PartsShell, assets []Asset, m RO
 	if err := validateROMMap(ctx, m, hash(shell.Payload), len(rom)); err != nil {
 		return PartsComposition{}, nil, nil, err
 	}
+	videoPolicy, _ := partsVideoPolicy(shell.Layout) // already checked by AdmitParts
 	for _, block := range m.Blocks {
 		for _, bits := range block.WordBits {
 			for _, destination := range bits {
 				x, y := int(destination)%cramWidth, int(destination)/cramWidth
-				if colecoSocketV2.inside(x, y) || colecoVideoSocket.inside(x, y) {
+				if colecoSocketV2.inside(x, y) || videoPolicy.inside(x, y) {
 					return PartsComposition{}, nil, nil, errors.New("ROM destination overlaps a reserved parts socket")
 				}
 			}

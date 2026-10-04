@@ -116,6 +116,8 @@ public:
 	Error EjectComputerMedia(std::uint8_t unit) override;
 
 private:
+	Error AdmitCorePackageInternal(const std::string&, const std::string&, bool,
+		std::unique_ptr<AdmittedCorePackage>*);
 	HardwareResult LoadCoreInternal(std::unique_ptr<AdmittedCorePackage>,std::uint64_t,bool);
  HardwareResult LoadSplashIdle();
  void CancelMenuCopies();

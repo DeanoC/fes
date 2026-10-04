@@ -1,0 +1,108 @@
+{
+  "classification": "Exact text copies of task-local diagnostic tools; files are evidence, not installed product code.",
+  "files": [
+    {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/hardware/run.py",
+        "sha256": "ebf9be5c14bfbc57b07df0374de9546b4b172422bde5d84f71c92ecddc0b090c",
+        "size": 21644
+      },
+      "public_file": "run.py.txt",
+      "purpose": "Existing-kit-lease operator runner",
+      "replay_location": "out/native-video-link/hardware/run.py"
+    },
+    {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/hardware/test_run.py",
+        "sha256": "f07dc40c1bae68e18c4e2859784b57564e8bf7e58cb9629606588cf6e792efed",
+        "size": 12953
+      },
+      "public_file": "test_run.py.txt",
+      "purpose": "Offline runner admission and negative tests",
+      "replay_location": "out/native-video-link/hardware/test_run.py"
+    },
+    {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/hardware/capture.py",
+        "sha256": "c56330370e9882998ff92136746c3235c4fc2a2ea2ffc06a99bc06b0efa57cf9",
+        "size": 1906
+      },
+      "public_file": "capture.py.txt",
+      "purpose": "Bounded ASUS 4KPRO capture commands",
+      "replay_location": "out/native-video-link/hardware/capture.py"
+    },
+    {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/analysis/analyze_native.py",
+        "sha256": "68a4260e650b79121e4b0b54494cb15b0bdafbef72ceb37e0d3dc100fdc017e3",
+        "size": 20237
+      },
+      "public_file": "analyze_native.py.txt",
+      "purpose": "Independent full-frame and audio analyzer",
+      "replay_location": "out/native-video-link/analysis/analyze_native.py"
+    },
+    {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/analysis/native_oracle.py",
+        "sha256": "1b9bd0e57454484f12d8bf826a27df8a4bf7a711bdc605b373f27145b16fcc85",
+        "size": 6887
+      },
+      "public_file": "native_oracle.py.txt",
+      "purpose": "Bounded open-ROM emulation and Graphics I expected picture",
+      "replay_location": "out/native-video-link/analysis/native_oracle.py"
+    },
+    {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/analysis/native_capture_support.py",
+        "sha256": "de3789c357b5647c5d4f5f22c78a8841511ae34c8d7e688c2e2ec4de4a3b8bd5",
+        "size": 10591
+      },
+      "public_file": "native_capture_support.py.txt",
+      "purpose": "Image/audio decoding helpers",
+      "replay_location": "out/native-video-link/analysis/native_capture_support.py"
+    },
+    {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/analysis/native_capture_grid.py",
+        "sha256": "07b4c46d5822c7bca6ca2679462fa426169d5a535e4fd0384801ede61caeb0e0",
+        "size": 15052
+      },
+      "public_file": "native_capture_grid.py.txt",
+      "purpose": "Geometry and signal helpers",
+      "replay_location": "out/native-video-link/analysis/native_capture_grid.py"
+    },
+    {
+      "byte_identical": true,
+      "original": {
+        "path": "out/native-video-link/analysis/self_check_native.py",
+        "sha256": "aa15a4ef3b781c6307067af6e47217937f338347e05fc2487d258e575e4d5387",
+        "size": 6025
+      },
+      "public_file": "self_check_native.py.txt",
+      "purpose": "Positive and negative analyzer controls",
+      "replay_location": "out/native-video-link/analysis/self_check_native.py"
+    }
+  ],
+  "fixture": "fixture.json",
+  "fixture_replay_receipt": "fixture-prepared.json",
+  "production_dependency": {
+    "path": "sources/misteross/scripts/kit.py",
+    "sha256": "b900b7a1b9e51771bc357fc6b83a8b3a0a90d0f6dc5436767117fb04f0334d55",
+    "size": 15325
+  },
+  "publication_excludes": [
+    "claim.json and lease tokens",
+    "credentials and private target configuration",
+    "SSH deployment helpers",
+    "raw FPGA/appliance binaries",
+    "full FFV1 and WAV captures"
+  ],
+  "replay": "Remove .txt suffix and restore each replay_location in the FES tree. Copy public fixture-prepared.json to analysis/fixture/prepared.json and regenerated graphics-sn.rom under that analysis directory. Native oracle reads the committed cores/fes-coleco/diagnostic/generate.py; its digest is bound in fixture.json. Supply exact local artifact references in a private runner prepared JSON. Operator authorization and existing kit lease are required for run.py; analyzer/self-tests use only regular local files."
+}

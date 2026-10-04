@@ -1,0 +1,272 @@
+{
+  "classification": "offline authenticated codec/routing-table proof; no hardware action",
+  "device": "5CSEBA6U23I7",
+  "failing_artifact_source_revision": "9f5c09a568ed089e9429735296c3def1fda749f4",
+  "finding": "The legacy whole-column exclusion discarded real in-fence active routing-mux selections when applied to the wide native socket. The resulting linked payload retained the shell values at these bits instead of the routed cart values.",
+  "fix": {
+    "scope": "Only exact native socket policy uses every decoded CRAM bit and strict rectangle containment. Legacy socket overlays retain their byte behavior; frame CRC/EDCRC checks remain unchanged.",
+    "tests": {
+      "command": [
+        "go",
+        "test",
+        "./...",
+        "-count=1"
+      ],
+      "directory": "sources/misteross/expansion",
+      "log": {
+        "path": "out/native-video-link/expansion-native-strict.log",
+        "sha256": "7acb81ac496c40e42d886241abb2acedc4c61998e532d1b9e755e9048316f6fb",
+        "size": 264
+      },
+      "regressions": [
+        "Exact four Direct and eight Scanlines in-fence coordinates retained with whole linked/cart byte equality.",
+        "Native writes outside the rectangle reject even in legacy-excluded columns.",
+        "Raster video plus CPU overlay bytes remain unchanged under existing companion-column behavior."
+      ],
+      "result": "passed"
+    }
+  },
+  "fix_source_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+  "independent_ram_read_route_match": {
+    "direct": {
+      "logical_chunk": 3,
+      "net": "fes_cart$bit563",
+      "ram_bel": "MISTRAL_M10K.38.27.0",
+      "read_pin": "B1DATA[3]",
+      "routed_bit": 24622
+    },
+    "qualification": "Peer matched the exact removed route hops to these RAM read-output pins, agreeing with the independently measured stuck-high capture bits. Corrected physical output remains subject to retest.",
+    "receipt": {
+      "path": "out/native-video-link/analysis/results/kit2/failure-lost-route-all-ram-match.json",
+      "sha256": "40b35c54fcbf310a83aa192470106a995df58e0916ede840858cfac43574570e",
+      "size": 1233
+    },
+    "scanlines": [
+      {
+        "logical_chunk": 38,
+        "net": "fes_cart$bit1047",
+        "ram_bel": "MISTRAL_M10K.38.31.0",
+        "read_pin": "B1DATA[4]",
+        "routed_bit": 25307
+      },
+      {
+        "logical_chunk": 36,
+        "net": "fes_cart$bit1009",
+        "ram_bel": "MISTRAL_M10K.38.30.0",
+        "read_pin": "B1DATA[2]",
+        "routed_bit": 25261
+      }
+    ]
+  },
+  "legacy_exclusion_crossed": [
+    3488,
+    3847
+  ],
+  "mistral": {
+    "column41_type": "T_M10K (authenticated cvd-sx120f.cc); the interval is not a wholly nonrouting checksum column",
+    "decoded_diff_command": [
+      "mistral-cv",
+      "diff",
+      "5CSEBA6U23I7",
+      "cart.rbf",
+      "linked.rbf"
+    ],
+    "executable": {
+      "path": "mistral-cv",
+      "sha256": "d3d6792c42850526b1a30361cd0ec97b3bb8243916a0195b4a7c96655d9b8502",
+      "size": 537096096
+    },
+    "route_semantics_command": [
+      "mistral-cv",
+      "decomp",
+      "5CSEBA6U23I7",
+      "<artifact.rbf>",
+      "/dev/stdout"
+    ],
+    "source_revision": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
+  },
+  "native_cram_fence": [
+    124,
+    1800,
+    3906,
+    3442
+  ],
+  "physical_validation": "Retained 9f5c09a56 capture verdict failed periodically. This receipt proves the software/routed-bit loss; corrected-artifact physical retest is pending and must not be inferred from codec equality.",
+  "profiles": {
+    "direct": {
+      "decompiled_added_active_routes": [],
+      "decompiled_removed_active_routes": [
+        "r H6.039.027.0002 V4.041.028.0001",
+        "r V4.041.028.0001 H6.036.028.0030"
+      ],
+      "header_unchanged": true,
+      "lost_in_fence_bits": [
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3772,
+          "y": 2390
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3773,
+          "y": 2392
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3764,
+          "y": 2476
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3764,
+          "y": 2478
+        }
+      ],
+      "old_composition": {
+        "composition_id": "41e2cf9cbf66f338eaebfb99cbf548bd2966fd0ea6b7c92616b040d933527d81",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "parts": [
+          {
+            "part_id": "6e709428852c92b74482f9f9ce78da5952fc5433ee08a5b1875ad4c8d4f9990d",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "c4c674a34f4a08c59275aad41fb7eaa7832d2c48060763423e5c85aa3a1570cc",
+        "payload_size": 2790494,
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+      },
+      "old_linked_payload": {
+        "path": "sources/misteross/build/video-parts/direct/0fcb5b9aa0e20505d0214cba7fe5de68af6ba21d03f4e5fe328a9100c2e19d84/linked.rbf",
+        "sha256": "c4c674a34f4a08c59275aad41fb7eaa7832d2c48060763423e5c85aa3a1570cc",
+        "size": 2790494
+      },
+      "part_archive": {
+        "path": "sources/misteross/build/video-parts/direct/0fcb5b9aa0e20505d0214cba7fe5de68af6ba21d03f4e5fe328a9100c2e19d84/6e709428852c92b74482f9f9ce78da5952fc5433ee08a5b1875ad4c8d4f9990d.tar",
+        "sha256": "714df758254a60e1c34f053013ed2291c556060181fb54bba0de220dcca7dc31",
+        "size": 2795520
+      },
+      "part_id": "6e709428852c92b74482f9f9ce78da5952fc5433ee08a5b1875ad4c8d4f9990d",
+      "routed_cart": {
+        "path": "sources/misteross/build/video-parts/direct/0fcb5b9aa0e20505d0214cba7fe5de68af6ba21d03f4e5fe328a9100c2e19d84/cart.rbf",
+        "sha256": "ba57ffe39b29475151eab0105381d17991866f19ba78af5bf9dc8f24856691de",
+        "size": 2790496
+      },
+      "strict_cram_inventory": {
+        "bits_inside_native_fence": 548381,
+        "bits_outside_native_fence": 0,
+        "excluded_columns": []
+      }
+    },
+    "scanlines": {
+      "decompiled_added_active_routes": [],
+      "decompiled_removed_active_routes": [
+        "r H6.039.029.0002 V4.041.030.0001",
+        "r H6.039.032.0003 V2.041.030.0012",
+        "r V2.041.030.0012 H6.036.031.0037",
+        "r V4.041.030.0001 H6.036.030.0030"
+      ],
+      "header_unchanged": true,
+      "lost_in_fence_bits": [
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3772,
+          "y": 2562
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3773,
+          "y": 2564
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3764,
+          "y": 2648
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3764,
+          "y": 2650
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3764,
+          "y": 2701
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3764,
+          "y": 2703
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3772,
+          "y": 2812
+        },
+        {
+          "linked_value": 0,
+          "raw_value": 1,
+          "x": 3773,
+          "y": 2814
+        }
+      ],
+      "old_composition": {
+        "composition_id": "b4fbb29e4c4ca0c8555e1dad970f8214831310b4b4adca612d1c1a4c6c2b7b22",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "parts": [
+          {
+            "part_id": "f693f2aaf9cb7b8f18e08680add8853689d21b8f8853c9b6b2823ee7faf177d2",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "dbe8d758ab9a4a9e0b7994a1cdd67933b52ffdd3e955078300c84befc266c767",
+        "payload_size": 2787047,
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+      },
+      "old_linked_payload": {
+        "path": "sources/misteross/build/video-parts/scanlines/cdebdc6c4ffdcc1302969f5153ba820067ef216ee947eceb105e162b4fc6dadf/linked.rbf",
+        "sha256": "dbe8d758ab9a4a9e0b7994a1cdd67933b52ffdd3e955078300c84befc266c767",
+        "size": 2787047
+      },
+      "part_archive": {
+        "path": "sources/misteross/build/video-parts/scanlines/cdebdc6c4ffdcc1302969f5153ba820067ef216ee947eceb105e162b4fc6dadf/f693f2aaf9cb7b8f18e08680add8853689d21b8f8853c9b6b2823ee7faf177d2.tar",
+        "sha256": "74cf0f3ad3fed5eea13ae5be0a9d8a4087a2d08d9ded8b10512fb3997bbae075",
+        "size": 2795520
+      },
+      "part_id": "f693f2aaf9cb7b8f18e08680add8853689d21b8f8853c9b6b2823ee7faf177d2",
+      "routed_cart": {
+        "path": "sources/misteross/build/video-parts/scanlines/cdebdc6c4ffdcc1302969f5153ba820067ef216ee947eceb105e162b4fc6dadf/cart.rbf",
+        "sha256": "4b7cf5c9c14222d3781bc2b9f9bf473a28b1c5866b1c00cdb923905260b1ae8a",
+        "size": 2787049
+      },
+      "strict_cram_inventory": {
+        "bits_inside_native_fence": 548401,
+        "bits_outside_native_fence": 0,
+        "excluded_columns": []
+      }
+    }
+  },
+  "review_range_base": "6357a220dfc85eceeb9e29846c0bf55085dfcd08",
+  "shell_payload": {
+    "path": "sources/misteross/build/fes-coleco-native-video/core.rbf",
+    "sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719",
+    "size": 2685651
+  },
+  "source_receipt": {
+    "path": "out/native-video-link/final-build-evidence.json",
+    "sha256": "6112acdfaa6efc6138ac7a356fedb90fbedc1300db3b7e8881885cd3fb565008",
+    "size": 359189
+  }
+}

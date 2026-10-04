@@ -19,6 +19,7 @@ Hardware-supported package paths: 0.
 | Static ZX81 bus 1.0/2.0 and Coleco composition | covered | pending |
 | Library Coleco video/CPU parts with required core-data root and namespace admission before programming | covered by host tests | [Kit 2 normal-library diagnostic](../../../docs/validation/2026-10-02-video-library-kit2-hil.md): direct/scanline with and without SGM, profile fallback, media, Stop/relaunch; appliance acceptance pending |
 | Explicit volatile Coleco video/CPU developer parts: inspect, typed identity, retained-file admission and existing programming lifecycle | covered by host tests | [Kit 2 exact-artifact diagnostic](../../../docs/validation/2026-10-02-video-parts-kit2-hil.md): direct/scanline with and without SGM, media, Stop/relaunch; appliance acceptance pending |
+| Native Coleco 256 by 192 indexed developer parts: distinct socket/layout binding, mandatory video part, and uncomposed-load rejection before mutation | covered by host tests | [Kit 2 native diagnostic](../../../docs/validation/2026-10-03-native-video-parts-kit2.md): linked Direct/Scanlines, HDMI video/audio, Stop/relaunch and vacant-load rejection; native CPU expansion and appliance acceptance pending |
 | `fes.computer` admission, identity and firmware ROM activation | covered | none |
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |

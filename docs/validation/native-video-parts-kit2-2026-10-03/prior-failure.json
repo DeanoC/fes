@@ -1,0 +1,555 @@
+{
+  "capture_inference": {
+    "direct_and_relaunch": {
+      "affected_native_pixel_parity": "even/low nibble",
+      "consistent_with_forced_pair_data_bit_high": 3,
+      "hdmi_rows_exclusive": [
+        216,
+        232
+      ],
+      "native_rows_exclusive": [
+        24,
+        32
+      ],
+      "pair_words_exclusive": [
+        3072,
+        4096
+      ]
+    },
+    "limitation": "Paletteindex/forcedbit relationships are inferred from capturedRGB classes. Activebankidentity andphysicalcause require routed/config evidence; not measured FPGA busvalues.",
+    "scanlines": [
+      {
+        "affected_native_pixel_parity": "even/low nibble",
+        "consistent_with_forced_pair_data_bit_high": 2,
+        "hdmi_rows_exclusive": [
+          360,
+          376
+        ],
+        "native_rows_exclusive": [
+          96,
+          104
+        ],
+        "pair_words_exclusive": [
+          12288,
+          13312
+        ]
+      },
+      {
+        "affected_native_pixel_parity": "odd/high nibble",
+        "consistent_with_forced_pair_data_bit_high": 4,
+        "hdmi_rows_exclusive": [
+          392,
+          408
+        ],
+        "native_rows_exclusive": [
+          112,
+          120
+        ],
+        "pair_words_exclusive": [
+          14336,
+          15360
+        ]
+      }
+    ]
+  },
+  "captures": {
+    "direct": {
+      "capture_receipt": {
+        "path": "out/native-video-link/hardware/captures/direct-capture.json",
+        "sha256": "c7846f5894c93a674738703a0dd733df759d7efd0aef7f89744477069c3e1817",
+        "size": 3102
+      },
+      "files": {
+        ".mkv": {
+          "sha256": "692f5ba00f5e2f7511ce29ea3c7a4dd7957cc4bd7c15ad597d5ad4bb68f06e84",
+          "size": 7262886
+        },
+        ".png": {
+          "sha256": "3667e787179a54dc0c1f149836f8ab54a2a8b9d9b296a8e9cd5bb906e2f23406",
+          "size": 9670
+        },
+        ".wav": {
+          "sha256": "18caf2afab683376bbe2427bcb703b9be868f7d116dd017537a29e4444740884",
+          "size": 1152230
+        }
+      },
+      "metrics": {
+        "bad_settled_frames": 88,
+        "decoded_frames": 180,
+        "leading_black_frames": 3,
+        "settled_frames": 177,
+        "settled_max_rgb_delta_from_reference": [
+          244,
+          137,
+          126
+        ],
+        "wrong_luma_pixels_per_bad_variant": [
+          4096
+        ]
+      },
+      "periodic_failure": {
+        "bad_frame_indices": [
+          5,
+          6,
+          9,
+          10,
+          13,
+          14,
+          17,
+          18,
+          21,
+          22,
+          25,
+          26,
+          29,
+          30,
+          33,
+          34,
+          37,
+          38,
+          41,
+          42,
+          45,
+          46,
+          49,
+          50,
+          53,
+          54,
+          57,
+          58,
+          61,
+          62,
+          65,
+          66,
+          69,
+          70,
+          73,
+          74,
+          77,
+          78,
+          81,
+          82,
+          85,
+          86,
+          89,
+          90,
+          93,
+          94,
+          97,
+          98,
+          101,
+          102,
+          105,
+          106,
+          109,
+          110,
+          113,
+          114,
+          117,
+          118,
+          121,
+          122,
+          125,
+          126,
+          129,
+          130,
+          133,
+          134,
+          137,
+          138,
+          141,
+          142,
+          145,
+          146,
+          149,
+          150,
+          153,
+          154,
+          157,
+          158,
+          161,
+          162,
+          165,
+          166,
+          169,
+          170,
+          173,
+          174,
+          177,
+          178
+        ],
+        "frame_120_was_good": true,
+        "pattern": "Two bad frames followed by two good frames, bad indices congruent to 1 or 2 modulo 4 after acquisition."
+      }
+    },
+    "direct-relaunch": {
+      "capture_receipt": {
+        "path": "out/native-video-link/hardware/captures/direct-relaunch-capture.json",
+        "sha256": "1fb2b10351eaf91c83a88b1cd49c92b2c660419011df556ea69b82e477c06120",
+        "size": 3102
+      },
+      "files": {
+        ".mkv": {
+          "sha256": "ee5345eb85376579cb85cb11c0e87e6b27daa812909e6b465890306d65e97e0c",
+          "size": 7225871
+        },
+        ".png": {
+          "sha256": "effd3589ee51662f4c014025f48a478ffe288bfcaab5f0390dc537e96aa16624",
+          "size": 9903
+        },
+        ".wav": {
+          "sha256": "2a57f37a0cb8f08a3d12b6cc6476c44702df7d1b7d29f31c58756d57328d0d03",
+          "size": 1152686
+        }
+      },
+      "metrics": {
+        "bad_settled_frames": 88,
+        "decoded_frames": 180,
+        "leading_black_frames": 4,
+        "settled_frames": 176,
+        "settled_max_rgb_delta_from_reference": [
+          244,
+          137,
+          126
+        ],
+        "wrong_luma_pixels_per_bad_variant": [
+          4096
+        ]
+      },
+      "periodic_failure": {
+        "bad_frame_indices": [
+          5,
+          6,
+          9,
+          10,
+          13,
+          14,
+          17,
+          18,
+          21,
+          22,
+          25,
+          26,
+          29,
+          30,
+          33,
+          34,
+          37,
+          38,
+          41,
+          42,
+          45,
+          46,
+          49,
+          50,
+          53,
+          54,
+          57,
+          58,
+          61,
+          62,
+          65,
+          66,
+          69,
+          70,
+          73,
+          74,
+          77,
+          78,
+          81,
+          82,
+          85,
+          86,
+          89,
+          90,
+          93,
+          94,
+          97,
+          98,
+          101,
+          102,
+          105,
+          106,
+          109,
+          110,
+          113,
+          114,
+          117,
+          118,
+          121,
+          122,
+          125,
+          126,
+          129,
+          130,
+          133,
+          134,
+          137,
+          138,
+          141,
+          142,
+          145,
+          146,
+          149,
+          150,
+          153,
+          154,
+          157,
+          158,
+          161,
+          162,
+          165,
+          166,
+          169,
+          170,
+          173,
+          174,
+          177,
+          178
+        ],
+        "frame_120_was_good": true,
+        "pattern": "Two bad frames followed by two good frames, bad indices congruent to 1 or 2 modulo 4 after acquisition."
+      }
+    },
+    "scanlines": {
+      "capture_receipt": {
+        "path": "out/native-video-link/hardware/captures/scanlines-capture.json",
+        "sha256": "7ec47b9155020a99238d87f60e75ac4e23790458fe6b005f4e0b7f6430291b27",
+        "size": 3103
+      },
+      "files": {
+        ".mkv": {
+          "sha256": "4fc2605d13a21126c12d572ee870dfbdfee876ef2737ab44866931c62467a8c6",
+          "size": 16732433
+        },
+        ".png": {
+          "sha256": "4900e752d0e986355b5b5ae98e17c6d0d913c444b018985b0349c4d5fac383b8",
+          "size": 9660
+        },
+        ".wav": {
+          "sha256": "b052707646ca5e6512db0fa168d9eda24ac46be3ba32a0a3857b89b27e9eec41",
+          "size": 1152142
+        }
+      },
+      "metrics": {
+        "bad_settled_frames": 88,
+        "decoded_frames": 180,
+        "leading_black_frames": 3,
+        "settled_frames": 177,
+        "settled_max_rgb_delta_from_reference": [
+          155,
+          184,
+          245
+        ],
+        "wrong_luma_pixels_per_bad_variant": [
+          5432
+        ]
+      },
+      "periodic_failure": {
+        "bad_frame_indices": [
+          5,
+          6,
+          9,
+          10,
+          13,
+          14,
+          17,
+          18,
+          21,
+          22,
+          25,
+          26,
+          29,
+          30,
+          33,
+          34,
+          37,
+          38,
+          41,
+          42,
+          45,
+          46,
+          49,
+          50,
+          53,
+          54,
+          57,
+          58,
+          61,
+          62,
+          65,
+          66,
+          69,
+          70,
+          73,
+          74,
+          77,
+          78,
+          81,
+          82,
+          85,
+          86,
+          89,
+          90,
+          93,
+          94,
+          97,
+          98,
+          101,
+          102,
+          105,
+          106,
+          109,
+          110,
+          113,
+          114,
+          117,
+          118,
+          121,
+          122,
+          125,
+          126,
+          129,
+          130,
+          133,
+          134,
+          137,
+          138,
+          141,
+          142,
+          145,
+          146,
+          149,
+          150,
+          153,
+          154,
+          157,
+          158,
+          161,
+          162,
+          165,
+          166,
+          169,
+          170,
+          173,
+          174,
+          177,
+          178
+        ],
+        "frame_120_was_good": true,
+        "pattern": "Two bad frames followed by two good frames, bad indices congruent to 1 or 2 modulo 4 after acquisition."
+      }
+    }
+  },
+  "classification": "Preserved failed exact-artifact hardware diagnostic; this attempt did not pass and is not replaced by the corrected run.",
+  "correction": "d82c0f92c2b3400d9e89a151271dda2da20c6151 preserves every decoded bit within the exact native CRAM rectangle and checks complete Go/Python/routed-cart byte equality. Legacy layouts retain their existing behavior.",
+  "failing_compositions": {
+    "direct": {
+      "composition_id": "41e2cf9cbf66f338eaebfb99cbf548bd2966fd0ea6b7c92616b040d933527d81",
+      "layout": "fes.coleco-native-video.parts/1",
+      "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+      "parts": [
+        {
+          "part_id": "6e709428852c92b74482f9f9ce78da5952fc5433ee08a5b1875ad4c8d4f9990d",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "c4c674a34f4a08c59275aad41fb7eaa7832d2c48060763423e5c85aa3a1570cc",
+      "payload_size": 2790494,
+      "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+    },
+    "scanlines": {
+      "composition_id": "b4fbb29e4c4ca0c8555e1dad970f8214831310b4b4adca612d1c1a4c6c2b7b22",
+      "layout": "fes.coleco-native-video.parts/1",
+      "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+      "parts": [
+        {
+          "part_id": "f693f2aaf9cb7b8f18e08680add8853689d21b8f8853c9b6b2823ee7faf177d2",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "dbe8d758ab9a4a9e0b7994a1cdd67933b52ffdd3e955078300c84befc266c767",
+      "payload_size": 2787047,
+      "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+    }
+  },
+  "finding": "The legacy whole-column exclusion discarded real in-fence active routing-mux selections when applied to the wide native socket. The resulting linked payload retained the shell values at these bits instead of the routed cart values.",
+  "gates": {
+    "failed": [
+      "direct-relaunch_all_settled_full_frame_rgb_stable",
+      "direct-relaunch_all_settled_geometry",
+      "direct_all_settled_full_frame_rgb_stable",
+      "direct_all_settled_geometry",
+      "scanlines_all_settled_full_frame_rgb_stable",
+      "scanlines_all_settled_geometry"
+    ],
+    "passed": 24,
+    "total": 30
+  },
+  "independent_ram_read_route_match": {
+    "direct": {
+      "logical_chunk": 3,
+      "net": "fes_cart$bit563",
+      "ram_bel": "MISTRAL_M10K.38.27.0",
+      "read_pin": "B1DATA[3]",
+      "routed_bit": 24622
+    },
+    "qualification": "Peer matched the exact removed route hops to these RAM read-output pins, agreeing with the independently measured stuck-high capture bits. Corrected physical output remains subject to retest.",
+    "receipt": {
+      "path": "out/native-video-link/analysis/results/kit2/failure-lost-route-all-ram-match.json",
+      "sha256": "40b35c54fcbf310a83aa192470106a995df58e0916ede840858cfac43574570e",
+      "size": 1233
+    },
+    "scanlines": [
+      {
+        "logical_chunk": 38,
+        "net": "fes_cart$bit1047",
+        "ram_bel": "MISTRAL_M10K.38.31.0",
+        "read_pin": "B1DATA[4]",
+        "routed_bit": 25307
+      },
+      {
+        "logical_chunk": 36,
+        "net": "fes_cart$bit1009",
+        "ram_bel": "MISTRAL_M10K.38.30.0",
+        "read_pin": "B1DATA[2]",
+        "routed_bit": 25261
+      }
+    ]
+  },
+  "independent_receipt": {
+    "path": "out/native-video-link/analysis/results/kit2/independent-receipt.json",
+    "sha256": "1e59d94af2a4676fec7057476ed3634c260c97fbb736f34c59df2e74851dac5f",
+    "size": 9597
+  },
+  "operator_result": {
+    "cases": [
+      "direct",
+      "scanlines",
+      "direct-relaunch"
+    ],
+    "classification": "operator-run native developer diagnostic; not appliance acceptance",
+    "completed": true,
+    "last_generation": 3,
+    "lease_free": true
+  },
+  "operator_result_source": {
+    "path": "out/native-video-link/hardware/captures/result.json",
+    "sha256": "eb175d681283413774cdd395ae1e276f7092f8a5f72368a31edc5e273db5d536",
+    "size": 231
+  },
+  "original_analysis": {
+    "path": "out/native-video-link/analysis/results/kit2/analysis.json",
+    "sha256": "1270cfd08db08ea40a4d100d334e86ad35387062ff63dd22d844ce8c4fd58190",
+    "size": 345628
+  },
+  "retained_scope": "All three failed capture file hashes remain above; full local media and detailed analysis remain under ignored out/.",
+  "root_cause_original": {
+    "path": "out/native-video-link/analysis/strict-overlay-cause.json",
+    "sha256": "db29e32cb89ad238d45696ed897919534d0eeaff78676a2f8174be831b9f35ec",
+    "size": 9678
+  },
+  "root_cause_public_receipt": "strict-overlay-cause.json",
+  "source_revision": "9f5c09a568ed089e9429735296c3def1fda749f4",
+  "verdict": "investigate"
+}

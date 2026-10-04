@@ -1,0 +1,8 @@
+{
+  "source_sha256": "a58182f0ad6fe6928e40c1e434c1672c61f373cc3bfab892387018112110a0fe",
+  "adapter_sha256": "80bbe6973f8dc5c2408f57c7523161bf1a267c41eb820ab15c6ed4e3671a3a18",
+  "rom_sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+  "size": 1086,
+  "nominal_SN_hz": 216.7844597868217,
+  "note": "Original graphics cartridge with appended DI/stack/SN tone trampoline; original absolute table addresses are preserved."
+}

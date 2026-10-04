@@ -263,10 +263,10 @@ class VideoPartsProducerTest(unittest.TestCase):
                         raise OSError("archive publication failed")
                     return original_replace(path, target)
 
-                def report(path, cart, changes, *, part_id=None):
+                def report(path, cart, changes, *, part_id=None, layout=video_parts):
                     if part_id is not None:
                         self.assertTrue(destination.is_file())
-                    return original_report(path, cart, changes, part_id=part_id)
+                    return original_report(path, cart, changes, part_id=part_id, layout=layout)
 
                 with patch.object(part, "_write_atomic", side_effect=write), \
                         patch.object(Path, "replace", replace), \

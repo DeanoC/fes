@@ -36,13 +36,18 @@ func PartsShell(inspection Inspection, payload []byte) (expansion.PartsShell, er
 		return expansion.PartsShell{}, errors.New("parts require a format-2 Coleco application developer shell")
 	}
 	video, cpu := false, false
+	layout := ""
 	for _, i := range d.Interfaces {
 		switch i.ID {
-		case expansion.VideoSlot:
+		case expansion.VideoSlot, expansion.NativeVideoSlot:
 			if video || i.Required || i.Major != 1 || i.Minor != 0 {
 				return expansion.PartsShell{}, errors.New("unsupported video fabric socket")
 			}
 			video = true
+			layout = expansion.ColecoVideoLayout
+			if i.ID == expansion.NativeVideoSlot {
+				layout = expansion.ColecoNativeVideoLayout
+			}
 		case expansion.ColecoSlot:
 			if cpu || i.Required || i.Major != 2 || i.Minor != 0 {
 				return expansion.PartsShell{}, errors.New("parts require the optional Coleco CPU bus 2.0")
@@ -53,11 +58,11 @@ func PartsShell(inspection Inspection, payload []byte) (expansion.PartsShell, er
 	if !video || !cpu {
 		return expansion.PartsShell{}, errors.New("parts require explicitly declared video and CPU sockets")
 	}
-	return expansion.PartsShell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Layout: expansion.ColecoVideoLayout}, nil
+	return expansion.PartsShell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Layout: layout}, nil
 }
 
 func partRole(asset expansion.Asset) string {
-	if asset.Manifest.Slot == expansion.VideoSlot {
+	if asset.Manifest.Slot == expansion.VideoSlot || asset.Manifest.Slot == expansion.NativeVideoSlot {
 		return expansion.PartRoleVideo
 	}
 	return expansion.PartRoleExpansion

@@ -759,7 +759,8 @@ Error ParseRequest(const std::string& line, Request* request)
 			composition.layout = *layout;
 			const auto* selections = Find(*tuple, "parts");
 			const auto* size = Find(*tuple, "payload_size");
-			if (composition.layout != "fes.coleco-video.parts/1" || composition.package_id != *id ||
+			if ((composition.layout != "fes.coleco-video.parts/1" &&
+				 composition.layout != "fes.coleco-native-video.parts/1") || composition.package_id != *id ||
 				!BoundedInteger(size, 40408, 32 * 1024 * 1024) || !selections ||
 				selections->type != json::Type::array || selections->array.size() != parts->array.size())
 				return Invalid("invalid parts layout, size or package binding");

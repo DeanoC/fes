@@ -1,0 +1,485 @@
+{
+  "all_profiles_settled_even_image_rows_hash_sets_equal": true,
+  "alternative_period4_row_model": {
+    "bright_rows_mae_rgb": [
+      16.781453450520832,
+      25.768269856770832,
+      11.824422200520834
+    ],
+    "bright_rows_max_rgb_delta": [
+      101,
+      114,
+      41
+    ],
+    "dim_rows_half_brightness_mae_rgb": [
+      16.77472432454427,
+      25.888290405273438,
+      11.817693074544271
+    ],
+    "dim_rows_max_model_error_rgb": [
+      99.5,
+      112.5,
+      39.0
+    ],
+    "line_height_hdmi_pixels": 2
+  },
+  "analysis_sha256": "8d35411a4640f1feeb9e181559ebd5f543145dc46c691d188976348b6a9fa2e3",
+  "audio_comparison": {
+    "direct": {
+      "ac_rms_ratio_to_direct": [
+        1.0,
+        1.0
+      ],
+      "measured_frequency_delta_hz": [
+        0.0,
+        0.0
+      ]
+    },
+    "direct-relaunch": {
+      "ac_rms_ratio_to_direct": [
+        1.000000137022546,
+        1.0000000048309117
+      ],
+      "measured_frequency_delta_hz": [
+        7.41590133372938e-05,
+        7.432637593751679e-05
+      ]
+    },
+    "scanlines": {
+      "ac_rms_ratio_to_direct": [
+        1.0000023752649432,
+        1.0000021263103398
+      ],
+      "measured_frequency_delta_hz": [
+        1.5303724325121948e-05,
+        1.5470588948574004e-05
+      ]
+    }
+  },
+  "cases": {
+    "direct": {
+      "acquisition_boundary_intervals_over_25ms": [
+        {
+          "at_acquisition_boundary": true,
+          "from_frame": 2,
+          "seconds": 0.05,
+          "to_frame": 3
+        }
+      ],
+      "audio_ac_rms_s16": [
+        7593.416242221789,
+        7593.416935842793
+      ],
+      "audio_captured_duration_seconds": 6.003125,
+      "audio_channels": 2,
+      "audio_clipped_samples": [
+        0,
+        0
+      ],
+      "audio_frequency_hz_each_settled_second_by_channel": [
+        [
+          216.7914694103204,
+          216.79144173482402,
+          216.7914141168004
+        ],
+        [
+          216.79147002247578,
+          216.7914419281316,
+          216.79141434861634
+        ]
+      ],
+      "audio_measured_frequency_hz": [
+        216.7914719105648,
+        216.7914717643955
+      ],
+      "audio_sample_rate_hz": 48000,
+      "audio_settled_window": {
+        "duration_seconds": 3.0,
+        "start_seconds": 2.5
+      },
+      "audio_stereo": {
+        "difference_ac_rms_s16": 0.47484451138481526,
+        "pearson_correlation": 0.9999999980447716,
+        "rms_balance_right_over_left": 1.0000000913450524
+      },
+      "audio_tone_fraction_of_strongest_peak": [
+        1.0,
+        1.0
+      ],
+      "audio_tone_snr_over_median_bin_db": [
+        88.39995081632381,
+        88.3946744879225
+      ],
+      "bad_settled_frame_indexes": [],
+      "border_odd_over_even_luma_ratio": {
+        "ratio_max": 1.0,
+        "ratio_mean": 1.0,
+        "ratio_min": 1.0
+      },
+      "capture_frames": 180,
+      "leading_black_acquisition_frames": 3,
+      "settled_capture_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_class_mismatches": 0,
+      "settled_frames": 177,
+      "settled_full_viewport_max_luma_error": 1,
+      "settled_green_bboxes_exclusive": [
+        [
+          384,
+          168,
+          896,
+          552
+        ]
+      ],
+      "settled_luma_errors_over_4": 0,
+      "settled_max_rgb_delta_from_reference": [
+        1,
+        1,
+        1
+      ],
+      "settled_outer_black_luma_errors_over_4": 0
+    },
+    "direct-relaunch": {
+      "acquisition_boundary_intervals_over_25ms": [
+        {
+          "at_acquisition_boundary": true,
+          "from_frame": 2,
+          "seconds": 0.05,
+          "to_frame": 3
+        }
+      ],
+      "audio_ac_rms_s16": [
+        7593.417282691014,
+        7593.41697252592
+      ],
+      "audio_captured_duration_seconds": 6.001833333333333,
+      "audio_channels": 2,
+      "audio_clipped_samples": [
+        0,
+        0
+      ],
+      "audio_frequency_hz_each_settled_second_by_channel": [
+        [
+          216.79154779651824,
+          216.79158175443854,
+          216.79176202489234
+        ],
+        [
+          216.79154808322943,
+          216.79158139016536,
+          216.79176078658253
+        ]
+      ],
+      "audio_measured_frequency_hz": [
+        216.79154606957815,
+        216.79154609077145
+      ],
+      "audio_sample_rate_hz": 48000,
+      "audio_settled_window": {
+        "duration_seconds": 3.0,
+        "start_seconds": 2.5
+      },
+      "audio_stereo": {
+        "difference_ac_rms_s16": 0.4748857164337958,
+        "pearson_correlation": 0.9999999980444292,
+        "rms_balance_right_over_left": 0.9999999591534242
+      },
+      "audio_tone_fraction_of_strongest_peak": [
+        1.0,
+        1.0
+      ],
+      "audio_tone_snr_over_median_bin_db": [
+        83.59675832088308,
+        83.60195194917335
+      ],
+      "bad_settled_frame_indexes": [],
+      "border_odd_over_even_luma_ratio": {
+        "ratio_max": 1.0,
+        "ratio_mean": 1.0,
+        "ratio_min": 1.0
+      },
+      "capture_frames": 180,
+      "leading_black_acquisition_frames": 3,
+      "settled_capture_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_class_mismatches": 0,
+      "settled_frames": 177,
+      "settled_full_viewport_max_luma_error": 1,
+      "settled_green_bboxes_exclusive": [
+        [
+          384,
+          168,
+          896,
+          552
+        ]
+      ],
+      "settled_luma_errors_over_4": 0,
+      "settled_max_rgb_delta_from_reference": [
+        1,
+        1,
+        1
+      ],
+      "settled_outer_black_luma_errors_over_4": 0
+    },
+    "scanlines": {
+      "acquisition_boundary_intervals_over_25ms": [
+        {
+          "at_acquisition_boundary": true,
+          "from_frame": 2,
+          "seconds": 0.05,
+          "to_frame": 3
+        }
+      ],
+      "audio_ac_rms_s16": [
+        7593.4342785971885,
+        7593.433081803738
+      ],
+      "audio_captured_duration_seconds": 6.0015833333333335,
+      "audio_channels": 2,
+      "audio_clipped_samples": [
+        0,
+        0
+      ],
+      "audio_frequency_hz_each_settled_second_by_channel": [
+        [
+          216.791419893855,
+          216.79145192473555,
+          216.79150870027345
+        ],
+        [
+          216.79141977063196,
+          216.79145170800763,
+          216.79150823542392
+        ]
+      ],
+      "audio_measured_frequency_hz": [
+        216.79148721428913,
+        216.79148723498446
+      ],
+      "audio_sample_rate_hz": 48000,
+      "audio_settled_window": {
+        "duration_seconds": 3.0,
+        "start_seconds": 2.5
+      },
+      "audio_stereo": {
+        "difference_ac_rms_s16": 0.475077524537825,
+        "pearson_correlation": 0.9999999980428694,
+        "rms_balance_right_over_left": 0.9999998423910175
+      },
+      "audio_tone_fraction_of_strongest_peak": [
+        1.0,
+        1.0
+      ],
+      "audio_tone_snr_over_median_bin_db": [
+        91.25658258257363,
+        91.25032413868854
+      ],
+      "bad_settled_frame_indexes": [],
+      "border_odd_over_even_luma_ratio": {
+        "ratio_max": 0.4914514717146296,
+        "ratio_mean": 0.4914514717146296,
+        "ratio_min": 0.4914514717146296
+      },
+      "capture_frames": 180,
+      "leading_black_acquisition_frames": 3,
+      "settled_capture_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_class_mismatches": 0,
+      "settled_frames": 177,
+      "settled_full_viewport_max_luma_error": 1,
+      "settled_green_bboxes_exclusive": [
+        [
+          384,
+          168,
+          896,
+          552
+        ]
+      ],
+      "settled_luma_errors_over_4": 0,
+      "settled_max_rgb_delta_from_reference": [
+        1,
+        1,
+        1
+      ],
+      "settled_outer_black_luma_errors_over_4": 0
+    }
+  },
+  "classification": "Independent offline local-file capture analysis; no analyst device, capture, network, kit, programming, or service actions.",
+  "direct_relaunch_reference_comparison": {
+    "changed_pixels": 0,
+    "whole_frame_max_absolute_rgb_delta": [
+      0,
+      0,
+      0
+    ],
+    "whole_frame_mean_absolute_rgb_delta": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "direct_relaunch_settled_rgb_hash_sets_equal": true,
+  "failed_gates": [],
+  "files": {
+    "analysis/analyze_native.py": {
+      "sha256": "68a4260e650b79121e4b0b54494cb15b0bdafbef72ceb37e0d3dc100fdc017e3",
+      "size": 20237
+    },
+    "analysis/fixture/LICENSE": {
+      "sha256": "15589f46fa9ac9162d9368411bfbead562536672a42a979d0257c4c009350c4d",
+      "size": 1151
+    },
+    "analysis/fixture/graphics-sn.rom": {
+      "sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+      "size": 1086
+    },
+    "analysis/fixture/prepared.json": {
+      "sha256": "5ae56b11b22ee964c9927970ab01e5cba5afab25d4da933e71f45852339ac84b",
+      "size": 449
+    },
+    "analysis/native_capture_grid.py": {
+      "sha256": "07b4c46d5822c7bca6ca2679462fa426169d5a535e4fd0384801ede61caeb0e0",
+      "size": 15052
+    },
+    "analysis/native_capture_support.py": {
+      "sha256": "de3789c357b5647c5d4f5f22c78a8841511ae34c8d7e688c2e2ec4de4a3b8bd5",
+      "size": 10591
+    },
+    "analysis/native_oracle.py": {
+      "sha256": "1b9bd0e57454484f12d8bf826a27df8a4bf7a711bdc605b373f27145b16fcc85",
+      "size": 6887
+    },
+    "analysis/results/positive-control/analysis.json": {
+      "sha256": "4fb91128355905f8246051c52bc9e0cf1bc6b64872df88da3eb327fad2c7f56d",
+      "size": 178757
+    },
+    "analysis/self-check.json": {
+      "sha256": "9e71c795e5b567977419fbf34a324e10aacfa8122f8305ee6c0c4d12e0618831",
+      "size": 97273
+    },
+    "analysis/self_check_native.py": {
+      "sha256": "aa15a4ef3b781c6307067af6e47217937f338347e05fc2487d258e575e4d5387",
+      "size": 6025
+    },
+    "captures-strict/direct-relaunch.mkv": {
+      "sha256": "aba7ac54a82765a52d841ce4c322409d706fa2c7e413579d2c0933d61f050386",
+      "size": 6771929
+    },
+    "captures-strict/direct-relaunch.png": {
+      "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+      "size": 9751
+    },
+    "captures-strict/direct-relaunch.wav": {
+      "sha256": "53318fc6ee564c4eb0ddc31cb9c670a3cd476aedc8f84ed95f6f31900d0f1a36",
+      "size": 1152430
+    },
+    "captures-strict/direct.mkv": {
+      "sha256": "b05fa0a5b06dd27d1d011b426a43dda310e81ced089beb34b22e38fe5042e1ab",
+      "size": 6771929
+    },
+    "captures-strict/direct.png": {
+      "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+      "size": 9751
+    },
+    "captures-strict/direct.wav": {
+      "sha256": "226de817521b8b75bb3a6eb12be4a7b418a08ca8b288182fd197c19aee50c086",
+      "size": 1152678
+    },
+    "captures-strict/scanlines.mkv": {
+      "sha256": "9e73223aa007e22d8303309946d1c226a1cc7c02a2b6e6c9faff19fc4db17aec",
+      "size": 15739742
+    },
+    "captures-strict/scanlines.png": {
+      "sha256": "58ffbd6209c4e2de37c2494140f05597daafe38a2856477f4ba4aa12dcbd5a3d",
+      "size": 9773
+    },
+    "captures-strict/scanlines.wav": {
+      "sha256": "3244bc8ea6b0da2f0bff6195d8efa55edfda5f61a2eecd665c9cd81092de67b6",
+      "size": 1152382
+    },
+    "prepared.json": {
+      "sha256": "53bf3c0710247014ecbae356ff4e96f785ade51c3cbccefd53786e825695854c",
+      "size": 2569
+    },
+    "results/kit2-strict/analysis.json": {
+      "sha256": "8d35411a4640f1feeb9e181559ebd5f543145dc46c691d188976348b6a9fa2e3",
+      "size": 222991
+    },
+    "results/kit2-strict/direct-reference.png": {
+      "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+      "size": 9751
+    },
+    "results/kit2-strict/direct-relaunch-reference.png": {
+      "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+      "size": 9751
+    },
+    "results/kit2-strict/scanlines-reference.png": {
+      "sha256": "58ffbd6209c4e2de37c2494140f05597daafe38a2856477f4ba4aa12dcbd5a3d",
+      "size": 9773
+    },
+    "results/kit2/analysis.json": {
+      "sha256": "1270cfd08db08ea40a4d100d334e86ad35387062ff63dd22d844ce8c4fd58190",
+      "size": 345628
+    },
+    "results/kit2/independent-receipt.json": {
+      "sha256": "1e59d94af2a4676fec7057476ed3634c260c97fbb736f34c59df2e74851dac5f",
+      "size": 9597
+    }
+  },
+  "fixture_rom_sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+  "horizontal_delay_pixels": 0,
+  "limitations": [
+    "Native scanline RTL shades alternating HDMI rows; each native source line is doubled vertically, so its two HDMI rows have different brightness.",
+    "The full-pixel oracle executes the original open ROM VDP writes and renders Graphics I with aligned native RAM data/sync and exact2x scaling at viewport x384:896/y168:552; horizontal delay is zero.",
+    "Leading acquisition frames and half-second audio acquisition windows are reported separately; comparisons use the explicit common settled audio window.",
+    "USB frame timestamps do not measure FPGA HS/VS waveforms directly. Capture RGB conversion and audio filtering/rescaling prevent bit-exact FPGA RGB/PCM claims.",
+    "All strongest spectral peaks are measured without nominal-frequency filtering; the target peak additionally must be near the fixture nominal and have at least half the strongest peak power.",
+    "This receipt binds capture file bytes and analyzer observations; root owns programmed-artifact/provenance and service-restoration receipts."
+  ],
+  "nominal_SN_hz": 216.7844597868217,
+  "passed_gates": 30,
+  "preserved_original_failure": {
+    "passed_gates": 24,
+    "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-link/fes/out/native-video-link/analysis/results/kit2/analysis.json",
+    "total_gates": 30,
+    "verdict": "investigate"
+  },
+  "scanline_row_model": {
+    "bright_rows_mae_rgb": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "bright_rows_max_rgb_delta": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "dim_rows_half_brightness_mae_rgb": [
+      0.9309844970703125,
+      0.6952260335286459,
+      1.0518341064453125
+    ],
+    "dim_rows_max_model_error_rgb": [
+      2.0,
+      1.5,
+      2.5
+    ],
+    "line_height_hdmi_pixels": 1
+  },
+  "total_gates": 30,
+  "unchanged_analyzer_vs_preparation_and_failed_capture_analysis": true,
+  "verdict": "pass",
+  "viewport_exclusive": [
+    384,
+    168,
+    896,
+    552
+  ]
+}

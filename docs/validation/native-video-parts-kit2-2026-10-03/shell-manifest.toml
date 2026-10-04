@@ -1,0 +1,83 @@
+format = 2
+
+[core]
+id = "fes.coleco"
+name = "FES ColecoVision"
+description = "ColecoVision native-pixel shell requiring a linked video part"
+version = "1.2.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 2685651
+sha256 = "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+
+[abi]
+id = "fes.application"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keypad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.blob"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.blob-stream"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.firmware.blob"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.expansion.coleco-bus"
+major = 2
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.fabric.video.native-pixels"
+major = 1
+minor = 0
+required = false
+
+[build]
+id = "c2cd6921235a9bfc238286aa3798382d"
+repository = "https://github.com/DeanoC/fes"
+revision = "2769b08e0478e6bac420495b58b23d4e93120ed2"
+recipe_sha256 = "2c6e5e39b510643d957665c095852db52d290634fd4f11a398f39fb904e78394"
+toolchain = "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=d3d6792c42850526b1a30361cd0ec97b3bb8243916a0195b4a7c96655d9b8502; nextpnr-mistral commit=a93fe013af841214ecb4f7be3af0de65f3de3a0f; sha256=f629e5a15c9087a242941823f2e0d23cf440d3501905d070ebd1e4c09c871e70; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=bf6c6111e60689ce889b01178abb76c772625c00976b43c88f6acd4fa8c29436"

@@ -1,0 +1,619 @@
+{
+  "classification": "Sealed FPGA builds and offline composition; exact-artifact developer lane. Hardware is recorded separately; no appliance or factory-selection acceptance.",
+  "contract": {
+    "cpu_expansion": "optional Coleco bus 2.0, not populated in this hardware diagnostic",
+    "cram_rectangle_half_open": [
+      124,
+      1800,
+      3906,
+      3442
+    ],
+    "encoding": "Index4Tms9918",
+    "layout": "fes.coleco-native-video.parts/1",
+    "native_dimensions": [
+      256,
+      192
+    ],
+    "output": "720p60",
+    "placement_rectangle": "video 5 23 38 38",
+    "reserved_M10K_sites": {
+      "columns_and_inclusive_rows": {
+        "14": [
+          23,
+          38
+        ],
+        "26": [
+          23,
+          38
+        ],
+        "38": [
+          23,
+          38
+        ],
+        "5": [
+          32,
+          38
+        ]
+      },
+      "configuration_fit_test": {
+        "path": "sources/misteross/tests/test_native_video_parts.py",
+        "sha256": "db59c2b525df0e127cd221ec321dc632c9a375d3caca533ec26ab012cd79de21",
+        "size": 11000
+      },
+      "count": 55,
+      "physical_policy": {
+        "path": "sources/misteross/scripts/native_video_parts.py",
+        "sha256": "1d5f3013c07e7b876fe0ea99f273ef60932366a1e49040d3dc1a420cddfb4ffe",
+        "size": 6831
+      }
+    },
+    "source_interface": "fes.fabric.video.native-pixels 1.0"
+  },
+  "diagnostic_software": {
+    "agent": {
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOARCH": "arm",
+        "GOARM": "7",
+        "GOOS": "linux"
+      },
+      "file": "ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), statically linked, Go BuildID=GfVEAmDhzKa4redkZvly/CPrQmDMqxzYEnKO_Exto/-4ur2dtpU9JX5SUoAhIn/ABZXjgGvg04v6YkZYMt7, BuildID[sha1]=bc58867a6d550e6ea5e37caccf0e403dd8983fa4, stripped",
+      "go_version": "go version go1.24.4 linux/amd64",
+      "source_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151"
+    },
+    "artifacts": {
+      "agent": {
+        "path": "out/native-video-link/arm-strict/mister-agent-linux-armv7",
+        "sha256": "71335cbd0d6a32693a5b3c7a045044afe64ed0ddf1958aa655ed0a101ccde9d0",
+        "size": 9568418
+      },
+      "runtime": {
+        "path": "out/native-video-link/arm-strict/mister-runtime",
+        "sha256": "762e11af5b5ab29c6ab2e374dab1e230fc14dfccc4a1020bafe0c5739f03b1d4",
+        "size": 935024
+      }
+    },
+    "classification": "local ARM diagnostic agent refresh with byte-identical reused runtime; no target/network access or image build; not appliance acceptance",
+    "commands": {
+      "agent": {
+        "argv": [
+          "go",
+          "build",
+          "-buildvcs=false",
+          "-trimpath",
+          "-ldflags",
+          "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=0.1.0 -X github.com/DeanoC/FogCast/internal/version.Revision=d82c0f92c2b3400d9e89a151271dda2da20c6151",
+          "-o",
+          "out/native-video-link/arm-strict/mister-agent-linux-armv7",
+          "./cmd/mister-agent"
+        ],
+        "cwd": "sources/FogCast",
+        "env": {
+          "CGO_ENABLED": "0",
+          "GOARCH": "arm",
+          "GOARM": "7",
+          "GOOS": "linux"
+        }
+      },
+      "runtime": {
+        "argv": [
+          "make",
+          "-j2",
+          "BUILD_DIR=/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-link/fes/out/native-video-link/arm/runtime-build",
+          "CXX=/home/deano/.cache/toolchains/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-g++",
+          "AR=/home/deano/.cache/toolchains/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-ar",
+          "MISTER_RUNTIME_VERSION=git-7dbce8831",
+          "all"
+        ],
+        "cwd": "sources/libmister-runtime"
+      }
+    },
+    "head_observed_after_build": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+    "original_receipt": {
+      "path": "out/native-video-link/arm-strict/arm-build-receipt.json",
+      "sha256": "c9ffc86bfff8a17c8c8430bd7b7a2c58f7e0d893c47213080756bdad8eac49f0",
+      "size": 19062
+    },
+    "runtime": {
+      "compiler_sha256": "e985833e9c9fa5a713c8df8a82affa9ce27bbe6cb53dd3b4aab3a52f0b965fdf",
+      "cppflags": "-D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include",
+      "cxxflags": "-O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP",
+      "elf": {
+        "attributes": "Attribute Section: aeabi\nFile Attributes\n  Tag_CPU_name: \"7-A\"\n  Tag_CPU_arch: v7\n  Tag_CPU_arch_profile: Application\n  Tag_ARM_ISA_use: Yes\n  Tag_THUMB_ISA_use: Thumb-2\n  Tag_FP_arch: VFPv3\n  Tag_Advanced_SIMD_arch: NEONv1\n  Tag_ABI_PCS_wchar_t: 4\n  Tag_ABI_FP_rounding: Needed\n  Tag_ABI_FP_denormal: Needed\n  Tag_ABI_FP_exceptions: Needed\n  Tag_ABI_FP_number_model: IEEE 754\n  Tag_ABI_align_needed: 8-byte\n  Tag_ABI_align_preserved: 8-byte, except leaf SP\n  Tag_ABI_enum_size: int\n  Tag_ABI_VFP_args: VFP registers\n  Tag_CPU_unaligned_access: v6",
+        "e_flags": "0x5000400, Version5 EABI, hard-float ABI",
+        "file": "ELF 32-bit LSB executable, ARM, EABI5 version 1 (GNU/Linux), dynamically linked, interpreter /lib/ld-linux-armhf.so.3, for GNU/Linux 3.2.0, with debug_info, not stripped",
+        "interpreter": "/lib/ld-linux-armhf.so.3",
+        "needed": [
+          "libstdc++.so.6",
+          "libm.so.6",
+          "libgcc_s.so.1",
+          "libpthread.so.0",
+          "libc.so.6"
+        ],
+        "required_versions": [
+          "CXXABI_1.3",
+          "CXXABI_1.3.5",
+          "CXXABI_1.3.9",
+          "CXXABI_ARM_1.3.3",
+          "GCC_3.5",
+          "GLIBCXX_3.4",
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.14",
+          "GLIBCXX_3.4.18",
+          "GLIBCXX_3.4.19",
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4.9",
+          "GLIBC_2.17",
+          "GLIBC_2.27",
+          "GLIBC_2.28",
+          "GLIBC_2.30",
+          "GLIBC_2.4",
+          "GLIBC_2.7"
+        ]
+      },
+      "source_revision": "7dbce883142a40d13320fc5bcdd4cf9db086a145",
+      "toolchain": "10.2.1",
+      "toolchain_banner": "arm-none-linux-gnueabihf-g++ (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 10.2.1 20201103",
+      "version": "git-7dbce8831"
+    },
+    "runtime_reuse": {
+      "copy_sha256_equal": true,
+      "original_artifact": {
+        "path": "out/native-video-link/arm/mister-runtime",
+        "sha256": "762e11af5b5ab29c6ab2e374dab1e230fc14dfccc4a1020bafe0c5739f03b1d4",
+        "size": 935024
+      },
+      "original_receipt": {
+        "path": "out/native-video-link/arm/arm-build-receipt.json",
+        "sha256": "c8d8cb96dcea99a1cb8b904e85f8595ffd511e7df87678a34c0383a76ee9b84f",
+        "size": 16279
+      },
+      "rebuilt": false,
+      "source_revision": "7dbce883142a40d13320fc5bcdd4cf9db086a145"
+    },
+    "software_input_trees_by_artifact": {
+      "agent": {
+        "sources/FogCast": "c971a23026b51b194138383f1817336f553391ca",
+        "sources/misteross/expansion": "b3c80b0588f191116c92e6e270e4771652ebe1da"
+      },
+      "runtime": {
+        "sources/libmister-runtime": "1889f6a7f38efe47315332e4ff36330a4e3e81ed"
+      }
+    },
+    "source_binding_note": "Agent is rebuilt from committed d82c0f92c with the strict native CRAM linker. Runtime is a byte-identical copy of the prior artifact built and embedded as git-7dbce8831. Module tree snapshots above are labeled by artifact and source revision; no runtime rebuild is claimed.",
+    "source_clean_after_build": true,
+    "source_clean_before_build": true,
+    "source_revisions": {
+      "agent": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+      "runtime": "7dbce883142a40d13320fc5bcdd4cf9db086a145"
+    }
+  },
+  "original_strict_build_evidence": {
+    "path": "out/native-video-link/strict-build-evidence.json",
+    "sha256": "0b125ac5365823b6fa4044ea5032b9d150f3c2296b78592448a77658ed7b2020",
+    "size": 359459
+  },
+  "parts": {
+    "direct": {
+      "build_summary": {
+        "path": "sources/misteross/build/video-parts/direct/ac5860b2d1194c57fef942d14e37d79e487c7945e84d7c0c6028f9f6d6901c32/build-summary.json",
+        "sha256": "5f58a4ac9a7660a4079a82d6d8f5663956a11664e654fbbba7f50c1db0e76f22",
+        "size": 173947
+      },
+      "composition": {
+        "composition_id": "d7e600ec0f825c056b091f09247da2060011245c68f2586e9626507f1f6cc970",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "parts": [
+          {
+            "part_id": "797faa29ea0c7edeb78a2a85a760cf9dfeabda3e46f9c38fd83a168b502007cc",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "ba57ffe39b29475151eab0105381d17991866f19ba78af5bf9dc8f24856691de",
+        "payload_size": 2790496,
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+      },
+      "cram": {
+        "bits_inside_slot": 548381,
+        "bits_outside_slot": 0,
+        "diff": {
+          "bits": 548381,
+          "x0": 163,
+          "x1": 3774,
+          "y0": 1894,
+          "y1": 3438
+        },
+        "outside_slot_coordinates": [],
+        "outside_slot_coordinates_truncated": false
+      },
+      "cram_policy": "strict-rectangle-v1",
+      "go_python_routed_cart_all_bytes_equal": true,
+      "header_unchanged": true,
+      "manifest": {
+        "cart_sha256": "ba57ffe39b29475151eab0105381d17991866f19ba78af5bf9dc8f24856691de",
+        "cart_size": 2790496,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.coleco-native-video.socket/1",
+        "recipe_sha256": "ac5860b2d1194c57fef942d14e37d79e487c7945e84d7c0c6028f9f6d6901c32",
+        "revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+        "shell_build_id": "c2cd6921235a9bfc238286aa3798382d",
+        "shell_package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719",
+        "slot": "fes.fabric.video.native-pixels",
+        "slot_major": 1,
+        "slot_minor": 0
+      },
+      "native_clock_boundary": {
+        "clock_cells": {
+          "MISTRAL_FF": 57,
+          "MISTRAL_M10K": 48
+        },
+        "clock_pins": 153,
+        "clock_port": "FPGA_CLK1_50",
+        "imported_bit": 63,
+        "input_buffer": "FPGA_CLK1_50_MISTRAL_IB_PAD",
+        "prepared_sha256": "ee5a6c85376a274685acca0e4dac2693b60df0c7e7770c47ffefdade253903e0",
+        "ram_blocks": 48,
+        "rewritten_clock_pins": 153,
+        "synth_sha256": "3547a3b4fd7f1941fe84ee76d4a9f7717120680481ee11dbc6b634c1567dd298",
+        "transparent_buffers": 1,
+        "version": 1
+      },
+      "part": {
+        "path": "sources/misteross/build/video-parts/direct/ac5860b2d1194c57fef942d14e37d79e487c7945e84d7c0c6028f9f6d6901c32/797faa29ea0c7edeb78a2a85a760cf9dfeabda3e46f9c38fd83a168b502007cc.tar",
+        "sha256": "8d68fca314ab2b8a65abb07133a3d30de7a86ac30c21734ea4eb8b3b1c7330a2",
+        "size": 2795520
+      },
+      "preview_matches_routed_cram": true,
+      "recipe": {
+        "clock_constraints_sha256": "6eadec71602ec7b4e949bac2f5ee1a6330faa9f8cc00db4eb34ff6b2cdb8648c",
+        "cram_region": [
+          124,
+          1800,
+          3906,
+          3442
+        ],
+        "map": "fes.coleco-native-video.socket/1",
+        "recipe_sha256": "ac5860b2d1194c57fef942d14e37d79e487c7945e84d7c0c6028f9f6d6901c32",
+        "required_clocks_mhz": {
+          "pixel_clk": 74.25,
+          "system_clock.clocks[0]": 52.224,
+          "system_clock.clocks[1]": 12.288
+        },
+        "slot_clock": "pixel_clk",
+        "source_closure_policy": "compiler-markdown-v1",
+        "source_roots": [
+          "cores/fes-coleco",
+          "cores/fes-common",
+          "scripts",
+          "toolchains"
+        ],
+        "tools": {
+          "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=d3d6792c42850526b1a30361cd0ec97b3bb8243916a0195b4a7c96655d9b8502",
+          "nextpnr-mistral": "commit=a93fe013af841214ecb4f7be3af0de65f3de3a0f; sha256=f629e5a15c9087a242941823f2e0d23cf440d3501905d070ebd1e4c09c871e70; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+          "yosys": "commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=bf6c6111e60689ce889b01178abb76c772625c00976b43c88f6acd4fa8c29436"
+        },
+        "variant": "direct"
+      },
+      "resources": {
+        "MISTRAL_COMB": {
+          "available": 83820,
+          "used": 5561
+        },
+        "MISTRAL_FF": {
+          "available": 167640,
+          "used": 1720
+        },
+        "MISTRAL_M10K": {
+          "available": 553,
+          "used": 219
+        },
+        "altera_pll": {
+          "available": 6,
+          "used": 2
+        }
+      },
+      "resources_scope": "Frozen shell plus linked part; native frame banks use exactly 48 additional M10K blocks.",
+      "route": {
+        "complete": true,
+        "gpu_backend": "hip"
+      },
+      "timing": {
+        "pixel_clk": {
+          "achieved_mhz": 90.2527084350586,
+          "constraint_mhz": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved_mhz": 52.9212532043457,
+          "constraint_mhz": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved_mhz": 157.28216552734375,
+          "constraint_mhz": 12.288031578063965
+        }
+      },
+      "transport": {
+        "path": "out/native-video-link/hardware/direct-strict.parts.tar",
+        "sha256": "d9585315c7c952d2924e49f36f26bf52e6338f78e7ce38837652aa7cd09e1fe8",
+        "size": 8278528
+      }
+    },
+    "scanlines": {
+      "build_summary": {
+        "path": "sources/misteross/build/video-parts/scanlines/cf7f71f3eb12fa96a3f76ac2ca304108f043daff53ff0ec1175eda76c83d3ee2/build-summary.json",
+        "sha256": "7ff401713181dbfd7abe920bc3f68ace9cd0c1735164685922130a60a0fed1a3",
+        "size": 173948
+      },
+      "composition": {
+        "composition_id": "41a7076b732d53feeb982a5d4037c2fcd304e6fe6bb46c48ec26cad60ea31808",
+        "layout": "fes.coleco-native-video.parts/1",
+        "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "parts": [
+          {
+            "part_id": "af2dd566691ba53a6d9d61e152bc9c85935bdf2722e2e384f965f869f4f40168",
+            "role": "video"
+          }
+        ],
+        "payload_sha256": "4b7cf5c9c14222d3781bc2b9f9bf473a28b1c5866b1c00cdb923905260b1ae8a",
+        "payload_size": 2787049,
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719"
+      },
+      "cram": {
+        "bits_inside_slot": 548401,
+        "bits_outside_slot": 0,
+        "diff": {
+          "bits": 548401,
+          "x0": 163,
+          "x1": 3774,
+          "y0": 1808,
+          "y1": 3442
+        },
+        "outside_slot_coordinates": [],
+        "outside_slot_coordinates_truncated": false
+      },
+      "cram_policy": "strict-rectangle-v1",
+      "go_python_routed_cart_all_bytes_equal": true,
+      "header_unchanged": true,
+      "manifest": {
+        "cart_sha256": "4b7cf5c9c14222d3781bc2b9f9bf473a28b1c5866b1c00cdb923905260b1ae8a",
+        "cart_size": 2787049,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.coleco-native-video.socket/1",
+        "recipe_sha256": "cf7f71f3eb12fa96a3f76ac2ca304108f043daff53ff0ec1175eda76c83d3ee2",
+        "revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+        "shell_build_id": "c2cd6921235a9bfc238286aa3798382d",
+        "shell_package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+        "shell_sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719",
+        "slot": "fes.fabric.video.native-pixels",
+        "slot_major": 1,
+        "slot_minor": 0
+      },
+      "native_clock_boundary": {
+        "clock_cells": {
+          "MISTRAL_FF": 58,
+          "MISTRAL_M10K": 48
+        },
+        "clock_pins": 154,
+        "clock_port": "FPGA_CLK1_50",
+        "imported_bit": 63,
+        "input_buffer": "FPGA_CLK1_50_MISTRAL_IB_PAD",
+        "prepared_sha256": "7844a4c1ea6269afc1793b168ec32863fc0cb1a132875903b0a08e8436c9b5bd",
+        "ram_blocks": 48,
+        "rewritten_clock_pins": 154,
+        "synth_sha256": "196c92b3ab272eef872b9b18d2dd456ee22dfa66c1060488420b76418440c542",
+        "transparent_buffers": 1,
+        "version": 1
+      },
+      "part": {
+        "path": "sources/misteross/build/video-parts/scanlines/cf7f71f3eb12fa96a3f76ac2ca304108f043daff53ff0ec1175eda76c83d3ee2/af2dd566691ba53a6d9d61e152bc9c85935bdf2722e2e384f965f869f4f40168.tar",
+        "sha256": "25077b86d8b42a05b13aeaa00a30f464d0f1544ed1fb610b3011517b0f37ab50",
+        "size": 2795520
+      },
+      "preview_matches_routed_cram": true,
+      "recipe": {
+        "clock_constraints_sha256": "6eadec71602ec7b4e949bac2f5ee1a6330faa9f8cc00db4eb34ff6b2cdb8648c",
+        "cram_region": [
+          124,
+          1800,
+          3906,
+          3442
+        ],
+        "map": "fes.coleco-native-video.socket/1",
+        "recipe_sha256": "cf7f71f3eb12fa96a3f76ac2ca304108f043daff53ff0ec1175eda76c83d3ee2",
+        "required_clocks_mhz": {
+          "pixel_clk": 74.25,
+          "system_clock.clocks[0]": 52.224,
+          "system_clock.clocks[1]": 12.288
+        },
+        "slot_clock": "pixel_clk",
+        "source_closure_policy": "compiler-markdown-v1",
+        "source_roots": [
+          "cores/fes-coleco",
+          "cores/fes-common",
+          "scripts",
+          "toolchains"
+        ],
+        "tools": {
+          "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=d3d6792c42850526b1a30361cd0ec97b3bb8243916a0195b4a7c96655d9b8502",
+          "nextpnr-mistral": "commit=a93fe013af841214ecb4f7be3af0de65f3de3a0f; sha256=f629e5a15c9087a242941823f2e0d23cf440d3501905d070ebd1e4c09c871e70; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+          "yosys": "commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=bf6c6111e60689ce889b01178abb76c772625c00976b43c88f6acd4fa8c29436"
+        },
+        "variant": "scanlines"
+      },
+      "resources": {
+        "MISTRAL_COMB": {
+          "available": 83820,
+          "used": 5587
+        },
+        "MISTRAL_FF": {
+          "available": 167640,
+          "used": 1721
+        },
+        "MISTRAL_M10K": {
+          "available": 553,
+          "used": 219
+        },
+        "altera_pll": {
+          "available": 6,
+          "used": 2
+        }
+      },
+      "resources_scope": "Frozen shell plus linked part; native frame banks use exactly 48 additional M10K blocks.",
+      "route": {
+        "complete": true,
+        "gpu_backend": "hip"
+      },
+      "timing": {
+        "pixel_clk": {
+          "achieved_mhz": 83.13934326171875,
+          "constraint_mhz": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved_mhz": 52.9212532043457,
+          "constraint_mhz": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved_mhz": 157.28216552734375,
+          "constraint_mhz": 12.288031578063965
+        }
+      },
+      "transport": {
+        "path": "out/native-video-link/hardware/scanlines-strict.parts.tar",
+        "sha256": "904506ca4e2f1eadf2bb5874e85f70eef4e1cf3d96fd6126c23f93cdbdad78cf",
+        "size": 8271360
+      }
+    }
+  },
+  "review_base": "6357a220dfc85eceeb9e29846c0bf55085dfcd08",
+  "shell": {
+    "archive": {
+      "path": "sources/misteross/build/packages/9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e.fcore",
+      "sha256": "f07704d339502b00e14d18580c4b35f8bc55ff52e983e7b775506512e9c41fff",
+      "size": 2690048
+    },
+    "build_id": "c2cd6921235a9bfc238286aa3798382d",
+    "build_inputs": {
+      "path": "sources/misteross/build/fes-coleco-native-video/build-inputs.json",
+      "sha256": "1b9f57057f72b5d7111bc5edc1c9ffd948dbc3ec2b6690d4dcac5cfa655fba6d",
+      "size": 23098
+    },
+    "build_summary": {
+      "path": "sources/misteross/build/fes-coleco-native-video/build-summary.json",
+      "sha256": "71d4f93afab73da47fb4158081900864ceb947353ed9e13bbb369f2809e63b93",
+      "size": 151496
+    },
+    "manifest": {
+      "path": "sources/misteross/build/fes-coleco-native-video/manifest.toml",
+      "sha256": "5eda8c4a0defc7beb40fb6a3b5d89958210f7d10554ff24f2e0e6b19b6f51043",
+      "size": 1843
+    },
+    "package_id": "9884da6328b91f2e72e59ec350488ad348424e1b513294a5d19342bb52aac86e",
+    "parameters": {
+      "audio_clock_hz": 12288000,
+      "audio_sample_hz": 48000,
+      "device": "5CSEBA6U23I7",
+      "execution_sha256": "d7e9c6dc523df6a1f9728e6da773ce7d7e2749c57d4671d181c582f7c4f8ad94",
+      "expansion_rect": "24 1 28 19",
+      "expansion_socket": "coleco-bus-v2",
+      "gpu_architectures": "gfx1100;gfx1201",
+      "gpu_backend": "hip",
+      "gpu_device": 0,
+      "native_encoding": "Index4Tms9918",
+      "native_frame_banks": 2,
+      "native_height": 192,
+      "native_width": 256,
+      "parts_layout": "fes.coleco-native-video.parts/1",
+      "pixel_clock_hz": 74250000,
+      "placer_heap_critexp": 5,
+      "placer_heap_timingweight": 2000,
+      "reference_clock_hz": 50000000,
+      "router": "gpu",
+      "seed": 3,
+      "seed_order": "3,4,5,1,2,6,7,8,9,10",
+      "source_closure_policy": "compiler-markdown-v1",
+      "sys_clock_hz": 52224000,
+      "toolchain_lock": "toolchains/coleco-sgm.lock",
+      "toolchain_lock_sha256": "90e5d772e23c6308b3cad16cdb4327aa630c41fb080cf56929939add638fa477",
+      "top": "top",
+      "video_clock_hz": 74250000,
+      "video_rect": "video 5 23 38 38",
+      "video_socket": "fes.coleco-native-video.socket/1"
+    },
+    "payload": {
+      "sha256": "a6d049cd75798019c815beb11555a1f922b2d1e7503a4c7128fbaa97a4dcf719",
+      "size": 2685651
+    },
+    "public_manifest": "shell-manifest.toml",
+    "recipe": {
+      "abi_definition": "cores/fes-common/generated/fes_application.vh",
+      "abi_definition_sha256": "3c62b421fe14b23599a7ee3f91ab1107cdce7a05bfc34dc7890da64289447d9f",
+      "recipe": "scripts/build_fes_coleco_socket_v2.py",
+      "recipe_sha256": "2c6e5e39b510643d957665c095852db52d290634fd4f11a398f39fb904e78394"
+    },
+    "resources": {
+      "MISTRAL_COMB": {
+        "available": 83820,
+        "used": 4994
+      },
+      "MISTRAL_FF": {
+        "available": 167640,
+        "used": 1756
+      },
+      "MISTRAL_M10K": {
+        "available": 553,
+        "used": 171
+      },
+      "altera_pll": {
+        "available": 6,
+        "used": 2
+      }
+    },
+    "route": {
+      "gpu_backend": "hip",
+      "placer_heap_timingweight": 2000,
+      "placer_qor_mode": "first-pass",
+      "placer_seed": 3,
+      "status": "pass",
+      "unrouted": false
+    },
+    "scope": "Frozen source/CDC/physical socket shell; no native framebuffer or built-in output fallback.",
+    "source_input_count": 204,
+    "source_revision": "2769b08e0478e6bac420495b58b23d4e93120ed2",
+    "timing": {
+      "audio": {
+        "achieved_mhz": 157.28216552734375,
+        "clock": "system_clock.clocks[1]",
+        "constraint_mhz": 12.288031578063965,
+        "requested_mhz": 12.288,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 341.646728515625,
+        "clock": "pixel_clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 52.9212532043457,
+        "clock": "system_clock.clocks[0]",
+        "constraint_mhz": 52.22477340698242,
+        "requested_mhz": 52.224,
+        "status": "pass"
+      }
+    },
+    "tools": {
+      "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=d3d6792c42850526b1a30361cd0ec97b3bb8243916a0195b4a7c96655d9b8502",
+      "nextpnr-mistral": "commit=a93fe013af841214ecb4f7be3af0de65f3de3a0f; sha256=f629e5a15c9087a242941823f2e0d23cf440d3501905d070ebd1e4c09c871e70; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=bf6c6111e60689ce889b01178abb76c772625c00976b43c88f6acd4fa8c29436"
+    }
+  },
+  "strict_source_revision": "d82c0f92c2b3400d9e89a151271dda2da20c6151",
+  "version": 1
+}

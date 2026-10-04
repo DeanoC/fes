@@ -35,12 +35,11 @@ class DieInfo:
     ecc_columns: tuple[int, ...] = ()
 
 
-    # Pinned Mistral b28e30a sx120f constants from libmistral/cvd-sx120f.cc.
-    # Column 42 is the documented ECC strip. Columns 41/45/49 sit on
-    # noedcrc_zones (3491, ~3920, 4174) and only change as ~1024-row CRC
-    # companions of socket CRAM; they are not routing. A taller 16-cell
-    # occupancy also flips the neighbouring CRC strips 43/47/50 on the same
-    # ~1024-row cadence; those bits are rewritten when the RBF is saved.
+# Pinned Mistral sx120f constants from libmistral/cvd-sx120f.cc. The legacy
+# ecc_columns list is a historical comparison policy, not a declaration that
+# these whole columns contain no routing. In particular column41 is M10K and
+# carries real mux bits used by wide native video parts. New strict rectangles
+# compare every decoded CRAM bit; frame checksums are handled by the codec.
 SX120F = DieInfo(
     name="sx120f",
     cram_sx=7605,
@@ -438,8 +437,9 @@ def classify_cram_diff(
     *,
     include_outside_coordinates: bool = False,
     coordinate_limit: int = MAX_CRAM_DIFF_COORDINATES,
+    ignore_ecc_columns: bool = True,
 ) -> dict[str, object]:
-    """Bucket CRAM diffs by column, optionally listing outside-slot bits."""
+    """Bucket CRAM diffs; strict callers disable legacy column exclusions."""
     if coordinate_limit < 0:
         raise ValueError("CRAM diff coordinate limit must be nonnegative")
     die = left.die
@@ -466,7 +466,7 @@ def classify_cram_diff(
                 column = index
                 break
         column_bits[column] = column_bits.get(column, 0) + 1
-        if column in die.ecc_columns:
+        if ignore_ecc_columns and column in die.ecc_columns:
             continue
         if slot.contains(x, y):
             inside += 1
