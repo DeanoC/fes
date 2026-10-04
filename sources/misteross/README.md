@@ -180,7 +180,7 @@ python3 scripts/build_fes_slot.py \
   --output build/oss/composed_901_plus_900.rbf
 ```
 
-`NEXTPNR_MISTRAL` overrides the binary. Locked nextpnr `3d4a5b35` provides
+`NEXTPNR_MISTRAL` overrides the binary. Locked nextpnr `fdac4c7c` provides
 `--fes-scaffold` and `--fes-cart`. A binary without those flags fails closed.
 This path does not seal `fes.zx81`.
 

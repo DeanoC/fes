@@ -10,9 +10,9 @@ from scripts import lockfile
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
-    "yosys": "886afa63953e97407153e9f4aae25fcedb639696",
+    "yosys": "10ce0a10da1613cdafdeecdf3cb745774cb9b35f",
     "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "3d4a5b352b4edb478b744b82cc61333353751a80",
+    "nextpnr": "fdac4c7c4b6e9ad58645fb7f243d6ca9f9a4eea5",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -107,7 +107,7 @@ class LockfileTests(unittest.TestCase):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertEqual(
             lock["nextpnr"].commit,
-            "3d4a5b352b4edb478b744b82cc61333353751a80",
+            "fdac4c7c4b6e9ad58645fb7f243d6ca9f9a4eea5",
         )
         self.assertIn("merge of #115", lock["nextpnr"].rationale)
         self.assertIn("#98 plateau fix", lock["nextpnr"].rationale)
@@ -121,7 +121,7 @@ class LockfileTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "3d4a5b352b4edb478b744b82cc61333353751a80\n")
+        self.assertEqual(result.stdout, "fdac4c7c4b6e9ad58645fb7f243d6ca9f9a4eea5\n")
         self.assertEqual(result.stderr, "")
 
     def test_cli_invalid_arguments_exit_two_without_traceback(self):

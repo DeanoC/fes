@@ -1,20 +1,20 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "886afa63953e97407153e9f4aae25fcedb639696"
+commit = "10ce0a10da1613cdafdeecdf3cb745774cb9b35f"
 order = 10
-rationale = "DeanoC/yosys main head 886afa63; its CMake build retains native Cyclone V M10K support and the fpga2sdram blackbox. Paired with current DeanoC/nextpnr 3d4a5b35 and Mistral 7ed06e21."
+rationale = "DeanoC/yosys main head 10ce0a10 (merge of #21: Cyclone V control block atom blackboxes); its CMake build retains native Cyclone V M10K support and the fpga2sdram blackbox. Paired with current DeanoC/nextpnr fdac4c7c and Mistral 7ed06e21. Previous pin 886afa63."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
 order = 20
-rationale = "DeanoC fork master with the indexed-node routing API (rnode_coords/pnode_coords/xycoords labels, rnode_index handles) plus the fixes current DeanoC nextpnr needs on it: implemented rnode_unlink (PR #9, MISTRAL_RNODE_UNLINK), timing target-position mask and restored hashed pnode/rnode lookups (PR #10). Carries the physical routing-mux, inverter and block-mux CRAM footprints (18db2489, af2ade0a) the FES shell/cart CRAM fence uses, and everything from b28e30a3. Fixed commit, not a moving branch; pair with nextpnr 3d4a5b35 (same pin as toolchains/atari-st.lock)."
+rationale = "DeanoC fork master with the indexed-node routing API (rnode_coords/pnode_coords/xycoords labels, rnode_index handles) plus the fixes current DeanoC nextpnr needs on it: implemented rnode_unlink (PR #9, MISTRAL_RNODE_UNLINK), timing target-position mask and restored hashed pnode/rnode lookups (PR #10). Carries the physical routing-mux, inverter and block-mux CRAM footprints (18db2489, af2ade0a) the FES shell/cart CRAM fence uses, and everything from b28e30a3. Fixed commit, not a moving branch; pair with nextpnr fdac4c7c."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "3d4a5b352b4edb478b744b82cc61333353751a80"
+commit = "fdac4c7c4b6e9ad58645fb7f243d6ca9f9a4eea5"
 order = 30
-rationale = "DeanoC/nextpnr main head 3d4a5b35 (merge of #115), the shared FES HIP pin for pong, catch, demo and the sealed splash; same commit as toolchains/atari-st.lock. Includes #97-#111 Mistral placement/remap/router work, the #98 plateau fix and the #108 placer timeout fix. Inherits the freeze-scaffold/cart flags (--fes-scaffold, --fes-cart), the PR #73 MISTRAL_BUF fix and the fpga2sdram BEL. Pair with Yosys 886afa63 and Mistral 7ed06e21 (required). Previous pin a93fe013 (merge of #86: placement prediction calibrated against routed delays)."
+rationale = "DeanoC/nextpnr main head fdac4c7c (merge of #121: control block atoms and QSF device options; also #128 SDRAM pad-control fixture and origin BEL identity fix), the shared FES HIP pin for menu, pong, catch, demo and the sealed splash. Includes #97-#111 Mistral placement/remap/router work, the #98 plateau fix and the #108 placer timeout fix. Inherits the freeze-scaffold/cart flags (--fes-scaffold, --fes-cart), the PR #73 MISTRAL_BUF fix and the fpga2sdram BEL. Pair with Yosys 10ce0a10 and Mistral 7ed06e21 (required). Previous pin 3d4a5b35 (merge of #115)."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
