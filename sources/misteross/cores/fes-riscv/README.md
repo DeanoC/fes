@@ -14,7 +14,7 @@ Everything runs on the 74.25 MHz pixel clock.
 | --- | --- | --- |
 | `0x0000_0000` | 32 KiB | M10K RAM. The firmware image is loaded by the bitstream; the reset vector is 0 |
 | `0x1000_0000` | 19,200 bytes | Framebuffer, 160x120 pixels, one RGB332 byte each, row stride 160 |
-| `0x2000_0000` | 64 bytes | I/O registers, word access |
+| `0x2000_0000` | 40 bytes | I/O registers, ten words |
 
 | I/O register | Access | Meaning |
 | --- | --- | --- |
@@ -28,7 +28,8 @@ Everything runs on the 74.25 MHz pixel clock.
 | `+0x24` | RW | bit 0 raises the software interrupt |
 
 Any other address faults (load/store access fault, or an instruction access
-fault when fetched). Every bus request takes two cycles. The framebuffer is
+fault when fetched), including the unused words `0x2000_0028`–`0x2000_003c`
+and the bytes of the framebuffer window past the 19,200 that exist. Every bus request takes two cycles. The framebuffer is
 shown 6x inside the shared 1280x720 raster (the 960x720 playfield of
 `fes_video_720p`); the shell uses that module's timing and reads pixels from
 the framebuffer's second M10K port four pixel clocks ahead of the output

@@ -54,6 +54,19 @@ class RiscvProducerTests(unittest.TestCase):
             with self.assertRaisesRegex(board.BuildError, "stale firmware image"):
                 riscv.require_current_firmware(root)
 
+    def test_assembler_encodes_csr_addresses_above_0x7ff(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("riscv_assemble", ROOT / riscv.FIRMWARE_ASSEMBLER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        program = module.assemble(
+            "csrr x1, cycle\ncsrr x2, 0xc82\ncsrrwi x3, 0xf14, 7\ncsrw 0xb00, x4\ncsrsi mstatus, 8\n")
+        words = [int.from_bytes(program[i:i + 4], "little") for i in range(0, len(program), 4)]
+        self.assertEqual([hex(w) for w in words],
+                         [hex(0xc00020f3), hex(0xc8202173), hex(0xf143d1f3), hex(0xb0021073), hex(0x30046073)])
+        with self.assertRaisesRegex(module.AssemblyError, "out of range"):
+            module.assemble("csrr x1, 0x1000\n")
+
     def test_resource_policy_allows_m10k_and_forbids_mlab_dsp_and_sdram(self):
         self.assertIn("MISTRAL_M10K", riscv.ORDINARY_RESOURCES)
         self.assertIn("MISTRAL_MLAB", riscv.FORBIDDEN_RESOURCES)

@@ -13,7 +13,7 @@
 //     +0x18 RW vblank flag (set each frame; any write clears it)
 //     +0x1c RW vblank interrupt enable (external interrupt)
 //     +0x20 R  identification "RISC"  +0x24 RW software interrupt
-//   anything else faults.
+//   anything else faults, including the unused words 0x28-0x3f of the I/O block.
 module fes_riscv_system #(
     parameter FIRMWARE_LANE0 = "cores/fes-riscv/firmware/firmware.lane0.hex",
     parameter FIRMWARE_LANE1 = "cores/fes-riscv/firmware/firmware.lane1.hex",
@@ -77,7 +77,7 @@ module fes_riscv_system #(
     wire issue = bus_valid && !ready_q;
     wire ram_sel = bus_addr[31:15] == 17'd0;
     wire fb_sel = bus_addr[31:15] == {4'h1, 13'd0} && bus_addr[14:2] < FB_WORDS[12:0];
-    wire mmio_sel = bus_addr[31:6] == {4'h2, 22'd0};
+    wire mmio_sel = bus_addr[31:6] == {4'h2, 22'd0} && bus_addr[5:2] <= 4'd9;
     wire [3:0] ram_we = {4{issue && ram_sel}} & bus_wstrb;
     wire [3:0] fb_we = {4{issue && fb_sel}} & bus_wstrb;
     wire mmio_write = issue && mmio_sel && bus_wstrb != 4'd0;

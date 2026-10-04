@@ -68,6 +68,13 @@ def enc_i(imm, rs1, f3, rd, opc):
     return ((imm & 0xfff) << 20) | (rs1 << 15) | (f3 << 12) | (rd << 7) | opc
 
 
+def enc_csr(csr, rs1_or_zimm, f3, rd):
+    # The CSR address is an unsigned 12-bit field; enc_i would reject 0x800 and above.
+    if not 0 <= csr < 4096:
+        raise AssemblyError(f'CSR address {csr} out of range')
+    return (csr << 20) | (rs1_or_zimm << 15) | (f3 << 12) | (rd << 7) | 0x73
+
+
 def enc_s(imm, rs2, rs1, f3):
     if not fits(imm, 12):
         raise AssemblyError(f'offset {imm} does not fit 12 bits')
@@ -229,18 +236,18 @@ class Assembler:
             source = self.evaluate(ops[2]) if m.endswith('i') else reg(ops[2])
             if m.endswith('i') and not 0 <= source < 32:
                 raise AssemblyError(f'CSR immediate {source} out of range')
-            self.emit_word(enc_i(csr, source, CSR_OPS[m], reg(ops[0]), 0x73))
+            self.emit_word(enc_csr(csr, source, CSR_OPS[m], reg(ops[0])))
         elif m in ('csrr',):
-            self.emit_word(enc_i(self.csr(ops[1]), 0, 2, reg(ops[0]), 0x73))
+            self.emit_word(enc_csr(self.csr(ops[1]), 0, 2, reg(ops[0])))
         elif m in ('csrw', 'csrs', 'csrc'):
             f3 = {'csrw': 1, 'csrs': 2, 'csrc': 3}[m]
-            self.emit_word(enc_i(self.csr(ops[0]), reg(ops[1]), f3, 0, 0x73))
+            self.emit_word(enc_csr(self.csr(ops[0]), reg(ops[1]), f3, 0))
         elif m in ('csrwi', 'csrsi', 'csrci'):
             f3 = {'csrwi': 5, 'csrsi': 6, 'csrci': 7}[m]
             value = self.evaluate(ops[1])
             if not 0 <= value < 32:
                 raise AssemblyError(f'CSR immediate {value} out of range')
-            self.emit_word(enc_i(self.csr(ops[0]), value, f3, 0, 0x73))
+            self.emit_word(enc_csr(self.csr(ops[0]), value, f3, 0))
         else:
             raise AssemblyError(f'unknown instruction {mnemonic!r}')
 

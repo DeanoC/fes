@@ -12,10 +12,26 @@ ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/riscv'
 SIM = ROOT / 'cores/fes-common/sim/riscv'
 CORE = ROOT / 'cores/fes-riscv'
-CASES = ('alu', 'cpu', 'firmware', 'system', 'board')
+CASES = ('alu', 'cpu', 'firmware', 'system', 'faults', 'board')
 SYSTEM_SOURCES = ('cores/fes-common/rtl/fes_video_720p.v', 'cores/fes-common/rtl/riscv/fes_rv32_alu.sv',
                   'cores/fes-common/rtl/riscv/fes_rv32_csr.sv', 'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv',
                   'cores/fes-riscv/rtl/fes_riscv_lane_ram.sv', 'cores/fes-riscv/rtl/fes_riscv_system.sv')
+
+
+def fault_firmware(output):
+    """Assemble the bus-fault test program into lane images and return -G overrides."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('fes_riscv_assemble', CORE / 'firmware/assemble.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    program = module.assemble((CORE / 'sim/fault_test.S').read_text())
+    _, lanes = module.images(program)
+    options = []
+    for lane, text in enumerate(lanes):
+        path = output / f'fault_test.lane{lane}.hex'
+        path.write_text(text)
+        options.append(f'-GFIRMWARE_LANE{lane}="{path}"')
+    return options
 
 
 def main():
@@ -47,6 +63,12 @@ def main():
             files = [RTL / name for name in ('fes_rv32_alu.sv', 'fes_rv32_csr.sv', 'fes_rv32_cpu.sv')]
             options = ['--public-flat-rw']
             run_args = [f'--seeds={args.seeds}']
+        elif case == 'faults':
+            top, tb = 'fes_riscv_system', CORE / 'sim/faults_tb.cpp'
+            files = [ROOT / name for name in SYSTEM_SOURCES]
+            output = ROOT / 'build/sim/fes-riscv' / case
+            output.mkdir(parents=True, exist_ok=True)
+            options = ['-Wno-UNUSEDSIGNAL', '--public-flat-rw', *fault_firmware(output)]
         elif case == 'system':
             top, tb = 'fes_riscv_system', CORE / 'sim/system_tb.cpp'
             files = [ROOT / name for name in SYSTEM_SOURCES]
