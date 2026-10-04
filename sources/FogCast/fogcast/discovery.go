@@ -151,7 +151,14 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	if err != nil {
 		return s.connectionFailed(previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")})
 	}
-	if !reboot && (previous.Address != address || (hadGrant && !ownership.Owned)) && s.targetReset != nil {
+	// Agent restarts preserve the kernel boot_id. A grant that this host
+	// previously owned disappearing (or changing generation) is therefore
+	// also a session-generation boundary: discard cached play state before
+	// interpreting the restarted agent's status.
+	leaseChanged := previous.leaseOwned && (!ownership.Owned || (previous.leaseGeneration != "" && previous.leaseGeneration != ownership.Generation))
+	if !reboot && leaseChanged {
+		s.invalidateTargetSession(concrete)
+	} else if !reboot && (previous.Address != address || (hadGrant && !ownership.Owned)) && s.targetReset != nil {
 		s.targetReset()
 	}
 	status, err := concrete.Status(lookupCtx)

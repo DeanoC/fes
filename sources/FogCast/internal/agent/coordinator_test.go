@@ -722,6 +722,25 @@ func TestHealthRemainsNotReadyAfterUnavailableReconciliation(t *testing.T) {
 	}
 }
 
+type recoverableIdleRuntime struct{ fakeRuntime }
+
+func (r *recoverableIdleRuntime) ConfirmIdle(context.Context) bool { return true }
+
+func TestHealthRecoversAfterStartupReconcileRaceWhenRuntimeIsIdle(t *testing.T) {
+	runtime := &recoverableIdleRuntime{fakeRuntime: fakeRuntime{
+		health:     protocol.Health{Ready: false},
+		reconciled: protocol.Status{State: protocol.StateFailed, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "runtime socket was not ready during agent startup"}},
+	}}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+	if health := coordinator.Health("0.1.0"); !health.Ready {
+		t.Fatalf("health did not recover after confirmed idle: %#v", health)
+	}
+	if status := coordinator.Status(); status.State != protocol.StateIdle {
+		t.Fatalf("coordinator status after recovery = %#v", status)
+	}
+}
+
 type nativeIdleControl struct {
 	statusCalls int
 	launchCalls int

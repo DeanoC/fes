@@ -93,6 +93,43 @@ func TestCoreEntryConflictMapsToStaleRevision(t *testing.T) {
 	}
 }
 
+type failedLaunchLeaseStub struct {
+	held     bool
+	releases int
+}
+
+func (l *failedLaunchLeaseStub) Held() bool { return l.held }
+func (l *failedLaunchLeaseStub) Release(context.Context) error {
+	l.releases++
+	l.held = false
+	return nil
+}
+
+func TestUpdateConflictReleasesOnlyNewLaunchLease(t *testing.T) {
+	conflict := &protocol.APIError{Code: "UPDATE_CONFLICT", Message: "revision changed"}
+	t.Run("newly acquired", func(t *testing.T) {
+		lease := &failedLaunchLeaseStub{held: true}
+		got := releaseFailedLaunchLease(conflict, false, lease, false)
+		if !errors.Is(got, conflict) || lease.releases != 1 || lease.held {
+			t.Fatalf("error=%v lease=%+v", got, lease)
+		}
+	})
+	t.Run("pre-existing live play", func(t *testing.T) {
+		lease := &failedLaunchLeaseStub{held: true}
+		got := releaseFailedLaunchLease(conflict, true, lease, true)
+		if !errors.Is(got, conflict) || lease.releases != 0 || !lease.held {
+			t.Fatalf("error=%v lease=%+v", got, lease)
+		}
+	})
+	t.Run("new grant adopted by live play", func(t *testing.T) {
+		lease := &failedLaunchLeaseStub{held: true}
+		got := releaseFailedLaunchLease(conflict, false, lease, true)
+		if !errors.Is(got, conflict) || lease.releases != 0 || !lease.held {
+			t.Fatalf("error=%v lease=%+v", got, lease)
+		}
+	})
+}
+
 func TestInstalledPackageSelectionAndLibraryLaunch(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

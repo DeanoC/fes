@@ -1884,7 +1884,7 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 }
 
 // Caller holds lifecycle admission through package and optional media delivery.
-func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(context.Context) (coreLoadSource, error)) (protocol.Status, error) {
+func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(context.Context) (coreLoadSource, error)) (result protocol.Status, resultErr error) {
 	// Resolve and validate the requested immutable package/media before even a
 	// recovery Stop: an invalid next launch must preserve the retained owner.
 	selected, err := source(ctx)
@@ -1924,6 +1924,15 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	if !ok {
 		return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
 	}
+	// Core mutations may claim the kit lease inside the target client. If
+	// this operation created that grant and then failed (including a target
+	// UPDATE_CONFLICT), release only that newly acquired grant. A grant that
+	// existed before this launch may back another live play and must survive.
+	lease := kitLeaseOf(client)
+	leaseWasHeld := lease != nil && lease.Held()
+	defer func() {
+		resultErr = releaseFailedLaunchLease(resultErr, leaseWasHeld, lease, s.kitLeaseBacksPlay(lease))
+	}()
 	prior, err := client.Status(ctx)
 	if err != nil {
 		return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
@@ -2061,6 +2070,20 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	}
 	s.executionMu.Unlock()
 	return status, nil
+}
+
+type failedLaunchLease interface {
+	Held() bool
+	Release(context.Context) error
+}
+
+func releaseFailedLaunchLease(launchErr error, wasHeld bool, lease failedLaunchLease, backsLivePlay bool) error {
+	if launchErr == nil || wasHeld || lease == nil || !lease.Held() || backsLivePlay {
+		return launchErr
+	}
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return errors.Join(launchErr, lease.Release(releaseCtx))
 }
 
 func (s *Service) retireExecutionAfterConfirmedIdleCorePackageFailure(ctx context.Context, status protocol.Status, loadErr error) (protocol.Status, error) {

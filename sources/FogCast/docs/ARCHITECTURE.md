@@ -1378,6 +1378,14 @@ session that needs the mesh contract fails closed on that major. A random servic
 cloned identities on the same link; the persistent TXT identity remains stable
 across reboots.
 
+The host's selected-target monitor probes authenticated health, adopts the
+advertised endpoint, reads kit lease ownership, then reads status before it
+publishes `ready`. A kernel `boot_id` alone cannot identify a restarted agent
+process. If a previously owned lease disappears or changes generation, the
+host drops that target's cached play record and reconciles against the returned
+status. A fresh host follows the same bounded admission path without assuming
+the agent's old process state.
+
 Host-side content identity lives in `internal/meshcontent`.
 `fogcast.ProjectMeshLibrary` projects the host library already stored
 into that catalog shape: described package id and ABI, the household

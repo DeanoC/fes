@@ -70,6 +70,64 @@ func TestReconnectValidatesIdentityAndNeverMutates(t *testing.T) {
 	}
 }
 
+func TestAgentRestartReconcilesLostLeaseAndConnectsReady(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
+		case "/v1/kit/lease":
+			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/status":
+			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test"))
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	// This is the pre-restart host state: its OS boot id is unchanged, but
+	// the process restart lost the kit's old lease generation and play.
+	s.connection = TargetConnection{State: "connecting", Address: srv.URL, TargetID: id, BootID: "same-kernel-boot", leaseSeen: true, leaseOwned: true, leaseGeneration: "old-generation"}
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "old-game", system: "fpga_native"}
+	started := time.Now()
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("restart reconnect took %v", elapsed)
+	}
+	if got := s.TargetConnection().State; got != "ready" {
+		t.Fatalf("connection state %q, want ready", got)
+	}
+	if plays := s.PlaySessions(); len(plays) != 0 {
+		t.Fatalf("stale play sessions after idle restart: %+v", plays)
+	}
+}
+
+func TestFreshHostConnectsToRestartedAgent(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
+		case "/v1/kit/lease":
+			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/status":
+			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test"))
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	if _, err := s.Health(context.Background()); err != nil || s.TargetConnection().State != "ready" {
+		t.Fatalf("fresh host health err=%v connection=%+v", err, s.TargetConnection())
+	}
+}
+
 func TestReconnectCancellationBackoffAndDuplicateConcurrentLookup(t *testing.T) {
 	base, _ := url.Parse("http://127.0.0.1:1")
 	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa", Address: base.String(), Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", nil))
