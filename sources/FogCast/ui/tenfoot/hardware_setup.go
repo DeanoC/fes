@@ -29,7 +29,7 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 		a.status = localLaunchCheckingCopy
 		return
 	}
-	if a.client == nil || a.session.State == "active" || a.stopPhase == "stopping" || a.retryStopLock || a.launch.Phase == "launching" || a.localCoreBusyLocked() {
+	if a.client == nil || a.session.State == "active" || hostclient.SessionKitLocal(a.session.State) || a.stopPhase == "stopping" || a.retryStopLock || a.launch.Phase == "launching" || a.localCoreBusyLocked() {
 		a.status = "Stop the machine before choosing its next setup."
 		return
 	}

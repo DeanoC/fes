@@ -2247,6 +2247,8 @@ reports state `launching`, `local`, or `stopping` and sets `observed_core` to
 the installed core id. The coordinator record stays idle, so the read does not
 open a host session. `GET /v1/local/status` on the local-control socket remains
 the phase and package detail.
+Host session clients preserve `local` as kit occupancy without assigning a host
+game id, remote input, or host-session Stop behavior.
 
 A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
 frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent

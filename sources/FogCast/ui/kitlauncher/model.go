@@ -266,10 +266,14 @@ func (m *Model) axisStep(hold *int, value int32) int {
 // canLaunch admits a launch only when the configured host API and target are
 // currently ready. Cached catalog rows remain browseable while disconnected.
 func (m Model) canLaunch() bool {
-	return m.Connected && m.TargetReady
+	return m.Connected && m.TargetReady && !hostclient.SessionKitLocal(m.Session.State)
 }
 
 func (m *Model) launchAction(game hostclient.Game) string {
+	if hostclient.SessionKitLocal(m.Session.State) {
+		m.Message = "Kit is running a local core"
+		return ""
+	}
 	if m.LocalPlayEnabled && game.LocalCatalogPlayable() {
 		return "local-launch"
 	}
