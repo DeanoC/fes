@@ -30,9 +30,15 @@ fake_mount=$tmp/mount
 cat > "$fake_mount" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >> "$FES_REBOOT_BACKSTOP_MOUNT_LOG"
-mkdir -p "$4/sys/kernel"
+for root do :; done
+if [ "$1" = -o ]; then
+  [ -d "$root/sys/kernel" ] || exit 0
+else
+  mkdir -p "$root/sys/kernel"
+fi
 for name in panic hung_task_panic hung_task_check_interval_secs hung_task_timeout_secs; do
-  : > "$4/sys/kernel/$name"
+  [ -e "$root/sys/kernel/$name" ] || : > "$root/sys/kernel/$name"
+  chmod 644 "$root/sys/kernel/$name"
 done
 EOF
 chmod +x "$fake_mount"
@@ -47,11 +53,27 @@ FES_REBOOT_BACKSTOP_PROC=$proc FES_REBOOT_BACKSTOP_MOUNT=$fake_mount \
 [ "$(cat "$proc/sys/kernel/hung_task_check_interval_secs")" = 2 ] || fail 'check interval is not 2'
 [ "$(cat "$proc/sys/kernel/hung_task_timeout_secs")" = 20 ] || fail 'timeout is not 20'
 
+if [ "$(id -u)" -ne 0 ]; then
+  for name in panic hung_task_panic hung_task_check_interval_secs hung_task_timeout_secs; do
+    chmod 444 "$proc/sys/kernel/$name"
+  done
+  : > "$mount_log"
+  FES_REBOOT_BACKSTOP_PROC=$proc FES_REBOOT_BACKSTOP_MOUNT=$fake_mount \
+    FES_REBOOT_BACKSTOP_MOUNT_LOG=$mount_log "$script" || fail 'script failed with read-only proc fixtures'
+  [ "$(sed -n '1p' "$mount_log")" = "-o remount,rw proc $proc" ] || fail 'read-only proc remount arguments are incorrect'
+  [ "$(wc -l < "$mount_log" | tr -d ' ')" = 1 ] || fail 'fresh proc mount was attempted after successful remount'
+  [ "$(cat "$proc/sys/kernel/hung_task_panic")" = 1 ] || fail 'read-only proc hung_task_panic value is not 1'
+else
+  printf 'reboot-backstop: skipping chmod-based read-only case as root\n'
+fi
+
 missing_proc=$tmp/missing-proc
 mkdir -p "$missing_proc"
+: > "$mount_log"
 FES_REBOOT_BACKSTOP_PROC=$missing_proc FES_REBOOT_BACKSTOP_MOUNT=$fake_mount \
   FES_REBOOT_BACKSTOP_MOUNT_LOG=$mount_log "$script" || fail 'script failed after proc mount'
-[ "$(cat "$mount_log")" = "-t proc proc $missing_proc" ] || fail 'proc mount arguments are incorrect'
+[ "$(cat "$mount_log")" = "-o remount,rw proc $missing_proc
+-t proc proc $missing_proc" ] || fail 'proc mount arguments or order are incorrect'
 [ "$(cat "$missing_proc/sys/kernel/panic")" = 3 ] || fail 'mounted proc panic value is not 3'
 [ "$(cat "$missing_proc/sys/kernel/hung_task_panic")" = 1 ] || fail 'mounted proc hung_task_panic value is not 1'
 [ "$(cat "$missing_proc/sys/kernel/hung_task_check_interval_secs")" = 2 ] || fail 'mounted proc check interval is not 2'

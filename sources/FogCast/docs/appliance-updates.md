@@ -103,8 +103,9 @@ again. Shutdown has three reset layers:
 - The last `::shutdown` action runs `fes-reboot-backstop` after `/bin/umount -a
   -r`, normally with filesystems read-only, and before init's kill-all and
   `reboot(2)`. Read-only state is not guaranteed if a remount fails. If
-  `/proc/sys/kernel/hung_task_panic` is absent, the action best-effort mounts
-  procfs at `/proc` before arming `kernel.hung_task_panic=1`, a 20-second
+  `/proc/sys/kernel/hung_task_panic` is not writable, the action best-effort
+  remounts `/proc` read-write and, if needed, mounts a fresh procfs before
+  arming `kernel.hung_task_panic=1`, a 20-second
   hung-task timeout, a 2-second check interval and a 3-second panic reboot
   delay. The detector fires only for a task that stays in
   `TASK_UNINTERRUPTIBLE` without a context switch for the whole timeout, so a

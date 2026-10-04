@@ -12,9 +12,15 @@ CHECK_INTERVAL=2
 HUNG_TASK_TIMEOUT=20
 proc_root=${FES_REBOOT_BACKSTOP_PROC:-/proc}
 kernel=$proc_root/sys/kernel
+mount=${FES_REBOOT_BACKSTOP_MOUNT:-/bin/mount}
 
-if [ ! -e "$kernel/hung_task_panic" ]; then
-  "${FES_REBOOT_BACKSTOP_MOUNT:-/bin/mount}" -t proc proc "$proc_root" 2>/dev/null || :
+# A busy read-only /proc can still expose the sysctl but reject writes; first
+# remount it, then stack a fresh procfs if it remains unwritable.
+if [ ! -w "$kernel/hung_task_panic" ]; then
+  "$mount" -o remount,rw proc "$proc_root" 2>/dev/null || :
+  if [ ! -w "$kernel/hung_task_panic" ]; then
+    "$mount" -t proc proc "$proc_root" 2>/dev/null || :
+  fi
 fi
 
 write_setting() {
@@ -30,7 +36,12 @@ write_setting hung_task_panic 1
 write_setting hung_task_check_interval_secs "$CHECK_INTERVAL"
 write_setting hung_task_timeout_secs "$HUNG_TASK_TIMEOUT"
 
+if [ -r "$kernel/hung_task_panic" ] && [ "$(cat "$kernel/hung_task_panic" 2>/dev/null || :)" = 1 ]; then
+  status='armed hung_task_panic timeout=20s panic=3s'
+else
+  status='NOT armed (proc sysctl not writable)'
+fi
 if [ -w /dev/kmsg ]; then
-  printf '%s\n' 'fes-reboot-backstop: armed hung_task_panic timeout=20s panic=3s' > /dev/kmsg 2>/dev/null || :
+  printf 'fes-reboot-backstop: %s\n' "$status" > /dev/kmsg 2>/dev/null || :
 fi
 exit 0
