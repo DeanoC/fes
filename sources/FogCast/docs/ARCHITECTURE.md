@@ -178,8 +178,14 @@ Generation takeover stays on the kit lease API. Launch and Ensure
 then use the new bind. The rebind stores that kit's name, address,
 TargetID, and client on the launch snapshot and notifies the
 selected-target origin hook with that kit's lease, so bind and media
-routing stay on that kit when `selectedTarget` later moves. Media
-cast keeps the same lease, so CastStart still sends the kit-lease
+routing stay on that kit when `selectedTarget` later moves.
+Target session invalidation and origin changes call local input and bridge
+hooks after releasing the target registry lock. Remote input attach may read
+the kit lease while holding its own input lock; this lock order keeps monitor
+reconciliation and input attach able to finish concurrently. A fresh grant
+claimed by this host remains its session even when its generation differs
+from the last monitor snapshot. Media cast keeps the same lease, so
+CastStart still sends the kit-lease
 header, and an adopted endpoint is the cast address. The host verifies
 that kit's identity before the claim. A stale configured address is
 adopted from discovery when that TargetID has one endpoint, and a
@@ -1377,6 +1383,16 @@ row only. A mesh major other than 1 does not remove that direct bind; a
 session that needs the mesh contract fails closed on that major. A random service instance and hostname distinguish
 cloned identities on the same link; the persistent TXT identity remains stable
 across reboots.
+
+The host's selected-target monitor probes authenticated health, adopts the
+advertised endpoint, reads kit lease ownership, then reads status before it
+publishes `ready`. A kernel `boot_id` alone cannot identify a restarted agent
+process. If a previously observed or locally held lease disappears or changes
+generation, the host drops that target's cached play record and reconciles
+against the returned status. This also covers a launch after an idle monitor
+snapshot, followed by an agent restart before the next probe. A fresh host
+follows the same bounded admission path without assuming
+the agent's old process state.
 
 Host-side content identity lives in `internal/meshcontent`.
 `fogcast.ProjectMeshLibrary` projects the host library already stored

@@ -146,13 +146,30 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	hadGrant := concrete.HasKitGrant()
 	if reboot {
 		s.invalidateTargetSession(concrete)
+		s.resetTargetInputsOutsideTargetMu()
 	}
 	ownership, err := concrete.AdoptEndpoint(lookupCtx, base, reboot)
 	if err != nil {
 		return s.connectionFailed(previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")})
 	}
-	if !reboot && (previous.Address != address || (hadGrant && !ownership.Owned)) && s.targetReset != nil {
-		s.targetReset()
+	// Agent restarts preserve the kernel boot_id. A grant seen in the last
+	// snapshot or acquired since then disappearing
+	// is a session boundary: discard cached play before reading agent status.
+	// A new generation acquired by this host since the last observation is
+	// still our session. Only loss of our grant is a session boundary.
+	leaseChanged := (previous.leaseOwned || hadGrant) && !ownership.Owned
+	if !reboot && leaseChanged {
+		s.invalidateTargetSession(concrete)
+		s.resetTargetInputsOutsideTargetMu()
+		// Invalidation discards the stale grant, but also marks the lease lost.
+		// Reconcile once more after that reset so readiness includes a clean
+		// lease state from which an explicit launch can claim immediately.
+		ownership, err = concrete.AdoptEndpoint(lookupCtx, base, false)
+		if err != nil {
+			return s.connectionFailed(previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")})
+		}
+	} else if !reboot && previous.Address != address {
+		s.resetTargetInputsOutsideTargetMu()
 	}
 	status, err := concrete.Status(lookupCtx)
 	if err != nil {
@@ -316,12 +333,24 @@ func (s *Service) incompatibleSessionTargetError(ctx context.Context) error {
 	return s.incompatibleTargetError()
 }
 
-// SetTargetReset registers local input teardown at composition time. The callback
-// must not call back into Service or send network cleanup requests.
+// SetTargetReset registers local input teardown at composition time.
 func (s *Service) SetTargetReset(reset func()) {
 	s.targetMu.Lock()
 	s.targetReset = reset
 	s.targetMu.Unlock()
+}
+
+// targetMu must never be held while acquiring RemoteInput.mu or calling
+// external hooks: bridge Dial holds RemoteInput.mu and reads targetMu.
+// The caller holds targetMu and lifecycle admission while temporarily dropping
+// targetMu for the callback, then resumes reconciliation under the lock.
+func (s *Service) resetTargetInputsOutsideTargetMu() {
+	reset := s.targetReset
+	s.targetMu.Unlock()
+	if reset != nil {
+		reset()
+	}
+	s.targetMu.Lock()
 }
 
 func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, selected TargetConfig) (protocol.Health, string, error) {
@@ -376,10 +405,12 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 	return health, address, nil
 }
 
-// The explicit development reboot already holds lifecycle admission and the
-// target read lock. Its read-only polling may resolve without reacquiring either.
+// The explicit development reboot holds lifecycle admission. The poller takes
+// targetMu only for snapshots and local session invalidation.
 func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string) func(context.Context) (protocol.Health, error) {
+	s.targetMu.RLock()
 	selected := targetByName(s.targets, s.sessionTargetNameLocked())
+	s.targetMu.RUnlock()
 	concrete, ok := client.(*targetclient.Client)
 	if !ok || selected.TargetID == "" {
 		return client.Health
@@ -404,7 +435,13 @@ func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string
 		retryAfter = time.Time{}
 		if health.BootID != "" && health.BootID != oldBoot {
 			base, _ := url.Parse(address)
+			s.targetMu.Lock()
 			s.invalidateTargetSession(concrete)
+			reset := s.targetReset
+			s.targetMu.Unlock()
+			if reset != nil {
+				reset()
+			}
 			if _, err := concrete.AdoptEndpoint(ctx, base, true); err != nil {
 				return protocol.Health{}, err
 			}
@@ -416,9 +453,6 @@ func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string
 
 func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 	client.InvalidateKitSession()
-	if s.targetReset != nil {
-		s.targetReset()
-	}
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
 	invalidatedSelected := false

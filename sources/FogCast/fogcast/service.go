@@ -265,10 +265,12 @@ type Service struct {
 	targetClients       map[string]serviceClient
 	targetClientFactory func(TargetConfig) (serviceClient, error)
 	// targetOrigin rebinds input/media to the selected target. The lease is
-	// the kit grant already held for that target, and may be nil. The hook
-	// must not call back into Service (same rule as targetReset).
-	targetOrigin func(TargetConfig, *targetclient.KitLease)
-	targetMu     sync.RWMutex
+	// the kit grant already held for that target, and may be nil. Invoke hooks
+	// only after dropping targetMu: bridge Dial reads this service under its
+	// own locks, so targetMu -> bridge/input locks would invert that order.
+	targetOrigin       func(TargetConfig, *targetclient.KitLease)
+	targetMu           sync.RWMutex
+	settingsTargetHook func() // guarded by targetMu; called after settings release it
 	// pairedTargetMu protects the independent paired-target lookup snapshot and
 	// lazy client cache. Lock order is targetMu then pairedTargetMu when both
 	// are needed; paired reads take only pairedTargetMu and release it before
@@ -881,7 +883,10 @@ func (s *Service) bindLiveLaunchTarget(target string) error {
 	s.bindPlayTargetLocked(name)
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
-		s.targetOrigin(cfg, kitLeaseOf(s.targetClients[name]))
+		hook, lease := s.targetOrigin, kitLeaseOf(s.targetClients[name])
+		s.targetMu.Unlock()
+		hook(cfg, lease)
+		s.targetMu.Lock()
 	}
 	if launchPinnedTargetBoundHook != nil {
 		launchPinnedTargetBoundHook(name)
@@ -1884,7 +1889,7 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 }
 
 // Caller holds lifecycle admission through package and optional media delivery.
-func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(context.Context) (coreLoadSource, error)) (protocol.Status, error) {
+func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(context.Context) (coreLoadSource, error)) (result protocol.Status, resultErr error) {
 	// Resolve and validate the requested immutable package/media before even a
 	// recovery Stop: an invalid next launch must preserve the retained owner.
 	selected, err := source(ctx)
@@ -1924,6 +1929,15 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	if !ok {
 		return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
 	}
+	// Core mutations may claim the kit lease inside the target client. If
+	// this operation created that grant and then failed (including a target
+	// UPDATE_CONFLICT), release only that newly acquired grant. A grant that
+	// existed before this launch may back another live play and must survive.
+	lease := kitLeaseOf(client)
+	leaseWasHeld := lease != nil && lease.Held()
+	defer func() {
+		resultErr = releaseFailedLaunchLease(resultErr, leaseWasHeld, lease, s.kitLeaseBacksPlayLocked(lease))
+	}()
 	prior, err := client.Status(ctx)
 	if err != nil {
 		return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
@@ -2061,6 +2075,20 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	}
 	s.executionMu.Unlock()
 	return status, nil
+}
+
+type failedLaunchLease interface {
+	Held() bool
+	Release(context.Context) error
+}
+
+func releaseFailedLaunchLease(launchErr error, wasHeld bool, lease failedLaunchLease, backsLivePlay bool) error {
+	if launchErr == nil || wasHeld || lease == nil || !lease.Held() || backsLivePlay {
+		return launchErr
+	}
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return errors.Join(launchErr, lease.Release(releaseCtx))
 }
 
 func (s *Service) retireExecutionAfterConfirmedIdleCorePackageFailure(ctx context.Context, status protocol.Status, loadErr error) (protocol.Status, error) {
@@ -2737,7 +2765,9 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		if validRecoveredDevelopmentStatus(recovered) {
 			status = recovered
 		} else {
+			s.targetMu.RUnlock()
 			status, err = waitForDevelopmentRecovery(ctx, client, health.BootID, s.developmentRecoveryHealth(client, health.BootID))
+			s.targetMu.RLock()
 			if err != nil {
 				return protocol.Status{}, err
 			}
@@ -2769,7 +2799,10 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		if stoppedTarget == "" {
 			stoppedTarget = s.selectedTarget
 		}
-		s.targetOrigin(targetByName(s.targets, stoppedTarget), kitLeaseOf(s.targetClients[stoppedTarget]))
+		hook, cfg, lease := s.targetOrigin, targetByName(s.targets, stoppedTarget), kitLeaseOf(s.targetClients[stoppedTarget])
+		s.targetMu.RUnlock()
+		hook(cfg, lease)
+		s.targetMu.RLock()
 	}
 	return status, nil
 }
@@ -3531,6 +3564,15 @@ func (s *Service) kitLeaseBacksPlay(lease *targetclient.KitLease) bool {
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
+	return s.kitLeaseBacksPlayLocked(lease)
+}
+
+// kitLeaseBacksPlayLocked uses the target binding already held by the caller.
+// Caller holds targetMu and must not hold executionMu.
+func (s *Service) kitLeaseBacksPlayLocked(lease *targetclient.KitLease) bool {
+	if lease == nil {
+		return false
+	}
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
 	for name := range s.plays {

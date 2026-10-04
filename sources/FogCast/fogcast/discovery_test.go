@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/DeanoC/FogCast/catalog"
 	"io"
 	"net"
 	"net/http"
@@ -16,9 +15,104 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
+
+func TestMonitorLeaseLossConcurrentRemoteInputAttachNoDeadlock(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same", Ready: true})
+		case "/v1/kit/lease":
+			_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/status":
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test"))
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.connection = TargetConnection{State: "ready", Address: srv.URL, TargetID: id, BootID: "same", leaseOwned: true, leaseGeneration: "old"}
+	attachStarted := make(chan struct{})
+	resetStarted := make(chan struct{})
+	input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: host.BridgeStarterFunc(func(ctx context.Context, spec host.BridgeSpec) (host.BridgeHandle, error) {
+		close(attachStarted) // Attach holds RemoteInput.mu while Start runs.
+		<-resetStarted
+		_ = s.KitLeaseForTarget("kit") // The real bridge Dial makes this same call.
+		return nil, errors.New("test bridge stopped")
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetTargetReset(func() { close(resetStarted); input.Invalidate() })
+	attachDone := make(chan struct{})
+	go func() { _ = input.Attach(context.Background(), "fes.pong"); close(attachDone) }()
+	select {
+	case <-attachStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("attach did not start")
+	}
+	monitorDone := make(chan error, 1)
+	go func() { _, err := s.Health(context.Background()); monitorDone <- err }()
+	select {
+	case err := <-monitorDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("monitor deadlocked with remote input attach")
+	}
+	select {
+	case <-attachDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("attach did not finish")
+	}
+}
+
+func TestMonitorOwnLaunchGrantDoesNotInvalidateSession(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same", Ready: true})
+		case "/v1/kit/lease":
+			_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "held", Generation: "new"})
+		case "/v1/kit/claim":
+			_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "own-token", Status: kitlease.Status{State: "held", Generation: "new", ExpiresInMS: 60000}})
+		case "/v1/status":
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateActive})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	lease := targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test")
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.connection = TargetConnection{State: "ready", Address: srv.URL, TargetID: id, BootID: "same", leaseOwned: true, leaseGeneration: "old"}
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	if err := lease.Authorize(req, true); err != nil {
+		t.Fatal(err)
+	}
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "current", system: "fpga_native"}
+	invalidations := 0
+	s.SetTargetReset(func() { invalidations++ })
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if invalidations != 0 || len(s.PlaySessions()) != 1 || !client.HasKitGrant() {
+		t.Fatalf("own grant invalidated: resets=%d plays=%+v held=%v", invalidations, s.PlaySessions(), client.HasKitGrant())
+	}
+}
 
 func TestReconnectValidatesIdentityAndNeverMutates(t *testing.T) {
 	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
@@ -67,6 +161,119 @@ func TestReconnectValidatesIdentityAndNeverMutates(t *testing.T) {
 				t.Fatalf("mutations %d", mutations)
 			}
 		})
+	}
+}
+
+func TestAgentRestartReconcilesLostLeaseAndConnectsReady(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
+		case "/v1/kit/lease":
+			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/kit/claim":
+			json.NewEncoder(w).Encode(kitlease.Grant{Token: "launch-token", Status: kitlease.Status{State: "held", Generation: "launch-generation", ExpiresInMS: 60000}})
+		case "/v1/status":
+			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	lease := targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test")
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	// This is the pre-restart host state: its OS boot id is unchanged, but
+	// the process restart lost the kit's old lease generation and play.
+	s.connection = TargetConnection{State: "connecting", Address: srv.URL, TargetID: id, BootID: "same-kernel-boot", leaseSeen: true, leaseOwned: true, leaseGeneration: "old-generation"}
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "old-game", system: "fpga_native"}
+	started := time.Now()
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("restart reconnect took %v", elapsed)
+	}
+	if got := s.TargetConnection().State; got != "ready" {
+		t.Fatalf("connection state %q, want ready", got)
+	}
+	if plays := s.PlaySessions(); len(plays) != 0 {
+		t.Fatalf("stale play sessions after idle restart: %+v", plays)
+	}
+	claimReq, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	if err := lease.Authorize(claimReq, true); err != nil {
+		t.Fatalf("immediate claim after ready: %v", err)
+	}
+}
+
+func TestAgentRestartAfterIdleSnapshotDropsNewPlay(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
+		case "/v1/kit/lease":
+			_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/kit/claim":
+			_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "launch-token", Status: kitlease.Status{State: "held", Generation: "launch-generation", ExpiresInMS: 60000}})
+		case "/v1/status":
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	lease := targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test")
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if s.TargetConnection().leaseOwned {
+		t.Fatal("initial idle snapshot unexpectedly owned a lease")
+	}
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	if err := lease.Authorize(req, true); err != nil {
+		t.Fatal(err)
+	}
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "old-game", system: "fpga_native"}
+	// The agent restarts before the monitor takes another ownership snapshot.
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.TargetConnection().State; got != "ready" {
+		t.Fatalf("connection state = %q", got)
+	}
+	if plays := s.PlaySessions(); len(plays) != 0 {
+		t.Fatalf("stale play after agent restart: %+v", plays)
+	}
+	claimReq, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	if err := lease.Authorize(claimReq, true); err != nil {
+		t.Fatalf("immediate claim after ready: %v", err)
+	}
+}
+
+func TestFreshHostConnectsToRestartedAgent(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
+		case "/v1/kit/lease":
+			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/status":
+			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test"))
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	if _, err := s.Health(context.Background()); err != nil || s.TargetConnection().State != "ready" {
+		t.Fatalf("fresh host health err=%v connection=%+v", err, s.TargetConnection())
 	}
 }
 
