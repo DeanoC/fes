@@ -370,8 +370,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 20 ]] || { \
-		echo "canonical archive must contain exactly 20 production members" >&2; \
+	[[ "$$member_count" == 21 ]] || { \
+		echo "canonical archive must contain exactly 21 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -385,7 +385,7 @@ archive-audit: $(ARCHIVE)
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
 	}; \
-	for required in runtime.o artifacts.o core_composition.o core_data.o core_package.o core_driver.o fes_gp.o \
+	for required in runtime.o artifacts.o core_composition.o core_data.o media_data.o core_package.o core_driver.o fes_gp.o \
 		diagnostic.o sha256.o input.o hardware.o \
 		fpga_manager.o mmio.o production_hardware.o video_recipe.o \
 		video.o i2c.o linux_input.o; do \
@@ -412,7 +412,7 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_composition.o\nsrc/native/core_data.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/menu_memory.o\nsrc/native/linux/mmio.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_composition.o\nsrc/native/core_data.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/menu_memory.o\nsrc/native/linux/mmio.o\nsrc/native/media_data.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \
