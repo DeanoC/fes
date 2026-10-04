@@ -265,10 +265,12 @@ type Service struct {
 	targetClients       map[string]serviceClient
 	targetClientFactory func(TargetConfig) (serviceClient, error)
 	// targetOrigin rebinds input/media to the selected target. The lease is
-	// the kit grant already held for that target, and may be nil. The hook
-	// must not call back into Service (same rule as targetReset).
-	targetOrigin func(TargetConfig, *targetclient.KitLease)
-	targetMu     sync.RWMutex
+	// the kit grant already held for that target, and may be nil. Invoke hooks
+	// only after dropping targetMu: bridge Dial reads this service under its
+	// own locks, so targetMu -> bridge/input locks would invert that order.
+	targetOrigin       func(TargetConfig, *targetclient.KitLease)
+	targetMu           sync.RWMutex
+	settingsTargetHook func() // guarded by targetMu; called after settings release it
 	// pairedTargetMu protects the independent paired-target lookup snapshot and
 	// lazy client cache. Lock order is targetMu then pairedTargetMu when both
 	// are needed; paired reads take only pairedTargetMu and release it before
@@ -881,7 +883,10 @@ func (s *Service) bindLiveLaunchTarget(target string) error {
 	s.bindPlayTargetLocked(name)
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
-		s.targetOrigin(cfg, kitLeaseOf(s.targetClients[name]))
+		hook, lease := s.targetOrigin, kitLeaseOf(s.targetClients[name])
+		s.targetMu.Unlock()
+		hook(cfg, lease)
+		s.targetMu.Lock()
 	}
 	if launchPinnedTargetBoundHook != nil {
 		launchPinnedTargetBoundHook(name)
@@ -2760,7 +2765,9 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		if validRecoveredDevelopmentStatus(recovered) {
 			status = recovered
 		} else {
+			s.targetMu.RUnlock()
 			status, err = waitForDevelopmentRecovery(ctx, client, health.BootID, s.developmentRecoveryHealth(client, health.BootID))
+			s.targetMu.RLock()
 			if err != nil {
 				return protocol.Status{}, err
 			}
@@ -2792,7 +2799,10 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		if stoppedTarget == "" {
 			stoppedTarget = s.selectedTarget
 		}
-		s.targetOrigin(targetByName(s.targets, stoppedTarget), kitLeaseOf(s.targetClients[stoppedTarget]))
+		hook, cfg, lease := s.targetOrigin, targetByName(s.targets, stoppedTarget), kitLeaseOf(s.targetClients[stoppedTarget])
+		s.targetMu.RUnlock()
+		hook(cfg, lease)
+		s.targetMu.RLock()
 	}
 	return status, nil
 }

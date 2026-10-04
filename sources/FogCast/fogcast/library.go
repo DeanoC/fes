@@ -612,8 +612,13 @@ func (s *Service) SetLibrarySettings(ctx context.Context, next LibraryConfig) er
 	s.targetMu.Lock()
 	s.libraryMu.Lock()
 	rootsChanged, err := s.setLibrarySettingsLocked(next)
+	hook := s.settingsTargetHook
+	s.settingsTargetHook = nil
 	s.libraryMu.Unlock()
 	s.targetMu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	if err != nil {
 		return err
 	}
@@ -680,8 +685,13 @@ func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigP
 		}
 	}
 	rootsChanged, err := s.setLibrarySettingsLocked(next)
+	hook := s.settingsTargetHook
+	s.settingsTargetHook = nil
 	s.libraryMu.Unlock()
 	s.targetMu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	if err != nil {
 		return err
 	}
@@ -918,11 +928,16 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 		s.selectedTargetReconciled = !targetByName(s.targets, s.selectedTarget).Enabled
 		s.selectedTargetRepairAllowed = false
 		s.executionMu.Unlock()
-		if s.targetReset != nil {
-			s.targetReset()
-		}
-		if s.targetOrigin != nil {
-			s.targetOrigin(targetByName(s.targets, s.selectedTarget), kitLeaseOf(s.targetClients[s.selectedTarget]))
+		reset, origin := s.targetReset, s.targetOrigin
+		cfg := targetByName(s.targets, s.selectedTarget)
+		lease := kitLeaseOf(s.targetClients[s.selectedTarget])
+		s.settingsTargetHook = func() {
+			if reset != nil {
+				reset()
+			}
+			if origin != nil {
+				origin(cfg, lease)
+			}
 		}
 	}
 	return nil

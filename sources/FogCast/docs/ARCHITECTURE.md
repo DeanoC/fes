@@ -178,8 +178,14 @@ Generation takeover stays on the kit lease API. Launch and Ensure
 then use the new bind. The rebind stores that kit's name, address,
 TargetID, and client on the launch snapshot and notifies the
 selected-target origin hook with that kit's lease, so bind and media
-routing stay on that kit when `selectedTarget` later moves. Media
-cast keeps the same lease, so CastStart still sends the kit-lease
+routing stay on that kit when `selectedTarget` later moves.
+Target session invalidation and origin changes call local input and bridge
+hooks after releasing the target registry lock. Remote input attach may read
+the kit lease while holding its own input lock; this lock order keeps monitor
+reconciliation and input attach able to finish concurrently. A fresh grant
+claimed by this host remains its session even when its generation differs
+from the last monitor snapshot. Media cast keeps the same lease, so
+CastStart still sends the kit-lease
 header, and an adopted endpoint is the cast address. The host verifies
 that kit's identity before the claim. A stale configured address is
 adopted from discovery when that TargetID has one endpoint, and a
