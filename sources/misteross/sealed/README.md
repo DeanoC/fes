@@ -11,9 +11,9 @@ retired for day-to-day work. FES `sources/misteross` is the source of truth.
 | Field | Value |
 | --- | --- |
 | Source recipe | `make build-fes-splash` (PLL lock-gate HDMI after reconfig; idle fpga2sdram cell with the `fes.memory.hps-ddr` layout U-Boot latches at boot) |
-| Sealed | FES `808bd7c275e1a9934cbca15f9177c553e8c406c7` |
-| sha256 | `43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6` |
-| size | 1963100 |
+| Sealed | FES `22749b1c67cd0ac4a24d0ad110a0a2f9a736fac3` |
+| sha256 | `64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182` |
+| size | 1963321 |
 | Provenance | `sealed/fes-splash.build-summary.json` |
 | Lane | OSS Yosys/nextpnr, `gpu-router=OFF` |
 
