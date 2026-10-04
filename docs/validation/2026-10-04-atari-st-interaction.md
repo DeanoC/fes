@@ -311,3 +311,7 @@ and active, matching its initial state. The host API was ready before the
 final menu restart; HDMI shows the restored 4,253-title library and a free lease.
 
 ![Menu restored after diagnostics](2026-10-04-atari-st-interaction/menu-restored.png)
+
+The investigation is tracked in [nextpnr #125](https://github.com/DeanoC/nextpnr/issues/125).
+It reports the verified physical failure and proposed RAM-tester regression;
+the compiler cause remains unconfirmed.

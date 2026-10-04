@@ -598,6 +598,7 @@
     "independent_review": "pass: full settled-frame ignored-mask oracle and exact package/ROM/Stop bindings",
     "independent_review_sha256": "ca69690f8370cebd64eb11a99644e3502abc95dd40a0fda63868eef7a76b3d4f",
     "interpretation": "Matches ignored-mask digital control. Compiler/electrical/module cause unconfirmed.",
+    "investigation_issue": "https://github.com/DeanoC/nextpnr/issues/125",
     "lease_state_after": "free",
     "normal_host_restored": true,
     "observed_word_rows": [
