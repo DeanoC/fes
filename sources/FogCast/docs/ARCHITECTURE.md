@@ -2241,6 +2241,12 @@ pad frame cannot rebind a generation that barrier just cleared. Stop uses the
 owned stop path. Kit-local loads do not enter the coordinator, so takeover,
 expiry, shutdown, and release after a failed load stop the runtime before the
 lease can be freed. Cleanup that does not reach idle leaves the lease blocked.
+Bearer `GET /v1/status` still reads that coordinator record. While the record
+is idle and a kit-local core is launching, running, or stopping, the response
+reports state `launching`, `local`, or `stopping` and sets `observed_core` to
+the installed core id. The coordinator record stays idle, so the read does not
+open a host session. `GET /v1/local/status` on the local-control socket remains
+the phase and package detail.
 
 A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
 frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent

@@ -39,6 +39,8 @@ const (
 	StateActive    State = "active"
 	StateStopping  State = "stopping"
 	StateFailed    State = "failed"
+	// StateLocal is a kit-local core running outside the host session.
+	StateLocal State = "local"
 )
 
 type ErrorCode string

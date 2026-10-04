@@ -950,25 +950,25 @@ func TestRunStatusLaunchingThenRunningThenIdle(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("load did not start")
 	}
-	if st := service.RunStatus(); st.Phase != phaseLaunching || st.Running || st.PackageID != pong.PackageID {
+	if st := service.RunStatus(); st.Phase != phaseLaunching || st.Running || st.PackageID != pong.PackageID || st.CoreID != pong.CoreID {
 		t.Fatalf("launching %+v", st)
 	}
 	close(release)
 	if err := <-errc; err != nil {
 		t.Fatal(err)
 	}
-	if st := service.RunStatus(); st.Phase != phaseRunning || !st.Running || st.PackageID != pong.PackageID {
+	if st := service.RunStatus(); st.Phase != phaseRunning || !st.Running || st.PackageID != pong.PackageID || st.CoreID != pong.CoreID {
 		t.Fatalf("running %+v", st)
 	}
 	response := httptest.NewRecorder()
 	Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/status", nil))
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"running":true`) {
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"running":true`) || !strings.Contains(response.Body.String(), `"core_id":"`+pong.CoreID+`"`) {
 		t.Fatalf("status %d %s", response.Code, response.Body.String())
 	}
 	if err := service.Stop(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if st := service.RunStatus(); st.Phase != phaseIdle || st.Running {
+	if st := service.RunStatus(); st.Phase != phaseIdle || st.Running || st.CoreID != "" || st.PackageID != "" {
 		t.Fatalf("idle %+v", st)
 	}
 }
