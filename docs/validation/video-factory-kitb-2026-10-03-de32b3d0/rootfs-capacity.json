@@ -1,0 +1,13 @@
+{
+  "block_count": 131072,
+  "block_size": 1024,
+  "configured_bytes": 134217728,
+  "free_blocks": 28301,
+  "guard_max_bytes": 114085068,
+  "linux_img_sha256": "cbb6d172f7ef28af8d435861b4a4356888c4a21b735a09d92144ae8c39769a27",
+  "release_manifest_dir": "b3e98f0e61aafa1e2943230cc302bdfb1cfb2539c0e200f970692f1c0f011dbc",
+  "release_rootfs_img_sha256": "cbb6d172f7ef28af8d435861b4a4356888c4a21b735a09d92144ae8c39769a27",
+  "used_bytes": 105237504,
+  "used_percent": 78.41,
+  "within_guard": true
+}

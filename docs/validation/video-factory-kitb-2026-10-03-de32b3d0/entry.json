@@ -1,0 +1,147 @@
+{
+  "created": {
+    "entry": {
+      "core_id": "fes.coleco",
+      "game_id": "fpga-factory-video-open-graphics-diagnostic-2d9814df8312",
+      "media_id": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+      "media_role": "blob",
+      "package_id": "e8fb0875292643d05cd500c461a51afa59ae839e085c5ff5d1f28629d4578772",
+      "title": "Factory video open graphics diagnostic"
+    },
+    "publication_source_id": "fes-first-party",
+    "source_id": "pr404-de32b3d0-kitb"
+  },
+  "media": {
+    "media_id": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+    "size": 1086
+  },
+  "setup": {
+    "capabilities": {
+      "compatibility": "unknown",
+      "firmware": [
+        {
+          "format": "raw",
+          "interface": {
+            "id": "fes.firmware.blob",
+            "major": 1,
+            "minor": 0
+          },
+          "max_bytes": 8192,
+          "min_bytes": 8192,
+          "role": "firmware",
+          "transport": "fes-application-mailbox-firmware-v1"
+        }
+      ],
+      "import_max_bytes": 33554432,
+      "media": [
+        {
+          "format": "raw",
+          "interface": {
+            "id": "fes.media.blob-stream",
+            "major": 1,
+            "minor": 0
+          },
+          "max_bytes": 32768,
+          "min_bytes": 1,
+          "role": "blob",
+          "transport": "fes-application-mailbox-stream-v1"
+        }
+      ],
+      "package_id": "e8fb0875292643d05cd500c461a51afa59ae839e085c5ff5d1f28629d4578772",
+      "source": "declared-contract"
+    },
+    "core_id": "fes.coleco",
+    "descriptor": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "build": {
+        "id": "9cf92c6e6f791c854aad2d448df79871",
+        "recipe_sha256": "289dcd913ab49fbbeb6cf29327efba929dcea09b3d77304c53c757e8578b797b",
+        "repository": "https://github.com/DeanoC/fes.git",
+        "revision": "de32b3d083e98ba7f387ec16da1204cdd05f4284",
+        "toolchain": "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=d3d6792c42850526b1a30361cd0ec97b3bb8243916a0195b4a7c96655d9b8502; nextpnr-mistral commit=a93fe013af841214ecb4f7be3af0de65f3de3a0f; sha256=f629e5a15c9087a242941823f2e0d23cf440d3501905d070ebd1e4c09c871e70; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=e2d425dee148cc60c50f4e9b354a10d90eab15f4; sha256=bf6c6111e60689ce889b01178abb76c772625c00976b43c88f6acd4fa8c29436"
+      },
+      "core": {
+        "description": "ColecoVision development shell with CPU and pixel-domain video sockets",
+        "id": "fes.coleco",
+        "name": "FES ColecoVision",
+        "version": "1.2.0"
+      },
+      "format": 2,
+      "interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.keypad.ports",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.blob",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.blob-stream",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.firmware.blob",
+          "major": 1,
+          "minor": 0,
+          "required": false
+        },
+        {
+          "id": "fes.expansion.coleco-bus",
+          "major": 2,
+          "minor": 0,
+          "required": false
+        },
+        {
+          "id": "fes.fabric.video.raster-rgb888",
+          "major": 1,
+          "minor": 0,
+          "required": false
+        }
+      ],
+      "payload": {
+        "file": "core.rbf",
+        "sha256": "0c88c70b842d93c40a8a240254ca7f68b2193434f72da7ed7a3c871f00776199",
+        "size": 2825284
+      },
+      "target": {
+        "device": "5CSEBA6U23I7",
+        "platform": "de10_nano",
+        "programming_profile": "fes-gp-v1"
+      }
+    },
+    "entries": [],
+    "library_source_id": "pr404-de32b3d0-kitb",
+    "package_id": "e8fb0875292643d05cd500c461a51afa59ae839e085c5ff5d1f28629d4578772",
+    "roms": [],
+    "source_id": "fes-first-party"
+  }
+}
