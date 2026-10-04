@@ -14,7 +14,12 @@ import (
 
 // Session loads GET /api/v1/session using the normal polling client.
 func (c *Client) Session(ctx context.Context) (SessionResult, error) {
-	return GetSession(ctx, c.httpClient, c.baseURL, maxResponseBytes)
+	order := c.beginSessionObservation()
+	result, err := GetSession(ctx, c.httpClient, c.baseURL, maxResponseBytes)
+	if err == nil {
+		c.recordSessionObservation(order, result)
+	}
+	return result, err
 }
 
 // Launch posts {game_id} to POST /api/v1/session/launch with client clocks.
@@ -73,7 +78,7 @@ func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
 
 // StopStamped is Stop with an explicit client stamp.
 func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (SessionResult, error) {
-	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", http.NoBody, c.observedStopHTTP(ctx), stamp, "stop", "idle")
+	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", http.NoBody, c.knownStopHTTP(), stamp, "stop", "idle")
 }
 
 // StopExpectedStamped stops only the package play captured by expected. Host
@@ -109,7 +114,7 @@ func (c *Client) stopExpectedStamped(ctx context.Context, expected SessionResult
 // StopRetainLease is the sofa Soft-stop. retain_lease asks idle cleanup to
 // keep the kit lease. Stamps stay on the existing client-clock headers.
 func (c *Client) StopRetainLease(ctx context.Context, stamp ClientStamp) (SessionResult, error) {
-	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader([]byte(`{"retain_lease":true}`)), c.observedStopHTTP(ctx), stamp, "stop", "idle")
+	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader([]byte(`{"retain_lease":true}`)), c.knownStopHTTP(), stamp, "stop", "idle")
 }
 
 // ReleaseIdleGrants drops idle retained grants without stopping a play that
@@ -132,6 +137,7 @@ func (c *Client) mutateSession(ctx context.Context, method, path string, body io
 }
 
 func (c *Client) doSessionMutation(req *http.Request, httpClient *http.Client, label, expectedState string) (SessionResult, error) {
+	order := c.beginSessionObservation()
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
@@ -148,6 +154,7 @@ func (c *Client) doSessionMutation(req *http.Request, httpClient *http.Client, l
 	if err != nil {
 		return result, fmt.Errorf("%s response: %w", label, err)
 	}
+	c.recordSessionMutation(order, result)
 	if result.ErrorCode != "" {
 		return result, nil
 	}

@@ -178,9 +178,7 @@ func TestAddressOnlyStopNeedsProtocolHealthNotStatus(t *testing.T) {
 			if version == "v1" {
 				want = 1
 			}
-			// A valid peer gets one best-effort Status read to select a durable
-			// disk budget. Its 503 must never reject the admitted Stop.
-			if stops.Load() != want || statuses.Load() != want {
+			if stops.Load() != want || statuses.Load() != 0 {
 				t.Fatalf("stops=%d status/lease=%d", stops.Load(), statuses.Load())
 			}
 		})

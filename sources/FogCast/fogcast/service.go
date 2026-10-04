@@ -2578,6 +2578,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		}
 	}
 
+	discoveryAdmission := activeExecution != ExecutionHostOnly && s.discoveryEnabled()
 	if activeExecution != ExecutionHostOnly && s.protocolAdmissionEnabled() {
 		if _, err := s.refreshStopAdmission(ctx); err != nil {
 			return protocol.Status{}, stopAdmissionError(err)
@@ -2629,13 +2630,14 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		}
 	}
 	if !idleWithoutLease {
-		// Observe the exact selected package while lifecycle admission is held.
-		// Only a durable disk binding needs the longer capture deadline.
-		boundDisk := false
+		// Reuse discovery admission's existing Status. Legacy address-only
+		// Stop never acquires a new status dependency; a remembered package
+		// may be observed directly while lifecycle admission is held.
+		boundDisk := discoveryAdmission && s.TargetConnection().mediaDataBound
 		saving, canSave := client.(interface {
 			StopWithMediaSave(context.Context) (protocol.Status, error)
 		})
-		if describedPackage || canSave {
+		if describedPackage && !discoveryAdmission {
 			observed, observeErr := client.Status(ctx)
 			boundDisk = observeErr == nil && protocol.MediaDataBound(observed.CorePackage)
 		}

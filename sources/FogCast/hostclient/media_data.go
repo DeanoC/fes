@@ -100,6 +100,7 @@ func (c *Client) postDisk(ctx context.Context, path string, prior SessionResult,
 	if client.Timeout == 0 || client.Timeout < budget {
 		client.Timeout = budget
 	}
+	order := c.beginSessionObservation()
 	response, err := client.Do(req)
 	if err != nil {
 		return SessionResult{}, err
@@ -119,5 +120,6 @@ func (c *Client) postDisk(ctx context.Context, path string, prior SessionResult,
 	if result.ID != prior.ID || result.Target != prior.Target || result.TargetID != prior.TargetID || result.CorePackage == nil || result.CorePackage.PackageID != b.PackageID || result.CorePackage.Generation != b.Generation {
 		return SessionResult{}, errors.New("disk response changed session identity")
 	}
+	c.recordSessionMutation(order, result)
 	return result, nil
 }

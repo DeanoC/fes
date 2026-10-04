@@ -2050,8 +2050,7 @@ func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
 	if err != nil || status.State != protocol.StateIdle {
 		t.Fatalf("HTTP native recovery stop = %#v, %v", status, err)
 	}
-	// One Status selects the Stop budget; the second confirms recovery after reboot.
-	if stopCalls != 1 || rebootCalls != 1 || healthCalls < 2 || statusCalls != 2 || service.activeExecution != "" {
+	if stopCalls != 1 || rebootCalls != 1 || healthCalls < 2 || statusCalls != 1 || service.activeExecution != "" {
 		t.Fatalf("HTTP native recovery calls = stop:%d reboot:%d health:%d status:%d execution:%q", stopCalls, rebootCalls, healthCalls, statusCalls, service.activeExecution)
 	}
 }
