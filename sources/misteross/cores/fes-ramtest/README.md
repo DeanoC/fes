@@ -110,7 +110,7 @@ make build-fes-ramtest-100
 make build-fes-ramtest-130
 ```
 
-Both OSS rates use `toolchains/ramtest.lock`. Its Yosys declares every
+Both OSS rates use the shared `toolchain.lock` HIP compiler slot. Its Yosys declares every
 fpga2sdram port, so all three ports reach the netlist; the pinned blackbox
 before it listed only command port 2 and data port 3. The OSS recipe checks
 that the synthesized fpga2sdram cell carries the generated layout constants.

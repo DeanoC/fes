@@ -40,10 +40,10 @@ class RecipeRegistryTest(unittest.TestCase):
             {"fpga_packages": [{"core_id": "fes.atari-st"}]}, "native-integration-dev"),
             ("fes.atari-st",))
 
-    def test_menu_shares_the_fes_toolchain_and_ramtest_keeps_its_own_lock(self):
-        # fes.ramtest stays on toolchains/ramtest.lock (nextpnr 655f3833) until
-        # DeanoC/nextpnr#135 (SDRAM HIL failure at 3d4a5b35) is resolved.
-        self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path, "toolchains/ramtest.lock")
+    def test_ramtest_and_menu_share_the_current_fes_toolchain(self):
+        # fes.ramtest returns to the shared lock with SDRAM command/address IO
+        # registers (DeanoC/nextpnr#135).
+        self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path, "toolchain.lock")
         self.assertEqual(recipes.recipe_for("fes.menu").lock_path, "toolchain.lock")
 
     def assert_existing_descriptors(self):
@@ -520,7 +520,7 @@ class CacheLocationTest(unittest.TestCase):
 
 
 class RamtestToolchainTargetTest(unittest.TestCase):
-    def test_toolchain_fes_ramtest_pins_its_lock_against_env_overrides(self):
+    def test_toolchain_fes_ramtest_pins_shared_lock_against_env_overrides(self):
         misteross = Path(__file__).resolve().parents[1] / 'sources/misteross'
         env = dict(os.environ, FES_TOOLCHAIN_LOCKFILE='/elsewhere.lock',
                    FES_TOOLCHAIN_ROOT='/elsewhere-root')
@@ -529,6 +529,6 @@ class RamtestToolchainTargetTest(unittest.TestCase):
             env.pop(key, None)
         out = subprocess.run(['make', '-n', '-s', 'toolchain-fes-ramtest'], cwd=misteross,
                              env=env, check=True, capture_output=True, text=True).stdout
-        self.assertIn(f'FES_TOOLCHAIN_LOCKFILE="{misteross}/toolchains/ramtest.lock"', out)
-        self.assertIn(f'FES_TOOLCHAIN_ROOT="{misteross}/build/toolchain-ramtest"', out)
+        self.assertIn(f'FES_TOOLCHAIN_LOCKFILE="{misteross}/toolchain.lock"', out)
+        self.assertIn(f'FES_TOOLCHAIN_ROOT="{misteross}/build/toolchain"', out)
         self.assertNotIn('elsewhere', out)
