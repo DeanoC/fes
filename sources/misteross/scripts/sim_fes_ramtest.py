@@ -34,19 +34,24 @@ def main() -> None:
         CORE / "sim" / "hps_ddr_model.v",
         CORE / "sim" / "tb.cpp",
     ]
-    subprocess.run(
-        [
-            "verilator", "--cc", "--exe", "--build", "--top-module", "bench",             "+define+SIM",
-            "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
-            "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
-            f"-I{COMMON / 'generated'}",
-            "-Mdir", str(output),
-            "-o", "sim",
-            *map(str, sources),
-        ],
-        check=True,
-    )
-    subprocess.run([str(output / "sim")], check=True)
+    # The second build adds the native flow's SDRAM IO output registers: one
+    # more cycle to the chip and a later read capture (DeanoC/nextpnr#135).
+    for build, defines in ((output, ()), (output.with_name(output.name + "-io-registers"), ("+define+RAM_SDRAM_IO_REGISTERS",))):
+        build.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [
+                "verilator", "--cc", "--exe", "--build", "--top-module", "bench",             "+define+SIM",
+                *defines,
+                "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
+                "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
+                f"-I{COMMON / 'generated'}",
+                "-Mdir", str(build),
+                "-o", "sim",
+                *map(str, sources),
+            ],
+            check=True,
+        )
+        subprocess.run([str(build / "sim")], check=True)
 
 
 if __name__ == "__main__":
