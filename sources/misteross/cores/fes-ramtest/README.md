@@ -11,6 +11,37 @@ the host and are not delivered to the core.
 
 ## SDRAM addon
 
+Before the full-span scan, an independent bounded byte lane tests preservation
+at 64 distinct addresses: all four banks, rows 0/1, and columns 0–7. Every
+address runs both byte orders. Each case writes and reads `A55A` with BE11,
+then writes `3CC7` with BE10 and `E169` with BE01. Upper-first reads must be
+`3C5A`, then `3C69`; lower-first reads must be `A569`, then `3C69`. A final
+`F00F` write with BE00 must leave `3C69`. The inactive payload byte deliberately
+differs from stored memory. Each write has its own full-word readback.
+
+The 128 cases contain 512 read checks. Request gaps are 0, 32, 1024 or 2048
+fabric clocks, covering refresh between requests at all supported rates. The
+controller latches byte enables with each request, establishes active-high
+DQM two fabric clocks before WRITE, retains it through WRITE, and clears both
+masks for reads. DQM stays in fabric registers in both native and Quartus builds.
+
+The `BYTE` row has its own RUN/PASS/FAIL/STOP/NACK status and completed case/read
+counts. Two receipt rows retain the first failure's halfword address, readback
+step (1/3/5/7), requested BE, original write payload, expected word and actual
+word. A missing acknowledgement records the outstanding step as NACK. Failure
+stops the preflight and prevents the full-span scan and overall SDRAM PASS.
+The gamepad stop and execution hold also stop/reset the preflight.
+
+`make sim-fes-ramtest` checks all three controller rate/CAS profiles, refresh
+adjacency, timeout and stop handling. The integrated RTL simulation then checks
+the complete SDRAM/HPS scans and five injected physical-mask fault controls:
+ignored, swapped, lower inhibited, upper inhibited and both inhibited. Each
+fault must retain its exact readback and display a red failure. The behavioral
+memory covers address bit 17, so the selected high columns do not alias. These
+are digital simulation checks, not electrical timing or physical acceptance.
+Set `RAMTEST_CAPTURE_DIR` to an existing directory when running the simulation
+to retain settled correct-mask and ignored-mask HDMI frames as PPM files.
+
 The SDRAM scan writes the whole addon and reads it back for six patterns:
 `0000`, `FFFF`, `5555`, `AAAA`, the address mixed with its high half, and
 the inverse. The HDMI text shows the pattern, the live address, and the live

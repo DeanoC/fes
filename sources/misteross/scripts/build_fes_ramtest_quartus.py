@@ -43,6 +43,7 @@ VERILOG_SOURCES = (
     "cores/fes-common/rtl/fes_hps_ddr.v",
     "cores/fes-common/rtl/fes_hps_ddr_guard.v",
     "cores/fes-ramtest/rtl/mem_channel.v",
+    "cores/fes-ramtest/rtl/sdram_byte_lane.v",
     "cores/fes-ramtest/rtl/ram_font.v",
     "cores/fes-ramtest/rtl/ram_display.v",
     "cores/fes-ramtest/rtl/ram_pll.v",

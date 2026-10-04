@@ -15,9 +15,21 @@ def main() -> None:
         raise SystemExit("simulation refuses a shared toolchain cache")
     output = ROOT / "build" / "fes-ramtest-sim"
     output.mkdir(parents=True, exist_ok=True)
+    byte_output = output / "byte"
+    byte_output.mkdir(exist_ok=True)
+    subprocess.run([
+        "verilator", "--cc", "--exe", "--build", "--top-module", "byte_bench",
+        "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL",
+        "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ", "-Mdir", str(byte_output), "-o", "sim",
+        *map(str, [CORE / "rtl" / "sdram_byte_lane.v", CORE / "rtl" / "sdram_addon_port.v",
+                   CORE / "sim" / "sdram_model.v", CORE / "sim" / "board_models.v",
+                   CORE / "sim" / "byte_bench.v", CORE / "sim" / "byte_tb.cpp"]),
+    ], check=True)
+    subprocess.run([str(byte_output / "sim")], check=True)
     sources = [
         CORE / "rtl" / "top.v",
         CORE / "rtl" / "mem_channel.v",
+        CORE / "rtl" / "sdram_byte_lane.v",
         CORE / "rtl" / "ram_font.v",
         CORE / "rtl" / "ram_display.v",
         CORE / "rtl" / "sdram_addon_port.v",
