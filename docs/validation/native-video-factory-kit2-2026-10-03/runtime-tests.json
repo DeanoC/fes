@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "make",
+    "-j2",
+    "test"
+  ],
+  "cwd": "sources/libmister-runtime",
+  "commit": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "started_at": "2026-10-03T15:58:47.673516+00:00",
+  "exit_code": 0,
+  "duration_seconds": 187.7229381238576,
+  "finished_at": "2026-10-03T16:01:55.394311+00:00",
+  "log_sha256": "02eebfe083c4eb38f168952cca4f1bdccc033c38fffee64ec2197c509c5c7e06"
+}

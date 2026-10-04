@@ -2525,11 +2525,9 @@ parts tuple. Generation reconciliation compares the complete parts tuple, so a
 lost response cannot confirm a different video selection. The production CPU
 expansion route does not accept this transport.
 
-Native video is available through this developer parts path. Factory assets
-and household profile selection continue to use the raster layout. A manually
-imported native shell may be inspected, but library Play and the library video
-projection reject it with a developer-parts requirement, before target calls.
-The native shell has no built-in direct output to use as a missing-part fallback.
+Both native and raster video use the factory catalog and household profile
+selection described below. A native shell has no built-in direct output:
+library Play must link a valid selected video part before target mutation.
 The [native Kit 2 diagnostic](../../../docs/validation/2026-10-03-native-video-parts-kit2.md)
 records exact developer Direct/Scanlines compositions, fresh video/audio
 captures and Stop/relaunch. It does not qualify native factory/profile selection
@@ -2550,9 +2548,10 @@ continue to reject library headers and remain explicitly volatile.
 Host preference and availability selection is described in
 [Library video preferences](#library-video-preferences).
 
-The current contract is a fixed pixel-domain proof. It adds no runtime output
-mode, framebuffer, CRT, overlay, audio processing or hot-reconfiguration
-capability. Host tests establish software coverage; hardware acceptance remains
+Both layouts keep fixed 720p output. Native parts capture and buffer source
+frames; raster parts process the shell's timed pixels. Profile selection adds
+no runtime output-mode switching, CRT, overlay, audio processing or
+hot-reconfiguration capability. Host tests establish software coverage; hardware acceptance remains
 separate for exact shell, part, runtime and image artifacts.
 
 ## Library video preferences
@@ -2572,7 +2571,8 @@ chunk store. Schema 17 adds a separate inventory with one part per exact
 `(shell_package_id, profile)`. Reimporting the same part/profile is idempotent;
 a different part at that mapping conflicts rather than replacing it. The
 profile is household metadata outside the immutable part manifest. Imports
-accept archives up to 32 MiB in total, require the closed video socket 1.0,
+accept archives up to 32 MiB in total, require the matching closed native or
+raster video socket 1.0 and map,
 validate archive identities, and fully compose against the installed sealed
 shell before storage. Reads recheck the archive, part identity and shell
 binding. Video imports do not enter CPU expansion inventory.
@@ -2584,14 +2584,22 @@ binding. Video imports do not enter CPU expansion inventory.
 | Inspect the next launch for an entry | `GET /api/v1/library/core-entries/{game_id}/video` |
 
 `fogcast/core_video.go` considers only parts for the entry's exact installed
-package and declared video socket. If the preferred profile is absent, it
-selects an installed direct part or the shell's built-in direct output. A core
-without that socket uses its built-in output. An installed part selected by
+package and declared video socket. The closed format-2 Coleco shell contract
+rejects mixed markers and unsupported versions even without installed parts.
+If the preferred Scanlines profile is absent, selection uses an installed Direct
+part for that same shell. A native shell without that fallback rejects launch;
+it cannot launch its vacant base. A valid selected Scanlines part works without
+Direct installed, while selecting Direct requires its own matching part.
+Raster shells retain built-in Direct as their final missing-part fallback;
+a core without a video socket uses its built-in output. An installed part selected by
 either preference or fallback must pass integrity and composition checks with
 the entry's selected CPU expansion; failure blocks launch before a target
 mutation. The read-only resolution reports preferred and effective profiles,
 part identity, built-in output, fallback reason and availability for each
-choice. Absence of an installed part means unavailable, without asserting that
+choice. When a native selection has no matching part, it reports
+`builtin: false`, omits `part_id`, and marks the effective choice unavailable
+with its reason. The library panel displays that unavailable output without
+claiming a built-in fallback. Absence of an installed part means unavailable, without asserting that
 the core has insufficient LUTs or routing capacity. Successful composition
 checks the part's actual changes against the exact frozen shell and its reserved
 region.
@@ -2602,7 +2610,7 @@ parts route described above. The host recognizes the confirmed application ABI
 as `fpga_native` and binds the complete parts tuple, programmed digest and
 generation to the library session. The shell package, BUILD_ID, fixed video and
 audio/input contracts remain those of the sealed base. This selection path
-currently accepts the same marked format-2 Coleco layout as the developer path.
+accepts the same two closed format-2 Coleco layouts as the developer path.
 
 ## Described-core persistent data
 

@@ -21,7 +21,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -166,6 +166,7 @@ class SessionIdentity:
     game_id: str
     package_id: str
     generation: int
+    parts_composition: str = ""
 
 
 def _require_string(value: Any, name: str, maximum: int = REVISION_MAX) -> str:
@@ -278,6 +279,63 @@ def _read_archive(path: Path, maximum: int = MAX_ARCHIVE_BYTES) -> tuple[bytes, 
     return data, hashlib.sha256(data).hexdigest()
 
 
+@dataclass(frozen=True)
+class VideoParts:
+    index: bytes
+    sha256: str
+    parts: list[dict[str, Any]]
+    archives: dict[str, bytes]
+
+    def receipt(self) -> dict[str, Any]:
+        return {"index_sha256": self.sha256, "parts": self.parts}
+
+
+def load_video_parts(directory: str, digest: str, package_id: str) -> VideoParts:
+    """Retain bounded, index-bound bytes before any API or container operation."""
+    from factory_video_parts import canonical, read_index, _read
+    _require_sha256(digest, "expected video parts SHA-256")
+    root = Path(directory)
+    try:
+        raw = _read(root / "index.json", limit=65536, sealed=True)
+        if hashlib.sha256(raw).hexdigest() != digest:
+            raise ValueError("video parts index SHA-256 differs from expectation")
+        value = json.loads(raw)
+        packages = value.get("packages") if isinstance(value, dict) else None
+        if (not isinstance(packages, list) or len(packages) != 1
+                or not isinstance(packages[0], dict) or packages[0].get("package_id") != package_id):
+            raise ValueError("video parts require one exact selected package")
+        checked = read_index(root)
+        if canonical(checked) != raw:
+            raise ValueError("video parts index changed while reading")
+        parts = checked["packages"][0]["parts"]
+        archives = {}
+        for part in parts:
+            data = _read(root / part["archive_path"], limit=MAX_MEDIA_BYTES, sealed=True)
+            if len(data) != part["archive_size"] or hashlib.sha256(data).hexdigest() != part["archive_sha256"]:
+                raise ValueError("video part archive changed while reading")
+            archives[part["profile"]] = data
+        return VideoParts(raw, digest, parts, archives)
+    except (ValueError, OSError) as exc:
+        raise AcceptanceError(f"invalid video parts: {exc}") from exc
+
+
+def validate_video_composition(value: Any, package_id: str, direct_id: str) -> dict[str, Any]:
+    fields = {"composition_id", "package_id", "layout", "parts", "shell_sha256", "payload_sha256", "payload_size"}
+    if (not isinstance(value, dict) or set(value) != fields or value["package_id"] != package_id
+            or value["parts"] != [{"role": "video", "part_id": direct_id}]
+            or value["layout"] not in ("fes.coleco-video.parts/1", "fes.coleco-native-video.parts/1")
+            or type(value["payload_size"]) is not int or not 0 < value["payload_size"] <= MAX_MEDIA_BYTES):
+        raise AcceptanceError("video composition differs from the selected Direct part")
+    for key in ("composition_id", "shell_sha256", "payload_sha256"):
+        _require_sha256(value[key], "video composition " + key)
+    # expansion.PartsCompositionID's documented domain and ordered role tuple.
+    material = ("fes-parts-composition-v1\0" + package_id + "\0" + value["layout"]
+                + "\0video:" + direct_id + "\0" + value["payload_sha256"])
+    if hashlib.sha256(material.encode()).hexdigest() != value["composition_id"]:
+        raise AcceptanceError("video composition digest does not bind its selected parts and payload")
+    return value
+
+
 class Runner:
     def __init__(self, args: argparse.Namespace):
         self.args = args
@@ -293,6 +351,8 @@ class Runner:
         self.last_revisions: dict[str, str] = {}
         self.owned: SessionIdentity | None = None
         self.stop_attempted = False
+        self.video: VideoParts | None = None
+        self.video_shell: dict[str, Any] = {}
 
     def _require_receipt_absent(self) -> None:
         try:
@@ -355,6 +415,9 @@ class Runner:
                 f"{context}: target_id does not match expected target "
                 f"{self.target_id!r}; observed {identity.target_id!r}"
             )
+        if self.video is not None:
+            identity = replace(identity, parts_composition=json.dumps(
+                value["core_package"].get("parts_composition"), sort_keys=True, separators=(",", ":")))
         return identity
 
     def require_idle(self, context: str) -> dict[str, Any]:
@@ -395,6 +458,46 @@ class Runner:
         role = "blob" if expected else ""
         if not isinstance(value, dict) or value.get("media_id", "") != expected or value.get("media_role", "") != role:
             raise AcceptanceError(f"{context}: selected media does not match expectation")
+
+    def video_inventory(self) -> None:
+        expected = [{"package_id": self.package_id, "profile": p["profile"], "part_id": p["part_id"]}
+                    for p in self.video.parts]
+        rows = self.api.get("/api/v1/library/video-parts")
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise AcceptanceError("video inventory response is invalid")
+        selected = [row for row in rows if row.get("package_id") == self.package_id]
+        if sorted(selected, key=lambda row: str(row.get("profile"))) != expected:
+            raise AcceptanceError("retained video inventory differs from the prepared exact-shell parts")
+
+    def video_resolution(self, game_id: str) -> dict[str, Any]:
+        self.video_inventory()
+        value = self.api.get(self.entry_path(game_id) + "/video")
+        if (not isinstance(value, dict) or value.get("game_id") != game_id
+                or value.get("package_id") != self.package_id or value.get("preferred_profile") != "direct"
+                or value.get("effective_profile") != "direct" or value.get("builtin") is not False
+                or value.get("part_id") != self.video.parts[0]["part_id"] or value.get("fallback_reason")):
+            raise AcceptanceError("video resolution does not select the prepared Direct part")
+        choices = value.get("choices")
+        if (not isinstance(choices, list) or len(choices) != len(self.video.parts)
+                or any(not isinstance(choice, dict) or choice.get("profile") != part["profile"]
+                       or choice.get("part_id") != part["part_id"] or choice.get("available") is not True
+                       or choice.get("reason") for choice, part in zip(choices, self.video.parts))):
+            raise AcceptanceError("video resolution does not retain both usable prepared profiles")
+        return value
+
+    def video_session(self, value: Any) -> dict[str, Any]:
+        package = value["core_package"]
+        composition = validate_video_composition(package.get("parts_composition"), self.package_id,
+                                                 self.video.parts[0]["part_id"])
+        from factory_video_parts import video_shell_profile
+        try:
+            mapping = video_shell_profile(self.video_shell)
+        except ValueError as exc:
+            raise AcceptanceError(str(exc)) from exc
+        if (mapping is None or composition["layout"] != mapping.replace(".socket/", ".parts/")
+                or composition["shell_sha256"] != self.video_shell.get("payload", {}).get("sha256")):
+            raise AcceptanceError("video composition does not match the imported shell")
+        return composition
 
     def validate_compatibility(self, value: Any) -> dict[str, Any]:
         if not isinstance(value, dict) or value.get("package_id") != self.package_id:
@@ -500,6 +603,9 @@ class Runner:
             raise AcceptanceError(
                 f"archive sha256 changed: expected {self.args.expected_archive_sha256}, observed {self.archive_sha256}"
             )
+        if self.args.video_parts:
+            self.video = load_video_parts(self.args.video_parts, self.args.expected_video_parts_sha256,
+                                         self.package_id)
 
         self.check_health()
         self.require_idle("preflight")
@@ -513,7 +619,17 @@ class Runner:
                 self.validate_media(current, old_media, "preflight")
 
         self.guard_mutation("package import")
-        self.validate_import(self.api.post_bytes("/api/v1/core-packages", self.archive))
+        imported = self.validate_import(self.api.post_bytes("/api/v1/core-packages", self.archive))
+        if self.video is not None:
+            self.video_shell = imported["descriptor"]
+            if not self.args.reuse_video_parts:
+                for part in self.video.parts:
+                    self.guard_mutation("video part import")
+                    row = self.api.post_bytes("/api/v1/library/video-parts/" + part["profile"],
+                                              self.video.archives[part["profile"]])
+                    if row != {"package_id": self.package_id, "profile": part["profile"], "part_id": part["part_id"]}:
+                        raise AcceptanceError("video import identity differs from the prepared part")
+            self.video_inventory()
 
         self.guard_mutation("compatibility check")
         compatibility = self.validate_compatibility(
@@ -573,6 +689,8 @@ class Runner:
         selected_now = self.validate_entry(self.read_entry(game_id), game_id, "pre-launch selection")
         if media is not None:
             self.validate_media(selected_now, media_id, "pre-launch selection")
+        if self.video is not None:
+            self.video_resolution(game_id)
         try:
             launch = self.api.post_json("/api/v1/session/launch", {"game_id": game_id})
             expected = self.session_identity(launch, "launch response")
@@ -585,6 +703,8 @@ class Runner:
             raise
         self.owned = expected
         try:
+            if self.video is not None:
+                composition = self.video_session(launch)
             self.wait_for_owned_active(expected)
             if media is not None:
                 self.validate_media(self.validate_entry(self.read_entry(game_id), game_id, "active selection"), media_id, "active selection")
@@ -607,6 +727,8 @@ class Runner:
 
         if media is not None:
             self.validate_media(self.validate_entry(self.read_entry(game_id), game_id, "post-Stop selection"), media_id, "post-Stop selection")
+        if self.video is not None:
+            self.video_resolution(game_id)
 
         receipt = {
             "format": 1,
@@ -645,6 +767,10 @@ class Runner:
             receipt["library_media"] = {"media_id": media_id, "sha256": media_id, "size": len(media), "role": "blob"}
             receipt["media_admission"] = "retained" if self.args.reuse_library_media else "imported"
             receipt["selection"].update(media_id=media_id, media_role="blob")
+        if self.video is not None:
+            receipt["video_parts"] = self.video.receipt()
+            receipt["video_admission"] = "retained" if self.args.reuse_video_parts else "imported"
+            receipt["video_composition"] = composition
         self.write_receipt(receipt)
         print(
             f"package acceptance passed: core={self.core_id} package={self.package_id} "
@@ -677,6 +803,9 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-selected-package", help="required with --game-id")
     result.add_argument("--library-media", help="optional immutable library media file (blob role)")
     result.add_argument("--expected-media-sha256")
+    result.add_argument("--video-parts", help="sealed exact-shell Direct/Scanlines inventory directory")
+    result.add_argument("--expected-video-parts-sha256", help="SHA-256 of the canonical index.json")
+    result.add_argument("--reuse-video-parts", action="store_true", help="verify retained video parts without reimport")
     result.add_argument("--reuse-library-media", action="store_true", help="verify retained media; never import or reselect media")
     result.add_argument("--expected-selected-media", help="current media digest or 'none'; required with existing-entry media selection")
     result.add_argument("--input-events", help="explicit bounded input diagnostic JSON")
@@ -690,6 +819,13 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    if (args.video_parts is None) != (args.expected_video_parts_sha256 is None):
+        raise AcceptanceError("--video-parts and --expected-video-parts-sha256 are required together")
+    if args.video_parts is not None:
+        _require_string(args.video_parts, "video parts path", 4096)
+        _require_sha256(args.expected_video_parts_sha256, "expected video parts SHA-256")
+    if args.reuse_video_parts and not (args.video_parts and args.game_id):
+        raise AcceptanceError("--reuse-video-parts requires video parts and an existing entry")
     if (args.input_events is None) != (args.expected_input_sha256 is None):
         raise AcceptanceError("--input-events and --expected-input-sha256 are required together")
     if args.input_events is not None:

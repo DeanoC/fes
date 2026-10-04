@@ -51,7 +51,7 @@ func InspectFactoryVideoParts(ctx context.Context, directory, packages string) (
 			return nil, errors.New("factory package identity differs from directory")
 		}
 		for _, i := range inspection.Descriptor.Interfaces {
-			if i.ID == expansion.VideoSlot {
+			if i.ID == expansion.VideoSlot || i.ID == expansion.NativeVideoSlot {
 				expected[entry.Name()] = true
 			}
 		}

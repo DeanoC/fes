@@ -1,0 +1,153 @@
+{
+  "classification": "Offline preparation and synthetic controls only; current hardware evidence pending root-provided captures.",
+  "command": "python3 out/native-video-factory/analysis/analyze_factory.py <capture-directory> --output out/native-video-factory/analysis/results/<set>/analysis.json [--include-sgm-relaunch]",
+  "expected_capture_inputs": {
+    "audio": "Each name.wav contains about six seconds of stereo signed 16-bit PCM at 48 kHz. The common analysis window is 2.5 to 5.5 seconds.",
+    "mandatory": [
+      "direct",
+      "scanlines",
+      "direct-relaunch",
+      "direct-sgm",
+      "scanlines-sgm"
+    ],
+    "operator_bindings": "Exact package/build/part/composition/ROM identities, active generation/SGM selection, library persistence/restart, original/final image and cleanup receipts come from the root operator.",
+    "optional_with_flag": [
+      "direct-sgm-relaunch"
+    ],
+    "video": "Each name.mkv contains 180 unscaled 1280 x 720 / 60 fps FFV1 frames. Acquisition frames are classified explicitly; at least 60 settled frames are required."
+  },
+  "fixture_preparation": {
+    "path": "out/native-video-factory/fixture/prepare.py",
+    "sha256": "67b28a1685e2398f55116ab17cef20bb2ea06305ed519f41ff4fcf7adc98d4cf",
+    "size": 3391
+  },
+  "fixture_receipt": {
+    "path": "out/native-video-factory/fixture/prepared.json",
+    "sha256": "3dccb940f26e2349ec69c4c586cf1fcb0648ddabc9eb7e860f947444ab76e40a",
+    "size": 2632
+  },
+  "hardware_access_performed": false,
+  "historical_audio_preflight": {
+    "path": "out/native-video-factory/analysis/controls/historical-sgm-analysis.json",
+    "sha256": "23891b72ca111e166b2172aa2f4da7beb18ab93e6840407e431856a83297b292",
+    "size": 1457
+  },
+  "native_oracle_controls": {
+    "path": "out/native-video-factory/analysis/fixture-oracle-controls.json",
+    "sha256": "433181a5e30b47899b524e509431f2aeb0bd54b680826e8ee628f6cd0f129e66",
+    "size": 6446
+  },
+  "nominal_tones_hz": {
+    "AY": 440.39677657480314,
+    "SN": 216.7844597868217
+  },
+  "positive_CLI": {
+    "analysis_sha256": "3f59bb6bd6961ee6f95566de29d3406064ca987be822cded215156fc842dc7c9",
+    "cases": 6,
+    "command": [
+      "/usr/bin/python3",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/analyze_factory.py",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/controls",
+      "--include-sgm-relaunch",
+      "--expected-frames",
+      "60",
+      "--output",
+      "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/analysis/results/positive-control/analysis.json"
+    ],
+    "exit_code": 0,
+    "frames_each": 60,
+    "gates": 79,
+    "passed": 79
+  },
+  "probe_scope": {
+    "ay_register_readbacks": 4,
+    "memory_reads": 8,
+    "memory_writes": 7,
+    "scope": "RAM-window boundary sentinels and console-RAM isolation; not an exhaustive SRAM test.",
+    "visual_pass": "The checkerboard is enabled only after all existing SGM checks pass."
+  },
+  "readme": {
+    "path": "out/native-video-factory/analysis/README.txt",
+    "sha256": "d1e8c163ae30218cc499c43254f655e9b39fe2943a9a7ac72b64d009fb44541e",
+    "size": 1658
+  },
+  "roms": {
+    "graphics-sn": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/fixture/graphics-sn.rom",
+      "sgm_required": false,
+      "sha256": "e9e63faa08c53de62c819b85ebf4d030bfbfb8015e33e127e1eb178a4daeb73d",
+      "size": 1086
+    },
+    "sgm-probe": {
+      "path": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/fixture/sgm-probe.rom",
+      "sgm_required": true,
+      "sha256": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317",
+      "size": 1261
+    }
+  },
+  "scripts": {
+    "analyze_factory.py": {
+      "path": "out/native-video-factory/analysis/analyze_factory.py",
+      "sha256": "6253f06229358ac5a871440266a330f842e861ea3dd8ee974eaa98a024af6171",
+      "size": 10407
+    },
+    "analyze_native.py": {
+      "path": "out/native-video-factory/analysis/analyze_native.py",
+      "sha256": "68a4260e650b79121e4b0b54494cb15b0bdafbef72ceb37e0d3dc100fdc017e3",
+      "size": 20237
+    },
+    "fixture_oracle.py": {
+      "path": "out/native-video-factory/analysis/fixture_oracle.py",
+      "sha256": "83e6fb46303a97d79fa2698dd145507c78118f9379a1c4bc23896cfe7266a57f",
+      "size": 8315
+    },
+    "native_capture_grid.py": {
+      "path": "out/native-video-factory/analysis/native_capture_grid.py",
+      "sha256": "07b4c46d5822c7bca6ca2679462fa426169d5a535e4fd0384801ede61caeb0e0",
+      "size": 15052
+    },
+    "native_capture_support.py": {
+      "path": "out/native-video-factory/analysis/native_capture_support.py",
+      "sha256": "de3789c357b5647c5d4f5f22c78a8841511ae34c8d7e688c2e2ec4de4a3b8bd5",
+      "size": 10591
+    },
+    "native_oracle.py": {
+      "path": "out/native-video-factory/analysis/native_oracle.py",
+      "sha256": "1b9bd0e57454484f12d8bf826a27df8a4bf7a711bdc605b373f27145b16fcc85",
+      "size": 6887
+    },
+    "self_controls.py": {
+      "path": "out/native-video-factory/analysis/self_controls.py",
+      "sha256": "e76a55edb99657ebfcaba9c930e6907e439ccfea3b9e37efcab7b5fef538c07c",
+      "size": 5807
+    }
+  },
+  "self_control_count": 15,
+  "self_controls": {
+    "path": "out/native-video-factory/analysis/self-controls.json",
+    "sha256": "01fb1a455729cd2110f81d38f7394f930952f088736657ce0e11932035fbd86d",
+    "size": 2671
+  },
+  "unchanged_native_helpers": {
+    "analyze_native.py": {
+      "byte_identical": true,
+      "original_public_source": "docs/validation/native-video-parts-kit2-2026-10-03/analyze_native.py.txt",
+      "sha256": "68a4260e650b79121e4b0b54494cb15b0bdafbef72ceb37e0d3dc100fdc017e3"
+    },
+    "native_capture_grid.py": {
+      "byte_identical": true,
+      "original_public_source": "docs/validation/native-video-parts-kit2-2026-10-03/native_capture_grid.py.txt",
+      "sha256": "07b4c46d5822c7bca6ca2679462fa426169d5a535e4fd0384801ede61caeb0e0"
+    },
+    "native_capture_support.py": {
+      "byte_identical": true,
+      "original_public_source": "docs/validation/native-video-parts-kit2-2026-10-03/native_capture_support.py.txt",
+      "sha256": "de3789c357b5647c5d4f5f22c78a8841511ae34c8d7e688c2e2ec4de4a3b8bd5"
+    },
+    "native_oracle.py": {
+      "byte_identical": true,
+      "original_public_source": "docs/validation/native-video-parts-kit2-2026-10-03/native_oracle.py.txt",
+      "sha256": "1b9bd0e57454484f12d8bf826a27df8a4bf7a711bdc605b373f27145b16fcc85"
+    }
+  }
+}

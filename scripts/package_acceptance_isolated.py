@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 
 PACKAGE_ACCEPTANCE = Path(__file__).with_name("package_acceptance.py")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -640,6 +642,11 @@ def runner_command(
         if game_id is not None:
             command.extend(["--expected-selected-media", args.expected_media_sha256,
                             "--reuse-library-media"])
+    if getattr(args, "video_parts", None):
+        command.extend(["--video-parts", str(Path(args.video_parts).resolve()),
+                        "--expected-video-parts-sha256", args.expected_video_parts_sha256])
+        if game_id is not None:
+            command.append("--reuse-video-parts")
     if getattr(args, "input_diagnostic", None) is not None:
         command.extend(["--input-events", str(Path(args.input_events).resolve()),
                         "--expected-input-sha256", args.input_diagnostic.sha256,
@@ -811,6 +818,9 @@ def _receipt_base(args: argparse.Namespace, success: bool) -> dict[str, Any]:
         value["library_media"] = {"media_id": args.expected_media_sha256,
                                   "sha256": args.expected_media_sha256,
                                   "size": args.library_media_bytes, "role": "blob"}
+    video = getattr(args, "video_parts_snapshot", None)
+    if video is not None:
+        value["video_parts"] = video.receipt()
     diagnostic = getattr(args, "input_diagnostic", None)
     if diagnostic is not None:
         value["mode"] = "isolated-lifecycle-input-diagnostic"
@@ -843,7 +853,8 @@ def _write_runner_output(cycle_dir: Path, result: subprocess.CompletedProcess[st
 
 
 def _read_runner_receipt(path: Path, args: argparse.Namespace, retained_media: bool = False,
-                         diagnostics: list[dict[str, Any]] | None = None) -> str:
+                         diagnostics: list[dict[str, Any]] | None = None,
+                         video_compositions: list[dict[str, Any]] | None = None) -> str:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -863,6 +874,20 @@ def _read_runner_receipt(path: Path, args: argparse.Namespace, retained_media: b
             raise AcceptanceError("package acceptance runner receipt media identity does not match the request")
         if value.get("media_admission") != ("retained" if retained_media else "imported"):
             raise AcceptanceError("package acceptance runner receipt media admission does not match the cycle")
+    video = getattr(args, "video_parts_snapshot", None)
+    if video is not None:
+        if (value.get("video_parts") != video.receipt()
+                or value.get("video_admission") != ("retained" if retained_media else "imported")
+                or selection.get("package_id") != args.expected_package_id):
+            raise AcceptanceError("package acceptance runner receipt video inventory or admission differs")
+        import package_acceptance
+        try:
+            composition = package_acceptance.validate_video_composition(
+                value.get("video_composition"), args.expected_package_id, video.parts[0]["part_id"])
+        except package_acceptance.AcceptanceError as exc:
+            raise AcceptanceError(str(exc)) from exc
+        if video_compositions is not None:
+            video_compositions.append(composition)
     diagnostic = getattr(args, "input_diagnostic", None)
     if diagnostic is not None:
         observed = value.get("diagnostics")
@@ -910,6 +935,7 @@ class IsolatedAcceptance:
         self.binary = binary
         self.containers: list[ContainerRecord] = []
         self.diagnostics: dict[str, list[dict[str, Any]]] = {}
+        self.video_compositions: list[dict[str, Any]] = []
 
     def _start(self, cycle: str) -> tuple[ContainerRecord, str]:
         record = ContainerRecord(
@@ -961,8 +987,12 @@ class IsolatedAcceptance:
         _write_runner_output(cycle_dir, result, self.target)
         if result.returncode != 0:
             raise AcceptanceError(f"package acceptance runner failed (exit {result.returncode})")
-        return _read_runner_receipt(receipt, self.args, retained_media=game_id is not None,
-                                    diagnostics=self.diagnostics.setdefault(cycle, []))
+        selected = _read_runner_receipt(receipt, self.args, retained_media=game_id is not None,
+                                       diagnostics=self.diagnostics.setdefault(cycle, []),
+                                       video_compositions=self.video_compositions)
+        if len(self.video_compositions) == 2 and self.video_compositions[0] != self.video_compositions[1]:
+            raise AcceptanceError("restart video composition differs from the first launch")
+        return selected
 
     def _stop(self, record: ContainerRecord) -> None:
         if record.stop_attempted:
@@ -1050,6 +1080,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--archive", required=True)
     result.add_argument("--library-media")
     result.add_argument("--expected-media-sha256")
+    result.add_argument("--video-parts")
+    result.add_argument("--expected-video-parts-sha256")
     result.add_argument("--input-events")
     result.add_argument("--expected-input-sha256")
     result.add_argument("--input-timeout", type=float, default=10.0)
@@ -1080,6 +1112,17 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> PrivateTarget:
+    if (args.video_parts is None) != (args.expected_video_parts_sha256 is None):
+        raise AcceptanceError("--video-parts and --expected-video-parts-sha256 are required together")
+    args.video_parts_snapshot = None
+    if args.video_parts is not None:
+        _require_string(args.video_parts, "video parts path", 4096)
+        import package_acceptance
+        try:
+            args.video_parts_snapshot = package_acceptance.load_video_parts(
+                args.video_parts, args.expected_video_parts_sha256, args.expected_package_id)
+        except package_acceptance.AcceptanceError as exc:
+            raise AcceptanceError(str(exc)) from exc
     if (args.input_events is None) != (args.expected_input_sha256 is None):
         raise AcceptanceError("--input-events and --expected-input-sha256 are required together")
     if not math.isfinite(args.input_timeout) or not 0 < args.input_timeout <= 60:
@@ -1212,6 +1255,22 @@ def execute_isolated(args: argparse.Namespace, target: PrivateTarget) -> None:
     acceptance: IsolatedAcceptance | None = None
     cycles: list[dict[str, Any]] = []
     try:
+        video = args.video_parts_snapshot
+        if video is not None:
+            root = evidence_dir / "video-parts"
+            package = root / args.expected_package_id
+            package.mkdir(parents=True)
+            for part in video.parts:
+                archive = root / part["archive_path"]
+                with archive.open("xb") as handle:
+                    handle.write(video.archives[part["profile"]])
+                archive.chmod(0o444)
+            with (root / "index.json").open("xb") as handle:
+                handle.write(video.index)
+            (root / "index.json").chmod(0o444)
+            package.chmod(0o555)
+            root.chmod(0o555)
+            args.video_parts = str(root.resolve())
         diagnostic = getattr(args, "input_diagnostic", None)
         if diagnostic is not None:
             snapshot = evidence_dir / "input-events.json"
@@ -1234,6 +1293,8 @@ def execute_isolated(args: argparse.Namespace, target: PrivateTarget) -> None:
             cycles[-1]["diagnostics"] = acceptance.diagnostics["cycle-2"]
         remove_private_config(home)
         receipt = _receipt_base(args, True)
+        if video is not None:
+            receipt["video_composition"] = acceptance.video_compositions[0]
         receipt.update(
             {
                 "cycles": cycles,

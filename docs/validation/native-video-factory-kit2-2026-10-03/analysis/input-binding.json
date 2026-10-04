@@ -1,0 +1,79 @@
+{
+  "artifact_source_revision": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "capture_directory": "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures",
+  "classification": "Read-only capture/source identity snapshot before unchanged offline analysis. Hardware/image identity comes from separate root-operator evidence.",
+  "command": [
+    "python3",
+    "out/native-video-factory/candidate-6ed1dad4/analysis/run_analysis.py",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures",
+    "--include-sgm-relaunch",
+    "--output",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/analysis.json"
+  ],
+  "files": [
+    {
+      "name": "direct.mkv",
+      "sha256": "96c66ff80c0078a4ec18dd06bda21b6bee028f8dbd7c9f8f87947abeeba2067c",
+      "size": 6806750
+    },
+    {
+      "name": "direct.wav",
+      "sha256": "1aeaa06bfc9a05b4d22ca17380ceb07897e820920f9784dbcdd4d6910ec032de",
+      "size": 1152542
+    },
+    {
+      "name": "scanlines.mkv",
+      "sha256": "5d1187c61246015ed8c1cd6e7b9227dd5539d14efb667d67b187d8a5bafc6d9e",
+      "size": 15827182
+    },
+    {
+      "name": "scanlines.wav",
+      "sha256": "2b5fd077673edc02d1806c841c4c2cd539e058f60e8aee88399f41067d1f89fa",
+      "size": 1152594
+    },
+    {
+      "name": "direct-relaunch.mkv",
+      "sha256": "2e7a430018dd22900fa5b378555e0a1a1194154a9c5688b7897d39252ace394c",
+      "size": 6771929
+    },
+    {
+      "name": "direct-relaunch.wav",
+      "sha256": "a4f5f3f73b0f04d8034d6b331889daa83a50427a0bcb6dd3d8c51a8c8dd73dfc",
+      "size": 1152458
+    },
+    {
+      "name": "direct-sgm.mkv",
+      "sha256": "85b0bd7d85574cbccde968a5f926a65c52d5a23e094df87148ac804c07440571",
+      "size": 6769032
+    },
+    {
+      "name": "direct-sgm.wav",
+      "sha256": "9915ad42f3344d9ff60d9a9b4dc4f1063c15ae23f1ca0bfed17ef9ba4751cd6e",
+      "size": 1152518
+    },
+    {
+      "name": "scanlines-sgm.mkv",
+      "sha256": "34e7b42564e4d76f66977c5f13a4ec6d2914ab5dd8097e8611acb89f5668a841",
+      "size": 15651567
+    },
+    {
+      "name": "scanlines-sgm.wav",
+      "sha256": "89ccea26d43e463ff74dddbdb4fe04f46d8936de6e823fe6a526b76d05deb4a1",
+      "size": 1152314
+    },
+    {
+      "name": "direct-sgm-relaunch.mkv",
+      "sha256": "54cb2833c22b5dca559434f5ed1d272dced4635018f97ed4cdab2c400c79a02f",
+      "size": 6810209
+    },
+    {
+      "name": "direct-sgm-relaunch.wav",
+      "sha256": "b77a341f77752e6aa9300b65ef81e2c28f00112511de25ad87febbbd2549c4ef",
+      "size": 1152462
+    }
+  ],
+  "frozen_inputs_match": true,
+  "hardware_access": false,
+  "phase_preparation_sha256": "f7bdabaaf8f45d6bdabd4597e11141ce0d6789c69183f8cb3d22abcffb8bf0ca",
+  "threshold_or_global_overrides": false
+}

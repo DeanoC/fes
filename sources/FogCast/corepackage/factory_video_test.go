@@ -15,8 +15,12 @@ import (
 )
 
 func factoryVideoFixture(t *testing.T) (string, []byte, FactoryVideoIndex) {
+	return factoryVideoFixtureLayout(t, expansion.ColecoVideoLayout)
+}
+
+func factoryVideoFixtureLayout(t *testing.T, layout string) (string, []byte, FactoryVideoIndex) {
 	t.Helper()
-	pkg, assets := developerPartsFixture(t)
+	pkg, assets := developerPartsFixtureLayout(t, layout)
 	root := filepath.Join(t.TempDir(), "core-video-parts")
 	id := assets[0].Manifest.ShellPackageID
 	if err := os.MkdirAll(filepath.Join(root, id), 0o755); err != nil {
@@ -55,7 +59,14 @@ func factoryVideoFixture(t *testing.T) (string, []byte, FactoryVideoIndex) {
 }
 
 func TestFactoryVideoTreeAdmitsExactBytesAndCatalogReference(t *testing.T) {
-	root, shell, index := factoryVideoFixture(t)
+	for _, layout := range []string{expansion.ColecoVideoLayout, expansion.ColecoNativeVideoLayout} {
+		t.Run(layout, func(t *testing.T) { testFactoryVideoTreeAdmitsExactBytesAndCatalogReference(t, layout) })
+	}
+}
+
+func testFactoryVideoTreeAdmitsExactBytesAndCatalogReference(t *testing.T, layout string) {
+	t.Helper()
+	root, shell, index := factoryVideoFixtureLayout(t, layout)
 	set, err := ReadFactoryVideoParts(context.Background(), root, func(ctx context.Context, id string) ([]byte, error) {
 		if id != index.Packages[0].PackageID {
 			t.Fatal("unexpected shell resolution")
@@ -88,6 +99,23 @@ func TestFactoryVideoTreeAdmitsExactBytesAndCatalogReference(t *testing.T) {
 	ref.PartID = strings.Repeat("a", 64)
 	if _, err := AdmitFactoryVideoPart(context.Background(), part.PackageID, ref, part.Archive, shell); err == nil {
 		t.Fatal("wrong part admitted")
+	}
+	manifest := part.Asset.Manifest
+	manifest.Slot, manifest.Map = expansion.NativeVideoSlot, expansion.ColecoNativeVideoMap
+	if layout == expansion.ColecoNativeVideoLayout {
+		manifest.Slot, manifest.Map = expansion.VideoSlot, expansion.ColecoVideoMap
+	}
+	crossed, err := expansion.NewAsset(manifest, part.Asset.Cart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archive bytes.Buffer
+	if err := crossed.Write(&archive); err != nil {
+		t.Fatal(err)
+	}
+	ref.PartID, ref.ArchiveSize, ref.ArchiveSHA256 = crossed.ID, int64(archive.Len()), fmt.Sprintf("%x", sha256.Sum256(archive.Bytes()))
+	if _, err := AdmitFactoryVideoPart(context.Background(), part.PackageID, ref, archive.Bytes(), shell); err == nil {
+		t.Fatal("crossed source contract admitted with valid shell identities")
 	}
 }
 

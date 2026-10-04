@@ -360,6 +360,99 @@ def _run_isolated(command, runtime_log, runtime_state, *, api_port=None, **env_o
     )
 
 
+class IsolatedVideoPartsTests(unittest.TestCase):
+    def arguments(self, directory):
+        paths = _write_inputs(directory)
+        evidence = Path(directory) / "evidence"
+        video, digest = package_acceptance_tests._write_video_parts(directory)
+        command = _command(paths, evidence, expected_core_id="fes.coleco")[3:] + [
+            "--video-parts", str(video), "--expected-video-parts-sha256", digest]
+        return package_acceptance_isolated.parser().parse_args(command), paths, evidence, video
+
+    def test_invalid_inventory_fails_before_docker_and_evidence(self):
+        for failure in ("hash", "archive", "package", "symlink", "oversize", "empty"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                args, _, evidence, video = self.arguments(directory)
+                if failure == "hash":
+                    args.expected_video_parts_sha256 = "f" * 64
+                elif failure == "package":
+                    args.expected_package_id = "f" * 64
+                elif failure == "empty":
+                    args.video_parts = ""
+                else:
+                    archive = next((video / PACKAGE_ID).glob("*.tar"))
+                    if failure == "symlink":
+                        archive.parent.chmod(0o755)
+                        archive.unlink(); archive.symlink_to(video / "index.json")
+                    else:
+                        archive.chmod(0o644)
+                        with archive.open("wb") as stream:
+                            if failure == "oversize":
+                                stream.truncate(32 * 1024 * 1024 + 1)
+                            else:
+                                stream.write(b"changed")
+                        archive.chmod(0o444)
+                with mock.patch.object(package_acceptance_isolated, "DockerRuntime") as docker:
+                    with self.assertRaises(package_acceptance_isolated.AcceptanceError):
+                        package_acceptance_isolated.validate_args(args)
+                    docker.assert_not_called()
+                self.assertFalse(evidence.exists())
+
+    def test_cycles_import_then_require_retained_parts_and_same_composition(self):
+        for failure in (None, "missing", "composition"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                state = package_acceptance_tests._video_state()
+                if failure == "missing":
+                    state["forget_video_on_reimport"] = True
+                elif failure == "composition":
+                    composition = dict(state["video_composition"], payload_sha256="e" * 64)
+                    material = "fes-parts-composition-v1\0" + PACKAGE_ID + "\0" + composition["layout"] + "\0video:" + "1" * 64 + "\0" + "e" * 64
+                    composition["composition_id"] = hashlib.sha256(material.encode()).hexdigest()
+                    state["video_restart_composition"] = composition
+                paths = _write_inputs(directory)
+                video, digest = package_acceptance_tests._write_video_parts(directory)
+                evidence = Path(directory) / "evidence"
+                runtime = _write_fake_runtime(directory)
+                log, runtime_state = Path(directory)/"runtime.jsonl", Path(directory)/"runtime.json"
+                command = _isolated_command(paths, evidence, runtime, expected_core_id="fes.coleco") + [
+                    "--video-parts", str(video), "--expected-video-parts-sha256", digest]
+                with _full_identity_fixture(state) as server:
+                    result = _run_isolated(command, log, runtime_state, api_port=server.server_port)
+                self.assertEqual(result.returncode, 1 if failure else 0, result.stderr)
+                self.assertEqual([x[0] for x in state["video_uploads"]], ["direct", "scanlines"])
+                self.assertEqual(len(state["launch_bodies"]), 1 if failure == "missing" else 2)
+                first = json.loads((evidence/"cycle-1/receipt.json").read_text())
+                self.assertEqual(first["video_admission"], "imported")
+                if failure:
+                    self.assertFalse((evidence/"receipt.json").exists())
+                    self.assertTrue((evidence/"failure.json").exists())
+                else:
+                    final = json.loads((evidence/"receipt.json").read_text())
+                    second = json.loads((evidence/"cycle-2/receipt.json").read_text())
+                    self.assertEqual(second["video_admission"], "retained")
+                    self.assertEqual(final["video_composition"], first["video_composition"])
+                    self.assertEqual(final["video_composition"], second["video_composition"])
+                    self.assertEqual(final["video_parts"]["index_sha256"], digest)
+                    self.assertEqual((evidence/"video-parts/index.json").read_bytes(), (video/"index.json").read_bytes())
+                self.assertFalse((evidence/"container-home/.config/fogcast/config.toml").exists())
+
+    def test_child_receipt_binds_inventory_admission_and_direct_tuple(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, _, _, _ = self.arguments(directory)
+            package_acceptance_isolated.validate_args(args)
+            value = {"success": True, "package_id": PACKAGE_ID, "core_id": "fes.coleco", "target_id": TARGET_ID,
+                     "selection": {"game_id": "native-entry", "package_id": PACKAGE_ID},
+                     "video_parts": args.video_parts_snapshot.receipt(), "video_admission": "imported",
+                     "video_composition": package_acceptance_tests._video_state()["video_composition"]}
+            path = Path(directory)/"child.json"
+            path.write_text(json.dumps(value))
+            self.assertEqual(package_acceptance_isolated._read_runner_receipt(path, args), "native-entry")
+            for key, bad in (("video_parts", {}), ("video_admission", "retained"), ("video_composition", {})):
+                path.write_text(json.dumps(dict(value, **{key: bad})))
+                with self.subTest(key=key), self.assertRaises(package_acceptance_isolated.AcceptanceError):
+                    package_acceptance_isolated._read_runner_receipt(path, args)
+
+
 class IsolatedInputDiagnosticTests(unittest.TestCase):
     def diagnostic(self):
         interface = {"id": "fes.keyboard", "major": 1, "minor": 0}

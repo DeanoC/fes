@@ -276,6 +276,15 @@ test('mounted panel uses literal text, locks controls and filters same-core vers
   await f.controller.selectEntry('entry');
   assert.match(nodes['core-video-status'].textContent,/Next launch: Unavailable — Scanlines/);
   assert.match(nodes['core-video-status'].textContent,/requires repair/);
+  f.intercept(path=>path.endsWith('/video')?response({game_id:'entry',package_id:A,
+    preferred_profile:'direct',effective_profile:'direct',builtin:false,choices:[
+      {profile:'direct',label:'Direct',available:false,reason:'No matching part is installed for this exact core package.'},
+      {profile:'scanlines',label:'Scanlines',part_id:M,available:true}]}):undefined);
+  await f.controller.selectEntry('entry');
+  assert.match(nodes['core-video-status'].textContent,/Next launch: Unavailable — Direct\./);
+  assert.match(nodes['core-video-status'].textContent,/No matching part is installed/);
+  assert.doesNotMatch(nodes['core-video-status'].textContent,/built in|undefined/);
+  assert.match(nodes['core-video-choices'].children[1].textContent,/Scanlines: Available/);
   const pending=deferred();
   f.intercept((path,options)=>options.method==='POST'?pending.promise:undefined);
   const uploading=f.controller.importMedia({size:4});

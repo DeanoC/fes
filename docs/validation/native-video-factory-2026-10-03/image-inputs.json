@@ -1,0 +1,394 @@
+{
+  "fpga_packages": [
+    {
+      "core_rbf_sha256": "04928a7545d269f73698b9f6c9a2110a36043cc0d4b9ab10fb2b5d608d32c3d1",
+      "manifest_sha256": "d3d7e46c58585b4cf6bea25b4839fbba790c4dbfeb09c47983c40395622fb286",
+      "selection": {
+        "core_id": "fes.menu",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/a17539c218c81ab700c08ac62dd15f02d73bd36b31cefc5a2d9cf58c970d0882",
+        "kind": "core-package",
+        "mister_packages_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "misteross_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "package_id": "a17539c218c81ab700c08ac62dd15f02d73bd36b31cefc5a2d9cf58c970d0882",
+        "payload_sha256": "04928a7545d269f73698b9f6c9a2110a36043cc0d4b9ab10fb2b5d608d32c3d1"
+      },
+      "selection_sha256": "2477af206594287670f4254194ec5fa012c57508382da0572d944de602b215fa",
+      "source_selection": {
+        "core_rbf_sha256": "04928a7545d269f73698b9f6c9a2110a36043cc0d4b9ab10fb2b5d608d32c3d1",
+        "format": 1,
+        "functional_inputs_sha256": "bed62c811cd029f4aa239d8a2dbea8ec5bbe9c9d0aac0f257a3b557b2418a381",
+        "original_record_sha256": "51ae44ac13040592fe2e16bc2307096c149218e861b592ffca35ca0b504058fa",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "original_source_path": "sources/misteross",
+        "package_id": "a17539c218c81ab700c08ac62dd15f02d73bd36b31cefc5a2d9cf58c970d0882",
+        "selected_record_sha256": "51ae44ac13040592fe2e16bc2307096c149218e861b592ffca35ca0b504058fa",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "6d67fdc7108e8ed77d0d1a654d3e33639dd1ca1c3416d0f2180a9854250e6141",
+      "manifest_sha256": "96e679e4fb60ec73111db53e5cf3154899e786f17f5d2ba80708d8b92e175267",
+      "selection": {
+        "core_id": "fes.pong",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/354b404ce9320e55a2d0953bc5667a27302a738785b7051fdf40e35573856154",
+        "kind": "core-package",
+        "mister_packages_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "misteross_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "package_id": "354b404ce9320e55a2d0953bc5667a27302a738785b7051fdf40e35573856154",
+        "payload_sha256": "6d67fdc7108e8ed77d0d1a654d3e33639dd1ca1c3416d0f2180a9854250e6141"
+      },
+      "selection_sha256": "21235c1635c2ab9f2b4df954e2ed95b6771ee11aaee381a56fbd71a42e155cfc",
+      "source_selection": {
+        "core_rbf_sha256": "6d67fdc7108e8ed77d0d1a654d3e33639dd1ca1c3416d0f2180a9854250e6141",
+        "format": 1,
+        "functional_inputs_sha256": "0ffc9ab6e969a5014959809c9ddabc3408e6fd844967492daa08da2373472a57",
+        "original_record_sha256": "60b377efa6400b18d9bc75063c8f50c33ee681344c5fe9aabd9b54ac104d1f04",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "original_source_path": "sources/misteross",
+        "package_id": "354b404ce9320e55a2d0953bc5667a27302a738785b7051fdf40e35573856154",
+        "selected_record_sha256": "60b377efa6400b18d9bc75063c8f50c33ee681344c5fe9aabd9b54ac104d1f04",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "ad77086686d34ca0199a721d3da6a2e5683cfe88878e1734bf57037b15602dca",
+      "manifest_sha256": "c7bff95def29b1d17ee39713f829b3628e56aead63546121de7409e3f1012d00",
+      "rom_map_sha256": "33bc095eee16da7db67ce0b3f9ff27653343729765cf7bd8fcf4b781f8d61ef2",
+      "selection": {
+        "core_id": "fes.zx81",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/723a51774c4148ca06d333efdeae216a46f2c6b9e77e4b425e6be749692f4d44",
+        "kind": "core-package",
+        "mister_packages_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "misteross_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "package_id": "723a51774c4148ca06d333efdeae216a46f2c6b9e77e4b425e6be749692f4d44",
+        "payload_sha256": "ad77086686d34ca0199a721d3da6a2e5683cfe88878e1734bf57037b15602dca"
+      },
+      "selection_sha256": "b941f3cb33d834deea1695f83771e4269af6c4955c5a86a83cc09b42021972fe",
+      "source_selection": {
+        "core_rbf_sha256": "ad77086686d34ca0199a721d3da6a2e5683cfe88878e1734bf57037b15602dca",
+        "format": 1,
+        "functional_inputs_sha256": "92120f1114349d3827544ac4a8c2468f811369de5f849ba8ba45cca67d628a27",
+        "original_record_sha256": "0c1c69a5c4c7084e47cf280a94c0e52f5b3e0489ccddb08a192701074d41bd52",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "original_source_path": "sources/misteross",
+        "package_id": "723a51774c4148ca06d333efdeae216a46f2c6b9e77e4b425e6be749692f4d44",
+        "selected_record_sha256": "0c1c69a5c4c7084e47cf280a94c0e52f5b3e0489ccddb08a192701074d41bd52",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb",
+      "manifest_sha256": "2f0d93d953e45e5273615a2fc19986a70511a65f5915d7b74abebb1ed10596fb",
+      "selection": {
+        "core_id": "fes.coleco",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "kind": "core-package",
+        "mister_packages_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "misteross_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "payload_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb"
+      },
+      "selection_sha256": "5c0cc13a2580eff595a43157c1902b06a58fc31b50978c8529fa222521068293",
+      "source_selection": {
+        "core_rbf_sha256": "863beeaae445b88b26c955e79113c6f6ea2a33c6bc1d296ac9ab838d7629cecb",
+        "format": 1,
+        "functional_inputs_sha256": "8d97fd1c36f5c79d08af074f972f96d042e36c6be50f1e2aca6c1fdc15787a9c",
+        "original_record_sha256": "c08fbc8e495d56ce5ab443dad80d4e5d380855515ceb89f28a9bcdeb656e4ce5",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "original_source_path": "sources/misteross",
+        "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+        "selected_record_sha256": "c08fbc8e495d56ce5ab443dad80d4e5d380855515ceb89f28a9bcdeb656e4ce5",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "selected_source_path": "sources/misteross"
+      },
+      "video_parts": {
+        "functional_inputs_sha256": "26ffc1404acf984c6729d7da2e0d46f0fd5366e3a5f49b0af6cc96ca3abb5189",
+        "index": {
+          "packages": [
+            {
+              "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+              "parts": [
+                {
+                  "archive_path": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c/1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64.tar",
+                  "archive_sha256": "c552946233e294808bbfd68a80da1ada831c28135ed4bdf9100730f8d8c7d309",
+                  "archive_size": 2785280,
+                  "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+                  "profile": "direct"
+                },
+                {
+                  "archive_path": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c/5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624.tar",
+                  "archive_sha256": "504e9bb578e1a8345c6c8057dc263dd5b1497b2e483f2bddcb6904831dd46316",
+                  "archive_size": 2785280,
+                  "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+                  "profile": "scanlines"
+                }
+              ]
+            }
+          ],
+          "version": 1
+        },
+        "index_sha256": "2c5cacb765a1afd71837dbba0f6344473a3c35ac600325128b4a14f9fe82f66a",
+        "index_size": 834,
+        "parts": [
+          {
+            "archive_sha256": "c552946233e294808bbfd68a80da1ada831c28135ed4bdf9100730f8d8c7d309",
+            "archive_size": 2785280,
+            "build_summary_sha256": "5b74eba947abc30e24cbeb8797f281c128e232bd9a864559a0ccd8139d2ad712",
+            "cram_report_sha256": "82f7ebc2a511edbcdd61e6231a1b56906644cfbbf4d4e26460c58a393fa3154b",
+            "part_id": "1942f52a6f9b8fc0a0b7d017cff3aa6b34d316e4f4335b7347f784d772e4da64",
+            "profile": "direct",
+            "recipe_sha256": "0103c1f8ff003f0bf64b03bc11f2e7b0b69046eda00f84a0a2006344d2bddf1a",
+            "revision": "3ffe989fbba6857b74f149112d1965156face870"
+          },
+          {
+            "archive_sha256": "504e9bb578e1a8345c6c8057dc263dd5b1497b2e483f2bddcb6904831dd46316",
+            "archive_size": 2785280,
+            "build_summary_sha256": "e2380bfce0578b73bd7588b47eca2afb0b0fb8bbf22cfe550f13772311f2a9a1",
+            "cram_report_sha256": "18600128d82a9c7f2b2292124161a3aaf691fe97439c2f96e4dbbf72d1f4f07c",
+            "part_id": "5fbc1de8600c25882e1d6e8fc2db77ff7fbc240a3e012b3339e171314ceb5624",
+            "profile": "scanlines",
+            "recipe_sha256": "7df7d74536eb91ba8215660d4e478ce0cf22f2d58af3df7ffada830a8ff7ef1a",
+            "revision": "3ffe989fbba6857b74f149112d1965156face870"
+          }
+        ],
+        "shell": {
+          "build_record_sha256": "c08fbc8e495d56ce5ab443dad80d4e5d380855515ceb89f28a9bcdeb656e4ce5",
+          "package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c"
+        }
+      }
+    },
+    {
+      "core_rbf_sha256": "2f91b2cb11203cd2e3f6b3313da60bfe660b3af6538e75f1e058d73593227352",
+      "manifest_sha256": "a4e8070bcf7429b3349feb44c1beca10a81638c3c26baa8d18898d97d0717324",
+      "rom_map_sha256": "856a9e2c1039330824ba725e6adc5e617e5ee6af2ffb3f563ec9f4475c59773c",
+      "selection": {
+        "core_id": "fes.sms",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/0237f2a526282bf8bb6b13467e964e4e25b049351f6569551d8a15aae178b6a7",
+        "kind": "core-package",
+        "mister_packages_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "misteross_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "package_id": "0237f2a526282bf8bb6b13467e964e4e25b049351f6569551d8a15aae178b6a7",
+        "payload_sha256": "2f91b2cb11203cd2e3f6b3313da60bfe660b3af6538e75f1e058d73593227352"
+      },
+      "selection_sha256": "5851f9120f9fcc06b7bed7d133a06508310db8064dc30bd33d223f8c7473549d",
+      "source_selection": {
+        "core_rbf_sha256": "2f91b2cb11203cd2e3f6b3313da60bfe660b3af6538e75f1e058d73593227352",
+        "format": 1,
+        "functional_inputs_sha256": "6d4bfe27268a96b858f9a3c56cc67dd31b7f0c300ebc229a578518207ef44f2b",
+        "original_record_sha256": "45ff43c818dc2fa64d5c13a67ecf10cdc63183e335f97ef9c80196db0b4e998b",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "original_source_path": "sources/misteross",
+        "package_id": "0237f2a526282bf8bb6b13467e964e4e25b049351f6569551d8a15aae178b6a7",
+        "selected_record_sha256": "45ff43c818dc2fa64d5c13a67ecf10cdc63183e335f97ef9c80196db0b4e998b",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "1dc4b03eb392d6b58be59a746ab0be1d2f7fb4980a0d67d9fb06cd13e68e31d5",
+      "manifest_sha256": "0ef9e266684b0d6acbf5ed5180ff93cfbcbaa3a4af0c19a5e46ec02c46fc9461",
+      "rom_map_sha256": "54537c43f582d7ed36368d348453368b2e6841b61d4a07cb75734f70200cb44c",
+      "selection": {
+        "core_id": "fes.sg1000",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/dbf14ac8f1786fe6a9308d370798d219b30de27bf09bba4b66f280b0f194230a",
+        "kind": "core-package",
+        "mister_packages_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "misteross_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "package_id": "dbf14ac8f1786fe6a9308d370798d219b30de27bf09bba4b66f280b0f194230a",
+        "payload_sha256": "1dc4b03eb392d6b58be59a746ab0be1d2f7fb4980a0d67d9fb06cd13e68e31d5"
+      },
+      "selection_sha256": "559983708003f158d51336ba946529026f5212d98466761e2b121dfe8030e48f",
+      "source_selection": {
+        "core_rbf_sha256": "1dc4b03eb392d6b58be59a746ab0be1d2f7fb4980a0d67d9fb06cd13e68e31d5",
+        "format": 1,
+        "functional_inputs_sha256": "cc588cf3e991696a0401f17630ca3eeb6fba0a3acbda1aecea4dc53fbfb6bc08",
+        "original_record_sha256": "7c40867d0c522be006df79e8e7737435ae265a73476cafe8605d837d45a23713",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "original_source_path": "sources/misteross",
+        "package_id": "dbf14ac8f1786fe6a9308d370798d219b30de27bf09bba4b66f280b0f194230a",
+        "selected_record_sha256": "7c40867d0c522be006df79e8e7737435ae265a73476cafe8605d837d45a23713",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "d4afcf67d792fda7142403842b19aae2b8d9a5e0fbcf58a79f956e31dd7afc12",
+      "manifest_sha256": "808919fdcbfed1ec55ded78453b54356ef91394983b6564fe9dee2a18c3f5b54",
+      "rom_map_sha256": "c7d386b112a1df76f94c1159c42290ae30f71742c458aed692a1eb44e238ed65",
+      "selection": {
+        "core_id": "fes.spectrum",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/b355cd6d6c58c57c7e5df7190c9019396812fad6a1516bade318eedf0d34ae3b",
+        "kind": "core-package",
+        "mister_packages_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "misteross_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "package_id": "b355cd6d6c58c57c7e5df7190c9019396812fad6a1516bade318eedf0d34ae3b",
+        "payload_sha256": "d4afcf67d792fda7142403842b19aae2b8d9a5e0fbcf58a79f956e31dd7afc12"
+      },
+      "selection_sha256": "04d54d56bbc8d4faaca3cc10d0337d2f482705fae412669f674fb81b7dc673b0",
+      "source_selection": {
+        "core_rbf_sha256": "d4afcf67d792fda7142403842b19aae2b8d9a5e0fbcf58a79f956e31dd7afc12",
+        "format": 1,
+        "functional_inputs_sha256": "a7b9ff92b33cc1238a0cee94677cbed8c1b7880ee459f6e385b3acf0b7ea1de7",
+        "original_record_sha256": "9c521e005f481da4d6ac5fa1394791cf99b0f85a660767598e758b17d8dc59ce",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "original_source_path": "sources/misteross",
+        "package_id": "b355cd6d6c58c57c7e5df7190c9019396812fad6a1516bade318eedf0d34ae3b",
+        "selected_record_sha256": "9c521e005f481da4d6ac5fa1394791cf99b0f85a660767598e758b17d8dc59ce",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "selected_source_path": "sources/misteross"
+      }
+    },
+    {
+      "core_rbf_sha256": "eadc8c1a8db222b0e43c4cf9c7e54dcda6d3af03f26f0ce0606c0b76824244bb",
+      "manifest_sha256": "a9ff8505908dd4ba5852636895fb40856a308d4fd8377e351e4a8eb1087990f2",
+      "selection": {
+        "core_id": "fes.ramtest",
+        "format": 2,
+        "install_path": "/usr/share/mister-runtime/core-packages/0556e0d9734dc26d89a0ecab69abfd49802981efcf42cc9c2eae4fa256529e5a",
+        "kind": "core-package",
+        "mister_packages_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "misteross_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "package_id": "0556e0d9734dc26d89a0ecab69abfd49802981efcf42cc9c2eae4fa256529e5a",
+        "payload_sha256": "eadc8c1a8db222b0e43c4cf9c7e54dcda6d3af03f26f0ce0606c0b76824244bb"
+      },
+      "selection_sha256": "5619c665357fd2ba83518570735363b4d96dc44a2d4275ce0fac53064a0a065e",
+      "source_selection": {
+        "core_rbf_sha256": "eadc8c1a8db222b0e43c4cf9c7e54dcda6d3af03f26f0ce0606c0b76824244bb",
+        "format": 1,
+        "functional_inputs_sha256": "c08c5b653e7c5fc6c607c787cfc0b4a7d49231a5dd13d98eac43fca307192e92",
+        "original_record_sha256": "7d82a143fda8ede9bd62284e168d9b9e723f722cc8ab1b8a0eb85a9dda767622",
+        "original_repository": "https://github.com/DeanoC/fes.git",
+        "original_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "original_source_path": "sources/misteross",
+        "package_id": "0556e0d9734dc26d89a0ecab69abfd49802981efcf42cc9c2eae4fa256529e5a",
+        "selected_record_sha256": "7d82a143fda8ede9bd62284e168d9b9e723f722cc8ab1b8a0eb85a9dda767622",
+        "selected_repository": "https://github.com/DeanoC/fes.git",
+        "selected_revision": "3ffe989fbba6857b74f149112d1965156face870",
+        "selected_source_path": "sources/misteross"
+      }
+    }
+  ],
+  "go": "go version go1.26.5 linux/amd64",
+  "image_base_fingerprint": "58e6270f907942d0b64ad61b0bc8c8bef5af60c66dbadf7d12c940fec12324ec",
+  "image_fingerprint": "066c367debe04f0bcbc8277bf53506d193d2f0a907b66bd2227e881aedfd3e69",
+  "image_recipe": {
+    "image/Makefile": "32b018d92bb6559be43c39e3dd865e2899165234e12c6f315fdbf4366fa22a1e",
+    "image/build/native-inputs.toml": "74f228e6b652b83d9ad33fada22074dd1e278e322695f104c6578e297039612c",
+    "image/build/target-image-container-packages.sha256": "5834b6b2c846c7adb84190d6023bef3f7e9c01524831ef91f584541d9ee1c19f",
+    "image/build/target-image-kernel-defconfig.sha256": "5768deb80362ac5798b45b2d28cc2cb05d7fed48fe9590ecb048dc2ed9761ec3",
+    "image/build/target-image.sources.lock.toml": "d132d9cc97cb7f8b3488bb2303c257a39300c7dbf6161c0c9c4316cdd63d0596",
+    "image/buildroot/Config.in": "a617f183de6968d1763480658f230d76b44cad8fcd7ea953493dcfb556707e18",
+    "image/buildroot/board/fogcast-target/native-post-build.sh": "e1f023de568bc553ca478cbf772d9661626dd0ddb1096e850bc74e78b5b9c0a2",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/fstab": "e653330f736eda6387a68dfd42fc744463ba1cc97355a9ed7d23708de6727904",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S15fes-ethaddr": "99917a1fdddcebd2b09503777b2d8c608c1e5712d11339e7e8fe8b25dcdd3473",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S20mister-network": "578b5558b3bed81282fafae73d036c353b01a7a9e40c9e5bfa4c8bcfbc02dc78",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S30mister-dropbear": "b199818d23700c7312745214e818efbf2bfc668def408d0e4c6a82e4d6b0a45d",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40mister-runtime": "55dc6c3a5f38ad50eeada3c4f266870ebfc16d92e3b9f4353594f07186a80db5",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S49fogcast-target-smoke": "d5b15d558ce87493ee419d99bc3b0ff6aa1932235f925a3143b63ef26f672d8c",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S50mister-agent": "6c6f2de05dca0215712057285f24da462ebccdd8945db4b8ebf63ca52eaca768",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S60fogcast-kit": "9cd74b43d0d126ee6b1d15414b63f6c97936dfc73a5a7928b54fe4b9472e639b",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/inittab": "b5b67031f58634886932e9d3a7c7e6fd27199e2219f33e834fed2c683c92055a",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/media/fat/.keep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/usr/sbin/mister-supervise": "e91275683f5f277d2faa87f93692bf4ef81b16ab2d65f6f4b85bc6b6d21d7fc3",
+    "image/buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast/config.toml": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc",
+    "image/buildroot/board/fogcast-target/patches/e2fsprogs/0001-create_inode-honor-fake-time-for-ctime.patch": "0ac822ed6c1e6ee70bd99db2d21a55fb38adf5b55bbde68f3f90e61cd85599c1",
+    "image/buildroot/board/fogcast-target/prepare-native-rootfs.sh": "f3e92af9c0bbca31c081210b64f32d16521ae555b595338ed30f79b4976adadf",
+    "image/buildroot/board/fogcast-target/rootfs-package-cleanup.sh": "f533d94831dc48a2f7f7c3b887534b9c423c1a199b9f0d2f69174120842e8837",
+    "image/buildroot/configs/fogcast_target_native_dev_defconfig": "d66e70cc46b0bc70d63de36ecc820dc384aed6075a85f02c5081bdc8de2797c6",
+    "image/buildroot/external.desc": "99fba9de244813705291f1398879bfb012bfbb83cbb2ed42ffc714da349642c3",
+    "image/buildroot/external.mk": "24fb242af664c3072db6caa56bff385dc47603d43e38fbb6097425f977b7eb09",
+    "image/buildroot/package/mister-runtime/Config.in": "6a6392fc73f47f94c2397c25e980280725a92c944a23f0016684d48bbd4a9e16",
+    "image/buildroot/package/mister-runtime/mister-runtime.mk": "7ded006187e15afb0b53ea5dbf7fe80040a07ab2214833b6ac50c9a2a8e7b368",
+    "image/containers/target-image/Dockerfile": "3e690821e8cc6ff62794a1cce2d81cab5e458ab0d1424598e36e74a2f4ed41eb",
+    "image/containers/target-image/create-builder-user.sh": "7061b7eda1bb8ba4f4d0fdec40d340c458085a6d71df0e824b4487c98917bb5b",
+    "image/licenses/fes.ramtest/COPYING": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+    "image/licenses/fes.ramtest/SOURCE.md": "e544dd3580f3597de025260f5d7b7e816cd6a5c7dd8f3ba33e43803933857157",
+    "image/scripts/build-target-image.sh": "e5adb9ca8c54a48b538bbff8a5e13141a48fae04a6dd9717c86baedfeafa5938",
+    "image/scripts/build-target-kernel.sh": "3e0e77fb80fa357ecc2836535d5aca1a8cb8c864ffa256f6f0928cde11309a9f",
+    "image/scripts/check-native-payloads.sh": "8fbd0ae0bb9da1243a0b1bc64039a9a35627ed336615a83cc75947f8a7dd5463",
+    "image/scripts/check-rootfs-headroom.sh": "a590cb7ba5c03ac1ca700dec0bbb3ef4e90ee9469c3758186b5b4c28df06b4a0",
+    "image/scripts/fetch-native-runtime-inputs.sh": "a4e283fcf8a303b8c5aa9f7f59ae60219ea83a89d372347c5025b63a8153d3e1",
+    "image/scripts/fetch-target-image-sources.sh": "24530b9cd7693a84522a4fba385576be5d67bd5fc9a39e0ce4db8efacc49d70f",
+    "image/scripts/native-extra-cores.sh": "b07f075ecb10528d3fdea26b29b413a4945030006ee9f580c8819542ffdba3df",
+    "image/scripts/native-video-parts.sh": "8a2347c9f9e257c758b3c53d0a1d9d3b029346c226cd69ee8aab35c2277e5f11",
+    "image/scripts/qemu-smoke-target-image.sh": "60f645b2cc23fee51822e8124ef58a9d0891a8e810e4c1e8c793cf07533ecf47",
+    "image/scripts/ramtest-notices.py": "81d155daa2a441ef655dfd73e2dd7aebe583b4d2a460bd52f752673a1ae255f6",
+    "image/scripts/scan-target-image-secrets.sh": "9f3f4305d6b42f72f98a82a8d493c48cef4b47347ad301c5b8b006b2aa8ea8d4",
+    "image/scripts/target-image-container.sh": "36cde4a2547babfb6f42f6130ac2a2d1cba5a6e7e6d9fd31ee7ababba81a9252",
+    "image/scripts/validate-native-init-services.sh": "dd1cf5e18eed85fb7e5c7a043dc33c832e2cfd85d5db427048c58a58ba7740ec",
+    "image/scripts/verify-native-runtime-inputs.sh": "9deb527a0274d1a233ea6ffe2e80b920442de62463d257ad8cd69888d7bd023a",
+    "image/scripts/verify-target-image-source-cache.sh": "4c7794da5a01016d5055086f82a8ac43b4d5bbc703fddec27d4cdf058f6675de",
+    "image/scripts/verify-target-image.sh": "b557d21c0bd517e299912da01051e4f67ff172f55c5713cf04bb24cc1f34a47d",
+    "image/scripts/verify-target-kernel.sh": "a18c75e578bcfeb032421caecee6ed917fb7792ff03a9c0daaa8ef2556a51f1f"
+  },
+  "profile": {
+    "check_packages": true,
+    "host_arch": "amd64",
+    "host_os": "linux",
+    "image_variant": "native-dev",
+    "native_image_mode": "package-only",
+    "version": "0.1.0"
+  },
+  "recipe": {
+    "config/core-recipes.toml": "c9182b15a4950859333fae3f557596634f1fb077b28bbb1639854f0162dc0ab0",
+    "scripts/affected.py": "746ff0f3f63d7c57d0193705faaf8610d48cadb4891c669e7d0f2cba91b984ad",
+    "scripts/appliance_expand_dry_run.py": "93d20e955176b17b9a65113ff3cf853a005959fd01b101badfcfc546765b6800",
+    "scripts/artifact_cache.py": "1c91791e9c18e7664939bc804db48e8d3485f04560ee289070e808700f8c536c",
+    "scripts/build.py": "9e59536339e4f2a16ddf91b544865b58745b2ac970be9b2f6e7f7e2346ccf9c9",
+    "scripts/bundle.py": "e68446e01c46e098773cd4b4b2662027dfbbf747e1038f0a6b7669763338d915",
+    "scripts/check_diff.py": "6f9f8b3669325368c4ad9df7b17308e9fe5a3f7e7fa096344fc1e1c9212fd314",
+    "scripts/ci_gate.py": "a4d4a0bbe50cdb941259fcb203c328c4fc50dcd04b04f1664a9daebc4bac9c1e",
+    "scripts/ci_simulations.py": "682657e06f531b045415f59177370832e36552494d1ef7043050e92ff223c9a6",
+    "scripts/consistency.py": "9f2a19356e762b33def88b0abba7d5784ca068befe949ac3374834bcf520132b",
+    "scripts/coordination.py": "3b7126bec12a20007e377b28e3247a1b1b0317d23b028df73761733dfc710ff9",
+    "scripts/core_catalog.py": "2a87a709afae0fcc879c3e4060342815f3e657715ab4e0bd70befc08b94794e7",
+    "scripts/core_dev.py": "15cc5ae199b3870a08406848d4a5476649d8ebe0bf9748bd19cd8d8f2f2e7470",
+    "scripts/core_dev_accept.py": "f627f0ba0d40c97c94689dfae582bde35c324b3b246a6559cd6dbcca62063a38",
+    "scripts/dev_snapshot.py": "25b1ef0b32adec212c2583ef5d214d7606d080a0e6bb92b7f7bc8e265797e731",
+    "scripts/environment.py": "45c8e68d0f4fa45d69fa4676a6951d696e7711fc0550804c176008a19a8a014a",
+    "scripts/factory_video_parts.py": "a9a063a71458797b54dbf786301eda78b3cdc7a6a5ad1f367e014a887f106400",
+    "scripts/generate.py": "e2c5566f43857603237cbb020bcc52dc71ea30ab1dd4eadcf22ea6d18ae10f9e",
+    "scripts/import_modules.py": "b30103fce352b754f2f27f7c11fb6771496d3aea38cc3a4c623eb61ee7b35000",
+    "scripts/input_diagnostic.py": "dcf3f6e4d61d97bde0d58f021468ccc3ecf0f964c13beac2de6fcebd06719cae",
+    "scripts/inputs.py": "c470d8adff727fac9e0a6998e856d195098d0bbb99e3eabb4feec7600a171187",
+    "scripts/module_sources.py": "b3708f92dcecfe863ff78116a0f9159c4ea21d0849cd270db86d2bab244087ab",
+    "scripts/native_dev.py": "f7f3b72ca561e88273cc6a280e32879feb6ccef0f9d034b5f2f9e4929557e717",
+    "scripts/package_acceptance.py": "0a46023b40f4327bd64ef4d1f14b706ce60264abbbb4cc24fd8dd34981cdc13e",
+    "scripts/package_acceptance_isolated.py": "2f617109b23a66e2b7f7cecfac37249343f290cbce89cb5d58fd65e9596fa9e5",
+    "scripts/recipes.py": "64bfebb6c10bd0b6859347f1423687b513f9070cc0cd9c0653fb612ea9b70edc",
+    "scripts/source_status.py": "8e0a4edfba8ef693896b4dd430fdd88f0ba10431edbcb1835adbbf7e601687a4",
+    "scripts/status.py": "757a5c6e6d70e251b24b2e65077aeeb0e3c29d2583bf144865c364b70b2c03a0",
+    "scripts/target_acceptance.py": "f1b1bfe940c2a191335c248e6968b7db8f9e323e1a513981d3056e8a41cb840f",
+    "scripts/test_changed.py": "18b17c01aeb6bbb3703e945cb21833657a18d8f4c6d6180260de9d336fad1598"
+  },
+  "sources": {
+    "FogCast": "3ffe989fbba6857b74f149112d1965156face870",
+    "libmister-runtime": "3ffe989fbba6857b74f149112d1965156face870",
+    "mister-packages": "3ffe989fbba6857b74f149112d1965156face870",
+    "misteross": "3ffe989fbba6857b74f149112d1965156face870"
+  }
+}

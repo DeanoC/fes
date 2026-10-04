@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 
+from scripts import coleco_expansion
+
 INTERFACE = "fes.fabric.video.native-pixels"
 MAP = "fes.coleco-native-video.socket/1"
 LAYOUT = "fes.coleco-native-video.parts/1"
@@ -108,7 +110,10 @@ def validate_boundary(top: dict, *, routed: bool) -> None:
                 raise ValueError("native video clock anchor input changed")
 
     if routed:
-        allowed = {PREFIX + name for name in boundary_bels()}
+        boundary = {PREFIX + name: bel for name, bel in boundary_bels().items()}
+        allowed = set(boundary) | coleco_expansion.boundary_route_through_cells(top, boundary)
+        coleco_expansion.validate_clock_anchors(top, {
+            name: bel for name, bel in boundary.items() if name.startswith(PREFIX + "clock_coverage_ff_")})
         for name, cell in cells.items():
             pieces = cell.get("attributes", {}).get(key, "").split(".")
             if len(pieces) >= 3 and pieces[1].isdigit() and pieces[2].isdigit() and \
@@ -128,14 +133,18 @@ def prepare_scaffold(source: bytes) -> bytes:
             if target in cells:
                 raise ValueError("CPU boundary alias collision")
             cells[target] = cells.pop(name)
+    # Keep anchors and their constant routes frozen. Removing only their cells
+    # leaves occupied input wires at sites that the cart placer would reuse.
     for name in boundary_bels():
-        original = PREFIX + name
         if name.startswith("clock_coverage_ff_"):
-            del cells[original]
             continue
+        original = PREFIX + name
         target = name.replace("plug_request_ff_", "plug_addr_ff_").replace(
             "plug_response_ff_", "plug_rdata_ff_")
-        if target in cells:
-            raise ValueError("native video boundary alias collision")
-        cells[target] = cells.pop(original)
+        for suffix in ("", "$ROUTETHRU"):
+            if original + suffix not in cells:
+                continue
+            if target + suffix in cells:
+                raise ValueError("native video boundary alias collision")
+            cells[target + suffix] = cells.pop(original + suffix)
     return (json.dumps(design, separators=(",", ":")) + "\n").encode()

@@ -107,9 +107,12 @@
       }
       try {
         const value = await request(entryPath(entry.game_id) + '/video');
+        const effectiveChoice = value && Array.isArray(value.choices) && value.choices.find(c => c && c.profile === value.effective_profile);
+        const missingPart = value && !value.part_id && effectiveChoice && !effectiveChoice.part_id &&
+          effectiveChoice.available === false && typeof effectiveChoice.reason === 'string' && effectiveChoice.reason.length > 0;
         if (!value || value.game_id !== entry.game_id || value.package_id !== entry.package_id ||
             !videoProfile(value.preferred_profile) || !videoProfile(value.effective_profile) || typeof value.builtin !== 'boolean' ||
-            (value.builtin ? Boolean(value.part_id) || value.effective_profile !== 'direct' : !digest(value.part_id)) || !Array.isArray(value.choices) ||
+            (value.builtin ? Boolean(value.part_id) || value.effective_profile !== 'direct' : !digest(value.part_id) && !missingPart) || !Array.isArray(value.choices) ||
             !value.choices.every(c => c && videoProfile(c.profile) && typeof c.label === 'string' &&
               typeof c.available === 'boolean' && (!c.part_id || digest(c.part_id)) && (!c.reason || typeof c.reason === 'string')) ||
             (value.fallback_reason && typeof value.fallback_reason !== 'string')) throw new Error('Invalid resolved video output.');
@@ -486,7 +489,7 @@
         const available = video && (video.builtin || (effectiveChoice && effectiveChoice.available));
         byId('core-video-status').textContent = state.videoMessage || (video
           ? 'Household preference: ' + name(video.preferred_profile) + '. Next launch: ' + (available ? '' : 'Unavailable — ') + name(video.effective_profile) +
-            (video.builtin ? ' (built in).' : ' (video part ' + video.part_id + ').') +
+            (video.builtin ? ' (built in).' : video.part_id ? ' (video part ' + video.part_id + ').' : '.') +
             (!available && effectiveChoice && effectiveChoice.reason ? ' ' + effectiveChoice.reason : '') +
             (video.fallback_reason ? ' ' + video.fallback_reason : '')
           : 'Choose a library entry to see its next-launch output.');

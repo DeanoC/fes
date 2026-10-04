@@ -130,7 +130,8 @@ func AdmitFactoryVideoPart(ctx context.Context, packageID string, ref FactoryVid
 	if err != nil {
 		return FactoryVideoPart{}, fmt.Errorf("read factory video part: %w", err)
 	}
-	if asset.ID != ref.PartID || asset.Manifest.ShellPackageID != packageID || asset.Manifest.Slot != expansion.VideoSlot {
+	if asset.ID != ref.PartID || asset.Manifest.ShellPackageID != packageID ||
+		(asset.Manifest.Slot != expansion.VideoSlot && asset.Manifest.Slot != expansion.NativeVideoSlot) {
 		return FactoryVideoPart{}, errors.New("factory video part identity or shell differs from reference")
 	}
 	if _, err := ComposePartsArchive(ctx, canonicalShell, []expansion.Asset{asset}); err != nil {

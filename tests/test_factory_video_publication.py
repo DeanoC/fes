@@ -86,6 +86,7 @@ func main() {
 
 
 class FactoryVideoPublicationTests(unittest.TestCase):
+    lane = "native"
     @classmethod
     def setUpClass(cls):
         cls.fixture_temp = tempfile.TemporaryDirectory()
@@ -93,8 +94,6 @@ class FactoryVideoPublicationTests(unittest.TestCase):
         # Reuse the producer reader fixture: these are valid full-device encoded
         # frames and Python USTAR archives, not compiler or hardware acceptance.
         fixture_program = runpy.run_path(str(ROOT / "tests/test_factory_video_parts.py"))["_FIXTURE"]
-        fixture_program = fixture_program.replace("for case in ('direct','scanlines','outside','header'):",
-                                                  "for case in ('direct','scanlines'):")
         # Publication only consumes archives. The separate producer suite checks
         # routing/timing evidence; avoid recalculating its full-device diff here.
         fixture_program, marker, _ = fixture_program.partition("    cells={} if profile=='direct'")
@@ -103,7 +102,7 @@ class FactoryVideoPublicationTests(unittest.TestCase):
         fixture_program += "    cases[case]={'package':str(package),'current':current,'archive':str(archive),'part_id':part_id}\n"
         fixture_program += "(output/'cases.json').write_bytes(enc(cases))\n"
         subprocess.run([sys.executable, "-I", "-B", "-c", fixture_program,
-                        str(ROOT / "sources/misteross"), str(cls.fixture)], check=True)
+                        str(ROOT / "sources/misteross"), str(cls.fixture), cls.lane, "archives"], check=True)
         cls.cases = json.loads((cls.fixture / "cases.json").read_bytes())
         cls.package = Path(cls.cases["direct"]["package"])
         cls.package_id = cls.package.name
@@ -278,6 +277,10 @@ class FactoryVideoPublicationTests(unittest.TestCase):
         with self.assertRaises((ValueError, OSError)):
             self.publish()
         self.assert_no_publication()
+
+
+class RasterFactoryVideoPublicationTests(FactoryVideoPublicationTests):
+    lane = "raster"
 
 
 if __name__ == "__main__":

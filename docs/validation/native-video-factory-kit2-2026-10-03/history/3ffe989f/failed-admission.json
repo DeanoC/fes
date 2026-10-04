@@ -1,0 +1,55 @@
+{
+  "boot_id": "3b0fe00e-ff40-403d-b6dd-188b7e047d0b",
+  "classification": "exact-image failed admission; no video/audio hardware acceptance",
+  "diagnosis": {
+    "developer_difference": "Developer parts loads skip the library persistence preflight.",
+    "message": "native video shell requires a video parts composition",
+    "path": [
+      "FogCast internal/misterruntime/runtime.go:378-395 runs InspectCoreData for library parts before the replacement barrier and load dispatch",
+      "NativeHardware::InspectCoreData calls AdmitCorePackage with for_composition=false",
+      "NativeHardware::AdmitCorePackageInternal rejects the native video shell as an uncomposed load"
+    ],
+    "reviewer": "root and native_library independent source trace"
+  },
+  "evidence": {
+    "cleanup": {
+      "bytes": 351,
+      "path": "out/native-video-factory/candidate-3ffe989f/hardware/resume-20261003/captures/cleanup-idle.json",
+      "sha256": "39ee1dba879d7df5bd657e0b635459becf509f9b5144cb5115ddb1c9cd6101d6"
+    },
+    "initial_result": {
+      "bytes": 116,
+      "path": "out/native-video-factory/candidate-3ffe989f/hardware/resume-20261003/library-completion.json",
+      "sha256": "5e719312eebbf3f01ff7e642b263d8c88921829266696fea012d6f8db8a043a4"
+    },
+    "install": {
+      "bytes": 3248,
+      "path": "out/native-video-factory/candidate-3ffe989f/hardware/resume-20261003/captures/installed.json",
+      "sha256": "93ccb447fb535762674136e414d9f89240a3da6bab321c527766aed53ee5cbc1"
+    },
+    "installed_image": {
+      "bytes": 5177,
+      "path": "out/native-video-factory/candidate-3ffe989f/hardware/resume-20261003/candidate-installed.json",
+      "sha256": "47591739bbead7090bd3e9f08bc3d5f68d9a07473b0230fd734cbf46b583a006"
+    },
+    "reproduced_response": {
+      "bytes": 188,
+      "path": "out/native-video-factory/candidate-3ffe989f/hardware/resume-20261003/admission-diagnosis/launch-response.json",
+      "sha256": "66c9c8f6b6f092843855bfcfac3fcb0438ce684c9d9dd1a301c5c4f7cf71bae5"
+    }
+  },
+  "format": 1,
+  "image_sha256": "4c2de9f3edb28d71fd920eee66157b94b56d9b2dd9cf7adfea92aabd1c8c2628",
+  "observed": {
+    "captures": 0,
+    "catalog_install": "passed; both exact native video parts imported",
+    "cleanup_lease": "free",
+    "cleanup_runtime": "idle",
+    "code": "UNSUPPORTED_OPERATION",
+    "first_direct_launch_http_status": 400,
+    "phase": "admission",
+    "target_upload_http_status": 422
+  },
+  "source_revision": "3ffe989fbba6857b74f149112d1965156face870",
+  "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6"
+}

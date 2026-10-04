@@ -128,53 +128,75 @@ _FIXTURE = r'''
 import hashlib, io, json, subprocess, sys, tarfile
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from scripts import build_fes_coleco_socket_v2 as shell_producer, build_video_part as producer, video_parts
+from scripts import build_fes_coleco_socket_v2 as shell_producer, build_video_part as producer, video_parts, native_video_parts, native_video_clock
 from scripts.export_core_package import build_identity, source_input_closure, POLICY
 from scripts.functional_execution import source_roots_for_inputs
 from scripts.core_package import read_package, package_identity
-from scripts.cyclonev_rbf import SX120F, LoadedRbf, header_nbytes, cram_set, rbf_save, rbf_load, CramRect, classify_cram_diff
+from scripts.cyclonev_rbf import SX120F, LoadedRbf, header_nbytes, cram_set, rbf_save, rbf_load, CramRect, classify_cram_diff, overlay_cram
 root, output=Path(sys.argv[1]), Path(sys.argv[2])
+native=len(sys.argv)>3 and sys.argv[3]=='native'
+layout=native_video_parts if native else video_parts
+options={'native_video':True} if native else {'video_socket':True}
+inputs=producer.NATIVE_INPUTS if native else producer.INPUTS
 def enc(value): return json.dumps(value,sort_keys=True,separators=(',',':')).encode()
 def sha(value): return hashlib.sha256(value).hexdigest()
 revision=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
-current={'inputs':source_input_closure(root,source_roots_for_inputs(producer.INPUTS),policy=POLICY),
-         'source_roots':source_roots_for_inputs(producer.INPUTS),'source_closure_policy':POLICY,
-         'tools':{'yosys':'synthetic validated fixture'},'execution':{'version':1,'gpu_device':0},'revision':revision}
-record=shell_producer.create_build_record(root,'https://github.com/DeanoC/fes.git',revision,current['tools'],current['execution'],video_socket=True)
+current={'inputs':source_input_closure(root,source_roots_for_inputs(inputs),policy=POLICY),
+         'source_roots':source_roots_for_inputs(inputs),'source_closure_policy':POLICY,
+         'tools':{'yosys':'synthetic validated fixture'},'execution':{'version':1,'gpu_device':0},'revision':revision,'map':layout.MAP}
+record=shell_producer.create_build_record(root,'https://github.com/DeanoC/fes.git',revision,current['tools'],current['execution'],**options)
 base=LoadedRbf(die=SX120F,header=bytes(header_nbytes(SX120F)),cram=bytearray((SX120F.cram_sx*SX120F.cram_sy+7)//8),compressed=True)
 base_bytes=rbf_save(base,compressed=True)
 evidence={'build_id':build_identity(record),'rbf':{'sha256':sha(base_bytes),'size':len(base_bytes)}}
-manifest=shell_producer.manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools'],video_socket=True)
+manifest=shell_producer.manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools'],**options)
 package_id=package_identity(manifest,base_bytes)
 package=output/package_id; package.mkdir()
 for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes)]: (package/name).write_bytes(value)
 shell=output/'shell'; shell.mkdir()
 for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes),('routed.json',b'{}'),('socket.qsf',b'fixture constraints'),('build-inputs.json',record)]: (shell/name).write_bytes(value)
 cases={}
-for case in ('direct','scanlines','outside','header'):
+variants=('direct','scanlines') if len(sys.argv)>4 and sys.argv[4]=='archives' else ('direct','scanlines','outside','header','inside-legacy-column','outside-legacy-column')
+frames={}
+for case in variants:
     profile='scanlines' if case=='scanlines' else 'direct'
     directory=output/case; directory.mkdir()
     placed=LoadedRbf(die=SX120F,header=base.header,cram=bytearray(base.cram),compressed=True)
-    cram_set(placed.cram,SX120F,1800,1801 if case!='outside' else 1799,1)
+    cram_set(placed.cram,SX120F,3488 if 'legacy-column' in case else 1800,1799 if case.startswith('outside') else 1801,1)
     if case=='header': placed.header=bytes([1])+placed.header[1:]
-    cart=rbf_save(placed,compressed=True)
+    coordinate=(3488 if 'legacy-column' in case else 1800,1799 if case.startswith('outside') else 1801,case=='header')
+    if coordinate not in frames:
+        frames[coordinate]=rbf_save(placed,compressed=True)
+    cart=frames[coordinate]
     recipe={k:current[k] for k in ('inputs','source_roots','source_closure_policy','tools','execution')}
-    recipe.update(shell={name:sha((shell/name).read_bytes()) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')},variant=profile,slot_clock=video_parts.CLOCK,map=video_parts.MAP,cram_region=list(video_parts.CRAM),required_clocks_mhz=producer.sgm.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(producer.sgm.cart_clock_constraints(root)))
-    part_manifest={'cart_sha256':sha(cart),'cart_size':len(cart),'device':'5CSEBA6U23I7','format':1,'map':video_parts.MAP,'recipe_sha256':sha(enc(recipe)),'revision':revision,'shell_build_id':build_identity(record),'shell_package_id':package_id,'shell_sha256':sha(base_bytes),'slot':video_parts.INTERFACE,'slot_major':1,'slot_minor':0}
+    recipe.update(shell={name:sha((shell/name).read_bytes()) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')},variant=profile,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=producer.sgm.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(producer.sgm.cart_clock_constraints(root)))
+    part_manifest={'cart_sha256':sha(cart),'cart_size':len(cart),'device':'5CSEBA6U23I7','format':1,'map':layout.MAP,'recipe_sha256':sha(enc(recipe)),'revision':revision,'shell_build_id':build_identity(record),'shell_package_id':package_id,'shell_sha256':sha(base_bytes),'slot':layout.INTERFACE,'slot_major':1,'slot_minor':0}
     encoded=enc(part_manifest); part_id=sha(b'fes-expansion-v1\0'+encoded)
     archive=directory/'part.tar'
     with tarfile.open(archive,'w',format=tarfile.USTAR_FORMAT) as tar:
         for name,value in [('manifest.json',encoded),('cart.rbf',cart)]:
             info=tarfile.TarInfo(name);info.size=len(value);tar.addfile(info,io.BytesIO(value))
-    cells={} if profile=='direct' else {'state':{'type':'MISTRAL_FF'}}
-    synth={'modules':{'cart':{'cells':cells}}};counts=producer._cell_counts(synth)
-    routed={'modules':{'top':{'netnames':{video_parts.CLOCK:{'bits':[42]}},'cells':{}}}}
-    if profile=='scanlines': routed['modules']['top']['cells']['fes_cart$state']={'type':'MISTRAL_FF','connections':{'CLK':[42]}}
-    timing={'fmax':{name:{'constraint':freq,'achieved':freq+10} for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()},'utilization':{'MISTRAL_FF':{'used':len(cells),'available':167640}}}
-    changes=classify_cram_diff(rbf_load(base_bytes),rbf_load(cart),CramRect(*video_parts.CRAM),include_outside_coordinates=True)
-    summary={'recipe':recipe,'part_id':part_id,'manifest':part_manifest,'cram_diff':changes,'checked_clock_pins':len(cells),'timing':{name:[name,freq,freq+10] for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()},'resources':timing['utilization'],'synthesis_cells':counts,'route':{'complete':True,'gpu_backend':'hip'}}
-    report={'archive_published':True,'cart_sha256':sha(cart),'cram_diff':changes,'cram_region':list(video_parts.CRAM),'map':video_parts.MAP,'part_id':part_id,'route_contract':'passed'}
-    for name,value in [('cart.json',synth),('cart-routed.json',routed),('timing.json',timing),('build-summary.json',summary),('cram-diff.json',report)]: (directory/name).write_bytes(enc(value))
+    cells={} if profile=='direct' else {'state':{'type':'MISTRAL_FF','connections':{'CLK':[4]},'port_directions':{'CLK':'input'}}}
+    if native:
+        cells.update(clock_input={'type':'MISTRAL_IB','connections':{'PAD':[2],'O':[3]},'port_directions':{'PAD':'input','O':'output'}},clock_buffer={'type':'MISTRAL_CLKBUF','connections':{'A':[3],'Q':[4]},'port_directions':{'A':'input','Q':'output'}})
+        cells.update({f'ram{i}':{'type':'MISTRAL_M10K','parameters':{'CFG_DUAL_CLOCK':1,'CFG_MIXED_WIDTH':1},'connections':{'CLK1':[4],'CLK2':[4]},'port_directions':{'CLK1':'input','CLK2':'input'}} for i in range(48)})
+    synth={'modules':{'cart':{'cells':cells,'ports':{'FPGA_CLK1_50':{'direction':'input','bits':[2]}}}}}
+    (directory/'cart.json').write_bytes(enc(synth))
+    if native:
+        (directory/'cart-synth.json').write_bytes(enc(synth))
+        clock_boundary=native_video_clock.prepare_native_clock(directory/'cart.json')
+    counts=producer._cell_counts(synth)
+    routed={'modules':{'top':{'netnames':{layout.CLOCK:{'bits':[42]}},'cells':{}}}}
+    for name,cell in cells.items():
+        if cell['type'] in ('MISTRAL_FF','MISTRAL_M10K'):
+            routed['modules']['top']['cells']['fes_cart$'+name]={'type':cell['type'],'connections':{pin:[42] for pin in cell['connections']}}
+    checked_clocks=producer.validate_clocks(routed,layout=layout)
+    timing={'fmax':{name:{'constraint':freq,'achieved':freq+10} for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()},'utilization':{'MISTRAL_FF':{'used':counts.get('MISTRAL_FF',0),'available':167640}}}
+    if native: timing['utilization']['MISTRAL_M10K']={'used':48,'available':397}
+    changes=classify_cram_diff(base,placed,CramRect(*layout.CRAM),include_outside_coordinates=True,ignore_ecc_columns=not native)
+    summary={'recipe':recipe,'part_id':part_id,'manifest':part_manifest,'cram_diff':changes,'checked_clock_pins':checked_clocks,'timing':{name:[name,freq,freq+10] for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()},'resources':timing['utilization'],'synthesis_cells':counts,'route':{'complete':True,'gpu_backend':'hip'},'cram_policy':'strict-rectangle-v1' if native else 'legacy-columns-v1','preview_matches_routed_cram':overlay_cram(base,placed,CramRect(*layout.CRAM)).cram==placed.cram}
+    if native: summary['native_clock_boundary']=clock_boundary
+    report={'archive_published':True,'cart_sha256':sha(cart),'cram_diff':changes,'cram_region':list(layout.CRAM),'map':layout.MAP,'part_id':part_id,'route_contract':'passed'}
+    for name,value in [('cart-routed.json',routed),('timing.json',timing),('build-summary.json',summary),('cram-diff.json',report)]: (directory/name).write_bytes(enc(value))
     (directory/'route.log').write_text('Info: GPU router backend hip: fixture device ready\nInfo: Program finished normally.\n')
     cases[case]={'package':str(package),'shell':str(shell),'current':current,'profile':profile,'archive':str(archive),'directory':str(directory)}
 (output/'cases.json').write_bytes(enc(cases))
@@ -183,12 +205,13 @@ for case in ('direct','scanlines','outside','header'):
 
 class RealProducerEvidenceTests(unittest.TestCase):
     """Exercise actual package, clock/resource and full-device CRAM readers."""
+    lane = "raster"
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
         cls.root = Path(cls.temp.name)
         cls.source = Path(__file__).resolve().parents[1] / "sources/misteross"
-        subprocess.run([sys.executable, "-I", "-B", "-c", _FIXTURE, str(cls.source), str(cls.root)], check=True)
+        subprocess.run([sys.executable, "-I", "-B", "-c", _FIXTURE, str(cls.source), str(cls.root), cls.lane], check=True)
         cls.cases = json.loads((cls.root / "cases.json").read_bytes())
         cls.recipe = video.recipes.recipe_for("fes.coleco")
 
@@ -213,6 +236,9 @@ class RealProducerEvidenceTests(unittest.TestCase):
             self.inspect("outside")
         with self.assertRaisesRegex(ValueError, "configuration header"):
             self.inspect("header")
+
+    def test_legacy_companion_column_policy_is_not_widened(self):
+        self.inspect("outside-legacy-column")
 
     def test_profile_and_current_source_or_tool_mismatch_rejected(self):
         with self.assertRaisesRegex(ValueError, "current build recipe"):
@@ -246,6 +272,79 @@ class RealProducerEvidenceTests(unittest.TestCase):
                 path.write_bytes(before)
 
 
+class NativeProducerEvidenceTests(RealProducerEvidenceTests):
+    lane = "native"
+
+    def test_legacy_companion_column_policy_is_not_widened(self):
+        self.inspect("inside-legacy-column")
+        with self.assertRaisesRegex(ValueError, "outside its CRAM"):
+            self.inspect("outside-legacy-column")
+
+    def test_original_synthesis_and_normalized_clock_proof_are_required(self):
+        directory = Path(self.cases["direct"]["directory"])
+        for name, mutate, expected in (
+                ("cart-synth.json", lambda data: data["modules"]["cart"]["cells"]["ram0"]["parameters"].update(CFG_DUAL_CLOCK=0), "mixed-width SDP"),
+                ("cart.json", lambda data: data["modules"]["cart"]["cells"]["ram0"]["parameters"].update(CFG_MIXED_WIDTH=0), "proven clock normalization"),
+                ("build-summary.json", lambda data: data["native_clock_boundary"].update(synth_sha256="0" * 64), "clock normalization evidence"),
+                ("build-summary.json", lambda data: data.update(cram_policy="legacy-columns-v1"), "containment policy"),
+                ("build-summary.json", lambda data: data.update(preview_matches_routed_cram=False), "preview differs")):
+            path = directory / name
+            before = path.read_bytes()
+            try:
+                changed = json.loads(before)
+                mutate(changed)
+                path.write_bytes(video.canonical(changed))
+                with self.subTest(name=name, expected=expected), self.assertRaisesRegex(ValueError, expected):
+                    self.inspect("direct")
+            finally:
+                path.write_bytes(before)
+
+    def test_synthesized_snapshot_cannot_change_before_validation(self):
+        with self.assertRaisesRegex(ValueError, "evidence changed after snapshot"):
+            self.inspect("direct", evidence_sha256={"cart-synth.json": "0" * 64})
+
+    def test_native_inputs_cannot_be_validated_under_raster_profile(self):
+        current = copy.deepcopy(self.cases["direct"]["current"])
+        current["map"] = "fes.coleco-video.socket/1"
+        with self.assertRaisesRegex(ValueError, "different shell profile"):
+            self.inspect("direct", current=current)
+
+
+class VideoShellAdmissionTests(unittest.TestCase):
+    def descriptor(self, interface):
+        return {"format": 2, "core": {"id": "fes.coleco"},
+                "abi": {"id": "fes.application", "major": 1, "minor": 0},
+                "interfaces": [{"id": interface, "major": 1, "minor": 0, "required": False}]}
+
+    def test_each_exact_marker_selects_only_its_own_closed_profile(self):
+        for interface, profile in video.VIDEO_INTERFACES.items():
+            self.assertEqual(video.video_shell_profile(self.descriptor(interface)), profile)
+        self.assertIsNone(video.video_shell_profile({"interfaces": []}))
+
+    def test_duplicate_mixed_or_mutated_markers_are_rejected(self):
+        for interface in video.VIDEO_INTERFACES:
+            original = self.descriptor(interface)
+            for key, value in (("major", 2), ("major", True), ("minor", 1),
+                               ("minor", False), ("required", True), ("required", 0),
+                               ("unknown", 1)):
+                descriptor = copy.deepcopy(original)
+                descriptor["interfaces"][0][key] = value
+                with self.subTest(interface=interface, key=key, value=value), self.assertRaises(ValueError):
+                    video.video_shell_profile(descriptor)
+            for other in video.VIDEO_INTERFACES:
+                descriptor = copy.deepcopy(original)
+                descriptor["interfaces"] += self.descriptor(other)["interfaces"]
+                with self.assertRaises(ValueError):
+                    video.video_shell_profile(descriptor)
+
+    def test_profile_requires_format2_coleco_application(self):
+        original = self.descriptor("fes.fabric.video.native-pixels")
+        for changed in ({"format": 3}, {"format": 2.0}, {"core": {"id": "fes.pong"}},
+                        {"abi": {"id": "fes.application", "major": 2, "minor": 0}}):
+            with self.assertRaises(ValueError):
+                video.video_shell_profile(original | changed)
+
+
 class ResolverTransactionTests(unittest.TestCase):
     """Check cache/publication orchestration; real producer readers run above."""
     def setUp(self):
@@ -263,7 +362,7 @@ class ResolverTransactionTests(unittest.TestCase):
             "source_selection": {"functional_inputs_sha256": "d" * 64}}}
         self.cache = self.root / "cache/core-video-parts"
         self.destination = self.root / "result"
-        self.current = {"revision": "e" * 40, "tools": {"yosys": "fixture"}}
+        self.current = {"revision": "e" * 40, "tools": {"yosys": "fixture"}, "map": video.NATIVE_MAP}
         self.builder = patch.object(video, "_build_part", side_effect=self.build_part).start()
         self.addCleanup(patch.stopall)
         self.inspector = patch.object(video, "_inspect", side_effect=self.inspect).start()
@@ -284,7 +383,7 @@ class ResolverTransactionTests(unittest.TestCase):
                 "recipe_sha256": "2" * 64}
 
     def shell(self):
-        shell = self.source / "build/fes-coleco-video"
+        shell = self.source / video.VIDEO_OUTPUTS[self.current["map"]]
         shell.mkdir(parents=True)
         for name in video.SHELL_MEMBERS:
             (shell / name).write_bytes(b"fixture evidence")
@@ -294,6 +393,8 @@ class ResolverTransactionTests(unittest.TestCase):
         directory.mkdir(parents=True)
         for name in video.PART_MEMBERS:
             (directory / name).write_bytes(b"fixture evidence")
+        if self.current["map"] == video.NATIVE_MAP:
+            (directory / "cart-synth.json").write_bytes(b"fixture synthesis evidence")
         archive = directory / "part.tar"
         archive.write_bytes(profile.encode())
         return archive
@@ -317,6 +418,28 @@ class ResolverTransactionTests(unittest.TestCase):
         self.assertEqual(self.builder.call_count, 2)
         self.assertEqual(result["inputs"], result2["inputs"])
         self.assertEqual(result["index_path"].read_bytes(), result2["index_path"].read_bytes())
+        self.assertEqual(len(list(self.cache.glob("*/direct/cart-synth.json"))), 1)
+
+    def test_raster_cache_keeps_its_original_member_set(self):
+        self.current["map"] = "fes.coleco-video.socket/1"
+        self.shell()
+        result = self.resolve()
+        self.resolve(self.root / "second")
+        self.assertEqual(self.builder.call_count, 2)
+        self.assertEqual(list(self.cache.glob("*/direct/cart-synth.json")), [])
+        self.assertEqual(video.read_index(result["directory"]), result["inputs"]["index"])
+
+    def test_missing_sealed_native_synthesis_evidence_is_not_rebuilt(self):
+        self.shell()
+        self.resolve()
+        evidence = next(self.cache.glob("*/direct/cart-synth.json"))
+        evidence.parent.chmod(0o755)
+        evidence.unlink()
+        evidence.parent.chmod(0o555)
+        with self.assertRaisesRegex(ValueError, "unexpected members"):
+            self.resolve(self.root / "second")
+        self.assertEqual(self.builder.call_count, 2)
+        self.assertFalse((self.root / "second").exists())
 
     def test_corrupt_cached_modes_fail_before_rebuilding(self):
         self.shell()

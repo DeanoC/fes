@@ -9,7 +9,9 @@ from pathlib import Path
 from scripts import build_video_part, coleco_expansion, native_video_parts as native, video_parts
 from scripts import build_coleco_sgm as sgm
 from scripts.cyclonev_rbf import SX120F, tile_column_cram_x
-from tests.test_video_parts_build import routed_shell_fixture
+from tests.test_video_parts_build import (
+    add_boundary_route_throughs, assert_video_scaffold_pairs, routed_shell_fixture,
+)
 
 
 def boundary_fixture(*, routed=False, aliases=True):
@@ -95,6 +97,20 @@ class NativeVideoPartsTest(unittest.TestCase):
         for aliases in (False, True):
             native.validate_boundary(boundary_fixture(routed=True, aliases=aliases), routed=True)
 
+    def test_routed_reservation_admits_only_associated_buffer_pairs(self):
+        top = boundary_fixture(routed=True, aliases=False)
+        add_boundary_route_throughs(top)
+        native.validate_boundary(top, routed=True)
+        self.assertEqual(sum(cell.get("attributes", {}).get("NEXTPNR_BEL", "").startswith(
+            "MISTRAL_MCOMB.") for cell in top["cells"].values()), 16)
+        intruder = copy.deepcopy(top["cells"][native.PREFIX + "plug_request_ff_0$ROUTETHRU"])
+        intruder["connections"]["Q"] = [30000]
+        # This is outside the raster socket, but within the native reservation.
+        intruder["attributes"]["NEXTPNR_BEL"] = "MISTRAL_COMB.10.38.0"
+        top["cells"][native.PREFIX + "unrelated$ROUTETHRU"] = intruder
+        with self.assertRaisesRegex(ValueError, "reservation contains shell cell"):
+            native.validate_boundary(top, routed=True)
+
     def test_rejects_wrong_clock_bel_type_and_missing_cell(self):
         for routed in (False, True):
             for change in ("clock", "bel", "type", "missing"):
@@ -171,16 +187,49 @@ class NativeVideoPartsTest(unittest.TestCase):
                          top["cells"][coleco_expansion.SOCKET_CLOCK_COVERAGE_CELL])
         for name in coleco_expansion.socket_bels_v2():
             self.assertEqual(prepared["cells"]["cpu_" + name], top["cells"][name])
-        self.assertFalse(any(name.startswith(native.PREFIX) for name in prepared["cells"]))
+        anchors = {native.PREFIX + name for name in native.boundary_bels()
+                   if name.startswith("clock_coverage_ff_")}
+        self.assertEqual({name for name in prepared["cells"] if name.startswith(native.PREFIX)}, anchors)
+        for name in anchors:
+            self.assertEqual(prepared["cells"][name], top["cells"][name])
         for kind, count, offset in (("addr", 32, 200), ("rdata", 28, 300)):
             for bit in range(count):
                 self.assertEqual(prepared["cells"][f"plug_{kind}_ff_{bit}"]["connections"]["Q"], [offset + bit])
+
+    def test_real_producer_retains_all_anchor_pairs_and_frozen_routes(self):
+        design = routed_shell_fixture()
+        original = design["modules"]["top"]
+        for name in list(original["cells"]):
+            if name.startswith(video_parts.PREFIX):
+                del original["cells"][name]
+        original["cells"].update(boundary_fixture(routed=True, aliases=False)["cells"])
+        add_boundary_route_throughs(original)
+        source_bytes = json.dumps(design).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            source, destination = Path(directory) / "routed.json", Path(directory) / "scaffold.json"
+            source.write_bytes(source_bytes)
+            result = build_video_part.prepare_scaffold(source, destination, layout=native)
+            self.assertEqual(source.read_bytes(), source_bytes)
+            self.assertEqual(result, destination.read_bytes())
+        prepared = json.loads(result)["modules"]["top"]
+        assert_video_scaffold_pairs(self, original, prepared, native)
 
     def test_scaffold_rejects_cpu_alias_collision(self):
         top = boundary_fixture(routed=True, aliases=False)
         cpu = {"type": "MISTRAL_FF", "connections": {"CLK": [2107]},
                "attributes": {"NEXTPNR_BEL": "MISTRAL_FF.24.1.2"}}
         top["cells"].update(plug_addr_ff_0=cpu, cpu_plug_addr_ff_0=copy.deepcopy(cpu))
+        with self.assertRaisesRegex(ValueError, "CPU boundary alias collision"):
+            native.prepare_scaffold(json.dumps({"modules": {"top": top}}).encode())
+
+    def test_scaffold_rejects_cpu_buffer_alias_collision(self):
+        top = boundary_fixture(routed=True, aliases=False)
+        top["cells"]["plug_addr_ff_0"] = {
+            "type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": "MISTRAL_FF.24.1.2"},
+            "connections": {"CLK": [2107], "DATAIN": [4000], "Q": [500]}}
+        add_boundary_route_throughs(top)
+        name = "plug_addr_ff_0$ROUTETHRU"
+        top["cells"]["cpu_" + name] = copy.deepcopy(top["cells"][name])
         with self.assertRaisesRegex(ValueError, "CPU boundary alias collision"):
             native.prepare_scaffold(json.dumps({"modules": {"top": top}}).encode())
 

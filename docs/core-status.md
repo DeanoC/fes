@@ -26,7 +26,7 @@ selection are [core packages](core-packages.md).
 The current [default profile](../profiles/native-integration-dev.toml) installs
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest` in that order: eight packages. `fes.coleco` is
-built as the video-socket shell, and the image keeps its sealed Direct and
+built as the native-pixel video shell, and the image keeps its sealed Direct and
 Scanlines parts in a separate video-part inventory. Menu (`fes.menu`) supplies
 the idle display and is not a library core. Factory standing records image inclusion;
 playability and hardware acceptance depend on the exact-artifact kit evidence below.
@@ -105,45 +105,44 @@ with and without SGM, including Stop/relaunch and retained selections after
 host restart. That record does not qualify a retail mapper, a proprietary
 BIOS, or an appliance image.
 
-The separate Coleco [video-parts development lane](../sources/misteross/docs/cores.md#video-parts-development-lane)
-uses one frozen shell with direct or scanline pixel-clock parts and an optional
-Coleco bus 2.0 expansion. The factory recipe now selects that shell variant and
-builds a matching Direct/Scanlines pair from current sources. The [host seal and software diagnostic](validation/2026-10-02-video-parts-seal.md)
-records timing, disjoint CRAM containment and Go/Python byte agreement for
-both video choices with and without SGM. The selected artifacts passed a
-[Kit 2 diagnostic](validation/2026-10-02-video-parts-kit2-hil.md): native 720p
-capture, odd-row dimming, both SGM tones, Stop and direct-output relaunch.
-Software simulation, sealed-build evidence and appliance-image acceptance
-remain distinct. FogCast now stores the household `direct` or `scanlines`
-preference and imports video parts for an exact shell package. Normal library
-Play composes that part with the title's CPU expansion before download; missing
-profiles fall back to direct, while an invalid installed selected part rejects
-admission. The [normal-library Kit 2 diagnostic](validation/2026-10-02-video-library-kit2-hil.md)
-passed profile fallback, direct/scanline with and without SGM, retained active
-generation, host restart persistence and Stop/relaunch. This initially supports
-format-2 Coleco video shells only. Factory image assembly retains a separate
-sealed video-part inventory, and normal catalog Install admits its companions
-into the host library. The historical diagnostics qualify only their named
-artifacts. The [factory-image Kit 2 record](validation/2026-10-03-video-factory-kit2.md)
-qualifies its named image's catalog Install, Direct/Scanlines library lifecycle
-and fresh HDMI video/audio captures, with the original target image restored.
-The later Kit B image has a separate [acceptance record](validation/2026-10-03-video-factory-kitb-de32b3d0.md).
-Audio parts, DDR processing and other raster standards remain subsequent work.
-
-The separate native-pixel developer shell emits the TMS9918's active indexed
-256×192 pixels through a checked clock crossing. Its mandatory linked Direct
-or Scanlines part owns both frame banks and 720p HDMI timing; the system shell
-owns no framebuffer. The native marker, map and wider physical layout are
-distinct from the factory raster profile. Developer parts loads accept that
-closed layout; ordinary library Play rejects a vacant native shell. Host
-simulation covers the real VDP, clock crossing and physical socket wrapper.
-The [sealed-build and Kit 2 diagnostic](validation/2026-10-03-native-video-parts-kit2.md)
-records strict CRAM containment, compiler/Go/Python byte agreement and clean
-Direct/Scanlines/relaunch HDMI video/audio captures for the named artifacts.
+The factory Coleco [video-parts lane](../sources/misteross/docs/cores.md#video-parts-development-lane)
+emits the TMS9918's active indexed 256×192 pixels through a checked clock
+crossing. Its mandatory linked Direct or Scanlines part owns both frame banks
+and 720p HDMI timing; the system shell owns no framebuffer. The native marker,
+map and wider physical layout are distinct from the earlier raster profile.
 The native link preserves every in-fence routing bit; legacy whole-column
-exclusions are not applied to this wider socket. Native CPU expansion and
-appliance acceptance remain separate; the factory catalog still selects the
-raster shell above.
+exclusions are not applied to this wider socket.
+
+FES builds the matching Direct/Scanlines pair and retains its exact-shell
+inventory separately from the canonical package. Normal catalog Install imports
+both companions. FogCast stores the household video preference and normal
+library Play composes that choice with the title's optional Coleco bus 2.0
+expansion before download. Missing Scanlines may fall back to a valid installed
+Direct part. Native shells have no built-in Direct fallback; an unavailable or
+invalid selected output blocks launch. Older installed raster shells retain
+built-in Direct output and cannot use native parts. Settings changes affect the
+next launch, preserving the running generation. Format-3/4 video parts,
+additional source standards, settings overlays, CRT/DDR and audio parts remain
+subsequent work.
+
+Hardware evidence applies only to the artifacts it names. The earlier raster
+[host seal](validation/2026-10-02-video-parts-seal.md),
+[developer Kit 2 diagnostic](validation/2026-10-02-video-parts-kit2-hil.md),
+[normal-library diagnostic](validation/2026-10-02-video-library-kit2-hil.md) and
+[factory-image record](validation/2026-10-03-video-factory-kit2.md) and the later
+[Kit B acceptance record](validation/2026-10-03-video-factory-kitb-de32b3d0.md) cover their
+respective builds, including SGM and host preference persistence where stated.
+The native [sealed-build and Kit 2 diagnostic](validation/2026-10-03-native-video-parts-kit2.md)
+records strict CRAM containment, compiler/Go/Python byte agreement and clean
+Direct/Scanlines/relaunch captures for its developer artifacts. Neither record
+qualifies a newly selected factory image or a new native/SGM composition.
+The [native factory host record](validation/2026-10-03-native-video-factory-build.md)
+binds the `3ffe989f` shell, Direct/Scanlines and SGM parts and four independent
+composition proofs. The subsequent [factory Kit 2 record](validation/2026-10-03-native-video-factory-kit2.md)
+accepts the exact `6ed1dad4` appliance image with those FPGA bytes: normal
+catalog Install, six library launches with and without SGM, saved video
+preferences, Stop/relaunch and independent HDMI video/audio checks. This
+acceptance covers the named open diagnostics, not general cartridge compatibility.
 
 ## Atari 520ST integration
 

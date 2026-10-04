@@ -1,0 +1,539 @@
+{
+  "analysis": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/analysis.json",
+    "sha256": "39ce0fa7ba0ed1ea60419702c6cca9df9944cdb017541e6e172352986ff4f9bf",
+    "size": 633602
+  },
+  "analysis_log": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/analysis.log",
+    "sha256": "ac142be3c9c1c01c83c574ff2e9a16c0afe6e10c7a082ea9ee4f68f546a40e5e",
+    "size": 636
+  },
+  "audio": {
+    "analyzed_window_seconds": [
+      2.5,
+      5.5
+    ],
+    "captured_channels": 2,
+    "captured_sample_rate_hz": 48000,
+    "clipped_settled_samples": 0,
+    "minimum_stereo_correlation": 0.9999999980402994,
+    "no_material_AY_without_SGM": true,
+    "same_expansion_rms_maximum_relative_change": 1.3507124399514403e-05,
+    "tones": {
+      "AY": {
+        "case_count": 3,
+        "channel_count_per_case": 2,
+        "nominal_hz": 440.39677657480314,
+        "one_second_windows_frequency_hz_range": [
+          440.3895262367918,
+          440.3901473264184
+        ],
+        "one_second_windows_minimum_peak_power_ratio": 0.8560015591429302,
+        "one_second_windows_minimum_snr_db": 71.4899121032129,
+        "settled_one_second_windows_per_channel": 3,
+        "settled_window_frequency_hz_range": [
+          440.42352240610404,
+          440.42362108145454
+        ],
+        "settled_window_minimum_peak_power_ratio": 0.883382578038611,
+        "settled_window_minimum_snr_db": 77.51204508801037
+      },
+      "SN": {
+        "case_count": 6,
+        "channel_count_per_case": 2,
+        "nominal_hz": 216.7844597868217,
+        "one_second_windows_frequency_hz_range": [
+          216.79130433521192,
+          216.79197322222416
+        ],
+        "one_second_windows_minimum_peak_power_ratio": 1.0,
+        "one_second_windows_minimum_snr_db": 72.16310699959293,
+        "settled_one_second_windows_per_channel": 3,
+        "settled_window_frequency_hz_range": [
+          216.7914355137451,
+          216.79158603446277
+        ],
+        "settled_window_minimum_peak_power_ratio": 1.0,
+        "settled_window_minimum_snr_db": 78.0505559142774
+      }
+    }
+  },
+  "capture_inputs_rehashed_unchanged": true,
+  "capture_receipt_hashes_match_inputs": true,
+  "cases": {
+    "direct": {
+      "audio_duration_seconds": 6.002416666666667,
+      "bad_settled_full_luma_geometry_frames": 0,
+      "bad_settled_rgb_frames": 0,
+      "border_odd_even_luma_ratio": 1.0,
+      "clipped_settled_audio_samples": 0,
+      "composition_id": "bc7b88cb3cdf28c6f949c6abd4f32b1b6c9de82a3aa30b96194fb3a63933b3be",
+      "decoded_frames": 180,
+      "generation": 1,
+      "leading_acquisition_black_frames": 2,
+      "maximum_settled_rgb_delta_by_channel": [
+        1,
+        1,
+        1
+      ],
+      "mixed_audio_rms_s16_by_channel": [
+        7593.396904677009,
+        7593.397345170292
+      ],
+      "operator_active_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/direct.json",
+        "sha256": "5807d7fa67abec0944892f301460a861014907460e67cfea1c979fff83c2b3ab",
+        "size": 5380
+      },
+      "operator_capture_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/direct-capture.json",
+        "sha256": "3680cb5a1100c80110555e8bbb3e18c6dc75ed74d672f5fde918e5cbc38b41dc",
+        "size": 3102
+      },
+      "profile": "direct",
+      "reference_png": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/direct-reference.png",
+        "sha256": "3667e787179a54dc0c1f149836f8ab54a2a8b9d9b296a8e9cd5bb906e2f23406",
+        "size": 9670
+      },
+      "settled_frame_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_frames": 178,
+      "sgm": false,
+      "stereo_correlation": 0.9999999980455142
+    },
+    "direct-relaunch": {
+      "audio_duration_seconds": 6.001979166666667,
+      "bad_settled_full_luma_geometry_frames": 0,
+      "bad_settled_rgb_frames": 0,
+      "border_odd_even_luma_ratio": 1.0,
+      "clipped_settled_audio_samples": 0,
+      "composition_id": "bc7b88cb3cdf28c6f949c6abd4f32b1b6c9de82a3aa30b96194fb3a63933b3be",
+      "decoded_frames": 180,
+      "generation": 3,
+      "leading_acquisition_black_frames": 3,
+      "maximum_settled_rgb_delta_by_channel": [
+        1,
+        1,
+        1
+      ],
+      "mixed_audio_rms_s16_by_channel": [
+        7593.4116155141255,
+        7593.413041099857
+      ],
+      "operator_active_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/direct-relaunch.json",
+        "sha256": "1bc20658e86ddeff66b7dc497937f0b1302678e49f8cf0caf5300c33ada3c930",
+        "size": 5380
+      },
+      "operator_capture_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/direct-relaunch-capture.json",
+        "sha256": "2a3794af52f3a4bdce177f7967024959425c3ba40f5bb9743c37bb5b17b37735",
+        "size": 3102
+      },
+      "profile": "direct",
+      "reference_png": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/direct-relaunch-reference.png",
+        "sha256": "a3ece4b858ace88031698a3b3afd39df666126e5adc5ba53d6008959a0aca570",
+        "size": 9751
+      },
+      "settled_frame_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_frames": 177,
+      "sgm": false,
+      "stereo_correlation": 0.9999999980402994
+    },
+    "direct-sgm": {
+      "audio_duration_seconds": 6.002291666666666,
+      "bad_settled_full_luma_geometry_frames": 0,
+      "bad_settled_rgb_frames": 0,
+      "border_odd_even_luma_ratio": 1.0,
+      "clipped_settled_audio_samples": 0,
+      "composition_id": "00a732e23a52c03cdd21e39092b8ff4d615d5d0f8dfe62dfa1966a2c5581f08b",
+      "decoded_frames": 180,
+      "generation": 4,
+      "leading_acquisition_black_frames": 3,
+      "maximum_settled_rgb_delta_by_channel": [
+        1,
+        1,
+        1
+      ],
+      "mixed_audio_rms_s16_by_channel": [
+        10736.233775202392,
+        10736.233920565935
+      ],
+      "operator_active_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/direct-sgm.json",
+        "sha256": "8664dd1e1bb9528329385646ff4a8969f76affe8c7102b388d8499f5003a6137",
+        "size": 5706
+      },
+      "operator_capture_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/direct-sgm-capture.json",
+        "sha256": "aa9b0ff6b12780b08868279a78603d4dfe898254d971e12535f3bd2df0945728",
+        "size": 3102
+      },
+      "profile": "direct",
+      "reference_png": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/direct-sgm-reference.png",
+        "sha256": "3667e787179a54dc0c1f149836f8ab54a2a8b9d9b296a8e9cd5bb906e2f23406",
+        "size": 9670
+      },
+      "settled_frame_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_frames": 177,
+      "sgm": true,
+      "stereo_correlation": 0.9999999990255859
+    },
+    "direct-sgm-relaunch": {
+      "audio_duration_seconds": 6.002,
+      "bad_settled_full_luma_geometry_frames": 0,
+      "bad_settled_rgb_frames": 0,
+      "border_odd_even_luma_ratio": 1.0,
+      "clipped_settled_audio_samples": 0,
+      "composition_id": "00a732e23a52c03cdd21e39092b8ff4d615d5d0f8dfe62dfa1966a2c5581f08b",
+      "decoded_frames": 180,
+      "generation": 6,
+      "leading_acquisition_black_frames": 2,
+      "maximum_settled_rgb_delta_by_channel": [
+        1,
+        1,
+        1
+      ],
+      "mixed_audio_rms_s16_by_channel": [
+        10736.33844847258,
+        10736.337450948457
+      ],
+      "operator_active_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/direct-sgm-relaunch.json",
+        "sha256": "25be0d9eb457366dd7798d306e2d963937f32e6d0d53614aa1f456706f195c1c",
+        "size": 5706
+      },
+      "operator_capture_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/direct-sgm-relaunch-capture.json",
+        "sha256": "9f27fc270f46c0f9038b6b53d297ac4c07e36e8cb6d9e8b33a7eead5576e5beb",
+        "size": 3102
+      },
+      "profile": "direct",
+      "reference_png": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/direct-sgm-relaunch-reference.png",
+        "sha256": "0260825228b995bff6916a9a231420cf12835a6aa69c3dae2afbc8e76529a596",
+        "size": 9816
+      },
+      "settled_frame_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_frames": 178,
+      "sgm": true,
+      "stereo_correlation": 0.9999999990213019
+    },
+    "scanlines": {
+      "audio_duration_seconds": 6.0026875,
+      "bad_settled_full_luma_geometry_frames": 0,
+      "bad_settled_rgb_frames": 0,
+      "border_odd_even_luma_ratio": 0.4914514717146296,
+      "clipped_settled_audio_samples": 0,
+      "composition_id": "16e5fb76c1f958e9efefa04973efccc38ec4cd1873de2634f86a3247115c9533",
+      "decoded_frames": 180,
+      "generation": 2,
+      "leading_acquisition_black_frames": 2,
+      "maximum_settled_rgb_delta_by_channel": [
+        1,
+        1,
+        1
+      ],
+      "mixed_audio_rms_s16_by_channel": [
+        7593.423353637951,
+        7593.423225067876
+      ],
+      "operator_active_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/scanlines.json",
+        "sha256": "b7ad73691ab8f03a2ab7ea5686a93b26641b09d409b0ad3f6c7168eaad25ac40",
+        "size": 5386
+      },
+      "operator_capture_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/scanlines-capture.json",
+        "sha256": "2fbdc689111295e6b282eaeabdee89404c8c51d87492fd9f724ea04587e49c9d",
+        "size": 3103
+      },
+      "profile": "scanlines",
+      "reference_png": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/scanlines-reference.png",
+        "sha256": "31fc6ab2a634f781952be479dd5c12da5a189331ed272dc6f65f0a80dd7cde83",
+        "size": 9298
+      },
+      "settled_frame_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_frames": 178,
+      "sgm": false,
+      "stereo_correlation": 0.9999999980446956
+    },
+    "scanlines-sgm": {
+      "audio_duration_seconds": 6.001229166666667,
+      "bad_settled_full_luma_geometry_frames": 0,
+      "bad_settled_rgb_frames": 0,
+      "border_odd_even_luma_ratio": 0.4914514717146296,
+      "clipped_settled_audio_samples": 0,
+      "composition_id": "d04bb677f219ba7c26ffccdc8ff1fd43347634557bfad12cf4e3dbb8a41fea0a",
+      "decoded_frames": 180,
+      "generation": 5,
+      "leading_acquisition_black_frames": 4,
+      "maximum_settled_rgb_delta_by_channel": [
+        1,
+        1,
+        1
+      ],
+      "mixed_audio_rms_s16_by_channel": [
+        10736.08904511569,
+        10736.088904918788
+      ],
+      "operator_active_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/scanlines-sgm.json",
+        "sha256": "480ea37ffc0aa745c93e0a70cfd16acba68cf55a847acc671b9b281e7d20eb8a",
+        "size": 5712
+      },
+      "operator_capture_receipt": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/scanlines-sgm-capture.json",
+        "sha256": "eec33379fc3c1a124fd7e9751f69217efb861e4be8170ea1e9cf3ca2105be5e3",
+        "size": 3103
+      },
+      "profile": "scanlines",
+      "reference_png": {
+        "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/scanlines-sgm-reference.png",
+        "sha256": "31fc6ab2a634f781952be479dd5c12da5a189331ed272dc6f65f0a80dd7cde83",
+        "size": 9298
+      },
+      "settled_frame_interval_seconds": [
+        0.01599999999999996,
+        0.017000000000000348
+      ],
+      "settled_frames": 176,
+      "sgm": true,
+      "stereo_correlation": 0.9999999990196723
+    }
+  },
+  "classification": "Independent analysis of completed regular-file HDMI video/audio captures and saved operator receipts; no target, capture-device or network access by the analyst.",
+  "command": [
+    "python3",
+    "out/native-video-factory/candidate-6ed1dad4/analysis/run_analysis.py",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures",
+    "--include-sgm-relaunch",
+    "--output",
+    "/home/deano/.codex/worktrees/6f13/fes/out/dev/native-video-factory/fes/out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/analysis.json"
+  ],
+  "exit_code": 0,
+  "failed_gates": [],
+  "fixture_input": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/analysis/fixture-input.json",
+    "sha256": "a7b8301d0f2ea5edd32a321231b50612196cee796d1f84d0c4ccd524a2d39f6e",
+    "size": 3056
+  },
+  "frozen_scripts_and_fixtures_unchanged": true,
+  "gate_count": 79,
+  "input_binding": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/analysis/results/kit2-20261003/input-binding.json",
+    "sha256": "95adf64cebe41a04f58efa733589b7ff9f9e5f689e29e37c870e0274e11b8a3a",
+    "size": 2950
+  },
+  "launcher": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/analysis/run_analysis.py",
+    "sha256": "77bea6a0efd364b5fecf836c797b3d3c84f7355a09d3723df49012f5a5ce1378",
+    "size": 1689
+  },
+  "limitations": [
+    "SGM checks are boundary sentinels, console-RAM isolation and four AY readbacks; they do not test every SRAM address.",
+    "The SGM pass picture is reachable only after the existing probe checks complete. Root operator package/ROM/selection receipts bind that intent to hardware.",
+    "Native picture checks retain zero horizontal offset and examine every settled frame, full viewport and outer background.",
+    "Capture conversion/filtering prevents bit-exact FPGA RGB/PCM claims; USB timestamps do not directly measure HS/VS.",
+    "No material AY peak means below the declared relative-power gate, not absolute electrical silence.",
+    "Source/image/selection/restart/cleanup identity requires separate operator receipts."
+  ],
+  "operator_receipts": {
+    "all_six_runtime_tuples_match_operator_compositions": true,
+    "expectations": {
+      "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/expectations.json",
+      "sha256": "641ce4db102f4d41d2d8b6324b057821a32cfdf8dac001fc040eceff6e77e6cb",
+      "size": 4617
+    },
+    "generations": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "graphics_entry": {
+      "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/entry.json",
+      "sha256": "08ecf623cf7d4ef1f88c871bab09673a5ea4445828328fe248a5094c5c15e449",
+      "size": 4465
+    },
+    "platform_verification_scope": "Image/boot identity, install, partial-inventory admission and final baseline restoration are separate root-operator evidence. This analyst only read saved receipts.",
+    "reported_package_id": "936a14d37f178966868050a00005851d8619127425a08cc0cbd0dca59357961c",
+    "result": {
+      "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/result.json",
+      "sha256": "38970e8f4bb4eedbfb56b498cdd82d4c75e1884bd4d22aacf995c7f644ea8bc7",
+      "size": 1139
+    },
+    "root_reported_boot_id": "f8ebdbe9-27f1-4b3f-85da-8970ffb12ebe",
+    "root_reported_image_sha256": "3573ea1df11cf3235599ce69a85a540c7263f48219ad3a51083de3ceaf7e0496",
+    "selected_media_match_frozen_ROMs": true
+  },
+  "passed_gate_count": 79,
+  "phase_preparation": {
+    "path": "out/native-video-factory/candidate-6ed1dad4/analysis/phase-preparation.json",
+    "sha256": "f7bdabaaf8f45d6bdabd4597e11141ce0d6789c69183f8cb3d22abcffb8bf0ca",
+    "size": 15125
+  },
+  "picture": {
+    "acquisition_black_frames": 16,
+    "captured_frames": 1080,
+    "direct_reference_comparisons": {
+      "direct": {
+        "changed_pixels": 0,
+        "whole_frame_max_absolute_rgb_delta": [
+          0,
+          0,
+          0
+        ],
+        "whole_frame_mean_absolute_rgb_delta": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "direct-relaunch": {
+        "changed_pixels": 17466,
+        "whole_frame_max_absolute_rgb_delta": [
+          1,
+          1,
+          1
+        ],
+        "whole_frame_mean_absolute_rgb_delta": [
+          0.018951822916666666,
+          0.018951822916666666,
+          0.018951822916666666
+        ]
+      },
+      "direct-sgm": {
+        "changed_pixels": 0,
+        "whole_frame_max_absolute_rgb_delta": [
+          0,
+          0,
+          0
+        ],
+        "whole_frame_mean_absolute_rgb_delta": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "direct-sgm-relaunch": {
+        "changed_pixels": 13654,
+        "whole_frame_max_absolute_rgb_delta": [
+          1,
+          1,
+          1
+        ],
+        "whole_frame_mean_absolute_rgb_delta": [
+          0.014815538194444445,
+          0.014815538194444445,
+          0.014815538194444445
+        ]
+      }
+    },
+    "hdmi_dimensions": [
+      1280,
+      720
+    ],
+    "horizontal_offset_pixels": 0,
+    "maximum_settled_rgb_delta_per_channel": 1,
+    "native_dimensions": [
+      256,
+      192
+    ],
+    "native_pixel_scale": 2,
+    "native_viewport_exclusive": [
+      384,
+      168,
+      896,
+      552
+    ],
+    "note": "Direct+SGM reference RGB equals Direct exactly; Direct and SGM relaunch references differ by at most one level per channel. All settled frames retain the aligned geometry.",
+    "scanline_models": {
+      "scanlines": {
+        "bright_rows_mae_rgb": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "bright_rows_max_rgb_delta": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "dim_rows_half_brightness_mae_rgb": [
+          0.92462158203125,
+          0.7014363606770834,
+          1.04547119140625
+        ],
+        "dim_rows_max_model_error_rgb": [
+          2.0,
+          1.5,
+          2.5
+        ],
+        "line_height_hdmi_pixels": 1
+      },
+      "scanlines-sgm": {
+        "bright_rows_mae_rgb": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "bright_rows_max_rgb_delta": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "dim_rows_half_brightness_mae_rgb": [
+          0.92462158203125,
+          0.7014363606770834,
+          1.04547119140625
+        ],
+        "dim_rows_max_model_error_rgb": [
+          2.0,
+          1.5,
+          2.5
+        ],
+        "line_height_hdmi_pixels": 1
+      }
+    },
+    "settled_frames_checked": 1064
+  },
+  "selected_fes_revision": "6ed1dad495b0c836b611e4e7b331c3a7d4801c63",
+  "sgm_probe": {
+    "ay_register_readbacks": 4,
+    "boundary_memory_reads": 8,
+    "boundary_memory_writes": 7,
+    "expansion_id": "a49942b5e71765a3c04c1f7452a597e940952b81f4b4c3d95fc6e7e3f8af54bf",
+    "operator_entry_receipt": {
+      "path": "out/native-video-factory/candidate-6ed1dad4/hardware/kit2-20261003/captures/sgm-entry.json",
+      "sha256": "af2ee80a88630c77a2f24cc95197ea4a87f6acb92f939388e0a31ec0758d35b8",
+      "size": 709
+    },
+    "picture_requires_existing_probe_success": true,
+    "rom_sha256": "33705344c6ae221a8ec3b9c862996b6136b9c236052c9c6517e9926eeb2a5317",
+    "scope": "Existing boundary sentinels, console RAM isolation and AY readback gate; not an exhaustive SRAM test."
+  },
+  "threshold_or_global_overrides": false,
+  "verdict": "pass"
+}
