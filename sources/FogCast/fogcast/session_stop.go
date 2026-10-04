@@ -16,14 +16,15 @@ type SessionStopBinding struct {
 	Generation uint64 `json:"generation"`
 }
 
-// Caller holds lifecycle admission, so Status cannot promote another play
-// between this check and stopLocked's target selection.
+// Caller holds lifecycle admission, so Status cannot change this kit's play
+// between the binding check and stopLocked's target selection.
 func (s *Service) matchesStopBinding(expected SessionStopBinding) bool {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
+	play := s.plays[expected.Target]
 	return expected.Target != "" && expected.PackageID != "" && expected.Generation != 0 &&
-		s.activeTarget == expected.Target && targetByName(s.targets, s.activeTarget).TargetID == expected.TargetID &&
-		s.activeGameID == expected.GameID && s.activePackageID == expected.PackageID && s.activePackageGeneration == expected.Generation
+		targetByName(s.targets, expected.Target).TargetID == expected.TargetID &&
+		play.gameID == expected.GameID && play.packageID == expected.PackageID && play.packageGeneration == expected.Generation
 }

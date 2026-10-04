@@ -87,7 +87,8 @@ fi
   "$target/etc/init.d"/S30mister-dropbear \
   "$target/etc/init.d"/S49fogcast-target-smoke \
   "$target/etc/init.d"/S50mister-agent \
-  "$target/usr/sbin/mister-supervise"
+  "$target/usr/sbin/mister-supervise" \
+  "$target/usr/sbin/fes-reboot-backstop"
 
 /bin/rm -rf "$target/etc/dropbear"
 /bin/ln -s /run/dropbear "$target/etc/dropbear"

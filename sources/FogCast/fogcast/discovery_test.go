@@ -313,13 +313,13 @@ func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
 			base, _ := url.Parse("http://127.0.0.1:8182")
 			client := targetclient.NewClient(base, "test", nil)
 			s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
-			s.activeExecution = execution
-			s.activeGameID = "prior"
-			s.activePackageID = "package"
-			s.activePackageGeneration = 7
-			s.packageRejection = &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}
+			if execution == ExecutionHostOnly {
+				s.activeExecution, s.activeGameID = ExecutionHostOnly, "prior"
+			}
+			s.plays[s.selectedTarget] = targetPlay{execution: ExecutionFPGADevelopment, packageID: "package", packageGeneration: 7,
+				packageRejection: &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}}
 			s.invalidateTargetSession(client)
-			if s.activePackageID != "" || s.activePackageGeneration != 0 || s.packageRejection != nil {
+			if _, retained := s.plays[s.selectedTarget]; retained {
 				t.Fatal("obsolete target package state survived invalidation")
 			}
 			if execution == ExecutionHostOnly && s.activeGameID != "prior" {

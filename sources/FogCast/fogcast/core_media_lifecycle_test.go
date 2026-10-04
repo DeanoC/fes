@@ -31,9 +31,8 @@ func TestCoreMediaLifecycleQueuedLaunchCannotRebindTarget(t *testing.T) {
 			s.targets = []TargetConfig{{Name: "first", Enabled: true, TargetID: "first-id"}, {Name: "second", Enabled: true, TargetID: "second-id"}}
 			s.selectedTarget = "first"
 			s.targetClients = map[string]serviceClient{"first": first, "second": second}
-			s.activeExecution, s.activeTarget = ExecutionFPGADevelopment, "first"
-			s.activeGameID, s.activePackageID, s.activePackageGeneration = entry.GameID, entry.PackageID, 7
-			s.plays = map[string]targetPlay{"first": {execution: ExecutionFPGADevelopment, gameID: entry.GameID}}
+			s.activeTarget = "first"
+			s.plays = map[string]targetPlay{"first": {execution: ExecutionFPGADevelopment, gameID: entry.GameID, packageID: entry.PackageID, packageGeneration: 7}}
 			// Model an admitted package launch between activation and media delivery.
 			release, err := s.acquireLifecycle(context.Background())
 			if err != nil {
@@ -149,8 +148,8 @@ func TestCoreMediaLifecycleCleanupGetsFreshBoundedContext(t *testing.T) {
 			if !stopSeen {
 				t.Fatal("cleanup Stop was not attempted")
 			}
-			if response.Status.State != protocol.StateIdle || s.packageRejection != nil {
-				t.Errorf("cleanup did not confirm idle: state=%q rejection=%v error=%v", response.Status.State, s.packageRejection, err)
+			if response.Status.State != protocol.StateIdle || s.plays[s.selectedTarget].packageRejection != nil {
+				t.Errorf("cleanup did not confirm idle: state=%q rejection=%v error=%v", response.Status.State, s.plays[s.selectedTarget].packageRejection, err)
 			}
 			if failure == "operation-deadline" && parent.Err() != nil {
 				t.Errorf("outer context unexpectedly failed: %v", parent.Err())

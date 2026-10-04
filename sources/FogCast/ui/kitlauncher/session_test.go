@@ -57,6 +57,49 @@ func TestRunOfflineInputDoesNotUseHostlessTarget(t *testing.T) {
 	}
 }
 
+func TestRunTreatsKitLocalHostSessionAsOnlineAndOccupied(t *testing.T) {
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true}
+	host := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"local","game_id":"should-not-survive"}`)
+		case "/api/v1/health":
+			_, _ = io.WriteString(w, `{"ready":true,"target":{"reachable":true,"ready":true}}`)
+		case "/api/v1/platforms":
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []map[string]any{{"id": game.System, "game_count": 1}}})
+		case "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
+		case "/api/v1/library/attract":
+			_, _ = io.WriteString(w, `{"idle_seconds":60,"items":[]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer host.Close()
+
+	client := newSessionTestClient(t, host.URL, "", game)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var sawOnlineLocal atomic.Bool
+	if err := Run(ctx, client, func(m Model) {
+		if m.Session.State == "local" {
+			if m.Connected {
+				sawOnlineLocal.Store(true)
+			}
+			cancel()
+		}
+	}, func() (Pad, error) { return &offlineLaunchPad{}, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !sawOnlineLocal.Load() {
+		t.Fatal("kit-local session was treated as a host failure/offline session")
+	}
+	model := Model{Connected: true, TargetReady: true, Session: Session{State: "local"}, LocalPlayEnabled: true}
+	if action := model.launchAction(hostclient.Game{ID: "sms-cart", System: "sms", State: "available", RootOnline: true}); action != "" {
+		t.Fatalf("kit-local state allowed overlapping launch action %q", action)
+	}
+}
+
 func TestRunReconnectsBeforeAllowingLaunch(t *testing.T) {
 	var hostUp atomic.Bool
 	var state atomic.Value

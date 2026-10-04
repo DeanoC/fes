@@ -285,6 +285,20 @@ func TestSessionStatusReconstructsRecognizedABIPackagePlayAsNative(t *testing.T)
 	}
 }
 
+func TestSessionStatusReportsKitLocalCoreWithoutGame(t *testing.T) {
+	core := "fes.pong"
+	service := &fakeService{status: protocol.Status{
+		State: protocol.StateLocal, ObservedCore: &core, ExpectedCore: &core,
+	}}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"local"`) {
+		t.Fatalf("GET /api/v1/session = %d %s", response.Code, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), `"game_id"`) || strings.Contains(response.Body.String(), `"system"`) {
+		t.Fatalf("kit-local session acquired host game fields: %s", response.Body.String())
+	}
+}
+
 func TestSessionLaunchOnSecondTargetDoesNotStopABIPackagePlay(t *testing.T) {
 	core, packageGame := "fes.coleco", "core-coleco"
 	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, GameID: &packageGame,

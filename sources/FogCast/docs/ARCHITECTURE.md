@@ -1444,8 +1444,17 @@ report `MISTER_UNAVAILABLE` while kit state cannot be observed. Before replacing
 media for another host-only launch, FogCast checks the local executor; an active
 RetroArch process returns `BUSY` and retains its current media session.
 M1 software-runner input uses a controller attached to the runner through
-RetroArch's local joypad/udev input. FogCast does not route remote controller
-input to `host_only`; that remains a #363 gap.
+RetroArch's local joypad/udev input. Remote controller input to `host_only` is
+outside M1. The #363 integration matrix
+([`docs/mesh-m1-integration.md`](../../../docs/mesh-m1-integration.md)) records this non-goal.
+In cast mode, host-only playback uses the managed RTP sender and target cast,
+so the kit display has one owner: a host-only launch replaces that kit's package
+play, and a kit core/package launch stops host-only playback. In non-cast mode
+(media disabled, local MJPEG preview, or local ffplay playback), host-only and
+kit FPGA plays are independent in both launch directions; kit-scoped Stop and
+host Stop remain independent. `TestTwoNodeHostFirstThenKitKeepsBoth`,
+`TestTwoNodeCastModeKitLaunchStopsHostOnly`, and
+`TestTwoNodeHostMediaOnSameKitReplacesKitPlay` cover these rules.
 
 `Service.MeshBackendLibrary` reads the existing local catalog and projects
 package titles through the same helper as placement; raw games use the
@@ -2241,6 +2250,14 @@ pad frame cannot rebind a generation that barrier just cleared. Stop uses the
 owned stop path. Kit-local loads do not enter the coordinator, so takeover,
 expiry, shutdown, and release after a failed load stop the runtime before the
 lease can be freed. Cleanup that does not reach idle leaves the lease blocked.
+Bearer `GET /v1/status` still reads that coordinator record. While the record
+is idle and a kit-local core is launching, running, or stopping, the response
+reports state `launching`, `local`, or `stopping` and sets `observed_core` to
+the installed core id. The coordinator record stays idle, so the read does not
+open a host session. `GET /v1/local/status` on the local-control socket remains
+the phase and package detail.
+Host session clients preserve `local` as kit occupancy without assigning a host
+game id, remote input, or host-session Stop behavior.
 
 A pad or USB keyboard on the kit writes raw input frames to that socket; keyboard
 frames carry the key's USB HID usage (`internal/hidkeys`, from evdev `KEY_*`). mister-agent
@@ -2793,11 +2810,21 @@ Older packages keep prelaunch controls and the separate host renderer keeps its
 live routes. The shared wire layout is in
 [mister-packages session display](../../mister-packages/docs/session-display.md).
 
+The session service records every kit's game, development load, package
+rejection, and recovery state in `plays[target]`. That per-kit record is the
+authority for kit status and lifecycle admission. Root `activeExecution` owns
+only the local `host_only` RetroArch game; kit loads and failures do not stop or
+replace it in non-cast mode, and kit-local cores execute directly on the kit.
+Scoped Stop and status use the corresponding kit record.
+
 The configured host capture sender is one physical pipeline with one RTP
-destination and sender token. Host-only playback claims that pipeline for its
+destination and sender token. Only its managed sender plus target cast path
+places host-only playback on a kit display; MJPEG preview and ffplay playback
+remain local. Cast mode has one display owner and replaces the other play in
+both directions. Non-cast mode leaves host-only and kit FPGA plays independent
+in both directions. Host-only playback claims the sender pipeline for its
 target until its media handle stops. A host-only start on another target fails
 with `MEDIA_BUSY_OTHER_KIT` (HTTP 409), and the target cast started for that
-launch is rolled back. FPGA-native plays do not use the host capture sender and
-remain independent. Configuration does not bind the RTP destination to a named
-target address, so the host cannot validate destination-to-kit correspondence;
-operators must configure the destination for the intended kit.
+launch is rolled back. Configuration does not bind the RTP destination to a
+named target address, so the host cannot validate destination-to-kit
+correspondence; operators must configure the destination for the intended kit.

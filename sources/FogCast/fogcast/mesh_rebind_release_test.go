@@ -132,8 +132,8 @@ func TestPlacementRebindReleasesTheLeftKitLeaseOnSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if boundName != "spare" || service.activeExecution != ExecutionFPGANative {
-		t.Fatalf("bound %q execution %q", boundName, service.activeExecution)
+	if boundName != "spare" || service.plays["spare"].execution != ExecutionFPGANative {
+		t.Fatalf("bound %q kit play %+v", boundName, service.plays["spare"])
 	}
 	if old.grantReleases != 1 || old.stops != 0 {
 		t.Fatalf("left releases %d stops %d", old.grantReleases, old.stops)
@@ -261,8 +261,8 @@ func TestPlacementRebindLeftKitReleaseErrorIsLoggedAndNonFatal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if boundName != "spare" || service.activeExecution != ExecutionFPGANative {
-		t.Fatalf("bound %q execution %q", boundName, service.activeExecution)
+	if boundName != "spare" || service.plays["spare"].execution != ExecutionFPGANative {
+		t.Fatalf("bound %q kit play %+v", boundName, service.plays["spare"])
 	}
 	if old.grantReleases != 1 {
 		t.Fatalf("left releases %d", old.grantReleases)

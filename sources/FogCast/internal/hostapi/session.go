@@ -1485,7 +1485,13 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 		return false, err
 	}
 	packageOwned := false
-	if owner, ok := s.service.(sessionPackageOwnerService); ok {
+	if s.target != "" {
+		if owner, ok := s.service.(interface{ ActivePackageOwnedForTarget(string) bool }); ok {
+			packageOwned = owner.ActivePackageOwnedForTarget(s.target)
+		} else if owner, ok := s.service.(sessionPackageOwnerService); ok {
+			packageOwned = owner.ActivePackageOwned()
+		}
+	} else if owner, ok := s.service.(sessionPackageOwnerService); ok {
 		packageOwned = owner.ActivePackageOwned()
 	}
 	s.mu.Lock()

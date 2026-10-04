@@ -31,6 +31,7 @@ test:
 	sh scripts/tests/kit-init_test.sh
 	sh scripts/tests/native-menu-init_test.sh
 	sh scripts/tests/mister-supervise_test.sh
+	sh scripts/tests/reboot-backstop_test.sh
 	sh scripts/tests/shutdown-budget_test.sh
 	sh scripts/tests/ethaddr-init_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh

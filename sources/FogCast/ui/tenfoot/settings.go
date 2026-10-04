@@ -292,7 +292,7 @@ func formatSettingsRegions(selected []string, cursor int) string {
 // settingsBlockedLocked is the silent refuse used by the settings key.
 // A room action entry uses the same conditions but must say so.
 func (a *App) settingsBlockedLocked() bool {
-	return a.gpuParked || a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" || a.developmentLoadingLocked()
+	return a.gpuParked || a.session.State == "active" || a.session.State == "launching" || hostclient.SessionKitLocal(a.session.State) || a.stopPhase == "stopping" || a.developmentLoadingLocked()
 }
 
 func (a *App) openSettingsLocked() {
@@ -875,7 +875,7 @@ func (a *App) settingsNeedSelectedPatchLocked() bool {
 }
 
 func (a *App) settingsSessionBlocksSelectedLocked() bool {
-	return a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping"
+	return a.session.State == "active" || a.session.State == "launching" || hostclient.SessionKitLocal(a.session.State) || a.stopPhase == "stopping"
 }
 
 func (a *App) settingsSelectedIdentityDirtyLocked() bool {

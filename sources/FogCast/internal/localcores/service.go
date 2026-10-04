@@ -23,9 +23,11 @@ const (
 
 // RunStatus is GET /v1/local/status. Running is true only after load has
 // published the kit-local lease. Phase is idle, launching, running, or stopping.
+// CoreID is the installed core id, such as fes.sms, while a phase is in flight.
 type RunStatus struct {
 	Phase     string `json:"phase"`
 	PackageID string `json:"package_id"`
+	CoreID    string `json:"core_id,omitempty"`
 	Running   bool   `json:"running"`
 }
 
@@ -77,6 +79,7 @@ type Service struct {
 	token       string
 	phase       string
 	runPackage  string
+	runCore     string
 	closed      bool
 	renewCancel context.CancelFunc
 	renewDone   chan struct{}
@@ -97,6 +100,7 @@ func (s *Service) RunStatus() RunStatus {
 	return RunStatus{
 		Phase:     phase,
 		PackageID: s.runPackage,
+		CoreID:    s.runCore,
 		Running:   phase == phaseRunning && s.token != "",
 	}
 }
@@ -190,6 +194,7 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 	s.mu.Lock()
 	s.phase = phaseLaunching
 	s.runPackage = core.PackageID
+	s.runCore = core.CoreID
 	s.mu.Unlock()
 	s.startRenew(grant.Token, leaseCtx, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
 	loadErr := s.load(ctx, leaseCtx, core, rom)
@@ -201,6 +206,7 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 			s.token = ""
 			s.phase = phaseIdle
 			s.runPackage = ""
+			s.runCore = ""
 		}
 		s.mu.Unlock()
 		s.stopRenew()
@@ -212,6 +218,7 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 		s.token = ""
 		s.phase = phaseIdle
 		s.runPackage = ""
+		s.runCore = ""
 		s.mu.Unlock()
 		_, _ = s.leases.Release(grant.Token)
 		s.stopRenew()
@@ -220,6 +227,7 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 	s.token = grant.Token
 	s.phase = phaseRunning
 	s.runPackage = core.PackageID
+	s.runCore = core.CoreID
 	s.mu.Unlock()
 	return core, nil
 }
@@ -272,6 +280,7 @@ func (s *Service) Stop(ctx context.Context) error {
 	}
 	s.phase = phaseIdle
 	s.runPackage = ""
+	s.runCore = ""
 	s.mu.Unlock()
 	s.stopRenew()
 	return nil
@@ -385,6 +394,7 @@ func (s *Service) clearLostSession(token string) {
 	s.token = ""
 	s.phase = phaseIdle
 	s.runPackage = ""
+	s.runCore = ""
 }
 
 func (s *Service) stopRenew() {
