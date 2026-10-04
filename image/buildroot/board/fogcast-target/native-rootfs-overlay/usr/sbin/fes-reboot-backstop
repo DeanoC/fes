@@ -1,13 +1,21 @@
 #!/bin/sh
-# A normal reboot(2) completes in about 1-2 s, well below this 10 s timeout.
-# A wedged reboot resets within timeout + check interval + panic delay, well
-# under 30 s after this action runs. A task stuck since boot fires on first
-# check. The 180 s hardware watchdog remains the final layer.
+# A normal reboot(2) completes in about 1-2 s. The detector fires only for a
+# task that remains TASK_UNINTERRUPTIBLE without a context switch for the whole
+# timeout; a progressing sync switches on each writeback wait. Filesystems are
+# normally read-only after umount -a -r, but a remount can fail.
+# A task already tracked as stuck (for example, since boot) can trip at the
+# first scan after arming. A newly blocked task is recorded by its first scan
+# and trips within about timeout + check interval; panic then waits 3 s. Reset
+# is about 3-30 s after this action, versus 180 s for the hardware watchdog.
 PANIC_DELAY=3
 CHECK_INTERVAL=2
-HUNG_TASK_TIMEOUT=10
+HUNG_TASK_TIMEOUT=20
 proc_root=${FES_REBOOT_BACKSTOP_PROC:-/proc}
 kernel=$proc_root/sys/kernel
+
+if [ ! -e "$kernel/hung_task_panic" ]; then
+  "${FES_REBOOT_BACKSTOP_MOUNT:-/bin/mount}" -t proc proc "$proc_root" 2>/dev/null || :
+fi
 
 write_setting() {
   setting=$1
@@ -23,6 +31,6 @@ write_setting hung_task_check_interval_secs "$CHECK_INTERVAL"
 write_setting hung_task_timeout_secs "$HUNG_TASK_TIMEOUT"
 
 if [ -w /dev/kmsg ]; then
-  printf '%s\n' 'fes-reboot-backstop: armed hung_task_panic timeout=10s panic=3s' > /dev/kmsg 2>/dev/null || :
+  printf '%s\n' 'fes-reboot-backstop: armed hung_task_panic timeout=20s panic=3s' > /dev/kmsg 2>/dev/null || :
 fi
 exit 0

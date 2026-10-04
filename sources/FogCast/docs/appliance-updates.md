@@ -101,11 +101,19 @@ again. Shutdown has three reset layers:
   `::shutdown` actions it sends SIGTERM and SIGKILL to every process except
   pid 1, so the fallback helper cannot survive that phase.
 - The last `::shutdown` action runs `fes-reboot-backstop` after `/bin/umount -a
-  -r`, when filesystems are read-only and before init's kill-all and `reboot(2)`.
-  It arms `kernel.hung_task_panic=1`, a 10-second hung-task timeout, a 2-second
-  check interval and a 3-second panic reboot delay. A normal reboot takes about
-  1-2 seconds; a wedged reboot resets well under 30 seconds after the action,
-  while a task already stuck since boot fires at the first check. This covers
+  -r`, normally with filesystems read-only, and before init's kill-all and
+  `reboot(2)`. Read-only state is not guaranteed if a remount fails. If
+  `/proc/sys/kernel/hung_task_panic` is absent, the action best-effort mounts
+  procfs at `/proc` before arming `kernel.hung_task_panic=1`, a 20-second
+  hung-task timeout, a 2-second check interval and a 3-second panic reboot
+  delay. The detector fires only for a task that stays in
+  `TASK_UNINTERRUPTIBLE` without a context switch for the whole timeout, so a
+  progressing sync that switches on each writeback wait does not trip it. A
+  task already tracked as stuck (for example, one blocked since boot) can trip
+  at the first scan after arming. A newly blocked task is recorded by its first
+  scan and trips within about timeout plus check interval, then panic waits 3
+  seconds. A normal reboot takes about 1-2 seconds; reset is about 3-30 seconds
+  after the action, versus 180 seconds for the hardware watchdog. This covers
   hangs after kill-all or inside `reboot(2)`, such as a wedged USB disk blocking
   kernel `device_shutdown` while waiting for its async probe. Unbinding or
   deleting that SCSI device before reboot was rejected because
