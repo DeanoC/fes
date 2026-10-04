@@ -10,7 +10,8 @@ module byte_bench (
     output wire [2:0] fault_step,
     output wire [1:0] fault_be,
     output wire [15:0] fault_payload, fault_expect, fault_got,
-    output wire [31:0] refresh_masked_writes
+    output wire [31:0] refresh_masked_writes,
+    output wire [1:0] high_rows_seen
 );
     wire start, write, done;
     wire [25:0] addr;
@@ -46,6 +47,7 @@ module byte_bench (
         .dq_rise(rise_q), .dq_fall(rate == 2'd2 ? fall : fall_q)
     );
     sdram_model chip (.mask_fault(3'd0), .clk(pin_clk), .cke(cke), .ncs(ncs),
-        .nras(nras), .ncas(ncas), .nwe(nwe), .ba(ba), .a(a), .dqml(dqml), .dqmh(dqmh), .dq(dq));
+        .nras(nras), .ncas(ncas), .nwe(nwe), .ba(ba), .a(a), .dqml(a[11]), .dqmh(a[12]), .dq(dq));
     assign refresh_masked_writes = chip.refresh_masked_writes;
+    assign high_rows_seen = chip.high_rows_seen;
 endmodule

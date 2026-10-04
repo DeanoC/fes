@@ -161,6 +161,7 @@ int main() {
     require(byte_field(top, 95, 8) == 128 && byte_field(top, 79, 16) == 512,
             "byte test did not complete both orders and every readback");
     require(top.byte_coverage == 0xfff, "byte test omitted a bank, row or column");
+    require(top.byte_high_rows == 3, "byte test omitted a shared DQM/high row bit");
     require(top.masked_writes == 256 && top.no_writes == 128,
             "byte test did not issue all partial and inhibited writes");
     require(top.refresh_masked_writes != 0, "no byte write followed a refresh");

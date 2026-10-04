@@ -22,6 +22,7 @@ int main() {
             << " expected=" << std::hex << top.fault_expect << " got=" << top.fault_got << '\n';
         require(top.pass && !top.fail, "controller byte lane did not pass at every rate");
         require(top.completed == 128 && top.checks == 512, "incomplete byte coverage");
+        require(top.high_rows_seen == 3, "shared DQM/high row bits not exercised");
         require(top.refresh_masked_writes != 0, "no masked write after refresh");
         std::cout << "PASS: byte controller rate " << rate << " and refresh adjacency\n";
     }

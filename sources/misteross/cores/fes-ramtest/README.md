@@ -12,7 +12,8 @@ the host and are not delivered to the core.
 ## SDRAM addon
 
 Before the full-span scan, an independent bounded byte lane tests preservation
-at 64 distinct addresses: all four banks, rows 0/1, and columns 0–7. Every
+at 64 distinct addresses: all four banks, rows 0/1/0800/1000, and columns 0–7.
+Low rows use columns 0–3 and high rows use columns 4–7. Every
 address runs both byte orders. Each case writes and reads `A55A` with BE11,
 then writes `3CC7` with BE10 and `E169` with BE01. Upper-first reads must be
 `3C5A`, then `3C69`; lower-first reads must be `A569`, then `3C69`. A final
@@ -23,7 +24,14 @@ The 128 cases contain 512 read checks. Request gaps are 0, 32, 1024 or 2048
 fabric clocks, covering refresh between requests at all supported rates. The
 controller latches byte enables with each request, establishes active-high
 DQM two fabric clocks before WRITE, retains it through WRITE, and clears both
-masks for reads. DQM stays in fabric registers in both native and Quartus builds.
+masks for reads. The MiSTer addon shares chip DQML/DQMH with A11/A12:
+the controller preserves all row bits during ACTIVATE, then drives the masks
+on A11/A12 during the RCD setup, column command and write hold. Separate
+SDRAM_DQML/DQMH top-level signals are logical mirrors; they do not reach the
+chip masks on this addon. The shared pins stay in fabric registers in both
+native and Quartus diagnostic builds. See the
+[addon schematic](https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/sdram_xsds_3.0.pdf)
+and [reference controller](https://github.com/MiSTer-devel/GBA_MiSTer/blob/master/rtl/sdram.sv).
 
 The `BYTE` row has its own RUN/PASS/FAIL/STOP/NACK status and completed case/read
 counts. Two receipt rows retain the first failure's halfword address, readback

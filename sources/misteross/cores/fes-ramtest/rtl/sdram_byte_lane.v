@@ -25,9 +25,12 @@ module sdram_byte_lane (
     reg [15:0] expected = 16'hA55A;
     reg [15:0] payload = 16'hA55A;
     reg [1:0] requested_be = 2'b11;
-    // Both orders, all four banks, four low columns, two rows and two high
-    // columns. The high column bit is address bit 17, above the old sim span.
-    wire [25:0] location = {1'b0, 7'd0, sample[6], 12'd0, sample[5], sample[2:1], sample[4:3]};
+    // Both orders, all banks, columns 0-7, and rows 0/1/0800/1000.
+    // High row bits exercise the row/DQM shared pins; column bit 17 is above
+    // the old simulation span. High rows use columns 4-7, low rows 0-3.
+    wire [12:0] row = sample[6] ? (sample[5] ? 13'h1000 : 13'h0800) :
+                                      (sample[5] ? 13'h0001 : 13'h0000);
+    wire [25:0] location = {1'b0, 7'd0, sample[6], row, sample[2:1], sample[4:3]};
     // Long gaps cross refresh at every supported rate; zero is the minimal
     // request-low interval needed by the controller handshake.
     wire [15:0] gap = sample[6:5] == 2'd0 ? 16'd0 :

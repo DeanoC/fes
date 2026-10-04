@@ -7,6 +7,7 @@ module bench (
     input wire [2:0] mask_fault,
     output wire [106:0] byte_status,
     output wire [11:0] byte_coverage,
+    output wire [1:0] byte_high_rows,
     output wire [31:0] masked_writes, no_writes, refresh_masked_writes,
 
     output wire HDMI_TX_DE, HDMI_TX_VS,
@@ -20,6 +21,7 @@ module bench (
 );
     assign byte_status = dut.byte_status;
     assign byte_coverage = {chip.banks_seen, chip.low_columns_seen, chip.rows_seen, chip.high_columns_seen};
+    assign byte_high_rows = chip.high_rows_seen;
     assign masked_writes = chip.masked_writes;
     assign no_writes = chip.no_writes;
     assign refresh_masked_writes = chip.refresh_masked_writes;
@@ -74,8 +76,9 @@ module bench (
         .nwe(sdram_nwe),
         .ba(sdram_ba),
         .a(sdram_a),
-        .dqml(sdram_dqml),
-        .dqmh(sdram_dqmh),
+        // MiSTer addon wiring: DQM shares the two high row-address pins.
+        .dqml(sdram_a[11]),
+        .dqmh(sdram_a[12]),
         .dq(sdram_dq)
     );
 endmodule

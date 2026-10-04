@@ -31,6 +31,7 @@ module sdram_model (
     reg [3:0] banks_seen = 4'd0;
     reg [3:0] low_columns_seen = 4'd0;
     reg [1:0] rows_seen = 2'd0, high_columns_seen = 2'd0;
+    reg [1:0] high_rows_seen = 2'd0;
     reg [31:0] refreshes = 32'd0, masked_writes = 32'd0, no_writes = 32'd0;
     reg [31:0] refresh_masked_writes = 32'd0;
     reg refreshed = 1'b0;
@@ -113,6 +114,7 @@ module sdram_model (
                     banks_seen[open_ba] <= 1'b1;
                     low_columns_seen[a[1:0]] <= 1'b1;
                     rows_seen[open_row[0]] <= 1'b1;
+                    high_rows_seen <= high_rows_seen | open_row[12:11];
                     high_columns_seen[a[2]] <= 1'b1;
                     if (dqml != dqmh) begin
                         masked_writes <= masked_writes + 32'd1;

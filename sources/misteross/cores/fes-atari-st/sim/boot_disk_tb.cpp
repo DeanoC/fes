@@ -66,12 +66,12 @@ public:
             available[bank] = cycle + (command == 4 ? 2 : 3);
             if (command == 4) {
                 require(dut.dq_oe, "WRITE without driven data", cycle);
-                if (!dut.sdram_dqml) words[address] = (words[address] & 0xff00) | (dut.dq_out & 0xff);
-                if (!dut.sdram_dqmh) words[address] = (words[address] & 0xff) | (dut.dq_out & 0xff00);
+                if (!(dut.sdram_a & 0x800)) words[address] = (words[address] & 0xff00) | (dut.dq_out & 0xff);
+                if (!(dut.sdram_a & 0x1000)) words[address] = (words[address] & 0xff) | (dut.dq_out & 0xff00);
                 ++writes;
             } else {
                 require(!dut.dq_oe, "READ has output data contention", cycle);
-                require(!dut.sdram_dqml && !dut.sdram_dqmh, "READ unexpectedly masked", cycle);
+                require(!(dut.sdram_a & 0x1800), "READ unexpectedly masked", cycle);
                 read_due = cycle + 2;
                 pending_read = words[address];
                 ++reads;
