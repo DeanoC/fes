@@ -210,6 +210,7 @@ func TestInstalledPackageSelectionAndLibraryLaunch(t *testing.T) {
 	// Retain a host executor whose cleanup fails while the unexpected FPGA owner also needs recovery.
 	executor := &fakeHostExecutor{stopErr: errors.New("host busy")}
 	s.hostExecutor = executor
+	s.hostCastClaimsKitDisplay = true // This case exercises cast-mode dual-owner recovery.
 	s.activeExecution = ExecutionHostOnly
 	s.activeGameID = "host-game"
 	client.stopErr = errors.New("target stop lost")
@@ -338,6 +339,7 @@ func TestActivatedLibraryPackageRetainsFailedHostCleanup(t *testing.T) {
 	}
 	executor := &fakeHostExecutor{stopErr: errors.New("host cleanup failed")}
 	s.hostExecutor = executor
+	s.hostCastClaimsKitDisplay = true // Failed cast cleanup must retain the host owner.
 	s.activeExecution = ExecutionHostOnly
 	s.activeGameID = "host-game"
 	response, err := s.Launch(ctx, entry.GameID, nil)

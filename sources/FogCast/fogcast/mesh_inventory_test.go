@@ -190,8 +190,8 @@ func TestForeignLeaseSpareLaunchAfterStickyHostOnlyUsesSpare(t *testing.T) {
 	if spare.coreCalls != spareCore+1 || dev.coreCalls != devCore || dev.statusCalls != devStatus || dev.healthCalls != devHealth || dev.stopCalls != devStop {
 		t.Fatalf("loads dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls-devCore, dev.statusCalls-devStatus, dev.healthCalls-devHealth, dev.stopCalls-devStop, spare.coreCalls-spareCore)
 	}
-	if host.stopCalls != 1 {
-		t.Fatalf("host stop calls = %d", host.stopCalls)
+	if host.stopCalls != 0 {
+		t.Fatalf("host stop calls = %d, want independent non-cast host play", host.stopCalls)
 	}
 	if s.selectedTarget != "dev" {
 		t.Fatalf("selected target changed to %s", s.selectedTarget)
@@ -199,7 +199,13 @@ func TestForeignLeaseSpareLaunchAfterStickyHostOnlyUsesSpare(t *testing.T) {
 	s.executionMu.Lock()
 	gotTarget, gotExec := s.activeTarget, s.activeExecution
 	s.executionMu.Unlock()
-	if gotTarget != "spare" || (gotExec != ExecutionFPGANative && gotExec != ExecutionFPGADevelopment) {
+	if gotTarget != "spare" || gotExec != ExecutionHostOnly {
 		t.Fatalf("session target=%q execution=%q", gotTarget, gotExec)
+	}
+	if status, err := s.StatusTarget(context.Background(), "spare"); err != nil || status.State != protocol.StateActive {
+		t.Fatalf("spare StatusTarget = %+v, err=%v", status, err)
+	}
+	if status, err := s.Status(context.Background()); err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != "prior-host" {
+		t.Fatalf("root host Status = %+v, err=%v", status, err)
 	}
 }

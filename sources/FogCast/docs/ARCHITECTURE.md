@@ -1447,10 +1447,14 @@ M1 software-runner input uses a controller attached to the runner through
 RetroArch's local joypad/udev input. Remote controller input to `host_only` is
 outside M1. The #363 integration matrix
 ([`docs/mesh-m1-integration.md`](../../../docs/mesh-m1-integration.md)) records this non-goal.
-With host media disabled, host-only playback runs independently of kit FPGA
-plays, so kit-scoped Stop and host Stop remain independent. With host media
-enabled, a host-only launch for a kit replaces that kit's package play because
-the cast claims the kit's display.
+In cast mode, host-only playback uses the managed RTP sender and target cast,
+so the kit display has one owner: a host-only launch replaces that kit's package
+play, and a kit core/package launch stops host-only playback. In non-cast mode
+(media disabled, local MJPEG preview, or local ffplay playback), host-only and
+kit FPGA plays are independent in both launch directions; kit-scoped Stop and
+host Stop remain independent. `TestTwoNodeHostFirstThenKitKeepsBoth`,
+`TestTwoNodeCastModeKitLaunchStopsHostOnly`, and
+`TestTwoNodeHostMediaOnSameKitReplacesKitPlay` cover these rules.
 
 `Service.MeshBackendLibrary` reads the existing local catalog and projects
 package titles through the same helper as placement; raw games use the
@@ -2799,10 +2803,13 @@ live routes. The shared wire layout is in
 [mister-packages session display](../../mister-packages/docs/session-display.md).
 
 The configured host capture sender is one physical pipeline with one RTP
-destination and sender token. Host-only playback claims that pipeline for its
+destination and sender token. Only its managed sender plus target cast path
+places host-only playback on a kit display; MJPEG preview and ffplay playback
+remain local. Cast mode has one display owner and replaces the other play in
+both directions. Non-cast mode leaves host-only and kit FPGA plays independent
+in both directions. Host-only playback claims the sender pipeline for its
 target until its media handle stops. A host-only start on another target fails
 with `MEDIA_BUSY_OTHER_KIT` (HTTP 409), and the target cast started for that
-launch is rolled back. FPGA-native plays do not use the host capture sender and
-remain independent. Configuration does not bind the RTP destination to a named
-target address, so the host cannot validate destination-to-kit correspondence;
-operators must configure the destination for the intended kit.
+launch is rolled back. Configuration does not bind the RTP destination to a
+named target address, so the host cannot validate destination-to-kit
+correspondence; operators must configure the destination for the intended kit.

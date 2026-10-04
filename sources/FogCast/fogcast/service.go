@@ -286,7 +286,7 @@ type Service struct {
 	uploadReadDelay          time.Duration
 	executionResolver        ExecutionResolver
 	hostExecutor             hostexec.Adapter
-	hostMediaEnabled         bool
+	hostCastClaimsKitDisplay bool
 	users                    *libraryuser.Store
 	media                    *librarymedia.Index
 	libraryOverlayPath       string
@@ -542,7 +542,9 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		requestTimeout:      config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		coreLoadReconcileTimeout: coreLoadReconcileTimeout,
 		executionResolver:        defaultExecutionResolver{},
-		hostMediaEnabled:         config.Media.Enabled,
+		// cmd/fogcast-api composes a kit cast only for the managed sender path;
+		// its mjpeg preview and ffplay receiver are host-local (ARCHITECTURE.md).
+		hostCastClaimsKitDisplay: hostCastClaimsKitDisplay(config),
 		attractIdle:              config.Library.AttractIdleSeconds,
 		preferredRegions:         append([]string(nil), config.Library.PreferredRegions...),
 		videoProfile:             defaultVideoProfile(config.Library.VideoProfile),
@@ -572,6 +574,12 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 	service.selectedTargetReconciled = !targetByName(service.targets, service.selectedTarget).Enabled
 	service.applyPersistedLibraryOverlay()
 	return service
+}
+
+// hostCastClaimsKitDisplay mirrors cmd/fogcast-api composition: only the
+// managed sender with a target cast places host-only playback on a kit display.
+func hostCastClaimsKitDisplay(config Config) bool {
+	return config.Media.Enabled && config.Media.Decoder != "mjpeg" && config.Media.Decoder != "ffplay"
 }
 
 func (s *Service) selectedClientSnapshot() (serviceClient, bool) {
@@ -1186,10 +1194,10 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		}
 	}
 
-	// Host media casts host-only playback onto the requested kit's display,
+	// A managed host cast places host-only playback on the requested kit's display,
 	// so preserve package replacement there; without it RetroArch is runner-local
 	// and does not claim a kit display (ARCHITECTURE.md, host capture sender).
-	if execution != ExecutionHostOnly || s.hostMediaEnabled {
+	if execution != ExecutionHostOnly || s.hostCastClaimsKitDisplay {
 		if err := s.stopPackageOwnedForCatalogLaunch(ctx, snap.name); err != nil {
 			return protocol.CachedLaunchResponse{}, err
 		}
@@ -1806,8 +1814,12 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 		return protocol.Status{}, err
 	}
 
-	if err := s.stopHostOnlyIfActive(ctx); err != nil {
-		return protocol.Status{}, err
+	// A development RBF replaces the kit display. It only replaces host-only
+	// playback when the configured host pipeline casts onto that display.
+	if s.hostCastClaimsKitDisplay {
+		if err := s.stopHostOnlyIfActive(ctx); err != nil {
+			return protocol.Status{}, err
+		}
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
@@ -1835,6 +1847,20 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	s.executionMu.Lock()
+	if !s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly {
+		// A developer core occupies the kit FPGA while the local emulator keeps
+		// root ownership and remains independently stoppable.
+		playTarget := s.activeTarget
+		if !s.configuredTargetLocked(playTarget) {
+			playTarget = s.selectedTarget
+		}
+		if s.configuredTargetLocked(playTarget) {
+			s.plays[playTarget] = targetPlay{execution: ExecutionFPGADevelopment}
+			s.activeTarget = playTarget
+		}
+		s.executionMu.Unlock()
+		return status, nil
+	}
 	s.activeExecution = ExecutionFPGADevelopment
 	s.retainSessionTargetLocked()
 	s.activeGameID, s.activeSystem = "", ""
@@ -1974,18 +2000,28 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		}
 
 		keepTarget := s.kitBindToKeepLocked()
-		hostCleanupErr := s.stopHostOnlyIfActive(ctx)
+		var hostCleanupErr error
+		if s.hostCastClaimsKitDisplay {
+			hostCleanupErr = s.stopHostOnlyIfActive(ctx)
+		}
 		s.executionMu.Lock()
 		if keepTarget != "" {
 			s.activeTarget = keepTarget
 		}
-		if hostCleanupErr == nil {
+		if !s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly {
+			// Preserve root host ownership while retaining target rejection state.
+			if keepTarget != "" {
+				s.plays[keepTarget] = targetPlay{execution: ExecutionFPGADevelopment, packageRejection: rejection}
+			}
+		} else if hostCleanupErr == nil {
 			s.activeExecution = ExecutionFPGADevelopment
 			s.retainSessionTargetLocked()
 			s.activeGameID, s.activeSystem = "", ""
 			s.activePackageID, s.activePackageGeneration = "", 0
 		}
-		s.packageRejection = rejection
+		if s.hostCastClaimsKitDisplay || s.activeExecution != ExecutionHostOnly {
+			s.packageRejection = rejection
+		}
 		s.executionMu.Unlock()
 		status.LastError = rejection
 		if hostCleanupErr != nil {
@@ -1996,7 +2032,11 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	// Keep the previous host owner until its executor is confirmed stopped.
 	// A successful target activation can still require recovery of both owners.
 	keepTarget := s.kitBindToKeepLocked()
-	if hostCleanupErr := s.stopHostOnlyIfActive(ctx); hostCleanupErr != nil {
+	var hostCleanupErr error
+	if s.hostCastClaimsKitDisplay {
+		hostCleanupErr = s.stopHostOnlyIfActive(ctx)
+	}
+	if hostCleanupErr != nil {
 		cleanupErr := &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package activation", Phase: "recovery"}
 		s.executionMu.Lock()
 		s.packageRejection = cleanupErr
@@ -2006,6 +2046,26 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return status, cleanupErr
 	}
 	s.executionMu.Lock()
+	if !s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly {
+		// Keep root Status/Stop bound to RetroArch; kit status is projected from plays.
+		play := targetPlay{execution: ExecutionFPGADevelopment}
+		if selected.entry != nil && recognizedPlayContract(status.CorePackage.ABI) {
+			play.execution = ExecutionFPGANative
+			play.gameID, play.system = selected.entry.GameID, catalog.CorePlatform
+			play.packageID, play.packageGeneration = selected.entry.PackageID, status.CorePackage.Generation
+		}
+		if keepTarget != "" {
+			s.plays[keepTarget] = play
+			s.activeTarget = keepTarget
+		}
+		s.packageRejection = nil
+		s.executionMu.Unlock()
+		if selected.entry != nil && status.CorePackage.PackageID == selected.entry.PackageID {
+			status.GameID = stringPtr(selected.entry.GameID)
+			status.System = systemPtr(catalog.CorePlatform)
+		}
+		return status, nil
+	}
 	if keepTarget != "" {
 		s.activeTarget = keepTarget
 	}
@@ -2436,6 +2496,29 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		}
 		s.allowSelectedTargetRepair(parent)
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+	}
+	if target != "" {
+		// A non-cast kit play can coexist with the root host foreground, so
+		// project its catalog identity from the target-owned record directly.
+		s.executionMu.Lock()
+		play, hasPlay := s.plays[target]
+		matchingPackage := status.CorePackage == nil && play.packageID == "" && play.packageGeneration == 0
+		if status.CorePackage != nil {
+			matchingPackage = status.CorePackage.PackageID != "" && status.CorePackage.Generation != 0 &&
+				status.CorePackage.PackageID == play.packageID && status.CorePackage.Generation == play.packageGeneration
+		}
+		if hasPlay && matchingPackage && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
+			if status.GameID == nil && play.gameID != "" {
+				status.GameID = stringPtr(play.gameID)
+			}
+			if status.System == nil && play.system != "" {
+				status.System = systemPtr(play.system)
+			}
+			if status.LastError == nil {
+				status.LastError = play.packageRejection
+			}
+		}
+		s.executionMu.Unlock()
 	}
 	s.adoptObservedForeground(&status)
 	s.executionMu.Lock()

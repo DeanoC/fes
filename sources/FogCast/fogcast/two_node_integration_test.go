@@ -219,11 +219,60 @@ func TestTwoNodeSimultaneousPlay(t *testing.T) {
 	}
 }
 
+func TestTwoNodeHostFirstThenKitKeepsBoth(t *testing.T) {
+	f := newTwoNodeFixture(t)
+	if _, err := f.service.Launch(context.Background(), twoNodeSoftwareGameID, nil); err != nil {
+		t.Fatalf("Launch host-only game: %v", err)
+	}
+	launchTwoNodeKit(t, f)
+	_, hostStops := f.host.counts()
+	if hostStops != 0 {
+		t.Fatalf("host stop calls after kit launch=%d, want 0", hostStops)
+	}
+	if plays := f.service.PlaySessions(); len(plays) != 1 || plays[0].Target != "kit" || plays[0].GameID != f.kitGame.GameID {
+		t.Fatalf("PlaySessions = %+v, want kit play retained", plays)
+	}
+	rootStatus, err := f.service.Status(context.Background())
+	if err != nil || rootStatus.State != protocol.StateActive || rootStatus.GameID == nil || *rootStatus.GameID != twoNodeSoftwareGameID {
+		t.Fatalf("root Status = %+v, err=%v", rootStatus, err)
+	}
+	kitStatus, err := f.service.StatusTarget(context.Background(), "kit")
+	if err != nil || kitStatus.State != protocol.StateActive || kitStatus.GameID == nil || *kitStatus.GameID != f.kitGame.GameID {
+		t.Fatalf("kit StatusTarget = %+v, err=%v", kitStatus, err)
+	}
+	if _, err := f.service.StopTarget(context.Background(), "kit"); err != nil {
+		t.Fatalf("StopTarget kit: %v", err)
+	}
+	if _, err := f.service.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop host-only: %v", err)
+	}
+	_, hostStops = f.host.counts()
+	if f.kit.stopCalls != 1 || hostStops != 1 {
+		t.Fatalf("kit/host stop calls=%d/%d, want 1/1", f.kit.stopCalls, hostStops)
+	}
+}
+
+func TestTwoNodeCastModeKitLaunchStopsHostOnly(t *testing.T) {
+	f := newTwoNodeFixture(t)
+	f.service.hostCastClaimsKitDisplay = hostCastClaimsKitDisplay(Config{Media: MediaConfig{Enabled: true, Decoder: "none"}})
+	if _, err := f.service.Launch(context.Background(), twoNodeSoftwareGameID, nil); err != nil {
+		t.Fatalf("Launch host-only game: %v", err)
+	}
+	launchTwoNodeKit(t, f)
+	_, hostStops := f.host.counts()
+	if hostStops != 1 {
+		t.Fatalf("host stop calls after kit launch=%d, want 1", hostStops)
+	}
+	if plays := f.service.PlaySessions(); len(plays) != 1 || plays[0].Target != "kit" || plays[0].GameID != f.kitGame.GameID {
+		t.Fatalf("PlaySessions = %+v, want active kit play", plays)
+	}
+}
+
 func TestTwoNodeHostMediaOnSameKitReplacesKitPlay(t *testing.T) {
 	f := newTwoNodeFixture(t)
 	// Set the minimal service configuration state read by LaunchOn; constructing
 	// a real capture sender would require media sockets unrelated to this path.
-	f.service.hostMediaEnabled = true
+	f.service.hostCastClaimsKitDisplay = hostCastClaimsKitDisplay(Config{Media: MediaConfig{Enabled: true, Decoder: "none"}})
 	launchTwoNodeKit(t, f)
 	if _, err := f.service.Launch(context.Background(), twoNodeSoftwareGameID, nil); err != nil {
 		t.Fatalf("Launch host-only game with host media: %v", err)
@@ -238,6 +287,26 @@ func TestTwoNodeHostMediaOnSameKitReplacesKitPlay(t *testing.T) {
 	}
 	if status, err := f.service.Status(context.Background()); err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != twoNodeSoftwareGameID {
 		t.Fatalf("host-only session after kit replacement = %+v, err=%v", status, err)
+	}
+}
+
+func TestHostCastClaimsKitDisplayFromConfig(t *testing.T) {
+	tests := []struct {
+		name   string
+		config Config
+		want   bool
+	}{
+		{name: "media disabled", config: Config{Media: MediaConfig{Decoder: "none"}}, want: false},
+		{name: "mjpeg preview", config: Config{Media: MediaConfig{Enabled: true, Decoder: "mjpeg"}}, want: false},
+		{name: "ffplay local playback", config: Config{Media: MediaConfig{Enabled: true, Decoder: "ffplay"}}, want: false},
+		{name: "managed sender", config: Config{Media: MediaConfig{Enabled: true, Decoder: "none"}}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hostCastClaimsKitDisplay(tt.config); got != tt.want {
+				t.Fatalf("hostCastClaimsKitDisplay()=%v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

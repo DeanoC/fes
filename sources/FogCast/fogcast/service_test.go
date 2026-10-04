@@ -1897,6 +1897,7 @@ func TestServiceCorePackageReportsTargetWhileRetainingHostCleanupOwner(t *testin
 		coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) { return active, nil }}
 	hostExecutor := &fakeHostExecutor{stopErr: errors.New("host stop failed")}
 	service := newTestServiceWithExecution(&fakeServiceCatalog{}, &fakeServicePreparer{}, client, ExecutionPolicy{Host: hostExecutor})
+	service.hostCastClaimsKitDisplay = true // This case exercises cast-mode cleanup failure.
 	service.activeExecution, service.activeGameID = ExecutionHostOnly, "prior-host-game"
 	status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
 	if err == nil || status.CorePackage == nil || status.LastError == nil || service.activeExecution != ExecutionHostOnly || service.activeGameID != "prior-host-game" {

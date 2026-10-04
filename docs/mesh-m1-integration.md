@@ -11,7 +11,7 @@ This matrix records the #363 two-node regression coverage. Tests run from
 
 | #363 area | Proving tests | Limits |
 |---|---|---|
-| Simultaneous play and display ownership | `fogcast:TestTwoNodeSimultaneousPlay`, `fogcast:TestTwoNodeHostMediaOnSameKitReplacesKitPlay` | Simultaneous play models host media off; the replacement case enables the service's host-media setting. |
+| Simultaneous play and display ownership | `fogcast:TestTwoNodeSimultaneousPlay`, `fogcast:TestTwoNodeHostFirstThenKitKeepsBoth`, `fogcast:TestTwoNodeCastModeKitLaunchStopsHostOnly`, `fogcast:TestTwoNodeHostMediaOnSameKitReplacesKitPlay` | Non-cast mode (media disabled, MJPEG preview, or ffplay playback) keeps host-only and kit plays independent in both launch directions. Cast mode (managed sender plus target cast) gives the kit display one owner and replaces the other play in both directions. |
 | Scoped Stop | `fogcast:TestTwoNodeScopedStop` | Uses fake kit and host executors; no hardware is exercised. |
 | Launch race and BUSY | `fogcast:TestTwoNodeHostOnlyBusyKeepsKit` | Includes sequential BUSY admission and two concurrent public launch calls. |
 | Busy kit lease | `fogcast:TestTwoNodeKitBusyLeaseRefusesOnlyKit` | Models the foreign lease through the service's observed connection state. |
@@ -22,11 +22,12 @@ This matrix records the #363 two-node regression coverage. Tests run from
 | Scoped input | Existing: `host:TestRemoteInputAttachSendDetachOwnsSessionAndRelease`, `internal/hostapi:TestLauncherStopIsScopedToPairedKit` | Kit remote input stays with kit sessions. Remote input to `host_only` is an M1 non-goal (see below). |
 
 The #363 finding was that root-owned host-only execution and kit-owned package
-plays share session bookkeeping even when they use separate executors. Round 4
-retains the selected kit binding after core loads, leaves a root host-only
-session unbound during unstarted-launch cleanup, and removes only the stopped
-kit's play record after a scoped Stop. These fixes keep the root foreground and
-per-kit play list consistent in single-kit and two-node flows.
+plays share session bookkeeping even when they use separate executors. In
+non-cast mode a kit core/package launch retains the root host-only owner while
+publishing kit status in its per-target play record. In cast mode either launch
+direction replaces the other play because both use the kit display. Scoped Stop
+removes only the selected kit's play record, while root Stop still stops
+host-only execution.
 
 ## Source and fixture provenance
 
