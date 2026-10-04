@@ -157,6 +157,13 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	leaseChanged := (previous.leaseOwned || hadGrant) && (!ownership.Owned || (previous.leaseGeneration != "" && previous.leaseGeneration != ownership.Generation))
 	if !reboot && leaseChanged {
 		s.invalidateTargetSession(concrete)
+		// Invalidation discards the stale grant, but also marks the lease lost.
+		// Reconcile once more after that reset so readiness includes a clean
+		// lease state from which an explicit launch can claim immediately.
+		ownership, err = concrete.AdoptEndpoint(lookupCtx, base, false)
+		if err != nil {
+			return s.connectionFailed(previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")})
+		}
 	} else if !reboot && (previous.Address != address || (hadGrant && !ownership.Owned)) && s.targetReset != nil {
 		s.targetReset()
 	}

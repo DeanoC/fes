@@ -79,6 +79,8 @@ func TestAgentRestartReconcilesLostLeaseAndConnectsReady(t *testing.T) {
 			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
 		case "/v1/kit/lease":
 			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/kit/claim":
+			json.NewEncoder(w).Encode(kitlease.Grant{Token: "launch-token", Status: kitlease.Status{State: "held", Generation: "launch-generation", ExpiresInMS: 60000}})
 		case "/v1/status":
 			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
 		default:
@@ -87,7 +89,8 @@ func TestAgentRestartReconcilesLostLeaseAndConnectsReady(t *testing.T) {
 	}))
 	defer srv.Close()
 	base, _ := url.Parse(srv.URL)
-	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test"))
+	lease := targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test")
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(lease)
 	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	// This is the pre-restart host state: its OS boot id is unchanged, but
 	// the process restart lost the kit's old lease generation and play.
@@ -105,6 +108,10 @@ func TestAgentRestartReconcilesLostLeaseAndConnectsReady(t *testing.T) {
 	}
 	if plays := s.PlaySessions(); len(plays) != 0 {
 		t.Fatalf("stale play sessions after idle restart: %+v", plays)
+	}
+	claimReq, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	if err := lease.Authorize(claimReq, true); err != nil {
+		t.Fatalf("immediate claim after ready: %v", err)
 	}
 }
 
@@ -149,6 +156,10 @@ func TestAgentRestartAfterIdleSnapshotDropsNewPlay(t *testing.T) {
 	}
 	if plays := s.PlaySessions(); len(plays) != 0 {
 		t.Fatalf("stale play after agent restart: %+v", plays)
+	}
+	claimReq, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	if err := lease.Authorize(claimReq, true); err != nil {
+		t.Fatalf("immediate claim after ready: %v", err)
 	}
 }
 
