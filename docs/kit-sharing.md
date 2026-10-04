@@ -15,7 +15,9 @@ duplicate test host against the same kit.
 
 When the user requests that the menu remain available, restore the normal host
 and kit launcher after stopping the private test host. Restore the recorded
-initial autostart setting, verify the idle menu on HDMI and confirm that the
+initial autostart setting. Wait for the normal host API to serve the library
+before restarting the kit launcher; an early menu can retain a failed first
+library load. Verify the populated idle menu on HDMI and confirm that the
 lease is free before finishing. Keep the menu available during long builds
 between probes. This explicit request takes precedence over the default host
 shutdown above; never interrupt a session owned by someone else.

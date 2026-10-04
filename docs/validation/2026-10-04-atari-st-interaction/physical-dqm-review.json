@@ -1,0 +1,178 @@
+{
+  "CPU_BE_truth_rows": {
+    "columns": [
+      "BE",
+      "held_lower_BE",
+      "held_upper_BE",
+      "write_DQML",
+      "write_DQMH"
+    ],
+    "rows": [
+      [
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        0,
+        0,
+        1
+      ],
+      [
+        2,
+        0,
+        1,
+        1,
+        0
+      ],
+      [
+        3,
+        1,
+        1,
+        0,
+        0
+      ]
+    ]
+  },
+  "artifacts": {
+    "build/fes-atari-st-oss/core.rbf": {
+      "bytes": 2881106,
+      "sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320"
+    },
+    "build/fes-atari-st-oss/routed.json": {
+      "bytes": 64836514,
+      "sha256": "6470919893e0846a2f07e0fbed8012a3ccb56fbc2bdb34d0bf9ee9ab81a2edd4"
+    },
+    "build/fes-atari-st-oss/synth.json": {
+      "bytes": 26696313,
+      "sha256": "334a7bf466f3e71adee9005a6bd9fca3df7b7ea63cb5e8f1ef73dc48be0b2e66"
+    },
+    "cores/fes-atari-st/constraints/constraints-oss.qsf": {
+      "bytes": 4892,
+      "sha256": "3179d716ce053c2f435e097e21d5191cd78c51e1aea1af37b21beefbd36daed5"
+    },
+    "cores/fes-atari-st/rtl/st_machine.sv": {
+      "bytes": 12942,
+      "sha256": "d68741a4070aa439560af384341828fdbf080dadfb79900d98df6e2bd7b5be6e"
+    },
+    "cores/fes-atari-st/rtl/st_memory.sv": {
+      "bytes": 9152,
+      "sha256": "50b1405d7bf96cf170fbba97c562cf4fa886e11cd13a28946b15c418265f6439"
+    },
+    "cores/fes-ramtest/constraints.qsf": {
+      "bytes": 4390,
+      "sha256": "8f97054248c681aca77fc26f55d6e91478164cc7726ec03034b4e459f1ea48d4"
+    },
+    "cores/fes-ramtest/rtl/sdram_addon_port.v": {
+      "bytes": 14066,
+      "sha256": "47d4d6055a9cd028cec76a60f6918e43eea517ea9448aea645c6efd7cdba0f1b"
+    }
+  },
+  "backend_inputs": [
+    {
+      "bytes": 537096088,
+      "sha256": "99a5eb917eed354e9f29a5765797fc5c5ebac86473e6e09b806f2a4ec2cb5cef"
+    },
+    {
+      "bytes": 57051,
+      "sha256": "d25cb6d2eb8450a11e8d7dc383d475fcffeff8caf4a8e73f0ed84911d6c1430d"
+    },
+    {
+      "bytes": 54470,
+      "sha256": "686693383dafb4c63379f55ceffe34909ec99ccf4ddf6b4f6de35987b873f675"
+    },
+    {
+      "bytes": 6106,
+      "sha256": "c812ff26762b308fb4cfd51305e21467e02971f6e189ff57fbc758d5f58b0bf4"
+    }
+  ],
+  "checked": [
+    "all_ST_SDRAM_pin_assignments_match_FES_RAMTEST_and_primary_MiSTer_MemTest",
+    "actual_synthesized_DQM_outputs_are_live_FFs_not_constants",
+    "mapped_LUT_NOT_and_ARITH_CPU_BE_truth_tables_enumerated_for_all_four_BE_values",
+    "separate_correct_polarity_held_lower_and_upper_BE_reach_DQM_mask_FFs",
+    "native_onehot_state_SCLR_truth_tables_enumerated_all_17_controller_states",
+    "mask_FFs_clear_outside_ROW_RCD1_RCD2_ACT_RW_and_retain_inside",
+    "correct_clk_sys_for_both_DQM_FFs_and_DDR_clock",
+    "actual_sealed_RBF_authenticated_Mistral_decompile_IO_routes_and_control_settings_inspected"
+  ],
+  "classification": {
+    "gpu_use": false,
+    "hardware_actions": false,
+    "native_build": false,
+    "physical_acceptance": false,
+    "read_only_host_review": true,
+    "source_edits": false
+  },
+  "decoded_IO": {
+    "DQM_DOUT_inversion_nondefault_entries": false,
+    "DQM_OE_driven": true,
+    "both_mask_drive_strength": "V3P3_LVTTL_16MA_LVCMOS_2MA",
+    "clock_DOUT_inversion": true,
+    "clock_output_mode": "DDR"
+  },
+  "decoded_mask_LAB_controls": {
+    "BCLK_SEL.2": "CLK0",
+    "BSLOAD_EN.2": 1,
+    "EN0_EN": 0,
+    "LAB": "42.3",
+    "SLOAD_EN": 0,
+    "TCLK_SEL.9": "CLK0",
+    "TSLOAD_EN.9": 1,
+    "interpretation": "Matches pinned backend intended always-enabled FF plus shared SCLR with forced-disabled SLOAD workaround; silicon semantics not independently established."
+  },
+  "identity": {
+    "build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+    "shell_package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+    "shell_rbf_sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320",
+    "source_commit": "517a285c089153dc3701fd02dd366c0286a3efd2"
+  },
+  "kind": "fes.independent-native-physical-path-review/1",
+  "limits": [
+    "Physical RED03 is reported by the root operator, not independently observed or classified as a compiler fault here.",
+    "No oscilloscope measurement, external pad setup/hold proof or independent complete-chip simulation performed.",
+    "Decoded configuration comparison shares the authenticated backend/database interpretation.",
+    "FES RAMTEST full-word acceptance uses masks low and does not exercise byte-mask behavior."
+  ],
+  "original_private_receipt_sha256": "76600be1bda6329dfe6a6db1d7c11bd5567f43482782141c7b9c6fba02fb84a8",
+  "pin_mapping": {
+    "CLK": {
+      "DDR_HIGH": 0,
+      "clock": "system_clock.clocks[0]",
+      "pin": "AD20",
+      "routed_BEL": "MISTRAL_IO.70.0.1",
+      "type": "MISTRAL_DDROUT"
+    },
+    "DQMH": {
+      "decoded_HMC_DOUT": "HMC.025.000:IOINTDQDOUT.0",
+      "mask_FF": "MISTRAL_FF.42.3.16",
+      "pin": "AF13",
+      "routed_BEL": "MISTRAL_IO.50.0.1"
+    },
+    "DQML": {
+      "decoded_HMC_DOUT": "HMC.025.000:IOINTDQDOUT.4",
+      "mask_FF": "MISTRAL_FF.42.3.56",
+      "pin": "AG13",
+      "routed_BEL": "MISTRAL_IO.50.0.0"
+    }
+  },
+  "primary_reference": "https://github.com/MiSTer-devel/MemTest_MiSTer/blob/master/sys/sys.tcl",
+  "proposed_minimal_RAMTEST_lane_check": {
+    "baseline_word": "A55A",
+    "coverage": "Both byte orders, several banks/rows, exact readback word and mask-request counters. Compare synthesized SCLR and plain-D-input variants only if a focused compiler-control diagnosis is required.",
+    "expected_after_lower": "3C69",
+    "expected_after_upper": "3C5A",
+    "lower_BE": 1,
+    "lower_write_word_with_hostile_upper": "E169",
+    "upper_BE": 2,
+    "upper_write_word_with_hostile_lower": "3CC7"
+  },
+  "result": "NO_SPECIFIC_COMPILER_OR_PIN_FAULT_IDENTIFIED",
+  "review_date": "2026-10-04",
+  "reviewer": "st_video",
+  "schema": 1
+}

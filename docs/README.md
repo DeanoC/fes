@@ -67,6 +67,10 @@ optional SGM, saved preferences and captured video/audio for the named open ROMs
 Current build and selection behavior remains documented by the component
 guides and [core status](core-status.md).
 
+The [Atari ST interaction record](validation/2026-10-04-atari-st-interaction.md)
+binds mouse and writable-disk software checks, the original GEMDOS guest
+diagnostic, sealed video parts, and the unresolved physical byte-write failure.
+
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only
 points at those. It is not a second roadmap.
