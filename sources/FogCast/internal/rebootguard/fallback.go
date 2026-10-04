@@ -14,8 +14,9 @@ package rebootguard
 // which calls emergency_restart without another sync or device shutdown. If
 // that write fails or returns, `reboot -nf` is the fallback: sync already ran
 // bounded, and -n skips BusyBox's own sync. reboot(2) still runs the kernel's
-// device shutdown, which can block on a wedged USB disk; if it does, the
-// hardware watchdog remains the final backstop (#485).
+// device shutdown, which can block on a wedged USB disk; that stall-after-
+// kill-all case is covered by the late kernel hung-task backstop before the
+// hardware watchdog (#485).
 //
 // Budget (#429): the stop scripts' no-I/O waits are capped at 5 s each
 // (S60fogcast-kit, S50mister-agent, S40mister-runtime, S20mister-network),
