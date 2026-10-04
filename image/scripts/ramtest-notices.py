@@ -62,7 +62,7 @@ The archive includes the RTL, shared definitions, build scripts and tool locks.
 From sources/misteross, run make toolchain-fes-ramtest followed by
 make build-fes-ramtest-100 for the shipped OSS 100 MHz variant.
 See cores/fes-ramtest/README.md, scripts/build_fes_ramtest.py and
-toolchains/ramtest.lock at the producing commit for the build instructions.
+toolchain.lock at the producing commit for the build instructions.
 
 This notice identifies the source of the sealed RBF, including when an image
 built from a later FES commit reuses that package. The RBF is installed at

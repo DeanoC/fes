@@ -187,8 +187,8 @@ The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
 OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
 because the pinned OSS packer cannot put DDR input registers on those pads.
 `make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
-`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with
-`toolchains/ramtest.lock`, whose Yosys declares every fpga2sdram port. Their
+`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the shared
+`toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
 timing gate covers the memory, capture and video domains, and the recipe checks
 the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
@@ -1792,7 +1792,7 @@ Both are diagnostics, without a GP menu identity or a described launch package.
 
 `build-fes-menu-pattern` and `build-fes-menu-ddr` use the authenticated HIP
 producer with GPU 0, closed functional inputs and separate output directories.
-The DDR mode uses the qualified `toolchains/ramtest.lock`; its artifact gates
+The DDR mode uses the shared `toolchain.lock` HIP compiler slot; its artifact gates
 check layout constants in both netlists, fixed pixel timing and inactive
 writes/unused ports. Neither producer programs hardware or changes image inputs.
 The runtime presenter and exact DDR scanout acceptance remain later work.
@@ -1801,7 +1801,7 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
 with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
-system identity. FES now selects it as the native image's idle display. It selects `toolchains/ramtest.lock`
+system identity. FES now selects it as the native image's idle display. It selects `toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
 while diagnostics retain their no-GP gate. DDR layout and inactive write/port

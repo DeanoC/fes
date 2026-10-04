@@ -40,9 +40,9 @@ class RecipeRegistryTest(unittest.TestCase):
             {"fpga_packages": [{"core_id": "fes.atari-st"}]}, "native-integration-dev"),
             ("fes.atari-st",))
 
-    def test_atari_st_lock_is_independent_from_ramtest_and_menu(self):
-        self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path, "toolchains/ramtest.lock")
-        self.assertEqual(recipes.recipe_for("fes.menu").lock_path, "toolchains/ramtest.lock")
+    def test_ramtest_and_menu_share_the_current_fes_toolchain(self):
+        self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path, "toolchain.lock")
+        self.assertEqual(recipes.recipe_for("fes.menu").lock_path, "toolchain.lock")
 
     def assert_existing_descriptors(self):
         self.assertTrue(

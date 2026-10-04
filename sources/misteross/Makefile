@@ -60,7 +60,7 @@ help:
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
 		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
 		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester with the opt-in compiler stack" \
-		"  toolchain-fes-ramtest  Provision the RAM tester OSS toolchain (toolchains/ramtest.lock)" \
+		"  toolchain-fes-ramtest  Provision the shared FES HIP toolchain (toolchain.lock)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (toolchains/atari-st.lock)" \
 		"  toolchain-fes-ramtest-timing  Provision the opt-in RAM tester timing toolchain" \
 		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
@@ -1323,10 +1323,7 @@ toolchain-fes-atari-st:
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 .PHONY: toolchain-fes-ramtest
-toolchain-fes-ramtest:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/ramtest.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain-ramtest") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
-	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+toolchain-fes-ramtest: toolchain-fes
 
 .PHONY: toolchain-fes-ramtest-timing
 toolchain-fes-ramtest-timing:
