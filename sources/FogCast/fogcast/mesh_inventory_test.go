@@ -199,7 +199,7 @@ func TestForeignLeaseSpareLaunchAfterStickyHostOnlyUsesSpare(t *testing.T) {
 	s.executionMu.Lock()
 	gotTarget, gotExec := s.activeTarget, s.activeExecution
 	s.executionMu.Unlock()
-	if gotTarget != "spare" || gotExec != ExecutionHostOnly {
+	if gotTarget != "host" || gotExec != ExecutionHostOnly || s.plays["spare"].execution != ExecutionFPGANative {
 		t.Fatalf("session target=%q execution=%q", gotTarget, gotExec)
 	}
 	if status, err := s.StatusTarget(context.Background(), "spare"); err != nil || status.State != protocol.StateActive {

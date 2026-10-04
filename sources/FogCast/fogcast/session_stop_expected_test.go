@@ -14,9 +14,10 @@ func testBoundStop() (*Service, *fakeServiceClient, SessionStopBinding) {
 	s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, c)
 	s.targets = []TargetConfig{{Name: "kit", TargetID: "kit-id"}}
 	s.targetClients["kit"] = c
-	s.activeExecution, s.activeTarget, s.activeGameID = ExecutionFPGANative, "kit", "core-zx81"
-	s.activePackageID, s.activePackageGeneration = strings.Repeat("a", 64), 9
-	return s, c, SessionStopBinding{GameID: "core-zx81", Target: "kit", TargetID: "kit-id", PackageID: s.activePackageID, Generation: 9}
+	s.activeTarget = "kit"
+	packageID := strings.Repeat("a", 64)
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "core-zx81", packageID: packageID, packageGeneration: 9}
+	return s, c, SessionStopBinding{GameID: "core-zx81", Target: "kit", TargetID: "kit-id", PackageID: packageID, Generation: 9}
 }
 func TestStopExpectedRejectsChangedPlayBeforeDispatch(t *testing.T) {
 	for _, field := range []string{"game", "target", "target-id", "package", "generation"} {
@@ -35,8 +36,8 @@ func TestStopExpectedRejectsChangedPlayBeforeDispatch(t *testing.T) {
 				b.Generation++
 			}
 			_, err := s.StopExpected(context.Background(), b)
-			if !errors.Is(err, ErrSessionChanged) || c.stopCalls != 0 || s.activeGameID != "core-zx81" {
-				t.Fatalf("err=%v stops=%d game=%s", err, c.stopCalls, s.activeGameID)
+			if !errors.Is(err, ErrSessionChanged) || c.stopCalls != 0 || s.plays["kit"].gameID != "core-zx81" {
+				t.Fatalf("err=%v stops=%d kit=%+v", err, c.stopCalls, s.plays["kit"])
 			}
 		})
 	}
@@ -56,7 +57,9 @@ func TestStopExpectedChecksAfterLifecycleAdmission(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 	}
 	s.executionMu.Lock()
-	s.activePackageGeneration++
+	play := s.plays["kit"]
+	play.packageGeneration++
+	s.plays["kit"] = play
 	s.executionMu.Unlock()
 	release()
 	if err := <-done; !errors.Is(err, ErrSessionChanged) || c.stopCalls != 0 {
@@ -76,11 +79,11 @@ func TestStopExpectedKeepsOrdinaryStopSaveSemantics(t *testing.T) {
 			}
 			if fail {
 				var api *protocol.APIError
-				if !errors.As(err, &api) || api.Code != protocol.CodeSaveFailed || s.activeGameID != b.GameID {
-					t.Fatalf("err=%v game=%s", err, s.activeGameID)
+				if !errors.As(err, &api) || api.Code != protocol.CodeSaveFailed || s.plays["kit"].gameID != b.GameID {
+					t.Fatalf("err=%v kit=%+v", err, s.plays["kit"])
 				}
-			} else if err != nil || st.State != protocol.StateIdle || s.activeGameID != "" {
-				t.Fatalf("status=%+v err=%v game=%s", st, err, s.activeGameID)
+			} else if _, retained := s.plays["kit"]; err != nil || st.State != protocol.StateIdle || retained {
+				t.Fatalf("status=%+v err=%v kit=%+v", st, err, s.plays["kit"])
 			}
 		})
 	}
@@ -105,7 +108,9 @@ func TestStopExpectedPreparationWaitsForBindingAdmission(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 	}
 	s.executionMu.Lock()
-	s.activePackageGeneration++
+	play := s.plays["kit"]
+	play.packageGeneration++
+	s.plays["kit"] = play
 	s.executionMu.Unlock()
 	release()
 	if err := <-done; !errors.Is(err, ErrSessionChanged) {

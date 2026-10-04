@@ -253,8 +253,8 @@ func TestLaunchCoreEntryMarksRecoveryWhenSelectedMediaCleanupFails(t *testing.T)
 	if client.mediaCalls != 1 || client.stopCalls != 1 {
 		t.Fatalf("media calls=%d stop calls=%d, want one each", client.mediaCalls, client.stopCalls)
 	}
-	if s.packageRejection == nil || response.Status.LastError == nil || response.Status.LastError.Phase != "recovery" {
-		t.Fatalf("launch did not publish recovery marker: status=%+v rejection=%v", response.Status, s.packageRejection)
+	if s.plays[s.selectedTarget].packageRejection == nil || response.Status.LastError == nil || response.Status.LastError.Phase != "recovery" {
+		t.Fatalf("launch did not publish recovery marker: status=%+v rejection=%v", response.Status, s.plays[s.selectedTarget].packageRejection)
 	}
 	status, statusErr := s.Status(ctx)
 	if statusErr != nil || status.LastError == nil || status.LastError.Phase != "recovery" || status.GameID != nil || status.System != nil {
@@ -263,7 +263,7 @@ func TestLaunchCoreEntryMarksRecoveryWhenSelectedMediaCleanupFails(t *testing.T)
 
 	client.stopErr = nil
 	client.stopResult = protocol.Status{State: protocol.StateIdle}
-	if status, err = s.Stop(ctx); err != nil || status.State != protocol.StateIdle || s.packageRejection != nil {
-		t.Fatalf("recovery retry: %+v %v rejection=%v", status, err, s.packageRejection)
+	if status, err = s.Stop(ctx); err != nil || status.State != protocol.StateIdle || s.plays[s.selectedTarget].packageRejection != nil {
+		t.Fatalf("recovery retry: %+v %v rejection=%v", status, err, s.plays[s.selectedTarget].packageRejection)
 	}
 }

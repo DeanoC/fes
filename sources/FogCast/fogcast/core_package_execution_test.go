@@ -105,8 +105,8 @@ func TestLibraryCoreEntryLaunchRecordsNativePlayExecution(t *testing.T) {
 	if _, err := service.Launch(ctx, entry.GameID, nil); err != nil {
 		t.Fatal(err)
 	}
-	if service.activeExecution != ExecutionFPGANative {
-		t.Fatalf("activeExecution = %q, want %q", service.activeExecution, ExecutionFPGANative)
+	if service.activeExecution != "" || service.plays[service.selectedTarget].execution != ExecutionFPGANative {
+		t.Fatalf("root=%q kit=%+v", service.activeExecution, service.plays[service.selectedTarget])
 	}
 }
 
@@ -133,8 +133,8 @@ func TestDevelopmentCoreLoadKeepsFPGADevelopment(t *testing.T) {
 	if _, err := service.LoadCore(ctx, int64(len(raw)), bytes.NewReader(raw)); err != nil {
 		t.Fatal(err)
 	}
-	if service.activeExecution != ExecutionFPGADevelopment {
-		t.Fatalf("activeExecution = %q, want %q", service.activeExecution, ExecutionFPGADevelopment)
+	if service.activeExecution != "" || service.plays[service.selectedTarget].execution != ExecutionFPGADevelopment {
+		t.Fatalf("root=%q kit=%+v", service.activeExecution, service.plays[service.selectedTarget])
 	}
 }
 
@@ -154,8 +154,9 @@ func TestStatusReconstructsRecognizedABIPackagePlayAsNative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if service.activeExecution != ExecutionFPGANative || service.activePackageID != packageID || service.activePackageGeneration != 2 {
-		t.Fatalf("execution=%q package=%q gen=%d", service.activeExecution, service.activePackageID, service.activePackageGeneration)
+	play := service.plays[service.selectedTarget]
+	if service.activeExecution != "" || play.execution != ExecutionFPGANative || play.packageID != packageID || play.packageGeneration != 2 {
+		t.Fatalf("root=%q kit=%+v", service.activeExecution, play)
 	}
 	if status.Development != true {
 		t.Fatal("target development transport flag was lost")
@@ -178,8 +179,9 @@ func TestDevelopmentSessionStateReconstructsRecognizedABIPackagePlayAsNative(t *
 	if err != nil || development || execution != ExecutionFPGANative {
 		t.Fatalf("development=%t execution=%q err=%v", development, execution, err)
 	}
-	if service.activeExecution != ExecutionFPGANative || service.activePackageID != packageID {
-		t.Fatalf("execution=%q package=%q", service.activeExecution, service.activePackageID)
+	play := service.plays[service.selectedTarget]
+	if service.activeExecution != "" || play.execution != ExecutionFPGANative || play.packageID != packageID {
+		t.Fatalf("root=%q kit=%+v", service.activeExecution, play)
 	}
 }
 
@@ -214,8 +216,8 @@ func TestDevelopmentSessionStateReconstructsNonIdleDevelopmentWithoutLocalMarker
 			if err != nil || !development || execution != ExecutionFPGADevelopment {
 				t.Fatalf("development=%t execution=%q err=%v", development, execution, err)
 			}
-			if service.activeExecution != ExecutionFPGADevelopment {
-				t.Fatalf("activeExecution = %q", service.activeExecution)
+			if service.activeExecution != "" || service.plays[service.selectedTarget].execution != ExecutionFPGADevelopment {
+				t.Fatalf("root=%q kit=%+v", service.activeExecution, service.plays[service.selectedTarget])
 			}
 		})
 	}
@@ -250,8 +252,8 @@ func TestCatalogLaunchBlockedByNonIdleDevelopmentWithoutLocalMarker(t *testing.T
 			if client.stopCalls != 0 || client.nativeLaunchCalls != 0 {
 				t.Fatalf("stops=%d launches=%d", client.stopCalls, client.nativeLaunchCalls)
 			}
-			if service.activeExecution != ExecutionFPGADevelopment {
-				t.Fatalf("activeExecution = %q", service.activeExecution)
+			if service.activeExecution != "" || service.plays[service.selectedTarget].execution != ExecutionFPGADevelopment {
+				t.Fatalf("root=%q kit=%+v", service.activeExecution, service.plays[service.selectedTarget])
 			}
 		})
 	}

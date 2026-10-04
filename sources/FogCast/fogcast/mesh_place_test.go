@@ -890,8 +890,8 @@ func TestPlacementRebindKeepsClaimWhenExecutionStarts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if boundName != "spare" || service.activeExecution != ExecutionFPGANative {
-		t.Fatalf("bound %q execution %q", boundName, service.activeExecution)
+	if boundName != "spare" || service.plays["spare"].execution != ExecutionFPGANative {
+		t.Fatalf("bound %q kit play %+v", boundName, service.plays["spare"])
 	}
 	owned, _ := keeper.MeshKitLease()
 	if keeper.claims != 1 || keeper.releases != 0 || !owned {

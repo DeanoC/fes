@@ -85,8 +85,8 @@ func TestStatusAdoptDoesNotRecordLastSink(t *testing.T) {
 	if _, err := service.Status(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if service.activeExecution != ExecutionFPGANative {
-		t.Fatalf("execution = %q", service.activeExecution)
+	if service.plays[service.selectedTarget].execution != ExecutionFPGANative {
+		t.Fatalf("kit play = %+v", service.plays[service.selectedTarget])
 	}
 	if got := service.PlaceOptions().LastDisplaySink; got != "" {
 		t.Fatalf("status recorded last sink %q", got)
@@ -167,8 +167,8 @@ func TestFPGAPlayWithoutNodeIDLeavesLastSinkEmpty(t *testing.T) {
 	if _, err := service.Launch(ctx, entry.GameID, nil); err != nil {
 		t.Fatal(err)
 	}
-	if service.activeExecution != ExecutionFPGANative {
-		t.Fatalf("execution = %q", service.activeExecution)
+	if service.plays[service.selectedTarget].execution != ExecutionFPGANative {
+		t.Fatalf("kit play = %+v", service.plays[service.selectedTarget])
 	}
 	opts := service.PlaceOptions()
 	if opts.LastDisplaySink != "" || opts.DisplayPreference != "kit-den" {
@@ -240,8 +240,8 @@ func TestBoundPlaySinkFeedsPlace(t *testing.T) {
 	service.SetDisplayPreference("kit-den")
 	service.targetMu.Lock()
 	service.executionMu.Lock()
-	service.activeExecution = ExecutionFPGANative
 	service.activeTarget = "living"
+	service.plays["living"] = targetPlay{execution: ExecutionFPGANative}
 	service.notePlayDisplaySinkLocked()
 	service.executionMu.Unlock()
 	service.targetMu.Unlock()

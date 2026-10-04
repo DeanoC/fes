@@ -84,8 +84,7 @@ func TestPrepareTargetRejectsChangingActiveLegacyIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: "http://127.0.0.1:8182", Agent: "secret"}}, SelectedTarget: "kit"}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{}, WithConfigPath(path))
-	s.activeExecution = ExecutionFPGANative
-	s.activeTarget = "kit"
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative}
 	name := "kit"
 	err := s.PatchLibrarySettings(context.Background(), LibraryConfigPatch{PrepareTarget: &name})
 	var api *protocol.APIError

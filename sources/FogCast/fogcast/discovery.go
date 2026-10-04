@@ -421,15 +421,28 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 	}
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
+	invalidatedSelected := false
+	for name, candidate := range s.targetClients {
+		if candidate == client {
+			invalidatedSelected = invalidatedSelected || name == s.selectedTarget
+			delete(s.plays, name)
+			if s.boundKitTarget == name {
+				s.boundKitTarget = ""
+			}
+			if s.activeExecution != ExecutionHostOnly && s.activeTarget == name {
+				s.activeTarget = ""
+			}
+		}
+	}
 	if s.activeExecution != ExecutionHostOnly {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 	}
-	s.activePackageID, s.activePackageGeneration = "", 0
-	s.packageRejection = nil
 	// Forget this client's grant only. Another target's Soft-stop lease
 	// stays reachable for a later explicit release.
 	s.stoppedKitLeases = dropStoppedKitLease(s.stoppedKitLeases, client.KitLease())
-	s.selectedTargetReconciled = false
+	if invalidatedSelected {
+		s.selectedTargetReconciled = false
+	}
 }
 
 // MeshNodes returns the last collected advertisement inventory. The slice is

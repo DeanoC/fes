@@ -2802,6 +2802,13 @@ Older packages keep prelaunch controls and the separate host renderer keeps its
 live routes. The shared wire layout is in
 [mister-packages session display](../../mister-packages/docs/session-display.md).
 
+The session service records every kit's game, development load, package
+rejection, and recovery state in `plays[target]`. That per-kit record is the
+authority for kit status and lifecycle admission. Root `activeExecution` owns
+only the local `host_only` RetroArch game; kit loads and failures do not stop or
+replace it in non-cast mode, and kit-local cores execute directly on the kit.
+Scoped Stop and status use the corresponding kit record.
+
 The configured host capture sender is one physical pipeline with one RTP
 destination and sender token. Only its managed sender plus target cast path
 places host-only playback on a kit display; MJPEG preview and ffplay playback

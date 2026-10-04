@@ -21,13 +21,15 @@ This matrix records the #363 two-node regression coverage. Tests run from
 | Incompatible version or capabilities | Existing: `internal/meshplace:TestMeshMajorMismatchFailsClosed`, `internal/meshplace:TestWrongABIDoesNotSelect`, `internal/hostexec:TestRetroArchAdapterRejectsMissingOrMismatchedCore`, plus the new `fogcast:TestTwoNodeHostExecutorUnavailableKeepsKit` | A rejected backend reports unavailable and leaves the other node's play alone. |
 | Scoped input | Existing: `host:TestRemoteInputAttachSendDetachOwnsSessionAndRelease`, `internal/hostapi:TestLauncherStopIsScopedToPairedKit` | Kit remote input stays with kit sessions. Remote input to `host_only` is an M1 non-goal (see below). |
 
-The #363 finding was that root-owned host-only execution and kit-owned package
-plays share session bookkeeping even when they use separate executors. In
-non-cast mode a kit core/package launch retains the root host-only owner while
-publishing kit status in its per-target play record. In cast mode either launch
-direction replaces the other play because both use the kit display. Scoped Stop
-removes only the selected kit's play record, while root Stop still stops
-host-only execution.
+Ownership contract: `Service.plays[target]` is the sole source of truth for
+each kit's game, development load, rejected-package state, and recovery
+admission. Root `activeExecution` and its game identity belong only to the
+host-local `host_only` executor. Kit load success or failure never stops or
+replaces that host game in non-cast mode; kit-local cores run directly on the
+kit. Cast mode still makes the host sender claim the kit display, so a cast
+host launch and a kit launch replace one another. Scoped Stop, status projection,
+and recovery use the selected kit record; unscoped Stop addresses host-only
+play when it is active.
 
 ## Source and fixture provenance
 
