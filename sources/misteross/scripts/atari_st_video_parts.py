@@ -44,43 +44,80 @@ def shell_qsf(base: str) -> str:
 
 
 
+def _object(value, context: str) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError(f"malformed video {context}")
+    return value
+
+
+def _bits(value, width: int, context: str, *, wires=False) -> list:
+    if not isinstance(value, list) or len(value) != width or any(
+            not (type(bit) is int and bit >= 0) and
+            not (not wires and type(bit) is str and bit in ("0", "1")) for bit in value):
+        raise ValueError(f"video {context} must have {width} valid bits")
+    return value
+
+
+def _net_bits(netnames: dict, name: str, width: int, *, wires=False) -> list:
+    alias = _object(netnames.get(name), f"required net alias: {name}")
+    return _bits(alias.get("bits"), width, f"net {name}", wires=wires)
+
+
 def validate_boundary(top: dict, *, routed: bool) -> None:
+    top = _object(top, "top module")
+    cells = _object(top.get("cells"), "cells")
+    netnames = _object(top.get("netnames"), "netnames")
+    for name, cell in cells.items():
+        if not isinstance(name, str):
+            raise ValueError("malformed video shell cell name")
+        cell = _object(cell, f"shell cell: {name}")
+        _object(cell.get("attributes", {}), f"shell attributes: {name}")
+        _object(cell.get("connections", {}), f"shell connections: {name}")
     key = "NEXTPNR_BEL" if routed else "BEL"
-    clock = top["netnames"][CLOCK]["bits"]
+    clock = _net_bits(netnames, CLOCK, 1, wires=True)
     # Routed JSON omits unused bus aliases; the pinned FFs remain the physical
     # interface and are the compiler's input-bit lookup source.
-    request = ([top["cells"][PREFIX + f"plug_request_ff_{i}"]["connections"]["Q"][0]
-                for i in range(REQUEST_BITS)] if routed else
-               top["netnames"]["video_plug_request"]["bits"])
-    response = ([top["cells"][PREFIX + f"plug_response_ff_{i}"]["connections"]["Q"][0]
-                 for i in range(RESPONSE_BITS)] if routed else
-                top["netnames"]["video_response"]["bits"])
-    if len(clock) != 1 or len(request) != REQUEST_BITS or len(response) != RESPONSE_BITS:
-        raise ValueError("video boundary clock or width changed")
+    # Synthesis must preserve these exact canonical aliases. A hierarchy alias
+    # may refer to an earlier technology-mapping net, so it cannot substitute
+    # for the word physically driving the boundary FFs.
+    if not routed:
+        source = _net_bits(netnames, "video_request", REQUEST_BITS)
+        request = _net_bits(netnames, "video_plug_request", REQUEST_BITS, wires=True)
+        response = _net_bits(netnames, "video_response", RESPONSE_BITS, wires=True)
     for name, bel in boundary_bels().items():
-        cell = top["cells"].get(PREFIX + name)
-        if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or \
-                cell.get("attributes", {}).get(key) != bel or cell["connections"].get("CLK") != clock:
+        cell = _object(cells.get(PREFIX + name), f"required boundary cell: {name}")
+        attributes = _object(cell.get("attributes"), f"boundary attributes: {name}")
+        connections = _object(cell.get("connections"), f"boundary connections: {name}")
+        cell_clock = _bits(connections.get("CLK"), 1, f"boundary CLK: {name}", wires=True)
+        datain = _bits(connections.get("DATAIN"), 1, f"boundary DATAIN: {name}")
+        if cell.get("type") != "MISTRAL_FF" or attributes.get(key) != bel or \
+                cell_clock != clock:
             raise ValueError(f"video boundary placement/clock changed: {name}")
+        q = _bits(connections.get("Q"), 1, f"boundary Q: {name}", wires=True)
         if name.startswith("plug_request_ff_"):
             bit = int(name.removeprefix("plug_request_ff_"))
-            if cell["connections"].get("Q") != [request[bit]]:
+            if not routed and q != [request[bit]]:
                 raise ValueError("video source boundary changed")
-            if not routed and cell["connections"].get("DATAIN") != [top["netnames"]["video_request"]["bits"][bit]]:
+            if not routed and datain != [source[bit]]:
                 raise ValueError("video source boundary input changed")
         elif name.startswith("plug_response_ff_"):
             bit = int(name.removeprefix("plug_response_ff_"))
-            if cell["connections"].get("Q") != [response[bit]]:
+            if not routed and q != [response[bit]]:
                 raise ValueError("video response boundary changed")
-            if not routed and cell["connections"].get("DATAIN") != ["0"]:
+            if not routed and datain != ["0"]:
                 raise ValueError("vacant video response input changed")
     if routed:
         boundary = {PREFIX + name: bel for name, bel in boundary_bels().items()}
         allowed = set(boundary) | coleco_expansion.boundary_route_through_cells(top, boundary)
         coleco_expansion.validate_clock_anchors(top, {
             name: bel for name, bel in boundary.items() if name.startswith(PREFIX + "clock_coverage_ff_")})
-        for name, cell in top["cells"].items():
-            pieces = cell.get("attributes", {}).get(key, "").split(".")
+        for name, cell in cells.items():
+            cell = _object(cell, f"shell cell: {name}")
+            attributes = _object(cell.get("attributes", {}), f"shell attributes: {name}")
+            placement = attributes.get(key, "")
+            if not isinstance(placement, str):
+                raise ValueError(f"malformed video shell placement: {name}")
+            pieces = placement.split(".")
             if len(pieces) >= 3 and pieces[1].isdigit() and pieces[2].isdigit() and \
                     24 <= int(pieces[1]) <= 28 and 41 <= int(pieces[2]) <= 58 and name not in allowed:
                 raise ValueError(f"video reservation contains shell cell: {name}")
@@ -89,29 +126,37 @@ def validate_boundary(top: dict, *, routed: bool) -> None:
 def prepare_scaffold(source: bytes) -> bytes:
     """Expose only video under the compiler's packed-port adapter names."""
     design = json.loads(source)
-    top = design["modules"]["top"]
+    modules = _object(_object(design, "scaffold design").get("modules"), "scaffold modules")
+    top = _object(modules.get("top"), "scaffold top module")
     validate_boundary(top, routed=True)
     cells = top["cells"]
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen ST shell already exposes canonical plug cells")
     # Repair only the split second system PLL output, without moving/removing
     # any of the 119 CPU socket FFs or their route-through buffers.
-    pll = cells["system_clock.pll"]
-    if pll["type"] != "altera_pll" or set(pll["connections"]) != {"outclk", "refclk", "locked"}:
+    pll = _object(cells.get("system_clock.pll"), "system PLL")
+    connections = _object(pll.get("connections"), "system PLL connections")
+    attributes = _object(pll.get("attributes"), "system PLL attributes")
+    directions = _object(pll.get("port_directions"), "system PLL port directions")
+    if pll.get("type") != "altera_pll" or set(connections) != {"outclk", "refclk", "locked"}:
         raise ValueError("ST system PLL connection contract changed")
-    mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
+    encoded = attributes.get("FES_PINMAP_V1")
+    if not isinstance(encoded, str):
+        raise ValueError("ST system PLL frozen pin map is missing")
+    mapping = _object(json.loads(bytes.fromhex(encoded).decode()), "system PLL pin map")
+    pins = _object(mapping.get("pins"), "system PLL mapped pins")
     aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
-    if mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
+    if type(mapping.get("count")) is not int or mapping["count"] != 6 or len(pins) != 6 or \
+            any(pins.get(k) != v for k, v in aliases.items()):
         raise ValueError("ST system PLL frozen pin map changed")
-    output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
-    clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
+    output1 = _net_bits(top["netnames"], "system_clock.pll_outclk_1", 1, wires=True)
+    clock1 = _net_bits(top["netnames"], "system_clock.clocks[1]", 1, wires=True)
     buffers = [c for c in cells.values() if c.get("type") == "MISTRAL_CLKBUF" and
-               c.get("connections", {}).get("Q") == clock1]
-    if not isinstance(output1, list) or len(output1) != 1 or len(buffers) != 1 or \
-            buffers[0]["connections"].get("A") != output1:
+               _object(c.get("connections"), "clock buffer connections").get("Q") == clock1]
+    if len(buffers) != 1 or buffers[0]["connections"].get("A") != output1:
         raise ValueError("ST frozen audio PLL net changed")
     pll["connections"]["outclk[1]"] = output1
-    pll["port_directions"]["outclk[1]"] = "output"
+    directions["outclk[1]"] = "output"
     del mapping["pins"]["outclk[0]"]
     mapping["count"] = len(mapping["pins"])
     pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()

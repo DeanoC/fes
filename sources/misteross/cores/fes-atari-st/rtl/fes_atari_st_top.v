@@ -160,7 +160,8 @@ module top #(
     wire video_req, video_ready;
     wire [18:1] video_addr;
     wire [15:0] video_rdata;
-    wire [31:0] video_request, debug_underruns, debug_frame;
+    (* keep *) wire [31:0] video_request;
+    wire [31:0] debug_underruns, debug_frame;
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(pixel_clk), .reset_sys(cold_reset), .reset_pixel(pixel_reset),
         .hold(machine_reset), .screen_base(screen_base), .resolution(resolution), .palette(palette),
@@ -170,7 +171,7 @@ module top #(
     reg [31:0] video_request_q = 0;
     reg [27:0] video_response_q = 0;
     (* keep *) wire [31:0] video_plug_request;
-    wire [27:0] video_response;
+    (* keep *) wire [27:0] video_response;
     st_video_socket video_socket (
         .clock(pixel_clk), .request(video_request), .response(video_response),
         .plug_request(video_plug_request), .plug_response(28'd0)

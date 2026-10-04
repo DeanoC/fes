@@ -132,11 +132,66 @@ class Boundary(unittest.TestCase):
         with self.assertRaises(ValueError):layout.validate_boundary(top,routed=True)
         top=fixture(True);top["cells"][layout.PREFIX+"plug_request_ff_0$ROUTETHRU"]["connections"]["Q"]=[50000]
         with self.assertRaises(ValueError):layout.validate_boundary(top,routed=True)
+    def test_synthesis_requires_exact_canonical_aliases(self):
+        for name in ('pixel_clk','video_request','video_plug_request','video_response'):
+            with self.subTest(name=name):
+                top=fixture()
+                removed=top['netnames'].pop(name)
+                # Even an otherwise identical hierarchy alias cannot replace
+                # the explicitly retained canonical socket wiring contract.
+                top['netnames']['video.renderer.'+name]=removed
+                with self.assertRaisesRegex(ValueError,'required net alias: '+name):
+                    layout.validate_boundary(top,routed=False)
+        top=fixture()
+        top['netnames']['video_request']['bits'][31]='0'
+        top['cells'][layout.PREFIX+'plug_request_ff_31']['connections']['DATAIN']=['0']
+        layout.validate_boundary(top,routed=False)
+    def test_malformed_boundary_shapes_raise_typed_value_errors(self):
+        bad_tops=(None,{}, {'cells':[],'netnames':{}}, {'cells':{},'netnames':[]})
+        for routed in (False,True):
+            for top in bad_tops:
+                with self.subTest(routed=routed,top=top):
+                    with self.assertRaises(ValueError):layout.validate_boundary(top,routed=routed)
+            for name in ('plug_request_ff_0','plug_response_ff_27','clock_coverage_ff_32'):
+                top=fixture(routed)
+                del top['cells'][layout.PREFIX+name]
+                with self.assertRaisesRegex(ValueError,'required boundary cell'):
+                    layout.validate_boundary(top,routed=routed)
+            for field,value in (('attributes',None),('connections',[])):
+                top=fixture(routed);top['cells'][layout.PREFIX+'plug_request_ff_0'][field]=value
+                with self.assertRaises(ValueError):layout.validate_boundary(top,routed=routed)
+            for q in (None,[],[1,2],['0'],[True],['x']):
+                top=fixture(routed);top['cells'][layout.PREFIX+'plug_request_ff_0']['connections']['Q']=q
+                with self.assertRaises(ValueError):layout.validate_boundary(top,routed=routed)
+            for port in ('CLK','DATAIN'):
+                for bits in (None,[],[1,2],[True],['x']):
+                    top=fixture(routed);top['cells'][layout.PREFIX+'plug_request_ff_0']['connections'][port]=bits
+                    with self.assertRaises(ValueError):layout.validate_boundary(top,routed=routed)
+        for name,width in (('pixel_clk',1),('video_request',32),('video_plug_request',32),('video_response',28)):
+            for bits in (None,0,[],[1]*(width+1),['x']*width,[True]*width):
+                top=fixture();top['netnames'][name]['bits']=bits
+                with self.assertRaises(ValueError):layout.validate_boundary(top,routed=False)
+        for name in layout.boundary_bels():
+            top=fixture();top['cells'][layout.PREFIX+name]['connections']['CLK']=[999]
+            with self.assertRaises(ValueError):layout.validate_boundary(top,routed=False)
+    def test_each_source_and_response_bit_is_checked(self):
+        for kind,count,alias,port in (('request',32,'video_request','DATAIN'),('request',32,'video_plug_request','Q'),('response',28,'video_response','Q')):
+            for bit in range(count):
+                with self.subTest(kind=kind,alias=alias,bit=bit):
+                    top=fixture();top['cells'][layout.PREFIX+f'plug_{kind}_ff_{bit}']['connections'][port]=[70000+bit]
+                    with self.assertRaises(ValueError):layout.validate_boundary(top,routed=False)
     def test_pll_or_canonical_alias_mutations_fail_closed(self):
         top=fixture(True);top["cells"]["plug_addr_ff_0"]={}
         with self.assertRaises(ValueError):layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode())
         top=fixture(True);top["cells"]["system_clock.pll"]["attributes"]["FES_PINMAP_V1"]='00'
         with self.assertRaises((ValueError,UnicodeDecodeError)):layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode())
+        for design in ({},{'modules':[]},{'modules':{'top':None}}):
+            with self.assertRaises(ValueError):layout.prepare_scaffold(json.dumps(design).encode())
+        top=fixture(True);del top['cells']['system_clock.pll']
+        with self.assertRaises(ValueError):layout.prepare_scaffold(json.dumps({'modules':{'top':top}}).encode())
+        for value in (None,False,'', '00', json.dumps({'count':6,'pins':None}).encode().hex()):
+            top=fixture(True);top['cells']['system_clock.pll']['attributes']['FES_PINMAP_V1']=value
+            with self.assertRaises(ValueError):layout.prepare_scaffold(json.dumps({'modules':{'top':top}}).encode())
 
 class Publication(unittest.TestCase):
     def test_closed_package_profile(self):

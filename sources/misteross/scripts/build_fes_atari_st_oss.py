@@ -433,6 +433,7 @@ def validate_synth_evidence(output: Path) -> dict:
     rom_map.validate_routed_rom(placement, FIRMWARE_LANE_ROWS, expected_async_read=0)
     validate_firmware_ports(synthesis["modules"][TOP]["cells"])
     validate_cache_placements(synthesis["modules"][TOP]["cells"], routed=False)
+    validate_sector_memory(synthesis["modules"][TOP]["cells"])
     atari_st_video_parts.validate_boundary(synthesis["modules"][TOP], routed=False)
     # Microcode and video-cache memories are counted from real synthesis.
     for name in FORBIDDEN_RESOURCES:
@@ -468,6 +469,45 @@ def validate_cache_placements(cells: dict, *, routed: bool) -> dict:
         if caches[name].get("type") != "MISTRAL_M10K" or caches[name].get("attributes", {}).get(attribute) != bel:
             raise BuildError(f"ST video cache {name} must occupy {bel}")
     return dict(CACHE_BELS)
+
+
+def validate_sector_memory(cells: dict) -> dict:
+    """The writable sector stage must be one synchronous RAM on the system clock."""
+    name = "machine.system.io.floppy.writer.sector.0.0.0"
+    memories = {key: cell for key, cell in cells.items()
+                if key.startswith("machine.system.io.floppy.writer.sector")}
+    if set(memories) != {name} or memories[name].get("type") != "MISTRAL_M10K":
+        raise BuildError("ST writable sector stage must infer exactly one M10K, with no array flip-flops")
+    cell = memories[name]
+    pins, parameters = cell.get("connections", {}), cell.get("parameters", {})
+    for key, expected in (("CFG_ABITS", 9), ("CFG_DBITS", 20),
+                          ("CFG_BYTE_ENABLE", 1), ("CFG_DUAL_CLOCK", 1)):
+        value = parameters.get(key)
+        if isinstance(value, str) and re.fullmatch("[01]+", value):
+            value = int(value, 2)
+        if type(value) is not int or value != expected:
+            raise BuildError(f"ST sector RAM has incorrect {key}")
+    clock = cells.get("machine.rom.lane0", {}).get("connections", {}).get("CLK1")
+    if (not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int or
+            pins.get("CLK1") != clock or pins.get("CLK2") != clock):
+        raise BuildError("ST sector RAM read and write must share the live firmware system clock")
+    for port in ("A1ADDR", "B1ADDR"):
+        value = pins.get(port, [])
+        if len(value) != 9 or value[8:] != ["0"] or any(type(bit) is not int for bit in value[:8]):
+            raise BuildError("ST sector RAM must address exactly 256 words")
+    for port in ("A1DATA", "B1DATA"):
+        value = pins.get(port, [])
+        if len(value) != 20 or any(type(bit) is not int for bit in value[:16]):
+            raise BuildError("ST sector RAM must have a live 16-bit data path")
+    if pins["A1DATA"][16:] != ["0"] * 4:
+        raise BuildError("ST sector RAM unused write data must be zero")
+    for port in ("A1EN", "B1EN"):
+        value = pins.get(port, [])
+        if len(value) != 1 or type(value[0]) is not int:
+            raise BuildError("ST sector RAM needs live synchronous read and write enables")
+    if pins.get("A1BE") != pins["A1EN"] * 2:
+        raise BuildError("ST sector RAM byte enables must follow its write enable")
+    return {"status": "pass", "cell": name, "words": 256, "bits_per_word": 16}
 
 
 def m10k_configuration_bounds(database: Mapping[str, bytes]) -> tuple[int, int, int, int]:
@@ -560,6 +600,7 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) 
     sockets = validate_routed_shell(routed)
     cache_placements = validate_cache_placements(routed["modules"][TOP]["cells"], routed=True)
     ram_configuration = validate_m10k_configurations(routed, ram_database)
+    sector_memory = validate_sector_memory(routed["modules"][TOP]["cells"])
     atari_st_video_parts.validate_boundary(routed["modules"][TOP], routed=True)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
@@ -588,6 +629,7 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) 
                          "map": atari_st_video_parts.MAP, "cram": list(atari_st_video_parts.CRAM),
                          "pinned_boundary_cells": len(atari_st_video_parts.boundary_bels())},
         "video_cache_placements": cache_placements,
+        "floppy_sector_memory": sector_memory,
         "ram_socket_configuration": ram_configuration,
         "synthesis_cells": synth["synthesis_cells"],
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},

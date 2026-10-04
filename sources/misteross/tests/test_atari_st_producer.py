@@ -1,5 +1,6 @@
 """ST compiler boundary, physical connector and synchronous firmware checks."""
 import hashlib
+import copy
 import json
 from pathlib import Path
 import re
@@ -217,6 +218,35 @@ class AtariSTProducerTests(unittest.TestCase):
                 cells['video.cache0.0.0.0']['type'] = 'MISTRAL_FF'
                 with self.assertRaisesRegex(BuildError, 'exactly the two'):
                     st.validate_cache_placements(cells, routed=routed)
+
+    def test_sector_stage_rejects_flip_flops_and_invalid_memory_ports(self):
+        name = 'machine.system.io.floppy.writer.sector.0.0.0'
+        pins = {'A1ADDR': list(range(10, 18)) + ['0'],
+                'B1ADDR': list(range(20, 28)) + ['0'],
+                'A1DATA': list(range(30, 46)) + ['0'] * 4,
+                'B1DATA': list(range(50, 70)), 'A1EN': [71],
+                'B1EN': [72], 'A1BE': [71, 71], 'CLK1': [73], 'CLK2': [73]}
+        cells = {name: {'type': 'MISTRAL_M10K', 'connections': pins,
+                        'parameters': {'CFG_ABITS': f'{9:032b}', 'CFG_DBITS': f'{20:032b}',
+                                       'CFG_BYTE_ENABLE': f'{1:032b}', 'CFG_DUAL_CLOCK': f'{1:032b}'}},
+                 'machine.rom.lane0': {'connections': {'CLK1': [73]}}}
+        self.assertEqual(st.validate_sector_memory(cells)['words'], 256)
+        mutations = [('type', 'MISTRAL_FF'), ('CLK2', [74]), ('B1EN', ['1']),
+                     ('A1BE', [71, '1']), ('A1ADDR', list(range(10, 19))),
+                     ('A1DATA', list(range(30, 50))), ('B1DATA', ['x'] * 20),
+                     ('CFG_DBITS', f'{16:032b}')]
+        for key, value in mutations:
+            with self.subTest(key=key):
+                changed = copy.deepcopy(cells)
+                target = (changed[name] if key == 'type' else
+                          changed[name]['parameters'] if key.startswith('CFG_') else
+                          changed[name]['connections'])
+                target[key] = value
+                with self.assertRaises(BuildError):
+                    st.validate_sector_memory(changed)
+        for changed in ({}, cells | {name + '_MISTRAL_FF_Q': {'type': 'MISTRAL_FF'}}):
+            with self.assertRaisesRegex(BuildError, 'exactly one M10K'):
+                st.validate_sector_memory(changed)
 
     def test_all_ram_configuration_guard_catches_ram_outside_lab_reservation(self):
         database = ram_database()

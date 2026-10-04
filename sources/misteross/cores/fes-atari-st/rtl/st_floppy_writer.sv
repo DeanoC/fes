@@ -36,13 +36,18 @@ module st_floppy_writer (
     assign media_req = state == COMMIT && !cold_reset;
     assign media_addr = disk_base + {11'd0, word_index};
     assign media_data = commit_word;
-    // Unreset synchronous read: load the first word at the collection edge,
-    // and each following word in the mandatory disk request gap. No memory
-    // contents are observable until the entire sector has been collected.
+    // A single unreset synchronous read port and separate unreset write port
+    // keep the sector as RAM. The final collection edge reads word zero while
+    // writing word 255; each disk gap reads the next committed word.
+    wire [7:0] sector_read_addr = state == COLLECT ? 8'd0 : word_index;
+    wire sector_read_enable = (state == COLLECT && word_index == 255 && dma_ready && job_req)
+                            || state == DISK_GAP;
     always @(posedge clk) begin
-        if (state == COLLECT && word_index == 255 && dma_ready && job_req)
-            commit_word <= sector[0];
-        else if (state == DISK_GAP) commit_word <= sector[word_index];
+        if (!cold_reset && state == COLLECT && dma_ready && job_req)
+            sector[word_index] <= dma_data;
+    end
+    always @(posedge clk) begin
+        if (sector_read_enable) commit_word <= sector[sector_read_addr];
     end
     always @(posedge clk) begin
         job_ready <= 1'b0;
@@ -73,7 +78,6 @@ module st_floppy_writer (
                 COLLECT: begin
                     if (!job_req) state <= DONE;
                     else if (dma_ready) begin
-                        sector[word_index] <= dma_data;
                         if (word_index == 255) begin
                             word_index <= 0;
                             state <= COMMIT;
