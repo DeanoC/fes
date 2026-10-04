@@ -1,0 +1,190 @@
+{
+  "budget": 10,
+  "critexp": 5,
+  "mode": "first-pass",
+  "ranking": [
+    {
+      "critexp": 5,
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 75.28987121582031,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 56.65080261230469,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 272.8512878417969,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s6-w2000-c5/route.log",
+      "passing": true,
+      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s6-w2000-c5",
+      "seed": 6,
+      "sum_ratio": 24.303391258778728,
+      "weight": 2000,
+      "worst_ratio": 1.0140040618139652
+    },
+    {
+      "critexp": 5,
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 71.27584075927734,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 60.51071548461914,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 234.35667419433594,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s5-w2000-c5/route.log",
+      "passing": false,
+      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s5-w2000-c5",
+      "seed": 5,
+      "sum_ratio": 21.190548279211804,
+      "weight": 2000,
+      "worst_ratio": 0.9599430955584635
+    },
+    {
+      "critexp": 5,
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 69.74473571777344,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 53.2623176574707,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 243.8429718017578,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s3-w2000-c5/route.log",
+      "passing": false,
+      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s3-w2000-c5",
+      "seed": 3,
+      "sum_ratio": 21.803129919690594,
+      "weight": 2000,
+      "worst_ratio": 0.9393221713082627
+    },
+    {
+      "critexp": 5,
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 67.4354248046875,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 63.81620788574219,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 234.96240234375,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s2-w2000-c5/route.log",
+      "passing": false,
+      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s2-w2000-c5",
+      "seed": 2,
+      "sum_ratio": 21.2514132805123,
+      "weight": 2000,
+      "worst_ratio": 0.9082203695911625
+    },
+    {
+      "critexp": 5,
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 67.22236633300781,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 65.97611999511719,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 223.11468505859375,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s1-w2000-c5/route.log",
+      "passing": false,
+      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s1-w2000-c5",
+      "seed": 1,
+      "sum_ratio": 20.325734584279843,
+      "weight": 2000,
+      "worst_ratio": 0.905350897878722
+    },
+    {
+      "critexp": 5,
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 66.07638549804688,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 61.21824645996094,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 227.4795379638672,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s4-w2000-c5/route.log",
+      "passing": false,
+      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s4-w2000-c5",
+      "seed": 4,
+      "sum_ratio": 20.574408473189226,
+      "weight": 2000,
+      "worst_ratio": 0.8899168268324273
+    }
+  ],
+  "seeds": [
+    4,
+    5,
+    2,
+    1,
+    3,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "weights": [
+    2000
+  ],
+  "winner": {
+    "critexp": 5,
+    "fmax": {
+      "pixel_clk": {
+        "achieved": 75.28987121582031,
+        "constraint": 74.25006866455078
+      },
+      "system_clock.clocks[0]": {
+        "achieved": 56.65080261230469,
+        "constraint": 52.22477340698242
+      },
+      "system_clock.clocks[1]": {
+        "achieved": 272.8512878417969,
+        "constraint": 12.288031578063965
+      }
+    },
+    "log": "<misteross>/build/fes-atari-st-oss/qor-search/s6-w2000-c5/route.log",
+    "passing": true,
+    "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s6-w2000-c5",
+    "seed": 6,
+    "sum_ratio": 24.303391258778728,
+    "weight": 2000,
+    "worst_ratio": 1.0140040618139652
+  }
+}
