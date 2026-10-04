@@ -34,9 +34,9 @@ sealed package ID is
 `7d213b4148a1ab659c61bd398c809c703d0c8a592309b7aa47782e0b1ab5e20a`. Resources
 are 12,780 COMB, 6,082 FF, 201 M10K and 2,361 BUF. The producer's
 RAM-footprint, socket-boundary, clock and seal gates all passed (`status: pass`).
-The [build summary](2026-10-04-atari-st-nextpnr-head/build-summary.json) and
+The [build summary](2026-10-04-atari-st-nextpnr-head/build-summary.json), [package manifest](2026-10-04-atari-st-nextpnr-head/package-manifest.toml), [package binding](2026-10-04-atari-st-nextpnr-head/package-binding.json) and
 [seed ranking](2026-10-04-atari-st-nextpnr-head/qor-ranking.json) are retained
-with host paths redacted.
+with host path prefixes replaced by `<worktree>`, `<toolchain-cache>` and `<home>` placeholders, so every key stays distinct.
 
 Compared with `655f3833` (seed 4 at 72.11 MHz failed, seed 5 at 74.61 MHz
 passed), the head improves system and audio slack and routes each seed in about

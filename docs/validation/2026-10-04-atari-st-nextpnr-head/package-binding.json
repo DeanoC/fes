@@ -1,0 +1,11 @@
+{
+  "package_id": "7d213b4148a1ab659c61bd398c809c703d0c8a592309b7aa47782e0b1ab5e20a",
+  "source": "fd45b2be7",
+  "producer_output": "build/packages/7d213b4148a1ab659c61bd398c809c703d0c8a592309b7aa47782e0b1ab5e20a",
+  "members_sha256": {
+    "core.rbf": "d9ec1614430ca144ab72ea1bdbdf2caa9907d69ad14a429706bc34d55ef82e78",
+    "manifest.toml": "ff114a9f4ecf6fdcd0c1b41397dccd438919b20cf5fad49e72e410345e15ec33",
+    "rom-map.json": "007682c7f97de313dca92ab62c4d7250790bd47f61dcbedb8636d6ab2361442b"
+  },
+  "note": "Package ID is the producer's sealed output directory name; package-manifest.toml is the retained member, byte-identical (sha256 above)."
+}

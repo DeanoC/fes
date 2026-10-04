@@ -19,9 +19,9 @@
           "constraint": 12.288031578063965
         }
       },
-      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s6-w2000-c5/route.log",
+      "log": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s6-w2000-c5/route.log",
       "passing": true,
-      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s6-w2000-c5",
+      "run_dir": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s6-w2000-c5",
       "seed": 6,
       "sum_ratio": 24.303391258778728,
       "weight": 2000,
@@ -43,9 +43,9 @@
           "constraint": 12.288031578063965
         }
       },
-      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s5-w2000-c5/route.log",
+      "log": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s5-w2000-c5/route.log",
       "passing": false,
-      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s5-w2000-c5",
+      "run_dir": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s5-w2000-c5",
       "seed": 5,
       "sum_ratio": 21.190548279211804,
       "weight": 2000,
@@ -67,9 +67,9 @@
           "constraint": 12.288031578063965
         }
       },
-      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s3-w2000-c5/route.log",
+      "log": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s3-w2000-c5/route.log",
       "passing": false,
-      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s3-w2000-c5",
+      "run_dir": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s3-w2000-c5",
       "seed": 3,
       "sum_ratio": 21.803129919690594,
       "weight": 2000,
@@ -91,9 +91,9 @@
           "constraint": 12.288031578063965
         }
       },
-      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s2-w2000-c5/route.log",
+      "log": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s2-w2000-c5/route.log",
       "passing": false,
-      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s2-w2000-c5",
+      "run_dir": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s2-w2000-c5",
       "seed": 2,
       "sum_ratio": 21.2514132805123,
       "weight": 2000,
@@ -115,9 +115,9 @@
           "constraint": 12.288031578063965
         }
       },
-      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s1-w2000-c5/route.log",
+      "log": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s1-w2000-c5/route.log",
       "passing": false,
-      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s1-w2000-c5",
+      "run_dir": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s1-w2000-c5",
       "seed": 1,
       "sum_ratio": 20.325734584279843,
       "weight": 2000,
@@ -139,9 +139,9 @@
           "constraint": 12.288031578063965
         }
       },
-      "log": "<misteross>/build/fes-atari-st-oss/qor-search/s4-w2000-c5/route.log",
+      "log": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s4-w2000-c5/route.log",
       "passing": false,
-      "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s4-w2000-c5",
+      "run_dir": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s4-w2000-c5",
       "seed": 4,
       "sum_ratio": 20.574408473189226,
       "weight": 2000,
@@ -179,9 +179,9 @@
         "constraint": 12.288031578063965
       }
     },
-    "log": "<misteross>/build/fes-atari-st-oss/qor-search/s6-w2000-c5/route.log",
+    "log": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s6-w2000-c5/route.log",
     "passing": true,
-    "run_dir": "<misteross>/build/fes-atari-st-oss/qor-search/s6-w2000-c5",
+    "run_dir": "<worktree>/sources/misteross/build/fes-atari-st-oss/qor-search/s6-w2000-c5",
     "seed": 6,
     "sum_ratio": 24.303391258778728,
     "weight": 2000,
