@@ -45,7 +45,9 @@ TOOL_INPUTS = (
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
                  "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
                  "scaffold.json", "cart.qsf", "cram-diff.json")
-PLACER_SEED = 3
+# Default placement; an explicit bounded seed selects another placement for a
+# frozen shell.
+PLACER_SEED = 4
 SLOT_CLOCK = "system_clock.clocks[0]"
 REQUIRED_CLOCKS_MHZ = {"system_clock.clocks[0]": 52.224, "pixel_clk": 74.25,
                        "system_clock.clocks[1]": 12.288}
@@ -80,6 +82,7 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     branches stay frozen for the card to extend inside its fence).
     """
     design = json.loads(source)
+    shell_recipe.validate_routed_shell(design)
     top = design["modules"]["top"]
     cells = top["cells"]
     pll = cells["system_clock.pll"]
@@ -118,8 +121,10 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
                 raise ValueError(f"frozen slot boundary clock changed: {socket.instance}{name}")
     for bit in range(atari_st_slot.REQUEST_BITS):
         cells[f"plug_addr_ff_{bit}"] = cells.pop(f"{target.instance}plug_request_ff_{bit}")
+        cells[f"plug_addr_ff_{bit}$ROUTETHRU"] = cells.pop(f"{target.instance}plug_request_ff_{bit}$ROUTETHRU")
     for bit in range(atari_st_slot.RESPONSE_BITS):
         cells[f"plug_rdata_ff_{bit}"] = cells.pop(f"{target.instance}plug_response_ff_{bit}")
+        cells[f"plug_rdata_ff_{bit}$ROUTETHRU"] = cells.pop(f"{target.instance}plug_response_ff_{bit}$ROUTETHRU")
     for name in [n for n in cells if n.startswith(f"{target.instance}clock_coverage_ff_")]:
         del cells[name]
     return (json.dumps(design, separators=(",", ":")) + "\n").encode()
@@ -186,7 +191,9 @@ def card_manifest(package, slot: int, cart: bytes, recipe_sha: str, revision: st
 
 
 def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu: int, *,
-          cache_root: Path | None = None) -> Path:
+          cache_root: Path | None = None, seed: int = PLACER_SEED) -> Path:
+    if type(seed) is not int or not 1 <= seed <= 10:
+        raise ValueError("card placer seed must be an integer from 1 to 10")
     root, shell = root.resolve(), shell.resolve()
     inputs = card_inputs(card)
     socket = socket_for(slot)
@@ -209,7 +216,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     clocks = cart_clock_constraints(root)
     recipe = {"inputs": closure, "tools": identities, "card": card, "slot": slot,
               "region": socket.region, "cram_region": list(socket.cram), "map": atari_st_slot.LAYOUT,
-              "slot_clock": SLOT_CLOCK, "placer_seed": PLACER_SEED,
+              "slot_clock": SLOT_CLOCK, "placer_seed": seed,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/atari-st-cards" / recipe_sha
@@ -233,7 +240,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
          "--freq", "52.224", "--fes-scaffold", "--fes-cart", str(output / "cart.json"),
          "--fes-cart-region", socket.region, "--fes-slot-clock", SLOT_CLOCK,
          "--fes-cram-region", ",".join(str(v) for v in socket.cram),
-         "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu", "--placer-heap-timingweight", "300",
+         "--no-pack", "--seed", str(seed), "--router", "gpu", "--placer-heap-timingweight", "300",
          "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
@@ -305,10 +312,12 @@ if __name__ == "__main__":
     parser.add_argument("--card", default="probe", choices=sorted(CARDS))
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--seed", type=int, choices=range(1, 11), default=PLACER_SEED,
+                        help="bounded card placement seed, recorded in the build identity")
     args = parser.parse_args()
     try:
         print(build(args.root, args.shell, args.package, args.slot, args.card, args.gpu,
-                    cache_root=args.cache_root))
+                    cache_root=args.cache_root, seed=args.seed))
     except (ValueError, OSError) as exc:
         print(f"build-atari-st-slot-card: {exc}", file=sys.stderr)
         raise SystemExit(1)

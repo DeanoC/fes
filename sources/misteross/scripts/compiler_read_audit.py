@@ -59,7 +59,10 @@ def verify_traces(directory, source_root):
         if not lines or not re.fullmatch(r'\+\+\+ (exited with \d+|killed by SIG[A-Z0-9]+(?: \(core dumped\))?) \+\+\+', lines[-1]):
             raise ReadAuditError('compiler trace lacks process completion: ' + ascii(lines[-1] if lines else '<empty>')[:320])
         for line in lines[:-1]:
-            if not line or re.fullmatch(r'--- SIG[A-Z0-9]+ \{.*\} ---', line):
+            # strace emits a separate group-stop notification when cancellation
+            # stops a multithreaded tracee before killing its private group.
+            # It records no file access; completion and every open still matter.
+            if not line or line == '--- stopped by SIGSTOP ---' or re.fullmatch(r'--- SIG[A-Z0-9]+ \{.*\} ---', line):
                 continue
             if 'io_uring_setup(' in line or 'open_by_handle_at(' in line:
                 raise ReadAuditError('compiler used an unauditable file-open mechanism')

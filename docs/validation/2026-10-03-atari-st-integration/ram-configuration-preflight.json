@@ -1,0 +1,35 @@
+{
+  "actual_v5_counterexample": "M10K configuration footprint video.cache0.0.0.0 at MISTRAL_M10K.26.19.0 overlaps slot 1 CRAM",
+  "mistral_source_commit": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+  "producer_sha256": "904ab375ee2fa3a04b7616071e06ce45020646e5a61af3fbd50fd64d97004693",
+  "purpose": "Private preflight; changed routed BEL metadata is proposed-placement geometry only, not routed timing evidence",
+  "v5_build_id": "213a77e611bc251202363f0f6afe4c09",
+  "v5_routed_sha256": "44e0f4e170c9c2f79670ee56b55794badea6a7be05dc53979c0f38207a376566",
+  "v5_selected_source": "81ae4badec6f13d9a724457d559849887cf148b4",
+  "v5_synth_sha256": "037c6ad2c8335f696b1c2156f8b25c57b90d7b83306e4b6f10d78f30a72cdb36",
+  "yosys_preflight": {
+    "all_other_module_data_identical": true,
+    "changed_attributes": {
+      "video.cache0.0.0.0": "MISTRAL_M10K.26.20.0",
+      "video.cache1.0.0.0": "MISTRAL_M10K.26.21.0"
+    },
+    "status": "pass"
+  },
+  "yosys_source_commit": "886afa63953e97407153e9f4aae25fcedb639696",
+  "proposed_all_ram_geometry": {
+    "checked_cells": 201,
+    "configuration_bounds_offsets": [
+      0,
+      0,
+      259,
+      86
+    ],
+    "init_bits_per_cell": 10240,
+    "mode_control_bits_per_cell": 126,
+    "policy": "m10k-bmux-configuration-bounds-v1",
+    "routing_coverage": "RAM-local BM_CRAM only; routing PIPs use the frozen shell/card containment contract",
+    "status": "pass"
+  },
+  "private_full_proof_sha256": "f2cd3efdbdddd7ca48bc21c024772dc67ad47fd79f82626e071f19f73c94f1a6",
+  "private_full_proof": "out/validation/atari-st/cache-placement-preflight/proof.json"
+}

@@ -55,11 +55,14 @@ ST_TOOL_COMMITS = {
     "nextpnr": "655f38334b8a1ba798cc05cf3744b6a897119b5d",
     "yosys": "886afa63953e97407153e9f4aae25fcedb639696",
 }
-# First passing route wins; the order is part of the build identity. This
-# core has not been sealed, so the search starts with the Apple II order.
-PLACER_SEEDS = (5, 4, 2, 1, 3, 6, 7, 8, 9, 10)
+# First passing route wins; the order is part of the build identity. Seed 4
+# completed the initial diagnostic route; seed 5 exceeded its old placement bound.
+PLACER_SEEDS = (4, 5, 2, 1, 3, 6, 7, 8, 9, 10)
 PLACER_WEIGHT = 2000
 PLACER_CRITICALITY_EXPONENT = 5
+# The initial 22.5k-cell route takes about nine minutes before timing repair.
+# Bound each Atari attempt separately from smaller cores' shared search default.
+PLACER_TIMEOUT_SECONDS = 1800
 PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
@@ -71,6 +74,12 @@ FIRMWARE_LANE_ROWS = (tuple((5, row) for row in (*range(1, 15), *range(32, 56), 
                       tuple((38, row) for row in range(1, 67)))
 FIRMWARE_ID = "atari-st-firmware"
 FIRMWARE_BYTES = 196608
+# RAM tile coordinates differ from LAB coordinates. M10K(26,19)'s INIT and
+# control bits occupy the socket CRAM even though its BEL is beyond LAB row18.
+CACHE_BELS = {"video.cache0.0.0.0": "MISTRAL_M10K.26.20.0",
+              "video.cache1.0.0.0": "MISTRAL_M10K.26.21.0"}
+RAM_GUARD_RESERVATION = "ram_guard 26 19 26 19"
+RAM_CONFIG_POLICY = "m10k-bmux-configuration-bounds-v1"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF = "cores/fes-atari-st/constraints/constraints-oss.qsf"
 SDC = "cores/fes-atari-st/constraints/clocks-oss.sdc"
@@ -238,6 +247,7 @@ def create_build_record(
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "placer_heap_timingweight": PLACER_WEIGHT,
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
+            "placer_timeout_seconds": PLACER_TIMEOUT_SECONDS,
             "toolchain_lock": ST_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, ST_TOOLCHAIN_LOCK)),
             "package_format": 3,
@@ -251,6 +261,9 @@ def create_build_record(
             "cpu_adapter_policy": CPU_ADAPTER_POLICY,
             "cpu_adapter_sha256": hashlib.sha256(adapted_cpu_source(root)).hexdigest(),
             "cpu_rom_clock_policy": "disabled-write-port-clock-v1",
+            "video_cache_bels": json.dumps(CACHE_BELS, sort_keys=True, separators=(",", ":")),
+            "ram_guard_reservation": RAM_GUARD_RESERVATION,
+            "ram_socket_configuration_policy": RAM_CONFIG_POLICY,
             "expansion_layout": atari_st_slot.LAYOUT,
             "expansion_sockets": ",".join(s.placement for s in atari_st_slot.SOCKETS),
         },
@@ -266,6 +279,7 @@ def socket_qsf(base: str) -> str:
     lines = [base.rstrip()]
     for socket in atari_st_slot.SOCKETS:
         lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{socket.placement}"')
+    lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{RAM_GUARD_RESERVATION}"')
     return "\n".join(lines) + "\n"
 
 
@@ -295,13 +309,15 @@ def build_commands(root: Path, output: Path, build_id: str,
     sources = " ".join("fx68k-slang.sv" if name == f"{CPU_VENDOR}/fx68k.sv"
                        else f"../../{name}" for name in RTL_SOURCES if name not in verilog_sources)
     megafunctions = tools["yosys"].parents[1] / "share/yosys/intel_alm/common/megafunction_bb.v"
+    cache_constraints = " ".join(f'setattr -set BEL "{bel}" {TOP}/{name};'
+                                  for name, bel in CACHE_BELS.items())
     program = (
         f"read_verilog -sv -I ../../cores/fes-common/generated {legacy}; "
         "read_slang --single-unit --ignore-timing --empty-blackboxes "
         "-I ../../cores/fes-common/generated --top st_system --top st_memory "
         f"--top st_video_adapter --top st_media_writer {megafunctions} {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} -set VIDEO_SCANLINES {int(video_output == 'scanlines')} {TOP}; "
-        f"synth_intel_alm -nolutram -nodsp -top {TOP}; stat; write_json synth.json"
+        f"synth_intel_alm -nolutram -nodsp -top {TOP}; {cache_constraints} stat; write_json synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
     route = (
@@ -317,8 +333,19 @@ def build_commands(root: Path, output: Path, build_id: str,
     return yosys, route
 
 
+def boundary_route_buffer_bel(flip_flop_bel: str) -> str:
+    """Dedicated input LUT beside a boundary FF in this pinned Cyclone V layout."""
+    match = re.fullmatch(r"MISTRAL_FF\.(24|28)\.(\d+)\.(\d+)", flip_flop_bel)
+    if match is None or int(match[3]) % 6 not in (2, 4):
+        raise BuildError("unsupported slot boundary flip-flop site")
+    column, row, index = map(int, match.groups())
+    family = "MISTRAL_COMB" if column == 24 else "MISTRAL_MCOMB"
+    lut_index = index // 6 * 6 + (1 if index % 6 == 4 else 0)
+    return f"{family}.{column}.{row}.{lut_index}"
+
+
 def validate_routed_shell(routed: dict) -> dict:
-    """Every socket holds only its pinned boundary flip-flops."""
+    """Every socket holds its pinned boundary FFs and dedicated input buffers."""
     cells = routed.get("modules", {}).get(TOP, {}).get("cells", {})
     expected = {}
     for socket in atari_st_slot.SOCKETS:
@@ -329,17 +356,36 @@ def validate_routed_shell(routed: dict) -> dict:
         if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or \
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
+    buffers = set()
+    outputs = set()
+    for name, bel in expected.items():
+        buffer_name = name + "$ROUTETHRU"
+        cell = cells.get(buffer_name)
+        pins = cell.get("connections", {}) if isinstance(cell, dict) else {}
+        input_bits, output_bits = pins.get("A"), pins.get("Q")
+        if (not isinstance(cell, dict) or cell.get("type") != "MISTRAL_BUF" or
+                cell.get("attributes", {}).get("NEXTPNR_BEL") != boundary_route_buffer_bel(bel) or
+                set(pins) != {"A", "Q"} or
+                cell.get("port_directions") != {"A": "input", "Q": "output"} or
+                not isinstance(input_bits, list) or len(input_bits) != 1 or type(input_bits[0]) is not int or
+                not isinstance(output_bits, list) or len(output_bits) != 1 or type(output_bits[0]) is not int or
+                input_bits == output_bits or
+                output_bits != cells[name].get("connections", {}).get("DATAIN") or
+                output_bits[0] in outputs):
+            raise BuildError(f"slot boundary route buffer {buffer_name} changed")
+        outputs.add(output_bits[0])
+        buffers.add(buffer_name)
     for name, cell in cells.items():
         bel = cell.get("attributes", {}).get("NEXTPNR_BEL", "") if isinstance(cell, dict) else ""
         match = BEL_RE.match(bel)
-        if not match or name in expected:
+        if not match or name in expected or name in buffers:
             continue
         x, y = int(match.group(1)), int(match.group(2))
         for socket in atari_st_slot.SOCKETS:
             if atari_st_slot.COLUMN <= x <= atari_st_slot.COLUMN + 4 and socket.first_row <= y <= socket.last_row:
                 raise BuildError(f"shell cell {name} is inside the slot {socket.slot} socket")
     return {"layout": atari_st_slot.LAYOUT, "sockets": [s.slot for s in atari_st_slot.SOCKETS],
-            "pinned_boundary_cells": len(expected)}
+            "pinned_boundary_cells": len(expected), "pinned_boundary_route_buffers": len(buffers)}
 
 
 def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:
@@ -378,6 +424,7 @@ def validate_synth_evidence(output: Path) -> dict:
             attributes["NEXTPNR_BEL"] = attributes["BEL"]
     rom_map.validate_routed_rom(placement, FIRMWARE_LANE_ROWS, expected_async_read=0)
     validate_firmware_ports(synthesis["modules"][TOP]["cells"])
+    validate_cache_placements(synthesis["modules"][TOP]["cells"], routed=False)
     # Microcode and video-cache memories are counted from real synthesis.
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
@@ -401,13 +448,106 @@ def validate_firmware_ports(cells: dict) -> None:
         raise BuildError("firmware lanes must share the system read clock")
 
 
-def validate_build_evidence(output: Path) -> dict:
+def validate_cache_placements(cells: dict, *, routed: bool) -> dict:
+    """Require the two actual inferred caches at the selected safe RAM sites."""
+    attribute = "NEXTPNR_BEL" if routed else "BEL"
+    caches = {name: cell for name, cell in cells.items()
+              if name.startswith("video.cache") and cell.get("type") in ("MISTRAL_M10K", "MISTRAL_M10K_TDP")}
+    if set(caches) != set(CACHE_BELS):
+        raise BuildError("ST video must infer exactly the two selected M10K line caches")
+    for name, bel in CACHE_BELS.items():
+        if caches[name].get("type") != "MISTRAL_M10K" or caches[name].get("attributes", {}).get(attribute) != bel:
+            raise BuildError(f"ST video cache {name} must occupy {bel}")
+    return dict(CACHE_BELS)
+
+
+def m10k_configuration_bounds(database: Mapping[str, bytes]) -> tuple[int, int, int, int]:
+    """Bound every known M10K BM_CRAM bit, including INIT and all controls.
+
+    The pinned table generates bm_m10k: 256x40 INIT bits and 75 global fields
+    containing 126 mode/control/port-selector bits. All use pos2bit plus their
+    table (dx,dy). The bounding rectangle conservatively includes its holes.
+    Routing PIPs are outside this query's coverage.
+    """
+    if set(database) != set(ROM_DATABASE_SHA256) or any(
+            hashlib.sha256(database[name]).hexdigest() != digest
+            for name, digest in ROM_DATABASE_SHA256.items()):
+        raise BuildError("M10K configuration geometry differs from pinned Mistral database")
+    text = database["data/m10k-mux.txt"].decode()
+    init = {point for word in rom_map.parse_ram_offsets(text) for point in word}
+    controls = set()
+    fields = 0
+    for line in text.splitlines():
+        tokens = line.split()
+        if not tokens or tokens[0] != "g":
+            continue
+        fields += 1
+        count = int(tokens[2].split(":")[1]) if ":" in tokens[2] else 1
+        if len(tokens) != 3 + count:
+            raise BuildError("M10K global configuration field cardinality changed")
+        for token in tokens[3:]:
+            if not re.fullmatch(r"[0-9]+\.[0-9]+", token):
+                raise BuildError("M10K global configuration coordinate changed")
+            point = tuple(map(int, token.split(".")))
+            if point in controls:
+                raise BuildError("duplicate M10K global configuration coordinate")
+            controls.add(point)
+    if fields != 75 or len(init) != 10240 or len(controls) != 126 or init & controls:
+        raise BuildError("M10K INIT/control configuration cardinality changed")
+    points = init | controls
+    if any(not 0 <= x < 300 or not 0 <= y < 86 for x, y in points):
+        raise BuildError("M10K configuration coordinate is outside its tile")
+    die = database["libmistral/cvd-sx120f.cc"].decode()
+    columns = tuple(map(int, re.findall(r"\d+", rom_map._section(die, "x to bit x"))))
+    if columns != rom_map.SX120F.x_to_bx or not re.search(r"7605\s*,\s*7024\s*,\s*// cram size", die):
+        raise BuildError("M10K die configuration geometry differs from codec")
+    if not re.search(r"y\s*=\s*2\s*\+\s*86\s*\*\s*(?:pos2y\(pos\)|pos\.y\(\))",
+                     database["libmistral/cyclonev.h"].decode()):
+        raise BuildError("M10K configuration row geometry changed")
+    return min(x for x, _ in points), min(y for _, y in points), \
+        max(x for x, _ in points) + 1, max(y for _, y in points) + 1
+
+
+def validate_m10k_configurations(routed: dict, database: Mapping[str, bytes]) -> dict:
+    """Reject any ordinary RAM's local configuration inside a socket CRAM."""
+    dx0, dy0, dx1, dy1 = m10k_configuration_bounds(database)
+    kinds = re.findall(r"T_\w+", rom_map._section(database["libmistral/cvd-sx120f.cc"].decode(), "column types"))
+    cells = routed.get("modules", {}).get(TOP, {}).get("cells", {})
+    checked = {}
+    for name, cell in cells.items():
+        if cell.get("type") not in ("MISTRAL_M10K", "MISTRAL_M10K_TDP"):
+            continue
+        bel = cell.get("attributes", {}).get("NEXTPNR_BEL", "")
+        match = re.fullmatch(r"MISTRAL_M10K\.(\d+)\.(\d+)\.0", bel)
+        if not match:
+            raise BuildError(f"M10K configuration BEL is missing or invalid: {name}")
+        column, row = map(int, match.groups())
+        if column >= len(kinds) or kinds[column] != "T_M10K" or not 1 <= row <= 80:
+            raise BuildError(f"M10K configuration BEL is outside the selected die: {name} at {bel}")
+        xbase, ybase = rom_map.SX120F.x_to_bx[column], 2 + 86 * row
+        bounds = (xbase + dx0, ybase + dy0, xbase + dx1, ybase + dy1)
+        for socket in atari_st_slot.SOCKETS:
+            sx0, sy0, sx1, sy1 = socket.cram
+            if bounds[0] < sx1 and sx0 < bounds[2] and bounds[1] < sy1 and sy0 < bounds[3]:
+                raise BuildError(f"M10K configuration footprint {name} at {bel} overlaps slot {socket.slot} CRAM")
+        checked[name] = {"bel": bel, "configuration_bounds": list(bounds)}
+    if not checked:
+        raise BuildError("routed ST design has no M10K configuration evidence")
+    return {"status": "pass", "policy": RAM_CONFIG_POLICY, "checked_cells": len(checked),
+            "init_bits_per_cell": 10240, "mode_control_bits_per_cell": 126,
+            "configuration_bounds_offsets": [dx0, dy0, dx1, dy1], "cells": checked,
+            "routing_coverage": "RAM-local BM_CRAM only; routing PIPs use the frozen shell/card containment contract"}
+
+
+def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth = validate_synth_evidence(output)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
+    cache_placements = validate_cache_placements(routed["modules"][TOP]["cells"], routed=True)
+    ram_configuration = validate_m10k_configurations(routed, ram_database)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
@@ -431,6 +571,8 @@ def validate_build_evidence(output: Path) -> dict:
                            "status": "pass"} for label, row in rows.items()} | {"status": "pass"},
         "resources": resources,
         "sockets": sockets,
+        "video_cache_placements": cache_placements,
+        "ram_socket_configuration": ram_configuration,
         "synthesis_cells": synth["synthesis_cells"],
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
     }
@@ -521,12 +663,13 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
                 critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
                 mode="first-pass", extra=("--router", ROUTER),
+                timeout=PLACER_TIMEOUT_SECONDS,
                 required=PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
                 env=invocation.env, audit_source_root=root,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output)
+        evidence = validate_build_evidence(output, ram_database=database)
         evidence["cpu_rom_clock_repairs"] = repaired
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")

@@ -32,8 +32,8 @@ module st_ikbd #(
     reg [7:0] fifo [0:FIFO_DEPTH-1];
     reg [5:0] head, tail;
     reg [6:0] count;
-    reg [127:0] emitted_keys;
-    reg [127:0] wanted_keys;
+    reg [127:1] emitted_keys;
+    reg [127:1] wanted_keys;
     reg [7:0] command;
     reg [2:0] remaining, parameter_index;
     reg [7:0] parameters [0:5];
@@ -148,22 +148,49 @@ module st_ikbd #(
     integer i;
     reg key_found;
     reg [6:0] key_index;
+    reg key_pressed;
+    // Each node carries {changed, scancode, pressed}. Selecting the left
+    // changed child gives the lowest scancode in seven mux levels, and
+    // carries its make/break state without a subsequent 128-way read.
+    generate
+        for (genvar level=0;level<8;level=level+1) begin : key_level
+            wire [8:0] node [0:(128 >> level)-1];
+            for (genvar n=0;n<(128 >> level);n=n+1) begin : key_node
+                if (level == 0) begin : leaf
+                    if (n == 0) begin : ignored
+                        assign node[n]=9'd0;
+                    end else begin : changed
+                        assign node[n]={wanted_keys[n] != emitted_keys[n],7'(n),wanted_keys[n]};
+                    end
+                end else begin : branch
+                    assign node[n]=key_level[level-1].node[2*n][8] ?
+                        key_level[level-1].node[2*n] : key_level[level-1].node[2*n+1];
+                end
+            end
+        end
+    endgenerate
+    wire [8:0] key_selection = key_level[7].node[0];
     always @* begin
         wanted_keys=0;
         for (integer k=0;k<136;k=k+1)
             if (keyboard[k] && hid_scancode(k) != 0) wanted_keys[hid_scancode(k)]=1;
-        key_found=0; key_index=0;
-        // Modifiers are sent before the character from one host state update.
-        if (wanted_keys['h1d] != emitted_keys['h1d]) begin key_found=1; key_index='h1d; end
-        else if (wanted_keys['h2a] != emitted_keys['h2a]) begin key_found=1; key_index='h2a; end
-        else if (wanted_keys['h36] != emitted_keys['h36]) begin key_found=1; key_index='h36; end
-        else if (wanted_keys['h38] != emitted_keys['h38]) begin key_found=1; key_index='h38; end
-        else for (integer k=1;k<128;k=k+1)
-            if (!key_found && wanted_keys[k] != emitted_keys[k]) begin
-                key_found=1; key_index=7'(k);
-            end
         for (integer p=0;p<6;p=p+1) args[p]=parameters[p];
         if (remaining != 0 && parameter_index < 6) args[parameter_index]=command_data;
+    end
+    always @* begin
+        key_found=key_selection[8];
+        key_index=key_found ? key_selection[7:1] : 7'd0;
+        key_pressed=key_found && key_selection[0];
+        // Modifiers are sent before the character from one host state update.
+        if (wanted_keys['h1d] != emitted_keys['h1d]) begin
+            key_found=1; key_index='h1d; key_pressed=wanted_keys['h1d];
+        end else if (wanted_keys['h2a] != emitted_keys['h2a]) begin
+            key_found=1; key_index='h2a; key_pressed=wanted_keys['h2a];
+        end else if (wanted_keys['h36] != emitted_keys['h36]) begin
+            key_found=1; key_index='h36; key_pressed=wanted_keys['h36];
+        end else if (wanted_keys['h38] != emitted_keys['h38]) begin
+            key_found=1; key_index='h38; key_pressed=wanted_keys['h38];
+        end
     end
     wire command_reply = command_data == 8'h0d || command_data == 8'h16 ||
                          command_data == 8'h1c || command_data == 8'h87 ||
@@ -244,7 +271,7 @@ module st_ikbd #(
         end else if (!command_accept && count <= 56) begin
             if (key_found && joystick_mode != 2 && joystick_mode != 3) begin
                 packet_length=1; key_packet=1;
-                packet[0]={!wanted_keys[key_index],key_index};
+                packet[0]={!key_pressed,key_index};
             end else if (mouse_active && mouse_mode == 0 && !mouse_accept &&
                          (motion_due || current_buttons != emitted_buttons)) begin
                 packet_length=3; mouse_packet=1;
@@ -257,6 +284,41 @@ module st_ikbd #(
             end
         end
     end
+
+    // A packet has at most eight bytes, so every low-address bank receives
+    // at most one write. Rotate the packet once per bank, then decode its
+    // three-bit row locally instead of arbitrating eight writes at every byte.
+    // The reads and packet accounting retain their original clock edges.
+    generate
+        for (genvar bank=0;bank<8;bank=bank+1) begin : fifo_bank
+            wire [2:0] packet_index = 3'(bank)-tail[2:0];
+            wire row_carry;
+            if (bank == 7) begin : last_bank
+                assign row_carry=1'b0;
+            end else begin : wrapped_bank
+                assign row_carry=3'(bank) < tail[2:0];
+            end
+            wire [2:0] write_row = tail[5:3]+3'(row_carry);
+            wire bank_write = packet_length > {1'b0,packet_index};
+            wire [7:0] write_data = packet[packet_index];
+            for (genvar row=0;row<8;row=row+1) begin : fifo_row
+                if (bank == 0 && row == 0) begin : reset_reply
+                    always @(posedge clk) begin
+                        if (!reset) begin
+                            if (soft_reset) fifo[0]<=8'hf1;
+                            else if (bank_write && write_row == 3'(row))
+                                fifo[8*row+bank]<=write_data;
+                        end
+                    end
+                end else begin : packet_byte
+                    always @(posedge clk) begin
+                        if (!reset && bank_write && write_row == 3'(row))
+                            fifo[8*row+bank]<=write_data;
+                    end
+                end
+            end
+        end
+    endgenerate
 
     always @(posedge clk) begin
         if (reset) begin
@@ -294,11 +356,9 @@ module st_ikbd #(
                 end
             end
             if (pop) head<=head+1'b1;
-            for (i=0;i<8;i=i+1)
-                if (i < packet_length) fifo[6'(tail+i)]<=packet[i];
             tail <= tail+6'(packet_length);
             count <= count+7'(packet_length)-7'(pop);
-            if (key_packet) emitted_keys[key_index]<=wanted_keys[key_index];
+            if (key_packet) emitted_keys[key_index]<=key_pressed;
             if (joystick0_packet) emitted_joystick0<=joystick0;
             if (joystick1_packet) emitted_joystick1<=joystick1;
             if (mouse_packet) begin
@@ -370,7 +430,7 @@ module st_ikbd #(
             end
             if (soft_reset) begin
                 // Flush old packets and report firmware version 1. Clock stays.
-                fifo[0]<=8'hf1; head<=0; tail<=1; count<=1; emitted_keys<=0;
+                head<=0; tail<=1; count<=1; emitted_keys<=0;
                 paused<=0; mouse_enabled<=1; mouse_mode<=0; joystick_mode<=0; y_bottom<=0; port0_joystick<=0;
                 threshold_x<=1; threshold_y<=1; scale_x<=1; scale_y<=1; button_action<=0;
                 relative_x<=0; relative_y<=0; position_x<=0; position_y<=0;

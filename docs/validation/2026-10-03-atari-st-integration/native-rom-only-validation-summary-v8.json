@@ -1,0 +1,55 @@
+{
+  "build_id": "08e5244db9fd6800e834ee9d1ba6724e",
+  "card_producer_member_sha256": {},
+  "classification": "host-only exact sealed-artifact link/readback/admission; no hardware acceptance",
+  "mistral_binary_sha256": "f126e1e0594b8451af2ffb8774ad43281851bab748a8809c1fba79f504db7b89",
+  "negative_admission": {
+    "rom_enters_unselected_socket": "ROM destination overlaps slot 1 socket"
+  },
+  "package_id": "7642c270e3e3251badfbea0dfc30537e4818a91d3a85c2f520a60b65b4b91dcc",
+  "prepared_consumer_manifest_sha256": "d84a966b55dfbcd7886ff0728b5512b1e4ab17d575a797a4ce57bab80fb1ae4b",
+  "producer_member_sha256": {
+    "build-inputs.json": "c4a8da6298a05b1b93ce65bb73a1ad0c68445901aafe82273e93b170c103f93c",
+    "build-summary.json": "78d07a3e700dda964126a91637c735abca35294c78ce045b29835b4edb0b59de",
+    "core.rbf": "532629471d39dcc7dd5b5dd0bc86703ebe41a79c3af0372679378f05b1ecfb4a",
+    "manifest.toml": "20f4d0c987b5f1d8b986984098b4066eb03452ca43739c1e9d8e7ca1f2657f3e",
+    "nextpnr.log": "69a87b9ee29a92a1541fdbbc678775325bd7edbd302bfc23bb2a0c4229415725",
+    "rom-map.json": "5dc1ae622cb081bc61c38e5b40cac9d2d49f4e657d01141c8fdcf4d0f782056c",
+    "routed.json": "b59509096265cedb19c8ef2a51c14f3fe301dd79c26720f5b3ca99df8faf0212",
+    "socket.qsf": "79159cd0618cfc90980897462e7fc9f17349d4484291f932b1bec1fdacb3185e",
+    "synth.json": "117094ed55db7c90fe2b6130b7e2b41f3dec636bd437bdf702b1b8f5a72e48c6",
+    "timing.json": "6fe1ab9dc146e907990a688d520eda77205a9f9302a00ca3eaf80b7c55630950"
+  },
+  "producer_routed_sha256": "b59509096265cedb19c8ef2a51c14f3fe301dd79c26720f5b3ca99df8faf0212",
+  "qualification_scope": "ROM only; card qualification pending",
+  "result": "PASS",
+  "rom_map_sha256": "5dc1ae622cb081bc61c38e5b40cac9d2d49f4e657d01141c8fdcf4d0f782056c",
+  "rom_only_delta": {
+    "allowed_init_bits": 1966080,
+    "compression_mode_preserved": true,
+    "expansion_fence_writes": 0,
+    "framing_note": "Derived frame CRCs are rewritten by Go; CRAM payload comparison excludes wire framing.",
+    "header_preserved": true,
+    "non_init_payload_bits_changed": 0,
+    "oram_pram_header_preserved": true,
+    "payload_init_bits_changed": 564978
+  },
+  "rom_only_readback": {
+    "byte_exact_stock": true,
+    "bytes": 196608,
+    "lanes": 192,
+    "padding_bits_zero": true,
+    "sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc"
+  },
+  "rom_programmed_sha256": "bfaffbdf5e9cfaa594039be7c2208993d5f05e3b3621efdd498bfb148d1071c0",
+  "rom_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+  "sealed_rbf_sha256": "532629471d39dcc7dd5b5dd0bc86703ebe41a79c3af0372679378f05b1ecfb4a",
+  "source_checkpoint": "5bee8b995672d38ee4cd52a2851cfe93e608c76a",
+  "strict_card_producer_verified": false,
+  "strict_native_producer_verified": true,
+  "tool_identities": {
+    "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=f126e1e0594b8451af2ffb8774ad43281851bab748a8809c1fba79f504db7b89",
+    "nextpnr-mistral": "commit=655f38334b8a1ba798cc05cf3744b6a897119b5d; sha256=8f2a93c75ebdc7de141a6344dbf3174bf6c950c3cd4c41a4632578aa5f7d8121; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=886afa63953e97407153e9f4aae25fcedb639696; sha256=899c4e8c9fddb163bccaee8d40acbc65da77479d8f5efcc258142e563ef876fc"
+  }
+}

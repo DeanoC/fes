@@ -1,0 +1,86 @@
+{
+  "all_clock_constraints_met": {
+    "pixel_clk": {
+      "achieved": 74.61016082763672,
+      "constraint": 74.25006866455078
+    },
+    "system_clock.clocks[0]": {
+      "achieved": 57.81349182128906,
+      "constraint": 52.22477340698242
+    },
+    "system_clock.clocks[1]": {
+      "achieved": 192.60400390625,
+      "constraint": 12.288031578063965
+    }
+  },
+  "boundary_ffs_and_input_buffers_verified": 119,
+  "build_id": "08e5244db9fd6800e834ee9d1ba6724e",
+  "cache_configuration_bounds": {
+    "video.cache0.0.0.0": {
+      "bel": "MISTRAL_M10K.26.20.0",
+      "configuration_bounds": [
+        2096,
+        1722,
+        2355,
+        1808
+      ]
+    },
+    "video.cache1.0.0.0": {
+      "bel": "MISTRAL_M10K.26.21.0",
+      "configuration_bounds": [
+        2096,
+        1808,
+        2355,
+        1894
+      ]
+    }
+  },
+  "classification": "Read-only exact sealed native artifact audit; no hardware acceptance",
+  "execution_record_bound_to_build_id": true,
+  "execution_record_sha256": "8ede7c3e9707159e4570ee62e0e8370005b77caaddc1651fd7ee9679af78cd4b",
+  "firmware_init_map_bits_verified": 1966080,
+  "firmware_lanes_verified": 192,
+  "normal_hip_route_and_default_timing_repair_observed": true,
+  "ordinary_cells_in_reserved_socket": 0,
+  "producer_members_sha256": {
+    "build-inputs.json": "c4a8da6298a05b1b93ce65bb73a1ad0c68445901aafe82273e93b170c103f93c",
+    "build-summary.json": "78d07a3e700dda964126a91637c735abca35294c78ce045b29835b4edb0b59de",
+    "core.rbf": "532629471d39dcc7dd5b5dd0bc86703ebe41a79c3af0372679378f05b1ecfb4a",
+    "manifest.toml": "20f4d0c987b5f1d8b986984098b4066eb03452ca43739c1e9d8e7ca1f2657f3e",
+    "nextpnr.log": "69a87b9ee29a92a1541fdbbc678775325bd7edbd302bfc23bb2a0c4229415725",
+    "qor-ranking.json": "1c6b23980dee999dccafc3629ec576a88c745f46fe9acf7b1b110f8c3fd820f4",
+    "rom-map.json": "5dc1ae622cb081bc61c38e5b40cac9d2d49f4e657d01141c8fdcf4d0f782056c",
+    "routed.json": "b59509096265cedb19c8ef2a51c14f3fe301dd79c26720f5b3ca99df8faf0212",
+    "socket.qsf": "79159cd0618cfc90980897462e7fc9f17349d4484291f932b1bec1fdacb3185e",
+    "synth.json": "117094ed55db7c90fe2b6130b7e2b41f3dec636bd437bdf702b1b8f5a72e48c6",
+    "timing.json": "6fe1ab9dc146e907990a688d520eda77205a9f9302a00ca3eaf80b7c55630950"
+  },
+  "ram_coverage_note": "All RAM-local BM_CRAM controls/INIT are outside the socket; routing containment belongs to the frozen shell/card contract.",
+  "ram_init_bits_per_cell": 10240,
+  "ram_local_bmux_cells_checked": 201,
+  "ram_mode_control_bits_per_cell": 126,
+  "ram_offset_bounds": [
+    0,
+    0,
+    259,
+    86
+  ],
+  "result": "PASS",
+  "reviewed_harness_note": "INIT-only and independent Mistral ROM reconstruction are qualified separately by frozen consumer harness.",
+  "selected_winner": {
+    "bytes_match_sealed_files": true,
+    "critexp": 5,
+    "seed": 5,
+    "weight": 2000
+  },
+  "source_and_build_record_bound": true,
+  "source_before_after_unchanged": true,
+  "source_commit": "5bee8b995672d38ee4cd52a2851cfe93e608c76a",
+  "source_record_inputs_verified": 295,
+  "timing_allow_fail_note": "QoR collection may retain failing candidates; actual sealed winner and independent final gates must all pass. No failed timing is waived.",
+  "tool_identities": {
+    "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=f126e1e0594b8451af2ffb8774ad43281851bab748a8809c1fba79f504db7b89",
+    "nextpnr-mistral": "commit=655f38334b8a1ba798cc05cf3744b6a897119b5d; sha256=8f2a93c75ebdc7de141a6344dbf3174bf6c950c3cd4c41a4632578aa5f7d8121; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=886afa63953e97407153e9f4aae25fcedb639696; sha256=899c4e8c9fddb163bccaee8d40acbc65da77479d8f5efcc258142e563ef876fc"
+  }
+}

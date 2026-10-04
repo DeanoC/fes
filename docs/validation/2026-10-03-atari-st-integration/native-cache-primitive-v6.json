@@ -1,0 +1,498 @@
+{
+  "classification": "Read-only bridge from actual native-v6 cache primitives to already executed isolated native-v5 primitive test; no new build/route/hardware or whole-board native boot claim",
+  "selected_source_identity": {
+    "selected_source_commit": "1ca8a4666b2ecb8e9381004cc529c82d0a22b936",
+    "build_id": "0215391c11bfbf1662b311865214f8e3",
+    "frozen_boot_source_commit": "b9711bcdfd8606f3f9861670cb680d577b58ea7e",
+    "frozen_boot_source_identity_sha256": "338a6e6f00cd71e3c6efa877d194b0f032eb1339be5a32debbe30ac966fec287",
+    "source_sha256": {
+      "sources/misteross/cores/fes-atari-st/rtl/st_acia.sv": "c2cd7123a452cdbfa7adc0963adbe1abe0d35a55de97a6e841beefd89a8f1758",
+      "sources/misteross/cores/fes-atari-st/rtl/st_cpu.sv": "62217d8b01eed459050e55132b56ebd6a7d171d3bd2c9db72fb630db21d7dfbc",
+      "sources/misteross/cores/fes-atari-st/rtl/st_floppy.sv": "9e6bc53341973070ca59c0e93313fc73682aadad7394ff70134997c632b24510",
+      "sources/misteross/cores/fes-atari-st/rtl/st_ikbd.sv": "310ac098380364b2bfcfed5c686366c309708d52f0b50da46c7466f3cd812e83",
+      "sources/misteross/cores/fes-atari-st/rtl/st_io.sv": "18c358c5da598c5760579b47716986e9e91c9bc3e6d12da951ec15490dcbe977",
+      "sources/misteross/cores/fes-atari-st/rtl/st_machine.sv": "d68741a4070aa439560af384341828fdbf080dadfb79900d98df6e2bd7b5be6e",
+      "sources/misteross/cores/fes-atari-st/rtl/st_memory.sv": "50b1405d7bf96cf170fbba97c562cf4fa886e11cd13a28946b15c418265f6439",
+      "sources/misteross/cores/fes-atari-st/rtl/st_mfp.sv": "99be49fddf8abee2881a0dc7bb686f9c54b50b752b98c81e963e9d09a2205c81",
+      "sources/misteross/cores/fes-atari-st/rtl/st_system.sv": "046386ba64891f517a4fb9fa539cd41ca02270f2e74d5c6a03de41d66d41ebf2",
+      "sources/misteross/cores/fes-atari-st/rtl/st_video.sv": "f127c496b0819bd9e0ac36e710588cc7f908d20f839ba57dd1a35b5e5b01ea85",
+      "sources/misteross/cores/fes-atari-st/rtl/st_video_adapter.sv": "8c5babd78afbf7b990eaed9a3a54f0949504c0fab128f83427d8c01d138fca60",
+      "sources/misteross/cores/fes-atari-st/rtl/st_ym2149.sv": "fa81ad3c51fd523a7daed244a5bf604976ee2deeee0867ba75117b614c40c3f0",
+      "sources/misteross/cores/fes-atari-st/sim/boot_memory_tb.cpp": "f4ea8194915a2ae8440ff470ca9a22cff419dbbdf8d9e452713829d715be8c5d",
+      "sources/misteross/cores/fes-atari-st/sim/st_boot_memory_sim_top.sv": "8b856e03e937cdd625d5b1a91e77d5aa54d7b6e005a7953c259a1772e2e7933d",
+      "sources/misteross/cores/fes-atari-st/sim/st_memory_sim_top.sv": "eeb360ef76da5f6ac4016c94d1d5a2f28c402c51cbde6901e5a87e1611de6ac7",
+      "sources/misteross/cores/fes-common/generated/fes_video_part.vh": "322cf3e10fb5465deadfc68de2af1e54768eef9b7b53c6be04c9d7a3532c99ab",
+      "sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v": "bf60e215456c6baf1fb1bb1f00b1a252369e16ce25e98ce0c4e91b9680d3db2a",
+      "sources/misteross/cores/fes-common/rtl/fes_video_part_scanlines.v": "590f8bda2da327e4c533506acca5bcfce2374d27ce2d0a4aa1a8d67dd8bb978c",
+      "sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv": "a718bb869a8a969dbdda89facd76f8621f655f8a84e7afa9551b2785eee5656a",
+      "sources/misteross/cores/fes-common/rtl/fx68k/fx68kAlu.sv": "3f22006cbdb8cb661e5f54cc779f79bb697b587c86d586103478703fca38bcce",
+      "sources/misteross/cores/fes-common/rtl/fx68k/microrom.mem": "9d13082be0cf4b04bff887e6da23de84f9f2ee4321f3a2576b4f9540615dece6",
+      "sources/misteross/cores/fes-common/rtl/fx68k/nanorom.mem": "b3998009fb10605e8468cddf22fdd799a9792ba86f449de2e30615cfcefbeece",
+      "sources/misteross/cores/fes-common/rtl/fx68k/uaddrPla.sv": "07ceb3b1fbbd74f255c2a909151fe5efd38a575ba4f6aa47c6208050d2e27326",
+      "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "cca29343fab039cac47d3cfa3695e8b90de256cc1385f92012970dd9c7f21fd2",
+      "sources/misteross/cores/fes-zx81/expansions/zonx_ay.v": "7e5e3044628cb372c4dccea780c3bf046cef68032b52bcdea736a0bfe04b91de"
+    },
+    "native_copy_checks": {
+      "sources/misteross/cores/fes-atari-st/rtl/st_acia.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "c2cd7123a452cdbfa7adc0963adbe1abe0d35a55de97a6e841beefd89a8f1758"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_cpu.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "62217d8b01eed459050e55132b56ebd6a7d171d3bd2c9db72fb630db21d7dfbc"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_floppy.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "9e6bc53341973070ca59c0e93313fc73682aadad7394ff70134997c632b24510"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_ikbd.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "310ac098380364b2bfcfed5c686366c309708d52f0b50da46c7466f3cd812e83"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_io.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "18c358c5da598c5760579b47716986e9e91c9bc3e6d12da951ec15490dcbe977"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_machine.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "d68741a4070aa439560af384341828fdbf080dadfb79900d98df6e2bd7b5be6e"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_memory.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "50b1405d7bf96cf170fbba97c562cf4fa886e11cd13a28946b15c418265f6439"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_mfp.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "99be49fddf8abee2881a0dc7bb686f9c54b50b752b98c81e963e9d09a2205c81"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_system.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "046386ba64891f517a4fb9fa539cd41ca02270f2e74d5c6a03de41d66d41ebf2"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_video.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "f127c496b0819bd9e0ac36e710588cc7f908d20f839ba57dd1a35b5e5b01ea85"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_video_adapter.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "8c5babd78afbf7b990eaed9a3a54f0949504c0fab128f83427d8c01d138fca60"
+      },
+      "sources/misteross/cores/fes-atari-st/rtl/st_ym2149.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "fa81ad3c51fd523a7daed244a5bf604976ee2deeee0867ba75117b614c40c3f0"
+      },
+      "sources/misteross/cores/fes-atari-st/sim/boot_memory_tb.cpp": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "f4ea8194915a2ae8440ff470ca9a22cff419dbbdf8d9e452713829d715be8c5d"
+      },
+      "sources/misteross/cores/fes-atari-st/sim/st_boot_memory_sim_top.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "8b856e03e937cdd625d5b1a91e77d5aa54d7b6e005a7953c259a1772e2e7933d"
+      },
+      "sources/misteross/cores/fes-atari-st/sim/st_memory_sim_top.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "eeb360ef76da5f6ac4016c94d1d5a2f28c402c51cbde6901e5a87e1611de6ac7"
+      },
+      "sources/misteross/cores/fes-common/generated/fes_video_part.vh": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "322cf3e10fb5465deadfc68de2af1e54768eef9b7b53c6be04c9d7a3532c99ab"
+      },
+      "sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "bf60e215456c6baf1fb1bb1f00b1a252369e16ce25e98ce0c4e91b9680d3db2a"
+      },
+      "sources/misteross/cores/fes-common/rtl/fes_video_part_scanlines.v": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "590f8bda2da327e4c533506acca5bcfce2374d27ce2d0a4aa1a8d67dd8bb978c"
+      },
+      "sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "a718bb869a8a969dbdda89facd76f8621f655f8a84e7afa9551b2785eee5656a"
+      },
+      "sources/misteross/cores/fes-common/rtl/fx68k/fx68kAlu.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "3f22006cbdb8cb661e5f54cc779f79bb697b587c86d586103478703fca38bcce"
+      },
+      "sources/misteross/cores/fes-common/rtl/fx68k/microrom.mem": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "9d13082be0cf4b04bff887e6da23de84f9f2ee4321f3a2576b4f9540615dece6"
+      },
+      "sources/misteross/cores/fes-common/rtl/fx68k/nanorom.mem": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "b3998009fb10605e8468cddf22fdd799a9792ba86f449de2e30615cfcefbeece"
+      },
+      "sources/misteross/cores/fes-common/rtl/fx68k/uaddrPla.sv": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "07ceb3b1fbbd74f255c2a909151fe5efd38a575ba4f6aa47c6208050d2e27326"
+      },
+      "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "cca29343fab039cac47d3cfa3695e8b90de256cc1385f92012970dd9c7f21fd2"
+      },
+      "sources/misteross/cores/fes-zx81/expansions/zonx_ay.v": {
+        "commit_matches_frozen_boot": true,
+        "native_copy_present": true,
+        "native_copy_sha256": "7e5e3044628cb372c4dccea780c3bf046cef68032b52bcdea736a0bfe04b91de"
+      }
+    }
+  },
+  "actual_v6_build_id_observed_in_yosys_command": "0215391c11bfbf1662b311865214f8e3",
+  "actual_synth_json_sha256": {
+    "v5": "037c6ad2c8335f696b1c2156f8b25c57b90d7b83306e4b6f10d78f30a72cdb36",
+    "v6": "dbf1493cdf4545783d2b517d5a0aa5ee743830d20be7a9f6c9140411ef595ba4"
+  },
+  "actual_v6_yosys_log_sha256": "e833b1f64d1498479bddaca1f9f0d75c100c20faee0a2c7c7e3e651cad4e1786",
+  "tested_v5_primitive_proof_sha256": "f97931a13ed56189f28be8052a3d86931290511990762c1579a3e73cd837156e",
+  "actual_two_cache_cells": {
+    "video.cache0.0.0.0": {
+      "hide_name": 0,
+      "type": "MISTRAL_M10K",
+      "parameters": {
+        "CFG_ABITS": "00000000000000000000000000001001",
+        "CFG_BYTE_ENABLE": "00000000000000000000000000000001",
+        "CFG_DBITS": "00000000000000000000000000010100",
+        "CFG_DUAL_CLOCK": "00000000000000000000000000000001",
+        "INIT": "00000000000000000000000000000000"
+      },
+      "attributes": {
+        "BEL": "MISTRAL_M10K.26.20.0",
+        "module_not_derived": "00000000000000000000000000000001",
+        "src": "/home/deano/fes/out/cache/misteross-toolchains/slots/1e3827e592617f41dbbaa2fad1c64ce7377a16c73eab03a83c7d3e7af602758e/install/bin/../share/yosys/intel_alm/common/bram_m10k_map.v:22.50-24.82"
+      },
+      "port_directions": {
+        "A1ADDR": "input",
+        "A1BE": "input",
+        "A1DATA": "input",
+        "A1EN": "input",
+        "B1ADDR": "input",
+        "B1DATA": "output",
+        "B1EN": "input",
+        "CLK1": "input",
+        "CLK2": "input"
+      },
+      "connections": {
+        "A1ADDR": [
+          22383,
+          22384,
+          22385,
+          22386,
+          22387,
+          22388,
+          22389,
+          "0",
+          "0"
+        ],
+        "A1BE": [
+          22390,
+          22390
+        ],
+        "A1DATA": [
+          21982,
+          21985,
+          21978,
+          21979,
+          21981,
+          21971,
+          21984,
+          21977,
+          21983,
+          21975,
+          21972,
+          21986,
+          21974,
+          21976,
+          21980,
+          21973,
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "A1EN": [
+          22390
+        ],
+        "B1ADDR": [
+          22391,
+          22392,
+          22393,
+          22394,
+          22395,
+          22396,
+          22397,
+          "0",
+          "0"
+        ],
+        "B1DATA": [
+          22398,
+          22399,
+          22400,
+          22401,
+          22402,
+          22403,
+          22404,
+          22405,
+          22406,
+          22407,
+          22408,
+          22409,
+          22410,
+          22411,
+          22412,
+          22413,
+          22414,
+          22415,
+          22416,
+          22417
+        ],
+        "B1EN": [
+          "1"
+        ],
+        "CLK1": [
+          154
+        ],
+        "CLK2": [
+          80
+        ]
+      }
+    },
+    "video.cache1.0.0.0": {
+      "hide_name": 0,
+      "type": "MISTRAL_M10K",
+      "parameters": {
+        "CFG_ABITS": "00000000000000000000000000001001",
+        "CFG_BYTE_ENABLE": "00000000000000000000000000000001",
+        "CFG_DBITS": "00000000000000000000000000010100",
+        "CFG_DUAL_CLOCK": "00000000000000000000000000000001",
+        "INIT": "00000000000000000000000000000000"
+      },
+      "attributes": {
+        "BEL": "MISTRAL_M10K.26.21.0",
+        "module_not_derived": "00000000000000000000000000000001",
+        "src": "/home/deano/fes/out/cache/misteross-toolchains/slots/1e3827e592617f41dbbaa2fad1c64ce7377a16c73eab03a83c7d3e7af602758e/install/bin/../share/yosys/intel_alm/common/bram_m10k_map.v:22.50-24.82"
+      },
+      "port_directions": {
+        "A1ADDR": "input",
+        "A1BE": "input",
+        "A1DATA": "input",
+        "A1EN": "input",
+        "B1ADDR": "input",
+        "B1DATA": "output",
+        "B1EN": "input",
+        "CLK1": "input",
+        "CLK2": "input"
+      },
+      "connections": {
+        "A1ADDR": [
+          22383,
+          22384,
+          22385,
+          22386,
+          22387,
+          22388,
+          22389,
+          "0",
+          "0"
+        ],
+        "A1BE": [
+          22585,
+          22585
+        ],
+        "A1DATA": [
+          21982,
+          21985,
+          21978,
+          21979,
+          21981,
+          21971,
+          21984,
+          21977,
+          21983,
+          21975,
+          21972,
+          21986,
+          21974,
+          21976,
+          21980,
+          21973,
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "A1EN": [
+          22585
+        ],
+        "B1ADDR": [
+          22391,
+          22392,
+          22393,
+          22394,
+          22395,
+          22396,
+          22397,
+          "0",
+          "0"
+        ],
+        "B1DATA": [
+          22586,
+          22587,
+          22588,
+          22589,
+          22590,
+          22591,
+          22592,
+          22593,
+          22594,
+          22595,
+          22596,
+          22597,
+          22598,
+          22599,
+          22600,
+          22601,
+          22602,
+          22603,
+          22604,
+          22605
+        ],
+        "B1EN": [
+          "1"
+        ],
+        "CLK1": [
+          154
+        ],
+        "CLK2": [
+          80
+        ]
+      }
+    }
+  },
+  "canonical_mapping_v5_equals_v6": true,
+  "canonical_mapping": {
+    "video.cache0.0.0.0": {
+      "type": "MISTRAL_M10K",
+      "parameters_and_pinned_defaults": {
+        "CFG_ABITS": 9,
+        "CFG_BYTE_ENABLE": 1,
+        "CFG_DBITS": 20,
+        "CFG_DUAL_CLOCK": 1,
+        "INIT": 0,
+        "CFG_ASYNC_READ": 0,
+        "CFG_MIXED_WIDTH": 0
+      },
+      "CLK1": {
+        "source": "system_clock.pll_outclk",
+        "index": 0,
+        "global_clock_buffer": true
+      },
+      "CLK2": "pixel_clk",
+      "A1ADDR": "{2zero,video.memory_index[6:0]}",
+      "A1DATA": "{4zero,memory.video_rdata[15:0]}",
+      "A1EN": "bank0 active-high write enable",
+      "A1BE": "both physical lanes tied to A1EN",
+      "B1ADDR": "{2zero,cached_renderer_column[6:0]} verified by actual mapped logic for all6600 mode/h positions",
+      "B1EN": 1,
+      "B1DATA": "registered video.cache0_read[15:0], four padded output bits unused"
+    },
+    "video.cache1.0.0.0": {
+      "type": "MISTRAL_M10K",
+      "parameters_and_pinned_defaults": {
+        "CFG_ABITS": 9,
+        "CFG_BYTE_ENABLE": 1,
+        "CFG_DBITS": 20,
+        "CFG_DUAL_CLOCK": 1,
+        "INIT": 0,
+        "CFG_ASYNC_READ": 0,
+        "CFG_MIXED_WIDTH": 0
+      },
+      "CLK1": {
+        "source": "system_clock.pll_outclk",
+        "index": 0,
+        "global_clock_buffer": true
+      },
+      "CLK2": "pixel_clk",
+      "A1ADDR": "{2zero,video.memory_index[6:0]}",
+      "A1DATA": "{4zero,memory.video_rdata[15:0]}",
+      "A1EN": "bank1 active-high write enable",
+      "A1BE": "both physical lanes tied to A1EN",
+      "B1ADDR": "{2zero,cached_renderer_column[6:0]} verified by actual mapped logic for all6600 mode/h positions",
+      "B1EN": 1,
+      "B1DATA": "registered video.cache1_read[15:0], four padded output bits unused"
+    }
+  },
+  "actual_clock_buffer_cell_names": {
+    "v5": "system_clock.clocks_MISTRAL_CLKBUF_Q",
+    "v6": "system_clock.clocks_MISTRAL_CLKBUF_Q_1"
+  },
+  "clock_equivalence_note": "The buffer suffix changed; both sources are system_clock.pll_outclk[0], and both read clocks are pixel_clk. Numeric net IDs are not compared across builds.",
+  "actual_read_column_mapping_checks": {
+    "v5": {
+      "all_mode_raster_inputs_evaluated": 6600,
+      "live_plane_fetch_cases_checked": 200,
+      "all_live_columns_by_mode": {
+        "0": 80,
+        "1": 80,
+        "2": 40
+      },
+      "differences_only_in_unused_raw_addresses": 0,
+      "read_address_cone_models": "Exact pinned MISTRAL ALUT/NOT/ALUT_ARITH truth-table semantics; no assumption of numeric net-ID correspondence"
+    },
+    "v6": {
+      "all_mode_raster_inputs_evaluated": 6600,
+      "live_plane_fetch_cases_checked": 200,
+      "all_live_columns_by_mode": {
+        "0": 80,
+        "1": 80,
+        "2": 40
+      },
+      "differences_only_in_unused_raw_addresses": 0,
+      "read_address_cone_models": "Exact pinned MISTRAL ALUT/NOT/ALUT_ARITH truth-table semantics; no assumption of numeric net-ID correspondence"
+    }
+  },
+  "unchanged_cache_rtl_blocks": {
+    "system_fill_sha256": "bacb55d70392e57af9a1f7e63c78312e1023b08aa275ed4ed807c41eb6ceed0e",
+    "pixel_bank_read_sha256": "4fb5db1260859bc1a77f8ccd41d296afe68c798bcbd130c1e9d0c475a083632e"
+  },
+  "pinned_primitive_model_sha256": "e86f4ed03c08506d7d9b84f4485a62815617af6fbb34ab9f10cb3e3a6fdac452",
+  "test_result_inherited_by_equivalent_primitives": {
+    "result": "PASS",
+    "enabled_writes": 240,
+    "disabled_write_gaps_with_contrasting_data": 240,
+    "all_eighty_columns_in_both_banks": true,
+    "two_edge_bank_valid_data_checks": 2453,
+    "stable_bank_registered_q_checks": 3773,
+    "CLK1_only_registered_output_hold_checks": 3449,
+    "system_rising_edges": 1725,
+    "pixel_rising_edges": 2453,
+    "column_changes_do_not_change_q_before_pixel_edge": true,
+    "unowned_bank_refill_while_consuming_neighbor": true,
+    "tag_flush_without_clearing_ram": true,
+    "invalid_word_masking": true,
+    "unselected_cross_clock_collision_data_is_not_asserted": true
+  },
+  "source_hashes_reverified_after_read": true
+}

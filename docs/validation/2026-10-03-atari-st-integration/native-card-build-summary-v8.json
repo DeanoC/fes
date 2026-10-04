@@ -1,0 +1,98 @@
+{
+  "cram_diff": {
+    "bits_inside_slot": 9174,
+    "bits_outside_slot": 0,
+    "column_bits": {
+      "21": 16,
+      "22": 24,
+      "23": 110,
+      "24": 1760,
+      "25": 3181,
+      "26": 541,
+      "27": 2115,
+      "28": 1319,
+      "29": 78,
+      "30": 30
+    },
+    "diff": {
+      "bits": 9174,
+      "x0": 1819,
+      "x1": 2635,
+      "y0": 88,
+      "y1": 1596
+    },
+    "identical": false,
+    "inside_slot_column": true,
+    "outside_slot_coordinates": [],
+    "outside_slot_coordinates_truncated": false
+  },
+  "expansion_id": "2b8df5e5b327af742ef4b384c12ebac82b2cf65dcde0f4ea6c3c2a95b86370ed",
+  "manifest": {
+    "cart_sha256": "e04df647ccb2514b4c7596fbfe2943c888a32f60886ecd985cfdd38c9ea9635f",
+    "cart_size": 2838792,
+    "device": "5CSEBA6U23I7",
+    "format": 1,
+    "map": "fes.atari-st-bus.socket/1",
+    "recipe_sha256": "3bfb3b06824cd21621536fef6a9f462845e61db971584693259afbc8e73ae5e5",
+    "revision": "5bee8b995672d38ee4cd52a2851cfe93e608c76a",
+    "shell_build_id": "08e5244db9fd6800e834ee9d1ba6724e",
+    "shell_package_id": "7642c270e3e3251badfbea0dfc30537e4818a91d3a85c2f520a60b65b4b91dcc",
+    "shell_sha256": "532629471d39dcc7dd5b5dd0bc86703ebe41a79c3af0372679378f05b1ecfb4a",
+    "slot": "fes.expansion.atari-st-bus",
+    "slot_index": 1,
+    "slot_major": 1,
+    "slot_minor": 0
+  },
+  "recipe": {
+    "card": "probe",
+    "clock_constraints_sha256": "6f09dade2abb7b2982d268786b8aa93bab0c1ce1c2aa650c70e39606e033f5cb",
+    "cram_region": [
+      1769,
+      32,
+      2806,
+      1722
+    ],
+    "inputs": {
+      "cores/fes-atari-st/constraints/clocks-oss.sdc": "a0f6cf1636d4bf91643477d923761872edddeb64f70b9432298b1cc4c88f14bc",
+      "cores/fes-atari-st/expansions/probe_cart.sv": "e40c47cc5594958e210e81c57cc1bfbd3c62c07dd3475f45cdbd493d57e4582c",
+      "cores/fes-atari-st/expansions/st_probe.sv": "828372d75168d6fb520f41da23b78448aafba604d651b94da7511e8a8a69abfa",
+      "cores/fes-common/generated/fes_atari_st_bus.vh": "7cad50aee07f355d0c67b0cee16463a5b26ddd9abb992df18ca2a9c103e3f2c0",
+      "scripts/atari_st_slot.py": "b69dba7e5533461dadba95647169b50219cabe9796b86e6a4b0c86f6132fd873",
+      "scripts/build_atari_st_slot_card.py": "8065f961b686ee658450e491e3ed2aa7a68382888be85643aff30620f6718f72",
+      "scripts/build_fes_atari_st_oss.py": "904ab375ee2fa3a04b7616071e06ce45020646e5a61af3fbd50fd64d97004693",
+      "scripts/core_package.py": "63afff6526b1be6895fd84f51802fdadf9048181d6e93dd37289b821eeb39e8b",
+      "scripts/cyclonev_rbf.py": "8740ade5234a91bfe4ed6497ca1d7c06765f76447e3e7cd647c42212d829ad9d",
+      "scripts/fes_build_common.py": "6c8f73431c84949a5c8486145a2f5f64067a38534460539b4bb6435ce3425f9a",
+      "scripts/lockfile.py": "742d5b39c3780b4bb2b6b8b212cb90b1c617b8db285dd51624dbe8c694d2976a",
+      "scripts/rfc3986_validator.py": "95fc6d48642f111952b25c040947765bccba669210c8c140b7ed9647fd7e470c",
+      "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155",
+      "scripts/source_repository.py": "29ab5ad573767ebe32c171a391e675852b968a4c570365ad3a2ec9637c0ca003",
+      "shell/core.rbf": "532629471d39dcc7dd5b5dd0bc86703ebe41a79c3af0372679378f05b1ecfb4a",
+      "shell/manifest.toml": "20f4d0c987b5f1d8b986984098b4066eb03452ca43739c1e9d8e7ca1f2657f3e",
+      "shell/rom-map.json": "5dc1ae622cb081bc61c38e5b40cac9d2d49f4e657d01141c8fdcf4d0f782056c",
+      "shell/routed.json": "b59509096265cedb19c8ef2a51c14f3fe301dd79c26720f5b3ca99df8faf0212",
+      "shell/socket.qsf": "79159cd0618cfc90980897462e7fc9f17349d4484291f932b1bec1fdacb3185e",
+      "toolchains/ramtest.lock": "dff65622e621d1e6b0951bedb894cc605e82e9049dc0d650a54d1db853648013"
+    },
+    "map": "fes.atari-st-bus.socket/1",
+    "placer_seed": 5,
+    "region": "expansion",
+    "required_clocks_mhz": {
+      "pixel_clk": 74.25,
+      "system_clock.clocks[0]": 52.224,
+      "system_clock.clocks[1]": 12.288
+    },
+    "slot": 1,
+    "slot_clock": "system_clock.clocks[0]",
+    "tools": {
+      "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=f126e1e0594b8451af2ffb8774ad43281851bab748a8809c1fba79f504db7b89",
+      "nextpnr-mistral": "commit=655f38334b8a1ba798cc05cf3744b6a897119b5d; sha256=8f2a93c75ebdc7de141a6344dbf3174bf6c950c3cd4c41a4632578aa5f7d8121; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=886afa63953e97407153e9f4aae25fcedb639696; sha256=899c4e8c9fddb163bccaee8d40acbc65da77479d8f5efcc258142e563ef876fc"
+    }
+  },
+  "timing_mhz": {
+    "pixel_clk": 74.61016082763672,
+    "system_clock.clocks[0]": 57.81349182128906,
+    "system_clock.clocks[1]": 192.60400390625
+  }
+}
