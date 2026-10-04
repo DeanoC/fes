@@ -138,7 +138,10 @@ activates it only at frame boundaries. Two owned line caches cross the
 pixel domain displays the current one. Missing lines display black, then
 recover. It rejects out-of-range addresses and stale fills from old frames.
 Native row/repetition counters and fixed per-mode fetch windows avoid division
-and mode-dependent coordinate arithmetic in the pixel domain. Synchronous
+and mode-dependent coordinate arithmetic in the pixel domain. Cached plane
+capture selects constant mode windows after their comparisons, preserving
+each capture, staging and commit edge without a mode-dependent carry chain.
+Synchronous
 per-bank reads permit dual-clock M10K inference; ownership tags and cache
 words arrive at the original plane-capture edges.
 
@@ -166,6 +169,9 @@ make -C sources/misteross sim-fes-atari-st-emutos \
   EMUTOS_ROM=build/roms/emutos-1.4/etos192us.img
 make -C sources/misteross sim-fes-atari-st-emutos-memory \
   EMUTOS_ROM=build/roms/emutos-1.4/etos192us.img
+python3 scripts/sim_atari_st_disk_diagnostic.py \
+  --rom sources/misteross/build/roms/emutos-1.4/etos192us.img \
+  --output out/validation/atari-st/disk-guest --seconds 8
 make -C sources/misteross build-fes-atari-st CACHE_ROOT=/absolute/toolchain-cache
 make -C sources/misteross sim-fes-atari-st-video-parts
 make -C sources/misteross build-fes-atari-st-video-part \
