@@ -727,7 +727,9 @@ raw development loads. Close files before a checkpoint/Stop: sector-atomic
 writes do not make an application's multi-sector FAT update atomic.
 
 Save-backed Eject/Stop own 135-second target operation budgets and 150-second
-HTTP envelopes. Replacing an already bound disk allows 405 seconds locally and
+HTTP envelopes. Explicit Stop selects its HTTP save deadline from completed
+session responses without a preflight poll; discovery Stop reuses its admission
+Status observation. Replacing an already bound disk allows 405 seconds locally and
 450 seconds on the host, including a possible third capture that confirms an
 ambiguous failure retained the original image. Ordinary unbound operation
 budgets remain in force. These calls never replay a destructive command.
