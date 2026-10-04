@@ -22,6 +22,10 @@ peripherals through the same exported reset signal as host Hold.
 
 `st_memory.sv` shares the existing addon-SDRAM controller among CPU, scanout,
 floppy DMA, upload and media reads. Round-robin arbitration bounds contention.
+The MiSTer addon wires chip DQML/DQMH to A11/A12. The shared controller keeps
+the full row during ACTIVATE, then places byte masks on those shared pins
+before the column command and clears them for reads. The separate logical
+DQM outputs alone cannot mask writes on this board.
 Initialization completes before CPU release. SDRAM refresh continues while
 idle and while the CPU is held. An abandoned request drains its physical
 command and suppresses its old completion. Warm Hold preserves RAM and media.

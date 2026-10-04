@@ -44,7 +44,8 @@ public:
         ++cycle;
         for (unsigned i = mask_history.size() - 1; i; --i)
             mask_history[i] = mask_history[i - 1];
-        mask_history[0] = (unsigned(dut.sdram_dqmh) << 1) | dut.sdram_dqml;
+        // Physical MiSTer addon: chip masks share the high row-address pins.
+        mask_history[0] = (dut.sdram_a >> 11) & 3;
         const unsigned mask = mask_history[mask_delay];
         if (read_due == cycle)
             require(mask_history[mask_delay + 2] == 0, "READ output suppressed by delayed DQM", cycle);

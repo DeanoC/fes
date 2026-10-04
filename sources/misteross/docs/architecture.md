@@ -179,9 +179,14 @@ This demonstrates composition without a new emulated-machine implementation
 or an application-name branch in host software.
 
 `fes.ramtest` is a separate utility on the same mailbox with fixed 720p, the
-gamepad and `fes.memory.hps-ddr` 1.0. After execution release it pattern-tests
-the SDRAM addon and all three HPS DDR ports at the memory clock, 100 or
-130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
+gamepad and `fes.memory.hps-ddr` 1.0. Its SDRAM channel first runs a bounded
+byte-preservation preflight with retained BE/payload/readback failures; only
+a passing preflight releases the six full-span patterns. The addon shares chip
+DQML/DQMH with row-address pins A11/A12; the controller keeps the full row for
+ACTIVATE and drives masks on those pins during column setup and WRITE.
+Simulations use that physical wiring, including high rows. After execution
+release it tests the SDRAM addon and all three HPS DDR ports at the memory clock,
+100 or 130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
 The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
 OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
@@ -1595,8 +1600,10 @@ confines its CRAM writes to the shared rectangle.
 `st_memory.sv` fairly arbitrates CPU, video, floppy DMA and both media paths
 over the existing addon SDRAM controller at 52.224 MHz. That controller now
 supports optional byte masks, initialization status and idle refresh while
-preserving the RAM tester's default behavior. Write masks are held during row
-setup two fabric clocks before WRITE, while reads remain unmasked. Warm CPU Hold
+preserving full-word behavior for callers that disable masks. Chip DQM shares
+A11/A12 on the MiSTer addon, so the controller preserves row bits for ACTIVATE
+and establishes masks on those shared pins two fabric clocks before WRITE.
+Reads clear both masks. Warm CPU Hold
 leaves memory and uploads running. Withdrawn requests drain without stale
 acknowledgements.
 The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the

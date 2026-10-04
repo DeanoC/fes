@@ -86,3 +86,9 @@ set_location_assignment PIN_AA18 -to SDRAM_nCAS
 set_location_assignment PIN_Y18 -to SDRAM_nCS
 set_location_assignment PIN_W14 -to SDRAM_nRAS
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_*
+
+# Keep DQM in fabric registers for the native/Quartus byte-mask comparison.
+set_instance_assignment -name FAST_OUTPUT_REGISTER OFF -to SDRAM_DQML
+set_instance_assignment -name FAST_OUTPUT_REGISTER OFF -to SDRAM_DQMH
+set_instance_assignment -name FAST_OUTPUT_REGISTER OFF -to SDRAM_A[11]
+set_instance_assignment -name FAST_OUTPUT_REGISTER OFF -to SDRAM_A[12]
