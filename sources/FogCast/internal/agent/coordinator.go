@@ -415,11 +415,15 @@ func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *prot
 	stopping.State = protocol.StateStopping
 	stopping.LastError = nil
 	c.set(stopping)
+	stopBudget := c.stopTimeout
+	if protocol.MediaDataBound(current.CorePackage) && stopBudget < 135*time.Second {
+		stopBudget = 135 * time.Second
+	}
 	var observed string
 	var recovery string
 	var apiErr *protocol.APIError
 	if runtime, ok := c.runtime.(ownedStopRuntime); ok {
-		operation, cancel := context.WithTimeout(c.operationContext, c.stopTimeout)
+		operation, cancel := context.WithTimeout(c.operationContext, stopBudget)
 		defer cancel()
 		if recoveryRuntime, ok := c.runtime.(ownedStopRecoveryRuntime); ok {
 			observed, recovery, apiErr = recoveryRuntime.StopOwnedWithRecovery(parent, operation)
@@ -427,7 +431,7 @@ func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *prot
 			observed, apiErr = runtime.StopOwned(parent, operation)
 		}
 	} else {
-		ctx, cancel := context.WithTimeout(parent, c.stopTimeout)
+		ctx, cancel := context.WithTimeout(parent, stopBudget)
 		defer cancel()
 		observed, apiErr = c.runtime.Stop(ctx)
 	}

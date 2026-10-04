@@ -1911,7 +1911,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		if err != nil {
 			return protocol.Status{}, err
 		}
-		if selected.partsComposition != nil {
+		if selected.partsComposition != nil && selected.romID == "" {
 			parts, ok := client.(interface {
 				LoadLibraryPartsCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
 			})
@@ -2563,6 +2563,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 	s.executionMu.Lock()
 	activeExecution := s.activeExecution
 	pendingRejection := s.packageRejection != nil
+	describedPackage := s.activePackageID != ""
 	s.executionMu.Unlock()
 	if pendingRejection {
 		stage = "development_recovery"
@@ -2628,7 +2629,29 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		}
 	}
 	if !idleWithoutLease {
-		status, err = client.Stop(ctx)
+		// Observe the exact selected package while lifecycle admission is held.
+		// Only a durable disk binding needs the longer capture deadline.
+		boundDisk := false
+		saving, canSave := client.(interface {
+			StopWithMediaSave(context.Context) (protocol.Status, error)
+		})
+		if describedPackage || canSave {
+			observed, observeErr := client.Status(ctx)
+			boundDisk = observeErr == nil && protocol.MediaDataBound(observed.CorePackage)
+		}
+		if boundDisk {
+			if timeout < 150*time.Second {
+				timeout = 150 * time.Second
+			}
+			var cancel context.CancelFunc
+			ctx, cancel = serviceTimeout(parent, timeout)
+			defer cancel()
+		}
+		if canSave && boundDisk {
+			status, err = saving.StopWithMediaSave(ctx)
+		} else {
+			status, err = client.Stop(ctx)
+		}
 	}
 	if err != nil {
 		targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil

@@ -154,3 +154,51 @@ func clonePartsComposition(c *expansion.PartsComposition) *expansion.PartsCompos
 	copy.Parts = append([]expansion.PartSelection(nil), c.Parts...)
 	return &copy
 }
+
+// ROM parts reuse the existing composed-ROM operation and its separate source
+// receipt; the parts tuple describes the retained pre-ROM overlay.
+type protocol2ROMPartsCompositionControl interface {
+	LoadROMPartsComposedCore(context.Context, string, string, []PartPath, string, expansion.PartsComposition, string, corepackage.ROMLinkIdentity) (Protocol2Response, error)
+}
+
+func (client *Client) LoadROMPartsComposedCore(ctx context.Context, path, id string, parts []PartPath, payload string, c expansion.PartsComposition, programmed string, link corepackage.ROMLinkIdentity) (Protocol2Response, error) {
+	if !validRuntimePath(path) || !validRuntimePath(payload) || !validRuntimePath(programmed) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || c.Layout != expansion.AtariStVideoLayout || !protocol2Identifier.MatchString(link.ROMID) || !link.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: link.ROMID, SHA256: link.MapSHA256, SourceSize: link.SourceSize}}) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	for i, p := range parts {
+		if p.Role != c.Parts[i].Role || !validRuntimePath(p.Path) {
+			return Protocol2Response{}, errInvalidRuntimeRequest
+		}
+	}
+	before, err := client.Protocol2Status(ctx)
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
+	}
+	if before.Capabilities.ROMLinking != 1 {
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: false}
+	}
+	line, attempted, err := client.callRawTracked(ctx, struct {
+		Protocol       int                         `json:"protocol"`
+		Operation      string                      `json:"operation"`
+		PackagePath    string                      `json:"package_path"`
+		PackageID      string                      `json:"package_id"`
+		Parts          []PartPath                  `json:"parts"`
+		PayloadPath    string                      `json:"payload_path"`
+		Composition    expansion.PartsComposition  `json:"composition"`
+		ProgrammedPath string                      `json:"programmed_path"`
+		ROMLink        corepackage.ROMLinkIdentity `json:"rom_link"`
+	}{2, "load_rom_composed_core", path, id, parts, payload, c, programmed, link})
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
+	}
+	response, err := decodeProtocol2Response(line)
+	if err == nil && response.OK {
+		if response.State != "running_development" || response.Execution != "development" || response.ActivePackage == nil || response.ActivePackage.PackageID != id || !reflect.DeepEqual(response.ActivePackage.PartsComposition, &c) || !reflect.DeepEqual(response.ActivePackage.ROMLink, &link) || response.ActivePackage.Composition != nil || response.ActivePackage.SlotComposition != nil || response.InspectedPackage != nil {
+			err = errInvalidRuntimeResponse
+		}
+	}
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: true}
+	}
+	return response, nil
+}

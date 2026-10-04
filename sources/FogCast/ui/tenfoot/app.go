@@ -461,6 +461,7 @@ type App struct {
 	playPadChordSince       time.Time
 	playPadChordFired       bool
 	playHIDHeld             map[playHIDKey]remoteinput.Event
+	playMice                map[int]*playMouse
 	playHIDTail             chan struct{}
 	playHIDContext          context.Context
 	playHIDCancel           context.CancelFunc
@@ -2494,7 +2495,7 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	if !ready || foreign || a.client == nil {
 		return false
 	}
-	if (event.Action == remoteinput.ActionPress || event.Kind == remoteinput.KindAxis && event.Value != 0) && a.playHIDPending >= maxPendingPlayHID {
+	if (event.Action == remoteinput.ActionPress || event.Kind == remoteinput.KindAxis && event.Value != 0 || event.Device == remoteinput.DeviceMouse && (event.Value != 0 || event.Code != 0)) && a.playHIDPending >= maxPendingPlayHID {
 		return false
 	}
 	a.rememberPlayHIDLocked(event)

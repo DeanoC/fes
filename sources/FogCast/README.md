@@ -655,3 +655,10 @@ selects the runtime source revision and generates its assembly lock. The legacy
 smoke runner requires that concrete lock via `NATIVE_RUNTIME_INPUT_LOCK`.
 `TARGET_IMAGE_LOCK_BIN` remains an
 explicit verifier override.
+
+The Atari ST interaction path supports relative mouse from host browser,
+SDL and local evdev, with per-source button merging and no motion replay.
+Writable disks use explicit library bindings and runtime-owned complete-image
+saves. Format-3 Play can select firmware, an ST Direct/Scanlines video archive
+and the optional slot-1 CPU expansion together; every part binds the exact
+shell package. These extensions do not add Atari ST to the factory image.

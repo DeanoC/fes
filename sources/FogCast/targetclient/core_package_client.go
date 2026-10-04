@@ -114,7 +114,7 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 		return protocol.Status{}, err
 	}
 	singleComposed, slotComposed := status.CorePackage != nil && status.CorePackage.Composition != nil, status.CorePackage != nil && status.CorePackage.SlotComposition != nil
-	if !validCorePackageStatus(status) || (parts != (status.CorePackage.PartsComposition != nil)) || (composed && singleComposed == slotComposed) || (!composed && !parts && (singleComposed || slotComposed) && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
+	if !validCorePackageStatus(status) || (parts && (status.CorePackage.PartsComposition == nil || status.CorePackage.ROMLink != nil)) || (!parts && status.CorePackage.PartsComposition != nil && status.CorePackage.ROMLink == nil) || (composed && singleComposed == slotComposed) || (!composed && !parts && (singleComposed || slotComposed) && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
 	return status, nil
@@ -129,6 +129,10 @@ func validCorePackageStatus(status protocol.Status) bool {
 		return false
 	}
 	value := status.CorePackage
+	if protocol.ComputerABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) &&
+		value.PersistenceMode == "persistent" && !protocol.MediaDataBound(value) {
+		return false
+	}
 	if r := value.ROMLink; r != nil {
 		if !romStatusIDRE.MatchString(r.ROMID) || !lowerHex(r.MapSHA256, 64) || !lowerHex(r.SourceSHA256, 64) || !lowerHex(r.ProgrammedSHA256, 64) || r.SourceSize < 1024 || r.SourceSize > 256<<10 || r.SourceSize%1024 != 0 || r.ProgrammedSize < 1 || r.ProgrammedSize > corepackage.MaxPayloadSize {
 			return false
@@ -141,7 +145,16 @@ func validCorePackageStatus(status protocol.Status) bool {
 		return false
 	}
 	if c := value.PartsComposition; c != nil {
-		if value.Composition != nil || value.SlotComposition != nil || value.ROMLink != nil || value.ROMLinks != nil || value.PersistenceMode != "volatile" || value.ABI != (protocol.RuntimeContract{ID: "fes.application", Major: 1}) || !validPartsStatus(*c, value.PackageID) {
+		if value.Composition != nil || value.SlotComposition != nil || value.ROMLinks != nil || !validPartsStatus(*c, value.PackageID) {
+			return false
+		}
+		if c.Layout == expansion.AtariStVideoLayout {
+			bound := protocol.MediaDataBound(value)
+			persistence := (value.PersistenceMode == "volatile" && !bound) || (value.PersistenceMode == "persistent" && bound)
+			if value.ABI != (protocol.RuntimeContract{ID: "fes.computer", Major: 1}) || value.ROMLink == nil || !persistence {
+				return false
+			}
+		} else if value.ROMLink != nil || value.PersistenceMode != "volatile" || value.ABI != (protocol.RuntimeContract{ID: "fes.application", Major: 1}) {
 			return false
 		}
 	}
@@ -151,7 +164,8 @@ func validCorePackageStatus(status protocol.Status) bool {
 		}
 	}
 	for index, unit := range value.MediaUnits {
-		if !unit.Valid() || (index > 0 && value.MediaUnits[index-1].Unit >= unit.Unit) {
+		if !unit.Valid() || (index > 0 && value.MediaUnits[index-1].Unit >= unit.Unit) ||
+			(unit.Persistence != nil && (value.PersistenceMode != "persistent" || !protocol.MediaWriteCapable(value))) {
 			return false
 		}
 	}
@@ -199,7 +213,7 @@ func (c *Client) LoadComposedCore(ctx context.Context, size int64, body io.Reade
 }
 
 // LoadLibraryPartsCore retains library core-data context while selecting the
-// closed Coleco video composition. The target independently admits all bytes.
+// closed video composition. The target independently admits all bytes.
 func (c *Client) LoadLibraryPartsCore(ctx context.Context, size int64, body io.Reader, id string) (protocol.Status, error) {
 	if !lowerHex(id, 64) {
 		return protocol.Status{}, fmt.Errorf("invalid package identity")

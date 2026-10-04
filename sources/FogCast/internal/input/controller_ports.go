@@ -34,6 +34,7 @@ type CoreObservation struct {
 	Generation uint64
 	// KeyboardHID names the generation when fes.keyboard.hid 1.0 is active.
 	KeyboardHID *KeyboardHIDBinding
+	Mouse       *MouseBinding
 	Binding     *ControllerBinding
 }
 
@@ -76,6 +77,7 @@ type controllerPortsSink struct {
 	displayFocused       bool
 	keys                 *KeyboardSink
 	hid                  *keyboardHIDSink
+	mouse                *mouseSink
 	pads                 *padMerge
 }
 
@@ -119,6 +121,11 @@ func (s *controllerPortsSink) invalidateObservationContext(ctx context.Context) 
 func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs CoreObservation, confirmed bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.mouse != nil {
+		if err := s.mouse.bindContext(ctx, obs.Mouse); err != nil {
+			return err
+		}
+	}
 	if s.hid != nil && !sameHIDBinding(s.hidBinding, obs.KeyboardHID) {
 		if err := s.hid.bindContext(ctx, obs.KeyboardHID); err != nil {
 			return err
@@ -221,6 +228,18 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 		ctx = context.Background()
 	}
 	s.mu.Lock()
+	if f.Device == uint8(remoteinput.DeviceMouse) {
+		if s.displayFocused {
+			s.mu.Unlock()
+			return nil
+		}
+		mouse := s.mouse
+		s.mu.Unlock()
+		if mouse == nil {
+			return nil
+		}
+		return mouse.applyFrom(ctx, source, f)
+	}
 	if remoteinput.IsLocalPlayerDeparture(frameEvent(f)) {
 		defer s.mu.Unlock()
 		if source != sourceLocal {
@@ -559,6 +578,10 @@ func (s *controllerPortsSink) initPublishLocked() {
 }
 
 func (s *controllerPortsSink) releaseSource(source inputSource) error {
+	var mouseErr error
+	if s.mouse != nil {
+		mouseErr = s.mouse.releaseSource(source)
+	}
 	if s.hid != nil {
 		_ = s.hid.releaseSource(source)
 	}
@@ -596,19 +619,22 @@ func (s *controllerPortsSink) releaseSource(source inputSource) error {
 			}
 		}
 		if s.pads != nil {
-			return errors.Join(result, s.pads.ReleaseSource(source))
+			return errors.Join(mouseErr, result, s.pads.ReleaseSource(source))
 		}
 		if s.fallback != nil && s.keys == nil && s.pads == nil {
-			return s.fallback.ReleaseAll()
+			return errors.Join(mouseErr, s.fallback.ReleaseAll())
 		}
-		return result
+		return errors.Join(mouseErr, result)
 	}
 	// Disconnect and local-socket close are not a frame held under the
 	// lifecycle lock. The host poster keeps its own deadline.
-	return s.publishAllLocked(context.Background())
+	return errors.Join(mouseErr, s.publishAllLocked(context.Background()))
 }
 
 func (s *controllerPortsSink) ReleaseAll() error {
+	if s.mouse != nil {
+		s.mouse.releaseAll()
+	}
 	if s.hid != nil {
 		s.hid.releaseAll()
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -12,10 +13,18 @@ import (
 // unit route under the existing kit lease. The target stages the bytes and
 // makes one runtime insert_media call; a lost reply is not replayed.
 func (c *Client) InsertMedia(ctx context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding) (protocol.Status, error) {
+	return c.insertMedia(ctx, size, body, b, 0)
+}
+
+// InsertMediaWithSave encloses outgoing capture, insertion and bounded recovery.
+func (c *Client) InsertMediaWithSave(ctx context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding) (protocol.Status, error) {
+	return c.insertMedia(ctx, size, body, b, 450*time.Second)
+}
+func (c *Client) insertMedia(ctx context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding, budget time.Duration) (protocol.Status, error) {
 	if !b.Valid() || size < 1 || size > protocol.MaxComputerMediaBytes || body == nil {
 		return protocol.Status{}, protocol.MediaUnitRequestError()
 	}
-	status, err := c.mediaUnitRequest(ctx, "/v1/development/insert-media", size, readOnlyReader{body}, b)
+	status, err := c.mediaUnitRequestBudget(ctx, "/v1/development/insert-media", size, readOnlyReader{body}, b, nil, budget)
 	if err != nil {
 		return protocol.Status{}, err
 	}
@@ -27,10 +36,16 @@ func (c *Client) InsertMedia(ctx context.Context, size int64, body io.Reader, b 
 
 // EjectMedia empties one unit of the active fes.computer generation.
 func (c *Client) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (protocol.Status, error) {
+	return c.ejectMedia(ctx, b, 0)
+}
+func (c *Client) EjectMediaWithSave(ctx context.Context, b protocol.MediaUnitBinding) (protocol.Status, error) {
+	return c.ejectMedia(ctx, b, 150*time.Second)
+}
+func (c *Client) ejectMedia(ctx context.Context, b protocol.MediaUnitBinding, budget time.Duration) (protocol.Status, error) {
 	if !b.Valid() {
 		return protocol.Status{}, protocol.MediaUnitRequestError()
 	}
-	status, err := c.mediaUnitRequest(ctx, "/v1/development/eject-media", 0, http.NoBody, b)
+	status, err := c.mediaUnitRequestBudget(ctx, "/v1/development/eject-media", 0, http.NoBody, b, nil, budget)
 	if err != nil {
 		return protocol.Status{}, err
 	}
@@ -41,6 +56,12 @@ func (c *Client) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (p
 }
 
 func (c *Client) mediaUnitRequest(ctx context.Context, path string, size int64, body io.Reader, b protocol.MediaUnitBinding) (protocol.Status, error) {
+	return c.mediaUnitBoundRequest(ctx, path, size, body, b, nil)
+}
+func (c *Client) mediaUnitBoundRequest(ctx context.Context, path string, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding) (protocol.Status, error) {
+	return c.mediaUnitRequestBudget(ctx, path, size, body, b, library, 0)
+}
+func (c *Client) mediaUnitRequestBudget(ctx context.Context, path string, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding, budget time.Duration) (protocol.Status, error) {
 	if c.kitLease == nil {
 		return protocol.Status{}, ErrKitLeaseLost
 	}
@@ -54,10 +75,17 @@ func (c *Client) mediaUnitRequest(ctx context.Context, path string, size int64, 
 		request.Header.Set("Content-Type", "application/octet-stream")
 	}
 	b.SetHeaders(request.Header)
+	if library != nil {
+		library.SetHeaders(request.Header)
+	}
 	if err = c.kitLease.Authorize(request, false); err != nil {
 		return protocol.Status{}, err
 	}
-	response, err := c.httpClient.Do(request)
+	client := *c.httpClient
+	if budget > 0 && (client.Timeout == 0 || client.Timeout < budget) {
+		client.Timeout = budget
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		if response != nil && response.Body != nil {
 			response.Body.Close()

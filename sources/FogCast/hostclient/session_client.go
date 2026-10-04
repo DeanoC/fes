@@ -73,7 +73,7 @@ func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
 
 // StopStamped is Stop with an explicit client stamp.
 func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (SessionResult, error) {
-	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", http.NoBody, c.stopHTTP, stamp, "stop", "idle")
+	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", http.NoBody, c.observedStopHTTP(ctx), stamp, "stop", "idle")
 }
 
 // StopExpectedStamped stops only the package play captured by expected. Host
@@ -103,13 +103,13 @@ func (c *Client) stopExpectedStamped(ctx context.Context, expected SessionResult
 	if err != nil {
 		return SessionResult{}, err
 	}
-	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader(payload), c.stopHTTP, stamp, "stop", "idle")
+	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader(payload), c.stopHTTPForSession(expected), stamp, "stop", "idle")
 }
 
 // StopRetainLease is the sofa Soft-stop. retain_lease asks idle cleanup to
 // keep the kit lease. Stamps stay on the existing client-clock headers.
 func (c *Client) StopRetainLease(ctx context.Context, stamp ClientStamp) (SessionResult, error) {
-	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader([]byte(`{"retain_lease":true}`)), c.stopHTTP, stamp, "stop", "idle")
+	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader([]byte(`{"retain_lease":true}`)), c.observedStopHTTP(ctx), stamp, "stop", "idle")
 }
 
 // ReleaseIdleGrants drops idle retained grants without stopping a play that

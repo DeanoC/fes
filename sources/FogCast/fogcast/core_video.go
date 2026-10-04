@@ -158,7 +158,19 @@ func (s *Service) composeVideoCandidate(ctx context.Context, entry catalog.CoreE
 		return nil, videoPartError(err)
 	}
 	assets := []expansion.Asset{asset}
-	if cpu, ok := s.catalog.(coreExpansionCatalog); ok {
+	if asset.Manifest.Map == expansion.AtariStVideoMap {
+		inspection, installed, err := s.readInstalledCore(ctx, entry.PackageID)
+		if err != nil || !bytes.Equal(installed, base) {
+			return nil, videoPartUnavailable()
+		}
+		if store, ok := s.catalog.(coreSlotExpansionCatalog); ok {
+			cards, _, err := s.readSlotCards(ctx, store, entry, inspection, base)
+			if err != nil {
+				return nil, err
+			}
+			assets = append(assets, cards...)
+		}
+	} else if cpu, ok := s.catalog.(coreExpansionCatalog); ok {
 		selected, err := cpu.CoreEntryExpansion(ctx, entry.GameID)
 		if err != nil {
 			return nil, expansionError(err)

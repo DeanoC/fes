@@ -67,6 +67,11 @@ public:
 	mister::Error InspectCorePackage(const std::string&, const std::string&,
 		mister::CorePackageInspection*) override;
 	mister::Capabilities capabilities() const override { return supported; }
+	mister::Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons) override {
+		++mouse_calls; mouse_snapshot = {dx,dy,buttons}; if(on_mouse) on_mouse(); return mouse_result;
+	}
+	int mouse_calls=0; std::vector<std::int32_t> mouse_snapshot;
+	mister::Error mouse_result; std::function<void()> on_mouse;
 	mister::Error SetController(std::uint8_t port, std::uint16_t buttons,
 		std::uint16_t keypad) override
 	{
@@ -103,6 +108,14 @@ public:
 		if (on_eject_media) on_eject_media();
 		return eject_media_result;
 	}
+    mister::Error InsertLibraryComputerMedia(std::uint8_t unit,const std::string& path,
+        std::uint32_t size,const std::string& root,const mister::MediaDataBinding& binding) override {
+        ++library_media_calls; library_media_root=root;library_media_binding=binding;
+        return InsertComputerMedia(unit,path,size);
+    }
+    int library_media_calls=0;
+    std::string library_media_root;
+    mister::MediaDataBinding library_media_binding;
 	int keyboard_hid_calls = 0;
 	mister::KeyboardHidRows keyboard_hid_rows{};
 	std::function<void()> on_keyboard_hid;

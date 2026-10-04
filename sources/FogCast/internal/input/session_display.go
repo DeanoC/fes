@@ -26,6 +26,13 @@ func (c *TargetController) BeginSessionDisplay(ctx context.Context) (func(bool),
 		return nil, errors.New("input controller is closed")
 	}
 	c.ports.setDisplayFocus(true)
+	if c.ports.mouse != nil {
+		if err := c.ports.mouse.neutral(ctx); err != nil {
+			c.ports.setDisplayFocus(false)
+			c.lifecycle.Unlock()
+			return nil, err
+		}
+	}
 	var once sync.Once
 	return func(focused bool) {
 		once.Do(func() {

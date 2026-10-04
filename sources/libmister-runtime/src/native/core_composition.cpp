@@ -262,6 +262,7 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage& base, const CoreCompositionRequest& request,
 	OpenedCoreComposition* output) {
 	const auto& descriptor = base.descriptor;
+	const bool st = descriptor.format == 3 && descriptor.core.id == "fes.atari-st";
 	bool video = false, native_pixels = false, cpu = false;
 	unsigned video_count = 0, cpu_count = 0;
 	for (const auto& interface : descriptor.interfaces) {
@@ -271,18 +272,18 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 			video = !interface.required && interface.major == 1 && interface.minor == 0;
 			native_pixels = interface.id == "fes.fabric.video.native-pixels";
 		}
-		if (interface.id == "fes.expansion.coleco-bus") {
+		if (interface.id == (st ? "fes.expansion.atari-st-bus" : "fes.expansion.coleco-bus")) {
 			++cpu_count;
-			cpu = !interface.required && interface.major == 2 && interface.minor == 0;
+			cpu = !interface.required && interface.major == (st ? 1u : 2u) && interface.minor == 0;
 		}
 	}
-	if (descriptor.format != 2 || descriptor.core.id != "fes.coleco" ||
-		descriptor.abi.id != "fes.application" || descriptor.abi.major != 1 ||
+	if ((!st && (descriptor.format != 2 || descriptor.core.id != "fes.coleco")) || (st && native_pixels) ||
+		descriptor.abi.id != (st ? "fes.computer" : "fes.application") || descriptor.abi.major != 1 ||
 		descriptor.abi.minor != 0 || !video || !cpu || video_count != 1 || cpu_count != 1)
-		return Invalid("parts require the declared Coleco video developer shell");
+		return Invalid("parts require the declared closed video shell");
 	const char* video_slot = native_pixels ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888";
-	const char* video_map = native_pixels ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
-	const char* layout = native_pixels ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
+	const char* video_map = st ? "fes.atari-st-video.socket/1" : native_pixels ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
+	const char* layout = st ? "fes.atari-st-video.parts/1" : native_pixels ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
 	const auto& info = request.composition;
 	if (!request.expansion_path.empty() || !request.expansions.empty() ||
 		!info.expansion_id.empty() || !info.expansions.empty() ||
@@ -312,22 +313,23 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 		if (!error.ok()) return error;
 		ManifestReader reader(asset.manifest_bytes);
 		std::string hash, device, map, recipe, revision, build, package, shell, slot;
-		std::uint64_t size = 0, format = 0, major = 0, minor = 0;
+		std::uint64_t size = 0, format = 0, major = 0, minor = 0, index = 0;
+		const bool is_video = part.role == "video";
 		if (reader.HasBoundaryPatch() || !reader.Text("cart_sha256", &hash) ||
 			!reader.Number("cart_size", &size) || !reader.Text("device", &device) ||
 			!reader.Number("format", &format) || !reader.Text("map", &map) ||
 			!reader.Text("recipe_sha256", &recipe) || !reader.Text("revision", &revision) ||
 			!reader.Text("shell_build_id", &build) || !reader.Text("shell_package_id", &package) ||
 			!reader.Text("shell_sha256", &shell) || !reader.Text("slot", &slot) ||
+			(st && !is_video && !reader.Number("slot_index", &index)) ||
 			!reader.Number("slot_major", &major) || !reader.Number("slot_minor", &minor) ||
 			!reader.End())
 			return Invalid("parts manifest must use canonical JSON");
-		const bool is_video = part.role == "video";
 		if (!Hex(hash, 64) || !Hex(recipe, 64) || !Hex(revision, 40) || !Hex(build, 32) ||
 			format != 1 || device != "5CSEBA6U23I7" || descriptor.target.device != device ||
-			slot != (is_video ? video_slot : "fes.expansion.coleco-bus") ||
-			map != (is_video ? video_map : "fes.coleco-bus.socket/2") ||
-			major != (is_video ? 1u : 2u) || minor != 0 || size < 40408 ||
+			slot != (is_video ? video_slot : st ? "fes.expansion.atari-st-bus" : "fes.expansion.coleco-bus") ||
+			map != (is_video ? video_map : st ? "fes.atari-st-bus.socket/1" : "fes.coleco-bus.socket/2") ||
+			major != (is_video || st ? 1u : 2u) || (st && !is_video && index != 1) || minor != 0 || size < 40408 ||
 			size != asset.cart.size() || package != base.package_id ||
 			build != descriptor.build.id || shell != descriptor.payload.sha256 ||
 			Hash(std::string("fes-expansion-v1\0", 17) + asset.manifest_bytes) != part.part_id)

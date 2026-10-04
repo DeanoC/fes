@@ -103,6 +103,14 @@ func activeInterface(p *CorePackageStatus, want RuntimeContract) bool {
 	return false
 }
 
+func MouseRelativeInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMouseRelativeID, Major: generated.FesComputerInterfaceMouseRelativeMajor, Minor: generated.FesComputerInterfaceMouseRelativeMinor}
+}
+
+func MouseRelativeCapable(p *CorePackageStatus) bool {
+	return activeComputer(p) && activeInterface(p, MouseRelativeInterface())
+}
+
 // KeyboardHIDCapable reports an active fes.computer 1.0 generation that
 // negotiated fes.keyboard.hid 1.0. Such sessions forward physical key state as
 // USB HID usages; the core owns every character mapping.
@@ -113,17 +121,21 @@ func KeyboardHIDCapable(p *CorePackageStatus) bool {
 // MediaUnitStatus is one runtime-reported removable-media drive. The runtime
 // reads it from live MediaInfo while a fes.computer generation is active.
 type MediaUnitStatus struct {
-	Unit       uint8           `json:"unit"`
-	Interface  RuntimeContract `json:"interface"`
-	MinBytes   uint32          `json:"min_bytes"`
-	MaxBytes   uint32          `json:"max_bytes"`
-	ChunkBytes uint32          `json:"chunk_bytes"`
-	State      string          `json:"state"`
+	Unit        uint8            `json:"unit"`
+	Interface   RuntimeContract  `json:"interface"`
+	MinBytes    uint32           `json:"min_bytes"`
+	MaxBytes    uint32           `json:"max_bytes"`
+	ChunkBytes  uint32           `json:"chunk_bytes"`
+	State       string           `json:"state"`
+	Persistence *MediaDataStatus `json:"persistence,omitempty"`
 }
 
 // Valid checks the unit against the ABI and, for known media interfaces, the
 // exact unit and size the interface defines.
 func (u MediaUnitStatus) Valid() bool {
+	if u.Persistence != nil && (u.Interface != AtariStFloppyInterface() || u.Unit != AtariStFloppyUnit || u.State != MediaUnitReady || !u.Persistence.Valid()) {
+		return false
+	}
 	if u.Unit >= uint8(generated.FesComputerMediaUnitCount) || u.MinBytes < generated.FesComputerMediaMinBytes ||
 		u.MinBytes > u.MaxBytes || int64(u.MaxBytes) > MaxComputerMediaBytes || u.ChunkBytes != ComputerMediaChunkBytes ||
 		u.Interface.ID == "" || u.Interface.Major == 0 {

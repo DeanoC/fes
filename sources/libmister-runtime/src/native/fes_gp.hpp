@@ -92,6 +92,13 @@ public:
 	// fes.computer 1.0. Rows that equal the last acknowledged state are not
 	// written; after Start every row is written once, in ascending order.
 	Error SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline);
+	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons,
+		std::uint64_t deadline);
+	Error CaptureMedia(std::uint8_t unit, Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
+	Error ResumeMedia(std::uint8_t unit, std::uint64_t deadline);
+	Error RefreshMediaState(std::uint8_t unit, std::uint64_t deadline);
+	Error MarkMediaSaved(std::uint8_t unit, std::uint64_t deadline);
+	bool MediaWriteCapable(std::uint8_t unit) const;
 	bool home_computer() const { return home_computer_; }
 	// Units of declared media interfaces with their last live MediaInfo state.
 	const std::vector<MediaUnitCapability>& media_units() const { return media_units_; }
@@ -148,6 +155,8 @@ private:
 	bool stream_pending_ = false;
 	bool home_computer_ = false;
 	bool keyboard_hid_ = false;
+	bool mouse_relative_ = false;
+	bool floppy_write_ = false;
 	KeyboardHidRows hid_rows_{};
 	bool hid_rows_known_ = false;
 	std::vector<MediaUnitCapability> media_units_;

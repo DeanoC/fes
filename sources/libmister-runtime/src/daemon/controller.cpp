@@ -141,6 +141,10 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.LoadComputerMediaStream(request.media_path,
 			request.expected_package_id, request.expected_generation, request.media_size);
 		break;
+	case Operation::send_mouse_relative:
+		result = runtime_.SendMouseRelative(request.package_id, request.expected_generation,
+			request.mouse_dx, request.mouse_dy, request.mouse_buttons);
+		break;
 	case Operation::set_keyboard_hid:
 		result = runtime_.SetKeyboardHid(request.package_id, request.expected_generation,
 			request.keyboard_rows);
@@ -149,6 +153,14 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.InsertMedia(request.media_path, request.expected_package_id,
 			request.expected_generation, request.media_unit, request.media_size);
 		break;
+	case Operation::insert_library_media:
+        result = runtime_.InsertLibraryMedia(request.media_path, request.expected_package_id,
+            request.expected_generation, request.media_unit, request.media_size,
+            request.data_root, request.media_binding);
+        break;
+    case Operation::save_media:
+        result=runtime_.SaveMedia(request.expected_package_id,request.expected_generation,request.media_unit);
+        break;
 	case Operation::eject_media:
 		result = runtime_.EjectMedia(request.expected_package_id,
 			request.expected_generation, request.media_unit);

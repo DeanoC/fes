@@ -38,7 +38,7 @@ Use these when the start-here page names the job and you need the steps.
 | Install and select a described package | [Core packages](core-packages.md) |
 | Prepare one core without an image rebuild | [Core developer workflow](core-development.md) |
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
-| Pong settings and best rally | [Core persistence](core-persistence.md) |
+| Core settings, progress and writable ST disks | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
 | Use or test the SoC DDR3 from a core | [HPS DDR](hps-ddr.md) |
 | ZX81 package, expansion cart, tape design | [FES ZX81](fes-zx81.md), [expansion bus](zx81-expansion-bus.md), [tape media](zx81-tape-media.md) |

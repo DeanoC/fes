@@ -476,9 +476,20 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		// inserted into its unit after Start without holding reset.
 		dev := s.libraryDevelopmentMediaBinding(*status.CorePackage)
 		unitBinding := protocol.MediaUnitBinding{PackageID: dev.PackageID, Generation: dev.Generation, Unit: *media.unit, Target: dev.Target, TargetID: dev.TargetID}
-		mediaCtx, mediaCancel := context.WithTimeout(parent, max(s.uploadTimeout, 150*time.Second))
+		mediaBudget := 150 * time.Second
+		if u, ok := protocol.MediaUnit(status.CorePackage, *media.unit); ok && u.Interface == protocol.AtariStFloppyInterface() {
+			mediaBudget = 300 * time.Second
+		}
+		mediaCtx, mediaCancel := context.WithTimeout(parent, max(s.uploadTimeout, mediaBudget))
 		defer mediaCancel()
-		unitStatus, unitErr := s.insertMediaUnitLocked(mediaCtx, media.size, media.ReadCloser, unitBinding)
+		var unitStatus protocol.Status
+		var unitErr error
+		if u, ok := protocol.MediaUnit(status.CorePackage, *media.unit); ok && u.Interface == protocol.AtariStFloppyInterface() {
+			library := protocol.LibraryMediaBinding{MediaUnitBinding: unitBinding, GameID: entry.GameID, BaseMediaID: entry.MediaID}
+			unitStatus, unitErr = s.insertBoundMediaUnitLocked(mediaCtx, media.size, media.ReadCloser, unitBinding, &library)
+		} else {
+			unitStatus, unitErr = s.insertMediaUnitLocked(mediaCtx, media.size, media.ReadCloser, unitBinding)
+		}
 		unitErr = errors.Join(unitErr, media.Close())
 		media = nil
 		if unitErr != nil {

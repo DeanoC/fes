@@ -147,10 +147,9 @@ func TestExplicitStopFreshAdmissionDuringLookupBackoff(t *testing.T) {
 					t.Fatalf("wrong identity admitted: err=%v stops=%d", err, stops.Load())
 				}
 			} else if tc.version == "v1" {
-				wantStatuses := int32(1)
-				if tc.pending {
-					wantStatuses = 2
-				}
+				// Active Stop adds a best-effort disk-budget observation after
+				// discovery. Pending rejection keeps its two recovery reads.
+				wantStatuses := int32(2)
 				if err != nil || status.State != protocol.StateIdle || ownerships.Load() != 1 || statuses.Load() != wantStatuses || stops.Load() != 1 || s.packageRejection != nil {
 					t.Fatalf("Stop=%+v err=%v ownership=%d status=%d stops=%d", status, err, ownerships.Load(), statuses.Load(), stops.Load())
 				}

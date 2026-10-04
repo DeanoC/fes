@@ -11,6 +11,11 @@ import (
 // mediaUnitClient carries fes.computer removable media to the bound target.
 // The target stages the bytes and makes one runtime insert_media or
 // eject_media call; the machine keeps running throughout.
+type savedMediaUnitClient interface {
+	InsertMediaWithSave(context.Context, int64, io.Reader, protocol.MediaUnitBinding) (protocol.Status, error)
+	EjectMediaWithSave(context.Context, protocol.MediaUnitBinding) (protocol.Status, error)
+}
+
 type mediaUnitClient interface {
 	InsertMedia(context.Context, int64, io.Reader, protocol.MediaUnitBinding) (protocol.Status, error)
 	EjectMedia(context.Context, protocol.MediaUnitBinding) (protocol.Status, error)
@@ -56,6 +61,9 @@ func (s *Service) mediaUnitTargetLocked(b protocol.MediaUnitBinding) (serviceCli
 // active fes.computer generation. Size limits come from the unit the runtime
 // reports. A lost reply is never replayed. Caller holds lifecycle admission.
 func (s *Service) insertMediaUnitLocked(ctx context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding) (protocol.Status, error) {
+	return s.insertBoundMediaUnitLocked(ctx, size, body, b, nil)
+}
+func (s *Service) insertBoundMediaUnitLocked(ctx context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding, owners ...context.Context) (protocol.Status, error) {
 	if !b.Valid() || b.Target == "" || body == nil {
 		return protocol.Status{}, protocol.MediaUnitRequestError()
 	}
@@ -79,7 +87,29 @@ func (s *Service) insertMediaUnitLocked(ctx context.Context, size int64, body io
 	if !b.AcceptsSize(prior, size) {
 		return prior, protocol.MediaUnitRequestError()
 	}
-	status, err := loader.InsertMedia(ctx, size, body, b)
+	if protocol.MediaDataBound(prior.CorePackage) {
+		owner := ctx
+		if len(owners) > 0 {
+			owner = owners[0]
+		}
+		operation, cancel := serviceTimeout(owner, 450*time.Second)
+		defer cancel()
+		ctx = operation
+	}
+	var status protocol.Status
+	if library != nil {
+		durable, ok := client.(mediaDataClient)
+		if !ok {
+			return prior, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
+		status, err = durable.InsertLibraryMedia(ctx, size, body, *library)
+	} else {
+		if bound, ok := client.(savedMediaUnitClient); ok && protocol.MediaDataBound(prior.CorePackage) {
+			status, err = bound.InsertMediaWithSave(ctx, size, body, b)
+		} else {
+			status, err = loader.InsertMedia(ctx, size, body, b)
+		}
+	}
 	if err != nil {
 		return status, preserveCorePackageError(err)
 	}
@@ -112,7 +142,12 @@ func (s *Service) ejectMediaUnitLocked(ctx context.Context, b protocol.MediaUnit
 	if !b.Matches(prior) {
 		return prior, protocol.MediaUnitIdentityError()
 	}
-	status, err := loader.EjectMedia(ctx, b)
+	var status protocol.Status
+	if bound, ok := client.(savedMediaUnitClient); ok && protocol.MediaDataBound(prior.CorePackage) {
+		status, err = bound.EjectMediaWithSave(ctx, b)
+	} else {
+		status, err = loader.EjectMedia(ctx, b)
+	}
 	if err != nil {
 		return status, preserveCorePackageError(err)
 	}
@@ -195,7 +230,7 @@ func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, 
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	unit := diskUnitBinding(name, b)
-	status, err := s.insertMediaUnitLocked(ctx, info.Size, reader, unit)
+	status, err := s.insertBoundMediaUnitLocked(ctx, info.Size, reader, unit, nil, parent)
 	if err != nil {
 		return status, err
 	}

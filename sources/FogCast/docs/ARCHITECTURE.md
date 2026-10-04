@@ -695,6 +695,50 @@ once on failure; the agent then republishes the live unit state from a fresh
 status read instead of replacing the session. Keyboard posts do not wait
 behind a disk transfer.
 
+A shell pairing `fes.media.atari-st-floppy-write` 1.0 with the Atari ST base
+interface supports writable disk RAM and versioned snapshots. Library launch
+uses explicit game/base-image identity through target
+`POST /v1/library/media/insert`; development `insert-media` and `change-disk`
+remain volatile. Imported catalog blobs remain immutable. Durable records live
+under the runtime's `/media/fat/fogcast/core-data/media` root, within the existing
+appliance data bind. This storage survives firmware/video package changes and
+is isolated by core ID, game ID, unit and immutable base digest.
+
+The target library insert route has the existing package/generation/target/unit
+headers plus `X-FogCast-Media-Game` and `X-FogCast-Media-Base`; it requires one
+exact 737,280-byte octet stream. `POST /v1/library/media/save` has the unit
+binding and an empty body. Both retain the existing kit lease and update
+exclusion. The agent chooses the storage root; callers never send target paths.
+Live status exposes optional unit `persistence` with `mode:"persistent"`,
+`game_id`, `base_media_id`, and `revision` (`absent` before the first publication
+or the full-record SHA-256). Whole-package persistence mode is persistent only
+while such a binding exists. ST parts/ROM composition does not change this
+identity or weaken composition validation.
+
+The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
+captured session ID and package/generation/target/unit binding. Insert takes
+JSON `{game_id,base_media_id}` and verifies the selected library entry and base;
+Save has an empty body. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID` restores
+that explicit library disk into the running ST, and `save-disk` publishes a
+checkpoint. `eject-disk`, Stop and replacement automatically save a bound disk.
+Failure keeps the disk/session binding available for recovery; a lost mutation
+reply is never replayed. There is no durable binding inferred from filenames or
+raw development loads. Close files before a checkpoint/Stop: sector-atomic
+writes do not make an application's multi-sector FAT update atomic.
+
+Save-backed Eject/Stop own 135-second target operation budgets and 150-second
+HTTP envelopes. Replacing an already bound disk allows 405 seconds locally and
+450 seconds on the host, including a possible third capture that confirms an
+ambiguous failure retained the original image. Ordinary unbound operation
+budgets remain in force. These calls never replay a destructive command.
+A confirmed input Busy rejection retains only the latest absolute mouse button
+state for zero-motion reconciliation, bounded to 450 seconds and the same
+generation. Unbind, source closure or an ambiguous transport failure cancels
+it; relative motion is discarded.
+A bound-disk input fault captures and publishes before idle retirement; if that
+fails, the runtime retains RAM and ownership in recovery instead of replacing
+it with idle firmware.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are

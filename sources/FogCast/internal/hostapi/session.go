@@ -1865,7 +1865,7 @@ func inputEligibleStatus(status protocol.Status) bool {
 		return true
 	}
 	return (corePackageInputStatus(status) || resumedCoreDataStatus(status)) &&
-		(status.CorePackage.Gamepad || corePackageHasKeyboard(status) || protocol.KeyboardHIDCapable(status.CorePackage))
+		(status.CorePackage.Gamepad || corePackageHasKeyboard(status) || protocol.KeyboardHIDCapable(status.CorePackage) || protocol.MouseRelativeCapable(status.CorePackage))
 }
 
 func corePackageHasKeyboard(status protocol.Status) bool {
@@ -1891,11 +1891,15 @@ func inputBindingForStatus(status protocol.Status) sessionInputBinding {
 
 func (s *sessionCoordinator) attachInputForStatus(ctx context.Context, status protocol.Status) error {
 	core := sessionCore(status)
+	ports, keypad := protocol.ControllerPorts(status.CorePackage)
 	var err error
 	if attacher, ok := s.remoteInput.(interface {
+		AttachWithMouse(context.Context, string, bool, bool, bool, bool) error
+	}); ok {
+		err = attacher.AttachWithMouse(ctx, core, corePackageHasKeyboard(status), ports, keypad, protocol.MouseRelativeCapable(status.CorePackage))
+	} else if attacher, ok := s.remoteInput.(interface {
 		AttachWithControllerPorts(context.Context, string, bool, bool, bool) error
 	}); ok {
-		ports, keypad := protocol.ControllerPorts(status.CorePackage)
 		err = attacher.AttachWithControllerPorts(ctx, core, corePackageHasKeyboard(status), ports, keypad)
 	} else if attacher, ok := s.remoteInput.(remoteInputCapabilityAttacher); ok {
 		err = attacher.AttachWithCapabilities(ctx, core, corePackageHasKeyboard(status))
@@ -1937,7 +1941,7 @@ func cloneCorePackageStatus(value *protocol.CorePackageStatus) *protocol.CorePac
 		copy.SlotComposition = &slots
 	}
 	if value.MediaUnits != nil {
-		copy.MediaUnits = append([]protocol.MediaUnitStatus(nil), value.MediaUnits...)
+		copy.MediaUnits = protocol.CloneMediaUnits(value.MediaUnits)
 	}
 	return &copy
 }

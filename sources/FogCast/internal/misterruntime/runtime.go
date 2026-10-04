@@ -326,7 +326,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		} else {
 			staged, err = corepackage.StageROMInput(admission, r.corePackageRoot, size, content)
 		}
-		composed = staged.Composition != nil || staged.SlotComposition != nil
+		composed = staged.Composition != nil || staged.SlotComposition != nil || staged.PartsComposition != nil
 	} else if composed {
 		_, single := r.control.(protocol2CompositionControl)
 		_, slots := r.control.(protocol2SlotCompositionControl)
@@ -355,6 +355,14 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			}
 		}
 	}()
+	if staged.PartsComposition != nil && staged.ROMLink != nil {
+		if _, ok := r.control.(protocol2ROMPartsCompositionControl); !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		if _, ok := r.control.(protocol2PartsControl); !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+	}
 	if staged.SlotComposition != nil && staged.ROMLink != nil {
 		if _, ok := r.control.(protocol2ROMSlotControl); !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
@@ -442,7 +450,10 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 
 	var response Protocol2Response
 	var callErr error
-	if staged.PartsComposition != nil {
+	if staged.PartsComposition != nil && staged.ROMLink != nil {
+		response, callErr = r.control.(protocol2ROMPartsCompositionControl).LoadROMPartsComposedCore(operationOwner, staged.Directory, staged.PackageID, partPaths(staged), staged.PayloadPath, *staged.PartsComposition, staged.ProgrammedPath, *staged.ROMLink)
+		r.noteDispatch("load_rom_composed_core", callErr == nil)
+	} else if staged.PartsComposition != nil {
 		if libraryID != "" {
 			response, callErr = r.control.(protocol2LibraryPartsControl).LoadLibraryPartsCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, staged.PayloadPath, partPaths(staged), *staged.PartsComposition)
 			r.noteDispatch("load_parts_library_core", callErr == nil)
@@ -1361,7 +1372,7 @@ func cloneMediaUnits(value []protocol.MediaUnitStatus) []protocol.MediaUnitStatu
 	if len(value) == 0 {
 		return nil
 	}
-	return append([]protocol.MediaUnitStatus(nil), value...)
+	return protocol.CloneMediaUnits(value)
 }
 
 func cloneComposition(value *expansion.Composition) *expansion.Composition {

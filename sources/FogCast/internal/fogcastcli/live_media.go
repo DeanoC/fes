@@ -21,6 +21,16 @@ func runLiveMediaCommand(ctx context.Context, origin string, args []string) comm
 		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-disk-path> | eject-disk | change-cassette <media-id-or-.tap-path> | eject-cassette"))
 	}
 	switch args[0] {
+	case "save-disk":
+		if len(args) != 1 {
+			return fail(errors.New("usage: fogcast save-disk"))
+		}
+		return diskDataThroughHostAPI(ctx, origin, "", "")
+	case "insert-library-disk":
+		if len(args) != 3 {
+			return fail(errors.New("usage: fogcast insert-library-disk <game-id> <base-media-id>"))
+		}
+		return diskDataThroughHostAPI(ctx, origin, args[1], args[2])
 	case "change-disk":
 		if len(args) != 2 {
 			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do/.d64/.st-path>"))
@@ -274,7 +284,7 @@ func postSessionMedia(ctx context.Context, client *http.Client, origin, path str
 }
 
 func liveMediaCommand(name string) bool {
-	return name == "change-tape" || name == "eject-tape" || name == "change-disk" || name == "eject-disk" ||
+	return name == "save-disk" || name == "insert-library-disk" || name == "change-tape" || name == "eject-tape" || name == "change-disk" || name == "eject-disk" ||
 		name == "change-cassette" || name == "eject-cassette"
 }
 

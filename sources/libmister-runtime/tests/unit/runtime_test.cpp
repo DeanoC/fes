@@ -1054,6 +1054,28 @@ void UseComputerPackage(mister_test::FakeHardware& hardware)
 	hardware.supported.media_units = {unit};
 }
 
+void TestComputerMouseBindingAndFaultRetirement()
+{
+	Fixture f; UseComputerPackage(f.hardware);
+	f.hardware.core_info.descriptor.interfaces.push_back({"fes.mouse.relative",1,0,true});
+	f.hardware.supported.abis.back().interfaces.push_back({"fes.mouse.relative",1,0});
+	Start(f); const std::string id(64,'a');
+	assert(f.runtime.SendMouseRelative(id,1,1,1,0).code==ErrorCode::busy);
+	assert(f.runtime.LoadCore("/packages/apple2",id).ok());
+	const auto generation=f.runtime.status().generation;
+	assert(f.runtime.SendMouseRelative(id,generation+1,1,1,0).code==ErrorCode::invalid_request);
+	assert(f.runtime.SendMouseRelative(id,generation,1,1,4).code==ErrorCode::invalid_request);
+	f.hardware.on_mouse=[&]{assert(f.runtime.SendMouseRelative(id,generation,0,0,0).code==ErrorCode::busy);};
+	assert(f.runtime.SendMouseRelative(id,generation,-32768,32767,3).ok());
+	assert(f.hardware.mouse_snapshot==std::vector<std::int32_t>({-32768,32767,3}));
+	f.hardware.mouse_result={ErrorCode::io_failed,"unconfirmed mouse","input"};
+	assert(!f.runtime.SendMouseRelative(id,generation,1,1,0).ok());
+	assert(WaitForState(f.runtime, State::idle));
+	assert(f.runtime.status().execution==mister::Execution::none);
+	assert(f.hardware.mouse_calls==2);
+	assert(f.runtime.SendMouseRelative(id,generation,1,1,0).code==ErrorCode::busy);
+}
+
 void TestComputerKeyboardBindingSerializationAndFaults()
 {
 	Fixture f;
@@ -1113,6 +1135,40 @@ void TestComputerKeyboardBindingSerializationAndFaults()
 	assert(silent.runtime.SetKeyboardHid(id, silent.runtime.status().generation, rows).code ==
 		ErrorCode::unsupported_interface);
 	assert(game.hardware.keyboard_hid_calls == calls && silent.hardware.keyboard_hid_calls == 0);
+}
+
+void TestLibraryDiskPersistenceFailureRetainsSession()
+{
+    Fixture f;UseComputerPackage(f.hardware);
+    auto& unit=f.hardware.supported.media_units[0];unit.interface={"fes.media.atari-st-floppy",1,0};unit.min_bytes=unit.max_bytes=737280;
+    for(auto& i:f.hardware.core_info.descriptor.interfaces)if(i.id=="fes.media.apple2-floppy")i.id="fes.media.atari-st-floppy";
+    for(auto& i:f.hardware.supported.abis.back().interfaces)if(i.id=="fes.media.apple2-floppy")i.id="fes.media.atari-st-floppy";
+    Start(f);const std::string id(64,'a');assert(f.runtime.LoadCore("/packages/st",id).ok());const auto gen=f.runtime.status().generation;
+    mister::MediaDataBinding binding;binding.game_id="atari-st-desktop";binding.base_media_id=std::string(64,'b');binding.unit=0;
+    auto invalid=binding;invalid.game_id="bad/name";
+    assert(f.runtime.InsertLibraryMedia("/disk.st",id,gen,0,737280,"/data",invalid).code==ErrorCode::invalid_request);
+    assert(f.hardware.library_media_calls==0);
+    f.hardware.on_insert_media=[&]{unit.state=mister::MediaUnitState::ready;unit.persistence_mode="persistent";unit.game_id=binding.game_id;unit.base_media_id=binding.base_media_id;assert(f.runtime.Stop().code==ErrorCode::busy);};
+    assert(f.runtime.InsertLibraryMedia("/disk.st",id,gen,0,737280,"/data",binding).ok());
+    assert(f.runtime.status().core_data.mode=="persistent");
+    f.hardware.on_flush=[&]{unit.revision=std::string(64,'c');};
+    assert(f.runtime.SaveMedia(id,gen,0).ok());assert(f.hardware.restore_input_calls==1);
+    assert(f.runtime.status().capabilities.media_units[0].revision==std::string(64,'c'));
+    const int idle=f.hardware.idle_calls;
+    f.hardware.flush_result={ErrorCode::save_failed,"disk publication failed","media_data"};
+    assert(f.runtime.Stop().code==ErrorCode::save_failed);
+    assert(f.runtime.status().generation==gen&&f.runtime.status().state==State::running_development);
+    assert(f.runtime.status().capabilities.media_units[0].game_id==binding.game_id&&f.hardware.idle_calls==idle);
+    f.hardware.eject_media_result=f.hardware.flush_result;
+    assert(f.runtime.EjectMedia(id,gen,0).code==ErrorCode::save_failed);
+    assert(f.runtime.status().capabilities.media_units[0].persistence_mode=="persistent");
+    f.hardware.insert_media_result=f.hardware.flush_result;
+    assert(f.runtime.InsertMedia("/other.st",id,gen,0,737280).code==ErrorCode::save_failed);
+    assert(f.runtime.status().generation==gen&&f.hardware.idle_calls==idle);
+    f.hardware.restore_input_result={ErrorCode::io_failed,"resume unconfirmed","media_data"};
+    assert(f.runtime.Stop().code==ErrorCode::idle_failed);
+    assert(f.runtime.status().state==State::reboot_required&&f.runtime.status().generation==gen);
+    assert(f.runtime.status().capabilities.media_units[0].game_id==binding.game_id);
 }
 
 void TestComputerMediaUnitsStayLiveAndReportUnitState()
@@ -1609,6 +1665,7 @@ int main()
  TestSessionDisplayBindingsFocusAndFrameRevocation();
  TestSessionDisplayFailuresNeverReloadIdleOrRetireCore();
  TestSessionCloseAndStopWaitForInFlightFrame();
+ TestLibraryDiskPersistenceFailureRetainsSession();
  TestMenuFrameYieldsToLifecycleOps();
  TestMenuLifecycleWaitIsBounded();
  TestStaleMenuErrorIsNotPromotedOntoIdleStatus();
@@ -1617,6 +1674,7 @@ int main()
  TestMenuGenerationAndPreparationFencing();
  TestMenuPresentationFailureUsesIdleRecovery();
  TestMenuIdleStopAndPreMutationFailurePreserveFences();
+	TestComputerMouseBindingAndFaultRetirement();
 	TestComputerKeyboardBindingSerializationAndFaults();
 	TestComputerMediaUnitsStayLiveAndReportUnitState();
 	TestCompositionUsesExistingLifecycle();
@@ -1664,6 +1722,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 55 passed");
+	puts("runtime_test: 56 passed");
 	return 0;
 }
