@@ -513,6 +513,10 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			Packages:   installedPackageRoot,
 		})
 		defer cores.Close()
+		options = append(options, httpapi.WithKitLocalRun(func() httpapi.KitLocalRun {
+			status := cores.RunStatus()
+			return httpapi.KitLocalRun{Phase: status.Phase, CoreID: status.CoreID}
+		}))
 		go func() {
 			err := localcores.Serve(ctx, dependencies.localControlSocket, localcores.Handler(cores))
 			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {

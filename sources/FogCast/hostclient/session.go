@@ -11,7 +11,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
+
+// SessionKitLocal reports that the kit is running a core outside the host
+// session coordinator. Such a session occupies the kit but has no host game.
+func SessionKitLocal(state string) bool {
+	return state == string(protocol.StateLocal)
+}
 
 var (
 	ErrResponseTooLarge  = errors.New("host response exceeds maximum size")
@@ -261,12 +269,17 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	if !validSessionState(wire.State) {
 		return result, fmt.Errorf("invalid session state %q", wire.State)
 	}
+	if SessionKitLocal(wire.State) {
+		result.GameID = ""
+		result.System = ""
+		result.Input = nil
+	}
 	return result, nil
 }
 
 func validSessionState(state string) bool {
 	switch state {
-	case "idle", "launching", "active", "stopping", "failed":
+	case "idle", "launching", "active", "stopping", "failed", string(protocol.StateLocal):
 		return true
 	default:
 		return false

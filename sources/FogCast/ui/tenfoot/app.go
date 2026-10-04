@@ -794,6 +794,9 @@ func postLeaseRelease(client *Client, stamp ClientStamp, release func(*Client, c
 }
 
 func idleRetainedSession(state string) bool {
+	if hostclient.SessionKitLocal(state) {
+		return false
+	}
 	switch strings.TrimSpace(state) {
 	case "", "idle":
 		return true
@@ -2056,7 +2059,7 @@ func (a *App) startLaunchLocked() {
 		a.status = localLaunchCheckingCopy
 		return
 	}
-	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
+	if a.launch.Phase == "launching" || hostclient.SessionKitLocal(a.session.State) || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
 	if a.searchPending {
@@ -2084,7 +2087,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.status = localLaunchCheckingCopy
 		return
 	}
-	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
+	if a.launch.Phase == "launching" || hostclient.SessionKitLocal(a.session.State) || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
 	// Firmware import and other catalog blocks do not claim the kit.
@@ -2841,6 +2844,11 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		a.invalidateSessionDisplayLocked()
 	}
 	a.session = result
+	if hostclient.SessionKitLocal(a.session.State) {
+		a.session.GameID = ""
+		a.session.System = ""
+		a.session.Input = nil
+	}
 	a.rememberFlightLocked(result.FlightID)
 	// Keep retainedIdleLease. Soft-stop of foreground B can promote A, and
 	// a later launch can go active, while B's idle grant is still retained.

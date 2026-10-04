@@ -57,6 +57,9 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	})
 	mux.Handle("GET /v1/status", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		status := controller.Status()
+		if settings.kitLocal != nil {
+			status = applyKitLocalRun(status, settings.kitLocal())
+		}
 		setRequestState(r, status)
 		writeJSON(w, http.StatusOK, status)
 	})))
