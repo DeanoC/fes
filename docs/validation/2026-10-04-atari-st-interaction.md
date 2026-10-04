@@ -105,7 +105,10 @@ kit launcher/controller and ten-foot UI. Independent overlap review finds
 the durable Stop budgets, observation fences and kit-local ownership rules
 intact. This combined host selection has no physical acceptance claim;
 the native artifacts retain source `517a285c0`. Exact selected bytes and
-the command/log digest are recorded in the evidence sidecar.
+the command/log digest are recorded in the evidence sidecar. Parent `make host`
+and `make check` then pass on committed `10a8ffbd7` bytes; the host manifest
+records both linux/amd64 binaries. Subsequent evidence changes do not relabel
+that build.
 
 The runtime run includes lifecycle, mouse, snapshot, durable-record, fault,
 composition, protocol and daemon tests; representative completion counts are

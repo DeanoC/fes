@@ -471,6 +471,35 @@
     "ROM bytes, device addresses, tokens and private paths are omitted."
   ],
   "main_integration": {
+    "committed_consistency": {
+      "command": [
+        "make",
+        "check"
+      ],
+      "log_sha256": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
+      "result": "pass: 18 generated consumers, 34 fixture copies and 0 copied source pins match",
+      "source_revision": "10a8ffbd7b3ab3801bd9c828256a10b86c2fb16a"
+    },
+    "committed_parent_host": {
+      "command": [
+        "make",
+        "host"
+      ],
+      "limits": "linux/amd64 host build only; no deployment or target acceptance",
+      "log_sha256": "7d7cce791375491407ef7a0d3a10a5a4783ff9e31d8fd94ab661745a1f67dd4b",
+      "manifest": {
+        "arch": "amd64",
+        "fes_revision": "10a8ffbd7b3ab3801bd9c828256a10b86c2fb16a",
+        "files": {
+          "fogcast": "7fa05370edb8467d8671d41bc27977f45b77161be843d4012312e94e01c56aee",
+          "fogcast-api": "1ed079b2166c061585ac3932bbe82d33adb30625354976de23e7a75ae1b76a52"
+        },
+        "inputs": "1793fc0a057046a560485fc50e939fffbe356107ab6ee0e8796fec2154381299",
+        "os": "linux"
+      },
+      "manifest_sha256": "aad0ccb3ca055ebd3ee85d07092a2b4f7255112ff4e60f81327d1da8fc5079ba",
+      "result": "pass"
+    },
     "independent_overlap_review": "pass: all four overlapping files; durable Stop budgets, observation fences, kit-local ownership/admission preserved",
     "limits": "combined host-only source tests; native artifacts and physical runs retain their original recorded selections",
     "merge_revision": "b1236121a710b922dd7407ff1f401abaaa382d2e",
