@@ -230,6 +230,7 @@ class AtariSTProducerTests(unittest.TestCase):
                         'parameters': {'CFG_ABITS': f'{9:032b}', 'CFG_DBITS': f'{20:032b}',
                                        'CFG_BYTE_ENABLE': f'{1:032b}', 'CFG_DUAL_CLOCK': f'{1:032b}'}},
                  'machine.rom.lane0': {'connections': {'CLK1': [73]}}}
+        cells[name + '_B1ADDR_MISTRAL_ALUT2_Q'] = {'type': 'MISTRAL_ALUT2'}
         self.assertEqual(st.validate_sector_memory(cells)['words'], 256)
         mutations = [('type', 'MISTRAL_FF'), ('CLK2', [74]), ('B1EN', ['1']),
                      ('A1BE', [71, '1']), ('A1ADDR', list(range(10, 19))),

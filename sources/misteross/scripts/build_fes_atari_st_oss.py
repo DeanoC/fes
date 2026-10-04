@@ -474,9 +474,12 @@ def validate_cache_placements(cells: dict, *, routed: bool) -> dict:
 def validate_sector_memory(cells: dict) -> dict:
     """The writable sector stage must be one synchronous RAM on the system clock."""
     name = "machine.system.io.floppy.writer.sector.0.0.0"
+    prefix = "machine.system.io.floppy.writer.sector"
     memories = {key: cell for key, cell in cells.items()
-                if key.startswith("machine.system.io.floppy.writer.sector")}
-    if set(memories) != {name} or memories[name].get("type") != "MISTRAL_M10K":
+                if key.startswith(prefix) and cell.get("type") in ("MISTRAL_M10K", "MISTRAL_M10K_TDP")}
+    array_flops = any(key.startswith(prefix) and cell.get("type") == "MISTRAL_FF"
+                      for key, cell in cells.items())
+    if set(memories) != {name} or memories[name].get("type") != "MISTRAL_M10K" or array_flops:
         raise BuildError("ST writable sector stage must infer exactly one M10K, with no array flip-flops")
     cell = memories[name]
     pins, parameters = cell.get("connections", {}), cell.get("parameters", {})
