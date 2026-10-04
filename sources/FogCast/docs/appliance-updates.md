@@ -87,16 +87,32 @@ the package tests and isolated root-switch test are not physical acceptance.
 
 For an appliance activation or rollback, the agent installs independent
 backstops right before it requests a normal reboot, then never touches them
-again:
+again. Shutdown has three reset layers:
 
-- A detached fallback (ignores TERM/HUP/INT) forces sysrq `b`, then falls back
+- A detached userspace fallback (ignores TERM/HUP/INT) forces sysrq `b`, then falls back
   to `reboot -nf`, only when
   shutdown has stalled: no block-device I/O progress for 30 seconds, or a hard
   deadline of 150 seconds while I/O keeps progressing. It first runs an explicit
   sync bounded to 10 seconds; sysrq `b` skips device shutdown, while `reboot -nf`
   avoids another sync if sysrq fails or returns. The capped stop
   scripts wait at most 20 seconds without I/O in total, below the 30-second stall
-  trigger (`image/scripts/tests/shutdown-budget_test.sh`).
+  trigger (`image/scripts/tests/shutdown-budget_test.sh`). This covers a stall
+  inside rcK. BusyBox init has no kill-all omit list: after its synchronous
+  `::shutdown` actions it sends SIGTERM and SIGKILL to every process except
+  pid 1, so the fallback helper cannot survive that phase.
+- The last `::shutdown` action runs `fes-reboot-backstop` after `/bin/umount -a
+  -r`, when filesystems are read-only and before init's kill-all and `reboot(2)`.
+  It arms `kernel.hung_task_panic=1`, a 10-second hung-task timeout, a 2-second
+  check interval and a 3-second panic reboot delay. A normal reboot takes about
+  1-2 seconds; a wedged reboot resets well under 30 seconds after the action,
+  while a task already stuck since boot fires at the first check. This covers
+  hangs after kill-all or inside `reboot(2)`, such as a wedged USB disk blocking
+  kernel `device_shutdown` while waiting for its async probe. Unbinding or
+  deleting that SCSI device before reboot was rejected because
+  `scsi_remove_device`/`sd_remove` and USB-storage disconnect wait on the same
+  stuck async probe or control thread and could block the shutdown action
+  itself. The `sda` device is neither registered nor mounted, so there is
+  nothing to skip syncing.
 - The Cyclone V hardware watchdog, after the warm-reset register preparation,
   set to 180 seconds and never petted. It is kept only if its read-back timeout
   leaves room for at least a 60-second fallback deadline plus the 10-second sync

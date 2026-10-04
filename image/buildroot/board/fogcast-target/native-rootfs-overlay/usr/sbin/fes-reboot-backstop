@@ -1,0 +1,28 @@
+#!/bin/sh
+# A normal reboot(2) completes in about 1-2 s, well below this 10 s timeout.
+# A wedged reboot resets within timeout + check interval + panic delay, well
+# under 30 s after this action runs. A task stuck since boot fires on first
+# check. The 180 s hardware watchdog remains the final layer.
+PANIC_DELAY=3
+CHECK_INTERVAL=2
+HUNG_TASK_TIMEOUT=10
+proc_root=${FES_REBOOT_BACKSTOP_PROC:-/proc}
+kernel=$proc_root/sys/kernel
+
+write_setting() {
+  setting=$1
+  value=$2
+  if [ -w "$kernel/$setting" ]; then
+    printf '%s\n' "$value" > "$kernel/$setting" 2>/dev/null || :
+  fi
+}
+
+write_setting panic "$PANIC_DELAY"
+write_setting hung_task_panic 1
+write_setting hung_task_check_interval_secs "$CHECK_INTERVAL"
+write_setting hung_task_timeout_secs "$HUNG_TASK_TIMEOUT"
+
+if [ -w /dev/kmsg ]; then
+  printf '%s\n' 'fes-reboot-backstop: armed hung_task_panic timeout=10s panic=3s' > /dev/kmsg 2>/dev/null || :
+fi
+exit 0
