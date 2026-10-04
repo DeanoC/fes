@@ -1,0 +1,81 @@
+{
+  "fes_revision": "de32b3d083e98ba7f387ec16da1204cdd05f4284",
+  "log_markers": {
+    "== make build": true,
+    "== make check": true,
+    "== make verify": true,
+    "BUILD_VERIFY_OK": true,
+    "RELEASE_OK": true,
+    "Two-pass reproducibility, structural and QEMU packaging checks passed.": true,
+    "select-video-parts verified": true
+  },
+  "package_ids_env": "fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.spectrum,fes.ramtest",
+  "packages": {
+    "fes.coleco": "e8fb0875292643d05cd500c461a51afa59ae839e085c5ff5d1f28629d4578772",
+    "fes.menu": "eef73066a218c59831d27d4c83941c74ef1b43446dde97bde46d6a61fb581868",
+    "fes.pong": "dd7405b3c717fe8c228be5450f3fe05c524354565c77413aca02842d7c3462ec",
+    "fes.ramtest": "3593d7e08af70397580b48e4f8469069a643e8c42a88907ed8b2ce4ba4c17d1f",
+    "fes.sg1000": "aaaefca264d5da3dc6b34e9a3ba243b8682ab49d10cd9e8e59aa16eb44f90ec3",
+    "fes.sms": "7f4193ce1321fc6be6d23ca83a31c5766dd6f1a3e221d6915d0b340c978f9f25",
+    "fes.spectrum": "9e5ff4eb3e9cdf67cbcd448fe81fb24f572f9769f48ca8c22c164970fa9ec415",
+    "fes.zx81": "e756d9442600ee56accd7bb9ad7b8c6edb5464a0944b8be5be57af75bbaed1ab"
+  },
+  "profile": "native-integration-dev",
+  "release_version": "0.2.0-pr404-de32b3d0.1",
+  "timing": {
+    "fes.coleco": {
+      "build_id": "9cf92c6e6f791c854aad2d448df79871",
+      "clocks": {
+        "audio": {
+          "achieved_mhz": 177.68,
+          "constraint_mhz": 12.288,
+          "status": "pass"
+        },
+        "pixel": {
+          "achieved_mhz": 76.95,
+          "constraint_mhz": 74.25,
+          "status": "pass"
+        },
+        "system": {
+          "achieved_mhz": 53.46,
+          "constraint_mhz": 52.225,
+          "status": "pass"
+        }
+      },
+      "rbf_sha256": "0c88c70b842d93c40a8a240254ca7f68b2193434f72da7ed7a3c871f00776199",
+      "status": "pass"
+    },
+    "fes.sg1000": {
+      "build_id": "35d74307f7e09726e862bb54b7e7c2d5",
+      "clocks": {
+        "audio": {
+          "achieved_mhz": 196.19,
+          "constraint_mhz": 12.288,
+          "status": "pass"
+        },
+        "pixel": {
+          "achieved_mhz": 101.85,
+          "constraint_mhz": 74.25,
+          "status": "pass"
+        },
+        "system": {
+          "achieved_mhz": 52.99,
+          "constraint_mhz": 52.225,
+          "status": "pass"
+        }
+      },
+      "rbf_sha256": "75ab654453d18f8411809cbe4bc35b3e74e0e5945c4c98cb193ae5aeb76f7ce6",
+      "status": "pass"
+    }
+  },
+  "verify_package_verified": [
+    "fes.coleco",
+    "fes.menu",
+    "fes.pong",
+    "fes.ramtest",
+    "fes.sg1000",
+    "fes.sms",
+    "fes.spectrum",
+    "fes.zx81"
+  ]
+}

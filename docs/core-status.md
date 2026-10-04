@@ -129,7 +129,8 @@ Hardware evidence applies only to the artifacts it names. The earlier raster
 [host seal](validation/2026-10-02-video-parts-seal.md),
 [developer Kit 2 diagnostic](validation/2026-10-02-video-parts-kit2-hil.md),
 [normal-library diagnostic](validation/2026-10-02-video-library-kit2-hil.md) and
-[factory-image record](validation/2026-10-03-video-factory-kit2.md) cover their
+[factory-image record](validation/2026-10-03-video-factory-kit2.md) and the later
+[Kit B acceptance record](validation/2026-10-03-video-factory-kitb-de32b3d0.md) cover their
 respective builds, including SGM and host preference persistence where stated.
 The native [sealed-build and Kit 2 diagnostic](validation/2026-10-03-native-video-parts-kit2.md)
 records strict CRAM containment, compiler/Go/Python byte agreement and clean

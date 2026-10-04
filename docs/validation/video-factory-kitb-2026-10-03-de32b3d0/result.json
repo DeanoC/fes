@@ -1,0 +1,24 @@
+{
+  "automatic_catalog_parts": true,
+  "cases": [
+    {
+      "case": "direct",
+      "composition_id": "b1e21c41441ffe33622b4cef7ebad9d3c1c9cc042ccb966d1a1db99843fc0039",
+      "generation": 1
+    },
+    {
+      "case": "scanlines",
+      "composition_id": "3065c00bc73b197af68530964edd6b92d26df7d2d09860e5349f9a4661247058",
+      "generation": 2
+    },
+    {
+      "case": "direct-relaunch",
+      "composition_id": "b1e21c41441ffe33622b4cef7ebad9d3c1c9cc042ccb966d1a1db99843fc0039",
+      "generation": 3
+    }
+  ],
+  "classification": "operator-run hardware diagnostic",
+  "final_idle": true,
+  "passed": true,
+  "restart_persistence": true
+}
