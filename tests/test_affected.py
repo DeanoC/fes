@@ -49,14 +49,14 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
             'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu', 'ramtest'},
-            'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong', 'ramtest'},
+            'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu', 'ramtest', 'riscv'},
+            'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'},
             'cores/fes-common/rtl/fes_audio_pll.v': {'demo'},
             'cores/fes-common/rtl/fes_audio_output.v': {'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'},
             'cores/fes-common/rtl/fes_sn76489.sv': {'coleco', 'sg1000'},
             'cores/fes-common/rtl/fes_z80_ce.sv': {'coleco', 'sg1000', 'sms'},
-            'cores/fes-pong/sim/board_models.v': {'demo', 'pong'},
+            'cores/fes-pong/sim/board_models.v': {'demo', 'pong', 'riscv'},
             'cores/pong/rtl/pong_game.sv': {'pong'},
             'cores/fes-sms/rtl/sms_vdp.sv': {'sms'},
             'cores/fes-zx81/rtl/zx81_machine.sv': {'zx81'},
@@ -94,7 +94,11 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-c64/rtl/c64_system_pll.v': {'c64', 'atari-st'},
             'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st'},
             'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st'},
-            'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest'},
+            'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest', 'riscv'},
+            'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
+            'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
+            'cores/fes-riscv/firmware/firmware.S': {'riscv'},
+            'scripts/sim_fes_riscv.py': {'riscv'},
             'scripts/atari_st_slot.py': {'atari-st'},
             'scripts/build_atari_st_slot_card.py': {'atari-st'},
             'scripts/fetch_atari_st_emutos.py': {'atari-st'},
@@ -171,7 +175,7 @@ class AffectedTests(unittest.TestCase):
             producer_name = core.replace('-', '_')
             sources = [root / 'scripts' / ('build_fes_' + producer_name + '.py'),
                        root / 'scripts' / ('build_fes_' + producer_name + '_oss.py')]
-            if core in ('demo', 'menu', 'z80'):
+            if core in ('demo', 'menu', 'z80', 'riscv'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')

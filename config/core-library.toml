@@ -62,6 +62,12 @@ system = "ramtest"
 standing = "supported"
 
 [[cores]]
+core_id = "fes.riscv"
+label = "FES RISC-V"
+system = "riscv"
+standing = "experimental"
+
+[[cores]]
 core_id = "fes.atari-st"
 label = "Atari 520ST"
 system = "atari-st"

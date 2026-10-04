@@ -10,7 +10,7 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 # Simulation families include the standalone CPU; it has no play-package recipe.
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest')
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv')
 SIMULATION_ONLY_CORES = frozenset({'z80'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 
@@ -34,16 +34,16 @@ FPGA_PRODUCER_HELPERS = {
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',
     'core_package.py', 'export_core_package.py', 'search_placer_qor.py',
 }
-# Directory ownership includes cross-core consumers: demo imports Pong board
-# models/constraints/PLL; SG-1000 and SMS still include Coleco generated headers.
+# Directory ownership includes cross-core consumers: demo and RISC-V import Pong
+# board models/constraints/PLL; SG-1000 and SMS still include Coleco generated headers.
 # Shared implementation has moved into fes-common, but those edges remain.
 COLECO_CONSUMERS = ('coleco', 'sg1000', 'sms')
 CORE_DIRECTORIES = {
-    'fes-demo': ('demo',), 'fes-pong': ('demo', 'pong'), 'pong': ('pong',),
+    'fes-demo': ('demo',), 'fes-pong': ('demo', 'pong', 'riscv'), 'pong': ('pong',),
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
     'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
-    'fes-ramtest': ('ramtest',),
+    'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',),
 }
 # ZX81's in-session plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
@@ -67,8 +67,8 @@ SHARED_RTL = {
     'coleco_video_dpram.v': COLECO_CONSUMERS,
     'coleco_video_720p.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
-    'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest'),
-    'fes_video_720p.v': ('demo', 'pong', 'ramtest'),
+    'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest', 'riscv'),
+    'fes_video_720p.v': ('demo', 'pong', 'ramtest', 'riscv'),
     'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
     'fes_audio_pll.v': ('demo',),
     'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
@@ -102,7 +102,7 @@ def fpga_cores(path):
     if relative.as_posix() == 'toolchains/atari-st.lock':
         return ('atari-st',), 'Atari ST producer toolchain pin'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
-        return ('demo', 'pong', 'ramtest'), 'shared fixed-raster clock consumers'
+        return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
@@ -117,6 +117,9 @@ def fpga_cores(path):
             if parts[2] == 'rtl':
                 return ('z80', 'sg1000', 'spectrum'), 'shared original Z80 RTL consumers'
             return ('z80',), 'standalone Z80 simulation fixtures'
+        if (len(parts) >= 4 and parts[1] == 'fes-common'
+                and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):
+            return ('riscv',), 'original RV32I CPU and its fes.riscv consumer'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
             return ('menu', 'zx81'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
@@ -138,7 +141,7 @@ def fpga_cores(path):
                        for suffix in ('', '_oss'))
         if producer or parts[1] in FPGA_PRODUCER_HELPERS:
             return (), 'FPGA producer/package software tests; RTL unchanged'
-        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py'):
+        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py', 'sim_fes_riscv.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
         if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py', 'test_fes_z80_pin_trace.py'):
