@@ -496,20 +496,71 @@ def validate_sector_memory(cells: dict) -> dict:
         raise BuildError("ST sector RAM read and write must share the live firmware system clock")
     for port in ("A1ADDR", "B1ADDR"):
         value = pins.get(port, [])
-        if len(value) != 9 or value[8:] != ["0"] or any(type(bit) is not int for bit in value[:8]):
+        if not isinstance(value, list) or len(value) != 9:
             raise BuildError("ST sector RAM must address exactly 256 words")
     for port in ("A1DATA", "B1DATA"):
         value = pins.get(port, [])
-        if len(value) != 20 or any(type(bit) is not int for bit in value[:16]):
+        if not isinstance(value, list) or len(value) != 20:
             raise BuildError("ST sector RAM must have a live 16-bit data path")
-    if pins["A1DATA"][16:] != ["0"] * 4:
-        raise BuildError("ST sector RAM unused write data must be zero")
     for port in ("A1EN", "B1EN"):
         value = pins.get(port, [])
-        if len(value) != 1 or type(value[0]) is not int:
+        if not isinstance(value, list) or len(value) != 1:
             raise BuildError("ST sector RAM needs live synchronous read and write enables")
     if pins.get("A1BE") != pins["A1EN"] * 2:
         raise BuildError("ST sector RAM byte enables must follow its write enable")
+
+    # Packing replaces literal zero ties with a shared MISTRAL_CONST output.
+    # Resolve only that primitive, with a complete, unique driver census. An
+    # integer net ID alone proves neither a zero tie nor a live RAM input.
+    checked_ports = ("A1ADDR", "B1ADDR", "A1DATA", "B1DATA", "A1EN", "B1EN", "CLK1", "CLK2")
+    relevant = {bit for port in checked_ports for bit in pins[port] if type(bit) is int}
+    drivers = {bit: [] for bit in relevant}
+    for source_name, source in cells.items():
+        for port, bits in source.get("connections", {}).items():
+            direction = source.get("port_directions", {}).get(port)
+            for bit in bits:
+                if type(bit) is int and bit in relevant:
+                    if direction == "output":
+                        drivers[bit].append((source_name, port))
+                    elif direction != "input":
+                        raise BuildError("ST sector RAM net has an unknown port direction")
+
+    def constant_value(bit):
+        if type(bit) is not int:
+            if bit in ("0", "1"):
+                return int(bit)
+            raise BuildError("ST sector RAM net has an unknown value")
+        sources = drivers[bit]
+        if len(sources) != 1:
+            raise BuildError("ST sector RAM net must have exactly one driver")
+        source_name, port = sources[0]
+        source = cells[source_name]
+        if source.get("type") != "MISTRAL_CONST":
+            return None
+        lut = source.get("parameters", {}).get("LUT")
+        if (port != "Q" or source.get("connections", {}).get("Q") != [bit] or
+                source.get("port_directions", {}).get("Q") != "output" or
+                not isinstance(lut, str) or not re.fullmatch("[01]{32}", lut) or
+                int(lut, 2) not in (0, 1)):
+            raise BuildError("ST sector RAM constant driver is not a proven zero or one")
+        return int(lut, 2)
+
+    def require_live(bits, message):
+        for bit in bits:
+            if type(bit) is not int or constant_value(bit) is not None:
+                raise BuildError(message)
+
+    require_live(clock, "ST sector RAM read and write must share the live firmware system clock")
+    for port in ("A1ADDR", "B1ADDR"):
+        require_live(pins[port][:8], "ST sector RAM must have eight live address bits")
+        if constant_value(pins[port][8]) != 0:
+            raise BuildError("ST sector RAM must address exactly 256 words")
+    for port in ("A1DATA", "B1DATA"):
+        require_live(pins[port][:16], "ST sector RAM must have a live 16-bit data path")
+    if any(constant_value(bit) != 0 for bit in pins["A1DATA"][16:]):
+        raise BuildError("ST sector RAM unused write data must be zero")
+    for port in ("A1EN", "B1EN"):
+        require_live(pins[port], "ST sector RAM needs live synchronous read and write enables")
     return {"status": "pass", "cell": name, "words": 256, "bits_per_word": 16}
 
 

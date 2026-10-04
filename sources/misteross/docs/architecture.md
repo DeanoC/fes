@@ -1595,8 +1595,10 @@ confines its CRAM writes to the shared rectangle.
 `st_memory.sv` fairly arbitrates CPU, video, floppy DMA and both media paths
 over the existing addon SDRAM controller at 52.224 MHz. That controller now
 supports optional byte masks, initialization status and idle refresh while
-preserving the RAM tester's default behavior. Warm CPU Hold leaves memory and
-uploads running. Withdrawn requests drain without stale acknowledgements.
+preserving the RAM tester's default behavior. Write masks are held during row
+setup two fabric clocks before WRITE, while reads remain unmasked. Warm CPU Hold
+leaves memory and uploads running. Withdrawn requests drain without stale
+acknowledgements.
 The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the
 big-endian media adapter handles arbitrary odd chunk boundaries before the
 mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability

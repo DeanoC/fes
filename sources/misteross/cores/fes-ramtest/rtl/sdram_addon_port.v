@@ -294,6 +294,8 @@ module sdram_addon_port #(
                 sdram_ba <= held_addr[3:2];
                 sdram_a <= held_addr[16:4];
                 sdram_nras <= 1'b0;
+                sdram_dqml <= writing && !held_byte_enable[0];
+                sdram_dqmh <= writing && !held_byte_enable[1];
                 state <= ST_RCD1;
                 if (writing) begin
                     dq_out_q <= held_data;
@@ -304,6 +306,11 @@ module sdram_addon_port #(
                 sdram_cke <= 1'b1;
                 dq_out_q <= held_data;
                 dq_oe <= writing;
+                // Set write masks two fabric clocks before the column
+                // command, alongside the already held data and output enable.
+                // READ masks stay low; the RAM tester holds byte enables high.
+                sdram_dqml <= writing && !held_byte_enable[0];
+                sdram_dqmh <= writing && !held_byte_enable[1];
                 state <= (state == ST_RCD1) ? ST_RCD2 : ST_ACT;
             end
             ST_ACT: begin

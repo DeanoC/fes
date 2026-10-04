@@ -189,6 +189,9 @@ upload, writable sector/snapshot, mouse handshake and media arbitration tests. T
 protection, MMU aliases, big-endian byte/word/long access, TAS, exceptions,
 expansion waits/errors and CPU-written pixels. The memory test checks real
 SDRAM commands, CAS-2 capture, refresh, byte masks, fairness and warm reset.
+Write masks are asserted during row setup two fabric clocks before WRITE; the
+model checks zero, one and two clocks of added DQM delay and its two-clock read
+latency.
 The media test uploads a complete disk with odd chunk boundaries and checks
 CRC, execution-independent insert/eject and completion before acknowledgement.
 

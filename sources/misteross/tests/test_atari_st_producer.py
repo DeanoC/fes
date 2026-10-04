@@ -46,6 +46,32 @@ def pinned_cache_cells(*, routed=True):
             for name, bel in st.CACHE_BELS.items()}
 
 
+def sector_memory_cells(*, packed=False):
+    name = 'machine.system.io.floppy.writer.sector.0.0.0'
+    zero = 900 if packed else '0'
+    pins = {'A1ADDR': list(range(10, 18)) + [zero],
+            'B1ADDR': list(range(20, 28)) + [zero],
+            'A1DATA': list(range(30, 46)) + [zero] * 4,
+            'B1DATA': list(range(50, 70)), 'A1EN': [71],
+            'B1EN': [72], 'A1BE': [71, 71], 'CLK1': [73], 'CLK2': [73]}
+    cells = {name: {'type': 'MISTRAL_M10K', 'connections': pins,
+                    'port_directions': {port: 'output' if port == 'B1DATA' else 'input'
+                                        for port in pins},
+                    'parameters': {'CFG_ABITS': f'{9:032b}', 'CFG_DBITS': f'{20:032b}',
+                                   'CFG_BYTE_ENABLE': f'{1:032b}', 'CFG_DUAL_CLOCK': f'{1:032b}'}},
+             'machine.rom.lane0': {'connections': {'CLK1': [73]},
+                                   'port_directions': {'CLK1': 'input'}}}
+    live_inputs = {bit for port, bits in pins.items() if port != 'B1DATA'
+                   for bit in bits if type(bit) is int and bit != 900}
+    for bit in live_inputs:
+        cells[f'driver{bit}'] = {'type': 'MISTRAL_CLKBUF' if bit == 73 else 'MISTRAL_FF',
+                               'connections': {'Q': [bit]}, 'port_directions': {'Q': 'output'}}
+    if packed:
+        cells['$PACKER_GND_DRV'] = {'type': 'MISTRAL_CONST', 'parameters': {'LUT': '0' * 32},
+                                  'connections': {'Q': [900]}, 'port_directions': {'Q': 'output'}}
+    return cells
+
+
 class AtariSTProducerTests(unittest.TestCase):
     def test_vendor_cpu_adapter_preserves_all_functional_bytes(self):
         original = (ROOT / st.CPU_VENDOR / 'fx68k.sv').read_bytes()
@@ -221,15 +247,7 @@ class AtariSTProducerTests(unittest.TestCase):
 
     def test_sector_stage_rejects_flip_flops_and_invalid_memory_ports(self):
         name = 'machine.system.io.floppy.writer.sector.0.0.0'
-        pins = {'A1ADDR': list(range(10, 18)) + ['0'],
-                'B1ADDR': list(range(20, 28)) + ['0'],
-                'A1DATA': list(range(30, 46)) + ['0'] * 4,
-                'B1DATA': list(range(50, 70)), 'A1EN': [71],
-                'B1EN': [72], 'A1BE': [71, 71], 'CLK1': [73], 'CLK2': [73]}
-        cells = {name: {'type': 'MISTRAL_M10K', 'connections': pins,
-                        'parameters': {'CFG_ABITS': f'{9:032b}', 'CFG_DBITS': f'{20:032b}',
-                                       'CFG_BYTE_ENABLE': f'{1:032b}', 'CFG_DUAL_CLOCK': f'{1:032b}'}},
-                 'machine.rom.lane0': {'connections': {'CLK1': [73]}}}
+        cells = sector_memory_cells()
         cells[name + '_B1ADDR_MISTRAL_ALUT2_Q'] = {'type': 'MISTRAL_ALUT2'}
         self.assertEqual(st.validate_sector_memory(cells)['words'], 256)
         mutations = [('type', 'MISTRAL_FF'), ('CLK2', [74]), ('B1EN', ['1']),
@@ -248,6 +266,76 @@ class AtariSTProducerTests(unittest.TestCase):
         for changed in ({}, cells | {name + '_MISTRAL_FF_Q': {'type': 'MISTRAL_FF'}}):
             with self.assertRaisesRegex(BuildError, 'exactly one M10K'):
                 st.validate_sector_memory(changed)
+
+    def test_sector_stage_accepts_literal_and_proven_packed_zero_padding(self):
+        for packed in (False, True):
+            with self.subTest(packed=packed):
+                self.assertEqual(st.validate_sector_memory(sector_memory_cells(packed=packed)),
+                                 {'status': 'pass', 'cell': 'machine.system.io.floppy.writer.sector.0.0.0',
+                                  'words': 256, 'bits_per_word': 16})
+
+    def test_sector_stage_rejects_unproven_packed_padding(self):
+        name = 'machine.system.io.floppy.writer.sector.0.0.0'
+        for mutation in ('undriven', 'high', 'unknown_lut', 'wide_lut', 'integer_lut',
+                         'multiple_zero', 'contradictory', 'multiple_ordinary', 'ordinary_driver', 'unknown_direction',
+                         'inout', 'wide_output', 'unknown_literal', 'boolean'):
+            with self.subTest(mutation=mutation):
+                cells = sector_memory_cells(packed=True)
+                ground = cells['$PACKER_GND_DRV']
+                if mutation == 'undriven': del cells['$PACKER_GND_DRV']
+                elif mutation == 'high': ground['parameters']['LUT'] = f'{1:032b}'
+                elif mutation == 'unknown_lut': ground['parameters']['LUT'] = 'x' * 32
+                elif mutation == 'wide_lut': ground['parameters']['LUT'] = f'{2:032b}'
+                elif mutation == 'integer_lut': ground['parameters']['LUT'] = 0
+                elif mutation in ('multiple_zero', 'contradictory', 'multiple_ordinary'):
+                    cells['extra'] = copy.deepcopy(ground)
+                    if mutation == 'contradictory': cells['extra']['parameters']['LUT'] = f'{1:032b}'
+                    elif mutation == 'multiple_ordinary': cells['extra']['type'] = 'MISTRAL_FF'
+                elif mutation == 'ordinary_driver': ground['type'] = 'MISTRAL_FF'
+                elif mutation == 'unknown_direction': del ground['port_directions']['Q']
+                elif mutation == 'inout': ground['port_directions']['Q'] = 'inout'
+                elif mutation == 'wide_output': ground['connections']['Q'].append(901)
+                elif mutation == 'unknown_literal': cells[name]['connections']['A1ADDR'][8] = 'x'
+                elif mutation == 'boolean': cells[name]['connections']['B1ADDR'][8] = False
+                with self.assertRaises(BuildError):
+                    st.validate_sector_memory(cells)
+
+    def test_sector_stage_rejects_constant_undriven_and_multiple_live_signals(self):
+        name = 'machine.system.io.floppy.writer.sector.0.0.0'
+        for port in ('A1ADDR', 'B1ADDR', 'A1DATA', 'B1DATA', 'A1EN', 'B1EN', 'CLK1'):
+            for mutation in ('zero', 'one', 'undriven', 'multiple', 'unknown_direction', 'inout'):
+                with self.subTest(port=port, mutation=mutation):
+                    cells = sector_memory_cells(packed=True)
+                    pins = cells[name]['connections']
+                    bit = pins[port][0]
+                    if mutation in ('zero', 'one'):
+                        # Replace input drivers with a constant. A constant on
+                        # read data conflicts with the RAM's own output driver.
+                        if port == 'B1DATA':
+                            pins[port][0] = 901
+                            bit = 901
+                        else:
+                            del cells[f'driver{bit}']
+                        cells['live_constant'] = {'type': 'MISTRAL_CONST',
+                            'connections': {'Q': [bit]}, 'port_directions': {'Q': 'output'},
+                            'parameters': {'LUT': f'{int(mutation == "one"):032b}'}}
+                    elif mutation == 'undriven':
+                        if port == 'B1DATA':
+                            # A read-data port with unresolved direction cannot
+                            # establish a live output merely from its net ID.
+                            del cells[name]['port_directions'][port]
+                        else:
+                            del cells[f'driver{bit}']
+                    elif mutation == 'multiple':
+                        cells['extra'] = {'type': 'MISTRAL_FF', 'connections': {'Q': [bit]},
+                                          'port_directions': {'Q': 'output'}}
+                    else:
+                        source = cells[name] if port == 'B1DATA' else cells[f'driver{bit}']
+                        output = port if port == 'B1DATA' else 'Q'
+                        if mutation == 'unknown_direction': del source['port_directions'][output]
+                        else: source['port_directions'][output] = 'inout'
+                    with self.assertRaises(BuildError):
+                        st.validate_sector_memory(cells)
 
     def test_all_ram_configuration_guard_catches_ram_outside_lab_reservation(self):
         database = ram_database()
