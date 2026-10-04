@@ -1444,8 +1444,13 @@ report `MISTER_UNAVAILABLE` while kit state cannot be observed. Before replacing
 media for another host-only launch, FogCast checks the local executor; an active
 RetroArch process returns `BUSY` and retains its current media session.
 M1 software-runner input uses a controller attached to the runner through
-RetroArch's local joypad/udev input. FogCast does not route remote controller
-input to `host_only`; that remains a #363 gap.
+RetroArch's local joypad/udev input. Remote controller input to `host_only` is
+outside M1. The #363 integration matrix
+([`docs/mesh-m1-integration.md`](../../../docs/mesh-m1-integration.md)) records this non-goal.
+With host media disabled, host-only playback runs independently of kit FPGA
+plays, so kit-scoped Stop and host Stop remain independent. With host media
+enabled, a host-only launch for a kit replaces that kit's package play because
+the cast claims the kit's display.
 
 `Service.MeshBackendLibrary` reads the existing local catalog and projects
 package titles through the same helper as placement; raw games use the

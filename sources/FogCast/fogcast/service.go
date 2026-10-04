@@ -286,6 +286,7 @@ type Service struct {
 	uploadReadDelay          time.Duration
 	executionResolver        ExecutionResolver
 	hostExecutor             hostexec.Adapter
+	hostMediaEnabled         bool
 	users                    *libraryuser.Store
 	media                    *librarymedia.Index
 	libraryOverlayPath       string
@@ -541,6 +542,7 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		requestTimeout:      config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		coreLoadReconcileTimeout: coreLoadReconcileTimeout,
 		executionResolver:        defaultExecutionResolver{},
+		hostMediaEnabled:         config.Media.Enabled,
 		attractIdle:              config.Library.AttractIdleSeconds,
 		preferredRegions:         append([]string(nil), config.Library.PreferredRegions...),
 		videoProfile:             defaultVideoProfile(config.Library.VideoProfile),
@@ -844,6 +846,10 @@ func (s *Service) PlaySessions() []PlaySession {
 func (s *Service) clearUnstartedSessionTarget() {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
+	if s.activeExecution == ExecutionHostOnly {
+		// Keep root host play unbound; a single kit's independent play remains in its map.
+		return
+	}
 	if s.activeExecution == "" {
 		s.activeTarget = ""
 		s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
@@ -1180,8 +1186,13 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		}
 	}
 
-	if err := s.stopPackageOwnedForCatalogLaunch(ctx, snap.name); err != nil {
-		return protocol.CachedLaunchResponse{}, err
+	// Host media casts host-only playback onto the requested kit's display,
+	// so preserve package replacement there; without it RetroArch is runner-local
+	// and does not claim a kit display (ARCHITECTURE.md, host capture sender).
+	if execution != ExecutionHostOnly || s.hostMediaEnabled {
+		if err := s.stopPackageOwnedForCatalogLaunch(ctx, snap.name); err != nil {
+			return protocol.CachedLaunchResponse{}, err
+		}
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
@@ -2012,6 +2023,8 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		status.GameID = stringPtr(s.activeGameID)
 		status.System = systemPtr(s.activeSystem)
 	}
+	// Preserve the loaded kit as the binding; a single-kit flow has no peer to promote.
+	s.retainSessionTargetLocked()
 
 	s.selectedTargetReconciled = false
 	s.selectedTargetRepairAllowed = false
@@ -2672,6 +2685,9 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
 		s.clearForegroundPlayLocked()
+	} else if scopedTarget != "" && status.State == protocol.StateIdle {
+		// Remove only the scoped kit's record; in a single-kit flow it is the sole play.
+		delete(s.plays, scopedTarget)
 	}
 	s.selectedTargetReconciled = status.State == protocol.StateIdle
 	s.selectedTargetRepairAllowed = false
