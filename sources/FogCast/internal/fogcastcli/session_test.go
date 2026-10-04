@@ -176,6 +176,13 @@ func TestSessionCommandsSanitizeHostJSONAndRejectUnknownState(t *testing.T) {
 	})
 }
 
+func TestDecodeHostSessionAcceptsKitLocalState(t *testing.T) {
+	session, err := decodeHostSession([]byte(`{"state":"local"}`))
+	if err != nil || session.State != protocol.StateLocal || session.GameID != nil {
+		t.Fatalf("session = %+v, error = %v", session, err)
+	}
+}
+
 func TestSessionCommandsHumanOutputUsesHostSession(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

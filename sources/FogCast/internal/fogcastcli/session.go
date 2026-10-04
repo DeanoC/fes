@@ -119,7 +119,7 @@ func decodeHostSession(payload []byte) (hostSession, error) {
 
 func validHostSessionState(state protocol.State) bool {
 	switch state {
-	case protocol.StateIdle, protocol.StateLaunching, protocol.StateActive, protocol.StateStopping, protocol.StateFailed:
+	case protocol.StateIdle, protocol.StateLaunching, protocol.StateActive, protocol.StateStopping, protocol.StateFailed, protocol.StateLocal:
 		return true
 	default:
 		return false

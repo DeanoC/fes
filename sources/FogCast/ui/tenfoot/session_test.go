@@ -726,6 +726,24 @@ func TestSessionChromeStateFixtures(t *testing.T) {
 	}
 }
 
+func TestKitLocalSessionIsOccupiedWithoutHostSessionFields(t *testing.T) {
+	t.Parallel()
+	if idleRetainedSession("local") {
+		t.Fatal("kit-local core was treated as idle-retained")
+	}
+	app := &App{}
+	app.applySessionLocked(hostclient.SessionResult{
+		State: "local", GameID: "host-game", System: "snes",
+		Input: &hostclient.SessionInput{Ready: true},
+	})
+	if app.session.State != "local" || app.session.GameID != "" || app.session.System != "" || app.session.Input != nil {
+		t.Fatalf("kit-local session projection = %+v", app.session)
+	}
+	if app.gpuParked || app.sessionStopOfferedLocked() {
+		t.Fatalf("kit-local core acquired host-session ownership: parked=%v stop=%v", app.gpuParked, app.sessionStopOfferedLocked())
+	}
+}
+
 func TestFormatSessionEventAndLeaseLine(t *testing.T) {
 	t.Parallel()
 	line := formatSessionEvent(hostclient.SessionEvent{Event: "session.launch", State: "active", GameID: "snes-mario", System: "snes"})
