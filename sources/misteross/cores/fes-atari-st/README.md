@@ -100,7 +100,9 @@ reads and writes, force interrupts and ST DMA. Drive A accepts exactly 737,280 b
 absent. Requests stay stable under storage/DMA stalls; DMA stays inside RAM.
 The writable extension clears write protect. A complete sector is staged from
 RAM before publication to the disk buffer; once publication starts it drains
-through warm reset or force interrupt. Freeze fences new writers and drains
+through warm reset or force interrupt. Begin and Eject reject while collection
+or an accepted sector commit is busy, including volatile disks; an explicit
+later replacement cannot overlap the old image's writes. Freeze fences new writers and drains
 accepted work before whole-image capture. Raw development loads stay volatile;
 library loads explicitly bind durable data to the game and immutable base disk.
 The runtime publishes a checksummed full image through a synced atomic rename,
@@ -164,6 +166,7 @@ timing continues. Native raster tricks and aspect-ratio correction are absent.
 
 ```sh
 make -C sources/misteross sim-fes-atari-st
+make -C sources/misteross sim-fes-atari-st-media-lifecycle
 make -C sources/misteross fetch-fes-atari-st-emutos
 make -C sources/misteross sim-fes-atari-st-emutos \
   EMUTOS_ROM=build/roms/emutos-1.4/etos192us.img

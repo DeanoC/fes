@@ -103,7 +103,7 @@ public:
 				if (index > 7) return {index_error, 0};
 				if (arg) return {argument_error, 0};
 				const std::uint16_t info[8] = {
-					static_cast<std::uint16_t>((u.state == 3 ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0)),
+					static_cast<std::uint16_t>((u.state == 3 ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0) | (write_busy ? 8 : 0)),
 					1, 1, 0, static_cast<std::uint16_t>(u.data.size()),
 					static_cast<std::uint16_t>(u.data.size() >> 16), 512, epoch};
 				return {0, info[index]};
@@ -166,7 +166,7 @@ public:
 		if (op == FesComputerOpcodeMediaBegin) {
 			const unsigned unit = index >> 2, word = index & 3;
 			if (!units_.count(unit)) return {index_error, 0};
-			if (active_ >= 0 || (frozen && !saved)) return {state_error, 0};
+			if (active_ >= 0 || write_busy || (frozen && !saved)) return {state_error, 0};
 			if (begin_unit_ < 0) {
 				if (word != 0) return {index_error, 0};
 			} else if (static_cast<int>(unit) != begin_unit_ || word != begin_words_.size()) {
@@ -248,7 +248,7 @@ public:
 			return {0, 0};
 		}
 		if (op == FesComputerOpcodeMediaEject) {
-            if(frozen&&!saved)return {state_error,0};
+            if(write_busy || (frozen&&!saved))return {state_error,0};
 			if (index >= 8 || !units_.count(index)) return {index_error, 0};
 			if (arg) return {argument_error, 0};
 			if (active_ == static_cast<int>(index) || begin_unit_ == static_cast<int>(index))
@@ -293,7 +293,7 @@ public:
 	void Reset()
 	{
         mouse_x = 0; mouse_y = 0; mouse_buttons = 0;
-        frozen = false; saved = false; dirty = false; epoch = 0;
+        frozen = false; saved = false; dirty = false; write_busy = false; epoch = 0;
         snapshot_at = 0; snapshot_remaining = 0; snapshot_ordinal = 0;
         snapshot_words.clear();
 		held = true;
@@ -328,7 +328,7 @@ public:
 	std::vector<std::uint16_t> rows = std::vector<std::uint16_t>(9, 0);
 	std::vector<std::uint16_t> ports = {0, 0};
 	bool corrupt_next_data = false;
-    bool frozen=false,saved=false,dirty=false;
+    bool frozen=false,saved=false,dirty=false,write_busy=false;
     std::uint16_t epoch=0;
     unsigned snapshot_at=0,snapshot_remaining=0,snapshot_ordinal=0;
     std::vector<unsigned> snapshot_words;

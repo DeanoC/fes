@@ -92,6 +92,8 @@ Atari ST may additionally require `fes.mouse.relative` and
 without replay after an uncertain ACK. Library disk inserts bind explicit game,
 unit and immutable base-image identities; the runtime freezes/captures the
 complete disk and publishes the [shared record](../mister-packages/docs/media-data.md)
-under the existing durable core-data tree. Raw inserts remain volatile. ST
+under the existing durable core-data tree. Raw inserts remain volatile. A busy
+guest writer rejects insert/eject; a rejected first insert header preserves the
+current disk without a cleanup eject. ST
 raster video parts may coexist with the format-3 firmware and CPU expansion,
 with separate composition and final ROM-link receipts.

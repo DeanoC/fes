@@ -1603,6 +1603,11 @@ The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the
 big-endian media adapter handles arbitrary odd chunk boundaries before the
 mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability
 bit 7 to the existing computer ABI, without changing its framing/opcodes.
+The writable mailbox rejects Begin and Eject during sector collection or an
+accepted commit, even for volatile disks. The sector writer drains before an
+explicit later replacement can upload through the shared media arbiter.
+`make sim-fes-atari-st-media-lifecycle` exercises these actual components with
+delayed RAM and media completions, including rejected mutations and later retry.
 
 `st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
 owned double line caches between system and 74.25 MHz pixel clocks. Low,
@@ -1610,9 +1615,10 @@ medium and monochrome rows advance through native row/repetition counters.
 Fixed per-mode fetch windows select coordinates after constant arithmetic.
 Synchronous cache reads and ownership tags are captured together; a second
 pixel register selects the validated bank at the original plane-capture edges.
-Displays feed the shared RGB888 direct/scanline output
-parts through two registered boundaries. The board selects its concrete
-video part at build time. Underflow blacks a whole affected line and later
+Displays feed shared RGB888 output through two registered boundaries. The
+optional frozen raster socket admits independently sealed Direct/Scanlines
+archives bound to the exact shell; an empty socket uses built-in Direct with
+the same latency. Underflow blacks a whole affected line and later
 lines recover; stale fills cannot cross a frame configuration change.
 
 `make sim-fes-atari-st` runs the original CPU firmware and focused device,

@@ -129,12 +129,12 @@ private:
 	};
 	MediaUnitCapability* FindMediaUnit(std::uint8_t unit);
 	Error ComputerCommand(std::uint8_t opcode, std::uint8_t index, std::uint16_t argument,
-		std::uint64_t deadline);
+		std::uint64_t deadline, bool* mutation_started = nullptr);
 	Error ReadMediaInfo(std::uint8_t unit, std::uint64_t deadline, LiveMediaInfo*);
 	Error ReadMediaState(std::uint8_t unit, std::uint64_t deadline, std::uint16_t* state);
 	Error RecoverComputerMailbox(std::uint64_t deadline);
 	Error TransferMediaUnit(MediaUnitCapability&, const ComputerMediaSnapshot&, Clock&,
-		std::uint64_t deadline);
+		std::uint64_t deadline, bool* mutation_started);
 	Error AbandonMediaUnit(MediaUnitCapability&, std::uint64_t deadline);
 	FesGp& gp_;
 	CoreDescriptor identified_{};

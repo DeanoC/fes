@@ -2450,7 +2450,7 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 		assert(f.Insert(ComputerPayload(1030)).ok());
 		assert(f.endpoint.unit(0).state == 3);
 	}
-	// A header left from an earlier failure rejects Begin; eject clears it.
+	// A header left from an earlier failure rejects Begin; explicit eject clears it.
 	{
 		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
 		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
@@ -2461,9 +2461,34 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 		const auto error = f.Insert(ComputerPayload(3));
 		assert(error.message == "FES GP command rejected with response 2");
 		const auto sent = f.Since(start);
-		assert(sent.size() == 6 + 1 + 1 && sent.back().opcode == FesComputerOpcodeMediaEject);
-		assert(f.endpoint.unit(0).state == 1);
+		assert(sent.size() == 6 + 1 && sent.back().opcode == FesComputerOpcodeMediaBegin);
+		assert(f.endpoint.unit(0).state == 2);
+		assert(f.driver.EjectMedia(0, kComputerDeadline).ok());
 		assert(f.Insert(ComputerPayload(3)).ok());
+	}
+	// An ambiguous first Begin still needs cleanup, whether it was applied or lost.
+	for (bool applied : {false, true}) {
+		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		assert(f.Insert(ComputerPayload(3)).ok());
+		unsigned begins = 0;
+		auto fail_begin = [&](const mister_test::ComputerEndpoint::Request& request) {
+			if (request.opcode != FesComputerOpcodeMediaBegin || request.index != 0) return false;
+			++begins;
+			return true;
+		};
+		if (applied) f.endpoint.fail_after_request = fail_begin;
+		else f.endpoint.lose_request = fail_begin;
+		const auto start = f.endpoint.requests.size();
+		assert(f.Insert(ComputerPayload(1030)).code == mister::ErrorCode::io_failed);
+		assert(begins == 1);
+		const auto sent = f.Since(start);
+		unsigned ejected = 0;
+		for (const auto& request : sent) ejected += request.opcode == FesComputerOpcodeMediaEject;
+		assert(ejected == 1 && sent.back().opcode == FesComputerOpcodeMediaEject);
+		assert(!f.gp.Poisoned() && f.endpoint.unit(0).state == 1);
+		assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
 	}
 	// A lost request is ambiguous: realign, re-identify, eject once. Nothing is replayed.
 	{
@@ -2516,7 +2541,7 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 		assert(f.endpoint.unit(0).state == 1);
 		assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
 	}
-	// Live limits are checked again; any failure after the first exchange ejects.
+	// A failed live-limit preflight leaves the current disk unchanged.
 	{
 		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
 		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
@@ -2526,8 +2551,9 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 		const auto error = f.Insert(ComputerPayload(1031), 0, 2000);
 		assert(error.code == mister::ErrorCode::invalid_request);
 		const auto sent = f.Since(start);
-		assert(sent.size() == 7 && sent.back().opcode == FesComputerOpcodeMediaEject);
-		assert(f.endpoint.unit(0).state == 1);
+		assert(sent.size() == 6 && sent.back().opcode == FesComputerOpcodeMediaInfo);
+		assert(f.endpoint.unit(0).state == 3);
+		assert(std::string(f.endpoint.unit(0).data.begin(), f.endpoint.unit(0).data.end()) == ComputerPayload(3));
 		// Undeclared units never reach the mailbox.
 		const auto before = f.endpoint.requests.size();
 		assert(f.Insert(ComputerPayload(3), 1).code == mister::ErrorCode::unsupported_interface);

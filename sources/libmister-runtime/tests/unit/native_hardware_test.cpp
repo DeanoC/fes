@@ -2791,6 +2791,37 @@ void TestWritableLibraryDiskCaptureRestoreAndFailedSave()
     MediaDataIdentity identity{"fes.atari-st",binding.game_id,binding.base_media_id,0};
     std::unique_ptr<MediaDataFile> record;assert(MediaDataFile::Open(storage.path,identity,&record).ok());
     assert(fixture.runtime.LoadCore(package.path,opened.package_id).ok());auto gen=fixture.runtime.status().generation;
+    // Busy replacement is a completed rejection. The guest may finish its
+    // write before any cleanup could run; never eject the unchanged raw disk.
+    assert(fixture.runtime.InsertMedia(path,opened.package_id,gen,0,737280).ok());
+    const auto old_bytes=endpoint.unit(0).data;
+    auto replacement=original;replacement[1234]^=0x5a;
+    const auto replacement_path=media.File("replacement.st",replacement);
+    endpoint.write_busy=true;bool rejected_begin=false;
+    endpoint.fail_after_request=[&](const mister_test::ComputerEndpoint::Request& request){
+        if(request.opcode==FesComputerOpcodeMediaBegin&&request.index==0){
+            rejected_begin=true;endpoint.write_busy=false;
+        }
+        return false;
+    };
+    const auto rejected_at=endpoint.requests.size();
+    const auto rejected_insert=fixture.runtime.InsertMedia(replacement_path,opened.package_id,gen,0,737280);
+    assert(rejected_insert.message=="FES GP command rejected with response 4");
+    endpoint.fail_after_request={};
+    assert(rejected_begin&&endpoint.requests.size()==rejected_at+6+1);
+    assert(endpoint.requests.back().opcode==FesComputerOpcodeMediaBegin);
+    assert(endpoint.unit(0).state==3&&endpoint.unit(0).data==old_bytes&&!endpoint.held);
+    auto unchanged=fixture.runtime.status();
+    assert(unchanged.generation==gen&&unchanged.active_package.package_id==opened.package_id);
+    assert(unchanged.capabilities.media_units[0].state==mister::MediaUnitState::ready);
+    assert(unchanged.capabilities.media_units[0].persistence_mode=="volatile");
+    endpoint.write_busy=true;const auto eject_at=endpoint.requests.size();
+    assert(fixture.runtime.EjectMedia(opened.package_id,gen,0).message=="FES GP command rejected with response 4");
+    assert(endpoint.requests.size()==eject_at+1&&endpoint.unit(0).data==old_bytes&&endpoint.unit(0).state==3);
+    assert(fixture.runtime.status().generation==gen&&fixture.runtime.status().capabilities.media_units[0].state==mister::MediaUnitState::ready);
+    endpoint.write_busy=false;
+    assert(fixture.runtime.InsertMedia(replacement_path,opened.package_id,gen,0,737280).ok());
+    assert(std::string(endpoint.unit(0).data.begin(),endpoint.unit(0).data.end())==replacement);
     auto invalid=binding;invalid.base_media_id=std::string(64,'a');const auto before=endpoint.requests.size();
     assert(!fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,invalid).ok());assert(endpoint.requests.size()==before);
     assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding).ok());
@@ -2825,21 +2856,21 @@ void TestWritableLibraryDiskCaptureRestoreAndFailedSave()
     assert(fixture.runtime.status().core_data.mode=="volatile"&&fixture.runtime.status().capabilities.media_units[0].persistence_mode=="volatile");
     assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding).ok());
 
-    // Lost read response before Begin plus rejected cleanup Eject leaves the
-    // old image present. Neither raw nor library replacement may drop its
-    // binding merely because the driver's cached state became unknown.
+    // A lost read response before Begin never changed the image. Neither raw
+    // nor library replacement may eject it or drop its binding; recovery
+    // realigns the mailbox and resumes that same owned disk.
     for(bool library:{false,true}) {
-        bool failed=false,cleanup_rejected=false;
+        bool failed=false,unexpected_eject=false;
         endpoint.fail_after_request=[&](const mister_test::ComputerEndpoint::Request& request){
             if(request.opcode==FesComputerOpcodeMediaInfo&&!failed){failed=true;return true;}return false;
         };
         endpoint.lose_request=[&](const mister_test::ComputerEndpoint::Request& request){
-            if(request.opcode==FesComputerOpcodeMediaEject&&!cleanup_rejected){endpoint.saved=false;cleanup_rejected=true;}
+            if(request.opcode==FesComputerOpcodeMediaEject){unexpected_eject=true;}
             return false;
         };
         const auto error=library?fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding):fixture.runtime.InsertMedia(path,opened.package_id,gen,0,737280);
         endpoint.fail_after_request={};endpoint.lose_request={};
-        assert(error.code==mister::ErrorCode::save_failed&&failed&&cleanup_rejected);
+        assert(error.code==mister::ErrorCode::save_failed&&failed&&!unexpected_eject);
         assert(fixture.runtime.status().state==mister::State::running_development&&fixture.runtime.status().generation==gen);
         assert(fixture.runtime.status().capabilities.media_units[0].game_id==binding.game_id&&!endpoint.frozen&&endpoint.unit(0).data==changed);
     }

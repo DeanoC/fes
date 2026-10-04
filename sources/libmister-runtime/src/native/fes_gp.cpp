@@ -1350,10 +1350,11 @@ MediaUnitCapability* FesGpCoreDriver::FindMediaUnit(std::uint8_t unit)
 }
 
 Error FesGpCoreDriver::ComputerCommand(std::uint8_t opcode, std::uint8_t index,
-	std::uint16_t argument, std::uint64_t deadline)
+	std::uint16_t argument, std::uint64_t deadline, bool* mutation_started)
 {
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(opcode, index, argument, deadline, &response);
+	if (mutation_started != nullptr) *mutation_started = error.ok() || gp_.Poisoned();
 	if (error.ok() && response != 0) error = Io("invalid FES computer media acknowledgement");
 	return WithPhase(error, "input");
 }
@@ -1397,8 +1398,10 @@ Error FesGpCoreDriver::RecoverComputerMailbox(std::uint64_t deadline)
 }
 
 Error FesGpCoreDriver::TransferMediaUnit(MediaUnitCapability& unit,
-	const ComputerMediaSnapshot& media, Clock& clock, std::uint64_t deadline)
+	const ComputerMediaSnapshot& media, Clock& clock, std::uint64_t deadline,
+	bool* mutation_started)
 {
+	*mutation_started = false;
 	LiveMediaInfo info;
 	Error error = ReadMediaInfo(unit.unit, deadline, &info);
 	if (!error.ok()) return error;
@@ -1427,9 +1430,11 @@ Error FesGpCoreDriver::TransferMediaUnit(MediaUnitCapability& unit,
 	for (std::uint8_t word = 0; word < 4 && error.ok(); ++word) {
 		error = ComputerCommand(FesComputerOpcodeMediaBegin,
 			static_cast<std::uint8_t>(unit.unit * FesComputerMediaHeaderStride + word),
-			header[word], deadline);
-		// Word 0 makes the unit loading at once: the machine sees an empty drive.
-		if (word == FesComputerMediaBeginTotalLoWord) unit.state = MediaUnitState::loading;
+			header[word], deadline,
+			word == FesComputerMediaBeginTotalLoWord ? mutation_started : nullptr);
+		// A rejected first header leaves the current disk untouched. Accepted
+		// or ambiguous word 0 makes it loading: the machine sees an empty drive.
+		if (*mutation_started) unit.state = MediaUnitState::loading;
 	}
 	std::array<std::uint8_t, FesComputerMediaChunkMaxBytes> bytes = {};
 	for (std::uint32_t offset = 0; offset < media.size() && error.ok();) {
@@ -1479,8 +1484,12 @@ Error FesGpCoreDriver::InsertMedia(std::uint8_t unit, const ComputerMediaSnapsho
 	if (media.size() < FesComputerMediaMinBytes || media.size() > FesComputerMediaMaxBytes)
 		return {ErrorCode::invalid_request, "media size exceeds the computer media limit", "request"};
 	Error error = RecoverComputerMailbox(deadline);
-	if (error.ok()) error = TransferMediaUnit(*target, media, clock, deadline);
+	bool mutation_started = false;
+	if (error.ok()) error = TransferMediaUnit(*target, media, clock, deadline, &mutation_started);
 	if (error.ok()) return {};
+	// Discovery or a completed first-Begin rejection did not replace the disk.
+	// Ejecting here could destroy it as soon as a busy guest writer drains.
+	if (!mutation_started) return error;
 	// Never repeat an ambiguous mutation: eject this unit once, report the
 	// failure and leave execution released.
 	const Error ejected = AbandonMediaUnit(*target, AddDeadline(gp_.NowMs(), cleanup_ms));

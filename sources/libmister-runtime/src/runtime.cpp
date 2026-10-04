@@ -917,8 +917,8 @@ public:
 			system = status_.system;
 			core = status_.core;
 		}
-		// Execution stays released. A failed transfer ejects the unit once in the
-		// driver and leaves the generation running.
+		// Execution stays released. Cleanup ejects only a transfer that accepted
+		// or ambiguously issued Begin; a rejected replacement retains the disk.
 		const Error error = hardware_.InsertComputerMedia(unit, path, size);
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("insert_media", system, core, generation, error);

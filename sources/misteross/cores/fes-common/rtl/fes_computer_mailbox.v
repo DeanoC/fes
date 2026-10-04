@@ -326,7 +326,11 @@ module fes_computer_mailbox #(
                 7'(`FES_COMPUTER_OPCODE_MEDIA_BEGIN): begin
                     if (!MEDIA) reject(E_OPCODE);
                     else if (unit4 != 6'd0) reject(E_INDEX);
-                    else if (media_frozen && (!saved_authorized || media_write_busy)) reject(E_STATE);
+                    // Collection and accepted sector commits retain the old
+                    // image even for volatile loads. Never overlap a new host
+                    // upload with a writer draining through job withdrawal.
+                    else if (WRITABLE && media_write_busy) reject(E_STATE);
+                    else if (media_frozen && !saved_authorized) reject(E_STATE);
                     else if (active) reject(E_STATE);
                     else if (!begin_staged ? word != 2'd0 : word != begin_next) reject(E_INDEX);
                     else if (word == 2'd3) begin
@@ -423,7 +427,8 @@ module fes_computer_mailbox #(
                     if (!MEDIA) reject(E_OPCODE);
                     else if (index != 8'd0) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
-                    else if (media_frozen && (!saved_authorized || media_write_busy)) reject(E_STATE);
+                    else if (WRITABLE && media_write_busy) reject(E_STATE);
+                    else if (media_frozen && !saved_authorized) reject(E_STATE);
                     else begin
                         cancel_transfer;
                         unit0_state <= EMPTY;

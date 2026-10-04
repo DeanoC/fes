@@ -119,8 +119,11 @@ The transfer never holds execution reset: MediaInfo fields 0..5 (state must
 not be absent, 512-byte chunks, `size` within the live limits), MediaBegin
 words 0..3 (total, CRC32), then for each 512-byte chunk MediaChunk words 0..2
 and ceil(length/2) MediaData words, MediaCommit, and finally MediaInfo state
-must be ready. Any failure after the first exchange, including a rejected
-request, a CRC mismatch or an ambiguous handshake, ejects that unit once
+must be ready. A failed preflight or completed rejection of the first Begin
+word preserves the current disk. ST insert/eject rejects while the guest writer
+is busy, including collection and sector commit. Once Begin word 0 is accepted
+or ambiguously issued, a transfer failure, including a rejected later request,
+a CRC mismatch or an ambiguous handshake, ejects that unit once
 (MediaEject) and reports the original error; an ambiguous mailbox is first
 realigned from the live ACK and re-identified, and the ambiguous request is
 never repeated. If that eject also fails the message gains
