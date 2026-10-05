@@ -167,7 +167,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(pins["nextpnr"].commit, SG1000_TOOL_COMMITS["nextpnr"])
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
-        self.assertEqual(global_pins["nextpnr"].commit, "585ef60802dcccf745ef3ad7ae2ca3b6f9685146")
+        self.assertEqual(global_pins["nextpnr"].commit, "1656e473e1442f9b734ff5f4cdfddfd013846b9e")
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",
