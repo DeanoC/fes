@@ -22,6 +22,7 @@ TARGETS = {
     'z80': ('sim-fes-z80',),
     'atari-st': ('sim-fes-atari-st',),
     'ramtest': ('sim-fes-ramtest',),
+    'riscv': ('sim-fes-riscv',),
 }
 
 
