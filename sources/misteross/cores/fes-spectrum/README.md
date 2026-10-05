@@ -31,6 +31,9 @@ contract is the
   10-bit M10K write enable is active low; tying A1EN high protects linked ROM
   contents. The sealed map requires registered read mode and retains the
   existing lane names, BELs and INIT bit layout.
+  Before sealing, the synthesis gate checks every lane has the shared live
+  read clock, enabled reads, disabled writes and inactive clears, with no
+  secondary-clock or byte-enable connections.
 - Port `$FE` (A0 low, the original incomplete decode): border, MIC/beeper,
   keyboard half-rows and EAR. Port `$1F` is a built-in Kempston joystick fed
   by controller port 0. Other unclaimed I/O reads `$FF`.

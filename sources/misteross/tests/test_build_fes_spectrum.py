@@ -1,5 +1,6 @@
 """Spectrum CPU mode identity and fail-closed producer checks; no tools."""
 import json
+import copy
 from pathlib import Path
 import tempfile
 import tomllib
@@ -12,6 +13,34 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesSpectrumTests(unittest.TestCase):
+    def firmware_cells(self):
+        return {f"machine.rom.lane{i}": {"type": "MISTRAL_M10K", "connections": {
+            "CLK1": [5], "A1EN": ["1"], "B1EN": ["1"],
+            "ACLR0": ["0"], "ACLR1": ["0"]}}
+            for i in range(len(producer.FIRMWARE_LANE_ROWS))}
+
+    def test_firmware_controls_reject_each_bad_lane(self):
+        cells = self.firmware_cells()
+        producer.validate_firmware_ports(cells)
+        for lane in cells:
+            for port, value in (("CLK1", None), ("CLK1", []), ("CLK1", ["0"]),
+                                ("CLK1", ["1"]), ("CLK1", [True]), ("CLK1", [5, 6]),
+                                ("A1EN", ["0"]), ("A1EN", None),
+                                ("B1EN", ["0"]), ("B1EN", None),
+                                ("ACLR0", ["1"]), ("ACLR1", ["1"]),
+                                ("A1BE", ["0", "0"]), ("CLK2", [5])):
+                with self.subTest(lane=lane, port=port, value=value):
+                    changed = copy.deepcopy(cells)
+                    if value is None:
+                        changed[lane]["connections"].pop(port, None)
+                    else:
+                        changed[lane]["connections"][port] = value
+                    with self.assertRaisesRegex(BuildError, "firmware lane"):
+                        producer.validate_firmware_ports(changed)
+        cells["machine.rom.lane15"]["connections"]["CLK1"] = [6]
+        with self.assertRaisesRegex(BuildError, "share the system read clock"):
+            producer.validate_firmware_ports(cells)
+
     def test_cpu_outputs_and_parameters_are_separate(self):
         tools = {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")}
         for cpu, output, value in (("nmos", producer.OUTPUT_RELATIVE, 0),
@@ -65,6 +94,9 @@ class BuildFesSpectrumTests(unittest.TestCase):
                 counts = producer.REQUIRED_RESOURCES | {"altera_pll":plls,
                     "MISTRAL_M10K":16, "MISTRAL_M10K_TDP":128}
                 cells = {f"{name}_{i}":{"type":name} for name,n in counts.items() for i in range(n)}
+                for i in range(16):
+                    del cells[f"MISTRAL_M10K_{i}"]
+                cells.update(self.firmware_cells())
                 (output/"synth.json").write_text(json.dumps({"modules":{"top":{"cells":cells}}}))
                 with patch.object(producer, "_i2c_evidence"):
                     self.assertEqual(producer.validate_synth_evidence(output,cpu=cpu)["status"], "pass")
@@ -72,6 +104,22 @@ class BuildFesSpectrumTests(unittest.TestCase):
                     (output/"synth.json").write_text(json.dumps({"modules":{"top":{"cells":cells}}}))
                     with self.assertRaises(BuildError):
                         producer.validate_synth_evidence(output,cpu=cpu)
+
+    def test_synthesis_gate_checks_firmware_controls_in_both_cpu_modes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            counts = producer.REQUIRED_RESOURCES | {"altera_pll": 2, "MISTRAL_M10K_TDP": 128}
+            cells = {f"{name}_{i}": {"type": name} for name, n in counts.items() for i in range(n)}
+            cells.update(self.firmware_cells())
+            for cpu in ("nmos", "fast"):
+                for port in ("CLK1", "A1EN", "B1EN"):
+                    with self.subTest(cpu=cpu, port=port):
+                        changed = copy.deepcopy(cells)
+                        del changed["machine.rom.lane15"]["connections"][port]
+                        (output / "synth.json").write_text(json.dumps({"modules": {"top": {"cells": changed}}}))
+                        with patch.object(producer, "_i2c_evidence"):
+                            with self.assertRaisesRegex(BuildError, "firmware lane"):
+                                producer.validate_synth_evidence(output, cpu=cpu)
 
     def test_full_clock_gate_rejects_missed_or_wrong_fast_clock(self):
         with tempfile.TemporaryDirectory() as directory:
