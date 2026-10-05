@@ -25,6 +25,15 @@ contract is the
   blank 1024×10 M10K lanes (column 5, rows 32–47). FogCast links a selected
   16,384-byte `spectrum-firmware` image at download time. No Sinclair ROM is
   in this repository or the package.
+  Each M10K uses a registered read address on the system clock. The bank
+  selector is registered alongside that read, and the final data register
+  preserves the same two-stage latency as the behavioral simulation. Legacy
+  10-bit M10K write enable is active low; tying A1EN high protects linked ROM
+  contents. The sealed map requires registered read mode and retains the
+  existing lane names, BELs and INIT bit layout.
+  Before sealing, the synthesis gate checks every lane has the shared live
+  read clock, enabled reads, disabled writes and inactive clears, with no
+  secondary-clock or byte-enable connections.
 - Port `$FE` (A0 low, the original incomplete decode): border, MIC/beeper,
   keyboard half-rows and EAR. Port `$1F` is a built-in Kempston joystick fed
   by controller port 0. Other unclaimed I/O reads `$FF`.
@@ -104,7 +113,18 @@ make sim-fes-spectrum-board
 make sim-fes-spectrum-tape
 make sim-fes-spectrum-turbo
 python3 scripts/sim_fes_spectrum_turbo.py --cpu fast
+make sim-fes-spectrum-rom ROM_MEM_SIM=/path/to/yosys/share/yosys/intel_alm/common/mem_sim.v
 ```
+
+The optional ROM primitive regression undefines Verilator's automatic
+`VERILATOR` macro to exercise the production branch against the selected
+Yosys memory model. It compares three nonzero images with the two-stage
+reference over every address, forward and backward sweeps, bank transitions
+and 65,536 changing addresses per image. This detects bank misalignment,
+extra or missing read stages and accidental writes. Its source/model digests
+and result are under `build/sim/fes-spectrum-rom/`; it is a host simulation,
+not physical memory acceptance. Ordinary machine simulations use the
+behavioral branch and cannot validate primitive wiring.
 
 The machine simulation boots the open diagnostic, checks the keyboard matrix,
 Kempston port, probe id and scratch register, the 2168 T pilot, a red border

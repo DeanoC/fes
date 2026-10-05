@@ -215,6 +215,8 @@ def create_build_record(
             "rom_role": "firmware",
             "rom_source_size": FIRMWARE_BYTES,
             "rom_encoding": "m10k-1024x10-v1",
+            "rom_read_mode": "registered",
+            "rom_read_latency_system_ticks": 2,
             "rom_database_sha256": json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(",", ":")),
             "expansion_layout": spectrum_slots.LAYOUT,
             "expansion_sockets": ",".join(s.placement for s in spectrum_slots.SOCKETS),
@@ -312,6 +314,24 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
     return name, constraint, achieved
 
 
+def validate_firmware_ports(cells: dict) -> None:
+    """Require a shared live read clock, enabled reads and disabled ROM writes."""
+    clocks = set()
+    for lane in range(len(FIRMWARE_LANE_ROWS)):
+        name = f"machine.rom.lane{lane}"
+        pins = cells.get(name, {}).get("connections", {})
+        clock = pins.get("CLK1")
+        if (not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int or
+                pins.get("A1EN") != ["1"] or pins.get("B1EN") != ["1"] or
+                pins.get("ACLR0") != ["0"] or pins.get("ACLR1") != ["0"] or
+                pins.get("A1BE") or pins.get("CLK2")):
+            raise BuildError(f"firmware lane {name} must have one live clock, enabled reads, "
+                             "disabled writes, inactive clears and no optional ports")
+        clocks.add(clock[0])
+    if len(clocks) != 1:
+        raise BuildError("firmware lanes must share the system read clock")
+
+
 def validate_synth_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     _output, _sys_mhz, pll_count = _cpu_parameters(cpu)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
@@ -327,6 +347,7 @@ def validate_synth_evidence(output: Path, *, cpu: str = "nmos") -> dict:
             "synthesis must keep 16 firmware M10K lanes and 128 RAM/tape TDP blocks, "
             f"got M10K={counts.get('MISTRAL_M10K', 0)} "
             f"TDP={counts.get('MISTRAL_M10K_TDP', 0)}")
+    validate_firmware_ports(synthesis["modules"][TOP]["cells"])
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
             raise BuildError(f"forbidden synthesis cell {name} is in use")
@@ -472,7 +493,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed firmware design"),
-            lane_rows=FIRMWARE_LANE_ROWS,
+            lane_rows=FIRMWARE_LANE_ROWS, expected_async_read=0,
         )
         check_firmware_outside_sockets(mapping)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()

@@ -977,7 +977,11 @@ spectrum-diagnostic:
 
 sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape sim-fes-spectrum-turbo
 
-.PHONY: sim-fes-spectrum-turbo
+.PHONY: sim-fes-spectrum-turbo sim-fes-spectrum-rom
+sim-fes-spectrum-rom:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_spectrum_rom.py --verilator "$(VERILATOR)" --mem-sim "$(ROM_MEM_SIM)"
+
 sim-fes-spectrum-turbo:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_spectrum_turbo.py --verilator "$(VERILATOR)"

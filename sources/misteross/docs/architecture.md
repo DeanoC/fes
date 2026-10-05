@@ -1511,6 +1511,19 @@ of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## FES ZX Spectrum
 
+Spectrum's sixteen blank firmware lanes use synchronous 1024x10 M10K reads
+on the live system clock, with reads enabled and active-low writes disabled.
+The bank selector is registered with the M10K read address; a combinational
+bank mux and the existing final data register preserve two-stage latency.
+The ROM-map producer explicitly requires `CFG_ASYNC_READ=0`. Synthesized
+control ports are checked separately: every lane must share
+a live `CLK1`, hold `B1EN` high and active-low `A1EN` high, and keep clears
+inactive without secondary-clock or byte-enable connections. Lane BELs and
+INIT encoding are unchanged, but each newly built RBF needs its own map/base
+hash. The optional `sim-fes-spectrum-rom` target exercises the production
+branch with the selected Yosys `mem_sim.v` and nonzero linked-image contents;
+the normal Verilator branch alone does not test primitive wiring.
+
 `cores/fes-spectrum` is `fes.spectrum` 0.2.0, a 48K ZX Spectrum on the same
 `fes.computer` 1.0 mailbox as the Apple II. The machine, ULA port `$FE`,
 built-in Kempston port, `.tap` player and four edge sockets are described in
