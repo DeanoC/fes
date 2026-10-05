@@ -26,7 +26,7 @@ HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 EXPECTED_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "b85d144cc514fe78ccd2b9d464a31fec911fd2b7",
+    "nextpnr": "d449caa5eb420c2293a88c3d75fb5be4df4074ab",
     "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 
