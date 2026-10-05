@@ -550,8 +550,8 @@ class BuildFesPongTests(unittest.TestCase):
             "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz\n"
             "Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz, "
             "achieved 74249999.832439542 Hz, error -0.00225670649 ppm.\n"
-            "Info: PLL 'video_clock.pll': 50 MHz -> 74.25 MHz, direct, M=8 N=1 C6=6, "
-            "bel altera_pll.0.14.0\n"
+            "Info: PLL 'video_clock.pll': 50.000000 MHz -> VCO 445.499999 MHz, fractional-N, "
+            "M=8 N=1 K=3908420153, counters C6, bel altera_pll.0.14.0\n"
             "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
             "Info: Program finished normally.\n",
             encoding="utf-8",
