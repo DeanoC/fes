@@ -177,6 +177,11 @@ same media/expansion contracts. The seal gates every actual clock domain:
 52.224/74.25/12.288 MHz for normal mode, and 56/74.25 MHz for fast mode.
 Fast audio timing belongs to the 56 MHz domain; its pin rates are measured by
 the audio regression. The producer cannot publish a below-target route.
+It checks every pinned socket boundary and admits compiler-inserted
+route-through buffers only at the paired combinational half, with the exact
+physical pin map and a dedicated connection to the boundary flip-flop.
+Clock-coverage outputs remain unused; unrelated cells inside the sockets
+are rejected.
 
 Both variants sealed from `792b24805` on 2026-10-03 with these reported Fmax
 values. The configured system clocks remain 52.224 MHz and 56 MHz respectively.

@@ -1555,6 +1555,16 @@ partial tails and live eject/replacement.
 seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
+Socket validation admits a compiler-inserted `MISTRAL_BUF` only as the
+verified `$ROUTETHRU` companion of an already pinned boundary flip-flop.
+The shared `coleco_expansion` check requires the paired COMB/MCOMB half,
+exact physical pin map and ports, and a dedicated buffer output connected
+only to that flip-flop's data input. Clock-coverage outputs must remain
+unused, and each effective boundary data input must have exactly one driver
+or a direct defined constant. Older clock-only anchors may have disconnected
+data inputs. Every other shell cell inside a socket is rejected. The helper
+is a pinned functional source input; socket placement and CRAM fences retain
+their existing identities.
 Simulation is `make sim-fes-spectrum`; its turbo regression measures register,
 RAM and expansion-I/O workloads and tests WAIT, ROMCS, pending NMI and native
 frame timing in both modes. Every clock must close before either shell seals.
