@@ -51,6 +51,8 @@ class BuildFesSpectrumTests(unittest.TestCase):
             self.assertEqual(params["pll_count"], plls)
             self.assertEqual(params["peripheral_clock_hz"], 3500000)
             self.assertEqual(params["audio_mclk_average_hz"], 12288000)
+            self.assertEqual(params["rom_read_mode"], "registered")
+            self.assertEqual(params["rom_read_latency_system_ticks"], 2)
             self.assertEqual(params["audio_clock_hz"], 12288000 if cpu == "nmos" else 56000000)
             if cpu == "fast":
                 self.assertEqual(params["audio_mclk_toggle_numerator"], 384)

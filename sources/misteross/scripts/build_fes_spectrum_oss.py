@@ -215,6 +215,8 @@ def create_build_record(
             "rom_role": "firmware",
             "rom_source_size": FIRMWARE_BYTES,
             "rom_encoding": "m10k-1024x10-v1",
+            "rom_read_mode": "registered",
+            "rom_read_latency_system_ticks": 2,
             "rom_database_sha256": json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(",", ":")),
             "expansion_layout": spectrum_slots.LAYOUT,
             "expansion_sockets": ",".join(s.placement for s in spectrum_slots.SOCKETS),
@@ -472,7 +474,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed firmware design"),
-            lane_rows=FIRMWARE_LANE_ROWS,
+            lane_rows=FIRMWARE_LANE_ROWS, expected_async_read=0,
         )
         check_firmware_outside_sockets(mapping)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()
