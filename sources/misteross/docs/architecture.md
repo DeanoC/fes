@@ -697,7 +697,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `fdac4c7c` provides those flags after `make toolchain-fes`.
+The locked nextpnr `b85d144c` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -826,7 +826,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `10ce0a10` and nextpnr `fdac4c7c` with Mistral `7ed06e21`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `b85d144c` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
