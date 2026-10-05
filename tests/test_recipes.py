@@ -29,6 +29,17 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipe.authenticate, "_authenticate_tools")
         self.assertEqual(recipe.identity_version, 2)
 
+    def test_riscv_is_registered_on_the_shared_lane_as_package_only(self):
+        recipe = recipes.recipe_for("fes.riscv")
+        self.assertEqual(recipe.producer_module, "scripts.build_fes_riscv")
+        self.assertEqual(recipe.producer_script, "scripts/build_fes_riscv.py")
+        self.assertEqual(recipe.authenticate, "_authenticate_tools")
+        self.assertEqual(recipe.lock_path, "toolchain.lock")
+        self.assertEqual(recipe.selection_filename, "fes-riscv.package-selection.toml")
+        self.assertEqual(recipe.package_dir_env, "FES_RISCV_PACKAGE_DIR")
+        self.assertNotIn("fes.riscv", build.selected_packages(
+            {"fpga_packages": [{"core_id": "fes.pong"}]}, "native-integration-dev"))
+
     def test_atari_st_registered_producer_has_bounded_selection(self):
         recipe = recipes.recipe_for("fes.atari-st")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_atari_st_oss")

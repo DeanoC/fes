@@ -1624,6 +1624,35 @@ all clocks and sealed ROM/socket maps. Host simulation does not confer kit
 or appliance hardware acceptance. See [the core README](../cores/fes-atari-st/README.md)
 for maps, commands and the remaining original-ST timing/device limits.
 
+## FES RISC-V
+
+`cores/fes-riscv` places the original first-party RV32I CPU
+(`cores/fes-common/rtl/riscv`: `fes_rv32_cpu`, `fes_rv32_csr`, `fes_rv32_alu`)
+on the shared `fes.application` 1.0 shell with `fes.gamepad` 1.0 and the
+fixed 720p raster. `fes_riscv_system.sv` owns the bus: 32 KiB of byte-lane
+M10K RAM at 0 initialised from the checked-in firmware lane images, a
+160x120 RGB332 framebuffer at `0x1000_0000` read by the raster through the
+lanes' second port, and the I/O block at `0x2000_0000` (buttons, frame
+counter, 64-bit `mtime`/`mtimecmp` timer interrupt, vertical-blank flag with
+an optional external interrupt, identification and software interrupt).
+Other addresses fault. The CPU, memories, raster and I/O share the 74.25 MHz
+pixel clock; there is no second clock domain and no DDR.
+
+The firmware is hand-written RV32I assembled by `cores/fes-riscv/firmware/assemble.py`
+into `firmware.hex` and four lane images. Source, assembler and images are
+pinned producer inputs, and `scripts/build_fes_riscv.py` re-assembles the
+source and refuses images that differ. The producer authenticates
+`toolchain.lock`, synthesises with M10K enabled (MLAB, DSP and the HPS SDRAM
+bridge forbidden), runs a bounded first-pass HeAP seed search that stops at
+the first placement meeting 74.25 MHz, validates the shared board, PLL and
+I2C evidence and exports a format-2 package (`fes.riscv` 0.1.0, profile
+`fes-gp-v1`). Output is `build/fes-riscv/`. `make sim-fes-riscv` covers the
+CPU against an independent model, the firmware images, the system through
+its HDMI pixel stream and the board shell through the mailbox. The CPU
+contract is [its README](../cores/fes-common/rtl/riscv/README.md); the
+machine contract is [the core README](../cores/fes-riscv/README.md). FES
+registers the recipe as package-only; the factory image does not select it.
+
 ## Shared native kit client
 
 `scripts/kit.py` is a thin operator client of FogCast's target lease and native
