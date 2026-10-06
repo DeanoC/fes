@@ -185,7 +185,7 @@ normal Stop and cold Play, without restarting the runtime or agent. The later
 disk upload before CPU release, with AUTO execution on both fresh and saved disks
 and zero differing payload bytes. The [startup budget follow-up](validation/2026-10-06-atari-st-startup-budget.md) verifies diskless GEM and fresh/saved AUTO boot on the revised software at the configured 60-second upload timeout. No appliance
 hardware acceptance is claimed by that software diagnostic. The current factory
-selection includes Atari ST; exact-image acceptance is recorded separately.
+selection includes Atari ST. The [native image acceptance](validation/2026-10-07-atari-st-native-image.md) binds its exact two-pass image, Direct diskless GEM, Scanlines AUTO/save/cold restore and complete disk-byte comparisons. It also records confirmed rollback and restoration of the populated normal menu.
 
 ## Not implemented, or not this package
 
