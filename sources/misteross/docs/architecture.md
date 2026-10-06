@@ -1147,9 +1147,12 @@ of Pong's `MISTRAL_IO`). The Z80 is VHDL T80pa from ZX81_MiSTer Release
 20260603; Verilator keeps TV80.
 
 The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
-instantiate `altsyncram` bidirectional dual-port M10K with unregistered
-outputs; ROM init is `zx8x.mif`. Simulation keeps inferred combo-read RAM
-and `zx8x.hex`. The 720p capture buffer is a one-dimensional M10K array
+instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
+dual-port M10K: the address is registered, the output is unregistered, and
+a same-port write returns `NEW_DATA_NO_NBE_READ`, which is one clock of
+read latency. ROM init is `zx8x.mif`. Simulation registers `q_a` and `q_b`
+on that clock and uses `zx8x.hex`, with the same one-cycle read. The 720p
+capture buffer is a one-dimensional M10K array
 written on `clk_sys` and registered on `pixel_clk`.
 
 The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
@@ -1176,11 +1179,21 @@ diagnostic cleanup.
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
 eight empty BEL-locked 1024×10 lanes at `MISTRAL_M10K.5.73.0` through
-`MISTRAL_M10K.5.80.0`. `zx8x.hex` is not a package input; launch splices
-the low 8 KiB with `link_static_rbf.py init --machine`. RAM and media stay
-inferred asynchronous-read M10K tables; the two-write media path uses native
-asynchronous TDP M10K. The 720p capture buffer is a dual-clock M10K SDP. The
-Z80 is Verilog T80pa/TV80.
+`MISTRAL_M10K.5.80.0`, each with a synchronous read (`CFG_ASYNC_READ=0`,
+live `CLK1`, `B1EN` held high). The bank select is registered on that same
+edge, the lane mux is combinational, and the output register is the second
+stage, so the CPU-facing byte is two system clocks behind the address.
+`zx8x.hex` is not a package input; launch splices the low 8 KiB with
+`link_static_rbf.py init --machine`, and the ROM map requires
+`expected_async_read=0`. The 1 KiB shell RAM and the 16 KB media blob use
+`zx81_dpram`'s registered one-cycle read, which Yosys maps to synchronous
+M10K. The 16 KB pack and the QS character board instantiate synchronous TDP
+M10K (`CFG_ASYNC_READ=0`) and delay the bank select, or ROMCS and DSEL, with
+that read so one response word describes one request. The shell producer
+rejects every async M10K in `synth.json` and `routed.json`. The
+validation-cart and QS producers reject every async M10K in `cart.json` and
+`cart-routed.json`. The 720p capture buffer is a dual-clock M10K SDP with
+its read registered on `pixel_clk`. The Z80 is Verilog T80pa/TV80.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 
@@ -1300,8 +1313,8 @@ produces the same routing a GPU would). `--timing-allow-fail` permits an early
 estimate to miss while the recipe checks final signoff and records the first
 passing seed. `make build-fes-zx81 BEST_FMAX=1 GPU_DEVICES=1` keeps that synthesis and
 searches weights 10/100/300/1000/2000 plus remaining seeds for the best
-Fmax; the selected seed and weight go into route evidence. This keeps native
-async-M10K address paths within the 52.224 MHz system constraint. The recipe
+Fmax; the selected seed and weight go into route evidence. This keeps
+synchronous M10K address paths within the 52.224 MHz system constraint. The recipe
 requires two `altera_pll` cells (combined system/audio and 74.25 MHz pixel).
 Also required: the HPS GP mailbox, the I2C bridge, and at least one M10K.
 It seals the format-3 package with its ROM map only when system, pixel and
@@ -1321,8 +1334,9 @@ and does not inherit the Quartus bring-up result (the diagnostic used TV80
 and the former registered-M10K workaround). A GPU-routed package of that
 same registered-M10K recipe base (nextpnr 9c751533, misteross 9ad19189)
 also booted to the ZX81 editor on the kit on 2026-09-12 and answered
-`PRINT` + NEWLINE with `0/0` through the host keyboard route. The current
-native async-M10K recipe initially failed to boot on the kit: its historical sealed packages
+`PRINT` + NEWLINE with `0/0` through the host keyboard route. The native
+async-M10K recipe that followed, since replaced by synchronous reads, failed
+to boot on the kit: its sealed packages
 `74ef917a` (`--router gpu`, seed 2) and `247e2af4` (unchanged `router1`
 control, seed 6, same toolchain) both load, pass signoff and show only a
 black 720p frame for 40 s, while the older package re-loaded afterwards
@@ -1339,7 +1353,7 @@ matching workaround rather than keep both.
 
 | Gap | Observed failure | Current ZX81 workaround |
 | --- | --- | --- |
-| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` previously became LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | Native Yosys async M10K inference maps 10/20/40-bit SDP and two-write/two-read TDP shapes; the OSS recipe uses `ramstyle="M10K"` and nextpnr routes flow-through reads. Quartus keeps `altsyncram`. |
+| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` previously became LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. Yosys maps that combinational read to an illegal `CFG_ASYNC_READ=1` M10K. | `zx81_dpram` registers the read (`ramstyle="M10K"`, one clock of latency). ROM lanes, the 16 KB pack and the QS character cell instantiate synchronous M10K (`CFG_ASYNC_READ=0`). Shell and cart producers reject every async M10K. Quartus `altsyncram` registers the address and leaves the output unregistered. |
 | SDC subset | `ERROR: Unsupported SDC command 'get_clocks'` on the Quartus `set_clock_groups` / `derive_pll_clocks` file. | `clocks-oss.sdc` is only `create_clock` on `FPGA_CLK1_50`. nextpnr derives PLL outputs. |
 | QSF `HPS_LOCATION` | Internal HPS I2C previously ignored the Quartus instance assignment. | nextpnr now converts `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` to `cyclonev_hps_interface_peripheral_i2c.52.60.0`. ZX81 OSS still also sets the RTL `BEL`. |
 
