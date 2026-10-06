@@ -473,8 +473,9 @@ def reject_async_m10k_reads(design: dict, *, allow: frozenset[str] = frozenset()
 
     The default is every ``MISTRAL_M10K`` and ``MISTRAL_M10K_TDP`` in the
     netlist. ``allow`` is an exact cell-name set; no described producer
-    passes a nonempty set, so the gate has no exceptions. Every described
-    core is checked with an empty allowlist.
+    passes a nonempty set, so the gate has no exceptions. Producers that
+    call this gate pass an empty allowlist; any async M10K read in synth
+    or routed output fails the build.
     """
     modules = design.get("modules")
     if not isinstance(modules, dict):
