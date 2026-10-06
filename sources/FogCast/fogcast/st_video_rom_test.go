@@ -16,14 +16,24 @@ import (
 )
 
 func TestSTVideoNormalPlayCarriesFirmwareVideoAndCartridge(t *testing.T) {
-	for _, initialDisk := range []bool{false, true} {
-		t.Run(fmt.Sprint("initial-disk-", initialDisk), func(t *testing.T) {
-			testSTVideoNormalPlay(t, initialDisk)
+	for _, tc := range []struct {
+		name          string
+		initialDisk   bool
+		uploadTimeout time.Duration
+		parentTimeout time.Duration
+	}{
+		{"diskless-configured-budget", false, time.Minute, 0},
+		{"initial-disk-media-budget", true, time.Minute, 0},
+		{"initial-disk-longer-configured-budget", true, 400 * time.Second, 0},
+		{"initial-disk-earlier-caller-deadline", true, time.Minute, 30 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testSTVideoNormalPlay(t, tc.initialDisk, tc.uploadTimeout, tc.parentTimeout)
 		})
 	}
 }
 
-func testSTVideoNormalPlay(t *testing.T, initialDisk bool) {
+func testSTVideoNormalPlay(t *testing.T, initialDisk bool, uploadTimeout, parentTimeout time.Duration) {
 	ctx := context.Background()
 	pkg, firmware := apple2LibraryPackageFixture(t, true, func(text string) string {
 		// Required interfaces describe implemented hardware, not inserted media.
@@ -31,7 +41,7 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool) {
 		text += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
 		return strings.ReplaceAll(text, "apple2", "atari-st") + "\n[[interfaces]]\nid = \"fes.fabric.video.raster-rgb888\"\nmajor = 1\nminor = 0\nrequired = false\n"
 	})
-	s, client, entry, inspection := newCoreEntryLaunchFixture(t, pkg, "ST video", time.Minute)
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, pkg, "ST video", uploadTimeout)
 	s.targets[0].Enabled = true
 	s.targets[0].Address = "http://example.invalid:8182"
 	s.targets[0].Agent = "test-token"
@@ -93,7 +103,26 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool) {
 	}
 	root := t.TempDir()
 	var received *expansion.PartsComposition
+	var launchStarted time.Time
+	var callerDeadline time.Time
 	client.coreLoad = func(ctx context.Context, size int64, body io.Reader) (protocol.Status, error) {
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Fatal("core activation has no deadline")
+		}
+		if parentTimeout != 0 {
+			if !deadline.Equal(callerDeadline) {
+				t.Fatalf("activation deadline %v exceeded caller deadline %v", deadline, callerDeadline)
+			}
+		} else {
+			want := uploadTimeout
+			if initialDisk {
+				want = max(want, 300*time.Second)
+			}
+			if deadline.Before(launchStarted.Add(want)) || deadline.After(time.Now().Add(want)) {
+				t.Fatalf("activation deadline %v does not preserve %v budget", deadline, want)
+			}
+		}
 		data, err := io.ReadAll(body)
 		if err != nil || int64(len(data)) != size || !corepackage.IsROMInput(data) || !bytes.Contains(data, []byte("part-video.tar")) || !bytes.Contains(data, []byte("part-expansion.tar")) {
 			t.Fatal("normal Play discarded ROM or parts", err)
@@ -129,6 +158,13 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool) {
 		client.statusResult = status
 		return status, nil
 	}
+	if parentTimeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, parentTimeout)
+		defer cancel()
+		callerDeadline, _ = ctx.Deadline()
+	}
+	launchStarted = time.Now()
 	response, err := s.Launch(ctx, entry.GameID, nil)
 	if err != nil || client.coreCalls != 1 {
 		t.Fatalf("Play %+v %v calls%d", response, err, client.coreCalls)

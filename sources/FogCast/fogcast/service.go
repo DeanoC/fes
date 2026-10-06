@@ -1896,6 +1896,14 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	if err != nil {
 		return protocol.Status{}, corePackageRequestFailure(err)
 	}
+	if selected.initialMedia != nil {
+		// Atomic ST activation includes the full floppy upload before Start.
+		// Derive from the caller, not the shorter package-upload context;
+		// caller cancellation and an earlier caller deadline still win.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(parent, max(s.uploadTimeout, 300*time.Second))
+		defer cancel()
+	}
 	s.executionMu.Lock()
 	kitTarget, kitPlay := s.selectedKitPlayLocked()
 	pendingRejection := kitPlay.packageRejection != nil
