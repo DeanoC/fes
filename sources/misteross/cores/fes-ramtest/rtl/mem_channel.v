@@ -102,7 +102,9 @@ module mem_channel #(
             timed_out <= state == ST_WAIT && !done && timer == TIMEOUT - 16'd1;
             // Count a mismatch on the following edge. The large counter bank
             // sees registered phase and enable instead of the scan state and
-            // data comparison on the same timing path.
+            // data comparison on the same timing path. pass, fail and the
+            // total update on this edge; pattern_errors updates on the next.
+            // pattern_latch waits for that edge before copying the counts.
             pattern_bump <= 1'b0;
             if (pattern_bump) begin
                 case (pattern_bump_phase)

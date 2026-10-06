@@ -285,35 +285,21 @@ module top #(
 `endif
 
     // Per-pattern counts stay on screen after the next rate re-inits the chip.
+    // The copy waits one cycle so a mismatch on the final word is included.
     wire [191:0] sdram_patterns;
-    reg [191:0] pat50 = 192'd0;
-    reg [191:0] pat75 = 192'd0;
-    reg [191:0] pat100 = 192'd0;
-    reg [2:0] pat_ok = 3'd0;
-    reg pat_seen = 1'b0;
+    wire [191:0] pat50, pat75, pat100;
+    wire [2:0] pat_ok;
     always @(posedge mem_clk) begin
         stop_sync <= {stop_sync[0], stop_level};
         mem_reset_sync <= {mem_reset_sync[0], mailbox_reset | rate_reset};
-        if (mem_reset_sync[1])
-            pat_seen <= 1'b0;
-        else if ((sdram_pass || sdram_fail) && !pat_seen) begin
-            pat_seen <= 1'b1;
-            case (rate)
-                2'd0: begin
-                    pat50 <= sdram_patterns;
-                    pat_ok[0] <= 1'b1;
-                end
-                2'd1: begin
-                    pat75 <= sdram_patterns;
-                    pat_ok[1] <= 1'b1;
-                end
-                default: begin
-                    pat100 <= sdram_patterns;
-                    pat_ok[2] <= 1'b1;
-                end
-            endcase
-        end
     end
+    // Follow the pattern scan. The combined status also rises when the
+    // byte-lane preflight fails, before any pattern count exists.
+    pattern_latch sdram_pattern_latch (
+        .clk(mem_clk), .reset(mem_reset_sync[1]), .rate(rate),
+        .pass(scan_pass), .fail(scan_fail), .counts(sdram_patterns),
+        .pat50(pat50), .pat75(pat75), .pat100(pat100), .pat_ok(pat_ok)
+    );
 
     sdram_byte_lane byte_test (
         .clk(mem_clk), .reset(mem_reset_sync[1]), .stop(stop_sync[1]),
