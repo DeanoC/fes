@@ -72,6 +72,8 @@ int main(int argc, char **argv) {
     dut.media_data = 0;
     dut.peek_addr = 0;
     dut.eval();
+    unsigned rom_address[2] = {0, 0};
+    unsigned rom_primed = 0;
     auto tick = [&]() {
         dut.eval();
         const unsigned cartridge_address = dut.cpu_addr_debug & 0x3fff;
@@ -80,9 +82,16 @@ int main(int argc, char **argv) {
         const bool machine_reset = dut.rootp->sg1000_machine__DOT__machine_reset;
         dut.clk_sys = 1; dut.eval();
         check_captured_enables(dut, raw_p, raw_n, machine_reset);
-        require(dut.rootp->sg1000_machine__DOT__cartridge_read ==
-                    expected[cartridge_address],
-                "linked cartridge byte must follow the sampled ROM address");
+        // The linked ROM is a two-clock pipeline, so the byte matches the
+        // address sampled two ticks earlier. The first two ticks fill it.
+        if (rom_primed >= 2) {
+            require(dut.rootp->sg1000_machine__DOT__cartridge_read ==
+                        expected[rom_address[0]],
+                    "linked cartridge byte must follow the sampled ROM address");
+        }
+        rom_address[0] = rom_address[1];
+        rom_address[1] = cartridge_address;
+        if (rom_primed < 2) ++rom_primed;
         check_cpu_pins(dut);
         dut.clk_sys = 0; dut.eval();
     };

@@ -8,10 +8,12 @@
 // two system clocks. The machine used to add one register outside an async
 // lane; that register is removed so the byte is not registered a third time.
 //
-// T80pa samples DI on CEN_n at T3. Native half-cycles are about seven
-// 52.224 MHz clocks apart, and the address is held from T1 through that
-// sample, so two clocks of ROM latency still meet the sample. The Verilator
-// CPU path uses the same two stages. Peek stays combinational in simulation.
+// fes_z80_nmos samples an opcode fetch on ce_p at the end of T2, at least
+// three native half-cycles (about 22 system clocks) after the address is
+// driven. Operand and data reads are sampled on ce_n during T3. Native
+// half-cycles are about seven 52.224 MHz clocks apart, so two clocks of
+// ROM latency still meet either sample. The Verilator CPU path uses the
+// same two stages. Peek stays combinational in simulation.
 // Synthesis ties peek_data to 8'hff; the production top does not expose it.
 module sg1000_rom_link (
     input wire clk,
