@@ -50,6 +50,27 @@ class ManifestTests(unittest.TestCase):
         with patch.dict(os.environ, {'FES_SOURCE_CLOSURE_BROAD': '1'}):
             self.assertEqual(source_roots_for_producer('build_fes_pong', pins), source_roots_for_inputs(pins))
 
+    def test_main_module_picks_the_same_roots_as_the_import(self):
+        # Producers write their sidecar record when run as __main__; FES derives the
+        # canonical record by importing scripts.<producer>. The roots must agree.
+        import sys, types
+        from scripts.functional_execution import producer_name
+        pins = ['scripts/build_fes_pong.py', 'cores/fes-pong/rtl/top.v']
+        for name in load_manifest():
+            main_module = types.ModuleType('__main__')
+            main_module.__file__ = str(ROOT / 'scripts' / (name + '.py'))
+            with patch.dict(sys.modules, {'__main__': main_module}):
+                self.assertEqual(producer_name('__main__', ROOT), name)
+                self.assertEqual(source_roots_for_producer('__main__', pins),
+                                 source_roots_for_producer('scripts.' + name, pins), name)
+                self.assertIsInstance(source_roots_for_producer('__main__', pins), AuditedRoots)
+        for outside in (None, '/elsewhere/scripts/build_fes_pong.py', str(ROOT / 'build_fes_pong.py')):
+            main_module = types.ModuleType('__main__')
+            if outside: main_module.__file__ = outside
+            with patch.dict(sys.modules, {'__main__': main_module}):
+                self.assertIsNone(producer_name('__main__', ROOT))
+                self.assertIs(type(source_roots_for_producer('__main__', pins)), list)
+
     def test_declared_inputs_stay_in_audited_roots(self):
         from scripts.build_fes_coleco_socket_v2 import VIDEO_INPUTS, NATIVE_VIDEO_INPUTS
         for inputs in (VIDEO_INPUTS, NATIVE_VIDEO_INPUTS):
