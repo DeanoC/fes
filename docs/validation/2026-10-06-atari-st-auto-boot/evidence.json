@@ -1,0 +1,211 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "classification": "exact ST package diagnostic on Kit A; no assembled appliance image acceptance",
+  "base_commit": "f16a74a4ce2e8bc972211e906731bc742acaa5f3",
+  "software_source_commit": "8cc9b64145bd258154cde49fa993c31023b5bc22",
+  "fpga_source_commit": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+  "package_id": "4e4f4f1a9767c13328722a849d1a4f07e280d16805dbf7414fabd18014f16ba2",
+  "package_archive_sha256": "2dd09c771f2d72bb15d55528a322b7d667e3a0a0fca7e754e5f69dbfc2b50bfa",
+  "build_id": "eb6d41e5c73c58c65a89000fb280aedc",
+  "shell_rbf_sha256": "00ed458a4b3ae040d7c2e33a78cc24aa62355943bff0fb5c002457f233ac52a2",
+  "rom_map_sha256": "bfad3826ecfb276597e8dd772c3031e5f033fa0e439b5bf12281d8ee4db88c69",
+  "firmware": {
+    "name": "EmuTOS 1.4 US 192 KiB",
+    "bytes": 196608,
+    "sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc"
+  },
+  "initial_disk": {
+    "bytes": 737280,
+    "sha256": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+    "program_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac"
+  },
+  "software_artifacts": {
+    "runtime_sha256": "f09050bd63bc46f25411061a8d39fa559ff2d5ff7c3474a1a2118d0ebec8634a",
+    "agent_sha256": "b1964d05cb72ed4cf716e098caf50d6d786c13d6d4387e2ff26cdc0d9c4f792c",
+    "host_sha256": "629851aaceaa0249aef02273fccee6b915984f38e2bc8477bd630feec1491152",
+    "cli_sha256": "5497b5dbee945d90e720706961dfcce7c189dde6af8177d256b7d1a192b1056d",
+    "patch_image_sha256": "8f5e8338c018ff3052131a44cac483f649f02a01a2f250251a5e0afb56697a30"
+  },
+  "software_validation": {
+    "source_commit": "8cc9b64145bd258154cde49fa993c31023b5bc22",
+    "logs": {
+      "host-focused": {
+        "sha256": "d2a527e3f03998569e431077932471ec473f4bf27cf4d38a6ffbaac8f23a15f2",
+        "bytes": 47
+      },
+      "host-full": {
+        "sha256": "e1a9872cfd9a7c1b7d67eb8a89951477d57847204f3d18148dc0414ca7ce5f9c",
+        "bytes": 48
+      },
+      "http-client": {
+        "sha256": "b7f6526b9788221b48df973c375ec580cf1a32971f3b636b65c513bcfc20fec3",
+        "bytes": 106
+      },
+      "native-full": {
+        "sha256": "9685965c0eaa38b1b785028b5159b7ba3e7060c939d89484dc78716ab257affa",
+        "bytes": 10891
+      },
+      "parent-check": {
+        "sha256": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
+        "bytes": 137
+      },
+      "parent-host": {
+        "sha256": "96b4fdb53664365fa766d7070681c3cb4814cce0777ac23604a645e89f947ba8",
+        "bytes": 3093
+      },
+      "agent-build": {
+        "sha256": "e0488520986f3f0286cbae15592a9926805099d1df39c04b32133650ba60c09b",
+        "bytes": 1149
+      },
+      "runtime-arm": {
+        "sha256": "dab2ce65215b8def6af915919fdea37ce8af04490971baaa99ca6870dd5e24a3",
+        "bytes": 3783
+      },
+      "corepackage-final": {
+        "sha256": "62e8489ef4cce22d1080af2d1cd214e85a491611c4e8108a1a9d5d3f05f51900",
+        "bytes": 554
+      },
+      "runtime-final": {
+        "sha256": "ddd22841b81923a3de25ed829a7b1d8ffbe60a3aa6144018169cf917a1a4a940",
+        "bytes": 63
+      }
+    },
+    "final_corepackage_pass": true,
+    "final_runtime_pass": true,
+    "earlier_final_run_test_teardown_failure_corrected": true,
+    "source_clean": true
+  },
+  "native_test_receipt_sha256": "9149c31f79c9f3033fd47a598b486c1bd0c467f5f81341f19da24380a002018d",
+  "runs": {
+    "seed": {
+      "generation": 1,
+      "launch_binding": {
+        "base_media_id": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+        "mode": "persistent",
+        "revision": "absent"
+      },
+      "saved_record": {
+        "record_sha256": "5ecbe52d3aea4f255c05ee62c9dc735a9086fe61d2dd554eada9f9151f56a2a5",
+        "record_bytes": 737453,
+        "payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c"
+      },
+      "post_stop_record_identical": true,
+      "immutable_base_unchanged": true,
+      "host_cold_started_at": "2026-10-06T10:51:36.359652437Z",
+      "no_guest_input": true,
+      "automatic_guest_execution": true,
+      "save_and_stop_pass": true,
+      "comparison": {
+        "all_bytes_compared": 737280,
+        "expected_payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "raw_differing_bytes": 0,
+        "unexpected_differing_bytes": 0,
+        "permitted_timestamp_differing_bytes": 0,
+        "against_original": {
+          "actual_guest_changed_non_timestamp_bytes": 1566,
+          "change_offset_sets_match": true,
+          "expected_guest_changed_non_timestamp_bytes": 1566,
+          "untouched_non_timestamp_bytes_checked": 735706
+        },
+        "capture_oracle": {
+          "hardware_acceptance": false,
+          "image_bytes": 737280,
+          "image_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+          "marker_pass": true,
+          "marker_restored": false,
+          "prg_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac",
+          "restore_proof_stage": "seeded",
+          "schema": 1
+        },
+        "helper_sha256": "c8321fe54fe2e4d2a31b26eb8178f386b85752ac7edd0ded35f813d01c06106c",
+        "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a"
+      }
+    },
+    "restore": {
+      "generation": 2,
+      "launch_binding": {
+        "base_media_id": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+        "mode": "persistent",
+        "revision": "5ecbe52d3aea4f255c05ee62c9dc735a9086fe61d2dd554eada9f9151f56a2a5"
+      },
+      "saved_record": {
+        "record_sha256": "49a1b4431819aa5a1d048654370e89cc80fa0faea3c2dcaac3b79546ea337841",
+        "record_bytes": 737453,
+        "payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b"
+      },
+      "post_stop_record_identical": true,
+      "immutable_base_unchanged": true,
+      "host_cold_started_at": "2026-10-06T10:56:22.991705406Z",
+      "no_guest_input": true,
+      "automatic_guest_execution": true,
+      "save_and_stop_pass": true,
+      "comparison": {
+        "all_bytes_compared": 737280,
+        "expected_payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "raw_differing_bytes": 0,
+        "unexpected_differing_bytes": 0,
+        "permitted_timestamp_differing_bytes": 0,
+        "against_original": {
+          "actual_guest_changed_non_timestamp_bytes": 1684,
+          "change_offset_sets_match": true,
+          "expected_guest_changed_non_timestamp_bytes": 1684,
+          "untouched_non_timestamp_bytes_checked": 735584
+        },
+        "capture_oracle": {
+          "hardware_acceptance": false,
+          "image_bytes": 737280,
+          "image_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+          "marker_pass": true,
+          "marker_restored": true,
+          "prg_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac",
+          "restore_proof_stage": "restored",
+          "schema": 1
+        },
+        "helper_sha256": "c8321fe54fe2e4d2a31b26eb8178f386b85752ac7edd0ded35f813d01c06106c",
+        "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a"
+      }
+    }
+  },
+  "same_runtime_agent_lifetime": true,
+  "cold_host_same_container_and_home": true,
+  "between_boot_service_restart_or_recovery": false,
+  "manual_guest_input_or_launch": false,
+  "video_output": "built-in Direct; no expansion card",
+  "shared_schema_or_FPGA_contract_change": false,
+  "cleanup": {
+    "factory_source": "5a58053229b5e1772defe5f9bdc34c72f659db71",
+    "boot_unchanged": true,
+    "target_ready": true,
+    "target_state": "idle",
+    "lease": "free",
+    "unique_runtime_agent": true,
+    "original_factory_hashes_verified": true,
+    "owned_overlay_removed": true,
+    "private_container_removed": true,
+    "private_credential_removed": true,
+    "owner_config_unchanged": true,
+    "normal_catalog_total": 4253,
+    "normal_host_active": "active",
+    "normal_host_enabled": "enabled"
+  },
+  "captures": {
+    "restore-automatic-boot.png": {
+      "sha256": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878",
+      "bytes": 11220,
+      "source": "actual HDMI capture frame 119"
+    },
+    "final-populated-menu.png": {
+      "sha256": "ff8d247c2d48df186befe6d0bbeab27249128f26bb4579a0674df252d418b7a2",
+      "bytes": 184507,
+      "source": "actual HDMI capture frame 119"
+    },
+    "seed-automatic-boot.png": {
+      "sha256": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878",
+      "bytes": 11220,
+      "source": "actual HDMI capture frame 119"
+    }
+  }
+}

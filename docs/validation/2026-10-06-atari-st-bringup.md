@@ -6,6 +6,9 @@ Upper- and lower-byte writes preserve the neighboring lane, including delayed
 and repeated writes in another bank. This supersedes the memory failure in the
 [October 4 interaction record](2026-10-04-atari-st-interaction.md).
 
+The later [automatic-boot record](2026-10-06-atari-st-auto-boot.md) closes this
+record's manual guest-launch limitation using initial disk upload before CPU release.
+
 These are exact-package diagnostics using a disposable software overlay on the
 unchanged factory boot. They do not qualify an assembled appliance image.
 The [compact evidence](2026-10-06-atari-st-bringup/evidence.json) binds the source,
