@@ -111,6 +111,7 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     """
     rootfs,kernel,provenance,fogcast,env,lock=appliance.verified_inputs(root,profile)
     manifest=appliance.load_manifest(Path(release_directory)/'release.json')
+    if appliance.manifest_image_passes(manifest) == 1: raise ValueError('single-pass scratch release cannot be bootstrapped')
     expected_release=appliance.export_release(scratch/'expected-release',rootfs,kernel,version=manifest['version'],provenance=provenance)
     compare_bundle(release_directory,expected_release.directory,('rootfs.img','release.json','evidence.json'))
     sys.path.insert(0,str(Path(__file__).resolve().parent));import media

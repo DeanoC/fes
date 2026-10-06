@@ -246,6 +246,24 @@ class ReceiptTest(unittest.TestCase):
                 "qemu_log_sha256": qemu_log_sha256,
             })
 
+    def test_single_pass_verification_is_diagnostic_only(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            image = b'scratch image'; sha = hashlib.sha256(image).hexdigest()
+            qemu = b'qemu passed\n'; qsha = hashlib.sha256(qemu).hexdigest()
+            (output/'linux.img').write_bytes(image); (output/'qemu-smoke.log').write_bytes(qemu)
+            (output/'reproducibility.txt').write_text(f'image_passes=1\nsingle_pass_scratch=1\nrun_1_sha256={sha}\n')
+            (output/'SINGLE-PASS-SCRATCH.txt').write_text(f'head_sha={build.git(build.ROOT,"rev-parse","HEAD")}\nlinux_img_sha256={sha}\n')
+            verification = {'image_sha256':sha,'qemu_log_sha256':qsha,'qemu_packaging':'pass','structural':'pass','two_pass_reproducibility':'not-run-single-pass'}
+            (output/'verification.json').write_text(json.dumps(verification))
+            self.assertNotIn('image_passes', build.verification_record(output, sha, None, 1))
+            build.write_receipt(output,'image','cold-fingerprint',['linux.img','reproducibility.txt'])
+            with self.assertRaisesRegex(ValueError, 'run make verify'):
+                build.load_verified_image(output,'cold-fingerprint')
+            self.assertEqual(build.load_verified_image(output,'cold-fingerprint',allow_single_pass=True)['rootfs_sha256'],sha)
+
     def test_verified_image_accepts_derived_package_fingerprint_from_bound_inputs(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

@@ -2,6 +2,7 @@
 PROFILE ?= native-integration-dev
 PYTHON ?= python3
 RELEASE_VERSION ?= 0.2.0-dev.1
+IMAGE_PASSES ?= 2
 
 ifneq ($(strip $(AGENT_CONFIG)),)
 ifneq ($(strip $(filter-out media,$(MAKECMDGOALS))),)
@@ -33,7 +34,7 @@ help:
 	@printf '%s\n' 'make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS="--help": private host catalog and restart diagnostic; explicit hardware opt-in.'
 	@printf '%s\n' 'make core-dev CORE_DEV_ARGS="--help": prepare one HIP package without building an image.' 'make core-dev-accept CORE_DEV_ACCEPT_ARGS="--help": explicit isolated acceptance of a frozen candidate.'
 doctor build host image verify rebuild dev:
-	$(PYTHON) scripts/build.py $@ --profile "$(PROFILE)"
+	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --profile "$(PROFILE)"
 platform-provision:
 	$(PYTHON) scripts/platform.py provision --fogcast "$(abspath sources/FogCast)"
 platform-test:
@@ -83,7 +84,7 @@ rollback-media:
 
 .PHONY: release bootstrap appliance-media verify-appliance-media
 release:
-	$(PYTHON) scripts/appliance.py release --profile "$(PROFILE)" --version "$(RELEASE_VERSION)"
+	$(PYTHON) scripts/appliance.py release --profile "$(PROFILE)" --version "$(RELEASE_VERSION)" --image-passes "$(IMAGE_PASSES)"
 bootstrap: platform-provision
 	$(if $(strip $(RELEASE)),,$(error bootstrap requires RELEASE=/absolute/path/to/release-directory))
 	$(PYTHON) scripts/appliance.py bootstrap --profile "$(PROFILE)" --release "$(RELEASE)"

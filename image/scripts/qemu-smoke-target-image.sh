@@ -96,8 +96,9 @@ case "${1:-}" in
 
     # The smoke kernel uses the native image compiler so the native build
     # is independently sufficient for packaging smoke.
-    toolchain_root=/target-image-output/work-2-native-dev/host
-    toolchain=/target-image-output/work-2-native-dev/host/bin/arm-buildroot-linux-gnueabihf-
+    selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}
+    toolchain_root=$selected_work/host
+    toolchain=$selected_work/host/bin/arm-buildroot-linux-gnueabihf-
     test -x "${toolchain}gcc" || {
       printf 'qemu-smoke-target-image: cross compiler is missing: %sgcc\n' "$toolchain" >&2
       exit 1
