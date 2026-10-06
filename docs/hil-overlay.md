@@ -39,16 +39,16 @@ before the host attestation command is run.
 7. **Mixed kit binary and core sequence:** after deploy and restart, run
    `fogcast core-load` using the core archive from the exact-head build.
    `core-load` takes its own host lease through `fogcast-api`. Save `kit.py
-   status` as `reacquired` (held by `HOST_OWNER`), capture update, status, then
-   update again (commands below), and run the HIL test. Explicitly stop the host
+   status` as `reacquired` (held by `HOST_OWNER`), run `core-capture` (below)
+   and the HIL test. Explicitly stop the host
    session with `POST /api/v1/session/stop`; save status (free or revoking) and
    record `released`.
 
 8. **Core-only sequence:** confirm `kit.py status` is free and run
    `fogcast core-load` from the exact-head build. The host command takes its own
    lease through `fogcast-api`. While the core runs, save status (held by
-   `HOST_OWNER`) and record `claimed`. Capture update, status, then update again;
-   run the HIL test. Explicitly stop the host session, save status (free or
+   `HOST_OWNER`) and record `claimed`. Run `core-capture` (below) and the HIL
+   test. Explicitly stop the host session, save status (free or
    revoking), and record `released`.
 
    **Binary-only sequence:** reacquire with a new `kit.py session`, record
@@ -58,24 +58,37 @@ before the host attestation command is run.
    It scans `/proc/*/exe`, including deleted mappings. Run the HIL test under the
    lease, then release and record `released`.
 
-   Capture commands for plans with core entries:
+   `/v1/status` carries no boot ID, so a status file alone cannot prove which
+   boot it came from. For plans with core entries, `core-capture` reads
+   `/v1/update`, `/v1/status` and `/v1/update` again in one run and writes a
+   timestamped bundle. Evidence requires both update captures in the bundle to
+   pass the image checks and to carry the checked boot ID. The bundle must also
+   fall inside the host lease window, between the host-held record (`reacquired`
+   or `claimed`) and `released`. The token is read from `FOGCAST_TOKEN` and is
+   never written out.
 
    ```sh
    fogcast --json --api http://127.0.0.1:8787 core-load /abs/path/core.fcore
    curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
      http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
-   curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
-     http://192.168.10.84:8182/v1/status > /tmp/core-status.json
-   curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
-     http://192.168.10.84:8182/v1/update > /tmp/kit-update-after.json
+   python3 scripts/hil_plan.py core-capture --target-url http://192.168.10.84:8182 \
+     --out /tmp/core-capture.json
    ```
 
-9. Generate evidence with the base build's `release.json`, the update captured
-   before status and (for core plans) the update captured after status, hash
-   outputs, lease log, and one `--core-status core:NAME=FILE` per core. Pass
+   **Launcher binaries:** S60 runs either `fogcast-tenfoot` or `fogcast-kit` as
+   the supervised child (`/run/fogcast-kit.pid`), depending on `launcher.json`.
+   Evidence requires the child's running hash to match the overlaid binary. If
+   only `fogcast-kit` is planned, the kit must be running the `fogcast-kit` child
+   (not tenfoot). If both launchers are planned, the child must be the overlaid
+   tenfoot, and the `kit_ui` line from `kit-command` must show that the overlaid
+   `fogcast-kit` completed `--print-kit-ui` and selected `tenfoot`.
+
+9. Generate evidence with the base build's `release.json`, the update capture,
+   the hash outputs, the lease log, and one `--core-status core:NAME=FILE` per
+   core, where FILE is the `core-capture` bundle. Pass
    `--host-lease-owner HOST_OWNER` whenever cores are present. In mixed plans,
-   pass `--lease-owner KIT_OWNER` too. The two update captures must pass the same
-   image checks and have identical boot IDs; with kit entries that ID must also
+   pass `--lease-owner KIT_OWNER` too. Every update capture must pass the same
+   image checks and carry the same boot ID. With kit entries, that ID must also
    match the kit command. Evidence checks component coverage, file and running
    executable hashes, core package identity and state, image identity, boot
    identity, supervisor counts, and exact lease order.
@@ -87,10 +100,10 @@ before the host attestation command is run.
 python3 scripts/hil_plan.py evidence --repo . --base-image-commit "$BASE_IMAGE_COMMIT" \
   --head "$PR_HEAD" --base-image-sha256 "$BASE_LINUX_IMG_SHA256" \
   --base-release-json /path/to/release.json --kit-update-json /tmp/kit-update.json \
-  --kit-update-after-json /tmp/kit-update-after.json \
   --manifest /tmp/hil-manifest.json --kit-sha256 /tmp/kit.sha256 \
   --host-sha256 /tmp/host.sha256 --lease-log /tmp/lease.jsonl --lease-owner KIT_OWNER \
-  --host-lease-owner HOST_OWNER --out /tmp/hil-evidence.md
+  --host-lease-owner HOST_OWNER --core-status core:NAME=/tmp/core-capture.json \
+  --out /tmp/hil-evidence.md
 ```
 
 All target API reads use the bearer token from the private FogCast config's
@@ -100,15 +113,4 @@ or commit the token. Every curl uses the authenticated, failing form:
 ```sh
 curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
   http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
-```
-10. Finally run `kit-deploy-script ...` with `off` under the same
-    release/reacquire lease discipline to restore installed binaries.
-
-```sh
-python3 scripts/hil_plan.py evidence --repo . --base-image-commit "$BASE_IMAGE_COMMIT" \
-  --head "$PR_HEAD" --base-image-sha256 "$BASE_LINUX_IMG_SHA256" \
-  --base-release-json /path/to/release.json --kit-update-json /tmp/kit-update.json \
-  --manifest /tmp/hil-manifest.json --kit-sha256 /tmp/kit.sha256 \
-  --host-sha256 /tmp/host.sha256 --lease-log /tmp/lease.jsonl --lease-owner O \
-  --out /tmp/hil-evidence.md
 ```

@@ -128,12 +128,22 @@ class HilPlanTest(unittest.TestCase):
         records = []
         for index, (step, state, lease_owner) in enumerate(states):
             records.append({'step': step, 'status': {'state': state, 'owner': lease_owner,
-                             'generation': f'g{index}'}, 'recorded_at': f't{index}'})
+                             'generation': f'g{index}'}, 'recorded_at': f'2026-10-06T12:{index:02d}:00+00:00'})
         path.write_text(''.join(json.dumps(row) + '\n' for row in records))
         return path
 
+    def capture(self, status, held_index=0, before=None, after=None,
+                captured_at=None, finished_at=None):
+        update = {'boot_id': BOOT_ID, 'good': BASE_SHA, 'image_sha256': BASE_SHA,
+                  'corrupt': False, 'trial': False}
+        return json.dumps({
+            'format': 'fes-hil-core-capture-v1', 'target': 'http://kit',
+            'captured_at': captured_at or f'2026-10-06T12:{held_index:02d}:10+00:00',
+            'before': before or update, 'status': status, 'after': after or update,
+            'finished_at': finished_at or f'2026-10-06T12:{held_index:02d}:20+00:00'})
+
     def kit_output(self, entries, supervisor='SUPERVISORS runtime=1 agent=1 kit=1',
-                   exe_overrides=None, missing_exe=()):
+                   exe_overrides=None, missing_exe=(), kit_ui='tenfoot'):
         exe_overrides = exe_overrides or {}
         lines = [f'boot_id {BOOT_ID}']
         for component, side, target, content in entries:
@@ -141,13 +151,21 @@ class HilPlanTest(unittest.TestCase):
                 lines.append(f'{digest(content)}  {target}')
         lines.append(supervisor)
         mapping = {'mister-runtime': ('mister-runtime', b'artifact'),
-                   'mister-agent': ('mister-agent', b'artifact'),
-                   'fogcast-tenfoot': ('fogcast-kit-child', b'artifact')}
+                   'mister-agent': ('mister-agent', b'artifact')}
         for component, side, target, content in entries:
             if side != 'kit' or component not in mapping:
                 continue
             exe, _ = mapping[component]
             value = 'MISSING' if exe in missing_exe else exe_overrides.get(exe, digest(content))
+            lines.append(f'exe {exe} {value}')
+        launchers = {component: content for component, side, target, content in entries
+                     if side == 'kit' and component in ('fogcast-kit', 'fogcast-tenfoot')}
+        if 'fogcast-kit' in launchers:
+            lines.append(f'kit_ui {kit_ui}')
+        if launchers:
+            child = launchers.get('fogcast-tenfoot', launchers.get('fogcast-kit'))
+            exe = 'fogcast-kit-child'
+            value = 'MISSING' if exe in missing_exe else exe_overrides.get(exe, digest(child))
             lines.append(f'exe {exe} {value}')
         path = self.work / 'kit.sha256'
         path.write_text('\n'.join(lines) + '\n')
@@ -189,9 +207,6 @@ class HilPlanTest(unittest.TestCase):
             args += ['--host-sha256', host_file]
         if update:
             args += ['--kit-update-json', self.update_file()]
-            if any(row[0].startswith('core:') for row in entries):
-                args += ['--kit-update-after-json', self.update_file().with_name('update-after.json')]
-                Path(args[-1]).write_text(Path(args[-3]).read_text())
         if lease and (kit_file or any(row[0].startswith('core:') for row in entries)):
             has_core = any(row[0].startswith('core:') for row in entries)
             if kit_file and has_core:
@@ -210,8 +225,9 @@ class HilPlanTest(unittest.TestCase):
             if component.startswith('core:'):
                 status = self.work / f'{component.replace(":", "_")}.status.json'
                 row = next(row for row in manifest_entries if row['component'] == component)
-                status.write_text(json.dumps({'state': 'active', 'development': True, 'core_package': {
-                    'package_id': row['package_id'], 'build_id': 'build-test'}}))
+                status.write_text(self.capture({'state': 'active', 'development': True, 'core_package': {
+                    'package_id': row['package_id'], 'build_id': 'build-test'}},
+                    held_index=2 if kit_file else 0))
                 args += ['--core-status', f'{component}={status}']
         if output:
             args += ['--out', output]
@@ -420,6 +436,92 @@ class HilPlanTest(unittest.TestCase):
                     '--lease-log', self.lease_file(), '--lease-owner', 'owner', '--out', output]
             self.assert_refused_without_evidence(run(*args), output)
 
+    def test_fogcast_kit_child_is_attested(self):
+        self.git_repo(['sources/FogCast/cmd/fogcast-kit/change.go'])
+        entries = [('fogcast-kit', 'kit', '/usr/sbin/fogcast-kit', b'kit')]
+        manifest = self.make_manifest(entries)
+        command = run('kit-command', '--manifest', manifest).stdout
+        self.assertIn('kit_ui $(/usr/sbin/fogcast-kit --config /media/fat/fogcast/launcher.json --print-kit-ui', command)
+        output = self.work / 'kit.md'
+        self.assertEqual(self.evidence(manifest, entries, output=output).returncode, 0)
+        for overrides, missing, reason in (
+                ({'fogcast-kit-child': digest(b'base-tenfoot')}, (), 'expected fogcast-kit'),
+                ({}, ('fogcast-kit-child',), 'MISSING for fogcast-kit-child')):
+            kit = self.kit_output(entries, exe_overrides=overrides, missing_exe=missing)
+            output.unlink(missing_ok=True)
+            result = run('evidence', '--repo', self.repo, '--base-image-commit', self.base,
+                         '--head', self.head, '--base-image-sha256', BASE_SHA,
+                         '--manifest', manifest, '--kit-sha256', kit,
+                         '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
+                         '--lease-log', self.lease_file(), '--lease-owner', 'owner', '--out', output)
+            self.assert_refused_without_evidence(result, output)
+            self.assertIn(reason, result.stderr)
+
+    def test_kit_and_tenfoot_need_tenfoot_child_and_kit_ui(self):
+        self.git_repo(['sources/FogCast/cmd/fogcast-kit/change.go',
+                       'sources/FogCast/cmd/fogcast-tenfoot/change.go'])
+        entries = [('fogcast-kit', 'kit', '/usr/sbin/fogcast-kit', b'kit'),
+                   ('fogcast-tenfoot', 'kit', '/usr/sbin/fogcast-tenfoot', b'tenfoot')]
+        manifest = self.make_manifest(entries)
+        output = self.work / 'both.md'
+        self.assertEqual(self.evidence(manifest, entries, output=output).returncode, 0)
+        for overrides, kit_ui, reason in (
+                ({'fogcast-kit-child': digest(b'kit')}, 'grid', 'expected fogcast-tenfoot'),
+                ({}, 'FAILED', 'did not complete --print-kit-ui'),
+                ({}, 'grid', 'did not complete --print-kit-ui')):
+            kit = self.kit_output(entries, exe_overrides=overrides, kit_ui=kit_ui)
+            output.unlink(missing_ok=True)
+            result = run('evidence', '--repo', self.repo, '--base-image-commit', self.base,
+                         '--head', self.head, '--base-image-sha256', BASE_SHA,
+                         '--manifest', manifest, '--kit-sha256', kit,
+                         '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
+                         '--lease-log', self.lease_file(), '--lease-owner', 'owner', '--out', output)
+            self.assert_refused_without_evidence(result, output)
+            self.assertIn(reason, result.stderr)
+
+    def test_core_capture_requires_token_and_writes_bundle(self):
+        import http.server
+        import os
+        import threading
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen.append((self.path, self.headers.get('Authorization')))
+                body = {'/v1/update': {'boot_id': BOOT_ID, 'good': BASE_SHA, 'image_sha256': BASE_SHA,
+                                       'corrupt': False, 'trial': False},
+                        '/v1/status': {'state': 'active'}}[self.path]
+                data = json.dumps(body).encode()
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        url = f'http://127.0.0.1:{server.server_port}'
+        out = self.work / 'capture.json'
+        env = {key: value for key, value in os.environ.items() if key != 'FOGCAST_TOKEN'}
+        missing = subprocess.run([sys.executable, str(SCRIPT), 'core-capture', '--target-url', url,
+                                  '--out', str(out)], text=True, capture_output=True, env=env)
+        self.assertEqual(missing.returncode, 2)
+        self.assertFalse(out.exists())
+        env['FOGCAST_TOKEN'] = 'secret-token'
+        result = subprocess.run([sys.executable, str(SCRIPT), 'core-capture', '--target-url', url,
+                                 '--out', str(out)], text=True, capture_output=True, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('secret-token', result.stdout + result.stderr + out.read_text())
+        bundle = json.loads(out.read_text())
+        self.assertEqual(bundle['format'], 'fes-hil-core-capture-v1')
+        self.assertEqual([path for path, _ in seen], ['/v1/update', '/v1/status', '/v1/update'])
+        self.assertTrue(all(auth == 'Bearer secret-token' for _, auth in seen))
+        self.assertEqual(bundle['status'], {'state': 'active'})
+
     def test_missing_running_executable_refuses(self):
         self.git_repo(['sources/FogCast/cmd/mister-agent/change.go'])
         entries = [('mister-agent', 'kit', '/usr/sbin/mister-agent', b'agent')]
@@ -519,15 +621,15 @@ class HilPlanTest(unittest.TestCase):
 
         status = self.work / 'running.json'
         core_package_id = json.loads(manifest.read_text())['entries'][0]['package_id']
-        status.write_text(json.dumps({'state': 'active', 'development': True, 'core_package': {
-            'package_id': core_package_id, 'build_id': 'build-test'}}))
+        good_status = {'state': 'active', 'development': True, 'core_package': {
+            'package_id': core_package_id, 'build_id': 'build-test'}}
+        status.write_text(self.capture(good_status))
         log = self.lease_file([('claimed', 'held', 'host-owner'), ('released', 'free', None)])
         archive_bytes = Path(json.loads(manifest.read_text())['entries'][0]['local']).read_bytes()
         host_hashes = self.host_output([('core:ramtest', 'host', '/tmp/ramtest.fcore', archive_bytes)])
         args = ['evidence', '--repo', self.repo, '--base-image-commit', self.base,
                 '--head', self.head, '--base-image-sha256', BASE_SHA, '--manifest', manifest,
                 '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
-                '--kit-update-after-json', self.update_file(),
                 '--host-sha256', host_hashes,
                 '--lease-log', log, '--host-lease-owner', 'host-owner', '--core-status', f'core:ramtest={status}']
         missing_status_args = args[:-2]
@@ -537,18 +639,28 @@ class HilPlanTest(unittest.TestCase):
         result = run(*args, '--out', output)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('| Core component | Package ID | Build ID | Archive sha256 |', output.read_text())
-        missing_after = args.copy()
-        after_index = missing_after.index('--kit-update-after-json')
-        del missing_after[after_index:after_index + 2]
-        output.unlink(missing_ok=True)
-        self.assert_refused_without_evidence(run(*missing_after, '--out', output), output)
-        changed = self.work / 'changed-after.json'
-        changed.write_text(json.dumps({'boot_id': 'different-boot', 'good': BASE_SHA,
-                                       'image_sha256': BASE_SHA, 'corrupt': False, 'trial': False}))
-        mismatch = args.copy()
-        mismatch[mismatch.index('--kit-update-after-json') + 1] = changed
-        output.unlink(missing_ok=True)
-        self.assert_refused_without_evidence(run(*mismatch, '--out', output), output)
+        other_boot = {'boot_id': 'different-boot', 'good': BASE_SHA,
+                      'image_sha256': BASE_SHA, 'corrupt': False, 'trial': False}
+        for capture, reason in (
+                (json.dumps(good_status), 'not a fes-hil-core-capture-v1 bundle'),
+                (json.dumps({**json.loads(self.capture(good_status)), 'format': 'other'}),
+                 'not a fes-hil-core-capture-v1 bundle'),
+                (self.capture(good_status, after=other_boot), 'after boot_id does not match'),
+                (self.capture(good_status, before=other_boot), 'before boot_id does not match'),
+                (self.capture(good_status, after={**other_boot, 'boot_id': BOOT_ID, 'trial': True}),
+                 'after update is corrupt or trial'),
+                (self.capture(good_status, before={'error': 'unauthorized'}), 'error body'),
+                (self.capture(good_status, captured_at='2026-10-06T11:59:00+00:00'),
+                 'not taken inside the host lease window'),
+                (self.capture(good_status, finished_at='2026-10-06T12:05:00+00:00'),
+                 'not taken inside the host lease window'),
+                (self.capture(good_status, captured_at='2026-10-06T12:00:10'), 'invalid timestamp')):
+            status.write_text(capture)
+            output.unlink(missing_ok=True)
+            result = run(*args, '--out', output)
+            self.assert_refused_without_evidence(result, output)
+            self.assertIn(reason, result.stderr)
+        status.write_text(self.capture(good_status))
         output = self.work / 'four-step.md'
         result = run(*args[:-4], '--lease-log', self.lease_file(), '--lease-owner', 'owner',
                      '--core-status', f'core:ramtest={status}', '--out', output)
@@ -565,13 +677,13 @@ class HilPlanTest(unittest.TestCase):
                 ({'state': 'active', 'development': False, 'core_package': {'package_id': core_package_id}}, 'not an active development core'),
                 *[({'state': state, 'development': True, 'core_package': {'package_id': core_package_id}},
                    'not an active development core') for state in ('launching', 'stopping', 'failed', 'local')]):
-            status.write_text(json.dumps(payload))
+            status.write_text(self.capture(payload))
             output = self.work / 'bad-status.md'
             result = run(*args, '--out', output)
             self.assert_refused_without_evidence(result, output)
             self.assertIn(reason, result.stderr)
         for payload in ({'error': 'unauthorized'}, {'code': 'unauthorized'}, {'state': 'active'}):
-            status.write_text(json.dumps(payload))
+            status.write_text(self.capture(payload))
             result = run(*args, '--out', output)
             self.assert_refused_without_evidence(result, output)
             self.assertIn('error body or lacks required fields', result.stderr)

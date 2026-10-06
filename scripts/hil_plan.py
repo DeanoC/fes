@@ -5,12 +5,15 @@ import argparse
 import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shlex
 import subprocess
 import sys
 import tomllib
+import urllib.error
+import urllib.request
 
 MISTEROSS_SCRIPTS = Path(__file__).resolve().parents[1] / 'sources/misteross'
 sys.path.insert(0, str(MISTEROSS_SCRIPTS))
@@ -60,8 +63,11 @@ RANK = {'none': 0, 'overlay': 1, 'full': 2}
 SHA40 = re.compile(r'^[0-9a-fA-F]{40}$')
 SHA64 = re.compile(r'^[0-9a-fA-F]{64}$')
 BINS = ('mister-runtime', 'mister-agent', 'fogcast-kit', 'fogcast-tenfoot')
-EXES = {'mister-runtime': 'mister-runtime', 'mister-agent': 'mister-agent',
-        'fogcast-tenfoot': 'fogcast-kit-child'}
+EXES = {'mister-runtime': 'mister-runtime', 'mister-agent': 'mister-agent'}
+KIT_CHILD = ('fogcast-kit', 'fogcast-tenfoot')
+LAUNCHER_CONFIG = '/media/fat/fogcast/launcher.json'
+CAPTURE_FORMAT = 'fes-hil-core-capture-v1'
+UPDATE_FIELDS = {'boot_id', 'good', 'image_sha256', 'corrupt', 'trial'}
 HOST_SERVERS = {'host:fogcast-api'}
 
 
@@ -294,6 +300,98 @@ def validate_core_lease(path, owner):
     return records, None
 
 
+def check_update(update, base_image, label):
+    """Return a refusal reason for a /v1/update capture, or None."""
+    if (not isinstance(update, dict) or 'error' in update or 'code' in update or
+            not UPDATE_FIELDS <= update.keys()):
+        return f'{label} response is an error body or lacks required fields'
+    if (str(update.get('image_sha256', '')).lower() != base_image or
+            str(update.get('good', '')).lower() != base_image):
+        return f'{label} image identity does not match base image sha256'
+    if update.get('corrupt') is not False or update.get('trial', False) is True:
+        return f'{label} is corrupt or trial'
+    return None
+
+
+def parse_time(value):
+    moment = datetime.datetime.fromisoformat(str(value))
+    if moment.tzinfo is None:
+        raise ValueError(f'timestamp has no timezone: {value}')
+    return moment
+
+
+def check_capture(capture, component, base_image, boot_id, window):
+    """Validate a core-capture bundle; return (status, refusal reason)."""
+    label = f'core capture for {component}'
+    if (not isinstance(capture, dict) or capture.get('format') != CAPTURE_FORMAT or
+            not {'captured_at', 'finished_at', 'before', 'status', 'after'} <= capture.keys()):
+        return None, f'{label} is not a {CAPTURE_FORMAT} bundle from core-capture'
+    for key in ('before', 'after'):
+        reason = check_update(capture[key], base_image, f'{label} {key} update')
+        if reason:
+            return None, reason
+        if not boot_id or capture[key].get('boot_id') != boot_id:
+            return None, f'{label} {key} boot_id does not match the checked boot'
+    try:
+        start, end = parse_time(capture['captured_at']), parse_time(capture['finished_at'])
+        held, released = (parse_time(value) for value in window)
+    except (TypeError, ValueError) as error:
+        return None, f'{label} or lease log has an invalid timestamp: {error}'
+    if not held <= start <= end <= released:
+        return None, f'{label} was not taken inside the host lease window'
+    return capture['status'], None
+
+
+def check_kit_child(kit_entries, kit_text):
+    """Attest the S60 child process for launcher binaries; return refusal or None."""
+    planned = {Path(entry['target']).name: entry['sha256'].lower() for entry in kit_entries
+               if Path(entry['target']).name in KIT_CHILD}
+    if not planned:
+        return None
+    match = re.search(r'^exe fogcast-kit-child (\S+)$', kit_text, re.M)
+    child = match.group(1).lower() if match else 'missing'
+    if not SHA64.fullmatch(child):
+        return 'running exe is MISSING for fogcast-kit-child'
+    if 'fogcast-tenfoot' in planned:
+        if child != planned['fogcast-tenfoot']:
+            return 'running exe hash mismatch for fogcast-kit-child (expected fogcast-tenfoot)'
+        if 'fogcast-kit' in planned:
+            # In tenfoot mode the overlaid fogcast-kit only runs --print-kit-ui;
+            # its completed selection is the attestation that it ran.
+            if not re.search(r'^kit_ui tenfoot$', kit_text, re.M):
+                return 'fogcast-kit did not complete --print-kit-ui selecting tenfoot'
+        return None
+    if child != planned['fogcast-kit']:
+        return ('running exe hash mismatch for fogcast-kit-child (expected fogcast-kit; '
+                'a fogcast-kit-only overlay needs the kit running the fogcast-kit child)')
+    return None
+
+
+def core_capture(args):
+    """Capture /v1/update, /v1/status and /v1/update again into one bundle."""
+    token = os.environ.get('FOGCAST_TOKEN')
+    if not token:
+        raise ValueError('FOGCAST_TOKEN is not set')
+    base = args.target_url.rstrip('/')
+
+    def get(path):
+        request = urllib.request.Request(base + path,
+                                         headers={'Authorization': 'Bearer ' + token})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return json.loads(response.read())
+
+    def now():
+        return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    captured_at = now()
+    before = get('/v1/update')
+    status = get('/v1/status')
+    after = get('/v1/update')
+    bundle = {'format': CAPTURE_FORMAT, 'target': base, 'captured_at': captured_at,
+              'before': before, 'status': status, 'after': after, 'finished_at': now()}
+    Path(args.out).write_text(json.dumps(bundle, indent=2) + '\n')
+
+
 def evidence(args):
     base = git_commit(args.repo, args.base_image_commit)
     head = git_commit(args.repo, args.head)
@@ -375,33 +473,13 @@ def evidence(args):
         return refuse('kit or core entries require --kit-update-json')
     if args.kit_update_json:
         update = json.loads(Path(args.kit_update_json).read_text())
-        if (not isinstance(update, dict) or 'error' in update or 'code' in update or
-                not {'boot_id', 'good', 'image_sha256', 'corrupt', 'trial'} <= update.keys()):
-            return refuse('kit update response is an error body or lacks required fields')
+        reason = check_update(update, base_image, 'kit update')
+        if reason:
+            return refuse(reason)
         boot_id = update.get('boot_id', '')
         good = update.get('good', '')
-        if update.get('image_sha256', '').lower() != base_image:
-            return refuse('kit update image_sha256 does not match base image sha256')
-        if good.lower() != base_image:
-            return refuse('kit update good does not match base image sha256')
-        if update.get('corrupt') is not False or update.get('trial', False) is True:
-            return refuse('kit update is corrupt or trial')
         if kit_entries and (not boot_id or boot_id != kit_boot_id(Path(args.kit_sha256).read_text())):
             return refuse('kit update boot_id is missing or does not match kit hash output')
-    if core_entries and not args.kit_update_after_json:
-        return refuse('core entries require --kit-update-after-json')
-    if args.kit_update_after_json:
-        after = json.loads(Path(args.kit_update_after_json).read_text())
-        if (not isinstance(after, dict) or 'error' in after or 'code' in after or
-                not {'boot_id', 'good', 'image_sha256', 'corrupt', 'trial'} <= after.keys()):
-            return refuse('kit update after response is an error body or lacks required fields')
-        if (after.get('image_sha256', '').lower() != base_image or
-                after.get('good', '').lower() != base_image):
-            return refuse('kit update after image identity does not match base image sha256')
-        if after.get('corrupt') is not False or after.get('trial', False) is True:
-            return refuse('kit update after is corrupt or trial')
-        if not boot_id or after.get('boot_id') != boot_id:
-            return refuse('kit update boot_id changed between captures')
     version = str(release.get('version', ''))
 
     lease = []
@@ -432,6 +510,9 @@ def evidence(args):
                     return refuse(f'running exe is MISSING for {executable}')
                 if not SHA64.fullmatch(match.group(1)) or match.group(1).lower() != entry['sha256'].lower():
                     return refuse(f'running exe hash mismatch for {executable}')
+        reason = check_kit_child(kit_entries, kit_text)
+        if reason:
+            return refuse(reason)
 
     for entry in host_entries:
         if entry['component'] not in HOST_SERVERS:
@@ -453,10 +534,18 @@ def evidence(args):
         if component in core_status:
             raise ValueError(f'duplicate core status for {component}')
         core_status[component] = json.loads(Path(filename).read_text())
+    if core_entries:
+        held_step = 'reacquired' if kit_entries else 'claimed'
+        window = (next(record.get('recorded_at') for record in lease if record['step'] == held_step),
+                  lease[-1].get('recorded_at'))
     for entry in core_entries:
-        status = core_status.get(entry['component'])
-        if not status:
+        capture = core_status.get(entry['component'])
+        if not capture:
             return refuse(f'missing --core-status for {entry["component"]}')
+        status, reason = check_capture(capture, entry['component'], base_image, boot_id, window)
+        if reason:
+            return refuse(reason)
+        core_status[entry['component']] = status
         if not isinstance(status, dict) or 'error' in status or 'code' in status or not {
                 'state', 'development', 'core_package'} <= status.keys():
             return refuse(f'core status response is an error body or lacks required fields for {entry["component"]}')
@@ -602,13 +691,17 @@ def parser():
     evidence_parser.add_argument('--host-sha256')
     evidence_parser.add_argument('--base-release-json', required=True)
     evidence_parser.add_argument('--kit-update-json')
-    evidence_parser.add_argument('--kit-update-after-json')
     evidence_parser.add_argument('--lease-log')
     evidence_parser.add_argument('--lease-owner',
                                  help='kit.py session owner for binary overlays')
     evidence_parser.add_argument('--host-lease-owner',
                                  help='host core-load lease owner, required for core entries')
-    evidence_parser.add_argument('--core-status', action='append', default=[])
+    evidence_parser.add_argument('--core-status', action='append', default=[],
+                                 help='COMPONENT=FILE, FILE written by core-capture')
+    capture = sub.add_parser('core-capture',
+                             help='capture update, status, update into one bundle (token from FOGCAST_TOKEN)')
+    capture.add_argument('--target-url', default='http://192.168.10.84:8182')
+    capture.add_argument('--out', required=True)
     evidence_parser.add_argument('--out')
     return root
 
@@ -619,6 +712,8 @@ def kit_command(entries):
     print('echo boot_id $(cat /proc/sys/kernel/random/boot_id)')
     for path in paths:
         print('sha256sum ' + shlex.quote(path))
+    if any(Path(entry['target']).name == 'fogcast-kit' for entry in entries if entry['side'] == 'kit'):
+        print(f'echo "kit_ui $(/usr/sbin/fogcast-kit --config {LAUNCHER_CONFIG} --print-kit-ui 2>/dev/null || echo FAILED)"')
     print("echo SUPERVISORS runtime=$(ps w | grep -c '[m]ister-supervise mister-runtime') "
           "agent=$(ps w | grep -c '[m]ister-supervise mister-agent') "
           "kit=$(ps w | grep -c '[m]ister-supervise fogcast-kit')")
@@ -687,10 +782,14 @@ def main(argv=None):
             else:
                 print(deploy_script(entries, args.stage_dir), end='')
             return 0
+        if args.command == 'core-capture':
+            core_capture(args)
+            return 0
         if args.command == 'evidence':
             return evidence(args)
     except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError,
-            subprocess.CalledProcessError, tomllib.TOMLDecodeError) as error:
+            subprocess.CalledProcessError, tomllib.TOMLDecodeError,
+            urllib.error.URLError) as error:
         print(str(error), file=sys.stderr)
         return 2
     return 2
