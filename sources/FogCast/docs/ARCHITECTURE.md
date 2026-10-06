@@ -351,6 +351,12 @@ records and old raw-core profiles are rejected before stopping an active package
 Contained raw-RBF loads remain an explicit diagnostic with no media/input ABI.
 Their generation and state are reconciled without replay; Stop restores idle.
 
+The target HTTP request logger records successful GET/HEAD reads at debug level.
+Default logs retain mutations and failed reads, including their route, status and
+duration. This keeps routine health, status and lease polling from filling the
+appliance's RAM-backed log filesystem; query strings, credentials and bodies
+remain excluded from request logs.
+
 A `fes.simple-computer`
 package with `fes.keyboard` attaches remote input without `fes.gamepad`.
 Host keyboard events map through the agent onto the runtime 40-bit ZX81
@@ -2745,6 +2751,16 @@ source ranges, device/encoding, and binding to the manifest's payload digest
 and source size through `expansion.ParseROMMap`. It does not trust a map
 supplied separately by a media upload. Expansion composition retains the whole
 sealed shell package, including the map, and its package identity.
+
+ROM-map inspection streams closed objects and fixed 40-destination words rather
+than retaining JSON copies of the whole map and every block. It bounds maps to
+32 MiB, blocks and words per block to 256, and unconsumed decoder input to 4 KiB
+so oversized JSON values cannot grow the decoder buffer. Private staging reads
+the declared upload into one bounded allocation, clones its small manifest and
+borrows payload/map slices until publishing independent sealed files; other
+archive readers retain independent member ownership.
+Staging cancellation reaches map decoding and is checked between words as well
+as during decoder reads, before any publication or hardware transition.
 
 Format-3 library entries select one exact-size binary through the named ROM
 selection API. The host sends a source-only `rom-link.json` envelope containing

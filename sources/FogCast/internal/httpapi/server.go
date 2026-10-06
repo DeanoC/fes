@@ -519,7 +519,14 @@ func requestLogger(logger *slog.Logger, next http.Handler) http.Handler {
 		if meta.errorCode != "" {
 			attributes = append(attributes, slog.String("error_code", string(meta.errorCode)))
 		}
-		logger.LogAttrs(r.Context(), slog.LevelInfo, "request", attributes...)
+		level := slog.LevelInfo
+		// The target's logs live in RAM. Routine successful reads (including
+		// status polling) must not consume its memory throughout an idle boot.
+		// Keep mutations and failed reads visible at the default log level.
+		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && wrapped.status >= 200 && wrapped.status < 300 {
+			level = slog.LevelDebug
+		}
+		logger.LogAttrs(r.Context(), level, "request", attributes...)
 	})
 }
 
