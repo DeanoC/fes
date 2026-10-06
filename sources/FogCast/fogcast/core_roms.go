@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
@@ -187,6 +188,9 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	}
 	source := coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: slotComposition, partsComposition: partsComposition}
 	source.initialMedia = initial
+	if descriptor.Format == 3 && descriptor.Core.ID == "fes.atari-st" {
+		source.activationBudget = 300 * time.Second
+	}
 	if descriptor.Format == 4 {
 		source.biosID = descriptor.ROMs[0].ID
 		source.biosMediaID = biosMediaID

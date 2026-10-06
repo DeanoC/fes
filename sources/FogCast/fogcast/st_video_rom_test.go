@@ -16,28 +16,43 @@ import (
 )
 
 func TestSTVideoNormalPlayCarriesFirmwareVideoAndCartridge(t *testing.T) {
-	for _, tc := range []struct {
-		name          string
-		initialDisk   bool
-		uploadTimeout time.Duration
-		parentTimeout time.Duration
+	for _, parts := range []struct {
+		name             string
+		video, cartridge bool
 	}{
-		{"diskless-configured-budget", false, time.Minute, 0},
-		{"initial-disk-media-budget", true, time.Minute, 0},
-		{"initial-disk-longer-configured-budget", true, 400 * time.Second, 0},
-		{"initial-disk-earlier-caller-deadline", true, time.Minute, 30 * time.Second},
+		{"plain", false, false}, {"cartridge-only", false, true}, {"video-only", true, false}, {"video-and-cartridge", true, true},
+	} {
+		for _, disk := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/initial-disk=%v", parts.name, disk), func(t *testing.T) {
+				testSTVideoNormalPlay(t, disk, parts.video, parts.cartridge, time.Minute, 0, false)
+			})
+		}
+	}
+	for _, tc := range []struct {
+		name                         string
+		initialDisk                  bool
+		uploadTimeout, parentTimeout time.Duration
+		cancelCaller                 bool
+	}{
+		{"diskless-longer-configured-budget", false, 400 * time.Second, 0, false},
+		{"initial-disk-longer-configured-budget", true, 400 * time.Second, 0, false},
+		{"diskless-earlier-caller-deadline", false, time.Minute, 30 * time.Second, false},
+		{"initial-disk-earlier-caller-deadline", true, time.Minute, 30 * time.Second, false},
+		{"diskless-caller-cancellation", false, time.Minute, 0, true},
+		{"initial-disk-caller-cancellation", true, time.Minute, 0, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			testSTVideoNormalPlay(t, tc.initialDisk, tc.uploadTimeout, tc.parentTimeout)
+			testSTVideoNormalPlay(t, tc.initialDisk, true, true, tc.uploadTimeout, tc.parentTimeout, tc.cancelCaller)
 		})
 	}
 }
 
-func testSTVideoNormalPlay(t *testing.T, initialDisk bool, uploadTimeout, parentTimeout time.Duration) {
-	ctx := context.Background()
+func testSTVideoNormalPlay(t *testing.T, initialDisk, video, cartridge bool, uploadTimeout, parentTimeout time.Duration, cancelCaller bool) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	pkg, firmware := apple2LibraryPackageFixture(t, true, func(text string) string {
 		// Required interfaces describe implemented hardware, not inserted media.
-		// Both cases use the writable ST package; drive A may start empty.
+		// Every composition uses the writable ST package; drive A may start empty.
 		text += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
 		return strings.ReplaceAll(text, "apple2", "atari-st") + "\n[[interfaces]]\nid = \"fes.fabric.video.raster-rgb888\"\nmajor = 1\nminor = 0\nrequired = false\n"
 	})
@@ -68,6 +83,9 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool, uploadTimeout, parent
 	base := misterossROMFixture(t, "blank.rbf")
 	var selected []expansion.Asset
 	for _, role := range []string{expansion.PartRoleVideo, expansion.PartRoleExpansion} {
+		if (role == expansion.PartRoleVideo && !video) || (role == expansion.PartRoleExpansion && !cartridge) {
+			continue
+		}
 		m := expansion.Manifest{CartSHA256: inspection.Descriptor.Payload.SHA256, CartSize: int64(len(base)), Device: expansion.Device, Format: 1, Map: expansion.AtariStVideoMap, RecipeSHA256: strings.Repeat("b", 64), Revision: strings.Repeat("c", 40), ShellBuildID: inspection.Descriptor.Build.ID, ShellPackageID: entry.PackageID, ShellSHA256: inspection.Descriptor.Payload.SHA256, Slot: expansion.VideoSlot, SlotMajor: 1}
 		if role == expansion.PartRoleExpansion {
 			m.Slot, m.Map, m.SlotIndex = expansion.AtariStSlot, expansion.AtariStMap, 1
@@ -98,11 +116,12 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool, uploadTimeout, parent
 	}
 	s.targetClients[s.selectedTarget] = client
 	choices, err := s.CoreEntryVideo(ctx, entry.GameID)
-	if err != nil || choices.Builtin || choices.PartID != selected[0].ID {
+	if err != nil || choices.Builtin == video || (video && choices.PartID != selected[0].ID) {
 		t.Fatalf("video selection %+v %v", choices, err)
 	}
 	root := t.TempDir()
 	var received *expansion.PartsComposition
+	var receivedSlots *expansion.SlotComposition
 	var launchStarted time.Time
 	var callerDeadline time.Time
 	client.coreLoad = func(ctx context.Context, size int64, body io.Reader) (protocol.Status, error) {
@@ -115,16 +134,20 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool, uploadTimeout, parent
 				t.Fatalf("activation deadline %v exceeded caller deadline %v", deadline, callerDeadline)
 			}
 		} else {
-			want := uploadTimeout
-			if initialDisk {
-				want = max(want, 300*time.Second)
-			}
+			want := max(uploadTimeout, 300*time.Second)
 			if deadline.Before(launchStarted.Add(want)) || deadline.After(time.Now().Add(want)) {
 				t.Fatalf("activation deadline %v does not preserve %v budget", deadline, want)
 			}
 		}
+		if cancelCaller {
+			cancel()
+			if ctx.Err() != context.Canceled {
+				t.Fatal("activation ignored caller cancellation")
+			}
+			return protocol.Status{}, ctx.Err()
+		}
 		data, err := io.ReadAll(body)
-		if err != nil || int64(len(data)) != size || !corepackage.IsROMInput(data) || !bytes.Contains(data, []byte("part-video.tar")) || !bytes.Contains(data, []byte("part-expansion.tar")) {
+		if err != nil || int64(len(data)) != size || !corepackage.IsROMInput(data) || bytes.Contains(data, []byte("part-video.tar")) != video || bytes.Contains(data, []byte("part-expansion.tar")) != (video && cartridge) || bytes.Contains(data, []byte("slot-1.tar")) != (!video && cartridge) {
 			t.Fatal("normal Play discarded ROM or parts", err)
 		}
 		staged, err := corepackage.StageROMInput(ctx, root, size, bytes.NewReader(data))
@@ -145,9 +168,11 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool, uploadTimeout, parent
 			t.Fatal("diskless launch acquired initial media")
 		}
 		received = staged.PartsComposition
+		receivedSlots = staged.SlotComposition
 		status := coreEntryActiveStatus(inspection, 3, true)
 		status.CorePackage.ROMLink = staged.ROMLink
 		status.CorePackage.PartsComposition = staged.PartsComposition
+		status.CorePackage.SlotComposition = staged.SlotComposition
 		status.CorePackage.PersistenceMode = "volatile"
 		status.CorePackage.ActiveInterfaces = append(status.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, protocol.RuntimeInterface{ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1})
 		status.CorePackage.MediaUnits = []protocol.MediaUnitStatus{{Unit: 0, Interface: protocol.AtariStFloppyInterface(), MinBytes: uint32(protocol.AtariStFloppyBytes), MaxBytes: uint32(protocol.AtariStFloppyBytes), ChunkBytes: 512, State: protocol.MediaUnitEmpty}}
@@ -166,6 +191,12 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool, uploadTimeout, parent
 	}
 	launchStarted = time.Now()
 	response, err := s.Launch(ctx, entry.GameID, nil)
+	if cancelCaller {
+		if err == nil || client.coreCalls != 1 {
+			t.Fatal("canceled activation succeeded or replayed", err, client.coreCalls)
+		}
+		return
+	}
 	if err != nil || client.coreCalls != 1 {
 		t.Fatalf("Play %+v %v calls%d", response, err, client.coreCalls)
 	}
@@ -175,13 +206,34 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool, uploadTimeout, parent
 			t.Fatal("diskless writable ST must launch with empty volatile drive A", response.Status.CorePackage)
 		}
 	}
-	want, err := corepackage.ComposePartsArchive(ctx, pkg, selected)
-	if err != nil {
-		t.Fatal(err)
+	if video {
+		want, err := corepackage.ComposePartsArchive(ctx, pkg, selected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if received == nil || !reflect.DeepEqual(received, &want.Composition) || !reflect.DeepEqual(response.Status.CorePackage.PartsComposition, received) || response.Status.CorePackage.SlotComposition != nil {
+			t.Fatal("Play confirmation lost video parts", fmt.Sprintf("%+v", response.Status.CorePackage))
+		}
+	} else {
+		if received != nil || response.Status.CorePackage.PartsComposition != nil {
+			t.Fatal("unselected video acquired parts")
+		}
+		if cartridge {
+			want, err := corepackage.PrepareROMInput(ctx, corepackage.ROMInput{Package: pkg, ROM: firmware, SlotExpansions: selected})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if receivedSlots == nil || !reflect.DeepEqual(receivedSlots, want.SlotComposition) || !reflect.DeepEqual(response.Status.CorePackage.SlotComposition, receivedSlots) {
+				t.Fatal("Play confirmation lost selected ST cartridge")
+			}
+		} else if receivedSlots != nil || response.Status.CorePackage.SlotComposition != nil {
+			t.Fatal("plain firmware acquired a cartridge")
+		}
 	}
-	if received == nil || !reflect.DeepEqual(received, &want.Composition) || !reflect.DeepEqual(response.Status.CorePackage.PartsComposition, received) || response.Status.CorePackage.ROMLink == nil || response.Status.CorePackage.ROMLink.SourceSHA256 != firmwareMedia.MediaID || response.Status.CorePackage.SlotComposition != nil {
-		t.Fatal("Play confirmation lost paired identities", fmt.Sprintf("%+v", response.Status.CorePackage))
+	if response.Status.CorePackage.ROMLink == nil || response.Status.CorePackage.ROMLink.SourceSHA256 != firmwareMedia.MediaID {
+		t.Fatal("Play confirmation lost firmware identity")
 	}
+
 	if response.Status.GameID == nil || *response.Status.GameID != entry.GameID {
 		t.Fatal("ST parts lost normal library association")
 	}

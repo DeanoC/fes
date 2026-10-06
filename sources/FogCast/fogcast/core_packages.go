@@ -612,6 +612,8 @@ func (s *Service) libraryDevelopmentMediaBinding(packageStatus protocol.CorePack
 }
 
 type coreLoadSource struct {
+	// activationBudget is a minimum target-load budget chosen from validated sources.
+	activationBudget time.Duration
 	initialMedia     *corepackage.InitialMedia
 	biosID           string
 	biosMediaID      string

@@ -2752,10 +2752,12 @@ passes the fixed durable-media root to the runtime with the linked ROM load.
 The runtime validates the source and saved record before replacement, refreshes
 the record after outgoing save, uploads the chosen base or saved bytes while
 execution remains held, binds the ready drive and then releases the CPU. A disk
-failure cannot report a successful running launch. Atomic disk activation uses
-at least the 300-second media budget, retaining a longer configured upload
-timeout and honoring earlier caller deadlines/cancellation. Diskless launches release
-normally. Existing live insertion/ejection keeps the running machine intact.
+failure cannot report a successful running launch. Every format-3 ROM-linked ST
+library activation uses `max(UploadTimeout, 300s)`, including plain firmware,
+cartridge-only, video-only and combined parts, with either an empty drive or an
+initial disk. The validated launch source selects this budget; earlier caller
+deadlines and cancellation still apply. Other cores retain their configured
+upload budget. Existing live insertion/ejection keeps the running machine intact.
 Launch confirmation checks both ROM/parts identities and the ready persistent
 disk's game/base binding; an initial disk is a startup input, not an immutable
 identity imposed on later live media changes.

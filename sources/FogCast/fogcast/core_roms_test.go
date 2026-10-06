@@ -289,7 +289,12 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			client.coreLoad = func(_ context.Context, size int64, r io.Reader) (protocol.Status, error) {
+			var launchStarted time.Time
+			client.coreLoad = func(loadCtx context.Context, size int64, r io.Reader) (protocol.Status, error) {
+				deadline, ok := loadCtx.Deadline()
+				if !ok || deadline.Before(launchStarted.Add(s.uploadTimeout)) || deadline.After(time.Now().Add(s.uploadTimeout)) {
+					t.Fatalf("non-ST ROM activation changed configured %v budget: %v", s.uploadTimeout, deadline)
+				}
 				body, err := io.ReadAll(r)
 				if err != nil {
 					t.Fatal(err)
@@ -329,6 +334,7 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 				core := installed.Descriptor.Core.ID
 				return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: entry.PackageID, Generation: 4, ABI: protocol.RuntimeContract{ID: installed.Descriptor.ABI.ID, Major: 1}, BuildID: installed.Descriptor.Build.ID, Gamepad: true, ROMLink: &corepackage.ROMLinkIdentity{ROMID: installed.Descriptor.ROM.ID, MapSHA256: installed.Descriptor.ROM.SHA256, SourceSHA256: media.MediaID, SourceSize: 1024, ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6}}}, nil
 			}
+			launchStarted = time.Now()
 			response, err := s.Launch(ctx, entry.GameID, nil)
 			if err != nil || response.Status.GameID == nil || *response.Status.GameID != entry.GameID {
 				t.Fatalf("launch %+v %v", response, err)
