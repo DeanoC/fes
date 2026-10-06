@@ -344,6 +344,14 @@ extraction of the same checked archive. Set `TOOLCHAIN_REBUILD=1` on `make build
 to force a new SDK and bypass image receipt reuse; see
 [image assembly](image-assembly.md#buildroot-cross-toolchain).
 
+For cross-worktree image reuse, set
+`FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` on `make build`, `make image`
+or `make dev`. The external directory holds `dl/`, `toolchains/<key>/` and
+`ccache/`; it does not change the shared compiler and package cache below.
+The toolchain-only build never uses ccache. Cold pass 2 disables it so the two
+rootfs hashes still compare independent compiles. Stop builds before removing
+one of these cache directories; see [image assembly](image-assembly.md#buildroot-cross-toolchain).
+
 `make check-generated` verifies generated consumers and copied conformance data.
 `make generate` regenerates these outputs in the FES working tree, including the
 known copied external-core pins. Its legacy-layout guard refuses to rewrite

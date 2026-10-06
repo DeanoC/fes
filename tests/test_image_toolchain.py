@@ -60,6 +60,46 @@ class ToolchainCacheTest(unittest.TestCase):
         (directory / "receipt.json").write_text(json.dumps(record))
         self.assertIsNone(cache.validated_sha(directory, expected))
 
+    def test_shared_paths_and_ccache_configuration(self):
+        shared_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(shared_temp.cleanup)
+        shared = Path(shared_temp.name)
+        with mock.patch.dict("os.environ", {"FES_TARGET_IMAGE_SHARED_CACHE": str(shared)}):
+            self.assertEqual(cache.cache_dir(self.image), shared / "toolchains" / cache.key(self.image))
+            with mock.patch.dict("os.environ", {"FES_TARGET_IMAGE_SHARED_CACHE": cache.SHARED_CONTAINER_PATH}):
+                self.assertEqual(cache.shared_root(Path("/work")), Path(cache.SHARED_CONTAINER_PATH))
+            external = self.image / "external-shared"
+            toolchain = self.image / "toolchain-shared"
+            internal = self.image / "internal-shared"
+            cache.config(self.image, "external", external)
+            cache.config(self.image, "toolchain", toolchain)
+            cache.config(self.image, "internal", internal)
+            for option in cache.CCACHE_OPTIONS:
+                self.assertIn(option, external.read_text().splitlines())
+                self.assertNotIn(option, toolchain.read_text().splitlines())
+                self.assertNotIn(option, internal.read_text().splitlines())
+            cache.validate_config("external", external)
+            cache.validate_config("toolchain", toolchain)
+            external.write_text(external.read_text().replace("BR2_CCACHE=y", "# BR2_CCACHE is not set"))
+            with self.assertRaisesRegex(ValueError, "BR2_CCACHE"):
+                cache.validate_config("external", external)
+            toolchain.write_text(toolchain.read_text() + "BR2_CCACHE=y\n")
+            with self.assertRaisesRegex(ValueError, "must not enable ccache"):
+                cache.validate_config("toolchain", toolchain)
+        self.assertEqual(cache.cache_dir(self.image),
+                         self.image / "build/cache/target-image/toolchains" / cache.key(self.image))
+        ordinary = self.image / "external-ordinary"
+        empty = self.image / "external-empty"
+        cache.config(self.image, "external", ordinary)
+        with mock.patch.dict("os.environ", {"FES_TARGET_IMAGE_SHARED_CACHE": ""}):
+            cache.config(self.image, "external", empty)
+        self.assertEqual(ordinary.read_bytes(), empty.read_bytes())
+        self.assertNotIn("BR2_CCACHE=y", ordinary.read_text())
+        for path in ("relative", str(self.image / "nested")):
+            with self.subTest(path=path), mock.patch.dict("os.environ", {"FES_TARGET_IMAGE_SHARED_CACHE": path}):
+                with self.assertRaisesRegex(ValueError, "absolute|outside the worktree"):
+                    cache.cache_dir(self.image)
+
     def test_config_shares_arch_and_guards_drift(self):
         internal = self.image / "internal"
         external = self.image / "external"

@@ -204,6 +204,15 @@ inside_build() {
       BR2_EXTERNAL=/work/buildroot \
       BR2_DL_DIR=/work/build/cache/target-image/dl \
       source
+    if [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
+      # The image passes run without network; with ccache enabled they also need
+      # host-ccache's source, which the internal fetch config does not select.
+      make -C /work/build/cache/target-image/buildroot \
+        O="$inside_output" \
+        BR2_EXTERNAL=/work/buildroot \
+        BR2_DL_DIR=/work/build/cache/target-image/dl \
+        host-ccache-source
+    fi
     return
   fi
 
@@ -358,6 +367,9 @@ if [ "$ensure_only" = 1 ]; then
 fi
 if [ "$promote_existing" -ne 1 ]; then
   ensure_toolchain
+  if [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
+    unset CCACHE_DISABLE
+  fi
   if [ "$image_passes" = 1 ]; then
     /bin/rm -rf "$output_root/work-2-$variant"
   fi
@@ -369,11 +381,21 @@ if [ "$promote_existing" -ne 1 ]; then
     esac
     /bin/rm -rf "$work"
     if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
-      TARGET_IMAGE_TOOLCHAIN_PATH=$(python3 "$repo/scripts/toolchain_cache.py" path) \
-        "$TARGET_IMAGE_BUILD_ONCE" "$variant" "$work" "$epoch"
+      if [ "$run" = 2 ] && [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
+        CCACHE_DISABLE=1 TARGET_IMAGE_TOOLCHAIN_PATH=$(python3 "$repo/scripts/toolchain_cache.py" path) \
+          "$TARGET_IMAGE_BUILD_ONCE" "$variant" "$work" "$epoch"
+      else
+        TARGET_IMAGE_TOOLCHAIN_PATH=$(python3 "$repo/scripts/toolchain_cache.py" path) \
+          "$TARGET_IMAGE_BUILD_ONCE" "$variant" "$work" "$epoch"
+      fi
     else
-      run_target_container "$variant" run \
-        /work/scripts/build-target-image.sh --inside "$variant" "/target-image-output/work-$run-$variant" "$epoch" "/work/build/output/target-image/work-$run-$variant/images/rootfs.ext4"
+      if [ "$run" = 2 ] && [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
+        CCACHE_DISABLE=1 run_target_container "$variant" run \
+          /work/scripts/build-target-image.sh --inside "$variant" "/target-image-output/work-$run-$variant" "$epoch" "/work/build/output/target-image/work-$run-$variant/images/rootfs.ext4"
+      else
+        run_target_container "$variant" run \
+          /work/scripts/build-target-image.sh --inside "$variant" "/target-image-output/work-$run-$variant" "$epoch" "/work/build/output/target-image/work-$run-$variant/images/rootfs.ext4"
+      fi
     fi
     test -f "$work/images/rootfs.ext4" || {
       printf 'build-target-image: build %s did not produce rootfs.ext4\n' "$run" >&2
@@ -453,6 +475,9 @@ if [ "$image_passes" = 1 ]; then
 else
   printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\ntoolchain_key=%s\ntoolchain_sha256=%s\n' \
     "$epoch" "$first_sha" "$second_sha" "$toolchain_key" "$toolchain_sha" > "$evidence_tmp"
+fi
+if [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
+  printf 'shared_cache=1\nccache_pass_1=1\nccache_pass_2=0\n' >> "$evidence_tmp"
 fi
 if [ "$variant" = native-dev ]; then
   "$repo/scripts/native-extra-cores.sh" copy-records "$selected_work" "$final_dir"
