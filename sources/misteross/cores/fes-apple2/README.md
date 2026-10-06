@@ -23,7 +23,10 @@ The core lane is [docs/cores.md](../../docs/cores.md).
   `$Cn00` page of a built-in card at offset `$0n00` (the Disk II boot PROM at
   `$0600`). The OSS package leaves the sixteen 1024×10 M10K lanes (column 5,
   rows 32–47) blank; FogCast links a selected 16,384-byte image at download
-  time. No Apple ROM bytes are in this repository or the package.
+  time. No Apple ROM bytes are in this repository or the package. Those
+  sixteen lanes, and the explicit text-font M10K, still use asynchronous
+  reads. The seal allowlists only `machine.rom.lane0`–`lane15` and
+  `video.font_rom`; any other async M10K fails the build.
 - Keyboard latch `$C000`/`$C010`, speaker `$C030`, cassette output `$C020`,
   soft switches `$C050-$C057`, annunciators `$C058-$C05F`, push buttons and
   paddle timers `$C061-$C067`, paddle trigger `$C070`. Unclaimed I/O and slot

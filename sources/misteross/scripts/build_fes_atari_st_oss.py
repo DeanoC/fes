@@ -29,7 +29,7 @@ from scripts.export_core_package import (
 from scripts.fes_build_common import (
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -180,6 +180,7 @@ def prepare_cpu_inputs(root: Path, output: Path) -> None:
 def clock_read_only_memories(path: Path) -> list[str]:
     """Supply the unused write clock only for proven read-only CPU ROMs."""
     design = _read_json(path, "ST synthesized design")
+    reject_async_m10k_reads(design)
     repaired = []
     prefixes = ("machine.system.machine.cpu.cpu.nanoRom.nRam.",
                 "machine.system.machine.cpu.cpu.uRom.uRam.")
@@ -412,6 +413,7 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
 
 def validate_synth_evidence(output: Path) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    reject_async_m10k_reads(synthesis)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
@@ -544,6 +546,7 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) 
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth = validate_synth_evidence(output)
+    reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
     cache_placements = validate_cache_placements(routed["modules"][TOP]["cells"], routed=True)

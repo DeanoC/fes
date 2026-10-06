@@ -31,7 +31,7 @@ from scripts.export_core_package import (
 from scripts.fes_build_common import (
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -68,6 +68,13 @@ ROM_DATABASE_SHA256 = {
     "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21",
 }
 FIRMWARE_LANE_ROWS = tuple(range(32, 48))
+# Cyclone V cannot read an M10K asynchronously. These seventeen cells still
+# do: machine.rom.lane0..lane15 and the text font. Exact names only — any
+# other async M10K fails the Apple II seal. Conversion is #539; this PR does
+# not change Apple II timing.
+APPLE2_ASYNC_M10K = frozenset(
+    [f"machine.rom.lane{index}" for index in range(16)] + ["video.font_rom"]
+)
 FIRMWARE_ID = "apple2-firmware"
 FIRMWARE_BYTES = 16384
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
@@ -287,6 +294,7 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
 
 def validate_synth_evidence(output: Path) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    reject_async_m10k_reads(synthesis, allow=APPLE2_ASYNC_M10K)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
@@ -306,6 +314,7 @@ def validate_build_evidence(output: Path) -> dict:
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth = validate_synth_evidence(output)
+    reject_async_m10k_reads(routed, allow=APPLE2_ASYNC_M10K)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")

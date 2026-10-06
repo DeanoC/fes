@@ -1,8 +1,14 @@
-"""FES Commodore 64 OSS producer contract checks (no compiler run)."""
+"""FES Commodore 64 OSS producer contract checks.
+
+The Yosys netlist check runs when a `yosys` binary is on `PATH` or `YOSYS`
+names one. It stops before ABC, which is enough to see mapped M10K parameters.
+"""
 
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import tomllib
 import unittest
@@ -10,7 +16,7 @@ from pathlib import Path
 
 from scripts import c64_slots
 from scripts import build_fes_c64_oss as producer
-from scripts.fes_build_common import BuildError
+from scripts.fes_build_common import BuildError, async_m10k_parameter, reject_async_m10k_reads
 from scripts.lockfile import load_lock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -137,6 +143,104 @@ class BuildFesC64Tests(unittest.TestCase):
         for index, row in enumerate(producer.FIRMWARE_LANE_ROWS):
             self.assertIn(f'(* keep, BEL = "MISTRAL_M10K.5.{row}.0" *)', rtl)
             self.assertIn(f") lane{index} (", rtl)
+            self.assertIn(".CFG_ASYNC_READ(0)", rtl)
+            self.assertIn(".B1EN(1'b1)", rtl)
+            self.assertIn(".CLK1(clk)", rtl)
+        self.assertNotIn("CFG_ASYNC_READ(1)", rtl)
+        self.assertIn("bank_d <= address[13:10]", rtl)
+        self.assertIn("sim_stage <= memory[address]", rtl)
+        producer_source = (ROOT / "scripts/build_fes_c64_oss.py").read_text()
+        self.assertIn("expected_async_read=0", producer_source)
+
+    def test_netlist_check_rejects_any_async_m10k(self) -> None:
+        def cell(name: str, async_read: str | None) -> tuple[str, dict]:
+            parameters = {} if async_read is None else {"CFG_ASYNC_READ": async_read}
+            return name, {"type": "MISTRAL_M10K", "parameters": parameters, "connections": {
+                "CLK1": [7], "A1EN": ["1"], "B1EN": ["1"], "ACLR0": ["0"], "ACLR1": ["0"]}}
+        lanes = dict(cell(f"machine.rom.lane{index}", "0") for index in range(16))
+        design = {"modules": {"top": {"cells": lanes}}}
+        reject_async_m10k_reads(design)
+        producer.validate_firmware_ports(lanes)
+        lanes["machine.rom.lane3"]["parameters"]["CFG_ASYNC_READ"] = "1"
+        with self.assertRaisesRegex(BuildError, "synchronous M10K"):
+            reject_async_m10k_reads(design)
+        lanes["machine.rom.lane3"]["parameters"]["CFG_ASYNC_READ"] = f"{0:032b}"
+        reject_async_m10k_reads(design)
+        lanes["machine.vic.color"] = {"type": "MISTRAL_M10K", "parameters": {"CFG_ASYNC_READ": 1}}
+        with self.assertRaisesRegex(BuildError, "machine.vic.color"):
+            reject_async_m10k_reads(design)
+        self.assertEqual(async_m10k_parameter(None), 0)
+        self.assertEqual(async_m10k_parameter(f"{1:032b}"), 1)
+        with self.assertRaises(BuildError):
+            async_m10k_parameter("nope")
+
+    def test_read_only_clock_patch_rejects_async_m10k(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "synth.json"
+            cells = {
+                "machine.iec.file_track_rom": {"type": "MISTRAL_M10K", "parameters": {"CFG_ASYNC_READ": "1"},
+                                               "connections": {"CLK1": ["x"], "CLK2": [42], "A1EN": ["0"], "B1EN": ["1"]}},
+                "machine.vic.code_q_rom": {"type": "MISTRAL_M10K", "connections": {
+                    "CLK1": ["x"], "CLK2": [42], "A1EN": ["0"], "B1EN": ["1"]}},
+            }
+            path.write_text(json.dumps({"modules": {"top": {"cells": cells}}}))
+            with self.assertRaisesRegex(BuildError, "synchronous M10K"):
+                producer.clock_read_only_memories(path)
+
+
+def _yosys_binary() -> str | None:
+    named = os.environ.get("YOSYS")
+    if named and Path(named).is_file() and os.access(named, os.X_OK):
+        return named
+    return shutil.which("yosys")
+
+
+@unittest.skipUnless(_yosys_binary(), "Yosys is required to check the C64 M10K netlist")
+class C64YosysM10kTests(unittest.TestCase):
+    def test_mapped_netlist_has_no_async_m10k(self) -> None:
+        yosys = _yosys_binary()
+        assert yosys is not None
+        sources = " ".join(producer.RTL_SOURCES)
+        program = (
+            "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
+            f"{sources}; "
+            "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
+            "synth_intel_alm -nolutram -nodsp -top top -run :map_luts; "
+            "autoname; select -module top; "
+            "log ---SDP---; select -count t:MISTRAL_M10K; "
+            "log ---TDP---; select -count t:MISTRAL_M10K_TDP; "
+            "log ---ASYNC---; "
+            "select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=1 %i; "
+            "select -list t:MISTRAL_M10K_TDP r:CFG_ASYNC_READ=1 %i; "
+            "log ---LANES---; select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=0 %i; "
+            "log ---END---"
+        )
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "yosys.log"
+            result = subprocess.run([yosys, "-l", str(log_path), "-p", program], cwd=ROOT,
+                                    text=True, capture_output=True, check=False)
+            log = log_path.read_text(encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+        sections: dict[str, list[str]] = {}
+        current = None
+        for line in log.splitlines():
+            if line.startswith("---") and line.endswith("---") and line.strip("-"):
+                current = line.strip("-")
+                sections[current] = []
+            elif current is not None and line.strip():
+                sections[current].append(line.strip())
+        def objects(name: str) -> str:
+            rows = [line for line in sections[name] if line.endswith(" objects.")]
+            self.assertEqual(len(rows), 1, sections[name])
+            return rows[0]
+        async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
+        lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if line.startswith("top/"))
+        self.assertEqual(async_cells, [])
+        self.assertEqual(objects("SDP"), "18 objects.")
+        self.assertEqual(objects("TDP"), "235 objects.")
+        self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(16)))
 
 
 if __name__ == "__main__":

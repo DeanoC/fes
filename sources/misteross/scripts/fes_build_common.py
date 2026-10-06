@@ -447,6 +447,61 @@ def validate_timing_resources(utilization: object, known: set[str] | frozenset[s
     return resources
 
 
+def async_m10k_parameter(value: object) -> int:
+    """Return 1 when a Yosys or nextpnr JSON parameter requests an async M10K read.
+
+    A missing parameter is synchronous. Yosys writes the bit as an integer or
+    as a binary string whose least-significant character is the value.
+    """
+    if isinstance(value, bool) or value is None:
+        return 0
+    if isinstance(value, int):
+        return value & 1
+    if isinstance(value, str):
+        text = value.strip().lower().replace("_", "")
+        if text.startswith("0x"):
+            return int(text, 16) & 1
+        if text and set(text) <= set("01xz"):
+            return 1 if text[-1] == "1" else 0
+        if text.isdigit():
+            return int(text, 10) & 1
+    raise BuildError(f"unreadable M10K CFG_ASYNC_READ parameter: {value!r}")
+
+
+def reject_async_m10k_reads(design: dict, *, allow: frozenset[str] = frozenset()) -> None:
+    """Fail the build when any M10K uses Cyclone V's illegal async-read mode.
+
+    The default is every ``MISTRAL_M10K`` and ``MISTRAL_M10K_TDP`` in the
+    netlist. ``allow`` is an exact cell-name set for a core that still
+    instantiates the mode and has a documented follow-up; a new async cell
+    outside that set still fails. Apple II is the only described core on
+    this allowlist (#539). SMS, SG-1000, ZX81 and Coleco megacart still emit
+    the mode from RTL and are not yet wired through this check.
+    """
+    modules = design.get("modules")
+    if not isinstance(modules, dict):
+        raise BuildError("netlist has no modules")
+    offenders: list[str] = []
+    for module in modules.values():
+        cells = module.get("cells", {}) if isinstance(module, dict) else {}
+        if not isinstance(cells, dict):
+            continue
+        for name, cell in cells.items():
+            if not isinstance(name, str) or not isinstance(cell, dict):
+                continue
+            if cell.get("type") not in {"MISTRAL_M10K", "MISTRAL_M10K_TDP"} or name in allow:
+                continue
+            parameters = cell.get("parameters") or {}
+            if not isinstance(parameters, dict):
+                raise BuildError(f"M10K {name} parameters are not an object")
+            if async_m10k_parameter(parameters.get("CFG_ASYNC_READ")):
+                offenders.append(name)
+    if offenders:
+        shown = ", ".join(sorted(offenders)[:8])
+        extra = "" if len(offenders) <= 8 else f" (+{len(offenders) - 8} more)"
+        raise BuildError(f"synchronous M10K reads required; CFG_ASYNC_READ=1 on {shown}{extra}")
+
+
 def _cell_counts(synthesis: dict) -> dict[str, int]:
     modules = synthesis.get("modules")
     if not isinstance(modules, dict):

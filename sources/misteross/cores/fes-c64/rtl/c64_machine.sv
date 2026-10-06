@@ -174,7 +174,7 @@ module c64_machine #(
     );
     wire basic_window = bus_addr[15:13] == 3'b101;
     wire [13:0] rom_address = basic_window ? {1'b0, bus_addr[12:0]} : {1'b1, bus_addr[12:0]};
-    c64_rom firmware (
+    c64_rom rom (
         .clk(clk_sys), .address(rom_address), .data(rom_q)
     );
 
