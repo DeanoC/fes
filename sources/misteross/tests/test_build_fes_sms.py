@@ -202,7 +202,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("HDMI_I2S0", coleco_pins)
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
-        self.assertEqual(global_pins["nextpnr"].commit, "1656e473e1442f9b734ff5f4cdfddfd013846b9e")
+        self.assertEqual(global_pins["nextpnr"].commit, "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13")
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",
