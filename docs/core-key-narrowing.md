@@ -4,7 +4,9 @@ The eight `native-integration-dev` FPGA producers use the committed
 `sources/misteross/scripts/source_closures.json` manifest. Each entry lists the
 files or directories that can affect that producer: its Python imports,
 explicit HDL and constraint inputs, recipe, ABI definition, selected toolchain
-lock, core-local sources, and only the shared RTL it uses. The functional record
+lock, the toolchain recipe files hashed into the shared toolchain cache key
+(`scripts/bootstrap.sh`, `lockfile.py`, `toolchain_cache.py`), core-local
+sources, and only the shared RTL it uses. The functional record
 hashes the tracked files below those roots, the existing execution digest
 (tool binaries, controlled environment and GPU inputs), and
 `parameters.source_closure_mode = "audited-v1"`. Producers without a manifest
@@ -14,7 +16,12 @@ byte-identical records.
 A narrowed build enforces the declared roots. Python read opens and directory
 listings and successful compiler opens and `getdents` listings under the
 misteross source root must be covered. Generated `build/` outputs and temporary
-files outside the source tree are exempt. The existing executable-Markdown
+files outside the source tree are exempt. A Python `open` of a directory or a
+missing path is not a read: the audit event carries no `dir_fd`, so
+`shutil.rmtree`'s descriptor-relative opens would otherwise resolve against the
+working directory. A producer run as `python scripts/build_x.py` (`__main__`)
+resolves to its `build_x` manifest entry, so the sidecar record it writes uses
+the same roots as the canonical record FES derives by importing it. The existing executable-Markdown
 policy and clean-source and historical-record validation still apply. An
 uncovered read fails the build before package sealing; it never results in a
 new cached package. A cached package is still checked against its immutable

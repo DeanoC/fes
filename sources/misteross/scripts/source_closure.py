@@ -87,7 +87,12 @@ def required(name, root=ROOT):
         value = getattr(module, attr, None)
         if isinstance(value, str) and (root / value).is_file():
             inputs.add(value)
-    return inputs | imports(name, root)
+    result = inputs | imports(name, root)
+    if 'scripts/toolchain_cache.py' in result:
+        # Tool authentication hashes the toolchain recipe into the cache key.
+        from scripts.toolchain_cache import RECIPE_FILES
+        result.update(RECIPE_FILES)
+    return result
 
 
 def static(name, root=ROOT):

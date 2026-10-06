@@ -262,6 +262,13 @@ def _python_open(event, args):
         raise ReadAuditError('cannot resolve helper open') from exc
     if not resolved.is_relative_to(root):
         return
+    # The open event carries no dir_fd, so a relative name opened under a
+    # directory descriptor (e.g. shutil.rmtree's os.open(name, dir_fd=...))
+    # resolves against the working directory here. Only an existing regular
+    # file can be a source read; directories are covered by the list events
+    # and a missing path cannot be read.
+    if not resolved.is_file():
+        return
     relative = resolved.relative_to(root).as_posix()
     if '__pycache__' in resolved.parts and resolved.suffix == '.pyc':
         source = resolved.parent.parent / (resolved.name.split('.', 1)[0] + '.py')
@@ -297,11 +304,13 @@ def guard_functional_source(function):
         bound.apply_defaults()
         if bound.arguments.get('identity_version', 1) != 2:
             return function(*args, **kwargs)
-        from scripts.functional_execution import source_roots_for_producer
+        from scripts.functional_execution import producer_name, source_roots_for_producer
         inputs = function.__globals__['PINNED_INPUTS']
-        if function.__module__.endswith('build_fes_ramtest'):
+        # A producer run as a script has __module__ == '__main__'.
+        name = producer_name(function.__module__, bound.arguments['root']) or function.__module__
+        if name.endswith('build_fes_ramtest'):
             inputs = function.__globals__['inputs_for'](bound.arguments.get('memory_mhz', 100))
-        elif function.__module__.endswith('build_fes_coleco_socket_v2'):
+        elif name.endswith('build_fes_coleco_socket_v2'):
             inputs = function.__globals__['video_profile'](
                 video_socket=bound.arguments.get('video_socket', False),
                 native_video=bound.arguments.get('native_video', False))[2]

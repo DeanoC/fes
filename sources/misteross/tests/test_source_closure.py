@@ -50,6 +50,17 @@ class ManifestTests(unittest.TestCase):
         with patch.dict(os.environ, {'FES_SOURCE_CLOSURE_BROAD': '1'}):
             self.assertEqual(source_roots_for_producer('build_fes_pong', pins), source_roots_for_inputs(pins))
 
+    def test_toolchain_recipe_files_are_in_every_closure(self):
+        # Tool authentication hashes these into the toolchain cache key under the guard.
+        from scripts.source_closure import required
+        from scripts.toolchain_cache import RECIPE_FILES
+        manifest = load_manifest()
+        for name, roots in manifest.items():
+            self.assertTrue(set(RECIPE_FILES) <= required(name), name)
+            for path in RECIPE_FILES:
+                self.assertTrue(any(path == r or path.startswith(r + '/') for r in roots), (name, path))
+        self.assertEqual(check(), len(manifest))
+
     def test_main_module_picks_the_same_roots_as_the_import(self):
         # Producers write their sidecar record when run as __main__; FES derives the
         # canonical record by importing scripts.<producer>. The roots must agree.
@@ -119,6 +130,25 @@ class GuardTests(unittest.TestCase):
                     (root/'out/__pycache__/b.cpython-314.pyc').read_bytes()
                 (root/'build/output').write_text('x')
                 self.assertEqual((root/'build/output').read_text(), 'x')
+
+    def test_dir_fd_relative_opens_are_not_source_reads(self):
+        # shutil.rmtree opens children with os.open(name, dir_fd=...); the audit
+        # event has no dir_fd, so the name resolves against the working directory.
+        import shutil
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as scratch:
+            root = Path(temp); (root/'in').mkdir(); (root/'out').mkdir()
+            (root/'out/b.v').write_text('b')
+            (Path(scratch)/'probe/CMakeFiles/inner').mkdir(parents=True)
+            (Path(scratch)/'probe/CMakeFiles/inner/x').write_text('x')
+            cwd = os.getcwd(); os.chdir(root)
+            try:
+                with python_source_guard(root, AuditedRoots(['in'])):
+                    shutil.rmtree(Path(scratch)/'probe')
+                    self.assertFalse((Path(scratch)/'probe').exists())
+                    with self.assertRaises(ReadAuditError): open('out/b.v').read()
+                    with self.assertRaises(ReadAuditError): os.close(os.open('out/b.v', os.O_RDONLY))
+            finally:
+                os.chdir(cwd)
 
     def test_compiler_trace_open(self):
         with tempfile.TemporaryDirectory() as temp:

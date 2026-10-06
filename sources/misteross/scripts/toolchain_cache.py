@@ -175,14 +175,16 @@ def _regular_file(path: Path, label: str) -> None:
         raise CacheError(f"{label} must be a regular file: {path}")
 
 
+# Files whose bytes enter the shared toolchain cache key. Producer source
+# closures (scripts/source_closure.py) include them because they are read
+# while authenticating tools.
+RECIPE_FILES = ("scripts/bootstrap.sh", "scripts/lockfile.py", "scripts/toolchain_cache.py")
+
+
 def _recipe_paths(request: ToolchainRequest) -> tuple[Path, ...]:
     if request.recipe_paths:
         return tuple(Path(path) for path in request.recipe_paths)
-    return (
-        request.root / "scripts" / "bootstrap.sh",
-        request.root / "scripts" / "lockfile.py",
-        request.root / "scripts" / "toolchain_cache.py",
-    )
+    return tuple(request.root / path for path in RECIPE_FILES)
 
 
 def _recipe_digests(request: ToolchainRequest) -> list[str]:
