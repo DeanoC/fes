@@ -120,6 +120,8 @@ class C64SlotCardTests(unittest.TestCase):
 
     def test_clock_constraints_and_timing_gate(self) -> None:
         text = card.cart_clock_constraints(ROOT).decode()
+        self.assertIn("[get_nets {FPGA_CLK1_50}]", text)
+        self.assertNotIn("get_ports", text)
         for name in card.REQUIRED_CLOCKS_MHZ:
             self.assertIn(f"[get_nets {{{name}}}]", text)
         good = {"fmax": {name: {"constraint": mhz, "achieved": mhz + 1}

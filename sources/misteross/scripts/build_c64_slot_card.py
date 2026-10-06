@@ -136,7 +136,11 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
 def cart_clock_constraints(root: Path) -> bytes:
     # --no-pack restores routed nets but does not derive PLL constraints. These
     # are the declared shell frequencies, never its achieved Fmax.
-    text = (root / shell_recipe.SDC).read_text() + "\n# Frozen Commodore 64 shell clocks.\n"
+    # --no-pack imports routed nets, not top-level ports in the SDC context.
+    # Constrain the same physical input net rather than an empty port query.
+    text = (root / shell_recipe.SDC).read_text().replace(
+        "[get_ports {FPGA_CLK1_50}]", "[get_nets {FPGA_CLK1_50}]")
+    text += "\n# Frozen Commodore 64 shell clocks.\n"
     for name, frequency in REQUIRED_CLOCKS_MHZ.items():
         text += f"create_clock -name {{{name}}} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
     return text.encode()
