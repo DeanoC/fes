@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import subprocess
@@ -154,6 +155,17 @@ def validate_cart_timing(timing: dict) -> dict:
     for name, expected in REQUIRED_CLOCKS_MHZ.items():
         _, _, achieved = shell_recipe._frequency_row({name: fmax[name]}, expected, name)
         result[name] = achieved
+    summary = timing.get("timing_summary", {})
+    clocks = summary.get("clocks") if isinstance(summary, dict) else None
+    if not isinstance(summary, dict) or summary.get("final_analogue_model") is not True or not isinstance(clocks, dict) or \
+            set(clocks) != set(REQUIRED_CLOCKS_MHZ):
+        raise ValueError("cart requires final analogue timing on every required clock")
+    for name, fields in clocks.items():
+        for key in ("setup_wns_ns", "hold_wns_ns"):
+            value = fields.get(key) if isinstance(fields, dict) else None
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or \
+                    not math.isfinite(value) or value < 0:
+                raise ValueError(f"cart {name} requires non-negative finite {key}")
     return result
 
 

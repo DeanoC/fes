@@ -126,11 +126,24 @@ class C64SlotCardTests(unittest.TestCase):
             self.assertIn(f"[get_nets {{{name}}}]", text)
         good = {"fmax": {name: {"constraint": mhz, "achieved": mhz + 1}
                          for name, mhz in card.REQUIRED_CLOCKS_MHZ.items()}}
+        good["timing_summary"] = {"final_analogue_model": True, "clocks": {
+            name: {"setup_wns_ns": 0.0, "hold_wns_ns": 0.1} for name in card.REQUIRED_CLOCKS_MHZ}}
         self.assertEqual(set(card.validate_cart_timing(good)), set(card.REQUIRED_CLOCKS_MHZ))
         slow = json.loads(json.dumps(good))
         slow["fmax"]["system_clock.clocks[0]"]["achieved"] = 50.0
         with self.assertRaises(Exception):
             card.validate_cart_timing(slow)
+        for bad_value in (-0.001, float("nan"), float("inf"), True, None):
+            for key in ("setup_wns_ns", "hold_wns_ns"):
+                bad = json.loads(json.dumps(good))
+                bad["timing_summary"]["clocks"][card.SLOT_CLOCK][key] = bad_value
+                with self.assertRaises(ValueError):
+                    card.validate_cart_timing(bad)
+        for summary in ({}, {"final_analogue_model": False, "clocks": {}}, [],
+                        {"final_analogue_model": True, "clocks": {}}):
+            bad = dict(good, timing_summary=summary)
+            with self.assertRaises(ValueError):
+                card.validate_cart_timing(bad)
 
     def test_clock_guard_rejects_card_pins_off_the_socket_clock(self) -> None:
         def routed(clk2):
