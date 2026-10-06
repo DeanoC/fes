@@ -144,6 +144,18 @@ class C64SlotCardTests(unittest.TestCase):
         self.assertEqual(card.validate_cart_clocks(routed([])), 2)
         with self.assertRaisesRegex(ValueError, "fes_cart\\$ram pin CLK2"):
             card.validate_cart_clocks(routed([117]))
+        with self.assertRaises(ValueError):
+            card.validate_cart_clocks(routed([117]), allow_combinational=True)
+
+    def test_combinational_rom_probe_requires_actual_card_logic(self) -> None:
+        design = {"modules": {"top": {"netnames": {card.SLOT_CLOCK: {"bits": [5]}},
+                                      "cells": {"fes_cart$rom": {"type": "MISTRAL_ALUT2", "connections": {}}}}}}
+        self.assertEqual(card.validate_cart_clocks(design, allow_combinational=True), 0)
+        with self.assertRaises(ValueError):
+            card.validate_cart_clocks(design)
+        design["modules"]["top"]["cells"] = {}
+        with self.assertRaises(ValueError):
+            card.validate_cart_clocks(design, allow_combinational=True)
 
 
 if __name__ == "__main__":

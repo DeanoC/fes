@@ -125,6 +125,7 @@ io_ok:
         sta $dc03
         lda #$07
         sta $c000
+        jsr show_stage
 wait_joy:
         lda $dc00
         and #$1f
@@ -137,6 +138,7 @@ joy_ok:
         sta $dc00
         lda #$08
         sta $c000
+        jsr show_stage
 wait_key:
         lda $dc01
         and #$02
@@ -191,9 +193,19 @@ disk_ok:
 hang:   jmp hang
 fail:
         sta $c000
+        jsr show_stage
         lda #$01
         sta $c001
         jmp hang
+
+show_stage:
+        lda $c000
+        clc
+        adc #$30
+        sta $0408
+        lda #$01
+        sta $d808
+        rts
 
 check_interrupts:
         lda #$00
