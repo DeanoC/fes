@@ -473,10 +473,9 @@ def reject_async_m10k_reads(design: dict, *, allow: frozenset[str] = frozenset()
 
     The default is every ``MISTRAL_M10K`` and ``MISTRAL_M10K_TDP`` in the
     netlist. ``allow`` is an exact cell-name set; no described producer
-    passes a nonempty set, so the gate has no exceptions. SMS, SG-1000,
-    ZX81 and Coleco megacart still emit the mode from RTL and are not yet
-    wired through this check. The Apple II shell and its probe-card
-    producer are both checked with an empty allowlist.
+    passes a nonempty set, so the gate has no exceptions. Producers that
+    call this gate pass an empty allowlist; any async M10K read in synth
+    or routed output fails the build.
     """
     modules = design.get("modules")
     if not isinstance(modules, dict):
